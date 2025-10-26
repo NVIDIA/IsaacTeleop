@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: Build Windows (Experimental)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+# WARNING: This workflow is for experimental Windows builds only!
+# Windows support is NOT officially supported - this only tests source compilation.
+# There is NO guarantee of runtime functionality on Windows.
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    strategy:
+      matrix:
+        build_type: [Debug, Release]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    - name: Configure CMake
+      run: cmake -B build -DENABLE_EXPERIMENTAL_WINDOWS_BUILD=ON
+
+    - name: Build
+      run: cmake --build build --config ${{ matrix.build_type }} --parallel

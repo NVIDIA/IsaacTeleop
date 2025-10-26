@@ -1,0 +1,104 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# CloudXR Web Example
+
+FROM nginx:alpine
+
+# Accept build argument for the example path
+ARG EXAMPLE_PATH=/build
+
+WORKDIR /app
+
+# Install necessary tools
+RUN apk add --no-cache curl openssl bash
+
+COPY ${EXAMPLE_PATH} /usr/share/nginx/html
+
+# Create SSL certificate directory
+RUN mkdir -p /etc/nginx/ssl
+
+# Create certificate generation script
+COPY <<EOF /usr/local/bin/generate-cert.sh
+#!/bin/bash
+cd /etc/nginx/ssl
+if [ ! -f cert.pem ] || [ ! -f key.pem ]; then
+    echo "Generating self-signed SSL certificate..."
+    openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes -subj "/CN=localhost" -quiet
+    chmod 600 key.pem
+    chmod 644 cert.pem
+    echo "Self-signed certificate generated successfully"
+else
+    echo "Using existing SSL certificates"
+fi
+EOF
+
+RUN chmod +x /usr/local/bin/generate-cert.sh
+
+# Create nginx configuration for SPA with both HTTP and HTTPS
+RUN echo 'server { \
+    listen 80; \
+    server_name localhost; \
+    location / { \
+        root /usr/share/nginx/html; \
+        index index.html; \
+        try_files $uri $uri/ /index.html; \
+    } \
+    # Enable CORS for WebXR \
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|hdr|glb|json)$ { \
+        root /usr/share/nginx/html; \
+        expires 1y; \
+        add_header Cache-Control "public, immutable"; \
+        add_header Access-Control-Allow-Origin "*"; \
+    } \
+} \
+\
+server { \
+    listen 443 ssl; \
+    server_name localhost; \
+    \
+    ssl_certificate /etc/nginx/ssl/cert.pem; \
+    ssl_certificate_key /etc/nginx/ssl/key.pem; \
+    \
+    # SSL configuration \
+    ssl_protocols TLSv1.2 TLSv1.3; \
+    ssl_ciphers HIGH:!aNULL:!MD5; \
+    ssl_prefer_server_ciphers on; \
+    \
+    location / { \
+        root /usr/share/nginx/html; \
+        index index.html; \
+        try_files $uri $uri/ /index.html; \
+    } \
+    # Enable CORS for WebXR \
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|hdr|glb|json)$ { \
+        root /usr/share/nginx/html; \
+        expires 1y; \
+        add_header Cache-Control "public, immutable"; \
+        add_header Access-Control-Allow-Origin "*"; \
+    } \
+}' >/etc/nginx/conf.d/default.conf
+
+# Expose both HTTP and HTTPS ports
+EXPOSE 80 443
+
+# Health check (checks both HTTP and HTTPS)
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost/ || exit 1
+
+# Create entrypoint script to generate certs and start nginx
+COPY <<EOF /docker-entrypoint.sh
+#!/bin/bash
+set -e
+
+# Generate SSL certificate if not exists
+/usr/local/bin/generate-cert.sh
+
+# Start nginx
+exec nginx -g "daemon off;"
+EOF
+
+RUN chmod +x /docker-entrypoint.sh
+
+# Start nginx with certificate generation
+ENTRYPOINT ["/docker-entrypoint.sh"]

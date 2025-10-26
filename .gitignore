@@ -1,0 +1,43 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Build directories
+build/
+**/build/
+install/
+
+# Python cache
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Python virtual environments
+.venv/
+venv/
+**/.venv/
+**/venv/
+
+# Compiled files
+*.o
+*.so
+*.a
+*.exe
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+
+# Python egg info
+*.egg-info/
+dist/
+*.egg
+
+# CloudXR environment files
+deps/cloudxr/.env
+
+# build output
+build/

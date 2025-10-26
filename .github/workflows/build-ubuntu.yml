@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: Build Ubuntu
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build-ubuntu:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        build_type: [Debug, Release]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    - name: Install Apt dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake libx11-dev
+
+    - name: Configure CMake
+      run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+
+    - name: Build
+      run: cmake --build build --parallel

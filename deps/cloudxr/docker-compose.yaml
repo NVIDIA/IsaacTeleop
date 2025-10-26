@@ -1,0 +1,58 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+  cloudxr-runtime:
+    image: ${CLOUDXR_RUNTIME_IMAGE}
+    pull_policy: never
+    user: "${CXR_UID:-1000}:${CXR_GID:-1000}"
+    network_mode: host
+    healthcheck:
+      test: ["CMD", "test", "-f", "/openxr/run/runtime_started"]
+      interval: 1s
+      timeout: 1s
+      retries: 10
+      start_period: 5s
+    environment:
+      - ACCEPT_EULA=${ACCEPT_CLOUDXR_EULA:-Y}
+    volumes:
+      - openxr-volume:/openxr/
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [ gpu ]
+
+  wss-proxy:
+    image: ${CLOUDXR_WSS_PROXY_IMAGE}
+    pull_policy: never
+    network_mode: host
+    depends_on:
+      cloudxr-runtime:
+        condition: service_healthy
+    environment:
+      # Backend configuration (cloudxr-runtime WebRTC port)
+      - BACKEND_HOST=localhost
+      - BACKEND_PORT=49100
+      # Proxy SSL port
+      - PROXY_PORT=48322
+      # Health check configuration
+      - HEALTH_CHECK_INTERVAL=1s
+      - HEALTH_CHECK_RISE=2
+      - HEALTH_CHECK_FALL=3
+    restart: unless-stopped
+
+  isaac-web-front:
+    image: ${CLOUDXR_WEB_FRONT_IMAGE}
+    network_mode: host
+    pull_policy: never
+
+volumes:
+  openxr-volume:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${CXR_HOST_VOLUME_PATH:-/tmp/cloudxr}
