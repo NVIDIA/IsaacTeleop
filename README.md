@@ -55,3 +55,8 @@ conda activate teleop
 git clone git@github.com:nvidia-isaac/TeleopCore.git
 cd TeleopCore
 ```
+
+3. **Running CloudXR**
+```
+./script/run_cloudxr.sh
+```
