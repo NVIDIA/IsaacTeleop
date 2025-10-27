@@ -58,5 +58,5 @@ cd TeleopCore
 
 3. **Running CloudXR**
 ```
-./script/run_cloudxr.sh
+./scripts/run_cloudxr.sh
 ```
