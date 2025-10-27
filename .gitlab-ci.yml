@@ -12,7 +12,8 @@ stages:
 
 build-sonar:
   stage: build-sonar
-  
+  tags:
+    - type/docker
   
   cache:
     policy: pull-push
@@ -32,6 +33,9 @@ build-sonar:
 
 sonarqube-vulnerability-report:
   stage: sonarqube-vulnerability-report
+  tags:
+    - type/docker
+
   script:
     - 'curl -u "${SONAR_TOKEN}:" "${SONAR_HOST_URL}/api/issues/gitlab_sast_export?projectKey=cloudxr-teleop-core&branch=${CI_COMMIT_BRANCH}&pullRequest=${CI_MERGE_REQUEST_IID}" -o gl-sast-sonar-report.json'
   allow_failure: true
