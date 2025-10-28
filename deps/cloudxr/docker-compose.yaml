@@ -1,6 +1,6 @@
 services:
   cloudxr-runtime:
-    image: nvcr.io/0566138804516934/cloudxr-dev/cloudxr-runtime:latest-webrtc
+    image: ${CLOUDXR_RUNTIME_IMAGE}
     pull_policy: always
     user: "${CXR_UID:-1000}:${CXR_GID:-1000}"
     network_mode: host
@@ -23,7 +23,7 @@ services:
               capabilities: [ gpu ]
 
   wss-proxy:
-    image: nvcr.io/0566138804516934/cloudxr-dev/cloudxr-wss-proxy:latest
+    image: ${CLOUDXR_WSS_PROXY_IMAGE}
     pull_policy: always
     network_mode: host
     depends_on:
@@ -42,7 +42,7 @@ services:
     restart: unless-stopped
 
   isaac-web-front:
-    image: nvcr.io/0566138804516934/cloudxr-dev/cloudxr-js-example-isaac:pico-demo-20251020
+    image: ${CLOUDXR_WEB_FRONT_IMAGE}
     network_mode: host
     pull_policy: always
 

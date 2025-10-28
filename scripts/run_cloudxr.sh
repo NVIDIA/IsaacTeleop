@@ -17,5 +17,11 @@ echo "CXR_HOST_VOLUME_PATH: $CXR_HOST_VOLUME_PATH"
 # Make sure the host volume path exists
 mkdir -p $CXR_HOST_VOLUME_PATH
 
+if [ ! -f deps/cloudxr/.env ]; then
+    echo "deps/cloudxr/.env not found, copying from env.default..."
+    cp deps/cloudxr/.env.default deps/cloudxr/.env
+fi
+
+
 # Run the docker compose file
 docker compose -f deps/cloudxr/docker-compose.yaml up
