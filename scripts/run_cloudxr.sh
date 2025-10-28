@@ -22,6 +22,8 @@ if [ ! -f deps/cloudxr/.env ]; then
     cp deps/cloudxr/.env.default deps/cloudxr/.env
 fi
 
+# Check CloudXR EULA acceptance
+./scripts/check_cloudxr_eula.sh || exit 1
 
 # Run the docker compose file
 docker compose -f deps/cloudxr/docker-compose.yaml up

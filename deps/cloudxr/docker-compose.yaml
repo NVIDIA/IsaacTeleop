@@ -11,7 +11,7 @@ services:
       retries: 10
       start_period: 5s
     environment:
-      - ACCEPT_EULA=Y
+      - ACCEPT_EULA=${ACCEPT_CLOUDXR_EULA:-Y}
     volumes:
       - openxr-volume:/openxr/
     deploy:
