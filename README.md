@@ -50,13 +50,51 @@ conda create -n teleop python=3.11 -y
 conda activate teleop
 ```
 
+2. **Update pip**
+```bash
+pip install --upgrade pip
+```
+
 2. **Quick Install**
 ```bash
 git clone git@github.com:nvidia-isaac/TeleopCore.git
 cd TeleopCore
 ```
 
-3. **Running CloudXR**
-```
+3. **Run CloudXR**
+```bash
 ./scripts/run_cloudxr.sh
+```
+
+### Install & Run Isaac Lab
+
+Isaac Tepeop Core is design to work side by side with [NVIDIA Isaac Lab](https://github.com/isaac-sim/IsaacLab). We recommend the [Installation using Isaac Sim Pip Package](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/pip_installation.html) method for Isaac Lab.  Please refer to Isaac Lab's [Installation](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html) guide for other advanced methods. Here are the quick steps to do so.
+
+1. **Install dependencies**
+
+```bash
+conda activate teleop
+pip install "isaacsim[all,extscache]==5.1.0" --extra-index-url https://pypi.nvidia.com
+pip install -U torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+```
+
+2. **Clone & install Isaac Lab**
+
+```bash
+# In a separate folder outside of Teleop Core:
+git clone git@github.com:isaac-sim/IsaacLab.git
+
+# Run the install command
+cd IsaacLab
+./isaaclab.sh --install
+
+# Set ISAACLAB_PATH, which will be later in `run_isaac_lab.sh`.
+export ISAACLAB_PATH=$(pwd)
+```
+
+3. **Run Teleop with Isaac Lab**
+
+```bash
+# In the Teleop Core repo:
+./scripts/run_isaac_lab.sh
 ```
