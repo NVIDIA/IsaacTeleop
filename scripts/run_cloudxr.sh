@@ -26,4 +26,4 @@ fi
 ./scripts/check_cloudxr_eula.sh || exit 1
 
 # Run the docker compose file
-docker compose -f deps/cloudxr/docker-compose.yaml up
+docker compose --env-file deps/cloudxr/.env -f deps/cloudxr/docker-compose.yaml up
