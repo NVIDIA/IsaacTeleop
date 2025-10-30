@@ -29,6 +29,15 @@ fi
 
 cd $ISAACLAB_PATH || exit 1
 
+if [ -f "$ISAACSIM_PATH/setup_conda_env.sh" ]; then
+    # This is only necessary if Isaac Sim is installed via source code:
+    # https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/source_installation.html
+    if [ -n "$CONDA_PREFIX" ]; then
+        echo "Setting up Isaac Sim conda environment..."
+        source $ISAACSIM_PATH/setup_conda_env.sh
+    fi
+fi
+
 ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
     --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 \
     --num_envs 1 \
