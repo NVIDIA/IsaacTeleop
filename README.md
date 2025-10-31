@@ -57,8 +57,13 @@ pip install --upgrade pip
 
 2. **Quick Install**
 ```bash
-git clone git@github.com:nvidia-isaac/TeleopCore.git
+git clone --recursive git@github.com:nvidia-isaac/TeleopCore.git
 cd TeleopCore
+```
+
+Note: The `--recursive` flag ensures git submodules (like pybind11) are initialized automatically. If you've already cloned without it, run:
+```bash
+git submodule update --init --recursive
 ```
 
 3. **Run CloudXR**

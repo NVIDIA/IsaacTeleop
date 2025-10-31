@@ -1,0 +1,16 @@
+[project]
+name = "oxr-examples"
+version = "0.1.0"
+description = "OpenXR Tracking Python Examples"
+requires-python = "~=3.10.0"
+dependencies = [
+    "oxr-tracking",
+    "numpy>=1.19.0",
+]
+
+[tool.uv]
+# When running with uv, it will find the wheel from the install directory
+find-links = ["../../../wheels"]
+# Only use managed Python installations (not system Python)
+python-preference = "only-managed"
+

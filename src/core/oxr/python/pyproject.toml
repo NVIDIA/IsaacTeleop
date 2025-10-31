@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "oxr-tracking"
+version = "1.0.0"
+description = "OpenXR Hand and Head Tracking Python Bindings"
+readme = "README.md"
+requires-python = ">=3.8"
+license = "Apache-2.0"
+authors = [
+    {name = "NVIDIA"}
+]
+dependencies = [
+    "numpy>=1.19.0",
+]
+
+[tool.setuptools]
+packages = ["oxr_tracking"]
+
+[tool.uv]
+# Only use managed Python installations (not system Python)
+python-preference = "only-managed"
+
