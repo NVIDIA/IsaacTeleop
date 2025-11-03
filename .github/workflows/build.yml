@@ -1,0 +1,30 @@
+name: Build
+
+on:
+  push:
+    branches: [ main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    - name: Install Apt dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake libopenxr-dev
+
+    - name: Configure CMake
+      run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build
+      run: cmake --build build

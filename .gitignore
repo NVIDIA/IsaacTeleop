@@ -29,3 +29,6 @@ dist/
 
 # CloudXR environment files
 deps/cloudxr/.env
+
+# build output
+build/
