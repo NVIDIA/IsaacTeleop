@@ -1,2 +1,6 @@
+# Local build dirs
+build-*/
+build/
+
 # CloudXR environment files
 deps/cloudxr/.env
