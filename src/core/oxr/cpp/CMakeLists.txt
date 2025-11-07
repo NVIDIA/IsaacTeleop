@@ -7,42 +7,6 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
 endif()
 
-# Find OpenXR if not already found
-if(NOT TARGET OpenXR::OpenXR)
-    find_package(PkgConfig QUIET)
-    if(PKG_CONFIG_FOUND)
-        pkg_check_modules(PC_OpenXR QUIET openxr)
-    endif()
-    
-    find_path(OpenXR_INCLUDE_DIR
-        NAMES openxr/openxr.h
-        PATHS ${PC_OpenXR_INCLUDE_DIRS} /usr/include /usr/local/include
-        PATH_SUFFIXES include
-    )
-    
-    find_library(OpenXR_LIBRARY
-        NAMES openxr_loader libopenxr_loader
-        PATHS ${PC_OpenXR_LIBRARY_DIRS} /usr/lib /usr/local/lib 
-              /usr/lib/x86_64-linux-gnu /usr/lib/aarch64-linux-gnu
-        PATH_SUFFIXES lib lib64
-    )
-    
-    include(FindPackageHandleStandardArgs)
-    find_package_handle_standard_args(OpenXR
-        REQUIRED_VARS OpenXR_LIBRARY OpenXR_INCLUDE_DIR
-    )
-    
-    if(OpenXR_FOUND)
-        add_library(OpenXR::OpenXR UNKNOWN IMPORTED)
-        set_target_properties(OpenXR::OpenXR PROPERTIES
-            IMPORTED_LOCATION "${OpenXR_LIBRARY}"
-            INTERFACE_INCLUDE_DIRECTORIES "${OpenXR_INCLUDE_DIR}"
-        )
-        message(STATUS "Found OpenXR: ${OpenXR_LIBRARY}")
-        message(STATUS "  Include: ${OpenXR_INCLUDE_DIR}")
-    endif()
-endif()
-
 # Core OpenXR tracking library (static for distribution)
 add_library(oxr_tracking_core STATIC
     oxr_manager.cpp
@@ -63,7 +27,9 @@ target_include_directories(oxr_tracking_core
 
 target_link_libraries(oxr_tracking_core
     PUBLIC
-        OpenXR::OpenXR
+        OpenXR::headers
+    PRIVATE
+        OpenXR::openxr_loader
 )
 
 # Create alias for consistent naming

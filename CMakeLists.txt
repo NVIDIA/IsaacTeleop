@@ -19,6 +19,9 @@ endif()
 option(BUILD_EXAMPLES "Build examples" ON)
 option(BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
 
+# Add OpenXR SDK dependency
+add_subdirectory(deps/third_party/openxr-sdk)
+
 # Build the OpenXR tracking library
 add_subdirectory(src/core/oxr)
 
