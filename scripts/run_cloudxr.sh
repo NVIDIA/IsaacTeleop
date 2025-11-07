@@ -21,12 +21,18 @@ echo "CXR_HOST_VOLUME_PATH: $CXR_HOST_VOLUME_PATH"
 mkdir -p $CXR_HOST_VOLUME_PATH
 
 if [ ! -f deps/cloudxr/.env ]; then
-    echo "deps/cloudxr/.env not found, copying from env.default..."
-    cp deps/cloudxr/.env.default deps/cloudxr/.env
+    echo "deps/cloudxr/.env not found, creating from scratch..."
+    touch deps/cloudxr/.env
 fi
 
 # Check CloudXR EULA acceptance
 ./scripts/check_cloudxr_eula.sh || exit 1
 
 # Run the docker compose file
-docker compose --env-file deps/cloudxr/.env -f deps/cloudxr/docker-compose.yaml up
+# Note: When specifying multiple --env-file options to docker compose, variables in later files 
+# override earlier ones. Here, variables in deps/cloudxr/.env.default are overridden by those in 
+# deps/cloudxr/.env if a variable exists in both.
+docker compose \
+    --env-file deps/cloudxr/.env.default \
+    --env-file deps/cloudxr/.env \
+    -f deps/cloudxr/docker-compose.yaml up
