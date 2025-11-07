@@ -1,39 +1,43 @@
 #pragma once
 
 #include <openxr/openxr.h>
+#include <memory>
 #include <string>
 #include <vector>
-#include <time.h>
-
-// Define time conversion function pointer type if not in headers
-typedef XrResult (XRAPI_PTR *PFN_xrConvertTimespecTimeToTimeKHR)(XrInstance instance, const struct timespec* timespecTime, XrTime* time);
 
 namespace oxr {
 
-// OpenXR session management for headless mode
+// Wrapper for OpenXR session handles
+struct OpenXRSessionHandles {
+    XrInstance instance;
+    XrSession session;
+    XrSpace space;
+    
+    OpenXRSessionHandles()
+        : instance(XR_NULL_HANDLE), session(XR_NULL_HANDLE), space(XR_NULL_HANDLE) {}
+    
+    OpenXRSessionHandles(XrInstance inst, XrSession sess, XrSpace sp)
+        : instance(inst), session(sess), space(sp) {}
+};
+
+// OpenXR session management - creates and manages a headless OpenXR session
 class OpenXRSession {
 public:
-    OpenXRSession();
     ~OpenXRSession();
-
-    bool initialize(const std::string& app_name, const std::vector<std::string>& extensions = {});
-    void shutdown();
     
-    bool poll_events();
-    bool update_time();  // Get current XR time using clock_gettime + xrConvertTimespecTimeToTimeKHR
+    // Static factory method - returns nullptr on failure
+    static std::shared_ptr<OpenXRSession> Create(
+        const std::string& app_name, 
+        const std::vector<std::string>& extensions = {});
     
-    XrInstance get_instance() const { return instance_; }
-    XrSession get_session() const { return session_; }
-    XrSpace get_space() const { return space_; }
-    XrSystemId get_system_id() const { return system_id_; }
-    XrSessionState get_session_state() const { return session_state_; }
-    XrTime get_predicted_time() const { return predicted_time_; }
-    
-    bool is_session_running() const { return session_state_ == XR_SESSION_STATE_FOCUSED || 
-                                              session_state_ == XR_SESSION_STATE_VISIBLE ||
-                                              session_state_ == XR_SESSION_STATE_SYNCHRONIZED; }
+    // Get session handles for use with trackers
+    OpenXRSessionHandles get_handles() const;
 
 private:
+    // Private constructor - use Create() instead
+    OpenXRSession();
+    
+    // Initialization methods
     bool create_instance(const std::string& app_name, const std::vector<std::string>& extensions);
     bool create_system();
     bool create_session();
@@ -43,12 +47,6 @@ private:
     XrSystemId system_id_;
     XrSession session_;
     XrSpace space_;
-    XrSessionState session_state_;
-    XrTime predicted_time_;
-    bool session_running_;
-    
-    // Extension function pointer for time conversion
-    PFN_xrConvertTimespecTimeToTimeKHR pfn_convert_timespec_;
 };
 
 } // namespace oxr

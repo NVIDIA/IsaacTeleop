@@ -39,8 +39,8 @@ cmake --install build
 ```
 
 This will:
-1. Build the C++ static library (`liboxr_tracking_core.a`)
-2. Build the Python wheel (`oxr_tracking-1.0.0-*.whl`)
+1. Build the C++ static libraries (OXR and XRIO modules)
+2. Build the Python wheels
 3. Build the C++ examples
 4. Install everything to `./install`
 
@@ -98,21 +98,28 @@ cmake --build build
 ```
 TeleopCore/
 ├── CMakeLists.txt          # Top-level build file
-├── src/core/oxr/           # OpenXR tracking library
-│   ├── CMakeLists.txt      # Library build configuration
-│   ├── cpp/                # C++ library source
-│   │   └── CMakeLists.txt
-│   └── python/             # Python bindings
-│       ├── CMakeLists.txt
-│       ├── __init__.py
-│       ├── pyproject.toml  # Python wheel configuration & dependencies
-│       ├── .python-version # Python version specification
-│       └── oxr_python_bindings_modular.cpp
+├── src/core/
+│   ├── CMakeLists.txt      # Core build configuration
+│   ├── oxr/                # OpenXR session management
+│   │   ├── CMakeLists.txt
+│   │   ├── cpp/            # C++ session management
+│   │   │   └── CMakeLists.txt
+│   │   └── python/         # Python bindings for OXR
+│   │       └── CMakeLists.txt
+│   ├── xrio/               # OpenXR tracking library
+│   │   ├── CMakeLists.txt
+│   │   ├── cpp/            # C++ library source
+│   │   │   └── CMakeLists.txt
+│   │   └── python/         # Python bindings for XRIO
+│   │       └── CMakeLists.txt
+│   └── python/             # Python package configuration
+│       ├── pyproject.toml
+│       └── teleopcore_init.py
 └── examples/oxr/           # Examples
     ├── CMakeLists.txt      # Examples build configuration
     ├── cpp/                # C++ examples
     │   ├── CMakeLists.txt
-    │   └── oxr_session_sharing.cpp
+    │   └── *.cpp
     └── python/             # Python examples (use uv)
         ├── pyproject.toml
         └── *.py
@@ -122,21 +129,14 @@ TeleopCore/
 
 The project uses modern CMake target-based approach:
 
-- The library exports the target `oxr_tracking::oxr_tracking_core`
+- The library exports targets for both OXR and XRIO modules
 - Include directories are automatically propagated
 - Works with both installed and build-tree configurations
 - Package config files are generated for easy integration
 
 ### Using in Your Project
 
-If you've installed TeleopCore, you can use it in your own CMake project:
-
-```cmake
-find_package(oxr_tracking_core REQUIRED)
-
-add_executable(my_app main.cpp)
-target_link_libraries(my_app PRIVATE oxr_tracking::oxr_tracking_core)
-```
+If you've installed TeleopCore, you can use it in your own CMake project by linking against the appropriate targets.
 
 ## Troubleshooting
 
@@ -147,20 +147,17 @@ export CMAKE_PREFIX_PATH=/path/to/openxr/install
 ```
 
 ### Examples can't find the library
-When building from the top-level, examples automatically find the library in the build tree. If building examples standalone, make sure the library is either:
-1. Installed to a standard location, or
-2. Built in `src/core/oxr/build/cpp/`
+When building from the top-level, examples automatically find the library in the build tree.
 
 ## Output
 
 After a successful build:
-- **C++ Static Library**: `build/src/core/oxr/cpp/liboxr_tracking_core.a`
-- **Python Wheel**: `build/wheels/oxr_tracking-1.0.0-*.whl`
-- **C++ Examples**: `build/examples/oxr/cpp/oxr_session_sharing`
+- **C++ Static Libraries**: Built in `build/src/core/`
+- **Python Wheels**: `build/wheels/teleopcore-*.whl`
+- **C++ Examples**: `build/examples/oxr/cpp/`
 - **Installed files**: `install/`
   - Libraries: `install/lib/`
   - Headers: `install/include/`
-  - CMake configs: `install/lib/cmake/oxr_tracking_core/`
   - Python wheels: `install/wheels/`
   - C++ examples: `install/examples/oxr/cpp/`
   - Python examples: `install/examples/oxr/python/`
@@ -171,10 +168,10 @@ The Python wheel can be installed using `uv` or `pip`:
 
 ```bash
 # Install from build directory
-uv pip install build/wheels/oxr_tracking-*.whl
+uv pip install build/wheels/teleopcore-*.whl
 
 # Or with pip
-pip install build/wheels/oxr_tracking-*.whl
+pip install build/wheels/teleopcore-*.whl
 ```
 
 ## Running Examples

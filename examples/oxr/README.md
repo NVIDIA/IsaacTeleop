@@ -11,7 +11,7 @@ Examples demonstrating the modular OpenXR tracking API.
    cmake --build build
    cmake --install build
    ```
-   This will build both the C++ static library and the Python wheel.
+   This will build both the C++ static libraries and the Python wheels.
 
 2. **For Python examples, install uv:**
    ```bash
@@ -24,7 +24,8 @@ Examples demonstrating the modular OpenXR tracking API.
 examples/oxr/
 ├── cpp/                    # C++ examples
 │   ├── CMakeLists.txt
-│   └── oxr_session_sharing.cpp
+│   ├── oxr_session_sharing.cpp
+│   └── oxr_simple_api_demo.cpp
 └── python/                 # Python examples
     ├── pyproject.toml      # uv configuration
     ├── modular_example.py
@@ -62,11 +63,11 @@ uv run test_modular.py
 - **modular_example.py** - Basic hand + head tracking
 - **test_modular.py** - Complete API test
 - **test_extensions.py** - Extension query demonstration
-- **test_session_sharing.py** - Session sharing between managers
+- **test_session_sharing.py** - Session sharing between TeleopSession instances
 
 ## C++ Examples
 
-C++ examples are built with CMake and linked against the static library.
+C++ examples are built with CMake and linked against the static libraries.
 
 ### Building C++ Examples
 
@@ -79,16 +80,19 @@ cmake --install build
 
 ### Running C++ Examples
 
-**oxr_session_sharing** - Demonstrates session sharing between multiple OpenXRManager instances
+**oxr_session_sharing** - Demonstrates session sharing between multiple TeleopSession instances
+**oxr_simple_api_demo** - Demonstrates the simple API
 
 ```bash
 export XR_RUNTIME_JSON=/path/to/cloudxr/openxr_cloudxr-dev.json
 
 # From build directory
 ./build/examples/oxr/cpp/oxr_session_sharing
+./build/examples/oxr/cpp/oxr_simple_api_demo
 
 # Or from install directory
 ./install/examples/oxr/cpp/oxr_session_sharing
+./install/examples/oxr/cpp/oxr_simple_api_demo
 ```
 
 ## Quick Test
@@ -120,12 +124,10 @@ export XR_RUNTIME_JSON=/path/to/cloudxr/openxr_cloudxr-dev.json
 ## Build Outputs
 
 After building:
-- **C++ Static Library**: `build/src/core/oxr/cpp/liboxr_tracking_core.a`
-- **Python Wheel**: `build/wheels/oxr_tracking-1.0.0-*.whl`
-- **C++ Examples**: `build/examples/oxr/cpp/oxr_session_sharing`
+- **C++ Static Libraries**: Built in `build/src/core/`
+- **Python Wheel**: `build/wheels/teleopcore-*.whl`
+- **C++ Examples**: `build/examples/oxr/cpp/`
 
 ## Documentation
 
-See `../../src/core/oxr/` for:
-- `README.md` - Complete API reference
-- `ARCHITECTURE.md` - Design principles
+See `../../src/core/` for module documentation.

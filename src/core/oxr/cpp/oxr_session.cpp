@@ -2,7 +2,6 @@
 
 #include <iostream>
 #include <cstring>
-#include <time.h>
 
 namespace oxr {
 
@@ -10,38 +9,11 @@ OpenXRSession::OpenXRSession()
     : instance_(XR_NULL_HANDLE),
       system_id_(XR_NULL_SYSTEM_ID),
       session_(XR_NULL_HANDLE),
-      space_(XR_NULL_HANDLE),
-      session_state_(XR_SESSION_STATE_UNKNOWN),
-      predicted_time_(0),
-      session_running_(false),
-      pfn_convert_timespec_(nullptr) {
+      space_(XR_NULL_HANDLE) {
 }
 
 OpenXRSession::~OpenXRSession() {
-    shutdown();
-}
-
-bool OpenXRSession::initialize(const std::string& app_name, const std::vector<std::string>& extensions) {
-    if (!create_instance(app_name, extensions)) {
-        return false;
-    }
-    
-    if (!create_system()) {
-        return false;
-    }
-    
-    if (!create_session()) {
-        return false;
-    }
-    
-    if (!create_reference_space()) {
-        return false;
-    }
-    
-    return true;
-}
-
-void OpenXRSession::shutdown() {
+    // RAII cleanup
     if (space_ != XR_NULL_HANDLE) {
         xrDestroySpace(space_);
         space_ = XR_NULL_HANDLE;
@@ -58,15 +30,51 @@ void OpenXRSession::shutdown() {
     }
 }
 
+std::shared_ptr<OpenXRSession> OpenXRSession::Create(
+    const std::string& app_name, 
+    const std::vector<std::string>& extensions) {
+    
+    auto session = std::shared_ptr<OpenXRSession>(new OpenXRSession());
+    
+    if (!session->create_instance(app_name, extensions)) {
+        return nullptr;
+    }
+    
+    if (!session->create_system()) {
+        return nullptr;
+    }
+    
+    if (!session->create_session()) {
+        return nullptr;
+    }
+    
+    if (!session->create_reference_space()) {
+        return nullptr;
+    }
+    
+    return session;
+}
+
+OpenXRSessionHandles OpenXRSession::get_handles() const {
+    return OpenXRSessionHandles(instance_, session_, space_);
+}
+
 bool OpenXRSession::create_instance(const std::string& app_name, const std::vector<std::string>& extensions) {
     XrInstanceCreateInfo create_info{XR_TYPE_INSTANCE_CREATE_INFO};
     create_info.applicationInfo.apiVersion = XR_CURRENT_API_VERSION;
     strncpy(create_info.applicationInfo.applicationName, app_name.c_str(), XR_MAX_APPLICATION_NAME_SIZE - 1);
     strncpy(create_info.applicationInfo.engineName, "OXR_Tracking", XR_MAX_ENGINE_NAME_SIZE - 1);
     
+    // Create a combined list with required extensions for headless/overlay mode
+    std::vector<std::string> all_extensions = extensions;
+    
+    // Add headless and overlay extensions automatically
+    all_extensions.push_back("XR_MND_headless");
+    all_extensions.push_back("XR_EXTX_overlay");
+    
     // Convert vector<string> to array of const char* for OpenXR API
     std::vector<const char*> extension_ptrs;
-    for (const auto& ext : extensions) {
+    for (const auto& ext : all_extensions) {
         extension_ptrs.push_back(ext.c_str());
     }
     
@@ -77,19 +85,6 @@ bool OpenXRSession::create_instance(const std::string& app_name, const std::vect
     if (XR_FAILED(result)) {
         std::cerr << "Failed to create OpenXR instance: " << result << std::endl;
         return false;
-    }
-    
-    // Get extension function pointers
-    xrGetInstanceProcAddr(
-        instance_,
-        "xrConvertTimespecTimeToTimeKHR",
-        reinterpret_cast<PFN_xrVoidFunction*>(&pfn_convert_timespec_)
-    );
-    
-    if (!pfn_convert_timespec_) {
-        std::cerr << "Warning: xrConvertTimespecTimeToTimeKHR not available" << std::endl;
-    } else {
-        std::cout << "✓ xrConvertTimespecTimeToTimeKHR available" << std::endl;
     }
     
     std::cout << "Created OpenXR instance" << std::endl;
@@ -112,7 +107,6 @@ bool OpenXRSession::create_system() {
 
 bool OpenXRSession::create_session() {
     // XrSessionCreateInfoOverlayEXTX structure for overlay/headless mode
-    // This is a custom extension structure - defining it inline since it may not be in headers
     struct XrSessionCreateInfoOverlayEXTX {
         XrStructureType type;
         const void* next;
@@ -127,7 +121,7 @@ bool OpenXRSession::create_session() {
     overlay_info.sessionLayersPlacement = 0;
     
     XrSessionCreateInfo create_info{XR_TYPE_SESSION_CREATE_INFO};
-    create_info.next = &overlay_info;  // Chain overlay info for headless mode
+    create_info.next = &overlay_info;
     create_info.systemId = system_id_;
     
     XrResult result = xrCreateSession(instance_, &create_info, &session_);
@@ -137,6 +131,7 @@ bool OpenXRSession::create_session() {
     }
     
     std::cout << "Created OpenXR session (headless mode)" << std::endl;
+    std::cout << "  Session handle: " << session_ << std::endl;
     return true;
 }
 
@@ -152,68 +147,7 @@ bool OpenXRSession::create_reference_space() {
     }
     
     std::cout << "Created reference space" << std::endl;
-    return true;
-}
-
-bool OpenXRSession::poll_events() {
-    XrEventDataBuffer event{XR_TYPE_EVENT_DATA_BUFFER};
-    
-    while (xrPollEvent(instance_, &event) == XR_SUCCESS) {
-        switch (event.type) {
-            case XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED: {
-                auto* state_event = reinterpret_cast<XrEventDataSessionStateChanged*>(&event);
-                session_state_ = state_event->state;
-                
-                std::cout << "Session state changed to: " << session_state_ << std::endl;
-                
-                switch (session_state_) {
-                    case XR_SESSION_STATE_READY: {
-                        XrSessionBeginInfo begin_info{XR_TYPE_SESSION_BEGIN_INFO};
-                        begin_info.primaryViewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
-                        xrBeginSession(session_, &begin_info);
-                        session_running_ = true;
-                        break;
-                    }
-                    case XR_SESSION_STATE_STOPPING:
-                        xrEndSession(session_);
-                        session_running_ = false;
-                        break;
-                    case XR_SESSION_STATE_EXITING:
-                    case XR_SESSION_STATE_LOSS_PENDING:
-                        return false;
-                    default:
-                        break;
-                }
-                break;
-            }
-            case XR_TYPE_EVENT_DATA_INSTANCE_LOSS_PENDING:
-                return false;
-            default:
-                break;
-        }
-        
-        event.type = XR_TYPE_EVENT_DATA_BUFFER;
-    }
-    
-    return true;
-}
-
-bool OpenXRSession::update_time() {
-    // Get current time using system clock and convert to XR time
-    if (!pfn_convert_timespec_) {
-        std::cerr << "xrConvertTimespecTimeToTimeKHR not available" << std::endl;
-        return false;
-    }
-    
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    
-    XrResult result = pfn_convert_timespec_(instance_, &ts, &predicted_time_);
-    if (XR_FAILED(result)) {
-        std::cerr << "xrConvertTimespecTimeToTimeKHR failed: " << result << std::endl;
-        return false;
-    }
-    
+    std::cout << "  Space handle: " << space_ << std::endl;
     return true;
 }
 

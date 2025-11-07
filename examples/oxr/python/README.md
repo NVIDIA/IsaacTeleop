@@ -1,6 +1,6 @@
 # OpenXR Python Examples
 
-Python examples demonstrating the OpenXR tracking API using the `oxr_tracking` Python wheel.
+Python examples demonstrating the OpenXR tracking API using the `teleopcore` Python wheel.
 
 ## Prerequisites
 
@@ -65,7 +65,7 @@ uv run test_extensions.py
 ```
 
 ### test_session_sharing.py
-Shows how to share sessions between multiple OpenXRManager instances.
+Shows how to share sessions between multiple TeleopSession instances.
 
 ```bash
 uv run test_session_sharing.py
@@ -74,14 +74,14 @@ uv run test_session_sharing.py
 ## Dependencies
 
 Dependencies are managed through `pyproject.toml` and automatically handled by `uv`:
-- `oxr-tracking` - The OpenXR tracking wheel (built from source)
-- `numpy>=1.19.0` - Required by oxr-tracking
+- `teleopcore` - The OpenXR tracking wheel (built from source)
+- `numpy>=1.19.0` - Required by teleopcore
 
 ## Configuration
 
 The `pyproject.toml` file configures:
 - Project metadata
-- Python version requirement (~=3.10.0)
+- Python version requirement
 - Dependencies
 - Wheel location for uv (`find-links`)
 

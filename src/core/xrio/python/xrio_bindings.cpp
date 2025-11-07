@@ -1,6 +1,6 @@
-#include <oxr/oxr_manager.hpp>
-#include <oxr/oxr_handtracker.hpp>
-#include <oxr/oxr_headtracker.hpp>
+#include <xrio/teleop_session.hpp>
+#include <xrio/handtracker.hpp>
+#include <xrio/headtracker.hpp>
 
 #include <openxr/openxr.h>
 #include <pybind11/pybind11.h>
@@ -9,8 +9,8 @@
 
 namespace py = pybind11;
 
-PYBIND11_MODULE(oxr_tracking, m) {
-    m.doc() = "OpenXR Modular Tracking Python Bindings";
+PYBIND11_MODULE(_xrio, m) {
+    m.doc() = "TeleopCore XRIO - Extended Reality I/O Module";
 
     // JointPose structure
     py::class_<oxr::JointPose>(m, "JointPose")
@@ -76,54 +76,33 @@ PYBIND11_MODULE(oxr_tracking, m) {
         .def("get_head", &oxr::HeadTracker::get_head,
              py::return_value_policy::reference_internal);
 
-    // OpenXRManager class
-    py::class_<oxr::OpenXRManager>(m, "OpenXRManager")
-        .def(py::init<>())
-        .def("add_tracker", &oxr::OpenXRManager::add_tracker,
-             "Add a tracker to the manager")
-        .def("get_required_extensions", &oxr::OpenXRManager::get_required_extensions,
-             "Get list of OpenXR extensions required by all added trackers")
-        .def("initialize", 
-             [](oxr::OpenXRManager& self, const std::string& app_name,
-                py::object external_instance, py::object external_session, py::object external_space) {
-                 // Check if external handles provided (as integers)
-                 XrInstance inst = XR_NULL_HANDLE;
-                 XrSession sess = XR_NULL_HANDLE;
-                 XrSpace space = XR_NULL_HANDLE;
-                 
-                 if (!external_instance.is_none() && !external_session.is_none() && !external_space.is_none()) {
-                     // Convert Python integers back to OpenXR handles
-                     inst = reinterpret_cast<XrInstance>(external_instance.cast<size_t>());
-                     sess = reinterpret_cast<XrSession>(external_session.cast<size_t>());
-                     space = reinterpret_cast<XrSpace>(external_space.cast<size_t>());
-                 }
-                 
-                 return self.initialize(app_name, inst, sess, space);
+    // OpenXRSessionHandles is imported from teleopcore.oxr, not defined here
+    // We need to use the type from the other module for builder.build()
+    
+    // TeleopSessionBuilder class (Builder pattern)
+    py::class_<oxr::TeleopSessionBuilder>(m, "TeleopSessionBuilder")
+        .def(py::init<>(), "Create a builder")
+        .def("add_tracker", &oxr::TeleopSessionBuilder::add_tracker,
+             py::arg("tracker"),
+             "Add a tracker to the builder")
+        .def("get_required_extensions", &oxr::TeleopSessionBuilder::get_required_extensions,
+             "Get list of OpenXR extensions required by all trackers")
+        .def("build",
+             [](oxr::TeleopSessionBuilder& self, const oxr::OpenXRSessionHandles& handles) {
+                 return self.build(handles);
              },
-             py::arg("app_name") = "OpenXR",
-             py::arg("external_instance") = py::none(),
-             py::arg("external_session") = py::none(),
-             py::arg("external_space") = py::none(),
-             "Initialize OpenXR session. Pass instance/session/space to reuse external session.")
-        .def("shutdown", &oxr::OpenXRManager::shutdown,
-             "Shutdown and cleanup")
-        .def("is_initialized", &oxr::OpenXRManager::is_initialized)
-        .def("update", &oxr::OpenXRManager::update,
-             "Update all trackers")
-        .def("get_instance", [](const oxr::OpenXRManager& self) {
-             return reinterpret_cast<size_t>(self.get_instance());
-         }, "Get OpenXR instance handle as integer (for C++ sharing)")
-        .def("get_session", [](const oxr::OpenXRManager& self) {
-             return reinterpret_cast<size_t>(self.get_session());
-         }, "Get OpenXR session handle as integer (for C++ sharing)")
-        .def("get_space", [](const oxr::OpenXRManager& self) {
-             return reinterpret_cast<size_t>(self.get_space());
-         }, "Get OpenXR space handle as integer (for C++ sharing)")
-        .def("__enter__", [](oxr::OpenXRManager& self) -> oxr::OpenXRManager& {
+             py::arg("handles"),
+             "Build a teleop session with OpenXR session handles");
+
+    // TeleopSession class
+    py::class_<oxr::TeleopSession, std::shared_ptr<oxr::TeleopSession>>(m, "TeleopSession")
+        .def("update", &oxr::TeleopSession::update,
+             "Update session and all trackers")
+        .def("__enter__", [](oxr::TeleopSession& self) -> oxr::TeleopSession& {
             return self;
         })
-        .def("__exit__", [](oxr::OpenXRManager& self, py::object, py::object, py::object) {
-            self.shutdown();
+        .def("__exit__", [](oxr::TeleopSession& self, py::object, py::object, py::object) {
+            // RAII cleanup handled automatically when object is destroyed
         });
 
     // Module constants

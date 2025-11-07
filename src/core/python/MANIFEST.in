@@ -1,0 +1,7 @@
+include teleopcore/*.so
+include teleopcore/*.pyd
+include teleopcore/xrio/*.so
+include teleopcore/xrio/*.pyd
+include teleopcore/oxr/*.so
+include teleopcore/oxr/*.pyd
+

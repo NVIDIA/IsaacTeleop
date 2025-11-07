@@ -3,9 +3,9 @@ requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "oxr-tracking"
+name = "teleopcore"
 version = "1.0.0"
-description = "OpenXR Hand and Head Tracking Python Bindings"
+description = "TeleopCore - Teleoperation with Extended Reality I/O"
 readme = "README.md"
 requires-python = ">=3.8"
 license = "Apache-2.0"
@@ -17,7 +17,13 @@ dependencies = [
 ]
 
 [tool.setuptools]
-packages = ["oxr_tracking"]
+packages = ["teleopcore", "teleopcore.xrio", "teleopcore.oxr"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+teleopcore = ["*.so", "*.pyd"]
+"teleopcore.xrio" = ["*.so", "*.pyd"]
+"teleopcore.oxr" = ["*.so", "*.pyd"]
 
 [tool.uv]
 # Only use managed Python installations (not system Python)

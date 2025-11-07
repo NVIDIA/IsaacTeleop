@@ -12,16 +12,22 @@ cmake --build build
 ```
 
 This builds:
-- The C++ static library (`liboxr_tracking_core.a`)
+- The C++ static libraries (OXR and XRIO modules)
 - All C++ examples
 
 ## Available Examples
 
 ### oxr_session_sharing
 
-Demonstrates session sharing between multiple OpenXRManager instances. This example shows how multiple tracking components can share a single OpenXR session.
+Demonstrates session sharing between multiple TeleopSession instances. This example shows how multiple tracking components can share a single OpenXR session.
 
 **Build output**: `../../../build/examples/oxr/cpp/oxr_session_sharing`
+
+### oxr_simple_api_demo
+
+Demonstrates the simple API for OpenXR tracking.
+
+**Build output**: `../../../build/examples/oxr/cpp/oxr_simple_api_demo`
 
 ## Running Examples
 
@@ -31,8 +37,9 @@ After building, run from the project root:
 # Set OpenXR runtime (if needed)
 export XR_RUNTIME_JSON=/path/to/your/openxr_runtime.json
 
-# Run the example
+# Run the examples
 ./build/examples/oxr/cpp/oxr_session_sharing
+./build/examples/oxr/cpp/oxr_simple_api_demo
 ```
 
 ## Building Standalone
@@ -47,8 +54,8 @@ cmake --build .
 
 ## Library Linkage
 
-Examples link against the static library `oxr_tracking::oxr_tracking_core` which includes:
-- OpenXRManager - Main OpenXR session management
+Examples link against the static libraries which include:
+- TeleopSession - Main session management
 - OpenXRSession - Session handling
 - HandTracker - Hand tracking functionality
 - HeadTracker - Head tracking functionality
@@ -69,11 +76,12 @@ add_executable(my_example
 
 target_link_libraries(my_example
     PRIVATE
-        oxr_tracking::oxr_tracking_core
+        xrio_tracking::xrio_tracking_core
+        oxr_session::oxr_session_core
 )
 
 install(TARGETS my_example
-    RUNTIME DESTINATION bin
+    RUNTIME DESTINATION examples/oxr/cpp
 )
 ```
 

@@ -6,20 +6,27 @@ Core implementations for Isaac Teleop.
 
 ```
 src/core/
-├── oxr/              OpenXR tracking API (hand, head tracking)
+├── oxr/              OpenXR session management
+├── xrio/             OpenXR tracking API (hand, head tracking)
 ├── devices/          Device interface (future)
 ├── retargeters/      Retargeter interface (future)
-└── setup.py          pip install -e . for development
+└── python/           Python package configuration
 ```
 
 ## OpenXR Tracking API
 
-Location: `oxr/`
+Location: `xrio/`
 
 Provides modular tracking with:
 - HandTracker - 26 joints per hand
 - HeadTracker - HMD pose
 - Extensible for controllers, eyes, etc.
+
+Location: `oxr/`
+
+Provides OpenXR session management:
+- OpenXRSession - Headless session creation
+- OpenXRSessionHandles - Session handle wrapper
 
 **Quick start:**
 ```bash
@@ -34,16 +41,7 @@ export XR_RUNTIME_JSON=/path/to/cloudxr/openxr_cloudxr-dev.json
 uv run test_modular.py
 ```
 
-**Documentation:**
-- `oxr/README.md` - Complete API guide
-- `oxr/ARCHITECTURE.md` - Design principles
-
 ## Development
 
-```bash
-# From src/core/
-pip install -e .
-```
-
-This installs TeleopCore in editable mode for live development.
+The project uses CMake for building. See the top-level `BUILD.md` for complete build instructions.
 

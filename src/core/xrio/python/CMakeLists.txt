@@ -66,22 +66,22 @@ if(NOT pybind11_FOUND)
             "  git submodule update --init --recursive")
     endif()
     
-    add_subdirectory("${PYBIND11_DIR}" "${CMAKE_BINARY_DIR}/pybind11_oxr")
+    add_subdirectory("${PYBIND11_DIR}" "${CMAKE_BINARY_DIR}/pybind11_xrio")
     message(STATUS "Using pybind11 from submodule: ${PYBIND11_DIR}")
 endif()
 
-# OXR module (OpenXR session)
-pybind11_add_module(oxr_py
-    oxr_bindings.cpp
+# XRIO module (trackers and teleop session)
+pybind11_add_module(xrio_py
+    xrio_bindings.cpp
 )
 
-target_link_libraries(oxr_py
+target_link_libraries(xrio_py
     PRIVATE
-        oxr_core
+        xrio_core
 )
 
-set_target_properties(oxr_py PROPERTIES
-    OUTPUT_NAME "_oxr"
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python_package/teleopcore/oxr"
+set_target_properties(xrio_py PROPERTIES
+    OUTPUT_NAME "_xrio"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python_package/teleopcore/xrio"
 )
 
