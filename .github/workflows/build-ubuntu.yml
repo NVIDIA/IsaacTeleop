@@ -1,13 +1,17 @@
-name: Build
+name: Build Ubuntu
 
 on:
   push:
-    branches: [ main]
+    branches: [ main ]
   pull_request:
 
 jobs:
-  build:
+  build-ubuntu:
     runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        build_type: [Debug, Release]
 
     steps:
     - name: Checkout code
@@ -24,7 +28,7 @@ jobs:
         sudo apt-get install -y build-essential cmake libx11-dev
 
     - name: Configure CMake
-      run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+      run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
 
     - name: Build
-      run: cmake --build build
+      run: cmake --build build --parallel

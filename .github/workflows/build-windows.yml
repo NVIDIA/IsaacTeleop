@@ -1,0 +1,29 @@
+name: Build Windows
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    strategy:
+      matrix:
+        build_type: [Debug, Release]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    - name: Configure CMake
+      run: cmake -B build
+
+    - name: Build
+      run: cmake --build build --config ${{ matrix.build_type }} --parallel

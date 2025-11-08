@@ -8,15 +8,18 @@
 #include <oxr_utils/oxr_funcs.hpp>
 #include <oxr_utils/oxr_types.hpp>
 
+// Include platform-specific headers first
+#if defined(XR_USE_PLATFORM_WIN32)
+#include <windows.h>
+#elif defined(XR_USE_TIMESPEC)
+#include <time.h>
+#endif
+// Include OpenXR platform header after platform-specific includes
+#include <openxr/openxr_platform.h>
+
 #include <memory>
 #include <string>
-#include <time.h>
 #include <vector>
-
-// Define time conversion function pointer type if not in headers
-typedef XrResult(XRAPI_PTR* PFN_xrConvertTimespecTimeToTimeKHR)(XrInstance instance,
-                                                                const struct timespec* timespecTime,
-                                                                XrTime* time);
 
 namespace oxr
 {
@@ -48,7 +51,11 @@ private:
     std::vector<std::shared_ptr<ITrackerImpl>> tracker_impls_; // Actual implementations
 
     // For time conversion
-    PFN_xrConvertTimespecTimeToTimeKHR pfn_convert_timespec_;
+#if defined(XR_USE_PLATFORM_WIN32)
+    PFN_xrConvertWin32PerformanceCounterToTimeKHR pfn_convert_win32_{};
+#elif defined(XR_USE_TIMESPEC)
+    PFN_xrConvertTimespecTimeToTimeKHR pfn_convert_timespec_{};
+#endif
 
     // Initialization logic
     bool initialize(const std::vector<std::shared_ptr<ITracker>>& trackers);

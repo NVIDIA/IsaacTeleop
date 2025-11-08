@@ -40,6 +40,13 @@ target_link_libraries(xrio_core
         oxr::oxr_utils
 )
 
+# Platform-specific definitions
+if(WIN32)
+    target_compile_definitions(xrio_core PUBLIC XR_USE_PLATFORM_WIN32)
+else()
+    target_compile_definitions(xrio_core PUBLIC XR_USE_TIMESPEC)
+endif()
+
 # XRIO does NOT link to OpenXR loader - it's completely standalone
 # All OpenXR functions are loaded dynamically via xrGetInstanceProcAddr at runtime
 

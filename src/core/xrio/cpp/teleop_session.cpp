@@ -31,9 +31,8 @@ std::shared_ptr<TeleopSession> TeleopSession::Create(const std::vector<std::shar
 }
 
 // Private constructor - Create with session handles
-TeleopSession::TeleopSession(const OpenXRSessionHandles& handles) : handles_(handles), pfn_convert_timespec_(nullptr)
+TeleopSession::TeleopSession(const OpenXRSessionHandles& handles) : handles_(handles)
 {
-
     // These should never be null - this is improper API usage
     assert(handles_.instance != XR_NULL_HANDLE && "OpenXR instance handle cannot be null");
     assert(handles_.session != XR_NULL_HANDLE && "OpenXR session handle cannot be null");
@@ -44,6 +43,14 @@ TeleopSession::TeleopSession(const OpenXRSessionHandles& handles) : handles_(han
     // Get time conversion function using the provided xrGetInstanceProcAddr
     if (handles_.xrGetInstanceProcAddr)
     {
+#if defined(XR_USE_PLATFORM_WIN32)
+        handles_.xrGetInstanceProcAddr(handles_.instance, "xrConvertWin32PerformanceCounterToTimeKHR",
+                                       reinterpret_cast<PFN_xrVoidFunction*>(&pfn_convert_win32_));
+        if (!pfn_convert_win32_)
+        {
+            std::cerr << "Warning: xrConvertWin32PerformanceCounterToTimeKHR not available" << std::endl;
+        }
+#elif defined(XR_USE_TIMESPEC)
         handles_.xrGetInstanceProcAddr(handles_.instance, "xrConvertTimespecTimeToTimeKHR",
                                        reinterpret_cast<PFN_xrVoidFunction*>(&pfn_convert_timespec_));
 
@@ -51,6 +58,7 @@ TeleopSession::TeleopSession(const OpenXRSessionHandles& handles) : handles_(han
         {
             std::cerr << "Warning: xrConvertTimespecTimeToTimeKHR not available" << std::endl;
         }
+#endif
     }
     else
     {
@@ -92,6 +100,17 @@ bool TeleopSession::update()
 {
     // Get current time
     XrTime current_time;
+#if defined(XR_USE_PLATFORM_WIN32)
+    LARGE_INTEGER counter;
+    QueryPerformanceCounter(&counter);
+    
+    if (pfn_convert_win32_) {
+        pfn_convert_win32_(handles_.instance, &counter, &current_time);
+    } else {
+        std::cerr << "Cannot get time - time conversion not available" << std::endl;
+        return false;
+    }
+#elif defined(XR_USE_TIMESPEC)
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
 
@@ -104,6 +123,7 @@ bool TeleopSession::update()
         std::cerr << "Cannot get time - time conversion not available" << std::endl;
         return false;
     }
+#endif
 
     // Update all tracker implementations directly
     for (auto& impl : tracker_impls_)
