@@ -30,6 +30,7 @@ endif()
 # Options
 option(BUILD_EXAMPLES "Build examples" ON)
 option(BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
+option(BUILD_PLUGINS "Build plugins" ON)
 option(ENABLE_EXPERIMENTAL_WINDOWS_BUILD "Enable experimental Windows build support (source code only)" OFF)
 
 # Windows support warning
@@ -70,4 +71,9 @@ add_subdirectory(src/core)
 # Build examples if requested
 if(BUILD_EXAMPLES)
     add_subdirectory(examples/oxr)
+endif()
+
+# Build plugins if requested
+if(BUILD_PLUGINS)
+    add_subdirectory(src/plugins/controller_synthetic_hands)
 endif()
