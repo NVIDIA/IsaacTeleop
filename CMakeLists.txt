@@ -25,8 +25,10 @@ if(NOT EXISTS "${CMAKE_SOURCE_DIR}/deps/third_party/openxr-sdk/CMakeLists.txt")
     message(FATAL_ERROR "OpenXR SDK submodule not found. Please run: git submodule update --init --recursive")
 endif()
 
+# Build OpenXR loader as a static library to avoid runtime dependency issues
+set(DYNAMIC_LOADER OFF CACHE BOOL "Build OpenXR loader as static library" FORCE)
 add_subdirectory(deps/third_party/openxr-sdk)
-message(STATUS "Building OpenXR SDK from submodule")
+message(STATUS "Building OpenXR SDK from submodule (static library)")
 
 # Build core modules (OXR and XRIO)
 add_subdirectory(src/core)
