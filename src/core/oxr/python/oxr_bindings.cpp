@@ -15,6 +15,15 @@ PYBIND11_MODULE(_oxr, m)
     // OpenXRSessionHandles structure (for sharing)
     py::class_<oxr::OpenXRSessionHandles>(m, "OpenXRSessionHandles")
         .def(py::init<>())
+        .def(py::init([](size_t instance, size_t session, size_t space, size_t procAddr) {
+             return oxr::OpenXRSessionHandles(
+                 reinterpret_cast<XrInstance>(instance),
+                 reinterpret_cast<XrSession>(session),
+                 reinterpret_cast<XrSpace>(space),
+                 reinterpret_cast<PFN_xrGetInstanceProcAddr>(procAddr)
+             );
+         }), py::arg("instance"), py::arg("session"), py::arg("space"), py::arg("proc_addr"),
+            "Create OpenXRSessionHandles from integer handle values")
         .def_property_readonly(
             "instance", [](const oxr::OpenXRSessionHandles& self) { return reinterpret_cast<size_t>(self.instance); },
             "Get OpenXR instance handle as integer")
