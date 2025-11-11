@@ -38,7 +38,7 @@
 ### Prerequisites
 
 - **OS**: Ubuntu 22.04 or 24.04
-- **Python**: 3.11
+- **Python**: 3.11 (version configured in root `CMakeLists.txt`)
 - **CUDA**: 12.8 (Recommended)
 - **NVIDIA Driver**: 580.95.05 (Recommended)
 

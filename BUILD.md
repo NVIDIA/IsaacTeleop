@@ -7,9 +7,12 @@ This document describes how to build the entire TeleopCore project including lib
 - CMake 3.20 or higher
 - C++17 compatible compiler
 - OpenXR SDK
-- Python 3.10 (for Python bindings)
+- Python 3.11 (for Python bindings - version configured in root `CMakeLists.txt`)
 - uv (for Python dependency management)
 - Git (for submodules)
+
+> **Note:** The Python version requirement is centrally configured in the root `CMakeLists.txt` file. 
+> To change the Python version, modify the `TELEOPCORE_PYTHON_VERSION` variable in that file.
 
 ### Initial Setup
 
