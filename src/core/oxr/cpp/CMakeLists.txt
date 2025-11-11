@@ -32,6 +32,7 @@ target_include_directories(oxr_core
 target_link_libraries(oxr_core
     PUBLIC
         OpenXR::OpenXR
+        oxr::oxr_utils
 )
 
 # Create alias for consistent naming

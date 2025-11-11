@@ -37,12 +37,16 @@ TeleopSession::TeleopSession(const OpenXRSessionHandles& handles)
     
     std::cout << "TeleopSession: Creating session with OpenXR handles" << std::endl;
     
-    // Get time conversion function
-    xrGetInstanceProcAddr(handles_.instance, "xrConvertTimespecTimeToTimeKHR",
-                         reinterpret_cast<PFN_xrVoidFunction*>(&pfn_convert_timespec_));
-    
-    if (!pfn_convert_timespec_) {
-        std::cerr << "Warning: xrConvertTimespecTimeToTimeKHR not available" << std::endl;
+    // Get time conversion function using the provided xrGetInstanceProcAddr
+    if (handles_.xrGetInstanceProcAddr) {
+        handles_.xrGetInstanceProcAddr(handles_.instance, "xrConvertTimespecTimeToTimeKHR",
+                             reinterpret_cast<PFN_xrVoidFunction*>(&pfn_convert_timespec_));
+        
+        if (!pfn_convert_timespec_) {
+            std::cerr << "Warning: xrConvertTimespecTimeToTimeKHR not available" << std::endl;
+        }
+    } else {
+        std::cerr << "Error: xrGetInstanceProcAddr is null in session handles" << std::endl;
     }
 }
 
@@ -59,7 +63,7 @@ bool TeleopSession::initialize(const std::vector<std::shared_ptr<ITracker>>& tra
     
     // Initialize all trackers and collect their implementations
     for (const auto& tracker : trackers) {
-        auto impl = tracker->initialize(handles_.instance, handles_.session, handles_.space);
+        auto impl = tracker->initialize(handles_);
         if (!impl) {
             std::cerr << "Failed to initialize tracker: " << tracker->get_name() << std::endl;
             return false;

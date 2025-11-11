@@ -10,14 +10,21 @@ namespace oxr {
 // ============================================================================
 
 // Factory function for creating the Impl
-std::unique_ptr<HeadTracker::Impl> HeadTracker::Impl::create(XrInstance instance, XrSession session, XrSpace base_space) {
+std::unique_ptr<HeadTracker::Impl> HeadTracker::Impl::create(const OpenXRSessionHandles& handles) {
+        // Load core OpenXR functions dynamically using the provided xrGetInstanceProcAddr
+        OpenXRCoreFunctions core_funcs;
+        if (!core_funcs.load(handles.instance, handles.xrGetInstanceProcAddr)) {
+            std::cerr << "Failed to load core OpenXR functions for HeadTracker" << std::endl;
+            return nullptr;
+        }
+        
         // Create VIEW space for head tracking (represents HMD pose)
         XrReferenceSpaceCreateInfo create_info{XR_TYPE_REFERENCE_SPACE_CREATE_INFO};
         create_info.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_VIEW;
         create_info.poseInReferenceSpace.orientation.w = 1.0f;
         
         XrSpace view_space = XR_NULL_HANDLE;
-        XrResult result = xrCreateReferenceSpace(session, &create_info, &view_space);
+        XrResult result = core_funcs.xrCreateReferenceSpace(handles.session, &create_info, &view_space);
         if (XR_FAILED(result)) {
             std::cerr << "Failed to create view space: " << result << std::endl;
             return nullptr;
@@ -28,11 +35,11 @@ std::unique_ptr<HeadTracker::Impl> HeadTracker::Impl::create(XrInstance instance
         // Create the Impl using private constructor
         // Use try-catch to ensure cleanup on construction failure
         try {
-            return std::unique_ptr<Impl>(new Impl(base_space, view_space));
+            return std::unique_ptr<Impl>(new Impl(handles.space, view_space, core_funcs));
         } catch (...) {
             // Clean up view space if Impl construction fails
             if (view_space != XR_NULL_HANDLE) {
-                xrDestroySpace(view_space);
+                core_funcs.xrDestroySpace(view_space);
             }
             throw;
         }
@@ -46,7 +53,7 @@ HeadTracker::Impl::~Impl() {
 bool HeadTracker::Impl::update(XrTime time) {
         // Locate the view space (head) relative to the base space
         XrSpaceLocation location{XR_TYPE_SPACE_LOCATION};
-        XrResult result = xrLocateSpace(view_space_, base_space_, time, &location);
+        XrResult result = core_funcs_.xrLocateSpace(view_space_, base_space_, time, &location);
         
         if (XR_FAILED(result)) {
             head_.is_valid = false;
@@ -83,9 +90,10 @@ bool HeadTracker::Impl::update(XrTime time) {
 const HeadPose& HeadTracker::Impl::get_head() const { return head_; }
 
 // Private constructor
-HeadTracker::Impl::Impl(XrSpace base_space, XrSpace view_space)
+HeadTracker::Impl::Impl(XrSpace base_space, XrSpace view_space, const OpenXRCoreFunctions& core_funcs)
     : base_space_(base_space),
-      view_space_(view_space) {
+      view_space_(view_space),
+      core_funcs_(core_funcs) {
     
     head_.is_valid = false;
     head_.timestamp = 0;
@@ -93,7 +101,7 @@ HeadTracker::Impl::Impl(XrSpace base_space, XrSpace view_space)
 
 void HeadTracker::Impl::cleanup() {
     if (view_space_ != XR_NULL_HANDLE) {
-        xrDestroySpace(view_space_);
+        core_funcs_.xrDestroySpace(view_space_);
         view_space_ = XR_NULL_HANDLE;
     }
 }
@@ -121,8 +129,8 @@ const HeadPose& HeadTracker::get_head() const {
     return impl->get_head();
 }
 
-std::shared_ptr<ITrackerImpl> HeadTracker::initialize(XrInstance instance, XrSession session, XrSpace base_space) {
-    auto impl = Impl::create(instance, session, base_space);
+std::shared_ptr<ITrackerImpl> HeadTracker::initialize(const OpenXRSessionHandles& handles) {
+    auto impl = Impl::create(handles);
     if (impl) {
         // We need to convert unique_ptr to shared_ptr to use weak_ptr
         // The session will own it, so we create a shared_ptr and cache a weak_ptr

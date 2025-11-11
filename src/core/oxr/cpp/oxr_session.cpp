@@ -56,7 +56,8 @@ std::shared_ptr<OpenXRSession> OpenXRSession::Create(
 }
 
 OpenXRSessionHandles OpenXRSession::get_handles() const {
-    return OpenXRSessionHandles(instance_, session_, space_);
+    // Pass the global xrGetInstanceProcAddr - oxr_session links against OpenXR loader
+    return OpenXRSessionHandles(instance_, session_, space_, ::xrGetInstanceProcAddr);
 }
 
 bool OpenXRSession::create_instance(const std::string& app_name, const std::vector<std::string>& extensions) {

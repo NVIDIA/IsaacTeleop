@@ -1,7 +1,6 @@
 #pragma once
 
 #include "tracker.hpp"
-#include <openxr/openxr.h>
 #include <array>
 #include <memory>
 
@@ -46,14 +45,14 @@ protected:
     // Internal lifecycle methods - only accessible via friend classes
     friend class TeleopSession;
     
-    std::shared_ptr<ITrackerImpl> initialize(XrInstance instance, XrSession session, XrSpace base_space) override;
+    std::shared_ptr<ITrackerImpl> initialize(const OpenXRSessionHandles& handles) override;
 
 private:
     // Implementation class declaration (Pimpl idiom)
     class Impl : public ITrackerImpl {
     public:
         // Factory function for creating the Impl - returns nullptr on failure
-        static std::unique_ptr<Impl> create(XrInstance instance, XrSession session, XrSpace base_space);
+        static std::unique_ptr<Impl> create(const OpenXRSessionHandles& handles);
         
         ~Impl();
         

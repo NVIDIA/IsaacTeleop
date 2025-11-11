@@ -1,11 +1,11 @@
 #pragma once
 
 #include "tracker.hpp"
-#include <oxr/oxr_session.hpp>
+#include <oxr_utils/oxr_funcs.hpp>
+#include <oxr_utils/oxr_types.hpp>
 #include <memory>
 #include <string>
 #include <vector>
-#include <openxr/openxr.h>
 #include <time.h>
 
 // Define time conversion function pointer type if not in headers

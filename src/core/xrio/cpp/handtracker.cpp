@@ -11,35 +11,42 @@ namespace oxr {
 // ============================================================================
 
 // Factory function for creating the Impl
-std::unique_ptr<HandTracker::Impl> HandTracker::Impl::create(XrInstance instance, XrSession session, XrSpace base_space) {
+std::unique_ptr<HandTracker::Impl> HandTracker::Impl::create(const OpenXRSessionHandles& handles) {
+        // Load core OpenXR functions dynamically using the provided xrGetInstanceProcAddr
+        OpenXRCoreFunctions core_funcs;
+        if (!core_funcs.load(handles.instance, handles.xrGetInstanceProcAddr)) {
+            std::cerr << "Failed to load core OpenXR functions for HandTracker" << std::endl;
+            return nullptr;
+        }
+        
         // Check if system supports hand tracking
         XrSystemId system_id;
         XrSystemGetInfo system_info{XR_TYPE_SYSTEM_GET_INFO};
         system_info.formFactor = XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY;
         
-        XrResult result = xrGetSystem(instance, &system_info, &system_id);
+        XrResult result = core_funcs.xrGetSystem(handles.instance, &system_info, &system_id);
         if (XR_SUCCEEDED(result)) {
             XrSystemHandTrackingPropertiesEXT hand_tracking_props{XR_TYPE_SYSTEM_HAND_TRACKING_PROPERTIES_EXT};
             XrSystemProperties system_props{XR_TYPE_SYSTEM_PROPERTIES};
             system_props.next = &hand_tracking_props;
             
-            result = xrGetSystemProperties(instance, system_id, &system_props);
+            result = core_funcs.xrGetSystemProperties(handles.instance, system_id, &system_props);
             if (XR_SUCCEEDED(result) && !hand_tracking_props.supportsHandTracking) {
                 std::cerr << "Hand tracking not supported by this system" << std::endl;
                 return nullptr;
             }
         }
         
-        // Get extension function pointers
+        // Get extension function pointers using the provided xrGetInstanceProcAddr
         PFN_xrCreateHandTrackerEXT pfn_create_hand_tracker = nullptr;
         PFN_xrDestroyHandTrackerEXT pfn_destroy_hand_tracker = nullptr;
         PFN_xrLocateHandJointsEXT pfn_locate_hand_joints = nullptr;
         
-        xrGetInstanceProcAddr(instance, "xrCreateHandTrackerEXT",
+        handles.xrGetInstanceProcAddr(handles.instance, "xrCreateHandTrackerEXT",
             reinterpret_cast<PFN_xrVoidFunction*>(&pfn_create_hand_tracker));
-        xrGetInstanceProcAddr(instance, "xrDestroyHandTrackerEXT",
+        handles.xrGetInstanceProcAddr(handles.instance, "xrDestroyHandTrackerEXT",
             reinterpret_cast<PFN_xrVoidFunction*>(&pfn_destroy_hand_tracker));
-        xrGetInstanceProcAddr(instance, "xrLocateHandJointsEXT",
+        handles.xrGetInstanceProcAddr(handles.instance, "xrLocateHandJointsEXT",
             reinterpret_cast<PFN_xrVoidFunction*>(&pfn_locate_hand_joints));
         
         if (!pfn_create_hand_tracker || !pfn_destroy_hand_tracker || !pfn_locate_hand_joints) {
@@ -51,11 +58,11 @@ std::unique_ptr<HandTracker::Impl> HandTracker::Impl::create(XrInstance instance
         XrHandTrackerEXT left_hand_tracker = XR_NULL_HANDLE;
         XrHandTrackerEXT right_hand_tracker = XR_NULL_HANDLE;
         
-        if (!create_hand_tracker(session, XR_HAND_LEFT_EXT, pfn_create_hand_tracker, left_hand_tracker)) {
+        if (!create_hand_tracker(handles.session, XR_HAND_LEFT_EXT, pfn_create_hand_tracker, left_hand_tracker)) {
             return nullptr;
         }
         
-        if (!create_hand_tracker(session, XR_HAND_RIGHT_EXT, pfn_create_hand_tracker, right_hand_tracker)) {
+        if (!create_hand_tracker(handles.session, XR_HAND_RIGHT_EXT, pfn_create_hand_tracker, right_hand_tracker)) {
             // Clean up left hand tracker on failure
             if (left_hand_tracker != XR_NULL_HANDLE) {
                 pfn_destroy_hand_tracker(left_hand_tracker);
@@ -68,7 +75,7 @@ std::unique_ptr<HandTracker::Impl> HandTracker::Impl::create(XrInstance instance
         // Create the Impl using private constructor
         // Use try-catch to ensure cleanup on construction failure
         try {
-            return std::unique_ptr<Impl>(new Impl(base_space, 
+            return std::unique_ptr<Impl>(new Impl(handles.space, 
                                                   left_hand_tracker, right_hand_tracker,
                                                   pfn_create_hand_tracker, pfn_destroy_hand_tracker, pfn_locate_hand_joints));
         } catch (...) {
@@ -220,8 +227,8 @@ const HandData& HandTracker::get_right_hand() const {
     return impl->get_right_hand();
 }
 
-std::shared_ptr<ITrackerImpl> HandTracker::initialize(XrInstance instance, XrSession session, XrSpace base_space) {
-    auto impl = Impl::create(instance, session, base_space);
+std::shared_ptr<ITrackerImpl> HandTracker::initialize(const OpenXRSessionHandles& handles) {
+    auto impl = Impl::create(handles);
     if (impl) {
         // We need to convert unique_ptr to shared_ptr to use weak_ptr
         // The session will own it, so we create a shared_ptr and cache a weak_ptr

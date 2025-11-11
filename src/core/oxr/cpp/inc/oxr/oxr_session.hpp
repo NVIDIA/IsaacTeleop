@@ -1,24 +1,12 @@
 #pragma once
 
+#include <oxr_utils/oxr_types.hpp>
 #include <openxr/openxr.h>
 #include <memory>
 #include <string>
 #include <vector>
 
 namespace oxr {
-
-// Wrapper for OpenXR session handles
-struct OpenXRSessionHandles {
-    XrInstance instance;
-    XrSession session;
-    XrSpace space;
-    
-    OpenXRSessionHandles()
-        : instance(XR_NULL_HANDLE), session(XR_NULL_HANDLE), space(XR_NULL_HANDLE) {}
-    
-    OpenXRSessionHandles(XrInstance inst, XrSession sess, XrSpace sp)
-        : instance(inst), session(sess), space(sp) {}
-};
 
 // OpenXR session management - creates and manages a headless OpenXR session
 class OpenXRSession {

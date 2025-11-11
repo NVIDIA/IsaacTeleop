@@ -1,13 +1,14 @@
 #pragma once
 
-#include <openxr/openxr.h>
+#include <oxr_utils/oxr_funcs.hpp>
+#include <oxr_utils/oxr_types.hpp>
 #include <string>
 #include <vector>
 #include <memory>
 
 namespace oxr {
 
-// Forward declare friend classes that can access internal lifecycle methods
+// Forward declarations
 class TeleopSession;
 
 // Base interface for tracker implementations
@@ -38,8 +39,9 @@ protected:
     friend class TeleopSession;
     
     // Initialize the tracker and return its implementation
+    // The tracker will use handles.space as the base coordinate system for reporting poses
     // Returns nullptr on failure
-    virtual std::shared_ptr<ITrackerImpl> initialize(XrInstance instance, XrSession session, XrSpace base_space) = 0;
+    virtual std::shared_ptr<ITrackerImpl> initialize(const OpenXRSessionHandles& handles) = 0;
 };
 
 } // namespace oxr
