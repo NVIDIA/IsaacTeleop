@@ -38,24 +38,29 @@
 ### Prerequisites
 
 - **OS**: Ubuntu 22.04 or 24.04
-- **Python**: 3.11 (version configured in root `CMakeLists.txt`)
+- **Python**: 3.11 or newer (version configured in root `CMakeLists.txt`)
 - **CUDA**: 12.8 (Recommended)
 - **NVIDIA Driver**: 580.95.05 (Recommended)
 
 ### Installation
 
-1. **Create Conda Environment**
+1. **Install uv** (if not already installed):
+
+We strongly recommend using `uv` for dependency management and Python virtual
+environment.  Other solution should also work, but your mileage may vary.
+
 ```bash
-conda create -n teleop python=3.11 -y
-conda activate teleop
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-2. **Update pip**
+2. **Create UV virtual environment**
+
 ```bash
-pip install --upgrade pip
+uv venv --python 3.11 venv_isaac
+source venv_isaac/bin/activate
 ```
 
-2. **Quick Install**
+3. **Quick Install**
 ```bash
 git clone --recursive git@github.com:nvidia-isaac/TeleopCore.git
 cd TeleopCore
@@ -78,12 +83,14 @@ Isaac Tepeop Core is design to work side by side with [NVIDIA Isaac Lab](https:/
 1. **Install dependencies**
 
 ```bash
-conda activate teleop
-pip install "isaacsim[all,extscache]==5.1.0" --extra-index-url https://pypi.nvidia.com
-pip install -U torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+source venv_isaac/bin/activate
+uv pip install "isaacsim[all,extscache]==5.1.0" --extra-index-url https://pypi.nvidia.com
+uv pip install -U torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
 ```
 
 2. **Clone & install Isaac Lab**
+
+Run this out side of the `TeleopCore` code base.
 
 ```bash
 # In a separate folder outside of Teleop Core:
@@ -93,11 +100,31 @@ git clone git@github.com:isaac-sim/IsaacLab.git
 cd IsaacLab
 ./isaaclab.sh --install
 
-# Set ISAACLAB_PATH, which will be later in `run_isaac_lab.sh`.
+# Set ISAACLAB_PATH, which will be used later in `run_isaac_lab.sh`.
 export ISAACLAB_PATH=$(pwd)
 ```
 
-3. **Run Teleop with Isaac Lab**
+3. Build & install Teleop Python packages
+
+Build with default settings. See [BUILD.md](BUILD.md) for advanced instructions
+for advanced build steps.
+```bash
+cmake -B build
+cmake --build build
+cmake --install build
+```
+
+Install the Python package
+```bash
+uv pip install build/wheels/teleopcore-*.whl
+```
+
+Validate the Python package has been successfully built and installed.
+```bash
+python -c "import teleopcore.xrio"
+```
+
+4. **Run Teleop with Isaac Lab**
 
 ```bash
 # In the Teleop Core repo:

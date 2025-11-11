@@ -82,6 +82,12 @@ cmake -B build -DBUILD_PYTHON_BINDINGS=OFF
 cmake --build build
 ```
 
+Build with different Python version:
+```bash
+cmake -B build -DTELEOPCORE_PYTHON_VERSION=3.12
+cmake --build build
+```
+
 Install to custom location:
 ```bash
 cmake -B build -DCMAKE_INSTALL_PREFIX=/custom/path
