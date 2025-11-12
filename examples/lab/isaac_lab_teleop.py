@@ -9,6 +9,8 @@ import argparse
 from collections.abc import Callable
 
 from isaaclab.app import AppLauncher
+from teleopcore.oxr import OpenXRSessionHandles
+from teleopcore.xrio import TeleopSessionBuilder, HeadTracker
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Keyboard teleoperation for Isaac Lab environments.")
@@ -67,6 +69,8 @@ if args_cli.enable_pinocchio:
     import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
     import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
 
+
+from isaacteleop.xr.openxr import acquire_openxr_interface
 
 def main() -> None:
     """
@@ -241,11 +245,50 @@ def main() -> None:
 
             last_a_button_click = a_button
 
+    teleop_session = None
+    head_tracker = None
+
+    omni_oxr = acquire_openxr_interface()
+
+    # Register required extensions so that KitXR can register the required
+    # extensions. Must be called before the "Start AR" button is clicked.
+    omni_oxr.register_required_extensions([
+        "XR_EXT_hand_tracking",
+        "XR_KHR_convert_timespec_time",
+    ])
+
     # simulate environment
     while simulation_app.is_running():
+        xr_instance_handle = omni_oxr.get_xr_instance_handle()
+        xr_session_handle = omni_oxr.get_xr_session_handle()
+        xr_tracking_space_handle = omni_oxr.get_xr_tracking_space_handle()
+        xr_instance_proc_addr_handle = omni_oxr.get_xr_instance_proc_addr()
+
+        if (teleop_session is None and xr_instance_handle != 0 and
+            xr_session_handle != 0 and xr_instance_proc_addr_handle != 0):
+            handles = OpenXRSessionHandles(
+                xr_instance_handle,
+                xr_session_handle,
+                xr_tracking_space_handle,
+                xr_instance_proc_addr_handle
+            )
+
+            head_tracker = HeadTracker()
+            session_builder = TeleopSessionBuilder()
+            session_builder.add_tracker(head_tracker)
+
+            teleop_session = session_builder.build(handles)
+
+        if teleop_session is not None:
+            teleop_session.update()
+
+            head = head_tracker.get_head()
+            pos = head.position
+            print(f"\r\033[KHead pos valid: {head.is_valid}, pos: [{pos[0]:6.3f}, {pos[1]:6.3f}, {pos[2]:6.3f}]", end='', flush=True)
+
         try:
             update_toggle_rotation()
-            
+
             # run everything in inference mode
             with torch.inference_mode():
                 # get device command
