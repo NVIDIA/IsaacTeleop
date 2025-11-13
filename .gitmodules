@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 [submodule "deps/third_party/pybind11"]
 	path = deps/third_party/pybind11
 	url = https://github.com/pybind/pybind11.git

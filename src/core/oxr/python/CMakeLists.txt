@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 # Python bindings using pybind11
 # Use centralized Python version configuration from root CMakeLists.txt
 include(${CMAKE_SOURCE_DIR}/cmake/SetupPython.cmake)

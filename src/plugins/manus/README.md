@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+-->
+
 ## Isaac Teleop Device Plugins — Manus
 
 This folder provides a simplified Linux-only example of using the Manus SDK for hand tracking. It includes:

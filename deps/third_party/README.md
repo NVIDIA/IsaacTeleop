@@ -1,3 +1,8 @@
+<--
+SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Third-Party Dependencies
 
 This directory contains third-party dependencies managed as git submodules.

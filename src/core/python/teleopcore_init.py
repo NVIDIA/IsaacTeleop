@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 """TeleopCore - Teleoperation Core Library
 
 This package provides Python bindings for teleoperation with Extended Reality I/O.
