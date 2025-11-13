@@ -4,7 +4,7 @@
 services:
   cloudxr-runtime:
     image: ${CLOUDXR_RUNTIME_IMAGE}
-    pull_policy: always
+    pull_policy: never
     user: "${CXR_UID:-1000}:${CXR_GID:-1000}"
     network_mode: host
     healthcheck:
@@ -27,7 +27,7 @@ services:
 
   wss-proxy:
     image: ${CLOUDXR_WSS_PROXY_IMAGE}
-    pull_policy: always
+    pull_policy: never
     network_mode: host
     depends_on:
       cloudxr-runtime:
@@ -47,7 +47,7 @@ services:
   isaac-web-front:
     image: ${CLOUDXR_WEB_FRONT_IMAGE}
     network_mode: host
-    pull_policy: always
+    pull_policy: never
 
 volumes:
   openxr-volume:

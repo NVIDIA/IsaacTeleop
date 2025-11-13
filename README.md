@@ -65,21 +65,42 @@ uv venv --python 3.11 venv_isaac
 source venv_isaac/bin/activate
 ```
 
-3. **Quick Install**
+3. **Clone the repository**
 ```bash
 git clone --recursive git@github.com:nvidia-isaac/TeleopCore.git
 cd TeleopCore
 ```
 
-Note: The `--recursive` flag ensures git submodules (like pybind11) are initialized automatically. If you've already cloned without it, run:
-```bash
-git submodule update --init --recursive
+> **Note**: The `--recursive` flag ensures git submodules (like pybind11) are
+> initialized automatically. If you've already cloned without it, run:
+> ```bash
+> git submodule update --init --recursive
+> ```
+
+4. **Download CloudXR Early Access**
+
+Place the `teleopcore-0.1.0-cxr-images.tar.gz` shared with you under the `deps/cloudxr` folder.
+
+Expected layout of the folder structure:
+```
+deps/
+├── cloudxr
+│   ├── CLOUDXR_LICENSE
+│   ├── docker-compose.yaml
+│   └── teleopcore-0.1.0-cxr-images.tar.gz
 ```
 
-3. **Run CloudXR**
+
+5. **Run CloudXR**
 ```bash
 ./scripts/run_cloudxr.sh
 ```
+
+> **Important:** Make sure you place the `tar.gz` file from the last step at the designated
+> location. Otherwise, you will see an error like this:
+> ```
+> Error: File not found: ./deps/cloudxr/teleopcore-0.1.0-cxr-images.tar.gz
+> ```
 
 ### Install & Run Isaac Lab
 
@@ -109,7 +130,9 @@ cd IsaacLab
 export ISAACLAB_PATH=$(pwd)
 ```
 
-3. Build & install Teleop Python packages
+### Build Teleop Core and Run Isaac Lab Sample
+
+1. Build & install Teleop Python packages
 
 Build with default settings. See [BUILD.md](BUILD.md) for advanced instructions
 for advanced build steps.
@@ -129,7 +152,7 @@ Validate the Python package has been successfully built and installed.
 python -c "import teleopcore.xrio"
 ```
 
-4. **Run Teleop with Isaac Lab**
+2. **Run Teleop with Isaac Lab**
 
 ```bash
 # In the Teleop Core repo:
