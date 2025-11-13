@@ -1,9 +1,13 @@
-name: Build Windows
+name: Build Windows (Experimental)
 
 on:
   push:
     branches: [ main ]
   pull_request:
+
+# WARNING: This workflow is for experimental Windows builds only!
+# Windows support is NOT officially supported - this only tests source compilation.
+# There is NO guarantee of runtime functionality on Windows.
 
 jobs:
   build-windows:
@@ -23,7 +27,7 @@ jobs:
       uses: astral-sh/setup-uv@v7
 
     - name: Configure CMake
-      run: cmake -B build
+      run: cmake -B build -DENABLE_EXPERIMENTAL_WINDOWS_BUILD=ON
 
     - name: Build
       run: cmake --build build --config ${{ matrix.build_type }} --parallel

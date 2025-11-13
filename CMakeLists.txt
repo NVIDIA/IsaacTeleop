@@ -30,6 +30,36 @@ endif()
 # Options
 option(BUILD_EXAMPLES "Build examples" ON)
 option(BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
+option(ENABLE_EXPERIMENTAL_WINDOWS_BUILD "Enable experimental Windows build support (source code only)" OFF)
+
+# Windows support warning
+if(WIN32)
+    if(NOT ENABLE_EXPERIMENTAL_WINDOWS_BUILD)
+        message(FATAL_ERROR 
+            "================================================================================\n"
+            "Windows is not officially supported!\n"
+            "If you want to build anyway for development/testing purposes, add:\n"
+            "  -DENABLE_EXPERIMENTAL_WINDOWS_BUILD=ON\n"
+            "Use at your own risk!\n"
+            "================================================================================\n"
+        )
+    else()
+        # Create a function to print the warning cleanly
+        function(print_windows_warning)
+            message(STATUS "")
+            message(STATUS "================================================================================")
+            message(STATUS "⚠️  EXPERIMENTAL WINDOWS BUILD ENABLED - USE AT YOUR OWN RISK ⚠️")
+            message(STATUS "")
+            message(STATUS "You have enabled experimental Windows build support.")
+            message(STATUS "The source code will compile but there is NO guarantee of any functionality.")
+            message(STATUS "This is for development and testing purposes only!")
+            message(STATUS "================================================================================")
+        endfunction()
+
+        # Defer the warning to the end of configuration so it's highly visible
+        cmake_language(DEFER CALL print_windows_warning)
+    endif()
+endif()
 
 # Always build OpenXR SDK from submodule
 if(NOT EXISTS "${CMAKE_SOURCE_DIR}/deps/third_party/openxr-sdk/CMakeLists.txt")
