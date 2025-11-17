@@ -35,9 +35,9 @@ EOF
 
 RUN chmod +x /usr/local/bin/generate-cert.sh
 
-# Create nginx configuration for SPA with both HTTP and HTTPS
+# Create nginx configuration for SPA with both HTTP and HTTPS (using non-privileged ports)
 RUN echo 'server { \
-    listen 80; \
+    listen 8080; \
     server_name localhost; \
     location / { \
         root /usr/share/nginx/html; \
@@ -54,7 +54,7 @@ RUN echo 'server { \
 } \
 \
 server { \
-    listen 443 ssl; \
+    listen 8443 ssl; \
     server_name localhost; \
     \
     ssl_certificate /etc/nginx/ssl/cert.pem; \
@@ -79,12 +79,20 @@ server { \
     } \
 }' >/etc/nginx/conf.d/default.conf
 
-# Expose both HTTP and HTTPS ports
-EXPOSE 80 443
+# Set proper permissions for nginx to run as non-root
+RUN chown -R nginx:nginx /usr/share/nginx/html \
+    && chown -R nginx:nginx /etc/nginx/ssl \
+    && chown -R nginx:nginx /var/cache/nginx \
+    && chown -R nginx:nginx /var/log/nginx \
+    && touch /var/run/nginx.pid \
+    && chown -R nginx:nginx /var/run/nginx.pid
 
-# Health check (checks both HTTP and HTTPS)
+# Expose non-privileged ports
+EXPOSE 8080 8443
+
+# Health check (checks HTTP on port 8080)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost/ || exit 1
+    CMD curl -f http://localhost:8080/ || exit 1
 
 # Create entrypoint script to generate certs and start nginx
 COPY <<EOF /docker-entrypoint.sh
@@ -99,6 +107,9 @@ exec nginx -g "daemon off;"
 EOF
 
 RUN chmod +x /docker-entrypoint.sh
+
+# Switch to non-root user
+USER nginx
 
 # Start nginx with certificate generation
 ENTRYPOINT ["/docker-entrypoint.sh"]
