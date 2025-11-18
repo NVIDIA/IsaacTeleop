@@ -3,7 +3,6 @@
 
 # Python bindings using pybind11
 # Use centralized Python version configuration from root CMakeLists.txt
-include(${CMAKE_SOURCE_DIR}/cmake/SetupPython.cmake)
 
 # Additional pybind11 compatibility variables (for legacy pybind11 versions)
 set(PYTHON_EXECUTABLE "${Python3_EXECUTABLE}" CACHE FILEPATH "Python executable for pybind11" FORCE)

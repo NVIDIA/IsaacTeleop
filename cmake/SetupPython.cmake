@@ -53,6 +53,7 @@ if(NOT TELEOPCORE_PYTHON_CONFIGURED)
 
     # Force CMake to use our specific Python
     set(Python3_EXECUTABLE "${UV_PYTHON_PATH}" CACHE FILEPATH "Path to Python3 executable" FORCE)
+    set(PYTHON_EXECUTABLE "${UV_PYTHON_PATH}" CACHE FILEPATH "Path to Python executable" FORCE)
     message(STATUS "Using managed Python ${TELEOPCORE_PYTHON_VERSION} from uv: ${Python3_EXECUTABLE}")
 
     # Find Python using the executable we determined
@@ -65,6 +66,10 @@ if(NOT TELEOPCORE_PYTHON_CONFIGURED)
     set(PYBIND11_PYTHON_VERSION "${Python3_VERSION}" CACHE STRING "Python version for pybind11" FORCE)
     set(PYBIND11_PYTHON_INCLUDE_DIR "${Python3_INCLUDE_DIRS}" CACHE STRING "Python include dir for pybind11" FORCE)
     set(PYBIND11_PYTHON_LIBRARIES "${Python3_LIBRARIES}" CACHE STRING "Python libraries for pybind11" FORCE)
+    
+    # Set legacy variables for compatibility (important for some find modules)
+    set(PYTHON_INCLUDE_DIRS "${Python3_INCLUDE_DIRS}" CACHE PATH "Python include dirs" FORCE)
+    set(PYTHON_LIBRARIES "${Python3_LIBRARIES}" CACHE FILEPATH "Python libraries" FORCE)
 
     # Mark as configured to prevent re-running
     set(TELEOPCORE_PYTHON_CONFIGURED TRUE CACHE INTERNAL "Python configuration completed")

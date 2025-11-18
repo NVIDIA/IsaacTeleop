@@ -17,6 +17,10 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(TELEOPCORE_PYTHON_VERSION "3.11" CACHE STRING "Python version for TeleopCore")
 # ==============================================================================
 
+# Configure Python via uv BEFORE any dependencies are added
+# This ensures all subdirectories (including openxr-sdk) use the managed Python
+include(cmake/SetupPython.cmake)
+
 # Set default build type to Release if not specified
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
