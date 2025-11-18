@@ -1,0 +1,44 @@
+#pragma once
+#include "controllers.hpp"
+#include "hand_generator.hpp"
+#include "hand_injector.hpp"
+#include "session.hpp"
+
+#include <atomic>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <thread>
+
+class SyntheticHandsPlugin
+{
+public:
+    explicit SyntheticHandsPlugin(const std::string& plugin_root_id);
+    ~SyntheticHandsPlugin();
+
+    SyntheticHandsPlugin(const SyntheticHandsPlugin&) = delete;
+    SyntheticHandsPlugin& operator=(const SyntheticHandsPlugin&) = delete;
+    SyntheticHandsPlugin(SyntheticHandsPlugin&&) = delete;
+    SyntheticHandsPlugin& operator=(SyntheticHandsPlugin&&) = delete;
+
+private:
+    void worker_thread();
+    XrTime get_current_time();
+
+    std::unique_ptr<Session> m_session;
+    std::unique_ptr<Controllers> m_controllers;
+    std::unique_ptr<HandInjector> m_injector;
+    HandGenerator m_hand_gen;
+
+    std::thread m_thread;
+    std::atomic<bool> m_running{ false };
+    std::atomic<bool> m_left_enabled{ true };
+    std::atomic<bool> m_right_enabled{ true };
+
+    std::string m_root_id;
+
+    // Current state
+    std::mutex m_state_mutex;
+    float m_left_curl = 0.0f;
+    float m_right_curl = 0.0f;
+};

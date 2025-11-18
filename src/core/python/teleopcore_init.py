@@ -11,6 +11,6 @@ __version__ = "1.0.0"
 # Import submodules
 from . import xrio
 from . import oxr
+from . import plugin_manager
 
-__all__ = ["xrio", "oxr", "__version__"]
-
+__all__ = ["xrio", "oxr", "plugin_manager", "__version__"]

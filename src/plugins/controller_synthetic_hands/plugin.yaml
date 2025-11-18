@@ -1,0 +1,11 @@
+name: controller_synthetic_hands
+description: "Synthesizes hand tracking data from controller poses"
+command: "./controller_synthetic_hands"
+version: "1.0.0"
+devices:
+  - path: "/hand/left"
+    type: "hand_tracker"
+    description: "Left hand synthesized from controller"
+  - path: "/hand/right"
+    type: "hand_tracker"
+    description: "Right hand synthesized from controller"
