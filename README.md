@@ -116,6 +116,20 @@ examples/cxrjs/
 ./scripts/run_cloudxr.sh
 ```
 
+### CloudXR Configurations (Optional)
+
+You can override CloudXR configurations by creating a `.env` and place it next
+to `deps/cloudxr/.env.default`. The folder structure should look like:
+
+```bash
+$ tree -a deps/cloudxr/
+deps/cloudxr/
+├── CLOUDXR_LICENSE
+├── .env
+├── .env.default
+└── .gitignore
+```
+
 ### Install & Run Isaac Lab
 
 Isaac Tepeop Core is design to work side by side with [NVIDIA Isaac Lab](https://github.com/isaac-sim/IsaacLab). We recommend the [Installation using Isaac Sim Pip Package](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/pip_installation.html) method for Isaac Lab.  Please refer to Isaac Lab's [Installation](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html) guide for other advanced methods. Here are the quick steps to do so.
