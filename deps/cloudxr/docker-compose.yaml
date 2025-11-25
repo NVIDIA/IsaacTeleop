@@ -15,6 +15,7 @@ services:
       start_period: 5s
     environment:
       - ACCEPT_EULA=${ACCEPT_CLOUDXR_EULA:-Y}
+      - NV_CXR_ENABLE_PUSH_DEVICES=${NV_CXR_ENABLE_PUSH_DEVICES}
     volumes:
       - openxr-volume:/openxr/
     deploy:
