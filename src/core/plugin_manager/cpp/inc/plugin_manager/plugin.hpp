@@ -4,11 +4,23 @@
 #    include <sys/types.h>
 #endif
 
+#include <stdexcept>
 #include <string>
 #include <vector>
 
 namespace oxr
 {
+
+/**
+ * @brief Custom exception thrown when a plugin crashes or exits unexpectedly
+ */
+class PluginCrashException : public std::runtime_error
+{
+public:
+    explicit PluginCrashException(const std::string& message) : std::runtime_error(message)
+    {
+    }
+};
 
 class Plugin
 {
@@ -28,13 +40,19 @@ public:
 
     /**
      * @brief Explicitly stop the plugin (same as destructor)
+     * @throws PluginCrashException if the plugin has crashed
      */
     void stop();
+
+    /**
+     * @brief Check if plugin crashed (lightweight, non-blocking)
+     * @throws PluginCrashException if the plugin has crashed
+     */
+    void check_health() const;
 
 private:
     void start_process(const std::string& command, const std::string& working_dir, const std::string& plugin_root_id);
     void stop_process();
-    bool is_running() const;
 
 #ifndef _WIN32
     pid_t m_pid = -1;

@@ -8,11 +8,13 @@ This module provides functionality to discover and manage Teleop plugins.
 
 from ._plugin_manager import (
     Plugin,
+    PluginCrashException,
     PluginManager,
 )
 
 __all__ = [
     "Plugin",
+    "PluginCrashException",
     "PluginManager",
 ]
 

@@ -10,6 +10,9 @@ This test:
 2. Queries available devices from the manifest
 3. Starts the OpenXR session
 4. Uses HandTracker to read the injected hands
+5. Periodically polls plugin health
+
+Note: Plugin crashes will raise pm.PluginCrashException
 """
 
 import sys
@@ -89,12 +92,20 @@ def run_test():
             print("  ✓ Teleop session created")
             print()
 
-            # 4. Loop and Read
-            print("[Step 4] Reading data (5 seconds)...")
+            # 4. Loop and Read with periodic health checks
+            print("[Step 4] Reading data (10 seconds)...")
             start_time = time.time()
             frame_count = 0
             
-            while time.time() - start_time < 5.0:
+            while time.time() - start_time < 10.0:
+                # Poll plugin health every ~1 second
+                if frame_count % 60 == 0:
+                    try:
+                        plugin.check_health() # Throws PluginCrashException if plugin crashed
+                    except pm.PluginCrashException as e:
+                        print(f"Plugin crashed: {e}")
+                        break
+                
                 if not teleop_session.update():
                     print("  ✗ Reader session update failed")
                     break
@@ -117,6 +128,7 @@ def run_test():
                 time.sleep(0.016)
     
     # Plugin automatically stopped when exiting 'with' block
+    # If plugin crashed, PluginCrashException will be raised during stop()
     print("[Cleanup]")
     print("  ✓ Plugin stopped")
     print("  ✓ Done")

@@ -3,7 +3,10 @@
 #ifndef _WIN32
 #    include <sys/wait.h>
 
+#    include <map>
+#    include <mutex>
 #    include <signal.h>
+#    include <string.h>
 #    include <unistd.h>
 #endif
 
@@ -29,17 +32,54 @@ Plugin::~Plugin()
 
 void Plugin::stop()
 {
+    check_health();
     stop_process();
+}
+
+void Plugin::check_health() const
+{
+#ifndef _WIN32
+    if (m_pid == -1)
+    {
+        return; // Already stopped
+    }
+
+    int status;
+    pid_t result = waitpid(m_pid, &status, WNOHANG);
+
+    if (result == m_pid)
+    {
+        // Process has exited
+        if (WIFEXITED(status))
+        {
+            int exit_code = WEXITSTATUS(status);
+            if (exit_code != 0)
+            {
+                throw PluginCrashException("Plugin process unexpectedly exited with code " + std::to_string(exit_code));
+            }
+        }
+        else if (WIFSIGNALED(status))
+        {
+            int sig = WTERMSIG(status);
+            throw PluginCrashException("Plugin process crashed with signal " + std::to_string(sig) + " (" +
+                                       strsignal(sig) + ")");
+        }
+    }
+    else if (result == -1)
+    {
+        if (errno != ECHILD)
+        {
+            throw PluginCrashException("Failed to check plugin health: " + std::string(strerror(errno)));
+        }
+        // ECHILD means process already reaped, ignore
+    }
+    // result == 0 means process still running
+#endif
 }
 
 void Plugin::start_process(const std::string& command, const std::string& working_dir, const std::string& plugin_root_id)
 {
 #ifndef _WIN32
-    if (is_running())
-    {
-        return;
-    }
-
     m_pid = fork();
     if (m_pid == -1)
     {
@@ -127,7 +167,6 @@ void Plugin::stop_process()
     {
         kill(m_pid, SIGINT);
 
-        // Wait for exit
         int status;
         int attempts = 0;
         while (waitpid(m_pid, &status, WNOHANG) == 0)
@@ -144,18 +183,6 @@ void Plugin::stop_process()
 
         m_pid = -1;
     }
-#endif
-}
-
-bool Plugin::is_running() const
-{
-#ifndef _WIN32
-    if (m_pid == -1)
-        return false;
-    int status;
-    return waitpid(m_pid, &status, WNOHANG) == 0;
-#else
-    return false;
 #endif
 }
 
