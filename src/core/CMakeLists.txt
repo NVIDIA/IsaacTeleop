@@ -10,6 +10,9 @@ option(BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
 # Build OXR Utils first - header-only utilities (no dependencies)
 add_subdirectory(oxr_utils)
 
+# Build Plugin Manager
+add_subdirectory(plugin_manager)
+
 # Build OXR library (depends on oxr_utils for types)
 add_subdirectory(oxr)
 
@@ -20,4 +23,3 @@ add_subdirectory(xrio)
 if(BUILD_PYTHON_BINDINGS)
     add_subdirectory(python)
 endif()
-

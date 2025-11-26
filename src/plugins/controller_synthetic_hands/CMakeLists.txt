@@ -13,6 +13,7 @@ endif()
 # Create executable
 add_executable(controller_synthetic_hands
     controller_synthetic_hands.cpp
+    synthetic_hands_plugin.cpp
     session.cpp
     controllers.cpp
     hand_generator.cpp
@@ -35,14 +36,12 @@ target_link_libraries(controller_synthetic_hands PRIVATE
     Threads::Threads      # For pthread
 )
 
-# Installation - install to devices subdirectory
+# Installation - install to plugins/controller_synthetic_hands subdirectory
 install(TARGETS controller_synthetic_hands
-    RUNTIME DESTINATION devices
+    RUNTIME DESTINATION plugins/controller_synthetic_hands
 )
 
-# Install README alongside the binary
-install(FILES README.md
-    DESTINATION devices
-    OPTIONAL
+# Install metadata and README alongside the binary
+install(FILES plugin.yaml README.md
+    DESTINATION plugins/controller_synthetic_hands
 )
-

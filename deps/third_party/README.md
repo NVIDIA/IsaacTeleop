@@ -11,6 +11,7 @@ This directory contains third-party dependencies managed as git submodules.
 
 The `CMakeLists.txt` in this directory handles building all third-party dependencies:
 - **OpenXR SDK**: Built as a static library for all configurations
+- **yaml-cpp**: YAML parsing library built as a static library
 - **pybind11**: Header-only library, added only when `BUILD_PYTHON_BINDINGS=ON`
   - Always uses the submodule version (not system-installed) for consistency
   - Provides `pybind11::module` target to Python binding modules
@@ -21,6 +22,12 @@ The `CMakeLists.txt` in this directory handles building all third-party dependen
 - **Purpose**: OpenXR loader and headers for XR runtime interaction
 - **License**: Apache 2.0
 - **Repository**: https://github.com/KhronosGroup/OpenXR-SDK
+- **Build**: Static library (to avoid runtime dependencies)
+
+### yaml-cpp
+- **Purpose**: YAML parsing for plugin configuration files
+- **License**: MIT
+- **Repository**: https://github.com/jbeder/yaml-cpp
 - **Build**: Static library (to avoid runtime dependencies)
 
 ### pybind11 (v2.13.6)

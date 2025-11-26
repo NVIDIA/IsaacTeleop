@@ -4,4 +4,5 @@ include teleopcore/xrio/*.so
 include teleopcore/xrio/*.pyd
 include teleopcore/oxr/*.so
 include teleopcore/oxr/*.pyd
-
+include teleopcore/plugin_manager/*.so
+include teleopcore/plugin_manager/*.pyd

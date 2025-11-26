@@ -11,14 +11,9 @@
 class HandInjector
 {
 public:
-    // Factory function to create an initialized HandInjector with controller spaces (space-based method)
-    static HandInjector* Create(XrInstance instance,
-                                XrSession session,
-                                XrSpace left_controller_space,
-                                XrSpace right_controller_space);
+    HandInjector(XrInstance instance, XrSession session, XrSpace left_controller_space, XrSpace right_controller_space);
 
-    // Factory function to create an initialized HandInjector with reference space (pose-based method)
-    static HandInjector* CreateWithReferenceSpace(XrInstance instance, XrSession session, XrSpace reference_space);
+    HandInjector(XrInstance instance, XrSession session, XrSpace reference_space);
 
     ~HandInjector();
 
@@ -29,10 +24,9 @@ public:
     bool push_right(const XrHandJointLocationEXT* joints, XrTime timestamp);
 
 private:
-    HandInjector() = default;
-    bool initialize(XrInstance instance, XrSession session, XrSpace left_space, XrSpace right_space);
-    bool load_functions(XrInstance instance);
-    bool create_device(XrSession session, XrSpace base_space, XrHandEXT hand, XrPushDeviceNV& device);
+    void initialize(XrInstance instance, XrSession session, XrSpace left_space, XrSpace right_space);
+    void load_functions(XrInstance instance);
+    void create_device(XrSession session, XrSpace base_space, XrHandEXT hand, XrPushDeviceNV& device);
     void cleanup();
 
     XrPushDeviceNV left_device_ = XR_NULL_HANDLE;

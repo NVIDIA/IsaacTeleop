@@ -11,6 +11,43 @@
 
 namespace py = pybind11;
 
+// Wrapper class to enforce RAII in Python by holding the shared_ptr exclusively
+class PyTeleopSession
+{
+public:
+    PyTeleopSession(std::shared_ptr<oxr::TeleopSession> impl) : impl_(impl)
+    {
+    }
+
+    bool update()
+    {
+        if (!impl_)
+        {
+            throw std::runtime_error("Session has been closed/destroyed");
+        }
+        return impl_->update();
+    }
+
+    void close()
+    {
+        impl_.reset(); // Destroys the underlying C++ object!
+    }
+
+    PyTeleopSession& enter()
+    {
+        return *this;
+    }
+
+    // Reset shared_ptr on exit to enforce destruction
+    void exit(py::object, py::object, py::object)
+    {
+        close();
+    }
+
+private:
+    std::shared_ptr<oxr::TeleopSession> impl_;
+};
+
 PYBIND11_MODULE(_xrio, m)
 {
     m.doc() = "TeleopCore XRIO - Extended Reality I/O Module";
@@ -70,10 +107,13 @@ PYBIND11_MODULE(_xrio, m)
         .def(py::init<>())
         .def("get_head", &oxr::HeadTracker::get_head, py::return_value_policy::reference_internal);
 
-    // OpenXRSessionHandles is imported from teleopcore.oxr, not defined here
-    // We need to use the type from the other module for builder.build()
+    // TeleopSession class (bound via wrapper)
+    py::class_<PyTeleopSession>(m, "TeleopSession")
+        .def("update", &PyTeleopSession::update, "Update session and all trackers")
+        .def("__enter__", &PyTeleopSession::enter)
+        .def("__exit__", &PyTeleopSession::exit);
 
-    // TeleopSessionBuilder class (Builder pattern)
+    // TeleopSessionBuilder class
     py::class_<oxr::TeleopSessionBuilder>(m, "TeleopSessionBuilder")
         .def(py::init<>(), "Create a builder")
         .def("add_tracker", &oxr::TeleopSessionBuilder::add_tracker, py::arg("tracker"), "Add a tracker to the builder")
@@ -81,18 +121,15 @@ PYBIND11_MODULE(_xrio, m)
              "Get list of OpenXR extensions required by all trackers")
         .def(
             "build",
-            [](oxr::TeleopSessionBuilder& self, const oxr::OpenXRSessionHandles& handles) { return self.build(handles); },
+            [](oxr::TeleopSessionBuilder& self, const oxr::OpenXRSessionHandles& handles)
+            {
+                auto session = self.build(handles);
+                if (!session)
+                    return std::unique_ptr<PyTeleopSession>(nullptr);
+                // Wrap shared_ptr in PyTeleopSession, then unique_ptr for Python ownership
+                return std::make_unique<PyTeleopSession>(session);
+            },
             py::arg("handles"), "Build a teleop session with OpenXR session handles");
-
-    // TeleopSession class
-    py::class_<oxr::TeleopSession, std::shared_ptr<oxr::TeleopSession>>(m, "TeleopSession")
-        .def("update", &oxr::TeleopSession::update, "Update session and all trackers")
-        .def("__enter__", [](oxr::TeleopSession& self) -> oxr::TeleopSession& { return self; })
-        .def("__exit__",
-             [](oxr::TeleopSession& self, py::object, py::object, py::object)
-             {
-                 // RAII cleanup handled automatically when object is destroyed
-             });
 
     // Module constants
     m.attr("NUM_JOINTS") = oxr::HandData::NUM_JOINTS;

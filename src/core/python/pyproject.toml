@@ -20,15 +20,15 @@ dependencies = [
 ]
 
 [tool.setuptools]
-packages = ["teleopcore", "teleopcore.xrio", "teleopcore.oxr"]
+packages = ["teleopcore", "teleopcore.xrio", "teleopcore.oxr", "teleopcore.plugin_manager"]
 include-package-data = true
 
 [tool.setuptools.package-data]
 teleopcore = ["*.so", "*.pyd"]
 "teleopcore.xrio" = ["*.so", "*.pyd"]
 "teleopcore.oxr" = ["*.so", "*.pyd"]
+"teleopcore.plugin_manager" = ["*.so", "*.pyd"]
 
 [tool.uv]
 # Only use managed Python installations (not system Python)
 python-preference = "only-managed"
-

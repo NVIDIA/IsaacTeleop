@@ -142,7 +142,9 @@ void Session::end()
 {
     if (handles_.session != XR_NULL_HANDLE)
     {
-        xrEndSession(handles_.session);
+        // Don't call xrEndSession - it requires the session to be in STOPPING state
+        // For a headless session or when we're just shutting down, we can skip this
+        // and go directly to xrDestroySession in cleanup()
     }
 }
 

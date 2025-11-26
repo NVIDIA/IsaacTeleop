@@ -17,6 +17,25 @@ add_subdirectory(openxr-sdk)
 message(STATUS "Building OpenXR SDK from submodule (static library)")
 
 # ==============================================================================
+# yaml-cpp
+# ==============================================================================
+# yaml-cpp is used for parsing YAML configuration files
+# Build as a static library to avoid runtime dependency issues
+if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/yaml-cpp/CMakeLists.txt")
+    message(FATAL_ERROR "yaml-cpp submodule not found. Please run: git submodule update --init --recursive")
+endif()
+
+# Configure yaml-cpp build options
+set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "Enable testing" FORCE)
+set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "Enable parse tools" FORCE)
+set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "Enable contrib stuff in library" FORCE)
+set(YAML_CPP_INSTALL OFF CACHE BOOL "Enable generation of install target" FORCE)
+set(YAML_BUILD_SHARED_LIBS OFF CACHE BOOL "Build yaml-cpp as shared library" FORCE)
+
+add_subdirectory(yaml-cpp)
+message(STATUS "Building yaml-cpp from submodule (static library)")
+
+# ==============================================================================
 # pybind11
 # ==============================================================================
 # pybind11 is used for Python bindings (header-only library)
