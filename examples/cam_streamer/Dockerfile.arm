@@ -1,0 +1,94 @@
+# syntax=docker/dockerfile:1
+
+############################################################
+# Simple OAK-D Camera Streamer Image
+############################################################
+# Minimal image for running standalone GStreamer scripts
+# (gstreamer_oakd_sender.py, gstreamer_oakd_receiver.py)
+# No isaac-deploy, no Holoscan - DepthAI + GStreamer
+
+# Use Ubuntu 22.04 as base (works on both JetPack 5 and 6)
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Enable additional Ubuntu repositories needed for multimedia packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    software-properties-common \
+    gpg-agent \
+    && add-apt-repository -y universe \
+    && add-apt-repository -y multiverse \
+    && apt-get update
+
+RUN apt-get install -y --no-install-recommends \
+    # Python
+    python3 \
+    python3-pip \
+    python3-dev \
+    # Build tools
+    build-essential \
+    pkg-config \
+    git \
+    # USB tools
+    usbutils \
+    libusb-1.0-0-dev \
+    udev \
+    # GStreamer
+    gstreamer1.0-tools \
+    gstreamer1.0-plugins-base \
+    gstreamer1.0-plugins-good \
+    gstreamer1.0-plugins-bad \
+    gstreamer1.0-plugins-ugly \
+    gstreamer1.0-libav \
+    python3-gi \
+    gir1.2-gst-plugins-base-1.0 \
+    # Video encoding
+    ffmpeg \
+    # Networking
+    iputils-ping \
+    net-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+# Verify GStreamer version
+RUN gst-inspect-1.0 --version | head -1
+
+# Install Python packages for OAK-D
+RUN pip3 install --no-cache-dir \
+    depthai \
+    numpy \
+    opencv-python
+
+# Install udev rules for OAK-D (Movidius)
+RUN echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="03e7", MODE="0666"' > /etc/udev/rules.d/80-movidius.rules && \
+    chmod 644 /etc/udev/rules.d/80-movidius.rules
+
+# Copy robot_cam_streamer into the image
+COPY . /oakd_streamer
+
+# Create entrypoint that starts udev
+COPY --chmod=755 <<'EOF' /usr/local/bin/oakd-entrypoint
+#!/bin/bash
+set -e
+
+# Start udev daemon if running as root
+if [ "$(id -u)" -eq 0 ] && command -v udevadm >/dev/null 2>&1; then
+    if ! pgrep -x udevd > /dev/null 2>&1; then
+        mkdir -p /run/udev
+        /lib/systemd/systemd-udevd --daemon 2>/dev/null || true
+        udevadm trigger 2>/dev/null || true
+        udevadm settle 2>/dev/null || true
+        sleep 1
+    fi
+fi
+
+exec "$@"
+EOF
+
+WORKDIR /oakd_streamer
+
+LABEL org.opencontainers.image.title="OAK-D Camera Streamer"
+LABEL org.opencontainers.image.description="Lightweight OAK-D camera streaming with auto-restart"
+
+ENTRYPOINT ["/usr/local/bin/oakd-entrypoint"]
+CMD ["/bin/bash"]
+
