@@ -35,6 +35,7 @@ private:
     bool create_system();
     bool create_session();
     bool create_reference_space();
+    bool begin();
 
     XrInstance instance_;
     XrSystemId system_id_;
