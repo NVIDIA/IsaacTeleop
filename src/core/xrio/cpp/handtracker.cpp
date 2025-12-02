@@ -15,15 +15,20 @@ namespace core
 // HandTracker::Impl Implementation
 // ============================================================================
 
-// Factory function for creating the Impl
-std::unique_ptr<HandTracker::Impl> HandTracker::Impl::create(const OpenXRSessionHandles& handles)
+// Constructor - throws std::runtime_error on failure
+HandTracker::Impl::Impl(const OpenXRSessionHandles& handles)
+    : base_space_(handles.space),
+      left_hand_tracker_(XR_NULL_HANDLE),
+      right_hand_tracker_(XR_NULL_HANDLE),
+      pfn_create_hand_tracker_(nullptr),
+      pfn_destroy_hand_tracker_(nullptr),
+      pfn_locate_hand_joints_(nullptr)
 {
     // Load core OpenXR functions dynamically using the provided xrGetInstanceProcAddr
     OpenXRCoreFunctions core_funcs;
     if (!core_funcs.load(handles.instance, handles.xrGetInstanceProcAddr))
     {
-        std::cerr << "Failed to load core OpenXR functions for HandTracker" << std::endl;
-        return nullptr;
+        throw std::runtime_error("Failed to load core OpenXR functions for HandTracker");
     }
 
     // Check if system supports hand tracking
@@ -41,75 +46,69 @@ std::unique_ptr<HandTracker::Impl> HandTracker::Impl::create(const OpenXRSession
         result = core_funcs.xrGetSystemProperties(handles.instance, system_id, &system_props);
         if (XR_SUCCEEDED(result) && !hand_tracking_props.supportsHandTracking)
         {
-            std::cerr << "Hand tracking not supported by this system" << std::endl;
-            return nullptr;
+            throw std::runtime_error("Hand tracking not supported by this system");
         }
     }
 
     // Get extension function pointers using the provided xrGetInstanceProcAddr
-    PFN_xrCreateHandTrackerEXT pfn_create_hand_tracker = nullptr;
-    PFN_xrDestroyHandTrackerEXT pfn_destroy_hand_tracker = nullptr;
-    PFN_xrLocateHandJointsEXT pfn_locate_hand_joints = nullptr;
+    handles.xrGetInstanceProcAddr(
+        handles.instance, "xrCreateHandTrackerEXT", reinterpret_cast<PFN_xrVoidFunction*>(&pfn_create_hand_tracker_));
+    handles.xrGetInstanceProcAddr(
+        handles.instance, "xrDestroyHandTrackerEXT", reinterpret_cast<PFN_xrVoidFunction*>(&pfn_destroy_hand_tracker_));
+    handles.xrGetInstanceProcAddr(
+        handles.instance, "xrLocateHandJointsEXT", reinterpret_cast<PFN_xrVoidFunction*>(&pfn_locate_hand_joints_));
 
-    handles.xrGetInstanceProcAddr(
-        handles.instance, "xrCreateHandTrackerEXT", reinterpret_cast<PFN_xrVoidFunction*>(&pfn_create_hand_tracker));
-    handles.xrGetInstanceProcAddr(
-        handles.instance, "xrDestroyHandTrackerEXT", reinterpret_cast<PFN_xrVoidFunction*>(&pfn_destroy_hand_tracker));
-    handles.xrGetInstanceProcAddr(
-        handles.instance, "xrLocateHandJointsEXT", reinterpret_cast<PFN_xrVoidFunction*>(&pfn_locate_hand_joints));
-
-    if (!pfn_create_hand_tracker || !pfn_destroy_hand_tracker || !pfn_locate_hand_joints)
+    if (!pfn_create_hand_tracker_ || !pfn_destroy_hand_tracker_ || !pfn_locate_hand_joints_)
     {
-        std::cerr << "Failed to get hand tracking function pointers" << std::endl;
-        return nullptr;
+        throw std::runtime_error("Failed to get hand tracking function pointers");
     }
 
     // Create hand trackers
-    XrHandTrackerEXT left_hand_tracker = XR_NULL_HANDLE;
-    XrHandTrackerEXT right_hand_tracker = XR_NULL_HANDLE;
+    XrHandTrackerCreateInfoEXT create_info{ XR_TYPE_HAND_TRACKER_CREATE_INFO_EXT };
+    create_info.handJointSet = XR_HAND_JOINT_SET_DEFAULT_EXT;
 
-    if (!create_hand_tracker(handles.session, XR_HAND_LEFT_EXT, pfn_create_hand_tracker, left_hand_tracker))
+    // Create left hand tracker
+    create_info.hand = XR_HAND_LEFT_EXT;
+    result = pfn_create_hand_tracker_(handles.session, &create_info, &left_hand_tracker_);
+    if (XR_FAILED(result))
     {
-        return nullptr;
+        throw std::runtime_error("Failed to create left hand tracker: " + std::to_string(result));
     }
 
-    if (!create_hand_tracker(handles.session, XR_HAND_RIGHT_EXT, pfn_create_hand_tracker, right_hand_tracker))
+    // Create right hand tracker
+    create_info.hand = XR_HAND_RIGHT_EXT;
+    result = pfn_create_hand_tracker_(handles.session, &create_info, &right_hand_tracker_);
+    if (XR_FAILED(result))
     {
         // Clean up left hand tracker on failure
-        if (left_hand_tracker != XR_NULL_HANDLE)
+        if (left_hand_tracker_ != XR_NULL_HANDLE)
         {
-            pfn_destroy_hand_tracker(left_hand_tracker);
+            pfn_destroy_hand_tracker_(left_hand_tracker_);
         }
-        return nullptr;
+        throw std::runtime_error("Failed to create right hand tracker: " + std::to_string(result));
     }
+
+    left_hand_.is_active = false;
+    right_hand_.is_active = false;
 
     std::cout << "HandTracker initialized (left + right)" << std::endl;
-
-    // Create the Impl using private constructor
-    // Use try-catch to ensure cleanup on construction failure
-    try
-    {
-        return std::unique_ptr<Impl>(new Impl(handles.space, left_hand_tracker, right_hand_tracker,
-                                              pfn_create_hand_tracker, pfn_destroy_hand_tracker, pfn_locate_hand_joints));
-    }
-    catch (...)
-    {
-        // Clean up hand trackers if Impl construction fails
-        if (left_hand_tracker != XR_NULL_HANDLE)
-        {
-            pfn_destroy_hand_tracker(left_hand_tracker);
-        }
-        if (right_hand_tracker != XR_NULL_HANDLE)
-        {
-            pfn_destroy_hand_tracker(right_hand_tracker);
-        }
-        throw;
-    }
 }
 
 HandTracker::Impl::~Impl()
 {
-    cleanup();
+    // pfn_destroy_hand_tracker_ should never be null (verified in constructor)
+    assert(pfn_destroy_hand_tracker_ != nullptr && "pfn_destroy_hand_tracker must not be null");
+
+    if (left_hand_tracker_ != XR_NULL_HANDLE)
+    {
+        pfn_destroy_hand_tracker_(left_hand_tracker_);
+        left_hand_tracker_ = XR_NULL_HANDLE;
+    }
+    if (right_hand_tracker_ != XR_NULL_HANDLE)
+    {
+        pfn_destroy_hand_tracker_(right_hand_tracker_);
+        right_hand_tracker_ = XR_NULL_HANDLE;
+    }
 }
 
 // Override from ITrackerImpl
@@ -126,69 +125,10 @@ const HandData& HandTracker::Impl::get_left_hand() const
 {
     return left_hand_;
 }
+
 const HandData& HandTracker::Impl::get_right_hand() const
 {
     return right_hand_;
-}
-
-// Private constructor
-HandTracker::Impl::Impl(XrSpace base_space,
-                        XrHandTrackerEXT left_hand_tracker,
-                        XrHandTrackerEXT right_hand_tracker,
-                        PFN_xrCreateHandTrackerEXT pfn_create,
-                        PFN_xrDestroyHandTrackerEXT pfn_destroy,
-                        PFN_xrLocateHandJointsEXT pfn_locate)
-    : base_space_(base_space),
-      left_hand_tracker_(left_hand_tracker),
-      right_hand_tracker_(right_hand_tracker),
-      pfn_create_hand_tracker_(pfn_create),
-      pfn_destroy_hand_tracker_(pfn_destroy),
-      pfn_locate_hand_joints_(pfn_locate)
-{
-
-    // Ensure critical function pointers are not null
-    assert(pfn_destroy != nullptr && "pfn_destroy_hand_tracker must not be null");
-    assert(pfn_locate != nullptr && "pfn_locate_hand_joints must not be null");
-
-    left_hand_.is_active = false;
-    right_hand_.is_active = false;
-}
-
-// Helper function for creating a single hand tracker
-bool HandTracker::Impl::create_hand_tracker(XrSession session,
-                                            XrHandEXT hand_type,
-                                            PFN_xrCreateHandTrackerEXT pfn_create,
-                                            XrHandTrackerEXT& out_tracker)
-{
-    XrHandTrackerCreateInfoEXT create_info{ XR_TYPE_HAND_TRACKER_CREATE_INFO_EXT };
-    create_info.hand = hand_type;
-    create_info.handJointSet = XR_HAND_JOINT_SET_DEFAULT_EXT;
-
-    XrResult result = pfn_create(session, &create_info, &out_tracker);
-    if (XR_FAILED(result))
-    {
-        std::cerr << "Failed to create hand tracker: " << result << std::endl;
-        return false;
-    }
-
-    return true;
-}
-
-void HandTracker::Impl::cleanup()
-{
-    // pfn_destroy_hand_tracker_ should never be null (verified in constructor)
-    assert(pfn_destroy_hand_tracker_ != nullptr && "pfn_destroy_hand_tracker must not be null");
-
-    if (left_hand_tracker_ != XR_NULL_HANDLE)
-    {
-        pfn_destroy_hand_tracker_(left_hand_tracker_);
-        left_hand_tracker_ = XR_NULL_HANDLE;
-    }
-    if (right_hand_tracker_ != XR_NULL_HANDLE)
-    {
-        pfn_destroy_hand_tracker_(right_hand_tracker_);
-        right_hand_tracker_ = XR_NULL_HANDLE;
-    }
 }
 
 bool HandTracker::Impl::update_hand(XrHandTrackerEXT tracker, XrTime time, HandData& out_data)
@@ -274,16 +214,9 @@ const HandData& HandTracker::get_right_hand() const
 
 std::shared_ptr<ITrackerImpl> HandTracker::initialize(const OpenXRSessionHandles& handles)
 {
-    auto impl = Impl::create(handles);
-    if (impl)
-    {
-        // We need to convert unique_ptr to shared_ptr to use weak_ptr
-        // The session will own it, so we create a shared_ptr and cache a weak_ptr
-        auto shared = std::shared_ptr<Impl>(impl.release());
-        cached_impl_ = shared;
-        return shared;
-    }
-    return nullptr;
+    auto shared = std::make_shared<Impl>(handles);
+    cached_impl_ = shared;
+    return shared;
 }
 
 bool HandTracker::is_initialized() const

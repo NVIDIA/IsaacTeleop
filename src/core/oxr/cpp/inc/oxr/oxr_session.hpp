@@ -31,10 +31,11 @@ private:
     OpenXRSession();
 
     // Initialization methods
-    bool create_instance(const std::string& app_name, const std::vector<std::string>& extensions);
-    bool create_system();
-    bool create_session();
-    bool create_reference_space();
+    void create_instance(const std::string& app_name, const std::vector<std::string>& extensions);
+    void create_system();
+    void create_session();
+    void create_reference_space();
+    void begin();
 
     XrInstance instance_;
     XrSystemId system_id_;

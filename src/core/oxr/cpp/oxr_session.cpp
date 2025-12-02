@@ -5,6 +5,7 @@
 
 #include <cstring>
 #include <iostream>
+#include <stdexcept>
 
 namespace core
 {
@@ -39,28 +40,14 @@ OpenXRSession::~OpenXRSession()
 std::shared_ptr<OpenXRSession> OpenXRSession::Create(const std::string& app_name,
                                                      const std::vector<std::string>& extensions)
 {
-
     auto session = std::shared_ptr<OpenXRSession>(new OpenXRSession());
 
-    if (!session->create_instance(app_name, extensions))
-    {
-        return nullptr;
-    }
-
-    if (!session->create_system())
-    {
-        return nullptr;
-    }
-
-    if (!session->create_session())
-    {
-        return nullptr;
-    }
-
-    if (!session->create_reference_space())
-    {
-        return nullptr;
-    }
+    // These methods throw on failure, no need to check return values
+    session->create_instance(app_name, extensions);
+    session->create_system();
+    session->create_session();
+    session->create_reference_space();
+    session->begin();
 
     return session;
 }
@@ -71,7 +58,8 @@ OpenXRSessionHandles OpenXRSession::get_handles() const
     return OpenXRSessionHandles(instance_, session_, space_, ::xrGetInstanceProcAddr);
 }
 
-bool OpenXRSession::create_instance(const std::string& app_name, const std::vector<std::string>& extensions)
+
+void OpenXRSession::create_instance(const std::string& app_name, const std::vector<std::string>& extensions)
 {
     XrInstanceCreateInfo create_info{ XR_TYPE_INSTANCE_CREATE_INFO };
     create_info.applicationInfo.apiVersion = XR_CURRENT_API_VERSION;
@@ -98,15 +86,13 @@ bool OpenXRSession::create_instance(const std::string& app_name, const std::vect
     XrResult result = xrCreateInstance(&create_info, &instance_);
     if (XR_FAILED(result))
     {
-        std::cerr << "Failed to create OpenXR instance: " << result << std::endl;
-        return false;
+        throw std::runtime_error("Failed to create OpenXR instance: " + std::to_string(result));
     }
 
     std::cout << "Created OpenXR instance" << std::endl;
-    return true;
 }
 
-bool OpenXRSession::create_system()
+void OpenXRSession::create_system()
 {
     XrSystemGetInfo system_info{ XR_TYPE_SYSTEM_GET_INFO };
     system_info.formFactor = XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY;
@@ -114,15 +100,13 @@ bool OpenXRSession::create_system()
     XrResult result = xrGetSystem(instance_, &system_info, &system_id_);
     if (XR_FAILED(result))
     {
-        std::cerr << "Failed to get OpenXR system: " << result << std::endl;
-        return false;
+        throw std::runtime_error("Failed to get OpenXR system: " + std::to_string(result));
     }
 
     std::cout << "Created OpenXR system" << std::endl;
-    return true;
 }
 
-bool OpenXRSession::create_session()
+void OpenXRSession::create_session()
 {
     // XrSessionCreateInfoOverlayEXTX structure for overlay/headless mode
     struct XrSessionCreateInfoOverlayEXTX
@@ -146,16 +130,14 @@ bool OpenXRSession::create_session()
     XrResult result = xrCreateSession(instance_, &create_info, &session_);
     if (XR_FAILED(result))
     {
-        std::cerr << "Failed to create OpenXR session: " << result << std::endl;
-        return false;
+        throw std::runtime_error("Failed to create OpenXR session: " + std::to_string(result));
     }
 
     std::cout << "Created OpenXR session (headless mode)" << std::endl;
     std::cout << "  Session handle: " << session_ << std::endl;
-    return true;
 }
 
-bool OpenXRSession::create_reference_space()
+void OpenXRSession::create_reference_space()
 {
     XrReferenceSpaceCreateInfo create_info{ XR_TYPE_REFERENCE_SPACE_CREATE_INFO };
     create_info.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE;
@@ -164,13 +146,50 @@ bool OpenXRSession::create_reference_space()
     XrResult result = xrCreateReferenceSpace(session_, &create_info, &space_);
     if (XR_FAILED(result))
     {
-        std::cerr << "Failed to create reference space: " << result << std::endl;
-        return false;
+        throw std::runtime_error("Failed to create reference space: " + std::to_string(result));
     }
 
     std::cout << "Created reference space" << std::endl;
     std::cout << "  Space handle: " << space_ << std::endl;
-    return true;
+}
+
+void OpenXRSession::begin()
+{
+    // Enumerate view configurations to find a valid one
+    uint32_t view_config_count = 0;
+    XrResult result = xrEnumerateViewConfigurations(instance_, system_id_, 0, &view_config_count, nullptr);
+    if (XR_FAILED(result) || view_config_count == 0)
+    {
+        throw std::runtime_error("Failed to enumerate view configurations: " + std::to_string(result));
+    }
+
+    std::vector<XrViewConfigurationType> view_configs(view_config_count);
+    result =
+        xrEnumerateViewConfigurations(instance_, system_id_, view_config_count, &view_config_count, view_configs.data());
+    if (XR_FAILED(result))
+    {
+        throw std::runtime_error("Failed to get view configurations: " + std::to_string(result));
+    }
+
+    // Find the primary stereo view configuration (preferred), or use the first available
+    XrViewConfigurationType selected_view_config = view_configs[0];
+    for (const auto& config : view_configs)
+    {
+        if (config == XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO)
+        {
+            selected_view_config = config;
+            break;
+        }
+    }
+
+    XrSessionBeginInfo begin_info{ XR_TYPE_SESSION_BEGIN_INFO };
+    begin_info.primaryViewConfigurationType = selected_view_config;
+
+    result = xrBeginSession(session_, &begin_info);
+    if (XR_FAILED(result))
+    {
+        throw std::runtime_error("Failed to begin OpenXR session: " + std::to_string(result));
+    }
 }
 
 } // namespace core

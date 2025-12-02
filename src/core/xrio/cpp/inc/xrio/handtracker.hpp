@@ -64,8 +64,8 @@ private:
     class Impl : public ITrackerImpl
     {
     public:
-        // Factory function for creating the Impl - returns nullptr on failure
-        static std::unique_ptr<Impl> create(const OpenXRSessionHandles& handles);
+        // Constructor - throws std::runtime_error on failure
+        explicit Impl(const OpenXRSessionHandles& handles);
 
         ~Impl();
 
@@ -76,20 +76,7 @@ private:
         const HandData& get_right_hand() const;
 
     private:
-        // Private constructor - only callable from factory function
-        Impl(XrSpace base_space,
-             XrHandTrackerEXT left_hand_tracker,
-             XrHandTrackerEXT right_hand_tracker,
-             PFN_xrCreateHandTrackerEXT pfn_create,
-             PFN_xrDestroyHandTrackerEXT pfn_destroy,
-             PFN_xrLocateHandJointsEXT pfn_locate);
-
         // Helper functions
-        static bool create_hand_tracker(XrSession session,
-                                        XrHandEXT hand_type,
-                                        PFN_xrCreateHandTrackerEXT pfn_create,
-                                        XrHandTrackerEXT& out_tracker);
-        void cleanup();
         bool update_hand(XrHandTrackerEXT tracker, XrTime time, HandData& out_data);
 
         XrSpace base_space_;
