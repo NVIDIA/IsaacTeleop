@@ -10,8 +10,12 @@ PYBIND11_MODULE(_plugin_manager, m)
 {
     m.doc() = "TeleopCore Plugin Manager bindings";
 
-    py::class_<Plugin, std::unique_ptr<Plugin, py::nodelete>>(m, "Plugin")
-        .def("stop", &Plugin::stop, "Explicitly stop the plugin")
+    // Register custom exception
+    py::register_exception<PluginCrashException>(m, "PluginCrashException");
+
+    py::class_<Plugin, std::unique_ptr<Plugin>>(m, "Plugin")
+        .def("stop", &Plugin::stop, "Explicitly stop the plugin (throws PluginCrashException if crashed)")
+        .def("check_health", &Plugin::check_health, "Check if plugin has crashed (throws PluginCrashException if crashed)")
         .def("__enter__", [](Plugin* self) { return self; })
         .def("__exit__", [](Plugin* self, py::object, py::object, py::object) { self->stop(); });
 
