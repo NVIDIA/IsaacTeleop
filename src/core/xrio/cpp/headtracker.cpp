@@ -14,15 +14,13 @@ namespace core
 // HeadTracker::Impl Implementation
 // ============================================================================
 
-// Factory function for creating the Impl
-std::unique_ptr<HeadTracker::Impl> HeadTracker::Impl::create(const OpenXRSessionHandles& handles)
+// Constructor - throws std::runtime_error on failure
+HeadTracker::Impl::Impl(const OpenXRSessionHandles& handles) : base_space_(handles.space)
 {
     // Load core OpenXR functions dynamically using the provided xrGetInstanceProcAddr
-    OpenXRCoreFunctions core_funcs;
-    if (!core_funcs.load(handles.instance, handles.xrGetInstanceProcAddr))
+    if (!core_funcs_.load(handles.instance, handles.xrGetInstanceProcAddr))
     {
-        std::cerr << "Failed to load core OpenXR functions for HeadTracker" << std::endl;
-        return nullptr;
+        throw std::runtime_error("Failed to load core OpenXR functions for HeadTracker");
     }
 
     // Create VIEW space for head tracking (represents HMD pose)
@@ -30,36 +28,17 @@ std::unique_ptr<HeadTracker::Impl> HeadTracker::Impl::create(const OpenXRSession
     create_info.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_VIEW;
     create_info.poseInReferenceSpace.orientation.w = 1.0f;
 
-    XrSpace view_space = XR_NULL_HANDLE;
-    XrResult result = core_funcs.xrCreateReferenceSpace(handles.session, &create_info, &view_space);
-    if (XR_FAILED(result))
-    {
-        std::cerr << "Failed to create view space: " << result << std::endl;
-        return nullptr;
-    }
+    view_space_ = createReferenceSpace(core_funcs_, handles.session, &create_info);
+
+    head_.is_valid = false;
+    head_.timestamp = 0;
 
     std::cout << "HeadTracker initialized" << std::endl;
-
-    // Create the Impl using private constructor
-    // Use try-catch to ensure cleanup on construction failure
-    try
-    {
-        return std::unique_ptr<Impl>(new Impl(handles.space, view_space, core_funcs));
-    }
-    catch (...)
-    {
-        // Clean up view space if Impl construction fails
-        if (view_space != XR_NULL_HANDLE)
-        {
-            core_funcs.xrDestroySpace(view_space);
-        }
-        throw;
-    }
 }
 
 HeadTracker::Impl::~Impl()
 {
-    cleanup();
+    // Smart pointer automatically cleans up view_space_
 }
 
 // Override from ITrackerImpl
@@ -67,7 +46,7 @@ bool HeadTracker::Impl::update(XrTime time)
 {
     // Locate the view space (head) relative to the base space
     XrSpaceLocation location{ XR_TYPE_SPACE_LOCATION };
-    XrResult result = core_funcs_.xrLocateSpace(view_space_, base_space_, time, &location);
+    XrResult result = core_funcs_.xrLocateSpace(*view_space_, base_space_, time, &location);
 
     if (XR_FAILED(result))
     {
@@ -110,24 +89,6 @@ const HeadPose& HeadTracker::Impl::get_head() const
     return head_;
 }
 
-// Private constructor
-HeadTracker::Impl::Impl(XrSpace base_space, XrSpace view_space, const OpenXRCoreFunctions& core_funcs)
-    : base_space_(base_space), view_space_(view_space), core_funcs_(core_funcs)
-{
-
-    head_.is_valid = false;
-    head_.timestamp = 0;
-}
-
-void HeadTracker::Impl::cleanup()
-{
-    if (view_space_ != XR_NULL_HANDLE)
-    {
-        core_funcs_.xrDestroySpace(view_space_);
-        view_space_ = XR_NULL_HANDLE;
-    }
-}
-
 // ============================================================================
 // HeadTracker Public Interface Implementation
 // ============================================================================
@@ -158,16 +119,9 @@ const HeadPose& HeadTracker::get_head() const
 
 std::shared_ptr<ITrackerImpl> HeadTracker::initialize(const OpenXRSessionHandles& handles)
 {
-    auto impl = Impl::create(handles);
-    if (impl)
-    {
-        // We need to convert unique_ptr to shared_ptr to use weak_ptr
-        // The session will own it, so we create a shared_ptr and cache a weak_ptr
-        auto shared = std::shared_ptr<Impl>(impl.release());
-        cached_impl_ = shared;
-        return shared;
-    }
-    return nullptr;
+    auto shared = std::make_shared<Impl>(handles);
+    cached_impl_ = shared;
+    return shared;
 }
 
 bool HeadTracker::is_initialized() const

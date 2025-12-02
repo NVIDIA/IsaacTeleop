@@ -50,8 +50,8 @@ private:
     class Impl : public ITrackerImpl
     {
     public:
-        // Factory function for creating the Impl - returns nullptr on failure
-        static std::unique_ptr<Impl> create(const OpenXRSessionHandles& handles);
+        // Constructor - throws std::runtime_error on failure
+        explicit Impl(const OpenXRSessionHandles& handles);
 
         ~Impl();
 
@@ -61,13 +61,8 @@ private:
         const HeadPose& get_head() const;
 
     private:
-        // Private constructor - only callable from factory function
-        Impl(XrSpace base_space, XrSpace view_space, const OpenXRCoreFunctions& core_funcs);
-
-        void cleanup();
-
         XrSpace base_space_;
-        XrSpace view_space_;
+        XrSpacePtr view_space_;
         HeadPose head_;
         OpenXRCoreFunctions core_funcs_;
     };
