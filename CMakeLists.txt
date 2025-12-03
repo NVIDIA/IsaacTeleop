@@ -35,12 +35,13 @@ endif()
 option(BUILD_EXAMPLES "Build examples" ON)
 option(BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
 option(BUILD_PLUGINS "Build plugins" ON)
+option(BUILD_TESTING "Build unit tests" ON)
 option(ENABLE_EXPERIMENTAL_WINDOWS_BUILD "Enable experimental Windows build support (source code only)" OFF)
 
 # Windows support warning
 if(WIN32)
     if(NOT ENABLE_EXPERIMENTAL_WINDOWS_BUILD)
-        message(FATAL_ERROR 
+        message(FATAL_ERROR
             "================================================================================\n"
             "Windows is not officially supported!\n"
             "If you want to build anyway for development/testing purposes, add:\n"
@@ -68,6 +69,12 @@ endif()
 
 # Build dependencies (OpenXR SDK, etc.)
 add_subdirectory(deps)
+
+# Enable CTest at top level so tests from subdirectories are discoverable
+if(BUILD_TESTING)
+    # Make sure to call this after `deps` is added so that Catch2 is available
+    enable_testing()
+endif()
 
 # Build core modules (OXR and XRIO)
 add_subdirectory(src/core)
