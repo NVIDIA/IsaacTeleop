@@ -10,9 +10,9 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
 endif()
 
-# Ensure OpenXR target is available (built from submodule by parent)
+# Ensure OpenXR target is available (fetched via CMake FetchContent by parent)
 if(NOT TARGET openxr_loader)
-    message(FATAL_ERROR "openxr_loader target not found. Make sure OpenXR SDK submodule is built first.")
+    message(FATAL_ERROR "openxr_loader target not found. Make sure OpenXR SDK is fetched via FetchContent first.")
 endif()
 
 # Create OpenXR::OpenXR alias for consistency

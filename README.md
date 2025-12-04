@@ -67,15 +67,13 @@ source venv_isaac/bin/activate
 
 3. **Clone the repository**
 ```bash
-git clone --recursive git@github.com:nvidia-isaac/TeleopCore.git
+git clone git@github.com:nvidia-isaac/TeleopCore.git
 cd TeleopCore
 ```
 
-> **Note**: The `--recursive` flag ensures git submodules (like pybind11) are
-> initialized automatically. If you've already cloned without it, run:
-> ```bash
-> git submodule update --init --recursive
-> ```
+> **Note**: Dependencies (OpenXR SDK, pybind11, yaml-cpp) are automatically downloaded 
+> during CMake configuration using FetchContent. No manual dependency installation or 
+> git submodule initialization is required.
 
 4. **Download CloudXR**
 
