@@ -20,11 +20,11 @@ endif()
 add_library(xrio_core STATIC
     handtracker.cpp
     headtracker.cpp
-    teleop_session.cpp
+    xrio_session.cpp
     inc/xrio/tracker.hpp
     inc/xrio/handtracker.hpp
     inc/xrio/headtracker.hpp
-    inc/xrio/teleop_session.hpp
+    inc/xrio/xrio_session.hpp
 )
 
 target_include_directories(xrio_core

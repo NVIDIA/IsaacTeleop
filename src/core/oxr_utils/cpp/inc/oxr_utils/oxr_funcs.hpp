@@ -19,7 +19,7 @@ extern "C"
                                                          PFN_xrVoidFunction* function);
 }
 
-namespace oxr
+namespace core
 {
 
 // Helper structure to hold dynamically loaded core OpenXR function pointers
@@ -67,4 +67,4 @@ struct OpenXRCoreFunctions
     }
 };
 
-} // namespace oxr
+} // namespace core

@@ -33,8 +33,8 @@ print()
 
 # Test 2: Create builder
 print("[Test 2] Creating builder...")
-builder = xrio.TeleopSessionBuilder()
-print("✓ TeleopSessionBuilder created")
+builder = xrio.XrioSessionBuilder()
+print("✓ XrioSessionBuilder created")
 print()
 
 # Test 3: Add trackers
@@ -60,7 +60,7 @@ if oxr_session is None:
 with oxr_session:
     handles = oxr_session.get_handles()
     
-    # Create teleop session
+    # Create xrio session
     session = builder.build(handles)
     if session is None:
         print("❌ Failed to initialize")

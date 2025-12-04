@@ -68,7 +68,7 @@ uv run test_modular.py
 - **modular_example.py** - Basic hand + head tracking
 - **test_modular.py** - Complete API test
 - **test_extensions.py** - Extension query demonstration
-- **test_session_sharing.py** - Session sharing between TeleopSession instances
+- **test_session_sharing.py** - Session sharing between XrioSession instances
 
 ## C++ Examples
 
@@ -85,7 +85,7 @@ cmake --install build
 
 ### Running C++ Examples
 
-**oxr_session_sharing** - Demonstrates session sharing between multiple TeleopSession instances
+**oxr_session_sharing** - Demonstrates session sharing between multiple XrioSession instances
 **oxr_simple_api_demo** - Demonstrates the simple API
 
 ```bash

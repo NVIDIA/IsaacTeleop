@@ -17,7 +17,7 @@
 #include <stdexcept>
 #include <thread>
 
-namespace oxr
+namespace core
 {
 
 Plugin::Plugin(const std::string& command, const std::string& working_dir, const std::string& plugin_root_id)
@@ -186,4 +186,4 @@ void Plugin::stop_process()
 #endif
 }
 
-} // namespace oxr
+} // namespace core

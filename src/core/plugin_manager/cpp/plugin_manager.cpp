@@ -7,7 +7,7 @@
 
 #include <yaml-cpp/yaml.h>
 
-namespace oxr
+namespace core
 {
 
 namespace fs = std::filesystem;
@@ -157,4 +157,4 @@ std::unique_ptr<Plugin> PluginManager::start(const std::string& plugin_name, con
     return std::make_unique<Plugin>(info.command, info.working_dir, plugin_root_id);
 }
 
-} // namespace oxr
+} // namespace core

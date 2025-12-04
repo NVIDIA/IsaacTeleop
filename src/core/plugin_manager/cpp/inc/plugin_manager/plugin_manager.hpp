@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace oxr
+namespace core
 {
 
 struct DeviceInfo
@@ -63,4 +63,4 @@ private:
     std::map<std::string, PluginInfo> m_discovered_plugins;
 };
 
-} // namespace oxr
+} // namespace core

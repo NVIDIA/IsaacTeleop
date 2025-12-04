@@ -1,26 +1,26 @@
 // SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-#include "inc/xrio/teleop_session.hpp"
+#include "inc/xrio/xrio_session.hpp"
 
 #include <cassert>
 #include <iostream>
 #include <set>
 #include <time.h>
 
-namespace oxr
+namespace core
 {
 
 // ============================================================================
-// TeleopSession Implementation
+// XrioSession Implementation
 // ============================================================================
 
 // Static factory method - Create with session handles
-std::shared_ptr<TeleopSession> TeleopSession::Create(const std::vector<std::shared_ptr<ITracker>>& trackers,
-                                                     const OpenXRSessionHandles& handles)
+std::shared_ptr<XrioSession> XrioSession::Create(const std::vector<std::shared_ptr<ITracker>>& trackers,
+                                                 const OpenXRSessionHandles& handles)
 {
 
-    auto session = std::shared_ptr<TeleopSession>(new TeleopSession(handles));
+    auto session = std::shared_ptr<XrioSession>(new XrioSession(handles));
 
     if (!session->initialize(trackers))
     {
@@ -31,14 +31,14 @@ std::shared_ptr<TeleopSession> TeleopSession::Create(const std::vector<std::shar
 }
 
 // Private constructor - Create with session handles
-TeleopSession::TeleopSession(const OpenXRSessionHandles& handles) : handles_(handles)
+XrioSession::XrioSession(const OpenXRSessionHandles& handles) : handles_(handles)
 {
     // These should never be null - this is improper API usage
     assert(handles_.instance != XR_NULL_HANDLE && "OpenXR instance handle cannot be null");
     assert(handles_.session != XR_NULL_HANDLE && "OpenXR session handle cannot be null");
     assert(handles_.space != XR_NULL_HANDLE && "OpenXR space handle cannot be null");
 
-    std::cout << "TeleopSession: Creating session with OpenXR handles" << std::endl;
+    std::cout << "XrioSession: Creating session with OpenXR handles" << std::endl;
 
     // Get time conversion function using the provided xrGetInstanceProcAddr
     if (handles_.xrGetInstanceProcAddr)
@@ -66,17 +66,17 @@ TeleopSession::TeleopSession(const OpenXRSessionHandles& handles) : handles_(han
     }
 }
 
-TeleopSession::~TeleopSession()
+XrioSession::~XrioSession()
 {
     // RAII cleanup - impls will be destroyed automatically
     tracker_impls_.clear();
 }
 
-bool TeleopSession::initialize(const std::vector<std::shared_ptr<ITracker>>& trackers)
+bool XrioSession::initialize(const std::vector<std::shared_ptr<ITracker>>& trackers)
 {
     if (handles_.instance == XR_NULL_HANDLE)
     {
-        std::cerr << "TeleopSession: No valid OpenXR handles" << std::endl;
+        std::cerr << "XrioSession: No valid OpenXR handles" << std::endl;
         return false;
     }
 
@@ -92,21 +92,24 @@ bool TeleopSession::initialize(const std::vector<std::shared_ptr<ITracker>>& tra
         tracker_impls_.push_back(std::move(impl));
     }
 
-    std::cout << "TeleopSession: Initialized " << tracker_impls_.size() << " trackers" << std::endl;
+    std::cout << "XrioSession: Initialized " << tracker_impls_.size() << " trackers" << std::endl;
     return true;
 }
 
-bool TeleopSession::update()
+bool XrioSession::update()
 {
     // Get current time
     XrTime current_time;
 #if defined(XR_USE_PLATFORM_WIN32)
     LARGE_INTEGER counter;
     QueryPerformanceCounter(&counter);
-    
-    if (pfn_convert_win32_) {
+
+    if (pfn_convert_win32_)
+    {
         pfn_convert_win32_(handles_.instance, &counter, &current_time);
-    } else {
+    }
+    else
+    {
         std::cerr << "Cannot get time - time conversion not available" << std::endl;
         return false;
     }
@@ -138,23 +141,23 @@ bool TeleopSession::update()
 }
 
 // ============================================================================
-// TeleopSessionBuilder Implementation
+// XrioSessionBuilder Implementation
 // ============================================================================
 
-TeleopSessionBuilder::TeleopSessionBuilder()
+XrioSessionBuilder::XrioSessionBuilder()
 {
 }
 
-TeleopSessionBuilder::~TeleopSessionBuilder()
+XrioSessionBuilder::~XrioSessionBuilder()
 {
 }
 
-void TeleopSessionBuilder::add_tracker(std::shared_ptr<ITracker> tracker)
+void XrioSessionBuilder::add_tracker(std::shared_ptr<ITracker> tracker)
 {
     trackers_.push_back(tracker);
 }
 
-std::vector<std::string> TeleopSessionBuilder::get_required_extensions() const
+std::vector<std::string> XrioSessionBuilder::get_required_extensions() const
 {
     std::set<std::string> all_extensions;
 
@@ -175,7 +178,7 @@ std::vector<std::string> TeleopSessionBuilder::get_required_extensions() const
     return std::vector<std::string>(all_extensions.begin(), all_extensions.end());
 }
 
-std::shared_ptr<TeleopSession> TeleopSessionBuilder::build(const OpenXRSessionHandles& handles)
+std::shared_ptr<XrioSession> XrioSessionBuilder::build(const OpenXRSessionHandles& handles)
 {
 
     // These should never be null - this is improper API usage
@@ -183,10 +186,10 @@ std::shared_ptr<TeleopSession> TeleopSessionBuilder::build(const OpenXRSessionHa
     assert(handles.session != XR_NULL_HANDLE && "OpenXR session handle cannot be null");
     assert(handles.space != XR_NULL_HANDLE && "OpenXR space handle cannot be null");
 
-    std::cout << "TeleopSessionBuilder: Building teleop session with " << trackers_.size() << " trackers" << std::endl;
+    std::cout << "XrioSessionBuilder: Building xrio session with " << trackers_.size() << " trackers" << std::endl;
 
-    // Build teleop session with the provided handles
-    return TeleopSession::Create(trackers_, handles);
+    // Build xrio session with the provided handles
+    return XrioSession::Create(trackers_, handles);
 }
 
-} // namespace oxr
+} // namespace core

@@ -10,11 +10,12 @@
 #include <string>
 #include <vector>
 
-namespace oxr
+namespace core
 {
 
+
 // Forward declarations
-class TeleopSession;
+class XrioSession;
 
 // Base interface for tracker implementations
 // These are the actual worker objects that get updated by the session
@@ -43,7 +44,7 @@ public:
 protected:
     // Internal lifecycle methods - only accessible to friend classes
     // External users should NOT call these directly
-    friend class TeleopSession;
+    friend class XrioSession;
 
     // Initialize the tracker and return its implementation
     // The tracker will use handles.space as the base coordinate system for reporting poses
@@ -51,4 +52,4 @@ protected:
     virtual std::shared_ptr<ITrackerImpl> initialize(const OpenXRSessionHandles& handles) = 0;
 };
 
-} // namespace oxr
+} // namespace core

@@ -4,7 +4,7 @@
 #include <oxr/oxr_session.hpp>
 #include <xrio/handtracker.hpp>
 #include <xrio/headtracker.hpp>
-#include <xrio/teleop_session.hpp>
+#include <xrio/xrio_session.hpp>
 
 #include <chrono>
 #include <iostream>
@@ -32,7 +32,7 @@ int main()
         std::cout << "    - " << ext << std::endl;
     }
 
-    auto oxr_session = oxr::OpenXRSession::Create("SessionSharingExample", extensions_vec);
+    auto oxr_session = core::OpenXRSession::Create("SessionSharingExample", extensions_vec);
     if (!oxr_session)
     {
         std::cerr << "Failed to create OpenXR session" << std::endl;
@@ -53,15 +53,15 @@ int main()
 
     // Step 3: Create Manager 1 with HandTracker using the shared session
     std::cout << "[Step 3] Creating Manager 1 with HandTracker..." << std::endl;
-    auto hand_tracker = std::make_shared<oxr::HandTracker>();
+    auto hand_tracker = std::make_shared<core::HandTracker>();
 
-    oxr::TeleopSessionBuilder builder1;
+    core::XrioSessionBuilder builder1;
     builder1.add_tracker(hand_tracker);
 
     auto session1 = builder1.build(handles);
     if (!session1)
     {
-        std::cerr << "Failed to create teleop session 1" << std::endl;
+        std::cerr << "Failed to create xrio session 1" << std::endl;
         return 1;
     }
 
@@ -70,15 +70,15 @@ int main()
 
     // Step 4: Create Manager 2 with HeadTracker using the SAME shared session
     std::cout << "[Step 4] Creating Manager 2 with HeadTracker..." << std::endl;
-    auto head_tracker = std::make_shared<oxr::HeadTracker>();
+    auto head_tracker = std::make_shared<core::HeadTracker>();
 
-    oxr::TeleopSessionBuilder builder2;
+    core::XrioSessionBuilder builder2;
     builder2.add_tracker(head_tracker);
 
     auto session2 = builder2.build(handles);
     if (!session2)
     {
-        std::cerr << "Failed to create teleop session 2" << std::endl;
+        std::cerr << "Failed to create xrio session 2" << std::endl;
         return 1;
     }
 

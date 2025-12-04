@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-namespace oxr
+namespace core
 {
 
 // OpenXR session management - creates and manages a headless OpenXR session
@@ -42,4 +42,4 @@ private:
     XrSpace space_;
 };
 
-} // namespace oxr
+} // namespace core

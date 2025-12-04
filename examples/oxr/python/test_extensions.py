@@ -22,7 +22,7 @@ print()
 print("[Test 1] HandTracker extensions")
 hand_tracker = xrio.HandTracker()
 
-builder1 = xrio.TeleopSessionBuilder()
+builder1 = xrio.XrioSessionBuilder()
 builder1.add_tracker(hand_tracker)
 
 extensions1 = builder1.get_required_extensions()
@@ -35,7 +35,7 @@ print()
 print("[Test 2] HeadTracker extensions")
 head_tracker = xrio.HeadTracker()
 
-builder2 = xrio.TeleopSessionBuilder()
+builder2 = xrio.XrioSessionBuilder()
 builder2.add_tracker(head_tracker)
 
 extensions2 = builder2.get_required_extensions()
@@ -49,7 +49,7 @@ print("[Test 3] HandTracker + HeadTracker extensions")
 hand_tracker3 = xrio.HandTracker()
 head_tracker3 = xrio.HeadTracker()
 
-builder3 = xrio.TeleopSessionBuilder()
+builder3 = xrio.XrioSessionBuilder()
 builder3.add_tracker(hand_tracker3)
 builder3.add_tracker(head_tracker3)
 
@@ -69,7 +69,7 @@ print()
 hand = xrio.HandTracker()
 head = xrio.HeadTracker()
 
-builder = xrio.TeleopSessionBuilder()
+builder = xrio.XrioSessionBuilder()
 builder.add_tracker(hand)
 builder.add_tracker(head)
 

@@ -4,7 +4,7 @@
 #include <pybind11/stl.h>
 
 namespace py = pybind11;
-using namespace oxr;
+using namespace core;
 
 PYBIND11_MODULE(_plugin_manager, m)
 {
