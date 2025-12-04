@@ -7,8 +7,9 @@
 
 #include <memory>
 
-namespace oxr
+namespace core
 {
+
 
 // Head pose data
 struct HeadPose
@@ -40,7 +41,7 @@ public:
 
 protected:
     // Internal lifecycle methods - only accessible via friend classes
-    friend class TeleopSession;
+    friend class XrioSession;
 
     std::shared_ptr<ITrackerImpl> initialize(const OpenXRSessionHandles& handles) override;
 
@@ -75,4 +76,4 @@ private:
     std::weak_ptr<Impl> cached_impl_;
 };
 
-} // namespace oxr
+} // namespace core

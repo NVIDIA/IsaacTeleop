@@ -6,8 +6,9 @@
 #include <cstring>
 #include <iostream>
 
-namespace oxr
+namespace core
 {
+
 
 // ============================================================================
 // HeadTracker::Impl Implementation
@@ -174,4 +175,4 @@ bool HeadTracker::is_initialized() const
     return !cached_impl_.expired();
 }
 
-} // namespace oxr
+} // namespace core

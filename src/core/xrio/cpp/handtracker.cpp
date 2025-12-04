@@ -7,8 +7,9 @@
 #include <cstring>
 #include <iostream>
 
-namespace oxr
+namespace core
 {
+
 
 // ============================================================================
 // HandTracker::Impl Implementation
@@ -326,4 +327,4 @@ std::string HandTracker::get_joint_name(uint32_t joint_index)
     return "Unknown";
 }
 
-} // namespace oxr
+} // namespace core

@@ -6,7 +6,7 @@
 #include <cstring>
 #include <iostream>
 
-namespace oxr
+namespace core
 {
 
 OpenXRSession::OpenXRSession()
@@ -173,4 +173,4 @@ bool OpenXRSession::create_reference_space()
     return true;
 }
 
-} // namespace oxr
+} // namespace core

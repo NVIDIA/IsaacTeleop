@@ -4,7 +4,7 @@
 #include <oxr/oxr_session.hpp>
 #include <xrio/handtracker.hpp>
 #include <xrio/headtracker.hpp>
-#include <xrio/teleop_session.hpp>
+#include <xrio/xrio_session.hpp>
 
 #include <iostream>
 #include <memory>
@@ -27,8 +27,8 @@ int main()
 
     // Step 1: External user creates trackers (only public API visible)
     std::cout << "[Step 1] Creating trackers..." << std::endl;
-    auto hand_tracker = std::make_shared<oxr::HandTracker>();
-    auto head_tracker = std::make_shared<oxr::HeadTracker>();
+    auto hand_tracker = std::make_shared<core::HandTracker>();
+    auto head_tracker = std::make_shared<core::HeadTracker>();
 
     std::cout << "  ✓ Created " << hand_tracker->get_name() << std::endl;
     std::cout << "  ✓ Created " << head_tracker->get_name() << std::endl;
@@ -46,7 +46,7 @@ int main()
 
     // Step 2: External user adds trackers to builder
     std::cout << "[Step 2] Adding trackers to builder..." << std::endl;
-    oxr::TeleopSessionBuilder builder;
+    core::XrioSessionBuilder builder;
     builder.add_tracker(hand_tracker);
     builder.add_tracker(head_tracker);
 
@@ -68,7 +68,7 @@ int main()
     std::cout << "[Step 4] Creating session..." << std::endl;
 
     // Create OpenXR session with required extensions
-    auto oxr_session = oxr::OpenXRSession::Create("SimpleAPIDemo", required_extensions);
+    auto oxr_session = core::OpenXRSession::Create("SimpleAPIDemo", required_extensions);
     if (!oxr_session)
     {
         std::cerr << "  ✗ Failed to create OpenXR session" << std::endl;
@@ -79,7 +79,7 @@ int main()
     auto session = builder.build(handles);
     if (!session)
     {
-        std::cerr << "  ✗ Failed to create teleop session" << std::endl;
+        std::cerr << "  ✗ Failed to create xrio session" << std::endl;
         return 1;
     }
 

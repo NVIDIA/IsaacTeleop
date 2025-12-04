@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-namespace oxr
+namespace core
 {
 
 /**
@@ -61,4 +61,4 @@ private:
 #endif
 };
 
-} // namespace oxr
+} // namespace core

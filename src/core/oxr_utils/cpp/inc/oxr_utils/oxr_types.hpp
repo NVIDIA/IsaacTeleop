@@ -5,7 +5,7 @@
 
 #include <openxr/openxr.h>
 
-namespace oxr
+namespace core
 {
 
 // Wrapper for OpenXR session handles
@@ -29,4 +29,4 @@ struct OpenXRSessionHandles
     }
 };
 
-} // namespace oxr
+} // namespace core

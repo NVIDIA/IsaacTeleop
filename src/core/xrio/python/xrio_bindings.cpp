@@ -7,15 +7,15 @@
 #include <pybind11/stl.h>
 #include <xrio/handtracker.hpp>
 #include <xrio/headtracker.hpp>
-#include <xrio/teleop_session.hpp>
+#include <xrio/xrio_session.hpp>
 
 namespace py = pybind11;
 
 // Wrapper class to enforce RAII in Python by holding the shared_ptr exclusively
-class PyTeleopSession
+class PyXrioSession
 {
 public:
-    PyTeleopSession(std::shared_ptr<oxr::TeleopSession> impl) : impl_(impl)
+    PyXrioSession(std::shared_ptr<core::XrioSession> impl) : impl_(impl)
     {
     }
 
@@ -33,7 +33,7 @@ public:
         impl_.reset(); // Destroys the underlying C++ object!
     }
 
-    PyTeleopSession& enter()
+    PyXrioSession& enter()
     {
         return *this;
     }
@@ -45,7 +45,7 @@ public:
     }
 
 private:
-    std::shared_ptr<oxr::TeleopSession> impl_;
+    std::shared_ptr<core::XrioSession> impl_;
 };
 
 PYBIND11_MODULE(_xrio, m)
@@ -53,86 +53,86 @@ PYBIND11_MODULE(_xrio, m)
     m.doc() = "TeleopCore XRIO - Extended Reality I/O Module";
 
     // JointPose structure
-    py::class_<oxr::JointPose>(m, "JointPose")
+    py::class_<core::JointPose>(m, "JointPose")
         .def(py::init<>())
-        .def_property_readonly("position", [](const oxr::JointPose& self)
+        .def_property_readonly("position", [](const core::JointPose& self)
                                { return py::array_t<float>({ 3 }, { sizeof(float) }, self.position); })
-        .def_property_readonly("orientation", [](const oxr::JointPose& self)
+        .def_property_readonly("orientation", [](const core::JointPose& self)
                                { return py::array_t<float>({ 4 }, { sizeof(float) }, self.orientation); })
-        .def_readonly("radius", &oxr::JointPose::radius)
-        .def_readonly("is_valid", &oxr::JointPose::is_valid);
+        .def_readonly("radius", &core::JointPose::radius)
+        .def_readonly("is_valid", &core::JointPose::is_valid);
 
     // HandData structure
-    py::class_<oxr::HandData>(m, "HandData")
+    py::class_<core::HandData>(m, "HandData")
         .def(py::init<>())
         .def(
             "get_joint",
-            [](const oxr::HandData& self, size_t index) -> const oxr::JointPose&
+            [](const core::HandData& self, size_t index) -> const core::JointPose&
             {
-                if (index >= oxr::HandData::NUM_JOINTS)
+                if (index >= core::HandData::NUM_JOINTS)
                 {
                     throw py::index_error("Joint index out of range");
                 }
                 return self.joints[index];
             },
             py::return_value_policy::reference_internal)
-        .def_readonly("is_active", &oxr::HandData::is_active)
-        .def_readonly("timestamp", &oxr::HandData::timestamp)
-        .def_property_readonly("num_joints", [](const oxr::HandData&) { return oxr::HandData::NUM_JOINTS; });
+        .def_readonly("is_active", &core::HandData::is_active)
+        .def_readonly("timestamp", &core::HandData::timestamp)
+        .def_property_readonly("num_joints", [](const core::HandData&) { return core::HandData::NUM_JOINTS; });
 
     // HeadPose structure
-    py::class_<oxr::HeadPose>(m, "HeadPose")
+    py::class_<core::HeadPose>(m, "HeadPose")
         .def(py::init<>())
-        .def_property_readonly("position", [](const oxr::HeadPose& self)
+        .def_property_readonly("position", [](const core::HeadPose& self)
                                { return py::array_t<float>({ 3 }, { sizeof(float) }, self.position); })
-        .def_property_readonly("orientation", [](const oxr::HeadPose& self)
+        .def_property_readonly("orientation", [](const core::HeadPose& self)
                                { return py::array_t<float>({ 4 }, { sizeof(float) }, self.position); })
-        .def_readonly("is_valid", &oxr::HeadPose::is_valid)
-        .def_readonly("timestamp", &oxr::HeadPose::timestamp);
+        .def_readonly("is_valid", &core::HeadPose::is_valid)
+        .def_readonly("timestamp", &core::HeadPose::timestamp);
 
     // ITracker interface (base class)
-    py::class_<oxr::ITracker, std::shared_ptr<oxr::ITracker>>(m, "ITracker")
-        .def("is_initialized", &oxr::ITracker::is_initialized)
-        .def("get_name", &oxr::ITracker::get_name);
+    py::class_<core::ITracker, std::shared_ptr<core::ITracker>>(m, "ITracker")
+        .def("is_initialized", &core::ITracker::is_initialized)
+        .def("get_name", &core::ITracker::get_name);
 
     // HandTracker class
-    py::class_<oxr::HandTracker, oxr::ITracker, std::shared_ptr<oxr::HandTracker>>(m, "HandTracker")
+    py::class_<core::HandTracker, core::ITracker, std::shared_ptr<core::HandTracker>>(m, "HandTracker")
         .def(py::init<>())
-        .def("get_left_hand", &oxr::HandTracker::get_left_hand, py::return_value_policy::reference_internal)
-        .def("get_right_hand", &oxr::HandTracker::get_right_hand, py::return_value_policy::reference_internal)
-        .def_static("get_joint_name", &oxr::HandTracker::get_joint_name);
+        .def("get_left_hand", &core::HandTracker::get_left_hand, py::return_value_policy::reference_internal)
+        .def("get_right_hand", &core::HandTracker::get_right_hand, py::return_value_policy::reference_internal)
+        .def_static("get_joint_name", &core::HandTracker::get_joint_name);
 
     // HeadTracker class
-    py::class_<oxr::HeadTracker, oxr::ITracker, std::shared_ptr<oxr::HeadTracker>>(m, "HeadTracker")
+    py::class_<core::HeadTracker, core::ITracker, std::shared_ptr<core::HeadTracker>>(m, "HeadTracker")
         .def(py::init<>())
-        .def("get_head", &oxr::HeadTracker::get_head, py::return_value_policy::reference_internal);
+        .def("get_head", &core::HeadTracker::get_head, py::return_value_policy::reference_internal);
 
-    // TeleopSession class (bound via wrapper)
-    py::class_<PyTeleopSession>(m, "TeleopSession")
-        .def("update", &PyTeleopSession::update, "Update session and all trackers")
-        .def("__enter__", &PyTeleopSession::enter)
-        .def("__exit__", &PyTeleopSession::exit);
+    // XrioSession class (bound via wrapper)
+    py::class_<PyXrioSession>(m, "XrioSession")
+        .def("update", &PyXrioSession::update, "Update session and all trackers")
+        .def("__enter__", &PyXrioSession::enter)
+        .def("__exit__", &PyXrioSession::exit);
 
-    // TeleopSessionBuilder class
-    py::class_<oxr::TeleopSessionBuilder>(m, "TeleopSessionBuilder")
+    // XrioSessionBuilder class
+    py::class_<core::XrioSessionBuilder>(m, "XrioSessionBuilder")
         .def(py::init<>(), "Create a builder")
-        .def("add_tracker", &oxr::TeleopSessionBuilder::add_tracker, py::arg("tracker"), "Add a tracker to the builder")
-        .def("get_required_extensions", &oxr::TeleopSessionBuilder::get_required_extensions,
+        .def("add_tracker", &core::XrioSessionBuilder::add_tracker, py::arg("tracker"), "Add a tracker to the builder")
+        .def("get_required_extensions", &core::XrioSessionBuilder::get_required_extensions,
              "Get list of OpenXR extensions required by all trackers")
         .def(
             "build",
-            [](oxr::TeleopSessionBuilder& self, const oxr::OpenXRSessionHandles& handles)
+            [](core::XrioSessionBuilder& self, const core::OpenXRSessionHandles& handles)
             {
                 auto session = self.build(handles);
                 if (!session)
-                    return std::unique_ptr<PyTeleopSession>(nullptr);
-                // Wrap shared_ptr in PyTeleopSession, then unique_ptr for Python ownership
-                return std::make_unique<PyTeleopSession>(session);
+                    return std::unique_ptr<PyXrioSession>(nullptr);
+                // Wrap shared_ptr in PyXrioSession, then unique_ptr for Python ownership
+                return std::make_unique<PyXrioSession>(session);
             },
-            py::arg("handles"), "Build a teleop session with OpenXR session handles");
+            py::arg("handles"), "Build a xrio session with OpenXR session handles");
 
     // Module constants
-    m.attr("NUM_JOINTS") = oxr::HandData::NUM_JOINTS;
+    m.attr("NUM_JOINTS") = core::HandData::NUM_JOINTS;
 
     // Joint indices
     m.attr("JOINT_PALM") = static_cast<int>(XR_HAND_JOINT_PALM_EXT);

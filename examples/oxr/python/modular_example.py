@@ -32,7 +32,7 @@ def main():
     
     # Create builder and add trackers
     print("\nCreating builder and adding trackers...")
-    builder = xrio.TeleopSessionBuilder()
+    builder = xrio.XrioSessionBuilder()
     builder.add_tracker(hand_tracker)
     builder.add_tracker(head_tracker)
     print("✓ Builder created and trackers added")
@@ -52,15 +52,15 @@ def main():
         handles = oxr_session.get_handles()
         print("✓ OpenXR session created")
         
-        # Build teleop session from builder
-        print("\nInitializing teleop session...")
+        # Build xrio session from builder
+        print("\nInitializing xrio session...")
         session = builder.build(handles)
         if session is None:
             print("✗ Failed to initialize")
             return 1
         
         with session:
-            print("✓ Teleop session initialized with all trackers!")
+            print("✓ Xrio session initialized with all trackers!")
             print()
             
             # Main tracking loop

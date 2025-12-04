@@ -24,7 +24,7 @@ This builds:
 
 ### oxr_session_sharing
 
-Demonstrates session sharing between multiple TeleopSession instances. This example shows how multiple tracking components can share a single OpenXR session.
+Demonstrates session sharing between multiple XrioSession instances. This example shows how multiple tracking components can share a single OpenXR session.
 
 **Build output**: `../../../build/examples/oxr/cpp/oxr_session_sharing`
 
@@ -60,7 +60,7 @@ cmake --build .
 ## Library Linkage
 
 Examples link against the static libraries which include:
-- TeleopSession - Main session management
+- XrioSession - Main session management
 - OpenXRSession - Session handling
 - HandTracker - Hand tracking functionality
 - HeadTracker - Head tracking functionality

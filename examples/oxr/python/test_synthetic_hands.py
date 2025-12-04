@@ -81,15 +81,15 @@ def run_test():
         handles = oxr_session.get_handles()
         
         hand_tracker = xrio.HandTracker()
-        builder = xrio.TeleopSessionBuilder()
+        builder = xrio.XrioSessionBuilder()
         builder.add_tracker(hand_tracker)
         
-        with builder.build(handles) as teleop_session:
-            if not teleop_session:
-                print("  ✗ Failed to create teleop session")
+        with builder.build(handles) as xrio_session:
+            if not xrio_session:
+                print("  ✗ Failed to create xrio session")
                 return
             
-            print("  ✓ Teleop session created")
+            print("  ✓ Xrio session created")
             print()
 
             # 4. Loop and Read with periodic health checks
@@ -106,7 +106,7 @@ def run_test():
                         print(f"Plugin crashed: {e}")
                         break
                 
-                if not teleop_session.update():
+                if not xrio_session.update():
                     print("  ✗ Reader session update failed")
                     break
                 

@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Test session sharing between multiple TeleopSession instances.
+Test session sharing between multiple XrioSession instances.
 
 This demonstrates how to create one OpenXR session directly and share it
 across multiple managers with different trackers.
@@ -67,12 +67,12 @@ print()
 print("[Step 3] Creating Manager 1 with HandTracker...")
 hand_tracker = xrio.HandTracker()
 
-builder1 = xrio.TeleopSessionBuilder()
+builder1 = xrio.XrioSessionBuilder()
 builder1.add_tracker(hand_tracker)
 
 session1 = builder1.build(handles)
 if session1 is None:
-    print("  ✗ Failed to create teleop session 1")
+    print("  ✗ Failed to create xrio session 1")
     sys.exit(1)
 
 print("  ✓ Manager 1 using shared session")
@@ -84,12 +84,12 @@ print()
 print("[Step 4] Creating Manager 2 with HeadTracker...")
 head_tracker = xrio.HeadTracker()
 
-builder2 = xrio.TeleopSessionBuilder()
+builder2 = xrio.XrioSessionBuilder()
 builder2.add_tracker(head_tracker)
 
 session2 = builder2.build(handles)
 if session2 is None:
-    print("  ✗ Failed to create teleop session 2")
+    print("  ✗ Failed to create xrio session 2")
     sys.exit(1)
 
 print("  ✓ Manager 2 using shared session")
