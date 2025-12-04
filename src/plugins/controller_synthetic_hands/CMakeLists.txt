@@ -28,7 +28,7 @@ target_include_directories(controller_synthetic_hands PRIVATE
 # Find required system libraries for static linking
 find_package(Threads REQUIRED)
 
-# Link against OpenXR from submodule (statically linked)
+# Link against OpenXR (fetched via CMake FetchContent - statically linked)
 # When statically linking, we need to include system dependencies
 target_link_libraries(controller_synthetic_hands PRIVATE
     OpenXR::openxr_loader

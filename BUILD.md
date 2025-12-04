@@ -11,21 +11,16 @@ This document describes how to build the entire TeleopCore project including lib
 
 - CMake 3.20 or higher
 - C++17 compatible compiler
-- OpenXR SDK
 - Python 3.11 (for Python bindings - version configured in root `CMakeLists.txt`)
 - uv (for Python dependency management)
-- Git (for submodules)
+- Internet connection (for downloading dependencies via CMake FetchContent)
 
 > **Note:** The Python version requirement is centrally configured in the root `CMakeLists.txt` file. 
 > To change the Python version, modify the `TELEOPCORE_PYTHON_VERSION` variable in that file.
 
+> **Note:** Dependencies (OpenXR SDK, pybind11, yaml-cpp) are automatically downloaded during CMake configuration using FetchContent. No manual dependency installation or git submodule initialization is required.
+
 ### Initial Setup
-
-After cloning the repository, initialize the git submodules:
-
-```bash
-git submodule update --init --recursive
-```
 
 Install uv if not already installed:
 ```bash
@@ -37,20 +32,18 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 Build everything with CMake (from project root):
 
 ```bash
-# Initialize submodules (first time only)
-git submodule update --init --recursive
-
-# Build
+# Build - dependencies are automatically fetched
 cmake -B build
 cmake --build build
 cmake --install build
 ```
 
 This will:
-1. Build the C++ static libraries (OXR and XRIO modules)
-2. Build the Python wheels
-3. Build the C++ examples
-4. Install everything to `./install`
+1. Automatically fetch dependencies (OpenXR SDK, pybind11, yaml-cpp) using CMake FetchContent
+2. Build the C++ static libraries (OXR and XRIO modules)
+3. Build the Python wheels
+4. Build the C++ examples
+5. Install everything to `./install`
 
 All options have sensible defaults:
 - Build type: `Release`
@@ -154,10 +147,19 @@ If you've installed TeleopCore, you can use it in your own CMake project by link
 
 ## Troubleshooting
 
+### Dependencies fail to download
+If CMake FetchContent fails to download dependencies, check your internet connection. The build requires:
+- OpenXR SDK from https://github.com/KhronosGroup/OpenXR-SDK.git
+- pybind11 from https://github.com/pybind/pybind11.git
+- yaml-cpp from https://github.com/jbeder/yaml-cpp.git
+
+You can also check the `_deps` directory in your build folder for download logs.
+
 ### CMake can't find OpenXR
-Make sure OpenXR SDK is installed and visible to CMake. You may need to set:
+OpenXR SDK is automatically fetched by CMake. If you see errors about missing OpenXR, try cleaning your build directory:
 ```bash
-export CMAKE_PREFIX_PATH=/path/to/openxr/install
+rm -rf build
+cmake -B build
 ```
 
 ### Examples can't find the library
