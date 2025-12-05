@@ -14,3 +14,6 @@ include teleopcore/plugin_manager/*.pyi
 include teleopcore/schema/*.so
 include teleopcore/schema/*.pyd
 include teleopcore/schema/*.pyi
+recursive-include teleopcore/retargeting_engine *.py
+recursive-include teleopcore/teleop_utils *.py
+

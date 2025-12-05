@@ -38,6 +38,9 @@ set(_cf_exclude_patterns
   ".*/manus/ManusSDK/.*"
   ".*/node_modules/.*"
   ".*/third_party/.*"
+  ".*/.venv/.*"
+  ".*/venv/.*"
+  ".*/\.venv/.*"
 )
 
 set(CLANG_FORMAT_SOURCES)
@@ -65,15 +68,31 @@ list(REMOVE_DUPLICATES CLANG_FORMAT_SOURCES)
 # Helper to build command line
 function(_build_clang_format_cmd outvar fix)
   if (fix)
-    set(_args -i)
+    set(_mode_arg "-i")
   else()
-    set(_args --dry-run -Werror)
+    set(_mode_arg "--dry-run -Werror")
   endif()
+  
   # Prefer repo style if present
+  set(_style_arg "")
   if (EXISTS ${CMAKE_SOURCE_DIR}/.clang-format)
-    list(APPEND _args -style=file)
+    set(_style_arg "-style=file")
   endif()
-  set(_cmd ${CLANG_FORMAT_EXE} ${_args} ${CLANG_FORMAT_SOURCES})
+  
+  # Create a response file and wrapper script to avoid "Argument list too long"
+  set(_response_file "${CMAKE_BINARY_DIR}/clang_format_files.txt")
+  set(_wrapper_script "${CMAKE_BINARY_DIR}/run_clang_format.sh")
+  
+  file(WRITE ${_response_file} "")
+  foreach(_src IN LISTS CLANG_FORMAT_SOURCES)
+    file(APPEND ${_response_file} "${_src}\n")
+  endforeach()
+  
+  # Create wrapper script that uses xargs
+  file(WRITE ${_wrapper_script} "#!/bin/bash\ncat '${_response_file}' | xargs -n 50 '${CLANG_FORMAT_EXE}' ${_mode_arg} ${_style_arg}\n")
+  execute_process(COMMAND chmod +x ${_wrapper_script})
+  
+  set(_cmd ${_wrapper_script})
   set(${outvar} "${_cmd}" PARENT_SCOPE)
 endfunction()
 

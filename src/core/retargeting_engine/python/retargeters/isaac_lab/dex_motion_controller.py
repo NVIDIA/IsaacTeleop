@@ -1,0 +1,310 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+"""
+Dex Motion Controller Retargeter Module.
+
+Retargeter that maps motion controller inputs to robot hand joint angles.
+This class implements simple logic to map button presses and trigger/joystick inputs
+to finger joint angles, specifically designed for dexterous hand control.
+
+Based on IsaacLab's DexMotionController, adapted for TeleopCore's retargeting framework.
+"""
+
+import numpy as np
+from typing import Dict, List
+from dataclasses import dataclass
+
+from ...interface.retargeting_module import BaseRetargeter, RetargeterIO
+from ...interface.tensor_group_type import TensorGroupType
+from ...interface.tensor_group import TensorGroup
+from ...tensor_types import ControllerInput, FloatType
+
+
+@dataclass
+class DexMotionControllerConfig:
+    """Configuration for the dexterous motion controller retargeter.
+    
+    Attributes:
+        hand_joint_names: List of joint names in the robot hand (in order)
+        controller_side: Which controller to use ("left" or "right")
+    """
+    hand_joint_names: List[str]
+    controller_side: str = "left"
+
+
+class DexMotionController(BaseRetargeter):
+    """
+    Retargeter that maps motion controller inputs to robot hand joint angles.
+    
+    This retargeter implements simple logic to map controller button presses
+    and analog inputs (trigger, squeeze) to finger joint angles. It's designed
+    for quick testing and simple dexterous hand control without hand tracking.
+    
+    Inputs:
+        - "controller_{side}": Motion controller data (trigger, squeeze, buttons)
+    
+    Outputs:
+        - "hand_joints": Joint angles for the robot hand (7 DOFs)
+    
+    The mapping is:
+    - Trigger: Controls index finger and thumb button
+    - Squeeze: Controls middle finger and thumb button
+    - Thumb rotation: Combination of trigger and squeeze (different for left/right)
+    
+    Output DOF order:
+    0. Thumb Rotation
+    1. Thumb Middle/Proximal
+    2. Thumb Distal
+    3. Index Proximal
+    4. Index Distal
+    5. Middle Proximal
+    6. Middle Distal
+    """
+    
+    def __init__(self, config: DexMotionControllerConfig, name: str) -> None:
+        """
+        Initialize the dex motion controller retargeter.
+        
+        Args:
+            config: Configuration object for the retargeter
+            name: Name identifier for this retargeter (must be unique)
+        """
+        super().__init__(name=name)
+        
+        self._config = config
+        self._hand_joint_names = config.hand_joint_names
+        self._controller_side = config.controller_side.lower()
+        
+        if self._controller_side not in ["left", "right"]:
+            raise ValueError(f"controller_side must be 'left' or 'right', got: {self._controller_side}")
+        
+        self._is_left = (self._controller_side == "left")
+    
+    def input_spec(self) -> RetargeterIO:
+        """Define input collections for motion controller."""
+        if self._controller_side == "left":
+            return {"controller_left": ControllerInput()}
+        else:
+            return {"controller_right": ControllerInput()}
+    
+    def output_spec(self) -> RetargeterIO:
+        """Define output collections for robot hand joint angles."""
+        return {
+            "hand_joints": TensorGroupType(
+                f"hand_joints_{self._controller_side}",
+                [FloatType(name) for name in self._hand_joint_names]
+            )
+        }
+    
+    def compute(self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]) -> None:
+        """
+        Execute the motion controller to hand joint mapping.
+        
+        Args:
+            inputs: Dict with motion controller data
+            outputs: Dict with "hand_joints" TensorGroup for robot joint angles
+        """
+        # Get input controller data
+        controller_input_key = f"controller_{self._controller_side}"
+        controller_group = inputs[controller_input_key]
+        
+        # Check if controller is active
+        is_active = controller_group[11]  # is_active field at index 11
+        
+        if not is_active:
+            # Output zeros if controller is not active
+            output_group = outputs["hand_joints"]
+            for i in range(len(self._hand_joint_names)):
+                output_group[i] = 0.0
+            return
+        
+        # Extract controller inputs
+        # Index mapping (from standard_types.py ControllerInput):
+        # 0: grip_position (NDArray)
+        # 1: grip_orientation (NDArray)
+        # 2: aim_position (NDArray)
+        # 3: aim_orientation (NDArray)
+        # 4: primary_click (FloatType)
+        # 5: secondary_click (FloatType)
+        # 6: thumbstick_x (FloatType)
+        # 7: thumbstick_y (FloatType)
+        # 8: thumbstick_click (FloatType)
+        # 9: squeeze_value (FloatType)
+        # 10: trigger_value (FloatType)
+        # 11: is_active (BoolType)
+        
+        trigger_value = float(controller_group[10])  # trigger_value
+        squeeze_value = float(controller_group[9])   # squeeze_value
+        
+        # Map controller inputs to hand joints (7 DOFs)
+        hand_joints = self._map_to_hand_joints(trigger_value, squeeze_value)
+        
+        # For left hand, negate joint angles for proper mirroring
+        if self._is_left:
+            hand_joints = -hand_joints
+        
+        # Write to output
+        output_group = outputs["hand_joints"]
+        
+        # If we have exactly 7 joint names, use direct mapping
+        if len(self._hand_joint_names) == 7:
+            for i in range(7):
+                output_group[i] = float(hand_joints[i])
+        else:
+            # If different number of joints, need to map by name
+            # For now, just fill what we can
+            for i in range(min(len(self._hand_joint_names), 7)):
+                output_group[i] = float(hand_joints[i])
+    
+    def _map_to_hand_joints(self, trigger: float, squeeze: float) -> np.ndarray:
+        """
+        Map controller inputs to hand joint angles.
+        
+        Args:
+            trigger: Trigger value (0.0 to 1.0)
+            squeeze: Squeeze/grip value (0.0 to 1.0)
+        
+        Returns:
+            Array of 7 joint angles
+        """
+        hand_joints = np.zeros(7, dtype=np.float32)
+        
+        # Thumb button: max of trigger and squeeze
+        thumb_button = max(trigger, squeeze)
+        thumb_angle = -thumb_button
+        
+        # Thumb rotation: combination of trigger and squeeze
+        # This creates different thumb poses depending on input
+        thumb_rotation = 0.5 * trigger - 0.5 * squeeze
+        if not self._is_left:
+            thumb_rotation = -thumb_rotation
+        
+        # Set thumb joints
+        hand_joints[0] = thumb_rotation      # Thumb rotation
+        hand_joints[1] = thumb_angle * 0.4   # Thumb proximal
+        hand_joints[2] = thumb_angle * 0.7   # Thumb distal
+        
+        # Index finger: controlled by trigger
+        index_angle = trigger * 1.0
+        hand_joints[3] = index_angle   # Index proximal
+        hand_joints[4] = index_angle   # Index distal
+        
+        # Middle finger: controlled by squeeze
+        middle_angle = squeeze * 1.0
+        hand_joints[5] = middle_angle  # Middle proximal
+        hand_joints[6] = middle_angle  # Middle distal
+        
+        return hand_joints
+
+
+class DexBiManualMotionController(BaseRetargeter):
+    """
+    Wrapper around two DexMotionController instances for bimanual control.
+    
+    This retargeter instantiates two DexMotionController instances (one for each hand)
+    and combines their outputs into a single vector.
+    
+    Inputs:
+        - "controller_left": Left motion controller data
+        - "controller_right": Right motion controller data
+    
+    Outputs:
+        - "hand_joints": Combined joint angles for both hands
+    """
+    
+    def __init__(
+        self,
+        left_config: DexMotionControllerConfig,
+        right_config: DexMotionControllerConfig,
+        target_joint_names: List[str],
+        name: str
+    ) -> None:
+        """
+        Initialize the bimanual motion controller retargeter.
+        
+        Args:
+            left_config: Configuration for left hand controller
+            right_config: Configuration for right hand controller
+            target_joint_names: Ordered list of joint names for combined output
+            name: Name identifier for this retargeter (must be unique)
+        """
+        super().__init__(name=name)
+        
+        # Ensure configs have correct controller sides
+        left_config.controller_side = "left"
+        right_config.controller_side = "right"
+        
+        # Create individual controllers
+        self._left_controller = DexMotionController(left_config, name=f"{name}_left")
+        self._right_controller = DexMotionController(right_config, name=f"{name}_right")
+        
+        self._target_joint_names = target_joint_names
+        
+        # Prepare index mapping
+        self._left_indices = []
+        self._right_indices = []
+        self._output_indices_left = []
+        self._output_indices_right = []
+        
+        left_joints = left_config.hand_joint_names
+        right_joints = right_config.hand_joint_names
+        
+        for i, name in enumerate(target_joint_names):
+            if name in left_joints:
+                self._output_indices_left.append(i)
+                self._left_indices.append(left_joints.index(name))
+            elif name in right_joints:
+                self._output_indices_right.append(i)
+                self._right_indices.append(right_joints.index(name))
+    
+    def input_spec(self) -> RetargeterIO:
+        """Define input collections for both controllers."""
+        return {
+            "controller_left": ControllerInput(),
+            "controller_right": ControllerInput()
+        }
+    
+    def output_spec(self) -> RetargeterIO:
+        """Define output collections for combined hand joints."""
+        return {
+            "hand_joints": TensorGroupType(
+                "hand_joints_bimanual",
+                [FloatType(name) for name in self._target_joint_names]
+            )
+        }
+    
+    def compute(self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]) -> None:
+        """
+        Execute bimanual motion controller retargeting.
+        
+        Args:
+            inputs: Dict with "controller_left" and "controller_right" data
+            outputs: Dict with "hand_joints" combined output
+        """
+        # Create temporary output groups for individual controllers
+        left_outputs = {
+            "hand_joints": TensorGroup(self._left_controller.output_spec()["hand_joints"])
+        }
+        right_outputs = {
+            "hand_joints": TensorGroup(self._right_controller.output_spec()["hand_joints"])
+        }
+        
+        # Run individual controllers
+        left_inputs = {"controller_left": inputs["controller_left"]}
+        right_inputs = {"controller_right": inputs["controller_right"]}
+        
+        self._left_controller.compute(left_inputs, left_outputs)
+        self._right_controller.compute(right_inputs, right_outputs)
+        
+        # Combine outputs
+        combined_output = outputs["hand_joints"]
+        
+        # Map left hand joints
+        for src_idx, dst_idx in zip(self._left_indices, self._output_indices_left):
+            combined_output[dst_idx] = float(left_outputs["hand_joints"][src_idx])
+        
+        # Map right hand joints
+        for src_idx, dst_idx in zip(self._right_indices, self._output_indices_right):
+            combined_output[dst_idx] = float(right_outputs["hand_joints"][src_idx])
+

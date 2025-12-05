@@ -20,6 +20,8 @@ authors = [
 ]
 dependencies = [
     "numpy>=1.19.0",
+    "pyyaml>=6.0",
+    "scipy>=1.7.0",
 ]
 
 [project.optional-dependencies]
@@ -28,6 +30,9 @@ dev = [
     "pytest-cov>=4.0.0",
     "pybind11-stubgen>=2.5",
 ]
+isaac_lab = [
+    "dex-retargeting==0.4.6 ; platform_system == 'Linux' and (platform_machine == 'x86_64' or platform_machine == 'AMD64')",
+]
 
 [tool.setuptools]
 packages = [
@@ -35,7 +40,15 @@ packages = [
     "teleopcore.deviceio",
     "teleopcore.oxr",
     "teleopcore.plugin_manager",
-    "teleopcore.schema"
+    "teleopcore.schema",
+    "teleopcore.retargeting_engine",
+    "teleopcore.retargeting_engine.interface",
+    "teleopcore.retargeting_engine.tensor_types",
+    "teleopcore.retargeting_engine.examples",
+    "teleopcore.retargeting_engine.sources",
+    "teleopcore.retargeting_engine.retargeters",
+    "teleopcore.retargeting_engine.retargeters.isaac_lab",
+    "teleopcore.teleop_utils"
 ]
 include-package-data = true
 
@@ -45,6 +58,8 @@ teleopcore = ["*.so", "*.pyd", "*.pyi", "py.typed"]
 "teleopcore.oxr" = ["*.so", "*.pyd", "*.pyi"]
 "teleopcore.plugin_manager" = ["*.so", "*.pyd", "*.pyi"]
 "teleopcore.schema" = ["*.so", "*.pyd", "*.pyi"]
+"teleopcore.retargeting_engine" = ["*.py"]
+"teleopcore.teleop_utils" = ["*.py"]
 
 [tool.uv]
 # Only use managed Python installations (not system Python)

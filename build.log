@@ -1,0 +1,392 @@
+[  0%] Enforcing clang-format: verifying formatting is clean
+[  0%] Built target generate_openxr_header
+[  0%] Built target xr_global_generated_files
+[  2%] Built target flatbuffers
+[  2%] Built target libopenxr_loader.so.1.1
+[ 15%] Built target yaml-cpp
+[ 31%] Built target flatc
+[ 38%] Built target openxr_loader
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:104:22: error: code should be clang-formatted [-Wclang-format-violations]
+            "inputs",
+                     ^
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:170:32: error: code should be clang-formatted [-Wclang-format-violations]
+                     grip_str = "ControllerPose(is_valid=" + std::string(self.grip_pose->is_valid ? "True" : "False") +
+                               ^
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:170:120: error: code should be clang-formatted [-Wclang-format-violations]
+                     grip_str = "ControllerPose(is_valid=" + std::string(self.grip_pose->is_valid ? "True" : "False") +
+                                                                                                                       ^
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:176:31: error: code should be clang-formatted [-Wclang-format-violations]
+                     aim_str =
+                              ^
+[ 80%] Built target Catch2
+[ 82%] Built target teleop_plugin_manager
+[ 82%] Generating FlatBuffers C++ for controller.fbs
+[ 83%] Built target oxr_core
+[ 85%] Built target teleop_plugin_utils
+[ 86%] Built target Catch2WithMain
+[ 87%] Built target plugin_manager_py
+[ 89%] Built target schema_header_generation
+[ 91%] Built target controller_synthetic_hands
+[ 91%] Built target oxr_py
+Consolidate compiler generated dependencies of target schema_py
+Consolidate compiler generated dependencies of target deviceio_core
+Consolidate compiler generated dependencies of target schema_tests
+[ 92%] Building CXX object src/core/schema/python/CMakeFiles/schema_py.dir/schema_module.cpp.o
+[ 93%] Building CXX object src/core/deviceio/cpp/CMakeFiles/deviceio_core.dir/headtracker.cpp.o
+[ 93%] Building CXX object src/core/schema_tests/cpp/CMakeFiles/schema_tests.dir/test_head.cpp.o
+[ 93%] Building CXX object src/core/schema_tests/cpp/CMakeFiles/schema_tests.dir/test_hand.cpp.o
+[ 94%] Building CXX object src/core/deviceio/cpp/CMakeFiles/deviceio_core.dir/handtracker.cpp.o
+[ 95%] Building CXX object src/core/deviceio/cpp/CMakeFiles/deviceio_core.dir/controllertracker.cpp.o
+gmake[2]: *** [CMakeFiles/clang_format_check.dir/build.make:71: CMakeFiles/clang_format_check] Error 1
+gmake[1]: *** [CMakeFiles/Makefile2:736: CMakeFiles/clang_format_check.dir/all] Error 2
+gmake[1]: *** Waiting for unfinished jobs....
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema_tests/cpp/test_hand.cpp:154:33: warning: integer constant is so large that it is unsigned
+  154 |     int64_t test_runtime_time = 9876543210987654321LL;
+      |                                 ^~~~~~~~~~~~~~~~~~~~~
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema_tests/cpp/test_head.cpp:84:33: warning: integer constant is so large that it is unsigned
+   84 |     int64_t test_runtime_time = 9876543210987654321LL;
+      |                                 ^~~~~~~~~~~~~~~~~~~~~
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/controllertracker.cpp: In lambda function:
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/controllertracker.cpp:314:65: error: ‘PoseT’ was not declared in this scope; did you mean ‘Pose’?
+  314 |                     snapshot.grip_pose->pose = std::make_unique<PoseT>();
+      |                                                                 ^~~~~
+      |                                                                 Pose
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/controllertracker.cpp:314:71: error: no matching function for call to ‘make_unique<<expression error> >()’
+  314 |                     snapshot.grip_pose->pose = std::make_unique<PoseT>();
+      |                                                ~~~~~~~~~~~~~~~~~~~~~~~^~
+In file included from /usr/include/c++/11/memory:76,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/oxr_utils/cpp/inc/oxr_utils/oxr_funcs.hpp:14,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/inc/deviceio/tracker.hpp:6,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/inc/deviceio/controllertracker.hpp:6,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/controllertracker.cpp:4:
+/usr/include/c++/11/bits/unique_ptr.h:961:5: note: candidate: ‘template<class _Tp, class ... _Args> typename std::_MakeUniq<_Tp>::__single_object std::make_unique(_Args&& ...)’
+  961 |     make_unique(_Args&&... __args)
+      |     ^~~~~~~~~~~
+/usr/include/c++/11/bits/unique_ptr.h:961:5: note:   template argument deduction/substitution failed:
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/controllertracker.cpp:314:71: error: template argument 1 is invalid
+  314 |                     snapshot.grip_pose->pose = std::make_unique<PoseT>();
+      |                                                ~~~~~~~~~~~~~~~~~~~~~~~^~
+In file included from /usr/include/c++/11/memory:76,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/oxr_utils/cpp/inc/oxr_utils/oxr_funcs.hpp:14,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/inc/deviceio/tracker.hpp:6,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/inc/deviceio/controllertracker.hpp:6,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/controllertracker.cpp:4:
+/usr/include/c++/11/bits/unique_ptr.h:967:5: note: candidate: ‘template<class _Tp> typename std::_MakeUniq<_Tp>::__array std::make_unique(std::size_t)’
+  967 |     make_unique(size_t __num)
+      |     ^~~~~~~~~~~
+/usr/include/c++/11/bits/unique_ptr.h:967:5: note:   template argument deduction/substitution failed:
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/controllertracker.cpp:314:71: error: template argument 1 is invalid
+  314 |                     snapshot.grip_pose->pose = std::make_unique<PoseT>();
+      |                                                ~~~~~~~~~~~~~~~~~~~~~~~^~
+In file included from /usr/include/c++/11/memory:76,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/oxr_utils/cpp/inc/oxr_utils/oxr_funcs.hpp:14,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/inc/deviceio/tracker.hpp:6,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/inc/deviceio/controllertracker.hpp:6,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/controllertracker.cpp:4:
+/usr/include/c++/11/bits/unique_ptr.h:973:5: note: candidate: ‘template<class _Tp, class ... _Args> typename std::_MakeUniq<_Tp>::__invalid_type std::make_unique(_Args&& ...)’ (deleted)
+  973 |     make_unique(_Args&&...) = delete;
+      |     ^~~~~~~~~~~
+/usr/include/c++/11/bits/unique_ptr.h:973:5: note:   template argument deduction/substitution failed:
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/controllertracker.cpp:314:71: error: template argument 1 is invalid
+  314 |                     snapshot.grip_pose->pose = std::make_unique<PoseT>();
+      |                                                ~~~~~~~~~~~~~~~~~~~~~~~^~
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/controllertracker.cpp:316:43: error: invalid use of member function ‘const core::Point& core::Pose::position() const’ (did you forget the ‘()’ ?)
+  316 |                 snapshot.grip_pose->pose->position = std::make_unique<Point>(
+      |                 ~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~
+      |                                                   ()
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/controllertracker.cpp:318:43: error: invalid use of member function ‘const core::Quaternion& core::Pose::orientation() const’ (did you forget the ‘()’ ?)
+  318 |                 snapshot.grip_pose->pose->orientation =
+      |                 ~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~
+      |                                                      ()
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/controllertracker.cpp:337:64: error: ‘PoseT’ was not declared in this scope; did you mean ‘Pose’?
+  337 |                     snapshot.aim_pose->pose = std::make_unique<PoseT>();
+      |                                                                ^~~~~
+      |                                                                Pose
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/controllertracker.cpp:337:70: error: no matching function for call to ‘make_unique<<expression error> >()’
+  337 |                     snapshot.aim_pose->pose = std::make_unique<PoseT>();
+      |                                               ~~~~~~~~~~~~~~~~~~~~~~~^~
+In file included from /usr/include/c++/11/memory:76,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/oxr_utils/cpp/inc/oxr_utils/oxr_funcs.hpp:14,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/inc/deviceio/tracker.hpp:6,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/inc/deviceio/controllertracker.hpp:6,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/controllertracker.cpp:4:
+/usr/include/c++/11/bits/unique_ptr.h:961:5: note: candidate: ‘template<class _Tp, class ... _Args> typename std::_MakeUniq<_Tp>::__single_object std::make_unique(_Args&& ...)’
+  961 |     make_unique(_Args&&... __args)
+      |     ^~~~~~~~~~~
+/usr/include/c++/11/bits/unique_ptr.h:961:5: note:   template argument deduction/substitution failed:
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/controllertracker.cpp:337:70: error: template argument 1 is invalid
+  337 |                     snapshot.aim_pose->pose = std::make_unique<PoseT>();
+      |                                               ~~~~~~~~~~~~~~~~~~~~~~~^~
+In file included from /usr/include/c++/11/memory:76,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/oxr_utils/cpp/inc/oxr_utils/oxr_funcs.hpp:14,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/inc/deviceio/tracker.hpp:6,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/inc/deviceio/controllertracker.hpp:6,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/controllertracker.cpp:4:
+/usr/include/c++/11/bits/unique_ptr.h:967:5: note: candidate: ‘template<class _Tp> typename std::_MakeUniq<_Tp>::__array std::make_unique(std::size_t)’
+  967 |     make_unique(size_t __num)
+      |     ^~~~~~~~~~~
+/usr/include/c++/11/bits/unique_ptr.h:967:5: note:   template argument deduction/substitution failed:
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/controllertracker.cpp:337:70: error: template argument 1 is invalid
+  337 |                     snapshot.aim_pose->pose = std::make_unique<PoseT>();
+      |                                               ~~~~~~~~~~~~~~~~~~~~~~~^~
+In file included from /usr/include/c++/11/memory:76,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/oxr_utils/cpp/inc/oxr_utils/oxr_funcs.hpp:14,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/inc/deviceio/tracker.hpp:6,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/inc/deviceio/controllertracker.hpp:6,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/controllertracker.cpp:4:
+/usr/include/c++/11/bits/unique_ptr.h:973:5: note: candidate: ‘template<class _Tp, class ... _Args> typename std::_MakeUniq<_Tp>::__invalid_type std::make_unique(_Args&& ...)’ (deleted)
+  973 |     make_unique(_Args&&...) = delete;
+      |     ^~~~~~~~~~~
+/usr/include/c++/11/bits/unique_ptr.h:973:5: note:   template argument deduction/substitution failed:
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/controllertracker.cpp:337:70: error: template argument 1 is invalid
+  337 |                     snapshot.aim_pose->pose = std::make_unique<PoseT>();
+      |                                               ~~~~~~~~~~~~~~~~~~~~~~~^~
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/controllertracker.cpp:339:42: error: invalid use of member function ‘const core::Point& core::Pose::position() const’ (did you forget the ‘()’ ?)
+  339 |                 snapshot.aim_pose->pose->position = std::make_unique<Point>(
+      |                 ~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~
+      |                                                  ()
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/controllertracker.cpp:341:42: error: invalid use of member function ‘const core::Quaternion& core::Pose::orientation() const’ (did you forget the ‘()’ ?)
+  341 |                 snapshot.aim_pose->pose->orientation =
+      |                 ~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~
+      |                                                     ()
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/controllertracker.cpp: In member function ‘const core::ControllerSnapshotT& core::ControllerTracker::Impl::get_snapshot(core::Hand) const’:
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/deviceio/cpp/controllertracker.cpp:379:27: error: ‘Left’ is not a member of ‘core::Hand’
+  379 |     return (hand == Hand::Left) ? left_snapshot_ : right_snapshot_;
+      |                           ^~~~
+gmake[2]: *** [src/core/deviceio/cpp/CMakeFiles/deviceio_core.dir/build.make:104: src/core/deviceio/cpp/CMakeFiles/deviceio_core.dir/controllertracker.cpp.o] Error 1
+gmake[2]: *** Waiting for unfinished jobs....
+gmake[1]: *** [CMakeFiles/Makefile2:1966: src/core/deviceio/cpp/CMakeFiles/deviceio_core.dir/all] Error 2
+In file included from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/schema_module.cpp:9:
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h: In function ‘void core::bind_controller(pybind11::module&)’:
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:49:62: error: ISO C++ forbids declaration of ‘type name’ with no type [-fpermissive]
+   49 |             "pose", [](const ControllerPoseT& self) -> const PoseT* { return self.pose.get(); },
+      |                                                              ^~~~~
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h: In lambda function:
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:49:62: error: expected ‘{’ before ‘PoseT’
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:49:62: warning: no return statement in function returning non-void [-Wreturn-type]
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h: In function ‘void core::bind_controller(pybind11::module&)’:
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:49:61: error: expected ‘)’ before ‘PoseT’
+   49 |             "pose", [](const ControllerPoseT& self) -> const PoseT* { return self.pose.get(); },
+      |                                                             ^~~~~~
+      |                                                             )
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:48:31: note: to match this ‘(’
+   48 |         .def_property_readonly(
+      |                               ^
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h: In lambda function:
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:56:46: error: ‘PoseT’ was not declared in this scope; did you mean ‘Pose’?
+   56 |                 self.pose = std::make_unique<PoseT>();
+      |                                              ^~~~~
+      |                                              Pose
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:56:52: error: no matching function for call to ‘make_unique<<expression error> >()’
+   56 |                 self.pose = std::make_unique<PoseT>();
+      |                             ~~~~~~~~~~~~~~~~~~~~~~~^~
+In file included from /usr/include/c++/11/memory:76,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/detail/common.h:318,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/attr.h:13,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/detail/class.h:12,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/pybind11.h:12,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/schema_module.cpp:6:
+/usr/include/c++/11/bits/unique_ptr.h:961:5: note: candidate: ‘template<class _Tp, class ... _Args> typename std::_MakeUniq<_Tp>::__single_object std::make_unique(_Args&& ...)’
+  961 |     make_unique(_Args&&... __args)
+      |     ^~~~~~~~~~~
+/usr/include/c++/11/bits/unique_ptr.h:961:5: note:   template argument deduction/substitution failed:
+In file included from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/schema_module.cpp:9:
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:56:52: error: template argument 1 is invalid
+   56 |                 self.pose = std::make_unique<PoseT>();
+      |                             ~~~~~~~~~~~~~~~~~~~~~~~^~
+In file included from /usr/include/c++/11/memory:76,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/detail/common.h:318,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/attr.h:13,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/detail/class.h:12,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/pybind11.h:12,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/schema_module.cpp:6:
+/usr/include/c++/11/bits/unique_ptr.h:967:5: note: candidate: ‘template<class _Tp> typename std::_MakeUniq<_Tp>::__array std::make_unique(std::size_t)’
+  967 |     make_unique(size_t __num)
+      |     ^~~~~~~~~~~
+/usr/include/c++/11/bits/unique_ptr.h:967:5: note:   template argument deduction/substitution failed:
+In file included from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/schema_module.cpp:9:
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:56:52: error: template argument 1 is invalid
+   56 |                 self.pose = std::make_unique<PoseT>();
+      |                             ~~~~~~~~~~~~~~~~~~~~~~~^~
+In file included from /usr/include/c++/11/memory:76,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/detail/common.h:318,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/attr.h:13,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/detail/class.h:12,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/pybind11.h:12,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/schema_module.cpp:6:
+/usr/include/c++/11/bits/unique_ptr.h:973:5: note: candidate: ‘template<class _Tp, class ... _Args> typename std::_MakeUniq<_Tp>::__invalid_type std::make_unique(_Args&& ...)’ (deleted)
+  973 |     make_unique(_Args&&...) = delete;
+      |     ^~~~~~~~~~~
+/usr/include/c++/11/bits/unique_ptr.h:973:5: note:   template argument deduction/substitution failed:
+In file included from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/schema_module.cpp:9:
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:56:52: error: template argument 1 is invalid
+   56 |                 self.pose = std::make_unique<PoseT>();
+      |                             ~~~~~~~~~~~~~~~~~~~~~~~^~
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:57:28: error: invalid use of member function ‘const core::Point& core::Pose::position() const’ (did you forget the ‘()’ ?)
+   57 |                 self.pose->position = std::make_unique<Point>(px, py, pz);
+      |                 ~~~~~~~~~~~^~~~~~~~
+      |                                    ()
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:58:28: error: invalid use of member function ‘const core::Quaternion& core::Pose::orientation() const’ (did you forget the ‘()’ ?)
+   58 |                 self.pose->orientation = std::make_unique<Quaternion>(qx, qy, qz, qw);
+      |                 ~~~~~~~~~~~^~~~~~~~~~~
+      |                                       ()
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h: In lambda function:
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:66:32: error: invalid use of non-static member function ‘const core::Point& core::Pose::position() const’
+   66 |                  if (self.pose && self.pose->position && self.pose->orientation)
+      |                      ~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~
+In file included from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/src/core/schema/cpp/../fbs/generated/schema/controller_generated.h:16,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:11,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/schema_module.cpp:9:
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/src/core/schema/cpp/../fbs/generated/schema/pose_generated.h:42:22: note: declared here
+   42 |   const core::Point &position() const {
+      |                      ^~~~~~~~
+In file included from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/schema_module.cpp:9:
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:68:86: error: invalid use of member function ‘const core::Point& core::Pose::position() const’ (did you forget the ‘()’ ?)
+   68 |                      pose_str = "Pose(position=Point(x=" + std::to_string(self.pose->position->x()) +
+      |                                                                           ~~~~~~~~~~~^~~~~~~~
+      |                                                                                              ()
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:69:68: error: invalid use of member function ‘const core::Point& core::Pose::position() const’ (did you forget the ‘()’ ?)
+   69 |                                 ", y=" + std::to_string(self.pose->position->y()) +
+      |                                                         ~~~~~~~~~~~^~~~~~~~
+      |                                                                            ()
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:70:68: error: invalid use of member function ‘const core::Point& core::Pose::position() const’ (did you forget the ‘()’ ?)
+   70 |                                 ", z=" + std::to_string(self.pose->position->z()) +
+      |                                                         ~~~~~~~~~~~^~~~~~~~
+      |                                                                            ()
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:71:92: error: invalid use of member function ‘const core::Quaternion& core::Pose::orientation() const’ (did you forget the ‘()’ ?)
+   71 |                                 "), orientation=Quaternion(x=" + std::to_string(self.pose->orientation->x()) +
+      |                                                                                 ~~~~~~~~~~~^~~~~~~~~~~
+      |                                                                                                       ()
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:72:68: error: invalid use of member function ‘const core::Quaternion& core::Pose::orientation() const’ (did you forget the ‘()’ ?)
+   72 |                                 ", y=" + std::to_string(self.pose->orientation->y()) +
+      |                                                         ~~~~~~~~~~~^~~~~~~~~~~
+      |                                                                               ()
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:73:68: error: invalid use of member function ‘const core::Quaternion& core::Pose::orientation() const’ (did you forget the ‘()’ ?)
+   73 |                                 ", z=" + std::to_string(self.pose->orientation->z()) +
+      |                                                         ~~~~~~~~~~~^~~~~~~~~~~
+      |                                                                               ()
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:74:68: error: invalid use of member function ‘const core::Quaternion& core::Pose::orientation() const’ (did you forget the ‘()’ ?)
+   74 |                                 ", w=" + std::to_string(self.pose->orientation->w()) + "))";
+      |                                                         ~~~~~~~~~~~^~~~~~~~~~~
+      |                                                                               ()
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h: In lambda function:
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:118:57: error: ‘PoseT’ was not declared in this scope; did you mean ‘Pose’?
+  118 |                 self.grip_pose->pose = std::make_unique<PoseT>();
+      |                                                         ^~~~~
+      |                                                         Pose
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:118:63: error: no matching function for call to ‘make_unique<<expression error> >()’
+  118 |                 self.grip_pose->pose = std::make_unique<PoseT>();
+      |                                        ~~~~~~~~~~~~~~~~~~~~~~~^~
+In file included from /usr/include/c++/11/memory:76,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/detail/common.h:318,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/attr.h:13,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/detail/class.h:12,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/pybind11.h:12,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/schema_module.cpp:6:
+/usr/include/c++/11/bits/unique_ptr.h:961:5: note: candidate: ‘template<class _Tp, class ... _Args> typename std::_MakeUniq<_Tp>::__single_object std::make_unique(_Args&& ...)’
+  961 |     make_unique(_Args&&... __args)
+      |     ^~~~~~~~~~~
+/usr/include/c++/11/bits/unique_ptr.h:961:5: note:   template argument deduction/substitution failed:
+In file included from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/schema_module.cpp:9:
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:118:63: error: template argument 1 is invalid
+  118 |                 self.grip_pose->pose = std::make_unique<PoseT>();
+      |                                        ~~~~~~~~~~~~~~~~~~~~~~~^~
+In file included from /usr/include/c++/11/memory:76,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/detail/common.h:318,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/attr.h:13,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/detail/class.h:12,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/pybind11.h:12,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/schema_module.cpp:6:
+/usr/include/c++/11/bits/unique_ptr.h:967:5: note: candidate: ‘template<class _Tp> typename std::_MakeUniq<_Tp>::__array std::make_unique(std::size_t)’
+  967 |     make_unique(size_t __num)
+      |     ^~~~~~~~~~~
+/usr/include/c++/11/bits/unique_ptr.h:967:5: note:   template argument deduction/substitution failed:
+In file included from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/schema_module.cpp:9:
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:118:63: error: template argument 1 is invalid
+  118 |                 self.grip_pose->pose = std::make_unique<PoseT>();
+      |                                        ~~~~~~~~~~~~~~~~~~~~~~~^~
+In file included from /usr/include/c++/11/memory:76,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/detail/common.h:318,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/attr.h:13,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/detail/class.h:12,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/pybind11.h:12,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/schema_module.cpp:6:
+/usr/include/c++/11/bits/unique_ptr.h:973:5: note: candidate: ‘template<class _Tp, class ... _Args> typename std::_MakeUniq<_Tp>::__invalid_type std::make_unique(_Args&& ...)’ (deleted)
+  973 |     make_unique(_Args&&...) = delete;
+      |     ^~~~~~~~~~~
+/usr/include/c++/11/bits/unique_ptr.h:973:5: note:   template argument deduction/substitution failed:
+In file included from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/schema_module.cpp:9:
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:118:63: error: template argument 1 is invalid
+  118 |                 self.grip_pose->pose = std::make_unique<PoseT>();
+      |                                        ~~~~~~~~~~~~~~~~~~~~~~~^~
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:119:39: error: invalid use of member function ‘const core::Point& core::Pose::position() const’ (did you forget the ‘()’ ?)
+  119 |                 self.grip_pose->pose->position = std::make_unique<Point>(px, py, pz);
+      |                 ~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~
+      |                                               ()
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:120:39: error: invalid use of member function ‘const core::Quaternion& core::Pose::orientation() const’ (did you forget the ‘()’ ?)
+  120 |                 self.grip_pose->pose->orientation = std::make_unique<Quaternion>(qx, qy, qz, qw);
+      |                 ~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~
+      |                                                  ()
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h: In lambda function:
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:131:56: error: ‘PoseT’ was not declared in this scope; did you mean ‘Pose’?
+  131 |                 self.aim_pose->pose = std::make_unique<PoseT>();
+      |                                                        ^~~~~
+      |                                                        Pose
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:131:62: error: no matching function for call to ‘make_unique<<expression error> >()’
+  131 |                 self.aim_pose->pose = std::make_unique<PoseT>();
+      |                                       ~~~~~~~~~~~~~~~~~~~~~~~^~
+In file included from /usr/include/c++/11/memory:76,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/detail/common.h:318,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/attr.h:13,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/detail/class.h:12,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/pybind11.h:12,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/schema_module.cpp:6:
+/usr/include/c++/11/bits/unique_ptr.h:961:5: note: candidate: ‘template<class _Tp, class ... _Args> typename std::_MakeUniq<_Tp>::__single_object std::make_unique(_Args&& ...)’
+  961 |     make_unique(_Args&&... __args)
+      |     ^~~~~~~~~~~
+/usr/include/c++/11/bits/unique_ptr.h:961:5: note:   template argument deduction/substitution failed:
+In file included from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/schema_module.cpp:9:
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:131:62: error: template argument 1 is invalid
+  131 |                 self.aim_pose->pose = std::make_unique<PoseT>();
+      |                                       ~~~~~~~~~~~~~~~~~~~~~~~^~
+In file included from /usr/include/c++/11/memory:76,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/detail/common.h:318,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/attr.h:13,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/detail/class.h:12,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/pybind11.h:12,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/schema_module.cpp:6:
+/usr/include/c++/11/bits/unique_ptr.h:967:5: note: candidate: ‘template<class _Tp> typename std::_MakeUniq<_Tp>::__array std::make_unique(std::size_t)’
+  967 |     make_unique(size_t __num)
+      |     ^~~~~~~~~~~
+/usr/include/c++/11/bits/unique_ptr.h:967:5: note:   template argument deduction/substitution failed:
+In file included from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/schema_module.cpp:9:
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:131:62: error: template argument 1 is invalid
+  131 |                 self.aim_pose->pose = std::make_unique<PoseT>();
+      |                                       ~~~~~~~~~~~~~~~~~~~~~~~^~
+In file included from /usr/include/c++/11/memory:76,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/detail/common.h:318,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/attr.h:13,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/detail/class.h:12,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/build/_deps/pybind11-src/include/pybind11/pybind11.h:12,
+                 from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/schema_module.cpp:6:
+/usr/include/c++/11/bits/unique_ptr.h:973:5: note: candidate: ‘template<class _Tp, class ... _Args> typename std::_MakeUniq<_Tp>::__invalid_type std::make_unique(_Args&& ...)’ (deleted)
+  973 |     make_unique(_Args&&...) = delete;
+      |     ^~~~~~~~~~~
+/usr/include/c++/11/bits/unique_ptr.h:973:5: note:   template argument deduction/substitution failed:
+In file included from /home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/schema_module.cpp:9:
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:131:62: error: template argument 1 is invalid
+  131 |                 self.aim_pose->pose = std::make_unique<PoseT>();
+      |                                       ~~~~~~~~~~~~~~~~~~~~~~~^~
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:132:38: error: invalid use of member function ‘const core::Point& core::Pose::position() const’ (did you forget the ‘()’ ?)
+  132 |                 self.aim_pose->pose->position = std::make_unique<Point>(px, py, pz);
+      |                 ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~
+      |                                              ()
+/home/devdeepr/Projects/isaac-teleop-workspace/TeleopCore/src/core/schema/python/controller_bindings.h:133:38: error: invalid use of member function ‘const core::Quaternion& core::Pose::orientation() const’ (did you forget the ‘()’ ?)
+  133 |                 self.aim_pose->pose->orientation = std::make_unique<Quaternion>(qx, qy, qz, qw);
+      |                 ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~
+      |                                                 ()
+[ 95%] Linking CXX executable schema_tests
+[ 96%] Built target schema_tests
+gmake[2]: *** [src/core/schema/python/CMakeFiles/schema_py.dir/build.make:76: src/core/schema/python/CMakeFiles/schema_py.dir/schema_module.cpp.o] Error 1
+gmake[1]: *** [CMakeFiles/Makefile2:1830: src/core/schema/python/CMakeFiles/schema_py.dir/all] Error 2
+gmake: *** [Makefile:146: all] Error 2
