@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 [project]
-name = "oxr-examples"
+name = "teleop-examples"
 version = "0.1.0"
-description = "OpenXR Tracking Python Examples"
+description = "TeleopCore Retargeting Examples"
 requires-python = ">=3.11,<3.12"
 dependencies = [
     "teleopcore",

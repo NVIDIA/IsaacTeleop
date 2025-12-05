@@ -75,6 +75,7 @@ add_subdirectory(src/core)
 # Build examples if requested
 if(BUILD_EXAMPLES)
     add_subdirectory(examples/oxr)
+    add_subdirectory(examples/teleop)
 endif()
 
 # Build plugins if requested

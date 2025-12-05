@@ -19,6 +19,12 @@ add_subdirectory(oxr)
 # Build XRIO library (depends on oxr_utils for types)
 add_subdirectory(xrio)
 
+# Build Retargeting Engine (pure Python module)
+add_subdirectory(retargeting_engine)
+
+# Build Teleop Utils (high-level Python utilities)
+add_subdirectory(teleop_utils)
+
 # Python wheel packaging (combines both modules)
 if(BUILD_PYTHON_BINDINGS)
     add_subdirectory(python)

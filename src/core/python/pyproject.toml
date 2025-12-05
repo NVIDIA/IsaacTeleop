@@ -19,8 +19,16 @@ dependencies = [
     "numpy>=1.19.0",
 ]
 
+[project.optional-dependencies]
+holoscan = [
+    "holoscan==3.4.0",
+]
+test = [
+    "pytest>=7.0.0",
+]
+
 [tool.setuptools]
-packages = ["teleopcore", "teleopcore.xrio", "teleopcore.oxr", "teleopcore.plugin_manager"]
+packages.find = {}  # Automatically find all packages
 include-package-data = true
 
 [tool.setuptools.package-data]
@@ -28,6 +36,7 @@ teleopcore = ["*.so", "*.pyd"]
 "teleopcore.xrio" = ["*.so", "*.pyd"]
 "teleopcore.oxr" = ["*.so", "*.pyd"]
 "teleopcore.plugin_manager" = ["*.so", "*.pyd"]
+"teleopcore.retargeting_engine" = ["*.py"]
 
 [tool.uv]
 # Only use managed Python installations (not system Python)
