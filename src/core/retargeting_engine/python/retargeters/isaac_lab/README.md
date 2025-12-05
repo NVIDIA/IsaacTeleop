@@ -1,0 +1,241 @@
+# IsaacLab Examples - Dex Hand Retargeters
+
+This directory contains retargeters ported from IsaacLab (Isaac Sim) to work with TeleopCore's retargeting framework.
+
+## Available Retargeters
+
+### DexHandRetargeter
+
+Accurate hand tracking retargeter using the `dex-retargeting` library.
+
+**Features:**
+- Uses optimization-based retargeting for accurate joint angle estimation
+- Supports custom robot hands via URDF and YAML configuration
+- Handles OpenXR hand tracking data (26 joints) → robot-specific joint angles
+- Configurable coordinate frame transformations
+
+**Requirements:**
+- `dex-retargeting` library: `pip install dex-retargeting`
+- `scipy`: `pip install scipy`
+- Robot hand URDF file
+- dex_retargeting YAML configuration file
+
+**Configuration:**
+
+```python
+from teleopcore.retargeting_engine import (
+    DexHandRetargeter,
+    DexHandRetargeterConfig,
+)
+
+config = DexHandRetargeterConfig(
+    hand_joint_names=[
+        "thumb_proximal_yaw_joint",
+        "thumb_proximal_pitch_joint",
+        "index_proximal_joint",
+        "middle_proximal_joint",
+        "ring_proximal_joint",
+        "pinky_proximal_joint",
+    ],
+    hand_retargeting_config="/path/to/hand_config.yml",
+    hand_urdf="/path/to/robot_hand.urdf",
+    handtracking_to_baselink_frame_transform=(0, 0, 1, 1, 0, 0, 0, 1, 0),  # 3x3 matrix flattened
+    hand_side="left",  # or "right"
+)
+
+retargeter = DexHandRetargeter(config, name="dex_hand_left")
+```
+
+**YAML Configuration Example:**
+
+See `config/dex_retargeting/` for examples from IsaacLab. A typical config looks like:
+
+```yaml
+retargeting:
+  finger_tip_link_names:
+  - thumb_tip
+  - index_tip
+  - middle_tip
+  - ring_tip
+  - pinky_tip
+  low_pass_alpha: 0.2
+  scaling_factor: 1.2
+  target_joint_names:
+  - thumb_proximal_yaw_joint
+  - thumb_proximal_pitch_joint
+  - index_proximal_joint
+  - middle_proximal_joint
+  - ring_proximal_joint
+  - pinky_proximal_joint
+  type: DexPilot
+  urdf_path: /path/to/robot_hand.urdf
+  wrist_link_name: hand_base_link
+```
+
+### DexBiManualRetargeter
+
+Bimanual wrapper around two `DexHandRetargeter` instances for controlling both hands simultaneously.
+
+**Configuration:**
+
+```python
+from teleopcore.retargeting_engine import (
+    DexBiManualRetargeter,
+    DexHandRetargeterConfig,
+)
+
+left_config = DexHandRetargeterConfig(
+    hand_joint_names=left_hand_joints,
+    hand_retargeting_config="/path/to/left_hand_config.yml",
+    hand_urdf="/path/to/left_hand.urdf",
+    hand_side="left",
+)
+
+right_config = DexHandRetargeterConfig(
+    hand_joint_names=right_hand_joints,
+    hand_retargeting_config="/path/to/right_hand_config.yml",
+    hand_urdf="/path/to/right_hand.urdf",
+    hand_side="right",
+)
+
+# Combined joint names for both hands
+target_joint_names = left_hand_joints + right_hand_joints
+
+bimanual_retargeter = DexBiManualRetargeter(
+    left_config=left_config,
+    right_config=right_config,
+    target_joint_names=target_joint_names,
+    name="dex_bimanual",
+)
+```
+
+### DexMotionController
+
+Simple VR controller-based hand control. Maps trigger and squeeze inputs to finger joint angles.
+
+**Features:**
+- No external dependencies (works out of the box)
+- Simple mapping: trigger → index, squeeze → middle, both → thumb
+- Good for quick prototyping and testing
+- Outputs 7 DOF hand control
+
+**Configuration:**
+
+```python
+from teleopcore.retargeting_engine import (
+    DexMotionController,
+    DexMotionControllerConfig,
+)
+
+config = DexMotionControllerConfig(
+    hand_joint_names=[
+        "thumb_rotation",
+        "thumb_proximal",
+        "thumb_distal",
+        "index_proximal",
+        "index_distal",
+        "middle_proximal",
+        "middle_distal",
+    ],
+    controller_side="left",  # or "right"
+)
+
+controller = DexMotionController(config, name="dex_motion_left")
+```
+
+**Output DOF Mapping:**
+- Index 0: Thumb rotation (controlled by trigger - squeeze difference)
+- Index 1: Thumb proximal joint (controlled by max(trigger, squeeze) * 0.4)
+- Index 2: Thumb distal joint (controlled by max(trigger, squeeze) * 0.7)
+- Index 3: Index finger proximal (controlled by trigger)
+- Index 4: Index finger distal (controlled by trigger)
+- Index 5: Middle finger proximal (controlled by squeeze)
+- Index 6: Middle finger distal (controlled by squeeze)
+
+### DexBiManualMotionController
+
+Bimanual wrapper around two `DexMotionController` instances.
+
+## Usage Example
+
+See `dex_hand_example.py` for a complete working example.
+
+```python
+from teleopcore.retargeting_engine.sources import HandsSource
+from teleopcore.retargeting_engine import DexHandRetargeter, DexHandRetargeterConfig
+import teleopcore.deviceio as deviceio
+
+# Initialize hand tracker
+hand_tracker = deviceio.HandTracker()
+hands_source = HandsSource(hand_tracker, name="hands")
+
+# Configure retargeter
+config = DexHandRetargeterConfig(
+    hand_joint_names=["thumb_joint", "index_joint", ...],
+    hand_retargeting_config="/path/to/config.yml",
+    hand_urdf="/path/to/hand.urdf",
+    hand_side="left",
+)
+
+retargeter = DexHandRetargeter(config, name="dex_hand_left")
+
+# Connect and compute
+connected = retargeter.connect({
+    "hand_left": hands_source.output("hand_left")
+})
+
+output = connected.compute()
+joint_angles = output["hand_joints"]
+```
+
+## Coordinate Frame Transformations
+
+The `handtracking_to_baselink_frame_transform` parameter is a 3x3 rotation matrix flattened to 9 elements.
+
+**Common Transformations:**
+
+- **G1/Inspire Frame** (default): `(0, 0, 1, 1, 0, 0, 0, 1, 0)`
+  - Maps OpenXR tracking frame to robot base frame
+  - Swap Z→X, X→Y, Y→Z
+
+- **Identity** (no transformation): `(1, 0, 0, 0, 1, 0, 0, 0, 1)`
+
+Matrix is applied as: `target_pos = joint_pos @ wrist_rotation @ transform_matrix`
+
+## Configuration Files
+
+Example configuration files from IsaacLab can be found in:
+```
+IsaacLab/source/isaaclab_tasks/.../config/dex_retargeting/
+```
+
+These include configs for:
+- Unitree G1 Inspire hands (left/right)
+- Fourier GR1-T2 hands (left/right)
+
+## Original Source
+
+These retargeters are adapted from:
+- `IsaacLab/source/isaaclab/isaaclab/devices/retargeters/dex/`
+
+Original authors: The Isaac Lab Project Developers
+License: BSD-3-Clause
+
+## Differences from IsaacLab Version
+
+The ported version has been adapted to work with TeleopCore's retargeting framework:
+
+1. **Framework Integration**: Uses TeleopCore's `BaseRetargeter`, `RetargeterIO`, `TensorGroup` system
+2. **Data Types**: Uses TeleopCore's standard hand tracking types (`LeftHandInput`, `RightHandInput`)
+3. **No Visualization**: Removed Isaac Sim-specific visualization markers (can be added later)
+4. **Simplified Initialization**: Removed Isaac Sim-specific asset retrieval, uses direct file paths
+5. **Configuration**: Uses dataclass configs instead of Isaac Sim's config system
+
+## Future Improvements
+
+- [ ] Add visualization support using TeleopCore's visualization system
+- [ ] Add example config files for common robot hands
+- [ ] Add support for downloading URDFs from URLs
+- [ ] Add performance optimizations for real-time use
+- [ ] Add tests for retargeting accuracy
+
