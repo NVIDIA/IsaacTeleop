@@ -45,7 +45,7 @@ class GStreamerReceiver:
             decoder = "nvh264dec max-display-delay=0 num-output-surfaces=1"
             caps_filter = "video/x-raw,format=NV12 ! "
         else:
-            decoder = "avdec_h264"
+            decoder = "openh264dec"
             caps_filter = ""
         
         pipeline_desc = (
@@ -158,7 +158,7 @@ class GStreamerReceiver:
     
     def _print_startup_info(self, port: int, use_hw_decode: bool):
         """Print startup information."""
-        decoder = "nvh264dec (hardware)" if use_hw_decode else "avdec_h264 (software)"
+        decoder = "nvh264dec (hardware)" if use_hw_decode else "openh264dec (software)"
         print(f"GStreamer receiver listening on port {port}")
         print(f"Using decoder: {decoder}")
         print("Press Ctrl+C or close window to quit")

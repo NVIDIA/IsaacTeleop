@@ -74,7 +74,7 @@ ssh unitree@192.168.123.164 'lsusb | grep 03e7'
 sudo ufw allow 5000/udp
 
 # Rebuild images (if needed)
-docker rmi oakd-streamer:x86 oakd-streamer:x86-sender
+./cam_streamer.sh clean
 ```
 
 ## Requirements
