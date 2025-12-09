@@ -32,7 +32,7 @@ message(STATUS "Fetching yaml-cpp from GitHub...")
 FetchContent_Declare(
     yaml-cpp
     GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
-    GIT_TAG        f7320141120f720aecc4c32be25586e7da9eb978  # 0.8.0
+    GIT_TAG        bbf8bdb087bb3f3621ca0a5ace06047805f4e9f3  # master as of Dec 1, 2025
     GIT_SHALLOW    FALSE  # Need full history for this specific commit
 )
 
