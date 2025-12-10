@@ -1,0 +1,12 @@
+name: manus_hand_plugin
+description: "Manus glove hand tracking"
+command: "./manus_hand_plugin"
+version: "1.0.0"
+devices:
+  - path: "/hand/left"
+    type: "hand_tracker"
+    description: "Left Manus glove"
+  - path: "/hand/right"
+    type: "hand_tracker"
+    description: "Right Manus glove"
+

@@ -87,4 +87,5 @@ endif()
 # Build plugins if requested
 if(BUILD_PLUGINS)
     add_subdirectory(src/plugins/controller_synthetic_hands)
+    add_subdirectory(src/plugins/manus)
 endif()
