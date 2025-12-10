@@ -5,6 +5,8 @@
 
 #include "ManusSDK.h"
 #include "ManusSDKTypeInitializers.h"
+#include "hand_injector.hpp"
+#include "session.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -15,6 +17,42 @@
 #include <thread>
 #include <unordered_map>
 #include <vector>
+
+namespace
+{
+constexpr XrPosef multiply_poses(const XrPosef& a, const XrPosef& b)
+{
+    XrPosef result{};
+
+    // Quaternion multiplication: result = a * b
+    float qw = a.orientation.w, qx = a.orientation.x, qy = a.orientation.y, qz = a.orientation.z;
+    float rw = b.orientation.w, rx = b.orientation.x, ry = b.orientation.y, rz = b.orientation.z;
+
+    result.orientation.w = qw * rw - qx * rx - qy * ry - qz * rz;
+    result.orientation.x = qw * rx + qx * rw + qy * rz - qz * ry;
+    result.orientation.y = qw * ry - qx * rz + qy * rw + qz * rx;
+    result.orientation.z = qw * rz + qx * ry - qy * rx + qz * rw;
+
+    // Position: result = a.pos + a.rot * b.pos
+    float vx = b.position.x, vy = b.position.y, vz = b.position.z;
+
+    // t = 2 * cross(q.xyz, v)
+    float tx = 2.0f * (qy * vz - qz * vy);
+    float ty = 2.0f * (qz * vx - qx * vz);
+    float tz = 2.0f * (qx * vy - qy * vx);
+
+    // v' = v + q.w * t + cross(q.xyz, t)
+    float rot_x = vx + qw * tx + (qy * tz - qz * ty);
+    float rot_y = vy + qw * ty + (qz * tx - qx * tz);
+    float rot_z = vz + qw * tz + (qx * ty - qy * tx);
+
+    result.position.x = a.position.x + rot_x;
+    result.position.y = a.position.y + rot_y;
+    result.position.z = a.position.z + rot_z;
+
+    return result;
+}
+}
 
 namespace isaacteleop
 {
@@ -31,6 +69,65 @@ ManusTracker::ManusTracker() = default;
 ManusTracker::~ManusTracker()
 {
     cleanup();
+}
+
+void ManusTracker::update()
+{
+    if (!m_controllers)
+    {
+        return;
+    }
+
+    // Use current steady clock for OpenXR timestamp
+    auto now = std::chrono::steady_clock::now();
+    auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch());
+    XrTime time = static_cast<XrTime>(ns.count());
+
+    if (m_controllers->update(time))
+    {
+        std::lock_guard<std::mutex> lock(m_controller_mutex);
+        m_latest_left = m_controllers->left();
+        m_latest_right = m_controllers->right();
+    }
+}
+
+bool ManusTracker::initialize_openxr(const std::string& app_name)
+{
+    try
+    {
+        SessionConfig config;
+        config.app_name = app_name;
+        // Require the push device extension
+        config.extensions = { XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME, XR_MND_HEADLESS_EXTENSION_NAME };
+        // Overlay mode required for headless
+        config.use_overlay_mode = true;
+
+        m_session.reset(Session::Create(config));
+        if (!m_session->begin())
+        {
+            std::cerr << "Failed to begin OpenXR session" << std::endl;
+            return false;
+        }
+
+        const auto& handles = m_session->handles();
+        m_injector = std::make_unique<HandInjector>(handles.instance, handles.session, handles.reference_space);
+
+        // Initialize controllers
+        m_controllers.reset(Controllers::Create(handles.instance, handles.session, handles.reference_space));
+        if (!m_controllers)
+        {
+            std::cerr << "Failed to create controllers" << std::endl;
+            return false;
+        }
+
+        std::cout << "OpenXR session, HandInjector and Controllers initialized" << std::endl;
+        return true;
+    }
+    catch (const std::exception& e)
+    {
+        std::cerr << "Failed to initialize OpenXR: " << e.what() << std::endl;
+        return false;
+    }
 }
 
 bool ManusTracker::initialize()
@@ -61,8 +158,8 @@ bool ManusTracker::initialize()
     CoordinateSystemVUH t_VUH;
     CoordinateSystemVUH_Init(&t_VUH);
     t_VUH.handedness = Side::Side_Right;
-    t_VUH.up = AxisPolarity::AxisPolarity_PositiveZ;
-    t_VUH.view = AxisView::AxisView_XFromViewer;
+    t_VUH.up = AxisPolarity::AxisPolarity_PositiveY;
+    t_VUH.view = AxisView::AxisView_ZToViewer;
     t_VUH.unitScale = 1.0f;
 
     std::cout << "Setting up coordinate system (Z-up, right-handed, meters)..." << std::endl;
@@ -244,6 +341,125 @@ void ManusTracker::OnSkeletonStream(const SkeletonStreamInfo* skeleton_stream_in
             s_instance->output_map[orient_key][j * 4 + 1] = orientation.x;
             s_instance->output_map[orient_key][j * 4 + 2] = orientation.y;
             s_instance->output_map[orient_key][j * 4 + 3] = orientation.z;
+        }
+
+        // OpenXR Injection
+        if (s_instance->m_injector)
+        {
+            XrHandJointLocationEXT joints[XR_HAND_JOINT_COUNT_EXT];
+
+            // Use current steady clock for OpenXR timestamp
+            auto now = std::chrono::steady_clock::now();
+            auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch());
+            XrTime time = static_cast<XrTime>(ns.count());
+
+            // Get controller pose to use as wrist/root
+            XrPosef root_pose = { { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, 0.0f } };
+            bool is_root_tracked = false;
+
+            {
+                std::lock_guard<std::mutex> lock(s_instance->m_controller_mutex);
+                if (is_left_glove)
+                {
+                    if (s_instance->m_latest_left.aim_valid)
+                    {
+                        XrPosef raw_pose = s_instance->m_latest_left.aim_pose;
+                        // Mirror Right Hand Offset
+                        XrPosef offset_pose = { { -0.70710678f, -0.5f, 0.0f, 0.5f }, { -0.1f, 0.02f, -0.02f } };
+                        s_instance->m_left_root_pose = multiply_poses(raw_pose, offset_pose);
+                        is_root_tracked = true;
+                    }
+                    root_pose = s_instance->m_left_root_pose;
+                }
+                else if (is_right_glove)
+                {
+                    if (s_instance->m_latest_right.aim_valid)
+                    {
+                        XrPosef raw_pose = s_instance->m_latest_right.aim_pose;
+                        XrPosef offset_pose = { { -0.70710678f, 0.5f, 0.0f, 0.5f }, { 0.1f, 0.02f, -0.02f } };
+                        s_instance->m_right_root_pose = multiply_poses(raw_pose, offset_pose);
+                        is_root_tracked = true;
+                    }
+                    root_pose = s_instance->m_right_root_pose;
+                }
+            }
+
+            // Mapping from Manus joint index to OpenXR joint index
+            // Manus: 0=Wrist, 1=ThumbMetacarpal... 5=IndexMetacarpal... Last=Palm
+            // OpenXR: 0=Palm, 1=Wrist, 2=ThumbMetacarpal...
+            // Note: Manus provides a Palm joint as the last joint in their array.
+            // All other finger joints are shifted by +1 in OpenXR relative to Manus.
+
+            for (uint32_t j = 0; j < XR_HAND_JOINT_COUNT_EXT; j++)
+            {
+                // Determine source index in Manus array
+                int manus_index = -1;
+
+                if (j == XR_HAND_JOINT_PALM_EXT)
+                {
+                    // OpenXR Palm -> Use Manus Palm (Last Index)
+                    if (skeleton_info.nodesCount > 0)
+                    {
+                        manus_index = skeleton_info.nodesCount - 1;
+                    }
+                }
+                else if (j == XR_HAND_JOINT_WRIST_EXT)
+                {
+                    // OpenXR Wrist -> Manus Wrist (Index 0)
+                    manus_index = 0;
+                }
+                else
+                {
+                    // OpenXR Finger Joints (Indices 2..25) -> Manus Finger Joints (Indices 1..24)
+                    manus_index = j - 1;
+                }
+
+                if (manus_index >= 0 && manus_index < (int)skeleton_info.nodesCount)
+                {
+                    const auto& pos = nodes[manus_index].transform.position;
+                    const auto& rot = nodes[manus_index].transform.rotation;
+
+                    // Coordinate conversion: Z-up (Manus) to Y-up (OpenXR)
+                    XrPosef local_pose;
+
+                    // Pos: (x, y, z) -> (x, z, -y)
+                    local_pose.position.x = pos.x;
+                    local_pose.position.y = pos.y;
+                    local_pose.position.z = pos.z;
+
+                    // Rot: (x, y, z, w) -> (x, z, -y, w)
+                    local_pose.orientation.x = rot.x;
+                    local_pose.orientation.y = rot.y;
+                    local_pose.orientation.z = rot.z;
+                    local_pose.orientation.w = rot.w;
+
+                    joints[j].pose = multiply_poses(root_pose, local_pose);
+
+                    joints[j].radius = 0.01f;
+                    joints[j].locationFlags =
+                        XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
+
+                    if (is_root_tracked)
+                    {
+                        joints[j].locationFlags |=
+                            XR_SPACE_LOCATION_POSITION_TRACKED_BIT | XR_SPACE_LOCATION_ORIENTATION_TRACKED_BIT;
+                    }
+                }
+                else
+                {
+                    // Invalid joint if index out of bounds
+                    joints[j] = { 0 };
+                }
+            }
+
+            if (is_left_glove)
+            {
+                s_instance->m_injector->push_left(joints, time);
+            }
+            else if (is_right_glove)
+            {
+                s_instance->m_injector->push_right(joints, time);
+            }
         }
     }
 }

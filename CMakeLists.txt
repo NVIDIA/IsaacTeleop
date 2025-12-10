@@ -40,7 +40,7 @@ option(ENABLE_EXPERIMENTAL_WINDOWS_BUILD "Enable experimental Windows build supp
 # Windows support warning
 if(WIN32)
     if(NOT ENABLE_EXPERIMENTAL_WINDOWS_BUILD)
-        message(FATAL_ERROR 
+        message(FATAL_ERROR
             "================================================================================\n"
             "Windows is not officially supported!\n"
             "If you want to build anyway for development/testing purposes, add:\n"
@@ -80,4 +80,5 @@ endif()
 # Build plugins if requested
 if(BUILD_PLUGINS)
     add_subdirectory(src/plugins/controller_synthetic_hands)
+    add_subdirectory(src/plugins/manus)
 endif()
