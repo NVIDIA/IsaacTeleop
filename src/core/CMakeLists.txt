@@ -7,6 +7,9 @@ project(teleopcore_modules VERSION 1.0.0 LANGUAGES CXX)
 # Options
 option(BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
 
+# Build messages library (depends on holoscan headers if enabled)
+add_subdirectory(messages)
+
 # Build OXR Utils first - header-only utilities (no dependencies)
 add_subdirectory(oxr_utils)
 

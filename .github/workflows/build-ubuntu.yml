@@ -35,3 +35,6 @@ jobs:
 
     - name: Build
       run: cmake --build build --parallel
+
+    - name: Run Tests
+      run: ctest --test-dir build --output-on-failure --parallel

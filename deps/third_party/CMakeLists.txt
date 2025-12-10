@@ -59,13 +59,55 @@ if(BUILD_PYTHON_BINDINGS)
         GIT_TAG        a2e59f0e7065404b44dfe92a28aca47ba1378dc4  # v2.11.0-182
         GIT_SHALLOW    FALSE  # Need full history for this specific commit
     )
-    
+
     FetchContent_MakeAvailable(pybind11)
     message(STATUS "Using pybind11 from FetchContent")
-    
+
     # Verify pybind11 targets are available
     if(NOT TARGET pybind11::module)
         message(FATAL_ERROR "pybind11::module target not found after FetchContent")
     endif()
+endif()
+
+# ==============================================================================
+# FlatBuffers
+# ==============================================================================
+# FlatBuffers is used for efficient serialization of messages.
+FetchContent_Declare(
+    flatbuffers
+    GIT_REPOSITORY https://github.com/google/flatbuffers.git
+    GIT_TAG v24.3.25
+)
+
+# Configure FlatBuffers build options.
+set(FLATBUFFERS_BUILD_TESTS OFF CACHE BOOL "Enable FlatBuffers tests" FORCE)
+set(FLATBUFFERS_INSTALL OFF CACHE BOOL "Enable FlatBuffers install" FORCE)
+set(FLATBUFFERS_BUILD_FLATC ON CACHE BOOL "Build flatc compiler" FORCE)
+
+FetchContent_MakeAvailable(flatbuffers)
+message(STATUS "FlatBuffers fetched and configured")
+
+# ==============================================================================
+# Catch2 (Testing Framework)
+# ==============================================================================
+# Catch2 is a modern, C++-native, test framework for unit tests.
+# Only fetch if testing is enabled.
+if(BUILD_TESTING)
+    message(STATUS "Fetching Catch2 from GitHub...")
+    FetchContent_Declare(
+        Catch2
+        GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+        GIT_TAG        v3.11.0
+        GIT_SHALLOW    TRUE
+    )
+
+    FetchContent_MakeAvailable(Catch2)
+    message(STATUS "Catch2 fetched and configured")
+
+    # Make Catch2's CMake modules available for catch_discover_tests
+    list(APPEND CMAKE_MODULE_PATH ${Catch2_SOURCE_DIR}/extras)
+
+    include(CTest)
+    include(Catch)
 endif()
 
