@@ -14,7 +14,7 @@ include(${CMAKE_SOURCE_DIR}/cmake/GenerateFlatBuffers.cmake)
 generate_flatbuffer_headers(
   MESSAGES_GENERATED_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/schemas
-  ${CMAKE_CURRENT_BINARY_DIR}/generated/teleopcore/messages
+  ${CMAKE_CURRENT_BINARY_DIR}/generated/core/messages
 )
 
 # Create a custom target for header generation.

@@ -3,11 +3,17 @@
 
 cmake_minimum_required(VERSION 3.20)
 
-add_executable(test_tensor test_tensor.cpp)
-target_link_libraries(test_tensor PRIVATE
+add_executable(test_messages
+  test_tensor.cpp
+  test_pose.cpp
+)
+target_include_directories(test_messages PRIVATE
+  ${CMAKE_SOURCE_DIR}/src
+)
+target_link_libraries(test_messages PRIVATE
   teleopcore::messages
   Catch2::Catch2WithMain
 )
 
-message(STATUS "test_tensor target enabled with Catch2")
-catch_discover_tests(test_tensor)
+message(STATUS "test_messages target enabled with Catch2")
+catch_discover_tests(test_messages)
