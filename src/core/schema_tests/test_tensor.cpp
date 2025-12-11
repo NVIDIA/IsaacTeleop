@@ -6,7 +6,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 // Include generated FlatBuffer header.
-#include "teleopcore/messages/tensor_generated.h"
+#include <schema/tensor_generated.h>
 
 TEST_CASE("DLDataTypeCode enum values are correct", "[tensor][enum]") {
     SECTION("kDLInt has expected value") {

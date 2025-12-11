@@ -7,8 +7,8 @@ project(teleopcore_modules VERSION 1.0.0 LANGUAGES CXX)
 # Options
 option(BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
 
-# Build messages library (depends on holoscan headers if enabled)
-add_subdirectory(messages)
+# Generated headers from FlatBuffer schemas with additional utilities.
+add_subdirectory(schema)
 
 # Build OXR Utils first - header-only utilities (no dependencies)
 add_subdirectory(oxr_utils)
@@ -25,4 +25,9 @@ add_subdirectory(xrio)
 # Python wheel packaging (combines both modules)
 if(BUILD_PYTHON_BINDINGS)
     add_subdirectory(python)
+endif()
+
+# Unit tests for FlatBuffer schema types and native types using Catch2.
+if(BUILD_TESTING)
+  add_subdirectory(schema_tests)
 endif()
