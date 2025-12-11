@@ -5,11 +5,11 @@
 
 #pragma once
 
+#include <schema/tensor_generated.h>
+
 #include <cstring>
 #include <memory>
 #include <vector>
-
-#include "core/messages/tensor_generated.h"
 
 namespace core {
 

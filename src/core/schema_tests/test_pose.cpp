@@ -3,14 +3,14 @@
 
 // Unit tests for the generated Pose FlatBuffer message.
 
+// Include generated FlatBuffer headers.
+#include <schema/pose_generated.h>
+#include <schema/tensor_generated.h>
+#include <schema/tensor_utils.h>
+
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
 #include <flatbuffers/flatbuffers.h>
-
-// Include generated FlatBuffer headers.
-#include "core/messages/pose_generated.h"
-#include "core/messages/tensor_generated.h"
-#include "core/messages/tensor_utils.h"
 
 TEST_CASE("PoseT native type can be serialized to FlatBuffer", "[pose][native]") {
     flatbuffers::FlatBufferBuilder builder(1024);

@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+cmake_minimum_required(VERSION 3.20)
+
+add_executable(schema_tests
+  test_tensor.cpp
+  test_pose.cpp
+)
+target_link_libraries(schema_tests PRIVATE
+  teleopcore_schema
+  Catch2::Catch2WithMain
+)
+
+message(STATUS "schema_tests target enabled with Catch2")
+catch_discover_tests(schema_tests)

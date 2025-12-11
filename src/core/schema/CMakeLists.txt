@@ -12,44 +12,33 @@ include(${CMAKE_SOURCE_DIR}/cmake/GenerateFlatBuffers.cmake)
 
 # Generate headers from schemas.
 generate_flatbuffer_headers(
-  MESSAGES_GENERATED_HEADERS
-  ${CMAKE_CURRENT_SOURCE_DIR}/schemas
-  ${CMAKE_CURRENT_BINARY_DIR}/generated/core/messages
+  SCHEMA_GENERATED_HEADERS
+  ${CMAKE_CURRENT_SOURCE_DIR}/fbs
+  ${CMAKE_CURRENT_BINARY_DIR}/generated/schema
 )
 
 # Create a custom target for header generation.
-add_custom_target(messages_header_generation
-  DEPENDS ${MESSAGES_GENERATED_HEADERS}
+add_custom_target(schema_header_generation
+  DEPENDS ${SCHEMA_GENERATED_HEADERS}
 )
 
 # ==============================================================================
-# Messages Library
+# Schema Library
 # ==============================================================================
-# Library containing generated FlatBuffer message types.
+# Library containing generated FlatBuffer schema types.
 
-add_library(teleopcore_messages INTERFACE)
-add_library(teleopcore::messages ALIAS teleopcore_messages)
-
-add_dependencies(teleopcore_messages messages_header_generation)
+add_library(teleopcore_schema INTERFACE)
+add_dependencies(teleopcore_schema schema_header_generation)
 
 # Include directories for generated headers and FlatBuffers runtime.
-target_include_directories(teleopcore_messages INTERFACE
+target_include_directories(teleopcore_schema INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/schemas>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/cpp/inc>
 )
 
 # Link FlatBuffers runtime (target created by FetchContent in deps/third_party).
-target_link_libraries(teleopcore_messages INTERFACE
+target_link_libraries(teleopcore_schema INTERFACE
   flatbuffers
 )
 
-message(STATUS "TeleopCore messages library configured with FlatBuffer schemas")
-
-# ==============================================================================
-# Tensor Unit Tests
-# ==============================================================================
-# Unit tests for FlatBuffer message types using Catch2.
-
-if(BUILD_TESTING)
-  add_subdirectory(tests)
-endif()
+message(STATUS "TeleopCore schema library configured with FlatBuffer")
