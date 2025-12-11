@@ -18,14 +18,56 @@ namespace py = pybind11;
 
 namespace core {
 
+// Determine DLDataType from buffer format string and itemsize.
+// This approach is robust across platforms where format codes for the same
+// bit-width type can differ (e.g., 'l' vs 'q' for 64-bit integers on LP64 vs LLP64).
+inline DLDataType format_to_dltype(const std::string& format, size_t itemsize) {
+    if (format.empty()) {
+        throw std::runtime_error("Empty format string");
+    }
+
+    // The format character indicates the type kind:
+    // Signed integers: 'b' (int8), 'h' (int16), 'i' (int32), 'l' (long), 'q' (long long), 'n' (ssize_t)
+    // Unsigned integers: 'B' (uint8), 'H' (uint16), 'I' (uint32), 'L' (ulong), 'Q' (ulonglong), 'N' (size_t)
+    // Floats: 'e' (float16), 'f' (float32), 'd' (float64)
+    char kind = format[0];
+    uint8_t bits = static_cast<uint8_t>(itemsize * 8);
+
+    switch (kind) {
+        // Signed integers
+        case 'b': case 'h': case 'i': case 'l': case 'q': case 'n':
+            return DLDataType(DLDataTypeCode_kDLInt, bits, 1);
+
+        // Unsigned integers
+        case 'B': case 'H': case 'I': case 'L': case 'Q': case 'N':
+            return DLDataType(DLDataTypeCode_kDLUInt, bits, 1);
+
+        // Floating point
+        case 'e': case 'f': case 'd':
+            return DLDataType(DLDataTypeCode_kDLFloat, bits, 1);
+
+        default:
+            throw std::runtime_error(
+                std::string("Unsupported numpy dtype format: '") + format + "'");
+    }
+}
+
 // Helper to create a TensorT from a numpy array.
 inline std::unique_ptr<TensorT> numpy_to_tensor(py::array array) {
     auto tensor = std::make_unique<TensorT>();
 
+    // Ensure array is C-contiguous. Non-contiguous arrays (e.g., slices with
+    // strides) have gaps in memory that can't be copied with a simple memcpy.
+    // py::array::c_style requests a C-contiguous layout, making a copy if needed.
+    array = py::array::ensure(array, py::array::c_style);
+    if (!array) {
+        throw std::runtime_error("Failed to convert array to C-contiguous layout");
+    }
+
     // Get buffer info.
     py::buffer_info info = array.request();
 
-    // Copy data.
+    // Copy data (now guaranteed to be contiguous).
     tensor->data.resize(info.size * info.itemsize);
     std::memcpy(tensor->data.data(), info.ptr, tensor->data.size());
 
@@ -44,22 +86,8 @@ inline std::unique_ptr<TensorT> numpy_to_tensor(py::array array) {
     // Set ndim.
     tensor->ndim = static_cast<uint32_t>(info.ndim);
 
-    // Set dtype based on numpy dtype.
-    if (info.format == py::format_descriptor<float>::format()) {
-        tensor->dtype = DLDataType(DLDataTypeCode_kDLFloat, 32, 1);
-    } else if (info.format == py::format_descriptor<double>::format()) {
-        tensor->dtype = DLDataType(DLDataTypeCode_kDLFloat, 64, 1);
-    } else if (info.format == py::format_descriptor<int32_t>::format()) {
-        tensor->dtype = DLDataType(DLDataTypeCode_kDLInt, 32, 1);
-    } else if (info.format == py::format_descriptor<int64_t>::format()) {
-        tensor->dtype = DLDataType(DLDataTypeCode_kDLInt, 64, 1);
-    } else if (info.format == py::format_descriptor<uint8_t>::format()) {
-        tensor->dtype = DLDataType(DLDataTypeCode_kDLUInt, 8, 1);
-    } else if (info.format == py::format_descriptor<uint32_t>::format()) {
-        tensor->dtype = DLDataType(DLDataTypeCode_kDLUInt, 32, 1);
-    } else {
-        throw std::runtime_error("Unsupported numpy dtype");
-    }
+    // Set dtype using format kind + itemsize (robust across platforms).
+    tensor->dtype = format_to_dltype(info.format, info.itemsize);
 
     // Default to CPU device.
     tensor->device = DLDevice(DLDeviceType_kDLCPU, 0);
@@ -96,6 +124,9 @@ inline py::array tensor_to_numpy(const TensorT& tensor) {
         } else if (tensor.dtype.bits() == 32) {
             format = py::format_descriptor<uint32_t>::format();
             itemsize = sizeof(uint32_t);
+        } else if (tensor.dtype.bits() == 64) {
+            format = py::format_descriptor<uint64_t>::format();
+            itemsize = sizeof(uint64_t);
         }
     }
 
