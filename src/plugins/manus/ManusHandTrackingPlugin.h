@@ -3,8 +3,18 @@
 
 #pragma once
 
+#if defined(_WIN32)
+#    define XR_USE_PLATFORM_WIN32
+#    include <windows.h>
+#else
+#    define XR_USE_TIMESPEC
+#    include <time.h>
+#endif
+
 #include "ManusSDK.h"
 #include "controllers.hpp"
+
+#include <openxr/openxr_platform.h>
 
 #include <memory>
 #include <mutex>
@@ -63,6 +73,11 @@ private:
     std::mutex m_controller_mutex;
     ControllerPose m_latest_left;
     ControllerPose m_latest_right;
+#if defined(_WIN32)
+    PFN_xrConvertWin32PerformanceCounterToTimeKHR m_convertWin32Time = nullptr;
+#else
+    PFN_xrConvertTimespecTimeToTimeKHR m_convertTimespecTime = nullptr;
+#endif
 
     // Persistent root poses (initialized to identity)
     XrPosef m_left_root_pose = { { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, 0.0f } };

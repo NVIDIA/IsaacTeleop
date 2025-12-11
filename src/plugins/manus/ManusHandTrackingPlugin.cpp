@@ -79,9 +79,16 @@ void ManusTracker::update()
     }
 
     // Use current steady clock for OpenXR timestamp
-    auto now = std::chrono::steady_clock::now();
-    auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch());
-    XrTime time = static_cast<XrTime>(ns.count());
+    XrTime time;
+#if defined(_WIN32)
+    LARGE_INTEGER counter;
+    QueryPerformanceCounter(&counter);
+    m_convertWin32Time(m_session->handles().instance, &counter, &time);
+#else
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    m_convertTimespecTime(m_session->handles().instance, &ts, &time);
+#endif
 
     if (m_controllers->update(time))
     {
@@ -99,6 +106,11 @@ bool ManusTracker::initialize_openxr(const std::string& app_name)
         config.app_name = app_name;
         // Require the push device extension
         config.extensions = { XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME, XR_MND_HEADLESS_EXTENSION_NAME };
+#if defined(_WIN32)
+        config.extensions.push_back("XR_KHR_win32_convert_performance_counter_time");
+#else
+        config.extensions.push_back("XR_KHR_convert_timespec_time");
+#endif
         // Overlay mode required for headless
         config.use_overlay_mode = true;
 
@@ -108,6 +120,20 @@ bool ManusTracker::initialize_openxr(const std::string& app_name)
             std::cerr << "Failed to begin OpenXR session" << std::endl;
             return false;
         }
+
+#if defined(_WIN32)
+        if (!m_session->get_extension_function("xrConvertWin32PerformanceCounterToTimeKHR", &m_convertWin32Time))
+        {
+            std::cerr << "Failed to get xrConvertWin32PerformanceCounterToTimeKHR function" << std::endl;
+            return false;
+        }
+#else
+        if (!m_session->get_extension_function("xrConvertTimespecTimeToTimeKHR", &m_convertTimespecTime))
+        {
+            std::cerr << "Failed to get xrConvertTimespecTimeToTimeKHR function" << std::endl;
+            return false;
+        }
+#endif
 
         const auto& handles = m_session->handles();
         m_injector = std::make_unique<HandInjector>(handles.instance, handles.session, handles.reference_space);
@@ -349,9 +375,16 @@ void ManusTracker::OnSkeletonStream(const SkeletonStreamInfo* skeleton_stream_in
             XrHandJointLocationEXT joints[XR_HAND_JOINT_COUNT_EXT];
 
             // Use current steady clock for OpenXR timestamp
-            auto now = std::chrono::steady_clock::now();
-            auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch());
-            XrTime time = static_cast<XrTime>(ns.count());
+            XrTime time;
+#if defined(_WIN32)
+            LARGE_INTEGER counter;
+            QueryPerformanceCounter(&counter);
+            s_instance->m_convertWin32Time(s_instance->m_session->handles().instance, &counter, &time);
+#else
+            struct timespec ts;
+            clock_gettime(CLOCK_MONOTONIC, &ts);
+            s_instance->m_convertTimespecTime(s_instance->m_session->handles().instance, &ts, &time);
+#endif
 
             // Get controller pose to use as wrist/root
             XrPosef root_pose = { { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, 0.0f } };
