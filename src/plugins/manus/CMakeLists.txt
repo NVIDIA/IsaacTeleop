@@ -8,7 +8,12 @@ option(MANUS_ADD_SDK_TO_BUILD_RPATH "Add Manus SDK lib dir to BUILD_RPATH for pl
 if(NOT DEFINED MANUS_SDK_ROOT AND DEFINED ENV{MANUS_SDK_ROOT})
   set(MANUS_SDK_ROOT "$ENV{MANUS_SDK_ROOT}" CACHE PATH "Path to Manus SDK root containing include/ and lib/" FORCE)
 else()
-  set(MANUS_SDK_ROOT "${CMAKE_SOURCE_DIR}/ManusSDK" CACHE PATH "Path to Manus SDK root containing include/ and lib/")
+  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ManusSDK")
+    set(_MANUS_DEFAULT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/ManusSDK")
+  else()
+    set(_MANUS_DEFAULT_ROOT "${CMAKE_SOURCE_DIR}/ManusSDK")
+  endif()
+  set(MANUS_SDK_ROOT "${_MANUS_DEFAULT_ROOT}" CACHE PATH "Path to Manus SDK root containing include/ and lib/")
 endif()
 
 set(MANUS_SDK_INCLUDE_DIR "${MANUS_SDK_ROOT}/include" CACHE PATH "Manus SDK include path" FORCE)
@@ -29,30 +34,46 @@ if(NOT _MANUS_LIBDIR)
 endif()
 set(MANUS_SDK_LIBRARY_DIR "${_MANUS_LIBDIR}" CACHE PATH "Manus SDK library path" FORCE)
 
+set(MANUS_SHOULD_BUILD ON)
+set(MANUS_SKIP_REASON "")
+
 if(NOT EXISTS "${MANUS_SDK_INCLUDE_DIR}/ManusSDK.h")
-  message(STATUS "Manus SDK headers not found in ${MANUS_SDK_INCLUDE_DIR}. Skipping Manus plugin build.")
-  return()
+  set(MANUS_SHOULD_BUILD OFF)
+  set(MANUS_SKIP_REASON "Headers not found in ${MANUS_SDK_INCLUDE_DIR}")
 endif()
-if(NOT EXISTS "${MANUS_SDK_LIBRARY_DIR}/libManusSDK.so")
-  if(NOT EXISTS "${MANUS_SDK_LIBRARY_DIR}/libManusSDK_Integrated.so")
-    message(STATUS "Manus SDK libraries not found in ${MANUS_SDK_LIBRARY_DIR}. Skipping Manus plugin build.")
-    return()
+
+if(MANUS_SHOULD_BUILD)
+  if(NOT EXISTS "${MANUS_SDK_LIBRARY_DIR}/libManusSDK.so")
+    if(NOT EXISTS "${MANUS_SDK_LIBRARY_DIR}/libManusSDK_Integrated.so")
+      set(MANUS_SHOULD_BUILD OFF)
+      set(MANUS_SKIP_REASON "Libraries not found in ${MANUS_SDK_LIBRARY_DIR}")
+    endif()
   endif()
 endif()
 
-set(_MANUS_CANDIDATES
-  "${MANUS_SDK_LIBRARY_DIR}/libManusSDK_Integrated.so"
-  "${MANUS_SDK_LIBRARY_DIR}/libManusSDK.so"
-)
 set(_MANUS_LIB "")
-foreach(_cand IN LISTS _MANUS_CANDIDATES)
-  if(EXISTS "${_cand}")
-    set(_MANUS_LIB "${_cand}")
-    break()
+if(MANUS_SHOULD_BUILD)
+  set(_MANUS_CANDIDATES
+    "${MANUS_SDK_LIBRARY_DIR}/libManusSDK_Integrated.so"
+    "${MANUS_SDK_LIBRARY_DIR}/libManusSDK.so"
+  )
+  foreach(_cand IN LISTS _MANUS_CANDIDATES)
+    if(EXISTS "${_cand}")
+      set(_MANUS_LIB "${_cand}")
+      break()
+    endif()
+  endforeach()
+  if(NOT _MANUS_LIB)
+    set(MANUS_SHOULD_BUILD OFF)
+    set(MANUS_SKIP_REASON "No shared library found under ${MANUS_SDK_LIBRARY_DIR}")
   endif()
-endforeach()
-if(NOT _MANUS_LIB)
-  message(STATUS "No Manus SDK shared library found under ${MANUS_SDK_LIBRARY_DIR}. Skipping Manus plugin build.")
+endif()
+
+if(NOT MANUS_SHOULD_BUILD)
+  message(STATUS "Skipping Manus plugin build: ${MANUS_SKIP_REASON}")
+  add_custom_target(isaac_manus_plugin COMMAND ${CMAKE_COMMAND} -E echo "Skipping isaac_manus_plugin: ${MANUS_SKIP_REASON}")
+  add_custom_target(manus_hand_plugin COMMAND ${CMAKE_COMMAND} -E echo "Skipping manus_hand_plugin: ${MANUS_SKIP_REASON}")
+  add_custom_target(ManusHandTrackerPrinter COMMAND ${CMAKE_COMMAND} -E echo "Skipping ManusHandTrackerPrinter: ${MANUS_SKIP_REASON}")
   return()
 endif()
 
@@ -79,8 +100,6 @@ add_library(isaac_manus_plugin SHARED
   controllers.cpp
   controllers.hpp
 )
-
-find_package(OpenXR REQUIRED)
 
 target_include_directories(isaac_manus_plugin
   PRIVATE
