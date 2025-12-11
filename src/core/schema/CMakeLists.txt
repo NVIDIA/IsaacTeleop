@@ -42,3 +42,12 @@ target_link_libraries(teleopcore_schema INTERFACE
 )
 
 message(STATUS "TeleopCore schema library configured with FlatBuffer")
+
+# ==============================================================================
+# Python Bindings
+# ==============================================================================
+# Python bindings for schema types (optional, controlled by parent).
+
+if(BUILD_PYTHON_BINDINGS)
+    add_subdirectory(python)
+endif()

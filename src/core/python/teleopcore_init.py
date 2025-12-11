@@ -8,9 +8,10 @@ This package provides Python bindings for teleoperation with Extended Reality I/
 
 __version__ = "1.0.0"
 
-# Import submodules
+# Import submodules.
 from . import xrio
 from . import oxr
 from . import plugin_manager
+from . import schema
 
-__all__ = ["xrio", "oxr", "plugin_manager", "__version__"]
+__all__ = ["xrio", "oxr", "plugin_manager", "schema", "__version__"]
