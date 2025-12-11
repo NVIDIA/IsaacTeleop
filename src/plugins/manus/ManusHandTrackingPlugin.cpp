@@ -452,15 +452,10 @@ void ManusTracker::OnSkeletonStream(const SkeletonStreamInfo* skeleton_stream_in
                     const auto& pos = nodes[manus_index].transform.position;
                     const auto& rot = nodes[manus_index].transform.rotation;
 
-                    // Coordinate conversion: Z-up (Manus) to Y-up (OpenXR)
                     XrPosef local_pose;
-
-                    // Pos: (x, y, z) -> (x, z, -y)
                     local_pose.position.x = pos.x;
                     local_pose.position.y = pos.y;
                     local_pose.position.z = pos.z;
-
-                    // Rot: (x, y, z, w) -> (x, z, -y, w)
                     local_pose.orientation.x = rot.x;
                     local_pose.orientation.y = rot.y;
                     local_pose.orientation.z = rot.z;
