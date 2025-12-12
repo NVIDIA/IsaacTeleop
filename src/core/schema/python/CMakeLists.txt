@@ -31,7 +31,3 @@ set_target_properties(schema_py PROPERTIES
     OUTPUT_NAME "_schema"
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python_package/teleopcore/schema"
 )
-
-message(STATUS "TeleopCore schema Python bindings configured")
-
-
