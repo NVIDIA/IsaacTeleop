@@ -33,12 +33,36 @@ struct OpenXRCoreFunctions
     PFN_xrDestroySpace xrDestroySpace;
     PFN_xrLocateSpace xrLocateSpace;
 
+    // Action system functions (for controller tracking)
+    PFN_xrStringToPath xrStringToPath;
+    PFN_xrCreateActionSet xrCreateActionSet;
+    PFN_xrDestroyActionSet xrDestroyActionSet;
+    PFN_xrCreateAction xrCreateAction;
+    PFN_xrSuggestInteractionProfileBindings xrSuggestInteractionProfileBindings;
+    PFN_xrAttachSessionActionSets xrAttachSessionActionSets;
+    PFN_xrCreateActionSpace xrCreateActionSpace;
+    PFN_xrSyncActions xrSyncActions;
+    PFN_xrGetActionStateBoolean xrGetActionStateBoolean;
+    PFN_xrGetActionStateFloat xrGetActionStateFloat;
+    PFN_xrGetActionStateVector2f xrGetActionStateVector2f;
+
     OpenXRCoreFunctions()
         : xrGetSystem(nullptr),
           xrGetSystemProperties(nullptr),
           xrCreateReferenceSpace(nullptr),
           xrDestroySpace(nullptr),
-          xrLocateSpace(nullptr)
+          xrLocateSpace(nullptr),
+          xrStringToPath(nullptr),
+          xrCreateActionSet(nullptr),
+          xrDestroyActionSet(nullptr),
+          xrCreateAction(nullptr),
+          xrSuggestInteractionProfileBindings(nullptr),
+          xrAttachSessionActionSets(nullptr),
+          xrCreateActionSpace(nullptr),
+          xrSyncActions(nullptr),
+          xrGetActionStateBoolean(nullptr),
+          xrGetActionStateFloat(nullptr),
+          xrGetActionStateVector2f(nullptr)
     {
     }
 
@@ -62,6 +86,23 @@ struct OpenXRCoreFunctions
             XR_SUCCEEDED(getProcAddr(instance, "xrDestroySpace", reinterpret_cast<PFN_xrVoidFunction*>(&xrDestroySpace)));
         success &=
             XR_SUCCEEDED(getProcAddr(instance, "xrLocateSpace", reinterpret_cast<PFN_xrVoidFunction*>(&xrLocateSpace)));
+
+        // Action system functions (optional, for controller tracking)
+        // Note: These don't fail the load if not available, as they're only needed by controller tracker
+        getProcAddr(instance, "xrStringToPath", reinterpret_cast<PFN_xrVoidFunction*>(&xrStringToPath));
+        getProcAddr(instance, "xrCreateActionSet", reinterpret_cast<PFN_xrVoidFunction*>(&xrCreateActionSet));
+        getProcAddr(instance, "xrDestroyActionSet", reinterpret_cast<PFN_xrVoidFunction*>(&xrDestroyActionSet));
+        getProcAddr(instance, "xrCreateAction", reinterpret_cast<PFN_xrVoidFunction*>(&xrCreateAction));
+        getProcAddr(instance, "xrSuggestInteractionProfileBindings",
+                    reinterpret_cast<PFN_xrVoidFunction*>(&xrSuggestInteractionProfileBindings));
+        getProcAddr(
+            instance, "xrAttachSessionActionSets", reinterpret_cast<PFN_xrVoidFunction*>(&xrAttachSessionActionSets));
+        getProcAddr(instance, "xrCreateActionSpace", reinterpret_cast<PFN_xrVoidFunction*>(&xrCreateActionSpace));
+        getProcAddr(instance, "xrSyncActions", reinterpret_cast<PFN_xrVoidFunction*>(&xrSyncActions));
+        getProcAddr(instance, "xrGetActionStateBoolean", reinterpret_cast<PFN_xrVoidFunction*>(&xrGetActionStateBoolean));
+        getProcAddr(instance, "xrGetActionStateFloat", reinterpret_cast<PFN_xrVoidFunction*>(&xrGetActionStateFloat));
+        getProcAddr(
+            instance, "xrGetActionStateVector2f", reinterpret_cast<PFN_xrVoidFunction*>(&xrGetActionStateVector2f));
 
         return success;
     }

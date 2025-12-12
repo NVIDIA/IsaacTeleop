@@ -62,6 +62,11 @@ std::shared_ptr<OpenXRSession> OpenXRSession::Create(const std::string& app_name
         return nullptr;
     }
 
+    if (!session->begin())
+    {
+        return nullptr;
+    }
+
     return session;
 }
 
@@ -70,6 +75,7 @@ OpenXRSessionHandles OpenXRSession::get_handles() const
     // Pass the global xrGetInstanceProcAddr - oxr_session links against OpenXR loader
     return OpenXRSessionHandles(instance_, session_, space_, ::xrGetInstanceProcAddr);
 }
+
 
 bool OpenXRSession::create_instance(const std::string& app_name, const std::vector<std::string>& extensions)
 {
@@ -170,6 +176,28 @@ bool OpenXRSession::create_reference_space()
 
     std::cout << "Created reference space" << std::endl;
     std::cout << "  Space handle: " << space_ << std::endl;
+    return true;
+}
+
+bool OpenXRSession::begin()
+{
+    if (session_ == XR_NULL_HANDLE)
+    {
+        std::cerr << "Cannot begin session: session handle is null" << std::endl;
+        return false;
+    }
+
+    XrSessionBeginInfo begin_info{ XR_TYPE_SESSION_BEGIN_INFO };
+    begin_info.primaryViewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
+
+    XrResult result = xrBeginSession(session_, &begin_info);
+    if (XR_FAILED(result))
+    {
+        std::cerr << "Failed to begin OpenXR session: " << result << std::endl;
+        return false;
+    }
+
+    std::cout << "OpenXR session begun successfully" << std::endl;
     return true;
 }
 

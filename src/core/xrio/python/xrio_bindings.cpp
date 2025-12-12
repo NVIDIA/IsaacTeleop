@@ -5,6 +5,7 @@
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#include <xrio/controllertracker.hpp>
 #include <xrio/handtracker.hpp>
 #include <xrio/headtracker.hpp>
 #include <xrio/xrio_session.hpp>
@@ -106,6 +107,69 @@ PYBIND11_MODULE(_xrio, m)
     py::class_<core::HeadTracker, core::ITracker, std::shared_ptr<core::HeadTracker>>(m, "HeadTracker")
         .def(py::init<>())
         .def("get_head", &core::HeadTracker::get_head, py::return_value_policy::reference_internal);
+
+    // Hand enum
+    py::enum_<core::Hand>(m, "Hand").value("Left", core::Hand::Left).value("Right", core::Hand::Right).export_values();
+
+    // ControllerInput enum - with arithmetic to make it iterable
+    py::enum_<core::ControllerInput>(m, "ControllerInput", py::arithmetic())
+        .value("PrimaryClick", core::ControllerInput::PrimaryClick)
+        .value("SecondaryClick", core::ControllerInput::SecondaryClick)
+        .value("ThumbstickX", core::ControllerInput::ThumbstickX)
+        .value("ThumbstickY", core::ControllerInput::ThumbstickY)
+        .value("ThumbstickClick", core::ControllerInput::ThumbstickClick)
+        .value("SqueezeValue", core::ControllerInput::SqueezeValue)
+        .value("TriggerValue", core::ControllerInput::TriggerValue)
+        .value("COUNT", core::ControllerInput::COUNT)
+        .export_values();
+
+    // ControllerInputState structure
+    py::class_<core::ControllerInputState>(m, "ControllerInputState")
+        .def(py::init<>())
+        .def("get", &core::ControllerInputState::get, py::arg("input"))
+        .def("set", &core::ControllerInputState::set, py::arg("input"), py::arg("value"))
+        .def("__getitem__", [](const core::ControllerInputState& self, core::ControllerInput input) { return self[input]; })
+        .def("__setitem__",
+             [](core::ControllerInputState& self, core::ControllerInput input, float value) { self[input] = value; });
+
+    // ControllerPose structure
+    py::class_<core::ControllerPose>(m, "ControllerPose")
+        .def(py::init<>())
+        .def_property_readonly("position", [](const core::ControllerPose& self)
+                               { return py::array_t<float>({ 3 }, { sizeof(float) }, self.position); })
+        .def_property_readonly("orientation", [](const core::ControllerPose& self)
+                               { return py::array_t<float>({ 4 }, { sizeof(float) }, self.orientation); })
+        .def_readonly("is_valid", &core::ControllerPose::is_valid);
+
+    // ControllerSnapshot structure
+    py::class_<core::ControllerSnapshot>(m, "ControllerSnapshot")
+        .def(py::init<>())
+        .def_readonly("grip_pose", &core::ControllerSnapshot::grip_pose)
+        .def_readonly("aim_pose", &core::ControllerSnapshot::aim_pose)
+        .def_readonly("inputs", &core::ControllerSnapshot::inputs)
+        .def_readonly("is_active", &core::ControllerSnapshot::is_active)
+        .def_readonly("timestamp", &core::ControllerSnapshot::timestamp);
+
+    // ControllerInputEvent structure
+    py::class_<core::ControllerInputEvent>(m, "ControllerInputEvent")
+        .def(py::init<core::ControllerInput, float, XrTime>())
+        .def_readonly("input", &core::ControllerInputEvent::input)
+        .def_readonly("value", &core::ControllerInputEvent::value)
+        .def_readonly("timestamp", &core::ControllerInputEvent::timestamp);
+
+    // ControllerTracker class
+    py::class_<core::ControllerTracker, core::ITracker, std::shared_ptr<core::ControllerTracker>>(m, "ControllerTracker")
+        .def(py::init<>())
+        .def("get_snapshot", &core::ControllerTracker::get_snapshot, py::arg("hand"),
+             py::return_value_policy::reference_internal,
+             "Get current controller snapshot for specified hand (snapshot mode)")
+        .def("get_grip_pose", &core::ControllerTracker::get_grip_pose, py::arg("hand"),
+             py::return_value_policy::reference_internal, "Get grip pose for specified hand")
+        .def("get_aim_pose", &core::ControllerTracker::get_aim_pose, py::arg("hand"),
+             py::return_value_policy::reference_internal, "Get aim pose for specified hand")
+        .def("get_events", &core::ControllerTracker::get_events, py::arg("hand"),
+             "Get all queued input events for specified hand (clears the queue)")
+        .def("clear_events", &core::ControllerTracker::clear_events, py::arg("hand"), "Clear events for specified hand");
 
     // XrioSession class (bound via wrapper)
     py::class_<PyXrioSession>(m, "XrioSession")
