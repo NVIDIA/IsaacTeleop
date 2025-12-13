@@ -36,5 +36,12 @@ jobs:
     - name: Build
       run: cmake --build build --parallel
 
-    - name: Run Tests
+    - name: Run Native Tests
       run: ctest --test-dir build --output-on-failure --parallel
+
+    - name: Run Python Tests
+      run: |
+        uv run \
+          --directory build/python_package \
+          --extra dev \
+          pytest ../../src/core -v --tb=short

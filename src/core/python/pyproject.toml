@@ -19,8 +19,20 @@ dependencies = [
     "numpy>=1.19.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]
+
 [tool.setuptools]
-packages = ["teleopcore", "teleopcore.xrio", "teleopcore.oxr", "teleopcore.plugin_manager"]
+packages = [
+    "teleopcore",
+    "teleopcore.xrio",
+    "teleopcore.oxr",
+    "teleopcore.plugin_manager",
+    "teleopcore.schema"
+]
 include-package-data = true
 
 [tool.setuptools.package-data]
@@ -28,6 +40,7 @@ teleopcore = ["*.so", "*.pyd"]
 "teleopcore.xrio" = ["*.so", "*.pyd"]
 "teleopcore.oxr" = ["*.so", "*.pyd"]
 "teleopcore.plugin_manager" = ["*.so", "*.pyd"]
+"teleopcore.schema" = ["*.so", "*.pyd"]
 
 [tool.uv]
 # Only use managed Python installations (not system Python)

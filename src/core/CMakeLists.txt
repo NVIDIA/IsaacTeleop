@@ -29,5 +29,5 @@ endif()
 
 # Unit tests for FlatBuffer schema types and native types using Catch2.
 if(BUILD_TESTING)
-  add_subdirectory(schema_tests)
+  add_subdirectory(schema_tests/cpp)
 endif()
