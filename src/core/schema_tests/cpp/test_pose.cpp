@@ -12,6 +12,25 @@
 #include <catch2/catch_approx.hpp>
 #include <flatbuffers/flatbuffers.h>
 
+#include <type_traits>
+
+// =============================================================================
+// Compile-time verification of FlatBuffer field IDs.
+// These ensure schema field IDs remain stable across changes.
+// VT values are computed as: (field_id + 2) * 2.
+// =============================================================================
+#define VT(field) (field + 2) * 2
+static_assert(core::Pose::VT_POSITION == VT(0));
+static_assert(core::Pose::VT_ORIENTATION == VT(1));
+
+// =============================================================================
+// Compile-time verification of FlatBuffer field types.
+// These ensure schema field types remain stable across changes.
+// =============================================================================
+#define TYPE(field) decltype(std::declval<core::Pose>().field())
+static_assert(std::is_same_v<TYPE(position), const core::Tensor*>);
+static_assert(std::is_same_v<TYPE(orientation), const core::Tensor*>);
+
 TEST_CASE("PoseT native type can be serialized to FlatBuffer", "[pose][native]") {
     flatbuffers::FlatBufferBuilder builder(1024);
 
