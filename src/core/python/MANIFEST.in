@@ -6,3 +6,5 @@ include teleopcore/oxr/*.so
 include teleopcore/oxr/*.pyd
 include teleopcore/plugin_manager/*.so
 include teleopcore/plugin_manager/*.pyd
+include teleopcore/schema/*.so
+include teleopcore/schema/*.pyd
