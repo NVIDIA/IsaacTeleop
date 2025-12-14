@@ -1,10 +1,16 @@
 include teleopcore/*.so
 include teleopcore/*.pyd
+include teleopcore/*.pyi
+include teleopcore/py.typed
 include teleopcore/xrio/*.so
 include teleopcore/xrio/*.pyd
+include teleopcore/xrio/*.pyi
 include teleopcore/oxr/*.so
 include teleopcore/oxr/*.pyd
+include teleopcore/oxr/*.pyi
 include teleopcore/plugin_manager/*.so
 include teleopcore/plugin_manager/*.pyd
+include teleopcore/plugin_manager/*.pyi
 include teleopcore/schema/*.so
 include teleopcore/schema/*.pyd
+include teleopcore/schema/*.pyi
