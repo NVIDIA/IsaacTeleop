@@ -71,8 +71,8 @@ git clone git@github.com:nvidia-isaac/TeleopCore.git
 cd TeleopCore
 ```
 
-> **Note**: Dependencies (OpenXR SDK, pybind11, yaml-cpp) are automatically downloaded 
-> during CMake configuration using FetchContent. No manual dependency installation or 
+> **Note**: Dependencies (OpenXR SDK, pybind11, yaml-cpp) are automatically downloaded
+> during CMake configuration using FetchContent. No manual dependency installation or
 > git submodule initialization is required.
 
 4. **Download CloudXR**
@@ -164,7 +164,7 @@ Build with default settings. See [BUILD.md](BUILD.md) for advanced instructions
 for advanced build steps.
 ```bash
 cmake -B build
-cmake --build build
+cmake --build build --parallel
 cmake --install build
 ```
 
