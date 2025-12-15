@@ -42,6 +42,6 @@ jobs:
     - name: Run Python Tests
       run: |
         uv run \
-          --directory build/python_package \
+          --directory build/python_package/${{ matrix.build_type }} \
           --extra dev \
-          pytest ../../src/core -v --tb=short
+          pytest ../../../src/core -v --tb=short
