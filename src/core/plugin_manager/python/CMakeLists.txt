@@ -26,6 +26,7 @@ target_link_libraries(plugin_manager_py
 
 set_target_properties(plugin_manager_py PROPERTIES
     OUTPUT_NAME "_plugin_manager"
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python_package/teleopcore/plugin_manager"
+    # Use genex in output directory - CMake won't add another config subdirectory
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/plugin_manager"
 )
 

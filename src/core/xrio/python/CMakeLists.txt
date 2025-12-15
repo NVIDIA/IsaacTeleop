@@ -26,6 +26,7 @@ target_link_libraries(xrio_py
 
 set_target_properties(xrio_py PROPERTIES
     OUTPUT_NAME "_xrio"
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python_package/teleopcore/xrio"
+    # Use genex in output directory - CMake won't add another config subdirectory
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/xrio"
 )
 
