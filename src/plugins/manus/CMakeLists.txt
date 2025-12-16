@@ -90,24 +90,6 @@ set_target_properties(ManusSDK::ManusSDK PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES "${MANUS_SDK_INCLUDE_DIR}"
 )
 
-add_library(isaac_manus_plugin SHARED
-  ManusHandTrackingPlugin.cpp
-  ManusHandTrackingPlugin.h
-)
-
-target_include_directories(isaac_manus_plugin
-  PRIVATE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-  PUBLIC
-    $<BUILD_INTERFACE:${MANUS_SDK_INCLUDE_DIR}>
-)
-
-target_link_libraries(isaac_manus_plugin
-  PUBLIC
-    ManusSDK::ManusSDK
-    Teleop::plugin_common
-)
-
 set(_ISAAC_MANUS_BASE_BUILD_RPATH "$ORIGIN;$ORIGIN/../lib")
 set(_ISAAC_MANUS_EFFECTIVE_BUILD_RPATH "${_ISAAC_MANUS_BASE_BUILD_RPATH}")
 if(MANUS_ADD_SDK_TO_BUILD_RPATH)
@@ -115,76 +97,10 @@ if(MANUS_ADD_SDK_TO_BUILD_RPATH)
 endif()
 list(JOIN _ISAAC_MANUS_EFFECTIVE_BUILD_RPATH ";" _ISAAC_MANUS_EFFECTIVE_BUILD_RPATH_STR)
 
-set_target_properties(isaac_manus_plugin PROPERTIES
-  OUTPUT_NAME IsaacTeleopPluginsManus
-  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
-  CXX_VISIBILITY_PRESET hidden
-  VISIBILITY_INLINES_HIDDEN YES
-  BUILD_WITH_INSTALL_RPATH NO
-  SKIP_BUILD_RPATH NO
-  BUILD_RPATH "${_ISAAC_MANUS_EFFECTIVE_BUILD_RPATH_STR}"
-  INSTALL_RPATH "$ORIGIN"
-)
-
+add_subdirectory(core)
 add_library(isaac::manus_plugin ALIAS isaac_manus_plugin)
-
-# Sample CLI tool to print hand tracker output
-add_executable(ManusHandTrackerPrinter
-  ManusHandTrackerPrinter.cpp
-)
-
-target_include_directories(ManusHandTrackerPrinter
-  PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${MANUS_SDK_INCLUDE_DIR}
-)
-
-target_link_libraries(ManusHandTrackerPrinter
-  PRIVATE
-    isaac::manus_plugin
-)
-
-set_target_properties(ManusHandTrackerPrinter PROPERTIES
-  CXX_VISIBILITY_PRESET hidden
-  VISIBILITY_INLINES_HIDDEN YES
-  BUILD_WITH_INSTALL_RPATH NO
-  SKIP_BUILD_RPATH NO
-  BUILD_RPATH "${_ISAAC_MANUS_EFFECTIVE_BUILD_RPATH_STR}"
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
-)
-
-# Main plugin executable
-add_executable(manus_hand_plugin
-  main.cpp
-)
-
-target_link_libraries(manus_hand_plugin
-  PRIVATE
-    isaac_manus_plugin
-)
-
-set_target_properties(manus_hand_plugin PROPERTIES
-  CXX_VISIBILITY_PRESET hidden
-  VISIBILITY_INLINES_HIDDEN YES
-  BUILD_WITH_INSTALL_RPATH NO
-  SKIP_BUILD_RPATH NO
-  BUILD_RPATH "${_ISAAC_MANUS_EFFECTIVE_BUILD_RPATH_STR}"
-  INSTALL_RPATH "$ORIGIN/../../${CMAKE_INSTALL_LIBDIR}"
-)
-
-# Installation
-install(TARGETS manus_hand_plugin
-    RUNTIME DESTINATION plugins/manus
-)
-
-install(FILES plugin.yaml README.md
-    DESTINATION plugins/manus
-)
-
-install(TARGETS isaac_manus_plugin
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-)
+add_subdirectory(app)
+add_subdirectory(tools)
 
 # Install Manus SDK shared library
 install(FILES "${_MANUS_LIB}"
