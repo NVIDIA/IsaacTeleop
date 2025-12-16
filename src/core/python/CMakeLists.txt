@@ -26,8 +26,10 @@ add_custom_target(python_package ALL
 # Each module is processed separately to avoid import chain issues
 set(STUBGEN_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/generate_stubs.py")
 set(STUBGEN_PACKAGE_DIR "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>")
+set(PY_TYPED_MARKER "${STUBGEN_PACKAGE_DIR}/teleopcore/py.typed")
 
-add_custom_target(python_stubs
+add_custom_command(
+    OUTPUT "${PY_TYPED_MARKER}"
     COMMAND ${CMAKE_COMMAND} -E echo "Generating Python type stubs..."
 
     # Generate stubs for each pybind11 module
@@ -40,11 +42,16 @@ add_custom_target(python_stubs
     COMMAND uv run --no-project --python ${TELEOPCORE_PYTHON_VERSION} --with pybind11-stubgen
         python "${STUBGEN_SCRIPT}" teleopcore.schema._schema "${STUBGEN_PACKAGE_DIR}"
 
-    # Create py.typed marker file (PEP 561)
-    COMMAND ${CMAKE_COMMAND} -E touch "${STUBGEN_PACKAGE_DIR}/teleopcore/py.typed"
-    DEPENDS python_package
+    # Create py.typed marker file (PEP 561) - also serves as build stamp
+    COMMAND ${CMAKE_COMMAND} -E touch "${PY_TYPED_MARKER}"
+    DEPENDS python_package "${STUBGEN_SCRIPT}"
     WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
     COMMENT "Generating .pyi stub files for teleopcore modules"
+)
+
+add_custom_target(python_stubs 
+    DEPENDS "${PY_TYPED_MARKER}"
+    SOURCES "${STUBGEN_SCRIPT}"
 )
 
 # Custom target to build the wheel using uv
