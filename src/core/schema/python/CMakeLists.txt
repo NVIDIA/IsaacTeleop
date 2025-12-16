@@ -29,5 +29,6 @@ add_dependencies(schema_py schema_header_generation)
 
 set_target_properties(schema_py PROPERTIES
     OUTPUT_NAME "_schema"
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python_package/teleopcore/schema"
+    # Use genex in output directory - CMake won't add another config subdirectory
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/schema"
 )
