@@ -3,11 +3,11 @@
 
 #include "ManusHandTrackingPlugin.h"
 
-#include "ManusSDK.h"
-#include "ManusSDKTypeInitializers.h"
 #include "hand_injector.hpp"
 #include "session.hpp"
 
+#include <ManusSDK.h>
+#include <ManusSDKTypeInitializers.h>
 #include <algorithm>
 #include <chrono>
 #include <iostream>
