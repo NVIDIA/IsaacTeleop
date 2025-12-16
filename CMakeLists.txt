@@ -76,6 +76,9 @@ if(BUILD_TESTING)
     enable_testing()
 endif()
 
+# Build interfaces (headers)
+add_subdirectory(include)
+
 # Build core modules (OXR and XRIO)
 add_subdirectory(src/core)
 
@@ -86,6 +89,9 @@ endif()
 
 # Build plugins if requested
 if(BUILD_PLUGINS)
+    # Build common plugin code
+    add_subdirectory(src/plugins/common)
+
     add_subdirectory(src/plugins/controller_synthetic_hands)
     add_subdirectory(src/plugins/manus)
 endif()

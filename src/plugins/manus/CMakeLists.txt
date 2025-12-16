@@ -93,12 +93,6 @@ set_target_properties(ManusSDK::ManusSDK PROPERTIES
 add_library(isaac_manus_plugin SHARED
   ManusHandTrackingPlugin.cpp
   ManusHandTrackingPlugin.h
-  hand_injector.cpp
-  hand_injector.hpp
-  session.cpp
-  session.hpp
-  controllers.cpp
-  controllers.hpp
 )
 
 target_include_directories(isaac_manus_plugin
@@ -111,7 +105,7 @@ target_include_directories(isaac_manus_plugin
 target_link_libraries(isaac_manus_plugin
   PUBLIC
     ManusSDK::ManusSDK
-    OpenXR::openxr_loader
+    Teleop::plugin_common
 )
 
 set(_ISAAC_MANUS_BASE_BUILD_RPATH "$ORIGIN;$ORIGIN/../lib")

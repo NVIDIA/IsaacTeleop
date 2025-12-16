@@ -7,10 +7,7 @@ cmake_minimum_required(VERSION 3.20)
 add_executable(controller_synthetic_hands
     controller_synthetic_hands.cpp
     synthetic_hands_plugin.cpp
-    session.cpp
-    controllers.cpp
     hand_generator.cpp
-    hand_injector.cpp
 )
 
 # Include directories
@@ -24,7 +21,7 @@ find_package(Threads REQUIRED)
 # Link against OpenXR (fetched via CMake FetchContent - statically linked)
 # When statically linking, we need to include system dependencies
 target_link_libraries(controller_synthetic_hands PRIVATE
-    OpenXR::openxr_loader
+    Teleop::plugin_common # Transitive dependency on OpenXR::openxr_loader and Teleop::openxr_extensions
     ${CMAKE_DL_LIBS}      # For dlopen/dlsym
     Threads::Threads      # For pthread
 )
