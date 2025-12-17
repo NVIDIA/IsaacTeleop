@@ -59,13 +59,30 @@ if(BUILD_PYTHON_BINDINGS)
         GIT_TAG        a2e59f0e7065404b44dfe92a28aca47ba1378dc4  # v2.11.0-182
         GIT_SHALLOW    FALSE  # Need full history for this specific commit
     )
-    
+
     FetchContent_MakeAvailable(pybind11)
     message(STATUS "Using pybind11 from FetchContent")
-    
+
     # Verify pybind11 targets are available
     if(NOT TARGET pybind11::module)
         message(FATAL_ERROR "pybind11::module target not found after FetchContent")
     endif()
 endif()
+
+# ==============================================================================
+# Catch2
+# ==============================================================================
+# Catch2 is used for unit testing
+# Fetch it here so it's available globally for any test targets
+message(STATUS "Fetching Catch2 from GitHub...")
+FetchContent_Declare(
+  Catch2
+  GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+  GIT_TAG        v3.4.0
+)
+FetchContent_MakeAvailable(Catch2)
+list(APPEND CMAKE_MODULE_PATH "${catch2_SOURCE_DIR}/extras")
+# Make catch_discover_tests available globally
+include(Catch)
+message(STATUS "Building Catch2 from FetchContent")
 

@@ -27,3 +27,9 @@ target_include_directories(teleop_plugin_utils
 
 # Alias
 add_library(Teleop::plugin_utils ALIAS teleop_plugin_utils)
+
+# Tests
+option(BUILD_PLUGIN_UTILS_TESTS "Build plugin utils tests" ON)
+if(BUILD_PLUGIN_UTILS_TESTS)
+    add_subdirectory(tests)
+endif()
