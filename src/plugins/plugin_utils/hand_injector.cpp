@@ -7,21 +7,49 @@
 
 #include <cstring>
 #include <stdexcept>
+#include <string>
 
 namespace plugin_utils
 {
 
+namespace
+{
+void CheckXrResult(XrResult result, const char* message)
+{
+    if (XR_FAILED(result))
+    {
+        throw std::runtime_error(std::string(message) + " failed with XrResult: " + std::to_string(result));
+    }
+}
+}
+
 HandInjector::HandInjector(XrInstance instance,
                            XrSession session,
                            XrSpace left_controller_space,
-                           XrSpace right_controller_space) noexcept(false)
+                           XrSpace right_controller_space)
 {
-    initialize(instance, session, left_controller_space, right_controller_space);
+    try
+    {
+        initialize(instance, session, left_controller_space, right_controller_space);
+    }
+    catch (...)
+    {
+        cleanup();
+        throw;
+    }
 }
 
-HandInjector::HandInjector(XrInstance instance, XrSession session, XrSpace reference_space) noexcept(false)
+HandInjector::HandInjector(XrInstance instance, XrSession session, XrSpace reference_space)
 {
-    initialize(instance, session, reference_space, reference_space);
+    try
+    {
+        initialize(instance, session, reference_space, reference_space);
+    }
+    catch (...)
+    {
+        cleanup();
+        throw;
+    }
 }
 
 HandInjector::~HandInjector()
@@ -29,14 +57,14 @@ HandInjector::~HandInjector()
     cleanup();
 }
 
-void HandInjector::initialize(XrInstance instance, XrSession session, XrSpace left_space, XrSpace right_space) noexcept(false)
+void HandInjector::initialize(XrInstance instance, XrSession session, XrSpace left_space, XrSpace right_space)
 {
     load_functions(instance);
     create_device(session, left_space, XR_HAND_LEFT_EXT, left_device_);
     create_device(session, right_space, XR_HAND_RIGHT_EXT, right_device_);
 }
 
-void HandInjector::load_functions(XrInstance instance) noexcept(false)
+void HandInjector::load_functions(XrInstance instance)
 {
     if (XR_FAILED(xrGetInstanceProcAddr(
             instance, "xrCreatePushDeviceNV", reinterpret_cast<PFN_xrVoidFunction*>(&pfn_create_))) ||
@@ -49,10 +77,7 @@ void HandInjector::load_functions(XrInstance instance) noexcept(false)
     }
 }
 
-void HandInjector::create_device(XrSession session,
-                                 XrSpace base_space,
-                                 XrHandEXT hand,
-                                 XrPushDeviceNV& device) noexcept(false)
+void HandInjector::create_device(XrSession session, XrSpace base_space, XrHandEXT hand, XrPushDeviceNV& device)
 {
     XrPushDeviceHandTrackingInfoNV hand_info{ XR_TYPE_PUSH_DEVICE_HAND_TRACKING_INFO_NV };
     hand_info.hand = hand;
@@ -66,39 +91,38 @@ void HandInjector::create_device(XrSession session,
     strcpy(create_info.localizedName, hand == XR_HAND_LEFT_EXT ? "Left Hand" : "Right Hand");
     strcpy(create_info.serial, hand == XR_HAND_LEFT_EXT ? "LEFT" : "RIGHT");
 
-    XrResult result = pfn_create_(session, &create_info, nullptr, &device);
-    if (XR_FAILED(result))
-    {
-        cleanup();
-        throw std::runtime_error("Failed to create push device for " +
-                                 std::string(hand == XR_HAND_LEFT_EXT ? "left" : "right") + " hand");
-    }
+    CheckXrResult(pfn_create_(session, &create_info, nullptr, &device),
+                  (std::string("xrCreatePushDeviceNV(") + (hand == XR_HAND_LEFT_EXT ? "left" : "right") + ")").c_str());
 }
 
-bool HandInjector::push_left(const XrHandJointLocationEXT* joints, XrTime timestamp)
+void HandInjector::push_left(const XrHandJointLocationEXT* joints, XrTime timestamp)
 {
     if (left_device_ == XR_NULL_HANDLE)
-        return false;
+    {
+        throw std::runtime_error("Left push device not initialized");
+    }
 
     XrPushDeviceHandTrackingDataNV data{ XR_TYPE_PUSH_DEVICE_HAND_TRACKING_DATA_NV };
     data.timestamp = timestamp;
     data.jointCount = XR_HAND_JOINT_COUNT_EXT;
     data.jointLocations = joints;
 
-    return XR_SUCCEEDED(pfn_push_(left_device_, &data));
+    CheckXrResult(pfn_push_(left_device_, &data), "xrPushDevicePushHandTrackingNV(left)");
 }
 
-bool HandInjector::push_right(const XrHandJointLocationEXT* joints, XrTime timestamp)
+void HandInjector::push_right(const XrHandJointLocationEXT* joints, XrTime timestamp)
 {
     if (right_device_ == XR_NULL_HANDLE)
-        return false;
+    {
+        throw std::runtime_error("Right push device not initialized");
+    }
 
     XrPushDeviceHandTrackingDataNV data{ XR_TYPE_PUSH_DEVICE_HAND_TRACKING_DATA_NV };
     data.timestamp = timestamp;
     data.jointCount = XR_HAND_JOINT_COUNT_EXT;
     data.jointLocations = joints;
 
-    return XR_SUCCEEDED(pfn_push_(right_device_, &data));
+    CheckXrResult(pfn_push_(right_device_, &data), "xrPushDevicePushHandTrackingNV(right)");
 }
 
 void HandInjector::cleanup()

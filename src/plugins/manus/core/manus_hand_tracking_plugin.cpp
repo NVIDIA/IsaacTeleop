@@ -51,10 +51,15 @@ void ManusTracker::update()
     m_convertTimespecTime(m_session->handles().instance, &ts, &time);
 #endif
 
-    if (m_controllers->update(time))
+    try
     {
+        m_controllers->update(time);
         m_latest_left = m_controllers->left();
         m_latest_right = m_controllers->right();
+    }
+    catch (const std::exception& e)
+    {
+        // Log error? For now just ignore update for this frame
     }
 
     inject_hand_data();
@@ -140,44 +145,31 @@ void ManusTracker::initialize(const std::string& app_name) noexcept(false)
         // Overlay mode required for headless
         config.use_overlay_mode = true;
 
-        m_session.reset(plugin_utils::Session::Create(config));
-        if (m_session && m_session->begin())
-        {
-#if defined(_WIN32)
-            if (m_session->get_extension_function("xrConvertWin32PerformanceCounterToTimeKHR", &m_convertWin32Time))
-#else
-            if (m_session->get_extension_function("xrConvertTimespecTimeToTimeKHR", &m_convertTimespecTime))
-#endif
-            {
-                const auto& handles = m_session->handles();
-                m_injector = std::make_unique<plugin_utils::HandInjector>(
-                    handles.instance, handles.session, handles.reference_space);
+        m_session.emplace(config);
+        m_session->begin();
 
-                // Initialize controllers
-                m_controllers.reset(
-                    plugin_utils::Controllers::Create(handles.instance, handles.session, handles.reference_space));
-                if (m_controllers)
-                {
-                    std::cout << "OpenXR session, HandInjector and Controllers initialized" << std::endl;
-                    success = true;
-                }
-                else
-                {
-                    error_msg = "Failed to create controllers";
-                }
-            }
-            else
-            {
 #if defined(_WIN32)
-                error_msg = "Failed to get xrConvertWin32PerformanceCounterToTimeKHR function";
+        if (m_session->get_extension_function("xrConvertWin32PerformanceCounterToTimeKHR", &m_convertWin32Time))
 #else
-                error_msg = "Failed to get xrConvertTimespecTimeToTimeKHR function";
+        if (m_session->get_extension_function("xrConvertTimespecTimeToTimeKHR", &m_convertTimespecTime))
 #endif
-            }
+        {
+            const auto& handles = m_session->handles();
+            m_injector.emplace(handles.instance, handles.session, handles.reference_space);
+
+            // Initialize controllers
+            m_controllers.emplace(handles.instance, handles.session, handles.reference_space);
+
+            std::cout << "OpenXR session, HandInjector and Controllers initialized" << std::endl;
+            success = true;
         }
         else
         {
-            error_msg = "Failed to begin OpenXR session";
+#if defined(_WIN32)
+            error_msg = "Failed to get xrConvertWin32PerformanceCounterToTimeKHR function";
+#else
+            error_msg = "Failed to get xrConvertTimespecTimeToTimeKHR function";
+#endif
         }
     }
     catch (const std::exception& e)
