@@ -13,6 +13,8 @@
 
 #include <openxr/openxr_platform.h>
 #include <plugin_utils/controllers.hpp>
+#include <plugin_utils/hand_injector.hpp>
+#include <plugin_utils/session.hpp>
 
 #include <ManusSDK.h>
 #include <memory>
@@ -20,12 +22,6 @@
 #include <optional>
 #include <string>
 #include <vector>
-
-namespace plugin_utils
-{
-class Session;
-class HandInjector;
-} // namespace plugin_utils
 
 namespace plugins
 {
@@ -45,6 +41,11 @@ private:
     // Lifecycle
     explicit ManusTracker(const std::string& app_name) noexcept(false);
     ~ManusTracker();
+
+    ManusTracker(const ManusTracker&) = delete;
+    ManusTracker& operator=(const ManusTracker&) = delete;
+    ManusTracker(ManusTracker&&) = delete;
+    ManusTracker& operator=(ManusTracker&&) = delete;
     void initialize(const std::string& app_name) noexcept(false);
     void shutdown_sdk();
 
@@ -71,9 +72,9 @@ private:
     bool is_connected = false;
 
     // OpenXR State
-    std::unique_ptr<plugin_utils::Session> m_session;
-    std::unique_ptr<plugin_utils::HandInjector> m_injector;
-    std::unique_ptr<plugin_utils::Controllers> m_controllers;
+    std::optional<plugin_utils::Session> m_session;
+    std::optional<plugin_utils::HandInjector> m_injector;
+    std::optional<plugin_utils::Controllers> m_controllers;
 
 #if defined(_WIN32)
     PFN_xrConvertWin32PerformanceCounterToTimeKHR m_convertWin32Time = nullptr;

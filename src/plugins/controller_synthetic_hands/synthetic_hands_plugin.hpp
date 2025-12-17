@@ -7,6 +7,7 @@
 #include <hand_generator.hpp>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <thread>
 
@@ -30,9 +31,9 @@ private:
     void worker_thread();
     XrTime get_current_time();
 
-    std::unique_ptr<plugin_utils::Session> m_session;
-    std::unique_ptr<plugin_utils::Controllers> m_controllers;
-    std::unique_ptr<plugin_utils::HandInjector> m_injector;
+    std::optional<plugin_utils::Session> m_session;
+    std::optional<plugin_utils::Controllers> m_controllers;
+    std::optional<plugin_utils::HandInjector> m_injector;
     HandGenerator m_hand_gen;
 
     std::thread m_thread;

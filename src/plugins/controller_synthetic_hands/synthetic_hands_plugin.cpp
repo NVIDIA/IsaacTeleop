@@ -25,32 +25,24 @@ SyntheticHandsPlugin::SyntheticHandsPlugin(const std::string& plugin_root_id) no
                           XR_EXTX_OVERLAY_EXTENSION_NAME };
     config.use_overlay_mode = true; // Required for headless mode
 
-    // Session::Create will throw if it fails
-    m_session.reset(plugin_utils::Session::Create(config));
+    // Session constructor will throw if it fails
+    m_session.emplace(config);
     const auto& handles = m_session->handles();
 
-    if (!m_session->begin())
-    {
-        throw std::runtime_error("Failed to begin session");
-    }
+    m_session->begin();
 
     // Initialize controllers
-    m_controllers.reset(plugin_utils::Controllers::Create(handles.instance, handles.session, handles.reference_space));
-    if (!m_controllers)
-    {
-        throw std::runtime_error("Failed to create controllers");
-    }
+    m_controllers.emplace(handles.instance, handles.session, handles.reference_space);
 
     // Initialize hand injection using the selected method
     if (USE_SPACE_BASED_INJECTION)
     {
-        m_injector = std::make_unique<plugin_utils::HandInjector>(
+        m_injector.emplace(
             handles.instance, handles.session, m_controllers->left_aim_space(), m_controllers->right_aim_space());
     }
     else
     {
-        m_injector =
-            std::make_unique<plugin_utils::HandInjector>(handles.instance, handles.session, handles.reference_space);
+        m_injector.emplace(handles.instance, handles.session, handles.reference_space);
     }
 
     // Start worker thread
@@ -90,8 +82,13 @@ void SyntheticHandsPlugin::worker_thread()
     {
         XrTime time = get_current_time();
 
-        if (!m_controllers->update(time))
+        try
         {
+            m_controllers->update(time);
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "Controller update failed: " << e.what() << std::endl;
             std::this_thread::sleep_for(std::chrono::milliseconds(16));
             continue;
         }

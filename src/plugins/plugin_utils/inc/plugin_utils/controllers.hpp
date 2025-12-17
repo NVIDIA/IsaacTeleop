@@ -6,6 +6,9 @@
 
 #include <openxr/openxr.h>
 
+#include <stdexcept>
+#include <string>
+
 namespace plugin_utils
 {
 
@@ -21,14 +24,20 @@ struct ControllerPose
 class Controllers
 {
 public:
-    static Controllers* Create(XrInstance instance, XrSession session, XrSpace reference_space);
-
+    Controllers(XrInstance instance, XrSession session, XrSpace reference_space);
     ~Controllers();
 
+    // Non-copyable
     Controllers(const Controllers&) = delete;
     Controllers& operator=(const Controllers&) = delete;
 
-    bool update(XrTime time);
+    // Movable (default move operations might be unsafe if we need to nullify handles,
+    // so we'll delete them for simplicity unless needed, or implement custom move if strict RAII)
+    // For now, making them non-movable to simplify resource management logic unless required.
+    Controllers(Controllers&&) = delete;
+    Controllers& operator=(Controllers&&) = delete;
+
+    void update(XrTime time);
 
     const ControllerPose& left() const
     {
@@ -58,11 +67,9 @@ public:
     }
 
 private:
-    Controllers() = default;
-    bool initialize(XrInstance instance, XrSession session, XrSpace reference_space);
-    bool create_actions(XrInstance instance);
-    bool setup_action_spaces(XrSession session);
-    bool locate_pose(XrSpace space, XrTime time, XrPosef& pose, bool& is_valid);
+    void create_actions(XrInstance instance);
+    void setup_action_spaces(XrSession session);
+    void locate_pose(XrSpace space, XrTime time, XrPosef& pose, bool& is_valid);
     void cleanup();
 
     XrSession session_ = XR_NULL_HANDLE;
