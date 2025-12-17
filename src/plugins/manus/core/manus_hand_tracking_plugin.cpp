@@ -15,7 +15,6 @@
 #include <mutex>
 #include <stdexcept>
 #include <thread>
-#include <unordered_map>
 #include <vector>
 
 
@@ -24,14 +23,13 @@ namespace plugins
 namespace manus
 {
 
-ManusTracker* ManusTracker::s_instance = nullptr;
-std::mutex ManusTracker::s_instance_mutex;
+static constexpr XrPosef kLeftHandOffset = { { -0.70710678f, -0.5f, 0.0f, 0.5f }, { -0.1f, 0.02f, -0.02f } };
+static constexpr XrPosef kRightHandOffset = { { -0.70710678f, 0.5f, 0.0f, 0.5f }, { 0.1f, 0.02f, -0.02f } };
 
-ManusTracker::ManusTracker() = default;
-
-ManusTracker::~ManusTracker()
+ManusTracker& ManusTracker::instance(const std::string& app_name) noexcept(false)
 {
-    cleanup();
+    static ManusTracker s(app_name);
+    return s;
 }
 
 void ManusTracker::update()
@@ -55,91 +53,52 @@ void ManusTracker::update()
 
     if (m_controllers->update(time))
     {
-        std::lock_guard<std::mutex> lock(m_controller_mutex);
         m_latest_left = m_controllers->left();
         m_latest_right = m_controllers->right();
     }
+
+    inject_hand_data();
 }
 
-bool ManusTracker::initialize_openxr(const std::string& app_name)
+std::vector<SkeletonNode> ManusTracker::get_left_hand_nodes() const
 {
-    try
-    {
-        plugin_utils::SessionConfig config;
-        config.app_name = app_name;
-        // Require the push device extension
-        config.extensions = { XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME, XR_MND_HEADLESS_EXTENSION_NAME };
-#if defined(_WIN32)
-        config.extensions.push_back("XR_KHR_win32_convert_performance_counter_time");
-#else
-        config.extensions.push_back("XR_KHR_convert_timespec_time");
-#endif
-        // Overlay mode required for headless
-        config.use_overlay_mode = true;
-
-        m_session.reset(plugin_utils::Session::Create(config));
-        if (!m_session->begin())
-        {
-            std::cerr << "Failed to begin OpenXR session" << std::endl;
-            return false;
-        }
-
-#if defined(_WIN32)
-        if (!m_session->get_extension_function("xrConvertWin32PerformanceCounterToTimeKHR", &m_convertWin32Time))
-        {
-            std::cerr << "Failed to get xrConvertWin32PerformanceCounterToTimeKHR function" << std::endl;
-            return false;
-        }
-#else
-        if (!m_session->get_extension_function("xrConvertTimespecTimeToTimeKHR", &m_convertTimespecTime))
-        {
-            std::cerr << "Failed to get xrConvertTimespecTimeToTimeKHR function" << std::endl;
-            return false;
-        }
-#endif
-
-        const auto& handles = m_session->handles();
-        m_injector =
-            std::make_unique<plugin_utils::HandInjector>(handles.instance, handles.session, handles.reference_space);
-
-        // Initialize controllers
-        m_controllers.reset(plugin_utils::Controllers::Create(handles.instance, handles.session, handles.reference_space));
-        if (!m_controllers)
-        {
-            std::cerr << "Failed to create controllers" << std::endl;
-            return false;
-        }
-
-        std::cout << "OpenXR session, HandInjector and Controllers initialized" << std::endl;
-        return true;
-    }
-    catch (const std::exception& e)
-    {
-        std::cerr << "Failed to initialize OpenXR: " << e.what() << std::endl;
-        return false;
-    }
+    std::lock_guard<std::mutex> lock(m_skeleton_mutex);
+    return m_left_hand_nodes;
 }
 
-bool ManusTracker::initialize()
+std::vector<SkeletonNode> ManusTracker::get_right_hand_nodes() const
+{
+    std::lock_guard<std::mutex> lock(m_skeleton_mutex);
+    return m_right_hand_nodes;
+}
+
+ManusTracker::ManusTracker(const std::string& app_name) noexcept(false)
+{
+    initialize(app_name);
+}
+
+ManusTracker::~ManusTracker()
 {
     {
-        std::lock_guard<std::mutex> lock(s_instance_mutex);
-        if (s_instance != nullptr)
+        std::lock_guard<std::mutex> lock(m_lifecycle_mutex);
+        if (!m_initialized)
         {
-            std::cerr << "ManusTracker instance already exists - only one instance allowed" << std::endl;
-            return false;
+            return;
         }
-        s_instance = this;
+        m_initialized = false;
     }
 
+    shutdown_sdk();
+}
+
+void ManusTracker::initialize(const std::string& app_name) noexcept(false)
+{
     std::cout << "Initializing Manus SDK..." << std::endl;
     const SDKReturnCode t_InitializeResult = CoreSdk_InitializeIntegrated();
     if (t_InitializeResult != SDKReturnCode::SDKReturnCode_Success)
     {
-        std::cerr << "Failed to initialize Manus SDK, error code: " << static_cast<int>(t_InitializeResult) << std::endl;
-        std::lock_guard<std::mutex> lock(s_instance_mutex);
-        s_instance = nullptr;
-        return false;
+        throw std::runtime_error("Failed to initialize Manus SDK, error code: " +
+                                 std::to_string(static_cast<int>(t_InitializeResult)));
     }
     std::cout << "Manus SDK initialized successfully" << std::endl;
 
@@ -157,47 +116,106 @@ bool ManusTracker::initialize()
 
     if (t_CoordinateResult != SDKReturnCode::SDKReturnCode_Success)
     {
-        std::cerr
-            << "Failed to initialize Manus SDK coordinate system, error code: " << static_cast<int>(t_CoordinateResult)
-            << std::endl;
-        std::lock_guard<std::mutex> lock(s_instance_mutex);
-        s_instance = nullptr;
-        return false;
+        throw std::runtime_error("Failed to initialize Manus SDK coordinate system, error code: " +
+                                 std::to_string(static_cast<int>(t_CoordinateResult)));
     }
     std::cout << "Coordinate system initialized successfully" << std::endl;
 
     ConnectToGloves();
-    return true;
-}
 
-std::unordered_map<std::string, std::vector<float>> ManusTracker::get_glove_data()
-{
-    std::lock_guard<std::mutex> lock(output_map_mutex);
-    return output_map;
-}
+    std::string error_msg = "Unknown error";
+    bool success = false;
 
-void ManusTracker::cleanup()
-{
-    std::lock_guard<std::mutex> lock(s_instance_mutex);
-    if (s_instance == this)
+    try
     {
-        CoreSdk_RegisterCallbackForRawSkeletonStream(nullptr);
-        CoreSdk_RegisterCallbackForLandscapeStream(nullptr);
-        CoreSdk_RegisterCallbackForErgonomicsStream(nullptr);
-        DisconnectFromGloves();
-        CoreSdk_ShutDown();
-        s_instance = nullptr;
+        plugin_utils::SessionConfig config;
+        config.app_name = app_name;
+        // Require the push device extension
+        config.extensions = { XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME, XR_MND_HEADLESS_EXTENSION_NAME };
+#if defined(_WIN32)
+        config.extensions.push_back("XR_KHR_win32_convert_performance_counter_time");
+#else
+        config.extensions.push_back("XR_KHR_convert_timespec_time");
+#endif
+        // Overlay mode required for headless
+        config.use_overlay_mode = true;
+
+        m_session.reset(plugin_utils::Session::Create(config));
+        if (m_session && m_session->begin())
+        {
+#if defined(_WIN32)
+            if (m_session->get_extension_function("xrConvertWin32PerformanceCounterToTimeKHR", &m_convertWin32Time))
+#else
+            if (m_session->get_extension_function("xrConvertTimespecTimeToTimeKHR", &m_convertTimespecTime))
+#endif
+            {
+                const auto& handles = m_session->handles();
+                m_injector = std::make_unique<plugin_utils::HandInjector>(
+                    handles.instance, handles.session, handles.reference_space);
+
+                // Initialize controllers
+                m_controllers.reset(
+                    plugin_utils::Controllers::Create(handles.instance, handles.session, handles.reference_space));
+                if (m_controllers)
+                {
+                    std::cout << "OpenXR session, HandInjector and Controllers initialized" << std::endl;
+                    success = true;
+                }
+                else
+                {
+                    error_msg = "Failed to create controllers";
+                }
+            }
+            else
+            {
+#if defined(_WIN32)
+                error_msg = "Failed to get xrConvertWin32PerformanceCounterToTimeKHR function";
+#else
+                error_msg = "Failed to get xrConvertTimespecTimeToTimeKHR function";
+#endif
+            }
+        }
+        else
+        {
+            error_msg = "Failed to begin OpenXR session";
+        }
     }
+    catch (const std::exception& e)
+    {
+        error_msg = e.what();
+    }
+
+    if (!success)
+    {
+        std::cerr << "Failed to initialize OpenXR: " << error_msg << std::endl;
+
+        // Clean up Manus SDK
+        shutdown_sdk();
+
+        throw std::runtime_error(error_msg);
+    }
+
+    std::lock_guard<std::mutex> lock(m_lifecycle_mutex);
+    m_initialized = true;
+}
+
+
+void ManusTracker::shutdown_sdk()
+{
+    CoreSdk_RegisterCallbackForRawSkeletonStream(nullptr);
+    CoreSdk_RegisterCallbackForLandscapeStream(nullptr);
+    CoreSdk_RegisterCallbackForErgonomicsStream(nullptr);
+    DisconnectFromGloves();
+    CoreSdk_ShutDown();
 }
 
 void ManusTracker::RegisterCallbacks()
 {
     CoreSdk_RegisterCallbackForRawSkeletonStream(OnSkeletonStream);
     CoreSdk_RegisterCallbackForLandscapeStream(OnLandscapeStream);
-    CoreSdk_RegisterCallbackForErgonomicsStream(OnErgonomicsStream);
 }
 
-void ManusTracker::ConnectToGloves()
+void ManusTracker::ConnectToGloves() noexcept(false)
 {
     bool connected = false;
     const int max_attempts = 30; // Maximum connection attempts
@@ -276,13 +294,12 @@ void ManusTracker::DisconnectFromGloves()
 
 void ManusTracker::OnSkeletonStream(const SkeletonStreamInfo* skeleton_stream_info)
 {
-    std::lock_guard<std::mutex> instance_lock(s_instance_mutex);
-    if (!s_instance)
+    auto& tracker = instance();
+    std::lock_guard<std::mutex> instance_lock(tracker.m_lifecycle_mutex);
+    if (!tracker.m_initialized)
     {
         return;
     }
-
-    std::lock_guard<std::mutex> output_lock(s_instance->output_map_mutex);
 
     for (uint32_t i = 0; i < skeleton_stream_info->skeletonsCount; i++)
     {
@@ -298,9 +315,9 @@ void ManusTracker::OnSkeletonStream(const SkeletonStreamInfo* skeleton_stream_in
         // Check if glove ID matches any known glove
         bool is_left_glove, is_right_glove;
         {
-            std::lock_guard<std::mutex> landscape_lock(s_instance->landscape_mutex);
-            is_left_glove = s_instance->left_glove_id && glove_id == *s_instance->left_glove_id;
-            is_right_glove = s_instance->right_glove_id && glove_id == *s_instance->right_glove_id;
+            std::lock_guard<std::mutex> landscape_lock(tracker.landscape_mutex);
+            is_left_glove = tracker.left_glove_id && glove_id == *tracker.left_glove_id;
+            is_right_glove = tracker.right_glove_id && glove_id == *tracker.right_glove_id;
         }
 
         if (!is_left_glove && !is_right_glove)
@@ -311,146 +328,16 @@ void ManusTracker::OnSkeletonStream(const SkeletonStreamInfo* skeleton_stream_in
 
         std::string prefix = is_left_glove ? "left" : "right";
 
-        // Store position data (3 floats per node: x, y, z)
-        std::string pos_key = prefix + "_position";
-        s_instance->output_map[pos_key].resize(skeleton_info.nodesCount * 3);
-
-        // Store orientation data (4 floats per node: w, x, y, z)
-        std::string orient_key = prefix + "_orientation";
-        s_instance->output_map[orient_key].resize(skeleton_info.nodesCount * 4);
-
-        for (uint32_t j = 0; j < skeleton_info.nodesCount; j++)
+        // Save data for OpenXR Injection
         {
-            const auto& position = nodes[j].transform.position;
-            s_instance->output_map[pos_key][j * 3 + 0] = position.x;
-            s_instance->output_map[pos_key][j * 3 + 1] = position.y;
-            s_instance->output_map[pos_key][j * 3 + 2] = position.z;
-
-            const auto& orientation = nodes[j].transform.rotation;
-            s_instance->output_map[orient_key][j * 4 + 0] = orientation.w;
-            s_instance->output_map[orient_key][j * 4 + 1] = orientation.x;
-            s_instance->output_map[orient_key][j * 4 + 2] = orientation.y;
-            s_instance->output_map[orient_key][j * 4 + 3] = orientation.z;
-        }
-
-        // OpenXR Injection
-        if (s_instance->m_injector)
-        {
-            XrHandJointLocationEXT joints[XR_HAND_JOINT_COUNT_EXT];
-
-            // Use current steady clock for OpenXR timestamp
-            XrTime time;
-#if defined(_WIN32)
-            LARGE_INTEGER counter;
-            QueryPerformanceCounter(&counter);
-            s_instance->m_convertWin32Time(s_instance->m_session->handles().instance, &counter, &time);
-#else
-            struct timespec ts;
-            clock_gettime(CLOCK_MONOTONIC, &ts);
-            s_instance->m_convertTimespecTime(s_instance->m_session->handles().instance, &ts, &time);
-#endif
-
-            // Get controller pose to use as wrist/root
-            XrPosef root_pose = { { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, 0.0f } };
-            bool is_root_tracked = false;
-
-            {
-                std::lock_guard<std::mutex> lock(s_instance->m_controller_mutex);
-                if (is_left_glove)
-                {
-                    if (s_instance->m_latest_left.aim_valid)
-                    {
-                        XrPosef raw_pose = s_instance->m_latest_left.aim_pose;
-                        // Mirror Right Hand Offset
-                        XrPosef offset_pose = { { -0.70710678f, -0.5f, 0.0f, 0.5f }, { -0.1f, 0.02f, -0.02f } };
-                        s_instance->m_left_root_pose = plugin_utils::multiply_poses(raw_pose, offset_pose);
-                        is_root_tracked = true;
-                    }
-                    root_pose = s_instance->m_left_root_pose;
-                }
-                else if (is_right_glove)
-                {
-                    if (s_instance->m_latest_right.aim_valid)
-                    {
-                        XrPosef raw_pose = s_instance->m_latest_right.aim_pose;
-                        XrPosef offset_pose = { { -0.70710678f, 0.5f, 0.0f, 0.5f }, { 0.1f, 0.02f, -0.02f } };
-                        s_instance->m_right_root_pose = plugin_utils::multiply_poses(raw_pose, offset_pose);
-                        is_root_tracked = true;
-                    }
-                    root_pose = s_instance->m_right_root_pose;
-                }
-            }
-
-            // Mapping from Manus joint index to OpenXR joint index
-            // Manus: 0=Wrist, 1=ThumbMetacarpal... 5=IndexMetacarpal... Last=Palm
-            // OpenXR: 0=Palm, 1=Wrist, 2=ThumbMetacarpal...
-            // Note: Manus provides a Palm joint as the last joint in their array.
-            // All other finger joints are shifted by +1 in OpenXR relative to Manus.
-
-            for (uint32_t j = 0; j < XR_HAND_JOINT_COUNT_EXT; j++)
-            {
-                // Determine source index in Manus array
-                int manus_index = -1;
-
-                if (j == XR_HAND_JOINT_PALM_EXT)
-                {
-                    // OpenXR Palm -> Use Manus Palm (Last Index)
-                    if (skeleton_info.nodesCount > 0)
-                    {
-                        manus_index = skeleton_info.nodesCount - 1;
-                    }
-                }
-                else if (j == XR_HAND_JOINT_WRIST_EXT)
-                {
-                    // OpenXR Wrist -> Manus Wrist (Index 0)
-                    manus_index = 0;
-                }
-                else
-                {
-                    // OpenXR Finger Joints (Indices 2..25) -> Manus Finger Joints (Indices 1..24)
-                    manus_index = j - 1;
-                }
-
-                if (manus_index >= 0 && manus_index < (int)skeleton_info.nodesCount)
-                {
-                    const auto& pos = nodes[manus_index].transform.position;
-                    const auto& rot = nodes[manus_index].transform.rotation;
-
-                    XrPosef local_pose;
-                    local_pose.position.x = pos.x;
-                    local_pose.position.y = pos.y;
-                    local_pose.position.z = pos.z;
-                    local_pose.orientation.x = rot.x;
-                    local_pose.orientation.y = rot.y;
-                    local_pose.orientation.z = rot.z;
-                    local_pose.orientation.w = rot.w;
-
-                    joints[j].pose = plugin_utils::multiply_poses(root_pose, local_pose);
-
-                    joints[j].radius = 0.01f;
-                    joints[j].locationFlags =
-                        XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
-
-                    if (is_root_tracked)
-                    {
-                        joints[j].locationFlags |=
-                            XR_SPACE_LOCATION_POSITION_TRACKED_BIT | XR_SPACE_LOCATION_ORIENTATION_TRACKED_BIT;
-                    }
-                }
-                else
-                {
-                    // Invalid joint if index out of bounds
-                    joints[j] = { 0 };
-                }
-            }
-
+            std::lock_guard<std::mutex> lock(tracker.m_skeleton_mutex);
             if (is_left_glove)
             {
-                s_instance->m_injector->push_left(joints, time);
+                tracker.m_left_hand_nodes = nodes;
             }
             else if (is_right_glove)
             {
-                s_instance->m_injector->push_right(joints, time);
+                tracker.m_right_hand_nodes = nodes;
             }
         }
     }
@@ -458,15 +345,16 @@ void ManusTracker::OnSkeletonStream(const SkeletonStreamInfo* skeleton_stream_in
 
 void ManusTracker::OnLandscapeStream(const Landscape* landscape)
 {
-    std::lock_guard<std::mutex> instance_lock(s_instance_mutex);
-    if (!s_instance)
+    auto& tracker = instance();
+    std::lock_guard<std::mutex> instance_lock(tracker.m_lifecycle_mutex);
+    if (!tracker.m_initialized)
     {
         return;
     }
 
     const auto& gloves = landscape->gloveDevices;
 
-    std::lock_guard<std::mutex> landscape_lock(s_instance->landscape_mutex);
+    std::lock_guard<std::mutex> landscape_lock(tracker.landscape_mutex);
 
     // We only support one left and one right glove
     if (gloves.gloveCount > 2)
@@ -481,57 +369,143 @@ void ManusTracker::OnLandscapeStream(const Landscape* landscape)
         const GloveLandscapeData& glove = gloves.gloves[i];
         if (glove.side == Side::Side_Left)
         {
-            s_instance->left_glove_id = glove.id;
+            tracker.left_glove_id = glove.id;
         }
         else if (glove.side == Side::Side_Right)
         {
-            s_instance->right_glove_id = glove.id;
+            tracker.right_glove_id = glove.id;
         }
     }
 }
 
-void ManusTracker::OnErgonomicsStream(const ErgonomicsStream* ergonomics_stream)
+void ManusTracker::inject_hand_data()
 {
-    std::lock_guard<std::mutex> instance_lock(s_instance_mutex);
-    if (!s_instance)
+    std::vector<SkeletonNode> left_nodes;
+    std::vector<SkeletonNode> right_nodes;
+
     {
-        return;
+        std::lock_guard<std::mutex> lock(m_skeleton_mutex);
+        left_nodes = m_left_hand_nodes;
+        right_nodes = m_right_hand_nodes;
     }
 
-    std::lock_guard<std::mutex> output_lock(s_instance->output_map_mutex);
+    // Use current steady clock for OpenXR timestamp
+    XrTime time;
+#if defined(_WIN32)
+    LARGE_INTEGER counter;
+    QueryPerformanceCounter(&counter);
+    m_convertWin32Time(m_session->handles().instance, &counter, &time);
+#else
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    m_convertTimespecTime(m_session->handles().instance, &ts, &time);
+#endif
 
-    for (uint32_t i = 0; i < ergonomics_stream->dataCount; i++)
+    auto process_hand = [&](const std::vector<SkeletonNode>& nodes, bool is_left)
     {
-        if (ergonomics_stream->data[i].isUserID)
-            continue;
-
-        uint32_t glove_id = ergonomics_stream->data[i].id;
-
-        // Check if glove ID matches any known glove
-        bool is_left_glove, is_right_glove;
+        if (nodes.empty())
         {
-            std::lock_guard<std::mutex> landscape_lock(s_instance->landscape_mutex);
-            is_left_glove = s_instance->left_glove_id && glove_id == *s_instance->left_glove_id;
-            is_right_glove = s_instance->right_glove_id && glove_id == *s_instance->right_glove_id;
+            return;
         }
 
-        if (!is_left_glove && !is_right_glove)
+        XrHandJointLocationEXT joints[XR_HAND_JOINT_COUNT_EXT];
+        XrPosef root_pose = { { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, 0.0f } };
+        bool is_root_tracked = false;
+
+        if (is_left)
         {
-            std::cerr << "Skipping ergonomics data from unknown glove ID: " << glove_id << std::endl;
-            continue;
+            if (m_latest_left.aim_valid)
+            {
+                XrPosef raw_pose = m_latest_left.aim_pose;
+                XrPosef offset_pose = kLeftHandOffset;
+                m_left_root_pose = plugin_utils::multiply_poses(raw_pose, offset_pose);
+                is_root_tracked = true;
+            }
+            root_pose = m_left_root_pose;
+        }
+        else
+        {
+            if (m_latest_right.aim_valid)
+            {
+                XrPosef raw_pose = m_latest_right.aim_pose;
+                XrPosef offset_pose = kRightHandOffset;
+
+                m_right_root_pose = plugin_utils::multiply_poses(raw_pose, offset_pose);
+                is_root_tracked = true;
+            }
+            root_pose = m_right_root_pose;
         }
 
-        std::string prefix = is_left_glove ? "left" : "right";
-        std::string angle_key = prefix + "_angle";
-        s_instance->output_map[angle_key].clear();
-        s_instance->output_map[angle_key].reserve(ErgonomicsDataType_MAX_SIZE);
+        uint32_t nodes_count = static_cast<uint32_t>(nodes.size());
 
-        for (int j = 0; j < ErgonomicsDataType_MAX_SIZE; j++)
+        for (uint32_t j = 0; j < XR_HAND_JOINT_COUNT_EXT; j++)
         {
-            float value = ergonomics_stream->data[i].data[j];
-            s_instance->output_map[angle_key].push_back(value);
+            // Determine source index in Manus array
+            int manus_index = -1;
+
+            if (j == XR_HAND_JOINT_PALM_EXT)
+            {
+                // OpenXR Palm -> Use Manus Palm (Last Index)
+                if (nodes_count > 0)
+                {
+                    manus_index = nodes_count - 1;
+                }
+            }
+            else if (j == XR_HAND_JOINT_WRIST_EXT)
+            {
+                // OpenXR Wrist -> Manus Wrist (Index 0)
+                manus_index = 0;
+            }
+            else
+            {
+                // OpenXR Finger Joints (Indices 2..25) -> Manus Finger Joints (Indices 1..24)
+                manus_index = j - 1;
+            }
+
+            if (manus_index >= 0 && manus_index < (int)nodes_count)
+            {
+                const auto& pos = nodes[manus_index].transform.position;
+                const auto& rot = nodes[manus_index].transform.rotation;
+
+                XrPosef local_pose;
+                local_pose.position.x = pos.x;
+                local_pose.position.y = pos.y;
+                local_pose.position.z = pos.z;
+                local_pose.orientation.x = rot.x;
+                local_pose.orientation.y = rot.y;
+                local_pose.orientation.z = rot.z;
+                local_pose.orientation.w = rot.w;
+
+                joints[j].pose = plugin_utils::multiply_poses(root_pose, local_pose);
+
+                joints[j].radius = 0.01f;
+                joints[j].locationFlags = XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
+
+                if (is_root_tracked)
+                {
+                    joints[j].locationFlags |=
+                        XR_SPACE_LOCATION_POSITION_TRACKED_BIT | XR_SPACE_LOCATION_ORIENTATION_TRACKED_BIT;
+                }
+            }
+            else
+            {
+                // Invalid joint if index out of bounds
+                joints[j] = { 0 };
+            }
         }
-    }
+
+        if (is_left)
+        {
+            m_injector->push_left(joints, time);
+        }
+        else
+        {
+            m_injector->push_right(joints, time);
+        }
+    };
+
+    process_hand(left_nodes, true);
+    process_hand(right_nodes, false);
 }
 
 } // namespace manus

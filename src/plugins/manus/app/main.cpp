@@ -27,19 +27,18 @@ int main(int argc, char** argv)
 
     std::cout << "Manus Hand Plugin starting..." << std::endl;
 
-    ManusTracker tracker;
-
-    if (!tracker.initialize())
+    plugins::manus::ManusTracker* tracker_ptr = nullptr;
+    try
     {
-        std::cerr << "Failed to initialize Manus SDK. Make sure Manus Core is running." << std::endl;
+        tracker_ptr = &ManusTracker::instance();
+    }
+    catch (const std::exception& e)
+    {
+        std::cerr << "Failed to initialize Manus Hand Plugin: " << e.what() << std::endl;
         return 1;
     }
 
-    if (!tracker.initialize_openxr("ManusHandPlugin"))
-    {
-        std::cerr << "Failed to initialize OpenXR. Make sure an OpenXR runtime is available." << std::endl;
-        return 1;
-    }
+    auto& tracker = *tracker_ptr;
 
     std::cout << "Plugin running. Press Ctrl+C to stop." << std::endl;
 
@@ -56,7 +55,6 @@ int main(int argc, char** argv)
     }
 
     std::cout << "Stopping..." << std::endl;
-    tracker.cleanup();
 
     return 0;
 }

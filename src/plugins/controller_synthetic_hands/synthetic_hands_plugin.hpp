@@ -18,7 +18,7 @@ namespace controller_synthetic_hands
 class SyntheticHandsPlugin
 {
 public:
-    explicit SyntheticHandsPlugin(const std::string& plugin_root_id);
+    explicit SyntheticHandsPlugin(const std::string& plugin_root_id) noexcept(false);
     ~SyntheticHandsPlugin();
 
     SyntheticHandsPlugin(const SyntheticHandsPlugin&) = delete;
