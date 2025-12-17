@@ -4,7 +4,7 @@
 // Hand tracking data injection via push devices
 #pragma once
 
-#include <openxr/XR_NVX1_device_interface.h>
+#include <XR_NVX1_device_interface.h>
 #include <openxr/openxr.h>
 
 namespace plugin_utils

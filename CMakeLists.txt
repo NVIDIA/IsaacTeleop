@@ -77,7 +77,7 @@ if(BUILD_TESTING)
 endif()
 
 # Build interfaces (headers)
-add_subdirectory(include)
+add_subdirectory(deps/cloudxr/openxr_extensions)
 
 # Build core modules (OXR and XRIO)
 add_subdirectory(src/core)
