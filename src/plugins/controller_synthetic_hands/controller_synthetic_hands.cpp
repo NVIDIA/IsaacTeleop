@@ -1,12 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-#include "synthetic_hands_plugin.hpp"
-
 #include <csignal>
 #include <cstring>
 #include <iostream>
 #include <memory>
+#include <synthetic_hands_plugin.hpp>
 
 static_assert(ATOMIC_BOOL_LOCK_FREE, "lock-free atomic bool is required for signal safety");
 

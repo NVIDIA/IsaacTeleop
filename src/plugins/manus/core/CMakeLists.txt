@@ -1,6 +1,6 @@
 add_library(isaac_manus_plugin SHARED
-  ManusHandTrackingPlugin.cpp
-  ManusHandTrackingPlugin.h
+  manus_hand_tracking_plugin.cpp
+  manus_hand_tracking_plugin.h
 )
 
 target_include_directories(isaac_manus_plugin
@@ -14,7 +14,9 @@ target_include_directories(isaac_manus_plugin
 target_link_libraries(isaac_manus_plugin
   PUBLIC
     ManusSDK::ManusSDK
-    Teleop::plugin_common
+    Teleop::plugin_utils
+    OpenXR::openxr_loader
+    Teleop::openxr_extensions
 )
 
 set_target_properties(isaac_manus_plugin PROPERTIES

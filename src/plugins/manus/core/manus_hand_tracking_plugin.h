@@ -11,11 +11,10 @@
 #    include <time.h>
 #endif
 
-#include "ManusSDK.h"
-#include "controllers.hpp"
-
 #include <openxr/openxr_platform.h>
+#include <plugin_utils/controllers.hpp>
 
+#include <ManusSDK.h>
 #include <memory>
 #include <mutex>
 #include <optional>

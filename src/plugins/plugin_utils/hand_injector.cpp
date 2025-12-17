@@ -3,7 +3,7 @@
 
 // Hand tracking data injection via push devices
 
-#include "hand_injector.hpp"
+#include <plugin_utils/hand_injector.hpp>
 
 #include <cstring>
 #include <stdexcept>

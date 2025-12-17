@@ -1,5 +1,5 @@
 add_executable(ManusHandTrackerPrinter
-  ManusHandTrackerPrinter.cpp
+  manus_hand_tracker_printer.cpp
 )
 
 target_include_directories(ManusHandTrackerPrinter

@@ -34,8 +34,8 @@ The Manus SDK must be downloaded separately due to licensing.
 Expected layout when vendored:
 ```
 src/plugins/manus/
-  ManusHandTrackingPlugin.cpp
-  ManusHandTrackingPlugin.h
+  manus_hand_tracking_plugin.cpp
+  manus_hand_tracking_plugin.h
   ManusSDK/
     include/           # Manus headers (ManusSDK.h, etc.)
     lib/ or lib64/     # Manus shared libs (libManusSDK.so or libManusSDK_Integrated.so)
