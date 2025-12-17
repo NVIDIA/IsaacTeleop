@@ -9,6 +9,9 @@
 #include <iostream>
 #include <vector>
 
+namespace plugin_utils
+{
+
 Controllers* Controllers::Create(XrInstance instance, XrSession session, XrSpace reference_space)
 {
     Controllers* controllers = new Controllers();
@@ -269,3 +272,5 @@ void Controllers::cleanup()
     left_grip_space_ = right_grip_space_ = left_aim_space_ = right_aim_space_ = XR_NULL_HANDLE;
     action_set_ = XR_NULL_HANDLE;
 }
+
+} // namespace plugin_utils

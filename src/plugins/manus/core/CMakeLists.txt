@@ -1,6 +1,6 @@
 add_library(isaac_manus_plugin SHARED
   manus_hand_tracking_plugin.cpp
-  manus_hand_tracking_plugin.h
+  manus_hand_tracking_plugin.hpp
 )
 
 target_include_directories(isaac_manus_plugin

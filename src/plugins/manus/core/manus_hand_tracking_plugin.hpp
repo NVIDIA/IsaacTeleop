@@ -22,11 +22,12 @@
 #include <unordered_map>
 #include <vector>
 
+namespace plugin_utils
+{
 class Session;
 class HandInjector;
+} // namespace plugin_utils
 
-namespace isaacteleop
-{
 namespace plugins
 {
 namespace manus
@@ -66,12 +67,12 @@ private:
     bool is_connected = false;
 
     // OpenXR members
-    std::unique_ptr<Session> m_session;
-    std::unique_ptr<HandInjector> m_injector;
-    std::unique_ptr<Controllers> m_controllers;
+    std::unique_ptr<plugin_utils::Session> m_session;
+    std::unique_ptr<plugin_utils::HandInjector> m_injector;
+    std::unique_ptr<plugin_utils::Controllers> m_controllers;
     std::mutex m_controller_mutex;
-    ControllerPose m_latest_left;
-    ControllerPose m_latest_right;
+    plugin_utils::ControllerPose m_latest_left;
+    plugin_utils::ControllerPose m_latest_right;
 #if defined(_WIN32)
     PFN_xrConvertWin32PerformanceCounterToTimeKHR m_convertWin32Time = nullptr;
 #else
@@ -85,4 +86,3 @@ private:
 
 } // namespace manus
 } // namespace plugins
-} // namespace isaacteleop

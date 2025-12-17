@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <plugin_utils/hand_injector.hpp>
+#include <plugin_utils/math.hpp>
 #include <plugin_utils/session.hpp>
 
 #include <ManusSDK.h>
@@ -9,7 +10,7 @@
 #include <algorithm>
 #include <chrono>
 #include <iostream>
-#include <manus_hand_tracking_plugin.h>
+#include <manus_hand_tracking_plugin.hpp>
 #include <memory>
 #include <mutex>
 #include <stdexcept>
@@ -17,44 +18,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace
-{
-constexpr XrPosef multiply_poses(const XrPosef& a, const XrPosef& b)
-{
-    XrPosef result{};
 
-    // Quaternion multiplication: result = a * b
-    float qw = a.orientation.w, qx = a.orientation.x, qy = a.orientation.y, qz = a.orientation.z;
-    float rw = b.orientation.w, rx = b.orientation.x, ry = b.orientation.y, rz = b.orientation.z;
-
-    result.orientation.w = qw * rw - qx * rx - qy * ry - qz * rz;
-    result.orientation.x = qw * rx + qx * rw + qy * rz - qz * ry;
-    result.orientation.y = qw * ry - qx * rz + qy * rw + qz * rx;
-    result.orientation.z = qw * rz + qx * ry - qy * rx + qz * rw;
-
-    // Position: result = a.pos + a.rot * b.pos
-    float vx = b.position.x, vy = b.position.y, vz = b.position.z;
-
-    // t = 2 * cross(q.xyz, v)
-    float tx = 2.0f * (qy * vz - qz * vy);
-    float ty = 2.0f * (qz * vx - qx * vz);
-    float tz = 2.0f * (qx * vy - qy * vx);
-
-    // v' = v + q.w * t + cross(q.xyz, t)
-    float rot_x = vx + qw * tx + (qy * tz - qz * ty);
-    float rot_y = vy + qw * ty + (qz * tx - qx * tz);
-    float rot_z = vz + qw * tz + (qx * ty - qy * tx);
-
-    result.position.x = a.position.x + rot_x;
-    result.position.y = a.position.y + rot_y;
-    result.position.z = a.position.z + rot_z;
-
-    return result;
-}
-}
-
-namespace isaacteleop
-{
 namespace plugins
 {
 namespace manus
@@ -101,7 +65,7 @@ bool ManusTracker::initialize_openxr(const std::string& app_name)
 {
     try
     {
-        SessionConfig config;
+        plugin_utils::SessionConfig config;
         config.app_name = app_name;
         // Require the push device extension
         config.extensions = { XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME, XR_MND_HEADLESS_EXTENSION_NAME };
@@ -113,7 +77,7 @@ bool ManusTracker::initialize_openxr(const std::string& app_name)
         // Overlay mode required for headless
         config.use_overlay_mode = true;
 
-        m_session.reset(Session::Create(config));
+        m_session.reset(plugin_utils::Session::Create(config));
         if (!m_session->begin())
         {
             std::cerr << "Failed to begin OpenXR session" << std::endl;
@@ -135,10 +99,11 @@ bool ManusTracker::initialize_openxr(const std::string& app_name)
 #endif
 
         const auto& handles = m_session->handles();
-        m_injector = std::make_unique<HandInjector>(handles.instance, handles.session, handles.reference_space);
+        m_injector =
+            std::make_unique<plugin_utils::HandInjector>(handles.instance, handles.session, handles.reference_space);
 
         // Initialize controllers
-        m_controllers.reset(Controllers::Create(handles.instance, handles.session, handles.reference_space));
+        m_controllers.reset(plugin_utils::Controllers::Create(handles.instance, handles.session, handles.reference_space));
         if (!m_controllers)
         {
             std::cerr << "Failed to create controllers" << std::endl;
@@ -398,7 +363,7 @@ void ManusTracker::OnSkeletonStream(const SkeletonStreamInfo* skeleton_stream_in
                         XrPosef raw_pose = s_instance->m_latest_left.aim_pose;
                         // Mirror Right Hand Offset
                         XrPosef offset_pose = { { -0.70710678f, -0.5f, 0.0f, 0.5f }, { -0.1f, 0.02f, -0.02f } };
-                        s_instance->m_left_root_pose = multiply_poses(raw_pose, offset_pose);
+                        s_instance->m_left_root_pose = plugin_utils::multiply_poses(raw_pose, offset_pose);
                         is_root_tracked = true;
                     }
                     root_pose = s_instance->m_left_root_pose;
@@ -409,7 +374,7 @@ void ManusTracker::OnSkeletonStream(const SkeletonStreamInfo* skeleton_stream_in
                     {
                         XrPosef raw_pose = s_instance->m_latest_right.aim_pose;
                         XrPosef offset_pose = { { -0.70710678f, 0.5f, 0.0f, 0.5f }, { 0.1f, 0.02f, -0.02f } };
-                        s_instance->m_right_root_pose = multiply_poses(raw_pose, offset_pose);
+                        s_instance->m_right_root_pose = plugin_utils::multiply_poses(raw_pose, offset_pose);
                         is_root_tracked = true;
                     }
                     root_pose = s_instance->m_right_root_pose;
@@ -460,7 +425,7 @@ void ManusTracker::OnSkeletonStream(const SkeletonStreamInfo* skeleton_stream_in
                     local_pose.orientation.z = rot.z;
                     local_pose.orientation.w = rot.w;
 
-                    joints[j].pose = multiply_poses(root_pose, local_pose);
+                    joints[j].pose = plugin_utils::multiply_poses(root_pose, local_pose);
 
                     joints[j].radius = 0.01f;
                     joints[j].locationFlags =
@@ -571,4 +536,3 @@ void ManusTracker::OnErgonomicsStream(const ErgonomicsStream* ergonomics_stream)
 
 } // namespace manus
 } // namespace plugins
-} // namespace isaacteleop

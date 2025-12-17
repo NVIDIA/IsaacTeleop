@@ -9,6 +9,9 @@
 #include <string>
 #include <vector>
 
+namespace plugin_utils
+{
+
 struct SessionConfig
 {
     std::string app_name = "ControllerSyntheticHands";
@@ -62,3 +65,5 @@ private:
     SessionHandles handles_;
     SessionConfig config_;
 };
+
+} // namespace plugin_utils

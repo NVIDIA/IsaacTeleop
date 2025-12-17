@@ -5,7 +5,7 @@
 #include <csignal>
 #include <iomanip>
 #include <iostream>
-#include <manus_hand_tracking_plugin.h>
+#include <manus_hand_tracking_plugin.hpp>
 #include <thread>
 
 static volatile std::sig_atomic_t g_should_exit = 0;

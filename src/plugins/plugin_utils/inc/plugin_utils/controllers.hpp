@@ -6,6 +6,9 @@
 
 #include <openxr/openxr.h>
 
+namespace plugin_utils
+{
+
 struct ControllerPose
 {
     XrPosef grip_pose;
@@ -81,3 +84,5 @@ private:
     ControllerPose left_;
     ControllerPose right_;
 };
+
+} // namespace plugin_utils

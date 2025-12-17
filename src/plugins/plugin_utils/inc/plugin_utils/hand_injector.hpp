@@ -7,6 +7,9 @@
 #include <openxr/XR_NVX1_device_interface.h>
 #include <openxr/openxr.h>
 
+namespace plugin_utils
+{
+
 class HandInjector
 {
 public:
@@ -35,3 +38,5 @@ private:
     PFN_xrDestroyPushDeviceNV pfn_destroy_ = nullptr;
     PFN_xrPushDevicePushHandTrackingNV pfn_push_ = nullptr;
 };
+
+} // namespace plugin_utils

@@ -5,10 +5,10 @@
 #include <chrono>
 #include <csignal>
 #include <iostream>
-#include <manus_hand_tracking_plugin.h>
+#include <manus_hand_tracking_plugin.hpp>
 #include <thread>
 
-using namespace isaacteleop::plugins::manus;
+using namespace plugins::manus;
 
 // Use atomic<bool> with relaxed ordering for signal safety
 std::atomic<bool> g_stop_requested{ false };
