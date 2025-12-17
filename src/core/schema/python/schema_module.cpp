@@ -17,7 +17,7 @@ PYBIND11_MODULE(_schema, m) {
     // Bind tensor types (enums, structs, TensorT).
     core::bind_tensor(m);
 
-    // Bind pose types (PoseT).
+    // Bind pose types (Point, Quaternion, Pose structs).
     core::bind_pose(m);
 }
 

@@ -14,8 +14,10 @@ from ._schema import (
     DLDataType,
     DLDevice,
     TensorT,
-    # Pose-related types.
-    PoseT,
+    # Pose-related types (structs).
+    Point,
+    Quaternion,
+    Pose,
 )
 
 __all__ = [
@@ -25,8 +27,8 @@ __all__ = [
     "DLDataType",
     "DLDevice",
     "TensorT",
-    # Pose types.
-    "PoseT",
+    # Pose types (structs).
+    "Point",
+    "Quaternion",
+    "Pose",
 ]
-
-
