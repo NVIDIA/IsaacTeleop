@@ -3,7 +3,7 @@
 
 // OpenXR initialization and session management
 
-#include "session.hpp"
+#include <plugin_utils/session.hpp>
 
 #include <cstring>
 #include <iostream>

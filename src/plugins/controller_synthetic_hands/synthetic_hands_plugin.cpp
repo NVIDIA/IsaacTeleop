@@ -1,8 +1,7 @@
-#include "synthetic_hands_plugin.hpp"
-
 #include <algorithm>
 #include <chrono>
 #include <iostream>
+#include <synthetic_hands_plugin.hpp>
 
 // Toggle between space-based and pose-based hand injection
 // true = use controller spaces directly (primary method)

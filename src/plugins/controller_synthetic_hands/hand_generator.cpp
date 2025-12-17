@@ -3,10 +3,9 @@
 
 // Hand joint generation
 
-#include "hand_generator.hpp"
-
 #include <algorithm>
 #include <cmath>
+#include <hand_generator.hpp>
 
 void HandGenerator::generate(XrHandJointLocationEXT* joints, const XrPosef& wrist_pose, bool is_left_hand, float curl)
 {

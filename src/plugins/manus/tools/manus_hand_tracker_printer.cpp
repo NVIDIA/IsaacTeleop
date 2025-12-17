@@ -1,12 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-#include "ManusHandTrackingPlugin.h"
-
 #include <chrono>
 #include <csignal>
 #include <iomanip>
 #include <iostream>
+#include <manus_hand_tracking_plugin.h>
 #include <thread>
 
 static volatile std::sig_atomic_t g_should_exit = 0;

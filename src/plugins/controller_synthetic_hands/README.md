@@ -96,13 +96,13 @@ injector.initialize(h.instance, h.session, h.reference_space);
 
 while (running) {
     controllers.update(time);
-    
+
     auto left = controllers.left();
     if (left.grip_valid && left.aim_valid) {
         XrPosef wrist;
         wrist.position = left.grip_pose.position;
         wrist.orientation = left.aim_pose.orientation;
-        
+
         hands.generate(joints, wrist, true);
         injector.push_left(joints, time);
     }
@@ -114,7 +114,7 @@ while (running) {
 #### Session Initialization
 
 ```cpp
-#include "session.hpp"
+#include "plugin_utils/session.hpp"
 
 SessionConfig config;
 config.app_name = "MyApp";
@@ -128,7 +128,7 @@ auto handles = session.handles();
 #### Controller Tracking
 
 ```cpp
-#include "controllers.hpp"
+#include "plugin_utils/controllers.hpp"
 
 Controllers controllers;
 controllers.initialize(instance, session, space);
@@ -150,7 +150,7 @@ generator.generate(joints, wrist_pose, true);
 #### Hand Injection
 
 ```cpp
-#include "hand_injector.hpp"
+#include "plugin_utils/hand_injector.hpp"
 
 HandInjector injector;
 injector.initialize(instance, session, space);
@@ -239,14 +239,14 @@ TEST(Integration, FullPipeline) {
     Session session;
     session.initialize(test_config);
     auto h = session.handles();
-    
+
     Controllers controllers;
     controllers.initialize(h.instance, h.session, h.reference_space);
-    
+
     HandGenerator gen;
     HandInjector injector;
     injector.initialize(h.instance, h.session, h.reference_space);
-    
+
     controllers.update(0);
     auto ctrl = controllers.left();
     XrHandJointLocationEXT joints[XR_HAND_JOINT_COUNT_EXT];

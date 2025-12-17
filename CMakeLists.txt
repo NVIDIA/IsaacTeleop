@@ -82,8 +82,8 @@ endif()
 
 # Build plugins if requested
 if(BUILD_PLUGINS)
-    # Build common plugin code
-    add_subdirectory(src/plugins/common)
+    # Build plugin utilities
+    add_subdirectory(src/plugins/plugin_utils)
 
     add_subdirectory(src/plugins/controller_synthetic_hands)
     add_subdirectory(src/plugins/manus)
