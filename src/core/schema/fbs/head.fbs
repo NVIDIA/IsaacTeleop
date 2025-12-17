@@ -1,0 +1,18 @@
+include "pose.fbs";
+
+namespace core;
+
+// Describe a Head pose.
+table HeadPose {
+    // The concrete pose data
+    pose: Pose (id: 0);
+
+    // Whether the head pose data is valid
+    is_valid: bool (id: 1);
+
+    // The timestamp of the pose data in the XrTime format (i.e. int64)
+    // See: https://github.com/KhronosGroup/OpenXR-SDK/blob/release-1.0.0/include/openxr/openxr.h#L113
+    timestamp: int64 (id: 2);
+}
+
+root_type HeadPose;

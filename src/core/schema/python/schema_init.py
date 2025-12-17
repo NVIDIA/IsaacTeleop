@@ -18,6 +18,12 @@ from ._schema import (
     Point,
     Quaternion,
     Pose,
+    # Head-related types.
+    HeadPoseT,
+    # Hand-related types.
+    HandJointPose,
+    HandJoints,
+    HandPoseT,
 )
 
 __all__ = [
@@ -31,4 +37,10 @@ __all__ = [
     "Point",
     "Quaternion",
     "Pose",
+    # Head types.
+    "HeadPoseT",
+    # Hand types.
+    "HandJointPose",
+    "HandJoints",
+    "HandPoseT",
 ]

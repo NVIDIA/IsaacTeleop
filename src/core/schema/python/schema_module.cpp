@@ -8,6 +8,8 @@
 // Include binding definitions.
 #include "tensor_bindings.h"
 #include "pose_bindings.h"
+#include "head_bindings.h"
+#include "hand_bindings.h"
 
 namespace py = pybind11;
 
@@ -19,5 +21,11 @@ PYBIND11_MODULE(_schema, m) {
 
     // Bind pose types (Point, Quaternion, Pose structs).
     core::bind_pose(m);
+
+    // Bind head types (HeadPoseT table).
+    core::bind_head(m);
+
+    // Bind hand types (HandJointPose, HandJoints structs, HandPoseT table).
+    core::bind_hand(m);
 }
 
