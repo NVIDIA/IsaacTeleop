@@ -7,6 +7,8 @@
 #include <memory>
 #include <synthetic_hands_plugin.hpp>
 
+using namespace plugins::controller_synthetic_hands;
+
 static_assert(ATOMIC_BOOL_LOCK_FREE, "lock-free atomic bool is required for signal safety");
 
 // Use atomic<bool> with relaxed ordering for signal safety

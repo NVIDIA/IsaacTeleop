@@ -3,6 +3,11 @@
 #include <iostream>
 #include <synthetic_hands_plugin.hpp>
 
+namespace plugins
+{
+namespace controller_synthetic_hands
+{
+
 // Toggle between space-based and pose-based hand injection
 // true = use controller spaces directly (primary method)
 // false = read controller poses and generate in world space (secondary method)
@@ -13,14 +18,14 @@ SyntheticHandsPlugin::SyntheticHandsPlugin(const std::string& plugin_root_id) : 
     std::cout << "Initializing SyntheticHandsPlugin with root: " << m_root_id << std::endl;
 
     // Initialize session
-    SessionConfig config;
+    plugin_utils::SessionConfig config;
     config.app_name = "ControllerSyntheticHands";
     config.extensions = { XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME, XR_MND_HEADLESS_EXTENSION_NAME,
                           XR_EXTX_OVERLAY_EXTENSION_NAME };
     config.use_overlay_mode = true; // Required for headless mode
 
     // Session::Create will throw if it fails
-    m_session.reset(Session::Create(config));
+    m_session.reset(plugin_utils::Session::Create(config));
     const auto& handles = m_session->handles();
 
     if (!m_session->begin())
@@ -29,7 +34,7 @@ SyntheticHandsPlugin::SyntheticHandsPlugin(const std::string& plugin_root_id) : 
     }
 
     // Initialize controllers
-    m_controllers.reset(Controllers::Create(handles.instance, handles.session, handles.reference_space));
+    m_controllers.reset(plugin_utils::Controllers::Create(handles.instance, handles.session, handles.reference_space));
     if (!m_controllers)
     {
         throw std::runtime_error("Failed to create controllers");
@@ -38,12 +43,13 @@ SyntheticHandsPlugin::SyntheticHandsPlugin(const std::string& plugin_root_id) : 
     // Initialize hand injection using the selected method
     if (USE_SPACE_BASED_INJECTION)
     {
-        m_injector = std::make_unique<HandInjector>(
+        m_injector = std::make_unique<plugin_utils::HandInjector>(
             handles.instance, handles.session, m_controllers->left_aim_space(), m_controllers->right_aim_space());
     }
     else
     {
-        m_injector = std::make_unique<HandInjector>(handles.instance, handles.session, handles.reference_space);
+        m_injector =
+            std::make_unique<plugin_utils::HandInjector>(handles.instance, handles.session, handles.reference_space);
     }
 
     // Start worker thread
@@ -154,3 +160,6 @@ void SyntheticHandsPlugin::worker_thread()
         std::this_thread::sleep_for(std::chrono::milliseconds(16));
     }
 }
+
+} // namespace controller_synthetic_hands
+} // namespace plugins

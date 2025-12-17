@@ -8,6 +8,7 @@ add_library(teleop_plugin_utils STATIC
     session.cpp
     inc/plugin_utils/controllers.hpp
     inc/plugin_utils/hand_injector.hpp
+    inc/plugin_utils/math.hpp
     inc/plugin_utils/session.hpp
 )
 

@@ -8,6 +8,9 @@
 #include <cstring>
 #include <iostream>
 
+namespace plugin_utils
+{
+
 Session* Session::Create(const SessionConfig& config)
 {
     Session* session = new Session();
@@ -173,3 +176,5 @@ void Session::cleanup()
         handles_.instance = XR_NULL_HANDLE;
     }
 }
+
+} // namespace plugin_utils

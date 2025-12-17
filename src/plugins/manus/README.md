@@ -35,7 +35,7 @@ Expected layout when vendored:
 ```
 src/plugins/manus/
   manus_hand_tracking_plugin.cpp
-  manus_hand_tracking_plugin.h
+  manus_hand_tracking_plugin.hpp
   ManusSDK/
     include/           # Manus headers (ManusSDK.h, etc.)
     lib/ or lib64/     # Manus shared libs (libManusSDK.so or libManusSDK_Integrated.so)

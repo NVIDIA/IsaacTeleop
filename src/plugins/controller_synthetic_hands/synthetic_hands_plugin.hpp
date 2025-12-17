@@ -10,6 +10,11 @@
 #include <string>
 #include <thread>
 
+namespace plugins
+{
+namespace controller_synthetic_hands
+{
+
 class SyntheticHandsPlugin
 {
 public:
@@ -25,9 +30,9 @@ private:
     void worker_thread();
     XrTime get_current_time();
 
-    std::unique_ptr<Session> m_session;
-    std::unique_ptr<Controllers> m_controllers;
-    std::unique_ptr<HandInjector> m_injector;
+    std::unique_ptr<plugin_utils::Session> m_session;
+    std::unique_ptr<plugin_utils::Controllers> m_controllers;
+    std::unique_ptr<plugin_utils::HandInjector> m_injector;
     HandGenerator m_hand_gen;
 
     std::thread m_thread;
@@ -42,3 +47,6 @@ private:
     float m_left_curl = 0.0f;
     float m_right_curl = 0.0f;
 };
+
+} // namespace controller_synthetic_hands
+} // namespace plugins

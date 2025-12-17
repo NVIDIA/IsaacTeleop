@@ -8,6 +8,9 @@
 #include <cstring>
 #include <stdexcept>
 
+namespace plugin_utils
+{
+
 HandInjector::HandInjector(XrInstance instance,
                            XrSession session,
                            XrSpace left_controller_space,
@@ -111,3 +114,5 @@ void HandInjector::cleanup()
         }
     }
 }
+
+} // namespace plugin_utils
