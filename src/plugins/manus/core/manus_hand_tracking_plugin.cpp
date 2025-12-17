@@ -34,11 +34,6 @@ ManusTracker& ManusTracker::instance(const std::string& app_name) noexcept(false
 
 void ManusTracker::update()
 {
-    if (!m_controllers)
-    {
-        return;
-    }
-
     // Use current steady clock for OpenXR timestamp
     XrTime time;
 #if defined(_WIN32)
