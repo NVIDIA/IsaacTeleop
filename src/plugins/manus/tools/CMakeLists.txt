@@ -2,11 +2,6 @@ add_executable(manus_hand_tracker_printer
   manus_hand_tracker_printer.cpp
 )
 
-target_include_directories(manus_hand_tracker_printer
-  PRIVATE
-    ${MANUS_SDK_INCLUDE_DIR}
-)
-
 target_link_libraries(manus_hand_tracker_printer
   PRIVATE
     manus_plugin_core

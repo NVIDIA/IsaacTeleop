@@ -12,7 +12,6 @@ add_library(teleop_plugin_manager STATIC
 # Include directory
 target_include_directories(teleop_plugin_manager INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
-    $<INSTALL_INTERFACE:include>
 )
 
 # Set standard C++17
@@ -20,7 +19,7 @@ target_compile_features(teleop_plugin_manager PUBLIC cxx_std_17)
 
 # Link dependencies
 find_package(Threads REQUIRED)
-target_link_libraries(teleop_plugin_manager 
+target_link_libraries(teleop_plugin_manager
     PUBLIC
         Threads::Threads
     PRIVATE

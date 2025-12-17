@@ -112,7 +112,7 @@ while (running) {
 #### Session Initialization
 
 ```cpp
-#include "plugin_utils/session.hpp"
+#include <plugin_utils/session.hpp>
 
 SessionConfig config;
 config.app_name = "MyApp";
@@ -125,7 +125,7 @@ auto handles = session.handles();
 #### Controller Tracking
 
 ```cpp
-#include "plugin_utils/controllers.hpp"
+#include <plugin_utils/controllers.hpp>
 
 Controllers controllers(instance, session, space);
 
@@ -146,7 +146,7 @@ generator.generate(joints, wrist_pose, true, curl_value);
 #### Hand Injection
 
 ```cpp
-#include "plugin_utils/hand_injector.hpp"
+#include <plugin_utils/hand_injector.hpp>
 
 HandInjector injector(instance, session, space);
 injector.push_left(joints, timestamp);
