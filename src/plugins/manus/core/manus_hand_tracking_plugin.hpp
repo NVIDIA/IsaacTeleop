@@ -19,7 +19,6 @@
 #include <mutex>
 #include <optional>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 namespace plugin_utils
@@ -36,52 +35,63 @@ namespace manus
 class __attribute__((visibility("default"))) ManusTracker
 {
 public:
-    ManusTracker();
-    ~ManusTracker();
+    static ManusTracker& instance(const std::string& app_name = "ManusHandPlugin") noexcept(false);
 
-    bool initialize();
-    bool initialize_openxr(const std::string& app_name);
     void update();
-    std::unordered_map<std::string, std::vector<float>> get_glove_data();
-    void cleanup();
+    std::vector<SkeletonNode> get_left_hand_nodes() const;
+    std::vector<SkeletonNode> get_right_hand_nodes() const;
 
 private:
-    static ManusTracker* s_instance;
-    static std::mutex s_instance_mutex;
+    // Lifecycle
+    explicit ManusTracker(const std::string& app_name) noexcept(false);
+    ~ManusTracker();
+    void initialize(const std::string& app_name) noexcept(false);
+    void shutdown_sdk();
 
-    // ManusSDK specific members
+    // ManusSDK specific methods
     void RegisterCallbacks();
-    void ConnectToGloves();
+    void ConnectToGloves() noexcept(false);
     void DisconnectFromGloves();
-
-    // Callback functions
     static void OnSkeletonStream(const SkeletonStreamInfo* skeleton_stream_info);
     static void OnLandscapeStream(const Landscape* landscape);
-    static void OnErgonomicsStream(const ErgonomicsStream* ergonomics_stream);
 
-    std::mutex output_map_mutex;
+    // OpenXR specific methods
+    void inject_hand_data();
+
+    // -- Member Variables --
+
+    // Lifecycle
+    std::mutex m_lifecycle_mutex;
+    bool m_initialized = false;
+
+    // ManusSDK State
     std::mutex landscape_mutex;
-    std::unordered_map<std::string, std::vector<float>> output_map;
     std::optional<uint32_t> left_glove_id;
     std::optional<uint32_t> right_glove_id;
     bool is_connected = false;
 
-    // OpenXR members
+    // OpenXR State
     std::unique_ptr<plugin_utils::Session> m_session;
     std::unique_ptr<plugin_utils::HandInjector> m_injector;
     std::unique_ptr<plugin_utils::Controllers> m_controllers;
-    std::mutex m_controller_mutex;
-    plugin_utils::ControllerPose m_latest_left;
-    plugin_utils::ControllerPose m_latest_right;
+
 #if defined(_WIN32)
     PFN_xrConvertWin32PerformanceCounterToTimeKHR m_convertWin32Time = nullptr;
 #else
     PFN_xrConvertTimespecTimeToTimeKHR m_convertTimespecTime = nullptr;
 #endif
 
+    // Controller Data
+    plugin_utils::ControllerPose m_latest_left;
+    plugin_utils::ControllerPose m_latest_right;
     // Persistent root poses (initialized to identity)
     XrPosef m_left_root_pose = { { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, 0.0f } };
     XrPosef m_right_root_pose = { { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, 0.0f } };
+
+    // Skeleton Data
+    mutable std::mutex m_skeleton_mutex;
+    std::vector<SkeletonNode> m_left_hand_nodes;
+    std::vector<SkeletonNode> m_right_hand_nodes;
 };
 
 } // namespace manus

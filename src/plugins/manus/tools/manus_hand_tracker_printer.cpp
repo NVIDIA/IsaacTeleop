@@ -1,12 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+#include <algorithm>
 #include <chrono>
 #include <csignal>
 #include <iomanip>
 #include <iostream>
 #include <manus_hand_tracking_plugin.hpp>
 #include <thread>
+#include <vector>
 
 static volatile std::sig_atomic_t g_should_exit = 0;
 
@@ -26,12 +28,17 @@ int main(int argc, char** argv)
     std::cout << "Initializing Manus Tracker..." << std::endl;
 
     // Initialize the Manus tracker
-    isaacteleop::plugins::manus::ManusTracker tracker;
-    if (!tracker.initialize())
+    plugins::manus::ManusTracker* tracker_ptr = nullptr;
+    try
     {
-        std::cerr << "Failed to initialize Manus tracker." << std::endl;
+        tracker_ptr = &plugins::manus::ManusTracker::instance("ManusHandPrinter");
+    }
+    catch (const std::exception& e)
+    {
+        std::cerr << "Failed to initialize Manus tracker: " << e.what() << std::endl;
         return 1;
     }
+    auto& tracker = *tracker_ptr;
 
     std::cout << "Press Ctrl+C to stop. Printing joint data..." << std::endl;
 
@@ -39,9 +46,10 @@ int main(int argc, char** argv)
     while (!g_should_exit)
     {
         // Get glove data from Manus SDK
-        auto glove_data = tracker.get_glove_data();
+        auto left_nodes = tracker.get_left_hand_nodes();
+        auto right_nodes = tracker.get_right_hand_nodes();
 
-        if (glove_data.empty())
+        if (left_nodes.empty() && right_nodes.empty())
         {
             std::cout << "No data available yet..." << std::endl;
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
@@ -50,36 +58,35 @@ int main(int argc, char** argv)
 
         std::cout << "\n=== Frame " << frame << " ===" << std::endl;
 
-        // Print data for each hand
-        for (const auto& side : { "left", "right" })
+        // Helper lambda to print hand data
+        auto print_hand = [](const std::string& side, const std::vector<SkeletonNode>& nodes)
         {
-            std::string pos_key = std::string(side) + "_position";
-            std::string ori_key = std::string(side) + "_orientation";
-
-            if (glove_data.find(pos_key) != glove_data.end())
+            if (nodes.empty())
             {
-                const auto& positions = glove_data[pos_key];
-                const auto& orientations = glove_data[ori_key];
-
-                int joint_count = positions.size() / 3;
-
-                std::cout << "\n" << side << " hand (" << joint_count << " joints):" << std::endl;
-
-                for (int i = 0; i < std::min(joint_count, 5); ++i)
-                {
-                    std::cout << "  Joint " << i << ": "
-                              << "pos=[" << std::fixed << std::setprecision(3) << positions[i * 3 + 0] << ", "
-                              << positions[i * 3 + 1] << ", " << positions[i * 3 + 2] << "] "
-                              << "ori=[" << orientations[i * 4 + 0] << ", " << orientations[i * 4 + 1] << ", "
-                              << orientations[i * 4 + 2] << ", " << orientations[i * 4 + 3] << "]" << std::endl;
-                }
-
-                if (joint_count > 5)
-                {
-                    std::cout << "  ... (" << (joint_count - 5) << " more joints)" << std::endl;
-                }
+                return;
             }
-        }
+
+            std::cout << "\n" << side << " hand (" << nodes.size() << " joints):" << std::endl;
+
+            for (size_t i = 0; i < std::min(nodes.size(), static_cast<size_t>(5)); ++i)
+            {
+                const auto& pos = nodes[i].transform.position;
+                const auto& ori = nodes[i].transform.rotation;
+
+                std::cout << "  Joint " << i << ": "
+                          << "pos=[" << std::fixed << std::setprecision(3) << pos.x << ", " << pos.y << ", " << pos.z
+                          << "] "
+                          << "ori=[" << ori.x << ", " << ori.y << ", " << ori.z << ", " << ori.w << "]" << std::endl;
+            }
+
+            if (nodes.size() > 5)
+            {
+                std::cout << "  ... (" << (nodes.size() - 5) << " more joints)" << std::endl;
+            }
+        };
+
+        print_hand("left", left_nodes);
+        print_hand("right", right_nodes);
 
         std::cout << std::flush;
 
@@ -87,7 +94,6 @@ int main(int argc, char** argv)
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
 
-    tracker.cleanup();
     std::cout << "\nShutdown complete." << std::endl;
     return 0;
 }

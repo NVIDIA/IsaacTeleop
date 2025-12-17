@@ -14,12 +14,12 @@ namespace plugin_utils
 HandInjector::HandInjector(XrInstance instance,
                            XrSession session,
                            XrSpace left_controller_space,
-                           XrSpace right_controller_space)
+                           XrSpace right_controller_space) noexcept(false)
 {
     initialize(instance, session, left_controller_space, right_controller_space);
 }
 
-HandInjector::HandInjector(XrInstance instance, XrSession session, XrSpace reference_space)
+HandInjector::HandInjector(XrInstance instance, XrSession session, XrSpace reference_space) noexcept(false)
 {
     initialize(instance, session, reference_space, reference_space);
 }
@@ -29,14 +29,14 @@ HandInjector::~HandInjector()
     cleanup();
 }
 
-void HandInjector::initialize(XrInstance instance, XrSession session, XrSpace left_space, XrSpace right_space)
+void HandInjector::initialize(XrInstance instance, XrSession session, XrSpace left_space, XrSpace right_space) noexcept(false)
 {
     load_functions(instance);
     create_device(session, left_space, XR_HAND_LEFT_EXT, left_device_);
     create_device(session, right_space, XR_HAND_RIGHT_EXT, right_device_);
 }
 
-void HandInjector::load_functions(XrInstance instance)
+void HandInjector::load_functions(XrInstance instance) noexcept(false)
 {
     if (XR_FAILED(xrGetInstanceProcAddr(
             instance, "xrCreatePushDeviceNV", reinterpret_cast<PFN_xrVoidFunction*>(&pfn_create_))) ||
@@ -49,7 +49,10 @@ void HandInjector::load_functions(XrInstance instance)
     }
 }
 
-void HandInjector::create_device(XrSession session, XrSpace base_space, XrHandEXT hand, XrPushDeviceNV& device)
+void HandInjector::create_device(XrSession session,
+                                 XrSpace base_space,
+                                 XrHandEXT hand,
+                                 XrPushDeviceNV& device) noexcept(false)
 {
     XrPushDeviceHandTrackingInfoNV hand_info{ XR_TYPE_PUSH_DEVICE_HAND_TRACKING_INFO_NV };
     hand_info.hand = hand;

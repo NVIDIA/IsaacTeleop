@@ -13,7 +13,8 @@ namespace controller_synthetic_hands
 // false = read controller poses and generate in world space (secondary method)
 constexpr bool USE_SPACE_BASED_INJECTION = false;
 
-SyntheticHandsPlugin::SyntheticHandsPlugin(const std::string& plugin_root_id) : m_root_id(plugin_root_id)
+SyntheticHandsPlugin::SyntheticHandsPlugin(const std::string& plugin_root_id) noexcept(false)
+    : m_root_id(plugin_root_id)
 {
     std::cout << "Initializing SyntheticHandsPlugin with root: " << m_root_id << std::endl;
 

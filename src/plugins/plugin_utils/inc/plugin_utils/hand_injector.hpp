@@ -13,9 +13,12 @@ namespace plugin_utils
 class HandInjector
 {
 public:
-    HandInjector(XrInstance instance, XrSession session, XrSpace left_controller_space, XrSpace right_controller_space);
+    HandInjector(XrInstance instance,
+                 XrSession session,
+                 XrSpace left_controller_space,
+                 XrSpace right_controller_space) noexcept(false);
 
-    HandInjector(XrInstance instance, XrSession session, XrSpace reference_space);
+    HandInjector(XrInstance instance, XrSession session, XrSpace reference_space) noexcept(false);
 
     ~HandInjector();
 
@@ -26,9 +29,9 @@ public:
     bool push_right(const XrHandJointLocationEXT* joints, XrTime timestamp);
 
 private:
-    void initialize(XrInstance instance, XrSession session, XrSpace left_space, XrSpace right_space);
-    void load_functions(XrInstance instance);
-    void create_device(XrSession session, XrSpace base_space, XrHandEXT hand, XrPushDeviceNV& device);
+    void initialize(XrInstance instance, XrSession session, XrSpace left_space, XrSpace right_space) noexcept(false);
+    void load_functions(XrInstance instance) noexcept(false);
+    void create_device(XrSession session, XrSpace base_space, XrHandEXT hand, XrPushDeviceNV& device) noexcept(false);
     void cleanup();
 
     XrPushDeviceNV left_device_ = XR_NULL_HANDLE;
