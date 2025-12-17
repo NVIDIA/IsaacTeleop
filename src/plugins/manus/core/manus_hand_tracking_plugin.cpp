@@ -133,9 +133,9 @@ void ManusTracker::initialize(const std::string& app_name) noexcept(false)
         // Require the push device extension
         config.extensions = { XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME, XR_MND_HEADLESS_EXTENSION_NAME };
 #if defined(_WIN32)
-        config.extensions.push_back("XR_KHR_win32_convert_performance_counter_time");
+        config.extensions.push_back(XR_KHR_WIN32_CONVERT_PERFORMANCE_COUNTER_TIME_EXTENSION_NAME);
 #else
-        config.extensions.push_back("XR_KHR_convert_timespec_time");
+        config.extensions.push_back(XR_KHR_CONVERT_TIMESPEC_TIME_EXTENSION_NAME);
 #endif
         // Overlay mode required for headless
         config.use_overlay_mode = true;

@@ -1,0 +1,36 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 22, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "linux-manus-default",
+      "displayName": "Linux Manus Default (RelWithDebInfo)",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build-manus-default",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "MANUS_SDK_ROOT": "${sourceDir}/ManusSDK"
+      }
+    },
+    {
+      "name": "linux-manus-debug",
+      "displayName": "Linux Manus Debug",
+      "inherits": "linux-manus-default",
+      "binaryDir": "${sourceDir}/build-manus-debug",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    },
+    {
+      "name": "linux-manus-release",
+      "displayName": "Linux Manus Release",
+      "inherits": "linux-manus-default",
+      "binaryDir": "${sourceDir}/build-manus-release",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "manus-default", "configurePreset": "linux-manus-default" },
+    { "name": "manus-debug",   "configurePreset": "linux-manus-debug" },
+    { "name": "manus-release", "configurePreset": "linux-manus-release" }
+  ],
+  "testPresets": []
+}

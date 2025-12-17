@@ -11,7 +11,3 @@ target_include_directories(teleop_openxr_extensions INTERFACE
 install(FILES XR_NVX1_device_interface.h
     DESTINATION include
 )
-
-install(TARGETS teleop_openxr_extensions
-    EXPORT TeleopTargets
-)
