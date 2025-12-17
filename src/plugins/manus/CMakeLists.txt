@@ -71,9 +71,9 @@ endif()
 
 if(NOT MANUS_SHOULD_BUILD)
   message(STATUS "Skipping Manus plugin build: ${MANUS_SKIP_REASON}")
-  add_custom_target(isaac_manus_plugin COMMAND ${CMAKE_COMMAND} -E echo "Skipping isaac_manus_plugin: ${MANUS_SKIP_REASON}")
+  add_custom_target(manus_plugin_core COMMAND ${CMAKE_COMMAND} -E echo "Skipping manus_plugin_core: ${MANUS_SKIP_REASON}")
   add_custom_target(manus_hand_plugin COMMAND ${CMAKE_COMMAND} -E echo "Skipping manus_hand_plugin: ${MANUS_SKIP_REASON}")
-  add_custom_target(ManusHandTrackerPrinter COMMAND ${CMAKE_COMMAND} -E echo "Skipping ManusHandTrackerPrinter: ${MANUS_SKIP_REASON}")
+  add_custom_target(manus_hand_tracker_printer COMMAND ${CMAKE_COMMAND} -E echo "Skipping manus_hand_tracker_printer: ${MANUS_SKIP_REASON}")
   return()
 endif()
 
@@ -97,8 +97,10 @@ if(MANUS_ADD_SDK_TO_BUILD_RPATH)
 endif()
 list(JOIN _ISAAC_MANUS_EFFECTIVE_BUILD_RPATH ";" _ISAAC_MANUS_EFFECTIVE_BUILD_RPATH_STR)
 
+set(MANUS_PLUGIN_INC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/inc")
+
 add_subdirectory(core)
-add_library(isaac::manus_plugin ALIAS isaac_manus_plugin)
+add_library(isaac::manus_plugin ALIAS manus_plugin_core)
 add_subdirectory(app)
 add_subdirectory(tools)
 

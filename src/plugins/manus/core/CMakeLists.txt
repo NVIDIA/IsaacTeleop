@@ -1,25 +1,23 @@
-add_library(isaac_manus_plugin SHARED
+add_library(manus_plugin_core SHARED
   manus_hand_tracking_plugin.cpp
-  manus_hand_tracking_plugin.hpp
+  ${MANUS_PLUGIN_INC_DIR}/core/manus_hand_tracking_plugin.hpp
 )
 
-target_include_directories(isaac_manus_plugin
-  PRIVATE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+target_include_directories(manus_plugin_core
   PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-    $<BUILD_INTERFACE:${MANUS_SDK_INCLUDE_DIR}>
+    $<BUILD_INTERFACE:${MANUS_PLUGIN_INC_DIR}>
 )
 
-target_link_libraries(isaac_manus_plugin
+target_link_libraries(manus_plugin_core
   PUBLIC
     ManusSDK::ManusSDK
     Teleop::plugin_utils
     OpenXR::openxr_loader
+  PRIVATE
     Teleop::openxr_extensions
 )
 
-set_target_properties(isaac_manus_plugin PROPERTIES
+set_target_properties(manus_plugin_core PROPERTIES
   OUTPUT_NAME IsaacTeleopPluginsManus
   LIBRARY_OUTPUT_DIRECTORY "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
   CXX_VISIBILITY_PRESET hidden
@@ -30,7 +28,7 @@ set_target_properties(isaac_manus_plugin PROPERTIES
   INSTALL_RPATH "$ORIGIN"
 )
 
-install(TARGETS isaac_manus_plugin
+install(TARGETS manus_plugin_core
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )

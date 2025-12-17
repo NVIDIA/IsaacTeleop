@@ -2,9 +2,14 @@ add_executable(manus_hand_plugin
   main.cpp
 )
 
+target_include_directories(manus_hand_plugin
+  PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../inc>
+)
+
 target_link_libraries(manus_hand_plugin
   PRIVATE
-    isaac_manus_plugin
+    manus_plugin_core
 )
 
 set_target_properties(manus_hand_plugin PROPERTIES

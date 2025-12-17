@@ -1,12 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+#include <core/manus_hand_tracking_plugin.hpp>
+
 #include <algorithm>
 #include <chrono>
 #include <csignal>
 #include <iomanip>
 #include <iostream>
-#include <manus_hand_tracking_plugin.hpp>
 #include <thread>
 #include <vector>
 

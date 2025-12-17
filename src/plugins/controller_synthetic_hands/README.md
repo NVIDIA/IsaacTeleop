@@ -38,7 +38,7 @@ Four focused components:
 **session** (`session.hpp/cpp`) - OpenXR initialization and session management
 ```cpp
 class Session {
-    bool initialize(const SessionConfig& config);
+    explicit Session(const SessionConfig& config);
     const SessionHandles& handles() const;
 };
 ```
@@ -46,8 +46,8 @@ class Session {
 **controllers** (`controllers.hpp/cpp`) - Controller input tracking
 ```cpp
 class Controllers {
-    bool initialize(XrInstance, XrSession, XrSpace);
-    bool update(XrTime time);
+    Controllers(XrInstance, XrSession, XrSpace);
+    void update(XrTime time);
     const ControllerPose& left() const;
     const ControllerPose& right() const;
 };
@@ -58,16 +58,17 @@ class Controllers {
 class HandGenerator {
     void generate(XrHandJointLocationEXT* joints,
                   const XrPosef& wrist_pose,
-                  bool is_left_hand);
+                  bool is_left_hand,
+                  float curl = 0.0f);
 };
 ```
 
 **hand_injector** (`hand_injector.hpp/cpp`) - Push device data injection
 ```cpp
 class HandInjector {
-    bool initialize(XrInstance, XrSession, XrSpace);
-    bool push_left(const XrHandJointLocationEXT*, XrTime);
-    bool push_right(const XrHandJointLocationEXT*, XrTime);
+    HandInjector(XrInstance, XrSession, XrSpace);
+    void push_left(const XrHandJointLocationEXT*, XrTime);
+    void push_right(const XrHandJointLocationEXT*, XrTime);
 };
 ```
 
@@ -82,17 +83,14 @@ Controllers → Wrist Pose → Hand Generator → Hand Injector → OpenXR Runti
 ### Main Loop
 
 ```cpp
-Session session;
-session.initialize(config);
+Session session(config);
 auto h = session.handles();
 
-Controllers controllers;
-controllers.initialize(h.instance, h.session, h.reference_space);
+Controllers controllers(h.instance, h.session, h.reference_space);
 
 HandGenerator hands;
 
-HandInjector injector;
-injector.initialize(h.instance, h.session, h.reference_space);
+HandInjector injector(h.instance, h.session, h.reference_space);
 
 while (running) {
     controllers.update(time);
@@ -103,7 +101,7 @@ while (running) {
         wrist.position = left.grip_pose.position;
         wrist.orientation = left.aim_pose.orientation;
 
-        hands.generate(joints, wrist, true);
+        hands.generate(joints, wrist, true, left.trigger_value);
         injector.push_left(joints, time);
     }
 }
@@ -120,8 +118,7 @@ SessionConfig config;
 config.app_name = "MyApp";
 config.extensions = {"XR_EXT_hand_tracking"};
 
-Session session;
-session.initialize(config);
+Session session(config);
 auto handles = session.handles();
 ```
 
@@ -130,8 +127,7 @@ auto handles = session.handles();
 ```cpp
 #include "plugin_utils/controllers.hpp"
 
-Controllers controllers;
-controllers.initialize(instance, session, space);
+Controllers controllers(instance, session, space);
 
 controllers.update(time);
 auto left = controllers.left();
@@ -144,7 +140,7 @@ auto left = controllers.left();
 
 HandGenerator generator;
 XrHandJointLocationEXT joints[XR_HAND_JOINT_COUNT_EXT];
-generator.generate(joints, wrist_pose, true);
+generator.generate(joints, wrist_pose, true, curl_value);
 ```
 
 #### Hand Injection
@@ -152,8 +148,7 @@ generator.generate(joints, wrist_pose, true);
 ```cpp
 #include "plugin_utils/hand_injector.hpp"
 
-HandInjector injector;
-injector.initialize(instance, session, space);
+HandInjector injector(instance, session, space);
 injector.push_left(joints, timestamp);
 ```
 
@@ -172,7 +167,7 @@ Right hand is mirrored on the X-axis.
 
 ### Resource Management
 
-All components use RAII - resources acquired in `initialize()`, released in destructor.
+All components use RAII - resources acquired in constructor, released in destructor.
 
 ### Dependencies
 
@@ -190,8 +185,8 @@ controller_synthetic_hands.cpp
 
 ```cpp
 class HandTrackingInput {
-    bool initialize(XrInstance, XrSession);
-    bool update(XrTime);
+    HandTrackingInput(XrInstance, XrSession);
+    void update(XrTime);
     const HandData& left() const;
 };
 ```
@@ -219,15 +214,15 @@ class GestureRecognizer {
 ```cpp
 TEST(Controllers, InitializeSucceeds) {
     auto mock = create_mock_handles();
-    Controllers controllers;
-    EXPECT_TRUE(controllers.initialize(mock.instance, mock.session, mock.space));
+    Controllers controllers(mock.instance, mock.session, mock.space);
+    // Validation happens in constructor (throws on failure)
 }
 
 TEST(HandGenerator, GeneratesCorrectJointCount) {
     HandGenerator gen;
     XrHandJointLocationEXT joints[XR_HAND_JOINT_COUNT_EXT];
     XrPosef wrist = {{0,0,0,1}, {0,0,0}};
-    gen.generate(joints, wrist, true);
+    gen.generate(joints, wrist, true, 0.0f);
     // Verify joints
 }
 ```
@@ -236,23 +231,20 @@ TEST(HandGenerator, GeneratesCorrectJointCount) {
 
 ```cpp
 TEST(Integration, FullPipeline) {
-    Session session;
-    session.initialize(test_config);
+    Session session(test_config);
     auto h = session.handles();
 
-    Controllers controllers;
-    controllers.initialize(h.instance, h.session, h.reference_space);
+    Controllers controllers(h.instance, h.session, h.reference_space);
 
     HandGenerator gen;
-    HandInjector injector;
-    injector.initialize(h.instance, h.session, h.reference_space);
+    HandInjector injector(h.instance, h.session, h.reference_space);
 
     controllers.update(0);
     auto ctrl = controllers.left();
     XrHandJointLocationEXT joints[XR_HAND_JOINT_COUNT_EXT];
     XrPosef wrist = {ctrl.grip_pose.position, ctrl.aim_pose.orientation};
-    gen.generate(joints, wrist, true);
-    EXPECT_TRUE(injector.push_left(joints, 0));
+    gen.generate(joints, wrist, true, 0.0f);
+    injector.push_left(joints, 0);
 }
 ```
 

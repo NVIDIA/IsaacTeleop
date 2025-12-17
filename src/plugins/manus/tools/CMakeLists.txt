@@ -1,19 +1,18 @@
-add_executable(ManusHandTrackerPrinter
+add_executable(manus_hand_tracker_printer
   manus_hand_tracker_printer.cpp
 )
 
-target_include_directories(ManusHandTrackerPrinter
+target_include_directories(manus_hand_tracker_printer
   PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}
     ${MANUS_SDK_INCLUDE_DIR}
 )
 
-target_link_libraries(ManusHandTrackerPrinter
+target_link_libraries(manus_hand_tracker_printer
   PRIVATE
-    isaac::manus_plugin
+    manus_plugin_core
 )
 
-set_target_properties(ManusHandTrackerPrinter PROPERTIES
+set_target_properties(manus_hand_tracker_printer PROPERTIES
   CXX_VISIBILITY_PRESET hidden
   VISIBILITY_INLINES_HIDDEN YES
   BUILD_WITH_INSTALL_RPATH NO

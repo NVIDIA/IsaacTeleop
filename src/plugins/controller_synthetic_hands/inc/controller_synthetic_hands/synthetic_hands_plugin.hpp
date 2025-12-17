@@ -1,10 +1,10 @@
 #pragma once
+#include <controller_synthetic_hands/hand_generator.hpp>
 #include <plugin_utils/controllers.hpp>
 #include <plugin_utils/hand_injector.hpp>
 #include <plugin_utils/session.hpp>
 
 #include <atomic>
-#include <hand_generator.hpp>
 #include <memory>
 #include <mutex>
 #include <optional>

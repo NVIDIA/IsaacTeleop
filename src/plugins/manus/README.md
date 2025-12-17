@@ -3,87 +3,82 @@ SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All 
 SPDX-License-Identifier: Apache-2.0
 -->
 
-## Isaac Teleop Device Plugins — Manus
+# Isaac Teleop Device Plugins — Manus
 
-This folder provides a simplified Linux-only example of using the Manus SDK for hand tracking. It includes:
-- A library that interfaces with the Manus SDK
-- A minimal CLI example to print joint data from Manus gloves
+This folder provides a Linux-only example of using the Manus SDK for hand tracking within the TeleopCore framework.
 
-### Components
-- **Manus plugin**: `IsaacTeleopPluginsManus` (shared library)
-- **CLI**: `ManusHandTrackerPrinter` (prints tracked joint data)
+## Components
 
-All targets use modern CMake and C++17.
+- **Core Library** (`manus_plugin_core`): Interfaces with the Manus SDK (`libIsaacTeleopPluginsManus.so`).
+- **Plugin Executable** (`manus_hand_plugin`): The main plugin executable that integrates with the Teleop system.
+- **CLI Tool** (`manus_hand_tracker_printer`): A standalone tool to print tracked joint data for verification.
 
 ## Prerequisites
-- **Linux** (x86_64, tested: Ubuntu 22.04)
-- **CMake** ≥ 3.22 (Ubuntu 22.04 default is supported)
-- **GCC/Clang** with C++20 support
-- **Manus SDK** for Linux x86_64 (headers and shared libraries)
 
-Note: This project does not redistribute Manus SDK binaries. Provide your own Manus SDK to build and run the Manus example plugin.
+- **Linux** (x86_64, tested on Ubuntu 22.04)
+- **Manus SDK** for Linux x86_64
 
 ## Getting the Manus SDK
 
 The Manus SDK must be downloaded separately due to licensing.
 
-1. Obtain a Manus account and credentials
-2. Download the MANUS Core SDK from `https://my.manus-meta.com/resources/downloads` (tested with 2.5.1)
-3. Extract and place `ManusSDK/` under `src/plugins/manus/`, or set `MANUS_SDK_ROOT` to your install
+1. Obtain a Manus account and credentials.
+2. Download the MANUS Core SDK from [Manus Downloads](https://my.manus-meta.com/resources/downloads).
+3. Extract and place the `ManusSDK` folder inside `src/plugins/manus/`, or set the `MANUS_SDK_ROOT` environment variable to your installation path.
 
-Expected layout when vendored:
-```
+Expected layout:
+```text
 src/plugins/manus/
-  manus_hand_tracking_plugin.cpp
-  manus_hand_tracking_plugin.hpp
-  ManusSDK/
-    include/           # Manus headers (ManusSDK.h, etc.)
-    lib/ or lib64/     # Manus shared libs (libManusSDK.so or libManusSDK_Integrated.so)
+  app/
+    main.cpp
+  core/
+    manus_hand_tracking_plugin.cpp
+  inc/
+    core/
+      manus_hand_tracking_plugin.hpp
+  tools/
+    manus_hand_tracker_printer.cpp
+  ManusSDK/        <-- Placed here
+    include/
+    lib/
 ```
 
 ## Build
 
-Presets are provided:
+This plugin is built as part of the TeleopCore project. It will be automatically included if the Manus SDK is found.
 
-- Default (RelWithDebInfo):
+Run the project build from the repository root:
+
 ```bash
-cmake --preset linux-manus-default
-cmake --build --preset manus-default -j
-```
-- Debug:
-```bash
-cmake --preset linux-manus-debug
-cmake --build --preset manus-debug -j
-```
-- Release:
-```bash
-cmake --preset linux-manus-release
-cmake --build --preset manus-release -j
+cmake -S . -B build
+cmake --build build -j
 ```
 
-Artifacts are placed under your build directory (e.g., `build-manus-default`):
-- `bin/ManusHandTrackerPrinter` - CLI tool to print joint data
-- `lib/libIsaacTeleopPluginsManus.so` - Manus SDK interface library
+If the SDK is not found, the build will skip the Manus plugin with a warning.
 
 ## Running the Example
-1. Ensure Manus gloves are connected and Manus Core is running
-2. Run the printer from the build directory:
-```bash
-./bin/ManusHandTrackerPrinter
-```
-3. The program will connect to the gloves and print joint positions and orientations
-4. Press Ctrl+C to exit
 
-## Advanced
-- Custom Manus SDK location:
+### 1. Verify with CLI Tool
+Ensure Manus Core is running and gloves are connected.
+Run the printer tool to verify data reception:
+
 ```bash
-MANUS_SDK_ROOT=/opt/ManusSDK cmake --preset linux-manus-default
-cmake --build --preset manus-default -j
+./build/bin/manus_hand_tracker_printer
 ```
+
+### 2. Run the Plugin
+The plugin is installed to the `install` directory.
+
+```bash
+./install/plugins/manus/manus_hand_plugin
+```
+
 ## Troubleshooting
-- **Manus SDK not found at runtime**: Set `LD_LIBRARY_PATH` to your Manus SDK `lib/` directory, or ensure the SDK is in your system library path.
-- **CMake cannot locate Manus headers/libs**: Verify `MANUS_SDK_ROOT`, or place `ManusSDK/` under `src/plugins/manus/` as shown above.
+
+- **Manus SDK not found at build time**: Ensure `ManusSDK` is in `src/plugins/manus/` or `MANUS_SDK_ROOT` is set correctly.
+- **Manus SDK not found at runtime**: The build configures RPATH to find the SDK libraries. If you moved the SDK or built without RPATH support, you may need to set `LD_LIBRARY_PATH`.
 - **No data available**: Ensure Manus Core is running and gloves are properly connected and calibrated.
 
 ## License
-Source files are under their stated licenses. The Manus SDK is proprietary to Manus and is subject to its own license; it is not redistributed by the TeleopCore project.
+
+Source files are under their stated licenses. The Manus SDK is proprietary to Manus and is subject to its own license; it is not redistributed by this project.

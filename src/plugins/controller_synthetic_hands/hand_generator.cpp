@@ -3,9 +3,10 @@
 
 // Hand joint generation
 
+#include <controller_synthetic_hands/hand_generator.hpp>
+
 #include <algorithm>
 #include <cmath>
-#include <hand_generator.hpp>
 
 namespace plugins
 {
