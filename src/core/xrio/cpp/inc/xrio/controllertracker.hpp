@@ -95,6 +95,8 @@ private:
         const ControllerSnapshot& get_snapshot(Hand hand) const;
 
     private:
+        const OpenXRCoreFunctions core_funcs_;
+
         XrSession session_;
         XrSpace base_space_;
 
@@ -122,9 +124,6 @@ private:
         // Controller data for both hands
         ControllerSnapshot left_snapshot_;
         ControllerSnapshot right_snapshot_;
-
-        // Core functions
-        OpenXRCoreFunctions core_funcs_;
     };
 
     // Weak pointer to impl (owned by session)

@@ -15,14 +15,10 @@ namespace core
 // ============================================================================
 
 // Constructor - throws std::runtime_error on failure
-HeadTracker::Impl::Impl(const OpenXRSessionHandles& handles) : base_space_(handles.space)
+HeadTracker::Impl::Impl(const OpenXRSessionHandles& handles)
+: core_funcs_(OpenXRCoreFunctions::load(handles.instance, handles.xrGetInstanceProcAddr)),
+  base_space_(handles.space)
 {
-    // Load core OpenXR functions dynamically using the provided xrGetInstanceProcAddr
-    if (!core_funcs_.load(handles.instance, handles.xrGetInstanceProcAddr))
-    {
-        throw std::runtime_error("Failed to load core OpenXR functions for HeadTracker");
-    }
-
     // Create VIEW space for head tracking (represents HMD pose)
     XrReferenceSpaceCreateInfo create_info{ XR_TYPE_REFERENCE_SPACE_CREATE_INFO };
     create_info.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_VIEW;
