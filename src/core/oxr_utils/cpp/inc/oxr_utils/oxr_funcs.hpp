@@ -52,65 +52,48 @@ struct OpenXRCoreFunctions
     PFN_xrGetActionStateFloat xrGetActionStateFloat;
     PFN_xrGetActionStateVector2f xrGetActionStateVector2f;
 
-    OpenXRCoreFunctions()
-        : xrGetSystem(nullptr),
-          xrGetSystemProperties(nullptr),
-          xrCreateReferenceSpace(nullptr),
-          xrDestroySpace(nullptr),
-          xrLocateSpace(nullptr),
-          xrStringToPath(nullptr),
-          xrCreateActionSet(nullptr),
-          xrDestroyActionSet(nullptr),
-          xrCreateAction(nullptr),
-          xrSuggestInteractionProfileBindings(nullptr),
-          xrAttachSessionActionSets(nullptr),
-          xrCreateActionSpace(nullptr),
-          xrSyncActions(nullptr),
-          xrGetActionStateBoolean(nullptr),
-          xrGetActionStateFloat(nullptr),
-          xrGetActionStateVector2f(nullptr)
-    {
-    }
-
     // Load all core functions from an instance using the provided xrGetInstanceProcAddr
-    bool load(XrInstance instance, PFN_xrGetInstanceProcAddr getProcAddr)
+    static OpenXRCoreFunctions load(XrInstance instance, PFN_xrGetInstanceProcAddr getProcAddr)
     {
-        if (!getProcAddr)
-        {
-            return false;
-        }
+        assert(getProcAddr);
 
+        OpenXRCoreFunctions results{};
         bool success = true;
 
         success &=
-            XR_SUCCEEDED(getProcAddr(instance, "xrGetSystem", reinterpret_cast<PFN_xrVoidFunction*>(&xrGetSystem)));
+            XR_SUCCEEDED(getProcAddr(instance, "xrGetSystem", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrGetSystem)));
         success &= XR_SUCCEEDED(getProcAddr(
-            instance, "xrGetSystemProperties", reinterpret_cast<PFN_xrVoidFunction*>(&xrGetSystemProperties)));
+            instance, "xrGetSystemProperties", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrGetSystemProperties)));
         success &= XR_SUCCEEDED(getProcAddr(
-            instance, "xrCreateReferenceSpace", reinterpret_cast<PFN_xrVoidFunction*>(&xrCreateReferenceSpace)));
+            instance, "xrCreateReferenceSpace", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrCreateReferenceSpace)));
         success &=
-            XR_SUCCEEDED(getProcAddr(instance, "xrDestroySpace", reinterpret_cast<PFN_xrVoidFunction*>(&xrDestroySpace)));
+            XR_SUCCEEDED(getProcAddr(instance, "xrDestroySpace", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrDestroySpace)));
         success &=
-            XR_SUCCEEDED(getProcAddr(instance, "xrLocateSpace", reinterpret_cast<PFN_xrVoidFunction*>(&xrLocateSpace)));
+            XR_SUCCEEDED(getProcAddr(instance, "xrLocateSpace", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrLocateSpace)));
+
+        if (!success)
+        {
+            throw std::runtime_error("Failed to load core OpenXR functions");
+        }
 
         // Action system functions (optional, for controller tracking)
         // Note: These don't fail the load if not available, as they're only needed by controller tracker
-        getProcAddr(instance, "xrStringToPath", reinterpret_cast<PFN_xrVoidFunction*>(&xrStringToPath));
-        getProcAddr(instance, "xrCreateActionSet", reinterpret_cast<PFN_xrVoidFunction*>(&xrCreateActionSet));
-        getProcAddr(instance, "xrDestroyActionSet", reinterpret_cast<PFN_xrVoidFunction*>(&xrDestroyActionSet));
-        getProcAddr(instance, "xrCreateAction", reinterpret_cast<PFN_xrVoidFunction*>(&xrCreateAction));
+        getProcAddr(instance, "xrStringToPath", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrStringToPath));
+        getProcAddr(instance, "xrCreateActionSet", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrCreateActionSet));
+        getProcAddr(instance, "xrDestroyActionSet", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrDestroyActionSet));
+        getProcAddr(instance, "xrCreateAction", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrCreateAction));
         getProcAddr(instance, "xrSuggestInteractionProfileBindings",
-                    reinterpret_cast<PFN_xrVoidFunction*>(&xrSuggestInteractionProfileBindings));
+                    reinterpret_cast<PFN_xrVoidFunction*>(&results.xrSuggestInteractionProfileBindings));
         getProcAddr(
-            instance, "xrAttachSessionActionSets", reinterpret_cast<PFN_xrVoidFunction*>(&xrAttachSessionActionSets));
-        getProcAddr(instance, "xrCreateActionSpace", reinterpret_cast<PFN_xrVoidFunction*>(&xrCreateActionSpace));
-        getProcAddr(instance, "xrSyncActions", reinterpret_cast<PFN_xrVoidFunction*>(&xrSyncActions));
-        getProcAddr(instance, "xrGetActionStateBoolean", reinterpret_cast<PFN_xrVoidFunction*>(&xrGetActionStateBoolean));
-        getProcAddr(instance, "xrGetActionStateFloat", reinterpret_cast<PFN_xrVoidFunction*>(&xrGetActionStateFloat));
+            instance, "xrAttachSessionActionSets", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrAttachSessionActionSets));
+        getProcAddr(instance, "xrCreateActionSpace", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrCreateActionSpace));
+        getProcAddr(instance, "xrSyncActions", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrSyncActions));
+        getProcAddr(instance, "xrGetActionStateBoolean", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrGetActionStateBoolean));
+        getProcAddr(instance, "xrGetActionStateFloat", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrGetActionStateFloat));
         getProcAddr(
-            instance, "xrGetActionStateVector2f", reinterpret_cast<PFN_xrVoidFunction*>(&xrGetActionStateVector2f));
+            instance, "xrGetActionStateVector2f", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrGetActionStateVector2f));
 
-        return success;
+        return results;
     }
 };
 

@@ -77,7 +77,8 @@ bool get_vector2_action_state(XrSession session,
 
 // Constructor - throws std::runtime_error on failure
 ControllerTracker::Impl::Impl(const OpenXRSessionHandles& handles)
-    : session_(handles.session),
+    : core_funcs_(OpenXRCoreFunctions::load(handles.instance, handles.xrGetInstanceProcAddr)),
+      session_(handles.session),
       base_space_(handles.space),
       grip_pose_action_(XR_NULL_HANDLE),
       aim_pose_action_(XR_NULL_HANDLE),
@@ -90,12 +91,6 @@ ControllerTracker::Impl::Impl(const OpenXRSessionHandles& handles)
       left_hand_path_(XR_NULL_PATH),
       right_hand_path_(XR_NULL_PATH)
 {
-    // Load core OpenXR functions dynamically using the provided xrGetInstanceProcAddr
-    if (!core_funcs_.load(handles.instance, handles.xrGetInstanceProcAddr))
-    {
-        throw std::runtime_error("Failed to load core OpenXR functions for ControllerTracker");
-    }
-
     // Create action set for both controllers
     XrActionSetCreateInfo action_set_info{ XR_TYPE_ACTION_SET_CREATE_INFO };
     strcpy(action_set_info.actionSetName, "controller_tracking");

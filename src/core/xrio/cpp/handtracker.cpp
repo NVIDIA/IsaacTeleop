@@ -25,11 +25,7 @@ HandTracker::Impl::Impl(const OpenXRSessionHandles& handles)
       pfn_locate_hand_joints_(nullptr)
 {
     // Load core OpenXR functions dynamically using the provided xrGetInstanceProcAddr
-    OpenXRCoreFunctions core_funcs;
-    if (!core_funcs.load(handles.instance, handles.xrGetInstanceProcAddr))
-    {
-        throw std::runtime_error("Failed to load core OpenXR functions for HandTracker");
-    }
+    auto core_funcs = OpenXRCoreFunctions::load(handles.instance, handles.xrGetInstanceProcAddr);
 
     // Check if system supports hand tracking
     XrSystemId system_id;

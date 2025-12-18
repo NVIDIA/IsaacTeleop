@@ -61,10 +61,10 @@ private:
         const HeadPose& get_head() const;
 
     private:
+        const OpenXRCoreFunctions core_funcs_;
         XrSpace base_space_;
         XrSpacePtr view_space_;
         HeadPose head_;
-        OpenXRCoreFunctions core_funcs_;
     };
 
     // Weak pointer to impl (owned by session)
