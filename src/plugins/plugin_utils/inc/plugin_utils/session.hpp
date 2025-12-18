@@ -9,6 +9,9 @@
 #include <string>
 #include <vector>
 
+namespace plugin_utils
+{
+
 struct SessionConfig
 {
     std::string app_name = "ControllerSyntheticHands";
@@ -29,20 +32,23 @@ struct SessionHandles
 class Session
 {
 public:
-    // Factory function to create an initialized Session
-    static Session* Create(const SessionConfig& config);
-
+    explicit Session(const SessionConfig& config);
     ~Session();
 
+    // Non-copyable
     Session(const Session&) = delete;
     Session& operator=(const Session&) = delete;
+
+    // Movable (deleted for now to simplify resource management, as handles are raw)
+    Session(Session&&) = delete;
+    Session& operator=(Session&&) = delete;
 
     const SessionHandles& handles() const
     {
         return handles_;
     }
 
-    bool begin();
+    void begin();
     void end();
 
     template <typename T>
@@ -52,14 +58,15 @@ public:
     }
 
 private:
-    Session() = default;
-    bool initialize(const SessionConfig& config);
-    bool create_instance(const SessionConfig& config);
-    bool get_system();
-    bool create_session();
-    bool create_reference_space(XrReferenceSpaceType type);
+    void initialize(const SessionConfig& config);
+    void create_instance(const SessionConfig& config);
+    void get_system();
+    void create_session();
+    void create_reference_space(XrReferenceSpaceType type);
     void cleanup();
 
     SessionHandles handles_;
     SessionConfig config_;
 };
+
+} // namespace plugin_utils

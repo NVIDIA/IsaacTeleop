@@ -3,10 +3,15 @@
 
 // Hand joint generation
 
-#include "hand_generator.hpp"
+#include <controller_synthetic_hands/hand_generator.hpp>
 
 #include <algorithm>
 #include <cmath>
+
+namespace plugins
+{
+namespace controller_synthetic_hands
+{
 
 void HandGenerator::generate(XrHandJointLocationEXT* joints, const XrPosef& wrist_pose, bool is_left_hand, float curl)
 {
@@ -247,3 +252,6 @@ XrQuaternionf HandGenerator::quaternion_look_at(const XrVector3f& direction, con
 
     return q;
 }
+
+} // namespace controller_synthetic_hands
+} // namespace plugins

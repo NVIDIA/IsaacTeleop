@@ -6,6 +6,11 @@
 
 #include <openxr/openxr.h>
 
+namespace plugins
+{
+namespace controller_synthetic_hands
+{
+
 class HandGenerator
 {
 public:
@@ -29,3 +34,6 @@ private:
     void calculate_positions(XrHandJointLocationEXT* joints, const XrPosef& wrist_pose, bool is_left_hand, float curl);
     void calculate_orientations(XrHandJointLocationEXT* joints, const XrPosef& wrist_pose);
 };
+
+} // namespace controller_synthetic_hands
+} // namespace plugins

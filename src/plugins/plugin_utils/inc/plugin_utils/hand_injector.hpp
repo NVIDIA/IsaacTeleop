@@ -4,9 +4,12 @@
 // Hand tracking data injection via push devices
 #pragma once
 
-#include "XR_NVX1_device_interface.h"
-
 #include <openxr/openxr.h>
+
+#include <XR_NVX1_device_interface.h>
+
+namespace plugin_utils
+{
 
 class HandInjector
 {
@@ -20,8 +23,11 @@ public:
     HandInjector(const HandInjector&) = delete;
     HandInjector& operator=(const HandInjector&) = delete;
 
-    bool push_left(const XrHandJointLocationEXT* joints, XrTime timestamp);
-    bool push_right(const XrHandJointLocationEXT* joints, XrTime timestamp);
+    HandInjector(HandInjector&&) = delete;
+    HandInjector& operator=(HandInjector&&) = delete;
+
+    void push_left(const XrHandJointLocationEXT* joints, XrTime timestamp);
+    void push_right(const XrHandJointLocationEXT* joints, XrTime timestamp);
 
 private:
     void initialize(XrInstance instance, XrSession session, XrSpace left_space, XrSpace right_space);
@@ -36,3 +42,5 @@ private:
     PFN_xrDestroyPushDeviceNV pfn_destroy_ = nullptr;
     PFN_xrPushDevicePushHandTrackingNV pfn_push_ = nullptr;
 };
+
+} // namespace plugin_utils

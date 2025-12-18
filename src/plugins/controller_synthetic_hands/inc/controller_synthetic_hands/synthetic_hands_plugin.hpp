@@ -1,19 +1,25 @@
 #pragma once
-#include "controllers.hpp"
-#include "hand_generator.hpp"
-#include "hand_injector.hpp"
-#include "session.hpp"
+#include <controller_synthetic_hands/hand_generator.hpp>
+#include <plugin_utils/controllers.hpp>
+#include <plugin_utils/hand_injector.hpp>
+#include <plugin_utils/session.hpp>
 
 #include <atomic>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <thread>
+
+namespace plugins
+{
+namespace controller_synthetic_hands
+{
 
 class SyntheticHandsPlugin
 {
 public:
-    explicit SyntheticHandsPlugin(const std::string& plugin_root_id);
+    explicit SyntheticHandsPlugin(const std::string& plugin_root_id) noexcept(false);
     ~SyntheticHandsPlugin();
 
     SyntheticHandsPlugin(const SyntheticHandsPlugin&) = delete;
@@ -25,9 +31,9 @@ private:
     void worker_thread();
     XrTime get_current_time();
 
-    std::unique_ptr<Session> m_session;
-    std::unique_ptr<Controllers> m_controllers;
-    std::unique_ptr<HandInjector> m_injector;
+    std::optional<plugin_utils::Session> m_session;
+    std::optional<plugin_utils::Controllers> m_controllers;
+    std::optional<plugin_utils::HandInjector> m_injector;
     HandGenerator m_hand_gen;
 
     std::thread m_thread;
@@ -42,3 +48,6 @@ private:
     float m_left_curl = 0.0f;
     float m_right_curl = 0.0f;
 };
+
+} // namespace controller_synthetic_hands
+} // namespace plugins

@@ -76,6 +76,9 @@ if(BUILD_TESTING)
     enable_testing()
 endif()
 
+# Build interfaces (headers)
+add_subdirectory(deps/cloudxr/openxr_extensions)
+
 # Build core modules (OXR and XRIO)
 add_subdirectory(src/core)
 
@@ -86,5 +89,9 @@ endif()
 
 # Build plugins if requested
 if(BUILD_PLUGINS)
+    # Build plugin utilities
+    add_subdirectory(src/plugins/plugin_utils)
+
     add_subdirectory(src/plugins/controller_synthetic_hands)
+    add_subdirectory(src/plugins/manus)
 endif()

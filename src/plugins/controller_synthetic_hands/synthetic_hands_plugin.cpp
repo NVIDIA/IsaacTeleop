@@ -1,50 +1,49 @@
-#include "synthetic_hands_plugin.hpp"
+#include <controller_synthetic_hands/synthetic_hands_plugin.hpp>
 
 #include <algorithm>
 #include <chrono>
 #include <iostream>
+
+namespace plugins
+{
+namespace controller_synthetic_hands
+{
 
 // Toggle between space-based and pose-based hand injection
 // true = use controller spaces directly (primary method)
 // false = read controller poses and generate in world space (secondary method)
 constexpr bool USE_SPACE_BASED_INJECTION = false;
 
-SyntheticHandsPlugin::SyntheticHandsPlugin(const std::string& plugin_root_id) : m_root_id(plugin_root_id)
+SyntheticHandsPlugin::SyntheticHandsPlugin(const std::string& plugin_root_id) noexcept(false)
+    : m_root_id(plugin_root_id)
 {
     std::cout << "Initializing SyntheticHandsPlugin with root: " << m_root_id << std::endl;
 
     // Initialize session
-    SessionConfig config;
+    plugin_utils::SessionConfig config;
     config.app_name = "ControllerSyntheticHands";
     config.extensions = { XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME, XR_MND_HEADLESS_EXTENSION_NAME,
                           XR_EXTX_OVERLAY_EXTENSION_NAME };
     config.use_overlay_mode = true; // Required for headless mode
 
-    // Session::Create will throw if it fails
-    m_session.reset(Session::Create(config));
+    // Session constructor will throw if it fails
+    m_session.emplace(config);
     const auto& handles = m_session->handles();
 
-    if (!m_session->begin())
-    {
-        throw std::runtime_error("Failed to begin session");
-    }
+    m_session->begin();
 
     // Initialize controllers
-    m_controllers.reset(Controllers::Create(handles.instance, handles.session, handles.reference_space));
-    if (!m_controllers)
-    {
-        throw std::runtime_error("Failed to create controllers");
-    }
+    m_controllers.emplace(handles.instance, handles.session, handles.reference_space);
 
     // Initialize hand injection using the selected method
     if (USE_SPACE_BASED_INJECTION)
     {
-        m_injector = std::make_unique<HandInjector>(
+        m_injector.emplace(
             handles.instance, handles.session, m_controllers->left_aim_space(), m_controllers->right_aim_space());
     }
     else
     {
-        m_injector = std::make_unique<HandInjector>(handles.instance, handles.session, handles.reference_space);
+        m_injector.emplace(handles.instance, handles.session, handles.reference_space);
     }
 
     // Start worker thread
@@ -84,8 +83,13 @@ void SyntheticHandsPlugin::worker_thread()
     {
         XrTime time = get_current_time();
 
-        if (!m_controllers->update(time))
+        try
         {
+            m_controllers->update(time);
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "Controller update failed: " << e.what() << std::endl;
             std::this_thread::sleep_for(std::chrono::milliseconds(16));
             continue;
         }
@@ -155,3 +159,6 @@ void SyntheticHandsPlugin::worker_thread()
         std::this_thread::sleep_for(std::chrono::milliseconds(16));
     }
 }
+
+} // namespace controller_synthetic_hands
+} // namespace plugins

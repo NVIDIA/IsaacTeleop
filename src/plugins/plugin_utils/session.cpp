@@ -3,43 +3,55 @@
 
 // OpenXR initialization and session management
 
-#include "session.hpp"
+#include <plugin_utils/session.hpp>
 
 #include <cstring>
 #include <iostream>
+#include <stdexcept>
 
-Session* Session::Create(const SessionConfig& config)
+namespace plugin_utils
 {
-    Session* session = new Session();
-    if (!session->initialize(config))
+
+namespace
+{
+void CheckXrResult(XrResult result, const char* message)
+{
+    if (XR_FAILED(result))
     {
-        delete session;
-        return nullptr;
+        throw std::runtime_error(std::string(message) + " failed with XrResult: " + std::to_string(result));
     }
-    return session;
+}
+}
+
+Session::Session(const SessionConfig& config) : config_(config)
+{
+    try
+    {
+        initialize(config);
+    }
+    catch (...)
+    {
+        cleanup();
+        throw;
+    }
 }
 
 Session::~Session()
 {
-    end();
+    // Ensure we attempt to end session if active?
+    // Usually end() is called explicitly, but cleanup handles destruction.
     cleanup();
 }
 
-bool Session::initialize(const SessionConfig& config)
+void Session::initialize(const SessionConfig& config)
 {
-    config_ = config;
-
-    if (!create_instance(config) || !get_system() || !create_session() ||
-        !create_reference_space(config.reference_space_type))
-    {
-        cleanup();
-        return false;
-    }
-
-    return true;
+    create_instance(config);
+    get_system();
+    create_session();
+    create_reference_space(config.reference_space_type);
 }
 
-bool Session::create_instance(const SessionConfig& config)
+void Session::create_instance(const SessionConfig& config)
 {
     XrInstanceCreateInfo create_info{ XR_TYPE_INSTANCE_CREATE_INFO };
     create_info.enabledExtensionCount = static_cast<uint32_t>(config.extensions.size());
@@ -51,32 +63,18 @@ bool Session::create_instance(const SessionConfig& config)
     create_info.applicationInfo.engineVersion = 1;
     create_info.applicationInfo.apiVersion = XR_CURRENT_API_VERSION;
 
-    XrResult result = xrCreateInstance(&create_info, &handles_.instance);
-    if (XR_FAILED(result))
-    {
-        std::cerr << "Failed to create OpenXR instance: " << result << std::endl;
-        return false;
-    }
-
-    return true;
+    CheckXrResult(xrCreateInstance(&create_info, &handles_.instance), "xrCreateInstance");
 }
 
-bool Session::get_system()
+void Session::get_system()
 {
     XrSystemGetInfo system_info{ XR_TYPE_SYSTEM_GET_INFO };
     system_info.formFactor = config_.form_factor;
 
-    XrResult result = xrGetSystem(handles_.instance, &system_info, &handles_.system_id);
-    if (XR_FAILED(result))
-    {
-        std::cerr << "Failed to get OpenXR system: " << result << std::endl;
-        return false;
-    }
-
-    return true;
+    CheckXrResult(xrGetSystem(handles_.instance, &system_info, &handles_.system_id), "xrGetSystem");
 }
 
-bool Session::create_session()
+void Session::create_session()
 {
     XrSessionCreateInfo create_info{ XR_TYPE_SESSION_CREATE_INFO };
 
@@ -96,46 +94,26 @@ bool Session::create_session()
 
     create_info.systemId = handles_.system_id;
 
-    XrResult result = xrCreateSession(handles_.instance, &create_info, &handles_.session);
-    if (XR_FAILED(result))
-    {
-        std::cerr << "Failed to create OpenXR session: " << result << std::endl;
-        return false;
-    }
-
-    return true;
+    CheckXrResult(xrCreateSession(handles_.instance, &create_info, &handles_.session), "xrCreateSession");
 }
 
-bool Session::create_reference_space(XrReferenceSpaceType type)
+void Session::create_reference_space(XrReferenceSpaceType type)
 {
     XrReferenceSpaceCreateInfo create_info{ XR_TYPE_REFERENCE_SPACE_CREATE_INFO };
     create_info.referenceSpaceType = type;
     create_info.poseInReferenceSpace.orientation = { 0.0f, 0.0f, 0.0f, 1.0f };
     create_info.poseInReferenceSpace.position = { 0.0f, 0.0f, 0.0f };
 
-    XrResult result = xrCreateReferenceSpace(handles_.session, &create_info, &handles_.reference_space);
-    if (XR_FAILED(result))
-    {
-        std::cerr << "Failed to create reference space: " << result << std::endl;
-        return false;
-    }
-
-    return true;
+    CheckXrResult(
+        xrCreateReferenceSpace(handles_.session, &create_info, &handles_.reference_space), "xrCreateReferenceSpace");
 }
 
-bool Session::begin()
+void Session::begin()
 {
     XrSessionBeginInfo begin_info{ XR_TYPE_SESSION_BEGIN_INFO };
     begin_info.primaryViewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
 
-    XrResult result = xrBeginSession(handles_.session, &begin_info);
-    if (XR_FAILED(result))
-    {
-        std::cerr << "Failed to begin session: " << result << std::endl;
-        return false;
-    }
-
-    return true;
+    CheckXrResult(xrBeginSession(handles_.session, &begin_info), "xrBeginSession");
 }
 
 void Session::end()
@@ -145,6 +123,7 @@ void Session::end()
         // Don't call xrEndSession - it requires the session to be in STOPPING state
         // For a headless session or when we're just shutting down, we can skip this
         // and go directly to xrDestroySession in cleanup()
+        // If we strictly wanted to follow state machine we would need to request exit and wait for STOPPING.
     }
 }
 
@@ -173,3 +152,5 @@ void Session::cleanup()
         handles_.instance = XR_NULL_HANDLE;
     }
 }
+
+} // namespace plugin_utils

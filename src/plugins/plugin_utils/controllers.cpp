@@ -3,21 +3,40 @@
 
 // Controller input tracking
 
-#include "controllers.hpp"
+#include <plugin_utils/controllers.hpp>
 
 #include <cstring>
 #include <iostream>
+#include <stdexcept>
 #include <vector>
 
-Controllers* Controllers::Create(XrInstance instance, XrSession session, XrSpace reference_space)
+namespace plugin_utils
 {
-    Controllers* controllers = new Controllers();
-    if (!controllers->initialize(instance, session, reference_space))
+
+namespace
+{
+void CheckXrResult(XrResult result, const char* message)
+{
+    if (XR_FAILED(result))
     {
-        delete controllers;
-        return nullptr;
+        throw std::runtime_error(std::string(message) + " failed with XrResult: " + std::to_string(result));
     }
-    return controllers;
+}
+}
+
+Controllers::Controllers(XrInstance instance, XrSession session, XrSpace reference_space)
+    : session_(session), reference_space_(reference_space)
+{
+    try
+    {
+        create_actions(instance);
+        setup_action_spaces(session);
+    }
+    catch (...)
+    {
+        cleanup();
+        throw;
+    }
 }
 
 Controllers::~Controllers()
@@ -25,21 +44,7 @@ Controllers::~Controllers()
     cleanup();
 }
 
-bool Controllers::initialize(XrInstance instance, XrSession session, XrSpace reference_space)
-{
-    session_ = session;
-    reference_space_ = reference_space;
-
-    if (!create_actions(instance) || !setup_action_spaces(session))
-    {
-        cleanup();
-        return false;
-    }
-
-    return true;
-}
-
-bool Controllers::create_actions(XrInstance instance)
+void Controllers::create_actions(XrInstance instance)
 {
     // Create action set
     XrActionSetCreateInfo action_set_info{ XR_TYPE_ACTION_SET_CREATE_INFO };
@@ -47,15 +52,11 @@ bool Controllers::create_actions(XrInstance instance)
     strcpy(action_set_info.localizedActionSetName, "Controller Actions");
     action_set_info.priority = 0;
 
-    if (XR_FAILED(xrCreateActionSet(instance, &action_set_info, &action_set_)))
-    {
-        std::cerr << "Failed to create action set" << std::endl;
-        return false;
-    }
+    CheckXrResult(xrCreateActionSet(instance, &action_set_info, &action_set_), "xrCreateActionSet");
 
     // Create paths
-    xrStringToPath(instance, "/user/hand/left", &left_hand_path_);
-    xrStringToPath(instance, "/user/hand/right", &right_hand_path_);
+    CheckXrResult(xrStringToPath(instance, "/user/hand/left", &left_hand_path_), "xrStringToPath(left)");
+    CheckXrResult(xrStringToPath(instance, "/user/hand/right", &right_hand_path_), "xrStringToPath(right)");
 
     XrPath hand_paths[2] = { left_hand_path_, right_hand_path_ };
 
@@ -67,11 +68,7 @@ bool Controllers::create_actions(XrInstance instance)
     grip_action_info.countSubactionPaths = 2;
     grip_action_info.subactionPaths = hand_paths;
 
-    if (XR_FAILED(xrCreateAction(action_set_, &grip_action_info, &grip_pose_action_)))
-    {
-        std::cerr << "Failed to create grip pose action" << std::endl;
-        return false;
-    }
+    CheckXrResult(xrCreateAction(action_set_, &grip_action_info, &grip_pose_action_), "xrCreateAction(grip_pose)");
 
     // Create aim pose action
     XrActionCreateInfo aim_action_info{ XR_TYPE_ACTION_CREATE_INFO };
@@ -81,11 +78,7 @@ bool Controllers::create_actions(XrInstance instance)
     aim_action_info.countSubactionPaths = 2;
     aim_action_info.subactionPaths = hand_paths;
 
-    if (XR_FAILED(xrCreateAction(action_set_, &aim_action_info, &aim_pose_action_)))
-    {
-        std::cerr << "Failed to create aim pose action" << std::endl;
-        return false;
-    }
+    CheckXrResult(xrCreateAction(action_set_, &aim_action_info, &aim_pose_action_), "xrCreateAction(aim_pose)");
 
     // Create trigger action (boolean for simple_controller select/click)
     XrActionCreateInfo trigger_action_info{ XR_TYPE_ACTION_CREATE_INFO };
@@ -95,27 +88,23 @@ bool Controllers::create_actions(XrInstance instance)
     trigger_action_info.countSubactionPaths = 2;
     trigger_action_info.subactionPaths = hand_paths;
 
-    if (XR_FAILED(xrCreateAction(action_set_, &trigger_action_info, &trigger_action_)))
-    {
-        std::cerr << "Failed to create trigger action" << std::endl;
-        return false;
-    }
+    CheckXrResult(xrCreateAction(action_set_, &trigger_action_info, &trigger_action_), "xrCreateAction(trigger)");
 
     // Suggest bindings for simple_controller profile
-    XrResult result;
     XrPath interaction_profile_path;
-    xrStringToPath(instance, "/interaction_profiles/khr/simple_controller", &interaction_profile_path);
+    CheckXrResult(xrStringToPath(instance, "/interaction_profiles/khr/simple_controller", &interaction_profile_path),
+                  "xrStringToPath(profile)");
 
     std::vector<XrActionSuggestedBinding> bindings;
     XrPath left_grip_path, right_grip_path, left_aim_path, right_aim_path;
     XrPath left_trigger_path, right_trigger_path;
 
-    xrStringToPath(instance, "/user/hand/left/input/grip/pose", &left_grip_path);
-    xrStringToPath(instance, "/user/hand/right/input/grip/pose", &right_grip_path);
-    xrStringToPath(instance, "/user/hand/left/input/aim/pose", &left_aim_path);
-    xrStringToPath(instance, "/user/hand/right/input/aim/pose", &right_aim_path);
-    xrStringToPath(instance, "/user/hand/left/input/select/click", &left_trigger_path);
-    xrStringToPath(instance, "/user/hand/right/input/select/click", &right_trigger_path);
+    CheckXrResult(xrStringToPath(instance, "/user/hand/left/input/grip/pose", &left_grip_path), "xrStringToPath");
+    CheckXrResult(xrStringToPath(instance, "/user/hand/right/input/grip/pose", &right_grip_path), "xrStringToPath");
+    CheckXrResult(xrStringToPath(instance, "/user/hand/left/input/aim/pose", &left_aim_path), "xrStringToPath");
+    CheckXrResult(xrStringToPath(instance, "/user/hand/right/input/aim/pose", &right_aim_path), "xrStringToPath");
+    CheckXrResult(xrStringToPath(instance, "/user/hand/left/input/select/click", &left_trigger_path), "xrStringToPath");
+    CheckXrResult(xrStringToPath(instance, "/user/hand/right/input/select/click", &right_trigger_path), "xrStringToPath");
 
     bindings.push_back({ grip_pose_action_, left_grip_path });
     bindings.push_back({ grip_pose_action_, right_grip_path });
@@ -129,29 +118,18 @@ bool Controllers::create_actions(XrInstance instance)
     suggested_bindings.countSuggestedBindings = static_cast<uint32_t>(bindings.size());
     suggested_bindings.suggestedBindings = bindings.data();
 
-    result = xrSuggestInteractionProfileBindings(instance, &suggested_bindings);
-    if (XR_FAILED(result))
-    {
-        std::cerr << "Failed to suggest interaction profile bindings: " << result << std::endl;
-        return false;
-    }
+    CheckXrResult(
+        xrSuggestInteractionProfileBindings(instance, &suggested_bindings), "xrSuggestInteractionProfileBindings");
 
     // Attach action set to session
     XrSessionActionSetsAttachInfo attach_info{ XR_TYPE_SESSION_ACTION_SETS_ATTACH_INFO };
     attach_info.countActionSets = 1;
     attach_info.actionSets = &action_set_;
 
-    result = xrAttachSessionActionSets(session_, &attach_info);
-    if (XR_FAILED(result))
-    {
-        std::cerr << "Failed to attach action sets: " << result << std::endl;
-        return false;
-    }
-
-    return true;
+    CheckXrResult(xrAttachSessionActionSets(session_, &attach_info), "xrAttachSessionActionSets");
 }
 
-bool Controllers::setup_action_spaces(XrSession session)
+void Controllers::setup_action_spaces(XrSession session)
 {
     XrActionSpaceCreateInfo space_info{ XR_TYPE_ACTION_SPACE_CREATE_INFO };
     space_info.action = grip_pose_action_;
@@ -160,35 +138,21 @@ bool Controllers::setup_action_spaces(XrSession session)
 
     // Create grip spaces
     space_info.subactionPath = left_hand_path_;
-    if (XR_FAILED(xrCreateActionSpace(session, &space_info, &left_grip_space_)))
-    {
-        return false;
-    }
+    CheckXrResult(xrCreateActionSpace(session, &space_info, &left_grip_space_), "xrCreateActionSpace(left_grip)");
 
     space_info.subactionPath = right_hand_path_;
-    if (XR_FAILED(xrCreateActionSpace(session, &space_info, &right_grip_space_)))
-    {
-        return false;
-    }
+    CheckXrResult(xrCreateActionSpace(session, &space_info, &right_grip_space_), "xrCreateActionSpace(right_grip)");
 
     // Create aim spaces
     space_info.action = aim_pose_action_;
     space_info.subactionPath = left_hand_path_;
-    if (XR_FAILED(xrCreateActionSpace(session, &space_info, &left_aim_space_)))
-    {
-        return false;
-    }
+    CheckXrResult(xrCreateActionSpace(session, &space_info, &left_aim_space_), "xrCreateActionSpace(left_aim)");
 
     space_info.subactionPath = right_hand_path_;
-    if (XR_FAILED(xrCreateActionSpace(session, &space_info, &right_aim_space_)))
-    {
-        return false;
-    }
-
-    return true;
+    CheckXrResult(xrCreateActionSpace(session, &space_info, &right_aim_space_), "xrCreateActionSpace(right_aim)");
 }
 
-bool Controllers::update(XrTime time)
+void Controllers::update(XrTime time)
 {
     // Sync actions
     XrActionsSyncInfo sync_info{ XR_TYPE_ACTIONS_SYNC_INFO };
@@ -196,10 +160,7 @@ bool Controllers::update(XrTime time)
     sync_info.countActiveActionSets = 1;
     sync_info.activeActionSets = &active_action_set;
 
-    if (XR_FAILED(xrSyncActions(session_, &sync_info)))
-    {
-        return false;
-    }
+    CheckXrResult(xrSyncActions(session_, &sync_info), "xrSyncActions");
 
     // Get poses
     locate_pose(left_grip_space_, time, left_.grip_pose, left_.grip_valid);
@@ -233,39 +194,51 @@ bool Controllers::update(XrTime time)
     {
         right_.trigger_value = 0.0f;
     }
-
-    return true;
 }
 
-bool Controllers::locate_pose(XrSpace space, XrTime time, XrPosef& pose, bool& is_valid)
+void Controllers::locate_pose(XrSpace space, XrTime time, XrPosef& pose, bool& is_valid)
 {
     XrSpaceLocation location{ XR_TYPE_SPACE_LOCATION };
+    // For pose location, we don't necessarily want to throw if it fails, just mark invalid
+    // unless it's a catastrophic error? But XR_FAILED usually means invalid handle or session lost.
     if (XR_FAILED(xrLocateSpace(space, reference_space_, time, &location)))
     {
         is_valid = false;
-        return false;
+        return;
     }
 
     is_valid = (location.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) &&
                (location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT);
     pose = location.pose;
-
-    return true;
 }
 
 void Controllers::cleanup()
 {
     if (left_grip_space_ != XR_NULL_HANDLE)
+    {
         xrDestroySpace(left_grip_space_);
+        left_grip_space_ = XR_NULL_HANDLE;
+    }
     if (right_grip_space_ != XR_NULL_HANDLE)
+    {
         xrDestroySpace(right_grip_space_);
+        right_grip_space_ = XR_NULL_HANDLE;
+    }
     if (left_aim_space_ != XR_NULL_HANDLE)
+    {
         xrDestroySpace(left_aim_space_);
+        left_aim_space_ = XR_NULL_HANDLE;
+    }
     if (right_aim_space_ != XR_NULL_HANDLE)
+    {
         xrDestroySpace(right_aim_space_);
+        right_aim_space_ = XR_NULL_HANDLE;
+    }
     if (action_set_ != XR_NULL_HANDLE)
+    {
         xrDestroyActionSet(action_set_);
-
-    left_grip_space_ = right_grip_space_ = left_aim_space_ = right_aim_space_ = XR_NULL_HANDLE;
-    action_set_ = XR_NULL_HANDLE;
+        action_set_ = XR_NULL_HANDLE;
+    }
 }
+
+} // namespace plugin_utils
