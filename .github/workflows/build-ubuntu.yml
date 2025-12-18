@@ -34,7 +34,7 @@ jobs:
       run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
 
     - name: Build
-      run: cmake --build build --parallel
+      run: cmake --build build --parallel 4
 
     - name: Run Native Tests
       run: ctest --test-dir build --output-on-failure --parallel
