@@ -4,12 +4,14 @@
 """TeleopCore XRIO - Extended Reality I/O Module
 
 This module provides trackers and teleop session functionality.
+
+Note: HeadTracker.get_head() returns HeadPoseT from teleopcore.schema.
+Import HeadPoseT from teleopcore.schema if you need to work with head pose types.
 """
 
 from ._xrio import (
     JointPose,
     HandData,
-    HeadPose,
     Hand,
     ControllerInputState,
     ControllerPose,

@@ -132,11 +132,11 @@ try:
                 if wrist.is_valid:
                     pos = wrist.position
                     print(f"    Left wrist: [{pos[0]:6.3f}, {pos[1]:6.3f}, {pos[2]:6.3f}]")
-            
-            if head.is_valid:
-                pos = head.position
-                print(f"    Head pos:   [{pos[0]:6.3f}, {pos[1]:6.3f}, {pos[2]:6.3f}]")
-            
+
+            if head.is_valid and head.pose:
+                pos = head.pose.position
+                print(f"    Head pos:   [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]")
+
             print()
         
         frame_count += 1

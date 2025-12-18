@@ -96,15 +96,15 @@ def main():
                             if wrist.is_valid:
                                 pos = wrist.position
                                 print(f"    Left wrist: [{pos[0]:6.3f}, {pos[1]:6.3f}, {pos[2]:6.3f}]")
-                        
-                        # Get head data
+
+                        # Get head data (returns HeadPoseT from schema)
                         head = head_tracker.get_head()
                         print(f"  Head: {'VALID' if head.is_valid else 'INVALID':8s}")
-                        
-                        if head.is_valid:
-                            pos = head.position
-                            print(f"    Head position: [{pos[0]:6.3f}, {pos[1]:6.3f}, {pos[2]:6.3f}]")
-                        
+
+                        if head.is_valid and head.pose:
+                            pos = head.pose.position
+                            print(f"    Head position: [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]")
+
                         print()
                     
                     frame_count += 1

@@ -81,16 +81,6 @@ PYBIND11_MODULE(_xrio, m)
         .def_readonly("timestamp", &core::HandData::timestamp)
         .def_property_readonly("num_joints", [](const core::HandData&) { return core::HandData::NUM_JOINTS; });
 
-    // HeadPose structure
-    py::class_<core::HeadPose>(m, "HeadPose")
-        .def(py::init<>())
-        .def_property_readonly("position", [](const core::HeadPose& self)
-                               { return py::array_t<float>({ 3 }, { sizeof(float) }, self.position); })
-        .def_property_readonly("orientation", [](const core::HeadPose& self)
-                               { return py::array_t<float>({ 4 }, { sizeof(float) }, self.position); })
-        .def_readonly("is_valid", &core::HeadPose::is_valid)
-        .def_readonly("timestamp", &core::HeadPose::timestamp);
-
     // ITracker interface (base class)
     py::class_<core::ITracker, std::shared_ptr<core::ITracker>>(m, "ITracker")
         .def("is_initialized", &core::ITracker::is_initialized)

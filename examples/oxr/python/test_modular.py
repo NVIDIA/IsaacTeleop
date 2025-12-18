@@ -13,6 +13,7 @@ import time
 try:
     import teleopcore.xrio as xrio
     import teleopcore.oxr as oxr
+    import teleopcore.schema as schema
 except ImportError as e:
     print(f"Error: {e}")
     print("Make sure the module is built")
@@ -92,17 +93,17 @@ with oxr_session:
                 pos = wrist.position
                 print(f"  Left wrist position: [{pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f}]")
         print()
-        
-        # Test 7: Check head data
+
+        # Test 7: Check head data (returns HeadPoseT from schema)
         print("[Test 7] Checking head tracking data...")
-        head = head_tracker.get_head()
+        head: schema.HeadPoseT = head_tracker.get_head()
         print(f"  Head: {'VALID' if head.is_valid else 'INVALID'}")
-        
-        if head.is_valid:
-            pos = head.position
-            ori = head.orientation
-            print(f"  Head position: [{pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f}]")
-            print(f"  Head orientation: [{ori[0]:.3f}, {ori[1]:.3f}, {ori[2]:.3f}, {ori[3]:.3f}]")
+
+        if head.is_valid and head.pose:
+            pos = head.pose.position
+            ori = head.pose.orientation
+            print(f"  Head position: [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
+            print(f"  Head orientation: [{ori.x:.3f}, {ori.y:.3f}, {ori.z:.3f}, {ori.w:.3f}]")
         print()
         
         # Test 8: Run tracking loop

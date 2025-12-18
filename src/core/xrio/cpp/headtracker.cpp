@@ -59,28 +59,28 @@ bool HeadTracker::Impl::update(XrTime time)
 
     if (head_.is_valid)
     {
-        // Copy position
-        head_.position[0] = location.pose.position.x;
-        head_.position[1] = location.pose.position.y;
-        head_.position[2] = location.pose.position.z;
-
-        // Copy orientation
-        head_.orientation[0] = location.pose.orientation.x;
-        head_.orientation[1] = location.pose.orientation.y;
-        head_.orientation[2] = location.pose.orientation.z;
-        head_.orientation[3] = location.pose.orientation.w;
+        // Create pose from position and orientation using FlatBuffers structs
+        Point position(
+            location.pose.position.x,
+            location.pose.position.y,
+            location.pose.position.z);
+        Quaternion orientation(
+            location.pose.orientation.x,
+            location.pose.orientation.y,
+            location.pose.orientation.z,
+            location.pose.orientation.w);
+        head_.pose = std::make_shared<Pose>(position, orientation);
     }
     else
     {
-        // Invalid - zero out
-        memset(head_.position, 0, sizeof(head_.position));
-        memset(head_.orientation, 0, sizeof(head_.orientation));
+        // Invalid - reset pose
+        head_.pose.reset();
     }
 
     return true;
 }
 
-const HeadPose& HeadTracker::Impl::get_head() const
+const HeadPoseT& HeadTracker::Impl::get_head() const
 {
     return head_;
 }
@@ -104,9 +104,9 @@ std::vector<std::string> HeadTracker::get_required_extensions() const
     return {};
 }
 
-const HeadPose& HeadTracker::get_head() const
+const HeadPoseT& HeadTracker::get_head() const
 {
-    static const HeadPose empty_pose{};
+    static const HeadPoseT empty_pose{};
     auto impl = cached_impl_.lock();
     if (!impl)
         return empty_pose;

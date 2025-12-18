@@ -112,7 +112,13 @@ int main()
         {
             std::cout << "Frame " << i << ": "
                       << "Hands=" << (left.is_active ? "ACTIVE" : "INACTIVE") << " | "
-                      << "Head=" << (head.is_valid ? "VALID" : "INVALID") << std::endl;
+                      << "Head=" << (head.is_valid ? "VALID" : "INVALID");
+            if (head.is_valid && head.pose)
+            {
+                const auto& pos = head.pose->position();
+                std::cout << " [" << pos.x() << ", " << pos.y() << ", " << pos.z() << "]";
+            }
+            std::cout << std::endl;
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(16));
