@@ -67,7 +67,7 @@ source venv_isaac/bin/activate
 
 3. **Clone the repository**
 ```bash
-git clone git@github.com:nvidia-isaac/TeleopCore.git
+git clone git@github.com:NVIDIA/TeleopCore.git
 cd TeleopCore
 ```
 
@@ -113,6 +113,32 @@ examples/cxrjs/
 ```bash
 ./scripts/run_cloudxr.sh
 ```
+
+7. **White list ports for Firewall**
+
+```bash
+# CloudXR streaming ports.
+sudo ufw allow 47998:48000,48005,48008,48012/udp
+sudo ufw allow 49100/tcp
+sudo ufw allow 48322/tcp
+
+# The web server.
+sudo ufw allow 8443
+```
+
+8. **WebXR Client Setup**
+
+The last step will run a couple docker containers and one of them is the WebXR server. It can be
+accessed via the browser on your HMD support (Quest 3 or Pico 4 Ultra).
+
+- Local: ``https://localhost:8443/``
+- Network: ``https://<server-ip>:8443/``
+
+> **Tips:**
+> - For Pico 4 Ultra, Pico OS 15.4.4U or later is required.
+> - For rapid development and debugging, we recommend testing your CloudXR.js application on a
+> desktop browser with [IWER](https://meta-quest.github.io/immersive-web-emulation-runtime/) before
+> deploying to XR headsets.
 
 ### CloudXR Configurations (Optional)
 
