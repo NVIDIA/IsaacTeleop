@@ -20,7 +20,7 @@ import time
 import os
 from pathlib import Path
 
-import teleopcore.xrio as xrio
+import teleopcore.deviceio as deviceio
 import teleopcore.oxr as oxr
 import teleopcore.plugin_manager as pm
 
@@ -80,16 +80,12 @@ def run_test():
 
         handles = oxr_session.get_handles()
         
-        hand_tracker = xrio.HandTracker()
-        builder = xrio.XrioSessionBuilder()
-        builder.add_tracker(hand_tracker)
+        hand_tracker = deviceio.HandTracker()
+        trackers = [hand_tracker]
         
-        with builder.build(handles) as xrio_session:
-            if not xrio_session:
-                print("  ✗ Failed to create xrio session")
-                return
-            
-            print("  ✓ Xrio session created")
+        # run() throws exception on failure
+        with deviceio.DeviceIOSession.run(trackers, handles) as deviceio_session:
+            print("  ✓ DeviceIO session created")
             print()
 
             # 4. Loop and Read with periodic health checks
@@ -106,7 +102,7 @@ def run_test():
                         print(f"Plugin crashed: {e}")
                         break
                 
-                if not xrio_session.update():
+                if not deviceio_session.update():
                     print("  ✗ Reader session update failed")
                     break
                 
@@ -118,8 +114,8 @@ def run_test():
                     print(f"  Left Hand: {'ACTIVE' if left.is_active else 'INACTIVE'}")
                     print(f"  Right Hand: {'ACTIVE' if right.is_active else 'INACTIVE'}")
 
-                    if left.is_active and left.joints:
-                        wrist = left.joints[xrio.JOINT_WRIST]
+                    if left.is_active:
+                        wrist = left.joints[deviceio.JOINT_WRIST]
                         if wrist.is_valid:
                             pos = wrist.pose.position
                             print(f"    Left Wrist: [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")

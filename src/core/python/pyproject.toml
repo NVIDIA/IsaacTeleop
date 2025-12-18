@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "teleopcore"
 version = "0.1.0"
-description = "TeleopCore - Teleoperation with Extended Reality I/O"
+description = "TeleopCore - Teleoperation with Device I/O"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
@@ -29,7 +29,7 @@ dev = [
 [tool.setuptools]
 packages = [
     "teleopcore",
-    "teleopcore.xrio",
+    "teleopcore.deviceio",
     "teleopcore.oxr",
     "teleopcore.plugin_manager",
     "teleopcore.schema"
@@ -38,7 +38,7 @@ include-package-data = true
 
 [tool.setuptools.package-data]
 teleopcore = ["*.so", "*.pyd", "*.pyi", "py.typed"]
-"teleopcore.xrio" = ["*.so", "*.pyd", "*.pyi"]
+"teleopcore.deviceio" = ["*.so", "*.pyd", "*.pyi"]
 "teleopcore.oxr" = ["*.so", "*.pyd", "*.pyi"]
 "teleopcore.plugin_manager" = ["*.so", "*.pyd", "*.pyi"]
 "teleopcore.schema" = ["*.so", "*.pyd", "*.pyi"]

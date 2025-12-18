@@ -2,9 +2,9 @@ include teleopcore/*.so
 include teleopcore/*.pyd
 include teleopcore/*.pyi
 include teleopcore/py.typed
-include teleopcore/xrio/*.so
-include teleopcore/xrio/*.pyd
-include teleopcore/xrio/*.pyi
+include teleopcore/deviceio/*.so
+include teleopcore/deviceio/*.pyd
+include teleopcore/deviceio/*.pyi
 include teleopcore/oxr/*.so
 include teleopcore/oxr/*.pyd
 include teleopcore/oxr/*.pyi

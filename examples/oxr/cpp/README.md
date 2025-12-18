@@ -17,14 +17,14 @@ cmake --build build
 ```
 
 This builds:
-- The C++ static libraries (OXR and XRIO modules)
+- The C++ static libraries (OXR and DEVICEIO modules)
 - All C++ examples
 
 ## Available Examples
 
 ### oxr_session_sharing
 
-Demonstrates session sharing between multiple XrioSession instances. This example shows how multiple tracking components can share a single OpenXR session.
+Demonstrates session sharing between multiple DeviceIOSession instances. This example shows how multiple tracking components can share a single OpenXR session.
 
 **Build output**: `../../../build/examples/oxr/cpp/oxr_session_sharing`
 
@@ -60,7 +60,7 @@ cmake --build .
 ## Library Linkage
 
 Examples link against the static libraries which include:
-- XrioSession - Main session management
+- DeviceIOSession - Main session management
 - OpenXRSession - Session handling
 - HandTracker - Hand tracking functionality
 - HeadTracker - Head tracking functionality
@@ -81,7 +81,7 @@ add_executable(my_example
 
 target_link_libraries(my_example
     PRIVATE
-        xrio_tracking::xrio_tracking_core
+        deviceio_tracking::deviceio_tracking_core
         oxr_session::oxr_session_core
 )
 

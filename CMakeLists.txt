@@ -79,7 +79,7 @@ endif()
 # Build interfaces (headers)
 add_subdirectory(deps/cloudxr/openxr_extensions)
 
-# Build core modules (OXR and XRIO)
+# Build core modules (OXR and DEVICEIO)
 add_subdirectory(src/core)
 
 # Build examples if requested

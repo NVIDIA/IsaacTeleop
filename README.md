@@ -175,7 +175,7 @@ uv pip install build/wheels/teleopcore-*.whl
 
 Validate the Python package has been successfully built and installed.
 ```bash
-python -c "import teleopcore.xrio"
+python -c "import teleopcore.deviceio"
 ```
 
 2. **Run Teleop with Isaac Lab**

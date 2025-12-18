@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""TeleopCore XRIO - Extended Reality I/O Module
+"""TeleopCore DEVICEIO - Device I/O Module
 
 This module provides trackers and teleop session functionality.
 
@@ -10,7 +10,7 @@ Note: HeadTracker.get_head() returns HeadPoseT from teleopcore.schema.
 Import these types from teleopcore.schema if you need to work with pose types.
 """
 
-from ._xrio import (
+from ._deviceio import (
     Hand,
     ControllerInputState,
     ControllerPose,
@@ -19,8 +19,7 @@ from ._xrio import (
     HandTracker,
     HeadTracker,
     ControllerTracker,
-    XrioSessionBuilder,
-    XrioSession,
+    DeviceIOSession,
     NUM_JOINTS,
     JOINT_PALM,
     JOINT_WRIST,
@@ -41,8 +40,7 @@ __all__ = [
     "HeadTracker",
     "ControllerTracker",
     "OpenXRSessionHandles",
-    "XrioSessionBuilder",
-    "XrioSession",
+    "DeviceIOSession",
     "NUM_JOINTS",
     "JOINT_PALM",
     "JOINT_WRIST",

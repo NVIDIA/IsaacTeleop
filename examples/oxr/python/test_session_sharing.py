@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Test session sharing between multiple XrioSession instances.
+Test session sharing between multiple DeviceIOSession instances.
 
 This demonstrates how to create one OpenXR session directly and share it
 across multiple managers with different trackers.
@@ -13,7 +13,7 @@ import sys
 import time
 
 try:
-    import teleopcore.xrio as xrio
+    import teleopcore.deviceio as deviceio
     import teleopcore.oxr as oxr
 except ImportError as e:
     print(f"Error: {e}")
@@ -65,16 +65,10 @@ print()
 # Step 3: Create Manager 1 with HandTracker using the shared session
 # ============================================================================
 print("[Step 3] Creating Manager 1 with HandTracker...")
-hand_tracker = xrio.HandTracker()
+hand_tracker = deviceio.HandTracker()
 
-builder1 = xrio.XrioSessionBuilder()
-builder1.add_tracker(hand_tracker)
-
-session1 = builder1.build(handles)
-if session1 is None:
-    print("  ✗ Failed to create xrio session 1")
-    sys.exit(1)
-
+# run() throws exception on failure
+session1 = deviceio.DeviceIOSession.run([hand_tracker], handles)
 print("  ✓ Manager 1 using shared session")
 print()
 
@@ -82,16 +76,10 @@ print()
 # Step 4: Create Manager 2 with HeadTracker using the SAME shared session
 # ============================================================================
 print("[Step 4] Creating Manager 2 with HeadTracker...")
-head_tracker = xrio.HeadTracker()
+head_tracker = deviceio.HeadTracker()
 
-builder2 = xrio.XrioSessionBuilder()
-builder2.add_tracker(head_tracker)
-
-session2 = builder2.build(handles)
-if session2 is None:
-    print("  ✗ Failed to create xrio session 2")
-    sys.exit(1)
-
+# run() throws exception on failure
+session2 = deviceio.DeviceIOSession.run([head_tracker], handles)
 print("  ✓ Manager 2 using shared session")
 print()
 
@@ -127,8 +115,8 @@ try:
             print(f"  Hands: {'ACTIVE' if left.is_active else 'INACTIVE':8s}")
             print(f"  Head:  {'VALID' if head.is_valid else 'INVALID':8s}")
 
-            if left.is_active and left.joints:
-                wrist = left.joints[xrio.JOINT_WRIST]
+            if left.is_active:
+                wrist = left.joints[deviceio.JOINT_WRIST]
                 if wrist.is_valid:
                     pos = wrist.pose.position
                     print(f"    Left wrist: [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]")

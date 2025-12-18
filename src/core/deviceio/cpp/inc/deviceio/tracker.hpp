@@ -15,7 +15,7 @@ namespace core
 
 
 // Forward declarations
-class XrioSession;
+class DeviceIOSession;
 
 // Base interface for tracker implementations
 // These are the actual worker objects that get updated by the session
@@ -44,7 +44,7 @@ public:
 protected:
     // Internal lifecycle methods - only accessible to friend classes
     // External users should NOT call these directly
-    friend class XrioSession;
+    friend class DeviceIOSession;
 
     // Initialize the tracker and return its implementation
     // The tracker will use handles.space as the base coordinate system for reporting poses

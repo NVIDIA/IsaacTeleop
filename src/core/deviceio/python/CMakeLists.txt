@@ -14,19 +14,19 @@ if(NOT TARGET pybind11::module)
     message(FATAL_ERROR "pybind11::module target not found. This should be provided by deps/third_party/CMakeLists.txt")
 endif()
 
-# XRIO module (trackers and teleop session)
-pybind11_add_module(xrio_py
-    xrio_bindings.cpp
+# DEVICEIO module (trackers and teleop session)
+pybind11_add_module(deviceio_py
+    deviceio_bindings.cpp
 )
 
-target_link_libraries(xrio_py
+target_link_libraries(deviceio_py
     PRIVATE
-        xrio_core
+        deviceio_core
 )
 
-set_target_properties(xrio_py PROPERTIES
-    OUTPUT_NAME "_xrio"
+set_target_properties(deviceio_py PROPERTIES
+    OUTPUT_NAME "_deviceio"
     # Use genex in output directory - CMake won't add another config subdirectory
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/xrio"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/deviceio"
 )
 

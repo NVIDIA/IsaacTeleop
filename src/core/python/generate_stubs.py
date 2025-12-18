@@ -9,7 +9,7 @@ Usage:
     python generate_stubs.py <module_name> <package_dir>
 
 Example:
-    python generate_stubs.py teleopcore.xrio._xrio /path/to/python_package
+    python generate_stubs.py teleopcore.deviceio._deviceio /path/to/python_package
 """
 
 import sys
@@ -20,7 +20,7 @@ def generate_stub(module_name: str, package_dir: Path) -> bool:
     """Generate stub file for a single pybind11 module.
 
     Args:
-        module_name: Fully qualified module name (e.g., "teleopcore.xrio._xrio")
+        module_name: Fully qualified module name (e.g., "teleopcore.deviceio._deviceio")
         package_dir: Path to the python_package directory containing teleopcore.
 
     Returns:
@@ -96,7 +96,7 @@ def main() -> int:
     """Main entry point."""
     if len(sys.argv) != 3:
         print(f"Usage: {sys.argv[0]} <module_name> <package_dir>")
-        print(f"Example: {sys.argv[0]} teleopcore.xrio._xrio /path/to/python_package")
+        print(f"Example: {sys.argv[0]} teleopcore.deviceio._deviceio /path/to/python_package")
         return 1
 
     module_name = sys.argv[1]
