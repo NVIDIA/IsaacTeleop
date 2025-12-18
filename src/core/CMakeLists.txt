@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 cmake_minimum_required(VERSION 3.20)
-project(teleopcore_modules VERSION 1.0.0 LANGUAGES CXX)
 
 # Options
 option(BUILD_PYTHON_BINDINGS "Build Python bindings" ON)

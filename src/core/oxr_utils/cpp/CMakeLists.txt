@@ -3,13 +3,6 @@
 
 cmake_minimum_required(VERSION 3.20)
 
-# If this is being built standalone, declare a project
-if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-    project(oxr_utils VERSION 1.0.0 LANGUAGES CXX)
-    set(CMAKE_CXX_STANDARD 17)
-    set(CMAKE_CXX_STANDARD_REQUIRED ON)
-endif()
-
 # Ensure OpenXR headers target is available
 if(NOT TARGET OpenXR::headers)
     message(FATAL_ERROR "OpenXR::headers target not found. Make sure OpenXR SDK is configured first.")
