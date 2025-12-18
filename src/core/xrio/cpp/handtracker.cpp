@@ -117,17 +117,17 @@ bool HandTracker::Impl::update(XrTime time)
     return left_ok || right_ok;
 }
 
-const HandData& HandTracker::Impl::get_left_hand() const
+const HandPoseT& HandTracker::Impl::get_left_hand() const
 {
     return left_hand_;
 }
 
-const HandData& HandTracker::Impl::get_right_hand() const
+const HandPoseT& HandTracker::Impl::get_right_hand() const
 {
     return right_hand_;
 }
 
-bool HandTracker::Impl::update_hand(XrHandTrackerEXT tracker, XrTime time, HandData& out_data)
+bool HandTracker::Impl::update_hand(XrHandTrackerEXT tracker, XrTime time, HandPoseT& out_data)
 {
     XrHandJointsLocateInfoEXT locate_info{ XR_TYPE_HAND_JOINTS_LOCATE_INFO_EXT };
     locate_info.baseSpace = base_space_;
@@ -150,23 +150,37 @@ bool HandTracker::Impl::update_hand(XrHandTrackerEXT tracker, XrTime time, HandD
     out_data.is_active = locations.isActive;
     out_data.timestamp = time;
 
+    // Ensure joints struct is allocated
+    if (!out_data.joints)
+    {
+        out_data.joints = std::make_unique<HandJoints>();
+    }
+
+    // Get mutable access to the joints array
+    auto* mutable_array = const_cast<flatbuffers::Array<HandJointPose, 26>*>(out_data.joints->poses());
+
     for (uint32_t i = 0; i < 26; ++i)
     {
         const auto& joint_loc = joint_locations[i];
-        auto& joint_data = out_data.joints[i];
 
-        joint_data.position[0] = joint_loc.pose.position.x;
-        joint_data.position[1] = joint_loc.pose.position.y;
-        joint_data.position[2] = joint_loc.pose.position.z;
+        // Create Pose from position and orientation using FlatBuffers structs
+        Point position(
+            joint_loc.pose.position.x,
+            joint_loc.pose.position.y,
+            joint_loc.pose.position.z);
+        Quaternion orientation(
+            joint_loc.pose.orientation.x,
+            joint_loc.pose.orientation.y,
+            joint_loc.pose.orientation.z,
+            joint_loc.pose.orientation.w);
+        Pose pose(position, orientation);
 
-        joint_data.orientation[0] = joint_loc.pose.orientation.x;
-        joint_data.orientation[1] = joint_loc.pose.orientation.y;
-        joint_data.orientation[2] = joint_loc.pose.orientation.z;
-        joint_data.orientation[3] = joint_loc.pose.orientation.w;
+        bool is_valid = (joint_loc.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) &&
+                        (joint_loc.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT);
 
-        joint_data.radius = joint_loc.radius;
-        joint_data.is_valid = (joint_loc.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) &&
-                              (joint_loc.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT);
+        // Create HandJointPose and set it in the array
+        HandJointPose joint_pose(pose, is_valid, joint_loc.radius);
+        mutable_array->Mutate(i, joint_pose);
     }
 
     return true;
@@ -190,18 +204,18 @@ std::vector<std::string> HandTracker::get_required_extensions() const
     return { XR_EXT_HAND_TRACKING_EXTENSION_NAME };
 }
 
-const HandData& HandTracker::get_left_hand() const
+const HandPoseT& HandTracker::get_left_hand() const
 {
-    static const HandData empty_data{};
+    static const HandPoseT empty_data{};
     auto impl = cached_impl_.lock();
     if (!impl)
         return empty_data;
     return impl->get_left_hand();
 }
 
-const HandData& HandTracker::get_right_hand() const
+const HandPoseT& HandTracker::get_right_hand() const
 {
-    static const HandData empty_data{};
+    static const HandPoseT empty_data{};
     auto impl = cached_impl_.lock();
     if (!impl)
         return empty_data;

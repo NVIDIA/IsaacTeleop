@@ -5,30 +5,12 @@
 
 #include "tracker.hpp"
 
-#include <array>
+#include <schema/hand_generated.h>
+
 #include <memory>
 
 namespace core
 {
-
-
-// Hand joint data structure
-struct JointPose
-{
-    float position[3]; // x, y, z in meters
-    float orientation[4]; // x, y, z, w (quaternion)
-    float radius;
-    bool is_valid;
-};
-
-// Hand tracking data for a single hand
-struct HandData
-{
-    static constexpr size_t NUM_JOINTS = 26; // XR_HAND_JOINT_COUNT_EXT
-    std::array<JointPose, NUM_JOINTS> joints;
-    bool is_active;
-    XrTime timestamp;
-};
 
 // Hand tracker - tracks both left and right hands
 // PUBLIC API: Only exposes query methods
@@ -47,8 +29,8 @@ public:
     bool is_initialized() const override;
 
     // Query methods - public API for getting hand data
-    const HandData& get_left_hand() const;
-    const HandData& get_right_hand() const;
+    const HandPoseT& get_left_hand() const;
+    const HandPoseT& get_right_hand() const;
 
     // Get joint name for debugging
     static std::string get_joint_name(uint32_t joint_index);
@@ -72,12 +54,12 @@ private:
         // Override from ITrackerImpl
         bool update(XrTime time) override;
 
-        const HandData& get_left_hand() const;
-        const HandData& get_right_hand() const;
+        const HandPoseT& get_left_hand() const;
+        const HandPoseT& get_right_hand() const;
 
     private:
         // Helper functions
-        bool update_hand(XrHandTrackerEXT tracker, XrTime time, HandData& out_data);
+        bool update_hand(XrHandTrackerEXT tracker, XrTime time, HandPoseT& out_data);
 
         XrSpace base_space_;
 
@@ -86,8 +68,8 @@ private:
         XrHandTrackerEXT right_hand_tracker_;
 
         // Hand data
-        HandData left_hand_;
-        HandData right_hand_;
+        HandPoseT left_hand_;
+        HandPoseT right_hand_;
 
         // Extension function pointers
         PFN_xrCreateHandTrackerEXT pfn_create_hand_tracker_;

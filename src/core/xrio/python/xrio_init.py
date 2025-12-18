@@ -6,12 +6,11 @@
 This module provides trackers and teleop session functionality.
 
 Note: HeadTracker.get_head() returns HeadPoseT from teleopcore.schema.
-Import HeadPoseT from teleopcore.schema if you need to work with head pose types.
+      HandTracker.get_left_hand() / get_right_hand() return HandPoseT from teleopcore.schema.
+Import these types from teleopcore.schema if you need to work with pose types.
 """
 
 from ._xrio import (
-    JointPose,
-    HandData,
     Hand,
     ControllerInputState,
     ControllerPose,
@@ -33,9 +32,6 @@ from ._xrio import (
 from ..oxr import OpenXRSessionHandles
 
 __all__ = [
-    "JointPose",
-    "HandData",
-    "HeadPose",
     "Hand",
     "ControllerInputState",
     "ControllerPose",

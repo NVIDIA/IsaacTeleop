@@ -86,12 +86,12 @@ with oxr_session:
         right = hand_tracker.get_right_hand()
         print(f"  Left hand: {'ACTIVE' if left.is_active else 'INACTIVE'}")
         print(f"  Right hand: {'ACTIVE' if right.is_active else 'INACTIVE'}")
-        
-        if left.is_active:
-            wrist = left.get_joint(xrio.JOINT_WRIST)
+
+        if left.is_active and left.joints:
+            wrist = left.joints[xrio.JOINT_WRIST]
             if wrist.is_valid:
-                pos = wrist.position
-                print(f"  Left wrist position: [{pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f}]")
+                pos = wrist.pose.position
+                print(f"  Left wrist position: [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
         print()
 
         # Test 7: Check head data (returns HeadPoseT from schema)

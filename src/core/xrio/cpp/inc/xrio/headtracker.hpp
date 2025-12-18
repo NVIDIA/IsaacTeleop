@@ -57,7 +57,6 @@ private:
         XrSpace base_space_;
         XrSpacePtr view_space_;
         HeadPoseT head_;
-        OpenXRCoreFunctions core_funcs_;
     };
 
     // Weak pointer to impl (owned by session)

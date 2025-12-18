@@ -87,15 +87,15 @@ def main():
                         # Get hand data
                         left = hand_tracker.get_left_hand()
                         right = hand_tracker.get_right_hand()
-                        
+
                         print(f"  Hands: Left={'ACTIVE' if left.is_active else 'INACTIVE':8s} | "
                               f"Right={'ACTIVE' if right.is_active else 'INACTIVE':8s}")
-                        
-                        if left.is_active:
-                            wrist = left.get_joint(xrio.JOINT_WRIST)
+
+                        if left.is_active and left.joints:
+                            wrist = left.joints[xrio.JOINT_WRIST]
                             if wrist.is_valid:
-                                pos = wrist.position
-                                print(f"    Left wrist: [{pos[0]:6.3f}, {pos[1]:6.3f}, {pos[2]:6.3f}]")
+                                pos = wrist.pose.position
+                                print(f"    Left wrist: [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]")
 
                         # Get head data (returns HeadPoseT from schema)
                         head = head_tracker.get_head()
