@@ -67,7 +67,7 @@ source venv_isaac/bin/activate
 
 3. **Clone the repository**
 ```bash
-git clone git@github.com:nvidia-isaac/TeleopCore.git
+git clone git@github.com:NVIDIA/TeleopCore.git
 cd TeleopCore
 ```
 
