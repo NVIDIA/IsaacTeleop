@@ -17,24 +17,12 @@ namespace core
 // Constructor - throws std::runtime_error on failure
 HeadTracker::Impl::Impl(const OpenXRSessionHandles& handles)
 : core_funcs_(OpenXRCoreFunctions::load(handles.instance, handles.xrGetInstanceProcAddr)),
-  base_space_(handles.space)
+  base_space_(handles.space),
+  view_space_(createReferenceSpace(core_funcs_, handles.session, { .type = XR_TYPE_REFERENCE_SPACE_CREATE_INFO,
+                                                                   .referenceSpaceType = XR_REFERENCE_SPACE_TYPE_VIEW,
+                                                                   .poseInReferenceSpace = { .orientation = {0, 0, 0, 1} } })),
+  head_{}
 {
-    // Create VIEW space for head tracking (represents HMD pose)
-    XrReferenceSpaceCreateInfo create_info{ XR_TYPE_REFERENCE_SPACE_CREATE_INFO };
-    create_info.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_VIEW;
-    create_info.poseInReferenceSpace.orientation.w = 1.0f;
-
-    view_space_ = createReferenceSpace(core_funcs_, handles.session, &create_info);
-
-    head_.is_valid = false;
-    head_.timestamp = 0;
-
-    std::cout << "HeadTracker initialized" << std::endl;
-}
-
-HeadTracker::Impl::~Impl()
-{
-    // Smart pointer automatically cleans up view_space_
 }
 
 // Override from ITrackerImpl
@@ -42,7 +30,7 @@ bool HeadTracker::Impl::update(XrTime time)
 {
     // Locate the view space (head) relative to the base space
     XrSpaceLocation location{ XR_TYPE_SPACE_LOCATION };
-    XrResult result = core_funcs_.xrLocateSpace(*view_space_, base_space_, time, &location);
+    XrResult result = core_funcs_.xrLocateSpace(view_space_.get(), base_space_, time, &location);
 
     if (XR_FAILED(result))
     {

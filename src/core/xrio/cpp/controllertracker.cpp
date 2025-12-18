@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstring>
 #include <iostream>
+#include <stdexcept>
 
 namespace core
 {
@@ -15,6 +16,17 @@ namespace
 {
 
 // Helper functions for getting OpenXR action states
+
+XrPath xr_path_from_string(const OpenXRCoreFunctions& funcs, XrInstance instance, const char* s)
+{
+    XrPath path = XR_NULL_PATH;
+    XrResult res = funcs.xrStringToPath(instance, s, &path);
+    if (XR_FAILED(res))
+    {
+        throw std::runtime_error(std::string("xrStringToPath failed for '") + s + "': " + std::to_string(res));
+    }
+    return path;
+}
 
 bool get_boolean_action_state(XrSession session, const OpenXRCoreFunctions& core_funcs, XrAction action, XrPath subaction_path)
 {
@@ -69,6 +81,42 @@ bool get_vector2_action_state(XrSession session,
     return false;
 }
 
+XrSpacePtr create_space(const OpenXRCoreFunctions& funcs, XrSession session, XrAction action, XrPath subaction_path)
+{
+    assert(action != XR_NULL_HANDLE);
+    assert(subaction_path != XR_NULL_PATH);
+
+    XrActionSpaceCreateInfo space_info{ XR_TYPE_ACTION_SPACE_CREATE_INFO };
+    space_info.action = action;
+    space_info.subactionPath = subaction_path;
+    space_info.poseInActionSpace.orientation = { 0.0f, 0.0f, 0.0f, 1.0f };
+    space_info.poseInActionSpace.position = { 0.0f, 0.0f, 0.0f };
+
+    return createActionSpace(funcs, session, &space_info);
+};
+
+XrAction create_action(const OpenXRCoreFunctions& funcs, XrActionSet action_set, XrPath left_hand_path, XrPath right_hand_path, const char* name, const char* localized_name, XrActionType type)
+{
+    XrAction out_action;
+
+    XrPath hand_paths[2] = { left_hand_path, right_hand_path };
+
+    XrActionCreateInfo action_info{ XR_TYPE_ACTION_CREATE_INFO };
+    action_info.actionType = type;
+    strcpy(action_info.actionName, name);
+    strcpy(action_info.localizedActionName, localized_name);
+    action_info.countSubactionPaths = 2; // BOTH hands
+    action_info.subactionPaths = hand_paths;
+
+    XrResult res = funcs.xrCreateAction(action_set, &action_info, &out_action);
+    if (XR_FAILED(res))
+    {
+        throw std::runtime_error(std::string("Failed to create action ") + name + ": " + std::to_string(res));
+    }
+
+    return out_action;
+};
+
 } // anonymous namespace
 
 // ============================================================================
@@ -80,62 +128,27 @@ ControllerTracker::Impl::Impl(const OpenXRSessionHandles& handles)
     : core_funcs_(OpenXRCoreFunctions::load(handles.instance, handles.xrGetInstanceProcAddr)),
       session_(handles.session),
       base_space_(handles.space),
-      grip_pose_action_(XR_NULL_HANDLE),
-      aim_pose_action_(XR_NULL_HANDLE),
-      primary_click_action_(XR_NULL_HANDLE),
-      secondary_click_action_(XR_NULL_HANDLE),
-      thumbstick_action_(XR_NULL_HANDLE),
-      thumbstick_click_action_(XR_NULL_HANDLE),
-      squeeze_value_action_(XR_NULL_HANDLE),
-      trigger_value_action_(XR_NULL_HANDLE),
-      left_hand_path_(XR_NULL_PATH),
-      right_hand_path_(XR_NULL_PATH)
+
+      left_hand_path_(xr_path_from_string(core_funcs_, handles.instance, "/user/hand/left")),
+      right_hand_path_(xr_path_from_string(core_funcs_, handles.instance, "/user/hand/right")),
+
+      action_set_(createActionSet(core_funcs_, handles.instance, { .type = XR_TYPE_ACTION_SET_CREATE_INFO,
+                                                                   .actionSetName = "controller_tracking",
+                                                                   .localizedActionSetName = "Controller Tracking" })),
+      grip_pose_action_(create_action(core_funcs_, action_set_.get(), left_hand_path_, right_hand_path_, "grip_pose", "Grip Pose", XR_ACTION_TYPE_POSE_INPUT)),
+      aim_pose_action_(create_action(core_funcs_, action_set_.get(), left_hand_path_, right_hand_path_, "aim_pose", "Aim Pose", XR_ACTION_TYPE_POSE_INPUT)),
+      primary_click_action_(create_action(core_funcs_, action_set_.get(), left_hand_path_, right_hand_path_, "primary_click", "Primary Click", XR_ACTION_TYPE_BOOLEAN_INPUT)),
+      secondary_click_action_(create_action(core_funcs_, action_set_.get(), left_hand_path_, right_hand_path_, "secondary_click", "Secondary Click", XR_ACTION_TYPE_BOOLEAN_INPUT)),
+      thumbstick_action_(create_action(core_funcs_, action_set_.get(), left_hand_path_, right_hand_path_, "thumbstick", "Thumbstick", XR_ACTION_TYPE_VECTOR2F_INPUT)),
+      thumbstick_click_action_(create_action(core_funcs_, action_set_.get(), left_hand_path_, right_hand_path_, "thumbstick_click", "Thumbstick Click", XR_ACTION_TYPE_BOOLEAN_INPUT)),
+      squeeze_value_action_(create_action(core_funcs_, action_set_.get(), left_hand_path_, right_hand_path_, "squeeze_value", "Squeeze Value", XR_ACTION_TYPE_FLOAT_INPUT)),
+      trigger_value_action_(create_action(core_funcs_, action_set_.get(), left_hand_path_, right_hand_path_, "trigger_value", "Trigger Value", XR_ACTION_TYPE_FLOAT_INPUT)),
+
+      left_grip_space_(create_space(core_funcs_, session_, grip_pose_action_, left_hand_path_)),
+      right_grip_space_(create_space(core_funcs_, session_, grip_pose_action_, right_hand_path_)),
+      left_aim_space_(create_space(core_funcs_, session_, aim_pose_action_, left_hand_path_)),
+      right_aim_space_(create_space(core_funcs_, session_, aim_pose_action_, right_hand_path_))
 {
-    // Create action set for both controllers
-    XrActionSetCreateInfo action_set_info{ XR_TYPE_ACTION_SET_CREATE_INFO };
-    strcpy(action_set_info.actionSetName, "controller_tracking");
-    strcpy(action_set_info.localizedActionSetName, "Controller Tracking");
-    action_set_info.priority = 0;
-
-    action_set_ = createActionSet(core_funcs_, handles.instance, &action_set_info);
-
-    // Create hand paths for BOTH hands
-    core_funcs_.xrStringToPath(handles.instance, "/user/hand/left", &left_hand_path_);
-    core_funcs_.xrStringToPath(handles.instance, "/user/hand/right", &right_hand_path_);
-    XrPath hand_paths[2] = { left_hand_path_, right_hand_path_ };
-
-    // Create actions with BOTH subaction paths
-    auto create_action = [&](const char* name, const char* localized_name, XrActionType type, XrAction& out_action)
-    {
-        XrActionCreateInfo action_info{ XR_TYPE_ACTION_CREATE_INFO };
-        action_info.actionType = type;
-        strcpy(action_info.actionName, name);
-        strcpy(action_info.localizedActionName, localized_name);
-        action_info.countSubactionPaths = 2; // BOTH hands
-        action_info.subactionPaths = hand_paths;
-
-        XrResult res = core_funcs_.xrCreateAction(*action_set_, &action_info, &out_action);
-        if (XR_FAILED(res))
-        {
-            throw std::runtime_error(std::string("Failed to create action ") + name + ": " + std::to_string(res));
-        }
-    };
-
-    // Create all actions - only the ones we care about
-    create_action("grip_pose", "Grip Pose", XR_ACTION_TYPE_POSE_INPUT, grip_pose_action_);
-    create_action("aim_pose", "Aim Pose", XR_ACTION_TYPE_POSE_INPUT, aim_pose_action_);
-    create_action("primary_click", "Primary Click", XR_ACTION_TYPE_BOOLEAN_INPUT, primary_click_action_);
-    create_action("secondary_click", "Secondary Click", XR_ACTION_TYPE_BOOLEAN_INPUT, secondary_click_action_);
-    create_action("thumbstick", "Thumbstick", XR_ACTION_TYPE_VECTOR2F_INPUT, thumbstick_action_);
-    create_action("thumbstick_click", "Thumbstick Click", XR_ACTION_TYPE_BOOLEAN_INPUT, thumbstick_click_action_);
-    create_action("squeeze_value", "Squeeze Value", XR_ACTION_TYPE_FLOAT_INPUT, squeeze_value_action_);
-    create_action("trigger_value", "Trigger Value", XR_ACTION_TYPE_FLOAT_INPUT, trigger_value_action_);
-
-    // Suggest bindings for Oculus Touch controller profile
-    XrPath interaction_profile_path;
-    core_funcs_.xrStringToPath(
-        handles.instance, "/interaction_profiles/oculus/touch_controller", &interaction_profile_path);
-
     std::vector<XrActionSuggestedBinding> bindings;
     auto add_binding = [&](XrAction action, const char* path)
     {
@@ -166,8 +179,10 @@ ControllerTracker::Impl::Impl(const OpenXRSessionHandles& handles)
     add_binding(primary_click_action_, "/user/hand/right/input/a/click"); // Right: A
     add_binding(secondary_click_action_, "/user/hand/right/input/b/click"); // Right: B
 
+    // Suggest bindings for Oculus Touch controller profile
     XrInteractionProfileSuggestedBinding suggested_bindings{ XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING };
-    suggested_bindings.interactionProfile = interaction_profile_path;
+    suggested_bindings.interactionProfile = xr_path_from_string(
+        core_funcs_, handles.instance, "/interaction_profiles/oculus/touch_controller");
     suggested_bindings.countSuggestedBindings = static_cast<uint32_t>(bindings.size());
     suggested_bindings.suggestedBindings = bindings.data();
 
@@ -180,7 +195,7 @@ ControllerTracker::Impl::Impl(const OpenXRSessionHandles& handles)
     std::cout << "ControllerTracker: Using Oculus Touch Controller profile" << std::endl;
 
     // Attach action set to session
-    XrActionSet action_set_handle = *action_set_;
+    XrActionSet action_set_handle = action_set_.get();
     XrSessionActionSetsAttachInfo attach_info{ XR_TYPE_SESSION_ACTION_SETS_ATTACH_INFO };
     attach_info.countActionSets = 1;
     attach_info.actionSets = &action_set_handle;
@@ -191,29 +206,7 @@ ControllerTracker::Impl::Impl(const OpenXRSessionHandles& handles)
         throw std::runtime_error("Failed to attach action sets: " + std::to_string(result));
     }
 
-    // Create action spaces for both hands
-    auto create_space = [&](XrAction action, XrPath subaction_path, XrSpacePtr& out_space)
-    {
-        XrActionSpaceCreateInfo space_info{ XR_TYPE_ACTION_SPACE_CREATE_INFO };
-        space_info.action = action;
-        space_info.subactionPath = subaction_path;
-        space_info.poseInActionSpace.orientation = { 0.0f, 0.0f, 0.0f, 1.0f };
-        space_info.poseInActionSpace.position = { 0.0f, 0.0f, 0.0f };
-
-        out_space = createActionSpace(core_funcs_, handles.session, &space_info);
-    };
-
-    create_space(grip_pose_action_, left_hand_path_, left_grip_space_);
-    create_space(grip_pose_action_, right_hand_path_, right_grip_space_);
-    create_space(aim_pose_action_, left_hand_path_, left_aim_space_);
-    create_space(aim_pose_action_, right_hand_path_, right_aim_space_);
-
     std::cout << "ControllerTracker initialized (left + right)" << std::endl;
-}
-
-ControllerTracker::Impl::~Impl()
-{
-    // Smart pointers automatically clean up action_set_ and all spaces
 }
 
 // Override from ITrackerImpl
@@ -221,7 +214,7 @@ bool ControllerTracker::Impl::update(XrTime time)
 {
     // Sync actions
     XrActionsSyncInfo sync_info{ XR_TYPE_ACTIONS_SYNC_INFO };
-    XrActiveActionSet active_action_set{ *action_set_, XR_NULL_PATH };
+    XrActiveActionSet active_action_set{ action_set_.get(), XR_NULL_PATH };
     sync_info.countActiveActionSets = 1;
     sync_info.activeActionSets = &active_action_set;
 
@@ -238,7 +231,7 @@ bool ControllerTracker::Impl::update(XrTime time)
     {
         // Update poses
         XrSpaceLocation grip_location{ XR_TYPE_SPACE_LOCATION };
-        result = core_funcs_.xrLocateSpace(*grip_space, base_space_, time, &grip_location);
+        result = core_funcs_.xrLocateSpace(grip_space.get(), base_space_, time, &grip_location);
         if (XR_SUCCEEDED(result))
         {
             snapshot.grip_pose.is_valid = (grip_location.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) &&
@@ -256,7 +249,7 @@ bool ControllerTracker::Impl::update(XrTime time)
         }
 
         XrSpaceLocation aim_location{ XR_TYPE_SPACE_LOCATION };
-        result = core_funcs_.xrLocateSpace(*aim_space, base_space_, time, &aim_location);
+        result = core_funcs_.xrLocateSpace(aim_space.get(), base_space_, time, &aim_location);
         if (XR_SUCCEEDED(result))
         {
             snapshot.aim_pose.is_valid = (aim_location.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) &&
