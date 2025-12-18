@@ -15,6 +15,25 @@ This document describes how to build the entire TeleopCore project including lib
 - uv (for Python dependency management)
 - Internet connection (for downloading dependencies via CMake FetchContent)
 
+### Formatting enforcement
+
+On Linux (Ubuntu) builds, clang-format is enforced by default and the build fails if formatting changes would be applied. Install clang-format first:
+
+```bash
+sudo apt update
+sudo apt install -y clang-format
+```
+
+You can disable enforcement if needed:
+
+```bash
+cmake -B build -DENABLE_CLANG_FORMAT_CHECK=OFF
+```
+
+Useful targets:
+- `clang_format_check`: verifies formatting (part of `all` on Linux)
+- `clang_format_fix`: applies formatting in place
+
 > **Note:** The Python version requirement is centrally configured in the root `CMakeLists.txt` file. 
 > To change the Python version, modify the `TELEOPCORE_PYTHON_VERSION` variable in that file.
 
