@@ -4,9 +4,8 @@
 // Unit tests for the generated Tensor FlatBuffer message.
 
 // Include generated FlatBuffer header.
-#include <schema/tensor_generated.h>
-
 #include <catch2/catch_test_macros.hpp>
+#include <schema/tensor_generated.h>
 
 #include <type_traits>
 
@@ -35,45 +34,57 @@ static_assert(std::is_same_v<TYPE(device), const core::DLDevice*>);
 static_assert(std::is_same_v<TYPE(ndim), uint32_t>);
 static_assert(std::is_same_v<TYPE(strides), const flatbuffers::Vector<int64_t>*>);
 
-TEST_CASE("DLDataTypeCode enum values are correct", "[tensor][enum]") {
-    SECTION("kDLInt has expected value") {
+TEST_CASE("DLDataTypeCode enum values are correct", "[tensor][enum]")
+{
+    SECTION("kDLInt has expected value")
+    {
         CHECK(static_cast<int>(core::DLDataTypeCode_kDLInt) == 0);
     }
 
-    SECTION("kDLUInt has expected value") {
+    SECTION("kDLUInt has expected value")
+    {
         CHECK(static_cast<int>(core::DLDataTypeCode_kDLUInt) == 1);
     }
 
-    SECTION("kDLFloat has expected value") {
+    SECTION("kDLFloat has expected value")
+    {
         CHECK(static_cast<int>(core::DLDataTypeCode_kDLFloat) == 2);
     }
 }
 
-TEST_CASE("DLDeviceType enum values are correct", "[tensor][enum]") {
-    SECTION("kDLUnknown has expected value") {
+TEST_CASE("DLDeviceType enum values are correct", "[tensor][enum]")
+{
+    SECTION("kDLUnknown has expected value")
+    {
         // DLDeviceType_kDLUnknown should exist
         CHECK(static_cast<int>(core::DLDeviceType_kDLUnknown) >= 0);
     }
 
-    SECTION("kDLCPU has expected value") {
+    SECTION("kDLCPU has expected value")
+    {
         CHECK(static_cast<int>(core::DLDeviceType_kDLCPU) == 1);
     }
 
-    SECTION("kDLCUDA has expected value") {
+    SECTION("kDLCUDA has expected value")
+    {
         CHECK(static_cast<int>(core::DLDeviceType_kDLCUDA) == 2);
     }
 
-    SECTION("kDLCUDAHost has expected value") {
+    SECTION("kDLCUDAHost has expected value")
+    {
         CHECK(static_cast<int>(core::DLDeviceType_kDLCUDAHost) == 3);
     }
 
-    SECTION("kDLCUDAManaged has expected value") {
+    SECTION("kDLCUDAManaged has expected value")
+    {
         CHECK(static_cast<int>(core::DLDeviceType_kDLCUDAManaged) == 13);
     }
 }
 
-TEST_CASE("DLDataType struct can be created", "[tensor][struct]") {
-    SECTION("float32 data type") {
+TEST_CASE("DLDataType struct can be created", "[tensor][struct]")
+{
+    SECTION("float32 data type")
+    {
         core::DLDataType dtype(core::DLDataTypeCode_kDLFloat, 32, 1);
 
         CHECK(dtype.code() == core::DLDataTypeCode_kDLFloat);
@@ -81,7 +92,8 @@ TEST_CASE("DLDataType struct can be created", "[tensor][struct]") {
         CHECK(dtype.lanes() == 1);
     }
 
-    SECTION("int64 data type") {
+    SECTION("int64 data type")
+    {
         core::DLDataType dtype(core::DLDataTypeCode_kDLInt, 64, 1);
 
         CHECK(dtype.code() == core::DLDataTypeCode_kDLInt);
@@ -89,7 +101,8 @@ TEST_CASE("DLDataType struct can be created", "[tensor][struct]") {
         CHECK(dtype.lanes() == 1);
     }
 
-    SECTION("uint8 data type") {
+    SECTION("uint8 data type")
+    {
         core::DLDataType dtype(core::DLDataTypeCode_kDLUInt, 8, 1);
 
         CHECK(dtype.code() == core::DLDataTypeCode_kDLUInt);
@@ -98,40 +111,45 @@ TEST_CASE("DLDataType struct can be created", "[tensor][struct]") {
     }
 }
 
-TEST_CASE("DLDevice struct can be created", "[tensor][struct]") {
-    SECTION("CUDA device 0") {
+TEST_CASE("DLDevice struct can be created", "[tensor][struct]")
+{
+    SECTION("CUDA device 0")
+    {
         core::DLDevice device(core::DLDeviceType_kDLCUDA, 0);
 
         CHECK(device.device_type() == core::DLDeviceType_kDLCUDA);
         CHECK(device.device_id() == 0);
     }
 
-    SECTION("CPU device") {
+    SECTION("CPU device")
+    {
         core::DLDevice device(core::DLDeviceType_kDLCPU, 0);
 
         CHECK(device.device_type() == core::DLDeviceType_kDLCPU);
         CHECK(device.device_id() == 0);
     }
 
-    SECTION("CUDA device 1") {
+    SECTION("CUDA device 1")
+    {
         core::DLDevice device(core::DLDeviceType_kDLCUDA, 1);
 
         CHECK(device.device_type() == core::DLDeviceType_kDLCUDA);
         CHECK(device.device_id() == 1);
     }
 
-    SECTION("CUDA Host memory") {
+    SECTION("CUDA Host memory")
+    {
         core::DLDevice device(core::DLDeviceType_kDLCUDAHost, 0);
 
         CHECK(device.device_type() == core::DLDeviceType_kDLCUDAHost);
         CHECK(device.device_id() == 0);
     }
 
-    SECTION("CUDA Managed memory") {
+    SECTION("CUDA Managed memory")
+    {
         core::DLDevice device(core::DLDeviceType_kDLCUDAManaged, 0);
 
         CHECK(device.device_type() == core::DLDeviceType_kDLCUDAManaged);
         CHECK(device.device_id() == 0);
     }
 }
-

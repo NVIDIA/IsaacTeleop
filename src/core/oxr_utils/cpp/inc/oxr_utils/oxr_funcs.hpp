@@ -60,16 +60,16 @@ struct OpenXRCoreFunctions
         OpenXRCoreFunctions results{};
         bool success = true;
 
-        success &=
-            XR_SUCCEEDED(getProcAddr(instance, "xrGetSystem", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrGetSystem)));
+        success &= XR_SUCCEEDED(
+            getProcAddr(instance, "xrGetSystem", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrGetSystem)));
         success &= XR_SUCCEEDED(getProcAddr(
             instance, "xrGetSystemProperties", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrGetSystemProperties)));
-        success &= XR_SUCCEEDED(getProcAddr(
-            instance, "xrCreateReferenceSpace", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrCreateReferenceSpace)));
-        success &=
-            XR_SUCCEEDED(getProcAddr(instance, "xrDestroySpace", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrDestroySpace)));
-        success &=
-            XR_SUCCEEDED(getProcAddr(instance, "xrLocateSpace", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrLocateSpace)));
+        success &= XR_SUCCEEDED(getProcAddr(instance, "xrCreateReferenceSpace",
+                                            reinterpret_cast<PFN_xrVoidFunction*>(&results.xrCreateReferenceSpace)));
+        success &= XR_SUCCEEDED(
+            getProcAddr(instance, "xrDestroySpace", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrDestroySpace)));
+        success &= XR_SUCCEEDED(
+            getProcAddr(instance, "xrLocateSpace", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrLocateSpace)));
 
         if (!success)
         {
@@ -84,14 +84,16 @@ struct OpenXRCoreFunctions
         getProcAddr(instance, "xrCreateAction", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrCreateAction));
         getProcAddr(instance, "xrSuggestInteractionProfileBindings",
                     reinterpret_cast<PFN_xrVoidFunction*>(&results.xrSuggestInteractionProfileBindings));
-        getProcAddr(
-            instance, "xrAttachSessionActionSets", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrAttachSessionActionSets));
+        getProcAddr(instance, "xrAttachSessionActionSets",
+                    reinterpret_cast<PFN_xrVoidFunction*>(&results.xrAttachSessionActionSets));
         getProcAddr(instance, "xrCreateActionSpace", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrCreateActionSpace));
         getProcAddr(instance, "xrSyncActions", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrSyncActions));
-        getProcAddr(instance, "xrGetActionStateBoolean", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrGetActionStateBoolean));
-        getProcAddr(instance, "xrGetActionStateFloat", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrGetActionStateFloat));
+        getProcAddr(instance, "xrGetActionStateBoolean",
+                    reinterpret_cast<PFN_xrVoidFunction*>(&results.xrGetActionStateBoolean));
         getProcAddr(
-            instance, "xrGetActionStateVector2f", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrGetActionStateVector2f));
+            instance, "xrGetActionStateFloat", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrGetActionStateFloat));
+        getProcAddr(instance, "xrGetActionStateVector2f",
+                    reinterpret_cast<PFN_xrVoidFunction*>(&results.xrGetActionStateVector2f));
 
         return results;
     }

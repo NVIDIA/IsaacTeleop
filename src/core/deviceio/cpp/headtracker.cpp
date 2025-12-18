@@ -16,12 +16,14 @@ namespace core
 
 // Constructor - throws std::runtime_error on failure
 HeadTracker::Impl::Impl(const OpenXRSessionHandles& handles)
-: core_funcs_(OpenXRCoreFunctions::load(handles.instance, handles.xrGetInstanceProcAddr)),
-  base_space_(handles.space),
-  view_space_(createReferenceSpace(core_funcs_, handles.session, { .type = XR_TYPE_REFERENCE_SPACE_CREATE_INFO,
-                                                                   .referenceSpaceType = XR_REFERENCE_SPACE_TYPE_VIEW,
-                                                                   .poseInReferenceSpace = { .orientation = {0, 0, 0, 1} } })),
-  head_{}
+    : core_funcs_(OpenXRCoreFunctions::load(handles.instance, handles.xrGetInstanceProcAddr)),
+      base_space_(handles.space),
+      view_space_(createReferenceSpace(core_funcs_,
+                                       handles.session,
+                                       { .type = XR_TYPE_REFERENCE_SPACE_CREATE_INFO,
+                                         .referenceSpaceType = XR_REFERENCE_SPACE_TYPE_VIEW,
+                                         .poseInReferenceSpace = { .orientation = { 0, 0, 0, 1 } } })),
+      head_{}
 {
 }
 
@@ -48,15 +50,9 @@ bool HeadTracker::Impl::update(XrTime time)
     if (head_.is_valid)
     {
         // Create pose from position and orientation using FlatBuffers structs
-        Point position(
-            location.pose.position.x,
-            location.pose.position.y,
-            location.pose.position.z);
-        Quaternion orientation(
-            location.pose.orientation.x,
-            location.pose.orientation.y,
-            location.pose.orientation.z,
-            location.pose.orientation.w);
+        Point position(location.pose.position.x, location.pose.position.y, location.pose.position.z);
+        Quaternion orientation(location.pose.orientation.x, location.pose.orientation.y, location.pose.orientation.z,
+                               location.pose.orientation.w);
         head_.pose = std::make_shared<Pose>(position, orientation);
     }
     else
