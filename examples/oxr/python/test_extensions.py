@@ -12,6 +12,7 @@ Useful when creating external OpenXR sessions.
 import sys
 import teleopcore.xrio as xrio
 import teleopcore.oxr as oxr
+from teleopcore.schema import HeadPoseT
 
 print("=" * 80)
 print("OpenXR Required Extensions Test")
@@ -107,11 +108,15 @@ else:
                 # Quick update test
                 if session.update():
                     left = hand.get_left_hand()
-                    head_pose = head.get_head()
+                    head_pose: HeadPoseT = head.get_head()
                     print(f"  ✅ Update successful")
                     print(f"    Hands: {'ACTIVE' if left.is_active else 'INACTIVE'}")
                     print(f"    Head:  {'VALID' if head_pose.is_valid else 'INVALID'}")
-                
+
+                    if head_pose.is_valid and head_pose.pose:
+                        pos = head_pose.pose.position
+                        print(f"    Head position: [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
+
                 # Session will be cleaned up when exiting 'with' block (RAII)
         else:
             print("  ❌ Failed to initialize")

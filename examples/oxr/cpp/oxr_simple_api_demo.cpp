@@ -121,9 +121,10 @@ int main()
         std::cout << "  Right hand: " << (right.is_active ? "ACTIVE" : "INACTIVE") << std::endl;
         std::cout << "  Head pose:  " << (head.is_valid ? "VALID" : "INVALID") << std::endl;
 
-        if (head.is_valid)
+        if (head.is_valid && head.pose)
         {
-            std::cout << "    Position: [" << head.position[0] << ", " << head.position[1] << ", " << head.position[2]
+            const auto& pos = head.pose->position();
+            std::cout << "    Position: [" << pos.x() << ", " << pos.y() << ", " << pos.z()
                       << "]" << std::endl;
         }
         std::cout << std::endl;

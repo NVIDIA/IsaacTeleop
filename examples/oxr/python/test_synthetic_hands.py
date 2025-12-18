@@ -117,11 +117,12 @@ def run_test():
                     print(f"Frame {frame_count}:")
                     print(f"  Left Hand: {'ACTIVE' if left.is_active else 'INACTIVE'}")
                     print(f"  Right Hand: {'ACTIVE' if right.is_active else 'INACTIVE'}")
-                    
-                    if left.is_active:
-                        wrist = left.get_joint(xrio.JOINT_WRIST)
+
+                    if left.is_active and left.joints:
+                        wrist = left.joints[xrio.JOINT_WRIST]
                         if wrist.is_valid:
-                            print(f"    Left Wrist: {wrist.position}")
+                            pos = wrist.pose.position
+                            print(f"    Left Wrist: [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
                     print()
                     
                 frame_count += 1

@@ -53,44 +53,6 @@ PYBIND11_MODULE(_xrio, m)
 {
     m.doc() = "TeleopCore XRIO - Extended Reality I/O Module";
 
-    // JointPose structure
-    py::class_<core::JointPose>(m, "JointPose")
-        .def(py::init<>())
-        .def_property_readonly("position", [](const core::JointPose& self)
-                               { return py::array_t<float>({ 3 }, { sizeof(float) }, self.position); })
-        .def_property_readonly("orientation", [](const core::JointPose& self)
-                               { return py::array_t<float>({ 4 }, { sizeof(float) }, self.orientation); })
-        .def_readonly("radius", &core::JointPose::radius)
-        .def_readonly("is_valid", &core::JointPose::is_valid);
-
-    // HandData structure
-    py::class_<core::HandData>(m, "HandData")
-        .def(py::init<>())
-        .def(
-            "get_joint",
-            [](const core::HandData& self, size_t index) -> const core::JointPose&
-            {
-                if (index >= core::HandData::NUM_JOINTS)
-                {
-                    throw py::index_error("Joint index out of range");
-                }
-                return self.joints[index];
-            },
-            py::return_value_policy::reference_internal)
-        .def_readonly("is_active", &core::HandData::is_active)
-        .def_readonly("timestamp", &core::HandData::timestamp)
-        .def_property_readonly("num_joints", [](const core::HandData&) { return core::HandData::NUM_JOINTS; });
-
-    // HeadPose structure
-    py::class_<core::HeadPose>(m, "HeadPose")
-        .def(py::init<>())
-        .def_property_readonly("position", [](const core::HeadPose& self)
-                               { return py::array_t<float>({ 3 }, { sizeof(float) }, self.position); })
-        .def_property_readonly("orientation", [](const core::HeadPose& self)
-                               { return py::array_t<float>({ 4 }, { sizeof(float) }, self.position); })
-        .def_readonly("is_valid", &core::HeadPose::is_valid)
-        .def_readonly("timestamp", &core::HeadPose::timestamp);
-
     // ITracker interface (base class)
     py::class_<core::ITracker, std::shared_ptr<core::ITracker>>(m, "ITracker")
         .def("is_initialized", &core::ITracker::is_initialized)
@@ -172,8 +134,8 @@ PYBIND11_MODULE(_xrio, m)
             },
             py::arg("handles"), "Build a xrio session with OpenXR session handles");
 
-    // Module constants
-    m.attr("NUM_JOINTS") = core::HandData::NUM_JOINTS;
+    // Module constants - XR_HAND_JOINT_COUNT_EXT
+    m.attr("NUM_JOINTS") = 26;
 
     // Joint indices
     m.attr("JOINT_PALM") = static_cast<int>(XR_HAND_JOINT_PALM_EXT);

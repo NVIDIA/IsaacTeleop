@@ -5,22 +5,14 @@
 
 #include "tracker.hpp"
 
+#include <schema/head_generated.h>
+
 #include <memory>
 
 namespace core
 {
 
-
-// Head pose data
-struct HeadPose
-{
-    float position[3]; // x, y, z in meters
-    float orientation[4]; // x, y, z, w (quaternion)
-    bool is_valid;
-    XrTime timestamp;
-};
-
-// Head tracker - tracks HMD pose
+// Head tracker - tracks HMD pose (returns HeadPoseT from FlatBuffer schema)
 // PUBLIC API: Only exposes query methods
 class HeadTracker : public ITracker
 {
@@ -37,7 +29,7 @@ public:
     bool is_initialized() const override;
 
     // Query methods - public API for getting head data
-    const HeadPose& get_head() const;
+    const HeadPoseT& get_head() const;
 
 protected:
     // Internal lifecycle methods - only accessible via friend classes
@@ -58,13 +50,13 @@ private:
         // Override from ITrackerImpl
         bool update(XrTime time) override;
 
-        const HeadPose& get_head() const;
+        const HeadPoseT& get_head() const;
 
     private:
         const OpenXRCoreFunctions core_funcs_;
         XrSpace base_space_;
         XrSpacePtr view_space_;
-        HeadPose head_;
+        HeadPoseT head_;
     };
 
     // Weak pointer to impl (owned by session)

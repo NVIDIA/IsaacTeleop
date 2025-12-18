@@ -40,6 +40,9 @@ target_link_libraries(xrio_core
         # oxr_utils is header-only and provides OpenXRSessionHandles struct
         # It also brings in OpenXR headers for base types without linking to OpenXR loader
         oxr::oxr_utils
+
+        # Schema library for FlatBuffer types
+        teleopcore_schema
 )
 
 # Platform-specific definitions

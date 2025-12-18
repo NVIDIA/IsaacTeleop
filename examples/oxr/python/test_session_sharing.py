@@ -126,17 +126,17 @@ try:
             print(f"[{elapsed:4.1f}s] Frame {frame_count:3d}:")
             print(f"  Hands: {'ACTIVE' if left.is_active else 'INACTIVE':8s}")
             print(f"  Head:  {'VALID' if head.is_valid else 'INVALID':8s}")
-            
-            if left.is_active:
-                wrist = left.get_joint(xrio.JOINT_WRIST)
+
+            if left.is_active and left.joints:
+                wrist = left.joints[xrio.JOINT_WRIST]
                 if wrist.is_valid:
-                    pos = wrist.position
-                    print(f"    Left wrist: [{pos[0]:6.3f}, {pos[1]:6.3f}, {pos[2]:6.3f}]")
-            
-            if head.is_valid:
-                pos = head.position
-                print(f"    Head pos:   [{pos[0]:6.3f}, {pos[1]:6.3f}, {pos[2]:6.3f}]")
-            
+                    pos = wrist.pose.position
+                    print(f"    Left wrist: [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]")
+
+            if head.is_valid and head.pose:
+                pos = head.pose.position
+                print(f"    Head pos:   [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]")
+
             print()
         
         frame_count += 1
