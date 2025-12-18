@@ -1,0 +1,7 @@
+namespace core;
+
+struct Point {
+    x: float;
+    y: float;
+    z: float;
+}

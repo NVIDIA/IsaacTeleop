@@ -1,0 +1,36 @@
+include "pose.fbs";
+
+namespace core;
+
+// Describe a HandJoint pose.
+struct HandJointPose {
+    // The concrete pose data
+    pose: Pose;
+
+    // Whether the hand pose data is valid
+    is_valid: bool;
+
+    // The radius of each joint.
+    // See: https://registry.khronos.org/OpenXR/specs/1.0/man/html/XrHandJointLocationEXT.html
+    radius: float32;
+}
+
+struct HandJoints {
+    poses: [HandJointPose:26];
+}
+
+// Describe a hand pose.
+table HandPose {
+    // Vector of HandJointPose.
+    // For OpenXR, this should be 26 according to XR_HAND_JOINT_COUNT_EXT
+    joints: HandJoints (id: 0);
+
+    // Whether the hand pose data is active
+    is_active: bool (id: 1);
+
+    // The timestamp of the pose data in the XrTime format (i.e. int64)
+    // See: https://github.com/KhronosGroup/OpenXR-SDK/blob/release-1.0.0/include/openxr/openxr.h#L113
+    timestamp: int64 (id: 2);
+}
+
+root_type HandPose;

@@ -43,12 +43,12 @@ struct DLDevice {
 
 // Defines a Tensor message based on DLPack, using holoscan::Tensor as the native type.
 table Tensor {
-  data: [ubyte];
-  shape: [int64];
-  dtype: DLDataType (native_inline);
-  device: DLDevice (native_inline);
-  ndim: uint32;
-  strides: [int64];
+  data: [ubyte] (id: 0);
+  shape: [int64] (id: 1);
+  dtype: DLDataType (native_inline, id: 2);
+  device: DLDevice (native_inline, id: 3);
+  ndim: uint32 (id: 4);
+  strides: [int64] (id: 5);
 }
 
 root_type Tensor;

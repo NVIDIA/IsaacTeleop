@@ -3,10 +3,37 @@
 
 // Unit tests for the generated Tensor FlatBuffer message.
 
-#include <catch2/catch_test_macros.hpp>
-
 // Include generated FlatBuffer header.
 #include <schema/tensor_generated.h>
+
+#include <catch2/catch_test_macros.hpp>
+
+#include <type_traits>
+
+// =============================================================================
+// Compile-time verification of FlatBuffer field IDs.
+// These ensure schema field IDs remain stable across changes.
+// VT values are computed as: (field_id + 2) * 2.
+// =============================================================================
+#define VT(field) (field + 2) * 2
+static_assert(core::Tensor::VT_DATA == VT(0));
+static_assert(core::Tensor::VT_SHAPE == VT(1));
+static_assert(core::Tensor::VT_DTYPE == VT(2));
+static_assert(core::Tensor::VT_DEVICE == VT(3));
+static_assert(core::Tensor::VT_NDIM == VT(4));
+static_assert(core::Tensor::VT_STRIDES == VT(5));
+
+// =============================================================================
+// Compile-time verification of FlatBuffer field types.
+// These ensure schema field types remain stable across changes.
+// =============================================================================
+#define TYPE(field) decltype(std::declval<core::Tensor>().field())
+static_assert(std::is_same_v<TYPE(data), const flatbuffers::Vector<uint8_t>*>);
+static_assert(std::is_same_v<TYPE(shape), const flatbuffers::Vector<int64_t>*>);
+static_assert(std::is_same_v<TYPE(dtype), const core::DLDataType*>);
+static_assert(std::is_same_v<TYPE(device), const core::DLDevice*>);
+static_assert(std::is_same_v<TYPE(ndim), uint32_t>);
+static_assert(std::is_same_v<TYPE(strides), const flatbuffers::Vector<int64_t>*>);
 
 TEST_CASE("DLDataTypeCode enum values are correct", "[tensor][enum]") {
     SECTION("kDLInt has expected value") {

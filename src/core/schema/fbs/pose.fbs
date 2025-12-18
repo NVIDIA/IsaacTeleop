@@ -1,14 +1,13 @@
-include "tensor.fbs";
+include "point.fbs";
+include "quaternion.fbs";
 
 namespace core;
 
 // Describes a pose.
-table Pose {
+struct Pose {
   // Position of the pose (x, y, z) in meters.
-  position: Tensor (id: 0);
+  position: Point (id: 0);
 
   // Orientation of the pose (w, x, y, z).
-  orientation: Tensor (id: 1);
+  orientation: Quaternion (id: 1);
 }
-
-root_type Pose;
