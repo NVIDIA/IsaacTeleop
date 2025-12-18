@@ -97,138 +97,44 @@ struct OpenXRCoreFunctions
     }
 };
 
-// Custom deleter for OpenXR handles
-template <typename HandleType>
-struct OpenXRHandleDeleter
-{
-    std::function<void(HandleType)> destroy_func;
-
-    void operator()(HandleType handle) const
-    {
-        if (handle != XR_NULL_HANDLE && destroy_func)
-        {
-            destroy_func(handle);
-        }
-    }
-};
-
-// Helper to wrap OpenXR handles in unique_ptr-like semantics
-template <typename HandleType>
-class OpenXRHandle
-{
-public:
-    // Default constructor creates an empty/moved-from state
-    OpenXRHandle() : handle_(XR_NULL_HANDLE), deleter_(nullptr)
-    {
-    }
-
-    OpenXRHandle(HandleType handle, std::function<void(HandleType)> deleter)
-        : handle_(handle), deleter_(std::move(deleter))
-    {
-    }
-
-    ~OpenXRHandle()
-    {
-        reset();
-    }
-
-    // Move semantics only
-    OpenXRHandle(OpenXRHandle&& other) noexcept : handle_(other.handle_), deleter_(std::move(other.deleter_))
-    {
-        other.handle_ = XR_NULL_HANDLE;
-    }
-
-    OpenXRHandle& operator=(OpenXRHandle&& other) noexcept
-    {
-        if (this != &other)
-        {
-            reset();
-            handle_ = other.handle_;
-            deleter_ = std::move(other.deleter_);
-            other.handle_ = XR_NULL_HANDLE;
-        }
-        return *this;
-    }
-
-    // Disable copy
-    OpenXRHandle(const OpenXRHandle&) = delete;
-    OpenXRHandle& operator=(const OpenXRHandle&) = delete;
-
-    // Convenience functions to get the handle.
-    HandleType get() const
-    {
-        return handle_;
-    }
-    HandleType operator*() const
-    {
-        return handle_;
-    }
-    explicit operator bool() const
-    {
-        return handle_ != XR_NULL_HANDLE;
-    }
-
-    void reset()
-    {
-        if (handle_ != XR_NULL_HANDLE)
-        {
-            assert(deleter_);
-            deleter_(handle_);
-            handle_ = XR_NULL_HANDLE;
-        }
-    }
-
-private:
-    HandleType handle_;
-    std::function<void(HandleType)> deleter_;
-};
-
 // Smart pointer type aliases for OpenXR resources
-using XrActionSetPtr = OpenXRHandle<XrActionSet>;
-using XrSpacePtr = OpenXRHandle<XrSpace>;
+using XrActionSetPtr = std::unique_ptr<std::remove_pointer_t<XrActionSet>, PFN_xrDestroyActionSet>;
+using XrSpacePtr = std::unique_ptr<std::remove_pointer_t<XrSpace>, PFN_xrDestroySpace>;
 
 // Create an action set with automatic cleanup - throws on failure
 inline XrActionSetPtr createActionSet(const OpenXRCoreFunctions& funcs,
                                       XrInstance instance,
-                                      const XrActionSetCreateInfo* createInfo)
+                                      const XrActionSetCreateInfo& createInfo)
 {
+    assert(funcs.xrDestroyActionSet);
+
     XrActionSet actionSet = XR_NULL_HANDLE;
-    XrResult result = funcs.xrCreateActionSet(instance, createInfo, &actionSet);
+    XrResult result = funcs.xrCreateActionSet(instance, &createInfo, &actionSet);
 
     if (XR_FAILED(result))
     {
         throw std::runtime_error("Failed to create action set: " + std::to_string(result));
     }
 
-    auto deleter = [destroyFunc = funcs.xrDestroyActionSet](XrActionSet handle)
-    {
-        assert(destroyFunc);
-        destroyFunc(handle);
-    };
-
-    return XrActionSetPtr(actionSet, deleter);
+    return XrActionSetPtr(actionSet, funcs.xrDestroyActionSet);
 }
 
 // Create a reference space with automatic cleanup - throws on failure
 inline XrSpacePtr createReferenceSpace(const OpenXRCoreFunctions& funcs,
                                        XrSession session,
-                                       const XrReferenceSpaceCreateInfo* createInfo)
+                                       const XrReferenceSpaceCreateInfo& createInfo)
 {
+    assert(funcs.xrDestroySpace);
+
     XrSpace space = XR_NULL_HANDLE;
-    XrResult result = funcs.xrCreateReferenceSpace(session, createInfo, &space);
+    XrResult result = funcs.xrCreateReferenceSpace(session, &createInfo, &space);
 
     if (XR_FAILED(result))
     {
         throw std::runtime_error("Failed to create reference space: " + std::to_string(result));
     }
 
-    auto deleter = [destroyFunc = funcs.xrDestroySpace](XrSpace handle)
-    {
-        assert(destroyFunc);
-        destroyFunc(handle);
-    };
-
-    return XrSpacePtr(space, deleter);
+    return XrSpacePtr(space, funcs.xrDestroySpace);
 }
 
 // Create an action space with automatic cleanup - throws on failure
@@ -236,6 +142,8 @@ inline XrSpacePtr createActionSpace(const OpenXRCoreFunctions& funcs,
                                     XrSession session,
                                     const XrActionSpaceCreateInfo* createInfo)
 {
+    assert(funcs.xrDestroySpace);
+
     XrSpace space = XR_NULL_HANDLE;
     XrResult result = funcs.xrCreateActionSpace(session, createInfo, &space);
 
@@ -244,13 +152,7 @@ inline XrSpacePtr createActionSpace(const OpenXRCoreFunctions& funcs,
         throw std::runtime_error("Failed to create action space: " + std::to_string(result));
     }
 
-    auto deleter = [destroyFunc = funcs.xrDestroySpace](XrSpace handle)
-    {
-        assert(destroyFunc);
-        destroyFunc(handle);
-    };
-
-    return XrSpacePtr(space, deleter);
+    return XrSpacePtr(space, funcs.xrDestroySpace);
 }
 
 } // namespace core

@@ -84,10 +84,7 @@ private:
     class Impl : public ITrackerImpl
     {
     public:
-        // Constructor - throws std::runtime_error on failure
         explicit Impl(const OpenXRSessionHandles& handles);
-
-        ~Impl();
 
         // Override from ITrackerImpl
         bool update(XrTime time) override;
@@ -99,6 +96,10 @@ private:
 
         XrSession session_;
         XrSpace base_space_;
+
+        // Paths for both hands
+        XrPath left_hand_path_;
+        XrPath right_hand_path_;
 
         // Actions - simplified to only the inputs we care about
         XrActionSetPtr action_set_;
@@ -116,10 +117,6 @@ private:
         XrSpacePtr right_grip_space_;
         XrSpacePtr left_aim_space_;
         XrSpacePtr right_aim_space_;
-
-        // Paths for both hands
-        XrPath left_hand_path_;
-        XrPath right_hand_path_;
 
         // Controller data for both hands
         ControllerSnapshot left_snapshot_;

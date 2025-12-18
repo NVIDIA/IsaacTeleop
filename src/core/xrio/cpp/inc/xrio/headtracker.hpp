@@ -42,10 +42,7 @@ private:
     class Impl : public ITrackerImpl
     {
     public:
-        // Constructor - throws std::runtime_error on failure
         explicit Impl(const OpenXRSessionHandles& handles);
-
-        ~Impl();
 
         // Override from ITrackerImpl
         bool update(XrTime time) override;
