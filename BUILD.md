@@ -40,7 +40,7 @@ cmake --install build
 
 This will:
 1. Automatically fetch dependencies (OpenXR SDK, pybind11, yaml-cpp) using CMake FetchContent
-2. Build the C++ static libraries (OXR and XRIO modules)
+2. Build the C++ static libraries (OXR and DEVICEIO modules)
 3. Build the Python wheels
 4. Build the C++ examples
 5. Install everything to `./install`
@@ -113,11 +113,11 @@ TeleopCore/
 │   │   │   └── CMakeLists.txt
 │   │   └── python/         # Python bindings for OXR
 │   │       └── CMakeLists.txt
-│   ├── xrio/               # OpenXR tracking library
+│   ├── deviceio/               # OpenXR tracking library
 │   │   ├── CMakeLists.txt
 │   │   ├── cpp/            # C++ library source
 │   │   │   └── CMakeLists.txt
-│   │   └── python/         # Python bindings for XRIO
+│   │   └── python/         # Python bindings for DEVICEIO
 │   │       └── CMakeLists.txt
 │   └── python/             # Python package configuration
 │       ├── pyproject.toml
@@ -136,7 +136,7 @@ TeleopCore/
 
 The project uses modern CMake target-based approach:
 
-- The library exports targets for both OXR and XRIO modules
+- The library exports targets for both OXR and DEVICEIO modules
 - Include directories are automatically propagated
 - Works with both installed and build-tree configurations
 - Package config files are generated for easy integration

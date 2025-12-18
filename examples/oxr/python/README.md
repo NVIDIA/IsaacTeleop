@@ -70,7 +70,7 @@ uv run test_extensions.py
 ```
 
 ### test_session_sharing.py
-Shows how to share sessions between multiple XrioSession instances.
+Shows how to share sessions between multiple DeviceIOSession instances.
 
 ```bash
 uv run test_session_sharing.py

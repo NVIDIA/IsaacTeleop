@@ -4,9 +4,9 @@
 cmake_minimum_required(VERSION 3.20)
 
 # When building from top-level, targets are already defined
-# We need both oxr_core and xrio_core for the examples
-if(NOT TARGET xrio::xrio_core)
-    find_package(xrio_core REQUIRED)
+# We need both oxr_core and deviceio_core for the examples
+if(NOT TARGET deviceio::deviceio_core)
+    find_package(deviceio_core REQUIRED)
     find_package(oxr_core REQUIRED)
 endif()
 
@@ -17,7 +17,7 @@ add_executable(oxr_session_sharing
 
 target_link_libraries(oxr_session_sharing
     PRIVATE
-        xrio::xrio_core
+        deviceio::deviceio_core
         oxr::oxr_core
 )
 
@@ -34,7 +34,7 @@ add_executable(oxr_simple_api_demo
 
 target_link_libraries(oxr_simple_api_demo
     PRIVATE
-        xrio::xrio_core
+        deviceio::deviceio_core
         oxr::oxr_core
 )
 

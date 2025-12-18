@@ -10,7 +10,7 @@ Useful when creating external OpenXR sessions.
 """
 
 import sys
-import teleopcore.xrio as xrio
+import teleopcore.deviceio as deviceio
 import teleopcore.oxr as oxr
 from teleopcore.schema import HeadPoseT
 
@@ -21,12 +21,9 @@ print()
 
 # Test 1: Hand tracker only
 print("[Test 1] HandTracker extensions")
-hand_tracker = xrio.HandTracker()
+hand_tracker = deviceio.HandTracker()
 
-builder1 = xrio.XrioSessionBuilder()
-builder1.add_tracker(hand_tracker)
-
-extensions1 = builder1.get_required_extensions()
+extensions1 = deviceio.DeviceIOSession.get_required_extensions([hand_tracker])
 print(f"  Required extensions: {len(extensions1)}")
 for ext in extensions1:
     print(f"    - {ext}")
@@ -34,12 +31,9 @@ print()
 
 # Test 2: Head tracker only
 print("[Test 2] HeadTracker extensions")
-head_tracker = xrio.HeadTracker()
+head_tracker = deviceio.HeadTracker()
 
-builder2 = xrio.XrioSessionBuilder()
-builder2.add_tracker(head_tracker)
-
-extensions2 = builder2.get_required_extensions()
+extensions2 = deviceio.DeviceIOSession.get_required_extensions([head_tracker])
 print(f"  Required extensions: {len(extensions2)}")
 for ext in extensions2:
     print(f"    - {ext}")
@@ -47,14 +41,10 @@ print()
 
 # Test 3: Both trackers
 print("[Test 3] HandTracker + HeadTracker extensions")
-hand_tracker3 = xrio.HandTracker()
-head_tracker3 = xrio.HeadTracker()
+hand_tracker3 = deviceio.HandTracker()
+head_tracker3 = deviceio.HeadTracker()
 
-builder3 = xrio.XrioSessionBuilder()
-builder3.add_tracker(hand_tracker3)
-builder3.add_tracker(head_tracker3)
-
-extensions3 = builder3.get_required_extensions()
+extensions3 = deviceio.DeviceIOSession.get_required_extensions([hand_tracker3, head_tracker3])
 print(f"  Required extensions: {len(extensions3)}")
 for ext in extensions3:
     print(f"    - {ext}")
@@ -64,20 +54,18 @@ print()
 print("[Test 4] Use case: Query before external session creation")
 print()
 print("Scenario: You want to create your own OpenXR session")
-print("          and pass it to the manager.")
+print("          and pass it to DeviceIOSession.run().")
 print()
 
-hand = xrio.HandTracker()
-head = xrio.HeadTracker()
+hand = deviceio.HandTracker()
+head = deviceio.HeadTracker()
 
-builder = xrio.XrioSessionBuilder()
-builder.add_tracker(hand)
-builder.add_tracker(head)
+trackers = [hand, head]
 
 # Query extensions BEFORE initializing
-required_exts = builder.get_required_extensions()
+required_exts = deviceio.DeviceIOSession.get_required_extensions(trackers)
 
-print("Step 1: Add trackers to manager")
+print("Step 1: Create trackers")
 print("Step 2: Query required extensions:")
 for ext in required_exts:
     print(f"  - {ext}")
@@ -85,7 +73,7 @@ print()
 print("Step 3: Create your own OpenXR instance with these extensions")
 print("        (in C++ or custom code)")
 print()
-print("Step 4: Pass handles to builder.build(handles)")
+print("Step 4: Pass trackers and handles to DeviceIOSession.run()")
 print()
 
 # Now initialize normally to show it works
@@ -99,27 +87,19 @@ else:
     # Use context managers for proper RAII cleanup
     with oxr_session:
         handles = oxr_session.get_handles()
-        session = builder.build(handles)
-        
-        if session is not None:
-            with session:
-                print("  ✅ Initialized successfully")
-                
-                # Quick update test
-                if session.update():
-                    left = hand.get_left_hand()
-                    head_pose: HeadPoseT = head.get_head()
-                    print(f"  ✅ Update successful")
-                    print(f"    Hands: {'ACTIVE' if left.is_active else 'INACTIVE'}")
-                    print(f"    Head:  {'VALID' if head_pose.is_valid else 'INVALID'}")
-
-                    if head_pose.is_valid and head_pose.pose:
-                        pos = head_pose.pose.position
-                        print(f"    Head position: [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
-
-                # Session will be cleaned up when exiting 'with' block (RAII)
-        else:
-            print("  ❌ Failed to initialize")
+        # run() throws exception on failure
+        with deviceio.DeviceIOSession.run(trackers, handles) as session:
+            print("  ✅ Initialized successfully")
+            
+            # Quick update test
+            if session.update():
+                left = hand.get_left_hand()
+                head_pose = head.get_head()
+                print(f"  ✅ Update successful")
+                print(f"    Hands: {'ACTIVE' if left.is_active else 'INACTIVE'}")
+                print(f"    Head:  {'VALID' if head_pose.is_valid else 'INVALID'}")
+            
+            # Session will be cleaned up when exiting 'with' block (RAII)
 
 print()
 print("=" * 80)

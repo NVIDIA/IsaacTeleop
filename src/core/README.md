@@ -12,7 +12,7 @@ Core implementations for Isaac Teleop.
 ```
 src/core/
 ├── oxr/              OpenXR session management
-├── xrio/             OpenXR tracking API (hand, head tracking)
+├── deviceio/             OpenXR tracking API (hand, head tracking)
 ├── devices/          Device interface (future)
 ├── retargeters/      Retargeter interface (future)
 └── python/           Python package configuration
@@ -20,7 +20,7 @@ src/core/
 
 ## OpenXR Tracking API
 
-Location: `xrio/`
+Location: `deviceio/`
 
 Provides modular tracking with:
 - HandTracker - 26 joints per hand

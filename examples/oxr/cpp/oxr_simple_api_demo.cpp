@@ -1,10 +1,15 @@
 // SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+// Prevent Windows.h from defining min/max macros that conflict with std::min/max
+#if defined(_WIN32) || defined(_WIN64)
+#    define NOMINMAX
+#endif
+
+#include <deviceio/deviceio_session.hpp>
+#include <deviceio/handtracker.hpp>
+#include <deviceio/headtracker.hpp>
 #include <oxr/oxr_session.hpp>
-#include <xrio/handtracker.hpp>
-#include <xrio/headtracker.hpp>
-#include <xrio/xrio_session.hpp>
 
 #include <iostream>
 #include <memory>
@@ -44,18 +49,10 @@ int main()
     // - hand_tracker->update()      // protected - not visible!
     // - hand_tracker->cleanup()     // protected - not visible!
 
-    // Step 2: External user adds trackers to builder
-    std::cout << "[Step 2] Adding trackers to builder..." << std::endl;
-    core::XrioSessionBuilder builder;
-    builder.add_tracker(hand_tracker);
-    builder.add_tracker(head_tracker);
-
-    std::cout << "  ✓ Trackers added" << std::endl;
-    std::cout << std::endl;
-
-    // Step 3: External user queries required extensions (public API)
-    std::cout << "[Step 3] Querying required extensions..." << std::endl;
-    auto required_extensions = builder.get_required_extensions();
+    // Step 2: External user queries required extensions (public API)
+    std::cout << "[Step 2] Querying required extensions..." << std::endl;
+    std::vector<std::shared_ptr<core::ITracker>> trackers = { hand_tracker, head_tracker };
+    auto required_extensions = core::DeviceIOSession::get_required_extensions(trackers);
 
     std::cout << "  Required extensions:" << std::endl;
     for (const auto& ext : required_extensions)
@@ -64,8 +61,8 @@ int main()
     }
     std::cout << std::endl;
 
-    // Step 4: External user creates session (manager handles internal lifecycle)
-    std::cout << "[Step 4] Creating session..." << std::endl;
+    // Step 3: External user creates OpenXR session
+    std::cout << "[Step 3] Creating OpenXR session..." << std::endl;
 
     // Create OpenXR session with required extensions
     auto oxr_session = core::OpenXRSession::Create("SimpleAPIDemo", required_extensions);
@@ -75,15 +72,16 @@ int main()
         return 1;
     }
 
-    auto handles = oxr_session->get_handles();
-    auto session = builder.build(handles);
-    if (!session)
-    {
-        std::cerr << "  ✗ Failed to create xrio session" << std::endl;
-        return 1;
-    }
+    std::cout << "  ✓ OpenXR session created" << std::endl;
+    std::cout << std::endl;
 
-    std::cout << "  ✓ Session created (internal initialization handled by manager)" << std::endl;
+    // Step 4: Run deviceio session with trackers (handles internal lifecycle, throws on failure)
+    std::cout << "[Step 4] Running deviceio session with trackers..." << std::endl;
+
+    auto handles = oxr_session->get_handles();
+    auto session = core::DeviceIOSession::run(trackers, handles);
+
+    std::cout << "  ✓ Session created (internal initialization handled automatically)" << std::endl;
 
     // Check initialization status after session is created
     std::cout << "  Status after session:" << std::endl;
@@ -124,8 +122,7 @@ int main()
         if (head.is_valid && head.pose)
         {
             const auto& pos = head.pose->position();
-            std::cout << "    Position: [" << pos.x() << ", " << pos.y() << ", " << pos.z()
-                      << "]" << std::endl;
+            std::cout << "    Position: [" << pos.x() << ", " << pos.y() << ", " << pos.z() << "]" << std::endl;
         }
         std::cout << std::endl;
     }

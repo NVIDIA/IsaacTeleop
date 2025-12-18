@@ -33,7 +33,7 @@ public:
 
 protected:
     // Internal lifecycle methods - only accessible via friend classes
-    friend class XrioSession;
+    friend class DeviceIOSession;
 
     std::shared_ptr<ITrackerImpl> initialize(const OpenXRSessionHandles& handles) override;
 

@@ -11,7 +11,7 @@ import os
 import time
 
 try:
-    import teleopcore.xrio as xrio
+    import teleopcore.deviceio as deviceio
     import teleopcore.oxr as oxr
     import teleopcore.schema as schema
 except ImportError as e:
@@ -26,30 +26,21 @@ print()
 
 # Test 1: Create trackers
 print("[Test 1] Creating trackers...")
-hand_tracker = xrio.HandTracker()
-head_tracker = xrio.HeadTracker()
+hand_tracker = deviceio.HandTracker()
+head_tracker = deviceio.HeadTracker()
 print(f"✓ {hand_tracker.get_name()} created")
 print(f"✓ {head_tracker.get_name()} created")
 print()
 
-# Test 2: Create builder
-print("[Test 2] Creating builder...")
-builder = xrio.XrioSessionBuilder()
-print("✓ XrioSessionBuilder created")
+# Test 2: Query required extensions
+print("[Test 2] Querying required extensions...")
+trackers = [hand_tracker, head_tracker]
+required_extensions = deviceio.DeviceIOSession.get_required_extensions(trackers)
+print(f"✓ Required extensions: {required_extensions}")
 print()
 
-# Test 3: Add trackers
-print("[Test 3] Adding trackers...")
-builder.add_tracker(hand_tracker)
-builder.add_tracker(head_tracker)
-print("✓ Trackers added to builder")
-print()
-
-# Test 4: Initialize
-print("[Test 4] Creating OpenXR session and initializing...")
-
-# Get required extensions
-required_extensions = builder.get_required_extensions()
+# Test 3: Initialize
+print("[Test 3] Creating OpenXR session and initializing...")
 
 # Create OpenXR session
 oxr_session = oxr.OpenXRSession.create("ModularTest", required_extensions)
@@ -61,18 +52,13 @@ if oxr_session is None:
 with oxr_session:
     handles = oxr_session.get_handles()
     
-    # Create xrio session
-    session = builder.build(handles)
-    if session is None:
-        print("❌ Failed to initialize")
-        sys.exit(1)
-    
-    with session:
+    # Run deviceio session with trackers (throws exception on failure)
+    with deviceio.DeviceIOSession.run(trackers, handles) as session:
         print("✅ OpenXR session initialized")
         print()
         
-        # Test 5: Update and get data
-        print("[Test 5] Testing data retrieval...")
+        # Test 4: Update and get data
+        print("[Test 4] Testing data retrieval...")
         if not session.update():
             print("❌ Update failed")
             sys.exit(1)
@@ -80,22 +66,22 @@ with oxr_session:
         print("✓ Update successful")
         print()
         
-        # Test 6: Check hand data
-        print("[Test 6] Checking hand tracking data...")
+        # Test 5: Check hand data
+        print("[Test 5] Checking hand tracking data...")
         left = hand_tracker.get_left_hand()
         right = hand_tracker.get_right_hand()
         print(f"  Left hand: {'ACTIVE' if left.is_active else 'INACTIVE'}")
         print(f"  Right hand: {'ACTIVE' if right.is_active else 'INACTIVE'}")
 
         if left.is_active and left.joints:
-            wrist = left.joints[xrio.JOINT_WRIST]
+            wrist = left.joints[deviceio.JOINT_WRIST]
             if wrist.is_valid:
                 pos = wrist.pose.position
                 print(f"  Left wrist position: [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
         print()
 
-        # Test 7: Check head data (returns HeadPoseT from schema)
-        print("[Test 7] Checking head tracking data...")
+        # Test 6: Check head data (returns HeadPoseT from schema)
+        print("[Test 6] Checking head tracking data...")
         head: schema.HeadPoseT = head_tracker.get_head()
         print(f"  Head: {'VALID' if head.is_valid else 'INVALID'}")
 
@@ -106,8 +92,8 @@ with oxr_session:
             print(f"  Head orientation: [{ori.x:.3f}, {ori.y:.3f}, {ori.z:.3f}, {ori.w:.3f}]")
         print()
         
-        # Test 8: Run tracking loop
-        print("[Test 8] Running tracking loop (5 seconds)...")
+        # Test 7: Run tracking loop
+        print("[Test 7] Running tracking loop (5 seconds)...")
         frame_count = 0
         start_time = time.time()
         
@@ -134,7 +120,7 @@ with oxr_session:
         print()
         
         # Cleanup
-        print("[Test 9] Cleanup...")
+        print("[Test 8] Cleanup...")
         print("✓ Resources will be cleaned up when exiting 'with' blocks (RAII)")
         print()
 

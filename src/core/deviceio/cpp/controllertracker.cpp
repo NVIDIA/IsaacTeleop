@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-#include "inc/xrio/controllertracker.hpp"
+#include "inc/deviceio/controllertracker.hpp"
 
 #include <cassert>
 #include <cmath>

@@ -13,7 +13,7 @@ import sys
 import time
 
 try:
-    import teleopcore.xrio as xrio
+    import teleopcore.deviceio as deviceio
     import teleopcore.oxr as oxr
 except ImportError as e:
     print(f"Error: {e}")
@@ -27,35 +27,26 @@ print()
 
 # Test 1: Create controller tracker (handles both controllers)
 print("[Test 1] Creating controller tracker...")
-controller_tracker = xrio.ControllerTracker()
+controller_tracker = deviceio.ControllerTracker()
 print(f"✓ {controller_tracker.get_name()} created")
 print()
 
-# Test 2: Create builder and add tracker
-print("[Test 2] Creating builder...")
-builder = xrio.XrioSessionBuilder()
-builder.add_tracker(controller_tracker)
-print("✓ Tracker added to builder")
+# Test 2: Query required extensions
+print("[Test 2] Querying required extensions...")
+trackers = [controller_tracker]
+required_extensions = deviceio.DeviceIOSession.get_required_extensions(trackers)
+print(f"Required extensions: {required_extensions if required_extensions else 'None (uses core OpenXR)'}")
 print()
 
 # Test 3: Initialize
 print("[Test 3] Creating OpenXR session and initializing...")
 
-# Get required extensions
-required_extensions = builder.get_required_extensions()
-print(f"Required extensions: {required_extensions if required_extensions else 'None (uses core OpenXR)'}")
-
 # Use context managers for proper RAII cleanup
 with oxr.OpenXRSession.create("ControllerTrackerTest", required_extensions) as oxr_session:
     handles = oxr_session.get_handles()
     
-    # Create teleop session
-    session = builder.build(handles)
-    if session is None:
-        print("❌ Failed to initialize")
-        sys.exit(1)
-    
-    with session:
+    # Run deviceio session with trackers (throws exception on failure)
+    with deviceio.DeviceIOSession.run(trackers, handles) as session:
         print("✅ OpenXR session initialized")
         print()
         
@@ -70,8 +61,8 @@ with oxr.OpenXRSession.create("ControllerTrackerTest", required_extensions) as o
         
         # Test 5: Check initial controller state (snapshot mode)
         print("[Test 5] Checking controller state (snapshot mode)...")
-        left_snap = controller_tracker.get_snapshot(xrio.Hand.Left)
-        right_snap = controller_tracker.get_snapshot(xrio.Hand.Right)
+        left_snap = controller_tracker.get_snapshot(deviceio.Hand.Left)
+        right_snap = controller_tracker.get_snapshot(deviceio.Hand.Right)
         print(f"  Left controller: {'ACTIVE' if left_snap.is_active else 'INACTIVE'}")
         print(f"  Right controller: {'ACTIVE' if right_snap.is_active else 'INACTIVE'}")
         
@@ -109,8 +100,8 @@ with oxr.OpenXRSession.create("ControllerTrackerTest", required_extensions) as o
                 current_time = time.time()
                 if current_time - last_status_print >= 0.5:  # Print every 0.5 seconds
                     elapsed = current_time - start_time
-                    left_snap = controller_tracker.get_snapshot(xrio.Hand.Left)
-                    right_snap = controller_tracker.get_snapshot(xrio.Hand.Right)
+                    left_snap = controller_tracker.get_snapshot(deviceio.Hand.Left)
+                    right_snap = controller_tracker.get_snapshot(deviceio.Hand.Right)
                     
                     # Show current state using field access
                     left_trigger = left_snap.inputs.trigger_value
@@ -188,9 +179,9 @@ with oxr.OpenXRSession.create("ControllerTrackerTest", required_extensions) as o
             else:
                 print(f"    Status: INACTIVE")
         
-        print_controller_summary("Left", xrio.Hand.Left)
+        print_controller_summary("Left", deviceio.Hand.Left)
         print()
-        print_controller_summary("Right", xrio.Hand.Right)
+        print_controller_summary("Right", deviceio.Hand.Right)
         print()
         
         # Cleanup

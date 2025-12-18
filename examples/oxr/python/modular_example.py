@@ -13,7 +13,7 @@ Demonstrates the modular architecture where you can:
 
 import sys
 import time
-import teleopcore.xrio as xrio
+import teleopcore.deviceio as deviceio
 import teleopcore.oxr as oxr
 
 
@@ -25,20 +25,16 @@ def main():
     
     # Create trackers independently
     print("Creating trackers...")
-    hand_tracker = xrio.HandTracker()
-    head_tracker = xrio.HeadTracker()
+    hand_tracker = deviceio.HandTracker()
+    head_tracker = deviceio.HeadTracker()
     print(f"✓ Created {hand_tracker.get_name()}")
     print(f"✓ Created {head_tracker.get_name()}")
     
-    # Create builder and add trackers
-    print("\nCreating builder and adding trackers...")
-    builder = xrio.XrioSessionBuilder()
-    builder.add_tracker(hand_tracker)
-    builder.add_tracker(head_tracker)
-    print("✓ Builder created and trackers added")
-    
     # Get required extensions
-    required_extensions = builder.get_required_extensions()
+    print("\nQuerying required extensions...")
+    trackers = [hand_tracker, head_tracker]
+    required_extensions = deviceio.DeviceIOSession.get_required_extensions(trackers)
+    print(f"✓ Required extensions: {required_extensions}")
     
     # Create OpenXR session
     print("\nCreating OpenXR session...")
@@ -52,15 +48,10 @@ def main():
         handles = oxr_session.get_handles()
         print("✓ OpenXR session created")
         
-        # Build xrio session from builder
-        print("\nInitializing xrio session...")
-        session = builder.build(handles)
-        if session is None:
-            print("✗ Failed to initialize")
-            return 1
-        
-        with session:
-            print("✓ Xrio session initialized with all trackers!")
+        # Run deviceio session with trackers (throws exception on failure)
+        print("\nRunning deviceio session with trackers...")
+        with deviceio.DeviceIOSession.run(trackers, handles) as session:
+            print("✓ DeviceIO session initialized with all trackers!")
             print()
             
             # Main tracking loop
@@ -91,8 +82,8 @@ def main():
                         print(f"  Hands: Left={'ACTIVE' if left.is_active else 'INACTIVE':8s} | "
                               f"Right={'ACTIVE' if right.is_active else 'INACTIVE':8s}")
 
-                        if left.is_active and left.joints:
-                            wrist = left.joints[xrio.JOINT_WRIST]
+                        if left.is_active:
+                            wrist = left.joints[deviceio.JOINT_WRIST]
                             if wrist.is_valid:
                                 pos = wrist.pose.position
                                 print(f"    Left wrist: [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]")

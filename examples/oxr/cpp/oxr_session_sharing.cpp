@@ -1,10 +1,15 @@
 // SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+// Prevent Windows.h from defining min/max macros that conflict with std::min/max
+#if defined(_WIN32) || defined(_WIN64)
+#    define NOMINMAX
+#endif
+
+#include <deviceio/deviceio_session.hpp>
+#include <deviceio/handtracker.hpp>
+#include <deviceio/headtracker.hpp>
 #include <oxr/oxr_session.hpp>
-#include <xrio/handtracker.hpp>
-#include <xrio/headtracker.hpp>
-#include <xrio/xrio_session.hpp>
 
 #include <chrono>
 #include <iostream>
@@ -55,15 +60,9 @@ int main()
     std::cout << "[Step 3] Creating Manager 1 with HandTracker..." << std::endl;
     auto hand_tracker = std::make_shared<core::HandTracker>();
 
-    core::XrioSessionBuilder builder1;
-    builder1.add_tracker(hand_tracker);
-
-    auto session1 = builder1.build(handles);
-    if (!session1)
-    {
-        std::cerr << "Failed to create xrio session 1" << std::endl;
-        return 1;
-    }
+    std::vector<std::shared_ptr<core::ITracker>> trackers1 = { hand_tracker };
+    // run() throws exception on failure
+    auto session1 = core::DeviceIOSession::run(trackers1, handles);
 
     std::cout << "  ✓ Manager 1 using shared session" << std::endl;
     std::cout << std::endl;
@@ -72,15 +71,9 @@ int main()
     std::cout << "[Step 4] Creating Manager 2 with HeadTracker..." << std::endl;
     auto head_tracker = std::make_shared<core::HeadTracker>();
 
-    core::XrioSessionBuilder builder2;
-    builder2.add_tracker(head_tracker);
-
-    auto session2 = builder2.build(handles);
-    if (!session2)
-    {
-        std::cerr << "Failed to create xrio session 2" << std::endl;
-        return 1;
-    }
+    std::vector<std::shared_ptr<core::ITracker>> trackers2 = { head_tracker };
+    // run() throws exception on failure
+    auto session2 = core::DeviceIOSession::run(trackers2, handles);
 
     std::cout << "  ✓ Manager 2 using shared session" << std::endl;
     std::cout << std::endl;
