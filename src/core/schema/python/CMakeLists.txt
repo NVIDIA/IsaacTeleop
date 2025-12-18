@@ -16,7 +16,11 @@ endif()
 
 # Schema module (tensor and pose types).
 pybind11_add_module(schema_py
+    hand_bindings.h
+    head_bindings.h
+    pose_bindings.h
     schema_module.cpp
+    tensor_bindings.h
 )
 
 target_link_libraries(schema_py
