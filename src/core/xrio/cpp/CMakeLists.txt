@@ -3,13 +3,6 @@
 
 cmake_minimum_required(VERSION 3.20)
 
-# If this is being built standalone, declare a project
-if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-    project(xrio_core VERSION 1.0.0 LANGUAGES CXX)
-    set(CMAKE_CXX_STANDARD 17)
-    set(CMAKE_CXX_STANDARD_REQUIRED ON)
-endif()
-
 # XRIO only depends on oxr_utils (header-only library with OpenXR types)
 # It does NOT depend on or link to the OpenXR loader
 if(NOT TARGET oxr::oxr_utils)
