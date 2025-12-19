@@ -103,7 +103,8 @@ int main()
 
         if (i % 3 == 0)
         {
-            std::cout << "Frame " << i << ": " << "Hands=" << (left.is_active ? "ACTIVE" : "INACTIVE") << " | "
+            std::cout << "Frame " << i << ": "
+                      << "Hands=" << (left.is_active ? "ACTIVE" : "INACTIVE") << " | "
                       << "Head=" << (head.is_valid ? "VALID" : "INVALID");
             if (head.is_valid && head.pose)
             {

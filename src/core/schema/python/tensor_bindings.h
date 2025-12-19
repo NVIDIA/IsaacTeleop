@@ -219,7 +219,8 @@ inline void bind_tensor(py::module& m)
     py::class_<TensorT, std::unique_ptr<TensorT>>(m, "TensorT")
         .def(py::init<>())
         .def_property(
-            "data", [](const TensorT& self) -> py::bytes
+            "data",
+            [](const TensorT& self) -> py::bytes
             { return py::bytes(reinterpret_cast<const char*>(self.data.data()), self.data.size()); },
             [](TensorT& self, py::bytes value)
             {
