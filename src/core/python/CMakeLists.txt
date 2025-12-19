@@ -25,6 +25,8 @@ add_custom_target(python_package ALL
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_BINARY_DIR}/pyproject.toml" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/MANIFEST.in" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/setup.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-dev.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
     DEPENDS deviceio_py oxr_py plugin_manager_py schema_py
     COMMENT "Preparing Python package structure"
 )
