@@ -16,8 +16,7 @@ namespace controller_synthetic_hands
 void HandGenerator::generate(XrHandJointLocationEXT* joints, const XrPosef& wrist_pose, bool is_left_hand, float curl)
 {
     calculate_positions(joints, wrist_pose, is_left_hand, curl);
-    calculate_orientations(joints, wrist_pose);
-}
+    calculate_orientations(joints, wrist_pose); }
 
 void HandGenerator::generate_relative(XrHandJointLocationEXT* joints, bool is_left_hand, float curl)
 {
