@@ -28,13 +28,29 @@ jobs:
     - name: Install Apt dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential cmake libx11-dev clang-format-14
+        sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache
+
+    - name: Cache ccache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ccache
+        key: ccache-${{ runner.os }}-${{ matrix.build_type }}-${{ hashFiles('**/CMakeLists.txt') }}
+        restore-keys: |
+          ccache-${{ runner.os }}-${{ matrix.build_type }}-
+
+    - name: Verify ccache
+      run: |
+        ccache --version
+        ccache --show-config
 
     - name: Configure CMake
-      run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+      run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
     - name: Build
       run: cmake --build build --parallel 4
+
+    - name: ccache stats
+      run: ccache --show-stats
 
     - name: Run Native Tests
       run: ctest --test-dir build --output-on-failure --parallel

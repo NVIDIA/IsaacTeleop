@@ -16,6 +16,10 @@ jobs:
   build-windows:
     runs-on: windows-latest
 
+    env:
+      SCCACHE_DIR: ${{ github.workspace }}\.sccache
+      SCCACHE_CACHE_SIZE: 5G
+
     strategy:
       matrix:
         build_type: [Debug, Release]
@@ -29,8 +33,37 @@ jobs:
     - name: Install uv
       uses: astral-sh/setup-uv@v7
 
+    - name: Install sccache
+      run: choco install -y sccache
+
+    - name: Cache sccache
+      uses: actions/cache@v4
+      with:
+        path: ${{ env.SCCACHE_DIR }}
+        key: sccache-${{ runner.os }}-${{ matrix.build_type }}-${{ hashFiles('**/CMakeLists.txt') }}
+        restore-keys: |
+          sccache-${{ runner.os }}-${{ matrix.build_type }}-
+
+    - name: Verify sccache
+      run: |
+        sccache --version
+
+    # Put cl.exe and other build tools in PATH
+    - name: Setup MSVC (Developer Command Prompt)
+      uses: ilammy/msvc-dev-cmd@v1
+
     - name: Configure CMake
-      run: cmake -B build -DENABLE_EXPERIMENTAL_WINDOWS_BUILD=ON
+      # Note:
+      # sccache does not work with VSBuild, so we use Ninja generator here.
+      # -G Ninja would pickup mingw64 by default on Windows, so we explicitly set the compiler to cl.exe
+      # Force embedded debug info (Z7) to avoid PDB contention whenever debug info is generated.
+      run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DENABLE_EXPERIMENTAL_WINDOWS_BUILD=ON -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_C_COMPILER="cl.exe" -DCMAKE_CXX_COMPILER="cl.exe" -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
 
     - name: Build
-      run: cmake --build build --config ${{ matrix.build_type }} --parallel
+      run: cmake --build build --parallel
+
+    - name: sccache stats
+      run: sccache --show-stats
+
+    - name: Run Native Tests
+      run: ctest --test-dir build --output-on-failure --parallel
