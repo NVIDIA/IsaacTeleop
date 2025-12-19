@@ -20,9 +20,7 @@ find_program(CLANG_FORMAT_EXE NAMES clang-format clang-format-18 clang-format-17
 set(_cf_glob_dirs
   ${CMAKE_SOURCE_DIR}/src
   ${CMAKE_SOURCE_DIR}/examples
-  ${CMAKE_SOURCE_DIR}/deps/cloudxr/openxr_extensions
 )
-
 set(_cf_patterns
   *.h
   *.hh
