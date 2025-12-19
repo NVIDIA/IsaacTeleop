@@ -31,7 +31,7 @@ cmake -B build -DENABLE_CLANG_FORMAT_CHECK=OFF
 ```
 
 Useful targets:
-- `clang_format_check`: verifies formatting (part of `all` on Linux)
+- `clang_format_check`: verifies formatting (part of `ALL` on Linux)
 - `clang_format_fix`: applies formatting in place
 
 > **Note:** The Python version requirement is centrally configured in the root `CMakeLists.txt` file. 
