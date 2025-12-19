@@ -95,7 +95,13 @@ XrSpacePtr create_space(const OpenXRCoreFunctions& funcs, XrSession session, XrA
     return createActionSpace(funcs, session, &space_info);
 };
 
-XrAction create_action(const OpenXRCoreFunctions& funcs, XrActionSet action_set, XrPath left_hand_path, XrPath right_hand_path, const char* name, const char* localized_name, XrActionType type)
+XrAction create_action(const OpenXRCoreFunctions& funcs,
+                       XrActionSet action_set,
+                       XrPath left_hand_path,
+                       XrPath right_hand_path,
+                       const char* name,
+                       const char* localized_name,
+                       XrActionType type)
 {
     XrAction out_action;
 
@@ -132,17 +138,62 @@ ControllerTracker::Impl::Impl(const OpenXRSessionHandles& handles)
       left_hand_path_(xr_path_from_string(core_funcs_, handles.instance, "/user/hand/left")),
       right_hand_path_(xr_path_from_string(core_funcs_, handles.instance, "/user/hand/right")),
 
-      action_set_(createActionSet(core_funcs_, handles.instance, { .type = XR_TYPE_ACTION_SET_CREATE_INFO,
-                                                                   .actionSetName = "controller_tracking",
-                                                                   .localizedActionSetName = "Controller Tracking" })),
-      grip_pose_action_(create_action(core_funcs_, action_set_.get(), left_hand_path_, right_hand_path_, "grip_pose", "Grip Pose", XR_ACTION_TYPE_POSE_INPUT)),
-      aim_pose_action_(create_action(core_funcs_, action_set_.get(), left_hand_path_, right_hand_path_, "aim_pose", "Aim Pose", XR_ACTION_TYPE_POSE_INPUT)),
-      primary_click_action_(create_action(core_funcs_, action_set_.get(), left_hand_path_, right_hand_path_, "primary_click", "Primary Click", XR_ACTION_TYPE_BOOLEAN_INPUT)),
-      secondary_click_action_(create_action(core_funcs_, action_set_.get(), left_hand_path_, right_hand_path_, "secondary_click", "Secondary Click", XR_ACTION_TYPE_BOOLEAN_INPUT)),
-      thumbstick_action_(create_action(core_funcs_, action_set_.get(), left_hand_path_, right_hand_path_, "thumbstick", "Thumbstick", XR_ACTION_TYPE_VECTOR2F_INPUT)),
-      thumbstick_click_action_(create_action(core_funcs_, action_set_.get(), left_hand_path_, right_hand_path_, "thumbstick_click", "Thumbstick Click", XR_ACTION_TYPE_BOOLEAN_INPUT)),
-      squeeze_value_action_(create_action(core_funcs_, action_set_.get(), left_hand_path_, right_hand_path_, "squeeze_value", "Squeeze Value", XR_ACTION_TYPE_FLOAT_INPUT)),
-      trigger_value_action_(create_action(core_funcs_, action_set_.get(), left_hand_path_, right_hand_path_, "trigger_value", "Trigger Value", XR_ACTION_TYPE_FLOAT_INPUT)),
+      action_set_(createActionSet(core_funcs_,
+                                  handles.instance,
+                                  { .type = XR_TYPE_ACTION_SET_CREATE_INFO,
+                                    .actionSetName = "controller_tracking",
+                                    .localizedActionSetName = "Controller Tracking" })),
+      grip_pose_action_(create_action(core_funcs_,
+                                      action_set_.get(),
+                                      left_hand_path_,
+                                      right_hand_path_,
+                                      "grip_pose",
+                                      "Grip Pose",
+                                      XR_ACTION_TYPE_POSE_INPUT)),
+      aim_pose_action_(create_action(
+          core_funcs_, action_set_.get(), left_hand_path_, right_hand_path_, "aim_pose", "Aim Pose", XR_ACTION_TYPE_POSE_INPUT)),
+      primary_click_action_(create_action(core_funcs_,
+                                          action_set_.get(),
+                                          left_hand_path_,
+                                          right_hand_path_,
+                                          "primary_click",
+                                          "Primary Click",
+                                          XR_ACTION_TYPE_BOOLEAN_INPUT)),
+      secondary_click_action_(create_action(core_funcs_,
+                                            action_set_.get(),
+                                            left_hand_path_,
+                                            right_hand_path_,
+                                            "secondary_click",
+                                            "Secondary Click",
+                                            XR_ACTION_TYPE_BOOLEAN_INPUT)),
+      thumbstick_action_(create_action(core_funcs_,
+                                       action_set_.get(),
+                                       left_hand_path_,
+                                       right_hand_path_,
+                                       "thumbstick",
+                                       "Thumbstick",
+                                       XR_ACTION_TYPE_VECTOR2F_INPUT)),
+      thumbstick_click_action_(create_action(core_funcs_,
+                                             action_set_.get(),
+                                             left_hand_path_,
+                                             right_hand_path_,
+                                             "thumbstick_click",
+                                             "Thumbstick Click",
+                                             XR_ACTION_TYPE_BOOLEAN_INPUT)),
+      squeeze_value_action_(create_action(core_funcs_,
+                                          action_set_.get(),
+                                          left_hand_path_,
+                                          right_hand_path_,
+                                          "squeeze_value",
+                                          "Squeeze Value",
+                                          XR_ACTION_TYPE_FLOAT_INPUT)),
+      trigger_value_action_(create_action(core_funcs_,
+                                          action_set_.get(),
+                                          left_hand_path_,
+                                          right_hand_path_,
+                                          "trigger_value",
+                                          "Trigger Value",
+                                          XR_ACTION_TYPE_FLOAT_INPUT)),
 
       left_grip_space_(create_space(core_funcs_, session_, grip_pose_action_, left_hand_path_)),
       right_grip_space_(create_space(core_funcs_, session_, grip_pose_action_, right_hand_path_)),
@@ -181,8 +232,8 @@ ControllerTracker::Impl::Impl(const OpenXRSessionHandles& handles)
 
     // Suggest bindings for Oculus Touch controller profile
     XrInteractionProfileSuggestedBinding suggested_bindings{ XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING };
-    suggested_bindings.interactionProfile = xr_path_from_string(
-        core_funcs_, handles.instance, "/interaction_profiles/oculus/touch_controller");
+    suggested_bindings.interactionProfile =
+        xr_path_from_string(core_funcs_, handles.instance, "/interaction_profiles/oculus/touch_controller");
     suggested_bindings.countSuggestedBindings = static_cast<uint32_t>(bindings.size());
     suggested_bindings.suggestedBindings = bindings.data();
 

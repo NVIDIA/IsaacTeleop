@@ -164,15 +164,9 @@ bool HandTracker::Impl::update_hand(XrHandTrackerEXT tracker, XrTime time, HandP
         const auto& joint_loc = joint_locations[i];
 
         // Create Pose from position and orientation using FlatBuffers structs
-        Point position(
-            joint_loc.pose.position.x,
-            joint_loc.pose.position.y,
-            joint_loc.pose.position.z);
-        Quaternion orientation(
-            joint_loc.pose.orientation.x,
-            joint_loc.pose.orientation.y,
-            joint_loc.pose.orientation.z,
-            joint_loc.pose.orientation.w);
+        Point position(joint_loc.pose.position.x, joint_loc.pose.position.y, joint_loc.pose.position.z);
+        Quaternion orientation(joint_loc.pose.orientation.x, joint_loc.pose.orientation.y, joint_loc.pose.orientation.z,
+                               joint_loc.pose.orientation.w);
         Pose pose(position, orientation);
 
         bool is_valid = (joint_loc.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) &&

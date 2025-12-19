@@ -3,15 +3,15 @@
 
 // Unit tests for the generated HandPose FlatBuffer message.
 
-#include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <flatbuffers/flatbuffers.h>
 
 // Include generated FlatBuffer headers.
 #include <schema/hand_generated.h>
 
-#include <type_traits>
 #include <memory>
+#include <type_traits>
 
 // =============================================================================
 // Compile-time verification of FlatBuffer field IDs.
@@ -35,44 +35,47 @@ static_assert(std::is_same_v<TYPE(timestamp), int64_t>);
 // =============================================================================
 // Compile-time verification of HandJointPose struct.
 // =============================================================================
-static_assert(std::is_trivially_copyable_v<core::HandJointPose>,
-    "HandJointPose should be a trivially copyable struct");
+static_assert(std::is_trivially_copyable_v<core::HandJointPose>, "HandJointPose should be a trivially copyable struct");
 
 // =============================================================================
 // Compile-time verification of HandJoints struct.
 // =============================================================================
-static_assert(std::is_trivially_copyable_v<core::HandJoints>,
-    "HandJoints should be a trivially copyable struct");
+static_assert(std::is_trivially_copyable_v<core::HandJoints>, "HandJoints should be a trivially copyable struct");
 
 // HandJoints should contain exactly 26 HandJointPose entries.
 static_assert(sizeof(core::HandJoints) == 26 * sizeof(core::HandJointPose),
-    "HandJoints should contain exactly 26 HandJointPose entries");
+              "HandJoints should contain exactly 26 HandJointPose entries");
 
 // =============================================================================
 // HandJointPose Tests
 // =============================================================================
-TEST_CASE("HandJointPose struct can be created and accessed", "[hand][struct]") {
+TEST_CASE("HandJointPose struct can be created and accessed", "[hand][struct]")
+{
     core::Point position(1.0f, 2.0f, 3.0f);
     core::Quaternion orientation(0.0f, 0.0f, 0.0f, 1.0f);
     core::Pose pose(position, orientation);
     core::HandJointPose joint_pose(pose, true, 0.01f);
 
-    SECTION("Pose values are accessible") {
+    SECTION("Pose values are accessible")
+    {
         CHECK(joint_pose.pose().position().x() == 1.0f);
         CHECK(joint_pose.pose().position().y() == 2.0f);
         CHECK(joint_pose.pose().position().z() == 3.0f);
     }
 
-    SECTION("is_valid is accessible") {
+    SECTION("is_valid is accessible")
+    {
         CHECK(joint_pose.is_valid() == true);
     }
 
-    SECTION("radius is accessible") {
+    SECTION("radius is accessible")
+    {
         CHECK(joint_pose.radius() == Catch::Approx(0.01f));
     }
 }
 
-TEST_CASE("HandJointPose default construction", "[hand][struct]") {
+TEST_CASE("HandJointPose default construction", "[hand][struct]")
+{
     core::HandJointPose joint_pose;
 
     // Default values should be zero/false.
@@ -86,13 +89,15 @@ TEST_CASE("HandJointPose default construction", "[hand][struct]") {
 // =============================================================================
 // HandJoints Tests
 // =============================================================================
-TEST_CASE("HandJoints struct has correct size", "[hand][struct]") {
+TEST_CASE("HandJoints struct has correct size", "[hand][struct]")
+{
     // HandJoints should have exactly 26 entries (XR_HAND_JOINT_COUNT_EXT).
     core::HandJoints joints;
     CHECK(joints.poses()->size() == 26);
 }
 
-TEST_CASE("HandJoints can be accessed by index", "[hand][struct]") {
+TEST_CASE("HandJoints can be accessed by index", "[hand][struct]")
+{
     core::HandJoints joints;
 
     // Access first and last entries (returns pointers).
@@ -107,7 +112,8 @@ TEST_CASE("HandJoints can be accessed by index", "[hand][struct]") {
 // =============================================================================
 // HandPoseT Tests
 // =============================================================================
-TEST_CASE("HandPoseT can handle is_active value properly", "[hand][native]") {
+TEST_CASE("HandPoseT can handle is_active value properly", "[hand][native]")
+{
     // Create HandPoseT with default values, is_active should be false.
     auto hand_pose = std::make_unique<core::HandPoseT>();
     CHECK(hand_pose->is_active == false);
@@ -117,7 +123,8 @@ TEST_CASE("HandPoseT can handle is_active value properly", "[hand][native]") {
     CHECK(hand_pose->is_active == true);
 }
 
-TEST_CASE("HandPoseT default construction", "[hand][native]") {
+TEST_CASE("HandPoseT default construction", "[hand][native]")
+{
     auto hand_pose = std::make_unique<core::HandPoseT>();
 
     // Default values.
@@ -126,7 +133,8 @@ TEST_CASE("HandPoseT default construction", "[hand][native]") {
     CHECK(hand_pose->timestamp == 0);
 }
 
-TEST_CASE("HandPoseT can store joints data", "[hand][native]") {
+TEST_CASE("HandPoseT can store joints data", "[hand][native]")
+{
     auto hand_pose = std::make_unique<core::HandPoseT>();
 
     // Create and set joints.
@@ -137,7 +145,8 @@ TEST_CASE("HandPoseT can store joints data", "[hand][native]") {
     CHECK(hand_pose->joints->poses()->size() == 26);
 }
 
-TEST_CASE("HandPoseT can store timestamp", "[hand][native]") {
+TEST_CASE("HandPoseT can store timestamp", "[hand][native]")
+{
     auto hand_pose = std::make_unique<core::HandPoseT>();
 
     // Set timestamp (XrTime is int64_t).
@@ -147,7 +156,8 @@ TEST_CASE("HandPoseT can store timestamp", "[hand][native]") {
     CHECK(hand_pose->timestamp == test_timestamp);
 }
 
-TEST_CASE("HandPoseT joints can be mutated via flatbuffers Array", "[hand][native]") {
+TEST_CASE("HandPoseT joints can be mutated via flatbuffers Array", "[hand][native]")
+{
     auto hand_pose = std::make_unique<core::HandPoseT>();
     hand_pose->joints = std::make_unique<core::HandJoints>();
 
@@ -170,7 +180,8 @@ TEST_CASE("HandPoseT joints can be mutated via flatbuffers Array", "[hand][nativ
     CHECK(first_joint->radius() == Catch::Approx(0.015f));
 }
 
-TEST_CASE("HandPoseT serialization and deserialization", "[hand][flatbuffers]") {
+TEST_CASE("HandPoseT serialization and deserialization", "[hand][flatbuffers]")
+{
     flatbuffers::FlatBufferBuilder builder(4096);
 
     // Create HandPoseT with all fields set.
@@ -212,7 +223,8 @@ TEST_CASE("HandPoseT serialization and deserialization", "[hand][flatbuffers]") 
     CHECK(deserialized->timestamp() == 9876543210LL);
 }
 
-TEST_CASE("HandPoseT can be unpacked from buffer", "[hand][flatbuffers]") {
+TEST_CASE("HandPoseT can be unpacked from buffer", "[hand][flatbuffers]")
+{
     flatbuffers::FlatBufferBuilder builder(4096);
 
     // Create and serialize.
@@ -221,7 +233,8 @@ TEST_CASE("HandPoseT can be unpacked from buffer", "[hand][flatbuffers]") {
 
     // Set multiple joint poses.
     auto* mutable_array = const_cast<flatbuffers::Array<core::HandJointPose, 26>*>(original->joints->poses());
-    for (size_t i = 0; i < 26; ++i) {
+    for (size_t i = 0; i < 26; ++i)
+    {
         core::Point position(static_cast<float>(i), static_cast<float>(i * 2), static_cast<float>(i * 3));
         core::Quaternion orientation(0.0f, 0.0f, 0.0f, 1.0f);
         core::Pose pose(position, orientation);
@@ -259,13 +272,15 @@ TEST_CASE("HandPoseT can be unpacked from buffer", "[hand][flatbuffers]") {
     CHECK(unpacked->timestamp == 1111111111LL);
 }
 
-TEST_CASE("HandPoseT all 26 joints can be set and verified", "[hand][native]") {
+TEST_CASE("HandPoseT all 26 joints can be set and verified", "[hand][native]")
+{
     auto hand_pose = std::make_unique<core::HandPoseT>();
     hand_pose->joints = std::make_unique<core::HandJoints>();
 
     // Set all 26 joints with unique positions.
     auto* mutable_array = const_cast<flatbuffers::Array<core::HandJointPose, 26>*>(hand_pose->joints->poses());
-    for (size_t i = 0; i < 26; ++i) {
+    for (size_t i = 0; i < 26; ++i)
+    {
         core::Point position(static_cast<float>(i), 0.0f, 0.0f);
         core::Quaternion orientation(0.0f, 0.0f, 0.0f, 1.0f);
         core::Pose pose(position, orientation);
@@ -274,7 +289,8 @@ TEST_CASE("HandPoseT all 26 joints can be set and verified", "[hand][native]") {
     }
 
     // Verify all joints.
-    for (size_t i = 0; i < 26; ++i) {
+    for (size_t i = 0; i < 26; ++i)
+    {
         const auto* joint = (*hand_pose->joints->poses())[i];
         CHECK(joint->pose().position().x() == Catch::Approx(static_cast<float>(i)));
         CHECK(joint->is_valid() == true);

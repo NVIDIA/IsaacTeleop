@@ -6,14 +6,15 @@
 #include <pybind11/pybind11.h>
 
 // Include binding definitions.
-#include "tensor_bindings.h"
-#include "pose_bindings.h"
-#include "head_bindings.h"
 #include "hand_bindings.h"
+#include "head_bindings.h"
+#include "pose_bindings.h"
+#include "tensor_bindings.h"
 
 namespace py = pybind11;
 
-PYBIND11_MODULE(_schema, m) {
+PYBIND11_MODULE(_schema, m)
+{
     m.doc() = "TeleopCore Schema - FlatBuffer message types for teleoperation";
 
     // Bind tensor types (enums, structs, TensorT).
@@ -28,4 +29,3 @@ PYBIND11_MODULE(_schema, m) {
     // Bind hand types (HandJointPose, HandJoints structs, HandPoseT table).
     core::bind_hand(m);
 }
-
