@@ -55,9 +55,10 @@ int main(int argc, char** argv)
                     const auto& pos = nodes[i].transform.position;
                     const auto& ori = nodes[i].transform.rotation;
 
-                    std::cout << "  Joint " << i << ": " << "pos=[" << std::fixed << std::setprecision(3) << pos.x
-                              << ", " << pos.y << ", " << pos.z << "] " << "ori=[" << ori.x << ", " << ori.y << ", "
-                              << ori.z << ", " << ori.w << "]" << std::endl;
+                    std::cout << "  Joint " << i << ": "
+                              << "pos=[" << std::fixed << std::setprecision(3) << pos.x << ", " << pos.y << ", "
+                              << pos.z << "] "
+                              << "ori=[" << ori.x << ", " << ori.y << ", " << ori.z << ", " << ori.w << "]" << std::endl;
                 }
 
                 if (nodes.size() > 5)

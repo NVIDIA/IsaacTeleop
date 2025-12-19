@@ -28,9 +28,10 @@ inline void bind_head(py::module& m)
         .def_readwrite("timestamp", &HeadPoseT::timestamp)
         // Convenience method to set pose from components.
         .def(
-            "set_pose", [](HeadPoseT& self, const Point& position, const Quaternion& orientation)
-            { self.pose = std::make_unique<Pose>(position, orientation); }, py::arg("position"), py::arg("orientation"),
-            "Set the pose from position and orientation components.")
+            "set_pose",
+            [](HeadPoseT& self, const Point& position, const Quaternion& orientation)
+            { self.pose = std::make_unique<Pose>(position, orientation); },
+            py::arg("position"), py::arg("orientation"), "Set the pose from position and orientation components.")
         .def("__repr__",
              [](const HeadPoseT& self)
              {

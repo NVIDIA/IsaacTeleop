@@ -14,7 +14,7 @@ if (NOT DEFINED ENABLE_CLANG_FORMAT_CHECK)
 endif()
 
 # Find clang-format binary
-find_program(CLANG_FORMAT_EXE NAMES clang-format clang-format-18 clang-format-17 clang-format-16)
+find_program(CLANG_FORMAT_EXE NAMES clang-format-14)
 
 # Collect project source files (exclude external deps and build artifacts)
 set(_cf_glob_dirs
@@ -35,6 +35,8 @@ set(_cf_patterns
 set(_cf_exclude_patterns
   ".*/build/.*"
   ".*/deps/.*"
+  ".*/manus/ManusSDK/.*"
+  ".*/node_modules/.*"
   ".*/third_party/.*"
 )
 
