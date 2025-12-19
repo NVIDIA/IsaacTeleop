@@ -37,6 +37,13 @@ option(BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
 option(BUILD_PLUGINS "Build plugins" ON)
 option(BUILD_TESTING "Build unit tests" ON)
 option(ENABLE_EXPERIMENTAL_WINDOWS_BUILD "Enable experimental Windows build support (source code only)" OFF)
+## Enforce clang-format on Linux builds by default
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(_clang_default ON)
+else()
+    set(_clang_default OFF)
+endif()
+option(ENABLE_CLANG_FORMAT_CHECK "Fail build if clang-format changes would be applied (Linux default ON)" ${_clang_default})
 
 # Windows support warning
 if(WIN32)
@@ -95,3 +102,6 @@ if(BUILD_PLUGINS)
     add_subdirectory(src/plugins/controller_synthetic_hands)
     add_subdirectory(src/plugins/manus)
 endif()
+
+# Formatting enforcement (runs on Linux by default)
+include(cmake/ClangFormat.cmake)
