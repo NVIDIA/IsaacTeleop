@@ -57,7 +57,15 @@ jobs:
       # sccache does not work with VSBuild, so we use Ninja generator here.
       # -G Ninja would pickup mingw64 by default on Windows, so we explicitly set the compiler to cl.exe
       # Force embedded debug info (Z7) to avoid PDB contention whenever debug info is generated.
-      run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DENABLE_EXPERIMENTAL_WINDOWS_BUILD=ON -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_C_COMPILER="cl.exe" -DCMAKE_CXX_COMPILER="cl.exe" -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
+      run: >
+        cmake -B build -G Ninja
+        -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        -DENABLE_EXPERIMENTAL_WINDOWS_BUILD=ON
+        -DCMAKE_C_COMPILER_LAUNCHER=sccache
+        -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+        -DCMAKE_C_COMPILER="cl.exe"
+        -DCMAKE_CXX_COMPILER="cl.exe"
+        -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
 
     - name: Build
       run: cmake --build build --parallel
