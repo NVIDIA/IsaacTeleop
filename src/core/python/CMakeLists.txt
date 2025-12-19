@@ -3,6 +3,13 @@
 
 # Python wheel packaging (combines OXR, DEVICEIO, PluginManager, and Schema modules).
 
+# Generate pyproject.toml from template with TELEOPCORE_PYTHON_VERSION
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/pyproject.toml.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/pyproject.toml"
+    @ONLY
+)
+
 # After building modules, create the Python package structure.
 add_custom_target(python_package ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore"
@@ -15,8 +22,9 @@ add_custom_target(python_package ALL
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/../plugin_manager/python/plugin_manager_init.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/plugin_manager/__init__.py"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/../schema/python/schema_init.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/schema/__init__.py"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/teleopcore_init.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/__init__.py"
-    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/pyproject.toml" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_BINARY_DIR}/pyproject.toml" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/MANIFEST.in" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/setup.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
     DEPENDS deviceio_py oxr_py plugin_manager_py schema_py
     COMMENT "Preparing Python package structure"
 )
@@ -49,7 +57,7 @@ add_custom_command(
     COMMENT "Generating .pyi stub files for teleopcore modules"
 )
 
-add_custom_target(python_stubs 
+add_custom_target(python_stubs
     DEPENDS "${PY_TYPED_MARKER}"
     SOURCES "${STUBGEN_SCRIPT}"
 )
