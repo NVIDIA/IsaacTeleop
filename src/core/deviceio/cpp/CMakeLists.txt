@@ -30,7 +30,7 @@ add_library(deviceio_core STATIC
 )
 
 target_include_directories(deviceio_core
-    INTERFACE
+    PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
         $<INSTALL_INTERFACE:include>
 )
@@ -43,11 +43,14 @@ target_link_libraries(deviceio_core
 
         # Schema library for FlatBuffer types
         teleopcore_schema
+    PRIVATE
+        # MCAP recorder for session recording
+        mcap::mcap_core
 )
 
 # Platform-specific definitions
 if(WIN32)
-    target_compile_definitions(deviceio_core PUBLIC XR_USE_PLATFORM_WIN32)
+    target_compile_definitions(deviceio_core PUBLIC XR_USE_PLATFORM_WIN32 NOMINMAX)
 else()
     target_compile_definitions(deviceio_core PUBLIC XR_USE_TIMESPEC)
 endif()

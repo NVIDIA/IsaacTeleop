@@ -18,7 +18,10 @@ add_subdirectory(plugin_manager)
 # Build OXR library (depends on oxr_utils for types)
 add_subdirectory(oxr)
 
-# Build DEVICEIO library (depends on oxr_utils for types)
+# Build MCAP library first (only needs deviceio headers for tracker interface)
+add_subdirectory(mcap)
+
+# Build DEVICEIO library (depends on oxr_utils for types, links to mcap_core)
 add_subdirectory(deviceio)
 
 # Python wheel packaging (combines both modules)

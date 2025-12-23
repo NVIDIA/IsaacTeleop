@@ -346,6 +346,16 @@ const ControllerSnapshot& ControllerTracker::Impl::get_snapshot(Hand hand) const
     return (hand == Hand::Left) ? left_snapshot_ : right_snapshot_;
 }
 
+void ControllerTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& /* builder */, int64_t* out_timestamp) const
+{
+    // TODO: Implement controller serialization when FlatBuffer schema is available
+    if (out_timestamp)
+    {
+        // Use left controller timestamp (or right if left is inactive)
+        *out_timestamp = left_snapshot_.is_active ? left_snapshot_.timestamp : right_snapshot_.timestamp;
+    }
+}
+
 // ============================================================================
 // ControllerTracker Public Interface Implementation
 // ============================================================================
@@ -365,9 +375,13 @@ std::vector<std::string> ControllerTracker::get_required_extensions() const
     return {};
 }
 
-std::string ControllerTracker::get_name() const
+void ControllerTracker::serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp) const
 {
-    return "ControllerTracker";
+    auto impl = cached_impl_.lock();
+    if (impl)
+    {
+        impl->serialize(builder, out_timestamp);
+    }
 }
 
 const ControllerSnapshot& ControllerTracker::get_snapshot(Hand hand) const

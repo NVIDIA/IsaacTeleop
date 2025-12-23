@@ -69,6 +69,16 @@ const HeadPoseT& HeadTracker::Impl::get_head() const
     return head_;
 }
 
+void HeadTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp) const
+{
+    if (out_timestamp)
+    {
+        *out_timestamp = head_.timestamp;
+    }
+    auto offset = HeadPose::Pack(builder, &head_);
+    builder.Finish(offset);
+}
+
 // ============================================================================
 // HeadTracker Public Interface Implementation
 // ============================================================================
@@ -107,6 +117,15 @@ std::shared_ptr<ITrackerImpl> HeadTracker::initialize(const OpenXRSessionHandles
 bool HeadTracker::is_initialized() const
 {
     return !cached_impl_.expired();
+}
+
+void HeadTracker::serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp) const
+{
+    auto impl = cached_impl_.lock();
+    if (impl)
+    {
+        impl->serialize(builder, out_timestamp);
+    }
 }
 
 } // namespace core

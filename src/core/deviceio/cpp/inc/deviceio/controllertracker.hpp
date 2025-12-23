@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "flatbuffers/flatbuffer_builder.h"
 #include "tracker.hpp"
 
 #include <array>
@@ -62,12 +63,26 @@ struct ControllerSnapshot
 class ControllerTracker : public ITracker
 {
 public:
+    static constexpr const char* TRACKER_NAME = "ControllerTracker";
+
     ControllerTracker();
     ~ControllerTracker() override;
 
     // Public API - what external users see
     std::vector<std::string> get_required_extensions() const override;
-    std::string get_name() const override;
+    std::string get_name() const override
+    {
+        return TRACKER_NAME;
+    }
+    std::string get_schema_name() const override
+    {
+        return "";
+    } // TODO: Add schema when available
+    std::string get_schema_text() const override
+    {
+        return "";
+    } // TODO: Add schema when available
+    void serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp = nullptr) const override;
     bool is_initialized() const override;
 
     // Get complete snapshot of controller state (inputs + poses)
@@ -88,6 +103,19 @@ private:
 
         // Override from ITrackerImpl
         bool update(XrTime time) override;
+        std::string get_name() const override
+        {
+            return ControllerTracker::TRACKER_NAME;
+        }
+        std::string get_schema_name() const override
+        {
+            return "";
+        } // TODO: Add schema when available
+        std::string get_schema_text() const override
+        {
+            return "";
+        } // TODO: Add schema when available
+        void serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp = nullptr) const override;
 
         const ControllerSnapshot& get_snapshot(Hand hand) const;
 

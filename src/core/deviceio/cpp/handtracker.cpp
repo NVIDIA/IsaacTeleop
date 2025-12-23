@@ -90,6 +90,18 @@ HandTracker::Impl::Impl(const OpenXRSessionHandles& handles)
     std::cout << "HandTracker initialized (left + right)" << std::endl;
 }
 
+void HandTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp) const
+{
+    // For hand tracker, we use left hand's timestamp (both hands are updated at the same time)
+    if (out_timestamp)
+    {
+        *out_timestamp = left_hand_.timestamp;
+    }
+    // TODO: Serialize both hands - currently only serializes left hand
+    auto offset = HandPose::Pack(builder, &left_hand_);
+    builder.Finish(offset);
+}
+
 HandTracker::Impl::~Impl()
 {
     // pfn_destroy_hand_tracker_ should never be null (verified in constructor)
@@ -226,6 +238,15 @@ std::shared_ptr<ITrackerImpl> HandTracker::initialize(const OpenXRSessionHandles
 bool HandTracker::is_initialized() const
 {
     return !cached_impl_.expired();
+}
+
+void HandTracker::serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp) const
+{
+    auto impl = cached_impl_.lock();
+    if (impl)
+    {
+        impl->serialize(builder, out_timestamp);
+    }
 }
 
 std::string HandTracker::get_joint_name(uint32_t joint_index)

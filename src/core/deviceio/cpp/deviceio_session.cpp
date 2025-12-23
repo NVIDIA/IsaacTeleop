@@ -4,7 +4,9 @@
 #include "inc/deviceio/deviceio_session.hpp"
 
 #include <cassert>
+#include <cstdlib>
 #include <iostream>
+#include <mcap_recorder.hpp>
 #include <set>
 #include <stdexcept>
 #include <time.h>
@@ -52,10 +54,23 @@ DeviceIOSession::DeviceIOSession(const std::vector<std::shared_ptr<ITracker>>& t
     }
 
     std::cout << "DeviceIOSession: Initialized " << tracker_impls_.size() << " trackers" << std::endl;
+
+    // Check if MCAP recording is enabled via environment variable
+    const char* mcap_recording = std::getenv("MCAP_RECORDING");
+    if (mcap_recording != nullptr && std::string(mcap_recording) != "")
+    {
+        if (!start_recording(mcap_recording))
+        {
+            std::cerr << "DeviceIOSession: Warning - Failed to start MCAP recording to " << mcap_recording << std::endl;
+        }
+    }
 }
 
 DeviceIOSession::~DeviceIOSession()
 {
+    // Stop recording if active
+    stop_recording();
+
     // RAII cleanup - impls will be destroyed automatically
 }
 
@@ -141,7 +156,66 @@ bool DeviceIOSession::update()
         }
     }
 
+    // Record tracker data if recording is enabled
+    record_tracker_data();
+
     return true;
+}
+
+// ============================================================================
+// MCAP Recording Implementation
+// ============================================================================
+
+bool DeviceIOSession::start_recording(const std::string& filename)
+{
+    if (recorder_ && recorder_->is_open())
+    {
+        std::cerr << "DeviceIOSession: Recording already in progress" << std::endl;
+        return false;
+    }
+
+    recorder_ = std::make_unique<McapRecorder>();
+    if (!recorder_->open(filename))
+    {
+        recorder_.reset();
+        return false;
+    }
+
+    // Register all trackers with the recorder
+    for (const auto& impl : tracker_impls_)
+    {
+        recorder_->add_tracker(impl);
+    }
+
+    std::cout << "DeviceIOSession: Started recording to " << filename << std::endl;
+    return true;
+}
+
+void DeviceIOSession::stop_recording()
+{
+    if (recorder_)
+    {
+        recorder_->close();
+        recorder_.reset();
+    }
+}
+
+bool DeviceIOSession::is_recording() const
+{
+    return recorder_ && recorder_->is_open();
+}
+
+void DeviceIOSession::record_tracker_data()
+{
+    if (!is_recording())
+    {
+        return;
+    }
+
+    for (const auto& impl : tracker_impls_)
+    {
+        recorder_->record(impl);
+    }
 }
 
 } // namespace core

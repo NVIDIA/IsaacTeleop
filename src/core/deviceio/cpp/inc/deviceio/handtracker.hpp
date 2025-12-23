@@ -3,8 +3,10 @@
 
 #pragma once
 
+#include "flatbuffers/flatbuffer_builder.h"
 #include "tracker.hpp"
 
+#include <schema/hand_bfbs_generated.h>
 #include <schema/hand_generated.h>
 
 #include <memory>
@@ -17,6 +19,8 @@ namespace core
 class HandTracker : public ITracker
 {
 public:
+    static constexpr const char* TRACKER_NAME = "HandTracker";
+
     HandTracker();
     ~HandTracker() override;
 
@@ -24,8 +28,17 @@ public:
     std::vector<std::string> get_required_extensions() const override;
     std::string get_name() const override
     {
-        return "HandTracker";
+        return TRACKER_NAME;
     }
+    std::string get_schema_name() const override
+    {
+        return "core.HandPose";
+    }
+    std::string get_schema_text() const override
+    {
+        return std::string(reinterpret_cast<const char*>(HandPoseBinarySchema::data()), HandPoseBinarySchema::size());
+    }
+    void serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp = nullptr) const override;
     bool is_initialized() const override;
 
     // Query methods - public API for getting hand data
@@ -53,6 +66,19 @@ private:
 
         // Override from ITrackerImpl
         bool update(XrTime time) override;
+        std::string get_name() const override
+        {
+            return HandTracker::TRACKER_NAME;
+        }
+        std::string get_schema_name() const override
+        {
+            return "core.HandPose";
+        }
+        std::string get_schema_text() const override
+        {
+            return std::string(reinterpret_cast<const char*>(HandPoseBinarySchema::data()), HandPoseBinarySchema::size());
+        }
+        void serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp = nullptr) const override;
 
         const HandPoseT& get_left_hand() const;
         const HandPoseT& get_right_hand() const;

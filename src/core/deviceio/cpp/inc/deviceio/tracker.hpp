@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "flatbuffers/flatbuffer_builder.h"
+
 #include <oxr_utils/oxr_funcs.hpp>
 #include <oxr_utils/oxr_types.hpp>
 
@@ -26,6 +28,32 @@ public:
 
     // Update the tracker with the current time
     virtual bool update(XrTime time) = 0;
+
+    /**
+     * @brief Get the name of this tracker (used for MCAP channel naming).
+     */
+    virtual std::string get_name() const = 0;
+
+    /**
+     * @brief Get the FlatBuffer schema name (root type) for MCAP recording.
+     *
+     * This should return the fully qualified FlatBuffer type name (e.g., "core.HandPose")
+     * which matches the root_type defined in the .fbs schema file.
+     */
+    virtual std::string get_schema_name() const = 0;
+
+    /**
+     * @brief Get the binary FlatBuffer schema text for MCAP recording.
+     */
+    virtual std::string get_schema_text() const = 0;
+
+    /**
+     * @brief Serialize the tracker data to a FlatBuffer.
+     *
+     * @param builder Output FlatBufferBuilder to write serialized data into.
+     * @param out_timestamp Output timestamp in nanoseconds (XrTime) for MCAP recording.
+     */
+    virtual void serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp = nullptr) const = 0;
 };
 
 // Base interface for all trackers
@@ -39,6 +67,16 @@ public:
     // Public API - visible to all users
     virtual std::vector<std::string> get_required_extensions() const = 0;
     virtual std::string get_name() const = 0;
+    virtual std::string get_schema_name() const = 0;
+    virtual std::string get_schema_text() const = 0;
+
+    /**
+     * @brief Serialize the tracker data to a FlatBuffer.
+     *
+     * @param builder Output FlatBufferBuilder to write serialized data into.
+     * @param out_timestamp Output timestamp in nanoseconds (XrTime) for MCAP recording.
+     */
+    virtual void serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp = nullptr) const = 0;
     virtual bool is_initialized() const = 0;
 
 protected:

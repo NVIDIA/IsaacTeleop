@@ -111,3 +111,31 @@ if(BUILD_TESTING)
     include(Catch)
 endif()
 
+# ==============================================================================
+# MCAP (Recording Format Library)
+# ==============================================================================
+# MCAP is a modular container format for heterogeneous timestamped data.
+# It is a header-only library.
+message(STATUS "Fetching MCAP from GitHub...")
+FetchContent_Declare(
+    mcap
+    GIT_REPOSITORY https://github.com/foxglove/mcap.git
+    GIT_TAG        releases/cpp/v1.4.1
+    GIT_SHALLOW    TRUE
+)
+
+FetchContent_MakeAvailable(mcap)
+message(STATUS "MCAP fetched")
+
+# Create an interface library for MCAP (header-only)
+add_library(mcap_interface INTERFACE)
+target_include_directories(mcap_interface INTERFACE
+    ${mcap_SOURCE_DIR}/cpp/mcap/include
+)
+# Disable compression to avoid Zstd/LZ4 dependencies
+target_compile_definitions(mcap_interface INTERFACE
+    MCAP_COMPRESSION_NO_ZSTD
+    MCAP_COMPRESSION_NO_LZ4
+)
+add_library(mcap::mcap ALIAS mcap_interface)
+message(STATUS "MCAP interface library configured")
