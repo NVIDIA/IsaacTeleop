@@ -276,74 +276,80 @@ bool ControllerTracker::Impl::update(XrTime time)
         return false;
     }
 
-    // Helper to update a single controller
-    auto update_controller =
-        [&](XrPath hand_path, const XrSpacePtr& grip_space, const XrSpacePtr& aim_space, ControllerSnapshot& snapshot)
+    // Helper to update a single controller - creates a new immutable struct snapshot
+    auto update_controller = [&](XrPath hand_path, const XrSpacePtr& grip_space, const XrSpacePtr& aim_space,
+                                 std::shared_ptr<ControllerSnapshot>& snapshot_ptr)
     {
-        // Update poses
+        // Initialize with default values
+        ControllerPose grip_pose{};
+        ControllerPose aim_pose{};
+        ControllerInputState inputs{};
+        bool is_active = false;
+        Timestamp timestamp{};
+
+        // Update grip pose
         XrSpaceLocation grip_location{ XR_TYPE_SPACE_LOCATION };
         result = core_funcs_.xrLocateSpace(grip_space.get(), base_space_, time, &grip_location);
         if (XR_SUCCEEDED(result))
         {
-            snapshot.grip_pose.is_valid = (grip_location.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) &&
-                                          (grip_location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT);
-            if (snapshot.grip_pose.is_valid)
-            {
-                snapshot.grip_pose.position[0] = grip_location.pose.position.x;
-                snapshot.grip_pose.position[1] = grip_location.pose.position.y;
-                snapshot.grip_pose.position[2] = grip_location.pose.position.z;
-                snapshot.grip_pose.orientation[0] = grip_location.pose.orientation.x;
-                snapshot.grip_pose.orientation[1] = grip_location.pose.orientation.y;
-                snapshot.grip_pose.orientation[2] = grip_location.pose.orientation.z;
-                snapshot.grip_pose.orientation[3] = grip_location.pose.orientation.w;
-            }
+            bool is_valid = (grip_location.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) &&
+                            (grip_location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT);
+
+            Point position(grip_location.pose.position.x, grip_location.pose.position.y, grip_location.pose.position.z);
+            Quaternion orientation(grip_location.pose.orientation.x, grip_location.pose.orientation.y,
+                                   grip_location.pose.orientation.z, grip_location.pose.orientation.w);
+            Pose pose(position, orientation);
+            grip_pose = ControllerPose(pose, is_valid);
         }
 
+        // Update aim pose
         XrSpaceLocation aim_location{ XR_TYPE_SPACE_LOCATION };
         result = core_funcs_.xrLocateSpace(aim_space.get(), base_space_, time, &aim_location);
         if (XR_SUCCEEDED(result))
         {
-            snapshot.aim_pose.is_valid = (aim_location.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) &&
-                                         (aim_location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT);
-            if (snapshot.aim_pose.is_valid)
-            {
-                snapshot.aim_pose.position[0] = aim_location.pose.position.x;
-                snapshot.aim_pose.position[1] = aim_location.pose.position.y;
-                snapshot.aim_pose.position[2] = aim_location.pose.position.z;
-                snapshot.aim_pose.orientation[0] = aim_location.pose.orientation.x;
-                snapshot.aim_pose.orientation[1] = aim_location.pose.orientation.y;
-                snapshot.aim_pose.orientation[2] = aim_location.pose.orientation.z;
-                snapshot.aim_pose.orientation[3] = aim_location.pose.orientation.w;
-            }
+            bool is_valid = (aim_location.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) &&
+                            (aim_location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT);
+
+            Point position(aim_location.pose.position.x, aim_location.pose.position.y, aim_location.pose.position.z);
+            Quaternion orientation(aim_location.pose.orientation.x, aim_location.pose.orientation.y,
+                                   aim_location.pose.orientation.z, aim_location.pose.orientation.w);
+            Pose pose(position, orientation);
+            aim_pose = ControllerPose(pose, is_valid);
         }
 
-        snapshot.is_active = snapshot.grip_pose.is_valid || snapshot.aim_pose.is_valid;
-        snapshot.timestamp = time;
+        is_active = grip_pose.is_valid() || aim_pose.is_valid();
+
+        // Update timestamp
+        timestamp = Timestamp(time, time);
 
         // Update all input values
-        snapshot.inputs.primary_click = get_boolean_action_state(session_, core_funcs_, primary_click_action_, hand_path);
-        snapshot.inputs.secondary_click =
-            get_boolean_action_state(session_, core_funcs_, secondary_click_action_, hand_path);
+        bool primary_click = get_boolean_action_state(session_, core_funcs_, primary_click_action_, hand_path);
+        bool secondary_click = get_boolean_action_state(session_, core_funcs_, secondary_click_action_, hand_path);
 
-        get_vector2_action_state(session_, core_funcs_, thumbstick_action_, hand_path, snapshot.inputs.thumbstick_x,
-                                 snapshot.inputs.thumbstick_y);
+        float thumbstick_x = 0.0f, thumbstick_y = 0.0f;
+        get_vector2_action_state(session_, core_funcs_, thumbstick_action_, hand_path, thumbstick_x, thumbstick_y);
 
-        snapshot.inputs.thumbstick_click =
-            get_boolean_action_state(session_, core_funcs_, thumbstick_click_action_, hand_path);
-        snapshot.inputs.squeeze_value = get_float_action_state(session_, core_funcs_, squeeze_value_action_, hand_path);
-        snapshot.inputs.trigger_value = get_float_action_state(session_, core_funcs_, trigger_value_action_, hand_path);
+        bool thumbstick_click = get_boolean_action_state(session_, core_funcs_, thumbstick_click_action_, hand_path);
+        float squeeze_value = get_float_action_state(session_, core_funcs_, squeeze_value_action_, hand_path);
+        float trigger_value = get_float_action_state(session_, core_funcs_, trigger_value_action_, hand_path);
+
+        inputs = ControllerInputState(
+            primary_click, secondary_click, thumbstick_click, thumbstick_x, thumbstick_y, squeeze_value, trigger_value);
+
+        // Create new snapshot struct
+        snapshot_ptr = std::make_shared<ControllerSnapshot>(grip_pose, aim_pose, inputs, is_active, timestamp);
     };
 
     // Update both controllers
-    update_controller(left_hand_path_, left_grip_space_, left_aim_space_, left_snapshot_);
-    update_controller(right_hand_path_, right_grip_space_, right_aim_space_, right_snapshot_);
+    update_controller(left_hand_path_, left_grip_space_, left_aim_space_, controller_data_.left_controller);
+    update_controller(right_hand_path_, right_grip_space_, right_aim_space_, controller_data_.right_controller);
 
-    return left_snapshot_.is_active || right_snapshot_.is_active;
+    return controller_data_.left_controller->is_active() || controller_data_.right_controller->is_active();
 }
 
-const ControllerSnapshot& ControllerTracker::Impl::get_snapshot(Hand hand) const
+const ControllerDataT& ControllerTracker::Impl::get_controller_data() const
 {
-    return (hand == Hand::Left) ? left_snapshot_ : right_snapshot_;
+    return controller_data_;
 }
 
 // ============================================================================
@@ -370,13 +376,13 @@ std::string ControllerTracker::get_name() const
     return "ControllerTracker";
 }
 
-const ControllerSnapshot& ControllerTracker::get_snapshot(Hand hand) const
+const ControllerDataT& ControllerTracker::get_controller_data() const
 {
-    static const ControllerSnapshot empty_snapshot{};
+    static const ControllerDataT empty_data{};
     auto impl = cached_impl_.lock();
     if (!impl)
-        return empty_snapshot;
-    return impl->get_snapshot(hand);
+        return empty_data;
+    return impl->get_controller_data();
 }
 
 std::shared_ptr<ITrackerImpl> ControllerTracker::initialize(const OpenXRSessionHandles& handles)

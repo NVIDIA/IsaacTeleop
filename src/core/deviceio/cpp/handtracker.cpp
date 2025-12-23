@@ -148,7 +148,13 @@ bool HandTracker::Impl::update_hand(XrHandTrackerEXT tracker, XrTime time, HandP
     }
 
     out_data.is_active = locations.isActive;
-    out_data.timestamp = time;
+
+    // Update timestamp (device time and common time)
+    if (!out_data.timestamp)
+    {
+        out_data.timestamp = std::make_shared<Timestamp>();
+    }
+    out_data.timestamp = std::make_shared<Timestamp>(time, time);
 
     // Ensure joints struct is allocated
     if (!out_data.joints)

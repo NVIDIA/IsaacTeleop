@@ -4,7 +4,7 @@
 """TeleopCore Schema - FlatBuffer message types for teleoperation.
 
 This module provides Python bindings for FlatBuffer-based message types
-used in teleoperation, including tensors and poses.
+used in teleoperation, including tensors, poses, and controller data.
 """
 
 from ._schema import (
@@ -24,6 +24,12 @@ from ._schema import (
     HandJointPose,
     HandJoints,
     HandPoseT,
+    # Controller-related types.
+    ControllerInputState,
+    ControllerPose,
+    Timestamp,
+    ControllerSnapshot,
+    ControllerData,
 )
 
 __all__ = [
@@ -43,4 +49,11 @@ __all__ = [
     "HandJointPose",
     "HandJoints",
     "HandPoseT",
+    # Controller types.
+    "ControllerInputState",
+    "ControllerPose",
+    "Timestamp",
+    "ControllerSnapshot",
+    "ControllerData",
 ]
+

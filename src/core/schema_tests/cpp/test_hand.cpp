@@ -30,7 +30,7 @@ static_assert(core::HandPose::VT_TIMESTAMP == VT(2));
 #define TYPE(field) decltype(std::declval<core::HandPose>().field())
 static_assert(std::is_same_v<TYPE(joints), const core::HandJoints*>);
 static_assert(std::is_same_v<TYPE(is_active), bool>);
-static_assert(std::is_same_v<TYPE(timestamp), int64_t>);
+static_assert(std::is_same_v<TYPE(timestamp), const core::Timestamp*>);
 
 // =============================================================================
 // Compile-time verification of HandJointPose struct.
@@ -130,7 +130,7 @@ TEST_CASE("HandPoseT default construction", "[hand][native]")
     // Default values.
     CHECK(hand_pose->joints == nullptr);
     CHECK(hand_pose->is_active == false);
-    CHECK(hand_pose->timestamp == 0);
+    CHECK(hand_pose->timestamp == nullptr);
 }
 
 TEST_CASE("HandPoseT can store joints data", "[hand][native]")
@@ -150,10 +150,13 @@ TEST_CASE("HandPoseT can store timestamp", "[hand][native]")
     auto hand_pose = std::make_unique<core::HandPoseT>();
 
     // Set timestamp (XrTime is int64_t).
-    int64_t test_timestamp = 1234567890123456789LL;
-    hand_pose->timestamp = test_timestamp;
+    int64_t test_device_time = 1234567890123456789LL;
+    int64_t test_common_time = 9876543210LL;
+    hand_pose->timestamp = std::make_shared<core::Timestamp>(test_device_time, test_common_time);
 
-    CHECK(hand_pose->timestamp == test_timestamp);
+    REQUIRE(hand_pose->timestamp != nullptr);
+    CHECK(hand_pose->timestamp->device_time() == test_device_time);
+    CHECK(hand_pose->timestamp->common_time() == test_common_time);
 }
 
 TEST_CASE("HandPoseT joints can be mutated via flatbuffers Array", "[hand][native]")
@@ -198,7 +201,7 @@ TEST_CASE("HandPoseT serialization and deserialization", "[hand][flatbuffers]")
     mutable_array->Mutate(0, joint_pose);
 
     hand_pose->is_active = true;
-    hand_pose->timestamp = 9876543210LL;
+    hand_pose->timestamp = std::make_shared<core::Timestamp>(9876543210LL, 1234567890LL);
 
     // Serialize.
     auto offset = core::HandPose::Pack(builder, hand_pose.get());
@@ -220,7 +223,9 @@ TEST_CASE("HandPoseT serialization and deserialization", "[hand][flatbuffers]")
     CHECK(first_joint->radius() == Catch::Approx(0.02f));
 
     CHECK(deserialized->is_active() == true);
-    CHECK(deserialized->timestamp() == 9876543210LL);
+    REQUIRE(deserialized->timestamp() != nullptr);
+    CHECK(deserialized->timestamp()->device_time() == 9876543210LL);
+    CHECK(deserialized->timestamp()->common_time() == 1234567890LL);
 }
 
 TEST_CASE("HandPoseT can be unpacked from buffer", "[hand][flatbuffers]")
@@ -243,7 +248,7 @@ TEST_CASE("HandPoseT can be unpacked from buffer", "[hand][flatbuffers]")
     }
 
     original->is_active = true;
-    original->timestamp = 1111111111LL;
+    original->timestamp = std::make_shared<core::Timestamp>(1111111111LL, 2222222222LL);
 
     auto offset = core::HandPose::Pack(builder, original.get());
     builder.Finish(offset);
@@ -269,7 +274,9 @@ TEST_CASE("HandPoseT can be unpacked from buffer", "[hand][flatbuffers]")
     CHECK(joint_25->pose().position().z() == Catch::Approx(75.0f));
 
     CHECK(unpacked->is_active == true);
-    CHECK(unpacked->timestamp == 1111111111LL);
+    REQUIRE(unpacked->timestamp != nullptr);
+    CHECK(unpacked->timestamp->device_time() == 1111111111LL);
+    CHECK(unpacked->timestamp->common_time() == 2222222222LL);
 }
 
 TEST_CASE("HandPoseT all 26 joints can be set and verified", "[hand][native]")
