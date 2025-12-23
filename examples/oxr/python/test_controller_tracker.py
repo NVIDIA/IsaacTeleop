@@ -6,7 +6,7 @@
 Test script for ControllerTracker with simplified API.
 
 Demonstrates:
-- Snapshot mode for continuous state queries (includes poses and inputs)
+- Getting complete controller data for both left and right controllers
 """
 
 import sys
@@ -59,20 +59,21 @@ with oxr.OpenXRSession.create("ControllerTrackerTest", required_extensions) as o
         print("✓ Update successful")
         print()
         
-        # Test 5: Check initial controller state (snapshot mode)
-        print("[Test 5] Checking controller state (snapshot mode)...")
-        left_snap = controller_tracker.get_snapshot(deviceio.Hand.Left)
-        right_snap = controller_tracker.get_snapshot(deviceio.Hand.Right)
-        print(f"  Left controller: {'ACTIVE' if left_snap.is_active else 'INACTIVE'}")
-        print(f"  Right controller: {'ACTIVE' if right_snap.is_active else 'INACTIVE'}")
+        # Test 5: Check initial controller state
+        print("[Test 5] Checking controller state...")
+        controller_data = controller_tracker.get_controller_data()
+        left_snap = controller_data.left_controller
+        right_snap = controller_data.right_controller
+        print(f"  Left controller: {'ACTIVE' if left_snap and left_snap.is_active else 'INACTIVE'}")
+        print(f"  Right controller: {'ACTIVE' if right_snap and right_snap.is_active else 'INACTIVE'}")
         
-        if left_snap.is_active and left_snap.grip_pose.is_valid:
-            pos = left_snap.grip_pose.position
-            print(f"  Left grip position: [{pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f}]")
+        if left_snap and left_snap.is_active and left_snap.grip_pose.is_valid:
+            pos = left_snap.grip_pose.pose.position
+            print(f"  Left grip position: [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
         
-        if right_snap.is_active and right_snap.grip_pose.is_valid:
-            pos = right_snap.grip_pose.position
-            print(f"  Right grip position: [{pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f}]")
+        if right_snap and right_snap.is_active and right_snap.grip_pose.is_valid:
+            pos = right_snap.grip_pose.pose.position
+            print(f"  Right grip position: [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
         print()
         
         # Test 6: Available inputs
@@ -96,27 +97,28 @@ with oxr.OpenXRSession.create("ControllerTrackerTest", required_extensions) as o
                     print("Update failed")
                     break
                 
-                # SNAPSHOT MODE: Get current state (includes poses and inputs)
+                # Get current controller data
                 current_time = time.time()
                 if current_time - last_status_print >= 0.5:  # Print every 0.5 seconds
                     elapsed = current_time - start_time
-                    left_snap = controller_tracker.get_snapshot(deviceio.Hand.Left)
-                    right_snap = controller_tracker.get_snapshot(deviceio.Hand.Right)
+                    controller_data = controller_tracker.get_controller_data()
+                    left_snap = controller_data.left_controller
+                    right_snap = controller_data.right_controller
                     
-                    # Show current state using field access
-                    left_trigger = left_snap.inputs.trigger_value
-                    left_squeeze = left_snap.inputs.squeeze_value
-                    left_stick_x = left_snap.inputs.thumbstick_x
-                    left_stick_y = left_snap.inputs.thumbstick_y
-                    left_primary = left_snap.inputs.primary_click
-                    left_secondary = left_snap.inputs.secondary_click
+                    # Show current state
+                    left_trigger = left_snap.inputs.trigger_value if left_snap else 0.0
+                    left_squeeze = left_snap.inputs.squeeze_value if left_snap else 0.0
+                    left_stick_x = left_snap.inputs.thumbstick_x if left_snap else 0.0
+                    left_stick_y = left_snap.inputs.thumbstick_y if left_snap else 0.0
+                    left_primary = left_snap.inputs.primary_click if left_snap else False
+                    left_secondary = left_snap.inputs.secondary_click if left_snap else False
                     
-                    right_trigger = right_snap.inputs.trigger_value
-                    right_squeeze = right_snap.inputs.squeeze_value
-                    right_stick_x = right_snap.inputs.thumbstick_x
-                    right_stick_y = right_snap.inputs.thumbstick_y
-                    right_primary = right_snap.inputs.primary_click
-                    right_secondary = right_snap.inputs.secondary_click
+                    right_trigger = right_snap.inputs.trigger_value if right_snap else 0.0
+                    right_squeeze = right_snap.inputs.squeeze_value if right_snap else 0.0
+                    right_stick_x = right_snap.inputs.thumbstick_x if right_snap else 0.0
+                    right_stick_y = right_snap.inputs.thumbstick_y if right_snap else 0.0
+                    right_primary = right_snap.inputs.primary_click if right_snap else False
+                    right_secondary = right_snap.inputs.secondary_click if right_snap else False
                     
                     # Build status strings
                     left_status = f"Trig={left_trigger:.2f} Sq={left_squeeze:.2f}"
@@ -151,10 +153,9 @@ with oxr.OpenXRSession.create("ControllerTrackerTest", required_extensions) as o
         # Test 8: Show final statistics
         print("[Test 8] Final controller state...")
         
-        def print_controller_summary(hand_name, hand):
-            snapshot = controller_tracker.get_snapshot(hand)
+        def print_controller_summary(hand_name, snapshot):
             print(f"  {hand_name} Controller:")
-            if snapshot.is_active:
+            if snapshot and snapshot.is_active:
                 print(f"    Status: ACTIVE")
                 
                 # Poses from snapshot
@@ -162,14 +163,14 @@ with oxr.OpenXRSession.create("ControllerTrackerTest", required_extensions) as o
                 aim = snapshot.aim_pose
                 
                 if grip.is_valid:
-                    pos = grip.position
-                    print(f"    Grip position: [{pos[0]:+.3f}, {pos[1]:+.3f}, {pos[2]:+.3f}]")
+                    pos = grip.pose.position
+                    print(f"    Grip position: [{pos.x:+.3f}, {pos.y:+.3f}, {pos.z:+.3f}]")
                 
                 if aim.is_valid:
-                    pos = aim.position
-                    print(f"    Aim position: [{pos[0]:+.3f}, {pos[1]:+.3f}, {pos[2]:+.3f}]")
+                    pos = aim.pose.position
+                    print(f"    Aim position: [{pos.x:+.3f}, {pos.y:+.3f}, {pos.z:+.3f}]")
                 
-                # Input values using field access
+                # Input values
                 inputs = snapshot.inputs
                 print(f"    Trigger: {inputs.trigger_value:.2f}")
                 print(f"    Squeeze: {inputs.squeeze_value:.2f}")
@@ -179,9 +180,10 @@ with oxr.OpenXRSession.create("ControllerTrackerTest", required_extensions) as o
             else:
                 print(f"    Status: INACTIVE")
         
-        print_controller_summary("Left", deviceio.Hand.Left)
+        controller_data = controller_tracker.get_controller_data()
+        print_controller_summary("Left", controller_data.left_controller)
         print()
-        print_controller_summary("Right", deviceio.Hand.Right)
+        print_controller_summary("Right", controller_data.right_controller)
         print()
         
         # Cleanup

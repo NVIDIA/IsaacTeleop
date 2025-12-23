@@ -18,20 +18,16 @@ namespace core
 
 inline void bind_head(py::module& m)
 {
-    // Bind HeadPoseT class (FlatBuffers object API for tables).
+    // Bind HeadPoseT class (FlatBuffers object API for tables, read-only from Python).
     py::class_<HeadPoseT, std::unique_ptr<HeadPoseT>>(m, "HeadPoseT")
         .def(py::init<>())
         .def_property_readonly(
             "pose", [](const HeadPoseT& self) -> const Pose* { return self.pose.get(); },
             py::return_value_policy::reference_internal)
-        .def_readwrite("is_valid", &HeadPoseT::is_valid)
-        .def_readwrite("timestamp", &HeadPoseT::timestamp)
-        // Convenience method to set pose from components.
-        .def(
-            "set_pose",
-            [](HeadPoseT& self, const Point& position, const Quaternion& orientation)
-            { self.pose = std::make_unique<Pose>(position, orientation); },
-            py::arg("position"), py::arg("orientation"), "Set the pose from position and orientation components.")
+        .def_readonly("is_valid", &HeadPoseT::is_valid)
+        .def_property_readonly(
+            "timestamp", [](const HeadPoseT& self) -> const Timestamp* { return self.timestamp.get(); },
+            py::return_value_policy::reference_internal)
         .def("__repr__",
              [](const HeadPoseT& self)
              {
@@ -46,8 +42,14 @@ inline void bind_head(py::module& m)
                                 ", z=" + std::to_string(self.pose->orientation().z()) +
                                 ", w=" + std::to_string(self.pose->orientation().w()) + "))";
                  }
+                 std::string timestamp_str = "None";
+                 if (self.timestamp)
+                 {
+                     timestamp_str = "Timestamp(device=" + std::to_string(self.timestamp->device_time()) +
+                                     ", common=" + std::to_string(self.timestamp->common_time()) + ")";
+                 }
                  return "HeadPoseT(pose=" + pose_str + ", is_valid=" + (self.is_valid ? "True" : "False") +
-                        ", timestamp=" + std::to_string(self.timestamp) + ")";
+                        ", timestamp=" + timestamp_str + ")";
              });
 }
 

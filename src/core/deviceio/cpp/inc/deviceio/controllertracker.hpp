@@ -5,57 +5,12 @@
 
 #include "tracker.hpp"
 
-#include <array>
+#include <schema/controller_generated.h>
+
 #include <memory>
 
 namespace core
 {
-
-// Which hand/controller
-enum class Hand
-{
-    Left,
-    Right
-};
-
-// Convert hand enum to string
-inline const char* to_string(Hand hand)
-{
-    return hand == Hand::Left ? "Left" : "Right";
-}
-
-// Controller input state with proper types
-struct ControllerInputState
-{
-    // Buttons (bool)
-    bool primary_click = false;
-    bool secondary_click = false;
-    bool thumbstick_click = false;
-
-    // Axes (float)
-    float thumbstick_x = 0.0f;
-    float thumbstick_y = 0.0f;
-    float squeeze_value = 0.0f;
-    float trigger_value = 0.0f;
-};
-
-// Controller pose data
-struct ControllerPose
-{
-    float position[3] = { 0.0f, 0.0f, 0.0f }; // x, y, z in meters
-    float orientation[4] = { 0.0f, 0.0f, 0.0f, 1.0f }; // x, y, z, w (quaternion)
-    bool is_valid = false;
-};
-
-// Snapshot data for a single controller
-struct ControllerSnapshot
-{
-    ControllerPose grip_pose;
-    ControllerPose aim_pose;
-    ControllerInputState inputs;
-    bool is_active = false;
-    XrTime timestamp = 0;
-};
 
 // Controller tracker - tracks both left and right controllers
 // Updates all controller state (poses + inputs) each frame
@@ -70,8 +25,8 @@ public:
     std::string get_name() const override;
     bool is_initialized() const override;
 
-    // Get complete snapshot of controller state (inputs + poses)
-    const ControllerSnapshot& get_snapshot(Hand hand) const;
+    // Get complete controller data (both left and right controllers)
+    const ControllerDataT& get_controller_data() const;
 
 protected:
     // Internal lifecycle methods - only accessible via friend classes
@@ -89,7 +44,7 @@ private:
         // Override from ITrackerImpl
         bool update(XrTime time) override;
 
-        const ControllerSnapshot& get_snapshot(Hand hand) const;
+        const ControllerDataT& get_controller_data() const;
 
     private:
         const OpenXRCoreFunctions core_funcs_;
@@ -118,9 +73,8 @@ private:
         XrSpacePtr left_aim_space_;
         XrSpacePtr right_aim_space_;
 
-        // Controller data for both hands
-        ControllerSnapshot left_snapshot_;
-        ControllerSnapshot right_snapshot_;
+        // Controller data for both hands (table wrapper with struct snapshots)
+        ControllerDataT controller_data_;
     };
 
     // Weak pointer to impl (owned by session)

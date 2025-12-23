@@ -6,6 +6,7 @@
 #include <pybind11/pybind11.h>
 
 // Include binding definitions.
+#include "controller_bindings.h"
 #include "hand_bindings.h"
 #include "head_bindings.h"
 #include "pose_bindings.h"
@@ -28,4 +29,7 @@ PYBIND11_MODULE(_schema, m)
 
     // Bind hand types (HandJointPose, HandJoints structs, HandPoseT table).
     core::bind_hand(m);
+
+    // Bind controller types (ControllerInputState, ControllerPose structs, ControllerSnapshotT table, Hand enum).
+    core::bind_controller(m);
 }

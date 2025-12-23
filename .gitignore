@@ -5,7 +5,7 @@
 build/
 **/build/
 install/
-
+build.log
 # Python cache
 __pycache__/
 **/__pycache__/

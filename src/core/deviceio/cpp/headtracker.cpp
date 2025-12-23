@@ -45,7 +45,9 @@ bool HeadTracker::Impl::update(XrTime time)
     bool orientation_valid = (location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0;
 
     head_.is_valid = position_valid && orientation_valid;
-    head_.timestamp = time;
+
+    // Update timestamp (device time and common time)
+    head_.timestamp = std::make_shared<Timestamp>(time, time);
 
     if (head_.is_valid)
     {
