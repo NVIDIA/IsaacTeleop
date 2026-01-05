@@ -43,8 +43,10 @@ public:
 
     // Static factory - Create and initialize a session with trackers
     // Returns fully initialized session ready to use (throws on failure)
+    // If mcap_recording_path is non-empty, MCAP recording will be started automatically
     static std::unique_ptr<DeviceIOSession> run(const std::vector<std::shared_ptr<ITracker>>& trackers,
-                                                const OpenXRSessionHandles& handles);
+                                                const OpenXRSessionHandles& handles,
+                                                const std::string& mcap_recording_path = "");
 
     // Update session and all trackers (auto-records if recording is enabled)
     bool update();
@@ -63,7 +65,7 @@ private:
     PFN_xrConvertTimespecTimeToTimeKHR pfn_convert_timespec_{};
 #endif
 
-    // MCAP recording (controlled via MCAP_RECORDING env var)
+    // MCAP recording
     std::unique_ptr<McapRecorder> recorder_;
     bool start_recording(const std::string& filename);
     void stop_recording();

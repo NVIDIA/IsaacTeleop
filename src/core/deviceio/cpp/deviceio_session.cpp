@@ -4,7 +4,6 @@
 #include "inc/deviceio/deviceio_session.hpp"
 
 #include <cassert>
-#include <cstdlib>
 #include <iostream>
 #include <mcap_recorder.hpp>
 #include <set>
@@ -54,16 +53,6 @@ DeviceIOSession::DeviceIOSession(const std::vector<std::shared_ptr<ITracker>>& t
     }
 
     std::cout << "DeviceIOSession: Initialized " << tracker_impls_.size() << " trackers" << std::endl;
-
-    // Check if MCAP recording is enabled via environment variable
-    const char* mcap_recording = std::getenv("MCAP_RECORDING");
-    if (mcap_recording != nullptr && std::string(mcap_recording) != "")
-    {
-        if (!start_recording(mcap_recording))
-        {
-            std::cerr << "DeviceIOSession: Warning - Failed to start MCAP recording to " << mcap_recording << std::endl;
-        }
-    }
 }
 
 DeviceIOSession::~DeviceIOSession()
@@ -102,7 +91,8 @@ std::vector<std::string> DeviceIOSession::get_required_extensions(const std::vec
 
 // Static factory - Create and initialize a session with trackers
 std::unique_ptr<DeviceIOSession> DeviceIOSession::run(const std::vector<std::shared_ptr<ITracker>>& trackers,
-                                                      const OpenXRSessionHandles& handles)
+                                                      const OpenXRSessionHandles& handles,
+                                                      const std::string& mcap_recording_path)
 {
     // These should never be null - this is improper API usage
     assert(handles.instance != XR_NULL_HANDLE && "OpenXR instance handle cannot be null");
@@ -112,7 +102,19 @@ std::unique_ptr<DeviceIOSession> DeviceIOSession::run(const std::vector<std::sha
     std::cout << "DeviceIOSession: Creating session with " << trackers.size() << " trackers" << std::endl;
 
     // Constructor will throw on failure
-    return std::unique_ptr<DeviceIOSession>(new DeviceIOSession(trackers, handles));
+    auto session = std::unique_ptr<DeviceIOSession>(new DeviceIOSession(trackers, handles));
+
+    // Start MCAP recording if path is provided
+    if (!mcap_recording_path.empty())
+    {
+        if (!session->start_recording(mcap_recording_path))
+        {
+            std::cerr << "DeviceIOSession: Warning - Failed to start MCAP recording to " << mcap_recording_path
+                      << std::endl;
+        }
+    }
+
+    return session;
 }
 
 bool DeviceIOSession::update()

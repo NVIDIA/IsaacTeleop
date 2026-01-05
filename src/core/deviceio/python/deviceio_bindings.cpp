@@ -124,15 +124,17 @@ PYBIND11_MODULE(_deviceio, m)
                     "Get list of OpenXR extensions required by a list of trackers")
         .def_static(
             "run",
-            [](const std::vector<std::shared_ptr<core::ITracker>>& trackers, const core::OpenXRSessionHandles& handles)
+            [](const std::vector<std::shared_ptr<core::ITracker>>& trackers, const core::OpenXRSessionHandles& handles,
+               const std::string& mcap_recording_path)
             {
                 // run() throws exceptions on failure, which pybind11 converts to Python exceptions
-                auto session = core::DeviceIOSession::run(trackers, handles);
+                auto session = core::DeviceIOSession::run(trackers, handles, mcap_recording_path);
                 // Wrap unique_ptr in PyDeviceIOSession, then unique_ptr for Python ownership
                 return std::make_unique<PyDeviceIOSession>(std::move(session));
             },
-            py::arg("trackers"), py::arg("handles"),
-            "Create and initialize a session with trackers (returns context-managed session, throws on failure)");
+            py::arg("trackers"), py::arg("handles"), py::arg("mcap_recording_path") = "",
+            "Create and initialize a session with trackers (returns context-managed session, throws on failure). "
+            "If mcap_recording_path is provided, MCAP recording will be started automatically.");
 
     // Module constants - XR_HAND_JOINT_COUNT_EXT
     m.attr("NUM_JOINTS") = 26;
