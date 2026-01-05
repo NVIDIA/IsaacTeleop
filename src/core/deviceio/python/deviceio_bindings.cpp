@@ -59,9 +59,7 @@ PYBIND11_MODULE(_deviceio, m)
     m.doc() = "TeleopCore DeviceIO - Device I/O Module";
 
     // ITracker interface (base class)
-    py::class_<core::ITracker, std::shared_ptr<core::ITracker>>(m, "ITracker")
-        .def("is_initialized", &core::ITracker::is_initialized)
-        .def("get_name", &core::ITracker::get_name);
+    py::class_<core::ITracker, std::shared_ptr<core::ITracker>>(m, "ITracker").def("get_name", &core::ITracker::get_name);
 
     // HandTracker class
     py::class_<core::HandTracker, core::ITracker, std::shared_ptr<core::HandTracker>>(m, "HandTracker")

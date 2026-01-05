@@ -229,11 +229,6 @@ std::shared_ptr<ITrackerImpl> HandTracker::initialize(const OpenXRSessionHandles
     return shared;
 }
 
-bool HandTracker::is_initialized() const
-{
-    return !cached_impl_.expired();
-}
-
 std::string HandTracker::get_joint_name(uint32_t joint_index)
 {
     static const char* joint_names[] = { "Palm",

@@ -38,12 +38,6 @@ int main()
     std::cout << "  ✓ Created " << hand_tracker->get_name() << std::endl;
     std::cout << "  ✓ Created " << head_tracker->get_name() << std::endl;
 
-    // Check initialization status before session is created
-    std::cout << "  Status before session:" << std::endl;
-    std::cout << "    Hand tracker initialized: " << (hand_tracker->is_initialized() ? "YES" : "NO") << std::endl;
-    std::cout << "    Head tracker initialized: " << (head_tracker->is_initialized() ? "YES" : "NO") << std::endl;
-    std::cout << std::endl;
-
     // Note: At this point, external users CANNOT call:
     // - hand_tracker->initialize()  // protected - not visible!
     // - hand_tracker->update()      // protected - not visible!
@@ -83,12 +77,6 @@ int main()
 
     std::cout << "  ✓ Session created (internal initialization handled automatically)" << std::endl;
 
-    // Check initialization status after session is created
-    std::cout << "  Status after session:" << std::endl;
-    std::cout << "    Hand tracker initialized: " << (hand_tracker->is_initialized() ? "YES" : "NO") << std::endl;
-    std::cout << "    Head tracker initialized: " << (head_tracker->is_initialized() ? "YES" : "NO") << std::endl;
-    std::cout << std::endl;
-
     // Step 5: External user updates and queries data (public API only!)
     std::cout << "[Step 5] Querying tracker data..." << std::endl;
     std::cout << std::endl;
@@ -99,13 +87,6 @@ int main()
         if (!session->update())
         {
             std::cerr << "Update failed" << std::endl;
-            break;
-        }
-
-        // Check initialization before using trackers (good practice)
-        if (!hand_tracker->is_initialized() || !head_tracker->is_initialized())
-        {
-            std::cerr << "Trackers not initialized!" << std::endl;
             break;
         }
 
@@ -131,7 +112,6 @@ int main()
     std::cout << std::endl;
     std::cout << "Summary:" << std::endl;
     std::cout << "  ✓ External users only see public API methods" << std::endl;
-    std::cout << "  ✓ is_initialized() available to check tracker status" << std::endl;
     std::cout << "  ✓ Lifecycle methods (initialize/update/cleanup) are hidden" << std::endl;
     std::cout << "  ✓ Session manages internal lifecycle automatically" << std::endl;
     std::cout << std::endl;

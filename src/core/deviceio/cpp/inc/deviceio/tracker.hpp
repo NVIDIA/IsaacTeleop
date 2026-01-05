@@ -39,7 +39,6 @@ public:
     // Public API - visible to all users
     virtual std::vector<std::string> get_required_extensions() const = 0;
     virtual std::string get_name() const = 0;
-    virtual bool is_initialized() const = 0;
 
 protected:
     // Internal lifecycle methods - only accessible to friend classes

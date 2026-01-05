@@ -392,9 +392,4 @@ std::shared_ptr<ITrackerImpl> ControllerTracker::initialize(const OpenXRSessionH
     return shared;
 }
 
-bool ControllerTracker::is_initialized() const
-{
-    return !cached_impl_.expired();
-}
-
 } // namespace core
