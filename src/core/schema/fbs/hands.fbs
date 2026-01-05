@@ -1,0 +1,16 @@
+include "hand.fbs";
+
+namespace core;
+
+// Combined left and right hand poses.
+// Used by HandTracker to serialize both hands in a single message.
+table HandsPose {
+    // Left hand pose data
+    left_hand: HandPose (id: 0);
+
+    // Right hand pose data
+    right_hand: HandPose (id: 1);
+}
+
+root_type HandsPose;
+

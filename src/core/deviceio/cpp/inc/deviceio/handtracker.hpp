@@ -6,8 +6,9 @@
 #include "flatbuffers/flatbuffer_builder.h"
 #include "tracker.hpp"
 
-#include <schema/hand_bfbs_generated.h>
 #include <schema/hand_generated.h>
+#include <schema/hands_bfbs_generated.h>
+#include <schema/hands_generated.h>
 
 #include <memory>
 
@@ -32,11 +33,11 @@ public:
     }
     std::string get_schema_name() const override
     {
-        return "core.HandPose";
+        return "core.HandsPose";
     }
     std::string get_schema_text() const override
     {
-        return std::string(reinterpret_cast<const char*>(HandPoseBinarySchema::data()), HandPoseBinarySchema::size());
+        return std::string(reinterpret_cast<const char*>(HandsPoseBinarySchema::data()), HandsPoseBinarySchema::size());
     }
     void serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp = nullptr) const override;
     bool is_initialized() const override;
@@ -72,11 +73,12 @@ private:
         }
         std::string get_schema_name() const override
         {
-            return "core.HandPose";
+            return "core.HandsPose";
         }
         std::string get_schema_text() const override
         {
-            return std::string(reinterpret_cast<const char*>(HandPoseBinarySchema::data()), HandPoseBinarySchema::size());
+            return std::string(
+                reinterpret_cast<const char*>(HandsPoseBinarySchema::data()), HandsPoseBinarySchema::size());
         }
         void serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp = nullptr) const override;
 

@@ -3,6 +3,8 @@
 
 #include "inc/deviceio/handtracker.hpp"
 
+#include <schema/hands_generated.h>
+
 #include <cassert>
 #include <cstring>
 #include <iostream>
@@ -97,9 +99,15 @@ void HandTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, int64
     {
         *out_timestamp = left_hand_.timestamp;
     }
-    // TODO: Serialize both hands - currently only serializes left hand
-    auto offset = HandPose::Pack(builder, &left_hand_);
-    builder.Finish(offset);
+
+    // Serialize both hands into a combined HandsPose message
+    auto left_offset = HandPose::Pack(builder, &left_hand_);
+    auto right_offset = HandPose::Pack(builder, &right_hand_);
+
+    HandsPoseBuilder hands_builder(builder);
+    hands_builder.add_left_hand(left_offset);
+    hands_builder.add_right_hand(right_offset);
+    builder.Finish(hands_builder.Finish());
 }
 
 HandTracker::Impl::~Impl()
