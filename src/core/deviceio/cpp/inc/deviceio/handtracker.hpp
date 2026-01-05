@@ -26,7 +26,6 @@ public:
     {
         return "HandTracker";
     }
-    bool is_initialized() const override;
 
     // Query methods - public API for getting hand data
     const HandPoseT& get_left_hand() const;

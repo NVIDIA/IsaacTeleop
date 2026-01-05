@@ -106,9 +106,4 @@ std::shared_ptr<ITrackerImpl> HeadTracker::initialize(const OpenXRSessionHandles
     return shared;
 }
 
-bool HeadTracker::is_initialized() const
-{
-    return !cached_impl_.expired();
-}
-
 } // namespace core

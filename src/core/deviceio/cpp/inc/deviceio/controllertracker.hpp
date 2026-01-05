@@ -23,7 +23,6 @@ public:
     // Public API - what external users see
     std::vector<std::string> get_required_extensions() const override;
     std::string get_name() const override;
-    bool is_initialized() const override;
 
     // Get complete controller data (both left and right controllers)
     const ControllerDataT& get_controller_data() const;
