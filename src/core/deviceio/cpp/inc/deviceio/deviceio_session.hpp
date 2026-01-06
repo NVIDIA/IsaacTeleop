@@ -29,12 +29,6 @@ namespace core
 class DeviceIOSession
 {
 public:
-    ~DeviceIOSession();
-
-    // Explicitly delete copy constructor and copy assignment (non-copyable due to unique_ptr members)
-    DeviceIOSession(const DeviceIOSession&) = delete;
-    DeviceIOSession& operator=(const DeviceIOSession&) = delete;
-
     // Static helper - Get all required OpenXR extensions from a list of trackers
     static std::vector<std::string> get_required_extensions(const std::vector<std::shared_ptr<ITracker>>& trackers);
 

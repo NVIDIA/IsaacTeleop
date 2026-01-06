@@ -47,11 +47,6 @@ DeviceIOSession::DeviceIOSession(const std::vector<std::shared_ptr<ITracker>>& t
     }
 }
 
-DeviceIOSession::~DeviceIOSession()
-{
-    // RAII cleanup - impls will be destroyed automatically
-}
-
 // Static helper - Get all required OpenXR extensions from a list of trackers
 std::vector<std::string> DeviceIOSession::get_required_extensions(const std::vector<std::shared_ptr<ITracker>>& trackers)
 {
