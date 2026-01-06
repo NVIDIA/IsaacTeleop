@@ -34,7 +34,6 @@ protected:
     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) override;
 
 private:
-    // Implementation class declaration (Pimpl idiom)
     class Impl : public ITrackerImpl
     {
     public:
