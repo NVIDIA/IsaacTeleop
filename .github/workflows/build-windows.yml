@@ -73,5 +73,5 @@ jobs:
     - name: sccache stats
       run: sccache --show-stats
 
-    - name: Run Native Tests
+    - name: Run All Tests
       run: ctest --test-dir build --output-on-failure --parallel

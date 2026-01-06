@@ -21,12 +21,22 @@ add_subdirectory(oxr)
 # Build DEVICEIO library (depends on oxr_utils for types)
 add_subdirectory(deviceio)
 
+# Build Retargeting Engine (pure Python module)
+add_subdirectory(retargeting_engine)
+
 # Python wheel packaging (combines both modules)
 if(BUILD_PYTHON_BINDINGS)
     add_subdirectory(python)
 endif()
 
-# Unit tests for FlatBuffer schema types and native types using Catch2.
+# ==============================================================================
+# Tests
+# ==============================================================================
+
 if(BUILD_TESTING)
-  add_subdirectory(schema_tests/cpp)
+    # Schema tests (C++ and Python)
+    add_subdirectory(schema_tests)
+    
+    # Retargeting engine tests (Python)
+    add_subdirectory(retargeting_engine_tests)
 endif()

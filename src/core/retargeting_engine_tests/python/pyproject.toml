@@ -1,0 +1,53 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[project]
+name = "teleopcore-retargeting-engine"
+version = "0.1.0"
+description = "Retargeting engine type system for TeleopCore"
+requires-python = ">=3.11"
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "mypy",
+    "numpy",
+]
+test = [
+    "pytest",
+    "numpy",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+# Prevent pytest from recursing into parent directories
+norecursedirs = [".git", ".venv", "build", "dist", "*.egg", "__pycache__"]
+
+[tool.mypy]
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+strict_equality = true
+
+# Show error codes
+show_error_codes = true
+show_column_numbers = true
+pretty = true
+
+# Exclude test files from strict checking
+exclude = [
+    "test_.*",
+]
+
+# Per-module options
+[[tool.mypy.overrides]]
+module = "test_*"
+ignore_errors = true
+
