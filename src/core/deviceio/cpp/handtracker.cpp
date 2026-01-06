@@ -95,9 +95,9 @@ HandTracker::Impl::Impl(const OpenXRSessionHandles& handles)
 void HandTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp) const
 {
     // For hand tracker, we use left hand's timestamp (both hands are updated at the same time)
-    if (out_timestamp)
+    if (out_timestamp && left_hand_.timestamp)
     {
-        *out_timestamp = left_hand_.timestamp;
+        *out_timestamp = left_hand_.timestamp->device_time();
     }
 
     // Serialize both hands into a combined HandsPose message
@@ -168,7 +168,13 @@ bool HandTracker::Impl::update_hand(XrHandTrackerEXT tracker, XrTime time, HandP
     }
 
     out_data.is_active = locations.isActive;
-    out_data.timestamp = time;
+
+    // Update timestamp (device time and common time)
+    if (!out_data.timestamp)
+    {
+        out_data.timestamp = std::make_shared<Timestamp>();
+    }
+    out_data.timestamp = std::make_shared<Timestamp>(time, time);
 
     // Ensure joints struct is allocated
     if (!out_data.joints)
@@ -241,11 +247,6 @@ std::shared_ptr<ITrackerImpl> HandTracker::initialize(const OpenXRSessionHandles
     auto shared = std::make_shared<Impl>(handles);
     cached_impl_ = shared;
     return shared;
-}
-
-bool HandTracker::is_initialized() const
-{
-    return !cached_impl_.expired();
 }
 
 std::string HandTracker::get_joint_name(uint32_t joint_index)

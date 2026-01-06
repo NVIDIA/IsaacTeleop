@@ -45,7 +45,9 @@ bool HeadTracker::Impl::update(XrTime time)
     bool orientation_valid = (location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0;
 
     head_.is_valid = position_valid && orientation_valid;
-    head_.timestamp = time;
+
+    // Update timestamp (device time and common time)
+    head_.timestamp = std::make_shared<Timestamp>(time, time);
 
     if (head_.is_valid)
     {
@@ -71,9 +73,9 @@ const HeadPoseT& HeadTracker::Impl::get_head() const
 
 void HeadTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp) const
 {
-    if (out_timestamp)
+    if (out_timestamp && head_.timestamp)
     {
-        *out_timestamp = head_.timestamp;
+        *out_timestamp = head_.timestamp->device_time();
     }
     auto offset = HeadPose::Pack(builder, &head_);
     builder.Finish(offset);
@@ -112,11 +114,6 @@ std::shared_ptr<ITrackerImpl> HeadTracker::initialize(const OpenXRSessionHandles
     auto shared = std::make_shared<Impl>(handles);
     cached_impl_ = shared;
     return shared;
-}
-
-bool HeadTracker::is_initialized() const
-{
-    return !cached_impl_.expired();
 }
 
 } // namespace core

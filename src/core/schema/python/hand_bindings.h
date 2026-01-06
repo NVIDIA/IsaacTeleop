@@ -72,33 +72,16 @@ inline void bind_hand(py::module& m)
             py::return_value_policy::reference_internal)
         .def("__repr__", [](const HandJoints&) { return "HandJoints(poses=[...26 HandJointPose entries...])"; });
 
-    // Bind HandPoseT class (FlatBuffers object API for tables).
+    // Bind HandPoseT class (FlatBuffers object API for tables, read-only from Python).
     py::class_<HandPoseT, std::unique_ptr<HandPoseT>>(m, "HandPoseT")
         .def(py::init<>())
         .def_property_readonly(
             "joints", [](const HandPoseT& self) -> const HandJoints* { return self.joints.get(); },
             py::return_value_policy::reference_internal)
-        .def_readwrite("is_active", &HandPoseT::is_active)
-        .def_readwrite("timestamp", &HandPoseT::timestamp)
-        // Convenience method to set joints from a list of HandJointPose.
-        .def(
-            "set_joints",
-            [](HandPoseT& self, const std::vector<HandJointPose>& joint_poses)
-            {
-                if (joint_poses.size() != 26)
-                {
-                    throw std::runtime_error("HandPoseT requires exactly 26 joint poses");
-                }
-                self.joints = std::make_unique<HandJoints>();
-                // Copy each joint pose into the fixed-size array using memcpy.
-                // HandJoints is a POD struct with a fixed array, so this is safe.
-                auto* mutable_array = const_cast<flatbuffers::Array<HandJointPose, 26>*>(self.joints->poses());
-                for (size_t i = 0; i < 26; ++i)
-                {
-                    mutable_array->Mutate(i, joint_poses[i]);
-                }
-            },
-            py::arg("joint_poses"), "Set the joints from a list of 26 HandJointPose entries.")
+        .def_readonly("is_active", &HandPoseT::is_active)
+        .def_property_readonly(
+            "timestamp", [](const HandPoseT& self) -> const Timestamp* { return self.timestamp.get(); },
+            py::return_value_policy::reference_internal)
         .def("__repr__",
              [](const HandPoseT& self)
              {
@@ -107,8 +90,14 @@ inline void bind_hand(py::module& m)
                  {
                      joints_str = "HandJoints(poses=[...26 entries...])";
                  }
+                 std::string timestamp_str = "None";
+                 if (self.timestamp)
+                 {
+                     timestamp_str = "Timestamp(device=" + std::to_string(self.timestamp->device_time()) +
+                                     ", common=" + std::to_string(self.timestamp->common_time()) + ")";
+                 }
                  return "HandPoseT(joints=" + joints_str + ", is_active=" + (self.is_active ? "True" : "False") +
-                        ", timestamp=" + std::to_string(self.timestamp) + ")";
+                        ", timestamp=" + timestamp_str + ")";
              });
 }
 

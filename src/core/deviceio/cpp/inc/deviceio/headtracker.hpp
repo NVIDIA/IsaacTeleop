@@ -27,7 +27,6 @@ public:
     {
         return TRACKER_NAME;
     }
-    bool is_initialized() const override;
 
     // Query methods - public API for getting head data
     const HeadPoseT& get_head() const;

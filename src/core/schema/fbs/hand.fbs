@@ -1,4 +1,5 @@
 include "pose.fbs";
+include "timestamp.fbs";
 
 namespace core;
 
@@ -28,9 +29,8 @@ table HandPose {
     // Whether the hand pose data is active
     is_active: bool (id: 1);
 
-    // The timestamp of the pose data in the XrTime format (i.e. int64)
-    // See: https://github.com/KhronosGroup/OpenXR-SDK/blob/release-1.0.0/include/openxr/openxr.h#L113
-    timestamp: int64 (id: 2);
+    // Dual timestamp with device and runtime clock domains
+    timestamp: Timestamp (id: 2);
 }
 
 root_type HandPose;

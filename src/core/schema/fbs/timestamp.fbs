@@ -1,0 +1,19 @@
+namespace core;
+
+// Dual timestamp representation with device and runtime clock domains.
+// Device timestamps come from the measurement source and provide low-jitter
+// timing, but may be in different clock domains for different data sources.
+// Runtime timestamps are assigned by CloudXR runtime in a common clock domain
+// to enable cross-source synchronization.
+struct Timestamp {
+    // Low-jitter timestamp from the measurement source (e.g., device clock).
+    // This is in nanoseconds, but may be in different clock domains for different data
+    // sources so it may drift apart from other timestamps.
+    device_time: int64;
+
+    // Timestamp assigned by the TeleopCore in a common clock domain in nanoseconds.
+    // This enables synchronization across different data sources.
+    // These may be noisy, but will not drift apart arbitrary across different devices.
+    common_time: int64;
+}
+

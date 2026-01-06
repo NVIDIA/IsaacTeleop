@@ -59,9 +59,7 @@ PYBIND11_MODULE(_deviceio, m)
     m.doc() = "TeleopCore DeviceIO - Device I/O Module";
 
     // ITracker interface (base class)
-    py::class_<core::ITracker, std::shared_ptr<core::ITracker>>(m, "ITracker")
-        .def("is_initialized", &core::ITracker::is_initialized)
-        .def("get_name", &core::ITracker::get_name);
+    py::class_<core::ITracker, std::shared_ptr<core::ITracker>>(m, "ITracker").def("get_name", &core::ITracker::get_name);
 
     // HandTracker class
     py::class_<core::HandTracker, core::ITracker, std::shared_ptr<core::HandTracker>>(m, "HandTracker")
@@ -75,45 +73,12 @@ PYBIND11_MODULE(_deviceio, m)
         .def(py::init<>())
         .def("get_head", &core::HeadTracker::get_head, py::return_value_policy::reference_internal);
 
-    // Hand enum
-    py::enum_<core::Hand>(m, "Hand").value("Left", core::Hand::Left).value("Right", core::Hand::Right).export_values();
-
-    // ControllerInput enum - with arithmetic to make it iterable
-    // ControllerInputState structure
-    py::class_<core::ControllerInputState>(m, "ControllerInputState")
-        .def(py::init<>())
-        .def_readonly("primary_click", &core::ControllerInputState::primary_click)
-        .def_readonly("secondary_click", &core::ControllerInputState::secondary_click)
-        .def_readonly("thumbstick_click", &core::ControllerInputState::thumbstick_click)
-        .def_readonly("thumbstick_x", &core::ControllerInputState::thumbstick_x)
-        .def_readonly("thumbstick_y", &core::ControllerInputState::thumbstick_y)
-        .def_readonly("squeeze_value", &core::ControllerInputState::squeeze_value)
-        .def_readonly("trigger_value", &core::ControllerInputState::trigger_value);
-
-    // ControllerPose structure
-    py::class_<core::ControllerPose>(m, "ControllerPose")
-        .def(py::init<>())
-        .def_property_readonly("position", [](const core::ControllerPose& self)
-                               { return py::array_t<float>({ 3 }, { sizeof(float) }, self.position); })
-        .def_property_readonly("orientation", [](const core::ControllerPose& self)
-                               { return py::array_t<float>({ 4 }, { sizeof(float) }, self.orientation); })
-        .def_readonly("is_valid", &core::ControllerPose::is_valid);
-
-    // ControllerSnapshot structure
-    py::class_<core::ControllerSnapshot>(m, "ControllerSnapshot")
-        .def(py::init<>())
-        .def_readonly("grip_pose", &core::ControllerSnapshot::grip_pose)
-        .def_readonly("aim_pose", &core::ControllerSnapshot::aim_pose)
-        .def_readonly("inputs", &core::ControllerSnapshot::inputs)
-        .def_readonly("is_active", &core::ControllerSnapshot::is_active)
-        .def_readonly("timestamp", &core::ControllerSnapshot::timestamp);
-
     // ControllerTracker class
     py::class_<core::ControllerTracker, core::ITracker, std::shared_ptr<core::ControllerTracker>>(m, "ControllerTracker")
         .def(py::init<>())
-        .def("get_snapshot", &core::ControllerTracker::get_snapshot, py::arg("hand"),
+        .def("get_controller_data", &core::ControllerTracker::get_controller_data,
              py::return_value_policy::reference_internal,
-             "Get current controller snapshot for specified hand (includes poses and inputs)");
+             "Get complete controller data for both left and right controllers");
 
     // DeviceIOSession class (bound via wrapper for context management)
     py::class_<PyDeviceIOSession>(m, "DeviceIOSession")

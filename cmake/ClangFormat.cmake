@@ -38,6 +38,9 @@ set(_cf_exclude_patterns
   ".*/manus/ManusSDK/.*"
   ".*/node_modules/.*"
   ".*/third_party/.*"
+  ".*/venv/.*"
+  ".*/\\.venv/.*"
+  ".*/__pycache__/.*"
 )
 
 set(CLANG_FORMAT_SOURCES)
