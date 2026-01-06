@@ -48,7 +48,7 @@ protected:
     // Initialize the tracker and return its implementation
     // The tracker will use handles.space as the base coordinate system for reporting poses
     // Returns nullptr on failure
-    virtual std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) = 0;
+    virtual std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const = 0;
 };
 
 } // namespace core

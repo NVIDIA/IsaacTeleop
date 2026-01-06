@@ -374,7 +374,7 @@ const ControllerDataT& ControllerTracker::get_controller_data(const DeviceIOSess
     return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_controller_data();
 }
 
-std::shared_ptr<ITrackerImpl> ControllerTracker::create_tracker(const OpenXRSessionHandles& handles)
+std::shared_ptr<ITrackerImpl> ControllerTracker::create_tracker(const OpenXRSessionHandles& handles) const
 {
     return std::make_shared<Impl>(handles);
 }

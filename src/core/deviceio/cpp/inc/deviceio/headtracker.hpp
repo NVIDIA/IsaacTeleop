@@ -28,7 +28,7 @@ public:
     const HeadPoseT& get_head(const DeviceIOSession& session) const;
 
 private:
-    std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) override;
+    std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
 
     class Impl : public ITrackerImpl
     {

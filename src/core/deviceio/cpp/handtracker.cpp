@@ -207,7 +207,7 @@ const HandPoseT& HandTracker::get_right_hand(const DeviceIOSession& session) con
     return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_right_hand();
 }
 
-std::shared_ptr<ITrackerImpl> HandTracker::create_tracker(const OpenXRSessionHandles& handles)
+std::shared_ptr<ITrackerImpl> HandTracker::create_tracker(const OpenXRSessionHandles& handles) const
 {
     return std::make_shared<Impl>(handles);
 }
