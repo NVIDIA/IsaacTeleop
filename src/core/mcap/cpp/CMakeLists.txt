@@ -9,11 +9,15 @@ add_library(mcap_core STATIC
     inc/mcap_recorder.hpp
 )
 
+# Public headers for consumers of this library
+target_include_directories(mcap_core
+    INTERFACE
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
+)
+
+# Include deviceio headers for ITrackerImpl interface (header-only dependency)
 target_include_directories(mcap_core
     PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
-        $<INSTALL_INTERFACE:include>
-        # Include deviceio headers for ITrackerImpl interface (header-only dependency)
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../deviceio/cpp/inc>
 )
 
@@ -42,7 +46,3 @@ install(FILES inc/mcap_recorder.hpp
     DESTINATION include
 )
 
-# Tests (optional, controlled by BUILD_TESTING)
-if(BUILD_TESTING AND TARGET Catch2::Catch2WithMain)
-    add_subdirectory(tests)
-endif()

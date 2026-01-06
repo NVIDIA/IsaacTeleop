@@ -29,7 +29,8 @@ if(BUILD_PYTHON_BINDINGS)
     add_subdirectory(python)
 endif()
 
-# Unit tests for FlatBuffer schema types and native types using Catch2.
+# Unit tests using Catch2.
 if(BUILD_TESTING)
   add_subdirectory(schema_tests/cpp)
+  add_subdirectory(mcap_tests/cpp)
 endif()

@@ -15,3 +15,4 @@ target_link_libraries(mcap_tests PRIVATE
 
 message(STATUS "mcap_tests target enabled with Catch2")
 catch_discover_tests(mcap_tests)
+

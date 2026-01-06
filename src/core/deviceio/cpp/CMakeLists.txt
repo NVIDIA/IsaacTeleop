@@ -30,9 +30,8 @@ add_library(deviceio_core STATIC
 )
 
 target_include_directories(deviceio_core
-    PUBLIC
+    INTERFACE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
-        $<INSTALL_INTERFACE:include>
 )
 
 target_link_libraries(deviceio_core
