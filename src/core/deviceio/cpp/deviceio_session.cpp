@@ -156,10 +156,12 @@ bool DeviceIOSession::update()
         {
             std::cerr << "Warning: tracker update failed" << std::endl;
         }
-    }
 
-    // Record tracker data if recording is enabled
-    record_tracker_data();
+        if (is_recording())
+        {
+            recorder_->record(impl);
+        }
+    }
 
     return true;
 }
@@ -205,19 +207,6 @@ void DeviceIOSession::stop_recording()
 bool DeviceIOSession::is_recording() const
 {
     return recorder_ && recorder_->is_open();
-}
-
-void DeviceIOSession::record_tracker_data()
-{
-    if (!is_recording())
-    {
-        return;
-    }
-
-    for (const auto& impl : tracker_impls_)
-    {
-        recorder_->record(impl);
-    }
 }
 
 } // namespace core

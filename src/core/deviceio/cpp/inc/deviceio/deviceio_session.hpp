@@ -70,7 +70,6 @@ private:
     bool start_recording(const std::string& filename);
     void stop_recording();
     bool is_recording() const;
-    void record_tracker_data();
 };
 
 } // namespace core

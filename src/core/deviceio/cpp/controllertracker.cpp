@@ -352,9 +352,8 @@ const ControllerDataT& ControllerTracker::Impl::get_controller_data() const
     return controller_data_;
 }
 
-void ControllerTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& /* builder */, int64_t* out_timestamp) const
+void ControllerTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp) const
 {
-    // TODO: Implement controller serialization when FlatBuffer schema is available
     if (out_timestamp)
     {
         // Use left controller timestamp (or right if left is inactive)
@@ -371,6 +370,9 @@ void ControllerTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& /* build
             *out_timestamp = 0;
         }
     }
+
+    auto offset = ControllerData::Pack(builder, &controller_data_);
+    builder.Finish(offset);
 }
 
 // ============================================================================
