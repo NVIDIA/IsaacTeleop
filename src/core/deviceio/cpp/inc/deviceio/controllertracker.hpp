@@ -31,7 +31,7 @@ protected:
     // Internal lifecycle methods - only accessible via friend classes
     friend class TeleopSession;
 
-    std::shared_ptr<ITrackerImpl> initialize(const OpenXRSessionHandles& handles) override;
+    std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) override;
 
 private:
     // Implementation class declaration (Pimpl idiom)

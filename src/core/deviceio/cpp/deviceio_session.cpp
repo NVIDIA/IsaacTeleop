@@ -43,7 +43,7 @@ DeviceIOSession::DeviceIOSession(const std::vector<std::shared_ptr<ITracker>>& t
     // Initialize all trackers and collect their implementations
     for (const auto& tracker : trackers)
     {
-        auto impl = tracker->initialize(handles_);
+        auto impl = tracker->create_tracker(handles_);
         if (!impl)
         {
             throw std::runtime_error("Failed to initialize tracker: " + tracker->get_name());

@@ -99,7 +99,7 @@ const HeadPoseT& HeadTracker::get_head() const
     return impl->get_head();
 }
 
-std::shared_ptr<ITrackerImpl> HeadTracker::initialize(const OpenXRSessionHandles& handles)
+std::shared_ptr<ITrackerImpl> HeadTracker::create_tracker(const OpenXRSessionHandles& handles)
 {
     auto shared = std::make_shared<Impl>(handles);
     cached_impl_ = shared;

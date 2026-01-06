@@ -385,7 +385,7 @@ const ControllerDataT& ControllerTracker::get_controller_data() const
     return impl->get_controller_data();
 }
 
-std::shared_ptr<ITrackerImpl> ControllerTracker::initialize(const OpenXRSessionHandles& handles)
+std::shared_ptr<ITrackerImpl> ControllerTracker::create_tracker(const OpenXRSessionHandles& handles)
 {
     auto shared = std::make_shared<Impl>(handles);
     cached_impl_ = shared;

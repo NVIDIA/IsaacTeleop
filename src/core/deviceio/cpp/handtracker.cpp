@@ -222,7 +222,7 @@ const HandPoseT& HandTracker::get_right_hand() const
     return impl->get_right_hand();
 }
 
-std::shared_ptr<ITrackerImpl> HandTracker::initialize(const OpenXRSessionHandles& handles)
+std::shared_ptr<ITrackerImpl> HandTracker::create_tracker(const OpenXRSessionHandles& handles)
 {
     auto shared = std::make_shared<Impl>(handles);
     cached_impl_ = shared;
