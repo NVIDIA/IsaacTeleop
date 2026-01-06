@@ -98,8 +98,8 @@ int main()
         }
 
         // Get data from both trackers
-        const auto& left = hand_tracker->get_left_hand();
-        const auto& head = head_tracker->get_head();
+        const auto& left = hand_tracker->get_left_hand(*session1);
+        const auto& head = head_tracker->get_head(*session2);
 
         if (i % 3 == 0)
         {

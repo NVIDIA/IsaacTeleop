@@ -68,8 +68,8 @@ with oxr_session:
         
         # Test 5: Check hand data
         print("[Test 5] Checking hand tracking data...")
-        left = hand_tracker.get_left_hand()
-        right = hand_tracker.get_right_hand()
+        left = hand_tracker.get_left_hand(session)
+        right = hand_tracker.get_right_hand(session)
         print(f"  Left hand: {'ACTIVE' if left.is_active else 'INACTIVE'}")
         print(f"  Right hand: {'ACTIVE' if right.is_active else 'INACTIVE'}")
 
@@ -82,7 +82,7 @@ with oxr_session:
 
         # Test 6: Check head data (returns HeadPoseT from schema)
         print("[Test 6] Checking head tracking data...")
-        head: schema.HeadPoseT = head_tracker.get_head()
+        head: schema.HeadPoseT = head_tracker.get_head(session)
         print(f"  Head: {'VALID' if head.is_valid else 'INVALID'}")
 
         if head.is_valid and head.pose:
@@ -105,8 +105,8 @@ with oxr_session:
                 
                 if frame_count % 60 == 0:
                     elapsed = time.time() - start_time
-                    left = hand_tracker.get_left_hand()
-                    head = head_tracker.get_head()
+                    left = hand_tracker.get_left_hand(session)
+                    head = head_tracker.get_head(session)
                     print(f"  [{elapsed:4.1f}s] Frame {frame_count:3d}: "
                           f"Hands={'ACTIVE' if left.is_active else 'INACTIVE':8s} | "
                           f"Head={'VALID' if head.is_valid else 'INVALID':8s}")

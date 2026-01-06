@@ -46,12 +46,22 @@ public:
     // Update session and all trackers
     bool update();
 
+    const ITrackerImpl& get_tracker_impl(const ITracker& tracker) const
+    {
+        auto it = tracker_impls_.find(&tracker);
+        if (it == tracker_impls_.end())
+        {
+            throw std::runtime_error("Tracker implementation not found for tracker: " + tracker.get_name());
+        }
+        return *(it->second);
+    }
+
 private:
     // Private constructor - use run() instead (throws std::runtime_error on failure)
     DeviceIOSession(const std::vector<std::shared_ptr<ITracker>>& trackers, const OpenXRSessionHandles& handles);
 
-    OpenXRSessionHandles handles_;
-    std::vector<std::shared_ptr<ITrackerImpl>> tracker_impls_; // Actual implementations
+    const OpenXRSessionHandles handles_;
+    std::unordered_map<const ITracker*, std::shared_ptr<ITrackerImpl>> tracker_impls_;
 
     // For time conversion
 #if defined(XR_USE_PLATFORM_WIN32)

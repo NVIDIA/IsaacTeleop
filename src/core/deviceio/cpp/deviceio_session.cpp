@@ -43,15 +43,8 @@ DeviceIOSession::DeviceIOSession(const std::vector<std::shared_ptr<ITracker>>& t
     // Initialize all trackers and collect their implementations
     for (const auto& tracker : trackers)
     {
-        auto impl = tracker->create_tracker(handles_);
-        if (!impl)
-        {
-            throw std::runtime_error("Failed to initialize tracker: " + tracker->get_name());
-        }
-        tracker_impls_.push_back(std::move(impl));
+        tracker_impls_.emplace(tracker.get(), tracker->create_tracker(handles_));
     }
-
-    std::cout << "DeviceIOSession: Initialized " << tracker_impls_.size() << " trackers" << std::endl;
 }
 
 DeviceIOSession::~DeviceIOSession()
@@ -135,7 +128,7 @@ bool DeviceIOSession::update()
     // Update all tracker implementations directly
     for (auto& impl : tracker_impls_)
     {
-        if (!impl->update(current_time))
+        if (!impl.second->update(current_time))
         {
             std::cerr << "Warning: tracker update failed" << std::endl;
         }

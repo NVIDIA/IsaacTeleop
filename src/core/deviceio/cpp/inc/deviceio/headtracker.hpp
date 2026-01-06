@@ -17,9 +17,6 @@ namespace core
 class HeadTracker : public ITracker
 {
 public:
-    HeadTracker();
-    ~HeadTracker() override;
-
     // Public API - what external users see
     std::vector<std::string> get_required_extensions() const override;
     std::string get_name() const override
@@ -28,7 +25,7 @@ public:
     }
 
     // Query methods - public API for getting head data
-    const HeadPoseT& get_head() const;
+    const HeadPoseT& get_head(const DeviceIOSession& session) const;
 
 protected:
     // Internal lifecycle methods - only accessible via friend classes
@@ -54,9 +51,6 @@ private:
         XrSpacePtr view_space_;
         HeadPoseT head_;
     };
-
-    // Weak pointer to impl (owned by session)
-    std::weak_ptr<Impl> cached_impl_;
 };
 
 } // namespace core

@@ -17,15 +17,12 @@ namespace core
 class ControllerTracker : public ITracker
 {
 public:
-    ControllerTracker();
-    ~ControllerTracker() override;
-
     // Public API - what external users see
     std::vector<std::string> get_required_extensions() const override;
     std::string get_name() const override;
 
     // Get complete controller data (both left and right controllers)
-    const ControllerDataT& get_controller_data() const;
+    const ControllerDataT& get_controller_data(const DeviceIOSession& session) const;
 
 protected:
     // Internal lifecycle methods - only accessible via friend classes
@@ -34,7 +31,6 @@ protected:
     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) override;
 
 private:
-    // Implementation class declaration (Pimpl idiom)
     class Impl : public ITrackerImpl
     {
     public:
@@ -75,9 +71,6 @@ private:
         // Controller data for both hands (table wrapper with struct snapshots)
         ControllerDataT controller_data_;
     };
-
-    // Weak pointer to impl (owned by session)
-    std::weak_ptr<Impl> cached_impl_;
 };
 
 } // namespace core

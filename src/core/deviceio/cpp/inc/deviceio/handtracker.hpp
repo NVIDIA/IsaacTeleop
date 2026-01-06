@@ -17,9 +17,6 @@ namespace core
 class HandTracker : public ITracker
 {
 public:
-    HandTracker();
-    ~HandTracker() override;
-
     // Public API - what external users see
     std::vector<std::string> get_required_extensions() const override;
     std::string get_name() const override
@@ -28,8 +25,8 @@ public:
     }
 
     // Query methods - public API for getting hand data
-    const HandPoseT& get_left_hand() const;
-    const HandPoseT& get_right_hand() const;
+    const HandPoseT& get_left_hand(const DeviceIOSession& session) const;
+    const HandPoseT& get_right_hand(const DeviceIOSession& session) const;
 
     // Get joint name for debugging
     static std::string get_joint_name(uint32_t joint_index);
@@ -75,9 +72,6 @@ private:
         PFN_xrDestroyHandTrackerEXT pfn_destroy_hand_tracker_;
         PFN_xrLocateHandJointsEXT pfn_locate_hand_joints_;
     };
-
-    // Weak pointer to impl (owned by session)
-    std::weak_ptr<Impl> cached_impl_;
 };
 
 } // namespace core

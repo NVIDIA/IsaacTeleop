@@ -107,8 +107,8 @@ def run_test():
                     break
                 
                 if frame_count % 60 == 0:
-                    left = hand_tracker.get_left_hand()
-                    right = hand_tracker.get_right_hand()
+                    left = hand_tracker.get_left_hand(deviceio_session)
+                    right = hand_tracker.get_right_hand(deviceio_session)
                     
                     print(f"Frame {frame_count}:")
                     print(f"  Left Hand: {'ACTIVE' if left.is_active else 'INACTIVE'}")

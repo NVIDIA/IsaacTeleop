@@ -3,6 +3,8 @@
 
 #include "inc/deviceio/headtracker.hpp"
 
+#include "inc/deviceio/deviceio_session.hpp"
+
 #include <cstring>
 #include <iostream>
 
@@ -75,35 +77,20 @@ const HeadPoseT& HeadTracker::Impl::get_head() const
 // HeadTracker Public Interface Implementation
 // ============================================================================
 
-HeadTracker::HeadTracker()
-{
-}
-
-HeadTracker::~HeadTracker()
-{
-    // Session owns the impl, weak_ptr will detect if it's destroyed
-}
-
 std::vector<std::string> HeadTracker::get_required_extensions() const
 {
     // Head tracking doesn't require special extensions - it's part of core OpenXR
     return {};
 }
 
-const HeadPoseT& HeadTracker::get_head() const
+const HeadPoseT& HeadTracker::get_head(const DeviceIOSession& session) const
 {
-    static const HeadPoseT empty_pose{};
-    auto impl = cached_impl_.lock();
-    if (!impl)
-        return empty_pose;
-    return impl->get_head();
+    return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_head();
 }
 
 std::shared_ptr<ITrackerImpl> HeadTracker::create_tracker(const OpenXRSessionHandles& handles)
 {
-    auto shared = std::make_shared<Impl>(handles);
-    cached_impl_ = shared;
-    return shared;
+    return std::make_shared<Impl>(handles);
 }
 
 } // namespace core
