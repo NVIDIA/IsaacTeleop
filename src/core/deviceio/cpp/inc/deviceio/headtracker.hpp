@@ -27,13 +27,9 @@ public:
     // Query methods - public API for getting head data
     const HeadPoseT& get_head(const DeviceIOSession& session) const;
 
-protected:
-    // Internal lifecycle methods - only accessible via friend classes
-    friend class DeviceIOSession;
-
+private:
     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) override;
 
-private:
     class Impl : public ITrackerImpl
     {
     public:

@@ -24,13 +24,9 @@ public:
     // Get complete controller data (both left and right controllers)
     const ControllerDataT& get_controller_data(const DeviceIOSession& session) const;
 
-protected:
-    // Internal lifecycle methods - only accessible via friend classes
-    friend class TeleopSession;
-
+private:
     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) override;
 
-private:
     class Impl : public ITrackerImpl
     {
     public:

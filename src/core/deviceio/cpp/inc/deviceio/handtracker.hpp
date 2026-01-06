@@ -31,13 +31,9 @@ public:
     // Get joint name for debugging
     static std::string get_joint_name(uint32_t joint_index);
 
-protected:
-    // Internal lifecycle methods - only accessible via friend classes
-    friend class DeviceIOSession;
-
+private:
     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) override;
 
-private:
     class Impl : public ITrackerImpl
     {
     public:
