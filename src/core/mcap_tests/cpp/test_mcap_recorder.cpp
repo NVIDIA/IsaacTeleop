@@ -192,33 +192,25 @@ TEST_CASE("McapRecorder add_tracker", "[mcap_recorder]")
 
     auto tracker = std::make_shared<MockTrackerImpl>();
 
-    SECTION("add_tracker assigns channel ID")
+    SECTION("add_tracker enables recording")
     {
         recorder.add_tracker(tracker);
-
-        auto channel_id = recorder.get_channel_id(tracker.get());
-        CHECK(channel_id != 0);
+        tracker->update(1000000000);
+        CHECK(recorder.record(tracker) == true);
     }
 
-    SECTION("multiple trackers get different channel IDs")
+    SECTION("multiple trackers can be added and recorded")
     {
         auto tracker2 = std::make_shared<MockTrackerImpl>();
 
         recorder.add_tracker(tracker);
         recorder.add_tracker(tracker2);
 
-        auto id1 = recorder.get_channel_id(tracker.get());
-        auto id2 = recorder.get_channel_id(tracker2.get());
+        tracker->update(1000000000);
+        tracker2->update(2000000000);
 
-        CHECK(id1 != 0);
-        CHECK(id2 != 0);
-        CHECK(id1 != id2);
-    }
-
-    SECTION("unregistered tracker returns channel ID 0")
-    {
-        auto unregistered = std::make_shared<MockTrackerImpl>();
-        CHECK(recorder.get_channel_id(unregistered.get()) == 0);
+        CHECK(recorder.record(tracker) == true);
+        CHECK(recorder.record(tracker2) == true);
     }
 
     recorder.close();

@@ -4,7 +4,6 @@
 #pragma once
 
 #include <deviceio/tracker.hpp>
-#include <mcap/types.hpp>
 
 #include <memory>
 #include <string>
@@ -61,14 +60,6 @@ public:
      * @param tracker_impl The tracker implementation to register.
      */
     void add_tracker(const std::shared_ptr<ITrackerImpl> tracker_impl);
-
-    /**
-     * @brief Get the channel ID assigned to a tracker impl.
-     *
-     * @param tracker_impl Pointer to the tracker implementation instance.
-     * @return The channel ID, or 0 if tracker not found.
-     */
-    mcap::ChannelId get_channel_id(const ITrackerImpl* tracker_impl) const;
 
     /**
      * @brief Record the current state of a tracker implementation.

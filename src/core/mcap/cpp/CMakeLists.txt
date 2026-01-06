@@ -29,7 +29,8 @@ target_link_libraries(mcap_core
         oxr::oxr_utils
         # Schema library for FlatBuffer types used in tracker.hpp
         teleopcore_schema
-        # MCAP header-only library (PUBLIC because mcap_recorder.hpp includes mcap/types.hpp)
+    PRIVATE
+        # MCAP header-only library (PRIVATE - implementation detail)
         mcap::mcap
 )
 

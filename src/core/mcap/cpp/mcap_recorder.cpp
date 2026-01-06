@@ -200,9 +200,4 @@ void McapRecorder::add_tracker(const std::shared_ptr<ITrackerImpl> tracker_impl)
     impl_->add_tracker(tracker_impl);
 }
 
-mcap::ChannelId McapRecorder::get_channel_id(const ITrackerImpl* tracker_impl) const
-{
-    return impl_->get_channel_id(tracker_impl);
-}
-
 } // namespace core
