@@ -82,7 +82,6 @@ public:
     {
         return "";
     } // TODO: Add schema when available
-    void serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp = nullptr) const override;
     bool is_initialized() const override;
 
     // Get complete snapshot of controller state (inputs + poses)

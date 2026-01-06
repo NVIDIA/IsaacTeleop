@@ -248,15 +248,6 @@ bool HandTracker::is_initialized() const
     return !cached_impl_.expired();
 }
 
-void HandTracker::serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp) const
-{
-    auto impl = cached_impl_.lock();
-    if (impl)
-    {
-        impl->serialize(builder, out_timestamp);
-    }
-}
-
 std::string HandTracker::get_joint_name(uint32_t joint_index)
 {
     static const char* joint_names[] = { "Palm",

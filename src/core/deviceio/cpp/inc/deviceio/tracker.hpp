@@ -69,14 +69,6 @@ public:
     virtual std::string get_name() const = 0;
     virtual std::string get_schema_name() const = 0;
     virtual std::string get_schema_text() const = 0;
-
-    /**
-     * @brief Serialize the tracker data to a FlatBuffer.
-     *
-     * @param builder Output FlatBufferBuilder to write serialized data into.
-     * @param out_timestamp Output timestamp in nanoseconds (XrTime) for MCAP recording.
-     */
-    virtual void serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp = nullptr) const = 0;
     virtual bool is_initialized() const = 0;
 
 protected:

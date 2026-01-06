@@ -39,7 +39,6 @@ public:
     {
         return std::string(reinterpret_cast<const char*>(HandsPoseBinarySchema::data()), HandsPoseBinarySchema::size());
     }
-    void serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp = nullptr) const override;
     bool is_initialized() const override;
 
     // Query methods - public API for getting hand data

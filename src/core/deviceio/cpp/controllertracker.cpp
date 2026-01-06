@@ -375,15 +375,6 @@ std::vector<std::string> ControllerTracker::get_required_extensions() const
     return {};
 }
 
-void ControllerTracker::serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp) const
-{
-    auto impl = cached_impl_.lock();
-    if (impl)
-    {
-        impl->serialize(builder, out_timestamp);
-    }
-}
-
 const ControllerSnapshot& ControllerTracker::get_snapshot(Hand hand) const
 {
     static const ControllerSnapshot empty_snapshot{};
