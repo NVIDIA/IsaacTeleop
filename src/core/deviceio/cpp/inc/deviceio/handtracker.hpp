@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include "flatbuffers/flatbuffer_builder.h"
 #include "tracker.hpp"
 
 #include <schema/hand_generated.h>
@@ -20,8 +19,6 @@ namespace core
 class HandTracker : public ITracker
 {
 public:
-    static constexpr const char* TRACKER_NAME = "HandTracker";
-
     HandTracker();
     ~HandTracker() override;
 
@@ -30,14 +27,6 @@ public:
     std::string get_name() const override
     {
         return TRACKER_NAME;
-    }
-    std::string get_schema_name() const override
-    {
-        return "core.HandsPose";
-    }
-    std::string get_schema_text() const override
-    {
-        return std::string(reinterpret_cast<const char*>(HandsPoseBinarySchema::data()), HandsPoseBinarySchema::size());
     }
     bool is_initialized() const override;
 
@@ -55,6 +44,7 @@ protected:
     std::shared_ptr<ITrackerImpl> initialize(const OpenXRSessionHandles& handles) override;
 
 private:
+    static constexpr const char* TRACKER_NAME = "HandTracker";
     // Implementation class declaration (Pimpl idiom)
     class Impl : public ITrackerImpl
     {

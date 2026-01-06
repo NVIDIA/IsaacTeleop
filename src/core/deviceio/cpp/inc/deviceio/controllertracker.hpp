@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include "flatbuffers/flatbuffer_builder.h"
 #include "tracker.hpp"
 
 #include <array>
@@ -63,8 +62,6 @@ struct ControllerSnapshot
 class ControllerTracker : public ITracker
 {
 public:
-    static constexpr const char* TRACKER_NAME = "ControllerTracker";
-
     ControllerTracker();
     ~ControllerTracker() override;
 
@@ -74,14 +71,6 @@ public:
     {
         return TRACKER_NAME;
     }
-    std::string get_schema_name() const override
-    {
-        return "";
-    } // TODO: Add schema when available
-    std::string get_schema_text() const override
-    {
-        return "";
-    } // TODO: Add schema when available
     bool is_initialized() const override;
 
     // Get complete snapshot of controller state (inputs + poses)
@@ -94,6 +83,7 @@ protected:
     std::shared_ptr<ITrackerImpl> initialize(const OpenXRSessionHandles& handles) override;
 
 private:
+    static constexpr const char* TRACKER_NAME = "ControllerTracker";
     // Implementation class declaration (Pimpl idiom)
     class Impl : public ITrackerImpl
     {

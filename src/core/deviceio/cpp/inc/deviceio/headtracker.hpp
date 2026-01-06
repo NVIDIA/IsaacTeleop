@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include "flatbuffers/flatbuffer_builder.h"
 #include "tracker.hpp"
 
 #include <schema/head_bfbs_generated.h>
@@ -19,8 +18,6 @@ namespace core
 class HeadTracker : public ITracker
 {
 public:
-    static constexpr const char* TRACKER_NAME = "HeadTracker";
-
     HeadTracker();
     ~HeadTracker() override;
 
@@ -29,14 +26,6 @@ public:
     std::string get_name() const override
     {
         return TRACKER_NAME;
-    }
-    std::string get_schema_name() const override
-    {
-        return "core.HeadPose";
-    }
-    std::string get_schema_text() const override
-    {
-        return std::string(reinterpret_cast<const char*>(HeadPoseBinarySchema::data()), HeadPoseBinarySchema::size());
     }
     bool is_initialized() const override;
 
@@ -50,6 +39,7 @@ protected:
     std::shared_ptr<ITrackerImpl> initialize(const OpenXRSessionHandles& handles) override;
 
 private:
+    static constexpr const char* TRACKER_NAME = "HeadTracker";
     // Implementation class declaration (Pimpl idiom)
     class Impl : public ITrackerImpl
     {
