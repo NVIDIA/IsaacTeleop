@@ -47,18 +47,22 @@ private:
 
         // Override from ITrackerImpl
         bool update(XrTime time) override;
+
         std::string get_name() const override
         {
             return HeadTracker::TRACKER_NAME;
         }
+
         std::string get_schema_name() const override
         {
             return "core.HeadPose";
         }
+
         std::string get_schema_text() const override
         {
             return std::string(reinterpret_cast<const char*>(HeadPoseBinarySchema::data()), HeadPoseBinarySchema::size());
         }
+
         void serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp = nullptr) const override;
 
         const HeadPoseT& get_head() const;

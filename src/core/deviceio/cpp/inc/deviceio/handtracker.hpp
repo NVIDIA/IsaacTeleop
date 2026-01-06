@@ -55,19 +55,23 @@ private:
 
         // Override from ITrackerImpl
         bool update(XrTime time) override;
+
         std::string get_name() const override
         {
             return HandTracker::TRACKER_NAME;
         }
+
         std::string get_schema_name() const override
         {
             return "core.HandsPose";
         }
+
         std::string get_schema_text() const override
         {
             return std::string(
                 reinterpret_cast<const char*>(HandsPoseBinarySchema::data()), HandsPoseBinarySchema::size());
         }
+
         void serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp = nullptr) const override;
 
         const HandPoseT& get_left_hand() const;

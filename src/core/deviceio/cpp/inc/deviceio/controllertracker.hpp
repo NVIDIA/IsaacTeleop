@@ -5,6 +5,7 @@
 
 #include "tracker.hpp"
 
+#include <schema/controller_bfbs_generated.h>
 #include <schema/controller_generated.h>
 
 #include <memory>
@@ -47,18 +48,23 @@ private:
 
         // Override from ITrackerImpl
         bool update(XrTime time) override;
+
         std::string get_name() const override
         {
             return ControllerTracker::TRACKER_NAME;
         }
+
         std::string get_schema_name() const override
         {
-            return "";
-        } // TODO: Add schema when available
+            return "core.ControllerData";
+        }
+
         std::string get_schema_text() const override
         {
-            return "";
-        } // TODO: Add schema when available
+            return std::string(
+                reinterpret_cast<const char*>(ControllerDataBinarySchema::data()), ControllerDataBinarySchema::size());
+        }
+
         void serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp = nullptr) const override;
 
         const ControllerDataT& get_controller_data() const;
