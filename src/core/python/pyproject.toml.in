@@ -30,7 +30,10 @@ packages = [
     "teleopcore.deviceio",
     "teleopcore.oxr",
     "teleopcore.plugin_manager",
-    "teleopcore.schema"
+    "teleopcore.schema",
+    "teleopcore.retargeting_engine",
+    "teleopcore.retargeting_engine.interface",
+    "teleopcore.retargeting_engine.tensor_types"
 ]
 include-package-data = true
 
