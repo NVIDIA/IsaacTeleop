@@ -68,20 +68,21 @@ class TensorType(ABC):
         """
         pass
     
-    def validate_value(self, value: Any) -> bool:
+    def validate_value(self, value: Any) -> None:
         """
         Validate that a value conforms to this tensor type.
         
         By default, any value is accepted. Subclasses can override to provide
-        specific validation (e.g., checking array shapes, dtypes, etc.).
+        specific validation (e.g., checking array shapes, dtypes, etc.) and
+        raise TypeError with a descriptive message if validation fails.
         
         Args:
             value: The value to validate
             
-        Returns:
-            True if valid, False otherwise
+        Raises:
+            TypeError: If the value does not conform to this tensor type
         """
-        return True
+        pass
     
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(name='{self._name}')"

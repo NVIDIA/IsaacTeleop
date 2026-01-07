@@ -24,9 +24,17 @@ class FloatType(TensorType):
         assert isinstance(other, FloatType), f"Expected FloatType, got {type(other).__name__}"
         return True
     
-    def validate_value(self, value: Any) -> bool:
-        """Validate if the given value is a float (and not a bool or int)."""
-        return isinstance(value, float) and not isinstance(value, bool)
+    def validate_value(self, value: Any) -> None:
+        """
+        Validate if the given value is a float (and not a bool or int).
+        
+        Raises:
+            TypeError: If value is not a float
+        """
+        if not isinstance(value, float) or isinstance(value, bool):
+            raise TypeError(
+                f"Expected float for '{self.name}', got {type(value).__name__}"
+            )
 
 
 class IntType(TensorType):
@@ -46,9 +54,17 @@ class IntType(TensorType):
         assert isinstance(other, IntType), f"Expected IntType, got {type(other).__name__}"
         return True
     
-    def validate_value(self, value: Any) -> bool:
-        """Validate if the given value is an int (and not a bool)."""
-        return isinstance(value, int) and not isinstance(value, bool)
+    def validate_value(self, value: Any) -> None:
+        """
+        Validate if the given value is an int (and not a bool).
+        
+        Raises:
+            TypeError: If value is not an int
+        """
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise TypeError(
+                f"Expected int for '{self.name}', got {type(value).__name__}"
+            )
 
 
 class BoolType(TensorType):
@@ -68,7 +84,15 @@ class BoolType(TensorType):
         assert isinstance(other, BoolType), f"Expected BoolType, got {type(other).__name__}"
         return True
     
-    def validate_value(self, value: Any) -> bool:
-        """Validate if the given value is a bool."""
-        return isinstance(value, bool)
+    def validate_value(self, value: Any) -> None:
+        """
+        Validate if the given value is a bool.
+        
+        Raises:
+            TypeError: If value is not a bool
+        """
+        if not isinstance(value, bool):
+            raise TypeError(
+                f"Expected bool for '{self.name}', got {type(value).__name__}"
+            )
 
