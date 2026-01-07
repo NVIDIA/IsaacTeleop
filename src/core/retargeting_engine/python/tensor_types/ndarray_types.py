@@ -159,37 +159,24 @@ class NDArrayType(TensorType):
         except Exception:
             return None
     
-    def validate_value(self, value: Any) -> bool:
-        """Validate that value conforms to this NDArray type."""
+    def validate_value(self, value: Any) -> None:
+        """
+        Validate that value conforms to this NDArray type.
+        
+        Raises:
+            TypeError: If value does not conform to the NDArray specifications
+        """
         if not self._has_dlpack(value):
-            return False
-        
-        info = self._get_dlpack_info(value)
-        if info is None:
-            return False
-        
-        shape, dtype_code, dtype_bits, device_type, device_id = info
-        
-        result: bool = (
-            shape == self._shape and
-            dtype_code == self._dtype and
-            dtype_bits == self._dtype_bits and
-            device_type == self._device_type and
-            device_id == self._device_id
-        )
-        return result
-    
-    def get_validation_error(self, value: Any) -> str:
-        """Get detailed error message for invalid value."""
-        if not self._has_dlpack(value):
-            return (
-                f"Value does not support DLPack protocol (__dlpack__ and __dlpack_device__). "
-                f"Got {type(value).__name__}"
+            raise TypeError(
+                f"Value does not support DLPack protocol (__dlpack__ and __dlpack_device__) "
+                f"for '{self.name}'. Got {type(value).__name__}"
             )
         
         info = self._get_dlpack_info(value)
         if info is None:
-            return "Could not extract DLPack information from value"
+            raise TypeError(
+                f"Could not extract DLPack information from value for '{self.name}'"
+            )
         
         shape, dtype_code, dtype_bits, device_type, device_id = info
         
@@ -213,5 +200,6 @@ class NDArrayType(TensorType):
         if device_id != self._device_id:
             errors.append(f"device ID mismatch: expected {self._device_id}, got {device_id}")
         
-        return "; ".join(errors) if errors else "Unknown validation error"
+        if errors:
+            raise TypeError(f"Invalid NDArray for '{self.name}': {'; '.join(errors)}")
 

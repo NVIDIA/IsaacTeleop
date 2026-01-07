@@ -87,87 +87,101 @@ def test_ndarray_validate_numpy_float32():
     """Test validation with NumPy float32 arrays."""
     vec3_type = NDArrayType("pos", shape=(3,), dtype=DLDataType.FLOAT, dtype_bits=32)
     
-    # Valid array
+    # Valid array - should not raise
     valid_array = np.array([1.0, 2.0, 3.0], dtype=np.float32)
-    assert vec3_type.validate_value(valid_array)
+    vec3_type.validate_value(valid_array)
     
-    # Wrong shape
+    # Wrong shape - should raise
     wrong_shape = np.array([1.0, 2.0], dtype=np.float32)
-    assert not vec3_type.validate_value(wrong_shape)
+    with pytest.raises(TypeError, match="shape mismatch"):
+        vec3_type.validate_value(wrong_shape)
     
-    # Wrong dtype
+    # Wrong dtype - should raise
     wrong_dtype = np.array([1.0, 2.0, 3.0], dtype=np.float64)
-    assert not vec3_type.validate_value(wrong_dtype)
+    with pytest.raises(TypeError, match="dtype"):
+        vec3_type.validate_value(wrong_dtype)
     
-    # Not an array
-    assert not vec3_type.validate_value([1.0, 2.0, 3.0])
-    assert not vec3_type.validate_value("not an array")
+    # Not an array - should raise
+    with pytest.raises(TypeError):
+        vec3_type.validate_value([1.0, 2.0, 3.0])
+    with pytest.raises(TypeError):
+        vec3_type.validate_value("not an array")
 
 
 def test_ndarray_validate_numpy_int32():
     """Test validation with NumPy int32 arrays."""
     int_array_type = NDArrayType("indices", shape=(5,), dtype=DLDataType.INT, dtype_bits=32)
     
-    # Valid array
+    # Valid array - should not raise
     valid_array = np.array([1, 2, 3, 4, 5], dtype=np.int32)
-    assert int_array_type.validate_value(valid_array)
+    int_array_type.validate_value(valid_array)
     
-    # Wrong dtype (int64)
+    # Wrong dtype (int64) - should raise
     wrong_dtype = np.array([1, 2, 3, 4, 5], dtype=np.int64)
-    assert not int_array_type.validate_value(wrong_dtype)
+    with pytest.raises(TypeError, match="dtype"):
+        int_array_type.validate_value(wrong_dtype)
 
 
 def test_ndarray_validate_numpy_uint8():
     """Test validation with NumPy uint8 arrays (used for bool arrays)."""
     bool_array_type = NDArrayType("flags", shape=(10,), dtype=DLDataType.UINT, dtype_bits=8)
     
-    # Valid array
+    # Valid array - should not raise
     valid_array = np.array([1, 0, 1, 0, 1, 0, 1, 0, 1, 0], dtype=np.uint8)
-    assert bool_array_type.validate_value(valid_array)
+    bool_array_type.validate_value(valid_array)
     
-    # Wrong dtype bits
+    # Wrong dtype bits - should raise
     wrong_bits = np.array([1, 0, 1, 0, 1, 0, 1, 0, 1, 0], dtype=np.uint16)
-    assert not bool_array_type.validate_value(wrong_bits)
+    with pytest.raises(TypeError):
+        bool_array_type.validate_value(wrong_bits)
 
 
 def test_ndarray_validate_matrix():
     """Test validation with 2D NumPy arrays."""
     matrix_type = NDArrayType("transform", shape=(3, 4), dtype=DLDataType.FLOAT, dtype_bits=32)
     
-    # Valid matrix
+    # Valid matrix - should not raise
     valid_matrix = np.zeros((3, 4), dtype=np.float32)
-    assert matrix_type.validate_value(valid_matrix)
+    matrix_type.validate_value(valid_matrix)
     
-    # Wrong shape (transposed)
+    # Wrong shape (transposed) - should raise
     wrong_shape = np.zeros((4, 3), dtype=np.float32)
-    assert not matrix_type.validate_value(wrong_shape)
+    with pytest.raises(TypeError, match="shape mismatch"):
+        matrix_type.validate_value(wrong_shape)
     
-    # 1D array
+    # 1D array - should raise
     flat_array = np.zeros(12, dtype=np.float32)
-    assert not matrix_type.validate_value(flat_array)
+    with pytest.raises(TypeError, match="shape mismatch"):
+        matrix_type.validate_value(flat_array)
 
 
 def test_ndarray_validation_error_messages():
     """Test that validation error messages are informative."""
     vec3_type = NDArrayType("pos", shape=(3,), dtype=DLDataType.FLOAT, dtype_bits=32)
     
-    # Wrong shape
+    # Wrong shape - should raise with informative message
     wrong_shape = np.array([1.0, 2.0], dtype=np.float32)
-    error_msg = vec3_type.get_validation_error(wrong_shape)
+    with pytest.raises(TypeError) as exc_info:
+        vec3_type.validate_value(wrong_shape)
+    error_msg = str(exc_info.value)
     assert "shape mismatch" in error_msg
     assert "(3,)" in error_msg
     assert "(2,)" in error_msg
     
-    # Wrong dtype
+    # Wrong dtype - should raise with informative message
     wrong_dtype = np.array([1.0, 2.0, 3.0], dtype=np.float64)
-    error_msg = vec3_type.get_validation_error(wrong_dtype)
+    with pytest.raises(TypeError) as exc_info:
+        vec3_type.validate_value(wrong_dtype)
+    error_msg = str(exc_info.value)
     assert "dtype bits mismatch" in error_msg
     assert "32" in error_msg
     assert "64" in error_msg
     
-    # Not a DLPack object
+    # Not a DLPack object - should raise with informative message
     not_dlpack = [1.0, 2.0, 3.0]
-    error_msg = vec3_type.get_validation_error(not_dlpack)
+    with pytest.raises(TypeError) as exc_info:
+        vec3_type.validate_value(not_dlpack)
+    error_msg = str(exc_info.value)
     assert "DLPack protocol" in error_msg
 
 

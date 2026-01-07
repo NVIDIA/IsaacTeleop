@@ -16,12 +16,16 @@ def test_float_type():
     # Check name
     assert float_type.name == "test_float"
     
-    # Check value validation
-    assert float_type.validate_value(0.0)
-    assert float_type.validate_value(3.14)
-    assert float_type.validate_value(-1.5)
-    assert not float_type.validate_value(5)  # int
-    assert not float_type.validate_value("hello")  # string
+    # Check value validation - valid values should not raise
+    float_type.validate_value(0.0)
+    float_type.validate_value(3.14)
+    float_type.validate_value(-1.5)
+    
+    # Invalid values should raise TypeError
+    with pytest.raises(TypeError):
+        float_type.validate_value(5)  # int
+    with pytest.raises(TypeError):
+        float_type.validate_value("hello")  # string
 
 
 def test_int_type():
@@ -31,12 +35,16 @@ def test_int_type():
     # Check name
     assert int_type.name == "test_int"
     
-    # Check value validation
-    assert int_type.validate_value(0)
-    assert int_type.validate_value(42)
-    assert int_type.validate_value(-10)
-    assert not int_type.validate_value(3.14)  # float
-    assert not int_type.validate_value("hello")  # string
+    # Check value validation - valid values should not raise
+    int_type.validate_value(0)
+    int_type.validate_value(42)
+    int_type.validate_value(-10)
+    
+    # Invalid values should raise TypeError
+    with pytest.raises(TypeError):
+        int_type.validate_value(3.14)  # float
+    with pytest.raises(TypeError):
+        int_type.validate_value("hello")  # string
 
 
 def test_bool_type():
@@ -46,12 +54,17 @@ def test_bool_type():
     # Check name
     assert bool_type.name == "test_bool"
     
-    # Check value validation
-    assert bool_type.validate_value(True)
-    assert bool_type.validate_value(False)
-    assert not bool_type.validate_value(1)  # int
-    assert not bool_type.validate_value(0.0)  # float
-    assert not bool_type.validate_value("true")  # string
+    # Check value validation - valid values should not raise
+    bool_type.validate_value(True)
+    bool_type.validate_value(False)
+    
+    # Invalid values should raise TypeError
+    with pytest.raises(TypeError):
+        bool_type.validate_value(1)  # int
+    with pytest.raises(TypeError):
+        bool_type.validate_value(0.0)  # float
+    with pytest.raises(TypeError):
+        bool_type.validate_value("true")  # string
 
 
 def test_scalar_type_compatibility():
