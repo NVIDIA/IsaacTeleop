@@ -12,8 +12,8 @@ Usage:
     hand_tracker = HandTracker()
     head_tracker = HeadTracker()
 
-    # Start recording with context manager (similar to DeviceIOSession.run)
-    with McapRecorder.start_recording("output.mcap", [
+    # Create recorder with context manager (similar to DeviceIOSession.run)
+    with McapRecorder.create("output.mcap", [
         (hand_tracker, "hands"),
         (head_tracker, "head"),
     ]) as recorder:

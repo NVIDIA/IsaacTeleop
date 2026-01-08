@@ -94,14 +94,8 @@ HandTracker::Impl::Impl(const OpenXRSessionHandles& handles)
     std::cout << "HandTracker initialized (left + right)" << std::endl;
 }
 
-void HandTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp) const
+Timestamp HandTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder) const
 {
-    // For hand tracker, we use left hand's timestamp (both hands are updated at the same time)
-    if (out_timestamp && left_hand_.timestamp)
-    {
-        *out_timestamp = left_hand_.timestamp->device_time();
-    }
-
     // Serialize both hands into a combined HandsPose message
     auto left_offset = HandPose::Pack(builder, &left_hand_);
     auto right_offset = HandPose::Pack(builder, &right_hand_);
@@ -110,6 +104,13 @@ void HandTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, int64
     hands_builder.add_left_hand(left_offset);
     hands_builder.add_right_hand(right_offset);
     builder.Finish(hands_builder.Finish());
+
+    // For hand tracker, we use left hand's timestamp (both hands are updated at the same time)
+    if (left_hand_.timestamp)
+    {
+        return *left_hand_.timestamp;
+    }
+    return Timestamp{};
 }
 
 HandTracker::Impl::~Impl()

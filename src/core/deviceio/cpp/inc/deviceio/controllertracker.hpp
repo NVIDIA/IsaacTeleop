@@ -21,19 +21,19 @@ public:
     // Public API - what external users see
     std::vector<std::string> get_required_extensions() const override;
 
-    std::string get_name() const override
+    std::string_view get_name() const override
     {
         return TRACKER_NAME;
     }
 
-    std::string get_schema_name() const override
+    std::string_view get_schema_name() const override
     {
-        return "core.ControllerData";
+        return SCHEMA_NAME;
     }
 
-    std::string get_schema_text() const override
+    std::string_view get_schema_text() const override
     {
-        return std::string(
+        return std::string_view(
             reinterpret_cast<const char*>(ControllerDataBinarySchema::data()), ControllerDataBinarySchema::size());
     }
 
@@ -42,10 +42,10 @@ public:
 
 private:
     static constexpr const char* TRACKER_NAME = "ControllerTracker";
+    static constexpr const char* SCHEMA_NAME = "core.ControllerData";
 
     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
 
-    // Implementation class declaration (Pimpl idiom)
     class Impl : public ITrackerImpl
     {
     public:
@@ -54,12 +54,7 @@ private:
         // Override from ITrackerImpl
         bool update(XrTime time) override;
 
-        std::string get_name() const override
-        {
-            return ControllerTracker::TRACKER_NAME;
-        }
-
-        void serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp = nullptr) const override;
+        Timestamp serialize(flatbuffers::FlatBufferBuilder& builder) const override;
 
         const ControllerDataT& get_controller_data() const;
 

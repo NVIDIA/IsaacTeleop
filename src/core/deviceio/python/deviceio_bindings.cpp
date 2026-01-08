@@ -6,12 +6,11 @@
 #    define NOMINMAX
 #endif
 
-#include "inc/py_deviceio_session.hpp"
-
 #include <deviceio/controllertracker.hpp>
 #include <deviceio/handtracker.hpp>
 #include <deviceio/headtracker.hpp>
 #include <openxr/openxr.h>
+#include <py_deviceio/session.hpp>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
@@ -56,19 +55,13 @@ PYBIND11_MODULE(_deviceio, m)
             py::arg("session"), py::return_value_policy::reference_internal,
             "Get complete controller data for both left and right controllers");
 
-    // Register the native DeviceIOSession type so it can be shared across modules
-    // This opaque binding allows other modules (like mcap) to accept DeviceIOSession references
-    py::class_<core::DeviceIOSession>(m, "_DeviceIOSessionNative");
-
     // DeviceIOSession class (bound via wrapper for context management)
+    // Other C++ modules (like mcap) should include <py_deviceio/session.hpp> and accept
+    // PyDeviceIOSession& directly, calling .native() internally in C++ code.
     py::class_<PyDeviceIOSession>(m, "DeviceIOSession")
         .def("update", &PyDeviceIOSession::update, "Update session and all trackers")
         .def("__enter__", &PyDeviceIOSession::enter)
         .def("__exit__", &PyDeviceIOSession::exit)
-        .def(
-            "_native", [](PyDeviceIOSession& self) -> core::DeviceIOSession& { return self.native(); },
-            py::return_value_policy::reference_internal,
-            "Internal: Get native C++ session reference for cross-module use")
         .def_static("get_required_extensions", &core::DeviceIOSession::get_required_extensions, py::arg("trackers"),
                     "Get list of OpenXR extensions required by a list of trackers")
         .def_static(

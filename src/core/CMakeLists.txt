@@ -32,7 +32,10 @@ if(BUILD_PYTHON_BINDINGS)
     add_subdirectory(python)
 endif()
 
-# Unit tests using Catch2.
+# ==============================================================================
+# Tests
+# ==============================================================================
+
 if(BUILD_TESTING)
     # Schema tests (C++ and Python)
     add_subdirectory(schema_tests)

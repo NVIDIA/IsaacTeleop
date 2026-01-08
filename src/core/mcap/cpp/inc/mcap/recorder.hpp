@@ -23,14 +23,13 @@ class DeviceIOSession;
  * to MCAP format files, which can be visualized with tools like Foxglove.
  *
  * Usage:
- *   auto recorder = McapRecorder::start_recording("output.mcap", {
+ *   auto recorder = McapRecorder::create("output.mcap", {
  *       {hand_tracker, "hands"},
  *       {head_tracker, "head"},
  *   });
  *   // In your loop:
  *   recorder->record(session);
- *   // When done:
- *   recorder->stop_recording();  // or let destructor handle it
+ *   // When done, let the recorder go out of scope or reset it
  */
 class McapRecorder
 {
@@ -39,38 +38,23 @@ public:
     using TrackerChannelPair = std::pair<std::shared_ptr<ITracker>, std::string>;
 
     /**
-     * @brief Start recording to an MCAP file with the specified trackers.
+     * @brief Create a recorder for the specified MCAP file and trackers.
      *
      * This is the main factory method. Opens the file, registers schemas/channels,
      * and returns a recorder ready for use.
      *
      * @param filename Path to the output MCAP file.
      * @param trackers List of (tracker, channel_name) pairs to record.
-     * @return A unique_ptr to the McapRecorder, or nullptr on failure.
+     * @return A unique_ptr to the McapRecorder.
+     * @throws std::runtime_error if the recorder cannot be created.
      */
-    static std::unique_ptr<McapRecorder> start_recording(const std::string& filename,
-                                                         const std::vector<TrackerChannelPair>& trackers);
+    static std::unique_ptr<McapRecorder> create(const std::string& filename,
+                                                const std::vector<TrackerChannelPair>& trackers);
 
     /**
-     * @brief Destructor - closes the file if open.
+     * @brief Destructor - closes the MCAP file.
      */
     ~McapRecorder();
-
-    // Non-copyable
-    McapRecorder(const McapRecorder&) = delete;
-    McapRecorder& operator=(const McapRecorder&) = delete;
-
-    /**
-     * @brief Stop recording and close the MCAP file.
-     */
-    void stop_recording();
-
-    /**
-     * @brief Check if recording is currently active.
-     *
-     * @return true if recording is in progress, false otherwise.
-     */
-    bool is_recording() const;
 
     /**
      * @brief Record the current state of all registered trackers.
@@ -78,12 +62,11 @@ public:
      * This should be called after session.update() in your main loop.
      *
      * @param session The DeviceIOSession to get tracker implementations from.
-     * @return true if all trackers were recorded successfully, false otherwise.
      */
-    bool record(const DeviceIOSession& session);
+    void record(const DeviceIOSession& session);
 
 private:
-    // Private constructor - use start_recording() factory method
+    // Private constructor - use create() factory method
     McapRecorder(const std::string& filename, const std::vector<TrackerChannelPair>& trackers);
 
     class Impl;

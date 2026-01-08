@@ -6,12 +6,14 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <flatbuffers/flatbuffer_builder.h>
+#include <mcap/recorder.hpp>
+#include <schema/timestamp_generated.h>
 
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
-#include <mcap_recorder.hpp>
 #include <memory>
+#include <string_view>
 
 namespace fs = std::filesystem;
 
@@ -35,23 +37,15 @@ public:
         return true;
     }
 
-    std::string get_name() const override
+    core::Timestamp serialize(flatbuffers::FlatBufferBuilder& builder) const override
     {
-        return TRACKER_NAME;
-    }
-
-    void serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp) const override
-    {
-        if (out_timestamp)
-        {
-            *out_timestamp = timestamp_;
-        }
         // Create minimal valid FlatBuffer data (just some bytes for testing)
         // In a real scenario, this would be actual FlatBuffer serialization
         std::vector<uint8_t> data = { 0x01, 0x02, 0x03, 0x04 };
         auto vec = builder.CreateVector(data);
         builder.Finish(vec);
         serialize_count_++;
+        return core::Timestamp(timestamp_, timestamp_);
     }
 
     // Test helpers
@@ -92,17 +86,17 @@ public:
         return {}; // No extensions required for mock
     }
 
-    std::string get_name() const override
+    std::string_view get_name() const override
     {
         return MockTrackerImpl::TRACKER_NAME;
     }
 
-    std::string get_schema_name() const override
+    std::string_view get_schema_name() const override
     {
         return SCHEMA_NAME;
     }
 
-    std::string get_schema_text() const override
+    std::string_view get_schema_text() const override
     {
         return SCHEMA_TEXT;
     }
@@ -157,40 +151,27 @@ private:
 // McapRecorder Basic Tests
 // =============================================================================
 
-TEST_CASE("McapRecorder start_recording static factory", "[mcap_recorder]")
+TEST_CASE("McapRecorder create static factory", "[mcap_recorder]")
 {
     auto path = get_temp_mcap_path();
     TempFileCleanup cleanup(path);
 
     auto tracker = std::make_shared<MockTracker>();
 
-    SECTION("start_recording creates file and returns recorder")
+    SECTION("create creates file and returns recorder")
     {
-        auto recorder = core::McapRecorder::start_recording(path, { { tracker, "test_channel" } });
+        auto recorder = core::McapRecorder::create(path, { { tracker, "test_channel" } });
         REQUIRE(recorder != nullptr);
-        CHECK(recorder->is_recording() == true);
 
-        recorder->stop_recording();
-        CHECK(recorder->is_recording() == false);
+        recorder.reset(); // Close via destructor
 
-        // File should exist after stop
+        // File should exist after close
         CHECK(fs::exists(path));
     }
 
-    SECTION("start_recording with empty trackers returns nullptr")
+    SECTION("create with empty trackers throws")
     {
-        auto recorder = core::McapRecorder::start_recording(path, {});
-        CHECK(recorder == nullptr);
-    }
-
-    SECTION("double stop_recording is safe")
-    {
-        auto recorder = core::McapRecorder::start_recording(path, { { tracker, "test_channel" } });
-        REQUIRE(recorder != nullptr);
-
-        recorder->stop_recording();
-        recorder->stop_recording(); // Should not crash
-        CHECK(recorder->is_recording() == false);
+        CHECK_THROWS_AS(core::McapRecorder::create(path, {}), std::runtime_error);
     }
 }
 
@@ -203,16 +184,15 @@ TEST_CASE("McapRecorder with multiple trackers", "[mcap_recorder]")
     auto tracker2 = std::make_shared<MockTracker>();
     auto tracker3 = std::make_shared<MockTracker>();
 
-    auto recorder = core::McapRecorder::start_recording(
+    auto recorder = core::McapRecorder::create(
         path, { { tracker1, "channel1" }, { tracker2, "channel2" }, { tracker3, "channel3" } });
     REQUIRE(recorder != nullptr);
-    CHECK(recorder->is_recording() == true);
 
-    recorder->stop_recording();
+    recorder.reset(); // Close via destructor
     CHECK(fs::exists(path));
 }
 
-TEST_CASE("McapRecorder destructor stops recording", "[mcap_recorder]")
+TEST_CASE("McapRecorder destructor closes file", "[mcap_recorder]")
 {
     auto path = get_temp_mcap_path();
     TempFileCleanup cleanup(path);
@@ -220,10 +200,9 @@ TEST_CASE("McapRecorder destructor stops recording", "[mcap_recorder]")
     auto tracker = std::make_shared<MockTracker>();
 
     {
-        auto recorder = core::McapRecorder::start_recording(path, { { tracker, "test_channel" } });
+        auto recorder = core::McapRecorder::create(path, { { tracker, "test_channel" } });
         REQUIRE(recorder != nullptr);
-        CHECK(recorder->is_recording() == true);
-        // Destructor should stop recording
+        // Destructor closes the file
     }
 
     // File should exist after recorder is destroyed
@@ -242,13 +221,12 @@ TEST_CASE("McapRecorder creates valid MCAP file", "[mcap_recorder][file]")
     auto tracker = std::make_shared<MockTracker>();
 
     {
-        auto recorder = core::McapRecorder::start_recording(path, { { tracker, "test_channel" } });
+        auto recorder = core::McapRecorder::create(path, { { tracker, "test_channel" } });
         REQUIRE(recorder != nullptr);
 
         // Note: We can't test record() without a real DeviceIOSession,
         // but we can verify the file structure is created correctly
-
-        recorder->stop_recording();
+        // Destructor will close the file
     }
 
     // Verify file exists and has content

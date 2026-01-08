@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.20)
 # MCAP Recorder library (static for distribution)
 add_library(mcap_core STATIC
     mcap_recorder.cpp
-    inc/mcap_recorder.hpp
+    inc/mcap/recorder.hpp
 )
 
 # Public headers for consumers of this library
@@ -34,6 +34,6 @@ install(TARGETS mcap_core
     INCLUDES DESTINATION include
 )
 
-install(FILES inc/mcap_recorder.hpp
+install(DIRECTORY inc/mcap
     DESTINATION include
 )

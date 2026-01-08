@@ -25,6 +25,12 @@ target_link_libraries(mcap_py
         deviceio::deviceio_core
 )
 
+# Include deviceio python headers for PyDeviceIOSession wrapper
+target_include_directories(mcap_py
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/src/core/deviceio/python/inc
+)
+
 set_target_properties(mcap_py PROPERTIES
     OUTPUT_NAME "_mcap"
     # Use genex in output directory - CMake won't add another config subdirectory

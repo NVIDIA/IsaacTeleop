@@ -9,7 +9,7 @@ Demonstrates the modular architecture with MCAP data capture:
 - Create independent trackers
 - Add only the trackers you need
 - Record all tracker data to an MCAP file for playback/analysis
-- McapRecorder.start_recording() is similar to DeviceIOSession.run()
+- McapRecorder.create() is similar to DeviceIOSession.run()
 """
 
 import sys
@@ -45,13 +45,9 @@ def main():
     
     # Create OpenXR session
     print("\nCreating OpenXR session...")
-    oxr_session = oxr.OpenXRSession.create("ModularExampleWithMCAP", required_extensions)
-    if oxr_session is None:
-        print("✗ Failed to create OpenXR session")
-        return 1
     
     # Use context managers for proper RAII cleanup
-    with oxr_session:
+    with oxr.OpenXRSession.create("ModularExampleWithMCAP", required_extensions) as oxr_session:
         handles = oxr_session.get_handles()
         print("✓ OpenXR session created")
         
@@ -60,9 +56,7 @@ def main():
         with deviceio.DeviceIOSession.run(trackers, handles) as session:
             print("✓ DeviceIO session initialized with all trackers!")
             
-            # Start recording with context manager (similar to DeviceIOSession.run)
-            print(f"\nStarting MCAP recording to: {mcap_filename}")
-            with mcap.McapRecorder.start_recording(mcap_filename, [
+            with mcap.McapRecorder.create(mcap_filename, [
                 (hand_tracker, "hands"),
                 (head_tracker, "head"),
             ]) as recorder:
@@ -78,27 +72,23 @@ def main():
                 frame_count = 0
                 start_time = time.time()
                 
-                try:
-                    while time.time() - start_time < 30.0:
-                        # Update session and all trackers
-                        if not session.update():
-                            print("Update failed")
-                            break
-                        
-                        # Record all registered trackers
-                        recorder.record(session)
-                        
-                        # Print every 60 frames (~1 second)
-                        if frame_count % 60 == 0:
-                            elapsed = time.time() - start_time
-                            print(f"[{elapsed:4.1f}s] Frame {frame_count} (recording...)")
-                            print()
-                        
-                        frame_count += 1
-                        time.sleep(0.016)  # ~60 FPS
-                
-                except KeyboardInterrupt:
-                    print("\nInterrupted by user")
+                while time.time() - start_time < 30.0:
+                    # Update session and all trackers
+                    if not session.update():
+                        print("Update failed")
+                        break
+                    
+                    # Record all registered trackers
+                    recorder.record(session)
+                    
+                    # Print every 60 frames (~1 second)
+                    if frame_count % 60 == 0:
+                        elapsed = time.time() - start_time
+                        print(f"[{elapsed:4.1f}s] Frame {frame_count} (recording...)")
+                        print()
+                    
+                    frame_count += 1
+                    time.sleep(0.016)  # ~60 FPS
                 
                 # Cleanup
                 print(f"\nProcessed {frame_count} frames")

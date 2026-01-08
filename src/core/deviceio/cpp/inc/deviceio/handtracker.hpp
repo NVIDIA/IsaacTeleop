@@ -21,19 +21,20 @@ class HandTracker : public ITracker
 public:
     // Public API - what external users see
     std::vector<std::string> get_required_extensions() const override;
-    std::string get_name() const override
+    std::string_view get_name() const override
     {
         return TRACKER_NAME;
     }
 
-    std::string get_schema_name() const override
+    std::string_view get_schema_name() const override
     {
-        return "core.HandsPose";
+        return SCHEMA_NAME;
     }
 
-    std::string get_schema_text() const override
+    std::string_view get_schema_text() const override
     {
-        return std::string(reinterpret_cast<const char*>(HandsPoseBinarySchema::data()), HandsPoseBinarySchema::size());
+        return std::string_view(
+            reinterpret_cast<const char*>(HandsPoseBinarySchema::data()), HandsPoseBinarySchema::size());
     }
 
     // Query methods - public API for getting hand data
@@ -45,10 +46,10 @@ public:
 
 private:
     static constexpr const char* TRACKER_NAME = "HandTracker";
+    static constexpr const char* SCHEMA_NAME = "core.HandsPose";
 
     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
 
-    // Implementation class declaration (Pimpl idiom)
     class Impl : public ITrackerImpl
     {
     public:
@@ -60,12 +61,7 @@ private:
         // Override from ITrackerImpl
         bool update(XrTime time) override;
 
-        std::string get_name() const override
-        {
-            return HandTracker::TRACKER_NAME;
-        }
-
-        void serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp = nullptr) const override;
+        Timestamp serialize(flatbuffers::FlatBufferBuilder& builder) const override;
 
         const HandPoseT& get_left_hand() const;
         const HandPoseT& get_right_hand() const;

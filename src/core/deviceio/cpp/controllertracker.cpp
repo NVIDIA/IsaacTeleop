@@ -354,27 +354,21 @@ const ControllerDataT& ControllerTracker::Impl::get_controller_data() const
     return controller_data_;
 }
 
-void ControllerTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp) const
+Timestamp ControllerTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder) const
 {
-    if (out_timestamp)
-    {
-        // Use left controller timestamp (or right if left is inactive)
-        if (controller_data_.left_controller && controller_data_.left_controller->is_active())
-        {
-            *out_timestamp = controller_data_.left_controller->timestamp().device_time();
-        }
-        else if (controller_data_.right_controller)
-        {
-            *out_timestamp = controller_data_.right_controller->timestamp().device_time();
-        }
-        else
-        {
-            *out_timestamp = 0;
-        }
-    }
-
     auto offset = ControllerData::Pack(builder, &controller_data_);
     builder.Finish(offset);
+
+    // Use left controller timestamp (or right if left is inactive)
+    if (controller_data_.left_controller && controller_data_.left_controller->is_active())
+    {
+        return controller_data_.left_controller->timestamp();
+    }
+    else if (controller_data_.right_controller && controller_data_.right_controller->is_active())
+    {
+        return controller_data_.right_controller->timestamp();
+    }
+    return Timestamp{};
 }
 
 // ============================================================================

@@ -73,14 +73,16 @@ const HeadPoseT& HeadTracker::Impl::get_head() const
     return head_;
 }
 
-void HeadTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp) const
+Timestamp HeadTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder) const
 {
-    if (out_timestamp && head_.timestamp)
-    {
-        *out_timestamp = head_.timestamp->device_time();
-    }
     auto offset = HeadPose::Pack(builder, &head_);
     builder.Finish(offset);
+
+    if (head_.timestamp)
+    {
+        return *head_.timestamp;
+    }
+    return Timestamp{};
 }
 
 // ============================================================================

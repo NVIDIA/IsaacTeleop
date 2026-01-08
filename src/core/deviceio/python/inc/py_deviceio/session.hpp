@@ -12,7 +12,9 @@
 namespace py = pybind11;
 
 // Wrapper class to enforce RAII in Python by holding the unique_ptr exclusively.
-// Exposes _native() method for cross-module type sharing (used by mcap module).
+// Other C++ modules (like mcap) should include this header and accept PyDeviceIOSession&
+// directly, calling native() internally. This prevents dangling pointers when the
+// session is destroyed after exiting the Python with: block.
 class PyDeviceIOSession
 {
 public:

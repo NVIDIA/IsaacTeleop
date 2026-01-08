@@ -85,9 +85,7 @@ std::unique_ptr<DeviceIOSession> DeviceIOSession::run(const std::vector<std::sha
     std::cout << "DeviceIOSession: Creating session with " << trackers.size() << " trackers" << std::endl;
 
     // Constructor will throw on failure
-    auto session = std::unique_ptr<DeviceIOSession>(new DeviceIOSession(trackers, handles));
-
-    return session;
+    return std::unique_ptr<DeviceIOSession>(new DeviceIOSession(trackers, handles));
 }
 
 bool DeviceIOSession::update()
