@@ -93,8 +93,8 @@ else:
             
             # Quick update test
             if session.update():
-                left = hand.get_left_hand()
-                head_pose = head.get_head()
+                left = hand.get_left_hand(session)
+                head_pose = head.get_head(session)
                 print(f"  ✅ Update successful")
                 print(f"    Hands: {'ACTIVE' if left.is_active else 'INACTIVE'}")
                 print(f"    Head:  {'VALID' if head_pose.is_valid else 'INVALID'}")

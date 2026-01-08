@@ -5,9 +5,9 @@
 
 This module provides trackers and teleop session functionality.
 
-Note: HeadTracker.get_head() returns HeadPoseT from teleopcore.schema.
-      HandTracker.get_left_hand() / get_right_hand() return HandPoseT from teleopcore.schema.
-      ControllerTracker.get_snapshot() returns ControllerSnapshot from teleopcore.schema.
+Note: HeadTracker.get_head(session) returns HeadPoseT from teleopcore.schema.
+    HandTracker.get_left_hand(session) / get_right_hand(session) return HandPoseT from teleopcore.schema.
+    ControllerTracker.get_controller_data(session) returns ControllerSnapshot from teleopcore.schema.
 Import these types from teleopcore.schema if you need to work with pose types.
 """
 
