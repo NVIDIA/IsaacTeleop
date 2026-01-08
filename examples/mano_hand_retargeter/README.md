@@ -144,7 +144,7 @@ python apply_world_pose_to_traj_npz.py \
   --seq_track 0 \
   --apply_to both \
   --to_isaac_world \
-  --pre_rot 0,90,0
+  --pre_rot 0,0,0
 ```
 
 Right:
@@ -159,7 +159,7 @@ python apply_world_pose_to_traj_npz.py \
   --seq_track 0 \
   --apply_to both \
   --to_isaac_world \
-  --pre_rot 0,-90,0
+  --pre_rot 0,-0,0
 ```
 
 ## 6) Replay robot hand (with world trajectory)
@@ -179,7 +179,7 @@ python convert_traj_npz_no_pickle.py \
 Replay:
 
 ```bash
-../../scripts/run_hand_retarget_no_global.sh
+../../scripts/run_hand_retarget_global.sh
 ```
 
 

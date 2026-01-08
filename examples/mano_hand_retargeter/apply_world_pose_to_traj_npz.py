@@ -53,7 +53,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 
-def _aa_to_rotmat(aa: "np.ndarray") -> "np.ndarray":
+def _aa_to_rotmat(aa: Any) -> Any:
     """Axis-angle (3,) to rotation matrix (3,3)."""
     import numpy as np
 
@@ -70,7 +70,7 @@ def _aa_to_rotmat(aa: "np.ndarray") -> "np.ndarray":
     return (I + s * K + (1.0 - c) * (K @ K)).astype(np.float32)
 
 
-def _quat_mul_wxyz(q1: "np.ndarray", q2: "np.ndarray") -> "np.ndarray":
+def _quat_mul_wxyz(q1: Any, q2: Any) -> Any:
     import numpy as np
 
     q1 = np.asarray(q1, dtype=np.float32).reshape(4)
@@ -88,14 +88,14 @@ def _quat_mul_wxyz(q1: "np.ndarray", q2: "np.ndarray") -> "np.ndarray":
     )
 
 
-def _quat_conj_wxyz(q: "np.ndarray") -> "np.ndarray":
+def _quat_conj_wxyz(q: Any) -> Any:
     import numpy as np
 
     q = np.asarray(q, dtype=np.float32).reshape(4)
     return np.array([q[0], -q[1], -q[2], -q[3]], dtype=np.float32)
 
 
-def _map_dynhamr_world_to_isaac(R_dh: "np.ndarray", t_dh: "np.ndarray") -> Tuple["np.ndarray", "np.ndarray"]:
+def _map_dynhamr_world_to_isaac(R_dh: Any, t_dh: Any) -> Tuple[Any, Any]:
     """
     Map a pose expressed in Dyn-HaMR world coordinates to Isaac world coordinates.
 
@@ -127,7 +127,18 @@ def _map_dynhamr_world_to_isaac(R_dh: "np.ndarray", t_dh: "np.ndarray") -> Tuple
     return R_i, t_i
 
 
-def _quat_wxyz_from_rotmat(R: "np.ndarray") -> "np.ndarray":
+def _map_dynhamr_pos_to_isaac(p_dh: Any) -> Any:
+    """
+    Map a 3D point from Dyn-HaMR world (x right, y down, z forward) to Isaac world (x forward, y left, z up).
+    Uses the same axis mapping as `_map_dynhamr_world_to_isaac`.
+    """
+    import numpy as np
+
+    p_dh = np.asarray(p_dh, dtype=np.float32).reshape(3)
+    # x_isaac =  z_dh ; y_isaac = -x_dh ; z_isaac = -y_dh
+    return np.array([p_dh[2], -p_dh[0], -p_dh[1]], dtype=np.float32)
+
+def _quat_wxyz_from_rotmat(R: Any) -> Any:
     import numpy as np
 
     R = np.asarray(R, dtype=np.float32).reshape(3, 3)
@@ -162,28 +173,28 @@ def _quat_wxyz_from_rotmat(R: "np.ndarray") -> "np.ndarray":
     return q
 
 
-def _rot_x(a: float) -> "np.ndarray":
+def _rot_x(a: float) -> Any:
     import numpy as np
 
     ca, sa = float(np.cos(a)), float(np.sin(a))
     return np.array([[1.0, 0.0, 0.0], [0.0, ca, -sa], [0.0, sa, ca]], dtype=np.float32)
 
 
-def _rot_y(a: float) -> "np.ndarray":
+def _rot_y(a: float) -> Any:
     import numpy as np
 
     ca, sa = float(np.cos(a)), float(np.sin(a))
     return np.array([[ca, 0.0, sa], [0.0, 1.0, 0.0], [-sa, 0.0, ca]], dtype=np.float32)
 
 
-def _rot_z(a: float) -> "np.ndarray":
+def _rot_z(a: float) -> Any:
     import numpy as np
 
     ca, sa = float(np.cos(a)), float(np.sin(a))
     return np.array([[ca, -sa, 0.0], [sa, ca, 0.0], [0.0, 0.0, 1.0]], dtype=np.float32)
 
 
-def _euler_xyz_deg_to_rotmat(euler_xyz_deg: tuple[float, float, float]) -> "np.ndarray":
+def _euler_xyz_deg_to_rotmat(euler_xyz_deg: tuple[float, float, float]) -> Any:
     """
     Intrinsic XYZ Euler (degrees) matching scipy's `Rotation.from_euler(\"xyz\", ...)`.
     """
@@ -200,7 +211,7 @@ def _parse_euler_xyz_deg(csv: str) -> tuple[float, float, float]:
     return float(parts[0]), float(parts[1]), float(parts[2])
 
 
-def _parse_frame_indices_from_traj(traj: Dict[str, "np.ndarray"], *, T: int) -> "np.ndarray":
+def _parse_frame_indices_from_traj(traj: Dict[str, Any], *, T: int) -> Any:
     import numpy as np
 
     if "frame_files" not in traj:
@@ -246,7 +257,7 @@ def _resolve_world_track(
         return int(ti[int(seq_track)])
 
 
-def _load_world_params(world_results: Path) -> Tuple["np.ndarray", "np.ndarray", "np.ndarray"]:
+def _load_world_params(world_results: Path) -> Tuple[Any, Any, Any]:
     """
     Returns (trans_bt3, root_orient_bt3, is_right_bt) as numpy arrays.
     """
@@ -396,8 +407,15 @@ def main() -> None:
             Rw, tw = _map_dynhamr_world_to_isaac(Rw, tw)
 
         if do_pos:
+            # IMPORTANT: In MANO, `global_orient` rotates about the ROOT JOINT (wrist) pivot, not about the origin.
+            # Therefore the wrist joint position is NOT affected by the global rotation; only the global translation.
+            # This matches MANO behavior: with trans=0, changing root_orient does not move the wrist joint.
             p = out[i, :3].astype(np.float32)
-            out[i, :3] = (Rw @ p + tw).astype(np.float32)
+            if args.to_isaac_world:
+                # In sequence retargeting, the stored wrist position is in Dyn-HaMR world coords.
+                # Convert it to Isaac world before applying translation.
+                p = _map_dynhamr_pos_to_isaac(p)
+            out[i, :3] = (p + tw).astype(np.float32)
         if do_quat:
             q = out[i, 3:].astype(np.float32)
             # Apply pre-rotation in the wrist/local chain BEFORE composing world rotation.
