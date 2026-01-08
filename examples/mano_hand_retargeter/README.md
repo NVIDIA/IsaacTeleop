@@ -159,7 +159,7 @@ python apply_world_pose_to_traj_npz.py \
   --seq_track 0 \
   --apply_to both \
   --to_isaac_world \
-  --pre_rot 0,-0,0
+  --pre_rot 0,0,0
 ```
 
 ## 6) Replay robot hand (with world trajectory)
