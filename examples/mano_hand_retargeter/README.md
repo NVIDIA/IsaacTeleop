@@ -83,7 +83,7 @@ Left hand:
 ```bash
 python3 retarget_openxr26_with_g1_upper_body.py \
   --input ./outputs/retarget_meta/openxr26_single_hand_zero_global/openxr26_joints_left.npz \
-  --output ./outputs/retarget/openxr26_single_hand_zero_global/g1_cmds_left \
+  --output ./outputs/retarget_meta/openxr26_single_hand_zero_global/g1_cmds_left \
   --left-hand-urdf ./_DATA/G1_left_hand.urdf \
   --right-hand-urdf ./_DATA/G1_right_hand.urdf \
   --single-hand left \
