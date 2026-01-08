@@ -61,9 +61,11 @@ fi
      --loop \
      --ground_z -100 \
      --mesh_dir /home/lduan/Documents/IsaacTeleop/examples/mano_hand_retargeter/_DATA/meshes \
+     --hand_spacing 0 \
+     --spawn_height 0 \
      --camera_target 0,0,0 \
-     --camera_dir=-10,20,-10 \
-     --camera_dist 1.0
+     --camera_dir=-100,0,100 \
+     --camera_dist 2.0
 
 # Restore conda env vars (best effort)
 if [ -n "${_saved_CONDA_PREFIX}" ]; then export CONDA_PREFIX="${_saved_CONDA_PREFIX}"; fi
