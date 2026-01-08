@@ -120,7 +120,7 @@ message(STATUS "Fetching MCAP from GitHub...")
 FetchContent_Declare(
     mcap
     GIT_REPOSITORY https://github.com/foxglove/mcap.git
-    GIT_TAG        releases/cpp/v1.4.1
+    GIT_TAG        releases/cpp/v2.1.1
     GIT_SHALLOW    TRUE
 )
 

@@ -6,62 +6,14 @@
 #    define NOMINMAX
 #endif
 
+#include "inc/py_deviceio_session.hpp"
+
 #include <deviceio/controllertracker.hpp>
-#include <deviceio/deviceio_session.hpp>
 #include <deviceio/handtracker.hpp>
 #include <deviceio/headtracker.hpp>
 #include <openxr/openxr.h>
 #include <pybind11/numpy.h>
-#include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
-
-namespace py = pybind11;
-
-// Wrapper class to enforce RAII in Python by holding the unique_ptr exclusively
-class PyDeviceIOSession
-{
-public:
-    PyDeviceIOSession(std::unique_ptr<core::DeviceIOSession> impl) : impl_(std::move(impl))
-    {
-    }
-
-    bool update()
-    {
-        if (!impl_)
-        {
-            throw std::runtime_error("Session has been closed/destroyed");
-        }
-        return impl_->update();
-    }
-
-    void close()
-    {
-        impl_.reset(); // Destroys the underlying C++ object!
-    }
-
-    PyDeviceIOSession& enter()
-    {
-        return *this;
-    }
-
-    // Reset unique_ptr on exit to enforce destruction
-    void exit(py::object, py::object, py::object)
-    {
-        close();
-    }
-
-    core::DeviceIOSession& native()
-    {
-        if (!impl_)
-        {
-            throw std::runtime_error("Session has been closed/destroyed");
-        }
-        return *impl_;
-    }
-
-private:
-    std::unique_ptr<core::DeviceIOSession> impl_;
-};
 
 PYBIND11_MODULE(_deviceio, m)
 {
@@ -104,26 +56,32 @@ PYBIND11_MODULE(_deviceio, m)
             py::arg("session"), py::return_value_policy::reference_internal,
             "Get complete controller data for both left and right controllers");
 
+    // Register the native DeviceIOSession type so it can be shared across modules
+    // This opaque binding allows other modules (like mcap) to accept DeviceIOSession references
+    py::class_<core::DeviceIOSession>(m, "_DeviceIOSessionNative");
+
     // DeviceIOSession class (bound via wrapper for context management)
     py::class_<PyDeviceIOSession>(m, "DeviceIOSession")
         .def("update", &PyDeviceIOSession::update, "Update session and all trackers")
         .def("__enter__", &PyDeviceIOSession::enter)
         .def("__exit__", &PyDeviceIOSession::exit)
+        .def(
+            "_native", [](PyDeviceIOSession& self) -> core::DeviceIOSession& { return self.native(); },
+            py::return_value_policy::reference_internal,
+            "Internal: Get native C++ session reference for cross-module use")
         .def_static("get_required_extensions", &core::DeviceIOSession::get_required_extensions, py::arg("trackers"),
                     "Get list of OpenXR extensions required by a list of trackers")
         .def_static(
             "run",
-            [](const std::vector<std::shared_ptr<core::ITracker>>& trackers, const core::OpenXRSessionHandles& handles,
-               const std::string& mcap_recording_path)
+            [](const std::vector<std::shared_ptr<core::ITracker>>& trackers, const core::OpenXRSessionHandles& handles)
             {
                 // run() throws exceptions on failure, which pybind11 converts to Python exceptions
-                auto session = core::DeviceIOSession::run(trackers, handles, mcap_recording_path);
+                auto session = core::DeviceIOSession::run(trackers, handles);
                 // Wrap unique_ptr in PyDeviceIOSession, then unique_ptr for Python ownership
                 return std::make_unique<PyDeviceIOSession>(std::move(session));
             },
-            py::arg("trackers"), py::arg("handles"), py::arg("mcap_recording_path") = "",
-            "Create and initialize a session with trackers (returns context-managed session, throws on failure). "
-            "If mcap_recording_path is provided, MCAP recording will be started automatically.");
+            py::arg("trackers"), py::arg("handles"),
+            "Create and initialize a session with trackers (returns context-managed session, throws on failure).");
 
     // Module constants - XR_HAND_JOINT_COUNT_EXT
     m.attr("NUM_JOINTS") = 26;

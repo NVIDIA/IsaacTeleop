@@ -35,19 +35,6 @@ public:
     virtual std::string get_name() const = 0;
 
     /**
-     * @brief Get the FlatBuffer schema name (root type) for MCAP recording.
-     *
-     * This should return the fully qualified FlatBuffer type name (e.g., "core.HandPose")
-     * which matches the root_type defined in the .fbs schema file.
-     */
-    virtual std::string get_schema_name() const = 0;
-
-    /**
-     * @brief Get the binary FlatBuffer schema text for MCAP recording.
-     */
-    virtual std::string get_schema_text() const = 0;
-
-    /**
      * @brief Serialize the tracker data to a FlatBuffer.
      *
      * @param builder Output FlatBufferBuilder to write serialized data into.
@@ -67,6 +54,19 @@ public:
     // Public API - visible to all users
     virtual std::vector<std::string> get_required_extensions() const = 0;
     virtual std::string get_name() const = 0;
+
+    /**
+     * @brief Get the FlatBuffer schema name (root type) for MCAP recording.
+     *
+     * This should return the fully qualified FlatBuffer type name (e.g., "core.HandPose")
+     * which matches the root_type defined in the .fbs schema file.
+     */
+    virtual std::string get_schema_name() const = 0;
+
+    /**
+     * @brief Get the binary FlatBuffer schema text for MCAP recording.
+     */
+    virtual std::string get_schema_text() const = 0;
 
 protected:
     // Internal lifecycle methods - only accessible to friend classes

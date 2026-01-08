@@ -25,12 +25,22 @@ public:
         return TRACKER_NAME;
     }
 
+    std::string get_schema_name() const override
+    {
+        return "core.HeadPose";
+    }
+
+    std::string get_schema_text() const override
+    {
+        return std::string(reinterpret_cast<const char*>(HeadPoseBinarySchema::data()), HeadPoseBinarySchema::size());
+    }
+
     // Query methods - public API for getting head data
     const HeadPoseT& get_head(const DeviceIOSession& session) const;
 
 private:
     static constexpr const char* TRACKER_NAME = "HeadTracker";
-    
+
     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
 
     // Implementation class declaration (Pimpl idiom)
@@ -45,16 +55,6 @@ private:
         std::string get_name() const override
         {
             return HeadTracker::TRACKER_NAME;
-        }
-
-        std::string get_schema_name() const override
-        {
-            return "core.HeadPose";
-        }
-
-        std::string get_schema_text() const override
-        {
-            return std::string(reinterpret_cast<const char*>(HeadPoseBinarySchema::data()), HeadPoseBinarySchema::size());
         }
 
         void serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp = nullptr) const override;

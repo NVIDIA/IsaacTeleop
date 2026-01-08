@@ -9,12 +9,14 @@ Demonstrates the modular architecture with MCAP data capture:
 - Create independent trackers
 - Add only the trackers you need
 - Record all tracker data to an MCAP file for playback/analysis
+- McapRecorder.start_recording() is similar to DeviceIOSession.run()
 """
 
 import sys
 import time
 from datetime import datetime
 import teleopcore.deviceio as deviceio
+import teleopcore.mcap as mcap
 import teleopcore.oxr as oxr
 
 
@@ -53,47 +55,58 @@ def main():
         handles = oxr_session.get_handles()
         print("✓ OpenXR session created")
         
-        # Run deviceio session with trackers and MCAP recording enabled
-        print(f"\nRunning deviceio session with MCAP recording...")
-        print(f"  Recording to: {mcap_filename}")
-        with deviceio.DeviceIOSession.run(trackers, handles, mcap_recording_path=mcap_filename) as session:
+        # Run deviceio session with trackers
+        print(f"\nRunning deviceio session...")
+        with deviceio.DeviceIOSession.run(trackers, handles) as session:
             print("✓ DeviceIO session initialized with all trackers!")
-            print("✓ MCAP recording started!")
-            print()
             
-            # Main tracking loop
-            print("=" * 60)
-            print("Tracking (10 seconds)...")
-            print("=" * 60)
-            print()
+            # Start recording with context manager (similar to DeviceIOSession.run)
+            print(f"\nStarting MCAP recording to: {mcap_filename}")
+            with mcap.McapRecorder.start_recording(mcap_filename, [
+                (hand_tracker, "hands"),
+                (head_tracker, "head"),
+            ]) as recorder:
+                print("✓ MCAP recording started!")
+                print()
+                
+                # Main tracking loop
+                print("=" * 60)
+                print("Tracking (60 seconds)...")
+                print("=" * 60)
+                print()
+                
+                frame_count = 0
+                start_time = time.time()
+                
+                try:
+                    while time.time() - start_time < 30.0:
+                        # Update session and all trackers
+                        if not session.update():
+                            print("Update failed")
+                            break
+                        
+                        # Record all registered trackers
+                        recorder.record(session)
+                        
+                        # Print every 60 frames (~1 second)
+                        if frame_count % 60 == 0:
+                            elapsed = time.time() - start_time
+                            print(f"[{elapsed:4.1f}s] Frame {frame_count} (recording...)")
+                            print()
+                        
+                        frame_count += 1
+                        time.sleep(0.016)  # ~60 FPS
+                
+                except KeyboardInterrupt:
+                    print("\nInterrupted by user")
+                
+                # Cleanup
+                print(f"\nProcessed {frame_count} frames")
+                print("Cleaning up (RAII)...")
             
-            frame_count = 0
-            start_time = time.time()
-            
-            try:
-                while time.time() - start_time < 60.0:
-                    # Update session and all trackers (data is automatically recorded)
-                    if not session.update():
-                        print("Update failed")
-                        break
-                    
-                    # Print every 60 frames (~1 second)
-                    if frame_count % 60 == 0:
-                        elapsed = time.time() - start_time
-                        print(f"[{elapsed:4.1f}s] Frame {frame_count} (recording...)")
-                        print()
-                    
-                    frame_count += 1
-                    time.sleep(0.016)  # ~60 FPS
-            
-            except KeyboardInterrupt:
-                print("\nInterrupted by user")
-            
-            # Cleanup
-            print(f"\nProcessed {frame_count} frames")
-            print("Cleaning up (RAII)...")
-            print("✓ MCAP recording will be finalized on session close")
-            print("✓ Resources will be cleaned up when exiting 'with' blocks")
+            print("✓ Recording stopped")
+        
+        print("✓ DeviceIO session cleaned up")
     
     print()
     print("=" * 60)
@@ -106,4 +119,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-

@@ -30,7 +30,7 @@ add_library(deviceio_core STATIC
 )
 
 target_include_directories(deviceio_core
-    INTERFACE
+    PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
 )
 
@@ -42,9 +42,6 @@ target_link_libraries(deviceio_core
 
         # Schema library for FlatBuffer types
         teleopcore_schema
-    PRIVATE
-        # MCAP recorder for session recording
-        mcap::mcap_core
 )
 
 # Platform-specific definitions
@@ -59,14 +56,3 @@ endif()
 
 # Create alias for consistent naming
 add_library(deviceio::deviceio_core ALIAS deviceio_core)
-
-# Optional: Install for distribution
-install(TARGETS deviceio_core
-    ARCHIVE DESTINATION lib
-    INCLUDES DESTINATION include
-)
-
-install(DIRECTORY inc/deviceio
-    DESTINATION include
-)
-

@@ -4,6 +4,7 @@
 #define MCAP_IMPLEMENTATION
 #include "inc/mcap_recorder.hpp"
 
+#include <deviceio/deviceio_session.hpp>
 #include <flatbuffers/flatbuffers.h>
 #include <mcap/writer.hpp>
 
@@ -16,103 +17,131 @@ namespace core
 class McapRecorder::Impl
 {
 public:
-    Impl() = default;
+    explicit Impl(const std::string& filename, const std::vector<McapRecorder::TrackerChannelPair>& trackers)
+        : filename_(filename), tracker_configs_(trackers)
+    {
+    }
 
     ~Impl()
     {
-        close();
+        stop_recording();
     }
 
-    bool open(const std::string& filename)
+    bool start_recording()
     {
         if (is_open_)
         {
-            std::cerr << "McapRecorder: File already open, close it first" << std::endl;
+            std::cerr << "McapRecorder: Recording already in progress" << std::endl;
             return false;
         }
 
-        filename_ = filename;
+        if (tracker_configs_.empty())
+        {
+            std::cerr << "McapRecorder: No trackers provided, cannot start recording" << std::endl;
+            return false;
+        }
 
         // Configure MCAP writer options
         mcap::McapWriterOptions options("teleop");
         options.compression = mcap::Compression::None; // No compression to avoid deps
 
-        auto status = writer_.open(filename, options);
+        auto status = writer_.open(filename_, options);
         if (!status.ok())
         {
-            std::cerr << "McapRecorder: Failed to open file " << filename << ": " << status.message << std::endl;
+            std::cerr << "McapRecorder: Failed to open file " << filename_ << ": " << status.message << std::endl;
             return false;
         }
 
         is_open_ = true;
         message_count_ = 0;
 
-        std::cout << "McapRecorder: Opened " << filename << " for recording" << std::endl;
+        // Register all trackers immediately (no lazy registration)
+        for (const auto& config : tracker_configs_)
+        {
+            register_tracker(config.first.get(), config.second);
+        }
+
+        std::cout << "McapRecorder: Started recording to " << filename_ << std::endl;
         return true;
     }
 
-    void add_tracker(const std::shared_ptr<ITrackerImpl> tracker_impl)
+    void register_tracker(const ITracker* tracker, const std::string& channel_name)
     {
-        std::string tracker_name = tracker_impl->get_name();
-        std::string schema_name = tracker_impl->get_schema_name();
+        // Get schema info from the tracker
+        std::string schema_name = tracker->get_schema_name();
 
         if (schema_ids_.find(schema_name) == schema_ids_.end())
         {
-            std::string schema_text = tracker_impl->get_schema_text();
+            std::string schema_text = tracker->get_schema_text();
             mcap::Schema schema(schema_name, "flatbuffer", schema_text);
             writer_.addSchema(schema);
             schema_ids_[schema_name] = schema.id;
         }
 
-        mcap::Channel channel(tracker_name, "flatbuffer", schema_ids_[schema_name]);
+        mcap::Channel channel(channel_name, "flatbuffer", schema_ids_[schema_name]);
         writer_.addChannel(channel);
 
-        // Store the mapping from tracker impl instance to its assigned channel ID
-        tracker_impl_channel_ids_[tracker_impl.get()] = channel.id;
+        // Store the mapping from tracker to its assigned channel ID
+        tracker_channel_ids_[tracker] = channel.id;
     }
 
-    mcap::ChannelId get_channel_id(const ITrackerImpl* tracker_impl) const
-    {
-        auto it = tracker_impl_channel_ids_.find(tracker_impl);
-        if (it != tracker_impl_channel_ids_.end())
-        {
-            return it->second;
-        }
-        return 0; // Invalid channel ID
-    }
-
-    void close()
+    void stop_recording()
     {
         if (is_open_)
         {
             writer_.close();
             is_open_ = false;
-            std::cout << "McapRecorder: Closed " << filename_ << " with " << message_count_ << " messages" << std::endl;
+            std::cout << "McapRecorder: Stopped recording " << filename_ << " with " << message_count_ << " messages"
+                      << std::endl;
         }
     }
 
-    bool is_open() const
+    bool is_recording() const
     {
         return is_open_;
     }
 
-    bool record(const std::shared_ptr<ITrackerImpl> tracker_impl)
+    bool record(const DeviceIOSession& session)
     {
         if (!is_open_)
         {
             return false;
         }
 
-        int channel_id = get_channel_id(tracker_impl.get());
-        if (channel_id == 0)
+        bool all_success = true;
+        for (const auto& config : tracker_configs_)
         {
-            std::cerr << "McapRecorder: Tracker impl not found" << std::endl;
+            try
+            {
+                const auto& tracker_impl = session.get_tracker_impl(*config.first);
+                if (!record_tracker(config.first.get(), tracker_impl))
+                {
+                    all_success = false;
+                }
+            }
+            catch (const std::exception& e)
+            {
+                std::cerr << "McapRecorder: Failed to record tracker " << config.second << ": " << e.what() << std::endl;
+                all_success = false;
+            }
+        }
+
+        return all_success;
+    }
+
+private:
+    bool record_tracker(const ITracker* tracker, const ITrackerImpl& tracker_impl)
+    {
+        auto it = tracker_channel_ids_.find(tracker);
+        if (it == tracker_channel_ids_.end())
+        {
+            std::cerr << "McapRecorder: Tracker not registered" << std::endl;
             return false;
         }
 
         flatbuffers::FlatBufferBuilder builder(256);
         int64_t timestamp = 0;
-        tracker_impl->serialize(builder, &timestamp);
+        tracker_impl.serialize(builder, &timestamp);
 
         // Use tracker timestamp for log time, fall back to system time if 0
         mcap::Timestamp log_time;
@@ -129,7 +158,7 @@ public:
         }
 
         mcap::Message msg;
-        msg.channelId = channel_id;
+        msg.channelId = it->second;
         msg.logTime = log_time;
         msg.publishTime = log_time;
         msg.sequence = static_cast<uint32_t>(message_count_);
@@ -147,57 +176,49 @@ public:
         return true;
     }
 
-    std::string get_filename() const
-    {
-        return is_open_ ? filename_ : "";
-    }
-
-private:
-    mcap::McapWriter writer_;
     std::string filename_;
+    std::vector<McapRecorder::TrackerChannelPair> tracker_configs_;
+    mcap::McapWriter writer_;
     bool is_open_ = false;
     uint64_t message_count_ = 0;
 
     std::unordered_map<std::string, mcap::SchemaId> schema_ids_;
-    std::unordered_map<const ITrackerImpl*, mcap::ChannelId> tracker_impl_channel_ids_;
+    std::unordered_map<const ITracker*, mcap::ChannelId> tracker_channel_ids_;
 };
 
 // McapRecorder public interface implementation
 
-McapRecorder::McapRecorder() : impl_(std::make_unique<Impl>())
+std::unique_ptr<McapRecorder> McapRecorder::start_recording(const std::string& filename,
+                                                            const std::vector<TrackerChannelPair>& trackers)
+{
+    auto recorder = std::unique_ptr<McapRecorder>(new McapRecorder(filename, trackers));
+    if (!recorder->impl_->start_recording())
+    {
+        return nullptr;
+    }
+    return recorder;
+}
+
+McapRecorder::McapRecorder(const std::string& filename, const std::vector<TrackerChannelPair>& trackers)
+    : impl_(std::make_unique<Impl>(filename, trackers))
 {
 }
 
 McapRecorder::~McapRecorder() = default;
 
-bool McapRecorder::open(const std::string& filename)
+void McapRecorder::stop_recording()
 {
-    return impl_->open(filename);
+    impl_->stop_recording();
 }
 
-void McapRecorder::close()
+bool McapRecorder::is_recording() const
 {
-    impl_->close();
+    return impl_->is_recording();
 }
 
-bool McapRecorder::is_open() const
+bool McapRecorder::record(const DeviceIOSession& session)
 {
-    return impl_->is_open();
-}
-
-bool McapRecorder::record(const std::shared_ptr<ITrackerImpl> tracker_impl)
-{
-    return impl_->record(tracker_impl);
-}
-
-std::string McapRecorder::get_filename() const
-{
-    return impl_->get_filename();
-}
-
-void McapRecorder::add_tracker(const std::shared_ptr<ITrackerImpl> tracker_impl)
-{
-    impl_->add_tracker(tracker_impl);
+    return impl_->record(session);
 }
 
 } // namespace core

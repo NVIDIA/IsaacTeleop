@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Python wheel packaging (combines OXR, DEVICEIO, PluginManager, and Schema modules).
+# Python wheel packaging (combines OXR, DEVICEIO, MCAP, PluginManager, and Schema modules).
 
 # Generate pyproject.toml from template with TELEOPCORE_PYTHON_VERSION
 configure_file(
@@ -14,10 +14,12 @@ configure_file(
 add_custom_target(python_package ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/deviceio"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/mcap"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/oxr"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/plugin_manager"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/schema"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/../deviceio/python/deviceio_init.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/deviceio/__init__.py"
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/../mcap/python/mcap_init.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/mcap/__init__.py"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/../oxr/python/oxr_init.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/oxr/__init__.py"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/../plugin_manager/python/plugin_manager_init.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/plugin_manager/__init__.py"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/../schema/python/schema_init.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/schema/__init__.py"
@@ -27,7 +29,7 @@ add_custom_target(python_package ALL
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/setup.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-dev.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
-    DEPENDS deviceio_py oxr_py plugin_manager_py schema_py retargeting_engine_python
+    DEPENDS deviceio_py mcap_py oxr_py plugin_manager_py schema_py retargeting_engine_python
     COMMENT "Preparing Python package structure"
 )
 
@@ -45,6 +47,8 @@ add_custom_command(
     # Generate stubs for each pybind11 module
     COMMAND uv run --no-project --python ${TELEOPCORE_PYTHON_VERSION} --with pybind11-stubgen
         python "${STUBGEN_SCRIPT}" teleopcore.deviceio._deviceio "${STUBGEN_PACKAGE_DIR}"
+    COMMAND uv run --no-project --python ${TELEOPCORE_PYTHON_VERSION} --with pybind11-stubgen
+        python "${STUBGEN_SCRIPT}" teleopcore.mcap._mcap "${STUBGEN_PACKAGE_DIR}"
     COMMAND uv run --no-project --python ${TELEOPCORE_PYTHON_VERSION} --with pybind11-stubgen
         python "${STUBGEN_SCRIPT}" teleopcore.oxr._oxr "${STUBGEN_PACKAGE_DIR}"
     COMMAND uv run --no-project --python ${TELEOPCORE_PYTHON_VERSION} --with pybind11-stubgen

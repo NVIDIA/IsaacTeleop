@@ -26,6 +26,16 @@ public:
         return TRACKER_NAME;
     }
 
+    std::string get_schema_name() const override
+    {
+        return "core.HandsPose";
+    }
+
+    std::string get_schema_text() const override
+    {
+        return std::string(reinterpret_cast<const char*>(HandsPoseBinarySchema::data()), HandsPoseBinarySchema::size());
+    }
+
     // Query methods - public API for getting hand data
     const HandPoseT& get_left_hand(const DeviceIOSession& session) const;
     const HandPoseT& get_right_hand(const DeviceIOSession& session) const;
@@ -35,7 +45,7 @@ public:
 
 private:
     static constexpr const char* TRACKER_NAME = "HandTracker";
-    
+
     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
 
     // Implementation class declaration (Pimpl idiom)
@@ -53,17 +63,6 @@ private:
         std::string get_name() const override
         {
             return HandTracker::TRACKER_NAME;
-        }
-
-        std::string get_schema_name() const override
-        {
-            return "core.HandsPose";
-        }
-
-        std::string get_schema_text() const override
-        {
-            return std::string(
-                reinterpret_cast<const char*>(HandsPoseBinarySchema::data()), HandsPoseBinarySchema::size());
         }
 
         void serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp = nullptr) const override;

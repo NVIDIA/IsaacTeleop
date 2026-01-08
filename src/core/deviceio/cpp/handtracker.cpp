@@ -3,8 +3,9 @@
 
 #include "inc/deviceio/handtracker.hpp"
 
-#include <schema/hands_generated.h>
 #include "inc/deviceio/deviceio_session.hpp"
+
+#include <schema/hands_generated.h>
 
 #include <cassert>
 #include <cstring>

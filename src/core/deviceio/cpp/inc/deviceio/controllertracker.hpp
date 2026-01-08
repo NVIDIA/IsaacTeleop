@@ -26,12 +26,23 @@ public:
         return TRACKER_NAME;
     }
 
+    std::string get_schema_name() const override
+    {
+        return "core.ControllerData";
+    }
+
+    std::string get_schema_text() const override
+    {
+        return std::string(
+            reinterpret_cast<const char*>(ControllerDataBinarySchema::data()), ControllerDataBinarySchema::size());
+    }
+
     // Get complete controller data (both left and right controllers)
     const ControllerDataT& get_controller_data(const DeviceIOSession& session) const;
 
 private:
     static constexpr const char* TRACKER_NAME = "ControllerTracker";
-    
+
     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
 
     // Implementation class declaration (Pimpl idiom)
@@ -46,17 +57,6 @@ private:
         std::string get_name() const override
         {
             return ControllerTracker::TRACKER_NAME;
-        }
-
-        std::string get_schema_name() const override
-        {
-            return "core.ControllerData";
-        }
-
-        std::string get_schema_text() const override
-        {
-            return std::string(
-                reinterpret_cast<const char*>(ControllerDataBinarySchema::data()), ControllerDataBinarySchema::size());
         }
 
         void serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp = nullptr) const override;

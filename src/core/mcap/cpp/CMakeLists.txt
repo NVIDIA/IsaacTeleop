@@ -15,20 +15,11 @@ target_include_directories(mcap_core
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
 )
 
-# Include deviceio headers for ITrackerImpl interface (header-only dependency)
-target_include_directories(mcap_core
-    PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../deviceio/cpp/inc>
-)
-
-# mcap_core needs the same dependencies as deviceio for the tracker interface
-# but does NOT link to deviceio_core to avoid circular dependency
+# mcap_core depends on deviceio_core for DeviceIOSession and tracker interfaces
 target_link_libraries(mcap_core
     PUBLIC
-        # oxr_utils for OpenXR types used in tracker.hpp
-        oxr::oxr_utils
-        # Schema library for FlatBuffer types used in tracker.hpp
-        teleopcore_schema
+        # deviceio_core for DeviceIOSession and ITracker interfaces
+        deviceio::deviceio_core
     PRIVATE
         # MCAP header-only library (PRIVATE - implementation detail)
         mcap::mcap
@@ -46,4 +37,3 @@ install(TARGETS mcap_core
 install(FILES inc/mcap_recorder.hpp
     DESTINATION include
 )
-

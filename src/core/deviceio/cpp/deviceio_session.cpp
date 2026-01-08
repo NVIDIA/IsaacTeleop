@@ -5,7 +5,6 @@
 
 #include <cassert>
 #include <iostream>
-#include <mcap_recorder.hpp>
 #include <set>
 #include <stdexcept>
 #include <time.h>
@@ -76,8 +75,7 @@ std::vector<std::string> DeviceIOSession::get_required_extensions(const std::vec
 
 // Static factory - Create and initialize a session with trackers
 std::unique_ptr<DeviceIOSession> DeviceIOSession::run(const std::vector<std::shared_ptr<ITracker>>& trackers,
-                                                      const OpenXRSessionHandles& handles,
-                                                      const std::string& mcap_recording_path)
+                                                      const OpenXRSessionHandles& handles)
 {
     // These should never be null - this is improper API usage
     assert(handles.instance != XR_NULL_HANDLE && "OpenXR instance handle cannot be null");
@@ -88,16 +86,6 @@ std::unique_ptr<DeviceIOSession> DeviceIOSession::run(const std::vector<std::sha
 
     // Constructor will throw on failure
     auto session = std::unique_ptr<DeviceIOSession>(new DeviceIOSession(trackers, handles));
-
-    // Start MCAP recording if path is provided
-    if (!mcap_recording_path.empty())
-    {
-        if (!session->start_recording(mcap_recording_path))
-        {
-            std::cerr << "DeviceIOSession: Warning - Failed to start MCAP recording to " << mcap_recording_path
-                      << std::endl;
-        }
-    }
 
     return session;
 }
@@ -141,57 +129,9 @@ bool DeviceIOSession::update()
         {
             std::cerr << "Warning: tracker update failed" << std::endl;
         }
-
-        if (is_recording())
-        {
-            recorder_->record(impl);
-        }
     }
 
     return true;
-}
-
-// ============================================================================
-// MCAP Recording Implementation
-// ============================================================================
-
-bool DeviceIOSession::start_recording(const std::string& filename)
-{
-    if (recorder_ && recorder_->is_open())
-    {
-        std::cerr << "DeviceIOSession: Recording already in progress" << std::endl;
-        return false;
-    }
-
-    recorder_ = std::make_unique<McapRecorder>();
-    if (!recorder_->open(filename))
-    {
-        recorder_.reset();
-        return false;
-    }
-
-    // Register all trackers with the recorder
-    for (const auto& impl : tracker_impls_)
-    {
-        recorder_->add_tracker(impl.second);
-    }
-
-    std::cout << "DeviceIOSession: Started recording to " << filename << std::endl;
-    return true;
-}
-
-void DeviceIOSession::stop_recording()
-{
-    if (recorder_)
-    {
-        recorder_->close();
-        recorder_.reset();
-    }
-}
-
-bool DeviceIOSession::is_recording() const
-{
-    return recorder_ && recorder_->is_open();
 }
 
 } // namespace core

@@ -24,9 +24,6 @@
 namespace core
 {
 
-// Forward declarations
-class McapRecorder;
-
 // OpenXR DeviceIO Session - Main user-facing class for OpenXR tracking
 // Manages trackers and session lifetime
 class DeviceIOSession
@@ -37,14 +34,13 @@ public:
 
     // Static factory - Create and initialize a session with trackers
     // Returns fully initialized session ready to use (throws on failure)
-    // If mcap_recording_path is non-empty, MCAP recording will be started automatically
     static std::unique_ptr<DeviceIOSession> run(const std::vector<std::shared_ptr<ITracker>>& trackers,
-                                                const OpenXRSessionHandles& handles,
-                                                const std::string& mcap_recording_path = "");
+                                                const OpenXRSessionHandles& handles);
 
-    // Update session and all trackers (auto-records if recording is enabled)
+    // Update session and all trackers
     bool update();
 
+    // Get tracker implementation for a given tracker (for use by McapRecorder)
     const ITrackerImpl& get_tracker_impl(const ITracker& tracker) const
     {
         auto it = tracker_impls_.find(&tracker);
@@ -68,12 +64,6 @@ private:
 #elif defined(XR_USE_TIMESPEC)
     PFN_xrConvertTimespecTimeToTimeKHR pfn_convert_timespec_{};
 #endif
-
-    // MCAP recording
-    std::unique_ptr<McapRecorder> recorder_;
-    bool start_recording(const std::string& filename);
-    void stop_recording();
-    bool is_recording() const;
 };
 
 } // namespace core

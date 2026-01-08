@@ -14,18 +14,19 @@ if(NOT TARGET pybind11::module)
     message(FATAL_ERROR "pybind11::module target not found. This should be provided by deps/third_party/CMakeLists.txt")
 endif()
 
-# DEVICEIO module (trackers and teleop session)
-pybind11_add_module(deviceio_py
-    deviceio_bindings.cpp
+# MCAP module (McapRecorder)
+pybind11_add_module(mcap_py
+    mcap_bindings.cpp
 )
 
-target_link_libraries(deviceio_py
+target_link_libraries(mcap_py
     PRIVATE
-        deviceio_core
+        mcap::mcap_core
+        deviceio::deviceio_core
 )
 
-set_target_properties(deviceio_py PROPERTIES
-    OUTPUT_NAME "_deviceio"
+set_target_properties(mcap_py PROPERTIES
+    OUTPUT_NAME "_mcap"
     # Use genex in output directory - CMake won't add another config subdirectory
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/deviceio"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/mcap"
 )

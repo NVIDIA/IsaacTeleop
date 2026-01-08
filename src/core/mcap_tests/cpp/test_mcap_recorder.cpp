@@ -25,8 +25,6 @@ class MockTrackerImpl : public core::ITrackerImpl
 {
 public:
     static constexpr const char* TRACKER_NAME = "MockTracker";
-    static constexpr const char* SCHEMA_NAME = "core.MockPose";
-    static constexpr const char* SCHEMA_TEXT = "mock_schema_binary_data";
 
     MockTrackerImpl() = default;
 
@@ -40,16 +38,6 @@ public:
     std::string get_name() const override
     {
         return TRACKER_NAME;
-    }
-
-    std::string get_schema_name() const override
-    {
-        return SCHEMA_NAME;
-    }
-
-    std::string get_schema_text() const override
-    {
-        return SCHEMA_TEXT;
     }
 
     void serialize(flatbuffers::FlatBufferBuilder& builder, int64_t* out_timestamp) const override
@@ -84,6 +72,54 @@ private:
     int64_t timestamp_ = 0;
     mutable int update_count_ = 0;
     mutable int serialize_count_ = 0;
+};
+
+// =============================================================================
+// Mock Tracker for testing (implements ITracker interface)
+// =============================================================================
+class MockTracker : public core::ITracker
+{
+public:
+    static constexpr const char* SCHEMA_NAME = "core.MockPose";
+    static constexpr const char* SCHEMA_TEXT = "mock_schema_binary_data";
+
+    MockTracker() : impl_(std::make_shared<MockTrackerImpl>())
+    {
+    }
+
+    std::vector<std::string> get_required_extensions() const override
+    {
+        return {}; // No extensions required for mock
+    }
+
+    std::string get_name() const override
+    {
+        return MockTrackerImpl::TRACKER_NAME;
+    }
+
+    std::string get_schema_name() const override
+    {
+        return SCHEMA_NAME;
+    }
+
+    std::string get_schema_text() const override
+    {
+        return SCHEMA_TEXT;
+    }
+
+    std::shared_ptr<MockTrackerImpl> get_impl() const
+    {
+        return impl_;
+    }
+
+protected:
+    std::shared_ptr<core::ITrackerImpl> create_tracker(const core::OpenXRSessionHandles& handles) const override
+    {
+        return impl_;
+    }
+
+private:
+    std::shared_ptr<MockTrackerImpl> impl_;
 };
 
 // Helper to create a temporary file path
@@ -121,57 +157,73 @@ private:
 // McapRecorder Basic Tests
 // =============================================================================
 
-TEST_CASE("McapRecorder default construction", "[mcap_recorder]")
-{
-    core::McapRecorder recorder;
-    CHECK(recorder.is_open() == false);
-    CHECK(recorder.get_filename().empty());
-}
-
-TEST_CASE("McapRecorder open and close", "[mcap_recorder]")
+TEST_CASE("McapRecorder start_recording static factory", "[mcap_recorder]")
 {
     auto path = get_temp_mcap_path();
     TempFileCleanup cleanup(path);
 
-    core::McapRecorder recorder;
+    auto tracker = std::make_shared<MockTracker>();
 
-    SECTION("open creates file")
+    SECTION("start_recording creates file and returns recorder")
     {
-        CHECK(recorder.open(path) == true);
-        CHECK(recorder.is_open() == true);
-        CHECK(recorder.get_filename() == path);
+        auto recorder = core::McapRecorder::start_recording(path, { { tracker, "test_channel" } });
+        REQUIRE(recorder != nullptr);
+        CHECK(recorder->is_recording() == true);
 
-        recorder.close();
-        CHECK(recorder.is_open() == false);
-        CHECK(recorder.get_filename().empty());
+        recorder->stop_recording();
+        CHECK(recorder->is_recording() == false);
 
-        // File should exist after close
+        // File should exist after stop
         CHECK(fs::exists(path));
     }
 
-    SECTION("double open fails")
+    SECTION("start_recording with empty trackers returns nullptr")
     {
-        CHECK(recorder.open(path) == true);
-        CHECK(recorder.open(path) == false); // Should fail - already open
-        recorder.close();
+        auto recorder = core::McapRecorder::start_recording(path, {});
+        CHECK(recorder == nullptr);
     }
 
-    SECTION("close on unopened recorder is safe")
+    SECTION("double stop_recording is safe")
     {
-        recorder.close(); // Should not crash
-        CHECK(recorder.is_open() == false);
+        auto recorder = core::McapRecorder::start_recording(path, { { tracker, "test_channel" } });
+        REQUIRE(recorder != nullptr);
+
+        recorder->stop_recording();
+        recorder->stop_recording(); // Should not crash
+        CHECK(recorder->is_recording() == false);
     }
 }
 
-TEST_CASE("McapRecorder destructor closes file", "[mcap_recorder]")
+TEST_CASE("McapRecorder with multiple trackers", "[mcap_recorder]")
 {
     auto path = get_temp_mcap_path();
     TempFileCleanup cleanup(path);
 
+    auto tracker1 = std::make_shared<MockTracker>();
+    auto tracker2 = std::make_shared<MockTracker>();
+    auto tracker3 = std::make_shared<MockTracker>();
+
+    auto recorder = core::McapRecorder::start_recording(
+        path, { { tracker1, "channel1" }, { tracker2, "channel2" }, { tracker3, "channel3" } });
+    REQUIRE(recorder != nullptr);
+    CHECK(recorder->is_recording() == true);
+
+    recorder->stop_recording();
+    CHECK(fs::exists(path));
+}
+
+TEST_CASE("McapRecorder destructor stops recording", "[mcap_recorder]")
+{
+    auto path = get_temp_mcap_path();
+    TempFileCleanup cleanup(path);
+
+    auto tracker = std::make_shared<MockTracker>();
+
     {
-        core::McapRecorder recorder;
-        CHECK(recorder.open(path) == true);
-        // Destructor should close the file
+        auto recorder = core::McapRecorder::start_recording(path, { { tracker, "test_channel" } });
+        REQUIRE(recorder != nullptr);
+        CHECK(recorder->is_recording() == true);
+        // Destructor should stop recording
     }
 
     // File should exist after recorder is destroyed
@@ -179,110 +231,24 @@ TEST_CASE("McapRecorder destructor closes file", "[mcap_recorder]")
 }
 
 // =============================================================================
-// McapRecorder Tracker Registration Tests
+// McapRecorder creates valid MCAP file
 // =============================================================================
-
-TEST_CASE("McapRecorder add_tracker", "[mcap_recorder]")
-{
-    auto path = get_temp_mcap_path();
-    TempFileCleanup cleanup(path);
-
-    core::McapRecorder recorder;
-    CHECK(recorder.open(path) == true);
-
-    auto tracker = std::make_shared<MockTrackerImpl>();
-
-    SECTION("add_tracker enables recording")
-    {
-        recorder.add_tracker(tracker);
-        tracker->update(1000000000);
-        CHECK(recorder.record(tracker) == true);
-    }
-
-    SECTION("multiple trackers can be added and recorded")
-    {
-        auto tracker2 = std::make_shared<MockTrackerImpl>();
-
-        recorder.add_tracker(tracker);
-        recorder.add_tracker(tracker2);
-
-        tracker->update(1000000000);
-        tracker2->update(2000000000);
-
-        CHECK(recorder.record(tracker) == true);
-        CHECK(recorder.record(tracker2) == true);
-    }
-
-    recorder.close();
-}
-
-// =============================================================================
-// McapRecorder Recording Tests
-// =============================================================================
-
-TEST_CASE("McapRecorder record", "[mcap_recorder]")
-{
-    auto path = get_temp_mcap_path();
-    TempFileCleanup cleanup(path);
-
-    core::McapRecorder recorder;
-    CHECK(recorder.open(path) == true);
-
-    auto tracker = std::make_shared<MockTrackerImpl>();
-    recorder.add_tracker(tracker);
-
-    SECTION("record succeeds for registered tracker")
-    {
-        tracker->update(1000000000); // 1 second in nanoseconds
-        CHECK(recorder.record(tracker) == true);
-        CHECK(tracker->get_serialize_count() == 1);
-    }
-
-    SECTION("record fails for unregistered tracker")
-    {
-        auto unregistered = std::make_shared<MockTrackerImpl>();
-        CHECK(recorder.record(unregistered) == false);
-    }
-
-    SECTION("record fails when not open")
-    {
-        recorder.close();
-        CHECK(recorder.record(tracker) == false);
-    }
-
-    SECTION("multiple records succeed")
-    {
-        for (int i = 0; i < 10; ++i)
-        {
-            tracker->update(i * 1000000000LL);
-            CHECK(recorder.record(tracker) == true);
-        }
-        CHECK(tracker->get_serialize_count() == 10);
-    }
-
-    recorder.close();
-}
 
 TEST_CASE("McapRecorder creates valid MCAP file", "[mcap_recorder][file]")
 {
     auto path = get_temp_mcap_path();
     TempFileCleanup cleanup(path);
 
+    auto tracker = std::make_shared<MockTracker>();
+
     {
-        core::McapRecorder recorder;
-        CHECK(recorder.open(path) == true);
+        auto recorder = core::McapRecorder::start_recording(path, { { tracker, "test_channel" } });
+        REQUIRE(recorder != nullptr);
 
-        auto tracker = std::make_shared<MockTrackerImpl>();
-        recorder.add_tracker(tracker);
+        // Note: We can't test record() without a real DeviceIOSession,
+        // but we can verify the file structure is created correctly
 
-        // Record some data
-        for (int i = 0; i < 5; ++i)
-        {
-            tracker->update((i + 1) * 1000000000LL);
-            CHECK(recorder.record(tracker) == true);
-        }
-
-        recorder.close();
+        recorder->stop_recording();
     }
 
     // Verify file exists and has content
@@ -306,45 +272,8 @@ TEST_CASE("McapRecorder creates valid MCAP file", "[mcap_recorder][file]")
 }
 
 // =============================================================================
-// McapRecorder Timestamp Tests
+// Note: Full recording tests require a real DeviceIOSession
 // =============================================================================
-
-TEST_CASE("McapRecorder uses tracker timestamp", "[mcap_recorder][timestamp]")
-{
-    auto path = get_temp_mcap_path();
-    TempFileCleanup cleanup(path);
-
-    core::McapRecorder recorder;
-    CHECK(recorder.open(path) == true);
-
-    auto tracker = std::make_shared<MockTrackerImpl>();
-    recorder.add_tracker(tracker);
-
-    // Update with a specific timestamp
-    int64_t expected_timestamp = 9876543210LL;
-    tracker->update(expected_timestamp);
-
-    // Record - the recorder should use the tracker's timestamp
-    CHECK(recorder.record(tracker) == true);
-    CHECK(tracker->get_timestamp() == expected_timestamp);
-
-    recorder.close();
-}
-
-TEST_CASE("McapRecorder handles zero timestamp", "[mcap_recorder][timestamp]")
-{
-    auto path = get_temp_mcap_path();
-    TempFileCleanup cleanup(path);
-
-    core::McapRecorder recorder;
-    CHECK(recorder.open(path) == true);
-
-    auto tracker = std::make_shared<MockTrackerImpl>();
-    recorder.add_tracker(tracker);
-
-    // Don't call update - timestamp will be 0
-    // Record should still succeed (will use system time as fallback)
-    CHECK(recorder.record(tracker) == true);
-
-    recorder.close();
-}
+// The record(session) function requires a DeviceIOSession, which in turn
+// requires OpenXR handles. Full integration testing of the recording
+// functionality should be done with actual hardware or a mock OpenXR runtime.
