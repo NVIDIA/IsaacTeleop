@@ -76,8 +76,8 @@ def main():
                         print(f"[{elapsed:4.1f}s] Frame {frame_count}")
                         
                         # Get hand data
-                        left = hand_tracker.get_left_hand()
-                        right = hand_tracker.get_right_hand()
+                        left = hand_tracker.get_left_hand(session)
+                        right = hand_tracker.get_right_hand(session)
 
                         print(f"  Hands: Left={'ACTIVE' if left.is_active else 'INACTIVE':8s} | "
                               f"Right={'ACTIVE' if right.is_active else 'INACTIVE':8s}")
@@ -89,7 +89,7 @@ def main():
                                 print(f"    Left wrist: [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]")
 
                         # Get head data (returns HeadPoseT from schema)
-                        head = head_tracker.get_head()
+                        head = head_tracker.get_head(session)
                         print(f"  Head: {'VALID' if head.is_valid else 'INVALID':8s}")
 
                         if head.is_valid and head.pose:

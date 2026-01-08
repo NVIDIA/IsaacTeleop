@@ -50,6 +50,15 @@ public:
         close();
     }
 
+    core::DeviceIOSession& native()
+    {
+        if (!impl_)
+        {
+            throw std::runtime_error("Session has been closed/destroyed");
+        }
+        return *impl_;
+    }
+
 private:
     std::unique_ptr<core::DeviceIOSession> impl_;
 };
@@ -64,21 +73,36 @@ PYBIND11_MODULE(_deviceio, m)
     // HandTracker class
     py::class_<core::HandTracker, core::ITracker, std::shared_ptr<core::HandTracker>>(m, "HandTracker")
         .def(py::init<>())
-        .def("get_left_hand", &core::HandTracker::get_left_hand, py::return_value_policy::reference_internal)
-        .def("get_right_hand", &core::HandTracker::get_right_hand, py::return_value_policy::reference_internal)
+        .def(
+            "get_left_hand",
+            [](core::HandTracker& self, PyDeviceIOSession& session) -> const core::HandPoseT&
+            { return self.get_left_hand(session.native()); },
+            py::arg("session"), py::return_value_policy::reference_internal)
+        .def(
+            "get_right_hand",
+            [](core::HandTracker& self, PyDeviceIOSession& session) -> const core::HandPoseT&
+            { return self.get_right_hand(session.native()); },
+            py::arg("session"), py::return_value_policy::reference_internal)
         .def_static("get_joint_name", &core::HandTracker::get_joint_name);
 
     // HeadTracker class
     py::class_<core::HeadTracker, core::ITracker, std::shared_ptr<core::HeadTracker>>(m, "HeadTracker")
         .def(py::init<>())
-        .def("get_head", &core::HeadTracker::get_head, py::return_value_policy::reference_internal);
+        .def(
+            "get_head",
+            [](core::HeadTracker& self, PyDeviceIOSession& session) -> const core::HeadPoseT&
+            { return self.get_head(session.native()); },
+            py::arg("session"), py::return_value_policy::reference_internal);
 
     // ControllerTracker class
     py::class_<core::ControllerTracker, core::ITracker, std::shared_ptr<core::ControllerTracker>>(m, "ControllerTracker")
         .def(py::init<>())
-        .def("get_controller_data", &core::ControllerTracker::get_controller_data,
-             py::return_value_policy::reference_internal,
-             "Get complete controller data for both left and right controllers");
+        .def(
+            "get_controller_data",
+            [](core::ControllerTracker& self, PyDeviceIOSession& session) -> const core::ControllerDataT&
+            { return self.get_controller_data(session.native()); },
+            py::arg("session"), py::return_value_policy::reference_internal,
+            "Get complete controller data for both left and right controllers");
 
     // DeviceIOSession class (bound via wrapper for context management)
     py::class_<PyDeviceIOSession>(m, "DeviceIOSession")

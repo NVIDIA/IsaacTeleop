@@ -108,8 +108,8 @@ try:
             elapsed = time.time() - start_time
             
             # Get data from both trackers
-            left = hand_tracker.get_left_hand()
-            head = head_tracker.get_head()
+            left = hand_tracker.get_left_hand(session1)
+            head = head_tracker.get_head(session2)
             
             print(f"[{elapsed:4.1f}s] Frame {frame_count:3d}:")
             print(f"  Hands: {'ACTIVE' if left.is_active else 'INACTIVE':8s}")

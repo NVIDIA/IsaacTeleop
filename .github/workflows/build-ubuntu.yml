@@ -52,12 +52,5 @@ jobs:
     - name: ccache stats
       run: ccache --show-stats
 
-    - name: Run Native Tests
+    - name: Run All Tests
       run: ctest --test-dir build --output-on-failure --parallel
-
-    - name: Run Python Tests
-      run: |
-        uv run \
-          --directory build/python_package/${{ matrix.build_type }} \
-          --extra dev \
-          pytest ../../../src/core -v --tb=short

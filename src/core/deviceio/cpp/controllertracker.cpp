@@ -3,6 +3,8 @@
 
 #include "inc/deviceio/controllertracker.hpp"
 
+#include "inc/deviceio/deviceio_session.hpp"
+
 #include <cassert>
 #include <cmath>
 #include <cstring>
@@ -379,35 +381,20 @@ void ControllerTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder,
 // ControllerTracker Public Interface Implementation
 // ============================================================================
 
-ControllerTracker::ControllerTracker()
-{
-}
-
-ControllerTracker::~ControllerTracker()
-{
-    // Session owns the impl, weak_ptr will detect if it's destroyed
-}
-
 std::vector<std::string> ControllerTracker::get_required_extensions() const
 {
     // Controllers don't require any extensions (they're part of core OpenXR)
     return {};
 }
 
-const ControllerDataT& ControllerTracker::get_controller_data() const
+const ControllerDataT& ControllerTracker::get_controller_data(const DeviceIOSession& session) const
 {
-    static const ControllerDataT empty_data{};
-    auto impl = cached_impl_.lock();
-    if (!impl)
-        return empty_data;
-    return impl->get_controller_data();
+    return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_controller_data();
 }
 
-std::shared_ptr<ITrackerImpl> ControllerTracker::initialize(const OpenXRSessionHandles& handles)
+std::shared_ptr<ITrackerImpl> ControllerTracker::create_tracker(const OpenXRSessionHandles& handles) const
 {
-    auto shared = std::make_shared<Impl>(handles);
-    cached_impl_ = shared;
-    return shared;
+    return std::make_shared<Impl>(handles);
 }
 
 } // namespace core

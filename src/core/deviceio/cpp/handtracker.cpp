@@ -4,6 +4,7 @@
 #include "inc/deviceio/handtracker.hpp"
 
 #include <schema/hands_generated.h>
+#include "inc/deviceio/deviceio_session.hpp"
 
 #include <cassert>
 #include <cstring>
@@ -210,43 +211,24 @@ bool HandTracker::Impl::update_hand(XrHandTrackerEXT tracker, XrTime time, HandP
 // HandTracker Public Interface Implementation
 // ============================================================================
 
-HandTracker::HandTracker()
-{
-}
-
-HandTracker::~HandTracker()
-{
-    // Session owns the impl, weak_ptr will detect if it's destroyed
-}
-
 std::vector<std::string> HandTracker::get_required_extensions() const
 {
     return { XR_EXT_HAND_TRACKING_EXTENSION_NAME };
 }
 
-const HandPoseT& HandTracker::get_left_hand() const
+const HandPoseT& HandTracker::get_left_hand(const DeviceIOSession& session) const
 {
-    static const HandPoseT empty_data{};
-    auto impl = cached_impl_.lock();
-    if (!impl)
-        return empty_data;
-    return impl->get_left_hand();
+    return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_left_hand();
 }
 
-const HandPoseT& HandTracker::get_right_hand() const
+const HandPoseT& HandTracker::get_right_hand(const DeviceIOSession& session) const
 {
-    static const HandPoseT empty_data{};
-    auto impl = cached_impl_.lock();
-    if (!impl)
-        return empty_data;
-    return impl->get_right_hand();
+    return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_right_hand();
 }
 
-std::shared_ptr<ITrackerImpl> HandTracker::initialize(const OpenXRSessionHandles& handles)
+std::shared_ptr<ITrackerImpl> HandTracker::create_tracker(const OpenXRSessionHandles& handles) const
 {
-    auto shared = std::make_shared<Impl>(handles);
-    cached_impl_ = shared;
-    return shared;
+    return std::make_shared<Impl>(handles);
 }
 
 std::string HandTracker::get_joint_name(uint32_t joint_index)

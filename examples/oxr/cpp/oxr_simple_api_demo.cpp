@@ -91,9 +91,9 @@ int main()
         }
 
         // External user only uses public query methods
-        const auto& left = hand_tracker->get_left_hand();
-        const auto& right = hand_tracker->get_right_hand();
-        const auto& head = head_tracker->get_head();
+        const auto& left = hand_tracker->get_left_hand(*session);
+        const auto& right = hand_tracker->get_right_hand(*session);
+        const auto& head = head_tracker->get_head(*session);
 
         std::cout << "Frame " << i << ":" << std::endl;
         std::cout << "  Left hand:  " << (left.is_active ? "ACTIVE" : "INACTIVE") << std::endl;
