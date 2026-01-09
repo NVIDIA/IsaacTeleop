@@ -151,13 +151,19 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
         Args:
             context: The execution context
         """
-        inputs = context.get_leaf_input(self._name)
-        if inputs is None:
-            raise ValueError(f"Input '{self._name}' not found in context")
-
+        # Check cache first
         outputs = context.get_cached(id(self))
         if outputs is not None:
             return outputs
+
+        # Get inputs from context (if any are needed)
+        if len(self._inputs) > 0:  # Only look for inputs if this module has any
+            inputs = context.get_leaf_input(self._name)
+            if inputs is None:
+                raise ValueError(f"Input '{self._name}' not found in context")
+        else:
+            # Source modules with no inputs use empty dict
+            inputs = {}
 
         # Create output tensor groups.
         outputs = {

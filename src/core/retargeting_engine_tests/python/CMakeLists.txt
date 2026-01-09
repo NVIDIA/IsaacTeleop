@@ -41,3 +41,8 @@ add_test(
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
 )
 
+# Set the environment to ensure the built package is available for type checking
+set_tests_properties("retargeting_mypy_type_check" PROPERTIES
+    ENVIRONMENT "PYTHONPATH=${CMAKE_BINARY_DIR}/python_package/$<CONFIG>"
+)
+

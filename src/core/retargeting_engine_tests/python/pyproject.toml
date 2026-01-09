@@ -46,8 +46,3 @@ exclude = [
     "test_.*",
 ]
 
-# Per-module options
-[[tool.mypy.overrides]]
-module = "test_*"
-ignore_errors = true
-

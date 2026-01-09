@@ -34,7 +34,8 @@ packages = [
     "teleopcore.schema",
     "teleopcore.retargeting_engine",
     "teleopcore.retargeting_engine.interface",
-    "teleopcore.retargeting_engine.tensor_types"
+    "teleopcore.retargeting_engine.tensor_types",
+    "teleopcore.retargeting_engine.sources"
 ]
 include-package-data = true
 
