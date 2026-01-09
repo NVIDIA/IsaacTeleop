@@ -32,3 +32,12 @@ foreach(test_file ${TEST_FILES})
     )
 endforeach()
 
+# Add mypy type checking test
+add_test(
+    NAME "retargeting_mypy_type_check"
+    COMMAND uv run --python ${TELEOPCORE_PYTHON_VERSION} --extra dev 
+        mypy --config-file pyproject.toml
+        "${CMAKE_SOURCE_DIR}/src/core/retargeting_engine/python"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+)
+
