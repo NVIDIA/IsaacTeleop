@@ -9,7 +9,7 @@
 #include <deviceio/controllertracker.hpp>
 #include <deviceio/handtracker.hpp>
 #include <deviceio/headtracker.hpp>
-#include <deviceio_py/session.hpp>
+#include <deviceio_py_utils/session.hpp>
 #include <openxr/openxr.h>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>

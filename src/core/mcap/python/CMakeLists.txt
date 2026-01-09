@@ -9,12 +9,7 @@ target_link_libraries(mcap_py
     PRIVATE
         mcap::mcap_core
         deviceio::deviceio_core
-)
-
-# Include deviceio python headers for PyDeviceIOSession wrapper
-target_include_directories(mcap_py
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/src/core/deviceio/python/inc
+        deviceio_py_utils
 )
 
 set_target_properties(mcap_py PROPERTIES

@@ -6,7 +6,7 @@
 #    define NOMINMAX
 #endif
 
-#include <deviceio_py/session.hpp>
+#include <deviceio_py_utils/session.hpp>
 #include <mcap/recorder.hpp>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>

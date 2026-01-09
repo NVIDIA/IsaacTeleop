@@ -11,6 +11,6 @@ add_subdirectory(cpp)
 option(BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
 
 if(BUILD_PYTHON_BINDINGS)
+    add_subdirectory(py_utils)
     add_subdirectory(python)
 endif()
-
