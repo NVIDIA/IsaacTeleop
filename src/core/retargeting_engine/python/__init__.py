@@ -5,9 +5,12 @@
 
 from . import interface
 from . import tensor_types
+from . import sources
 
 __all__ = [
     "interface",
     "tensor_types",
+    "sources",
 ]
+
 

@@ -17,3 +17,4 @@ include teleopcore/schema/*.pyi
 include teleopcore/retargeting_engine/*.py
 include teleopcore/retargeting_engine/interface/*.py
 include teleopcore/retargeting_engine/tensor_types/*.py
+include teleopcore/retargeting_engine/sources/*.py
