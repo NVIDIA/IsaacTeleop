@@ -45,7 +45,7 @@ public:
         auto it = tracker_impls_.find(&tracker);
         if (it == tracker_impls_.end())
         {
-            throw std::runtime_error("Tracker implementation not found for tracker: " + tracker.get_name());
+            throw std::runtime_error("Tracker implementation not found for tracker: " + std::string(tracker.get_name()));
         }
         return *(it->second);
     }

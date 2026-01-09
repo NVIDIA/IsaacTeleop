@@ -7,61 +7,12 @@
 #endif
 
 #include <deviceio/controllertracker.hpp>
-#include <deviceio/deviceio_session.hpp>
 #include <deviceio/handtracker.hpp>
 #include <deviceio/headtracker.hpp>
 #include <openxr/openxr.h>
+#include <py_deviceio/session.hpp>
 #include <pybind11/numpy.h>
-#include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
-
-namespace py = pybind11;
-
-// Wrapper class to enforce RAII in Python by holding the unique_ptr exclusively
-class PyDeviceIOSession
-{
-public:
-    PyDeviceIOSession(std::unique_ptr<core::DeviceIOSession> impl) : impl_(std::move(impl))
-    {
-    }
-
-    bool update()
-    {
-        if (!impl_)
-        {
-            throw std::runtime_error("Session has been closed/destroyed");
-        }
-        return impl_->update();
-    }
-
-    void close()
-    {
-        impl_.reset(); // Destroys the underlying C++ object!
-    }
-
-    PyDeviceIOSession& enter()
-    {
-        return *this;
-    }
-
-    // Reset unique_ptr on exit to enforce destruction
-    void exit(py::object, py::object, py::object)
-    {
-        close();
-    }
-
-    core::DeviceIOSession& native()
-    {
-        if (!impl_)
-        {
-            throw std::runtime_error("Session has been closed/destroyed");
-        }
-        return *impl_;
-    }
-
-private:
-    std::unique_ptr<core::DeviceIOSession> impl_;
-};
 
 PYBIND11_MODULE(_deviceio, m)
 {
@@ -105,6 +56,8 @@ PYBIND11_MODULE(_deviceio, m)
             "Get complete controller data for both left and right controllers");
 
     // DeviceIOSession class (bound via wrapper for context management)
+    // Other C++ modules (like mcap) should include <py_deviceio/session.hpp> and accept
+    // PyDeviceIOSession& directly, calling .native() internally in C++ code.
     py::class_<PyDeviceIOSession>(m, "DeviceIOSession")
         .def("update", &PyDeviceIOSession::update, "Update session and all trackers")
         .def("__enter__", &PyDeviceIOSession::enter)
@@ -121,7 +74,7 @@ PYBIND11_MODULE(_deviceio, m)
                 return std::make_unique<PyDeviceIOSession>(std::move(session));
             },
             py::arg("trackers"), py::arg("handles"),
-            "Create and initialize a session with trackers (returns context-managed session, throws on failure)");
+            "Create and initialize a session with trackers (returns context-managed session, throws on failure).");
 
     // Module constants - XR_HAND_JOINT_COUNT_EXT
     m.attr("NUM_JOINTS") = 26;

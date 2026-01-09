@@ -18,8 +18,11 @@ add_subdirectory(plugin_manager)
 # Build OXR library (depends on oxr_utils for types)
 add_subdirectory(oxr)
 
-# Build DEVICEIO library (depends on oxr_utils for types)
+# Build DEVICEIO library first (depends on oxr_utils for types)
 add_subdirectory(deviceio)
+
+# Build MCAP library (depends on deviceio for DeviceIOSession and tracker interfaces)
+add_subdirectory(mcap)
 
 # Build Retargeting Engine (pure Python module)
 add_subdirectory(retargeting_engine)
@@ -39,4 +42,7 @@ if(BUILD_TESTING)
     
     # Retargeting engine tests (Python)
     add_subdirectory(retargeting_engine_tests)
+
+    # MCAP tests (C++)
+    add_subdirectory(mcap_tests/cpp)
 endif()

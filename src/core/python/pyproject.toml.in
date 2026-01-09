@@ -28,6 +28,7 @@ optional-dependencies.dev = {file = ["requirements-dev.txt"]}
 packages = [
     "teleopcore",
     "teleopcore.deviceio",
+    "teleopcore.mcap",
     "teleopcore.oxr",
     "teleopcore.plugin_manager",
     "teleopcore.schema",
@@ -40,6 +41,7 @@ include-package-data = true
 [tool.setuptools.package-data]
 teleopcore = ["*.so", "*.pyd", "*.pyi", "py.typed"]
 "teleopcore.deviceio" = ["*.so", "*.pyd", "*.pyi"]
+"teleopcore.mcap" = ["*.so", "*.pyd", "*.pyi"]
 "teleopcore.oxr" = ["*.so", "*.pyd", "*.pyi"]
 "teleopcore.plugin_manager" = ["*.so", "*.pyd", "*.pyi"]
 "teleopcore.schema" = ["*.so", "*.pyd", "*.pyi"]
@@ -47,4 +49,3 @@ teleopcore = ["*.so", "*.pyd", "*.pyi", "py.typed"]
 [tool.uv]
 # Only use managed Python installations (not system Python)
 python-preference = "only-managed"
-

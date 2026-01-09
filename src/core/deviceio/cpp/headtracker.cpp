@@ -73,6 +73,18 @@ const HeadPoseT& HeadTracker::Impl::get_head() const
     return head_;
 }
 
+Timestamp HeadTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder) const
+{
+    auto offset = HeadPose::Pack(builder, &head_);
+    builder.Finish(offset);
+
+    if (head_.timestamp)
+    {
+        return *head_.timestamp;
+    }
+    return Timestamp{};
+}
+
 // ============================================================================
 // HeadTracker Public Interface Implementation
 // ============================================================================

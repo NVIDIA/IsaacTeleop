@@ -5,6 +5,8 @@
 
 #include "inc/deviceio/deviceio_session.hpp"
 
+#include <schema/hands_generated.h>
+
 #include <cassert>
 #include <cstring>
 #include <iostream>
@@ -90,6 +92,25 @@ HandTracker::Impl::Impl(const OpenXRSessionHandles& handles)
     right_hand_.is_active = false;
 
     std::cout << "HandTracker initialized (left + right)" << std::endl;
+}
+
+Timestamp HandTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder) const
+{
+    // Serialize both hands into a combined HandsPose message
+    auto left_offset = HandPose::Pack(builder, &left_hand_);
+    auto right_offset = HandPose::Pack(builder, &right_hand_);
+
+    HandsPoseBuilder hands_builder(builder);
+    hands_builder.add_left_hand(left_offset);
+    hands_builder.add_right_hand(right_offset);
+    builder.Finish(hands_builder.Finish());
+
+    // For hand tracker, we use left hand's timestamp (both hands are updated at the same time)
+    if (left_hand_.timestamp)
+    {
+        return *left_hand_.timestamp;
+    }
+    return Timestamp{};
 }
 
 HandTracker::Impl::~Impl()

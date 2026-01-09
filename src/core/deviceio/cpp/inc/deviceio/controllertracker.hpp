@@ -5,6 +5,7 @@
 
 #include "tracker.hpp"
 
+#include <schema/controller_bfbs_generated.h>
 #include <schema/controller_generated.h>
 
 #include <memory>
@@ -19,12 +20,30 @@ class ControllerTracker : public ITracker
 public:
     // Public API - what external users see
     std::vector<std::string> get_required_extensions() const override;
-    std::string get_name() const override;
+
+    std::string_view get_name() const override
+    {
+        return TRACKER_NAME;
+    }
+
+    std::string_view get_schema_name() const override
+    {
+        return SCHEMA_NAME;
+    }
+
+    std::string_view get_schema_text() const override
+    {
+        return std::string_view(
+            reinterpret_cast<const char*>(ControllerDataBinarySchema::data()), ControllerDataBinarySchema::size());
+    }
 
     // Get complete controller data (both left and right controllers)
     const ControllerDataT& get_controller_data(const DeviceIOSession& session) const;
 
 private:
+    static constexpr const char* TRACKER_NAME = "ControllerTracker";
+    static constexpr const char* SCHEMA_NAME = "core.ControllerData";
+
     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
 
     class Impl : public ITrackerImpl
@@ -34,6 +53,8 @@ private:
 
         // Override from ITrackerImpl
         bool update(XrTime time) override;
+
+        Timestamp serialize(flatbuffers::FlatBufferBuilder& builder) const override;
 
         const ControllerDataT& get_controller_data() const;
 

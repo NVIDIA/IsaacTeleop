@@ -354,6 +354,23 @@ const ControllerDataT& ControllerTracker::Impl::get_controller_data() const
     return controller_data_;
 }
 
+Timestamp ControllerTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder) const
+{
+    auto offset = ControllerData::Pack(builder, &controller_data_);
+    builder.Finish(offset);
+
+    // Use left controller timestamp (or right if left is inactive)
+    if (controller_data_.left_controller && controller_data_.left_controller->is_active())
+    {
+        return controller_data_.left_controller->timestamp();
+    }
+    else if (controller_data_.right_controller && controller_data_.right_controller->is_active())
+    {
+        return controller_data_.right_controller->timestamp();
+    }
+    return Timestamp{};
+}
+
 // ============================================================================
 // ControllerTracker Public Interface Implementation
 // ============================================================================
@@ -362,11 +379,6 @@ std::vector<std::string> ControllerTracker::get_required_extensions() const
 {
     // Controllers don't require any extensions (they're part of core OpenXR)
     return {};
-}
-
-std::string ControllerTracker::get_name() const
-{
-    return "ControllerTracker";
 }
 
 const ControllerDataT& ControllerTracker::get_controller_data(const DeviceIOSession& session) const

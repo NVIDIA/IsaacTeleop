@@ -52,4 +52,3 @@ __all__ = [
     "JOINT_THUMB_TIP",
     "JOINT_INDEX_TIP",
 ]
-

@@ -6,6 +6,8 @@
 #include "tracker.hpp"
 
 #include <schema/hand_generated.h>
+#include <schema/hands_bfbs_generated.h>
+#include <schema/hands_generated.h>
 
 #include <memory>
 
@@ -19,9 +21,20 @@ class HandTracker : public ITracker
 public:
     // Public API - what external users see
     std::vector<std::string> get_required_extensions() const override;
-    std::string get_name() const override
+    std::string_view get_name() const override
     {
-        return "HandTracker";
+        return TRACKER_NAME;
+    }
+
+    std::string_view get_schema_name() const override
+    {
+        return SCHEMA_NAME;
+    }
+
+    std::string_view get_schema_text() const override
+    {
+        return std::string_view(
+            reinterpret_cast<const char*>(HandsPoseBinarySchema::data()), HandsPoseBinarySchema::size());
     }
 
     // Query methods - public API for getting hand data
@@ -32,6 +45,9 @@ public:
     static std::string get_joint_name(uint32_t joint_index);
 
 private:
+    static constexpr const char* TRACKER_NAME = "HandTracker";
+    static constexpr const char* SCHEMA_NAME = "core.HandsPose";
+
     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
 
     class Impl : public ITrackerImpl
@@ -44,6 +60,8 @@ private:
 
         // Override from ITrackerImpl
         bool update(XrTime time) override;
+
+        Timestamp serialize(flatbuffers::FlatBufferBuilder& builder) const override;
 
         const HandPoseT& get_left_hand() const;
         const HandPoseT& get_right_hand() const;

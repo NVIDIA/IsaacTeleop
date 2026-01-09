@@ -32,7 +32,6 @@ add_library(deviceio_core STATIC
 target_include_directories(deviceio_core
     INTERFACE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
-        $<INSTALL_INTERFACE:include>
 )
 
 target_link_libraries(deviceio_core
@@ -47,7 +46,7 @@ target_link_libraries(deviceio_core
 
 # Platform-specific definitions
 if(WIN32)
-    target_compile_definitions(deviceio_core PUBLIC XR_USE_PLATFORM_WIN32)
+    target_compile_definitions(deviceio_core PUBLIC XR_USE_PLATFORM_WIN32 NOMINMAX)
 else()
     target_compile_definitions(deviceio_core PUBLIC XR_USE_TIMESPEC)
 endif()
@@ -67,4 +66,3 @@ install(TARGETS deviceio_core
 install(DIRECTORY inc/deviceio
     DESTINATION include
 )
-
