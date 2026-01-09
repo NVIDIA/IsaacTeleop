@@ -3,6 +3,7 @@
 
 pybind11_add_module(deviceio_py
     deviceio_bindings.cpp
+    inc/deviceio_py/session.hpp
 )
 
 target_link_libraries(deviceio_py
