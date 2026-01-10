@@ -7,7 +7,7 @@ version = "0.1.0"
 description = "Retargeting Engine Python Examples"
 requires-python = ">=3.11,<3.12"
 dependencies = [
-    "teleopcore",
+    "teleopcore[ui]",
     "numpy>=1.19.0",
 ]
 

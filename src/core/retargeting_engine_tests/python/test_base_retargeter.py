@@ -5,13 +5,22 @@
 Tests for BaseRetargeter class - testing simple retargeters.
 
 Tests simple retargeting modules including add, double, multiply, and identity operations.
+Also tests parameter functionality in retargeters.
 """
 
 import pytest
+import tempfile
+import os
 from teleopcore.retargeting_engine.interface import (
     BaseRetargeter,
     TensorGroupType,
     TensorGroup,
+    ParameterState,
+)
+from teleopcore.retargeting_engine.interface.tunable_parameter import (
+    FloatParameter,
+    IntParameter,
+    BoolParameter,
 )
 from teleopcore.retargeting_engine.tensor_types import (
     FloatType,
@@ -489,6 +498,313 @@ class TestRetargeterOutputSelector:
         
         # Just check that repr returns something containing OutputSelector
         assert "OutputSelector" in repr_str
+
+
+# ============================================================================
+# Parametric Retargeters for Testing Parameters
+# ============================================================================
+
+
+class ParametricScaleRetargeter(BaseRetargeter):
+    """Retargeter with a tunable scale parameter."""
+    
+    def __init__(self, name: str, config_file: str = None) -> None:
+        # Create parameter with sync function
+        parameters = [
+            FloatParameter(
+                "scale", 
+                "Scale factor", 
+                default_value=1.0, 
+                min_value=0.0, 
+                max_value=10.0,
+                sync_fn=lambda v: setattr(self, 'scale', v)
+            )
+        ]
+        param_state = ParameterState(name, parameters=parameters, config_file=config_file)
+        
+        super().__init__(name, parameter_state=param_state)
+        # self.scale is now initialized via sync_fn
+    
+    def input_spec(self):
+        return {
+            "x": TensorGroupType("input_x", [FloatType("value")]),
+        }
+    
+    def output_spec(self):
+        return {
+            "result": TensorGroupType("output_result", [FloatType("scaled")]),
+        }
+    
+    def compute(self, inputs, outputs):
+        outputs["result"][0] = inputs["x"][0] * self.scale
+
+
+class ParametricOffsetRetargeter(BaseRetargeter):
+    """Retargeter with tunable offset and enable parameters."""
+    
+    def __init__(self, name: str) -> None:
+        parameters = [
+            FloatParameter(
+                "offset", 
+                "Offset value", 
+                default_value=0.0,
+                sync_fn=lambda v: setattr(self, 'offset', v)
+            ),
+            BoolParameter(
+                "enabled", 
+                "Enable offset", 
+                default_value=True,
+                sync_fn=lambda v: setattr(self, 'enabled', v)
+            )
+        ]
+        param_state = ParameterState(name, parameters=parameters)
+        
+        super().__init__(name, parameter_state=param_state)
+    
+    def input_spec(self):
+        return {
+            "x": TensorGroupType("input_x", [FloatType("value")]),
+        }
+    
+    def output_spec(self):
+        return {
+            "result": TensorGroupType("output_result", [FloatType("value")]),
+        }
+    
+    def compute(self, inputs, outputs):
+        value = inputs["x"][0]
+        if self.enabled:
+            outputs["result"][0] = value + self.offset
+        else:
+            outputs["result"][0] = value
+
+
+class ParametricIntMultiplierRetargeter(BaseRetargeter):
+    """Retargeter with an integer multiplier parameter."""
+    
+    def __init__(self, name: str) -> None:
+        parameters = [
+            IntParameter(
+                "multiplier", 
+                "Integer multiplier", 
+                default_value=2, 
+                min_value=1, 
+                max_value=100,
+                sync_fn=lambda v: setattr(self, 'multiplier', v)
+            )
+        ]
+        param_state = ParameterState(name, parameters=parameters)
+        
+        super().__init__(name, parameter_state=param_state)
+    
+    def input_spec(self):
+        return {
+            "x": TensorGroupType("input_x", [IntType("value")]),
+        }
+    
+    def output_spec(self):
+        return {
+            "result": TensorGroupType("output_result", [IntType("value")]),
+        }
+    
+    def compute(self, inputs, outputs):
+        outputs["result"][0] = inputs["x"][0] * self.multiplier
+
+
+# ============================================================================
+# Parameter Tests
+# ============================================================================
+
+
+class TestRetargeterWithParameters:
+    """Test retargeters with tunable parameters."""
+    
+    def test_parametric_retargeter_construction(self):
+        """Test constructing a parametric retargeter."""
+        retargeter = ParametricScaleRetargeter("scale_test")
+        
+        assert retargeter._name == "scale_test"
+        assert retargeter._parameter_state is not None
+        assert hasattr(retargeter, 'scale')
+        assert retargeter.scale == 1.0  # Default value
+    
+    def test_parametric_retargeter_get_parameter_state(self):
+        """Test getting parameter state from retargeter."""
+        retargeter = ParametricScaleRetargeter("scale_test")
+        
+        param_state = retargeter.get_parameter_state()
+        assert param_state is not None
+        assert "scale" in param_state.get_all_parameter_specs()
+    
+    def test_parametric_retargeter_basic_execution(self):
+        """Test executing parametric retargeter with default parameters."""
+        retargeter = ParametricScaleRetargeter("scale_basic")
+        
+        input_x = TensorGroup(TensorGroupType("x", [FloatType("value")]))
+        input_x[0] = 5.0
+        
+        outputs = retargeter({"x": input_x})
+        
+        # With default scale=1.0
+        assert outputs["result"][0] == 5.0
+    
+    def test_parametric_retargeter_with_changed_parameter(self):
+        """Test executing with changed parameter value."""
+        retargeter = ParametricScaleRetargeter("scale_changed")
+        
+        # Change parameter
+        param_state = retargeter.get_parameter_state()
+        param_state.set({"scale": 2.5})
+        
+        input_x = TensorGroup(TensorGroupType("x", [FloatType("value")]))
+        input_x[0] = 4.0
+        
+        outputs = retargeter({"x": input_x})
+        
+        # With scale=2.5
+        assert outputs["result"][0] == 10.0
+    
+    def test_parametric_retargeter_parameter_sync(self):
+        """Test that parameters are synced before compute."""
+        retargeter = ParametricScaleRetargeter("scale_sync")
+        
+        input_x = TensorGroup(TensorGroupType("x", [FloatType("value")]))
+        input_x[0] = 3.0
+        
+        # First execution with default
+        outputs1 = retargeter({"x": input_x})
+        assert outputs1["result"][0] == 3.0  # scale=1.0
+        
+        # Change parameter
+        param_state = retargeter.get_parameter_state()
+        param_state.set({"scale": 3.0})
+        
+        # Second execution - parameter should be synced
+        outputs2 = retargeter({"x": input_x})
+        assert outputs2["result"][0] == 9.0  # scale=3.0
+    
+    def test_parametric_offset_retargeter_with_bool_parameter(self):
+        """Test retargeter with bool and float parameters."""
+        retargeter = ParametricOffsetRetargeter("offset_test")
+        
+        input_x = TensorGroup(TensorGroupType("x", [FloatType("value")]))
+        input_x[0] = 10.0
+        
+        param_state = retargeter.get_parameter_state()
+        param_state.set({
+            "offset": 5.0,
+            "enabled": True
+        })
+        
+        # With offset enabled
+        outputs1 = retargeter({"x": input_x})
+        assert outputs1["result"][0] == 15.0
+        
+        # Disable offset
+        param_state.set({"enabled": False})
+        outputs2 = retargeter({"x": input_x})
+        assert outputs2["result"][0] == 10.0  # No offset applied
+    
+    def test_parametric_int_multiplier(self):
+        """Test retargeter with integer parameter."""
+        retargeter = ParametricIntMultiplierRetargeter("int_mult_test")
+        
+        input_x = TensorGroup(TensorGroupType("x", [IntType("value")]))
+        input_x[0] = 7
+        
+        # Default multiplier=2
+        outputs1 = retargeter({"x": input_x})
+        assert outputs1["result"][0] == 14
+        
+        # Change multiplier
+        param_state = retargeter.get_parameter_state()
+        param_state.set({"multiplier": 5})
+        
+        outputs2 = retargeter({"x": input_x})
+        assert outputs2["result"][0] == 35
+    
+    def test_parametric_retargeter_save_and_load(self):
+        """Test saving and loading parameters."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = os.path.join(tmpdir, "config.json")
+            
+            # Create retargeter and set parameter
+            retargeter1 = ParametricScaleRetargeter("scale_save", config_file=config_path)
+            param_state1 = retargeter1.get_parameter_state()
+            param_state1.set({"scale": 3.5})
+            param_state1.save_to_file()
+            
+            # Create new retargeter with same config file
+            retargeter2 = ParametricScaleRetargeter("scale_load", config_file=config_path)
+            
+            # Should load saved value
+            assert retargeter2.scale == 3.5
+            
+            # Test execution with loaded value
+            input_x = TensorGroup(TensorGroupType("x", [FloatType("value")]))
+            input_x[0] = 2.0
+            outputs = retargeter2({"x": input_x})
+            assert outputs["result"][0] == 7.0  # 2.0 * 3.5
+    
+    def test_parametric_retargeter_reset_to_defaults(self):
+        """Test resetting parameters to defaults."""
+        retargeter = ParametricScaleRetargeter("scale_reset")
+        param_state = retargeter.get_parameter_state()
+        
+        # Change parameter and execute to sync
+        param_state.set({"scale": 5.0})
+        
+        input_x = TensorGroup(TensorGroupType("x", [FloatType("value")]))
+        input_x[0] = 2.0
+        
+        # Execute to trigger sync
+        outputs1 = retargeter({"x": input_x})
+        assert outputs1["result"][0] == 10.0  # 2.0 * 5.0
+        assert retargeter.scale == 5.0
+        
+        # Reset to defaults and execute again
+        param_state.reset_to_defaults()
+        outputs2 = retargeter({"x": input_x})
+        
+        assert retargeter.scale == 1.0  # Default value
+        assert outputs2["result"][0] == 2.0  # 2.0 * 1.0
+    
+    def test_retargeter_without_parameters(self):
+        """Test that retargeter without parameters works normally."""
+        retargeter = AddRetargeter("add_no_params")
+        
+        # Should not have parameter state
+        assert retargeter.get_parameter_state() is None
+        
+        # Should execute normally
+        input_a = TensorGroup(TensorGroupType("a", [FloatType("value")]))
+        input_b = TensorGroup(TensorGroupType("b", [FloatType("value")]))
+        input_a[0] = 3.0
+        input_b[0] = 4.0
+        
+        outputs = retargeter({"a": input_a, "b": input_b})
+        assert outputs["sum"][0] == 7.0
+    
+    def test_parametric_retargeter_multiple_executions(self):
+        """Test multiple executions with parameter changes."""
+        retargeter = ParametricScaleRetargeter("scale_multi")
+        param_state = retargeter.get_parameter_state()
+        
+        input_x = TensorGroup(TensorGroupType("x", [FloatType("value")]))
+        input_x[0] = 10.0
+        
+        # Execute with different scale values
+        test_cases = [
+            (1.0, 10.0),
+            (2.0, 20.0),
+            (0.5, 5.0),
+            (3.5, 35.0),
+        ]
+        
+        for scale, expected in test_cases:
+            param_state.set({"scale": scale})
+            outputs = retargeter({"x": input_x})
+            assert outputs["result"][0] == expected
 
 
 if __name__ == "__main__":

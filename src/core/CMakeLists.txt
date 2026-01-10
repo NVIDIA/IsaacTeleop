@@ -27,6 +27,9 @@ add_subdirectory(mcap)
 # Build Retargeting Engine (pure Python module)
 add_subdirectory(retargeting_engine)
 
+# Build Retargeting Engine UI (pure Python module with optional dependencies)
+add_subdirectory(retargeting_engine_ui)
+
 # Python wheel packaging (combines both modules)
 if(BUILD_PYTHON_BINDINGS)
     add_subdirectory(python)
