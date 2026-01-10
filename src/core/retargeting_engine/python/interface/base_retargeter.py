@@ -8,12 +8,17 @@ Defines the common API for retargeting modules with flat (unkeyed) outputs.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, TYPE_CHECKING
+from typing import Dict, List, Optional, TYPE_CHECKING
+import json
+import os
+from pathlib import Path
 from .tensor_group_type import TensorGroupType
 from .tensor_group import TensorGroup
 from .tensor import UNSET_VALUE
 from .retargeter_core_types import OutputSelector, RetargeterIO, ExecutionContext, GraphExecutable, BaseExecutable, RetargeterIOType
 from .retargeter_subgraph import RetargeterSubgraph
+from .tunable_parameter import ParameterSpec
+from .parameter_state import ParameterState
 
 
 class BaseRetargeter(BaseExecutable, GraphExecutable):
@@ -24,20 +29,79 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
     - Input tensor collections: Dict[str, TensorGroupType] (unkeyed - by input name)
     - Output tensor collections: Dict[str, TensorGroupType] (unkeyed - by output name)
     - Compute logic that transforms inputs to outputs
+    - Optional tunable parameters for real-time adjustment via GUI
     
     Base retargeters can be composed using connect() to create ConnectedModules.
+    
+    Tunability:
+    Subclasses can create a ParameterState with tunable parameters and pass it
+    to super().__init__(). The base class will automatically sync parameter values
+    to member variables before each compute() call.
+    
+    Example:
+        class MyRetargeter(BaseRetargeter):
+            def __init__(self, name: str, config_file: Optional[str] = None):
+                # Create ParameterState with parameters and sync functions
+                param_state = ParameterState(name, config_file=config_file)
+                param_state.register_parameter(
+                    FloatParameter("smoothing", "Smoothing factor", default_value=0.5),
+                    sync_fn=lambda v: setattr(self, 'smoothing', v)
+                )
+                
+                super().__init__(name, parameter_state=param_state)
+                
+                # Member var initialized by sync_fn during register_parameter
+                # self.smoothing is now 0.5 (or loaded value from config)
+            
+            def compute(self, inputs, outputs):
+                # self.smoothing is synced from ParameterState before this runs
+                outputs["result"][0] = inputs["x"][0] * self.smoothing
     """
 
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, parameter_state: Optional[ParameterState] = None) -> None:
         """
         Initialize a base retargeter.
         
         Args:
             name: Name identifier for this retargeter.
+            parameter_state: Optional ParameterState for tunable parameters.
         """
         self._name = name
         self._inputs: RetargeterIOType = self.input_spec()
         self._outputs: RetargeterIOType = self.output_spec()
+        self._parameter_state: Optional[ParameterState] = parameter_state
+    
+    def _sync_parameters_from_state(self) -> None:
+        """
+        Sync parameter values from ParameterState (main thread only).
+        
+        Called automatically before compute() to apply parameter sync functions.
+        """
+        if self._parameter_state is None:
+            return
+        
+        # Let ParameterState apply all sync functions
+        self._parameter_state.sync_all()
+    
+    def _execute_compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
+        """
+        Execute compute with parameter synchronization.
+        
+        This wrapper:
+        1. Syncs parameters from ParameterState to member vars (before compute)
+        2. Calls user's compute() implementation
+        
+        Only called when cache miss occurs, ensuring sync happens once per computation.
+        
+        Args:
+            inputs: Input tensor groups
+            outputs: Output tensor groups to populate
+        """
+        # Sync parameters from state to member vars (main thread only)
+        self._sync_parameters_from_state()
+        
+        # Call user's compute implementation
+        self.compute(inputs, outputs)
 
     @abstractmethod
     def input_spec(self) -> RetargeterIOType:
@@ -171,9 +235,9 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
             for name, group_type in self._outputs.items()
         }
 
-        # Execute compute and cache the results.
+        # Execute compute with parameter sync (only on cache miss)
         self._validate_inputs(inputs)
-        self.compute(inputs, outputs)
+        self._execute_compute(inputs, outputs)
         context.cache(id(self), outputs)
         return outputs
     
@@ -196,11 +260,30 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
             for name, group_type in self._outputs.items()
         }
         
-        # Execute compute
-        self.compute(inputs, outputs)
+        # Execute compute with parameter sync
+        self._execute_compute(inputs, outputs)
         
         return outputs
 
     # For end-user convenience to invoke the retargeter as a callable.
     def __call__(self, inputs: RetargeterIO) -> RetargeterIO:
         return self._compute_without_context(inputs)
+    
+    # ========================================================================
+    # Tunable Parameters API
+    # ========================================================================
+    
+    def get_parameter_state(self) -> Optional['ParameterState']:
+        """
+        Get the ParameterState instance (thread-safe parameter storage).
+        
+        Returns:
+            ParameterState instance, or None if retargeter has no tunable parameters
+            
+        Example:
+            state = retargeter.get_parameter_state()
+            state.save_to_file("config.json")
+            state.reset_to_defaults()
+        """
+        return self._parameter_state
+    
