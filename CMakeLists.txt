@@ -114,6 +114,7 @@ if(BUILD_PLUGINS)
 
     add_subdirectory(src/plugins/controller_synthetic_hands)
     add_subdirectory(src/plugins/manus)
+    add_subdirectory(src/plugins/camera)
 endif()
 
 # Formatting enforcement (runs on Linux by default)

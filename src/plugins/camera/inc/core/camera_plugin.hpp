@@ -1,0 +1,116 @@
+// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#pragma once
+
+#include <core/camera_interface.hpp>
+#include <core/mp4_writer.hpp>
+#include <plugin_utils/session.hpp>
+
+#include <atomic>
+#include <chrono>
+#include <functional>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <thread>
+
+namespace plugins
+{
+namespace camera
+{
+
+/**
+ * @brief Factory function type for creating camera instances
+ */
+using CameraFactory = std::function<std::unique_ptr<ICamera>(const CameraConfig&)>;
+
+/**
+ * @brief Main plugin class for camera recording
+ *
+ * Coordinates camera capture with file recording.
+ * Optionally integrates with OpenXR for CloudXR integration.
+ * Camera implementation is injected via a factory function.
+ */
+class __attribute__((visibility("default"))) CameraPlugin
+{
+public:
+    /**
+     * @brief Construct the camera plugin
+     * @param camera_factory Factory function to create the camera
+     * @param camera_config Camera capture configuration
+     * @param record_config Recording config. nullptr to disable.
+     * @param plugin_root_id Plugin root ID for OpenXR integration
+     * @param retry_interval Seconds between camera reconnection attempts
+     */
+    CameraPlugin(CameraFactory camera_factory,
+                 const CameraConfig& camera_config,
+                 const RecordConfig* record_config,
+                 const std::string& plugin_root_id = "camera",
+                 int retry_interval = 5);
+
+    ~CameraPlugin();
+
+    // Non-copyable, non-movable
+    CameraPlugin(const CameraPlugin&) = delete;
+    CameraPlugin& operator=(const CameraPlugin&) = delete;
+    CameraPlugin(CameraPlugin&&) = delete;
+    CameraPlugin& operator=(CameraPlugin&&) = delete;
+
+    /**
+     * @brief Request the plugin to stop (signal-safe)
+     */
+    void request_stop();
+
+    /**
+     * @brief Check if stop has been requested
+     */
+    bool stop_requested() const
+    {
+        return m_stop_requested.load(std::memory_order_relaxed);
+    }
+
+    /**
+     * @brief Get frame count
+     */
+    uint64_t frame_count() const
+    {
+        return m_frame_count.load(std::memory_order_relaxed);
+    }
+
+    /**
+     * @brief Get recording path if recording is enabled
+     */
+    std::optional<std::string> get_recording_path() const;
+
+private:
+    void worker_thread();
+    bool init_camera();
+    void init_writer();
+    void init_openxr_session();
+
+    // Configuration
+    CameraFactory m_camera_factory;
+    CameraConfig m_camera_config;
+    std::optional<RecordConfig> m_record_config;
+    std::string m_plugin_root_id;
+    int m_retry_interval;
+
+    // Components
+    std::unique_ptr<ICamera> m_camera;
+    std::unique_ptr<Mp4Writer> m_writer;
+    std::optional<plugin_utils::Session> m_session;
+
+    // Threading
+    std::thread m_thread;
+    std::atomic<bool> m_running{ false };
+    std::atomic<bool> m_stop_requested{ false };
+
+    // Statistics
+    std::atomic<uint64_t> m_frame_count{ 0 };
+    std::chrono::steady_clock::time_point m_start_time;
+};
+
+} // namespace camera
+} // namespace plugins
