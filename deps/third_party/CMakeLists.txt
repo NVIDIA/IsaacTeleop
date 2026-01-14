@@ -6,9 +6,20 @@ cmake_minimum_required(VERSION 3.20)
 include(FetchContent)
 
 # ==============================================================================
+# CMake sanitizers
+# ==============================================================================
+message(STATUS "Fetching sanitizers-cmake from GitHub...")
+FetchContent_Declare(
+    sanitizers-cmake
+    GIT_REPOSITORY https://github.com/arsenm/sanitizers-cmake.git
+    GIT_TAG        bcb1fc68616e9645ca5acea2992412606373ab04
+)
+FetchContent_MakeAvailable(sanitizers-cmake)
+list(APPEND CMAKE_MODULE_PATH ${sanitizers-cmake_SOURCE_DIR}/cmake)
+
+# ==============================================================================
 # OpenXR SDK
 # ==============================================================================
-# Fetch OpenXR SDK from GitHub (using the same commit as the old submodule)
 message(STATUS "Fetching OpenXR SDK from GitHub...")
 FetchContent_Declare(
     openxr-sdk
