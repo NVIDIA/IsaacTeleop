@@ -23,8 +23,8 @@ class ParameterSpec(ABC):
     sync_fn: Optional[Callable[[Any], None]] = None  # Optional sync function called when value changes
     
     @abstractmethod
-    def validate(self, value: Any) -> bool:
-        """Check if a value is valid for this parameter."""
+    def validate(self, value: Any) -> None:
+        """Validate value. Raises ValueError if invalid."""
         pass
     
     @abstractmethod
@@ -49,8 +49,10 @@ class BoolParameter(ParameterSpec):
     
     default_value: bool = False
     
-    def validate(self, value: Any) -> bool:
-        return isinstance(value, bool)
+    def validate(self, value: Any) -> None:
+        """Validate value is bool-like."""
+        if not isinstance(value, (bool, int)):
+            raise ValueError(f"Expected bool, got {type(value).__name__}")
     
     def get_default_value(self) -> bool:
         return self.default_value
@@ -78,21 +80,15 @@ class FloatParameter(ParameterSpec):
         if self.min_value >= self.max_value:
             raise ValueError(f"min_value must be less than max_value for '{self.name}'")
     
-    def validate(self, value: Any) -> bool:
+    def validate(self, value: Any) -> None:
+        """Validate value is within range."""
         if not isinstance(value, (int, float)):
-            return False
-        if value < self.min_value:
-            return False
-        if value > self.max_value:
-            return False
-        return True
+            raise ValueError(f"Expected float, got {type(value).__name__}")
+        if value < self.min_value or value > self.max_value:
+            raise ValueError(f"Value {value} out of range [{self.min_value}, {self.max_value}]")
     
     def get_default_value(self) -> float:
         return self.default_value
-    
-    def is_bounded(self) -> bool:
-        """Check if this parameter has finite bounds."""
-        return self.min_value != -float('inf') and self.max_value != float('inf')
     
     def serialize(self, value: float) -> float:
         """Serialize to JSON-compatible format."""
@@ -117,21 +113,15 @@ class IntParameter(ParameterSpec):
         if self.min_value >= self.max_value:
             raise ValueError(f"min_value must be less than max_value for '{self.name}'")
     
-    def validate(self, value: Any) -> bool:
+    def validate(self, value: Any) -> None:
+        """Validate value is within range."""
         if not isinstance(value, int):
-            return False
-        if value < self.min_value:
-            return False
-        if value > self.max_value:
-            return False
-        return True
+            raise ValueError(f"Expected int, got {type(value).__name__}")
+        if value < self.min_value or value > self.max_value:
+            raise ValueError(f"Value {value} out of range [{self.min_value}, {self.max_value}]")
     
     def get_default_value(self) -> int:
         return self.default_value
-    
-    def is_bounded(self) -> bool:
-        """Check if this parameter has reasonable bounds."""
-        return self.min_value != -2147483648 and self.max_value != 2147483647
     
     def serialize(self, value: int) -> int:
         """Serialize to JSON-compatible format."""
@@ -159,14 +149,11 @@ class VectorParameter(ParameterSpec):
         
         # Initialize default value if not provided
         if self.default_value is None:
-            object.__setattr__(self, 'default_value', np.zeros(len(self.element_names), dtype=np.float32))
+            self.default_value = np.zeros(len(self.element_names), dtype=np.float32)
         
         # Convert to numpy array if needed
         if not isinstance(self.default_value, np.ndarray):
-            object.__setattr__(self, 'default_value', np.array(self.default_value, dtype=np.float32))
-        
-        # At this point, default_value is definitely an ndarray
-        assert isinstance(self.default_value, np.ndarray)
+            self.default_value = np.array(self.default_value, dtype=np.float32)
         
         # Validate dimensions
         if len(self.default_value) != len(self.element_names):
@@ -177,13 +164,13 @@ class VectorParameter(ParameterSpec):
         
         # Convert bounds to arrays if they are scalars
         if self.min_value is not None and not isinstance(self.min_value, np.ndarray):
-            object.__setattr__(self, 'min_value', np.full(len(self.element_names), self.min_value, dtype=np.float32))
+            self.min_value = np.full(len(self.element_names), self.min_value, dtype=np.float32)
         
         if self.max_value is not None and not isinstance(self.max_value, np.ndarray):
-            object.__setattr__(self, 'max_value', np.full(len(self.element_names), self.max_value, dtype=np.float32))
+            self.max_value = np.full(len(self.element_names), self.max_value, dtype=np.float32)
         
         if not isinstance(self.step_size, np.ndarray):
-            object.__setattr__(self, 'step_size', np.full(len(self.element_names), self.step_size, dtype=np.float32))
+            self.step_size = np.full(len(self.element_names), self.step_size, dtype=np.float32)
         
         # Validate bounds
         if self.min_value is not None and self.max_value is not None:
@@ -194,28 +181,21 @@ class VectorParameter(ParameterSpec):
         assert self.default_value is not None, "default_value should be initialized"
         return self.default_value.copy()
     
-    def validate(self, value: Union[np.ndarray, List[float]]) -> bool:
-        if not isinstance(value, (np.ndarray, list)):
-            return False
-        
+    def validate(self, value: Union[np.ndarray, List[float]]) -> None:
+        """Validate vector value."""
         if isinstance(value, list):
-            value = np.array(value)
+            value = np.array(value, dtype=np.float32)
         
-        assert self.element_names is not None, "element_names should be initialized"
+        if not isinstance(value, np.ndarray):
+            raise ValueError(f"Expected array, got {type(value).__name__}")
+        
         if len(value) != len(self.element_names):
-            return False
+            raise ValueError(f"Expected {len(self.element_names)} elements, got {len(value)}")
         
         if self.min_value is not None and np.any(value < self.min_value):
-            return False
-        
+            raise ValueError(f"Value below minimum bound")
         if self.max_value is not None and np.any(value > self.max_value):
-            return False
-        
-        return True
-    
-    def is_bounded(self) -> bool:
-        """Check if this parameter has bounds."""
-        return self.min_value is not None and self.max_value is not None
+            raise ValueError(f"Value above maximum bound")
     
     def __len__(self) -> int:
         """Return the number of elements in this vector."""

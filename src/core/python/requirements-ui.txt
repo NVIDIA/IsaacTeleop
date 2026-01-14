@@ -1,3 +1,4 @@
 # Optional UI dependencies for parameter tuning
 imgui[glfw]>=2.0.0
+PyOpenGL>=3.1.0
 

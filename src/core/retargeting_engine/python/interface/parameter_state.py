@@ -160,15 +160,13 @@ class ParameterState:
             
         Raises:
             KeyError: If any parameter name is not found
-            ValueError: If any value is invalid for its parameter
         """
         with self._lock:
             for name, value in updates.items():
                 if name not in self._parameters:
                     raise KeyError(f"Parameter '{name}' not found")
                 param_spec = self._parameters[name]
-                if not param_spec.validate(value):
-                    raise ValueError(f"Invalid value for parameter '{name}': {value}")
+                param_spec.validate(value)  # Raises ValueError if invalid
                 self._values[name] = value
     
     def get_all_parameter_specs(self) -> Dict[str, ParameterSpec]:

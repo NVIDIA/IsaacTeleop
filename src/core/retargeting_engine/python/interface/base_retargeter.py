@@ -8,17 +8,14 @@ Defines the common API for retargeting modules with flat (unkeyed) outputs.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, TYPE_CHECKING
-import json
+from typing import Dict, List, Optional
 import os
-from pathlib import Path
-from .tensor_group_type import TensorGroupType
 from .tensor_group import TensorGroup
-from .tensor import UNSET_VALUE
 from .retargeter_core_types import OutputSelector, RetargeterIO, ExecutionContext, GraphExecutable, BaseExecutable, RetargeterIOType
 from .retargeter_subgraph import RetargeterSubgraph
-from .tunable_parameter import ParameterSpec
 from .parameter_state import ParameterState
+from .visualization_state import VisualizationState
+from .retargeter_stats import RetargeterStats
 
 
 class BaseRetargeter(BaseExecutable, GraphExecutable):
@@ -38,6 +35,10 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
     to super().__init__(). The base class will automatically sync parameter values
     to member variables before each compute() call.
 
+    Visualization:
+    Subclasses can create a VisualizationState and pass it to super().__init__().
+    The retargeter can update visualization state in compute() for real-time rendering.
+    
     Example:
         class MyRetargeter(BaseRetargeter):
             def __init__(self, name: str, config_file: Optional[str] = None):
@@ -48,29 +49,42 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
                     sync_fn=lambda v: setattr(self, 'smoothing', v)
                 )
 
-                super().__init__(name, parameter_state=param_state)
-
+                # Create VisualizationState
+                viz_state = VisualizationState(name)
+                viz_state.add_node("hand", color=(0.2, 0.6, 1.0), size=15.0)
+                viz_state.add_graph("error", "Error", "Time", "Error")
+                
+                super().__init__(name, parameter_state=param_state, visualization_state=viz_state)
+                
                 # Member var initialized by sync_fn during register_parameter
                 # self.smoothing is now 0.5 (or loaded value from config)
 
             def compute(self, inputs, outputs):
                 # self.smoothing is synced from ParameterState before this runs
                 outputs["result"][0] = inputs["x"][0] * self.smoothing
+                
+                # Update visualization state
+                self.viz_state.update_node("hand", position=hand_pos)
+                self.viz_state.add_graph_sample("error", time, error)
     """
 
-    def __init__(self, name: str, parameter_state: Optional[ParameterState] = None) -> None:
+    def __init__(self, name: str, parameter_state: Optional[ParameterState] = None, visualization_state: Optional['VisualizationState'] = None) -> None:
         """
         Initialize a base retargeter.
 
         Args:
             name: Name identifier for this retargeter.
             parameter_state: Optional ParameterState for tunable parameters.
+            visualization_state: Optional VisualizationState for visualization output.
         """
+        
         self._name = name
         self._inputs: RetargeterIOType = self.input_spec()
         self._outputs: RetargeterIOType = self.output_spec()
         self._parameter_state: Optional[ParameterState] = parameter_state
-
+        self._visualization_state: Optional['VisualizationState'] = visualization_state
+        self._stats: RetargeterStats = RetargeterStats(name)  # Always create stats
+    
     def _sync_parameters_from_state(self) -> None:
         """
         Sync parameter values from ParameterState (main thread only).
@@ -82,15 +96,34 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
 
         # Let ParameterState apply all sync functions
         self._parameter_state.sync_all()
-
+    
+    def _sync_visualization_to_state(self) -> None:
+        """
+        Sync visualization data to VisualizationState (main thread only).
+        
+        Called automatically after compute() to sample graph lambdas.
+        Node lambdas are pulled lazily when UI renders.
+        """
+        if self._visualization_state is None:
+            return
+        
+        # Let VisualizationState sample all graphs
+        # Enable profiling via TELEOP_PROFILE_VIZ=1 environment variable
+        import os
+        profile = os.environ.get('TELEOP_PROFILE_VIZ', '0') == '1'
+        self._visualization_state.sync_all(profile=profile)
+    
     def _execute_compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
         """
-        Execute compute with parameter synchronization.
-
+        Execute compute with parameter and visualization synchronization.
+        
         This wrapper:
         1. Syncs parameters from ParameterState to member vars (before compute)
         2. Calls user's compute() implementation
-
+        3. Syncs visualization data from member vars to VisualizationState (after compute)
+        
+        Automatically tracks timing for compute, param sync, and viz update.
+        
         Only called when cache miss occurs, ensuring sync happens once per computation.
 
         Args:
@@ -98,10 +131,16 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
             outputs: Output tensor groups to populate
         """
         # Sync parameters from state to member vars (main thread only)
-        self._sync_parameters_from_state()
-
+        with self._stats.time_param_sync():
+            self._sync_parameters_from_state()
+        
         # Call user's compute implementation
-        self.compute(inputs, outputs)
+        with self._stats.time_compute():
+            self.compute(inputs, outputs)
+        
+        # Sync visualization from member vars to state (main thread only)
+        with self._stats.time_viz_update():
+            self._sync_visualization_to_state()
 
     @abstractmethod
     def input_spec(self) -> RetargeterIOType:
@@ -297,3 +336,44 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
             state.reset_to_defaults()
         """
         return self._parameter_state
+
+    # ========================================================================
+    # Visualization API
+    # ========================================================================
+
+    def get_visualization_state(self) -> Optional['VisualizationState']:
+        """
+        Get the VisualizationState instance (thread-safe visualization output).
+
+        Returns:
+            VisualizationState instance, or None if retargeter has no visualization
+
+        Example:
+            viz_state = retargeter.get_visualization_state()
+            viz_state.update_node("hand", position=hand_pos)
+        """
+        return self._visualization_state
+
+    @property
+    def viz_state(self) -> Optional['VisualizationState']:
+        """Convenience property to access visualization state."""
+        return self._visualization_state
+
+    # ========================================================================
+    # Performance Stats API
+    # ========================================================================
+
+    def get_stats(self) -> 'RetargeterStats':
+        """
+        Get the RetargeterStats instance (thread-safe performance statistics).
+
+        Returns:
+            RetargeterStats instance (always available)
+
+        Example:
+            stats = retargeter.get_stats()
+            snapshot = stats.get_snapshot()
+            print(f"Compute: {snapshot['compute_ms']:.3f} ms")
+        """
+        return self._stats
+
