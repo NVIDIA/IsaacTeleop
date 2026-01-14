@@ -7,8 +7,8 @@
 #endif
 
 #include <deviceio/deviceio_session.hpp>
-#include <deviceio/handtracker.hpp>
-#include <deviceio/headtracker.hpp>
+#include <deviceio/hand_tracker.hpp>
+#include <deviceio/head_tracker.hpp>
 #include <oxr/oxr_session.hpp>
 
 #include <chrono>

@@ -18,14 +18,14 @@ endif()
 
 # Core DEVICEIO tracking library (static for distribution)
 add_library(deviceio_core STATIC
-    handtracker.cpp
-    headtracker.cpp
-    controllertracker.cpp
+    hand_tracker.cpp
+    head_tracker.cpp
+    controller_tracker.cpp
     deviceio_session.cpp
     inc/deviceio/tracker.hpp
-    inc/deviceio/handtracker.hpp
-    inc/deviceio/headtracker.hpp
-    inc/deviceio/controllertracker.hpp
+    inc/deviceio/hand_tracker.hpp
+    inc/deviceio/head_tracker.hpp
+    inc/deviceio/controller_tracker.hpp
     inc/deviceio/deviceio_session.hpp
 )
 
