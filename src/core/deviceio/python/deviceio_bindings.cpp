@@ -6,9 +6,9 @@
 #    define NOMINMAX
 #endif
 
-#include <deviceio/controllertracker.hpp>
-#include <deviceio/handtracker.hpp>
-#include <deviceio/headtracker.hpp>
+#include <deviceio/controller_tracker.hpp>
+#include <deviceio/hand_tracker.hpp>
+#include <deviceio/head_tracker.hpp>
 #include <deviceio_py_utils/session.hpp>
 #include <openxr/openxr.h>
 #include <pybind11/numpy.h>
