@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <core/manus_hand_tracking_plugin.hpp>
+#include <oxr_utils/math.hpp>
 #include <plugin_utils/hand_injector.hpp>
-#include <plugin_utils/math.hpp>
 #include <plugin_utils/session.hpp>
 
 #include <ManusSDK.h>
@@ -405,7 +405,7 @@ void ManusTracker::inject_hand_data()
             {
                 XrPosef raw_pose = m_latest_left.aim_pose;
                 XrPosef offset_pose = kLeftHandOffset;
-                m_left_root_pose = plugin_utils::multiply_poses(raw_pose, offset_pose);
+                m_left_root_pose = oxr_utils::multiply_poses(raw_pose, offset_pose);
                 is_root_tracked = true;
             }
             root_pose = m_left_root_pose;
@@ -417,7 +417,7 @@ void ManusTracker::inject_hand_data()
                 XrPosef raw_pose = m_latest_right.aim_pose;
                 XrPosef offset_pose = kRightHandOffset;
 
-                m_right_root_pose = plugin_utils::multiply_poses(raw_pose, offset_pose);
+                m_right_root_pose = oxr_utils::multiply_poses(raw_pose, offset_pose);
                 is_root_tracked = true;
             }
             root_pose = m_right_root_pose;
@@ -463,7 +463,7 @@ void ManusTracker::inject_hand_data()
                 local_pose.orientation.z = rot.z;
                 local_pose.orientation.w = rot.w;
 
-                joints[j].pose = plugin_utils::multiply_poses(root_pose, local_pose);
+                joints[j].pose = oxr_utils::multiply_poses(root_pose, local_pose);
 
                 joints[j].radius = 0.01f;
                 joints[j].locationFlags = XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
