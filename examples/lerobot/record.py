@@ -14,7 +14,7 @@ import sys
 import time
 import numpy as np
 from pathlib import Path
-import teleopcore.xrio as xrio
+import teleopcore.deviceio as deviceio
 import teleopcore.oxr as oxr
 import teleopcore.schema as schema
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
@@ -70,20 +70,14 @@ def main():
 
     # Create trackers independently
     print("\nCreating trackers...")
-    hand_tracker = xrio.HandTracker()
-    head_tracker = xrio.HeadTracker()
+    hand_tracker = deviceio.HandTracker()
+    head_tracker = deviceio.HeadTracker()
     print(f"Created {hand_tracker.get_name()}")
     print(f"Created {head_tracker.get_name()}")
-
-    # Create builder and add trackers
-    print("\nCreating builder and adding trackers...")
-    builder = xrio.XrioSessionBuilder()
-    builder.add_tracker(hand_tracker)
-    builder.add_tracker(head_tracker)
-    print("Builder created and trackers added")
+    trackers = [hand_tracker, head_tracker]
 
     # Get required extensions
-    required_extensions = builder.get_required_extensions()
+    required_extensions = deviceio.DeviceIOSession.get_required_extensions(trackers)
 
     # Create OpenXR session
     print("\nCreating OpenXR session...")
@@ -97,12 +91,9 @@ def main():
         handles = oxr_session.get_handles()
         print("OpenXR session created")
 
-        # Build teleop session from builder
+        # Create teleop session
         print("\nInitializing teleop session...")
-        session = builder.build(handles)
-        if session is None:
-            print("Failed to initialize")
-            return 1
+        session = deviceio.DeviceIOSession.run(trackers, handles)
 
         with session:
             print("Teleop session initialized with all trackers!")
@@ -125,22 +116,22 @@ def main():
                         break
 
                     # Get hand data
-                    left: schema.HandPoseT = hand_tracker.get_left_hand()
-                    right: schema.HandPoseT = hand_tracker.get_right_hand()
-                    head: schema.HeadPoseT = head_tracker.get_head()
+                    left: schema.HandPoseT = hand_tracker.get_left_hand(session)
+                    right: schema.HandPoseT = hand_tracker.get_right_hand(session)
+                    head: schema.HeadPoseT = head_tracker.get_head(session)
 
                     # Extract positions and orientations (with defaults for invalid data)
                     left_pos = np.zeros(3, dtype=np.float32)
                     right_pos = np.zeros(3, dtype=np.float32)
 
                     if left.is_active and left.joints:
-                        wrist = left.joints[xrio.JOINT_WRIST]
+                        wrist = left.joints[deviceio.JOINT_WRIST]
                         if wrist.is_valid:
                             pos = wrist.pose.position
                             left_pos = np.array([pos.x, pos.y, pos.z], dtype=np.float32)
 
                     if right.is_active and right.joints:
-                        wrist = right.joints[xrio.JOINT_WRIST]
+                        wrist = right.joints[deviceio.JOINT_WRIST]
                         if wrist.is_valid:
                             pos = wrist.pose.position
                             right_pos = np.array([pos.x, pos.y, pos.z], dtype=np.float32)
