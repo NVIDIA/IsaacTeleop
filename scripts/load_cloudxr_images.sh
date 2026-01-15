@@ -5,7 +5,7 @@
 
 set -e
 
-CXR_RUNTIME_BUNDLE_VERSION="6.1.0-beta-rc1"
+CXR_RUNTIME_BUNDLE_VERSION="6.1.0-beta-rc2"
 CXR_RUNTIME_TARBALL_NAME="cloudxr-runtime-server-webrtc-${CXR_RUNTIME_BUNDLE_VERSION}.tar.gz"
 CXR_RUNTIME_IMAGE_NAME="cloudxr-runtime-webrtc:${CXR_RUNTIME_BUNDLE_VERSION}"
 
