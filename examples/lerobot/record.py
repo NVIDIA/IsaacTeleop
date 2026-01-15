@@ -58,7 +58,7 @@ def main():
     # STEP 2: Create LeRobot dataset
     # Use a timestamped directory so repeated runs create unique datasets
     timestamp = time.strftime("%Y%m%d_%H%M%S")
-    dataset_path = Path(f"./local_datasets/teleop_tracking_{timestamp}")
+    dataset_path = Path(__file__).parent / f"local_datasets/teleop_tracking_{timestamp}"
     dataset = LeRobotDataset.create(
         repo_id="teleop/tracking_demo",
         fps=60,  # ~60 FPS tracking
