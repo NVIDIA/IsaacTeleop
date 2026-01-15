@@ -14,6 +14,7 @@ target_link_libraries(manus_plugin_core
     Teleop::plugin_utils
     OpenXR::openxr_loader
   PRIVATE
+    oxr::oxr_utils
     Teleop::openxr_extensions
 )
 
