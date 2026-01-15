@@ -5,7 +5,7 @@
 
 #include <openxr/openxr.h>
 
-namespace plugin_utils
+namespace oxr_utils
 {
 
 constexpr XrPosef multiply_poses(const XrPosef& a, const XrPosef& b)
@@ -41,4 +41,4 @@ constexpr XrPosef multiply_poses(const XrPosef& a, const XrPosef& b)
     return result;
 }
 
-} // namespace plugin_utils
+} // namespace oxr_utils
