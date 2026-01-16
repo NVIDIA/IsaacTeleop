@@ -5,12 +5,12 @@
 
 from . import interface
 from . import tensor_types
-from . import sources
+from . import deviceio_source_nodes
 
 __all__ = [
     "interface",
     "tensor_types",
-    "sources",
+    "deviceio_source_nodes",
 ]
 
 

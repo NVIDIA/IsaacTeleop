@@ -30,6 +30,9 @@ add_subdirectory(retargeting_engine)
 # Build Retargeting Engine UI (pure Python module with optional dependencies)
 add_subdirectory(retargeting_engine_ui)
 
+# Build TeleopSessionManager (pure Python module)
+add_subdirectory(teleop_session_manager)
+
 # Python wheel packaging (combines both modules)
 if(BUILD_PYTHON_BINDINGS)
     add_subdirectory(python)

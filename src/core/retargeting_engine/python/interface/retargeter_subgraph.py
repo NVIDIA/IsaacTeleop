@@ -9,7 +9,7 @@ enabling composition of retargeters into larger computational graphs.
 """
 
 from abc import ABC
-from typing import Dict
+from typing import Dict, List
 from .retargeter_core_types import GraphExecutable, BaseExecutable, RetargeterIOType, ExecutionContext, OutputSelector, RetargeterIO
 
 
@@ -96,3 +96,39 @@ class RetargeterSubgraph(GraphExecutable):
             Dict[str, TensorGroup] - The computed output tensor groups
         """
         return self._compute_in_graph(ExecutionContext(inputs))
+    
+    def get_leaf_nodes(self) -> List[BaseExecutable]:
+        """
+        Get all leaf nodes (sources) in this subgraph.
+        
+        Leaf nodes are BaseRetargeter instances (not RetargeterSubgraphs).
+        This method walks the graph to find all leaf retargeter modules.
+        
+        Returns:
+            List of module instances that are leaf nodes (sources)
+        """
+        leaves: List[BaseExecutable] = []
+        visited = set()
+        
+        def visit(module):
+            # Skip if already visited
+            if id(module) in visited:
+                return
+            visited.add(id(module))
+            
+            # If this is a subgraph, visit its inputs
+            if isinstance(module, RetargeterSubgraph):
+                # Visit input connections
+                for output_selector in module._input_connections.values():
+                    visit(output_selector.module)
+                return
+            
+            # If this is a BaseRetargeter (not a subgraph), it's a leaf
+            from .base_retargeter import BaseRetargeter
+            if isinstance(module, BaseRetargeter):
+                leaves.append(module)
+                return
+        
+        visit(self)
+        return leaves
+

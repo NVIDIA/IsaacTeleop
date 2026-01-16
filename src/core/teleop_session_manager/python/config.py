@@ -1,0 +1,80 @@
+#!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+"""
+Configuration dataclasses for TeleopSession.
+
+These classes provide a clean, declarative way to configure teleop sessions.
+"""
+
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import List, Any, Optional
+
+
+@dataclass
+class PluginConfig:
+    """Configuration for a plugin.
+    
+    Attributes:
+        plugin_name: Name of the plugin to load
+        plugin_root_id: Root ID for the plugin instance
+        search_paths: List of directories to search for plugins
+        enabled: Whether to load and use this plugin
+    """
+    plugin_name: str
+    plugin_root_id: str
+    search_paths: List[Path]
+    enabled: bool = True
+
+
+@dataclass
+class TeleopSessionConfig:
+    """Complete configuration for a teleop session.
+    
+    Encapsulates all components needed to run a teleop session:
+    - Retargeting pipeline (trackers auto-discovered from sources!)
+    - OpenXR application settings
+    - Plugin configuration (optional)
+    - Manual trackers (optional, for advanced use)
+    
+    Loop control is handled externally by the user.
+    
+    Attributes:
+        app_name: Name of the OpenXR application
+        pipeline: Connected retargeting module (from new engine)
+        trackers: Optional list of manual trackers (usually not needed - auto-discovered!)
+        plugins: List of plugin configurations
+        verbose: Whether to print detailed progress information during setup
+    
+    Example (auto-discovery):
+        # Source creates its own tracker automatically!
+        controllers = ControllersSource(name="controllers")
+        
+        # Build retargeting pipeline
+        gripper = GripperRetargeter(name="gripper")
+        pipeline = gripper.connect({
+            "controller_left": controllers.output("controller_left"),
+            "controller_right": controllers.output("controller_right")
+        })
+        
+        # Configure session - NO TRACKERS NEEDED!
+        config = TeleopSessionConfig(
+            app_name="MyApp",
+            pipeline=pipeline,  # Trackers auto-discovered from pipeline
+        )
+        
+        # Run session
+        with TeleopSession(config) as session:
+            while True:
+                result = session.run()
+                left_gripper = result["gripper_left"][0]
+    """
+    app_name: str
+    pipeline: Any
+    trackers: List[Any] = field(default_factory=list)
+    plugins: List[PluginConfig] = field(default_factory=list)
+    verbose: bool = True
+
+
