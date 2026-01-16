@@ -1,0 +1,18 @@
+{
+  "name": "webxr-body-tracking-pico",
+  "description": "WebXR Body Tracking (Pico) - ByteDance joint set",
+  "version": "0.0.1",
+  "devDependencies": {
+    "browser-sync": "^2.18.8"
+  },
+  "scripts": {
+    "start": "npm run dev",
+    "dev": "cross-env NODE_ENV=development npm run server",
+    "prod": "cross-env NODE_ENV=production npm run server",
+    "server": "browser-sync start --config scripts/browsersync-config.js",
+    "build": "make"
+  },
+  "dependencies": {
+    "cross-env": "^4.0.0"
+  }
+}
