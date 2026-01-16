@@ -1,8 +1,8 @@
 #pragma once
 #include <controller_synthetic_hands/hand_generator.hpp>
+#include <oxr/oxr_session.hpp>
 #include <plugin_utils/controllers.hpp>
 #include <plugin_utils/hand_injector.hpp>
-#include <plugin_utils/session.hpp>
 
 #include <atomic>
 #include <memory>
@@ -31,7 +31,7 @@ private:
     void worker_thread();
     XrTime get_current_time();
 
-    std::optional<plugin_utils::Session> m_session;
+    std::shared_ptr<core::OpenXRSession> m_session;
     std::optional<plugin_utils::Controllers> m_controllers;
     std::optional<plugin_utils::HandInjector> m_injector;
     HandGenerator m_hand_gen;

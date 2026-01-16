@@ -12,9 +12,9 @@
 #endif
 
 #include <openxr/openxr_platform.h>
+#include <oxr/oxr_session.hpp>
 #include <plugin_utils/controllers.hpp>
 #include <plugin_utils/hand_injector.hpp>
-#include <plugin_utils/session.hpp>
 
 #include <ManusSDK.h>
 #include <memory>
@@ -72,7 +72,8 @@ private:
     bool is_connected = false;
 
     // OpenXR State
-    std::optional<plugin_utils::Session> m_session;
+    std::shared_ptr<core::OpenXRSession> m_session;
+    core::OpenXRSessionHandles m_handles;
     std::optional<plugin_utils::HandInjector> m_injector;
     std::optional<plugin_utils::Controllers> m_controllers;
 
