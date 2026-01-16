@@ -12,7 +12,16 @@
 // CONSTANTS
 // ============================================================================
 
-// All body joints defined in the WebXR Body Tracking spec
+// Skeleton format types
+const SKELETON_FORMAT = {
+    STANDARD: 'standard',
+    PICO: 'pico'
+};
+
+// Track the current skeleton format detected
+let currentSkeletonFormat = SKELETON_FORMAT.STANDARD;
+
+// All body joints defined in the WebXR Body Tracking spec (standard)
 const BODY_JOINTS = [
     // Torso
     "hips", "spine-lower", "spine-middle", "spine-upper", "chest", "neck", "head",
@@ -137,6 +146,75 @@ const BONE_CONNECTIONS = [
     ["right-foot-ankle", "right-foot-subtalar"],
     ["right-foot-subtalar", "right-foot-transverse"],
     ["right-foot-transverse", "right-foot-ball"]
+];
+
+// ============================================================================
+// PICO BODY TRACKING (XR_BD_body_tracking) - 24 joints
+// Based on WebXR Body Tracking Module (Pico) proposal
+// ============================================================================
+
+// All body joints defined in the Pico/ByteDance body tracking spec
+const BODY_JOINTS_PICO = [
+    "pelvis",           // 0 - XR_BODY_JOINT_PELVIS_BD
+    "left-hip",         // 1 - XR_BODY_JOINT_LEFT_HIP_BD
+    "right-hip",        // 2 - XR_BODY_JOINT_RIGHT_HIP_BD
+    "spine-1",          // 3 - XR_BODY_JOINT_SPINE1_BD
+    "left-knee",        // 4 - XR_BODY_JOINT_LEFT_KNEE_BD
+    "right-knee",       // 5 - XR_BODY_JOINT_RIGHT_KNEE_BD
+    "spine-2",          // 6 - XR_BODY_JOINT_SPINE2_BD
+    "left-ankle",       // 7 - XR_BODY_JOINT_LEFT_ANKLE_BD
+    "right-ankle",      // 8 - XR_BODY_JOINT_RIGHT_ANKLE_BD
+    "spine-3",          // 9 - XR_BODY_JOINT_SPINE3_BD
+    "left-foot",        // 10 - XR_BODY_JOINT_LEFT_FOOT_BD
+    "right-foot",       // 11 - XR_BODY_JOINT_RIGHT_FOOT_BD
+    "neck",             // 12 - XR_BODY_JOINT_NECK_BD
+    "left-collar",      // 13 - XR_BODY_JOINT_LEFT_COLLAR_BD
+    "right-collar",     // 14 - XR_BODY_JOINT_RIGHT_COLLAR_BD
+    "head",             // 15 - XR_BODY_JOINT_HEAD_BD
+    "left-shoulder",    // 16 - XR_BODY_JOINT_LEFT_SHOULDER_BD
+    "right-shoulder",   // 17 - XR_BODY_JOINT_RIGHT_SHOULDER_BD
+    "left-elbow",       // 18 - XR_BODY_JOINT_LEFT_ELBOW_BD
+    "right-elbow",      // 19 - XR_BODY_JOINT_RIGHT_ELBOW_BD
+    "left-wrist",       // 20 - XR_BODY_JOINT_LEFT_WRIST_BD
+    "right-wrist",      // 21 - XR_BODY_JOINT_RIGHT_WRIST_BD
+    "left-hand",        // 22 - XR_BODY_JOINT_LEFT_HAND_BD
+    "right-hand"        // 23 - XR_BODY_JOINT_RIGHT_HAND_BD
+];
+
+// Bone connections for Pico skeleton (pairs of joints to draw cylinders between)
+const BONE_CONNECTIONS_PICO = [
+    // Spine
+    ["pelvis", "spine-1"],
+    ["spine-1", "spine-2"],
+    ["spine-2", "spine-3"],
+    ["spine-3", "neck"],
+    ["neck", "head"],
+    
+    // Left leg
+    ["pelvis", "left-hip"],
+    ["left-hip", "left-knee"],
+    ["left-knee", "left-ankle"],
+    ["left-ankle", "left-foot"],
+    
+    // Right leg
+    ["pelvis", "right-hip"],
+    ["right-hip", "right-knee"],
+    ["right-knee", "right-ankle"],
+    ["right-ankle", "right-foot"],
+    
+    // Left arm
+    ["spine-3", "left-collar"],
+    ["left-collar", "left-shoulder"],
+    ["left-shoulder", "left-elbow"],
+    ["left-elbow", "left-wrist"],
+    ["left-wrist", "left-hand"],
+    
+    // Right arm
+    ["spine-3", "right-collar"],
+    ["right-collar", "right-shoulder"],
+    ["right-shoulder", "right-elbow"],
+    ["right-elbow", "right-wrist"],
+    ["right-wrist", "right-hand"]
 ];
 
 // Joint size for cubes (in meters)
@@ -413,14 +491,15 @@ function createCylinderBuffers(segments) {
 
 async function startXRSession() {
     try {
-        // Request session with body-tracking feature
+        // Request session with body-tracking features (standard and Pico)
         xrSession = await navigator.xr.requestSession('immersive-vr', {
             requiredFeatures: ['local-floor'],
-            optionalFeatures: ['body-tracking']
+            optionalFeatures: ['body-tracking', 'body-tracking-pico']
         });
         
         console.log('WebXR session started');
-        console.log('Body tracking available:', xrSession.enabledFeatures?.includes('body-tracking') ?? 'unknown');
+        console.log('Body tracking (standard) available:', xrSession.enabledFeatures?.includes('body-tracking') ?? 'unknown');
+        console.log('Body tracking (Pico) available:', xrSession.enabledFeatures?.includes('body-tracking-pico') ?? 'unknown');
         
         document.getElementById('overlay').style.display = 'none';
         
@@ -472,21 +551,28 @@ function onXRFrame(time, frame) {
     gl.enable(gl.DEPTH_TEST);
     gl.enable(gl.CULL_FACE);
     
-    // Get body tracking data
+    // Get body tracking data - check for both standard and Pico formats
     const body = frame.body;
+    const bodyPico = frame.bodyPico;
     let jointPositions = null;
     
-    if (body) {
+    // Try standard body tracking first, then Pico
+    const activeBody = body || bodyPico;
+    const isPicoFormat = !body && bodyPico;
+    
+    if (activeBody) {
         jointPositions = {};
+        currentSkeletonFormat = isPicoFormat ? SKELETON_FORMAT.PICO : SKELETON_FORMAT.STANDARD;
         
         // Log body data periodically
         if (frameCount % 60 === 0) {
             console.log('=== Body Tracking Data ===');
-            console.log('Body size (number of joints):', body.size);
+            console.log('Format:', currentSkeletonFormat);
+            console.log('Body size (number of joints):', activeBody.size);
         }
         
         // Iterate through all joints
-        for (const [jointName, jointSpace] of body) {
+        for (const [jointName, jointSpace] of activeBody) {
             const jointPose = frame.getPose(jointSpace, xrRefSpace);
             
             if (jointPose) {
@@ -507,8 +593,9 @@ function onXRFrame(time, frame) {
         }
         
         // Update UI
+        const formatLabel = isPicoFormat ? ' (Pico)' : ' (Standard)';
         document.getElementById('jointCount').textContent = 
-            `Tracking ${Object.keys(jointPositions).length} joints`;
+            `Tracking ${Object.keys(jointPositions).length} joints${formatLabel}`;
     } else {
         // No body tracking available
         if (frameCount % 120 === 0) {
@@ -541,17 +628,67 @@ function renderNonXR() {
     gl.enable(gl.DEPTH_TEST);
     gl.enable(gl.CULL_FACE);
     
-    // Create simple preview - render a demo skeleton at origin
+    // Create simple preview - render both skeleton formats side by side
     const aspect = canvas.width / canvas.height;
     const projMatrix = createPerspectiveMatrix(Math.PI / 4, aspect, 0.1, 100);
-    const viewMatrix = createLookAtMatrix([0, 1.5, 3], [0, 1, 0], [0, 1, 0]);
+    const viewMatrix = createLookAtMatrix([0, 1.5, 4], [0, 1, 0], [0, 1, 0]);
     
-    // Create demo joint positions for preview
-    const demoPositions = createDemoSkeleton(performance.now() / 1000);
+    const time = performance.now() / 1000;
     
-    renderScene(projMatrix, viewMatrix, demoPositions);
+    // Render standard skeleton on the left
+    const standardPositions = createDemoSkeleton(time);
+    const standardOffset = offsetSkeleton(standardPositions, -0.8, 0, 0);
+    
+    // Render Pico skeleton on the right
+    const picoPositions = createDemoSkeletonPico(time);
+    const picoOffset = offsetSkeleton(picoPositions, 0.8, 0, 0);
+    
+    renderSceneMultiFormat(projMatrix, viewMatrix, standardOffset, picoOffset);
     
     requestAnimationFrame(renderNonXR);
+}
+
+// Offset all joint positions by a given amount
+function offsetSkeleton(jointPositions, offsetX, offsetY, offsetZ) {
+    const offset = {};
+    for (const jointName in jointPositions) {
+        const joint = jointPositions[jointName];
+        offset[jointName] = {
+            position: [joint.position[0] + offsetX, joint.position[1] + offsetY, joint.position[2] + offsetZ],
+            orientation: joint.orientation
+        };
+    }
+    return offset;
+}
+
+// Render scene with multiple skeleton formats
+function renderSceneMultiFormat(projectionMatrix, viewMatrix, standardPositions, picoPositions) {
+    gl.useProgram(shaderProgram);
+    
+    // Set view and projection matrices
+    gl.uniformMatrix4fv(uniforms.projectionMatrix, false, projectionMatrix);
+    gl.uniformMatrix4fv(uniforms.viewMatrix, false, viewMatrix);
+    
+    // Set light direction
+    gl.uniform3fv(uniforms.lightDirection, [0.5, 1.0, 0.5]);
+    
+    // Draw standard skeleton (left side)
+    if (standardPositions) {
+        drawSkeleton(standardPositions, 1.0, SKELETON_FORMAT.STANDARD);
+        
+        // Draw mirrored standard skeleton facing user
+        const mirroredStandard = createMirroredSkeleton(standardPositions, 2.0);
+        drawSkeleton(mirroredStandard, 0.7, SKELETON_FORMAT.STANDARD);
+    }
+    
+    // Draw Pico skeleton (right side)
+    if (picoPositions) {
+        drawSkeleton(picoPositions, 1.0, SKELETON_FORMAT.PICO);
+        
+        // Draw mirrored Pico skeleton facing user
+        const mirroredPico = createMirroredSkeleton(picoPositions, 2.0);
+        drawSkeleton(mirroredPico, 0.7, SKELETON_FORMAT.PICO);
+    }
 }
 
 function renderScene(projectionMatrix, viewMatrix, jointPositions) {
@@ -591,7 +728,17 @@ function createMirroredSkeleton(jointPositions, offsetZ) {
     return mirrored;
 }
 
-function drawSkeleton(jointPositions, brightness) {
+function drawSkeleton(jointPositions, brightness, skeletonFormat = null) {
+    // Auto-detect skeleton format if not specified
+    if (!skeletonFormat) {
+        skeletonFormat = detectSkeletonFormat(jointPositions);
+    }
+    
+    // Select appropriate bone connections based on format
+    const boneConnections = skeletonFormat === SKELETON_FORMAT.PICO 
+        ? BONE_CONNECTIONS_PICO 
+        : BONE_CONNECTIONS;
+    
     // Draw joints as cubes
     for (const jointName in jointPositions) {
         const joint = jointPositions[jointName];
@@ -601,7 +748,7 @@ function drawSkeleton(jointPositions, brightness) {
     }
     
     // Draw bones as cylinders
-    for (const [joint1Name, joint2Name] of BONE_CONNECTIONS) {
+    for (const [joint1Name, joint2Name] of boneConnections) {
         const joint1 = jointPositions[joint1Name];
         const joint2 = jointPositions[joint2Name];
         
@@ -611,6 +758,20 @@ function drawSkeleton(jointPositions, brightness) {
             drawCylinder(joint1.position, joint2.position, BONE_RADIUS, adjustedColor);
         }
     }
+}
+
+// Detect skeleton format based on joint names present
+function detectSkeletonFormat(jointPositions) {
+    // Check for Pico-specific joints
+    if (jointPositions['pelvis'] || jointPositions['spine-1'] || jointPositions['left-collar']) {
+        return SKELETON_FORMAT.PICO;
+    }
+    // Check for standard-specific joints
+    if (jointPositions['hips'] || jointPositions['spine-lower'] || jointPositions['chest']) {
+        return SKELETON_FORMAT.STANDARD;
+    }
+    // Default to current detected format
+    return currentSkeletonFormat;
 }
 
 // ============================================================================
@@ -795,20 +956,45 @@ function dot(a, b) {
 // ============================================================================
 
 function getJointColor(jointName) {
-    // Color coding by body part
+    // Color coding by body part (supports both standard and Pico joint names)
+    
+    // Head/neck - skin tone
     if (jointName.includes('head') || jointName.includes('neck')) {
-        return [0.9, 0.7, 0.5]; // Skin tone for head
-    } else if (jointName.includes('spine') || jointName.includes('chest') || jointName.includes('hips')) {
-        return [0.2, 0.6, 0.9]; // Blue for torso
-    } else if (jointName.includes('left-hand') || jointName.includes('left-arm') || jointName.includes('left-shoulder') || jointName.includes('left-scapula')) {
-        return [0.9, 0.3, 0.3]; // Red for left arm/hand
-    } else if (jointName.includes('right-hand') || jointName.includes('right-arm') || jointName.includes('right-shoulder') || jointName.includes('right-scapula')) {
-        return [0.3, 0.9, 0.3]; // Green for right arm/hand
-    } else if (jointName.includes('left-')) {
-        return [0.9, 0.5, 0.2]; // Orange for left leg
-    } else if (jointName.includes('right-')) {
-        return [0.5, 0.2, 0.9]; // Purple for right leg
+        return [0.9, 0.7, 0.5];
     }
+    
+    // Torso - blue (standard: spine/chest/hips, Pico: pelvis/spine-1/2/3)
+    if (jointName.includes('spine') || jointName.includes('chest') || 
+        jointName.includes('hips') || jointName === 'pelvis') {
+        return [0.2, 0.6, 0.9];
+    }
+    
+    // Left arm/hand - red (includes collar, shoulder, elbow, wrist, hand)
+    if (jointName.includes('left-hand') || jointName.includes('left-arm') || 
+        jointName.includes('left-shoulder') || jointName.includes('left-scapula') ||
+        jointName.includes('left-collar') || jointName.includes('left-elbow') ||
+        jointName.includes('left-wrist')) {
+        return [0.9, 0.3, 0.3];
+    }
+    
+    // Right arm/hand - green (includes collar, shoulder, elbow, wrist, hand)
+    if (jointName.includes('right-hand') || jointName.includes('right-arm') || 
+        jointName.includes('right-shoulder') || jointName.includes('right-scapula') ||
+        jointName.includes('right-collar') || jointName.includes('right-elbow') ||
+        jointName.includes('right-wrist')) {
+        return [0.3, 0.9, 0.3];
+    }
+    
+    // Left leg - orange (hip, knee, ankle, foot)
+    if (jointName.includes('left-')) {
+        return [0.9, 0.5, 0.2];
+    }
+    
+    // Right leg - purple (hip, knee, ankle, foot)
+    if (jointName.includes('right-')) {
+        return [0.5, 0.2, 0.9];
+    }
+    
     return [0.8, 0.8, 0.8]; // Default gray
 }
 
@@ -822,6 +1008,7 @@ function getBoneColor(joint1Name, joint2Name) {
 // DEMO SKELETON (for preview when not in VR)
 // ============================================================================
 
+// Create demo skeleton in standard format
 function createDemoSkeleton(time) {
     const positions = {};
     
@@ -875,6 +1062,53 @@ function createDemoSkeleton(time) {
     positions['right-foot-subtalar'] = { position: [-0.1 + sway * 0.1, 0.05, 0.02], orientation: [0, 0, 0, 1] };
     positions['right-foot-transverse'] = { position: [-0.1, 0.03, 0.06], orientation: [0, 0, 0, 1] };
     positions['right-foot-ball'] = { position: [-0.1, 0.02, 0.12], orientation: [0, 0, 0, 1] };
+    
+    return positions;
+}
+
+// Create demo skeleton in Pico format (24 joints)
+function createDemoSkeletonPico(time) {
+    const positions = {};
+    
+    // Animate slightly
+    const breathe = Math.sin(time * 2) * 0.02;
+    const sway = Math.sin(time) * 0.05;
+    
+    // Torso/Spine
+    positions['pelvis'] = { position: [sway, 0.95, 0], orientation: [0, 0, 0, 1] };
+    positions['spine-1'] = { position: [sway, 1.05, 0], orientation: [0, 0, 0, 1] };
+    positions['spine-2'] = { position: [sway, 1.15, 0], orientation: [0, 0, 0, 1] };
+    positions['spine-3'] = { position: [sway, 1.3 + breathe, 0], orientation: [0, 0, 0, 1] };
+    positions['neck'] = { position: [sway, 1.45 + breathe, 0], orientation: [0, 0, 0, 1] };
+    positions['head'] = { position: [sway, 1.6 + breathe, 0], orientation: [0, 0, 0, 1] };
+    
+    // Left arm
+    const leftArmSwing = Math.sin(time * 1.5) * 0.1;
+    positions['left-collar'] = { position: [0.1 + sway, 1.35 + breathe, 0], orientation: [0, 0, 0, 1] };
+    positions['left-shoulder'] = { position: [0.2 + sway, 1.35 + breathe, 0], orientation: [0, 0, 0, 1] };
+    positions['left-elbow'] = { position: [0.35 + sway, 1.1 + breathe, leftArmSwing], orientation: [0, 0, 0, 1] };
+    positions['left-wrist'] = { position: [0.4 + sway, 0.88 + breathe, leftArmSwing * 1.5], orientation: [0, 0, 0, 1] };
+    positions['left-hand'] = { position: [0.42 + sway, 0.82 + breathe, leftArmSwing * 1.8], orientation: [0, 0, 0, 1] };
+    
+    // Right arm
+    const rightArmSwing = Math.sin(time * 1.5 + Math.PI) * 0.1;
+    positions['right-collar'] = { position: [-0.1 + sway, 1.35 + breathe, 0], orientation: [0, 0, 0, 1] };
+    positions['right-shoulder'] = { position: [-0.2 + sway, 1.35 + breathe, 0], orientation: [0, 0, 0, 1] };
+    positions['right-elbow'] = { position: [-0.35 + sway, 1.1 + breathe, rightArmSwing], orientation: [0, 0, 0, 1] };
+    positions['right-wrist'] = { position: [-0.4 + sway, 0.88 + breathe, rightArmSwing * 1.5], orientation: [0, 0, 0, 1] };
+    positions['right-hand'] = { position: [-0.42 + sway, 0.82 + breathe, rightArmSwing * 1.8], orientation: [0, 0, 0, 1] };
+    
+    // Left leg
+    positions['left-hip'] = { position: [0.1 + sway, 0.9, 0], orientation: [0, 0, 0, 1] };
+    positions['left-knee'] = { position: [0.1 + sway * 0.5, 0.5, 0], orientation: [0, 0, 0, 1] };
+    positions['left-ankle'] = { position: [0.1 + sway * 0.2, 0.08, 0], orientation: [0, 0, 0, 1] };
+    positions['left-foot'] = { position: [0.1, 0.03, 0.08], orientation: [0, 0, 0, 1] };
+    
+    // Right leg
+    positions['right-hip'] = { position: [-0.1 + sway, 0.9, 0], orientation: [0, 0, 0, 1] };
+    positions['right-knee'] = { position: [-0.1 + sway * 0.5, 0.5, 0], orientation: [0, 0, 0, 1] };
+    positions['right-ankle'] = { position: [-0.1 + sway * 0.2, 0.08, 0], orientation: [0, 0, 0, 1] };
+    positions['right-foot'] = { position: [-0.1, 0.03, 0.08], orientation: [0, 0, 0, 1] };
     
     return positions;
 }
