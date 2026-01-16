@@ -1,17 +1,10 @@
 # WebXR Body Tracking (Pico)
 
-The [WebXR Body Tracking (Pico) Specification][this-spec] adds body tracking support in WebXR using the ByteDance body tracking joint set (XR_BD_body_tracking).
+> ⚠️ ***PRELIMINARY PROPOSAL FOR DISCUSSION. NOT FOR PUBLIC RELEASE OR SUBMISSION TO W3C.***
+
+The [WebXR Body Tracking (Pico) Specification][this-spec] adds body tracking support in WebXR using the ByteDance body tracking joint set (XR_BD_body_tracking).  Based on [existing body tracking spec](https://github.com/immersive-web/body-tracking).
 
 This specification defines a 24-joint body skeleton that corresponds to the joints defined in the OpenXR XR_BD_body_tracking extension, which is supported on Pico devices.
-
-Feature lead is Rik Cabanier ([@cabanier](https://github.com/cabanier)). 
-
-## Taking Part
-
-1. Read the [code of conduct][CoC]
-2. See if your issue is being discussed in the [issues][this-spec], or if your idea is being discussed in the [proposals repo][cgproposals].
-3. We will be publishing the minutes from the bi-weekly calls.
-4. You can also join the working group to participate in these discussions.
 
 ## Specifications
 
