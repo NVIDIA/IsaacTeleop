@@ -1,4 +1,5 @@
 #include <controller_synthetic_hands/synthetic_hands_plugin.hpp>
+#include <oxr_utils/pose_conversions.hpp>
 
 #include <algorithm>
 #include <chrono>
@@ -9,37 +10,33 @@ namespace plugins
 namespace controller_synthetic_hands
 {
 
-// Toggle between space-based and pose-based hand injection
-// true = use controller spaces directly (primary method)
-// false = read controller poses and generate in world space (secondary method)
-constexpr bool USE_SPACE_BASED_INJECTION = false;
-
 SyntheticHandsPlugin::SyntheticHandsPlugin(const std::string& plugin_root_id) noexcept(false)
     : m_root_id(plugin_root_id)
 {
     std::cout << "Initializing SyntheticHandsPlugin with root: " << m_root_id << std::endl;
 
+    // Create ControllerTracker first to get required extensions
+    m_controller_tracker = std::make_shared<core::ControllerTracker>();
+    std::vector<std::shared_ptr<core::ITracker>> trackers = { m_controller_tracker };
+
+    // Get required extensions from trackers
+    auto extensions = core::DeviceIOSession::get_required_extensions(trackers);
+    extensions.push_back(XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME);
+
     // Initialize session - Create() automatically begins the session
-    m_session = core::OpenXRSession::Create("ControllerSyntheticHands", { XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME });
+    m_session = core::OpenXRSession::Create("ControllerSyntheticHands", extensions);
     if (!m_session)
     {
         throw std::runtime_error("Failed to create OpenXR session");
     }
     const auto handles = m_session->get_handles();
 
-    // Initialize controllers
-    m_controllers.emplace(handles.instance, handles.session, handles.space);
+    // Create DeviceIOSession with trackers
+    m_deviceio_session = core::DeviceIOSession::run(trackers, handles);
 
-    // Initialize hand injection using the selected method
-    if (USE_SPACE_BASED_INJECTION)
-    {
-        m_injector.emplace(
-            handles.instance, handles.session, m_controllers->left_aim_space(), m_controllers->right_aim_space());
-    }
-    else
-    {
-        m_injector.emplace(handles.instance, handles.session, handles.space);
-    }
+    // Initialize hand injection (world space mode only - space-based injection would need
+    // access to controller spaces which are internal to ControllerTracker)
+    m_injector.emplace(handles.instance, handles.session, handles.space);
 
     // Start worker thread
     m_running = true;
@@ -56,13 +53,6 @@ SyntheticHandsPlugin::~SyntheticHandsPlugin()
     m_thread.join();
 }
 
-XrTime SyntheticHandsPlugin::get_current_time()
-{
-    auto now = std::chrono::steady_clock::now();
-    auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch());
-    return static_cast<XrTime>(ns.count());
-}
-
 void SyntheticHandsPlugin::worker_thread()
 {
     XrHandJointLocationEXT left_joints[XR_HAND_JOINT_COUNT_EXT];
@@ -76,26 +66,40 @@ void SyntheticHandsPlugin::worker_thread()
 
     while (m_running)
     {
-        XrTime time = get_current_time();
-
-        try
+        // Update DeviceIOSession (handles time and tracker updates)
+        if (!m_deviceio_session->update())
         {
-            m_controllers->update(time);
-        }
-        catch (const std::exception& e)
-        {
-            std::cerr << "Controller update failed: " << e.what() << std::endl;
+            std::cerr << "DeviceIOSession update failed" << std::endl;
             std::this_thread::sleep_for(std::chrono::milliseconds(16));
             continue;
         }
 
-        // Get controller states
-        const auto& left = m_controllers->left();
-        const auto& right = m_controllers->right();
+        // Get controller data from tracker
+        const auto& controller_data = m_controller_tracker->get_controller_data(*m_deviceio_session);
 
-        // Get target curl values
-        float left_target = left.trigger_value;
-        float right_target = right.trigger_value;
+        // Get timestamp from controller data
+        XrTime time = 0;
+        if (controller_data.left_controller && controller_data.left_controller->is_active())
+        {
+            time = controller_data.left_controller->timestamp().device_time();
+        }
+        else if (controller_data.right_controller && controller_data.right_controller->is_active())
+        {
+            time = controller_data.right_controller->timestamp().device_time();
+        }
+
+        // Get target curl values from trigger inputs
+        float left_target = 0.0f;
+        float right_target = 0.0f;
+
+        if (controller_data.left_controller)
+        {
+            left_target = controller_data.left_controller->inputs().trigger_value();
+        }
+        if (controller_data.right_controller)
+        {
+            right_target = controller_data.right_controller->inputs().trigger_value();
+        }
 
         // Smoothly interpolate
         float curl_delta = CURL_SPEED * FRAME_TIME;
@@ -117,35 +121,29 @@ void SyntheticHandsPlugin::worker_thread()
             m_right_curl = right_curl_current;
         }
 
-        if (m_left_enabled)
+        if (m_left_enabled && controller_data.left_controller)
         {
-            if (USE_SPACE_BASED_INJECTION)
+            bool grip_valid = false;
+            bool aim_valid = false;
+            oxr_utils::get_grip_pose(*controller_data.left_controller, grip_valid);
+            XrPosef wrist = oxr_utils::get_aim_pose(*controller_data.left_controller, aim_valid);
+
+            if (grip_valid && aim_valid)
             {
-                m_hand_gen.generate_relative(left_joints, true, left_curl_current);
-                m_injector->push_left(left_joints, time);
-            }
-            else if (left.grip_valid && left.aim_valid)
-            {
-                XrPosef wrist;
-                wrist.position = left.aim_pose.position;
-                wrist.orientation = left.aim_pose.orientation;
                 m_hand_gen.generate(left_joints, wrist, true, left_curl_current);
                 m_injector->push_left(left_joints, time);
             }
         }
 
-        if (m_right_enabled)
+        if (m_right_enabled && controller_data.right_controller)
         {
-            if (USE_SPACE_BASED_INJECTION)
+            bool grip_valid = false;
+            bool aim_valid = false;
+            oxr_utils::get_grip_pose(*controller_data.right_controller, grip_valid);
+            XrPosef wrist = oxr_utils::get_aim_pose(*controller_data.right_controller, aim_valid);
+
+            if (grip_valid && aim_valid)
             {
-                m_hand_gen.generate_relative(right_joints, false, right_curl_current);
-                m_injector->push_right(right_joints, time);
-            }
-            else if (right.grip_valid && right.aim_valid)
-            {
-                XrPosef wrist;
-                wrist.position = right.aim_pose.position;
-                wrist.orientation = right.aim_pose.orientation;
                 m_hand_gen.generate(right_joints, wrist, false, right_curl_current);
                 m_injector->push_right(right_joints, time);
             }

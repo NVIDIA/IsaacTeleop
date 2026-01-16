@@ -84,26 +84,40 @@ Controllers → Wrist Pose → Hand Generator → Hand Injector → OpenXR Runti
 ### Main Loop
 
 ```cpp
-auto session = core::OpenXRSession::Create("MyApp", {XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME});
+#include <deviceio/controller_tracker.hpp>
+#include <deviceio/deviceio_session.hpp>
+#include <oxr_utils/pose_conversions.hpp>
+
+// Create controller tracker and get required extensions
+auto controller_tracker = std::make_shared<core::ControllerTracker>();
+std::vector<std::shared_ptr<core::ITracker>> trackers = { controller_tracker };
+auto extensions = core::DeviceIOSession::get_required_extensions(trackers);
+extensions.push_back(XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME);
+
+// Create session with required extensions
+auto session = core::OpenXRSession::Create("MyApp", extensions);
 auto h = session->get_handles();
 
-Controllers controllers(h.instance, h.session, h.space);
+// Create DeviceIOSession to manage trackers
+auto deviceio_session = core::DeviceIOSession::run(trackers, h);
 
 HandGenerator hands;
-
 HandInjector injector(h.instance, h.session, h.space);
 
 while (running) {
-    controllers.update(time);
+    deviceio_session->update();
 
-    auto left = controllers.left();
-    if (left.grip_valid && left.aim_valid) {
-        XrPosef wrist;
-        wrist.position = left.grip_pose.position;
-        wrist.orientation = left.aim_pose.orientation;
+    const auto& controller_data = controller_tracker->get_controller_data(*deviceio_session);
+    if (controller_data.left_controller) {
+        bool grip_valid, aim_valid;
+        oxr_utils::get_grip_pose(*controller_data.left_controller, grip_valid);
+        XrPosef wrist = oxr_utils::get_aim_pose(*controller_data.left_controller, aim_valid);
 
-        hands.generate(joints, wrist, true, left.trigger_value);
-        injector.push_left(joints, time);
+        if (grip_valid && aim_valid) {
+            float trigger = controller_data.left_controller->inputs().trigger_value();
+            hands.generate(joints, wrist, true, trigger);
+            injector.push_left(joints, time);
+        }
     }
 }
 ```
@@ -123,12 +137,17 @@ auto handles = session->get_handles();
 #### Controller Tracking
 
 ```cpp
-#include <plugin_utils/controllers.hpp>
+#include <deviceio/controller_tracker.hpp>
+#include <deviceio/deviceio_session.hpp>
+#include <oxr_utils/pose_conversions.hpp>
 
-Controllers controllers(instance, session, space);
+auto controller_tracker = std::make_shared<core::ControllerTracker>();
+std::vector<std::shared_ptr<core::ITracker>> trackers = { controller_tracker };
+auto deviceio_session = core::DeviceIOSession::run(trackers, handles);
 
-controllers.update(time);
-auto left = controllers.left();
+deviceio_session->update();
+const auto& data = controller_tracker->get_controller_data(*deviceio_session);
+// Use data.left_controller and data.right_controller
 ```
 
 #### Hand Generation
