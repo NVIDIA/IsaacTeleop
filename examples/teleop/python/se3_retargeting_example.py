@@ -16,7 +16,7 @@ from pathlib import Path
 
 try:
     import teleopcore.deviceio as deviceio
-    from teleopcore.retargeting_engine.sources import HandsSource
+    from teleopcore.retargeting_engine.sources import HandsSource, ControllersSource
     from teleopcore.retargeting_engine.retargeters import (
         Se3AbsRetargeter,
         Se3RelRetargeter,
@@ -29,19 +29,27 @@ except ImportError as e:
     sys.exit(1)
 
 
-def run_abs_example():
+def run_abs_example(use_controller=False):
     print("\n" + "=" * 80)
-    print("  SE3 Absolute Retargeting (Right Hand)")
+    source_type = "Controller" if use_controller else "Hand"
+    print(f"  SE3 Absolute Retargeting (Right {source_type})")
     print("=" * 80)
-    print("Maps hand pose directly to End-Effector pose.")
-    print("Using 'pinch' center (midpoint of thumb/index) for position.")
+    print(f"Maps {source_type.lower()} pose directly to End-Effector pose.")
+    if not use_controller:
+        print("Using 'pinch' center (midpoint of thumb/index) for position.")
     print("=" * 80 + "\n")
 
-    hand_tracker = deviceio.HandTracker()
-    hands = HandsSource(hand_tracker, name="hands")
+    if use_controller:
+        tracker = deviceio.ControllerTracker()
+        source = ControllersSource(tracker, name="controllers")
+        input_device = "controller_right"
+    else:
+        tracker = deviceio.HandTracker()
+        source = HandsSource(tracker, name="hands")
+        input_device = "hand_right"
 
     config = Se3RetargeterConfig(
-        input_device="hand_right",
+        input_device=input_device,
         use_wrist_position=False,
         zero_out_xy_rotation=False,
     )
@@ -49,12 +57,12 @@ def run_abs_example():
     retargeter = Se3AbsRetargeter(config, name="se3_abs")
 
     pipeline = retargeter.connect({
-        "hand_right": hands.output("hand_right")
+        input_device: source.output(input_device)
     })
 
     session_config = TeleopSessionConfig(
         app_name="Se3AbsExample",
-        trackers=[hand_tracker],
+        trackers=[tracker],
         pipeline=pipeline,
     )
 
@@ -78,19 +86,26 @@ def run_abs_example():
             pass
 
 
-def run_rel_example():
+def run_rel_example(use_controller=False):
     print("\n" + "=" * 80)
-    print("  SE3 Relative Retargeting (Right Hand)")
+    source_type = "Controller" if use_controller else "Hand"
+    print(f"  SE3 Relative Retargeting (Right {source_type})")
     print("=" * 80)
-    print("Maps hand movement DELTAS to End-Effector deltas.")
-    print("Move your hand to generate velocity commands.")
+    print(f"Maps {source_type.lower()} movement DELTAS to End-Effector deltas.")
+    print(f"Move your {source_type.lower()} to generate velocity commands.")
     print("=" * 80 + "\n")
 
-    hand_tracker = deviceio.HandTracker()
-    hands = HandsSource(hand_tracker, name="hands")
+    if use_controller:
+        tracker = deviceio.ControllerTracker()
+        source = ControllersSource(tracker, name="controllers")
+        input_device = "controller_right"
+    else:
+        tracker = deviceio.HandTracker()
+        source = HandsSource(tracker, name="hands")
+        input_device = "hand_right"
 
     config = Se3RetargeterConfig(
-        input_device="hand_right",
+        input_device=input_device,
         use_wrist_position=False,
         zero_out_xy_rotation=True,
         delta_pos_scale_factor=5.0,
@@ -100,12 +115,12 @@ def run_rel_example():
     retargeter = Se3RelRetargeter(config, name="se3_rel")
 
     pipeline = retargeter.connect({
-        "hand_right": hands.output("hand_right")
+        input_device: source.output(input_device)
     })
 
     session_config = TeleopSessionConfig(
         app_name="Se3RelExample",
-        trackers=[hand_tracker],
+        trackers=[tracker],
         pipeline=pipeline,
     )
 
@@ -136,15 +151,21 @@ def main():
     print("=" * 80)
     print("  SE3 Retargeting Examples")
     print("=" * 80)
-    print("1. Absolute Positioning (Pose -> Pose)")
-    print("2. Relative Positioning (Delta -> Delta)")
+    print("1. Absolute Positioning (Hand -> Pose)")
+    print("2. Absolute Positioning (Controller -> Pose)")
+    print("3. Relative Positioning (Hand Delta -> Delta)")
+    print("4. Relative Positioning (Controller Delta -> Delta)")
 
-    choice = input("\nEnter choice (1-2): ").strip()
+    choice = input("\nEnter choice (1-4): ").strip()
 
     if choice == "1":
-        run_abs_example()
+        run_abs_example(use_controller=False)
     elif choice == "2":
-        run_rel_example()
+        run_abs_example(use_controller=True)
+    elif choice == "3":
+        run_rel_example(use_controller=False)
+    elif choice == "4":
+        run_rel_example(use_controller=True)
     else:
         print("Invalid choice")
         return 1
