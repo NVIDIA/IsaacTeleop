@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# pyproject.toml for stub generation
+# Used by uv run to install dependencies needed for pybind11-stubgen
+
+[project]
+name = "teleopcore-stubgen"
+version = "0.1.0"
+description = "Stub generation dependencies for TeleopCore pybind11 modules"
+requires-python = ">=3.11"
+
+dependencies = [
+    "pybind11-stubgen",
+    "numpy",
+]
+

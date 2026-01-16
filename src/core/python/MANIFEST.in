@@ -17,5 +17,6 @@ include teleopcore/schema/*.pyi
 include teleopcore/retargeting_engine/*.py
 include teleopcore/retargeting_engine/interface/*.py
 include teleopcore/retargeting_engine/tensor_types/*.py
-include teleopcore/retargeting_engine/sources/*.py
+include teleopcore/retargeting_engine/deviceio_source_nodes/*.py
 include teleopcore/retargeting_engine_ui/*.py
+include teleopcore/teleop_session_manager/*.py

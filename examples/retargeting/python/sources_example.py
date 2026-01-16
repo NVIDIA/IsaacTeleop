@@ -3,15 +3,18 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Retargeting Engine Sources Example
+Retargeting Engine DeviceIO Sources Example
 
-Demonstrates using the retargeting engine source modules with DeviceIO trackers.
-Source modules wrap DeviceIO trackers and provide data in the standard retargeting
-engine tensor format.
+Demonstrates using the retargeting engine DeviceIO source modules.
+Source modules are stateless converters that transform raw DeviceIO flatbuffer data
+into the standard retargeting engine tensor format.
 
 This example shows:
-- Creating DeviceIO trackers (hand, head, controller)
-- Wrapping them with retargeting engine source modules
+- Creating DeviceIO source modules (hand, head, controller)
+- Source modules automatically create their own trackers
+- Setting up OpenXR and DeviceIO sessions
+- Manually polling DeviceIO trackers for raw data
+- Passing raw data through source modules to convert to tensor format
 - Using OutputCombiner to combine outputs from multiple sources
 - Reading combined data in tensor format
 - Printing tracking data in real-time
@@ -21,39 +24,45 @@ import sys
 import time
 import teleopcore.deviceio as deviceio
 import teleopcore.oxr as oxr
-from teleopcore.retargeting_engine.sources import HandsSource, HeadSource, ControllersSource
+from teleopcore.retargeting_engine.deviceio_source_nodes import HandsSource, HeadSource, ControllersSource
 from teleopcore.retargeting_engine.interface import OutputCombiner
 
 
 def main():
     print("=" * 70)
-    print("Retargeting Engine Sources Example")
+    print("Retargeting Engine DeviceIO Sources Example")
     print("=" * 70)
     print()
     
     # ========================================================================
-    # Step 1: Create DeviceIO trackers
+    # Step 1: Create source modules (they create their own trackers)
     # ========================================================================
-    print("[Step 1] Creating DeviceIO trackers...")
-    hand_tracker = deviceio.HandTracker()
-    head_tracker = deviceio.HeadTracker()
-    controller_tracker = deviceio.ControllerTracker()
-    print(f"  ✓ Created {hand_tracker.get_name()}")
-    print(f"  ✓ Created {head_tracker.get_name()}")
-    print(f"  ✓ Created {controller_tracker.get_name()}")
+    print("[Step 1] Creating source modules...")
+    hands_source = HandsSource(name="hands")
+    head_source = HeadSource(name="head")
+    controllers_source = ControllersSource(name="controllers")
+    print("  ✓ Created HandsSource")
+    print("  ✓ Created HeadSource")
+    print("  ✓ Created ControllersSource")
     
     # ========================================================================
-    # Step 2: Get required OpenXR extensions
+    # Step 2: Get trackers from sources and query required extensions
     # ========================================================================
-    print("\n[Step 2] Querying required OpenXR extensions...")
+    print("\n[Step 2] Getting trackers from sources...")
+    hand_tracker = hands_source.get_tracker()
+    head_tracker = head_source.get_tracker()
+    controller_tracker = controllers_source.get_tracker()
     trackers = [hand_tracker, head_tracker, controller_tracker]
+    print(f"  ✓ Got {len(trackers)} trackers from sources")
+    
+    print("\n[Step 3] Querying required OpenXR extensions...")
     required_extensions = deviceio.DeviceIOSession.get_required_extensions(trackers)
     print(f"  ✓ Required extensions: {', '.join(required_extensions)}")
     
     # ========================================================================
     # Step 3: Create OpenXR session
     # ========================================================================
-    print("\n[Step 3] Creating OpenXR session...")
+    print("\n[Step 4] Creating OpenXR session...")
     oxr_session = oxr.OpenXRSession.create("RetargetingSourcesExample", required_extensions)
     
     with oxr_session:
@@ -61,22 +70,11 @@ def main():
         print("  ✓ OpenXR session created successfully")
         
         # ====================================================================
-        # Step 4: Run DeviceIO session
+        # Step 5: Run DeviceIO session
         # ====================================================================
-        print("\n[Step 4] Initializing DeviceIO session...")
+        print("\n[Step 5] Initializing DeviceIO session...")
         with deviceio.DeviceIOSession.run(trackers, handles) as session:
             print("  ✓ DeviceIO session initialized with all trackers")
-            
-            # ================================================================
-            # Step 5: Create retargeting engine source modules
-            # ================================================================
-            print("\n[Step 5] Creating retargeting engine source modules...")
-            hands_source = HandsSource(hand_tracker, session, name="hands")
-            head_source = HeadSource(head_tracker, session, name="head")
-            controllers_source = ControllersSource(controller_tracker, session, name="controllers")
-            print("  ✓ Created HandsSource")
-            print("  ✓ Created HeadSource")
-            print("  ✓ Created ControllersSource")
             
             # ================================================================
             # Step 6: Create OutputCombiner to combine all source outputs
@@ -119,13 +117,56 @@ def main():
                     print("-" * 70)
                     
                     # ====================================================
-                    # Get ALL data from combiner in one call
+                    # Manually poll DeviceIO trackers for raw data
                     # ====================================================
+                    hand_left_raw = hand_tracker.get_left_hand(session)
+                    hand_right_raw = hand_tracker.get_right_hand(session)
+                    head_raw = head_tracker.get_head(session)
+                    controller_data_raw = controller_tracker.get_controller_data(session)
                     
-                    # Execute combiner - returns all outputs combined
-                    all_data = combiner({})
+                    # ====================================================
+                    # Wrap raw data in TensorGroups for source inputs
+                    # ====================================================
+                    from teleopcore.retargeting_engine.interface import TensorGroup
                     
-                    # Extract hand data
+                    # Prepare inputs for each source module
+                    hands_inputs = {}
+                    hands_input_spec = hands_source.input_spec()
+                    for input_name, group_type in hands_input_spec.items():
+                        tg = TensorGroup(group_type)
+                        if "left" in input_name.lower():
+                            tg[0] = hand_left_raw
+                        elif "right" in input_name.lower():
+                            tg[0] = hand_right_raw
+                        hands_inputs[input_name] = tg
+                    
+                    head_inputs = {}
+                    head_input_spec = head_source.input_spec()
+                    for input_name, group_type in head_input_spec.items():
+                        tg = TensorGroup(group_type)
+                        tg[0] = head_raw
+                        head_inputs[input_name] = tg
+                    
+                    controllers_inputs = {}
+                    controllers_input_spec = controllers_source.input_spec()
+                    for input_name, group_type in controllers_input_spec.items():
+                        tg = TensorGroup(group_type)
+                        if "left" in input_name.lower():
+                            tg[0] = controller_data_raw.left_controller
+                        elif "right" in input_name.lower():
+                            tg[0] = controller_data_raw.right_controller
+                        controllers_inputs[input_name] = tg
+                    
+                    # ====================================================
+                    # Pass wrapped data to combiner with correct structure
+                    # ====================================================
+                    all_data = combiner({
+                        "hands": hands_inputs,
+                        "head": head_inputs,
+                        "controllers": controllers_inputs,
+                    })
+                    
+                    # Extract hand data (now in tensor format)
                     left_hand = all_data["hand_left"]
                     left_positions = left_hand[0]  # (26, 3) array of joint positions
                     left_active = left_hand[4]     # is_active boolean
