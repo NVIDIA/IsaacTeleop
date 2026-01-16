@@ -11,9 +11,10 @@
 #    include <time.h>
 #endif
 
+#include <deviceio/controller_tracker.hpp>
+#include <deviceio/deviceio_session.hpp>
 #include <openxr/openxr_platform.h>
 #include <oxr/oxr_session.hpp>
-#include <plugin_utils/controllers.hpp>
 #include <plugin_utils/hand_injector.hpp>
 
 #include <ManusSDK.h>
@@ -75,17 +76,8 @@ private:
     std::shared_ptr<core::OpenXRSession> m_session;
     core::OpenXRSessionHandles m_handles;
     std::optional<plugin_utils::HandInjector> m_injector;
-    std::optional<plugin_utils::Controllers> m_controllers;
-
-#if defined(_WIN32)
-    PFN_xrConvertWin32PerformanceCounterToTimeKHR m_convertWin32Time = nullptr;
-#else
-    PFN_xrConvertTimespecTimeToTimeKHR m_convertTimespecTime = nullptr;
-#endif
-
-    // Controller Data
-    plugin_utils::ControllerPose m_latest_left;
-    plugin_utils::ControllerPose m_latest_right;
+    std::shared_ptr<core::ControllerTracker> m_controller_tracker;
+    std::unique_ptr<core::DeviceIOSession> m_deviceio_session;
     // Persistent root poses (initialized to identity)
     XrPosef m_left_root_pose = { { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, 0.0f } };
     XrPosef m_right_root_pose = { { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, 0.0f } };

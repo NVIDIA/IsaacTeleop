@@ -3,9 +3,7 @@
 
 # Static library for plugin utilities
 add_library(teleop_plugin_utils STATIC
-    controllers.cpp
     hand_injector.cpp
-    inc/plugin_utils/controllers.hpp
     inc/plugin_utils/hand_injector.hpp
 )
 

@@ -1,7 +1,8 @@
 #pragma once
 #include <controller_synthetic_hands/hand_generator.hpp>
+#include <deviceio/controller_tracker.hpp>
+#include <deviceio/deviceio_session.hpp>
 #include <oxr/oxr_session.hpp>
-#include <plugin_utils/controllers.hpp>
 #include <plugin_utils/hand_injector.hpp>
 
 #include <atomic>
@@ -29,10 +30,10 @@ public:
 
 private:
     void worker_thread();
-    XrTime get_current_time();
 
     std::shared_ptr<core::OpenXRSession> m_session;
-    std::optional<plugin_utils::Controllers> m_controllers;
+    std::shared_ptr<core::ControllerTracker> m_controller_tracker;
+    std::unique_ptr<core::DeviceIOSession> m_deviceio_session;
     std::optional<plugin_utils::HandInjector> m_injector;
     HandGenerator m_hand_gen;
 
