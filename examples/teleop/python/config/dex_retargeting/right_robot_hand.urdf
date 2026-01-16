@@ -1,0 +1,163 @@
+<?xml version="1.0"?>
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+PLACEHOLDER URDF - Replace with your robot hand URDF
+
+This is a minimal example URDF for a 6-DOF dexterous hand.
+For actual use, you need to provide your robot-specific URDF file.
+
+Example sources for real URDFs:
+- IsaacLab Nucleus: https://docs.omniverse.nvidia.com/isaacsim/latest/isaac_lab_tutorials/tutorial_assets.html
+- Your robot manufacturer's documentation
+- Generate from CAD using tools like phobos/urdf-exporter
+
+Required structure:
+- Wrist link (base_link or hand_base_link)
+- 5 fingers: thumb, index, middle, ring, pinky
+- Each finger has: tip link (for retargeting)
+- Joint names matching the YAML config
+-->
+<robot name="example_hand">
+  <!-- Base wrist link -->
+  <link name="R_hand_base_link">
+    <inertial>
+      <mass value="0.1"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+  </link>
+
+  <!-- Thumb joints -->
+  <joint name="R_thumb_proximal_yaw_joint" type="revolute">
+    <parent link="R_hand_base_link"/>
+    <child link="R_thumb_proximal"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-1.57" upper="1.57" effort="10" velocity="1.0"/>
+  </joint>
+  <link name="R_thumb_proximal">
+    <inertial>
+      <mass value="0.01"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+  </link>
+
+  <joint name="R_thumb_proximal_pitch_joint" type="revolute">
+    <parent link="R_thumb_proximal"/>
+    <child link="R_thumb_tip"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0" upper="1.57" effort="10" velocity="1.0"/>
+  </joint>
+  <link name="R_thumb_tip">
+    <inertial>
+      <mass value="0.01"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+  </link>
+
+  <!-- Index finger -->
+  <joint name="R_index_proximal_joint" type="revolute">
+    <parent link="R_hand_base_link"/>
+    <child link="R_index_proximal"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0" upper="1.57" effort="10" velocity="1.0"/>
+  </joint>
+  <link name="R_index_proximal">
+    <inertial>
+      <mass value="0.01"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+  </link>
+  <joint name="R_index_distal_joint" type="revolute">
+    <parent link="R_index_proximal"/>
+    <child link="R_index_tip"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0" upper="1.57" effort="10" velocity="1.0"/>
+  </joint>
+  <link name="R_index_tip">
+    <inertial>
+      <mass value="0.01"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+  </link>
+
+  <!-- Middle finger -->
+  <joint name="R_middle_proximal_joint" type="revolute">
+    <parent link="R_hand_base_link"/>
+    <child link="R_middle_proximal"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0" upper="1.57" effort="10" velocity="1.0"/>
+  </joint>
+  <link name="R_middle_proximal">
+    <inertial>
+      <mass value="0.01"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+  </link>
+  <joint name="R_middle_distal_joint" type="revolute">
+    <parent link="R_middle_proximal"/>
+    <child link="R_middle_tip"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0" upper="1.57" effort="10" velocity="1.0"/>
+  </joint>
+  <link name="R_middle_tip">
+    <inertial>
+      <mass value="0.01"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+  </link>
+
+  <!-- Ring finger -->
+  <joint name="R_ring_proximal_joint" type="revolute">
+    <parent link="R_hand_base_link"/>
+    <child link="R_ring_proximal"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0" upper="1.57" effort="10" velocity="1.0"/>
+  </joint>
+  <link name="R_ring_proximal">
+    <inertial>
+      <mass value="0.01"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+  </link>
+  <joint name="R_ring_distal_joint" type="revolute">
+    <parent link="R_ring_proximal"/>
+    <child link="R_ring_tip"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0" upper="1.57" effort="10" velocity="1.0"/>
+  </joint>
+  <link name="R_ring_tip">
+    <inertial>
+      <mass value="0.01"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+  </link>
+
+  <!-- Pinky finger -->
+  <joint name="R_pinky_proximal_joint" type="revolute">
+    <parent link="R_hand_base_link"/>
+    <child link="R_pinky_proximal"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0" upper="1.57" effort="10" velocity="1.0"/>
+  </joint>
+  <link name="R_pinky_proximal">
+    <inertial>
+      <mass value="0.01"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+  </link>
+  <joint name="R_pinky_distal_joint" type="revolute">
+    <parent link="R_pinky_proximal"/>
+    <child link="R_pinky_tip"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0" upper="1.57" effort="10" velocity="1.0"/>
+  </joint>
+  <link name="R_pinky_tip">
+    <inertial>
+      <mass value="0.01"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+  </link>
+
+</robot>
+

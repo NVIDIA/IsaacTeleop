@@ -12,10 +12,11 @@ Available Retargeters:
     - DexBiManualRetargeter: Bimanual version of DexHandRetargeter
     - DexMotionController: Maps VR controller inputs to dexterous hand joints
     - DexBiManualMotionController: Bimanual version of DexMotionController
-
-Configuration Classes:
-    - DexHandRetargeterConfig: Configuration for DexHandRetargeter
-    - DexMotionControllerConfig: Configuration for DexMotionController
+    - LocomotionFixedRootCmdRetargeter: Fixed root command (standing still)
+    - LocomotionRootCmdRetargeter: Locomotion from controller inputs
+    - GripperRetargeter: Pinch-based gripper control
+    - Se3AbsRetargeter: Absolute EE pose control
+    - Se3RelRetargeter: Relative EE delta control
 """
 
 from .dex_hand_retargeter import (
@@ -30,15 +31,45 @@ from .dex_motion_controller import (
     DexMotionControllerConfig,
 )
 
+from .locomotion_retargeter import (
+    LocomotionFixedRootCmdRetargeter,
+    LocomotionFixedRootCmdRetargeterConfig,
+    LocomotionRootCmdRetargeter,
+    LocomotionRootCmdRetargeterConfig,
+)
+
+from .gripper_retargeter import (
+    GripperRetargeter,
+    GripperRetargeterConfig,
+)
+
+from .se3_retargeter import (
+    Se3AbsRetargeter,
+    Se3RelRetargeter,
+    Se3RetargeterConfig,
+)
+
 __all__ = [
     # Hand tracking retargeters
     "DexHandRetargeter",
     "DexBiManualRetargeter",
     "DexHandRetargeterConfig",
-    
+
     # Motion controller retargeters
     "DexMotionController",
     "DexBiManualMotionController",
     "DexMotionControllerConfig",
-]
 
+    # Locomotion retargeters
+    "LocomotionFixedRootCmdRetargeter",
+    "LocomotionFixedRootCmdRetargeterConfig",
+    "LocomotionRootCmdRetargeter",
+    "LocomotionRootCmdRetargeterConfig",
+
+    # Manipulator retargeters
+    "GripperRetargeter",
+    "GripperRetargeterConfig",
+    "Se3AbsRetargeter",
+    "Se3RelRetargeter",
+    "Se3RetargeterConfig",
+]

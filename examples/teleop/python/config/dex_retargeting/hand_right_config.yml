@@ -1,8 +1,3 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 retargeting:
   finger_tip_link_names:
   - R_thumb_tip
@@ -16,9 +11,13 @@ retargeting:
   - R_thumb_proximal_yaw_joint
   - R_thumb_proximal_pitch_joint
   - R_index_proximal_joint
+  - R_index_distal_joint
   - R_middle_proximal_joint
+  - R_middle_distal_joint
   - R_ring_proximal_joint
+  - R_ring_distal_joint
   - R_pinky_proximal_joint
+  - R_pinky_distal_joint
   type: DexPilot
-  urdf_path: /tmp/retarget_inspire_white_right_hand.urdf
+  urdf_path: /home/rwiltz/repo/TeleopCore/examples/teleop/python/config/dex_retargeting/right_robot_hand.urdf
   wrist_link_name: R_hand_base_link

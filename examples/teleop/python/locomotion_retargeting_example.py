@@ -1,0 +1,121 @@
+#!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+"""
+Locomotion Retargeting Example
+
+Demonstrates using LocomotionRootCmdRetargeter to generate robot base commands
+from VR controller inputs.
+"""
+
+import sys
+import time
+from pathlib import Path
+
+try:
+    import teleopcore.deviceio as deviceio
+    from teleopcore.retargeting_engine.sources import ControllersSource
+    from teleopcore.retargeting_engine.retargeters.isaac_lab import (
+        LocomotionRootCmdRetargeter,
+        LocomotionRootCmdRetargeterConfig,
+    )
+    from teleopcore.teleop_utils import TeleopSession, TeleopSessionConfig, PluginConfig
+except ImportError as e:
+    print(f"Error: {e}")
+    print("Make sure TeleopCore and all modules are built and installed")
+    sys.exit(1)
+
+
+PLUGIN_ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent / "plugins"
+PLUGIN_NAME = "controller_synthetic_hands"
+PLUGIN_ROOT_ID = "synthetic_hands"
+
+
+def main():
+    print("\n" + "=" * 80)
+    print("  Locomotion Retargeting Example")
+    print("=" * 80)
+    print("Controls:")
+    print("  Left Stick X/Y  : Linear Velocity (Forward/Backward/Left/Right)")
+    print("  Right Stick X   : Angular Velocity (Turn)")
+    print("  Right Stick Y   : Hip Height Adjustment")
+    print("=" * 80 + "\n")
+
+    # ==================================================================
+    # Setup: Create trackers
+    # ==================================================================
+
+    controller_tracker = deviceio.ControllerTracker()
+
+    # ==================================================================
+    # Build Retargeting Pipeline
+    # ==================================================================
+
+    controllers = ControllersSource(controller_tracker, name="controllers")
+
+    config = LocomotionRootCmdRetargeterConfig(
+        initial_hip_height=0.72,
+        movement_scale=1.0,  # Scale up for visibility
+        rotation_scale=0.5,
+    )
+
+    locomotion = LocomotionRootCmdRetargeter(config, name="locomotion")
+
+    pipeline = locomotion.connect({
+        "controller_left": controllers.output("controller_left"),
+        "controller_right": controllers.output("controller_right")
+    })
+
+    # ==================================================================
+    # Configure Plugins (optional)
+    # ==================================================================
+
+    plugins = []
+    if PLUGIN_ROOT_DIR.exists():
+        plugins.append(PluginConfig(
+            plugin_name=PLUGIN_NAME,
+            plugin_root_id=PLUGIN_ROOT_ID,
+            search_paths=[PLUGIN_ROOT_DIR],
+        ))
+
+    # ==================================================================
+    # Create and run TeleopSession
+    # ==================================================================
+
+    session_config = TeleopSessionConfig(
+        app_name="LocomotionExample",
+        trackers=[controller_tracker],
+        pipeline=pipeline,
+        plugins=plugins,
+    )
+
+    with TeleopSession(session_config) as session:
+        start_time = time.time()
+
+        try:
+            while time.time() - start_time < 30.0:
+                # Run one iteration
+                result = session.run()
+
+                # Get root command: [vel_x, vel_y, rot_vel_z, hip_height]
+                cmd = result["root_command"][0]
+
+                # Print status every 0.2 seconds
+                if session.frame_count % 12 == 0:
+                    elapsed = session.get_elapsed_time()
+                    print(f"[{elapsed:5.1f}s] Vel: ({cmd[0]:5.2f}, {cmd[1]:5.2f})  Rot: {cmd[2]:5.2f}  Height: {cmd[3]:.3f}")
+
+                time.sleep(0.016)  # ~60 FPS
+
+            print("\nTime limit reached.")
+
+        except KeyboardInterrupt:
+            print("\n\nInterrupted by user")
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+
