@@ -16,7 +16,7 @@ from pathlib import Path
 try:
     import teleopcore.deviceio as deviceio
     from teleopcore.retargeting_engine.sources import HandsSource
-    from teleopcore.retargeting_engine.retargeters.isaac_lab import (
+    from teleopcore.retargeting_engine.retargeters import (
         GripperRetargeter,
         GripperRetargeterConfig,
     )

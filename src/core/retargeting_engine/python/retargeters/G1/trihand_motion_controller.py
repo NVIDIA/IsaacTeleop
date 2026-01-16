@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Dex Motion Controller Retargeter Module.
+TriHand Motion Controller Retargeter Module.
 
-Retargeter that maps motion controller inputs to robot hand joint angles.
+Retargeter that maps motion controller inputs to G1 robot hand joint angles.
 This class implements simple logic to map button presses and trigger/joystick inputs
 to finger joint angles, specifically designed for dexterous hand control.
 
@@ -22,7 +22,7 @@ from ...tensor_types import ControllerInput, FloatType
 
 
 @dataclass
-class DexMotionControllerConfig:
+class TriHandMotionControllerConfig:
     """Configuration for the dexterous motion controller retargeter.
 
     Attributes:
@@ -33,9 +33,9 @@ class DexMotionControllerConfig:
     controller_side: str = "left"
 
 
-class DexMotionController(BaseRetargeter):
+class TriHandMotionController(BaseRetargeter):
     """
-    Retargeter that maps motion controller inputs to robot hand joint angles.
+    Retargeter that maps motion controller inputs to G1 robot hand joint angles.
 
     This retargeter implements simple logic to map controller button presses
     and analog inputs (trigger, squeeze) to finger joint angles. It's designed
@@ -62,9 +62,9 @@ class DexMotionController(BaseRetargeter):
     6. Middle Distal
     """
 
-    def __init__(self, config: DexMotionControllerConfig, name: str) -> None:
+    def __init__(self, config: TriHandMotionControllerConfig, name: str) -> None:
         """
-        Initialize the dex motion controller retargeter.
+        Initialize the TriHand motion controller retargeter.
 
         Args:
             config: Configuration object for the retargeter
@@ -198,11 +198,11 @@ class DexMotionController(BaseRetargeter):
         return hand_joints
 
 
-class DexBiManualMotionController(BaseRetargeter):
+class TriHandBiManualMotionController(BaseRetargeter):
     """
-    Wrapper around two DexMotionController instances for bimanual control.
+    Wrapper around two TriHandMotionController instances for bimanual control.
 
-    This retargeter instantiates two DexMotionController instances (one for each hand)
+    This retargeter instantiates two TriHandMotionController instances (one for each hand)
     and combines their outputs into a single vector.
 
     Inputs:
@@ -215,8 +215,8 @@ class DexBiManualMotionController(BaseRetargeter):
 
     def __init__(
         self,
-        left_config: DexMotionControllerConfig,
-        right_config: DexMotionControllerConfig,
+        left_config: TriHandMotionControllerConfig,
+        right_config: TriHandMotionControllerConfig,
         target_joint_names: List[str],
         name: str
     ) -> None:
@@ -238,8 +238,8 @@ class DexBiManualMotionController(BaseRetargeter):
         right_config.controller_side = "right"
 
         # Create individual controllers
-        self._left_controller = DexMotionController(left_config, name=f"{name}_left")
-        self._right_controller = DexMotionController(right_config, name=f"{name}_right")
+        self._left_controller = TriHandMotionController(left_config, name=f"{name}_left")
+        self._right_controller = TriHandMotionController(right_config, name=f"{name}_right")
 
         # Prepare index mapping
         self._left_indices = []

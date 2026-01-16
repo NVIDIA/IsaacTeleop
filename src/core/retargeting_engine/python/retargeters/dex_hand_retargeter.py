@@ -16,10 +16,10 @@ import numpy as np
 from typing import Dict, Optional, List
 from dataclasses import dataclass
 
-from ...interface.retargeting_module import BaseRetargeter, RetargeterIO
-from ...interface.tensor_group_type import TensorGroupType
-from ...interface.tensor_group import TensorGroup
-from ...tensor_types import HandInput, FloatType, NUM_HAND_JOINTS
+from ..interface.retargeting_module import BaseRetargeter, RetargeterIO
+from ..interface.tensor_group_type import TensorGroupType
+from ..interface.tensor_group import TensorGroup
+from ..tensor_types import HandInput, FloatType, NUM_HAND_JOINTS
 
 # Try to import yaml for config file handling
 try:

@@ -1,6 +1,6 @@
-# IsaacLab Examples - Dex Hand Retargeters
+# Dex Hand Retargeters
 
-This directory contains retargeters ported from IsaacLab (Isaac Sim) to work with TeleopCore's retargeting framework.
+This directory contains retargeters for TeleopCore's retargeting framework.
 
 ## Available Retargeters
 
@@ -48,7 +48,7 @@ retargeter = DexHandRetargeter(config, name="dex_hand_left")
 
 **YAML Configuration Example:**
 
-See `config/dex_retargeting/` for examples from IsaacLab. A typical config looks like:
+A typical config looks like:
 
 ```yaml
 retargeting:
@@ -109,9 +109,9 @@ bimanual_retargeter = DexBiManualRetargeter(
 )
 ```
 
-### DexMotionController
+### TriHandMotionController
 
-Simple VR controller-based hand control. Maps trigger and squeeze inputs to finger joint angles.
+Simple VR controller-based hand control. Maps trigger and squeeze inputs to G1 TriHand finger joint angles.
 
 **Features:**
 - No external dependencies (works out of the box)
@@ -123,11 +123,11 @@ Simple VR controller-based hand control. Maps trigger and squeeze inputs to fing
 
 ```python
 from teleopcore.retargeting_engine import (
-    DexMotionController,
-    DexMotionControllerConfig,
+    TriHandMotionController,
+    TriHandMotionControllerConfig,
 )
 
-config = DexMotionControllerConfig(
+config = TriHandMotionControllerConfig(
     hand_joint_names=[
         "thumb_rotation",
         "thumb_proximal",
@@ -140,7 +140,7 @@ config = DexMotionControllerConfig(
     controller_side="left",  # or "right"
 )
 
-controller = DexMotionController(config, name="dex_motion_left")
+controller = TriHandMotionController(config, name="trihand_motion_left")
 ```
 
 **Output DOF Mapping:**
@@ -152,13 +152,13 @@ controller = DexMotionController(config, name="dex_motion_left")
 - Index 5: Middle finger proximal (controlled by squeeze)
 - Index 6: Middle finger distal (controlled by squeeze)
 
-### DexBiManualMotionController
+### TriHandBiManualMotionController
 
-Bimanual wrapper around two `DexMotionController` instances.
+Bimanual wrapper around two `TriHandMotionController` instances.
 
 ## Usage Example
 
-See `dex_hand_example.py` for a complete working example.
+See `g1_trihand_retargeting_example.py` for a complete working example.
 
 ```python
 from teleopcore.retargeting_engine.sources import HandsSource
@@ -201,35 +201,6 @@ The `handtracking_to_baselink_frame_transform` parameter is a 3x3 rotation matri
 - **Identity** (no transformation): `(1, 0, 0, 0, 1, 0, 0, 0, 1)`
 
 Matrix is applied as: `target_pos = joint_pos @ wrist_rotation @ transform_matrix`
-
-## Configuration Files
-
-Example configuration files from IsaacLab can be found in:
-```
-IsaacLab/source/isaaclab_tasks/.../config/dex_retargeting/
-```
-
-These include configs for:
-- Unitree G1 Inspire hands (left/right)
-- Fourier GR1-T2 hands (left/right)
-
-## Original Source
-
-These retargeters are adapted from:
-- `IsaacLab/source/isaaclab/isaaclab/devices/retargeters/dex/`
-
-Original authors: The Isaac Lab Project Developers
-License: BSD-3-Clause
-
-## Differences from IsaacLab Version
-
-The ported version has been adapted to work with TeleopCore's retargeting framework:
-
-1. **Framework Integration**: Uses TeleopCore's `BaseRetargeter`, `RetargeterIO`, `TensorGroup` system
-2. **Data Types**: Uses TeleopCore's standard hand tracking types (`LeftHandInput`, `RightHandInput`)
-3. **No Visualization**: Removed Isaac Sim-specific visualization markers (can be added later)
-4. **Simplified Initialization**: Removed Isaac Sim-specific asset retrieval, uses direct file paths
-5. **Configuration**: Uses dataclass configs instead of Isaac Sim's config system
 
 ## Future Improvements
 

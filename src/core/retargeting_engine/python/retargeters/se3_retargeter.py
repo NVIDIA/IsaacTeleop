@@ -11,10 +11,10 @@ import numpy as np
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
-from ...interface.retargeting_module import BaseRetargeter, RetargeterIO
-from ...interface.tensor_group_type import TensorGroupType
-from ...interface.tensor_group import TensorGroup
-from ...tensor_types import HandInput, ControllerInput, NDArrayType, DLDataType
+from ..interface.retargeting_module import BaseRetargeter, RetargeterIO
+from ..interface.tensor_group_type import TensorGroupType
+from ..interface.tensor_group import TensorGroup
+from ..tensor_types import HandInput, ControllerInput, NDArrayType, DLDataType
 
 try:
     from scipy.spatial.transform import Rotation, Slerp

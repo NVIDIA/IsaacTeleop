@@ -11,10 +11,10 @@ import numpy as np
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
-from ...interface.retargeting_module import BaseRetargeter, RetargeterIO
-from ...interface.tensor_group_type import TensorGroupType
-from ...interface.tensor_group import TensorGroup
-from ...tensor_types import HandInput, FloatType
+from ..interface.retargeting_module import BaseRetargeter, RetargeterIO
+from ..interface.tensor_group_type import TensorGroupType
+from ..interface.tensor_group import TensorGroup
+from ..tensor_types import HandInput, FloatType
 
 
 @dataclass

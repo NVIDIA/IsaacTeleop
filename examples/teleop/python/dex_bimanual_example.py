@@ -16,7 +16,7 @@ try:
     import teleopcore.deviceio as deviceio
     import teleopcore.oxr as oxr
     from teleopcore.retargeting_engine.sources import HandsSource
-    from teleopcore.retargeting_engine.retargeters.isaac_lab import (
+    from teleopcore.retargeting_engine.retargeters import (
         DexBiManualRetargeter,
         DexHandRetargeterConfig,
     )
