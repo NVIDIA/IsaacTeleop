@@ -1,0 +1,301 @@
+<pre class="metadata">
+Shortname: webxr-body-tracking-pico
+Title: WebXR Body Tracking Module (Pico) - Level 1
+Group: immersivewebcg
+Status: N/A
+ED: https://immersive-web.github.io/body-tracking/
+Repository: immersive-web/body-tracking
+
+Preliminary proposal for discussion not submitted to W3C.
+
+Abstract: The WebXR Body Tracking module (Pico) expands the <a href="https://www.w3.org/TR/webxr/">WebXR Device API</a> with the functionality to track articulated body poses using the ByteDance body tracking joint set (XR_BD_body_tracking).
+
+Status Text: This WebXR Augmented Reality Module is designed as a module to be implemented in addition to <a href="https://www.w3.org/TR/webxr/">WebXR Device API</a>, and is originally included in WebXR Device API which was divided into core and modules.
+</pre>
+
+
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="96x96" href="favicon-96x96.png">
+
+<style>
+  .unstable::before {
+    content: "This section is not stable";
+    display: block;
+    font-weight: bold;
+    text-align: right;
+    color: red;
+  }
+  .unstable {
+    border: thin solid pink;
+    border-radius: .5em;
+    padding: .5em;
+    margin: .5em calc(-0.5em - 1px);
+    background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='290'><text transform='rotate(-45)' text-anchor='middle' font-family='sans-serif' font-weight='bold' font-size='70' y='210' opacity='.1'>Unstable</text></svg>");
+    background-repeat: repeat;
+    background-color: #FFF4F4;
+  }
+  .unstable h3:first-of-type {
+    margin-top: 0.5rem;
+  }
+
+  .unstable.example:not(.no-marker)::before {
+    content: "Example " counter(example) " (Unstable)";
+    float: none;
+  }
+
+  .non-normative::before {
+    content: "This section is non-normative.";
+    font-style: italic;
+  }
+  .tg {
+    border-collapse: collapse;
+    border-spacing: 0;
+  }
+  .tg th {
+    border-style: solid;
+    border-width: 1px;
+    background: var(--def-bg);
+    font-family: sans-serif;
+    font-weight: bold;
+    border-color: var(--def-border);
+  }
+  .tg td {
+    padding: 4px 5px;
+    background-color: var(--def-bg);
+    font-family: monospace;
+    border-style: solid;
+    border-width: 1px;
+    border-color: var(--def-border);
+    overflow: hidden;
+    word-break: normal;
+  }
+</style>
+
+
+<pre class="link-defaults">
+spec: webxr;
+    type: dfn; text: xr device; for: /
+    type: dfn; text: xr device; for: XRSession
+    type: dfn; text: animation frame; for: XRSession
+    type: dfn; text: explicit consent
+    type: dfn; text: native origin
+    type: dfn; text: feature descriptor
+    type: dfn; text: populate the pose
+    type: dfn; text: session; for: XRFrame
+    type: dfn; text: time; for: XRFrame
+    type: dfn; text: session; for: XRSpace
+spec:infra; type:dfn; text:list
+spec:webxr-ar-module-1; type:enum-value; text:"immersive-ar"
+spec:webidl;
+    type:dfn; text:value pairs
+</pre>
+
+<pre class="anchors">
+spec:html; urlPrefix: https://html.spec.whatwg.org/multipage/
+    type: dfn; text: browsing context; url: browsers.html#browsing-context
+</pre>
+
+
+Introduction {#intro}
+============
+
+<section class="non-normative">
+On some [=/XR device|XR devices=] it is possible to get fully articulated information about the user's body.
+
+This API exposes the poses of each of the users' [=body joints=] using the joint set defined by the ByteDance body tracking extension (XR_BD_body_tracking). This can be used to render an avatar in VR scenarios.
+
+This specification defines a 24-joint body skeleton that corresponds to the joints defined in the OpenXR XR_BD_body_tracking extension, which is supported on Pico devices.
+
+</section>
+
+
+Initialization {#initialization}
+==============
+
+If an application wants to get access to body information during a session,
+the session MUST be requested with an appropriate [=feature descriptor=]. The string "<dfn for="feature descriptor">body-tracking-pico</dfn>" is introduced
+by this module as a new valid [=feature descriptor=] for articulated body tracking.
+
+The "[=body-tracking-pico=]" [=feature descriptor=] should only be granted for an {{XRSession}} when its [=XRSession/XR device=] has support for body tracking.
+
+XRFrame {#xrinputsource-interface}
+-------------
+
+<pre class="idl">
+partial interface XRFrame {
+   [SameObject] readonly attribute XRBodyPico? bodyPico;
+};
+</pre>
+
+The <dfn attribute for=XRFrame>bodyPico</dfn> attribute on an [=XR Device=] that has support for body tracking will be an {{XRBodyPico}} object giving access to the underlying body-tracking capabilities. {{XRFrame/bodyPico}} will be set to [=this=].
+
+If the {{XRFrame}} belongs to an {{XRSession}} that has not been requested with the "[=body-tracking-pico=]" [=feature descriptor=], {{XRFrame/bodyPico}} MUST be <code>null</code>.
+
+Body Joints {#body-joints-section}
+---------------
+
+A {{XRFrame/bodyPico}} is made up of many <dfn>body joints</dfn>.
+
+A [=body joint=] for a given body can be uniquely identified by a body joint name, which is an enum of type {{XRBodyJointPico}}.
+
+A [=body joint=] may have an <dfn>associated bone</dfn> that it is named after and used to orient its <code>-Z</code> axis. The [=associated bone=] of a [=body joint=] is the bone that comes after the joint when moving towards the extremities.
+
+The following table shows the mapping between {{XRBodyJointPico}} values and the corresponding OpenXR XrBodyJointBD enum values:
+
+<table class="tg">
+<thead>
+  <tr>
+    <th>XRBodyJointPico</th>
+    <th>XrBodyJointBD</th>
+    <th>Index</th>
+  </tr>
+</thead>
+<tbody>
+  <tr><td>"pelvis"</td><td>XR_BODY_JOINT_PELVIS_BD</td><td>0</td></tr>
+  <tr><td>"left-hip"</td><td>XR_BODY_JOINT_LEFT_HIP_BD</td><td>1</td></tr>
+  <tr><td>"right-hip"</td><td>XR_BODY_JOINT_RIGHT_HIP_BD</td><td>2</td></tr>
+  <tr><td>"spine-1"</td><td>XR_BODY_JOINT_SPINE1_BD</td><td>3</td></tr>
+  <tr><td>"left-knee"</td><td>XR_BODY_JOINT_LEFT_KNEE_BD</td><td>4</td></tr>
+  <tr><td>"right-knee"</td><td>XR_BODY_JOINT_RIGHT_KNEE_BD</td><td>5</td></tr>
+  <tr><td>"spine-2"</td><td>XR_BODY_JOINT_SPINE2_BD</td><td>6</td></tr>
+  <tr><td>"left-ankle"</td><td>XR_BODY_JOINT_LEFT_ANKLE_BD</td><td>7</td></tr>
+  <tr><td>"right-ankle"</td><td>XR_BODY_JOINT_RIGHT_ANKLE_BD</td><td>8</td></tr>
+  <tr><td>"spine-3"</td><td>XR_BODY_JOINT_SPINE3_BD</td><td>9</td></tr>
+  <tr><td>"left-foot"</td><td>XR_BODY_JOINT_LEFT_FOOT_BD</td><td>10</td></tr>
+  <tr><td>"right-foot"</td><td>XR_BODY_JOINT_RIGHT_FOOT_BD</td><td>11</td></tr>
+  <tr><td>"neck"</td><td>XR_BODY_JOINT_NECK_BD</td><td>12</td></tr>
+  <tr><td>"left-collar"</td><td>XR_BODY_JOINT_LEFT_COLLAR_BD</td><td>13</td></tr>
+  <tr><td>"right-collar"</td><td>XR_BODY_JOINT_RIGHT_COLLAR_BD</td><td>14</td></tr>
+  <tr><td>"head"</td><td>XR_BODY_JOINT_HEAD_BD</td><td>15</td></tr>
+  <tr><td>"left-shoulder"</td><td>XR_BODY_JOINT_LEFT_SHOULDER_BD</td><td>16</td></tr>
+  <tr><td>"right-shoulder"</td><td>XR_BODY_JOINT_RIGHT_SHOULDER_BD</td><td>17</td></tr>
+  <tr><td>"left-elbow"</td><td>XR_BODY_JOINT_LEFT_ELBOW_BD</td><td>18</td></tr>
+  <tr><td>"right-elbow"</td><td>XR_BODY_JOINT_RIGHT_ELBOW_BD</td><td>19</td></tr>
+  <tr><td>"left-wrist"</td><td>XR_BODY_JOINT_LEFT_WRIST_BD</td><td>20</td></tr>
+  <tr><td>"right-wrist"</td><td>XR_BODY_JOINT_RIGHT_WRIST_BD</td><td>21</td></tr>
+  <tr><td>"left-hand"</td><td>XR_BODY_JOINT_LEFT_HAND_BD</td><td>22</td></tr>
+  <tr><td>"right-hand"</td><td>XR_BODY_JOINT_RIGHT_HAND_BD</td><td>23</td></tr>
+</tbody>
+</table>
+
+XRBodyPico {#xrbody-interface}
+------
+
+<pre class="idl">
+enum XRBodyJointPico {
+  "pelvis",
+  "left-hip",
+  "right-hip",
+  "spine-1",
+  "left-knee",
+  "right-knee",
+  "spine-2",
+  "left-ankle",
+  "right-ankle",
+  "spine-3",
+  "left-foot",
+  "right-foot",
+  "neck",
+  "left-collar",
+  "right-collar",
+  "head",
+  "left-shoulder",
+  "right-shoulder",
+  "left-elbow",
+  "right-elbow",
+  "left-wrist",
+  "right-wrist",
+  "left-hand",
+  "right-hand"
+};
+
+[Exposed=Window]
+interface XRBodyPico {
+    iterable&lt;XRBodyJointPico, XRBodySpacePico>;
+
+    readonly attribute unsigned long size;
+    XRBodySpacePico get(XRBodyJointPico key);
+};
+</pre>
+
+The {{XRBodyJointPico}} enum defines the various joints that each {{XRBodyPico}} MUST contain. These joints correspond to the joints defined in the ByteDance body tracking extension (XR_BD_body_tracking).
+
+<div algorithm="XRBodyPico.[[joints]]">
+    Each {{XRBodyPico}} object has a <dfn attribute for="XRBodyPico">\[[joints]]</dfn> internal slot,
+    which is an [=ordered map=] of pairs with the key of type {{XRBodyJointPico}} and the value of type {{XRBodySpacePico}}.
+
+    The ordering of the {{[[joints]]}} internal slot is given by the {{XRBodyJointPico|list of joints}} under [=body joints=].
+
+    {{[[joints]]}} MUST NOT change over the course of a session.
+</div>
+
+<div algorithm="XRBodyPico.iterator">
+    The [=value pairs to iterate over=] for an {{XRBodyPico}} object are the list of [=value pairs=] with the key being
+    the {{XRBodyJointPico}} and the value being the {{XRBodySpacePico}} corresponding to that {{XRBodyJointPico}}, ordered by {{XRBodyJointPico|list of joints}}}
+    under [=body joints=].
+</div>
+
+If an individual device does not support a joint defined in this specification, it MUST emulate it instead.
+
+The <dfn attribute for=XRBodyPico>size</dfn> attribute MUST return the number <code>24</code>.
+
+<div class="algorithm" data-algorithm="index-joint-space">
+The <dfn method for="XRBodyPico">get(|jointName|)</dfn> method when invoked on an {{XRBodyPico}} [=this=] MUST run the following steps:
+
+  1. Let |joints| be the value of [=this=]'s {{[[joints]]}} internal slot.
+  2. Return |joints|[|jointName|]. (This implies returning <code>undefined</code> for unknown |jointName|.)
+
+</div>
+
+XRBodySpacePico {#xrjointspace-interface}
+-------------
+
+<pre class="idl">
+[Exposed=Window]
+interface XRBodySpacePico: XRSpace {
+  readonly attribute XRBodyJointPico jointName;
+};
+</pre>
+
+The [=native origin=] of an {{XRBodySpacePico}} is the position and orientation of the underlying [=XRBodySpacePico/joint=].
+
+The [=native origin=] of the {{XRBodySpacePico}} may only be reported when [=native origins=] of all other {{XRBodySpacePico}}s on the same [=XRBodySpacePico/body=] are being reported. When a body is partially obscured the user agent MUST either emulate the obscured joints, or report null poses for all of the joints.
+
+Note: This means that when fetching poses you will either get an entire body or none of it.
+
+The [=native origin=] has its <code>-Y</code> direction pointing perpendicular to the skin, outwards from the body, and <code>-Z</code> direction pointing along their associated bone, away from the body center.
+
+Every {{XRBodySpacePico}} has an associated <dfn for=XRBodySpacePico>body</dfn>, which is the {{XRBodyPico}} that created it.
+
+<dfn for=XRBodySpacePico>jointName</dfn> returns the joint name of the joint it tracks.
+
+Every {{XRBodySpacePico}} has an associated <dfn for=XRBodySpacePico>joint</dfn>, which is the [=body joint=] corresponding to the [=XRBodySpacePico/jointName=].
+
+
+Privacy & Security Considerations {#privacy-security}
+=================================
+The WebXR Body Tracking API is a powerful feature that carries significant privacy risks.
+
+Since this feature MAY return new sensor data, the User Agent MUST ask for [=explicit consent=] from the user at session creation time.
+
+Data returned from this API, MUST NOT be so specific that one can detect individual users.
+If the underlying hardware returns data that is too precise, the User Agent MUST anonymize this data
+before revealing it through the WebXR Body Tracking API.
+
+This API MUST only be supported in XRSessions created with XRSessionMode of {{XRSessionMode/"immersive-vr"}}
+or {{XRSessionMode/"immersive-ar"}}. {{XRSessionMode/"inline"}} sessions MUST not support this API.
+
+<div class="note">
+When anonymizing the body data, the UA can follow these guidelines:
+ * Noising is discouraged in favour of rounding.
+ * If the UA uses rounding, each joint must not be rounded independently. Instead the correct way to round is to map each body to a static body-model.
+ * If noising, the noised data must not reveal any information over time:
+    - Each new WebXR session in the same [=browsing context=] must use the same noise to make sure that the data cannot be de-noised by creating multiple sessions.
+    - Each new [=browsing context=] must use a different noise vector.
+    - Any seed used to initialize the noise must not be predictable.
+ * Anonymization must be done in a trusted environment.
+
+</div>
+
+<h2 id="changes" class="no-num">
+Changes</h2>
