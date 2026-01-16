@@ -35,11 +35,12 @@ Press Ctrl+C to exit.
 
 Four focused components:
 
-**session** (`session.hpp/cpp`) - OpenXR initialization and session management
+**session** (`oxr/oxr_session.hpp`) - OpenXR initialization and session management (from core)
 ```cpp
-class Session {
-    explicit Session(const SessionConfig& config);
-    const SessionHandles& handles() const;
+class OpenXRSession {
+    static std::shared_ptr<OpenXRSession> Create(const std::string& app_name,
+                                                 const std::vector<std::string>& extensions = {});
+    OpenXRSessionHandles get_handles() const;
 };
 ```
 
@@ -83,14 +84,14 @@ Controllers → Wrist Pose → Hand Generator → Hand Injector → OpenXR Runti
 ### Main Loop
 
 ```cpp
-Session session(config);
-auto h = session.handles();
+auto session = core::OpenXRSession::Create("MyApp", {XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME});
+auto h = session->get_handles();
 
-Controllers controllers(h.instance, h.session, h.reference_space);
+Controllers controllers(h.instance, h.session, h.space);
 
 HandGenerator hands;
 
-HandInjector injector(h.instance, h.session, h.reference_space);
+HandInjector injector(h.instance, h.session, h.space);
 
 while (running) {
     controllers.update(time);
@@ -112,14 +113,11 @@ while (running) {
 #### Session Initialization
 
 ```cpp
-#include <plugin_utils/session.hpp>
+#include <oxr/oxr_session.hpp>
 
-SessionConfig config;
-config.app_name = "MyApp";
-config.extensions = {"XR_EXT_hand_tracking"};
-
-Session session(config);
-auto handles = session.handles();
+auto session = core::OpenXRSession::Create("MyApp", {"XR_EXT_hand_tracking"});
+auto handles = session->get_handles();
+// handles.instance, handles.session, handles.space are available
 ```
 
 #### Controller Tracking
@@ -173,7 +171,7 @@ All components use RAII - resources acquired in constructor, released in destruc
 
 ```
 controller_synthetic_hands.cpp
-    ├── session (standalone)
+    ├── oxr_session (from core, standalone)
     ├── controllers (requires OpenXR handles)
     ├── hand_generator (standalone)
     └── hand_injector (requires OpenXR handles)
@@ -231,13 +229,13 @@ TEST(HandGenerator, GeneratesCorrectJointCount) {
 
 ```cpp
 TEST(Integration, FullPipeline) {
-    Session session(test_config);
-    auto h = session.handles();
+    auto session = core::OpenXRSession::Create("TestApp");
+    auto h = session->get_handles();
 
-    Controllers controllers(h.instance, h.session, h.reference_space);
+    Controllers controllers(h.instance, h.session, h.space);
 
     HandGenerator gen;
-    HandInjector injector(h.instance, h.session, h.reference_space);
+    HandInjector injector(h.instance, h.session, h.space);
 
     controllers.update(0);
     auto ctrl = controllers.left();

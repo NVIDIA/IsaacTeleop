@@ -13,6 +13,7 @@ target_link_libraries(manus_plugin_core
     ManusSDK::ManusSDK
     Teleop::plugin_utils
     OpenXR::openxr_loader
+    oxr::oxr_core
   PRIVATE
     oxr::oxr_utils
     Teleop::openxr_extensions

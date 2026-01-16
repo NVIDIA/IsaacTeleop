@@ -20,6 +20,7 @@ find_package(Threads REQUIRED)
 
 target_link_libraries(controller_synthetic_hands PRIVATE
     Teleop::plugin_utils
+    oxr::oxr_core
     OpenXR::openxr_loader
     Teleop::openxr_extensions
     ${CMAKE_DL_LIBS}      # For dlopen/dlsym
