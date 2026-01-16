@@ -15,6 +15,7 @@ from ..interface.retargeting_module import BaseRetargeter, RetargeterIO
 from ..interface.tensor_group_type import TensorGroupType
 from ..interface.tensor_group import TensorGroup
 from ..tensor_types import HandInput, FloatType
+from ..tensor_types import HandInputIndex, HandJointIndex
 
 
 @dataclass
@@ -63,24 +64,24 @@ class GripperRetargeter(BaseRetargeter):
         hand_key = f"hand_{self._config.hand_side}"
         hand_group = inputs[hand_key]
 
-        # Check active (index 4 in HandInput)
-        if not hand_group[4]:
+        # Check active
+        if not hand_group[HandInputIndex.IS_ACTIVE]:
             outputs["gripper_command"][0] = 1.0  # Default open
             return
 
-        # Get joint positions (index 0)
+        # Get joint positions
         # Shape (26, 3)
-        joint_positions = np.from_dlpack(hand_group[0])
-        joint_valid = np.from_dlpack(hand_group[3])
+        joint_positions = np.from_dlpack(hand_group[HandInputIndex.JOINT_POSITIONS])
+        joint_valid = np.from_dlpack(hand_group[HandInputIndex.JOINT_VALID])
 
         # OpenXR indices: Thumb Tip = 5, Index Tip = 10
         # 0: palm, 1: wrist
         # 2: thumb_metacarpal, 3: thumb_proximal, 4: thumb_distal, 5: thumb_tip
         # 6: index_metacarpal, 7: index_proximal, 8: index_intermediate, 9: index_distal, 10: index_tip
 
-        if joint_valid[5] and joint_valid[10]:
-            thumb_pos = joint_positions[5]
-            index_pos = joint_positions[10]
+        if joint_valid[HandJointIndex.THUMB_TIP] and joint_valid[HandJointIndex.INDEX_TIP]:
+            thumb_pos = joint_positions[HandJointIndex.THUMB_TIP]
+            index_pos = joint_positions[HandJointIndex.INDEX_TIP]
 
             distance = np.linalg.norm(thumb_pos - index_pos)
 

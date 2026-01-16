@@ -15,6 +15,7 @@ from ..interface.retargeting_module import BaseRetargeter, RetargeterIO
 from ..interface.tensor_group_type import TensorGroupType
 from ..interface.tensor_group import TensorGroup
 from ..tensor_types import ControllerInput, NDArrayType, DLDataType
+from ..tensor_types import ControllerInputIndex
 
 
 @dataclass
@@ -104,18 +105,18 @@ class LocomotionRootCmdRetargeter(BaseRetargeter):
         # Process Left Controller
         if "controller_left" in inputs:
             left_ctrl = inputs["controller_left"]
-            # Check is_active (index 11 in ControllerInput)
-            if left_ctrl[11]:
-                left_thumbstick_x = float(left_ctrl[6])  # thumbstick_x
-                left_thumbstick_y = float(left_ctrl[7])  # thumbstick_y
+            # Check is_active
+            if left_ctrl[ControllerInputIndex.IS_ACTIVE]:
+                left_thumbstick_x = float(left_ctrl[ControllerInputIndex.THUMBSTICK_X])  # thumbstick_x
+                left_thumbstick_y = float(left_ctrl[ControllerInputIndex.THUMBSTICK_Y])  # thumbstick_y
 
         # Process Right Controller
         if "controller_right" in inputs:
             right_ctrl = inputs["controller_right"]
             # Check is_active
-            if right_ctrl[11]:
-                right_thumbstick_x = float(right_ctrl[6])  # thumbstick_x
-                right_thumbstick_y = float(right_ctrl[7])  # thumbstick_y
+            if right_ctrl[ControllerInputIndex.IS_ACTIVE]:
+                right_thumbstick_x = float(right_ctrl[ControllerInputIndex.THUMBSTICK_X])  # thumbstick_x
+                right_thumbstick_y = float(right_ctrl[ControllerInputIndex.THUMBSTICK_Y])  # thumbstick_y
 
         # Scale inputs
         # Note: In IsaacLab implementation:

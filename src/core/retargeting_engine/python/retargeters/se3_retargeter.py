@@ -15,6 +15,7 @@ from ..interface.retargeting_module import BaseRetargeter, RetargeterIO
 from ..interface.tensor_group_type import TensorGroupType
 from ..interface.tensor_group import TensorGroup
 from ..tensor_types import HandInput, ControllerInput, NDArrayType, DLDataType
+from ..tensor_types import HandInputIndex, ControllerInputIndex, HandJointIndex
 
 try:
     from scipy.spatial.transform import Rotation, Slerp
@@ -95,29 +96,29 @@ class Se3AbsRetargeter(BaseRetargeter):
         if "hand" in device_name:
             # Hand Input
             # Check active
-            if inp[4]: # is_active
+            if inp[HandInputIndex.IS_ACTIVE]: # is_active
                 active = True
-                joint_positions = np.from_dlpack(inp[0])
-                joint_orientations = np.from_dlpack(inp[1])
-                joint_valid = np.from_dlpack(inp[3])
+                joint_positions = np.from_dlpack(inp[HandInputIndex.JOINT_POSITIONS])
+                joint_orientations = np.from_dlpack(inp[HandInputIndex.JOINT_ORIENTATIONS])
+                joint_valid = np.from_dlpack(inp[HandInputIndex.JOINT_VALID])
 
                 # Wrist = 1
-                if joint_valid[1]:
-                    wrist_pos = joint_positions[1]
-                    wrist_ori = joint_orientations[1] # WXYZ
+                if joint_valid[HandJointIndex.WRIST]:
+                    wrist_pos = joint_positions[HandJointIndex.WRIST]
+                    wrist_ori = joint_orientations[HandJointIndex.WRIST] # WXYZ
                     wrist = np.concatenate([wrist_pos, wrist_ori])
 
-                if joint_valid[5]: thumb_tip = np.concatenate([joint_positions[5], joint_orientations[5]])
-                if joint_valid[10]: index_tip = np.concatenate([joint_positions[10], joint_orientations[10]])
+                if joint_valid[HandJointIndex.THUMB_TIP]: thumb_tip = np.concatenate([joint_positions[HandJointIndex.THUMB_TIP], joint_orientations[HandJointIndex.THUMB_TIP]])
+                if joint_valid[HandJointIndex.INDEX_TIP]: index_tip = np.concatenate([joint_positions[HandJointIndex.INDEX_TIP], joint_orientations[HandJointIndex.INDEX_TIP]])
 
         else:
             # Controller Input
             # Check active
-            if inp[11]: # is_active
+            if inp[ControllerInputIndex.IS_ACTIVE]: # is_active
                 active = True
                 # Grip Pose
-                grip_pos = np.from_dlpack(inp[0])
-                grip_ori = np.from_dlpack(inp[1]) # WXYZ
+                grip_pos = np.from_dlpack(inp[ControllerInputIndex.GRIP_POSITION])
+                grip_ori = np.from_dlpack(inp[ControllerInputIndex.GRIP_ORIENTATION]) # WXYZ
                 wrist = np.concatenate([grip_pos, grip_ori])
 
         if not active:
@@ -220,19 +221,19 @@ class Se3RelRetargeter(BaseRetargeter):
         active = False
 
         if "hand" in device_name:
-            if inp[4]: # is_active
+            if inp[HandInputIndex.IS_ACTIVE]: # is_active
                 active = True
-                joint_positions = np.from_dlpack(inp[0])
-                joint_orientations = np.from_dlpack(inp[1])
+                joint_positions = np.from_dlpack(inp[HandInputIndex.JOINT_POSITIONS])
+                joint_orientations = np.from_dlpack(inp[HandInputIndex.JOINT_ORIENTATIONS])
 
-                wrist = np.concatenate([joint_positions[1], joint_orientations[1]])
-                thumb_tip = np.concatenate([joint_positions[5], joint_orientations[5]])
-                index_tip = np.concatenate([joint_positions[10], joint_orientations[10]])
+                wrist = np.concatenate([joint_positions[HandJointIndex.WRIST], joint_orientations[HandJointIndex.WRIST]])
+                thumb_tip = np.concatenate([joint_positions[HandJointIndex.THUMB_TIP], joint_orientations[HandJointIndex.THUMB_TIP]])
+                index_tip = np.concatenate([joint_positions[HandJointIndex.INDEX_TIP], joint_orientations[HandJointIndex.INDEX_TIP]])
         else:
-            if inp[11]: # is_active
+            if inp[ControllerInputIndex.IS_ACTIVE]: # is_active
                 active = True
-                grip_pos = np.from_dlpack(inp[0])
-                grip_ori = np.from_dlpack(inp[1])
+                grip_pos = np.from_dlpack(inp[ControllerInputIndex.GRIP_POSITION])
+                grip_ori = np.from_dlpack(inp[ControllerInputIndex.GRIP_ORIENTATION])
                 wrist = np.concatenate([grip_pos, grip_ori])
 
         if not active:

@@ -11,6 +11,11 @@ from .standard_types import (
     ControllerInput,
     NUM_HAND_JOINTS,
 )
+from .indices import (
+    HandInputIndex,
+    ControllerInputIndex,
+    HandJointIndex,
+)
 
 __all__ = [
     "FloatType",
@@ -24,5 +29,9 @@ __all__ = [
     "HeadPose",
     "ControllerInput",
     "NUM_HAND_JOINTS",
+    # Indices
+    "HandInputIndex",
+    "ControllerInputIndex",
+    "HandJointIndex",
 ]
 

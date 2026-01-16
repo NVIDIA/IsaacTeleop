@@ -19,6 +19,7 @@ from ...interface.retargeting_module import BaseRetargeter, RetargeterIO
 from ...interface.tensor_group_type import TensorGroupType
 from ...interface.tensor_group import TensorGroup
 from ...tensor_types import ControllerInput, FloatType
+from ...tensor_types import ControllerInputIndex
 
 
 @dataclass
@@ -61,6 +62,12 @@ class TriHandMotionController(BaseRetargeter):
     5. Middle Proximal
     6. Middle Distal
     """
+
+    # Mapping constants
+    THUMB_PROXIMAL_SCALE = 0.4
+    THUMB_DISTAL_SCALE = 0.7
+    THUMB_ROTATION_TRIGGER_SCALE = 0.5
+    THUMB_ROTATION_SQUEEZE_SCALE = 0.5
 
     def __init__(self, config: TriHandMotionControllerConfig, name: str) -> None:
         """
@@ -110,7 +117,7 @@ class TriHandMotionController(BaseRetargeter):
         controller_group = inputs[controller_input_key]
 
         # Check if controller is active
-        is_active = controller_group[11]  # is_active field at index 11
+        is_active = controller_group[ControllerInputIndex.IS_ACTIVE]  # is_active field at index 11
 
         if not is_active:
             # Output zeros if controller is not active
@@ -120,22 +127,10 @@ class TriHandMotionController(BaseRetargeter):
             return
 
         # Extract controller inputs
-        # Index mapping (from standard_types.py ControllerInput):
-        # 0: grip_position (NDArray)
-        # 1: grip_orientation (NDArray)
-        # 2: aim_position (NDArray)
-        # 3: aim_orientation (NDArray)
-        # 4: primary_click (FloatType)
-        # 5: secondary_click (FloatType)
-        # 6: thumbstick_x (FloatType)
-        # 7: thumbstick_y (FloatType)
-        # 8: thumbstick_click (FloatType)
-        # 9: squeeze_value (FloatType)
-        # 10: trigger_value (FloatType)
-        # 11: is_active (BoolType)
+        # Index mapping (from constants.py ControllerInputIndex):
 
-        trigger_value = float(controller_group[10])  # trigger_value
-        squeeze_value = float(controller_group[9])   # squeeze_value
+        trigger_value = float(controller_group[ControllerInputIndex.TRIGGER_VALUE])  # trigger_value
+        squeeze_value = float(controller_group[ControllerInputIndex.SQUEEZE_VALUE])   # squeeze_value
 
         # Map controller inputs to hand joints (7 DOFs)
         hand_joints = self._map_to_hand_joints(trigger_value, squeeze_value)
@@ -176,14 +171,14 @@ class TriHandMotionController(BaseRetargeter):
 
         # Thumb rotation: combination of trigger and squeeze
         # This creates different thumb poses depending on input
-        thumb_rotation = 0.5 * trigger - 0.5 * squeeze
+        thumb_rotation = self.THUMB_ROTATION_TRIGGER_SCALE * trigger - self.THUMB_ROTATION_SQUEEZE_SCALE * squeeze
         if not self._is_left:
             thumb_rotation = -thumb_rotation
 
         # Set thumb joints
         hand_joints[0] = thumb_rotation      # Thumb rotation
-        hand_joints[1] = thumb_angle * 0.4   # Thumb proximal
-        hand_joints[2] = thumb_angle * 0.7   # Thumb distal
+        hand_joints[1] = thumb_angle * self.THUMB_PROXIMAL_SCALE   # Thumb proximal
+        hand_joints[2] = thumb_angle * self.THUMB_DISTAL_SCALE   # Thumb distal
 
         # Index finger: controlled by trigger
         index_angle = trigger * 1.0

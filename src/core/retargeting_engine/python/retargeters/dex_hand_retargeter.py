@@ -13,6 +13,9 @@ Based on IsaacLab's DexHandRetargeter, adapted for TeleopCore's retargeting fram
 
 import contextlib
 import numpy as np
+import tempfile
+import os
+import logging
 from typing import Dict, Optional, List
 from dataclasses import dataclass
 
@@ -20,6 +23,7 @@ from ..interface.retargeting_module import BaseRetargeter, RetargeterIO
 from ..interface.tensor_group_type import TensorGroupType
 from ..interface.tensor_group import TensorGroup
 from ..tensor_types import HandInput, FloatType, NUM_HAND_JOINTS
+from ..tensor_types import HandInputIndex, HandJointIndex
 
 # Try to import yaml for config file handling
 try:
@@ -41,6 +45,9 @@ try:
     DEX_RETARGETING_AVAILABLE = True
 except ImportError:
     DEX_RETARGETING_AVAILABLE = False
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -135,7 +142,14 @@ class DexHandRetargeter(BaseRetargeter):
         # Map OpenXR joints (26) to Dex-retargeting (21)
         # OpenXR indices: Wrist(1), Thumb(2-5), Index(7-10), Middle(12-15), Ring(17-20), Pinky(22-25)
         # We skip index 0 (palm) and skip metacarpal joints for non-thumb fingers
-        self._hand_joints_index = [1, 2, 3, 4, 5, 7, 8, 9, 10, 12, 13, 14, 15, 17, 18, 19, 20, 22, 23, 24, 25]
+        self._hand_joints_index = [
+            HandJointIndex.WRIST,
+            HandJointIndex.THUMB_METACARPAL, HandJointIndex.THUMB_PROXIMAL, HandJointIndex.THUMB_DISTAL, HandJointIndex.THUMB_TIP,
+            HandJointIndex.INDEX_PROXIMAL, HandJointIndex.INDEX_INTERMEDIATE, HandJointIndex.INDEX_DISTAL, HandJointIndex.INDEX_TIP,
+            HandJointIndex.MIDDLE_PROXIMAL, HandJointIndex.MIDDLE_INTERMEDIATE, HandJointIndex.MIDDLE_DISTAL, HandJointIndex.MIDDLE_TIP,
+            HandJointIndex.RING_PROXIMAL, HandJointIndex.RING_INTERMEDIATE, HandJointIndex.RING_DISTAL, HandJointIndex.RING_TIP,
+            HandJointIndex.LITTLE_PROXIMAL, HandJointIndex.LITTLE_INTERMEDIATE, HandJointIndex.LITTLE_DISTAL, HandJointIndex.LITTLE_TIP
+        ]
 
     def input_spec(self) -> RetargeterIO:
         """Define input collections for hand tracking."""
@@ -166,7 +180,7 @@ class DexHandRetargeter(BaseRetargeter):
         hand_group = inputs[hand_input_key]
 
         # Check if hand tracking is active
-        is_active = hand_group[4]  # is_active field
+        is_active = hand_group[HandInputIndex.IS_ACTIVE]  # is_active field
 
         if not is_active:
             # Output zeros if hand tracking is not active
@@ -176,9 +190,9 @@ class DexHandRetargeter(BaseRetargeter):
             return
 
         # Convert NDArray inputs to numpy
-        joint_positions = np.from_dlpack(hand_group[0])      # (26, 3) float32
-        joint_orientations = np.from_dlpack(hand_group[1])   # (26, 4) float32
-        joint_valid = np.from_dlpack(hand_group[3])          # (26,) uint8
+        joint_positions = np.from_dlpack(hand_group[HandInputIndex.JOINT_POSITIONS])      # (26, 3) float32
+        joint_orientations = np.from_dlpack(hand_group[HandInputIndex.JOINT_ORIENTATIONS])   # (26, 4) float32
+        joint_valid = np.from_dlpack(hand_group[HandInputIndex.JOINT_VALID])          # (26,) uint8
 
         # Create poses dictionary (joint positions + orientations)
         # Format: {joint_name: [x, y, z, qw, qx, qy, qz], ...}
@@ -222,13 +236,20 @@ class DexHandRetargeter(BaseRetargeter):
         local_urdf = self._config.hand_urdf
 
         # Update YAML with correct URDF path
-        self._update_yaml(self._config.hand_retargeting_config, local_urdf)
+        # Returns path to temporary config file
+        temp_config = self._update_yaml(self._config.hand_retargeting_config, local_urdf)
 
-    def _update_yaml(self, yaml_path: str, urdf_path: str) -> None:
-        """Updates the 'urdf_path' field in the retargeting YAML config."""
+        if temp_config:
+            self._config.hand_retargeting_config = temp_config
+
+    def _update_yaml(self, yaml_path: str, urdf_path: str) -> Optional[str]:
+        """
+        Updates the 'urdf_path' field in the retargeting YAML config.
+        Returns path to new temporary config file.
+        """
         if not YAML_AVAILABLE:
-            print(f"[DexHandRetargeter] Warning: yaml not available, cannot update config file")
-            return
+            logger.warning("yaml not available, cannot update config file")
+            return None
 
         try:
             with open(yaml_path) as f:
@@ -236,10 +257,17 @@ class DexHandRetargeter(BaseRetargeter):
 
             if "retargeting" in config:
                 config["retargeting"]["urdf_path"] = urdf_path
-                with open(yaml_path, "w") as f:
+
+                # Write to temp file to avoid modifying original config
+                fd, path = tempfile.mkstemp(suffix=".yml", prefix="dex_retarget_")
+                with os.fdopen(fd, 'w') as f:
                     yaml.dump(config, f)
+                return path
+
+            return None
         except Exception as e:
-            print(f"[DexHandRetargeter] Error updating YAML {yaml_path}: {e}")
+            logger.error(f"Error updating YAML {yaml_path}: {e}")
+            return None
 
     def _compute_hand(self, poses: Dict[str, np.ndarray]) -> np.ndarray:
         """
@@ -311,7 +339,7 @@ class DexHandRetargeter(BaseRetargeter):
             with torch.enable_grad(), torch.inference_mode(False):
                 return self._dex_hand.retarget(ref_value)
         except Exception as e:
-            print(f"[DexHandRetargeter] Error in retargeting: {e}")
+            logger.error(f"Error in retargeting: {e}")
             return np.zeros(len(self._dex_hand.optimizer.robot.dof_joint_names))
 
 
