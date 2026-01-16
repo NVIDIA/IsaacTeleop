@@ -3,6 +3,7 @@
 
 #include <core/manus_hand_tracking_plugin.hpp>
 #include <oxr_utils/math.hpp>
+#include <oxr_utils/pose_conversions.hpp>
 #include <plugin_utils/hand_injector.hpp>
 
 #include <ManusSDK.h>
@@ -33,27 +34,11 @@ ManusTracker& ManusTracker::instance(const std::string& app_name) noexcept(false
 
 void ManusTracker::update()
 {
-    // Use current steady clock for OpenXR timestamp
-    XrTime time;
-#if defined(_WIN32)
-    LARGE_INTEGER counter;
-    QueryPerformanceCounter(&counter);
-    m_convertWin32Time(m_handles.instance, &counter, &time);
-#else
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    m_convertTimespecTime(m_handles.instance, &ts, &time);
-#endif
-
-    try
+    // Update DeviceIOSession which handles time conversion and tracker updates internally
+    if (!m_deviceio_session->update())
     {
-        m_controllers->update(time);
-        m_latest_left = m_controllers->left();
-        m_latest_right = m_controllers->right();
-    }
-    catch (const std::exception& e)
-    {
-        // Log error? For now just ignore update for this frame
+        // Update failed, skip this frame
+        return;
     }
 
     inject_hand_data();
@@ -142,33 +127,16 @@ void ManusTracker::initialize(const std::string& app_name) noexcept(false)
         }
         m_handles = m_session->get_handles();
 
-        // Get extension function for time conversion
-#if defined(_WIN32)
-        XrResult result = m_handles.xrGetInstanceProcAddr(m_handles.instance, "xrConvertWin32PerformanceCounterToTimeKHR",
-                                                          reinterpret_cast<PFN_xrVoidFunction*>(&m_convertWin32Time));
-        if (XR_SUCCEEDED(result) && m_convertWin32Time)
-#else
-        XrResult result = m_handles.xrGetInstanceProcAddr(m_handles.instance, "xrConvertTimespecTimeToTimeKHR",
-                                                          reinterpret_cast<PFN_xrVoidFunction*>(&m_convertTimespecTime));
-        if (XR_SUCCEEDED(result) && m_convertTimespecTime)
-#endif
-        {
-            m_injector.emplace(m_handles.instance, m_handles.session, m_handles.space);
+        // Initialize hand injector
+        m_injector.emplace(m_handles.instance, m_handles.session, m_handles.space);
 
-            // Initialize controllers
-            m_controllers.emplace(m_handles.instance, m_handles.session, m_handles.space);
+        // Create ControllerTracker and DeviceIOSession
+        m_controller_tracker = std::make_shared<core::ControllerTracker>();
+        std::vector<std::shared_ptr<core::ITracker>> trackers = { m_controller_tracker };
+        m_deviceio_session = core::DeviceIOSession::run(trackers, m_handles);
 
-            std::cout << "OpenXR session, HandInjector and Controllers initialized" << std::endl;
-            success = true;
-        }
-        else
-        {
-#if defined(_WIN32)
-            error_msg = "Failed to get xrConvertWin32PerformanceCounterToTimeKHR function";
-#else
-            error_msg = "Failed to get xrConvertTimespecTimeToTimeKHR function";
-#endif
-        }
+        std::cout << "OpenXR session, HandInjector and DeviceIOSession initialized" << std::endl;
+        success = true;
     }
     catch (const std::exception& e)
     {
@@ -379,17 +347,19 @@ void ManusTracker::inject_hand_data()
         right_nodes = m_right_hand_nodes;
     }
 
-    // Use current steady clock for OpenXR timestamp
-    XrTime time;
-#if defined(_WIN32)
-    LARGE_INTEGER counter;
-    QueryPerformanceCounter(&counter);
-    m_convertWin32Time(m_handles.instance, &counter, &time);
-#else
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    m_convertTimespecTime(m_handles.instance, &ts, &time);
-#endif
+    // Get controller data from DeviceIOSession
+    const auto& controller_data = m_controller_tracker->get_controller_data(*m_deviceio_session);
+
+    // Get timestamp from controller data for injection
+    XrTime time = 0;
+    if (controller_data.left_controller && controller_data.left_controller->is_active())
+    {
+        time = controller_data.left_controller->timestamp().device_time();
+    }
+    else if (controller_data.right_controller && controller_data.right_controller->is_active())
+    {
+        time = controller_data.right_controller->timestamp().device_time();
+    }
 
     auto process_hand = [&](const std::vector<SkeletonNode>& nodes, bool is_left)
     {
@@ -402,29 +372,33 @@ void ManusTracker::inject_hand_data()
         XrPosef root_pose = { { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, 0.0f } };
         bool is_root_tracked = false;
 
-        if (is_left)
-        {
-            if (m_latest_left.aim_valid)
-            {
-                XrPosef raw_pose = m_latest_left.aim_pose;
-                XrPosef offset_pose = kLeftHandOffset;
-                m_left_root_pose = oxr_utils::multiply_poses(raw_pose, offset_pose);
-                is_root_tracked = true;
-            }
-            root_pose = m_left_root_pose;
-        }
-        else
-        {
-            if (m_latest_right.aim_valid)
-            {
-                XrPosef raw_pose = m_latest_right.aim_pose;
-                XrPosef offset_pose = kRightHandOffset;
+        // Get controller snapshot for this hand
+        const core::ControllerSnapshot* snapshot =
+            is_left ? controller_data.left_controller.get() : controller_data.right_controller.get();
 
-                m_right_root_pose = oxr_utils::multiply_poses(raw_pose, offset_pose);
+        if (snapshot)
+        {
+            bool aim_valid = false;
+            XrPosef raw_pose = oxr_utils::get_aim_pose(*snapshot, aim_valid);
+
+            if (aim_valid)
+            {
+                XrPosef offset_pose = is_left ? kLeftHandOffset : kRightHandOffset;
+                XrPosef new_root = oxr_utils::multiply_poses(raw_pose, offset_pose);
+
+                if (is_left)
+                {
+                    m_left_root_pose = new_root;
+                }
+                else
+                {
+                    m_right_root_pose = new_root;
+                }
                 is_root_tracked = true;
             }
-            root_pose = m_right_root_pose;
         }
+
+        root_pose = is_left ? m_left_root_pose : m_right_root_pose;
 
         uint32_t nodes_count = static_cast<uint32_t>(nodes.size());
 
