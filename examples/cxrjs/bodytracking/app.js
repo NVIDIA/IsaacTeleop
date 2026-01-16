@@ -566,11 +566,38 @@ function renderScene(projectionMatrix, viewMatrix, jointPositions) {
     
     if (!jointPositions) return;
     
+    // Draw the original skeleton (user's body)
+    drawSkeleton(jointPositions, 1.0);
+    
+    // Draw a second skeleton facing the user (mirrored and offset)
+    const mirroredPositions = createMirroredSkeleton(jointPositions, 2.0); // 2 meters in front
+    drawSkeleton(mirroredPositions, 0.7); // Slightly dimmer
+}
+
+function createMirroredSkeleton(jointPositions, offsetZ) {
+    const mirrored = {};
+    
+    for (const jointName in jointPositions) {
+        const joint = jointPositions[jointName];
+        const pos = joint.position;
+        
+        // Mirror X position and offset Z to place skeleton in front, facing user
+        mirrored[jointName] = {
+            position: [-pos[0], pos[1], -pos[2] - offsetZ],
+            orientation: joint.orientation
+        };
+    }
+    
+    return mirrored;
+}
+
+function drawSkeleton(jointPositions, brightness) {
     // Draw joints as cubes
     for (const jointName in jointPositions) {
         const joint = jointPositions[jointName];
         const color = getJointColor(jointName);
-        drawCube(joint.position, JOINT_SIZE, color);
+        const adjustedColor = [color[0] * brightness, color[1] * brightness, color[2] * brightness];
+        drawCube(joint.position, JOINT_SIZE, adjustedColor);
     }
     
     // Draw bones as cylinders
@@ -580,7 +607,8 @@ function renderScene(projectionMatrix, viewMatrix, jointPositions) {
         
         if (joint1 && joint2) {
             const color = getBoneColor(joint1Name, joint2Name);
-            drawCylinder(joint1.position, joint2.position, BONE_RADIUS, color);
+            const adjustedColor = [color[0] * brightness, color[1] * brightness, color[2] * brightness];
+            drawCylinder(joint1.position, joint2.position, BONE_RADIUS, adjustedColor);
         }
     }
 }
