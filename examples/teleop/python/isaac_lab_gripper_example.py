@@ -15,7 +15,7 @@ from pathlib import Path
 
 try:
     import teleopcore.deviceio as deviceio
-    from teleopcore.retargeting_engine.sources import HandsSource
+    from teleopcore.retargeting_engine.sources import HandsSource, ControllersSource
     from teleopcore.retargeting_engine.retargeters import (
         GripperRetargeter,
         GripperRetargeterConfig,
@@ -41,12 +41,14 @@ def main():
     # ==================================================================
 
     hand_tracker = deviceio.HandTracker()
+    controller_tracker = deviceio.ControllerTracker()
 
     # ==================================================================
     # Build Retargeting Pipeline
     # ==================================================================
 
     hands = HandsSource(hand_tracker, name="hands")
+    controllers = ControllersSource(controller_tracker, name="controllers")
 
     config = GripperRetargeterConfig(
         hand_side="right",
@@ -57,7 +59,8 @@ def main():
     gripper = GripperRetargeter(config, name="gripper")
 
     pipeline = gripper.connect({
-        "hand_right": hands.output("hand_right")
+        "hand_right": hands.output("hand_right"),
+        "controller_right": controllers.output("controller_right"),
     })
 
     # ==================================================================
@@ -66,7 +69,7 @@ def main():
 
     session_config = TeleopSessionConfig(
         app_name="IsaacLabGripperExample",
-        trackers=[hand_tracker],
+        trackers=[hand_tracker, controller_tracker],
         pipeline=pipeline,
     )
 
