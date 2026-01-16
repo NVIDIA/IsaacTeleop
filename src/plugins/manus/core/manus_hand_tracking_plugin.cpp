@@ -4,7 +4,6 @@
 #include <core/manus_hand_tracking_plugin.hpp>
 #include <oxr_utils/math.hpp>
 #include <plugin_utils/hand_injector.hpp>
-#include <plugin_utils/session.hpp>
 
 #include <ManusSDK.h>
 #include <ManusSDKTypeInitializers.h>
@@ -39,11 +38,11 @@ void ManusTracker::update()
 #if defined(_WIN32)
     LARGE_INTEGER counter;
     QueryPerformanceCounter(&counter);
-    m_convertWin32Time(m_session->handles().instance, &counter, &time);
+    m_convertWin32Time(m_handles.instance, &counter, &time);
 #else
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    m_convertTimespecTime(m_session->handles().instance, &ts, &time);
+    m_convertTimespecTime(m_handles.instance, &ts, &time);
 #endif
 
     try
@@ -128,32 +127,36 @@ void ManusTracker::initialize(const std::string& app_name) noexcept(false)
 
     try
     {
-        plugin_utils::SessionConfig config;
-        config.app_name = app_name;
-        // Require the push device extension
-        config.extensions = { XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME, XR_MND_HEADLESS_EXTENSION_NAME };
+        // Create session with required extensions - Create() automatically begins the session
+        std::vector<std::string> extensions = { XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME };
 #if defined(_WIN32)
-        config.extensions.push_back(XR_KHR_WIN32_CONVERT_PERFORMANCE_COUNTER_TIME_EXTENSION_NAME);
+        extensions.push_back(XR_KHR_WIN32_CONVERT_PERFORMANCE_COUNTER_TIME_EXTENSION_NAME);
 #else
-        config.extensions.push_back(XR_KHR_CONVERT_TIMESPEC_TIME_EXTENSION_NAME);
+        extensions.push_back(XR_KHR_CONVERT_TIMESPEC_TIME_EXTENSION_NAME);
 #endif
-        // Overlay mode required for headless
-        config.use_overlay_mode = true;
 
-        m_session.emplace(config);
-        m_session->begin();
+        m_session = core::OpenXRSession::Create(app_name, extensions);
+        if (!m_session)
+        {
+            throw std::runtime_error("Failed to create OpenXR session");
+        }
+        m_handles = m_session->get_handles();
 
+        // Get extension function for time conversion
 #if defined(_WIN32)
-        if (m_session->get_extension_function("xrConvertWin32PerformanceCounterToTimeKHR", &m_convertWin32Time))
+        XrResult result = m_handles.xrGetInstanceProcAddr(m_handles.instance, "xrConvertWin32PerformanceCounterToTimeKHR",
+                                                          reinterpret_cast<PFN_xrVoidFunction*>(&m_convertWin32Time));
+        if (XR_SUCCEEDED(result) && m_convertWin32Time)
 #else
-        if (m_session->get_extension_function("xrConvertTimespecTimeToTimeKHR", &m_convertTimespecTime))
+        XrResult result = m_handles.xrGetInstanceProcAddr(m_handles.instance, "xrConvertTimespecTimeToTimeKHR",
+                                                          reinterpret_cast<PFN_xrVoidFunction*>(&m_convertTimespecTime));
+        if (XR_SUCCEEDED(result) && m_convertTimespecTime)
 #endif
         {
-            const auto& handles = m_session->handles();
-            m_injector.emplace(handles.instance, handles.session, handles.reference_space);
+            m_injector.emplace(m_handles.instance, m_handles.session, m_handles.space);
 
             // Initialize controllers
-            m_controllers.emplace(handles.instance, handles.session, handles.reference_space);
+            m_controllers.emplace(m_handles.instance, m_handles.session, m_handles.space);
 
             std::cout << "OpenXR session, HandInjector and Controllers initialized" << std::endl;
             success = true;
@@ -381,11 +384,11 @@ void ManusTracker::inject_hand_data()
 #if defined(_WIN32)
     LARGE_INTEGER counter;
     QueryPerformanceCounter(&counter);
-    m_convertWin32Time(m_session->handles().instance, &counter, &time);
+    m_convertWin32Time(m_handles.instance, &counter, &time);
 #else
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    m_convertTimespecTime(m_session->handles().instance, &ts, &time);
+    m_convertTimespecTime(m_handles.instance, &ts, &time);
 #endif
 
     auto process_hand = [&](const std::vector<SkeletonNode>& nodes, bool is_left)

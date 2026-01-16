@@ -19,21 +19,16 @@ SyntheticHandsPlugin::SyntheticHandsPlugin(const std::string& plugin_root_id) no
 {
     std::cout << "Initializing SyntheticHandsPlugin with root: " << m_root_id << std::endl;
 
-    // Initialize session
-    plugin_utils::SessionConfig config;
-    config.app_name = "ControllerSyntheticHands";
-    config.extensions = { XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME, XR_MND_HEADLESS_EXTENSION_NAME,
-                          XR_EXTX_OVERLAY_EXTENSION_NAME };
-    config.use_overlay_mode = true; // Required for headless mode
-
-    // Session constructor will throw if it fails
-    m_session.emplace(config);
-    const auto& handles = m_session->handles();
-
-    m_session->begin();
+    // Initialize session - Create() automatically begins the session
+    m_session = core::OpenXRSession::Create("ControllerSyntheticHands", { XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME });
+    if (!m_session)
+    {
+        throw std::runtime_error("Failed to create OpenXR session");
+    }
+    const auto handles = m_session->get_handles();
 
     // Initialize controllers
-    m_controllers.emplace(handles.instance, handles.session, handles.reference_space);
+    m_controllers.emplace(handles.instance, handles.session, handles.space);
 
     // Initialize hand injection using the selected method
     if (USE_SPACE_BASED_INJECTION)
@@ -43,7 +38,7 @@ SyntheticHandsPlugin::SyntheticHandsPlugin(const std::string& plugin_root_id) no
     }
     else
     {
-        m_injector.emplace(handles.instance, handles.session, handles.reference_space);
+        m_injector.emplace(handles.instance, handles.session, handles.space);
     }
 
     // Start worker thread
