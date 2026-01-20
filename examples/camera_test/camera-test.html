@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Camera Test</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body style="background:#222;color:#fff;font-family:sans-serif;text-align:center;padding-top:30px;">
+  <h1>Camera Test</h1>
+
+  <button id="enumBtn" style="font-size:20px;padding:15px 30px;cursor:pointer;margin:5px;background:#0066cc;">
+    LIST CAMERAS
+  </button>
+
+  <button id="stopBtn" style="font-size:20px;padding:15px 30px;cursor:pointer;margin:5px;background:#cc0000;">
+    STOP
+  </button>
+
+  <div id="camButtons" style="margin:20px;"></div>
+
+  <p id="status" style="font-size:18px;margin:20px;">Click LIST CAMERAS first</p>
+  <pre id="devices" style="text-align:left;background:#333;padding:10px;margin:10px;font-size:12px;display:none;max-height:200px;overflow:auto;"></pre>
+  <div id="videoContainer" style="display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin:20px;align-items:flex-start;"></div>
+
+  <script>
+    let streams = [];
+    let videoElements = [];
+    let deviceList = [];
+    const borderColors = ['lime', 'cyan', 'yellow', 'magenta', 'orange', 'white'];
+
+    function stopCamera() {
+      streams.forEach(s => s.getTracks().forEach(t => t.stop()));
+      streams = [];
+      videoElements.forEach(v => v.remove());
+      videoElements = [];
+    }
+
+    // Core function to open a camera and attach to video element. Ideal is higher than max just to make sure it's isn't limited by these settings.
+    async function openCamera(deviceId, videoEl, ideal = 2048) {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          deviceId: { exact: deviceId },
+          width: { ideal },
+          height: { ideal },
+          frameRate: { ideal: 60 }
+        }
+      });
+
+      streams.push(stream);
+      videoEl.srcObject = stream;
+
+      await new Promise(r => { videoEl.onloadedmetadata = r; setTimeout(r, 1000); });
+
+      const track = stream.getVideoTracks()[0];
+      const caps = track.getCapabilities ? track.getCapabilities() : null;
+      const settings = track.getSettings();
+
+      videoEl.style.width = videoEl.videoWidth + 'px';
+      videoEl.style.height = videoEl.videoHeight + 'px';
+
+      return {
+        maxCap: caps ? `${caps.width.max}x${caps.height.max}` : '?',
+        actual: `${videoEl.videoWidth}x${videoEl.videoHeight}`,
+        maxFps: caps?.frameRate ? caps.frameRate.max : '?',
+        actualFps: settings.frameRate ? settings.frameRate.toFixed(1) : '?'
+      };
+    }
+
+    async function useCameras(indices) {
+      const status = document.getElementById('status');
+      const container = document.getElementById('videoContainer');
+
+      // For single front camera, warn about Quest front camera issue
+      if (indices.length === 1) {
+        const dev = deviceList[indices[0]];
+        if (!dev.label.includes('facing back')) {
+          if (!confirm('⚠️ WARNING: Trying to access the front camera on Quest can break the camera APIs until a device reboot.\n\nContinue anyway?')) {
+            return;
+          }
+        }
+      }
+
+      stopCamera();
+      await new Promise(r => setTimeout(r, 300));
+
+      status.textContent = 'Opening camera(s)...';
+      status.style.color = 'orange';
+
+      try {
+        const results = [];
+        for (let i = 0; i < indices.length; i++) {
+          const dev = deviceList[indices[i]];
+
+          // Create video element dynamically
+          const camIndex = indices[i];
+          const color = borderColors[i % borderColors.length];
+          const video = document.createElement('video');
+          video.autoplay = true;
+          video.muted = true;
+          video.playsInline = true;
+          video.style.border = `3px solid ${color}`;
+          container.appendChild(video);
+          videoElements.push(video);
+
+          const info = await openCamera(dev.deviceId, video);
+          info.facing = dev.label.includes('facing back') ? 'back' : 'front';
+          info.name = dev.label ? dev.label.split(',')[0].trim() : `cam${camIndex}`;
+          info.color = color;
+          info.deviceIndex = camIndex;
+          results.push(info);
+        }
+
+        // Sort by device index to match enumeration order
+        results.sort((a, b) => a.deviceIndex - b.deviceIndex);
+
+        let info = results.length > 1 ? `${results.length} CAMERAS\n` : `${results[0].name} (${results[0].facing})\n`;
+        info += '━━━━━━━━━━━━━━━━━━━━━━━━\n';
+        results.forEach((r) => {
+          if (results.length > 1) info += `${r.name} (${r.facing}) [${r.color}]:\n`;
+          info += `  Max resolution: ${r.maxCap}\n`;
+          info += `  Actual resolution: ${r.actual}\n`;
+          info += `  Max FPS: ${r.maxFps}\n`;
+          info += `  Actual FPS: ${r.actualFps}\n`;
+        });
+
+        status.innerHTML = '<pre style="text-align:left;margin:0;font-size:13px;">' + info + '</pre>';
+        status.style.color = 'lime';
+      } catch (e) {
+        stopCamera();
+        status.textContent = 'FAILED: ' + e.name + ': ' + e.message;
+        status.style.color = 'red';
+      }
+    }
+
+    // Clean up streams when page unloads
+    window.addEventListener('beforeunload', stopCamera);
+    window.addEventListener('pagehide', stopCamera);
+
+    document.getElementById('enumBtn').onclick = async function() {
+      const status = document.getElementById('status');
+      const pre = document.getElementById('devices');
+      const btnContainer = document.getElementById('camButtons');
+
+      status.textContent = 'Enumerating...';
+      status.style.color = 'orange';
+      btnContainer.innerHTML = '';
+
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        deviceList = devices.filter(d => d.kind === 'videoinput');
+
+        let info = '';
+        const rearCamIndices = [];
+        deviceList.forEach((d, i) => {
+          const isBack = d.label.includes('facing back');
+          if (isBack) rearCamIndices.push(i);
+          info += (i+1) + '. ' + (d.label || '(no label)') + '\n';
+          info += '   ID: ' + d.deviceId + '\n';
+          info += '   back: ' + (isBack ? 'yes' : 'no') + '\n\n';
+        });
+
+        // Create individual camera buttons
+        deviceList.forEach((d, i) => {
+          const isBack = d.label.includes('facing back');
+          // Extract short name from label (e.g. "camera2" from "camera2, facing back")
+          const shortName = d.label ? d.label.split(',')[0].trim() : `cam${i}`;
+          const btn = document.createElement('button');
+          if (isBack) {
+            btn.textContent = shortName + ' (back)';
+            btn.style.cssText = 'font-size:18px;padding:12px 24px;cursor:pointer;margin:5px;background:#00aa00;color:white;border:none;border-radius:5px;';
+          } else {
+            btn.textContent = '⚠️ ' + shortName + ' (front) ⚠️';
+            btn.style.cssText = 'font-size:18px;padding:12px 24px;cursor:pointer;margin:5px;background:#880000;color:#ff6666;border:2px dashed #ff0000;border-radius:5px;';
+            btn.title = 'WARNING: May break camera APIs on Quest until reboot!';
+          }
+          btn.onclick = () => useCameras([i]);
+          btnContainer.appendChild(btn);
+        });
+
+        // Add ALL BACK button at end if 2+ rear cameras
+        if (rearCamIndices.length >= 2) {
+          const allPassthroughBtn = document.createElement('button');
+          allPassthroughBtn.textContent = 'All passthrough cameras';
+          allPassthroughBtn.style.cssText = 'font-size:18px;padding:12px 24px;cursor:pointer;margin:5px;background:#aa00aa;color:white;border:none;border-radius:5px;';
+          allPassthroughBtn.onclick = () => useCameras(rearCamIndices);
+          btnContainer.appendChild(allPassthroughBtn);
+        }
+
+        pre.textContent = info;
+        pre.style.display = 'block';
+        status.textContent = 'Found ' + deviceList.length + ' camera(s)';
+        status.style.color = 'lime';
+      } catch (e) {
+        status.textContent = 'Error: ' + e.name + ': ' + e.message;
+        status.style.color = 'red';
+      }
+    };
+
+    document.getElementById('stopBtn').onclick = function() {
+      stopCamera();
+      document.getElementById('status').textContent = 'Stopped';
+      document.getElementById('status').style.color = 'yellow';
+    };
+  </script>
+</body>
+</html>
