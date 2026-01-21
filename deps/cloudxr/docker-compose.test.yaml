@@ -1,0 +1,85 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Test docker-compose file for running TeleopCore tests with CloudXR
+# Extends the base CloudXR compose and adds test runner service
+#
+# Note: Run with a different project name to isolate volumes from dev environment:
+#   docker compose -p teleopcore-test -f docker-compose.yaml -f docker-compose.test.yaml up
+#
+# This creates volumes like "teleopcore-test_openxr-volume" instead of "cloudxr_openxr-volume"
+#
+# NOTE: Must be used with -f docker-compose.yaml -f docker-compose.test.yaml
+# (Docker Compose's include: directive doesn't allow service overrides)
+
+services:
+  # Override cloudxr-runtime to always accept EULA in CI
+  cloudxr-runtime:
+    environment:
+      - ACCEPT_EULA=Y
+      - NV_CXR_ENABLE_PUSH_DEVICES=${NV_CXR_ENABLE_PUSH_DEVICES}
+
+  # Test runner container
+  # Build with: docker build -t teleopcore-tests:latest -f deps/cloudxr/Dockerfile.test .
+  teleopcore-tests:
+    image: teleopcore-tests:latest
+    pull_policy: never
+    network_mode: host
+    depends_on:
+      cloudxr-runtime:
+        condition: service_healthy
+    environment:
+      - XDG_RUNTIME_DIR=/openxr/run
+      - XR_RUNTIME_JSON=/openxr/share/openxr/1/openxr_cloudxr.json
+      - TEST_SCRIPTS=${TEST_SCRIPTS:-test_extensions.py}
+    volumes:
+      - openxr-volume:/openxr/:ro
+    working_dir: /app/tests
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -e
+        echo "=========================================="
+        echo "TeleopCore Test Runner"
+        echo "=========================================="
+        echo ""
+        echo "XR_RUNTIME_JSON: $${XR_RUNTIME_JSON}"
+        echo ""
+
+        # Parse comma-separated test scripts
+        IFS=',' read -ra TESTS <<< "$${TEST_SCRIPTS}"
+
+        PASSED=0
+        FAILED=0
+        FAILED_TESTS=""
+
+        for test_script in "$${TESTS[@]}"; do
+            test_script=$$(echo "$$test_script" | xargs)  # trim whitespace
+            echo "----------------------------------------"
+            echo "Running: $$test_script"
+            echo "----------------------------------------"
+
+            if python "$$test_script"; then
+                echo "✅ PASSED: $$test_script"
+                PASSED=$((PASSED + 1))
+            else
+                echo "❌ FAILED: $$test_script"
+                FAILED=$((FAILED + 1))
+                FAILED_TESTS="$$FAILED_TESTS $$test_script"
+            fi
+            echo ""
+        done
+
+        echo "=========================================="
+        echo "Test Results Summary"
+        echo "=========================================="
+        echo "Passed: $$PASSED"
+        echo "Failed: $$FAILED"
+
+        if [ $$FAILED -gt 0 ]; then
+            echo "Failed tests:$$FAILED_TESTS"
+            exit 1
+        fi
+
+        echo "✅ All tests passed!"
+        exit 0
