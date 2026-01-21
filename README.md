@@ -100,7 +100,7 @@ examples/cxrjs/
 5. **Build and load CloudXR containers**
 ```bash
 ./examples/cxrjs/build_containers.sh
-./scripts/load_cloudxr_images.sh
+./scripts/cloudxr_image_ops.sh --load server-webrtc-6.1.0-beta-rc2
 ```
 
 > **Important:** Make sure you place the `.gz` and `.tgz` files from the previous steps at the
