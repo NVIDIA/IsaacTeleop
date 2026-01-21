@@ -54,3 +54,11 @@ jobs:
 
     - name: Run All Tests
       run: ctest --test-dir build --output-on-failure --parallel
+
+    - name: Upload Release build artifacts
+      if: matrix.build_type == 'Release'
+      uses: actions/upload-artifact@v4
+      with:
+        name: teleopcore-build-release
+        path: build/
+        retention-days: 1

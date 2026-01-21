@@ -1,0 +1,42 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Test container for TeleopCore Python tests
+# This container installs dependencies and runs Python tests against CloudXR runtime
+
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libx11-6 \
+    libxext6 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app directory
+WORKDIR /app
+
+# Install uv for fast Python package management
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# Copy the install directory (contains wheels, libs, etc.)
+COPY install/ /app/install/
+
+# Copy test files
+COPY examples/oxr/python/ /app/tests/
+
+# Install Python dependencies using uv
+WORKDIR /app/tests
+RUN uv venv /app/venv && \
+    . /app/venv/bin/activate && \
+    uv pip install --find-links=/app/install/wheels teleopcore numpy
+
+# Set environment variables
+ENV PATH="/app/venv/bin:$PATH"
+ENV PYTHONPATH="/app/install/lib:$PYTHONPATH"
+ENV XR_RUNTIME_JSON="/openxr/share/openxr/1/openxr_cloudxr.json"
+
+WORKDIR /app/tests
+
+# Default command runs the test script
+CMD ["python", "test_extensions.py"]
