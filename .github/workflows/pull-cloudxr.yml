@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: Pull CloudXR Runtime
+
+on:
+  pull_request:
+
+jobs:
+  pull-cloudxr:
+    runs-on: ubuntu-latest
+    environment: dev
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Parse CloudXR tag from .env.default
+      id: cloudxr
+      run: |
+        # Extract the tag from CLOUDXR_RUNTIME_IMAGE in .env.default
+        # Format: CLOUDXR_RUNTIME_IMAGE=cloudxr-runtime:<tag>
+        CLOUDXR_TAG=$(grep '^CLOUDXR_RUNTIME_IMAGE=' deps/cloudxr/.env.default | sed 's/.*cloudxr-runtime://')
+        echo "tag=${CLOUDXR_TAG}" >> $GITHUB_OUTPUT
+        echo "CloudXR tag: ${CLOUDXR_TAG}"
+
+    - name: Login to NVIDIA Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: nvcr.io
+        username: $oauthtoken
+        password: ${{ secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY }}
+
+    - name: Pull CloudXR Runtime
+      run: |
+        ./scripts/cloudxr_image_ops.sh --pull ${{ steps.cloudxr.outputs.tag }}
