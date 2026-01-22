@@ -11,7 +11,7 @@ import numpy as np
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
-from ..interface.retargeting_module import BaseRetargeter, RetargeterIO
+from ..interface import BaseRetargeter, RetargeterIO
 from ..interface.tensor_group_type import TensorGroupType
 from ..interface.tensor_group import TensorGroup
 from ..tensor_types import HandInput, ControllerInput, NDArrayType, DLDataType
@@ -186,8 +186,8 @@ class Se3RelRetargeter(BaseRetargeter):
         self._position_threshold = 0.001
         self._rotation_threshold = 0.01
 
-        self._previous_thumb_tip = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]) # xyz wxyz
-        self._previous_index_tip = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
+        self._previous_thumb_tip = None
+        self._previous_index_tip = None
         self._previous_wrist = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
 
         self._first_frame = True
@@ -215,8 +215,8 @@ class Se3RelRetargeter(BaseRetargeter):
         inp = inputs[device_name]
 
         wrist = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
-        thumb_tip = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
-        index_tip = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
+        thumb_tip = None
+        index_tip = None
 
         active = False
 
@@ -249,20 +249,26 @@ class Se3RelRetargeter(BaseRetargeter):
             return
 
         # Calculate Deltas
-        delta_thumb_tip = self._calculate_delta_pose(thumb_tip, self._previous_thumb_tip)
-        delta_index_tip = self._calculate_delta_pose(index_tip, self._previous_index_tip)
+        delta_thumb_tip = None
+        if thumb_tip is not None and self._previous_thumb_tip is not None:
+            delta_thumb_tip = self._calculate_delta_pose(thumb_tip, self._previous_thumb_tip)
+
+        delta_index_tip = None
+        if index_tip is not None and self._previous_index_tip is not None:
+            delta_index_tip = self._calculate_delta_pose(index_tip, self._previous_index_tip)
+
         delta_wrist = self._calculate_delta_pose(wrist, self._previous_wrist)
 
         # Retarget Rel
 
         # Position
-        if self._config.use_wrist_position:
+        if self._config.use_wrist_position or delta_thumb_tip is None or delta_index_tip is None:
             position = delta_wrist[:3]
         else:
             position = (delta_thumb_tip[:3] + delta_index_tip[:3]) / 2
 
         # Rotation
-        if self._config.use_wrist_rotation:
+        if self._config.use_wrist_rotation or delta_thumb_tip is None or delta_index_tip is None:
             rotation = delta_wrist[3:6]
         else:
             rotation = (delta_thumb_tip[3:6] + delta_index_tip[3:6]) / 2

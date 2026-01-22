@@ -12,15 +12,14 @@ Uses hand tracking (thumb-index distance) to control gripper state.
 import sys
 import time
 from pathlib import Path
+import teleopcore.deviceio as deviceio
 
 try:
-    import teleopcore.deviceio as deviceio
-    from teleopcore.retargeting_engine.sources import HandsSource, ControllersSource
     from teleopcore.retargeting_engine.retargeters import (
         GripperRetargeter,
         GripperRetargeterConfig,
     )
-    from teleopcore.teleop_utils import TeleopSession, TeleopSessionConfig
+    from teleopcore.teleop_session_manager import TeleopSession, TeleopSessionConfig, create_standard_inputs
 except ImportError as e:
     print(f"Error: {e}")
     print("Make sure TeleopCore and all modules are built and installed")
@@ -37,18 +36,19 @@ def main():
     print("=" * 80 + "\n")
 
     # ==================================================================
-    # Setup: Create trackers
+    # Setup: Create standard inputs (trackers + sources)
     # ==================================================================
 
     hand_tracker = deviceio.HandTracker()
     controller_tracker = deviceio.ControllerTracker()
+    trackers = [hand_tracker, controller_tracker]
+    sources = create_standard_inputs(trackers)
+    hands = sources["hands"]
+    controllers = sources["controllers"]
 
     # ==================================================================
     # Build Retargeting Pipeline
     # ==================================================================
-
-    hands = HandsSource(hand_tracker, name="hands")
-    controllers = ControllersSource(controller_tracker, name="controllers")
 
     config = GripperRetargeterConfig(
         hand_side="right",
@@ -69,16 +69,18 @@ def main():
 
     session_config = TeleopSessionConfig(
         app_name="IsaacLabGripperExample",
-        trackers=[hand_tracker, controller_tracker],
+        trackers=[], # Empty list if using new sources
         pipeline=pipeline,
     )
 
     with TeleopSession(session_config) as session:
+        # No session injection needed
+
         start_time = time.time()
 
         try:
             while time.time() - start_time < 30.0:
-                result = session.run()
+                result = session.step()
 
                 # Output: -1.0 (closed) or 1.0 (open)
                 cmd = result["gripper_command"][0]
@@ -101,4 +103,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-

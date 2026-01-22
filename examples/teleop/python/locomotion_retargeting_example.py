@@ -12,15 +12,14 @@ from VR controller inputs.
 import sys
 import time
 from pathlib import Path
+import teleopcore.deviceio as deviceio
 
 try:
-    import teleopcore.deviceio as deviceio
-    from teleopcore.retargeting_engine.sources import ControllersSource
     from teleopcore.retargeting_engine.retargeters import (
         LocomotionRootCmdRetargeter,
         LocomotionRootCmdRetargeterConfig,
     )
-    from teleopcore.teleop_utils import TeleopSession, TeleopSessionConfig, PluginConfig
+    from teleopcore.teleop_session_manager import TeleopSession, TeleopSessionConfig, PluginConfig, create_standard_inputs
 except ImportError as e:
     print(f"Error: {e}")
     print("Make sure TeleopCore and all modules are built and installed")
@@ -43,16 +42,17 @@ def main():
     print("=" * 80 + "\n")
 
     # ==================================================================
-    # Setup: Create trackers
+    # Setup: Create standard inputs (trackers + sources)
     # ==================================================================
 
     controller_tracker = deviceio.ControllerTracker()
+    trackers = [controller_tracker]
+    sources = create_standard_inputs(trackers)
+    controllers = sources["controllers"]
 
     # ==================================================================
     # Build Retargeting Pipeline
     # ==================================================================
-
-    controllers = ControllersSource(controller_tracker, name="controllers")
 
     config = LocomotionRootCmdRetargeterConfig(
         initial_hip_height=0.72,
@@ -85,18 +85,20 @@ def main():
 
     session_config = TeleopSessionConfig(
         app_name="LocomotionExample",
-        trackers=[controller_tracker],
+        trackers=[], # Empty list if using new sources via create_standard_inputs
         pipeline=pipeline,
         plugins=plugins,
     )
 
     with TeleopSession(session_config) as session:
+        # No need to inject session anymore
+
         start_time = time.time()
 
         try:
             while time.time() - start_time < 30.0:
                 # Run one iteration
-                result = session.run()
+                result = session.step()
 
                 # Get root command: [vel_x, vel_y, rot_vel_z, hip_height]
                 cmd = result["root_command"][0]
@@ -118,4 +120,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-

@@ -12,13 +12,11 @@ Minimal boilerplate - just configure and run!
 import sys
 import time
 from pathlib import Path
+import teleopcore.deviceio as deviceio
 
 try:
-    import teleopcore.deviceio as deviceio
-    import teleopcore.oxr as oxr
-    from teleopcore.retargeting_engine.sources import ControllersSource
-    from teleopcore.retargeting_engine.examples import GripperRetargeter
-    from teleopcore.teleop_utils import TeleopSession, TeleopSessionConfig, PluginConfig
+    from teleopcore.retargeting_engine.retargeters import GripperRetargeter, GripperRetargeterConfig
+    from teleopcore.teleop_session_manager import TeleopSession, TeleopSessionConfig, PluginConfig, create_standard_inputs
 except ImportError as e:
     print(f"Error: {e}")
     print("Make sure TeleopCore and all modules are built and installed")
@@ -32,26 +30,31 @@ PLUGIN_ROOT_ID = "synthetic_hands"
 
 def main():
     # ==================================================================
-    # Setup: Create trackers
+    # Setup: Create standard inputs (trackers + sources)
     # ==================================================================
-    
+
+    hand_tracker = deviceio.HandTracker()
     controller_tracker = deviceio.ControllerTracker()
-    
+    trackers = [hand_tracker, controller_tracker]
+    sources = create_standard_inputs(trackers)
+    hands = sources["hands"]
+    controllers = sources["controllers"]
+
     # ==================================================================
     # Build Retargeting Pipeline
     # ==================================================================
-    
-    controllers = ControllersSource(controller_tracker, name="controllers")
-    gripper = GripperRetargeter(name="gripper")
+
+    retargeter_config = GripperRetargeterConfig()
+    gripper = GripperRetargeter(retargeter_config, name="gripper")
     pipeline = gripper.connect({
-        "controller_left": controllers.output("controller_left"),
+        "hand_right": hands.output("hand_right"),
         "controller_right": controllers.output("controller_right")
     })
-    
+
     # ==================================================================
     # Configure Plugins (optional)
     # ==================================================================
-    
+
     plugins = []
     if PLUGIN_ROOT_DIR.exists():
         plugins.append(PluginConfig(
@@ -59,47 +62,48 @@ def main():
             plugin_root_id=PLUGIN_ROOT_ID,
             search_paths=[PLUGIN_ROOT_DIR],
         ))
-    
+
     # ==================================================================
     # Create and run TeleopSession
     # ==================================================================
-    
+
     config = TeleopSessionConfig(
         app_name="GripperRetargetingSimple",
-        trackers=[controller_tracker],
+        trackers=[], # Empty list if using new sources
         pipeline=pipeline,
         plugins=plugins,
     )
-    
+
     with TeleopSession(config) as session:
+        # No session injection needed
+
         print("\n" + "=" * 60)
         print("Gripper Retargeting - Squeeze triggers to control grippers")
         print("=" * 60 + "\n")
-        
+
         start_time = time.time()
-        
+
         try:
             while time.time() - start_time < 20.0:
                 # Run one iteration (updates trackers + executes pipeline)
-                result = session.run()
-                
+                result = session.step()
+
                 # Get gripper values
-                left = result["gripper_left"][0]
-                right = result["gripper_right"][0]
-                
+                # left = result["gripper_left"][0]
+                right = result["gripper_command"][0]
+
                 # Print status every 0.5 seconds
                 if session.frame_count % 30 == 0:
                     elapsed = session.get_elapsed_time()
-                    print(f"[{elapsed:5.1f}s] Left: {left:.2f}  Right: {right:.2f}")
-                
+                    print(f"[{elapsed:5.1f}s] Right: {right:.2f}")
+
                 time.sleep(0.016)  # ~60 FPS
-        
+
         except KeyboardInterrupt:
             print("\n\nInterrupted by user")
-    
+
     return 0
 
 
 if __name__ == "__main__":
     sys.exit(main())
-

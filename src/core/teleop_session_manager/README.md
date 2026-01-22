@@ -17,17 +17,15 @@ The main component is `TeleopSession`, which manages the complete lifecycle of a
 Here's a minimal example:
 
 ```python
-from teleopcore.teleop_utils import (
+from teleopcore.teleop_session_manager import (
     TeleopSession,
     TeleopSessionConfig,
 )
-from teleopcore.deviceio import ControllerTracker
-from teleopcore.retargeting_engine.sources import ControllersSource
+from teleopcore.retargeting_engine.deviceio_source_nodes import ControllersSource
 from teleopcore.retargeting_engine.examples import GripperRetargeter
 
-# Create tracker and build pipeline
-controller_tracker = ControllerTracker()
-controllers = ControllersSource(controller_tracker, name="controllers")
+# Create source and build pipeline
+controllers = ControllersSource(name="controllers")
 gripper = GripperRetargeter(name="gripper")
 pipeline = gripper.connect({
     "controller_left": controllers.output("controller_left"),
@@ -37,8 +35,8 @@ pipeline = gripper.connect({
 # Configure session
 config = TeleopSessionConfig(
     app_name="MyTeleopApp",
-    trackers=[controller_tracker],
     pipeline=pipeline,
+    trackers=[], # Auto-discovered
 )
 
 # Run!
@@ -60,9 +58,9 @@ The main configuration object:
 @dataclass
 class TeleopSessionConfig:
     app_name: str                           # OpenXR application name
-    trackers: List[Any]                     # Tracker instances
     pipeline: Any                           # Connected retargeting pipeline
-    plugins: List[PluginConfig]             # Plugin configurations
+    trackers: List[Any] = []                # Tracker instances (optional)
+    plugins: List[PluginConfig] = []        # Plugin configurations (optional)
     verbose: bool = True                    # Print progress info
 ```
 
@@ -126,14 +124,22 @@ plugin_manager = pm.PluginManager([...])
 plugin_context = plugin_manager.start(...)
 
 # Setup pipeline
-controllers = ControllersSource(controller_tracker, name="controllers")
+controllers = ControllersSource(name="controllers")
 gripper = GripperRetargeter(name="gripper")
 pipeline = gripper.connect({...})
 
 # Main loop
 while True:
     deviceio_session.update()
-    result = pipeline()
+    # Manual data injection needed for new sources
+    controller_data = controller_tracker.get_controller_data(deviceio_session)
+    inputs = {
+        "controllers": {
+            "deviceio_controller_left": [controller_data.left_controller],
+            "deviceio_controller_right": [controller_data.right_controller]
+        }
+    }
+    result = pipeline(inputs)
     # ... error handling, cleanup ...
 ```
 
@@ -170,12 +176,12 @@ with TeleopSession(config) as session:
 with TeleopSession(config) as session:
     while True:
         result = session.step()
-        
+
         # Custom logic
         left_gripper = result["gripper_left"][0]
         if left_gripper > 0.5:
             print("Left gripper activated!")
-        
+
         # Frame timing
         if session.frame_count % 60 == 0:
             print(f"Running at {60 / session.get_elapsed_time():.1f} FPS")

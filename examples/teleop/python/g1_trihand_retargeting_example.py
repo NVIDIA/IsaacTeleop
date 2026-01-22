@@ -20,11 +20,12 @@ try:
     import teleopcore.deviceio as deviceio
     import teleopcore.oxr as oxr
     import teleopcore.plugin_manager as pm
-    from teleopcore.retargeting_engine.sources import ControllersSource
+    from teleopcore.retargeting_engine.deviceio_source_nodes import ControllersSource
     from teleopcore.retargeting_engine.retargeters import (
         TriHandMotionController,
         TriHandMotionControllerConfig,
     )
+    from teleopcore.teleop_session_manager import TeleopSession, TeleopSessionConfig
 except ImportError as e:
     print(f"Error: {e}")
     print("Make sure TeleopCore is built and installed")
@@ -46,11 +47,8 @@ def example_trihand_motion_controller():
     print("- Squeeze: Controls middle finger")
     print("- Both: Controls thumb\n")
 
-    # Create controller tracker
-    controller_tracker = deviceio.ControllerTracker()
-
-    # Create controllers source
-    controllers = ControllersSource(controller_tracker, name="controllers")
+    # Create controllers source (tracker is internal)
+    controllers = ControllersSource(name="controllers")
 
     # Configure TriHandMotionController for G1 7-DOF hand
     hand_joint_names = [
@@ -87,33 +85,52 @@ def example_trihand_motion_controller():
         "controller_right": controllers.output("controller_right")
     })
 
-    # Get required extensions and create OpenXR session
-    trackers = [controller_tracker]
-    required_extensions = deviceio.DeviceIOSession.get_required_extensions(trackers)
+    # ==================================================================
+    # Create and run TeleopSession
+    # ==================================================================
 
-    with oxr.OpenXRSession.create("TriHandMotionControllerExample", required_extensions) as oxr_session:
-        handles = oxr_session.get_handles()
+    session_config = TeleopSessionConfig(
+        app_name="TriHandMotionControllerExample",
+        trackers=[], # Auto-discovered
+        pipeline=None, # We have two separate pipelines here, need to combine or run one?
+                       # Wait, TeleopSession takes ONE pipeline.
+                       # We need to combine them into an OutputLayer or similar if we want to run both.
+                       # Or we can just pass one if the other is not needed, but here we want both.
+                       # Actually, TeleopSession.run() executes self.pipeline().
+                       # If we pass `connected_left`, only left runs.
+                       # We should combine them using OutputLayer.
+    )
 
-        # Create DeviceIO session with trackers
-        with deviceio.DeviceIOSession.run(trackers, handles) as deviceio_session:
-            # Initialize plugin (if available)
-            plugin_context = None
-            if PLUGIN_ROOT_DIR.exists():
-                manager = pm.PluginManager([str(PLUGIN_ROOT_DIR)])
-                if PLUGIN_NAME in manager.get_plugin_names():
-                    plugin_context = manager.start(PLUGIN_NAME, PLUGIN_ROOT_ID)
+    # Let's combine them into a single executable graph using OutputLayer
+    from teleopcore.retargeting_engine.interface import OutputLayer
 
-            # Run control loop
-            if plugin_context:
-                with plugin_context:
-                    run_motion_controller_loop(deviceio_session, connected_left, connected_right)
-            else:
-                run_motion_controller_loop(deviceio_session, connected_left, connected_right)
+    combined_pipeline = OutputLayer({
+        "left_hand": connected_left.output("hand_joints"),
+        "right_hand": connected_right.output("hand_joints")
+    }, name="combined_output")
+
+    session_config.pipeline = combined_pipeline
+
+    # Configure Plugins
+    plugins = []
+    if PLUGIN_ROOT_DIR.exists():
+        from teleopcore.teleop_session_manager import PluginConfig
+        plugins.append(PluginConfig(
+            plugin_name=PLUGIN_NAME,
+            plugin_root_id=PLUGIN_ROOT_ID,
+            search_paths=[PLUGIN_ROOT_DIR],
+        ))
+    session_config.plugins = plugins
+
+    with TeleopSession(session_config) as session:
+        # No session injection needed
+
+        run_motion_controller_loop(session)
 
     return 0
 
 
-def run_motion_controller_loop(deviceio_session, connected_left, connected_right):
+def run_motion_controller_loop(session):
     """Run the motion controller loop."""
     start_time = time.time()
     frame_count = 0
@@ -122,20 +139,16 @@ def run_motion_controller_loop(deviceio_session, connected_left, connected_right
     print("=" * 80)
 
     while time.time() - start_time < 20.0:
-        # Update DeviceIO session (polls trackers)
-        deviceio_session.update()
-
-        # Execute retargeting graph for both hands
-        result_left = connected_left()
-        result_right = connected_right()
+        # Execute retargeting graph
+                result = session.step()
 
         # Access output joint angles
-        joints_left = result_left["hand_joints"]
-        joints_right = result_right["hand_joints"]
+        joints_left = result["left_hand"]
+        joints_right = result["right_hand"]
 
         # Print every 0.5 seconds
         if frame_count % 30 == 0:
-            elapsed = time.time() - start_time
+            elapsed = session.get_elapsed_time()
 
             # Left hand (thumb, index, middle)
             l_thumb = joints_left[0]
@@ -163,4 +176,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-

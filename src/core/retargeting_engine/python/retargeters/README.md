@@ -161,13 +161,12 @@ Bimanual wrapper around two `TriHandMotionController` instances.
 See `g1_trihand_retargeting_example.py` for a complete working example.
 
 ```python
-from teleopcore.retargeting_engine.sources import HandsSource
+from teleopcore.retargeting_engine.deviceio_source_nodes import HandsSource
 from teleopcore.retargeting_engine import DexHandRetargeter, DexHandRetargeterConfig
 import teleopcore.deviceio as deviceio
 
-# Initialize hand tracker
-hand_tracker = deviceio.HandTracker()
-hands_source = HandsSource(hand_tracker, name="hands")
+# Initialize hands source (tracker is internal)
+hands_source = HandsSource(name="hands")
 
 # Configure retargeter
 config = DexHandRetargeterConfig(
@@ -184,8 +183,9 @@ connected = retargeter.connect({
     "hand_left": hands_source.output("hand_left")
 })
 
-output = connected.compute()
-joint_angles = output["hand_joints"]
+# Note: In a real application, use TeleopSession to run the pipeline
+# output = connected.compute()
+# joint_angles = output["hand_joints"]
 ```
 
 ## Coordinate Frame Transformations

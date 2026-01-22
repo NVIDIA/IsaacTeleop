@@ -15,12 +15,12 @@ from pathlib import Path
 try:
     import teleopcore.deviceio as deviceio
     import teleopcore.oxr as oxr
-    from teleopcore.retargeting_engine.sources import HandsSource
+    from teleopcore.retargeting_engine.deviceio_source_nodes import HandsSource
     from teleopcore.retargeting_engine.retargeters import (
         DexBiManualRetargeter,
         DexHandRetargeterConfig,
     )
-    from teleopcore.teleop_utils import TeleopSession, TeleopSessionConfig
+    from teleopcore.teleop_session_manager import TeleopSession, TeleopSessionConfig
 except ImportError as e:
     print(f"Error: {e}")
     print("Make sure TeleopCore and all modules are built and installed")
@@ -51,16 +51,11 @@ def main():
         print(f"Warning: Config file {left_yaml} not found. Example may fail.")
 
     # ==================================================================
-    # Setup: Create trackers
-    # ==================================================================
-
-    hand_tracker = deviceio.HandTracker()
-
-    # ==================================================================
     # Build Retargeting Pipeline
     # ==================================================================
 
-    hands = HandsSource(hand_tracker, name="hands")
+    # Create source (tracker is internal)
+    hands = HandsSource(name="hands")
 
     # Dummy joint names for example
     left_joints = [
@@ -113,7 +108,7 @@ def main():
 
     session_config = TeleopSessionConfig(
         app_name="DexBiManualExample",
-        trackers=[hand_tracker],
+        trackers=[], # Auto-discovered from pipeline
         pipeline=pipeline,
     )
 
@@ -124,7 +119,7 @@ def main():
             start_time = time.time()
 
             while time.time() - start_time < 20.0:
-                result = session.run()
+                result = session.step()
 
                 # Output: Combined joint angles
                 # result["hand_joints"] is a TensorGroup containing scalar floats
@@ -152,4 +147,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-

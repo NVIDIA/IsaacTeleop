@@ -1,6 +1,0 @@
-{
-  "ros.distro": "iron",
-  "python.autoComplete.extraPaths": [
-    "/opt/ros/iron/lib/python3.10/site-packages"
-  ]
-}

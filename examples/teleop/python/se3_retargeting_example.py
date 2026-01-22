@@ -16,13 +16,13 @@ from pathlib import Path
 
 try:
     import teleopcore.deviceio as deviceio
-    from teleopcore.retargeting_engine.sources import HandsSource, ControllersSource
+    from teleopcore.retargeting_engine.deviceio_source_nodes import HandsSource, ControllersSource
     from teleopcore.retargeting_engine.retargeters import (
         Se3AbsRetargeter,
         Se3RelRetargeter,
         Se3RetargeterConfig,
     )
-    from teleopcore.teleop_utils import TeleopSession, TeleopSessionConfig
+    from teleopcore.teleop_session_manager import TeleopSession, TeleopSessionConfig
 except ImportError as e:
     print(f"Error: {e}")
     print("Make sure TeleopCore and all modules are built and installed")
@@ -40,12 +40,10 @@ def run_abs_example(use_controller=False):
     print("=" * 80 + "\n")
 
     if use_controller:
-        tracker = deviceio.ControllerTracker()
-        source = ControllersSource(tracker, name="controllers")
+        source = ControllersSource(name="controllers")
         input_device = "controller_right"
     else:
-        tracker = deviceio.HandTracker()
-        source = HandsSource(tracker, name="hands")
+        source = HandsSource(name="hands")
         input_device = "hand_right"
 
     config = Se3RetargeterConfig(
@@ -62,15 +60,17 @@ def run_abs_example(use_controller=False):
 
     session_config = TeleopSessionConfig(
         app_name="Se3AbsExample",
-        trackers=[tracker],
+        trackers=[], # Auto-discovered
         pipeline=pipeline,
     )
 
     with TeleopSession(session_config) as session:
+        # No session injection needed
+
         start_time = time.time()
         try:
             while time.time() - start_time < 20.0:
-                result = session.run()
+                result = session.step()
 
                 # Output: [x, y, z, qx, qy, qz, qw]
                 pose = result["ee_pose"][0]
@@ -96,17 +96,16 @@ def run_rel_example(use_controller=False):
     print("=" * 80 + "\n")
 
     if use_controller:
-        tracker = deviceio.ControllerTracker()
-        source = ControllersSource(tracker, name="controllers")
+        source = ControllersSource(name="controllers")
         input_device = "controller_right"
     else:
-        tracker = deviceio.HandTracker()
-        source = HandsSource(tracker, name="hands")
+        source = HandsSource(name="hands")
         input_device = "hand_right"
 
     config = Se3RetargeterConfig(
         input_device=input_device,
-        use_wrist_position=False,
+        use_wrist_position=use_controller,
+        use_wrist_rotation=use_controller,
         zero_out_xy_rotation=True,
         delta_pos_scale_factor=5.0,
         delta_rot_scale_factor=2.0,
@@ -120,15 +119,17 @@ def run_rel_example(use_controller=False):
 
     session_config = TeleopSessionConfig(
         app_name="Se3RelExample",
-        trackers=[tracker],
+        trackers=[], # Auto-discovered
         pipeline=pipeline,
     )
 
     with TeleopSession(session_config) as session:
+        # No session injection needed
+
         start_time = time.time()
         try:
             while time.time() - start_time < 20.0:
-                result = session.run()
+                result = session.step()
 
                 # Output: [dx, dy, dz, drx, dry, drz]
                 delta = result["ee_delta"][0]
@@ -174,4 +175,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-

@@ -15,7 +15,7 @@ import numpy as np
 from typing import Dict, List
 from dataclasses import dataclass
 
-from ...interface.retargeting_module import BaseRetargeter, RetargeterIO
+from ...interface import BaseRetargeter, RetargeterIO
 from ...interface.tensor_group_type import TensorGroupType
 from ...interface.tensor_group import TensorGroup
 from ...tensor_types import ControllerInput, FloatType
