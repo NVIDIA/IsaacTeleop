@@ -3,7 +3,7 @@
 
 [project]
 name = "teleopcore-schema-tests"
-version = "0.1.0"
+version = "0.0.0"  # Internal tests - not versioned
 description = "Tests for TeleopCore schema types"
 requires-python = ">=3.11"
 

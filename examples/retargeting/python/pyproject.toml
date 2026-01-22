@@ -3,7 +3,7 @@
 
 [project]
 name = "retargeting-examples"
-version = "0.1.0"
+version = "0.0.0"  # Internal examples - not versioned
 description = "Retargeting Engine Python Examples"
 requires-python = ">=3.11,<3.12"
 dependencies = [

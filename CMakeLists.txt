@@ -2,7 +2,18 @@
 # SPDX-License-Identifier: Apache-2.0
 
 cmake_minimum_required(VERSION 3.20...3.25)
-project(TeleopCore VERSION 1.0.0 LANGUAGES CXX)
+
+# ==============================================================================
+# Version Configuration (SINGLE SOURCE OF TRUTH)
+# ==============================================================================
+# Read version from VERSION file - this is the single source of truth for the
+# TeleopCore version. Both CMake and Python (pyproject.toml) read from this file.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" TELEOPCORE_VERSION)
+string(STRIP "${TELEOPCORE_VERSION}" TELEOPCORE_VERSION)
+message(STATUS "TeleopCore version: ${TELEOPCORE_VERSION}")
+# ==============================================================================
+
+project(TeleopCore VERSION ${TELEOPCORE_VERSION} LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

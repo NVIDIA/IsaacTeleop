@@ -3,7 +3,7 @@
 
 [project]
 name = "teleopcore-retargeting-engine"
-version = "0.1.0"
+version = "0.0.0"  # Internal tests - not versioned
 description = "Retargeting engine type system for TeleopCore"
 requires-python = ">=3.11"
 

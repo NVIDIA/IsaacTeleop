@@ -10,7 +10,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "teleopcore"
-version = "0.1.0"
+version = "@TELEOPCORE_VERSION@"
 description = "TeleopCore - Teleoperation with Device I/O"
 readme = "README.md"
 requires-python = "==@TELEOPCORE_PYTHON_VERSION@.*"
