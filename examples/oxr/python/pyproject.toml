@@ -3,7 +3,7 @@
 
 [project]
 name = "oxr-examples"
-version = "0.1.0"
+version = "0.0.0"  # Internal examples - not versioned
 description = "OpenXR Tracking Python Examples"
 requires-python = ">=3.11,<3.12"
 dependencies = [

@@ -6,7 +6,7 @@
 
 [project]
 name = "teleopcore-stubgen"
-version = "0.1.0"
+version = "0.0.0"  # Internal tooling - not versioned
 description = "Stub generation dependencies for TeleopCore pybind11 modules"
 requires-python = ">=3.11"
 
