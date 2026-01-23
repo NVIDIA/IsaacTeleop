@@ -213,6 +213,27 @@ Validate the Python package has been successfully built and installed.
 python -c "import teleopcore.deviceio"
 ```
 
+Run a quick test:
+```bash
+export XDG_RUNTIME_DIR=$HOME/.cloudxr/run
+export XR_RUNTIME_JSON=$HOME/.cloudxr/share/openxr/1/openxr_cloudxr.json
+
+python ./examples/oxr/python/test_extensions.py
+```
+
+> **Tips**
+> It's important to set `XDG_RUNTIME_DIR` and `XR_RUNTIME_JSON`.  Consider settings them in
+> `.bashrc`.
+>
+> ```
+> cat >> ~/.bashrc << 'EOF'
+>
+> # CloudXR runtime environment
+> export XDG_RUNTIME_DIR=$HOME/.cloudxr/run
+> export XR_RUNTIME_JSON=$HOME/.cloudxr/share/openxr/1/openxr_cloudxr.json
+> EOF
+> ```
+
 2. **Run Teleop with Isaac Lab**
 
 ```bash
