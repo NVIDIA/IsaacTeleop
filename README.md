@@ -3,11 +3,11 @@ SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All 
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Teleop Core
+# Isaac Teleop
 
 <div align="center">
 
-**The unified framework for sim & real robot teleoperation**
+**The unified framework for high-fidelity ego-centric and robotics data collection.**
 
 [![Python](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 [![Isaac Lab](https://img.shields.io/badge/Isaac%20Lab-2.3.0-orange.svg)](https://isaac-sim.github.io/IsaacLab/)
@@ -28,24 +28,40 @@ SPDX-License-Identifier: Apache-2.0
 
 ## Hardware requirements
 
-### Sim-based teleop
+### Minimum (for robot teleop & data collection)
+
+- **CPU**: X86 (ARM support coming soon)
+- **GPU**: NVIDIA GPU required
+
+### Running simulation with Isaac Sim and Isaac Lab
 
 - **CPU**: AMD Ryzen Threadripper 7960x (Recommended)
 - **GPU**: 1x RTX 6000 Pro (Blackwell) or 2x RTX 6000 (Ada)
 
-### Real robot teleop
-
-- **CPU**: X86, and ARM support coming soon
-- **GPU**: NVIDIA GPU required
-
-## Quick Start
-
-### Prerequisites
+## Prerequisites
 
 - **OS**: Ubuntu 22.04 or 24.04
 - **Python**: 3.11 or newer (version configured in root `CMakeLists.txt`)
 - **CUDA**: 12.8 (Recommended)
 - **NVIDIA Driver**: 580.95.05 (Recommended)
+
+### One time setup
+
+1. Request [CloudXR SDK Early Access](https://developer.nvidia.com/cloudxr-sdk-early-access-program/join)
+
+2. Install Docker by following the [public guide](https://docs.docker.com/engine/install/ubuntu)
+
+3. Install [NGC CLI tool](https://org.ngc.nvidia.com/setup/installers/cli)
+
+4. Configure your [NGC API key](https://org.ngc.nvidia.com/setup/api-keys)
+
+5. Verify you have access to all the artifacts
+```
+ngc registry resource list "nvidia/cloudxr-js-early-access"
+ngc registry image list "nvidia/cloudxr-runtime-early-access"
+```
+
+## Quick Start
 
 ### Installation
 
@@ -78,7 +94,7 @@ cd TeleopCore
 4. **Download CloudXR**
 
 Download CloudXR PID (Product Information Delivery) from NVOnline (https://partners.nvidia.com/).
-In the package, you should found two `tar.gz` files:
+In the package, you should found a `tar.gz` file:
 
 Place `cloudxr-runtime-1b2d2486-webrtc.tar.gz` under the `deps/cloudxr` folder:
 ```
@@ -87,14 +103,6 @@ deps/
 │   ├── CLOUDXR_LICENSE
 │   ├── docker-compose.yaml
 │   └── cloudxr-runtime-1b2d2486-webrtc.tar.gz
-```
-
-Place `cloudxr-js-client-6.0.0-beta.tar.gz` under the `examples/cxrjs/pid` folder:
-```
-examples/cxrjs/
-├── build_containers.sh
-├── pid
-│   └── cloudxr-js-client-6.0.0-beta.tar.gz
 ```
 
 5. **Build and load CloudXR containers**
@@ -122,7 +130,8 @@ sudo ufw allow 47998:48000,48005,48008,48012/udp
 sudo ufw allow 49100/tcp
 sudo ufw allow 48322/tcp
 
-# The web server.
+# The web server for HTTP and HTTPS.
+sudo ufw allow 8080
 sudo ufw allow 8443
 ```
 
@@ -131,14 +140,14 @@ sudo ufw allow 8443
 The last step will run a couple docker containers and one of them is the WebXR server. It can be
 accessed via the browser on your HMD support (Quest 3 or Pico 4 Ultra).
 
-- Local: ``https://localhost:8443/``
-- Network: ``https://<server-ip>:8443/``
+- Local: `https://localhost:8443` or `http://localhost:8080`
+- Network: `https://<server-ip>:8443` or `http://<server-ip>:8080`
 
 > **Tips:**
-> - For Pico 4 Ultra, Pico OS 15.4.4U or later is required.
 > - For rapid development and debugging, we recommend testing your CloudXR.js application on a
-> desktop browser with [IWER](https://meta-quest.github.io/immersive-web-emulation-runtime/) before
-> deploying to XR headsets.
+>   desktop browser before deploying to XR headsets.
+> - For Pico 4 Ultra, Pico OS 15.4.4U or later is required.
+> - HTTP mode is easier to use, but currently is not supported by
 
 ### CloudXR Configurations (Optional)
 
@@ -196,7 +205,7 @@ cmake --install build
 
 Install the Python package
 ```bash
-uv pip install build/wheels/teleopcore-*.whl
+uv pip install --find-links=install/wheels teleopcore
 ```
 
 Validate the Python package has been successfully built and installed.
