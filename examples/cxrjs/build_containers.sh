@@ -7,7 +7,7 @@ set -e  # Exit on error
 
 # Make sure to run this script from the root of the repository.
 GIT_ROOT=$(git rev-parse --show-toplevel)
-cd "$GIT_ROOT/examples/cxrjs" || exit 1
+cd "$GIT_ROOT/examples/cxrjs"
 
 # Colors for output
 RED='\033[0;31m'
@@ -56,19 +56,26 @@ while [[ $# -gt 0 ]]; do
 done
 
 echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}Building CloudXR Web Client PID${NC}"
+echo -e "${GREEN}Building CloudXR Web Client EA SDK${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 
-# Step 1: Extract the CloudXR Web Client PID
-cd "$GIT_ROOT/examples/cxrjs/pid" || exit 1
-echo -e "${YELLOW}[1/4] Extracting CloudXR Web Client PID...${NC}"
-tar -xzf cloudxr-js-client-6.0.0-beta.tar.gz
-echo -e "${GREEN}✓ CloudXR Web Client PID extracted${NC}"
+# Step 1: Extract the CloudXR Web Client EA SDK
+echo -e "${YELLOW}[1/4] Downloading CloudXR Web SDK...${NC}"
+cd $GIT_ROOT/examples/cxrjs
+ngc registry resource download-version \
+    --team no-team \
+    "nvidia/cloudxr-js-early-access:6.0.1-beta"
+
+rm -rf ea && mv cloudxr-js-early-access_v6.0.1-beta ea
+
+cd "$GIT_ROOT/examples/cxrjs/ea"
+tar -xzf release.tar.gz
+echo -e "${GREEN}✓ CloudXR Web Client EA SDK extracted${NC}"
 echo ""
 
 # Step 2: Clean up if requested
-cd "$GIT_ROOT/examples/cxrjs/pid/isaac" || exit 1
+cd "$GIT_ROOT/examples/cxrjs/ea/isaac"
 if [ "$CLEAN" = true ]; then
     echo -e "${YELLOW}[2/4] Cleaning previous build artifacts...${NC}"
     rm -rf node_modules
@@ -83,7 +90,7 @@ fi
 
 # Step 3: Install dependencies
 echo -e "${YELLOW}[2/4] Installing npm dependencies...${NC}"
-npm install ../nvidia-cloudxr-6.0.0-beta.tgz
+npm install ../nvidia-cloudxr-6.0.1-beta.tgz
 npm install
 echo -e "${GREEN}✓ Dependencies installed${NC}"
 echo ""
@@ -99,12 +106,12 @@ echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}Building CloudXR Isaac Teleop Container${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
-cd "$GIT_ROOT/examples/cxrjs" || exit 1
+cd "$GIT_ROOT/examples/cxrjs"
 
 # Step 1: Build Docker container
 echo -e "${YELLOW}[1/2] Building Docker container...${NC}"
 docker build \
-    --build-arg EXAMPLE_PATH=./pid/isaac/build \
+    --build-arg EXAMPLE_PATH=./ea/isaac/build \
     -t "${IMAGE_PREFIX}-web-app:${IMAGE_TAG}" \
     -f Dockerfile.web-app \
     .
