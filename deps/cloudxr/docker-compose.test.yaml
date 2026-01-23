@@ -33,6 +33,7 @@ services:
       - NV_CXR_RUNTIME_DIR=/cloudxr/run
       - XR_RUNTIME_JSON=/cloudxr/share/openxr/1/openxr_cloudxr.json
       - TEST_SCRIPTS=${TEST_SCRIPTS:-test_extensions.py}
+      - NATIVE_TESTS=${NATIVE_TESTS:-}
     volumes:
       - openxr-volume:/cloudxr/:ro
     working_dir: /app/tests
@@ -45,31 +46,63 @@ services:
         echo "=========================================="
         echo ""
         echo "XR_RUNTIME_JSON: $${XR_RUNTIME_JSON}"
+        echo "PYTHON_TESTS: $${PYTHON_TESTS}"
+        echo "NATIVE_TESTS: $${NATIVE_TESTS}"
         echo ""
-
-        # Parse comma-separated test scripts
-        IFS=',' read -ra TESTS <<< "$${TEST_SCRIPTS}"
 
         PASSED=0
         FAILED=0
         FAILED_TESTS=""
 
-        for test_script in "$${TESTS[@]}"; do
-            test_script=$$(echo "$$test_script" | xargs)  # trim whitespace
-            echo "----------------------------------------"
-            echo "Running: $$test_script"
-            echo "----------------------------------------"
+        # Run Python tests
+        if [ -n "$${PYTHON_TESTS}" ]; then
+            echo "=========================================="
+            echo "Running Python Tests"
+            echo "=========================================="
+            IFS=',' read -ra TESTS <<< "$${PYTHON_TESTS}"
 
-            if python "$$test_script"; then
-                echo "✅ PASSED: $$test_script"
-                PASSED=$((PASSED + 1))
-            else
-                echo "❌ FAILED: $$test_script"
-                FAILED=$((FAILED + 1))
-                FAILED_TESTS="$$FAILED_TESTS $$test_script"
-            fi
-            echo ""
-        done
+            for test_script in "$${TESTS[@]}"; do
+                test_script=$$(echo "$$test_script" | xargs)  # trim whitespace
+                echo "----------------------------------------"
+                echo "Running: $$test_script"
+                echo "----------------------------------------"
+
+                if python "$$test_script"; then
+                    echo "✅ PASSED: $$test_script"
+                    PASSED=$((PASSED + 1))
+                else
+                    echo "❌ FAILED: $$test_script"
+                    FAILED=$((FAILED + 1))
+                    FAILED_TESTS="$$FAILED_TESTS $$test_script"
+                fi
+                echo ""
+            done
+        fi
+
+        # Run native C++ tests
+        if [ -n "$${NATIVE_TESTS}" ]; then
+            echo "=========================================="
+            echo "Running Native C++ Tests"
+            echo "=========================================="
+            IFS=',' read -ra NATIVES <<< "$${NATIVE_TESTS}"
+
+            for native_test in "$${NATIVES[@]}"; do
+                native_test=$$(echo "$$native_test" | xargs)  # trim whitespace
+                echo "----------------------------------------"
+                echo "Running: $$native_test"
+                echo "----------------------------------------"
+
+                if /app/$$native_test; then
+                    echo "✅ PASSED: $$native_test"
+                    PASSED=$((PASSED + 1))
+                else
+                    echo "❌ FAILED: $$native_test"
+                    FAILED=$((FAILED + 1))
+                    FAILED_TESTS="$$FAILED_TESTS $$native_test"
+                fi
+                echo ""
+            done
+        fi
 
         echo "=========================================="
         echo "Test Results Summary"
