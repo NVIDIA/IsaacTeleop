@@ -56,6 +56,7 @@ private:
 
     const OpenXRSessionHandles handles_;
     std::unordered_map<const ITracker*, std::shared_ptr<ITrackerImpl>> tracker_impls_;
+    std::unordered_map<const ITracker*, uint64_t> tracker_update_failure_counts_;
 
     // For time conversion
 #if defined(XR_USE_PLATFORM_WIN32)
