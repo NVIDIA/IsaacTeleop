@@ -18,6 +18,7 @@ services:
     environment:
       - ACCEPT_EULA=Y
       - NV_CXR_ENABLE_PUSH_DEVICES=${NV_CXR_ENABLE_PUSH_DEVICES}
+      - NV_DEVICE_PROFILE=Quest3
 
   # Test runner container
   # Build with: docker build -t teleopcore-tests:latest -f deps/cloudxr/Dockerfile.test .

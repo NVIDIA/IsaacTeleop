@@ -16,6 +16,7 @@ services:
     environment:
       - ACCEPT_EULA=${ACCEPT_CLOUDXR_EULA:-Y}
       - NV_CXR_ENABLE_PUSH_DEVICES=${NV_CXR_ENABLE_PUSH_DEVICES}
+      - NV_DEVICE_PROFILE=${NV_DEVICE_PROFILE:-auto-webrtc}
     volumes:
       - openxr-volume:/openxr/
     deploy:
