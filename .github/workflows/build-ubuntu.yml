@@ -59,12 +59,16 @@ jobs:
       if: matrix.build_type == 'Release'
       run: cmake --install build
 
-    - name: Upload Release install artifacts
+    - name: Create tarball to preserve permissions
+      if: matrix.build_type == 'Release'
+      run: tar -cvf teleopcore-install.tar -C install .
+
+    - name: Upload Release artifacts
       if: matrix.build_type == 'Release'
       uses: actions/upload-artifact@v4
       with:
         name: teleopcore-install-release
-        path: install/
+        path: teleopcore-install.tar
         retention-days: 1
 
   test-cloudxr:
@@ -85,7 +89,15 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: teleopcore-install-release
-        path: install/
+
+    - name: Extract tarball to preserve permissions
+      run: |
+        mkdir -p install
+        tar -xvf teleopcore-install.tar -C install
+
+    - name: Restore execute permissions on test binaries
+      run: |
+        find build -type f -name '*_tests' -exec chmod +x {} \;
 
     - name: Parse CloudXR tag from .env.default
       id: cloudxr

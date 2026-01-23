@@ -1,1 +1,6 @@
+# CloudXR runtime tarballs
 *.tar.gz
+
+# CloudXR environment files
+.env
+.env.test

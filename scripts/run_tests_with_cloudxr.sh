@@ -16,11 +16,16 @@
 set -e
 
 #==============================================================================
-# Configuration - Edit this list to add/remove tests
+# Configuration - Edit these lists to add/remove tests
 #==============================================================================
-TEST_SCRIPTS=(
+PYTHON_TESTS=(
     "test_extensions.py"
     "test_modular.py"
+)
+
+NATIVE_TESTS=(
+    "build/src/core/mcap_tests/cpp/mcap_tests"
+    "build/src/core/schema_tests/cpp/schema_tests"
 )
 #==============================================================================
 
@@ -43,8 +48,12 @@ EXIT_CODE=0
 # Compose files and project name
 COMPOSE_BASE="deps/cloudxr/docker-compose.yaml"
 COMPOSE_TEST="deps/cloudxr/docker-compose.test.yaml"
+
 # Use a different project name to isolate volumes from run_cloudxr.sh
 COMPOSE_PROJECT="teleopcore-test"
+
+# Environment file for test configuration
+ENV_TEST="deps/cloudxr/.env.test"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -62,8 +71,15 @@ while [[ $# -gt 0 ]]; do
             echo "  --build    Force rebuild of test container (no cache)"
             echo "  --help     Show this help message"
             echo ""
-            echo "Tests to run (edit TEST_SCRIPTS in this script to modify):"
-            for test in "${TEST_SCRIPTS[@]}"; do
+            echo "Tests to run (edit PYTHON_TESTS/NATIVE_TESTS in this script):"
+            echo ""
+            echo "Python tests:"
+            for test in "${PYTHON_TESTS[@]}"; do
+                echo "  - $test"
+            done
+            echo ""
+            echo "Native tests:"
+            for test in "${NATIVE_TESTS[@]}"; do
                 echo "  - $test"
             done
             exit 0
@@ -99,6 +115,7 @@ cleanup() {
         -p "$COMPOSE_PROJECT" \
         --env-file "$ENV_DEFAULT" \
         ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
+        ${ENV_TEST:+--env-file "$ENV_TEST"} \
         -f "$COMPOSE_BASE" \
         -f "$COMPOSE_TEST" \
         down -v --remove-orphans 2>/dev/null || true
@@ -141,20 +158,35 @@ log_info "Setting up environment..."
 # Source shared CloudXR environment setup
 source scripts/setup_cloudxr_env.sh
 
-log_info "TEST_SCRIPTS:"
-for test in "${TEST_SCRIPTS[@]}"; do
+log_info "PYTHON_TESTS:"
+for test in "${PYTHON_TESTS[@]}"; do
+    log_info "  - $test"
+done
+log_info "NATIVE_TESTS:"
+for test in "${NATIVE_TESTS[@]}"; do
     log_info "  - $test"
 done
 
-# Join array into comma-separated string for docker-compose environment variable
-TEST_SCRIPTS_ENV=$(IFS=','; echo "${TEST_SCRIPTS[*]}")
-export TEST_SCRIPTS="$TEST_SCRIPTS_ENV"
+# Join arrays into comma-separated strings for docker-compose environment variables
+PYTHON_TESTS_ENV=$(IFS=','; echo "${PYTHON_TESTS[*]}")
+export PYTHON_TESTS="$PYTHON_TESTS_ENV"
 
-# In CI, auto-accept EULA
+NATIVE_TESTS_ENV=$(IFS=','; echo "${NATIVE_TESTS[*]}")
+export NATIVE_TESTS="$NATIVE_TESTS_ENV"
+
+# Create/update .env file with test configuration
+log_info "Writing test configuration to $ENV_TEST..."
 if [ "${CI:-false}" = "true" ]; then
     log_info "CI environment detected, auto-accepting CloudXR EULA"
-    echo "ACCEPT_CLOUDXR_EULA=Y" > "$ENV_LOCAL"
 fi
+{
+    echo "PYTHON_TESTS=$PYTHON_TESTS"
+    echo "NATIVE_TESTS=$NATIVE_TESTS"
+    # In CI, auto-accept EULA
+    if [ "${CI:-false}" = "true" ]; then
+        echo "ACCEPT_CLOUDXR_EULA=Y"
+    fi
+} > "$ENV_TEST"
 
 # Verify install directory exists and has required artifacts
 log_info "Verifying build artifacts..."
@@ -202,6 +234,7 @@ docker compose \
     -p "$COMPOSE_PROJECT" \
     --env-file "$ENV_DEFAULT" \
     ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
+    ${ENV_TEST:+--env-file "$ENV_TEST"} \
     -f "$COMPOSE_BASE" \
     -f "$COMPOSE_TEST" \
     up -d cloudxr-runtime
@@ -216,6 +249,7 @@ while [ $WAITED -lt $MAX_WAIT ]; do
         -p "$COMPOSE_PROJECT" \
         --env-file "$ENV_DEFAULT" \
         ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
+        ${ENV_TEST:+--env-file "$ENV_TEST"} \
         -f "$COMPOSE_BASE" \
         -f "$COMPOSE_TEST" \
         ps cloudxr-runtime 2>/dev/null | grep -q "healthy"; then
@@ -236,6 +270,7 @@ if [ $WAITED -ge $MAX_WAIT ]; then
         -p "$COMPOSE_PROJECT" \
         --env-file "$ENV_DEFAULT" \
         ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
+        ${ENV_TEST:+--env-file "$ENV_TEST"} \
         -f "$COMPOSE_BASE" \
         -f "$COMPOSE_TEST" \
         logs cloudxr-runtime
@@ -250,6 +285,7 @@ if docker compose \
     -p "$COMPOSE_PROJECT" \
     --env-file "$ENV_DEFAULT" \
     ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
+    ${ENV_TEST:+--env-file "$ENV_TEST"} \
     -f "$COMPOSE_BASE" \
     -f "$COMPOSE_TEST" \
     run --rm teleopcore-tests; then
@@ -268,6 +304,7 @@ if [ "${CI:-false}" = "true" ]; then
         -p "$COMPOSE_PROJECT" \
         --env-file "$ENV_DEFAULT" \
         ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
+        ${ENV_TEST:+--env-file "$ENV_TEST"} \
         -f "$COMPOSE_BASE" \
         -f "$COMPOSE_TEST" \
         logs

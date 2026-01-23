@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Test container for TeleopCore Python tests
-# This container installs dependencies and runs Python tests against CloudXR runtime
+# Test container for TeleopCore tests (Python and native C++)
+# This container installs dependencies and runs tests against CloudXR runtime
 
 FROM python:3.11-slim
 
@@ -20,7 +20,7 @@ WORKDIR /app
 # Install uv for fast Python package management
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# Copy the install directory (contains wheels, libs, etc.)
+# Copy the install directory (contains wheels, libs, native test binaries, etc.)
 COPY install/ /app/install/
 
 # Copy test files
