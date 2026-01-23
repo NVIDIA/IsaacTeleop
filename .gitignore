@@ -35,8 +35,5 @@ compile_commands.json
 dist/
 *.egg
 
-# CloudXR environment files
-deps/cloudxr/.env
-
 # build output
 build/
