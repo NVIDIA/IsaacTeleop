@@ -5,7 +5,7 @@
 name = "teleopcore-retargeting-engine"
 version = "0.0.0"  # Internal tests - not versioned
 description = "Retargeting engine type system for TeleopCore"
-requires-python = ">=3.11"
+requires-python = ">=3.10,<3.12"
 
 [project.optional-dependencies]
 dev = [
