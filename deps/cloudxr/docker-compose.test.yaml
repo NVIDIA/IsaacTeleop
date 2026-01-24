@@ -30,11 +30,11 @@ services:
       cloudxr-runtime:
         condition: service_healthy
     environment:
-      - XDG_RUNTIME_DIR=/openxr/run
-      - XR_RUNTIME_JSON=/openxr/share/openxr/1/openxr_cloudxr.json
+      - NV_CXR_RUNTIME_DIR=/cloudxr-test/run
+      - XR_RUNTIME_JSON=/cloudxr-test/share/openxr/1/openxr_cloudxr.json
       - TEST_SCRIPTS=${TEST_SCRIPTS:-test_extensions.py}
     volumes:
-      - openxr-volume:/openxr/:ro
+      - openxr-volume:/cloudxr-test/:ro
     working_dir: /app/tests
     entrypoint: ["/bin/bash", "-c"]
     command:
