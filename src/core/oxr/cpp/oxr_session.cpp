@@ -3,12 +3,75 @@
 
 #include "inc/oxr/oxr_session.hpp"
 
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
 
 namespace core
 {
+
+namespace
+{
+
+// Helper to get $HOME with fallback
+std::string get_home_dir()
+{
+    const char* home = std::getenv("HOME");
+    return home ? std::string(home) : "/tmp";
+}
+
+// Ensure an environment variable is set. If not set, warn and set to default_value.
+// Returns the final value (either existing or newly set).
+std::string ensure_env_set(const char* env_name, const std::string& default_value)
+{
+    const char* current_value = std::getenv(env_name);
+
+    if (current_value != nullptr && current_value[0] != '\0')
+    {
+        return std::string(current_value);
+    }
+
+    // Not set - warn and set default
+    std::cerr << "Warning: " << env_name << " environment variable is not set." << std::endl;
+    std::cerr << "  Please set it before running, e.g.:" << std::endl;
+    std::cerr << "    export " << env_name << "=" << default_value << std::endl;
+
+#if defined(_WIN32) || defined(_WIN64)
+    _putenv_s(env_name, default_value.c_str());
+#else
+    setenv(env_name, default_value.c_str(), 1);
+#endif
+
+    return default_value;
+}
+
+// Ensure required environment variables are set before xrCreateInstance.
+void ensure_runtime_configured()
+{
+    const std::string home = get_home_dir();
+
+    // NV_CXR_RUNTIME_DIR - required by some OpenXR runtimes for IPC
+    ensure_env_set("NV_CXR_RUNTIME_DIR", home + "/.cloudxr/run");
+
+    // XR_RUNTIME_JSON - tells OpenXR loader which runtime to use
+    ensure_env_set("XR_RUNTIME_JSON", home + "/.cloudxr/share/openxr/1/openxr_cloudxr.json");
+
+    // XDG_RUNTIME_DIR - required by some OpenXR runtimes for IPC
+    // For now, we are using existing XDG_RUNTIME_DIR, so we need to overwrite it.
+    //
+    // TODO: Use a different environment variable for the CloudXR runtime directory.
+    // ensure_env_set("NV_CXR_RUNTIME_DIR", home + "/.cloudxr/run");
+    std::string cxr_runtime_dir = getenv("NV_CXR_RUNTIME_DIR");
+
+#if defined(_WIN32) || defined(_WIN64)
+    _putenv_s("XDG_RUNTIME_DIR", cxr_runtime_dir.c_str());
+#else
+    setenv("XDG_RUNTIME_DIR", cxr_runtime_dir.c_str(), 1);
+#endif
+}
+
+} // anonymous namespace
 
 OpenXRSession::OpenXRSession()
     : instance_(XR_NULL_HANDLE), system_id_(XR_NULL_SYSTEM_ID), session_(XR_NULL_HANDLE), space_(XR_NULL_HANDLE)
@@ -61,6 +124,9 @@ OpenXRSessionHandles OpenXRSession::get_handles() const
 
 void OpenXRSession::create_instance(const std::string& app_name, const std::vector<std::string>& extensions)
 {
+    // Ensure XR_RUNTIME_JSON is configured before calling xrCreateInstance
+    ensure_runtime_configured();
+
     XrInstanceCreateInfo create_info{ XR_TYPE_INSTANCE_CREATE_INFO };
     create_info.applicationInfo.apiVersion = XR_CURRENT_API_VERSION;
     strncpy(create_info.applicationInfo.applicationName, app_name.c_str(), XR_MAX_APPLICATION_NAME_SIZE - 1);
