@@ -5,7 +5,7 @@
 
 set -e
 
-export XDG_RUNTIME_DIR=$HOME/.cloudxr/run
+export NV_CXR_RUNTIME_DIR=$HOME/.cloudxr/run
 export XR_RUNTIME_JSON=$HOME/.cloudxr/share/openxr/1/openxr_cloudxr.json
 
 if [ ! -f $XR_RUNTIME_JSON ]; then
