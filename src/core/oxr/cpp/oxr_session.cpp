@@ -56,19 +56,6 @@ void ensure_runtime_configured()
 
     // XR_RUNTIME_JSON - tells OpenXR loader which runtime to use
     ensure_env_set("XR_RUNTIME_JSON", home + "/.cloudxr/share/openxr/1/openxr_cloudxr.json");
-
-    // XDG_RUNTIME_DIR - required by some OpenXR runtimes for IPC
-    // For now, we are using existing XDG_RUNTIME_DIR, so we need to overwrite it.
-    //
-    // TODO: Use a different environment variable for the CloudXR runtime directory.
-    // ensure_env_set("NV_CXR_RUNTIME_DIR", home + "/.cloudxr/run");
-    std::string cxr_runtime_dir = getenv("NV_CXR_RUNTIME_DIR");
-
-#if defined(_WIN32) || defined(_WIN64)
-    _putenv_s("XDG_RUNTIME_DIR", cxr_runtime_dir.c_str());
-#else
-    setenv("XDG_RUNTIME_DIR", cxr_runtime_dir.c_str(), 1);
-#endif
 }
 
 } // anonymous namespace
