@@ -7,7 +7,7 @@ version = "0.1.0"
 description = "TeleopCore Retargeting Examples"
 requires-python = ">=3.11,<3.12"
 dependencies = [
-    "teleopcore[isaac_lab]",
+    "teleopcore[retargeters]",
 ]
 
 [tool.uv]

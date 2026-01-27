@@ -1,0 +1,4 @@
+dex-retargeting
+scipy
+pyyaml
+torch
