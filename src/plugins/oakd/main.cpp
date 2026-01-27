@@ -1,14 +1,15 @@
 // SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-#include <core/camera_plugin.hpp>
+#include "oakd_camera.hpp"
+
+#include <camera_plugin_core/camera_plugin.hpp>
 
 #include <atomic>
 #include <csignal>
 #include <cstring>
 #include <iostream>
 #include <memory>
-#include <oakd_camera.hpp>
 #include <string>
 
 using namespace plugins::camera;

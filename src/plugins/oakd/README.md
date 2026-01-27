@@ -31,16 +31,16 @@ cmake --build build --target camera_plugin_oakd --parallel
 
 ```bash
 # Record with defaults (auto-named file in ./recordings/)
-./build/src/plugins/camera/oakd/camera_plugin
+./build/src/plugins/oakd/camera_plugin_oakd
 
 # Record to specific file
-./build/src/plugins/camera/oakd/camera_plugin --record=my_video.h264
+./build/src/plugins/oakd/camera_plugin_oakd --record=my_video.h264
 
 # Custom camera settings
-./build/src/plugins/camera/oakd/camera_plugin --width=1920 --height=1080 --fps=30 --bitrate=15000000
+./build/src/plugins/oakd/camera_plugin_oakd --width=1920 --height=1080 --fps=30 --bitrate=15000000
 
 # Show help
-./build/src/plugins/camera/oakd/camera_plugin --help
+./build/src/plugins/oakd/camera_plugin_oakd --help
 ```
 
 Press `Ctrl+C` to stop recording.
@@ -71,7 +71,13 @@ Press `Ctrl+C` to stop recording.
 
 ## Dependencies
 
-Automatically built via CMake:
+**System dependencies** (install before building):
+
+```bash
+sudo apt install libusb-1.0-0-dev
+```
+
+**Automatically built via CMake:**
 
 - **DepthAI** - OAK-D camera interface
 

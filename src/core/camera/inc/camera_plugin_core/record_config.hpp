@@ -13,7 +13,7 @@ namespace camera
 /**
  * @brief Configuration for raw H.264 file recording
  */
-struct __attribute__((visibility("default"))) RecordConfig
+struct RecordConfig
 {
     std::string output_path; // Explicit path, or empty for auto-naming
     std::string output_dir = "./recordings";

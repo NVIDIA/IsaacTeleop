@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include <core/camera_interface.hpp>
-#include <core/rawdata_writer.hpp>
+#include <camera_plugin_core/camera_interface.hpp>
+#include <camera_plugin_core/rawdata_writer.hpp>
 #include <plugin_utils/session.hpp>
 
 #include <atomic>
@@ -32,7 +32,7 @@ using CameraFactory = std::function<std::unique_ptr<ICamera>(const CameraConfig&
  * Optionally integrates with OpenXR for CloudXR integration.
  * Camera implementation is injected via a factory function.
  */
-class __attribute__((visibility("default"))) CameraPlugin
+class CameraPlugin
 {
 public:
     /**

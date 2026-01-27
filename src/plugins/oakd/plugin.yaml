@@ -3,7 +3,7 @@
 
 name: oakd_camera
 description: "OAK-D camera plugin with CloudXR streaming and MP4 recording"
-command: "./camera_plugin"
+command: "./camera_plugin_oakd"
 version: "1.0.0"
 devices:
   - path: "/camera"

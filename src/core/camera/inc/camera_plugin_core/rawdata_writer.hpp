@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <core/record_config.hpp>
+#include <camera_plugin_core/record_config.hpp>
 
 #include <cstdint>
 #include <fstream>

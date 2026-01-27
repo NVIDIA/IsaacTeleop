@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <core/camera_interface.hpp>
+#include <camera_plugin_core/camera_interface.hpp>
 #include <depthai/depthai.hpp>
 
 #include <atomic>

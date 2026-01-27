@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <core/camera_config.hpp>
+#include <camera_plugin_core/camera_config.hpp>
 
 #include <chrono>
 #include <cstdint>

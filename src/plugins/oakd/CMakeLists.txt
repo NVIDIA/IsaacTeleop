@@ -19,7 +19,7 @@ if(EXISTS ${DEPTHAI_CMAKE_DIR}/depthaiConfig.cmake)
     set(DEPTHAI_PREBUILT TRUE)
 else()
     message(STATUS "DepthAI not found - building as external project...")
-    message(STATUS "  First build: cmake --build build (takes ~10-15 min)")
+    message(STATUS "  First build: cmake --build build")
     message(STATUS "  Then run:    cmake -B build && cmake --build build")
     set(DEPTHAI_PREBUILT FALSE)
 
@@ -51,25 +51,28 @@ if(DEPTHAI_PREBUILT)
         oakd_camera.cpp
     )
 
-    target_include_directories(camera_plugin_oakd
-        PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/inc
-            ${CAMERA_PLUGIN_INC_DIR}
-    )
-
     target_link_libraries(camera_plugin_oakd
         PRIVATE
             depthai::core
             camera_plugin_core
     )
 
+    # Set RPATH to find bundled libraries in same directory
     set_target_properties(camera_plugin_oakd PROPERTIES
-        OUTPUT_NAME camera_plugin
+        INSTALL_RPATH "$ORIGIN"
     )
 
     install(TARGETS camera_plugin_oakd
         RUNTIME DESTINATION plugins/oakd_camera
     )
+
+    # Copy DepthAI's bundled libusb to install directory
+    set(DEPTHAI_LIBUSB_DIR "${DEPTHAI_INSTALL_DIR}/lib/cmake/depthai/dependencies/lib/cmake/XLink/dependencies/lib")
+    if(EXISTS "${DEPTHAI_LIBUSB_DIR}/libusb-1.0.so")
+        install(FILES "${DEPTHAI_LIBUSB_DIR}/libusb-1.0.so"
+            DESTINATION plugins/oakd_camera
+        )
+    endif()
 
     install(FILES 
         "${CMAKE_CURRENT_SOURCE_DIR}/plugin.yaml" 

@@ -11,7 +11,7 @@ namespace camera
 /**
  * @brief Configuration for camera capture
  */
-struct __attribute__((visibility("default"))) CameraConfig
+struct CameraConfig
 {
     int width = 1280;
     int height = 720;
