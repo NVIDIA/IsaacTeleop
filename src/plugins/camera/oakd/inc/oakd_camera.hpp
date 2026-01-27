@@ -39,7 +39,6 @@ public:
     void start() override;
     void stop() override;
     bool is_running() const override;
-    void process_tasks() override;
     std::optional<Frame> get_frame() override;
     const CameraConfig& config() const override
     {

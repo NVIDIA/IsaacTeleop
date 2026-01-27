@@ -173,11 +173,6 @@ bool Mp4Writer::write(const std::vector<uint8_t>& data)
     return write(data.data(), data.size());
 }
 
-std::string Mp4Writer::get_path() const
-{
-    return m_path;
-}
-
 size_t Mp4Writer::bytes_written() const
 {
     return m_bytes_written;

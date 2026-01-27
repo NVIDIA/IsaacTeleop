@@ -96,12 +96,6 @@ bool OakDCamera::is_running() const
     return m_running && m_device && !m_device->isClosed();
 }
 
-void OakDCamera::process_tasks()
-{
-    // DepthAI handles internal tasks automatically in the C++ API
-    // This method exists for API compatibility with the Python version
-}
-
 std::optional<Frame> OakDCamera::get_frame()
 {
     if (!m_h264_queue)
@@ -130,12 +124,12 @@ std::optional<Frame> OakDCamera::get_frame()
     frame.timestamp_device = packet->getTimestampDevice();
     frame.sequence_num = packet->getSequenceNum();
 
-    static int64_t log_count = 0;
-    if (log_count == 0 || log_count % 100 == 0)
+    static std::chrono::steady_clock::time_point last_log_time{};
+    if (frame.timestamp - last_log_time >= std::chrono::seconds(5))
     {
         std::cout << "H.264 frame #" << frame.sequence_num << ": " << data.size() << " bytes" << std::endl;
+        last_log_time = frame.timestamp;
     }
-    log_count++;
 
     return frame;
 }

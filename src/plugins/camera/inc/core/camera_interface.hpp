@@ -60,11 +60,6 @@ public:
     virtual bool is_running() const = 0;
 
     /**
-     * @brief Process pending camera tasks. Call this regularly.
-     */
-    virtual void process_tasks() = 0;
-
-    /**
      * @brief Get the next available encoded frame with metadata
      * @return Frame with H.264 data and metadata, or empty optional if no frame available
      */

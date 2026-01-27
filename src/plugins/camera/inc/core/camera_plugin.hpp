@@ -40,13 +40,13 @@ public:
      * @brief Construct the camera plugin
      * @param camera_factory Factory function to create the camera
      * @param camera_config Camera capture configuration
-     * @param record_config Recording config. nullptr to disable.
+     * @param record_config Recording configuration
      * @param plugin_root_id Plugin root ID for OpenXR integration
-     * @param retry_interval Seconds between camera reconnection attempts
+     * @param retry_interval Seconds between camera initialization attempts
      */
     CameraPlugin(CameraFactory camera_factory,
                  const CameraConfig& camera_config,
-                 const RecordConfig* record_config,
+                 const RecordConfig& record_config,
                  const std::string& plugin_root_id = "camera",
                  int retry_interval = 5);
 
@@ -79,11 +79,6 @@ public:
         return m_frame_count.load(std::memory_order_relaxed);
     }
 
-    /**
-     * @brief Get recording path if recording is enabled
-     */
-    std::optional<std::string> get_recording_path() const;
-
 private:
     void worker_thread();
     bool init_camera();
@@ -93,7 +88,7 @@ private:
     // Configuration
     CameraFactory m_camera_factory;
     CameraConfig m_camera_config;
-    std::optional<RecordConfig> m_record_config;
+    RecordConfig m_record_config;
     std::string m_plugin_root_id;
     int m_retry_interval;
 

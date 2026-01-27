@@ -39,7 +39,6 @@ public:
     bool write(const uint8_t* data, size_t size);
     bool write(const std::vector<uint8_t>& data);
 
-    std::string get_path() const;
     size_t bytes_written() const;
     size_t frame_count() const;
 

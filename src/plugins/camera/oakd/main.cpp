@@ -38,7 +38,7 @@ void print_usage(const char* program_name)
               << "  --record=PATH       Output file path (.mp4)\n"
               << "  --record-dir=DIR    Directory for auto-named recordings (default: ./recordings)\n"
               << "\nGeneral Settings:\n"
-              << "  --retry-interval=N  Camera reconnect interval in seconds (default: 5)\n"
+              << "  --retry-interval=N  Camera init retry interval in seconds (default: 5)\n"
               << "  --plugin-root-id=ID Plugin root ID for TeleopCore (default: oakd_camera)\n"
               << "  --help              Show this help message\n"
               << "\nOutput:\n"
@@ -66,14 +66,17 @@ int main(int argc, char** argv)
         else if (arg.find("--width=") == 0)
         {
             camera_config.width = std::stoi(arg.substr(8));
+            record_config.width = camera_config.width;
         }
         else if (arg.find("--height=") == 0)
         {
             camera_config.height = std::stoi(arg.substr(9));
+            record_config.height = camera_config.height;
         }
         else if (arg.find("--fps=") == 0)
         {
             camera_config.fps = std::stoi(arg.substr(6));
+            record_config.fps = camera_config.fps;
         }
         else if (arg.find("--bitrate=") == 0)
         {
@@ -124,7 +127,7 @@ int main(int argc, char** argv)
     try
     {
         plugin =
-            std::make_unique<CameraPlugin>(oakd_factory, camera_config, &record_config, plugin_root_id, retry_interval);
+            std::make_unique<CameraPlugin>(oakd_factory, camera_config, record_config, plugin_root_id, retry_interval);
     }
     catch (const std::exception& e)
     {
