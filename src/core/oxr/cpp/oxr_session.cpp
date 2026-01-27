@@ -23,13 +23,13 @@ std::string get_home_dir()
 
 // Ensure an environment variable is set. If not set, warn and set to default_value.
 // Returns the final value (either existing or newly set).
-std::string ensure_env_set(const char* env_name, const std::string& default_value)
+void ensure_env_set(const char* env_name, const std::string& default_value)
 {
     const char* current_value = std::getenv(env_name);
 
     if (current_value != nullptr && current_value[0] != '\0')
     {
-        return std::string(current_value);
+        return;
     }
 
     // Not set - warn and set default
@@ -37,13 +37,7 @@ std::string ensure_env_set(const char* env_name, const std::string& default_valu
     std::cerr << "  Please set it before running, e.g.:" << std::endl;
     std::cerr << "    export " << env_name << "=" << default_value << std::endl;
 
-#if defined(_WIN32) || defined(_WIN64)
-    _putenv_s(env_name, default_value.c_str());
-#else
-    setenv(env_name, default_value.c_str(), 1);
-#endif
-
-    return default_value;
+    throw std::runtime_error("Environment variable " + std::string(env_name) + " is not set");
 }
 
 // Ensure required environment variables are set before xrCreateInstance.
