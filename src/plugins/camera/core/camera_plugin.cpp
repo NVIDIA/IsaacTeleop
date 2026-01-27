@@ -98,7 +98,7 @@ void CameraPlugin::init_openxr_session()
 
 void CameraPlugin::init_writer()
 {
-    m_writer = std::make_unique<Mp4Writer>(m_record_config);
+    m_writer = std::make_unique<RawDataWriter>(m_record_config);
     m_writer->open();
 }
 

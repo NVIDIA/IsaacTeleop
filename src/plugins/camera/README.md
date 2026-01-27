@@ -6,7 +6,7 @@ Modular camera plugin framework for capturing and recording video from various c
 
 ```
 camera/
-├── core/              # Shared library: CameraPlugin, Mp4Writer, configs
+├── core/              # Shared library: CameraPlugin, RawDataWriter, configs
 ├── inc/core/          # Shared headers
 ├── oakd/              # OAK-D camera plugin (see oakd/README.md)
 └── (future: realsense/, zed/, etc.)
@@ -15,7 +15,7 @@ camera/
 ## Shared Components (core/)
 
 - **CameraPlugin**: Plugin lifecycle management, threading, OpenXR integration
-- **Mp4Writer**: FFmpeg-based MP4 muxing for H.264 streams
+- **RawDataWriter**: Raw H.264 file writer (Annex B format)
 - **ICamera**: Interface for camera implementations
 - **CameraConfig/RecordConfig**: Configuration structures
 
@@ -31,5 +31,4 @@ See `oakd/` for a complete example.
 
 ## Dependencies
 
-- **FFmpeg**: Shared by all camera plugins (built automatically)
 - **Camera-specific SDKs**: Each plugin manages its own SDK (e.g., DepthAI for OAK-D)

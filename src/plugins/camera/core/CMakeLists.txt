@@ -3,12 +3,7 @@
 
 add_library(camera_plugin_core SHARED
     camera_plugin.cpp
-    mp4_writer.cpp
-    ${CAMERA_PLUGIN_INC_DIR}/core/camera_plugin.hpp
-    ${CAMERA_PLUGIN_INC_DIR}/core/camera_interface.hpp
-    ${CAMERA_PLUGIN_INC_DIR}/core/camera_config.hpp
-    ${CAMERA_PLUGIN_INC_DIR}/core/record_config.hpp
-    ${CAMERA_PLUGIN_INC_DIR}/core/mp4_writer.hpp
+    rawdata_writer.cpp
 )
 
 target_include_directories(camera_plugin_core
@@ -18,13 +13,11 @@ target_include_directories(camera_plugin_core
 
 target_link_libraries(camera_plugin_core
     PUBLIC
-        PkgConfig::LIBAV
         Teleop::plugin_utils
         OpenXR::openxr_loader
     PRIVATE
         Teleop::openxr_extensions
         Threads::Threads
-        ${CMAKE_DL_LIBS}
 )
 
 set_target_properties(camera_plugin_core PROPERTIES

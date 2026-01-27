@@ -11,16 +11,13 @@ namespace camera
 {
 
 /**
- * @brief Configuration for MP4 file recording
+ * @brief Configuration for raw H.264 file recording
  */
 struct __attribute__((visibility("default"))) RecordConfig
 {
     std::string output_path; // Explicit path, or empty for auto-naming
     std::string output_dir = "./recordings";
     bool auto_name = true;
-    int width = 1280;
-    int height = 720;
-    int fps = 30;
 
     /**
      * @brief Get the output path, generating a timestamped name if needed

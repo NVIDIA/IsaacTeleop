@@ -4,14 +4,13 @@
 #pragma once
 
 #include <core/camera_interface.hpp>
-#include <core/mp4_writer.hpp>
+#include <core/rawdata_writer.hpp>
 #include <plugin_utils/session.hpp>
 
 #include <atomic>
 #include <chrono>
 #include <functional>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <string>
 #include <thread>
@@ -94,7 +93,7 @@ private:
 
     // Components
     std::unique_ptr<ICamera> m_camera;
-    std::unique_ptr<Mp4Writer> m_writer;
+    std::unique_ptr<RawDataWriter> m_writer;
     std::optional<plugin_utils::Session> m_session;
 
     // Threading
