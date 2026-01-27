@@ -3,6 +3,12 @@
 
 cmake_minimum_required(VERSION 3.20)
 
+# Skip camera plugin on Windows - requires pkg-config and Unix build tools
+if(WIN32)
+    message(STATUS "Camera plugin: Skipping on Windows (requires pkg-config and Unix build tools)")
+    return()
+endif()
+
 include(ExternalProject)
 include(GNUInstallDirs)
 
