@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-name: camera
-description: "Camera plugin with CloudXR streaming and MP4 recording (OAK-D implementation)"
+name: oakd_camera
+description: "OAK-D camera plugin with CloudXR streaming and MP4 recording"
 command: "./camera_plugin"
 version: "1.0.0"
 devices:

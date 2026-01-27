@@ -49,7 +49,7 @@ def run_test(duration: float = 10.0):
     plugins = manager.get_plugin_names()
     print(f"  Discovered plugins: {plugins}")
 
-    plugin_name = "camera"
+    plugin_name = "oakd_camera"
     plugin_root_id = "oakd_camera"
 
     if plugin_name not in plugins:
@@ -115,7 +115,7 @@ def run_test(duration: float = 10.0):
     print()
     print("=" * 80)
     print("Test completed successfully!")
-    print(f"Check {PLUGIN_ROOT_DIR / 'camera' / 'recordings'} for the recorded video.")
+    print(f"Check {PLUGIN_ROOT_DIR / 'oakd_camera' / 'recordings'} for the recorded video.")
     print("=" * 80)
 
     return True

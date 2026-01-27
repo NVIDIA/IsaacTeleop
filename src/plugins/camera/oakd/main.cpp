@@ -39,7 +39,7 @@ void print_usage(const char* program_name)
               << "  --record-dir=DIR    Directory for auto-named recordings (default: ./recordings)\n"
               << "\nGeneral Settings:\n"
               << "  --retry-interval=N  Camera reconnect interval in seconds (default: 5)\n"
-              << "  --plugin-root-id=ID Plugin root ID for TeleopCore (default: camera)\n"
+              << "  --plugin-root-id=ID Plugin root ID for TeleopCore (default: oakd_camera)\n"
               << "  --help              Show this help message\n"
               << "\nOutput:\n"
               << "  Records directly to MP4 using FFmpeg.\n";
@@ -50,7 +50,7 @@ int main(int argc, char** argv)
     // Default configurations
     CameraConfig camera_config;
     RecordConfig record_config;
-    std::string plugin_root_id = "camera";
+    std::string plugin_root_id = "oakd_camera";
     int retry_interval = 5;
 
     // Parse command line arguments
