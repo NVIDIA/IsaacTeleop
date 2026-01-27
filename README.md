@@ -215,8 +215,7 @@ python -c "import teleopcore.deviceio"
 
 Run a quick test:
 ```bash
-export NV_CXR_RUNTIME_DIR=$HOME/.cloudxr/run
-export XR_RUNTIME_JSON=$HOME/.cloudxr/share/openxr/1/openxr_cloudxr.json
+source scripts/setup_cloudxr_env.sh
 
 python ./examples/oxr/python/test_extensions.py
 ```

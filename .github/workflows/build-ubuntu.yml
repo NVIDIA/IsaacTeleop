@@ -90,8 +90,8 @@ jobs:
     - name: Parse CloudXR tag from .env.default
       id: cloudxr
       run: |
-        # Extract the tag from CLOUDXR_RUNTIME_IMAGE in .env.default
-        CLOUDXR_TAG=$(grep '^CLOUDXR_RUNTIME_IMAGE=' deps/cloudxr/.env.default | sed 's/.*cloudxr-runtime://')
+        # Extract the tag from CXR_RUNTIME_IMAGE in .env.default
+        CLOUDXR_TAG=$(grep '^CXR_RUNTIME_IMAGE=' deps/cloudxr/.env.default | sed 's/.*cloudxr-runtime://')
         echo "tag=${CLOUDXR_TAG}" >> $GITHUB_OUTPUT
         echo "CloudXR tag: ${CLOUDXR_TAG}"
 

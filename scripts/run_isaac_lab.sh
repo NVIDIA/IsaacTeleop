@@ -5,8 +5,8 @@
 
 set -e
 
-export NV_CXR_RUNTIME_DIR=$HOME/.cloudxr/run
-export XR_RUNTIME_JSON=$HOME/.cloudxr/share/openxr/1/openxr_cloudxr.json
+# Source shared CloudXR environment setup
+source scripts/setup_cloudxr_env.sh
 
 if [ ! -f $XR_RUNTIME_JSON ]; then
     echo "Error: $XR_RUNTIME_JSON not found. Please run ./scripts/run_cloudxr.sh first."
