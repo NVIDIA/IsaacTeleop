@@ -43,8 +43,6 @@ EXIT_CODE=0
 # Compose files and project name
 COMPOSE_BASE="deps/cloudxr/docker-compose.yaml"
 COMPOSE_TEST="deps/cloudxr/docker-compose.test.yaml"
-ENV_DEFAULT="deps/cloudxr/.env.default"
-ENV_LOCAL="deps/cloudxr/.env"
 # Use a different project name to isolate volumes from run_cloudxr.sh
 COMPOSE_PROJECT="teleopcore-test"
 
@@ -140,12 +138,8 @@ fi
 # Set up environment
 log_info "Setting up environment..."
 
-export CXR_HOST_VOLUME_PATH="${CXR_HOST_VOLUME_PATH:-/tmp/cloudxr-test}"
-export CXR_UID=$(id -u)
-export CXR_GID=$(id -g)
-
-# Create host volume path
-mkdir -p "$CXR_HOST_VOLUME_PATH"
+# Source shared CloudXR environment setup
+source scripts/setup_cloudxr_env.sh
 
 log_info "TEST_SCRIPTS:"
 for test in "${TEST_SCRIPTS[@]}"; do
@@ -155,12 +149,6 @@ done
 # Join array into comma-separated string for docker-compose environment variable
 TEST_SCRIPTS_ENV=$(IFS=','; echo "${TEST_SCRIPTS[*]}")
 export TEST_SCRIPTS="$TEST_SCRIPTS_ENV"
-
-# Create .env file if it doesn't exist
-if [ ! -f "$ENV_LOCAL" ]; then
-    log_info "Creating $ENV_LOCAL..."
-    touch "$ENV_LOCAL"
-fi
 
 # In CI, auto-accept EULA
 if [ "${CI:-false}" = "true" ]; then

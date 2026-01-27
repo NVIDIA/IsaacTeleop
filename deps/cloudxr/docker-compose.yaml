@@ -3,7 +3,7 @@
 
 services:
   cloudxr-runtime:
-    image: ${CLOUDXR_RUNTIME_IMAGE}
+    image: ${CXR_RUNTIME_IMAGE}
     pull_policy: never
     user: "${CXR_UID:-1000}:${CXR_GID:-1000}"
     network_mode: host
@@ -28,7 +28,7 @@ services:
               capabilities: [ gpu ]
 
   wss-proxy:
-    image: ${CLOUDXR_WSS_PROXY_IMAGE}
+    image: ${CXR_WSS_PROXY_IMAGE}
     pull_policy: never
     network_mode: host
     depends_on:
@@ -47,7 +47,7 @@ services:
     restart: unless-stopped
 
   isaac-web-front:
-    image: ${CLOUDXR_WEB_FRONT_IMAGE}
+    image: ${CXR_WEB_FRONT_IMAGE}
     network_mode: host
     pull_policy: never
 
