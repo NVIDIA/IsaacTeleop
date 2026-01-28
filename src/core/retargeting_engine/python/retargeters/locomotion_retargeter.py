@@ -9,13 +9,20 @@ Provides retargeters for generating locomotion commands from VR controller input
 
 import numpy as np
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict
 
-from ..interface import BaseRetargeter, RetargeterIO, RetargeterIOType
+from ..interface import (
+    BaseRetargeter,
+    RetargeterIOType,
+)
 from ..interface.tensor_group_type import TensorGroupType
 from ..interface.tensor_group import TensorGroup
-from ..tensor_types import ControllerInput, NDArrayType, DLDataType
-from ..tensor_types import ControllerInputIndex
+from ..tensor_types import (
+    ControllerInput,
+    NDArrayType,
+    DLDataType,
+    ControllerInputIndex,
+)
 
 
 @dataclass

@@ -14,20 +14,27 @@ import sys
 import time
 from pathlib import Path
 
-try:
-    import teleopcore.deviceio as deviceio
-    import teleopcore.oxr as oxr
-    import teleopcore.plugin_manager as pm
-    import numpy as np
-    from teleopcore.retargeting_engine.deviceio_source_nodes import ControllersSource, HandsSource
-    from teleopcore.retargeting_engine.retargeters import GripperRetargeter, GripperRetargeterConfig, Se3AbsRetargeter, Se3RetargeterConfig
-    from teleopcore.retargeting_engine.interface import OutputCombiner
-    # Import TeleopSession to handle the loop correctly with new sources
-    from teleopcore.teleop_session_manager import TeleopSession, TeleopSessionConfig, PluginConfig
-except ImportError as e:
-    print(f"Error: {e}")
-    print("Make sure TeleopCore is built and installed")
-    sys.exit(1)
+import teleopcore.deviceio as deviceio
+import teleopcore.oxr as oxr
+import teleopcore.plugin_manager as pm
+import numpy as np
+from teleopcore.retargeting_engine.deviceio_source_nodes import (
+    ControllersSource,
+    HandsSource,
+)
+from teleopcore.retargeting_engine.retargeters import (
+    GripperRetargeter,
+    GripperRetargeterConfig,
+    Se3AbsRetargeter,
+    Se3RetargeterConfig,
+)
+from teleopcore.retargeting_engine.interface import OutputCombiner
+# Import TeleopSession to handle the loop correctly with new sources
+from teleopcore.teleop_session_manager import (
+    TeleopSession,
+    TeleopSessionConfig,
+    PluginConfig,
+)
 
 
 PLUGIN_ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent / "plugins"

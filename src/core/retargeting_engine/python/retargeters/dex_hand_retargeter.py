@@ -19,11 +19,22 @@ import logging
 from typing import Dict, Optional, List
 from dataclasses import dataclass
 
-from ..interface import BaseRetargeter, RetargeterIO, RetargeterIOType
-from ..interface.tensor_group_type import TensorGroupType
-from ..interface.tensor_group import TensorGroup
-from ..tensor_types import HandInput, FloatType, NUM_HAND_JOINTS
-from ..tensor_types import HandInputIndex, HandJointIndex
+from ..interface import (
+    BaseRetargeter,
+    RetargeterIOType,
+)
+from ..interface.tensor_group_type import (
+    TensorGroupType,
+)
+from ..interface.tensor_group import (
+    TensorGroup,
+)
+from ..tensor_types import (
+    HandInput,
+    FloatType,
+    HandInputIndex,
+    HandJointIndex,
+)
 
 # Try to import yaml for config file handling
 try:

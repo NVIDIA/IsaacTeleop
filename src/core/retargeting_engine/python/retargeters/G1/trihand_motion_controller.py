@@ -15,10 +15,18 @@ import numpy as np
 from typing import Dict, List
 from dataclasses import dataclass
 
-from ...interface import BaseRetargeter, RetargeterIO, RetargeterIOType
-from ...interface.tensor_group import TensorGroup
-from ...tensor_types import ControllerInput, RobotHandJoints
-from ...tensor_types import ControllerInputIndex
+from ...interface import (
+    BaseRetargeter,
+    RetargeterIOType,
+)
+from ...interface.tensor_group import (
+    TensorGroup,
+)
+from ...tensor_types import (
+    ControllerInput,
+    RobotHandJoints,
+    ControllerInputIndex,
+)
 
 
 @dataclass

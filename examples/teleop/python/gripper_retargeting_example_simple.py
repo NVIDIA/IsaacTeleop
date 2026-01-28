@@ -14,13 +14,16 @@ import time
 from pathlib import Path
 import teleopcore.deviceio as deviceio
 
-try:
-    from teleopcore.retargeting_engine.retargeters import GripperRetargeter, GripperRetargeterConfig
-    from teleopcore.teleop_session_manager import TeleopSession, TeleopSessionConfig, PluginConfig, create_standard_inputs
-except ImportError as e:
-    print(f"Error: {e}")
-    print("Make sure TeleopCore and all modules are built and installed")
-    sys.exit(1)
+from teleopcore.retargeting_engine.retargeters import (
+    GripperRetargeter,
+    GripperRetargeterConfig
+)
+from teleopcore.teleop_session_manager import (
+    TeleopSession,
+    TeleopSessionConfig,
+    PluginConfig,
+    create_standard_inputs
+)
 
 
 PLUGIN_ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent / "plugins"
@@ -83,24 +86,21 @@ def main():
 
         start_time = time.time()
 
-        try:
-            while time.time() - start_time < 20.0:
-                # Run one iteration (updates trackers + executes pipeline)
-                result = session.step()
+        while time.time() - start_time < 20.0:
+            # Run one iteration (updates trackers + executes pipeline)
+            result = session.step()
 
-                # Get gripper values
-                # left = result["gripper_left"][0]
-                right = result["gripper_command"][0]
+            # Get gripper values
+            # left = result["gripper_left"][0]
+            right = result["gripper_command"][0]
 
-                # Print status every 0.5 seconds
-                if session.frame_count % 30 == 0:
-                    elapsed = session.get_elapsed_time()
-                    print(f"[{elapsed:5.1f}s] Right: {right:.2f}")
+            # Print status every 0.5 seconds
+            if session.frame_count % 30 == 0:
+                elapsed = session.get_elapsed_time()
+                print(f"[{elapsed:5.1f}s] Right: {right:.2f}")
 
-                time.sleep(0.016)  # ~60 FPS
+            time.sleep(0.016)  # ~60 FPS
 
-        except KeyboardInterrupt:
-            print("\n\nInterrupted by user")
 
     return 0
 

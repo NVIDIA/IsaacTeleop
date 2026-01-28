@@ -12,19 +12,17 @@ import sys
 import time
 from pathlib import Path
 
-try:
-    import teleopcore.deviceio as deviceio
-    import teleopcore.oxr as oxr
-    from teleopcore.retargeting_engine.deviceio_source_nodes import HandsSource
-    from teleopcore.retargeting_engine.retargeters import (
-        DexBiManualRetargeter,
-        DexHandRetargeterConfig,
-    )
-    from teleopcore.teleop_session_manager import TeleopSession, TeleopSessionConfig
-except ImportError as e:
-    print(f"Error: {e}")
-    print("Make sure TeleopCore and all modules are built and installed")
-    sys.exit(1)
+import teleopcore.deviceio as deviceio
+import teleopcore.oxr as oxr
+from teleopcore.retargeting_engine.deviceio_source_nodes import HandsSource
+from teleopcore.retargeting_engine.retargeters import (
+    DexBiManualRetargeter,
+    DexHandRetargeterConfig
+)
+from teleopcore.teleop_session_manager import (
+    TeleopSession,
+    TeleopSessionConfig
+)
 
 
 def main():
@@ -112,35 +110,27 @@ def main():
         pipeline=pipeline,
     )
 
-    # Note: DexHandRetargeter requires dex-retargeting pip package.
-    # We wrap execution to catch runtime errors if dependencies are missing.
-    try:
-        with TeleopSession(session_config) as session:
-            start_time = time.time()
+    with TeleopSession(session_config) as session:
+        start_time = time.time()
 
-            while time.time() - start_time < 20.0:
-                result = session.step()
+        while time.time() - start_time < 20.0:
+            result = session.step()
 
-                # Output: Combined joint angles
-                # result["hand_joints"] is a TensorGroup containing scalar floats
-                joints = list(result["hand_joints"])
+            # Output: Combined joint angles
+            # result["hand_joints"] is a TensorGroup containing scalar floats
+            joints = list(result["hand_joints"])
 
-                if session.frame_count % 30 == 0:
-                    elapsed = session.get_elapsed_time()
-                    # Print first few joints from left and right parts
-                    n_left = len(left_joints)
-                    l_vals = joints[:min(3, n_left)]
-                    r_vals = joints[n_left:n_left+min(3, len(right_joints))]
+            if session.frame_count % 30 == 0:
+                elapsed = session.get_elapsed_time()
+                # Print first few joints from left and right parts
+                n_left = len(left_joints)
+                l_vals = joints[:min(3, n_left)]
+                r_vals = joints[n_left:n_left+min(3, len(right_joints))]
 
-                    print(f"[{elapsed:5.1f}s] L: {l_vals} ... R: {r_vals} ...")
+                print(f"[{elapsed:5.1f}s] L: {l_vals} ... R: {r_vals} ...")
 
-                time.sleep(0.016)
+            time.sleep(0.016)
 
-    except ImportError as e:
-        print(f"\nExample failed due to missing dependencies: {e}")
-    except Exception as e:
-        print(f"\nExample execution error: {e}")
-        print("(This is expected if config files or dex-retargeting are missing)")
 
     return 0
 

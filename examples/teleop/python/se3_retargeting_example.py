@@ -14,19 +14,19 @@ import time
 import numpy as np
 from pathlib import Path
 
-try:
-    import teleopcore.deviceio as deviceio
-    from teleopcore.retargeting_engine.deviceio_source_nodes import HandsSource, ControllersSource
-    from teleopcore.retargeting_engine.retargeters import (
-        Se3AbsRetargeter,
-        Se3RelRetargeter,
-        Se3RetargeterConfig,
-    )
-    from teleopcore.teleop_session_manager import TeleopSession, TeleopSessionConfig
-except ImportError as e:
-    print(f"Error: {e}")
-    print("Make sure TeleopCore and all modules are built and installed")
-    sys.exit(1)
+from teleopcore.retargeting_engine.deviceio_source_nodes import (
+    HandsSource,
+    ControllersSource,
+)
+from teleopcore.retargeting_engine.retargeters import (
+    Se3AbsRetargeter,
+    Se3RelRetargeter,
+    Se3RetargeterConfig,
+)
+from teleopcore.teleop_session_manager import (
+    TeleopSession,
+    TeleopSessionConfig,
+)
 
 
 def run_abs_example(use_controller=False):
@@ -68,22 +68,19 @@ def run_abs_example(use_controller=False):
         # No session injection needed
 
         start_time = time.time()
-        try:
-            while time.time() - start_time < 20.0:
-                result = session.step()
+        while time.time() - start_time < 20.0:
+            result = session.step()
 
-                # Output: [x, y, z, qx, qy, qz, qw]
-                pose = result["ee_pose"][0]
-                pos = pose[:3]
-                rot = pose[3:] # w,x,y,z
+            # Output: [x, y, z, qx, qy, qz, qw]
+            pose = result["ee_pose"][0]
+            pos = pose[:3]
+            rot = pose[3:] # w,x,y,z
 
-                if session.frame_count % 30 == 0:
-                    elapsed = session.get_elapsed_time()
-                    print(f"[{elapsed:5.1f}s] Pos: ({pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f})  Rot: ({rot[0]:.2f}, {rot[1]:.2f}, {rot[2]:.2f}, {rot[3]:.2f})")
+            if session.frame_count % 30 == 0:
+                elapsed = session.get_elapsed_time()
+                print(f"[{elapsed:5.1f}s] Pos: ({pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f})  Rot: ({rot[0]:.2f}, {rot[1]:.2f}, {rot[2]:.2f}, {rot[3]:.2f})")
 
-                time.sleep(0.016)
-        except KeyboardInterrupt:
-            pass
+            time.sleep(0.016)
 
 
 def run_rel_example(use_controller=False):
@@ -127,25 +124,22 @@ def run_rel_example(use_controller=False):
         # No session injection needed
 
         start_time = time.time()
-        try:
-            while time.time() - start_time < 20.0:
-                result = session.step()
+        while time.time() - start_time < 20.0:
+            result = session.step()
 
-                # Output: [dx, dy, dz, drx, dry, drz]
-                delta = result["ee_delta"][0]
-                dpos = delta[:3]
-                drot = delta[3:]
+            # Output: [dx, dy, dz, drx, dry, drz]
+            delta = result["ee_delta"][0]
+            dpos = delta[:3]
+            drot = delta[3:]
 
-                if session.frame_count % 30 == 0:
-                    elapsed = session.get_elapsed_time()
-                    # Calculate magnitude for easier reading
-                    vel_mag = np.linalg.norm(dpos)
-                    rot_mag = np.linalg.norm(drot)
-                    print(f"[{elapsed:5.1f}s] Vel Mag: {vel_mag:.4f}  Rot Mag: {rot_mag:.4f} | dPos: ({dpos[0]:.3f}, ...)")
+            if session.frame_count % 30 == 0:
+                elapsed = session.get_elapsed_time()
+                # Calculate magnitude for easier reading
+                vel_mag = np.linalg.norm(dpos)
+                rot_mag = np.linalg.norm(drot)
+                print(f"[{elapsed:5.1f}s] Vel Mag: {vel_mag:.4f}  Rot Mag: {rot_mag:.4f} | dPos: ({dpos[0]:.3f}, ...)")
 
-                time.sleep(0.016)
-        except KeyboardInterrupt:
-            pass
+            time.sleep(0.016)
 
 
 def main():

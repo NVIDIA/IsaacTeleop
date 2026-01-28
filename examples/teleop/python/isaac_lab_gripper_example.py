@@ -14,16 +14,15 @@ import time
 from pathlib import Path
 import teleopcore.deviceio as deviceio
 
-try:
-    from teleopcore.retargeting_engine.retargeters import (
-        GripperRetargeter,
-        GripperRetargeterConfig,
-    )
-    from teleopcore.teleop_session_manager import TeleopSession, TeleopSessionConfig, create_standard_inputs
-except ImportError as e:
-    print(f"Error: {e}")
-    print("Make sure TeleopCore and all modules are built and installed")
-    sys.exit(1)
+from teleopcore.retargeting_engine.retargeters import (
+    GripperRetargeter,
+    GripperRetargeterConfig,
+)
+from teleopcore.teleop_session_manager import (
+    TeleopSession,
+    TeleopSessionConfig,
+    create_standard_inputs,
+)
 
 
 def main():
@@ -78,25 +77,22 @@ def main():
 
         start_time = time.time()
 
-        try:
-            while time.time() - start_time < 30.0:
-                result = session.step()
+        while time.time() - start_time < 30.0:
+            result = session.step()
 
-                # Output: -1.0 (closed) or 1.0 (open)
-                cmd = result["gripper_command"][0]
-                state = "CLOSED" if cmd < 0 else "OPEN"
+            # Output: -1.0 (closed) or 1.0 (open)
+            cmd = result["gripper_command"][0]
+            state = "CLOSED" if cmd < 0 else "OPEN"
 
-                # Print status every 0.2 seconds
-                if session.frame_count % 12 == 0:
-                    elapsed = session.get_elapsed_time()
-                    print(f"[{elapsed:5.1f}s] Gripper Command: {cmd:.1f} ({state})")
+            # Print status every 0.2 seconds
+            if session.frame_count % 12 == 0:
+                elapsed = session.get_elapsed_time()
+                print(f"[{elapsed:5.1f}s] Gripper Command: {cmd:.1f} ({state})")
 
-                time.sleep(0.016)
+            time.sleep(0.016)
 
-            print("\nTime limit reached.")
+        print("\nTime limit reached.")
 
-        except KeyboardInterrupt:
-            print("\n\nInterrupted by user")
 
     return 0
 

@@ -14,16 +14,16 @@ import time
 from pathlib import Path
 import teleopcore.deviceio as deviceio
 
-try:
-    from teleopcore.retargeting_engine.retargeters import (
-        LocomotionRootCmdRetargeter,
-        LocomotionRootCmdRetargeterConfig,
-    )
-    from teleopcore.teleop_session_manager import TeleopSession, TeleopSessionConfig, PluginConfig, create_standard_inputs
-except ImportError as e:
-    print(f"Error: {e}")
-    print("Make sure TeleopCore and all modules are built and installed")
-    sys.exit(1)
+from teleopcore.retargeting_engine.retargeters import (
+    LocomotionRootCmdRetargeter,
+    LocomotionRootCmdRetargeterConfig,
+)
+from teleopcore.teleop_session_manager import (
+    TeleopSession,
+    TeleopSessionConfig,
+    PluginConfig,
+    create_standard_inputs,
+)
 
 
 PLUGIN_ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent / "plugins"
@@ -95,25 +95,22 @@ def main():
 
         start_time = time.time()
 
-        try:
-            while time.time() - start_time < 30.0:
-                # Run one iteration
-                result = session.step()
+        while time.time() - start_time < 30.0:
+            # Run one iteration
+            result = session.step()
 
-                # Get root command: [vel_x, vel_y, rot_vel_z, hip_height]
-                cmd = result["root_command"][0]
+            # Get root command: [vel_x, vel_y, rot_vel_z, hip_height]
+            cmd = result["root_command"][0]
 
-                # Print status every 0.2 seconds
-                if session.frame_count % 12 == 0:
-                    elapsed = session.get_elapsed_time()
-                    print(f"[{elapsed:5.1f}s] Vel: ({cmd[0]:5.2f}, {cmd[1]:5.2f})  Rot: {cmd[2]:5.2f}  Height: {cmd[3]:.3f}")
+            # Print status every 0.2 seconds
+            if session.frame_count % 12 == 0:
+                elapsed = session.get_elapsed_time()
+                print(f"[{elapsed:5.1f}s] Vel: ({cmd[0]:5.2f}, {cmd[1]:5.2f})  Rot: {cmd[2]:5.2f}  Height: {cmd[3]:.3f}")
 
-                time.sleep(0.016)  # ~60 FPS
+            time.sleep(0.016)  # ~60 FPS
 
-            print("\nTime limit reached.")
+        print("\nTime limit reached.")
 
-        except KeyboardInterrupt:
-            print("\n\nInterrupted by user")
 
     return 0
 

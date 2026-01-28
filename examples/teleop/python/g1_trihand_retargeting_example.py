@@ -16,20 +16,19 @@ import sys
 import time
 from pathlib import Path
 
-try:
-    import teleopcore.deviceio as deviceio
-    import teleopcore.oxr as oxr
-    import teleopcore.plugin_manager as pm
-    from teleopcore.retargeting_engine.deviceio_source_nodes import ControllersSource
-    from teleopcore.retargeting_engine.retargeters import (
-        TriHandMotionControllerRetargeter,
-        TriHandMotionControllerConfig,
-    )
-    from teleopcore.teleop_session_manager import TeleopSession, TeleopSessionConfig
-except ImportError as e:
-    print(f"Error: {e}")
-    print("Make sure TeleopCore is built and installed")
-    sys.exit(1)
+import teleopcore.deviceio as deviceio
+import teleopcore.oxr as oxr
+import teleopcore.plugin_manager as pm
+from teleopcore.retargeting_engine.deviceio_source_nodes import ControllersSource
+from teleopcore.retargeting_engine.retargeters import (
+    TriHandMotionControllerRetargeter,
+    TriHandMotionControllerConfig
+)
+from teleopcore.teleop_session_manager import (
+    TeleopSession,
+    TeleopSessionConfig
+)
+from teleopcore.retargeting_engine.interface import OutputCombiner
 
 
 PLUGIN_ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent / "plugins"
@@ -89,27 +88,16 @@ def example_trihand_motion_controller():
     # Create and run TeleopSession
     # ==================================================================
 
-    session_config = TeleopSessionConfig(
-        app_name="TriHandMotionControllerRetargeterExample",
-        trackers=[], # Auto-discovered
-        pipeline=None, # We have two separate pipelines here, need to combine or run one?
-                       # Wait, TeleopSession takes ONE pipeline.
-                       # We need to combine them into an OutputLayer or similar if we want to run both.
-                       # Or we can just pass one if the other is not needed, but here we want both.
-                       # Actually, TeleopSession.run() executes self.pipeline().
-                       # If we pass `connected_left`, only left runs.
-                       # We should combine them using OutputLayer.
-    )
-
-    # Let's combine them into a single executable graph using OutputLayer
-    from teleopcore.retargeting_engine.interface import OutputCombiner
-
     combined_pipeline = OutputCombiner({
         "left_hand": connected_left.output("hand_joints"),
         "right_hand": connected_right.output("hand_joints")
     })
 
-    session_config.pipeline = combined_pipeline
+    session_config = TeleopSessionConfig(
+        app_name="TriHandMotionControllerRetargeterExample",
+        trackers=[], # Auto-discovered from pipeline
+        pipeline=combined_pipeline,
+    )
 
     # Configure Plugins
     plugins = []
