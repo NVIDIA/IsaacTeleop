@@ -10,8 +10,8 @@ Many of these are adapted from IsaacLab (Isaac Sim).
 Available Retargeters:
     - DexHandRetargeter: Uses dex_retargeting library for accurate hand tracking
     - DexBiManualRetargeter: Bimanual version of DexHandRetargeter
-    - TriHandMotionController: Maps VR controller inputs to G1 TriHand joints
-    - TriHandBiManualMotionController: Bimanual version of TriHandMotionController
+    - TriHandMotionControllerRetargeter: Maps VR controller inputs to G1 TriHand joints
+    - TriHandBiManualMotionControllerRetargeter: Bimanual version of TriHandMotionControllerRetargeter
     - LocomotionFixedRootCmdRetargeter: Fixed root command (standing still)
     - LocomotionRootCmdRetargeter: Locomotion from controller inputs
     - GripperRetargeter: Pinch-based gripper control
@@ -26,8 +26,8 @@ from .dex_hand_retargeter import (
 )
 
 from .G1.trihand_motion_controller import (
-    TriHandMotionController,
-    TriHandBiManualMotionController,
+    TriHandMotionControllerRetargeter,
+    TriHandBiManualMotionControllerRetargeter,
     TriHandMotionControllerConfig,
 )
 
@@ -56,8 +56,8 @@ __all__ = [
     "DexHandRetargeterConfig",
 
     # Motion controller retargeters
-    "TriHandMotionController",
-    "TriHandBiManualMotionController",
+    "TriHandMotionControllerRetargeter",
+    "TriHandBiManualMotionControllerRetargeter",
     "TriHandMotionControllerConfig",
 
     # Locomotion retargeters

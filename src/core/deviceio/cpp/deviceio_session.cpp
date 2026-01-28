@@ -123,6 +123,7 @@ bool DeviceIOSession::update()
     // Update all tracker implementations directly
     for (auto& impl : tracker_impls_)
     {
+        // TODO: Handle error case, errors may occur if motion controllers are not held for example.
         impl.second->update(current_time);
     }
 

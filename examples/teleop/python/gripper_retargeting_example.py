@@ -40,8 +40,6 @@ def main():
     controllers = ControllersSource(name="controllers")
     hands = HandsSource(name="hands")
 
-    # Build retargeting graph using new API
-
     # 1. Gripper Retargeters (Left & Right)
     gripper_left = GripperRetargeter(
         GripperRetargeterConfig(hand_side="left"),

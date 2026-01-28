@@ -23,13 +23,13 @@ NUM_HAND_JOINTS = 26  # XR_HAND_JOINT_COUNT_EXT from OpenXR
 def HandInput() -> TensorGroupType:
     """
     Standard TensorGroupType for hand tracking data.
-    
+
     Matches the HandPose schema from hand.fbs with 26 joints (XR_HAND_JOINT_COUNT_EXT).
-    
+
     The actual left/right distinction comes from the RetargeterIO dictionary key
     (e.g., "hand_left" vs "hand_right"), not from the type itself. Both left and
     right hands use the same type structure.
-    
+
     Fields:
         - joint_positions: (26, 3) float32 array - XYZ positions for each joint
         - joint_orientations: (26, 4) float32 array - WXYZ quaternions for each joint
@@ -37,12 +37,12 @@ def HandInput() -> TensorGroupType:
         - joint_valid: (26,) bool array - Validity flag for each joint
         - is_active: bool - Whether hand tracking is active
         - timestamp: int - Timestamp in XrTime format (int64)
-    
+
     Returns:
         TensorGroupType for hand tracking data
-    
+
     Schema reference: IsaacTeleop/src/core/schema/fbs/hand.fbs
-    
+
     Example:
         # Left and right hands use the same type, distinguished by dict key
         def input_spec(self) -> RetargeterIO:
@@ -88,18 +88,18 @@ def HandInput() -> TensorGroupType:
 def HeadPose() -> TensorGroupType:
     """
     Standard TensorGroupType for head tracking data.
-    
+
     Matches the HeadPose schema from head.fbs.
-    
+
     Fields:
         - head_position: (3,) float32 array - XYZ position
         - head_orientation: (4,) float32 array - WXYZ quaternion
         - head_is_valid: bool - Whether head tracking data is valid
         - head_timestamp: int - Timestamp in XrTime format (int64)
-    
+
     Returns:
         TensorGroupType for head tracking data
-    
+
     Schema reference: IsaacTeleop/src/core/schema/fbs/head.fbs
     """
     return TensorGroupType("head", [
@@ -127,13 +127,13 @@ def HeadPose() -> TensorGroupType:
 def ControllerInput() -> TensorGroupType:
     """
     Standard TensorGroupType for VR controller data.
-    
+
     Provides grip pose, aim pose, and all controller inputs (buttons, triggers, thumbstick).
-    
+
     The actual left/right distinction comes from the RetargeterIO dictionary key
     (e.g., "controller_left" vs "controller_right"), not from the type itself. Both
     left and right controllers use the same type structure.
-    
+
     Fields:
         - grip_position: (3,) float32 array - XYZ position of grip pose
         - grip_orientation: (4,) float32 array - WXYZ quaternion of grip pose
@@ -147,10 +147,10 @@ def ControllerInput() -> TensorGroupType:
         - squeeze_value: float - Grip/squeeze trigger [0.0-1.0]
         - trigger_value: float - Index finger trigger [0.0-1.0]
         - is_active: bool - Whether controller is tracked/active
-    
+
     Returns:
         TensorGroupType for controller data
-    
+
     Example:
         # Left and right controllers use the same type, distinguished by dict key
         def input_spec(self) -> RetargeterIO:
@@ -193,4 +193,20 @@ def ControllerInput() -> TensorGroupType:
         FloatType("controller_trigger_value"),
         BoolType("controller_is_active"),
     ])
+
+
+def RobotHandJoints(name: str, joint_names: list[str]) -> TensorGroupType:
+    """
+    Standard TensorGroupType for robot hand joint angles.
+
+    Creates a TensorGroupType with FloatType fields for each joint name.
+
+    Args:
+        name: Name of the TensorGroupType (e.g., "hand_joints_left")
+        joint_names: List of joint names
+
+    Returns:
+        TensorGroupType for robot hand joints
+    """
+    return TensorGroupType(name, [FloatType(joint_name) for joint_name in joint_names])
 

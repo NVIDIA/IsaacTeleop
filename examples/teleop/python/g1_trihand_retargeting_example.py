@@ -5,11 +5,11 @@
 """
 G1 TriHand Retargeting Example
 
-Demonstrates using the TriHandMotionController module to retarget motion controller
+Demonstrates using the TriHandMotionControllerRetargeter module to retarget motion controller
 inputs to G1 robot hand joints.
 
 This example shows:
-1. TriHandMotionController - Simple VR controller-based hand control for G1 TriHand
+1. TriHandMotionControllerRetargeter - Simple VR controller-based hand control for G1 TriHand
 """
 
 import sys
@@ -22,7 +22,7 @@ try:
     import teleopcore.plugin_manager as pm
     from teleopcore.retargeting_engine.deviceio_source_nodes import ControllersSource
     from teleopcore.retargeting_engine.retargeters import (
-        TriHandMotionController,
+        TriHandMotionControllerRetargeter,
         TriHandMotionControllerConfig,
     )
     from teleopcore.teleop_session_manager import TeleopSession, TeleopSessionConfig
@@ -38,9 +38,9 @@ PLUGIN_ROOT_ID = "synthetic_hands"
 
 
 def example_trihand_motion_controller():
-    """Run TriHandMotionController example with VR controllers."""
+    """Run TriHandMotionControllerRetargeter example with VR controllers."""
     print("\n" + "=" * 80)
-    print("  TriHandMotionController Example")
+    print("  TriHandMotionControllerRetargeter Example")
     print("=" * 80)
     print("\nMapping VR controller inputs to G1 TriHand joints...")
     print("- Trigger: Controls index finger")
@@ -50,7 +50,7 @@ def example_trihand_motion_controller():
     # Create controllers source (tracker is internal)
     controllers = ControllersSource(name="controllers")
 
-    # Configure TriHandMotionController for G1 7-DOF hand
+    # Configure TriHandMotionControllerRetargeter for G1 7-DOF hand
     hand_joint_names = [
         "thumb_rotation",
         "thumb_proximal",
@@ -66,7 +66,7 @@ def example_trihand_motion_controller():
         hand_joint_names=hand_joint_names,
         controller_side="left",
     )
-    left_controller = TriHandMotionController(left_config, name="trihand_motion_left")
+    left_controller = TriHandMotionControllerRetargeter(left_config, name="trihand_motion_left")
 
     # Connect left controller to source
     connected_left = left_controller.connect({
@@ -78,7 +78,7 @@ def example_trihand_motion_controller():
         hand_joint_names=hand_joint_names,
         controller_side="right",
     )
-    right_controller = TriHandMotionController(right_config, name="trihand_motion_right")
+    right_controller = TriHandMotionControllerRetargeter(right_config, name="trihand_motion_right")
 
     # Connect right controller to source
     connected_right = right_controller.connect({
@@ -90,7 +90,7 @@ def example_trihand_motion_controller():
     # ==================================================================
 
     session_config = TeleopSessionConfig(
-        app_name="TriHandMotionControllerExample",
+        app_name="TriHandMotionControllerRetargeterExample",
         trackers=[], # Auto-discovered
         pipeline=None, # We have two separate pipelines here, need to combine or run one?
                        # Wait, TeleopSession takes ONE pipeline.
@@ -102,12 +102,12 @@ def example_trihand_motion_controller():
     )
 
     # Let's combine them into a single executable graph using OutputLayer
-    from teleopcore.retargeting_engine.interface import OutputLayer
+    from teleopcore.retargeting_engine.interface import OutputCombiner
 
-    combined_pipeline = OutputLayer({
+    combined_pipeline = OutputCombiner({
         "left_hand": connected_left.output("hand_joints"),
         "right_hand": connected_right.output("hand_joints")
-    }, name="combined_output")
+    })
 
     session_config.pipeline = combined_pipeline
 
@@ -140,7 +140,7 @@ def run_motion_controller_loop(session):
 
     while time.time() - start_time < 20.0:
         # Execute retargeting graph
-                result = session.step()
+        result = session.step()
 
         # Access output joint angles
         joints_left = result["left_hand"]

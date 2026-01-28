@@ -109,7 +109,7 @@ bimanual_retargeter = DexBiManualRetargeter(
 )
 ```
 
-### TriHandMotionController
+### TriHandMotionControllerRetargeter
 
 Simple VR controller-based hand control. Maps trigger and squeeze inputs to G1 TriHand finger joint angles.
 
@@ -123,7 +123,7 @@ Simple VR controller-based hand control. Maps trigger and squeeze inputs to G1 T
 
 ```python
 from teleopcore.retargeting_engine import (
-    TriHandMotionController,
+    TriHandMotionControllerRetargeter,
     TriHandMotionControllerConfig,
 )
 
@@ -140,7 +140,7 @@ config = TriHandMotionControllerConfig(
     controller_side="left",  # or "right"
 )
 
-controller = TriHandMotionController(config, name="trihand_motion_left")
+controller = TriHandMotionControllerRetargeter(config, name="trihand_motion_left")
 ```
 
 **Output DOF Mapping:**
@@ -152,9 +152,9 @@ controller = TriHandMotionController(config, name="trihand_motion_left")
 - Index 5: Middle finger proximal (controlled by squeeze)
 - Index 6: Middle finger distal (controlled by squeeze)
 
-### TriHandBiManualMotionController
+### TriHandBiManualMotionControllerRetargeter
 
-Bimanual wrapper around two `TriHandMotionController` instances.
+Bimanual wrapper around two `TriHandMotionControllerRetargeter` instances.
 
 ## Usage Example
 

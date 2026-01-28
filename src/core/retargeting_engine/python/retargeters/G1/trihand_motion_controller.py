@@ -16,9 +16,8 @@ from typing import Dict, List
 from dataclasses import dataclass
 
 from ...interface import BaseRetargeter, RetargeterIO
-from ...interface.tensor_group_type import TensorGroupType
 from ...interface.tensor_group import TensorGroup
-from ...tensor_types import ControllerInput, FloatType
+from ...tensor_types import ControllerInput, RobotHandJoints
 from ...tensor_types import ControllerInputIndex
 
 
@@ -34,7 +33,7 @@ class TriHandMotionControllerConfig:
     controller_side: str = "left"
 
 
-class TriHandMotionController(BaseRetargeter):
+class TriHandMotionControllerRetargeter(BaseRetargeter):
     """
     Retargeter that maps motion controller inputs to G1 robot hand joint angles.
 
@@ -98,9 +97,9 @@ class TriHandMotionController(BaseRetargeter):
     def output_spec(self) -> RetargeterIO:
         """Define output collections for robot hand joint angles."""
         return {
-            "hand_joints": TensorGroupType(
+            "hand_joints": RobotHandJoints(
                 f"hand_joints_{self._controller_side}",
-                [FloatType(name) for name in self._hand_joint_names]
+                self._hand_joint_names
             )
         }
 
@@ -193,11 +192,11 @@ class TriHandMotionController(BaseRetargeter):
         return hand_joints
 
 
-class TriHandBiManualMotionController(BaseRetargeter):
+class TriHandBiManualMotionControllerRetargeter(BaseRetargeter):
     """
-    Wrapper around two TriHandMotionController instances for bimanual control.
+    Wrapper around two TriHandMotionControllerRetargeter instances for bimanual control.
 
-    This retargeter instantiates two TriHandMotionController instances (one for each hand)
+    This retargeter instantiates two TriHandMotionControllerRetargeter instances (one for each hand)
     and combines their outputs into a single vector.
 
     Inputs:
@@ -233,8 +232,8 @@ class TriHandBiManualMotionController(BaseRetargeter):
         right_config.controller_side = "right"
 
         # Create individual controllers
-        self._left_controller = TriHandMotionController(left_config, name=f"{name}_left")
-        self._right_controller = TriHandMotionController(right_config, name=f"{name}_right")
+        self._left_controller = TriHandMotionControllerRetargeter(left_config, name=f"{name}_left")
+        self._right_controller = TriHandMotionControllerRetargeter(right_config, name=f"{name}_right")
 
         # Prepare index mapping
         self._left_indices = []
@@ -263,9 +262,9 @@ class TriHandBiManualMotionController(BaseRetargeter):
     def output_spec(self) -> RetargeterIO:
         """Define output collections for combined hand joints."""
         return {
-            "hand_joints": TensorGroupType(
+            "hand_joints": RobotHandJoints(
                 "hand_joints_bimanual",
-                [FloatType(name) for name in self._target_joint_names]
+                self._target_joint_names
             )
         }
 

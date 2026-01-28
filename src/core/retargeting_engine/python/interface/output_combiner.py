@@ -139,26 +139,12 @@ class OutputCombiner(GraphExecutable):
         leaves: List[BaseExecutable] = []
         visited = set()
 
-        def visit(module):
-            # Skip if already visited
-            if id(module) in visited:
-                return
-            visited.add(id(module))
-
-            # If module has get_leaf_nodes (e.g. RetargeterSubgraph or another OutputCombiner), use it
-            if hasattr(module, "get_leaf_nodes"):
-                sub_leaves = module.get_leaf_nodes()
-                for leaf in sub_leaves:
-                    if id(leaf) not in visited:
-                        leaves.append(leaf)
-                        visited.add(id(leaf))
-                return
-
-            # Otherwise, assume it's a leaf (e.g. BaseRetargeter)
-            leaves.append(module)
-
         for selector in self.output_mapping.values():
-            visit(selector.module)
+            sub_leaves = selector.module.get_leaf_nodes()
+            for leaf in sub_leaves:
+                if id(leaf) not in visited:
+                    leaves.append(leaf)
+                    visited.add(id(leaf))
 
         return leaves
 
