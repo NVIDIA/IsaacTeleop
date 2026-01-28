@@ -19,7 +19,7 @@ import logging
 from typing import Dict, Optional, List
 from dataclasses import dataclass
 
-from ..interface import BaseRetargeter, RetargeterIO
+from ..interface import BaseRetargeter, RetargeterIO, RetargeterIOType
 from ..interface.tensor_group_type import TensorGroupType
 from ..interface.tensor_group import TensorGroup
 from ..tensor_types import HandInput, FloatType, NUM_HAND_JOINTS
@@ -27,21 +27,21 @@ from ..tensor_types import HandInputIndex, HandJointIndex
 
 # Try to import yaml for config file handling
 try:
-    import yaml
+    import yaml  # type: ignore
     YAML_AVAILABLE = True
 except ImportError:
     YAML_AVAILABLE = False
 
 # Try to import scipy for rotation handling
 try:
-    from scipy.spatial.transform import Rotation as R
+    from scipy.spatial.transform import Rotation as R  # type: ignore
     SCIPY_AVAILABLE = True
 except ImportError:
     SCIPY_AVAILABLE = False
 
 # Helper to import dex_retargeting which might not be available on all platforms
 try:
-    from dex_retargeting.retargeting_config import RetargetingConfig
+    from dex_retargeting.retargeting_config import RetargetingConfig  # type: ignore
     DEX_RETARGETING_AVAILABLE = True
 except ImportError:
     DEX_RETARGETING_AVAILABLE = False
@@ -151,14 +151,14 @@ class DexHandRetargeter(BaseRetargeter):
             HandJointIndex.LITTLE_PROXIMAL, HandJointIndex.LITTLE_INTERMEDIATE, HandJointIndex.LITTLE_DISTAL, HandJointIndex.LITTLE_TIP
         ]
 
-    def input_spec(self) -> RetargeterIO:
+    def input_spec(self) -> RetargeterIOType:
         """Define input collections for hand tracking."""
         if self._hand_side == "left":
             return {"hand_left": HandInput()}
         else:
             return {"hand_right": HandInput()}
 
-    def output_spec(self) -> RetargeterIO:
+    def output_spec(self) -> RetargeterIOType:
         """Define output collections for robot hand joint angles."""
         return {
             "hand_joints": TensorGroupType(
@@ -403,14 +403,14 @@ class DexBiManualRetargeter(BaseRetargeter):
                 self._output_indices_right.append(i)
                 self._right_indices.append(right_joints.index(name))
 
-    def input_spec(self) -> RetargeterIO:
+    def input_spec(self) -> RetargeterIOType:
         """Define input collections for both hands."""
         return {
             "hand_left": HandInput(),
             "hand_right": HandInput()
         }
 
-    def output_spec(self) -> RetargeterIO:
+    def output_spec(self) -> RetargeterIOType:
         """Define output collections for combined hand joints."""
         return {
             "hand_joints": TensorGroupType(

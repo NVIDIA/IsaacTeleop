@@ -11,7 +11,7 @@ import numpy as np
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
-from ..interface import BaseRetargeter, RetargeterIO
+from ..interface import BaseRetargeter, RetargeterIO, RetargeterIOType
 from ..interface.tensor_group_type import TensorGroupType
 from ..interface.tensor_group import TensorGroup
 from ..tensor_types import HandInput, ControllerInput, FloatType
@@ -45,7 +45,7 @@ class GripperRetargeter(BaseRetargeter):
 
         self._previous_gripper_command = False  # False = open, True = closed
 
-    def input_spec(self) -> RetargeterIO:
+    def input_spec(self) -> RetargeterIOType:
         """Requires hand tracking input and controller input."""
         spec = {}
 
@@ -60,7 +60,7 @@ class GripperRetargeter(BaseRetargeter):
 
         return spec
 
-    def output_spec(self) -> RetargeterIO:
+    def output_spec(self) -> RetargeterIOType:
         """Outputs a single float value (-1.0 for closed, 1.0 for open)."""
         return {
             "gripper_command": TensorGroupType("gripper_command", [

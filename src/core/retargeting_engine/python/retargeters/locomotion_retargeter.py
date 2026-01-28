@@ -11,7 +11,7 @@ import numpy as np
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
-from ..interface import BaseRetargeter, RetargeterIO
+from ..interface import BaseRetargeter, RetargeterIO, RetargeterIOType
 from ..interface.tensor_group_type import TensorGroupType
 from ..interface.tensor_group import TensorGroup
 from ..tensor_types import ControllerInput, NDArrayType, DLDataType
@@ -36,11 +36,11 @@ class LocomotionFixedRootCmdRetargeter(BaseRetargeter):
         super().__init__(name=name)
         self._config = config
 
-    def input_spec(self) -> RetargeterIO:
+    def input_spec(self) -> RetargeterIOType:
         """No inputs required."""
         return {}
 
-    def output_spec(self) -> RetargeterIO:
+    def output_spec(self) -> RetargeterIOType:
         """Outputs a 4D root command vector [vel_x, vel_y, rot_vel_z, hip_height]."""
         return {
             "root_command": TensorGroupType("root_command", [
@@ -80,14 +80,14 @@ class LocomotionRootCmdRetargeter(BaseRetargeter):
         self._config = config
         self._hip_height = config.initial_hip_height
 
-    def input_spec(self) -> RetargeterIO:
+    def input_spec(self) -> RetargeterIOType:
         """Requires left and right controller inputs."""
         return {
             "controller_left": ControllerInput(),
             "controller_right": ControllerInput()
         }
 
-    def output_spec(self) -> RetargeterIO:
+    def output_spec(self) -> RetargeterIOType:
         """Outputs a 4D root command vector [vel_x, vel_y, rot_vel_z, hip_height]."""
         return {
             "root_command": TensorGroupType("root_command", [

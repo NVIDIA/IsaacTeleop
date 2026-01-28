@@ -11,14 +11,14 @@ import numpy as np
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
-from ..interface import BaseRetargeter, RetargeterIO
+from ..interface import BaseRetargeter, RetargeterIO, RetargeterIOType
 from ..interface.tensor_group_type import TensorGroupType
 from ..interface.tensor_group import TensorGroup
 from ..tensor_types import HandInput, ControllerInput, NDArrayType, DLDataType
 from ..tensor_types import HandInputIndex, ControllerInputIndex, HandJointIndex
 
 try:
-    from scipy.spatial.transform import Rotation, Slerp
+    from scipy.spatial.transform import Rotation, Slerp  # type: ignore
     SCIPY_AVAILABLE = True
 except ImportError:
     SCIPY_AVAILABLE = False
@@ -64,7 +64,7 @@ class Se3AbsRetargeter(BaseRetargeter):
         # Initialize last pose (pos: 0,0,0, rot: 1,0,0,0 wxyz)
         self._last_pose = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0], dtype=np.float32)
 
-    def input_spec(self) -> RetargeterIO:
+    def input_spec(self) -> RetargeterIOType:
         if "hand" in self._config.input_device:
             return {self._config.input_device: HandInput()}
         elif "controller" in self._config.input_device:
@@ -72,7 +72,7 @@ class Se3AbsRetargeter(BaseRetargeter):
         else:
             raise ValueError(f"Unknown input device: {self._config.input_device}")
 
-    def output_spec(self) -> RetargeterIO:
+    def output_spec(self) -> RetargeterIOType:
         return {
             "ee_pose": TensorGroupType("ee_pose", [
                 NDArrayType("pose", shape=(7,), dtype=DLDataType.FLOAT, dtype_bits=32)
@@ -192,7 +192,7 @@ class Se3RelRetargeter(BaseRetargeter):
 
         self._first_frame = True
 
-    def input_spec(self) -> RetargeterIO:
+    def input_spec(self) -> RetargeterIOType:
         if "hand" in self._config.input_device:
             return {self._config.input_device: HandInput()}
         elif "controller" in self._config.input_device:
@@ -200,7 +200,7 @@ class Se3RelRetargeter(BaseRetargeter):
         else:
             raise ValueError(f"Unknown input device: {self._config.input_device}")
 
-    def output_spec(self) -> RetargeterIO:
+    def output_spec(self) -> RetargeterIOType:
         return {
             "ee_delta": TensorGroupType("ee_delta", [
                 NDArrayType("delta", shape=(6,), dtype=DLDataType.FLOAT, dtype_bits=32)

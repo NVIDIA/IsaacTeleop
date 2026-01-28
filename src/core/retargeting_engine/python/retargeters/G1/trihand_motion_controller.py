@@ -15,7 +15,7 @@ import numpy as np
 from typing import Dict, List
 from dataclasses import dataclass
 
-from ...interface import BaseRetargeter, RetargeterIO
+from ...interface import BaseRetargeter, RetargeterIO, RetargeterIOType
 from ...interface.tensor_group import TensorGroup
 from ...tensor_types import ControllerInput, RobotHandJoints
 from ...tensor_types import ControllerInputIndex
@@ -87,14 +87,14 @@ class TriHandMotionControllerRetargeter(BaseRetargeter):
 
         super().__init__(name=name)
 
-    def input_spec(self) -> RetargeterIO:
+    def input_spec(self) -> RetargeterIOType:
         """Define input collections for motion controller."""
         if self._controller_side == "left":
             return {"controller_left": ControllerInput()}
         else:
             return {"controller_right": ControllerInput()}
 
-    def output_spec(self) -> RetargeterIO:
+    def output_spec(self) -> RetargeterIOType:
         """Define output collections for robot hand joint angles."""
         return {
             "hand_joints": RobotHandJoints(
@@ -252,14 +252,14 @@ class TriHandBiManualMotionControllerRetargeter(BaseRetargeter):
                 self._output_indices_right.append(i)
                 self._right_indices.append(right_joints.index(name))
 
-    def input_spec(self) -> RetargeterIO:
+    def input_spec(self) -> RetargeterIOType:
         """Define input collections for both controllers."""
         return {
             "controller_left": ControllerInput(),
             "controller_right": ControllerInput()
         }
 
-    def output_spec(self) -> RetargeterIO:
+    def output_spec(self) -> RetargeterIOType:
         """Define output collections for combined hand joints."""
         return {
             "hand_joints": RobotHandJoints(
