@@ -32,8 +32,8 @@ services:
     environment:
       - NV_CXR_RUNTIME_DIR=/cloudxr-test/run
       - XR_RUNTIME_JSON=/cloudxr-test/share/openxr/1/openxr_cloudxr.json
-      - PYTHON_TESTS=${PYTHON_TESTS:-}
-      - NATIVE_TESTS=${NATIVE_TESTS:-}
+      - CXR_PYTHON_GPU_TESTS=${CXR_PYTHON_GPU_TESTS:-}
+      - CXR_NATIVE_GPU_TESTS=${CXR_NATIVE_GPU_TESTS:-}
     volumes:
       - openxr-volume:/cloudxr-test/:ro
     working_dir: /app/tests
@@ -46,8 +46,8 @@ services:
         echo "=========================================="
         echo ""
         echo "XR_RUNTIME_JSON: $${XR_RUNTIME_JSON}"
-        echo "PYTHON_TESTS: $${PYTHON_TESTS}"
-        echo "NATIVE_TESTS: $${NATIVE_TESTS}"
+        echo "CXR_PYTHON_GPU_TESTS: $${CXR_PYTHON_GPU_TESTS}"
+        echo "CXR_NATIVE_GPU_TESTS: $${CXR_NATIVE_GPU_TESTS}"
         echo ""
 
         PASSED=0
@@ -55,11 +55,11 @@ services:
         FAILED_TESTS=""
 
         # Run Python tests
-        if [ -n "$${PYTHON_TESTS}" ]; then
+        if [ -n "$${CXR_PYTHON_GPU_TESTS}" ]; then
             echo "=========================================="
             echo "Running Python Tests"
             echo "=========================================="
-            IFS=',' read -ra TESTS <<< "$${PYTHON_TESTS}"
+            IFS=',' read -ra TESTS <<< "$${CXR_PYTHON_GPU_TESTS}"
 
             for test_script in "$${TESTS[@]}"; do
                 test_script=$$(echo "$$test_script" | xargs)  # trim whitespace
@@ -80,11 +80,11 @@ services:
         fi
 
         # Run native C++ tests
-        if [ -n "$${NATIVE_TESTS}" ]; then
+        if [ -n "$${CXR_NATIVE_GPU_TESTS}" ]; then
             echo "=========================================="
             echo "Running Native C++ Tests"
             echo "=========================================="
-            IFS=',' read -ra NATIVES <<< "$${NATIVE_TESTS}"
+            IFS=',' read -ra NATIVES <<< "$${CXR_NATIVE_GPU_TESTS}"
 
             for native_test in "$${NATIVES[@]}"; do
                 native_test=$$(echo "$$native_test" | xargs)  # trim whitespace

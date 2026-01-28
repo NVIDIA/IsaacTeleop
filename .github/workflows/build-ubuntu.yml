@@ -95,10 +95,6 @@ jobs:
         mkdir -p install
         tar -xvf teleopcore-install.tar -C install
 
-    - name: Restore execute permissions on test binaries
-      run: |
-        find build -type f -name '*_tests' -exec chmod +x {} \;
-
     - name: Parse CloudXR tag from .env.default
       id: cloudxr
       run: |

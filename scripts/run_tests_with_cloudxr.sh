@@ -17,15 +17,20 @@ set -e
 
 #==============================================================================
 # Configuration - Edit these lists to add/remove tests
+#
+# Note: Only tests will be executed with the CloudXR runtime on a runner with
+# GPU support. If the tests doesn't require GPU support, please add them to
+# the ctest configuration in `build-ubuntu.yml` instead, so that they can be
+# run on a runner without GPU support immediately after the build.
 #==============================================================================
-PYTHON_TESTS=(
+CXR_PYTHON_GPU_TESTS=(
     "test_extensions.py"
     "test_modular.py"
 )
 
-NATIVE_TESTS=(
-    "build/src/core/mcap_tests/cpp/mcap_tests"
-    "build/src/core/schema_tests/cpp/schema_tests"
+CXR_NATIVE_GPU_TESTS=(
+    "install/examples/oxr/cpp/oxr_session_sharing"
+    "install/examples/oxr/cpp/oxr_simple_api_demo"
 )
 #==============================================================================
 
@@ -71,15 +76,15 @@ while [[ $# -gt 0 ]]; do
             echo "  --build    Force rebuild of test container (no cache)"
             echo "  --help     Show this help message"
             echo ""
-            echo "Tests to run (edit PYTHON_TESTS/NATIVE_TESTS in this script):"
+            echo "Tests to run (edit CXR_PYTHON_GPU_TESTS/CXR_NATIVE_GPU_TESTS in this script):"
             echo ""
             echo "Python tests:"
-            for test in "${PYTHON_TESTS[@]}"; do
+            for test in "${CXR_PYTHON_GPU_TESTS[@]}"; do
                 echo "  - $test"
             done
             echo ""
             echo "Native tests:"
-            for test in "${NATIVE_TESTS[@]}"; do
+            for test in "${CXR_NATIVE_GPU_TESTS[@]}"; do
                 echo "  - $test"
             done
             exit 0
@@ -158,21 +163,21 @@ log_info "Setting up environment..."
 # Source shared CloudXR environment setup
 source scripts/setup_cloudxr_env.sh
 
-log_info "PYTHON_TESTS:"
-for test in "${PYTHON_TESTS[@]}"; do
+log_info "CXR_PYTHON_GPU_TESTS:"
+for test in "${CXR_PYTHON_GPU_TESTS[@]}"; do
     log_info "  - $test"
 done
-log_info "NATIVE_TESTS:"
-for test in "${NATIVE_TESTS[@]}"; do
+log_info "CXR_NATIVE_GPU_TESTS:"
+for test in "${CXR_NATIVE_GPU_TESTS[@]}"; do
     log_info "  - $test"
 done
 
 # Join arrays into comma-separated strings for docker-compose environment variables
-PYTHON_TESTS_ENV=$(IFS=','; echo "${PYTHON_TESTS[*]}")
-export PYTHON_TESTS="$PYTHON_TESTS_ENV"
+CXR_PYTHON_GPU_TESTS_ENV=$(IFS=','; echo "${CXR_PYTHON_GPU_TESTS[*]}")
+export CXR_PYTHON_GPU_TESTS="$CXR_PYTHON_GPU_TESTS_ENV"
 
-NATIVE_TESTS_ENV=$(IFS=','; echo "${NATIVE_TESTS[*]}")
-export NATIVE_TESTS="$NATIVE_TESTS_ENV"
+CXR_NATIVE_GPU_TESTS_ENV=$(IFS=','; echo "${CXR_NATIVE_GPU_TESTS[*]}")
+export CXR_NATIVE_GPU_TESTS="$CXR_NATIVE_GPU_TESTS_ENV"
 
 # Create/update .env file with test configuration
 log_info "Writing test configuration to $ENV_TEST..."
@@ -180,8 +185,8 @@ if [ "${CI:-false}" = "true" ]; then
     log_info "CI environment detected, auto-accepting CloudXR EULA"
 fi
 {
-    echo "PYTHON_TESTS=$PYTHON_TESTS"
-    echo "NATIVE_TESTS=$NATIVE_TESTS"
+    echo "CXR_PYTHON_GPU_TESTS=$CXR_PYTHON_GPU_TESTS"
+    echo "CXR_NATIVE_GPU_TESTS=$CXR_NATIVE_GPU_TESTS"
     # In CI, auto-accept EULA
     if [ "${CI:-false}" = "true" ]; then
         echo "ACCEPT_CLOUDXR_EULA=Y"
