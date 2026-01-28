@@ -186,8 +186,8 @@ class Se3RelRetargeter(BaseRetargeter):
         self._position_threshold = 0.001
         self._rotation_threshold = 0.01
 
-        self._previous_thumb_tip = None
-        self._previous_index_tip = None
+        self._previous_thumb_tip: Optional[np.ndarray] = None
+        self._previous_index_tip: Optional[np.ndarray] = None
         self._previous_wrist = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
 
         self._first_frame = True

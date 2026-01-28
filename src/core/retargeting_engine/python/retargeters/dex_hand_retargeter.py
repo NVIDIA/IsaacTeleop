@@ -335,9 +335,9 @@ class DexHandRetargeter(BaseRetargeter):
 
         # 4. Run optimizer
         try:
-            import torch
+            import torch  # type: ignore
             with torch.enable_grad(), torch.inference_mode(False):
-                return self._dex_hand.retarget(ref_value)
+                return self._dex_hand.retarget(ref_value)  # type: ignore
         except Exception as e:
             logger.error(f"Error in retargeting: {e}")
             return np.zeros(len(self._dex_hand.optimizer.robot.dof_joint_names))

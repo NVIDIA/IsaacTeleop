@@ -11,6 +11,7 @@ The indices for TensorGroupTypes are generated automatically from the type defin
 to ensure they always match the schema.
 """
 
+from typing import Any
 from enum import IntEnum
 from .standard_types import HandInput, ControllerInput
 
@@ -25,8 +26,8 @@ def _create_index_enum(name: str, group_type, prefix: str = "") -> IntEnum:
     return IntEnum(name, members)
 
 # Generate indices dynamically
-HandInputIndex = _create_index_enum("HandInputIndex", HandInput(), "hand_")
-ControllerInputIndex = _create_index_enum("ControllerInputIndex", ControllerInput(), "controller_")
+HandInputIndex: Any = _create_index_enum("HandInputIndex", HandInput(), "hand_")
+ControllerInputIndex: Any = _create_index_enum("ControllerInputIndex", ControllerInput(), "controller_")
 
 class HandJointIndex(IntEnum):
     """Indices for OpenXR hand joints (XR_HAND_JOINT_COUNT_EXT = 26)."""
@@ -56,4 +57,3 @@ class HandJointIndex(IntEnum):
     LITTLE_INTERMEDIATE = 23
     LITTLE_DISTAL = 24
     LITTLE_TIP = 25
-
