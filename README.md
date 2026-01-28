@@ -96,25 +96,25 @@ cd TeleopCore
 Download CloudXR PID (Product Information Delivery) from NVOnline (https://partners.nvidia.com/).
 In the package, you should found a `tar.gz` file:
 
-Place `cloudxr-runtime-6.1.0-pid3.tar.gz` under the `deps/cloudxr` folder:
+Place `cloudxr-runtime-6.1.0-pid4.tar.gz` under the `deps/cloudxr` folder:
 ```
 deps/
 ├── cloudxr
 │   ├── CLOUDXR_LICENSE
 │   ├── docker-compose.yaml
-│   └── cloudxr-runtime-6.1.0-pid3.tar.gz
+│   └── cloudxr-runtime-6.1.0-pid4.tar.gz
 ```
 
 5. **Build and load CloudXR containers**
 ```bash
 ./examples/cxrjs/build_containers.sh
-./scripts/cloudxr_image_ops.sh --load 6.1.0-pid3
+./scripts/cloudxr_image_ops.sh --load 6.1.0-pid4
 ```
 
 > **Important:** Make sure you place the `.gz` and `.tgz` files from the previous steps at the
 > designated location. Otherwise, you will see an error like this:
 > ```
-> Error: File not found: ./deps/cloudxr/cloudxr-runtime-6.1.0-pid3.tar.gz
+> Error: File not found: ./deps/cloudxr/cloudxr-runtime-6.1.0-pid4.tar.gz
 > ```
 
 6. **Run CloudXR**
