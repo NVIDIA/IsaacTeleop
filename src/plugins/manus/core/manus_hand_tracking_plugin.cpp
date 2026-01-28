@@ -112,14 +112,15 @@ void ManusTracker::initialize(const std::string& app_name) noexcept(false)
 
     try
     {
-        // Create session with required extensions - Create() automatically begins the session
-        std::vector<std::string> extensions = { XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME };
-#if defined(_WIN32)
-        extensions.push_back(XR_KHR_WIN32_CONVERT_PERFORMANCE_COUNTER_TIME_EXTENSION_NAME);
-#else
-        extensions.push_back(XR_KHR_CONVERT_TIMESPEC_TIME_EXTENSION_NAME);
-#endif
+        // Create ControllerTracker and DeviceIOSession
+        m_controller_tracker = std::make_shared<core::ControllerTracker>();
+        std::vector<std::shared_ptr<core::ITracker>> trackers = { m_controller_tracker };
 
+        // Get required extensions from trackers
+        auto extensions = core::DeviceIOSession::get_required_extensions(trackers);
+        extensions.push_back(XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME);
+
+        // Create session with required extensions - Create() automatically begins the session
         m_session = core::OpenXRSession::Create(app_name, extensions);
         if (!m_session)
         {
@@ -130,9 +131,6 @@ void ManusTracker::initialize(const std::string& app_name) noexcept(false)
         // Initialize hand injector
         m_injector.emplace(m_handles.instance, m_handles.session, m_handles.space);
 
-        // Create ControllerTracker and DeviceIOSession
-        m_controller_tracker = std::make_shared<core::ControllerTracker>();
-        std::vector<std::shared_ptr<core::ITracker>> trackers = { m_controller_tracker };
         m_deviceio_session = core::DeviceIOSession::run(trackers, m_handles);
 
         std::cout << "OpenXR session, HandInjector and DeviceIOSession initialized" << std::endl;
