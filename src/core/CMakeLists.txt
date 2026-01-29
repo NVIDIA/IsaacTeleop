@@ -21,6 +21,9 @@ add_subdirectory(oxr)
 # Build DEVICEIO library first (depends on oxr_utils for types)
 add_subdirectory(deviceio)
 
+# Build TensorIO library (depends on oxr_utils and openxr_extensions)
+add_subdirectory(tensorio)
+
 # Build MCAP library (depends on deviceio for DeviceIOSession and tracker interfaces)
 add_subdirectory(mcap)
 
