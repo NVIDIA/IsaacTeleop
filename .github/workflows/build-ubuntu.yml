@@ -6,6 +6,7 @@ name: Build Ubuntu
 on:
   push:
     branches: [ main ]
+    tags: [ '*' ]
   pull_request:
 
 jobs:
@@ -14,7 +15,8 @@ jobs:
 
     strategy:
       matrix:
-        build_type: [Debug, Release]
+        # On tag pushes, only build Release (Debug is skipped).
+        build_type: ${{ fromJSON(startsWith(github.ref, 'refs/tags/') && '["Release"]' || '["Debug","Release"]') }}
 
     steps:
     - name: Checkout code
@@ -127,3 +129,63 @@ jobs:
 
         # Run tests with CloudXR runtime
         ./scripts/run_tests_with_cloudxr.sh
+
+  publish-wheel:
+    runs-on: [self-hosted, linux]
+    needs: test-cloudxr
+    environment: dev
+    # Publish only for tag pushes, and only after CloudXR tests succeed.
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && needs.test-cloudxr.result == 'success' }}
+
+    steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Download install artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: teleopcore-install-release
+
+    - name: Extract tarball to preserve permissions
+      run: |
+        mkdir -p install
+        tar -xvf teleopcore-install.tar -C install
+
+    - name: Upload wheel(s) to Artifactory
+      env:
+        ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
+        ARTIFACTORY_REPO: ${{ secrets.ARTIFACTORY_REPO }}
+        ARTIFACTORY_USERNAME: ${{ secrets.ARTIFACTORY_USERNAME }}
+        ARTIFACTORY_API_KEY: ${{ secrets.ARTIFACTORY_API_KEY }}
+        TAG_NAME: ${{ github.ref_name }}
+      run: |
+        set -euo pipefail
+
+        if [[ -z "${ARTIFACTORY_URL}" || -z "${ARTIFACTORY_REPO}" || -z "${ARTIFACTORY_USERNAME}" || -z "${ARTIFACTORY_API_KEY}" ]]; then
+          echo "Missing one or more required secrets: ARTIFACTORY_URL, ARTIFACTORY_REPO, ARTIFACTORY_USERNAME, ARTIFACTORY_API_KEY"
+          exit 1
+        fi
+
+        shopt -s nullglob
+        wheels=(install/wheels/*.whl)
+        if (( ${#wheels[@]} == 0 )); then
+          echo "No wheels found under install/wheels/*.whl"
+          ls -la install || true
+          ls -la install/wheels || true
+          exit 1
+        fi
+
+        python -m pip install --upgrade pip twine
+
+        # Artifactory PyPI repositories use the PyPI API endpoint.
+        repository_url="${ARTIFACTORY_URL%/}/api/pypi/${ARTIFACTORY_REPO}"
+        echo "Publishing ${#wheels[@]} wheel(s) to: ${repository_url} (tag: ${TAG_NAME})"
+
+        python -m twine upload \
+          --non-interactive \
+          --repository-url "${repository_url}" \
+          -u "${ARTIFACTORY_USERNAME}" \
+          -p "${ARTIFACTORY_API_KEY}" \
+          "${wheels[@]}"
