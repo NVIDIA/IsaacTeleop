@@ -13,10 +13,10 @@ namespace core
 // without requiring them to link against the OpenXR loader library
 struct OpenXRSessionHandles
 {
-    XrInstance instance;
-    XrSession session;
-    XrSpace space;
-    PFN_xrGetInstanceProcAddr xrGetInstanceProcAddr;
+    XrInstance instance{};
+    XrSession session{};
+    XrSpace space{};
+    PFN_xrGetInstanceProcAddr xrGetInstanceProcAddr{};
 };
 
 } // namespace core
