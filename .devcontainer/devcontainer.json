@@ -1,0 +1,23 @@
+{
+  "name": "Isaac Teleop Dev Container",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/git-lfs:1": {},
+    "ghcr.io/devcontainers-extra/features/apt-packages:1": {
+      "packages": "clang-format-14,libx11-dev,libxrandr-dev,libxxf86vm-dev,libgl1-mesa-dev"
+    },
+    "ghcr.io/devcontainers-extra/features/cmake:1": {},
+    "ghcr.io/devcontainers-extra/features/uv:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.cpptools",
+        "ms-vscode.cmake-tools",
+        "ms-python.python",
+        "twxs.cmake"
+      ]
+    }
+  }
+}
