@@ -105,6 +105,7 @@ if(BUILD_EXAMPLES)
     add_subdirectory(examples/oxr)
     add_subdirectory(examples/retargeting)
     add_subdirectory(examples/teleop_session_manager)
+    add_subdirectory(examples/hello_tensor)
 endif()
 
 # Build plugins if requested
@@ -112,7 +113,10 @@ if(BUILD_PLUGINS)
     # Build plugin utilities
     add_subdirectory(src/plugins/plugin_utils)
 
+    # Demo plugins
     add_subdirectory(src/plugins/controller_synthetic_hands)
+
+    # Vendor-specific plugins
     add_subdirectory(src/plugins/manus)
 endif()
 
