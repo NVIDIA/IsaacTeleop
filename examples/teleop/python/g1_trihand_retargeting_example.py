@@ -69,7 +69,7 @@ def example_trihand_motion_controller():
 
     # Connect left controller to source
     connected_left = left_controller.connect({
-        "controller_left": controllers.output("controller_left")
+        ControllersSource.LEFT: controllers.output(ControllersSource.LEFT)
     })
 
     # Create right hand controller
@@ -81,7 +81,7 @@ def example_trihand_motion_controller():
 
     # Connect right controller to source
     connected_right = right_controller.connect({
-        "controller_right": controllers.output("controller_right")
+        ControllersSource.RIGHT: controllers.output(ControllersSource.RIGHT)
     })
 
     # ==================================================================

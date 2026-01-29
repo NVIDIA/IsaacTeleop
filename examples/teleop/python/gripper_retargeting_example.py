@@ -53,8 +53,8 @@ def main():
         name="gripper_left"
     )
     connected_gripper_left = gripper_left.connect({
-        "controller_left": controllers.output("controller_left"),
-        "hand_left": hands.output("hand_left")
+        ControllersSource.LEFT: controllers.output(ControllersSource.LEFT),
+        HandsSource.LEFT: hands.output(HandsSource.LEFT)
     })
 
     gripper_right = GripperRetargeter(
@@ -62,26 +62,26 @@ def main():
         name="gripper_right"
     )
     connected_gripper_right = gripper_right.connect({
-        "controller_right": controllers.output("controller_right"),
-        "hand_right": hands.output("hand_right")
+        ControllersSource.RIGHT: controllers.output(ControllersSource.RIGHT),
+        HandsSource.RIGHT: hands.output(HandsSource.RIGHT)
     })
 
     # 2. SE3 Pose Retargeter (Left)
     se3_left = Se3AbsRetargeter(
-        Se3RetargeterConfig(input_device="controller_left"),
+        Se3RetargeterConfig(input_device=ControllersSource.LEFT),
         name="se3_left"
     )
     connected_se3_left = se3_left.connect({
-        "controller_left": controllers.output("controller_left")
+        ControllersSource.LEFT: controllers.output(ControllersSource.LEFT)
     })
 
     # 3. SE3 Pose Retargeter (Right)
     se3_right = Se3AbsRetargeter(
-        Se3RetargeterConfig(input_device="controller_right"),
+        Se3RetargeterConfig(input_device=ControllersSource.RIGHT),
         name="se3_right"
     )
     connected_se3_right = se3_right.connect({
-        "controller_right": controllers.output("controller_right")
+        ControllersSource.RIGHT: controllers.output(ControllersSource.RIGHT)
     })
 
     # 4. Combine outputs into a single pipeline

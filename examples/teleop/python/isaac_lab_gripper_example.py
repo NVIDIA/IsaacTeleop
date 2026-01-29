@@ -58,8 +58,8 @@ def main():
     gripper = GripperRetargeter(config, name="gripper")
 
     pipeline = gripper.connect({
-        "hand_right": hands.output("hand_right"),
-        "controller_right": controllers.output("controller_right"),
+        "hand_right": hands.output(hands.RIGHT),
+        "controller_right": controllers.output(controllers.RIGHT),
     })
 
     # ==================================================================

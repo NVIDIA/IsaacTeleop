@@ -1,4 +1,4 @@
-dex-retargeting
-scipy
-pyyaml
-torch
+dex-retargeting>=0.5.0,<0.6.0
+scipy>=1.17.0
+pyyaml>=6.0.3
+torch==2.7.0

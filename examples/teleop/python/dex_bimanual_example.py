@@ -96,8 +96,8 @@ def main():
     )
 
     pipeline = bimanual.connect({
-        "hand_left": hands.output("hand_left"),
-        "hand_right": hands.output("hand_right"),
+        HandsSource.LEFT: hands.output(HandsSource.LEFT),
+        HandsSource.RIGHT: hands.output(HandsSource.RIGHT),
     })
 
     # ==================================================================

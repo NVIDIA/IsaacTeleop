@@ -63,8 +63,8 @@ def main():
     locomotion = LocomotionRootCmdRetargeter(config, name="locomotion")
 
     pipeline = locomotion.connect({
-        "controller_left": controllers.output("controller_left"),
-        "controller_right": controllers.output("controller_right")
+        "controller_left": controllers.output(controllers.LEFT),
+        "controller_right": controllers.output(controllers.RIGHT)
     })
 
     # ==================================================================

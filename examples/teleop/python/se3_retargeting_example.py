@@ -41,10 +41,10 @@ def run_abs_example(use_controller=False):
 
     if use_controller:
         source = ControllersSource(name="controllers")
-        input_device = "controller_right"
+        input_device = ControllersSource.RIGHT
     else:
         source = HandsSource(name="hands")
-        input_device = "hand_right"
+        input_device = HandsSource.RIGHT
 
     config = Se3RetargeterConfig(
         input_device=input_device,
@@ -94,10 +94,10 @@ def run_rel_example(use_controller=False):
 
     if use_controller:
         source = ControllersSource(name="controllers")
-        input_device = "controller_right"
+        input_device = ControllersSource.RIGHT
     else:
         source = HandsSource(name="hands")
-        input_device = "hand_right"
+        input_device = HandsSource.RIGHT
 
     config = Se3RetargeterConfig(
         input_device=input_device,

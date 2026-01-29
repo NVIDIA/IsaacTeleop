@@ -50,8 +50,8 @@ def main():
     retargeter_config = GripperRetargeterConfig()
     gripper = GripperRetargeter(retargeter_config, name="gripper")
     pipeline = gripper.connect({
-        "hand_right": hands.output("hand_right"),
-        "controller_right": controllers.output("controller_right")
+        "hand_right": hands.output(hands.RIGHT),
+        "controller_right": controllers.output(controllers.RIGHT)
     })
 
     # ==================================================================
@@ -91,7 +91,6 @@ def main():
             result = session.step()
 
             # Get gripper values
-            # left = result["gripper_left"][0]
             right = result["gripper_command"][0]
 
             # Print status every 0.5 seconds

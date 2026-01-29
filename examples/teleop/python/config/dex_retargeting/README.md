@@ -38,13 +38,13 @@ retargeting:
   - L_middle_tip
   - L_ring_tip
   - L_pinky_tip
-  
+
   # Low-pass filter alpha (0-1, higher = less filtering)
   low_pass_alpha: 0.2
-  
+
   # Scaling factor for hand size differences
   scaling_factor: 1.2
-  
+
   # Target joint names (output from retargeting)
   target_joint_names:
   - L_thumb_proximal_yaw_joint
@@ -53,13 +53,13 @@ retargeting:
   - L_middle_proximal_joint
   - L_ring_proximal_joint
   - L_pinky_proximal_joint
-  
+
   # Retargeting method (DexPilot is recommended)
   type: DexPilot
-  
+
   # Path to robot hand URDF
   urdf_path: ./config/dex_retargeting/robot_hand.urdf
-  
+
   # Wrist link name (base of the hand)
   wrist_link_name: L_hand_base_link
 ```
@@ -92,12 +92,7 @@ It is **NOT** suitable for:
 
 ## More Information
 
-See the IsaacLab examples for complete working configurations:
-```
-IsaacLab/source/isaaclab_tasks/.../config/dex_retargeting/
-```
-
-Or check the dex-retargeting library documentation:
+Check the dex-retargeting library documentation:
 - GitHub: https://github.com/dexsuite/dex-retargeting
 - Paper: https://arxiv.org/abs/2202.00448
 
