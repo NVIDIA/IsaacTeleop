@@ -123,8 +123,22 @@ bool DeviceIOSession::update()
     // Update all tracker implementations directly
     for (auto& impl : tracker_impls_)
     {
-        // TODO: Handle error case, errors may occur if motion controllers are not held for example.
-        impl.second->update(current_time);
+        if (!impl.second->update(current_time))
+        {
+            // Rate-limit warnings to avoid log spam (log first failure, then every 1000th)
+            auto& count = tracker_update_failure_counts_[impl.first];
+            count++;
+            if (count == 1 || count % 1000 == 0)
+            {
+                std::cerr << "Warning: tracker '" << impl.first->get_name() << "' update failed (count: " << count
+                          << ")" << std::endl;
+            }
+        }
+        else
+        {
+            // Reset count on success
+            tracker_update_failure_counts_[impl.first] = 0;
+        }
     }
 
     return true;

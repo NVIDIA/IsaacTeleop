@@ -11,7 +11,6 @@ to robot hand joint angles. It supports configuration via YAML files and URDFs.
 Based on IsaacLab's DexHandRetargeter, adapted for TeleopCore's retargeting framework.
 """
 
-import contextlib
 import numpy as np
 import tempfile
 import os
@@ -40,7 +39,7 @@ from ..tensor_types import (
 
 import yaml
 from scipy.spatial.transform import Rotation as R
-from dex_retargeting.retargeting_config import RetargetingConfig
+from dex_retargeting.retargeting_config import RetargetingConfig  # type: ignore
 
 
 logger = logging.getLogger(__name__)
@@ -112,7 +111,7 @@ class DexHandRetargeter(BaseRetargeter):
         default_rpy = r.as_euler('xyz', degrees=True)
 
         # Initialize last RPY for change detection
-        self._last_rpy = None
+        self._last_rpy: Optional[np.ndarray] = None
 
         transform_param = VectorParameter(
             name="transform_rpy",
@@ -236,7 +235,7 @@ class DexHandRetargeter(BaseRetargeter):
     def _update_transform_from_rpy(self, value: np.ndarray) -> None:
         """Update the hand tracking to base link transform from Euler angles (degrees)."""
         r = R.from_euler('xyz', value, degrees=True)
-        self._handtracking2baselink = r.as_matrix()
+        self._handtracking2baselink = r.as_matrix()  # type: ignore
 
         # Only print if value has changed significantly
         if self._last_rpy is None or not np.allclose(self._last_rpy, value, atol=1e-3):

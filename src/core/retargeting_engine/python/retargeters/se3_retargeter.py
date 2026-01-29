@@ -28,7 +28,7 @@ from ..tensor_types import (
 )
 
 try:
-    from scipy.spatial.transform import Rotation, Slerp  # type: ignore
+    from scipy.spatial.transform import Rotation, Slerp
     SCIPY_AVAILABLE = True
 except ImportError:
     SCIPY_AVAILABLE = False
@@ -163,10 +163,8 @@ class Se3AbsRetargeter(BaseRetargeter):
         position = position + base_rot.apply(self._target_offset_pos)
 
         if self._config.zero_out_xy_rotation:
-            z, y, x = final_rot.as_euler("ZYX")
-            y = 0.0
-            x = 0.0
-            final_rot = Rotation.from_euler("ZYX", [z, y, x]) * Rotation.from_euler("X", np.pi, degrees=False)
+            z, _, _ = final_rot.as_euler("ZYX")
+            final_rot = Rotation.from_euler("ZYX", np.array([z, 0.0, 0.0])) * Rotation.from_euler("X", np.pi, degrees=False)
 
         # Convert back to w,x,y,z format
         quat = final_rot.as_quat() # x,y,z,w
