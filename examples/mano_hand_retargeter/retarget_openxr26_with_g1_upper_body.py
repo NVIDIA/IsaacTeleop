@@ -1786,8 +1786,8 @@ def main() -> None:
         type=str,
         default=None,
         help=(
-            "Directory containing dex-retargeting YAML configs "
-            "(defaults to IsaacLab's trihand config dir if found)."
+            "Directory containing dex-retargeting YAML configs. "
+            "If omitted, will try to auto-locate configs (prefers this repo's `examples/mano_hand_retargeter/_DATA`)."
         ),
     )
     parser.add_argument(
@@ -1977,9 +1977,17 @@ def main() -> None:
     # Resolve dex-retargeting config directory.
     dex_dir = Path(args.dex_config_dir) if args.dex_config_dir is not None else None
     if dex_dir is None:
-        # Try common IsaacLab checkout locations.
+        # Prefer local, repo-relative data first (works out-of-the-box for this repo).
+        this_dir = Path(__file__).resolve().parent
+        # Fall back to common IsaacLab checkout layouts (best-effort).
+        isaaclab_root = os.environ.get("ISAACLAB_PATH", None)
         candidates = [
-            Path("/home/lduan/Documents/IsaacLab/source/isaaclab/isaaclab/devices/openxr/retargeters/humanoid/unitree/trihand/data/configs/dex-retargeting"),
+            this_dir / "_DATA",
+            this_dir / "_DATA" / "dex-retargeting",
+            # If user provides ISAACLAB_PATH, try to resolve from there.
+            (Path(isaaclab_root) / "source/isaaclab/isaaclab/devices/openxr/retargeters/humanoid/unitree/trihand/data/configs/dex-retargeting")
+            if isaaclab_root
+            else None,
             Path.home()
             / "Documents"
             / "IsaacLab"
@@ -1996,12 +2004,13 @@ def main() -> None:
             / "configs"
             / "dex-retargeting",
         ]
-        dex_dir = next((c for c in candidates if c.exists()), None)
+        dex_dir = next((c for c in candidates if c is not None and c.exists()), None)
     if dex_dir is None or not dex_dir.exists():
         raise FileNotFoundError(
             "Could not locate dex-retargeting YAML configs. "
-            "Pass --dex-config-dir pointing to IsaacLab's "
-            "`.../trihand/data/configs/dex-retargeting` directory."
+            "Pass --dex-config-dir pointing to a directory that contains the YAMLs "
+            f"(e.g. '{args.left_config}' / '{args.right_config}'). "
+            "This repo typically keeps them under `examples/mano_hand_retargeter/_DATA`."
         )
 
     left_cfg = dex_dir / args.left_config
