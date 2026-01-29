@@ -6,7 +6,7 @@
 #include "tracker.hpp"
 
 #include <oxr_utils/oxr_funcs.hpp>
-#include <oxr_utils/oxr_types.hpp>
+#include <oxr_utils/oxr_session_handles.hpp>
 
 // Include platform-specific headers first
 #if defined(XR_USE_PLATFORM_WIN32)

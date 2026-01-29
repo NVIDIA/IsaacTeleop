@@ -6,7 +6,7 @@
 #include "flatbuffers/flatbuffer_builder.h"
 
 #include <oxr_utils/oxr_funcs.hpp>
-#include <oxr_utils/oxr_types.hpp>
+#include <oxr_utils/oxr_session_handles.hpp>
 #include <schema/timestamp_generated.h>
 
 #include <memory>
