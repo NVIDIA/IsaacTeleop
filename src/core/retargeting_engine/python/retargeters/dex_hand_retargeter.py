@@ -22,6 +22,8 @@ from dataclasses import dataclass
 from ..interface import (
     BaseRetargeter,
     RetargeterIOType,
+    ParameterState,
+    VectorParameter,
 )
 from ..interface.tensor_group_type import (
     TensorGroupType,
@@ -36,26 +38,9 @@ from ..tensor_types import (
     HandJointIndex,
 )
 
-# Try to import yaml for config file handling
-try:
-    import yaml  # type: ignore
-    YAML_AVAILABLE = True
-except ImportError:
-    YAML_AVAILABLE = False
-
-# Try to import scipy for rotation handling
-try:
-    from scipy.spatial.transform import Rotation as R  # type: ignore
-    SCIPY_AVAILABLE = True
-except ImportError:
-    SCIPY_AVAILABLE = False
-
-# Helper to import dex_retargeting which might not be available on all platforms
-try:
-    from dex_retargeting.retargeting_config import RetargetingConfig  # type: ignore
-    DEX_RETARGETING_AVAILABLE = True
-except ImportError:
-    DEX_RETARGETING_AVAILABLE = False
+import yaml
+from scipy.spatial.transform import Rotation as R
+from dex_retargeting.retargeting_config import RetargetingConfig
 
 
 logger = logging.getLogger(__name__)
@@ -66,19 +51,22 @@ class DexHandRetargeterConfig:
     """Configuration for the dexterous hand retargeter.
 
     Attributes:
-        hand_joint_names: List of joint names in the robot hand (in order)
         hand_retargeting_config: Path to YAML config file for dex_retargeting
         hand_urdf: Path to URDF file for the robot hand
+        hand_joint_names: List of joint names in the robot hand (in order).
+                          If None, defaults to the order from dex_retargeting.
         handtracking_to_baselink_frame_transform: 3x3 rotation matrix (flattened to 9 elements)
                                                    for transforming from hand tracking to robot base frame.
-                                                   Default: G1/Inspire frame (0,0,1, 1,0,0, 0,1,0)
+                                                   Default: Identity (1,0,0, 0,1,0, 0,0,1)
         hand_side: Which hand to retarget ("left" or "right")
+        parameter_config_path: Optional path to JSON file for saving/loading tunable parameters.
     """
-    hand_joint_names: List[str]
     hand_retargeting_config: str
     hand_urdf: str
-    handtracking_to_baselink_frame_transform: tuple = (0, 0, 1, 1, 0, 0, 0, 1, 0)
+    hand_joint_names: Optional[List[str]] = None
+    handtracking_to_baselink_frame_transform: tuple = (1, 0, 0, 0, 1, 0, 0, 0, 1)
     hand_side: str = "left"
+    parameter_config_path: Optional[str] = None
 
 
 class DexHandRetargeter(BaseRetargeter):
@@ -115,28 +103,26 @@ class DexHandRetargeter(BaseRetargeter):
         if self._hand_side not in ["left", "right"]:
             raise ValueError(f"hand_side must be 'left' or 'right', got: {self._hand_side}")
 
-        self._hand_joint_names = config.hand_joint_names
+        # Initialize the transform matrix
+        self._handtracking2baselink = np.array(config.handtracking_to_baselink_frame_transform).reshape(3, 3)
 
-        super().__init__(name=name)
+        # Calculate initial Euler angles for the parameter default
+        # We use 'xyz' convention (extrinsic) and degrees for intuitive tuning
+        r = R.from_matrix(self._handtracking2baselink)
+        default_rpy = r.as_euler('xyz', degrees=True)
 
-        # Check dependencies
-        if not DEX_RETARGETING_AVAILABLE:
-            raise ImportError(
-                "The 'dex_retargeting' package is required but not installed. "
-                "Install with: pip install dex-retargeting"
-            )
+        # Initialize last RPY for change detection
+        self._last_rpy = None
 
-        if not SCIPY_AVAILABLE:
-            raise ImportError(
-                "The 'scipy' package is required but not installed. "
-                "Install with: pip install scipy"
-            )
-
-        if not YAML_AVAILABLE:
-            raise ImportError(
-                "The 'pyyaml' package is required but not installed. "
-                "Install with: pip install pyyaml"
-            )
+        transform_param = VectorParameter(
+            name="transform_rpy",
+            description="Hand tracking to robot base frame rotation (Roll, Pitch, Yaw in degrees)",
+            element_names=["roll", "pitch", "yaw"],
+            default_value=default_rpy,
+            min_value=-180.0,
+            max_value=180.0,
+            sync_fn=self._update_transform_from_rpy
+        )
 
         # Setup paths and configs
         self._prepare_configs()
@@ -147,8 +133,15 @@ class DexHandRetargeter(BaseRetargeter):
         # Cache joint names from optimizer
         self._dof_names = self._dex_hand.optimizer.robot.dof_joint_names
 
-        # Store transform
-        self._handtracking2baselink = np.array(config.handtracking_to_baselink_frame_transform).reshape(3, 3)
+        if config.hand_joint_names is None:
+            self._hand_joint_names = self._dof_names
+        else:
+            self._hand_joint_names = config.hand_joint_names
+
+        # Create ParameterState for tuning
+        param_state = ParameterState(name, parameters=[transform_param], config_file=config.parameter_config_path)
+
+        super().__init__(name=name, parameter_state=param_state)
 
         # Map OpenXR joints (26) to Dex-retargeting (21)
         # OpenXR indices: Wrist(1), Thumb(2-5), Index(7-10), Middle(12-15), Ring(17-20), Pinky(22-25)
@@ -240,6 +233,17 @@ class DexHandRetargeter(BaseRetargeter):
 
     # -- Internal Helpers --
 
+    def _update_transform_from_rpy(self, value: np.ndarray) -> None:
+        """Update the hand tracking to base link transform from Euler angles (degrees)."""
+        r = R.from_euler('xyz', value, degrees=True)
+        self._handtracking2baselink = r.as_matrix()
+
+        # Only print if value has changed significantly
+        if self._last_rpy is None or not np.allclose(self._last_rpy, value, atol=1e-3):
+            name = getattr(self, '_name', 'Initializing')
+            print(f"[{name}] Updated transform RPY: {value}")
+            self._last_rpy = np.copy(value)
+
     def _prepare_configs(self) -> None:
         """Downloads URDFs if needed and updates YAML config files."""
         # For now, assume paths are valid local paths
@@ -258,10 +262,6 @@ class DexHandRetargeter(BaseRetargeter):
         Updates the 'urdf_path' field in the retargeting YAML config.
         Returns path to new temporary config file.
         """
-        if not YAML_AVAILABLE:
-            logger.warning("yaml not available, cannot update config file")
-            return None
-
         try:
             with open(yaml_path) as f:
                 config = yaml.safe_load(f)
@@ -356,14 +356,15 @@ class DexHandRetargeter(BaseRetargeter):
 
 class DexBiManualRetargeter(BaseRetargeter):
     """
-    Wrapper around two DexHandRetargeters to support bimanual retargeting.
+    Combines and reorders joint angles from two hand retargeters into a single vector.
 
-    This retargeter instantiates two DexHandRetargeter instances (one for each hand)
-    and combines their outputs into a single vector ordered according to target_joint_names.
+    This class is intended to be placed at the end of a retargeting pipeline.
+    It takes the output of two separate hand retargeters (left and right) and
+    combines them into a single joint vector ordered according to target_joint_names.
 
     Inputs:
-        - "hand_left": Left hand tracking data
-        - "hand_right": Right hand tracking data
+        - "left_hand_joints": Joint angles for left hand
+        - "right_hand_joints": Joint angles for right hand
 
     Outputs:
         - "hand_joints": Combined joint angles for both hands
@@ -371,31 +372,25 @@ class DexBiManualRetargeter(BaseRetargeter):
 
     def __init__(
         self,
-        left_config: DexHandRetargeterConfig,
-        right_config: DexHandRetargeterConfig,
+        left_joint_names: List[str],
+        right_joint_names: List[str],
         target_joint_names: List[str],
         name: str
     ) -> None:
         """
-        Initialize the bimanual retargeter.
+        Initialize the bimanual joint reorderer.
 
         Args:
-            left_config: Configuration for left hand retargeter
-            right_config: Configuration for right hand retargeter
+            left_joint_names: List of joint names coming from left input
+            right_joint_names: List of joint names coming from right input
             target_joint_names: Ordered list of joint names for combined output
-            name: Name identifier for this retargeter (must be unique)
+            name: Name identifier for this retargeter
         """
         self._target_joint_names = target_joint_names
+        self._left_joint_names = left_joint_names
+        self._right_joint_names = right_joint_names
 
         super().__init__(name=name)
-
-        # Ensure configs have correct hand sides
-        left_config.hand_side = "left"
-        right_config.hand_side = "right"
-
-        # Create individual retargeters
-        self._left_retargeter = DexHandRetargeter(left_config, name=f"{name}_left")
-        self._right_retargeter = DexHandRetargeter(right_config, name=f"{name}_right")
 
         # Prepare index mapping for fast runtime reordering
         self._left_indices = []
@@ -403,22 +398,28 @@ class DexBiManualRetargeter(BaseRetargeter):
         self._output_indices_left = []
         self._output_indices_right = []
 
-        left_joints = left_config.hand_joint_names
-        right_joints = right_config.hand_joint_names
-
         for i, name in enumerate(target_joint_names):
-            if name in left_joints:
+            if name in left_joint_names:
                 self._output_indices_left.append(i)
-                self._left_indices.append(left_joints.index(name))
-            elif name in right_joints:
+                self._left_indices.append(left_joint_names.index(name))
+            elif name in right_joint_names:
                 self._output_indices_right.append(i)
-                self._right_indices.append(right_joints.index(name))
+                self._right_indices.append(right_joint_names.index(name))
+            else:
+                # we'll just ignore, leaving them as 0 in output (default init)
+                pass
 
     def input_spec(self) -> RetargeterIOType:
         """Define input collections for both hands."""
         return {
-            "hand_left": HandInput(),
-            "hand_right": HandInput()
+            "left_hand_joints": TensorGroupType(
+                "left_hand_joints",
+                [FloatType(name) for name in self._left_joint_names]
+            ),
+            "right_hand_joints": TensorGroupType(
+                "right_hand_joints",
+                [FloatType(name) for name in self._right_joint_names]
+            )
         }
 
     def output_spec(self) -> RetargeterIOType:
@@ -432,35 +433,20 @@ class DexBiManualRetargeter(BaseRetargeter):
 
     def compute(self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]) -> None:
         """
-        Execute bimanual hand retargeting.
+        Execute bimanual joint reordering.
 
         Args:
-            inputs: Dict with "hand_left" and "hand_right" tracking data
+            inputs: Dict with "left_hand_joints" and "right_hand_joints"
             outputs: Dict with "hand_joints" combined output
         """
-        # Create temporary output groups for individual retargeters
-        left_outputs = {
-            "hand_joints": TensorGroup(self._left_retargeter.output_spec()["hand_joints"])
-        }
-        right_outputs = {
-            "hand_joints": TensorGroup(self._right_retargeter.output_spec()["hand_joints"])
-        }
-
-        # Run individual retargeters
-        left_inputs = {"hand_left": inputs["hand_left"]}
-        right_inputs = {"hand_right": inputs["hand_right"]}
-
-        self._left_retargeter.compute(left_inputs, left_outputs)
-        self._right_retargeter.compute(right_inputs, right_outputs)
-
-        # Combine outputs
+        left_input = inputs["left_hand_joints"]
+        right_input = inputs["right_hand_joints"]
         combined_output = outputs["hand_joints"]
 
         # Map left hand joints
         for src_idx, dst_idx in zip(self._left_indices, self._output_indices_left):
-            combined_output[dst_idx] = float(left_outputs["hand_joints"][src_idx])
+            combined_output[dst_idx] = float(left_input[src_idx])
 
         # Map right hand joints
         for src_idx, dst_idx in zip(self._right_indices, self._output_indices_right):
-            combined_output[dst_idx] = float(right_outputs["hand_joints"][src_idx])
-
+            combined_output[dst_idx] = float(right_input[src_idx])
