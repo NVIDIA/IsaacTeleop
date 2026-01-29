@@ -1,0 +1,1638 @@
+#usda 1.0
+(
+    customLayerData = {
+        dictionary cameraSettings = {
+            dictionary Front = {
+                double3 position = (5, 0, 0)
+                double radius = 5
+            }
+            dictionary Perspective = {
+                double3 position = (0.4645072518352042, 0.08642932307878715, 0.3199192101670027)
+                double3 target = (-0.09247662130247108, -0.07681331044695835, 0.037344566395135836)
+            }
+            dictionary Right = {
+                double3 position = (0, -5, 0)
+                double radius = 5
+            }
+            dictionary Top = {
+                double3 position = (0, 0, 5)
+                double radius = 5
+            }
+            string boundCamera = "/OmniverseKit_Persp"
+        }
+        dictionary omni_layer = {
+            string authoring_layer = "./right_sharpa_ha4_overlay.usda"
+            dictionary locked = {
+            }
+            dictionary muteness = {
+            }
+        }
+        dictionary renderSettings = {
+        }
+    }
+    defaultPrim = "Right_Sharpa_HA4"
+    endTimeCode = 1000000
+    metersPerUnit = 1
+    startTimeCode = 0
+    timeCodesPerSecond = 60
+    upAxis = "Z"
+)
+
+def "Render" (
+    hide_in_stage_window = true
+    no_delete = true
+)
+{
+    def "OmniverseKit"
+    {
+        def "HydraTextures" (
+            hide_in_stage_window = true
+            no_delete = true
+        )
+        {
+            def RenderProduct "omni_kit_widget_viewport_ViewportTexture_0" (
+                prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1", "OmniRtxSettingsRtAdvancedAPI_1", "OmniRtxSettingsPtAdvancedAPI_1", "OmniRtxPostColorGradingAPI_1", "OmniRtxPostChromaticAberrationAPI_1", "OmniRtxPostBloomPhysicalAPI_1", "OmniRtxPostMatteObjectAPI_1", "OmniRtxPostCompositingAPI_1", "OmniRtxPostDofAPI_1", "OmniRtxPostMotionBlurAPI_1", "OmniRtxPostTvNoiseAPI_1", "OmniRtxPostTonemapIrayReinhardAPI_1", "OmniRtxPostDebugSettingsAPI_1", "OmniRtxDebugSettingsAPI_1"]
+                hide_in_stage_window = true
+                no_delete = true
+            )
+            {
+                rel camera = </OmniverseKit_Persp>
+                token omni:rtx:background:source:texture:textureMode = "repeatMirrored"
+                token omni:rtx:background:source:type = "domeLight"
+                string omni:rtx:material:db:rtSensorNameToIdMap = "DefaultMaterial:0;AsphaltStandardMaterial:1;AsphaltWeatheredMaterial:2;VegetationGrassMaterial:3;WaterStandardMaterial:4;GlassStandardMaterial:5;FiberGlassMaterial:6;MetalAlloyMaterial:7;MetalAluminumMaterial:8;MetalAluminumOxidizedMaterial:9;PlasticStandardMaterial:10;RetroMarkingsMaterial:11;RetroSignMaterial:12;RubberStandardMaterial:13;SoilClayMaterial:14;ConcreteRoughMaterial:15;ConcreteSmoothMaterial:16;OakTreeBarkMaterial:17;FabricStandardMaterial:18;PlexiGlassStandardMaterial:19;MetalSilverMaterial:20"
+                bool omni:rtx:post:registeredCompositing:invertColorCorrection = 1
+                bool omni:rtx:post:registeredCompositing:invertToneMap = 1
+                bool omni:rtx:pt:lightcache:cached:dontResolveConflicts = 1
+                int omni:rtx:pt:maxSamplesPerLaunch = 2073600
+                int omni:rtx:pt:mgpu:maxPixelsPerRegionExponent = 12
+                color3f omni:rtx:rt:ambientLight:color = (0.1, 0.1, 0.1)
+                bool omni:rtx:rt:demoire = 0
+                bool omni:rtx:rt:ecoMode:enabled
+                bool omni:rtx:rt:lightcache:spatialCache:dontResolveConflicts = 1
+                uint omni:rtx:viewTile:limit = 4294967295
+                rel orderedVars = </Render/Vars/LdrColor>
+                custom bool overrideClipRange = 0
+                uniform int2 resolution = (1280, 720)
+            }
+        }
+    }
+
+    def RenderSettings "OmniverseGlobalRenderSettings" (
+        prepend apiSchemas = ["OmniRtxSettingsGlobalRtAdvancedAPI_1", "OmniRtxSettingsGlobalPtAdvancedAPI_1"]
+        no_delete = true
+    )
+    {
+        rel products = </Render/OmniverseKit/HydraTextures/omni_kit_widget_viewport_ViewportTexture_0>
+    }
+
+    def "Vars"
+    {
+        def RenderVar "LdrColor" (
+            hide_in_stage_window = true
+            no_delete = true
+        )
+        {
+            uniform string sourceName = "LdrColor"
+        }
+    }
+}
+
+over "Right_Sharpa_HA4" (
+    prepend apiSchemas = ["PhysicsArticulationRootAPI", "PhysxArticulationAPI"]
+    prepend references = @./right_sharpa_ha4_v2_1/right_sharpa_ha4_v2_1.usd@
+)
+{
+    string isaac:namespace (
+        displayName = "Namespace"
+        doc = "Namespace of the prim in Isaac Sim"
+    )
+
+    over "right_index_DP" (
+        prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+    )
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (-0.000004297829, -0.010216036, 0.00015998533)
+        rel physics:filteredPairs = None
+        rel physics:simulationOwner
+        vector3f physics:velocity = (-0.000007899501, -7.3819857e-9, -7.8965064e-7)
+        quatd xformOp:orient = (-0.4925278078002141, 0.5004398812552283, 0.5073604573366594, 0.49956145780464695)
+        double3 xformOp:translate = (-0.00009565753862261772, 0.03153330832719803, 0.17418263852596283)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+
+        over "collisions" (
+            instanceable = false
+        )
+        {
+            over "right_DP"
+            {
+                over "mesh"
+                {
+                    rel physics:simulationOwner
+                }
+            }
+        }
+    }
+
+    over "right_middle_PP" (
+        prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+    )
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (0, 0, 0)
+        rel physics:filteredPairs = </Right_Sharpa_HA4/right_hand_C_MC>
+        rel physics:simulationOwner
+        vector3f physics:velocity = (0, 0, 0)
+        quatd xformOp:orient = (0.000003826203450348614, 0.7071068705878245, -0.0000011967522068832974, 0.7071066917738946)
+        double3 xformOp:translate = (7.566995918750763e-9, 0.009999992325901985, 0.09869998693466187)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+
+        over "collisions" (
+            instanceable = false
+        )
+        {
+            over "right_PP"
+            {
+                over "mesh"
+                {
+                    rel physics:simulationOwner
+                }
+            }
+        }
+    }
+
+    over "right_middle_DP" (
+        prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+    )
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (0, 0, 0)
+        rel physics:filteredPairs = None
+        rel physics:simulationOwner
+        vector3f physics:velocity = (0, 0, 0)
+        quatd xformOp:orient = (-0.49999839812154734, 0.500001735984642, 0.4999999180429495, 0.49999994784527213)
+        double3 xformOp:translate = (2.584420144557953e-8, 0.010000275447964668, 0.17719998955726624)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+
+        over "collisions" (
+            instanceable = false
+        )
+        {
+            over "right_DP"
+            {
+                over "mesh"
+                {
+                    rel physics:simulationOwner
+                }
+            }
+        }
+    }
+
+    over "right_middle_elastomer"
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (0, 0, 0)
+        rel physics:simulationOwner
+        vector3f physics:velocity = (0, 0, 0)
+        quatd xformOp:orient = (-0.49999999627103403, 0.5000016801052273, 0.499998252838076, -0.5000000707797824)
+        double3 xformOp:translate = (2.537854015827179e-8, 0.010000274516642094, 0.17719997465610504)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+
+        over "collisions" (
+            instanceable = false
+        )
+        {
+            over "elastomer"
+            {
+                over "mesh"
+                {
+                    rel physics:simulationOwner
+                }
+            }
+        }
+    }
+
+    over "right_middle_MP" (
+        prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+    )
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (0, 0, 0)
+        rel physics:filteredPairs = None
+        rel physics:simulationOwner
+        vector3f physics:velocity = (0, 0, 0)
+        quatd xformOp:orient = (-0.49999832361576135, 0.5000017806879502, 0.4999999329439898, 0.4999999627463118)
+        double3 xformOp:translate = (1.979060471057892e-8, 0.010000167414546013, 0.14569999277591705)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+
+        over "collisions" (
+            instanceable = false
+        )
+        {
+            over "right_MP"
+            {
+                over "mesh"
+                {
+                    rel physics:simulationOwner
+                }
+            }
+        }
+    }
+
+    over "right_pinky_MC" (
+        prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+    )
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (0, 0, 0)
+        rel physics:filteredPairs = </Right_Sharpa_HA4/right_pinky_PP>
+        rel physics:simulationOwner
+        vector3f physics:velocity = (0, 0, 0)
+        quatd xformOp:orient = (-0.000003634020686080366, 0, -2.491287887079955e-8, 0.9999999999933967)
+        double3 xformOp:translate = (0.01135999709367752, -0.02630000188946724, 0.08669999241828918)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+
+        over "collisions" (
+            instanceable = false
+        )
+        {
+            over "right_pinky_MC"
+            {
+                over "mesh"
+                {
+                    rel physics:simulationOwner
+                }
+            }
+        }
+    }
+
+    over "right_pinky_MP" (
+        prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+    )
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (0, 0, 0)
+        rel physics:filteredPairs = None
+        rel physics:simulationOwner
+        vector3f physics:velocity = (0, 0, 0)
+        quatd xformOp:orient = (0.500003758795947, -0.49999799206439965, -0.5000018365639017, -0.49999641254134836)
+        double3 xformOp:translate = (0.0030002067796885967, -0.031100071966648102, 0.13369998335838318)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+
+        over "collisions" (
+            instanceable = false
+        )
+        {
+            over "right_MP"
+            {
+                over "mesh"
+                {
+                    rel physics:simulationOwner
+                }
+            }
+        }
+    }
+
+    over "right_pinky_PP" (
+        prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+    )
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (0, 0, 0)
+        rel physics:filteredPairs = [
+            </Right_Sharpa_HA4/right_hand_C_MC>,
+            </Right_Sharpa_HA4/right_pinky_MC>,
+        ]
+        rel physics:simulationOwner
+        vector3f physics:velocity = (0, 0, 0)
+        quatd xformOp:orient = (-0.0000026849209264123054, 0.7071080626803121, 0.0000025814296612864796, 0.7071054996806512)
+        double3 xformOp:translate = (0.003000030992552638, -0.031100066378712654, 0.08669999241828918)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+
+        over "collisions" (
+            instanceable = false
+        )
+        {
+            over "right_PP"
+            {
+                over "mesh"
+                {
+                    rel physics:simulationOwner
+                }
+            }
+        }
+    }
+
+    over "root_joint" (
+        delete apiSchemas = ["PhysicsArticulationRootAPI", "PhysxArticulationAPI"]
+    )
+    {
+    }
+
+    over "right_index_MP" (
+        prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+    )
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (-0.000004297174, -0.0102130845, 0.000159939)
+        rel physics:filteredPairs = None
+        rel physics:simulationOwner
+        vector3f physics:velocity = (-0.0000027524652, -1.6515711e-9, -2.854492e-7)
+        quatd xformOp:orient = (-0.49252782156903935, 0.5004397773081385, 0.5073604728099234, 0.49956153264470693)
+        double3 xformOp:translate = (0.00034385465551167727, 0.031038416549563408, 0.14268960058689117)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+
+        over "collisions" (
+            instanceable = false
+        )
+        {
+            over "right_MP"
+            {
+                over "mesh"
+                {
+                    rel physics:simulationOwner
+                }
+            }
+        }
+    }
+
+    over "right_hand_C_MC" (
+        prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+    )
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (0, 0, 0)
+        rel physics:filteredPairs = [
+            </Right_Sharpa_HA4/right_thumb_MC>,
+            </Right_Sharpa_HA4/right_index_PP>,
+            </Right_Sharpa_HA4/right_middle_PP>,
+            </Right_Sharpa_HA4/right_ring_PP>,
+            </Right_Sharpa_HA4/right_pinky_PP>,
+        ]
+        rel physics:simulationOwner
+        vector3f physics:velocity = (0, 0, 0)
+        quatd xformOp:orient = (1, 0, 0, 0)
+        double3 xformOp:translate = (-4.656612873077393e-10, 6.51925802230835e-9, 1.4901161193847656e-8)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+
+        over "collisions" (
+            instanceable = false
+        )
+        {
+            over "right_hand_C_MC"
+            {
+                over "mesh"
+                {
+                    rel physics:simulationOwner
+                }
+            }
+        }
+    }
+
+    over "right_index_MCP_VL" (
+        prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+    )
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (-1.09194306e-10, -0.000031379648, 1.1228791e-10)
+        rel physics:filteredPairs = None
+        rel physics:simulationOwner
+        vector3f physics:velocity = (-6.6538155e-12, 1.6853015e-15, 4.7632936e-10)
+        quatd xformOp:orient = (-0.49649554199040996, 0.496498989667775, 0.503478425595938, 0.5034783063866441)
+        double3 xformOp:translate = (0.0009999868925660849, 0.030299996957182884, 0.09569999575614929)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+
+        over "collisions" (
+            instanceable = false
+        )
+        {
+            over "MCP_VL"
+            {
+                over "mesh"
+                {
+                    rel physics:simulationOwner
+                }
+            }
+        }
+    }
+
+    over "right_index_PP" (
+        prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+    )
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (-0.0000020299358, -0.000031379634, -2.823082e-8)
+        rel physics:filteredPairs = </Right_Sharpa_HA4/right_hand_C_MC>
+        rel physics:simulationOwner
+        vector3f physics:velocity = (-1.3341944e-8, 8.636375e-10, -6.13865e-10)
+        quatd xformOp:orient = (0.005595998929966426, 0.7021314528192497, 0.005513466917763243, 0.7120040094272309)
+        double3 xformOp:translate = (0.0009999900357797742, 0.030299996957182884, 0.09570000320672989)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+
+        over "collisions" (
+            instanceable = false
+        )
+        {
+            over "right_PP"
+            {
+                over "mesh"
+                {
+                    rel physics:simulationOwner
+                }
+            }
+        }
+    }
+
+    over "right_ring_MCP_VL" (
+        prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+    )
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (0, 0, 0)
+        rel physics:filteredPairs = None
+        rel physics:simulationOwner
+        vector3f physics:velocity = (0, 0, 0)
+        quatd xformOp:orient = (-0.49999827891173065, 0.5000018551938327, 0.4999999776474943, 0.49999988824052577)
+        double3 xformOp:translate = (0.0015000051353126764, -0.010299994610249996, 0.09269998222589493)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+
+        over "collisions" (
+            instanceable = false
+        )
+        {
+            over "MCP_VL"
+            {
+                over "mesh"
+                {
+                    rel physics:simulationOwner
+                }
+            }
+        }
+    }
+
+    over "right_thumb_CMC_VL" (
+        prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+    )
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (-0.00010429583, 0.0000021578796, -14.326288)
+        rel physics:filteredPairs = None
+        rel physics:simulationOwner
+        vector3f physics:velocity = (0, 0, 0)
+        quatd xformOp:orient = (-0.0000025707351358120703, 0.7096409347111695, 0.7045635129418814, -0.000002577715857211837)
+        double3 xformOp:translate = (0.009999996051192284, 0.025999993085861206, 0.021200008690357208)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+    }
+
+    over "right_thumb_MCP_VL" (
+        prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+    )
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (12.439632, -0.39234993, -13.986829)
+        rel physics:filteredPairs = None
+        rel physics:simulationOwner
+        vector3f physics:velocity = (0.012923664, -0.010629566, 0.012014322)
+        quatd xformOp:orient = (0.11413018974064675, 0.6997538323137522, 0.4437029732145318, 0.5481300443440095)
+        double3 xformOp:translate = (0.01576908491551876, 0.0784514769911766, 0.06000249832868576)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+    }
+
+    over "right_index_elastomer"
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (-0.000004297829, -0.010216036, 0.00015998533)
+        rel physics:simulationOwner
+        vector3f physics:velocity = (-0.000008902855, 2.307326e-9, -1.9788345e-7)
+        quatd xformOp:orient = (-0.49258437274537653, 0.5074170410248345, 0.49950312344346226, -0.5003850636008943)
+        double3 xformOp:translate = (-0.00009565893560647964, 0.03153330832719803, 0.17418265342712402)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+
+        over "collisions" (
+            instanceable = false
+        )
+        {
+            over "elastomer"
+            {
+                over "mesh"
+                {
+                    rel physics:simulationOwner
+                }
+            }
+        }
+    }
+
+    over "right_index_fingertip"
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (-0.000004297829, -0.010216036, 0.00015998533)
+        rel physics:simulationOwner
+        vector3f physics:velocity = (-0.000011429001, -3.1037366e-9, -6.1127486e-7)
+        quatd xformOp:orient = (0.999944813769955, -0.007855505154241703, -0.006975460328445394, -0.000058365639856042216)
+        double3 xformOp:translate = (-0.00045846053399145603, 0.031942032277584076, 0.2001858949661255)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+    }
+
+    over "right_middle_MCP_VL" (
+        prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+    )
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (0, 0, 0)
+        rel physics:filteredPairs = None
+        rel physics:simulationOwner
+        vector3f physics:velocity = (0, 0, 0)
+        quatd xformOp:orient = (-0.49999827891173065, 0.5000018551938327, 0.4999999776474943, 0.49999988824052577)
+        double3 xformOp:translate = (6.752088665962219e-9, 0.009999992325901985, 0.09869998693466187)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+
+        over "collisions" (
+            instanceable = false
+        )
+        {
+            over "MCP_VL"
+            {
+                over "mesh"
+                {
+                    rel physics:simulationOwner
+                }
+            }
+        }
+    }
+
+    over "right_middle_fingertip"
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (0, 0, 0)
+        rel physics:simulationOwner
+        vector3f physics:velocity = (0, 0, 0)
+        quatd xformOp:orient = (0.9999999999972607, -0.0000016954459171010224, 3.20151265968512e-8, -0.0000016133644074300929)
+        double3 xformOp:translate = (2.7706846594810486e-8, 0.01000036671757698, 0.20320923626422882)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+    }
+
+    over "right_pinky_MCP_VL" (
+        prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+    )
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (0, 0, 0)
+        rel physics:filteredPairs = </Right_Sharpa_HA4/right_pinky_PP>
+        rel physics:simulationOwner
+        vector3f physics:velocity = (0, 0, 0)
+        quatd xformOp:orient = (0.5000037140935115, -0.4999981261747108, -0.5000017918603917, -0.499996367837677)
+        double3 xformOp:translate = (0.003000030992552638, -0.031100066378712654, 0.08669999241828918)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+
+        over "collisions" (
+            instanceable = false
+        )
+        {
+            over "MCP_VL"
+            {
+                over "mesh"
+                {
+                    rel physics:simulationOwner
+                }
+            }
+        }
+    }
+
+    over "right_pinky_DP" (
+        prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+    )
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (0, 0, 0)
+        rel physics:filteredPairs = None
+        rel physics:simulationOwner
+        vector3f physics:velocity = (0, 0, 0)
+        quatd xformOp:orient = (0.5000037774222856, -0.4999980255919022, -0.500001840289111, -0.49999635666187336)
+        double3 xformOp:translate = (0.0030003199353814125, -0.031100085005164146, 0.16519998013973236)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+
+        over "collisions" (
+            instanceable = false
+        )
+        {
+            over "right_DP"
+            {
+                over "mesh"
+                {
+                    rel physics:simulationOwner
+                }
+            }
+        }
+    }
+
+    over "right_pinky_elastomer"
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (0, 0, 0)
+        rel physics:simulationOwner
+        vector3f physics:velocity = (0, 0, 0)
+        quatd xformOp:orient = (0.4999982453589982, -0.4999962337256837, -0.5000001378300616, 0.5000053830389969)
+        double3 xformOp:translate = (0.0030003199353814125, -0.031100083142518997, 0.16519998013973236)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+
+        over "collisions" (
+            instanceable = false
+        )
+        {
+            over "elastomer"
+            {
+                over "mesh"
+                {
+                    rel physics:simulationOwner
+                }
+            }
+        }
+    }
+
+    over "right_pinky_fingertip"
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (0, 0, 0)
+        rel physics:simulationOwner
+        vector3f physics:velocity = (0, 0, 0)
+        quatd xformOp:orient = (0.9999999999865955, 1.372161766587077e-7, 0.0000035373960948154, 0.0000037784917697279363)
+        double3 xformOp:translate = (0.003000505967065692, -0.031099993735551834, 0.19120898842811584)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+    }
+
+    over "right_ring_PP" (
+        prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+    )
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (0, 0, 0)
+        rel physics:filteredPairs = </Right_Sharpa_HA4/right_hand_C_MC>
+        rel physics:simulationOwner
+        vector3f physics:velocity = (0, 0, 0)
+        quatd xformOp:orient = (0.000003826203450348614, 0.7071068705878245, -0.0000011967522068832974, 0.7071066917738946)
+        double3 xformOp:translate = (0.0015000082785263658, -0.010299994610249996, 0.09269998967647552)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+
+        over "collisions" (
+            instanceable = false
+        )
+        {
+            over "right_PP"
+            {
+                over "mesh"
+                {
+                    rel physics:simulationOwner
+                }
+            }
+        }
+    }
+
+    over "right_ring_MP" (
+        prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+    )
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (0, 0, 0)
+        rel physics:filteredPairs = None
+        rel physics:simulationOwner
+        vector3f physics:velocity = (0, 0, 0)
+        quatd xformOp:orient = (-0.49999832361576135, 0.5000017806879502, 0.4999999329439898, 0.4999999627463118)
+        double3 xformOp:translate = (0.0015000205021351576, -0.010299820452928543, 0.13969998061656952)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+
+        over "collisions" (
+            instanceable = false
+        )
+        {
+            over "right_MP"
+            {
+                over "mesh"
+                {
+                    rel physics:simulationOwner
+                }
+            }
+        }
+    }
+
+    over "right_ring_DP" (
+        prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+    )
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (0, 0, 0)
+        rel physics:filteredPairs = None
+        rel physics:simulationOwner
+        vector3f physics:velocity = (0, 0, 0)
+        quatd xformOp:orient = (-0.49999839812154734, 0.500001735984642, 0.4999999180429495, 0.49999994784527213)
+        double3 xformOp:translate = (0.0015000265557318926, -0.010299711488187313, 0.1711999773979187)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+
+        over "collisions" (
+            instanceable = false
+        )
+        {
+            over "right_DP"
+            {
+                over "mesh"
+                {
+                    rel physics:simulationOwner
+                }
+            }
+        }
+    }
+
+    over "right_ring_elastomer"
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (0, 0, 0)
+        rel physics:simulationOwner
+        vector3f physics:velocity = (0, 0, 0)
+        quatd xformOp:orient = (0.5000000186143236, -0.5000017322575758, -0.4999963976418286, 0.5000018514668659)
+        double3 xformOp:translate = (0.001500026322901249, -0.010299709625542164, 0.1711999773979187)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+
+        over "collisions" (
+            instanceable = false
+        )
+        {
+            over "elastomer"
+            {
+                over "mesh"
+                {
+                    rel physics:simulationOwner
+                }
+            }
+        }
+    }
+
+    over "right_thumb_MC" (
+        prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+    )
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (13.229949, -0.09502969, -14.326347)
+        rel physics:filteredPairs = [
+            </Right_Sharpa_HA4/right_hand_C_MC>,
+            </Right_Sharpa_HA4/right_thumb_PP>,
+        ]
+        rel physics:simulationOwner
+        vector3f physics:velocity = (0.008778232, -0.005328706, 0.00814179)
+        quatd xformOp:orient = (0.29135131850381135, 0.6463710472692131, 0.2867172870850989, 0.6442919181122422)
+        double3 xformOp:translate = (0.005000123754143715, 0.026035893708467484, 0.021200047805905342)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+
+        over "collisions" (
+            instanceable = false
+        )
+        {
+            over "right_thumb_MC"
+            {
+                over "mesh"
+                {
+                    rel physics:simulationOwner
+                }
+            }
+        }
+    }
+
+    over "right_thumb_PP" (
+        prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+    )
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (12.513415, -0.47869146, -13.890676)
+        rel physics:filteredPairs = </Right_Sharpa_HA4/right_thumb_MC>
+        rel physics:simulationOwner
+        vector3f physics:velocity = (0.01713206, -0.013255437, 0.015895959)
+        quatd xformOp:orient = (0.5755037045240243, 0.41409738085455083, -0.07384238608549584, 0.7013316956089508)
+        double3 xformOp:translate = (0.01576908677816391, 0.0784514769911766, 0.06000249832868576)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+
+        over "collisions" (
+            instanceable = false
+        )
+        {
+            over "right_thumb_PP"
+            {
+                over "mesh"
+                {
+                    rel physics:simulationOwner
+                }
+            }
+        }
+    }
+
+    over "right_thumb_DP" (
+        prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+    )
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (12.513398, -0.47869894, -13.890667)
+        rel physics:filteredPairs = None
+        rel physics:simulationOwner
+        vector3f physics:velocity = (0.023226649, -0.017139966, 0.02152017)
+        quatd xformOp:orient = (0.11413018762799731, 0.6997538280717122, 0.443702910920075, 0.5481301006257867)
+        double3 xformOp:translate = (0.01597820594906807, 0.10754866898059845, 0.0859699696302414)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+
+        over "collisions" (
+            instanceable = false
+        )
+        {
+            over "right_thumb_DP"
+            {
+                over "mesh"
+                {
+                    rel physics:simulationOwner
+                }
+            }
+        }
+    }
+
+    over "right_thumb_fingertip"
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (12.513398, -0.47869894, -13.890667)
+        rel physics:simulationOwner
+        vector3f physics:velocity = (0.025315125, -0.02109033, 0.023537705)
+        quatd xformOp:orient = (0.7887277990480648, -0.3547271763894021, -0.20310394327212572, -0.4591577915781357)
+        double3 xformOp:translate = (0.016126401722431183, 0.12814871966838837, 0.10435429960489273)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+    }
+
+    over "right_thumb_elastomer"
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (12.513398, -0.47869894, -13.890667)
+        rel physics:simulationOwner
+        vector3f physics:velocity = (0.023630312, -0.018768745, 0.021939924)
+        quatd xformOp:orient = (-0.34502668297369055, 0.9028580483922964, 0.08897237025506402, -0.24059893977451832)
+        double3 xformOp:translate = (0.01597820594906807, 0.10754866898059845, 0.0859699696302414)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+
+        over "collisions" (
+            instanceable = false
+        )
+        {
+            over "thumb_elastomer"
+            {
+                over "mesh"
+                {
+                    rel physics:simulationOwner
+                }
+            }
+        }
+    }
+
+    over "right_ring_fingertip"
+    {
+        string isaac:nameOverride (
+            displayName = "Name Override"
+            doc = "Name override for prim lookup in base name search"
+        )
+        vector3f physics:angularVelocity = (0, 0, 0)
+        rel physics:simulationOwner
+        vector3f physics:velocity = (0, 0, 0)
+        quatd xformOp:orient = (0.9999999999905121, -0.000003524992345080886, 0.0000018873843886759876, -0.0000017285598134578839)
+        double3 xformOp:translate = (0.0015001241117715836, -0.010299524292349815, 0.1972092241048813)
+
+        over "visuals" (
+            instanceable = false
+        )
+        {
+        }
+    }
+
+    over "joints"
+    {
+        over "right_index_MCP_FE"
+        {
+            float drive:angular:physics:damping = 0.0031940
+            float drive:angular:physics:stiffness = 0.083078
+            float drive:angular:physics:targetPosition = -0.8
+            string isaac:nameOverride (
+                displayName = "Name Override"
+                doc = "Name override for prim lookup in base name search"
+            )
+            float physics:lowerLimit = -10
+            float physics:upperLimit = 90.000206
+            float physxJoint:armature = 0.00265
+            float physxJoint:jointFriction = 0.104
+            float physxJoint:maxJointVelocity = 921.14
+            float state:angular:physics:position = -0.79999834
+            float state:angular:physics:velocity = 0
+        }
+
+        over "right_middle_MCP_FE"
+        {
+            float drive:angular:physics:damping = 0.0031940
+            float drive:angular:physics:stiffness = 0.083078
+            string isaac:nameOverride (
+                displayName = "Name Override"
+                doc = "Name override for prim lookup in base name search"
+            )
+            float physics:lowerLimit = -10
+            float physics:upperLimit = 90.000206
+            float physxJoint:armature = 0.00265
+            float physxJoint:jointFriction = 0.104
+            float physxJoint:maxJointVelocity = 921.14
+            float state:angular:physics:position = 0
+            float state:angular:physics:velocity = 0
+        }
+
+        over "right_pinky_CMC"
+        {
+            float drive:angular:physics:damping = 6.85E-4
+            float drive:angular:physics:stiffness = 0.02409
+            float physics:lowerLimit = 0
+            float physics:upperLimit = 15.000033
+            float physxJoint:armature = 0.00012
+            float physxJoint:jointFriction = 0.013
+            float physxJoint:maxJointVelocity = 2009.6014
+            float state:angular:physics:position = 0
+            float state:angular:physics:velocity = 0
+        }
+
+        over "right_ring_MCP_FE"
+        {
+            float drive:angular:physics:damping = 0.0031940
+            float drive:angular:physics:stiffness = 0.083078
+            string isaac:nameOverride (
+                displayName = "Name Override"
+                doc = "Name override for prim lookup in base name search"
+            )
+            float physics:lowerLimit = -10
+            float physics:upperLimit = 90.000206
+            float physxJoint:armature = 0.00265
+            float physxJoint:jointFriction = 0.104
+            float physxJoint:maxJointVelocity = 921.14
+            float state:angular:physics:position = 0
+            float state:angular:physics:velocity = 0
+        }
+
+        over "right_thumb_CMC_FE"
+        {
+            float drive:angular:physics:damping = 4.206E-3
+            float drive:angular:physics:stiffness = 0.12138
+            float physics:lowerLimit = -9.998114
+            float physics:upperLimit = 110.00216
+            float physxJoint:armature = 0.0032
+            float physxJoint:jointFriction = 0.132
+            float physxJoint:maxJointVelocity = 678.426
+            float state:angular:physics:position = 0.41161048
+            float state:angular:physics:velocity = 0
+        }
+
+        over "right_index_MCP_AA"
+        {
+            float drive:angular:physics:damping = 3.63E-3
+            float drive:angular:physics:stiffness = 0.11557
+            float drive:angular:physics:targetPosition = -0.90000004
+            string isaac:nameOverride (
+                displayName = "Name Override"
+                doc = "Name override for prim lookup in base name search"
+            )
+            float physics:lowerLimit = -20.001955
+            float physics:upperLimit = 20.001955
+            float physxJoint:armature = 0.00265
+            float physxJoint:jointFriction = 0.104
+            float physxJoint:maxJointVelocity = 921.14
+            float state:angular:physics:position = -0.9
+            float state:angular:physics:velocity = 0
+        }
+
+        over "right_middle_MCP_AA"
+        {
+            float drive:angular:physics:damping = 3.63E-3
+            float drive:angular:physics:stiffness = 0.11557
+            float physics:lowerLimit = -20.001955
+            float physics:upperLimit = 20.001955
+            float physxJoint:armature = 0.00265
+            float physxJoint:jointFriction = 0.104
+            float physxJoint:maxJointVelocity = 921.14
+            float state:angular:physics:position = 0
+            float state:angular:physics:velocity = 0
+        }
+
+        over "right_pinky_MCP_FE"
+        {
+            float drive:angular:physics:damping = 0.0031940
+            float drive:angular:physics:stiffness = 0.083078
+            string isaac:nameOverride (
+                displayName = "Name Override"
+                doc = "Name override for prim lookup in base name search"
+            )
+            float physics:lowerLimit = -10
+            float physics:upperLimit = 90.000206
+            float physxJoint:armature = 0.00265
+            float physxJoint:jointFriction = 0.104
+            float physxJoint:maxJointVelocity = 921.14
+            float state:angular:physics:position = 0
+            float state:angular:physics:velocity = 0
+        }
+
+        over "right_ring_MCP_AA"
+        {
+            float drive:angular:physics:damping = 3.63E-3
+            float drive:angular:physics:stiffness = 0.11557
+            float physics:lowerLimit = -20.001955
+            float physics:upperLimit = 20.001955
+            float physxJoint:armature = 0.00265
+            float physxJoint:jointFriction = 0.104
+            float physxJoint:maxJointVelocity = 921.14
+            float state:angular:physics:position = 0
+            float state:angular:physics:velocity = 0
+        }
+
+        over "right_thumb_CMC_AA"
+        {
+            float drive:angular:physics:damping = 7.8826E-3
+            float drive:angular:physics:stiffness = 0.2304
+            float physics:lowerLimit = -20.001955
+            float physics:upperLimit = 20.001955
+            float physxJoint:armature = 0.0032
+            float physxJoint:jointFriction = 0.132
+            float physxJoint:maxJointVelocity = 678.426
+            float state:angular:physics:position = -3.2539024
+            float state:angular:physics:velocity = 0
+        }
+
+        over "right_index_PIP"
+        {
+            float drive:angular:physics:damping = 6.98E-4
+            float drive:angular:physics:stiffness = 0.01584
+            float drive:angular:physics:targetPosition = 0
+            string isaac:nameOverride (
+                displayName = "Name Override"
+                doc = "Name override for prim lookup in base name search"
+            )
+            float physics:lowerLimit = 0
+            float physics:upperLimit = 99.99832
+            float physxJoint:armature = 0.00061
+            float physxJoint:jointFriction = 0.02476
+            float physxJoint:maxJointVelocity = 665.6805
+            float state:angular:physics:position = 0.0004472393
+            float state:angular:physics:velocity = 0
+        }
+
+        over "right_middle_PIP"
+        {
+            float drive:angular:physics:damping = 6.98E-4
+            float drive:angular:physics:stiffness = 0.01584
+            string isaac:nameOverride (
+                displayName = "Name Override"
+                doc = "Name override for prim lookup in base name search"
+            )
+            float physics:lowerLimit = 0
+            float physics:upperLimit = 99.99832
+            float physxJoint:armature = 0.00061
+            float physxJoint:jointFriction = 0.02476
+            float physxJoint:maxJointVelocity = 665.6805
+            float state:angular:physics:position = 0
+            float state:angular:physics:velocity = 0
+        }
+
+        over "right_pinky_MCP_AA"
+        {
+            float drive:angular:physics:damping = 3.63E-3
+            float drive:angular:physics:stiffness = 0.11557
+            float physics:lowerLimit = -20.001955
+            float physics:upperLimit = 20.001955
+            float physxJoint:armature = 0.00265
+            float physxJoint:jointFriction = 0.104
+            float physxJoint:maxJointVelocity = 921.14
+            float state:angular:physics:position = 0
+            float state:angular:physics:velocity = 0
+        }
+
+        over "right_ring_PIP"
+        {
+            float drive:angular:physics:damping = 6.98E-4
+            float drive:angular:physics:stiffness = 0.01584
+            float physics:lowerLimit = 0
+            float physics:upperLimit = 99.99832
+            float physxJoint:armature = 0.00061
+            float physxJoint:jointFriction = 0.02476
+            float physxJoint:maxJointVelocity = 665.6805
+            float state:angular:physics:position = 0
+            float state:angular:physics:velocity = 0
+        }
+
+        over "right_thumb_MCP_FE"
+        {
+            float drive:angular:physics:damping = 0.0031940
+            float drive:angular:physics:stiffness = 0.083078
+            float physics:lowerLimit = -30.000067
+            float physics:upperLimit = 80.00209
+            float physxJoint:armature = 0.00265
+            float physxJoint:jointFriction = 0.104
+            float physxJoint:maxJointVelocity = 921.14
+            float state:angular:physics:position = -0.000015151084
+            float state:angular:physics:velocity = 0
+        }
+
+        over "right_index_DIP"
+        {
+            float drive:angular:physics:damping = 5.50E-4
+            float drive:angular:physics:stiffness = 0.01578
+            float physics:lowerLimit = 0
+            float physics:upperLimit = 80.00209
+            float physxJoint:armature = 0.00042
+            float physxJoint:jointFriction = 0.000418
+            float physxJoint:maxJointVelocity = 840.2969
+            float state:angular:physics:position = 8.924762e-8
+            float state:angular:physics:velocity = 0
+        }
+
+        over "right_middle_DIP"
+        {
+            float drive:angular:physics:damping = 5.50E-4
+            float drive:angular:physics:stiffness = 0.01578
+            string isaac:nameOverride (
+                displayName = "Name Override"
+                doc = "Name override for prim lookup in base name search"
+            )
+            float physics:lowerLimit = 0
+            float physics:upperLimit = 80.00209
+            float physxJoint:armature = 0.00042
+            float physxJoint:jointFriction = 0.000418
+            float physxJoint:maxJointVelocity = 840.2969
+            float state:angular:physics:position = 0
+            float state:angular:physics:velocity = 0
+        }
+
+        over "right_pinky_PIP"
+        {
+            float drive:angular:physics:damping = 6.98E-4
+            float drive:angular:physics:stiffness = 0.01584
+            float physics:lowerLimit = 0
+            float physics:upperLimit = 99.99832
+            float physxJoint:armature = 0.00061
+            float physxJoint:jointFriction = 0.02476
+            float physxJoint:maxJointVelocity = 665.6805
+            float state:angular:physics:position = 0
+            float state:angular:physics:velocity = 0
+        }
+
+        over "right_ring_DIP"
+        {
+            float drive:angular:physics:damping = 5.50E-4
+            float drive:angular:physics:stiffness = 0.01578
+            float physics:lowerLimit = 0
+            float physics:upperLimit = 80.00209
+            float physxJoint:armature = 0.00042
+            float physxJoint:jointFriction = 0.000418
+            float physxJoint:maxJointVelocity = 840.2969
+            float state:angular:physics:position = 0
+            float state:angular:physics:velocity = 0
+        }
+
+        over "right_thumb_MCP_AA"
+        {
+            float drive:angular:physics:damping = 3.63E-3
+            float drive:angular:physics:stiffness = 0.11557
+            float physics:lowerLimit = -20.001955
+            float physics:upperLimit = 20.001955
+            float physxJoint:armature = 0.00265
+            float physxJoint:jointFriction = 0.104
+            float physxJoint:maxJointVelocity = 921.14
+            float state:angular:physics:position = -0.0000028634383
+            float state:angular:physics:velocity = 0
+        }
+
+        over "right_pinky_DIP"
+        {
+            float drive:angular:physics:damping = 5.50E-4
+            float drive:angular:physics:stiffness = 0.01578
+            string isaac:nameOverride (
+                displayName = "Name Override"
+                doc = "Name override for prim lookup in base name search"
+            )
+            float physics:lowerLimit = 0
+            float physics:upperLimit = 80.00209
+            float physxJoint:armature = 0.00042
+            float physxJoint:jointFriction = 0.000418
+            float physxJoint:maxJointVelocity = 840.2969
+            float state:angular:physics:position = 0
+            float state:angular:physics:velocity = 0
+        }
+
+        over "right_thumb_IP"
+        {
+            float drive:angular:physics:damping = 6.98E-4
+            float drive:angular:physics:stiffness = 0.01584
+            float physics:lowerLimit = 0
+            float physics:upperLimit = 100
+            float physxJoint:armature = 0.00061
+            float physxJoint:jointFriction = 0.02476
+            float state:angular:physics:position = -2.8107083e-8
+            float state:angular:physics:velocity = 0
+        }
+    }
+
+    def OmniGraph "ActionGraph"
+    {
+        token evaluationMode = "Automatic"
+        token evaluator:type = "execution"
+        token fabricCacheBacking = "Shared"
+        int2 fileFormatVersion = (1, 9)
+        token pipelineStage = "pipelineStageSimulation"
+
+        def OmniGraphNode "ros2_publish_joint_state" (
+            prepend apiSchemas = ["NodeGraphNodeAPI"]
+        )
+        {
+            custom uint64 inputs:context
+            custom uint inputs:execIn (
+                customData = {
+                    bool isExecution = 1
+                }
+            )
+            prepend uint inputs:execIn.connect = </Right_Sharpa_HA4/ActionGraph/on_tick.outputs:tick>
+            custom string inputs:nodeNamespace
+            custom string inputs:qosProfile
+            custom uint64 inputs:queueSize
+            custom rel inputs:targetPrim = </Right_Sharpa_HA4> (
+                customData = {
+                    dictionary omni = {
+                        dictionary graph = {
+                            string relType = "target"
+                        }
+                    }
+                }
+            )
+            custom double inputs:timeStamp
+            prepend double inputs:timeStamp.connect = </Right_Sharpa_HA4/ActionGraph/on_tick.outputs:time>
+            custom string inputs:topicName = "/isaacsim/right_sharpa_ha4_joint_states"
+            token node:type = "isaacsim.ros2.bridge.ROS2PublishJointState"
+            int node:typeVersion = 1
+            uniform token ui:nodegraph:node:expansionState = "open"
+            uniform float2 ui:nodegraph:node:pos = (773, 130)
+        }
+
+        def OmniGraphNode "ros2_subscribe_joint_state" (
+            prepend apiSchemas = ["NodeGraphNodeAPI"]
+            instanceable = false
+        )
+        {
+            custom uint64 inputs:context
+            custom uint inputs:execIn (
+                customData = {
+                    bool isExecution = 1
+                }
+            )
+            prepend uint inputs:execIn.connect = </Right_Sharpa_HA4/ActionGraph/on_playback_tick.outputs:tick>
+            custom string inputs:nodeNamespace
+            custom string inputs:qosProfile
+            custom uint64 inputs:queueSize
+            custom string inputs:topicName = "/isaacsim/right_sharpa_ha4_joint_actions"
+            token node:type = "isaacsim.ros2.bridge.ROS2SubscribeJointState"
+            int node:typeVersion = 2
+            custom double[] outputs:effortCommand
+            custom uint outputs:execOut (
+                customData = {
+                    bool isExecution = 1
+                }
+            )
+            custom token[] outputs:jointNames
+            custom double[] outputs:positionCommand
+            custom double outputs:timeStamp
+            custom double[] outputs:velocityCommand
+            uniform token ui:nodegraph:node:expansionState = "open"
+            uniform float2 ui:nodegraph:node:pos = (382, 401)
+        }
+
+        def OmniGraphNode "articulation_controller" (
+            prepend apiSchemas = ["NodeGraphNodeAPI"]
+        )
+        {
+            custom double[] inputs:effortCommand
+            custom uint inputs:execIn (
+                customData = {
+                    bool isExecution = 1
+                }
+            )
+            prepend uint inputs:execIn.connect = </Right_Sharpa_HA4/ActionGraph/ros2_subscribe_joint_state.outputs:execOut>
+            custom int[] inputs:jointIndices
+            custom token[] inputs:jointNames
+            prepend token[] inputs:jointNames.connect = </Right_Sharpa_HA4/ActionGraph/ros2_subscribe_joint_state.outputs:jointNames>
+            custom double[] inputs:positionCommand
+            prepend double[] inputs:positionCommand.connect = </Right_Sharpa_HA4/ActionGraph/ros2_subscribe_joint_state.outputs:positionCommand>
+            custom string inputs:robotPath
+            custom rel inputs:targetPrim = </Right_Sharpa_HA4> (
+                customData = {
+                    dictionary omni = {
+                        dictionary graph = {
+                            string relType = "target"
+                        }
+                    }
+                }
+            )
+            custom double[] inputs:velocityCommand
+            token node:type = "isaacsim.core.nodes.IsaacArticulationController"
+            int node:typeVersion = 1
+            uniform token ui:nodegraph:node:expansionState = "open"
+            uniform float2 ui:nodegraph:node:pos = (733, 459)
+        }
+
+        def OmniGraphNode "on_tick" (
+            prepend apiSchemas = ["NodeGraphNodeAPI"]
+        )
+        {
+            custom uint inputs:framePeriod = 1
+            custom bool inputs:onlyPlayback
+            token node:type = "omni.graph.action.OnTick"
+            int node:typeVersion = 2
+            custom double outputs:absoluteSimTime
+            custom double outputs:deltaSeconds
+            custom double outputs:frame
+            custom bool outputs:isPlaying
+            custom uint outputs:tick (
+                customData = {
+                    bool isExecution = 1
+                }
+            )
+            custom double outputs:time
+            custom double outputs:timeSinceStart
+            custom double state:accumulatedSeconds
+            custom uint state:frameCount
+            uniform token ui:nodegraph:node:expansionState = "open"
+            uniform float2 ui:nodegraph:node:pos = (368, 127)
+        }
+
+        def OmniGraphNode "on_playback_tick" (
+            prepend apiSchemas = ["NodeGraphNodeAPI"]
+        )
+        {
+            token node:type = "omni.graph.action.OnPlaybackTick"
+            int node:typeVersion = 2
+            custom double outputs:deltaSeconds
+            custom double outputs:frame
+            custom uint outputs:tick (
+                customData = {
+                    bool isExecution = 1
+                }
+            )
+            custom double outputs:time
+            uniform token ui:nodegraph:node:expansionState = "open"
+            uniform float2 ui:nodegraph:node:pos = (30.814236, 441.02084)
+        }
+    }
+}
+
