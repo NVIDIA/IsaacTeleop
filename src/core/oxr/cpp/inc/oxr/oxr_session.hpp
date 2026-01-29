@@ -4,7 +4,7 @@
 #pragma once
 
 #include <openxr/openxr.h>
-#include <oxr_utils/oxr_types.hpp>
+#include <oxr_utils/oxr_session_handles.hpp>
 
 #include <memory>
 #include <string>
