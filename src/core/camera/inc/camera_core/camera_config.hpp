@@ -3,9 +3,7 @@
 
 #pragma once
 
-namespace plugins
-{
-namespace camera
+namespace core
 {
 
 /**
@@ -21,5 +19,4 @@ struct CameraConfig
     int keyframe_frequency = 30;
 };
 
-} // namespace camera
-} // namespace plugins
+} // namespace core

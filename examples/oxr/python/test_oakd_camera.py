@@ -74,39 +74,27 @@ def run_test(duration: float = 10.0):
     print("  Note: Video will be recorded to ./recordings/ in the plugin directory")
     print()
 
-    try:
-        with manager.start(plugin_name, plugin_root_id) as plugin:
-            print("  ✓ Plugin started")
-            print()
+    with manager.start(plugin_name, plugin_root_id) as plugin:
+        print("  ✓ Plugin started")
+        print()
 
-            # 4. Monitor plugin and wait for recording
-            print(f"[Step 4] Recording video ({duration} seconds)...")
-            start_time = time.time()
-            check_count = 0
+        # 4. Monitor plugin and wait for recording
+        print(f"[Step 4] Recording video ({duration} seconds)...")
+        start_time = time.time()
+        check_count = 0
 
-            while time.time() - start_time < duration:
-                # Poll plugin health every ~1 second
-                elapsed = time.time() - start_time
-                if int(elapsed) > check_count:
-                    check_count = int(elapsed)
-                    try:
-                        plugin.check_health()
-                        print(f"  [{check_count:3d}s] Plugin healthy, recording...")
-                    except pm.PluginCrashException as e:
-                        print(f"  ✗ Plugin crashed: {e}")
-                        return False
+        while time.time() - start_time < duration:
+            # Poll plugin health every ~1 second
+            elapsed = time.time() - start_time
+            if int(elapsed) > check_count:
+                check_count = int(elapsed)
+                plugin.check_health()
+                print(f"  [{check_count:3d}s] Plugin healthy, recording...")
 
-                time.sleep(0.1)
+            time.sleep(0.1)
 
-            print()
-            print(f"  ✓ Recording completed ({duration:.1f} seconds)")
-
-    except pm.PluginCrashException as e:
-        print(f"  ✗ Plugin crashed during shutdown: {e}")
-        return False
-    except Exception as e:
-        print(f"  ✗ Error: {e}")
-        return False
+        print()
+        print(f"  ✓ Recording completed ({duration:.1f} seconds)")
 
     # Plugin automatically stopped when exiting 'with' block
     print()

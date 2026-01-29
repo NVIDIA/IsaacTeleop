@@ -39,7 +39,7 @@ add_executable(camera_plugin_oakd
 target_link_libraries(camera_plugin_oakd
     PRIVATE
         depthai::core
-        camera_plugin_core
+        camera_core
 )
 
 # Set RPATH to find bundled libraries in same directory

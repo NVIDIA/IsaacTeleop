@@ -3,19 +3,15 @@
 
 find_package(Threads REQUIRED)
 
-add_library(camera_plugin_core STATIC
+add_library(camera_core STATIC
     camera_plugin.cpp
     rawdata_writer.cpp
 )
-add_library(isaac::camera_plugin ALIAS camera_plugin_core)
+add_library(isaac::camera_core ALIAS camera_core)
 
-target_include_directories(camera_plugin_core PUBLIC inc)
+target_include_directories(camera_core INTERFACE inc)
 
-target_link_libraries(camera_plugin_core
-    PUBLIC
-        oxr::oxr_core
-        OpenXR::openxr_loader
+target_link_libraries(camera_core
     PRIVATE
-        Teleop::openxr_extensions
         Threads::Threads
 )

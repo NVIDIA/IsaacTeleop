@@ -40,7 +40,41 @@ if(BUILD_PLUGINS)
         set(DEPTHAI_CURL_USE_OPENSSL ON)
     endif()
 
-    include("cmake/HunterGate.cmake")
+    # Download HunterGate.cmake from GitHub if not present or empty
+    set(HUNTERGATE_VERSION "v0.11.0")
+    set(HUNTERGATE_SHA1 "c581aaacda7fee2e4586adf39084f24709b8e51f")
+    set(HUNTERGATE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/HunterGate.cmake")
+
+    set(_huntergate_need_download FALSE)
+    if(NOT EXISTS "${HUNTERGATE_PATH}")
+        set(_huntergate_need_download TRUE)
+    else()
+        file(SIZE "${HUNTERGATE_PATH}" _huntergate_size)
+        if(_huntergate_size EQUAL 0)
+            file(REMOVE "${HUNTERGATE_PATH}")
+            set(_huntergate_need_download TRUE)
+        endif()
+    endif()
+
+    if(_huntergate_need_download)
+        message(STATUS "Downloading HunterGate.cmake ${HUNTERGATE_VERSION}...")
+        file(DOWNLOAD
+            "https://raw.githubusercontent.com/cpp-pm/gate/${HUNTERGATE_VERSION}/cmake/HunterGate.cmake"
+            "${HUNTERGATE_PATH}"
+            EXPECTED_HASH SHA1=${HUNTERGATE_SHA1}
+            STATUS huntergate_download_status
+            TLS_VERIFY ON
+        )
+        list(GET huntergate_download_status 0 huntergate_status_code)
+        list(GET huntergate_download_status 1 huntergate_status_msg)
+        if(NOT huntergate_status_code EQUAL 0)
+            file(REMOVE "${HUNTERGATE_PATH}")  # Clean up failed download
+            message(FATAL_ERROR "Failed to download HunterGate.cmake: ${huntergate_status_msg}")
+        endif()
+        message(STATUS "HunterGate.cmake downloaded successfully")
+    endif()
+
+    include("${HUNTERGATE_PATH}")
     HunterGate(
         URL "https://github.com/cpp-pm/hunter/archive/9d9242b60d5236269f894efd3ddd60a9ca83dd7f.tar.gz"
         SHA1 "16cc954aa723bccd16ea45fc91a858d0c5246376"

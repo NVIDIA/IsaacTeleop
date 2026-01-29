@@ -3,23 +3,22 @@
 
 #pragma once
 
-#include <camera_plugin_core/record_config.hpp>
+#include "record_config.hpp"
 
 #include <cstdint>
 #include <fstream>
-#include <string>
 #include <vector>
 
-namespace plugins
-{
-namespace camera
+namespace core
 {
 
 /**
  * @brief Raw H.264 file writer
  *
  * Writes H.264 NAL units directly to a file without container.
+ * File opens in constructor and closes in destructor (RAII).
  */
+// TODO(shaoxiangs): abstract RawDataWriter with writer interface.
 class RawDataWriter
 {
 public:
@@ -30,21 +29,15 @@ public:
     RawDataWriter(const RawDataWriter&) = delete;
     RawDataWriter& operator=(const RawDataWriter&) = delete;
 
-    void open();
-    void close();
-
-    bool write(const std::vector<uint8_t>& data);
+    void write(const std::vector<uint8_t>& data);
 
     size_t bytes_written() const;
     size_t frame_count() const;
 
 private:
-    RecordConfig m_config;
-    std::string m_path;
     std::ofstream m_file;
     size_t m_bytes_written = 0;
     size_t m_frame_count = 0;
 };
 
-} // namespace camera
-} // namespace plugins
+} // namespace core

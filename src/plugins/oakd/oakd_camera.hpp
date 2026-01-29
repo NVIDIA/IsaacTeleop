@@ -3,17 +3,12 @@
 
 #pragma once
 
-#include <camera_plugin_core/camera_interface.hpp>
+#include <camera_core/camera_interface.hpp>
 #include <depthai/depthai.hpp>
 
-#include <atomic>
 #include <memory>
 
-namespace plugins
-{
-namespace camera
-{
-namespace oakd
+namespace core
 {
 
 /**
@@ -22,12 +17,12 @@ namespace oakd
  * Uses the DepthAI C++ library to capture video from OAK-D cameras
  * and encode to H.264 using the on-device video encoder.
  * Implements the ICamera interface for use with CameraPlugin.
+ * Camera starts in constructor and stops in destructor (RAII).
  */
 class OakDCamera : public ICamera
 {
 public:
     explicit OakDCamera(const CameraConfig& config = CameraConfig{});
-    ~OakDCamera() override;
 
     // Non-copyable, non-movable
     OakDCamera(const OakDCamera&) = delete;
@@ -36,9 +31,6 @@ public:
     OakDCamera& operator=(OakDCamera&&) = delete;
 
     // ICamera interface
-    void start() override;
-    void stop() override;
-    bool is_running() const override;
     std::optional<Frame> get_frame() override;
     const CameraConfig& config() const override
     {
@@ -52,9 +44,6 @@ private:
     std::shared_ptr<dai::Pipeline> m_pipeline;
     std::shared_ptr<dai::Device> m_device;
     std::shared_ptr<dai::DataOutputQueue> m_h264_queue;
-    std::atomic<bool> m_running{ false };
 };
 
-} // namespace oakd
-} // namespace camera
-} // namespace plugins
+} // namespace core

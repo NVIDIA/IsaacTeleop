@@ -5,9 +5,7 @@
 
 #include <string>
 
-namespace plugins
-{
-namespace camera
+namespace core
 {
 
 /**
@@ -17,7 +15,6 @@ struct RecordConfig
 {
     std::string output_path; // Explicit path, or empty for auto-naming
     std::string output_dir = "./recordings";
-    bool auto_name = true;
 
     /**
      * @brief Get the output path, generating a timestamped name if needed
@@ -25,5 +22,4 @@ struct RecordConfig
     std::string get_output_path() const;
 };
 
-} // namespace camera
-} // namespace plugins
+} // namespace core

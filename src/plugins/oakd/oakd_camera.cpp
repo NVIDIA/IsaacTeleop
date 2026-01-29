@@ -5,22 +5,25 @@
 
 #include <iostream>
 
-namespace plugins
-{
-namespace camera
-{
-namespace oakd
+namespace core
 {
 
 OakDCamera::OakDCamera(const CameraConfig& config) : m_config(config)
 {
-    std::cout << "OAK-D Camera initialized: " << m_config.width << "x" << m_config.height << " @ " << m_config.fps
-              << "fps, " << (m_config.bitrate / 1'000'000.0) << "Mbps" << std::endl;
-}
+    std::cout << "OAK-D Camera: " << m_config.width << "x" << m_config.height << " @ " << m_config.fps << "fps, "
+              << (m_config.bitrate / 1'000'000.0) << "Mbps" << std::endl;
 
-OakDCamera::~OakDCamera()
-{
-    stop();
+    create_pipeline();
+
+    // Find and connect to device
+    std::cout << "Connecting to OAK-D device..." << std::endl;
+    m_device = std::make_shared<dai::Device>(*m_pipeline);
+    std::cout << "Device connected: " << m_device->getMxId() << std::endl;
+
+    // Get output queue (blocking=false to not wait for frames)
+    m_h264_queue = m_device->getOutputQueue("h264", 8, false);
+
+    std::cout << "OAK-D camera pipeline started" << std::endl;
 }
 
 void OakDCamera::create_pipeline()
@@ -52,49 +55,6 @@ void OakDCamera::create_pipeline()
     // Link: Camera -> Encoder -> Output
     camRgb->video.link(videoEnc->input);
     videoEnc->bitstream.link(xoutH264->input);
-}
-
-void OakDCamera::start()
-{
-    if (m_running)
-    {
-        std::cout << "Camera already running" << std::endl;
-        return;
-    }
-
-    create_pipeline();
-
-    // Find and connect to device
-    std::cout << "Connecting to OAK-D device..." << std::endl;
-    m_device = std::make_shared<dai::Device>(*m_pipeline);
-    std::cout << "Device connected: " << m_device->getMxId() << std::endl;
-
-    // Get output queue (blocking=true to wait for frames)
-    m_h264_queue = m_device->getOutputQueue("h264", 8, false);
-
-    m_running = true;
-    std::cout << "OAK-D camera pipeline started" << std::endl;
-    std::cout << "Waiting for first frame..." << std::endl;
-}
-
-void OakDCamera::stop()
-{
-    if (!m_running)
-    {
-        return;
-    }
-
-    m_running = false;
-    m_h264_queue.reset();
-    m_device.reset();
-    m_pipeline.reset();
-
-    std::cout << "OAK-D camera pipeline stopped" << std::endl;
-}
-
-bool OakDCamera::is_running() const
-{
-    return m_running && m_device && !m_device->isClosed();
 }
 
 std::optional<Frame> OakDCamera::get_frame()
@@ -135,6 +95,4 @@ std::optional<Frame> OakDCamera::get_frame()
     return frame;
 }
 
-} // namespace oakd
-} // namespace camera
-} // namespace plugins
+} // namespace core

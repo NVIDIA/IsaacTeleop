@@ -3,16 +3,14 @@
 
 #pragma once
 
-#include <camera_plugin_core/camera_config.hpp>
+#include "camera_config.hpp"
 
 #include <chrono>
 #include <cstdint>
 #include <optional>
 #include <vector>
 
-namespace plugins
-{
-namespace camera
+namespace core
 {
 
 /**
@@ -38,26 +36,12 @@ struct Frame
  *
  * Decouples the camera SDK from the plugin lifecycle.
  * Each camera implementation (OAK-D, RealSense, etc.) should implement this interface.
+ * Camera starts in constructor and stops in destructor (RAII).
  */
 class ICamera
 {
 public:
     virtual ~ICamera() = default;
-
-    /**
-     * @brief Start the camera capture pipeline
-     */
-    virtual void start() = 0;
-
-    /**
-     * @brief Stop the camera capture pipeline
-     */
-    virtual void stop() = 0;
-
-    /**
-     * @brief Check if the camera pipeline is running
-     */
-    virtual bool is_running() const = 0;
 
     /**
      * @brief Get the next available encoded frame with metadata
@@ -71,5 +55,4 @@ public:
     virtual const CameraConfig& config() const = 0;
 };
 
-} // namespace camera
-} // namespace plugins
+} // namespace core
