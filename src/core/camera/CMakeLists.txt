@@ -13,7 +13,7 @@ target_include_directories(camera_plugin_core PUBLIC inc)
 
 target_link_libraries(camera_plugin_core
     PUBLIC
-        Teleop::plugin_utils
+        oxr::oxr_core
         OpenXR::openxr_loader
     PRIVATE
         Teleop::openxr_extensions

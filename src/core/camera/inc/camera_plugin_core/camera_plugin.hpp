@@ -5,13 +5,12 @@
 
 #include <camera_plugin_core/camera_interface.hpp>
 #include <camera_plugin_core/rawdata_writer.hpp>
-#include <plugin_utils/session.hpp>
+#include <oxr/oxr_session.hpp>
 
 #include <atomic>
 #include <chrono>
 #include <functional>
 #include <memory>
-#include <optional>
 #include <string>
 #include <thread>
 
@@ -94,7 +93,7 @@ private:
     // Components
     std::unique_ptr<ICamera> m_camera;
     std::unique_ptr<RawDataWriter> m_writer;
-    std::optional<plugin_utils::Session> m_session;
+    std::shared_ptr<core::OpenXRSession> m_session;
 
     // Threading
     std::thread m_thread;

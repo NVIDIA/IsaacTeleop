@@ -2,9 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <camera_plugin_core/camera_plugin.hpp>
+#include <openxr/openxr.h>
 
 #include <iomanip>
 #include <iostream>
+#include <stdexcept>
+#include <vector>
 
 namespace plugins
 {
@@ -85,13 +88,13 @@ void CameraPlugin::request_stop()
 
 void CameraPlugin::init_openxr_session()
 {
-    plugin_utils::SessionConfig config;
-    config.app_name = "Camera";
-    config.extensions = { XR_MND_HEADLESS_EXTENSION_NAME, XR_EXTX_OVERLAY_EXTENSION_NAME };
-    config.use_overlay_mode = true;
+    std::vector<std::string> extensions = { XR_MND_HEADLESS_EXTENSION_NAME, XR_EXTX_OVERLAY_EXTENSION_NAME };
 
-    m_session.emplace(config);
-    m_session->begin();
+    m_session = core::OpenXRSession::Create("Camera", extensions);
+    if (!m_session)
+    {
+        throw std::runtime_error("Failed to create OpenXR session");
+    }
 
     std::cout << "OpenXR session initialized" << std::endl;
 }

@@ -4,79 +4,70 @@
 # ==============================================================================
 # OAK-D Camera Plugin
 # ==============================================================================
+# Uses FetchContent with HunterGate initialized at top-level for single-pass build.
+# ==============================================================================
 
-include(ExternalProject)
+include(FetchContent)
 
 # ==============================================================================
 # DepthAI Setup
 # ==============================================================================
-set(DEPTHAI_INSTALL_DIR ${CMAKE_BINARY_DIR}/depthai-install)
-set(DEPTHAI_CMAKE_DIR ${DEPTHAI_INSTALL_DIR}/lib/cmake/depthai)
+message(STATUS "Configuring DepthAI...")
 
-# Check if depthai is already built
-if(EXISTS ${DEPTHAI_CMAKE_DIR}/depthaiConfig.cmake)
-    message(STATUS "Found pre-built DepthAI at ${DEPTHAI_INSTALL_DIR}")
-    set(DEPTHAI_PREBUILT TRUE)
-else()
-    message(STATUS "DepthAI not found - building as external project...")
-    message(STATUS "  First build: cmake --build build")
-    message(STATUS "  Then run:    cmake -B build && cmake --build build")
-    set(DEPTHAI_PREBUILT FALSE)
+# Configure DepthAI build options
+set(DEPTHAI_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(DEPTHAI_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(DEPTHAI_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 
-    ExternalProject_Add(depthai_external
-        URL https://github.com/luxonis/depthai-core/releases/download/v2.29.0/depthai-core-v2.29.0.tar.gz
-        CMAKE_ARGS
-            -DCMAKE_INSTALL_PREFIX=${DEPTHAI_INSTALL_DIR}
-            -DCMAKE_BUILD_TYPE=Release
-            -DBUILD_SHARED_LIBS=OFF
-            -DDEPTHAI_BUILD_EXAMPLES=OFF
-            -DDEPTHAI_BUILD_TESTS=OFF
-            -DDEPTHAI_BUILD_DOCS=OFF
-        INSTALL_DIR ${DEPTHAI_INSTALL_DIR}
-        UPDATE_COMMAND ""
-    )
-endif()
+FetchContent_Declare(
+    depthai
+    URL https://github.com/luxonis/depthai-core/releases/download/v2.29.0/depthai-core-v2.29.0.tar.gz
+)
+
+FetchContent_MakeAvailable(depthai)
+
+message(STATUS "Building OAK-D camera plugin with DepthAI ${depthai_VERSION}")
 
 # ==============================================================================
-# Build OAK-D Plugin (when DepthAI is ready)
+# Build OAK-D Plugin
 # ==============================================================================
-if(DEPTHAI_PREBUILT)
-    set(depthai_DIR ${DEPTHAI_CMAKE_DIR})
-    find_package(depthai REQUIRED CONFIG)
-    message(STATUS "Using DepthAI: ${depthai_VERSION}")
-    message(STATUS "Building OAK-D camera plugin")
+add_executable(camera_plugin_oakd
+    main.cpp
+    oakd_camera.cpp
+)
 
-    add_executable(camera_plugin_oakd
-        main.cpp
-        oakd_camera.cpp
-    )
+target_link_libraries(camera_plugin_oakd
+    PRIVATE
+        depthai::core
+        camera_plugin_core
+)
 
-    target_link_libraries(camera_plugin_oakd
-        PRIVATE
-            depthai::core
-            camera_plugin_core
-    )
+# Set RPATH to find bundled libraries in same directory
+set_target_properties(camera_plugin_oakd PROPERTIES
+    INSTALL_RPATH "$ORIGIN"
+)
 
-    # Set RPATH to find bundled libraries in same directory
-    set_target_properties(camera_plugin_oakd PROPERTIES
-        INSTALL_RPATH "$ORIGIN"
-    )
+install(TARGETS camera_plugin_oakd
+    RUNTIME DESTINATION plugins/oakd_camera
+)
 
-    install(TARGETS camera_plugin_oakd
-        RUNTIME DESTINATION plugins/oakd_camera
-    )
+install(FILES 
+    "${CMAKE_CURRENT_SOURCE_DIR}/plugin.yaml" 
+    "${CMAKE_CURRENT_SOURCE_DIR}/README.md"
+    DESTINATION plugins/oakd_camera
+)
 
-    # Copy DepthAI's bundled libusb to install directory
-    set(DEPTHAI_LIBUSB_DIR "${DEPTHAI_INSTALL_DIR}/lib/cmake/depthai/dependencies/lib/cmake/XLink/dependencies/lib")
-    if(EXISTS "${DEPTHAI_LIBUSB_DIR}/libusb-1.0.so")
-        install(FILES "${DEPTHAI_LIBUSB_DIR}/libusb-1.0.so"
-            DESTINATION plugins/oakd_camera
-        )
+# Install libusb from depthai dependencies (required at runtime)
+# The library is built by depthai and installed to its dependencies folder
+install(CODE "
+    # Find libusb in depthai's dependency installation
+    set(LIBUSB_SOURCE \"\${CMAKE_INSTALL_PREFIX}/lib/cmake/depthai/dependencies/lib/libusb-1.0.so\")
+    set(LIBUSB_DEST \"\${CMAKE_INSTALL_PREFIX}/plugins/oakd_camera/libusb-1.0.so\")
+    
+    if(EXISTS \"\${LIBUSB_SOURCE}\")
+        message(STATUS \"Installing libusb-1.0.so from depthai dependencies to plugin directory\")
+        file(COPY \"\${LIBUSB_SOURCE}\" DESTINATION \"\${CMAKE_INSTALL_PREFIX}/plugins/oakd_camera/\")
+    else()
+        message(WARNING \"libusb-1.0.so not found at \${LIBUSB_SOURCE}\")
     endif()
-
-    install(FILES 
-        "${CMAKE_CURRENT_SOURCE_DIR}/plugin.yaml" 
-        "${CMAKE_CURRENT_SOURCE_DIR}/README.md"
-        DESTINATION plugins/oakd_camera
-    )
-endif()
+")
