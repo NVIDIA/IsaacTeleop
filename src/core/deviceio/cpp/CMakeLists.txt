@@ -16,16 +16,23 @@ if(NOT TARGET oxr::oxr_utils)
     message(FATAL_ERROR "oxr_utils target not found. Make sure oxr_utils is built first.")
 endif()
 
+# Check for openxr_extensions (needed for SchemaTracker tensor data APIs)
+if(NOT TARGET Teleop::openxr_extensions)
+    message(FATAL_ERROR "openxr_extensions target not found. Make sure OpenXR extensions are available.")
+endif()
+
 # Core DEVICEIO tracking library (static for distribution)
 add_library(deviceio_core STATIC
     hand_tracker.cpp
     head_tracker.cpp
     controller_tracker.cpp
+    schema_tracker.cpp
     deviceio_session.cpp
     inc/deviceio/tracker.hpp
     inc/deviceio/hand_tracker.hpp
     inc/deviceio/head_tracker.hpp
     inc/deviceio/controller_tracker.hpp
+    inc/deviceio/schema_tracker.hpp
     inc/deviceio/deviceio_session.hpp
 )
 
@@ -42,6 +49,9 @@ target_link_libraries(deviceio_core
 
         # Schema library for FlatBuffer types
         isaacteleop_schema
+
+        # OpenXR extensions for tensor data APIs (used by SchemaTracker)
+        Teleop::openxr_extensions
 )
 
 # Platform-specific definitions
