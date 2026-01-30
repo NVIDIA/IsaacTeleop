@@ -74,6 +74,40 @@ if(BUILD_PLUGINS)
         message(STATUS "HunterGate.cmake downloaded successfully")
     endif()
 
+    # Download DepthAI Hunter config from GitHub if not present or empty
+    set(DEPTHAI_VERSION "v2.29.0")
+    set(DEPTHAI_CONFIG_SHA1 "a88698ab81b7edef79a2446edcf649dc92cddcbc")
+    set(DEPTHAI_CONFIG_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Hunter/config-depthai.cmake")
+
+    set(_depthai_config_need_download FALSE)
+    if(NOT EXISTS "${DEPTHAI_CONFIG_PATH}")
+        set(_depthai_config_need_download TRUE)
+    else()
+        file(SIZE "${DEPTHAI_CONFIG_PATH}" _depthai_config_size)
+        if(_depthai_config_size EQUAL 0)
+            file(REMOVE "${DEPTHAI_CONFIG_PATH}")
+            set(_depthai_config_need_download TRUE)
+        endif()
+    endif()
+
+    if(_depthai_config_need_download)
+        message(STATUS "Downloading Hunter config for DepthAI ${DEPTHAI_VERSION}...")
+        file(DOWNLOAD
+            "https://raw.githubusercontent.com/luxonis/depthai-core/${DEPTHAI_VERSION}/cmake/Hunter/config.cmake"
+            "${DEPTHAI_CONFIG_PATH}"
+            EXPECTED_HASH SHA1=${DEPTHAI_CONFIG_SHA1}
+            STATUS depthai_config_download_status
+            TLS_VERIFY ON
+        )
+        list(GET depthai_config_download_status 0 depthai_config_status_code)
+        list(GET depthai_config_download_status 1 depthai_config_status_msg)
+        if(NOT depthai_config_status_code EQUAL 0)
+            file(REMOVE "${DEPTHAI_CONFIG_PATH}")  # Clean up failed download
+            message(FATAL_ERROR "Failed to download DepthAI Hunter config: ${depthai_config_status_msg}")
+        endif()
+        message(STATUS "DepthAI Hunter config downloaded successfully")
+    endif()
+
     include("${HUNTERGATE_PATH}")
     HunterGate(
         URL "https://github.com/cpp-pm/hunter/archive/9d9242b60d5236269f894efd3ddd60a9ca83dd7f.tar.gz"
