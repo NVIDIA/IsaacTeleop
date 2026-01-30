@@ -1,0 +1,12 @@
+include "point.fbs";
+
+namespace core;
+
+// Describes a twist (velocity).
+struct Twist {
+  // Linear velocity (x, y, z) in meters per second.
+  linear: Point;
+
+  // Angular velocity (x, y, z) in radians per second.
+  angular: Point;
+}

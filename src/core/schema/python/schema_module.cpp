@@ -9,6 +9,7 @@
 #include "controller_bindings.h"
 #include "hand_bindings.h"
 #include "head_bindings.h"
+#include "locomotion_bindings.h"
 #include "pose_bindings.h"
 #include "tensor_bindings.h"
 
@@ -32,4 +33,7 @@ PYBIND11_MODULE(_schema, m)
 
     // Bind controller types (ControllerInputState, ControllerPose structs, ControllerSnapshotT table, Hand enum).
     core::bind_controller(m);
+
+    // Bind locomotion types (Twist struct, LocomotionCommand table).
+    core::bind_locomotion(m);
 }
