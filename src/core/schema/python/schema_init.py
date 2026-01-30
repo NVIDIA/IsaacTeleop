@@ -30,6 +30,9 @@ from ._schema import (
     Timestamp,
     ControllerSnapshot,
     ControllerData,
+    # Locomotion-related types.
+    Twist,
+    LocomotionCommand,
 )
 
 __all__ = [
@@ -55,5 +58,8 @@ __all__ = [
     "Timestamp",
     "ControllerSnapshot",
     "ControllerData",
+    # Locomotion types.
+    "Twist",
+    "LocomotionCommand",
 ]
 
