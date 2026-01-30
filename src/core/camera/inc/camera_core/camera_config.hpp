@@ -11,8 +11,8 @@ namespace core
  */
 struct CameraConfig
 {
-    int width = 1280;
-    int height = 720;
+    int width = 1920;
+    int height = 1080;
     int fps = 30;
     int bitrate = 8'000'000;
     int quality = 80;
