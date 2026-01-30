@@ -1,0 +1,64 @@
+defaults:
+  - data: HOT3D
+  - optim
+  - _self_
+
+model:
+  use_init: True
+  opt_cams: False #True
+  opt_scale: True
+  async_tracks: True
+
+overwrite: False
+run_opt: True
+run_vis: True
+run_prior: False
+datatype: ${data.video_dir}
+vis:
+  phases:
+    # - motion_chunks
+    # - input
+    # - root_fit
+    - smooth_fit
+    - prior
+    # - init
+  render_views:
+    - above
+    - side
+    - front
+    - src_cam
+  make_grid: True
+  overwrite: True
+  render_keypoints: False  # Overlay GT 2D keypoints on source camera view
+
+MANO:
+  MODEL_PATH: ${paths.DATA_DIR}/mano
+  GENDER: neutral
+  NUM_HAND_JOINTS: 15
+  MEAN_PARAMS: ${paths.DATA_DIR}/mano_mean_params.npz
+  CREATE_BODY_POSE: FALSE
+
+paths:
+  base_dir: None
+  DATA_DIR: _DATA/data/
+  vposer: VPoser/pretrained/Vposer_right_mirrored # _DATA/body_models/vposer_v1_0
+
+HMP:
+  config: hmp_config.yaml
+  use_hposer: False
+  vid_path: ${data.root}/video/${data.seq}.mp4
+  exp_name: None
+
+fps: 30
+log_root: ../outputs/logs
+log_dir: ${log_root}/${data.type}-${data.split}
+exp_name: ${now:%Y-%m-%d}
+temporal_smooth: True
+gpu: 0
+is_static: False
+
+hydra:
+  job:
+    chdir: True
+  run:
+    dir: ${log_dir}/${exp_name}/${data.name}

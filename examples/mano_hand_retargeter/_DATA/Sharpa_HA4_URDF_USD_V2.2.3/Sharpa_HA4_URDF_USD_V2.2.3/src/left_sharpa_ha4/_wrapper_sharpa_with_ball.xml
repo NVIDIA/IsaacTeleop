@@ -1,0 +1,10 @@
+
+<mujoco model="sharpa_with_ball">
+  <include file="left_sharpa_ha4_v2_1.xml"/>
+  <worldbody>
+    <body name="ball" pos="0.15 0.0 0.10">
+      <freejoint/>
+      <geom name="ball_geom" type="sphere" size="0.03" rgba="1 0 0 1" density="500"/>
+    </body>
+  </worldbody>
+</mujoco>

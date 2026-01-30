@@ -1,0 +1,29 @@
+type: video
+split: custom
+root: /home/lduan/Documents/Dyn-HaMR/test  # put your videos in root/videos/vid.mp4
+video_dir: videos
+seq: prod1
+ext: mp4
+src_path: ${data.root}/${data.video_dir}/${data.seq}.${data.ext}
+frame_opts:
+  ext: jpg
+  fps: 25
+  start_sec: 0
+  end_sec: -1
+use_cams: True
+track_ids: "all"
+shot_idx: 0
+start_idx: 0
+end_idx: -1
+split_cameras: True
+name: ${data.seq}-${data.track_ids}-shot-${data.shot_idx}-${data.start_idx}-${data.end_idx}
+sources:
+  images: ${data.root}/images/${data.seq}
+  cameras: ${data.root}/dynhamr/cameras/${data.seq}/shot-${data.shot_idx}
+  tracks: ${data.root}/dynhamr/track_preds/${data.seq}
+  shots: ${data.root}/dynhamr/shot_idcs/${data.seq}.json
+
+# VIPE-specific options
+use_vipe: True
+vipe_dir: /home/lduan/Documents/Dyn-HaMR/third-party/vipe/vipe_results
+
