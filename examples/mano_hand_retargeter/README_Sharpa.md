@@ -182,4 +182,10 @@ Replay:
 ../../scripts/run_sharpa_hand_retarget_global.sh
 ```
 
+Replay with object:
+
+```bash
+../../scripts/run_sharpa_hand_retarget_global_with_object.sh
+```
+
 
