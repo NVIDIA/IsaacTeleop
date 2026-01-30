@@ -18,9 +18,6 @@ const SKELETON_FORMAT = {
     PICO: 'pico'
 };
 
-// Track the current skeleton format detected
-let currentSkeletonFormat = SKELETON_FORMAT.STANDARD;
-
 // All body joints defined in the WebXR Body Tracking spec (standard)
 const BODY_JOINTS = [
     // Torso
@@ -150,21 +147,25 @@ const BONE_CONNECTIONS = [
 
 // ============================================================================
 // PICO BODY TRACKING (XR_BD_body_tracking) - 24 joints
-// Based on WebXR Body Tracking Module (Pico) proposal
+// Based on OpenXR XR_BD_body_tracking extension
 // ============================================================================
 
-// All body joints defined in the Pico/ByteDance body tracking spec
+/**
+ * All body joints defined in the Pico/ByteDance body tracking spec (24 joints).
+ * This is a simplified skeleton that can be derived from the standard WebXR body tracking.
+ * @see https://registry.khronos.org/OpenXR/specs/1.1/html/xrspec.html#XR_BD_body_tracking
+ */
 const BODY_JOINTS_PICO = [
     "pelvis",           // 0 - XR_BODY_JOINT_PELVIS_BD
     "left-hip",         // 1 - XR_BODY_JOINT_LEFT_HIP_BD
     "right-hip",        // 2 - XR_BODY_JOINT_RIGHT_HIP_BD
-    "spine-1",          // 3 - XR_BODY_JOINT_SPINE1_BD
+    "spine1",           // 3 - XR_BODY_JOINT_SPINE1_BD
     "left-knee",        // 4 - XR_BODY_JOINT_LEFT_KNEE_BD
     "right-knee",       // 5 - XR_BODY_JOINT_RIGHT_KNEE_BD
-    "spine-2",          // 6 - XR_BODY_JOINT_SPINE2_BD
+    "spine2",           // 6 - XR_BODY_JOINT_SPINE2_BD
     "left-ankle",       // 7 - XR_BODY_JOINT_LEFT_ANKLE_BD
     "right-ankle",      // 8 - XR_BODY_JOINT_RIGHT_ANKLE_BD
-    "spine-3",          // 9 - XR_BODY_JOINT_SPINE3_BD
+    "spine3",           // 9 - XR_BODY_JOINT_SPINE3_BD
     "left-foot",        // 10 - XR_BODY_JOINT_LEFT_FOOT_BD
     "right-foot",       // 11 - XR_BODY_JOINT_RIGHT_FOOT_BD
     "neck",             // 12 - XR_BODY_JOINT_NECK_BD
@@ -181,13 +182,45 @@ const BODY_JOINTS_PICO = [
     "right-hand"        // 23 - XR_BODY_JOINT_RIGHT_HAND_BD
 ];
 
+/**
+ * Mapping from Pico joints to their closest equivalent WebXR (standard) joints.
+ * Used to convert WebXR body tracking data to the Pico skeleton format.
+ * This allows devices with WebXR body tracking to also provide Pico-compatible data.
+ */
+const PICO_TO_WEBXR_JOINT_MAP = {
+    "pelvis": "hips",
+    "left-hip": "left-upper-leg",
+    "right-hip": "right-upper-leg",
+    "spine1": "spine-lower",
+    "left-knee": "left-lower-leg",
+    "right-knee": "right-lower-leg",
+    "spine2": "spine-middle",
+    "left-ankle": "left-foot-ankle",
+    "right-ankle": "right-foot-ankle",
+    "spine3": "spine-upper",
+    "left-foot": "left-foot-ball",
+    "right-foot": "right-foot-ball",
+    "neck": "neck",
+    "left-collar": "left-shoulder",
+    "right-collar": "right-shoulder",
+    "head": "head",
+    "left-shoulder": "left-arm-upper",
+    "right-shoulder": "right-arm-upper",
+    "left-elbow": "left-arm-lower",
+    "right-elbow": "right-arm-lower",
+    "left-wrist": "left-hand-wrist",
+    "right-wrist": "right-hand-wrist",
+    "left-hand": "left-hand-palm",
+    "right-hand": "right-hand-palm"
+};
+
 // Bone connections for Pico skeleton (pairs of joints to draw cylinders between)
 const BONE_CONNECTIONS_PICO = [
     // Spine
-    ["pelvis", "spine-1"],
-    ["spine-1", "spine-2"],
-    ["spine-2", "spine-3"],
-    ["spine-3", "neck"],
+    ["pelvis", "spine1"],
+    ["spine1", "spine2"],
+    ["spine2", "spine3"],
+    ["spine3", "neck"],
     ["neck", "head"],
     
     // Left leg
@@ -203,14 +236,14 @@ const BONE_CONNECTIONS_PICO = [
     ["right-ankle", "right-foot"],
     
     // Left arm
-    ["spine-3", "left-collar"],
+    ["spine3", "left-collar"],
     ["left-collar", "left-shoulder"],
     ["left-shoulder", "left-elbow"],
     ["left-elbow", "left-wrist"],
     ["left-wrist", "left-hand"],
     
     // Right arm
-    ["spine-3", "right-collar"],
+    ["spine3", "right-collar"],
     ["right-collar", "right-shoulder"],
     ["right-shoulder", "right-elbow"],
     ["right-elbow", "right-wrist"],
@@ -491,15 +524,14 @@ function createCylinderBuffers(segments) {
 
 async function startXRSession() {
     try {
-        // Request session with body-tracking features (standard and Pico)
+        // Request session with body-tracking feature
         xrSession = await navigator.xr.requestSession('immersive-vr', {
             requiredFeatures: ['local-floor'],
-            optionalFeatures: ['body-tracking', 'body-tracking-pico']
+            optionalFeatures: ['body-tracking']
         });
         
         console.log('WebXR session started');
-        console.log('Body tracking (standard) available:', xrSession.enabledFeatures?.includes('body-tracking') ?? 'unknown');
-        console.log('Body tracking (Pico) available:', xrSession.enabledFeatures?.includes('body-tracking-pico') ?? 'unknown');
+        console.log('Body tracking available:', xrSession.enabledFeatures?.includes('body-tracking') ?? 'unknown');
         
         document.getElementById('overlay').style.display = 'none';
         
@@ -551,28 +583,23 @@ function onXRFrame(time, frame) {
     gl.enable(gl.DEPTH_TEST);
     gl.enable(gl.CULL_FACE);
     
-    // Get body tracking data - check for both standard and Pico formats
+    // Get body tracking data from WebXR
     const body = frame.body;
-    const bodyPico = frame.bodyPico;
     let jointPositions = null;
+    let jointPositionsPico = null;
     
-    // Try standard body tracking first, then Pico
-    const activeBody = body || bodyPico;
-    const isPicoFormat = !body && bodyPico;
-    
-    if (activeBody) {
+    if (body) {
+        // Extract standard WebXR joint positions
         jointPositions = {};
-        currentSkeletonFormat = isPicoFormat ? SKELETON_FORMAT.PICO : SKELETON_FORMAT.STANDARD;
         
         // Log body data periodically
         if (frameCount % 60 === 0) {
             console.log('=== Body Tracking Data ===');
-            console.log('Format:', currentSkeletonFormat);
-            console.log('Body size (number of joints):', activeBody.size);
+            console.log('WebXR Body size (number of joints):', body.size);
         }
         
-        // Iterate through all joints
-        for (const [jointName, jointSpace] of activeBody) {
+        // Iterate through all WebXR joints
+        for (const [jointName, jointSpace] of body) {
             const jointPose = frame.getPose(jointSpace, xrRefSpace);
             
             if (jointPose) {
@@ -592,10 +619,14 @@ function onXRFrame(time, frame) {
             }
         }
         
+        // Derive Pico skeleton from WebXR skeleton using mapping
+        jointPositionsPico = convertWebXRToPico(jointPositions);
+        
         // Update UI
-        const formatLabel = isPicoFormat ? ' (Pico)' : ' (Standard)';
+        const webxrJointCount = Object.keys(jointPositions).length;
+        const picoJointCount = Object.keys(jointPositionsPico).length;
         document.getElementById('jointCount').textContent = 
-            `Tracking ${Object.keys(jointPositions).length} joints${formatLabel}`;
+            `WebXR: ${webxrJointCount} joints | Pico: ${picoJointCount} joints`;
     } else {
         // No body tracking available
         if (frameCount % 120 === 0) {
@@ -609,10 +640,36 @@ function onXRFrame(time, frame) {
         const viewport = glLayer.getViewport(view);
         gl.viewport(viewport.x, viewport.y, viewport.width, viewport.height);
         
-        renderScene(view.projectionMatrix, view.transform.inverse.matrix, jointPositions);
+        renderScene(view.projectionMatrix, view.transform.inverse.matrix, jointPositions, jointPositionsPico);
     }
     
     frameCount++;
+}
+
+/**
+ * Converts WebXR body tracking data to Pico skeleton format.
+ * Maps each Pico joint to its closest equivalent WebXR joint.
+ * @param {Object} webxrJoints - Joint positions from WebXR body tracking
+ * @returns {Object} Joint positions in Pico format
+ */
+function convertWebXRToPico(webxrJoints) {
+    const picoJoints = {};
+    
+    if (!webxrJoints) return picoJoints;
+    
+    // Map each Pico joint to its WebXR equivalent
+    for (const picoJoint of BODY_JOINTS_PICO) {
+        const webxrJoint = PICO_TO_WEBXR_JOINT_MAP[picoJoint];
+        
+        if (webxrJoints[webxrJoint]) {
+            picoJoints[picoJoint] = {
+                position: [...webxrJoints[webxrJoint].position],
+                orientation: [...webxrJoints[webxrJoint].orientation]
+            };
+        }
+    }
+    
+    return picoJoints;
 }
 
 function renderNonXR() {
@@ -628,24 +685,87 @@ function renderNonXR() {
     gl.enable(gl.DEPTH_TEST);
     gl.enable(gl.CULL_FACE);
     
-    // Create simple preview - render both skeleton formats side by side
+    // Create simple preview - render standard skeleton and derived Pico skeleton
     const aspect = canvas.width / canvas.height;
     const projMatrix = createPerspectiveMatrix(Math.PI / 4, aspect, 0.1, 100);
     const viewMatrix = createLookAtMatrix([0, 1.5, 4], [0, 1, 0], [0, 1, 0]);
     
     const time = performance.now() / 1000;
     
-    // Render standard skeleton on the left
+    // Create standard WebXR skeleton
     const standardPositions = createDemoSkeleton(time);
-    const standardOffset = offsetSkeleton(standardPositions, -0.8, 0, 0);
     
-    // Render Pico skeleton on the right
-    const picoPositions = createDemoSkeletonPico(time);
-    const picoOffset = offsetSkeleton(picoPositions, 0.8, 0, 0);
+    // Convert to Pico format
+    const picoPositions = convertWebXRToPico(standardPositions);
     
-    renderSceneMultiFormat(projMatrix, viewMatrix, standardOffset, picoOffset);
+    renderSceneMultiFormat(projMatrix, viewMatrix, standardPositions, picoPositions);
     
     requestAnimationFrame(renderNonXR);
+}
+
+// Render scene with both WebXR and Pico skeletons
+function renderSceneMultiFormat(projectionMatrix, viewMatrix, standardPositions, picoPositions) {
+    gl.useProgram(shaderProgram);
+    
+    // Set view and projection matrices
+    gl.uniformMatrix4fv(uniforms.projectionMatrix, false, projectionMatrix);
+    gl.uniformMatrix4fv(uniforms.viewMatrix, false, viewMatrix);
+    
+    // Set light direction
+    gl.uniform3fv(uniforms.lightDirection, [0.5, 1.0, 0.5]);
+    
+    // Draw standard WebXR skeleton on the left
+    if (standardPositions) {
+        const standardOffset = offsetSkeleton(standardPositions, -0.8, 0, 0);
+        drawSkeleton(standardOffset, 1.0, SKELETON_FORMAT.STANDARD);
+        
+        // Draw skeleton facing away from user
+        const facingAwayStandard = createFacingAwaySkeleton(standardOffset, 2.0);
+        drawSkeleton(facingAwayStandard, 0.7, SKELETON_FORMAT.STANDARD);
+    }
+    
+    // Draw Pico skeleton (derived from WebXR) on the right
+    if (picoPositions) {
+        const picoOffset = offsetSkeleton(picoPositions, 0.8, 0, 0);
+        drawSkeleton(picoOffset, 1.0, SKELETON_FORMAT.PICO);
+        
+        // Draw skeleton facing away from user
+        const facingAwayPico = createFacingAwaySkeleton(picoOffset, 2.0);
+        drawSkeleton(facingAwayPico, 0.7, SKELETON_FORMAT.PICO);
+    }
+}
+
+function renderScene(projectionMatrix, viewMatrix, jointPositions, jointPositionsPico) {
+    gl.useProgram(shaderProgram);
+    
+    // Set view and projection matrices
+    gl.uniformMatrix4fv(uniforms.projectionMatrix, false, projectionMatrix);
+    gl.uniformMatrix4fv(uniforms.viewMatrix, false, viewMatrix);
+    
+    // Set light direction
+    gl.uniform3fv(uniforms.lightDirection, [0.5, 1.0, 0.5]);
+    
+    if (!jointPositions && !jointPositionsPico) return;
+    
+    // Draw the WebXR skeleton (user's body) if available
+    if (jointPositions) {
+        drawSkeleton(jointPositions, 1.0, SKELETON_FORMAT.STANDARD);
+        
+        // Draw skeleton facing away from user
+        const facingAwayStandard = createFacingAwaySkeleton(jointPositions, 2.0);
+        drawSkeleton(facingAwayStandard, 0.7, SKELETON_FORMAT.STANDARD);
+    }
+    
+    // Draw the Pico skeleton (derived from WebXR) if available
+    if (jointPositionsPico) {
+        // Offset Pico skeleton to the side so both are visible
+        const offsetPico = offsetSkeleton(jointPositionsPico, 0.8, 0, 0);
+        drawSkeleton(offsetPico, 1.0, SKELETON_FORMAT.PICO);
+        
+        // Draw skeleton facing away from user
+        const facingAwayPico = createFacingAwaySkeleton(offsetPico, 2.0);
+        drawSkeleton(facingAwayPico, 0.7, SKELETON_FORMAT.PICO);
+    }
 }
 
 // Offset all joint positions by a given amount
@@ -661,79 +781,25 @@ function offsetSkeleton(jointPositions, offsetX, offsetY, offsetZ) {
     return offset;
 }
 
-// Render scene with multiple skeleton formats
-function renderSceneMultiFormat(projectionMatrix, viewMatrix, standardPositions, picoPositions) {
-    gl.useProgram(shaderProgram);
-    
-    // Set view and projection matrices
-    gl.uniformMatrix4fv(uniforms.projectionMatrix, false, projectionMatrix);
-    gl.uniformMatrix4fv(uniforms.viewMatrix, false, viewMatrix);
-    
-    // Set light direction
-    gl.uniform3fv(uniforms.lightDirection, [0.5, 1.0, 0.5]);
-    
-    // Draw standard skeleton (left side)
-    if (standardPositions) {
-        drawSkeleton(standardPositions, 1.0, SKELETON_FORMAT.STANDARD);
-        
-        // Draw mirrored standard skeleton facing user
-        const mirroredStandard = createMirroredSkeleton(standardPositions, 2.0);
-        drawSkeleton(mirroredStandard, 0.7, SKELETON_FORMAT.STANDARD);
-    }
-    
-    // Draw Pico skeleton (right side)
-    if (picoPositions) {
-        drawSkeleton(picoPositions, 1.0, SKELETON_FORMAT.PICO);
-        
-        // Draw mirrored Pico skeleton facing user
-        const mirroredPico = createMirroredSkeleton(picoPositions, 2.0);
-        drawSkeleton(mirroredPico, 0.7, SKELETON_FORMAT.PICO);
-    }
-}
-
-function renderScene(projectionMatrix, viewMatrix, jointPositions) {
-    gl.useProgram(shaderProgram);
-    
-    // Set view and projection matrices
-    gl.uniformMatrix4fv(uniforms.projectionMatrix, false, projectionMatrix);
-    gl.uniformMatrix4fv(uniforms.viewMatrix, false, viewMatrix);
-    
-    // Set light direction
-    gl.uniform3fv(uniforms.lightDirection, [0.5, 1.0, 0.5]);
-    
-    if (!jointPositions) return;
-    
-    // Draw the original skeleton (user's body)
-    drawSkeleton(jointPositions, 1.0);
-    
-    // Draw a second skeleton facing the user (mirrored and offset)
-    const mirroredPositions = createMirroredSkeleton(jointPositions, 2.0); // 2 meters in front
-    drawSkeleton(mirroredPositions, 0.7); // Slightly dimmer
-}
-
-function createMirroredSkeleton(jointPositions, offsetZ) {
-    const mirrored = {};
+function createFacingAwaySkeleton(jointPositions, offsetZ) {
+    const facingAway = {};
     
     for (const jointName in jointPositions) {
         const joint = jointPositions[jointName];
         const pos = joint.position;
         
-        // Mirror X position and offset Z to place skeleton in front, facing user
-        mirrored[jointName] = {
-            position: [-pos[0], pos[1], -pos[2] - offsetZ],
+        // Offset Z backward to place skeleton behind, facing away (no coordinate flipping)
+        // This preserves left/right - when you raise your left hand, its left hand raises
+        facingAway[jointName] = {
+            position: [pos[0], pos[1], pos[2] - offsetZ],
             orientation: joint.orientation
         };
     }
     
-    return mirrored;
+    return facingAway;
 }
 
-function drawSkeleton(jointPositions, brightness, skeletonFormat = null) {
-    // Auto-detect skeleton format if not specified
-    if (!skeletonFormat) {
-        skeletonFormat = detectSkeletonFormat(jointPositions);
-    }
-    
+function drawSkeleton(jointPositions, brightness, skeletonFormat) {
     // Select appropriate bone connections based on format
     const boneConnections = skeletonFormat === SKELETON_FORMAT.PICO 
         ? BONE_CONNECTIONS_PICO 
@@ -758,20 +824,6 @@ function drawSkeleton(jointPositions, brightness, skeletonFormat = null) {
             drawCylinder(joint1.position, joint2.position, BONE_RADIUS, adjustedColor);
         }
     }
-}
-
-// Detect skeleton format based on joint names present
-function detectSkeletonFormat(jointPositions) {
-    // Check for Pico-specific joints
-    if (jointPositions['pelvis'] || jointPositions['spine-1'] || jointPositions['left-collar']) {
-        return SKELETON_FORMAT.PICO;
-    }
-    // Check for standard-specific joints
-    if (jointPositions['hips'] || jointPositions['spine-lower'] || jointPositions['chest']) {
-        return SKELETON_FORMAT.STANDARD;
-    }
-    // Default to current detected format
-    return currentSkeletonFormat;
 }
 
 // ============================================================================
@@ -1076,9 +1128,9 @@ function createDemoSkeletonPico(time) {
     
     // Torso/Spine
     positions['pelvis'] = { position: [sway, 0.95, 0], orientation: [0, 0, 0, 1] };
-    positions['spine-1'] = { position: [sway, 1.05, 0], orientation: [0, 0, 0, 1] };
-    positions['spine-2'] = { position: [sway, 1.15, 0], orientation: [0, 0, 0, 1] };
-    positions['spine-3'] = { position: [sway, 1.3 + breathe, 0], orientation: [0, 0, 0, 1] };
+    positions['spine1'] = { position: [sway, 1.05, 0], orientation: [0, 0, 0, 1] };
+    positions['spine2'] = { position: [sway, 1.15, 0], orientation: [0, 0, 0, 1] };
+    positions['spine3'] = { position: [sway, 1.3 + breathe, 0], orientation: [0, 0, 0, 1] };
     positions['neck'] = { position: [sway, 1.45 + breathe, 0], orientation: [0, 0, 0, 1] };
     positions['head'] = { position: [sway, 1.6 + breathe, 0], orientation: [0, 0, 0, 1] };
     
