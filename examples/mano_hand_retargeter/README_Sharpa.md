@@ -136,11 +136,11 @@ Left:
 
 ```bash
 python apply_world_pose_to_traj_npz.py \
-  --traj_npz_in  ./outputs/retarget_meta/openxr26_single_hand_zero_global/left_hand_traj_optrot.npz \
+  --traj_npz_in  ./outputs/sharpa_retarget_meta/openxr26_single_hand_zero_global/left_hand_traj_optrot.npz \
   --traj_npz_out ./outputs/sharpa_retarget_meta/openxr26_single_hand_zero_global/left_hand_traj_world_prerot.npz \
   --world_results ./hand_reconstruction_results/meta_776_30fps_000300_world_results.npz \
   --hand left \
-  --split_npz ./outputs/sharpa_retarget_meta/openxr26_single_hand_zero_global/openxr26_joints_left.npz \
+  --split_npz ./outputs/retarget_meta/openxr26_single_hand_zero_global/openxr26_joints_left.npz \
   --seq_track 0 \
   --apply_to both \
   --to_isaac_world \
@@ -155,7 +155,7 @@ python apply_world_pose_to_traj_npz.py \
   --traj_npz_out ./outputs/sharpa_retarget_meta/openxr26_single_hand_zero_global/right_hand_traj_world_prerot.npz \
   --world_results ./hand_reconstruction_results/meta_776_30fps_000300_world_results.npz \
   --hand right \
-  --split_npz ./outputs/sharpa_retarget_meta/openxr26_single_hand_zero_global/openxr26_joints_right.npz \
+  --split_npz ./outputs/retarget_meta/openxr26_single_hand_zero_global/openxr26_joints_right.npz \
   --seq_track 0 \
   --apply_to both \
   --to_isaac_world \
