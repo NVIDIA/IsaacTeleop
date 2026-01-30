@@ -28,11 +28,11 @@ class HandsSource(BaseRetargeter, IDeviceIOSource):
     Inputs:
         - "deviceio_hand_left": Raw HandPoseT flatbuffer for left hand
         - "deviceio_hand_right": Raw HandPoseT flatbuffer for right hand
-    
+
     Outputs:
         - "hand_left": Standard HandInput tensor
         - "hand_right": Standard HandInput tensor
-    
+
     Usage:
         # In TeleopSession, manually poll tracker and pass data
         left_data = hand_tracker.get_left_hand(session)
@@ -43,26 +43,29 @@ class HandsSource(BaseRetargeter, IDeviceIOSource):
         })
     """
 
+    LEFT = "hand_left"
+    RIGHT = "hand_right"
+
     def __init__(self, name: str) -> None:
         """Initialize stateless hands source node.
-        
+
         Creates a HandTracker instance for TeleopSession to discover and use.
-        
+
         Args:
             name: Unique name for this source node
         """
         import teleopcore.deviceio as deviceio
         self._hand_tracker = deviceio.HandTracker()
         super().__init__(name)
-    
+
     @property
     def name(self) -> str:
         """Get the name of this source node."""
         return self._name
-    
+
     def get_tracker(self) -> "ITracker":
         """Get the HandTracker instance.
-        
+
         Returns:
             The HandTracker instance for TeleopSession to initialize
         """
@@ -113,7 +116,7 @@ class HandsSource(BaseRetargeter, IDeviceIOSource):
         for i in range(NUM_HAND_JOINTS):
             joint = joints[i]
             positions[i] = [joint.pose.position.x, joint.pose.position.y, joint.pose.position.z]
-            orientations[i] = [joint.pose.orientation.x, joint.pose.orientation.y, 
+            orientations[i] = [joint.pose.orientation.x, joint.pose.orientation.y,
                               joint.pose.orientation.z, joint.pose.orientation.w]
             radii[i] = joint.radius
             valid[i] = 1 if joint.is_valid else 0

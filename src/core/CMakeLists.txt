@@ -48,7 +48,7 @@ endif()
 if(BUILD_TESTING)
     # Schema tests (C++ and Python)
     add_subdirectory(schema_tests)
-    
+
     # Retargeting engine tests (Python)
     add_subdirectory(retargeting_engine_tests)
 

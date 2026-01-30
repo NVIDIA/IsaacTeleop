@@ -28,11 +28,11 @@ class ControllersSource(BaseRetargeter, IDeviceIOSource):
     Inputs:
         - "deviceio_controller_left": Raw ControllerSnapshot flatbuffer for left controller
         - "deviceio_controller_right": Raw ControllerSnapshot flatbuffer for right controller
-    
+
     Outputs:
         - "controller_left": Standard ControllerInput tensor
         - "controller_right": Standard ControllerInput tensor
-    
+
     Usage:
         # In TeleopSession, manually poll tracker and pass data
         controller_data = controller_tracker.get_controller_data(session)
@@ -42,26 +42,29 @@ class ControllersSource(BaseRetargeter, IDeviceIOSource):
         })
     """
 
+    LEFT = "controller_left"
+    RIGHT = "controller_right"
+
     def __init__(self, name: str) -> None:
         """Initialize stateless controllers source node.
-        
+
         Creates a ControllerTracker instance for TeleopSession to discover and use.
-        
+
         Args:
             name: Unique name for this source node
         """
         import teleopcore.deviceio as deviceio
         self._controller_tracker = deviceio.ControllerTracker()
         super().__init__(name)
-    
+
     @property
     def name(self) -> str:
         """Get the name of this source node."""
         return self._name
-    
+
     def get_tracker(self) -> "ITracker":
         """Get the ControllerTracker instance.
-        
+
         Returns:
             The ControllerTracker instance for TeleopSession to initialize
         """
@@ -107,7 +110,7 @@ class ControllersSource(BaseRetargeter, IDeviceIOSource):
             snapshot.grip_pose.pose.position.y,
             snapshot.grip_pose.pose.position.z
         ], dtype=np.float32)
-        
+
         grip_orientation = np.array([
             snapshot.grip_pose.pose.orientation.x,
             snapshot.grip_pose.pose.orientation.y,
@@ -121,7 +124,7 @@ class ControllersSource(BaseRetargeter, IDeviceIOSource):
             snapshot.aim_pose.pose.position.y,
             snapshot.aim_pose.pose.position.z
         ], dtype=np.float32)
-        
+
         aim_orientation = np.array([
             snapshot.aim_pose.pose.orientation.x,
             snapshot.aim_pose.pose.orientation.y,

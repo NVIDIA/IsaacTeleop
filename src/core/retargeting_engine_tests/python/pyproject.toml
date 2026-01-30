@@ -12,6 +12,8 @@ dev = [
     "pytest",
     "mypy",
     "numpy",
+    "types-PyYAML",
+    "scipy-stubs",
 ]
 test = [
     "pytest",

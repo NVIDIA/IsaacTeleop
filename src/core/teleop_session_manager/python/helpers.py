@@ -11,16 +11,16 @@ from teleopcore.retargeting_engine.deviceio_source_nodes import HandsSource, Con
 
 def create_standard_inputs(trackers):
     """Create standard input sources from tracker instances.
-    
+
     This is a convenience function that creates HandsSource, ControllersSource,
     and HeadSource modules from the provided tracker instances.
-    
+
     Args:
         trackers: List of tracker objects (e.g., [hand_tracker, controller_tracker])
-        
+
     Returns:
         Dictionary mapping input names to source module instances
-        
+
     Example:
         controller_tracker = deviceio.ControllerTracker()
         hand_tracker = deviceio.HandTracker()
@@ -28,20 +28,20 @@ def create_standard_inputs(trackers):
         # Returns: {"controllers": ControllersSource(...), "hands": HandsSource(...)}
     """
     inputs = {}
-    
+
     # Map tracker types to source modules
     for tracker in trackers:
         tracker_type = type(tracker).__name__
-        
+
         if "HandTracker" in tracker_type:
-            inputs["hands"] = HandsSource(tracker, name="hands")
-        
+            inputs["hands"] = HandsSource(name="hands")
+
         if "ControllerTracker" in tracker_type:
-            inputs["controllers"] = ControllersSource(tracker, name="controllers")
-        
+            inputs["controllers"] = ControllersSource(name="controllers")
+
         if "HeadTracker" in tracker_type:
-            inputs["head"] = HeadSource(tracker, name="head")
-    
+            inputs["head"] = HeadSource(name="head")
+
     return inputs
 
 

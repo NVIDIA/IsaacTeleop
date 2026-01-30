@@ -24,6 +24,7 @@ dynamic = ["dependencies", "optional-dependencies"]
 dependencies = {file = ["requirements.txt"]}
 optional-dependencies.dev = {file = ["requirements-dev.txt"]}
 optional-dependencies.ui = {file = ["requirements-ui.txt"]}
+optional-dependencies.retargeters = {file = ["requirements-retargeters.txt"]}
 
 [tool.setuptools]
 packages = [
@@ -37,7 +38,10 @@ packages = [
     "teleopcore.retargeting_engine.interface",
     "teleopcore.retargeting_engine.tensor_types",
     "teleopcore.retargeting_engine.deviceio_source_nodes",
-    "teleopcore.retargeting_engine_ui"
+    "teleopcore.retargeting_engine.retargeters",
+    "teleopcore.retargeting_engine.retargeters.G1",
+    "teleopcore.retargeting_engine_ui",
+    "teleopcore.teleop_session_manager"
 ]
 include-package-data = true
 

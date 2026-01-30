@@ -33,4 +33,3 @@ install(
     FILES_MATCHING PATTERN "*.py"
     REGEX "/\\." EXCLUDE
 )
-
