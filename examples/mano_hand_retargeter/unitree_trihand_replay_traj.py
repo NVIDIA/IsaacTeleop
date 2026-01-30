@@ -208,6 +208,147 @@ def main() -> None:
             "If provided, the script will stage a copy of the URDF with a `meshes/` symlink next to it."
         ),
     )
+    # Optional: replay an interaction object (mesh + per-frame pose).
+    parser.add_argument(
+        "--object_mesh",
+        type=str,
+        default=None,
+        help=(
+            "Optional mesh file for an interaction object (.obj/.stl/.fbx). "
+            "If provided, the script will convert it to USD (cached) and replay its pose."
+        ),
+    )
+    # Backward-compatible: a single NPZ that already contains the object's world pose sequence.
+    # This matches Dyn-HaMR `run_vis_object.py --save_world_poses` outputs (e.g., obj_R_o2w/obj_t_o2w).
+    parser.add_argument(
+        "--object_pose_npz",
+        type=str,
+        default=None,
+        help=(
+            "Path to NPZ containing object world pose sequence. Supported keys:\n"
+            "  - obj_R_o2w: (T,3,3) and obj_t_o2w: (T,3) in Dyn-HaMR world coords\n"
+            "  - obj_T_o2w: (T,4,4) in Dyn-HaMR world coords\n"
+            "If provided, this replaces --object_pose/--object_world_results."
+        ),
+    )
+    parser.add_argument(
+        "--object_pose",
+        type=str,
+        default=None,
+        help=(
+            "Path to NPZ containing object pose in camera coordinates (either R_obj_cam/t_obj_cam or T_obj_cam). "
+            "Required if --object_mesh is set."
+        ),
+    )
+    parser.add_argument(
+        "--object_world_results",
+        type=str,
+        default=None,
+        help=(
+            "Path to Dyn-HaMR `*_world_results.npz` containing cam_R/cam_t (world->cam). "
+            "Used to map object pose from camera to world. Required if --object_mesh is set."
+        ),
+    )
+    parser.add_argument(
+        "--object_world_track",
+        type=int,
+        default=0,
+        help="Track index (B) in --object_world_results for cam_R/cam_t if they are batched (default: 0).",
+    )
+    parser.add_argument(
+        "--object_scale",
+        type=str,
+        default="1.0",
+        help=(
+            "Visual scale applied to the object mesh. Accepts either a single number 's' or 'sx,sy,sz'. "
+            "Example: --object_scale 1.0 or --object_scale 1,1,1"
+        ),
+    )
+    parser.add_argument(
+        "--object_pos_offset",
+        type=str,
+        default="0,0,0",
+        help="Extra XYZ offset (meters) added to object position in Isaac world, as 'x,y,z'.",
+    )
+    parser.add_argument(
+        "--object_pose_rot",
+        type=str,
+        default=None,
+        help=(
+            "Optional extra rotation applied to the object WORLD pose before placement, as 'x_deg,y_deg,z_deg' "
+            "(XYZ Euler degrees). Useful to fix an object-frame mismatch."
+        ),
+    )
+    parser.add_argument(
+        "--object_pose_rot_pivot",
+        type=str,
+        default="0,0,0",
+        help="Pivot for --object_pose_rot, as 'x,y,z' in world meters (default: 0,0,0).",
+    )
+    parser.add_argument(
+        "--object_pose_rot_only_orientation",
+        action="store_true",
+        help="If set, apply --object_pose_rot ONLY to the quaternion (do not rotate the position trajectory).",
+    )
+    parser.add_argument(
+        "--object_pose_rot_order",
+        type=str,
+        default="pre",
+        choices=["pre", "post"],
+        help=(
+            "How to compose --object_pose_rot with the incoming quaternion. "
+            "'pre' = q_out = qR ⊗ q (rotate in world). "
+            "'post' = q_out = q ⊗ qR (rotate in local/body)."
+        ),
+    )
+    parser.add_argument(
+        "--object_pose_is_isaac_world",
+        action="store_true",
+        help=(
+            "If set, treat the computed object world pose as already in Isaac world coordinates "
+            "(skip Dyn-HaMR world -> Isaac world axis mapping)."
+        ),
+    )
+    parser.add_argument(
+        "--object_usd_cache_dir",
+        type=str,
+        default="/tmp/isaaclab_mesh_cache",
+        help="Directory for cached USD conversions of --object_mesh (default: /tmp/isaaclab_mesh_cache).",
+    )
+    parser.add_argument(
+        "--object_mesh_recenter",
+        action="store_true",
+        help=(
+            "If set, recenter the converted USD so the object's geometry bounding-box center is at the asset origin. "
+            "This fixes the common issue where rotating the object trajectory makes the mesh 'orbit' because the OBJ "
+            "origin is not at the object center."
+        ),
+    )
+    parser.add_argument(
+        "--object_mesh_recenter_mode",
+        type=str,
+        default="bbox_center",
+        choices=["bbox_center"],
+        help="Recentering mode for --object_mesh_recenter (default: bbox_center).",
+    )
+    parser.add_argument(
+        "--object_mesh_rot",
+        type=str,
+        default="0,0,0",
+        help=(
+            "Fixed rotation baked into the converted USD for the OBJECT MESH (not the trajectory), as 'x_deg,y_deg,z_deg' "
+            "(XYZ Euler degrees). Use this to fix OBJ axis/up convention mismatches."
+        ),
+    )
+    parser.add_argument(
+        "--object_mesh_pos",
+        type=str,
+        default="0,0,0",
+        help=(
+            "Fixed translation baked into the converted USD for the OBJECT MESH in its local frame, as 'x,y,z' meters. "
+            "Useful if the OBJ's authored frame origin differs from the pose frame."
+        ),
+    )
     parser.add_argument("--speed", type=float, default=1.0, help="Playback speed multiplier (1.0 = realtime frame_dt).")
     parser.add_argument(
         "--camera_yaw_deg",
@@ -313,6 +454,8 @@ def main() -> None:
     import torch
     import isaaclab.sim as sim_utils
     import isaaclab.sim.utils.prims as prim_utils
+    from isaaclab.sim.converters import MeshConverter, MeshConverterCfg
+    from isaaclab.sim.schemas import schemas_cfg
     from isaaclab.actuators import ImplicitActuatorCfg
     from isaaclab.assets import Articulation, ArticulationCfg
     from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
@@ -449,6 +592,28 @@ def main() -> None:
             return np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
         return _quat_conj_wxyz(q) / n2
 
+    def _map_dynhamr_world_to_isaac(R_dh: np.ndarray, t_dh: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Map a pose expressed in Dyn-HaMR world coordinates to Isaac world coordinates.
+
+        Dyn-HaMR world: x right, y down, z forward
+        Isaac world:    x forward, y left, z up
+
+        Axis mapping:
+          x_isaac =  z_dh
+          y_isaac = -x_dh
+          z_isaac = -y_dh
+
+        Rotations:    R_isaac = M * R_dh * M^T
+        Translations: t_isaac = M * t_dh
+        """
+        M = np.array([[0.0, 0.0, 1.0], [-1.0, 0.0, 0.0], [0.0, -1.0, 0.0]], dtype=np.float32)
+        R_dh = np.asarray(R_dh, dtype=np.float32).reshape(3, 3)
+        t_dh = np.asarray(t_dh, dtype=np.float32).reshape(3)
+        R_i = (M @ R_dh @ M.T).astype(np.float32)
+        t_i = (M @ t_dh).astype(np.float32)
+        return R_i, t_i
+
     pivot_xyz = np.asarray(_parse_floats("--wrist_pose_rot_pivot", args.wrist_pose_rot_pivot, 3), dtype=np.float32)
 
     rot_global = None
@@ -493,6 +658,275 @@ def main() -> None:
         pose[:3] = pos_out
         pose[3:] = quat_out / max(float(np.linalg.norm(quat_out)), 1e-8)
         return pose
+
+    # Object pose rotation config (independent from wrist).
+    obj_pivot_xyz = np.asarray(_parse_floats("--object_pose_rot_pivot", args.object_pose_rot_pivot, 3), dtype=np.float32)
+    obj_R = _euler_xyz_deg_to_rotmat(tuple(_parse_floats("--object_pose_rot", args.object_pose_rot, 3))) if args.object_pose_rot is not None else None
+    obj_qR = _quat_wxyz_from_rotmat(obj_R) if obj_R is not None else None
+    obj_pos_offset = np.asarray(_parse_floats("--object_pos_offset", args.object_pos_offset, 3), dtype=np.float32)
+    obj_mesh_pos = np.asarray(_parse_floats("--object_mesh_pos", args.object_mesh_pos, 3), dtype=np.float32)
+    obj_mesh_R = _euler_xyz_deg_to_rotmat(tuple(_parse_floats("--object_mesh_rot", args.object_mesh_rot, 3)))
+    obj_mesh_q = _quat_wxyz_from_rotmat(obj_mesh_R)
+
+    def _parse_scale_arg(scale_str: str) -> tuple[float, float, float]:
+        s = str(scale_str).strip()
+        if "," in s:
+            v = _parse_floats("--object_scale", s, 3)
+            return float(v[0]), float(v[1]), float(v[2])
+        val = float(s)
+        return val, val, val
+
+    def _apply_object_pose_rot(pose_wxyz: np.ndarray) -> np.ndarray:
+        pose = np.asarray(pose_wxyz, dtype=np.float32).reshape(7).copy()
+        if obj_R is None or obj_qR is None:
+            return pose
+        pos = pose[:3]
+        quat = pose[3:]
+        if args.object_pose_rot_only_orientation:
+            pos_out = pos
+        else:
+            pos_out = (obj_R @ (pos - obj_pivot_xyz)) + obj_pivot_xyz
+        if args.object_pose_rot_order == "post":
+            quat_out = _quat_mul_wxyz(quat, obj_qR)
+        else:
+            quat_out = _quat_mul_wxyz(obj_qR, quat)
+        pose[:3] = pos_out
+        pose[3:] = quat_out / max(float(np.linalg.norm(quat_out)), 1e-8)
+        return pose
+
+    def _load_object_pose_npz(object_pose_path: str) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Load object pose from NPZ. Supports:
+          - R_obj_cam (T,3,3) + t_obj_cam (T,3)  [object->camera]
+          - T_obj_cam (T,4,4)                    [object->camera]
+        Returns:
+          (R_obj_cam_np, t_obj_cam_np) as float32 numpy arrays
+        """
+        obj = np.load(str(Path(object_pose_path).expanduser().resolve()), allow_pickle=True)
+        if "R_obj_cam" in obj.files and "t_obj_cam" in obj.files:
+            R = np.asarray(obj["R_obj_cam"], dtype=np.float32)
+            t = np.asarray(obj["t_obj_cam"], dtype=np.float32)
+        elif "T_obj_cam" in obj.files:
+            Tm = np.asarray(obj["T_obj_cam"], dtype=np.float32)
+            if Tm.ndim != 3 or Tm.shape[-2:] != (4, 4):
+                raise ValueError(f"T_obj_cam must have shape (T,4,4); got {Tm.shape}")
+            R = Tm[:, :3, :3]
+            t = Tm[:, :3, 3]
+        else:
+            raise KeyError(
+                f"{object_pose_path} must contain either 'R_obj_cam'/'t_obj_cam' or 'T_obj_cam'. Found: {obj.files}"
+            )
+        if R.ndim != 3 or R.shape[-2:] != (3, 3):
+            raise ValueError(f"R_obj_cam must have shape (T,3,3); got {R.shape}")
+        if t.ndim != 2 or t.shape[-1] != 3:
+            raise ValueError(f"t_obj_cam must have shape (T,3); got {t.shape}")
+        return R.astype(np.float32), t.astype(np.float32)
+
+    def _invert_camera(R_w2c: np.ndarray, t_w2c: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Invert world->cam to cam->world for batched (T,3,3)/(T,3)."""
+        R_w2c = np.asarray(R_w2c, dtype=np.float32)
+        t_w2c = np.asarray(t_w2c, dtype=np.float32)
+        if R_w2c.ndim != 3 or R_w2c.shape[-2:] != (3, 3):
+            raise ValueError(f"cam_R must be (T,3,3); got {R_w2c.shape}")
+        if t_w2c.ndim != 2 or t_w2c.shape[-1] != 3:
+            raise ValueError(f"cam_t must be (T,3); got {t_w2c.shape}")
+        R_c2w = np.transpose(R_w2c, (0, 2, 1))
+        t_c2w = -np.einsum("tij,tj->ti", R_c2w, t_w2c).astype(np.float32)
+        return R_c2w.astype(np.float32), t_c2w.astype(np.float32)
+
+    def _compose_o2w(R_c2w: np.ndarray, t_c2w: np.ndarray, R_o2c: np.ndarray, t_o2c: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Compose cam->world with obj->cam to get obj->world."""
+        R_o2w = np.einsum("tij,tjk->tik", R_c2w, R_o2c).astype(np.float32)
+        t_o2w = (np.einsum("tij,tj->ti", R_c2w, t_o2c) + t_c2w).astype(np.float32)
+        return R_o2w, t_o2w
+
+    def _load_object_world_pose_npz_wxyz(*, object_pose_npz: str) -> np.ndarray:
+        """
+        Load object world pose sequence from a single NPZ (Dyn-HaMR world coords) and convert to Isaac wxyz.
+        Supported:
+          - obj_R_o2w (T,3,3) + obj_t_o2w (T,3)
+          - obj_T_o2w (T,4,4)
+        """
+        d = np.load(str(Path(object_pose_npz).expanduser().resolve()), allow_pickle=True)
+        if "obj_T_o2w" in d.files:
+            Tm = np.asarray(d["obj_T_o2w"], dtype=np.float32)
+            if Tm.ndim != 3 or Tm.shape[-2:] != (4, 4):
+                raise ValueError(f"obj_T_o2w must be (T,4,4). Got {Tm.shape}")
+            R_seq = Tm[:, :3, :3]
+            t_seq = Tm[:, :3, 3]
+        else:
+            if "obj_R_o2w" not in d.files or "obj_t_o2w" not in d.files:
+                raise KeyError(
+                    f"{object_pose_npz} must contain obj_T_o2w or (obj_R_o2w + obj_t_o2w). Found keys: {d.files}"
+                )
+            R_seq = np.asarray(d["obj_R_o2w"], dtype=np.float32)
+            t_seq = np.asarray(d["obj_t_o2w"], dtype=np.float32)
+            if R_seq.ndim != 3 or R_seq.shape[-2:] != (3, 3):
+                raise ValueError(f"obj_R_o2w must be (T,3,3). Got {R_seq.shape}")
+            if t_seq.ndim != 2 or t_seq.shape[-1] != 3:
+                raise ValueError(f"obj_t_o2w must be (T,3). Got {t_seq.shape}")
+
+        T = int(min(R_seq.shape[0], t_seq.shape[0]))
+        pose = np.zeros((T, 7), dtype=np.float32)
+        for i in range(T):
+            R = np.asarray(R_seq[i], dtype=np.float32)
+            t = np.asarray(t_seq[i], dtype=np.float32).reshape(3)
+            if not args.object_pose_is_isaac_world:
+                R, t = _map_dynhamr_world_to_isaac(R, t)
+            pose[i, :3] = t
+            pose[i, 3:] = _quat_wxyz_from_rotmat(R)
+        return pose
+
+    def _load_object_pose_seq_wxyz(
+        *,
+        object_pose_path: str,
+        world_results_path: str,
+        world_track: int,
+    ) -> np.ndarray:
+        # Load object->cam
+        R_o2c, t_o2c = _load_object_pose_npz(object_pose_path)
+        T_obj = int(R_o2c.shape[0])
+        # Load camera extrinsics (world->cam) from Dyn-HaMR results
+        wr = np.load(str(Path(world_results_path).expanduser().resolve()), allow_pickle=True)
+        if "cam_R" not in wr.files or "cam_t" not in wr.files:
+            raise KeyError(f"--object_world_results must contain 'cam_R' and 'cam_t'. Found: {wr.files}")
+        cam_R = np.asarray(wr["cam_R"], dtype=np.float32)
+        cam_t = np.asarray(wr["cam_t"], dtype=np.float32)
+        # handle batched (B,T,...) vs unbatched (T,...)
+        if cam_R.ndim == 4:
+            cam_R = cam_R[int(world_track)]
+        if cam_t.ndim == 3:
+            cam_t = cam_t[int(world_track)]
+        T_cam = int(cam_R.shape[0])
+        T = int(min(T_obj, T_cam))
+        if T <= 0:
+            raise ValueError(f"Empty object/camera pose sequences: T_obj={T_obj}, T_cam={T_cam}")
+        # Align lengths by truncation
+        cam_R = cam_R[:T]
+        cam_t = cam_t[:T]
+        R_o2c = R_o2c[:T]
+        t_o2c = t_o2c[:T]
+        # Invert camera to get cam->world, then compose to get obj->world (Dyn-HaMR world)
+        R_c2w, t_c2w = _invert_camera(cam_R, cam_t)
+        R_o2w, t_o2w = _compose_o2w(R_c2w, t_c2w, R_o2c, t_o2c)
+        # Convert to pose_wxyz in Isaac world
+        pose = np.zeros((T, 7), dtype=np.float32)
+        for i in range(T):
+            R = R_o2w[i]
+            t = t_o2w[i]
+            if not args.object_pose_is_isaac_world:
+                R, t = _map_dynhamr_world_to_isaac(R, t)
+            q = _quat_wxyz_from_rotmat(R)
+            pose[i, :3] = t
+            pose[i, 3:] = q
+        return pose
+
+    def _recenter_usd_asset_in_place(usd_path: str, *, mode: str) -> None:
+        """
+        Post-process a converted USD so that its geometry is centered at the asset origin.
+        This edits the USD in-place.
+        """
+        # Import pxr lazily (only available inside Isaac Sim / IsaacLab runtime).
+        from pxr import Gf, Usd, UsdGeom
+
+        stage = Usd.Stage.Open(str(usd_path))
+        stage.Reload()
+        base = stage.GetDefaultPrim()
+        if not base:
+            raise RuntimeError(f"[object] USD has no default prim: {usd_path}")
+
+        # MeshConverter creates `/<name>` as default prim and `/<name>/geometry` as the referenced geometry Xform.
+        geom_path = base.GetPath().AppendChild("geometry")
+        geom = stage.GetPrimAtPath(geom_path)
+        if not geom or not geom.IsValid():
+            # fallback: find a child named "geometry"
+            geom = None
+            for c in base.GetChildren():
+                if c.GetName() == "geometry":
+                    geom = c
+                    break
+            if geom is None:
+                raise RuntimeError(f"[object] Could not find geometry prim under default prim in {usd_path}")
+
+        # Compute world-aligned bbox center for the geometry subtree.
+        bbox_cache = UsdGeom.BBoxCache(Usd.TimeCode.Default(), [UsdGeom.Tokens.default_])
+        bbox = bbox_cache.ComputeWorldBound(geom)
+        aligned = bbox.ComputeAlignedBox()
+        r = aligned.GetRange()
+        c_world = 0.5 * (r.GetMin() + r.GetMax())
+
+        # Convert that center into the default-prim local frame.
+        base_xf = UsdGeom.Xformable(base).ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+        base_inv = base_xf.GetInverse()
+        c_base = base_inv.Transform(c_world)
+
+        if mode != "bbox_center":
+            raise ValueError(f"Unknown recenter mode: {mode}")
+
+        # Shift the geometry prim by -center so bbox center becomes origin in base frame.
+        xform = UsdGeom.Xformable(geom)
+        ops = xform.GetOrderedXformOps()
+        translate_op = None
+        for op in ops:
+            if op.GetOpType() == UsdGeom.XformOp.TypeTranslate:
+                translate_op = op
+                break
+        if translate_op is None:
+            translate_op = xform.AddTranslateOp(UsdGeom.XformOp.PrecisionDouble)
+            cur = Gf.Vec3d(0.0, 0.0, 0.0)
+        else:
+            cur = translate_op.Get()
+            if cur is None:
+                cur = Gf.Vec3d(0.0, 0.0, 0.0)
+
+        new_t = Gf.Vec3d(cur[0] - c_base[0], cur[1] - c_base[1], cur[2] - c_base[2])
+        translate_op.Set(new_t)
+        stage.Save()
+
+    def _convert_mesh_to_usd_cached(
+        mesh_path: str,
+        *,
+        cache_dir: str,
+        mesh_translation: tuple[float, float, float],
+        mesh_rotation_wxyz: tuple[float, float, float, float],
+        mesh_scale: tuple[float, float, float],
+        recenter: bool,
+        recenter_mode: str,
+    ) -> str:
+        mesh_path = str(Path(mesh_path).expanduser().resolve())
+        cache_root = Path(cache_dir).expanduser().resolve()
+        cache_root.mkdir(parents=True, exist_ok=True)
+        stem = Path(mesh_path).stem
+        # Cache key must include the baked correction (pos/rot/scale), otherwise stale USDs get reused.
+        import hashlib
+
+        tag = "recenter" if recenter else "raw"
+        key = f"t={mesh_translation}|q={mesh_rotation_wxyz}|s={mesh_scale}|tag={tag}"
+        h = hashlib.md5(key.encode("utf-8")).hexdigest()[:10]
+        usd_path = cache_root / f"{stem}__{tag}_{h}.usd"
+        if usd_path.is_file():
+            return str(usd_path)
+        # Convert with conservative defaults: visual-only (no mass/rigid body), no collision.
+        collision_props = schemas_cfg.CollisionPropertiesCfg(collision_enabled=False)
+        mesh_cfg = MeshConverterCfg(
+            asset_path=mesh_path,
+            force_usd_conversion=True,
+            usd_dir=str(cache_root),
+            usd_file_name=usd_path.name,
+            make_instanceable=False,
+            collision_props=collision_props,
+            mesh_collision_props=None,
+            mass_props=None,
+            rigid_props=None,
+            translation=tuple(float(x) for x in mesh_translation),
+            rotation=tuple(float(x) for x in mesh_rotation_wxyz),
+            scale=tuple(float(x) for x in mesh_scale),
+        )
+        conv = MeshConverter(mesh_cfg)
+        out = str(conv.usd_path)
+        if recenter:
+            _recenter_usd_asset_in_place(out, mode=recenter_mode)
+        return out
 
     # Wrist->URDF-root local offsets (in wrist frame).
     wrist_to_root_left = np.asarray(_parse_floats("--wrist_to_root_offset_left", args.wrist_to_root_offset_left, 3), dtype=np.float32)
@@ -641,6 +1075,48 @@ def main() -> None:
             translation=(0.0, 0.0, float(args.ground_z)),
         )
     sim_utils.DomeLightCfg(intensity=2500.0, color=(0.8, 0.8, 0.8)).func("/World/Light", sim_utils.DomeLightCfg())
+
+    # Optional: spawn object mesh (visual only) and prepare pose sequence.
+    object_view = None
+    object_pose_seq = None
+    if args.object_mesh is not None:
+        if args.object_pose_npz is not None:
+            object_pose_seq = _load_object_world_pose_npz_wxyz(object_pose_npz=args.object_pose_npz)
+        else:
+            if args.object_pose is None or args.object_world_results is None:
+                raise ValueError(
+                    "When --object_mesh is set, provide either:\n"
+                    "  - --object_pose_npz (world pose), OR\n"
+                    "  - --object_pose (obj->cam) + --object_world_results (cam_R/cam_t)."
+                )
+            object_pose_seq = _load_object_pose_seq_wxyz(
+                object_pose_path=args.object_pose,
+                world_results_path=args.object_world_results,
+                world_track=int(args.object_world_track),
+            )
+        sx, sy, sz = _parse_scale_arg(args.object_scale)
+        usd_path = _convert_mesh_to_usd_cached(
+            args.object_mesh,
+            cache_dir=args.object_usd_cache_dir,
+            mesh_translation=(float(obj_mesh_pos[0]), float(obj_mesh_pos[1]), float(obj_mesh_pos[2])),
+            mesh_rotation_wxyz=(float(obj_mesh_q[0]), float(obj_mesh_q[1]), float(obj_mesh_q[2]), float(obj_mesh_q[3])),
+            mesh_scale=(float(sx), float(sy), float(sz)),
+            recenter=bool(args.object_mesh_recenter),
+            recenter_mode=str(args.object_mesh_recenter_mode),
+        )
+        # Note: scale is baked into the USD conversion, so the referenced prim stays at identity.
+        # IMPORTANT:
+        # - `/World/Object` is the animated prim (world pose trajectory).
+        # - `/World/Object/mesh` holds the referenced USD (with baked mesh frame correction).
+        prim_utils.create_prim("/World/Object", "Xform")
+        prim_utils.create_prim(
+            "/World/Object/mesh",
+            "Xform",
+            usd_path=usd_path,
+        )
+        from isaacsim.core.prims import XFormPrim
+
+        object_view = XFormPrim("/World/Object", reset_xform_properties=False)
 
     prim_utils.create_prim("/World/Robot", "Xform")
     def _make_hand(prim_path: str, *, hand: str, pos_xyz: tuple[float, float, float]) -> Articulation:
@@ -837,6 +1313,15 @@ def main() -> None:
                     root_pose_targets["left"] = torch.tensor(pose[None, :], device=robots["left"].data.device)
                     zero_root_vel["left"] = torch.zeros((1, 6), device=robots["left"].data.device, dtype=torch.float32)
 
+        # Optional: object pose at this frame (world-view replay).
+        obj_pose_target = None
+        if object_view is not None and object_pose_seq is not None and object_pose_seq.shape[0] > 0:
+            tt = min(int(t), int(object_pose_seq.shape[0]) - 1)
+            pose = np.asarray(object_pose_seq[tt], dtype=np.float32).reshape(7).copy()
+            pose = _apply_object_pose_rot(pose)
+            pose[:3] = pose[:3] + obj_pos_offset
+            obj_pose_target = pose
+
         # Build full DOF target vector(s) (1 env each) and apply.
         targets: dict[str, torch.Tensor] = {}
         for hand, robot in robots.items():
@@ -867,6 +1352,11 @@ def main() -> None:
                     if hand in root_pose_targets:
                         robot.write_root_pose_to_sim(root_pose_targets[hand], env_ids=None)
                         robot.write_root_link_velocity_to_sim(zero_root_vel[hand], env_ids=None)
+            # Re-apply object pose on every physics step (keeps it exactly on trajectory).
+            if object_view is not None and obj_pose_target is not None:
+                pos_t = torch.tensor(obj_pose_target[None, :3], dtype=torch.float32, device="cpu")
+                quat_t = torch.tensor(obj_pose_target[None, 3:], dtype=torch.float32, device="cpu")
+                object_view.set_world_poses(pos_t, quat_t, None)
             for robot in robots.values():
                 robot.write_data_to_sim()
             sim.step()

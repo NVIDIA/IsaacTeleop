@@ -60,7 +60,7 @@ fi
      --left-hand-urdf /home/lduan/Documents/IsaacTeleop/examples/mano_hand_retargeter/_DATA/Sharpa_HA4_URDF_USD_V2.2.3/Sharpa_HA4_URDF_USD_V2.2.3/src/left_sharpa_ha4/left_sharpa_ha4_v2_1.urdf \
      --right-hand-urdf /home/lduan/Documents/IsaacTeleop/examples/mano_hand_retargeter/_DATA/Sharpa_HA4_URDF_USD_V2.2.3/Sharpa_HA4_URDF_USD_V2.2.3/src/right_sharpa_ha4/right_sharpa_ha4_v2_1.urdf \
      --mesh_dir_left /home/lduan/Documents/IsaacTeleop/examples/mano_hand_retargeter/_DATA/Sharpa_HA4_URDF_USD_V2.2.3/Sharpa_HA4_URDF_USD_V2.2.3/src/left_sharpa_ha4/meshes \
-     --mesh_dir_right /home/lduan/Downloads/Sharpa_HA4_URDF_USD_V2.2.3/Sharpa_HA4_URDF_USD_V2.2.3/src/right_sharpa_ha4/meshes \
+     --mesh_dir_right /home/lduan/Documents/IsaacTeleop/examples/mano_hand_retargeter/_DATA/Sharpa_HA4_URDF_USD_V2.2.3/Sharpa_HA4_URDF_USD_V2.2.3/src/right_sharpa_ha4/meshes \
      --use_wrist_pose \
      --loop \
      --ground_z -100 \
