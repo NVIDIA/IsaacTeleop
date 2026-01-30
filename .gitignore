@@ -29,6 +29,9 @@ CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
 compile_commands.json
+# Auto-downloaded from GitHub
+cmake/HunterGate.cmake
+cmake/Hunter/config-depthai.cmake
 
 # Python egg info
 *.egg-info/
