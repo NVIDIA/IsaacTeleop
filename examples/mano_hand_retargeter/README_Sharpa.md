@@ -46,7 +46,7 @@ Right-hand grid search:
 
 ```bash
 python3 retarget_openxr26_with_sharpa_upper_body.py \
-  --input ./outputs/retarget_meta/openxr26_singlenhand_zero_global/openxr26_joints_right.npz \
+  --input ./outputs/retarget_meta/openxr26_single_hand_zero_global/openxr26_joints_right.npz \
   --output ./outputs/sharpa_retarget_meta/openxr26_single_hand_zero_global/sharpa_cmds_right \
   --left-hand-urdf ./_DATA/Sharpa_HA4_URDF_USD_V2.2.3/Sharpa_HA4_URDF_USD_V2.2.3/src/left_sharpa_ha4/left_sharpa_ha4_v2_1.urdf \
   --right-hand-urdf ./_DATA/Sharpa_HA4_URDF_USD_V2.2.3/Sharpa_HA4_URDF_USD_V2.2.3/src/right_sharpa_ha4/right_sharpa_ha4_v2_1.urdf \
@@ -63,7 +63,7 @@ Left-hand grid search:
 
 ```bash
 python3 retarget_openxr26_with_sharpa_upper_body.py \
-  --input ./outputs/retarget_meta/openxr26_singlenhand_zero_global/openxr26_joints_left.npz \
+  --input ./outputs/retarget_meta/openxr26_single_hand_zero_global/openxr26_joints_left.npz \
   --output ./outputs/sharpa_retarget_meta/openxr26_single_hand_zero_global/sharpa_cmds_left \
   --left-hand-urdf ./_DATA/Sharpa_HA4_URDF_USD_V2.2.3/Sharpa_HA4_URDF_USD_V2.2.3/src/left_sharpa_ha4/left_sharpa_ha4_v2_1.urdf \
   --right-hand-urdf ./_DATA/Sharpa_HA4_URDF_USD_V2.2.3/Sharpa_HA4_URDF_USD_V2.2.3/src/right_sharpa_ha4/right_sharpa_ha4_v2_1.urdf \
@@ -82,7 +82,7 @@ Left hand:
 
 ```bash
 python3 retarget_openxr26_with_sharpa_upper_body.py \
-  --input ./outputs/retarget_meta/openxr26_singlenhand_zero_global/openxr26_joints_left.npz \
+  --input ./outputs/retarget_meta/openxr26_single_hand_zero_global/openxr26_joints_left.npz \
   --output ./outputs/sharpa_retarget_meta/openxr26_single_hand_zero_global/sharpa_cmds_left \
   --left-hand-urdf ./_DATA/Sharpa_HA4_URDF_USD_V2.2.3/Sharpa_HA4_URDF_USD_V2.2.3/src/left_sharpa_ha4/left_sharpa_ha4_v2_1.urdf \
   --right-hand-urdf ./_DATA/Sharpa_HA4_URDF_USD_V2.2.3/Sharpa_HA4_URDF_USD_V2.2.3/src/right_sharpa_ha4/right_sharpa_ha4_v2_1.urdf \
@@ -98,7 +98,7 @@ Right hand:
 
 ```bash
 python3 retarget_openxr26_with_sharpa_upper_body.py \
-  --input ./outputs/retarget_meta/openxr26_singlenhand_zero_global/openxr26_joints_right.npz \
+  --input ./outputs/retarget_meta/openxr26_single_hand_zero_global/openxr26_joints_right.npz \
   --output ./outputs/sharpa_retarget_meta/openxr26_single_hand_zero_global/sharpa_cmds_right \
   --left-hand-urdf ./_DATA/Sharpa_HA4_URDF_USD_V2.2.3/Sharpa_HA4_URDF_USD_V2.2.3/src/left_sharpa_ha4/left_sharpa_ha4_v2_1.urdf \
   --right-hand-urdf ./_DATA/Sharpa_HA4_URDF_USD_V2.2.3/Sharpa_HA4_URDF_USD_V2.2.3/src/right_sharpa_ha4/right_sharpa_ha4_v2_1.urdf \
@@ -136,7 +136,7 @@ Left:
 
 ```bash
 python apply_world_pose_to_traj_npz.py \
-  --traj_npz_in  ./outputs/sharpa_retarget_meta/openxr26_single_hand_zero_global/left_hand_traj_optrot.npz \
+  --traj_npz_in  ./outputs/retarget_meta/openxr26_single_hand_zero_global/left_hand_traj_optrot.npz \
   --traj_npz_out ./outputs/sharpa_retarget_meta/openxr26_single_hand_zero_global/left_hand_traj_world_prerot.npz \
   --world_results ./hand_reconstruction_results/meta_776_30fps_000300_world_results.npz \
   --hand left \
