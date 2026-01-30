@@ -17,6 +17,7 @@ Available Retargeters:
     - GripperRetargeter: Pinch-based gripper control
     - Se3AbsRetargeter: Absolute EE pose control
     - Se3RelRetargeter: Relative EE delta control
+    - TensorReorderer: Reorders and flattens multiple inputs into a single tensor
 """
 
 from .dex_hand_retargeter import (
@@ -49,6 +50,8 @@ from .se3_retargeter import (
     Se3RetargeterConfig,
 )
 
+from .tensor_reorderer import TensorReorderer
+
 __all__ = [
     # Hand tracking retargeters
     "DexHandRetargeter",
@@ -72,4 +75,7 @@ __all__ = [
     "Se3AbsRetargeter",
     "Se3RelRetargeter",
     "Se3RetargeterConfig",
+
+    # Utility retargeters
+    "TensorReorderer",
 ]
