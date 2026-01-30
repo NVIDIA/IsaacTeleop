@@ -132,10 +132,12 @@ jobs:
 
   publish-wheel:
     runs-on: [self-hosted, linux]
-    needs: test-cloudxr
+    needs:
+      - build-ubuntu
+      - test-cloudxr
     environment: dev
-    # Publish only for tag pushes, and only after CloudXR tests succeed.
-    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && needs.test-cloudxr.result == 'success' }}
+    # Publish only for tag pushes, and only after build and CloudXR tests succeed.
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && needs.build-ubuntu.result == 'success' && needs.test-cloudxr.result == 'success' }}
 
     steps:
     - name: Set up Python
