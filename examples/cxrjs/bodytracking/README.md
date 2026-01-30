@@ -35,21 +35,34 @@ A simplified 24-joint skeleton format based on the OpenXR [XR_BD_body_tracking](
 
 ## Joint Mapping Strategy
 
-The application uses a mapping table (`PICO_TO_WEBXR_JOINT_MAP`) to convert WebXR joints to Pico joints:
+The application uses a mapping table (`PICO_TO_WEBXR_JOINT_MAP`) to convert WebXR joints to Pico joints. Each of the 24 Pico joints maps to its closest equivalent WebXR joint:
 
-| Pico Joint | Maps to WebXR Joint | Notes |
-|-----------|---------------------|-------|
-| `pelvis` | `hips` | Root joint |
+| Pico Joint | WebXR Joint | Description |
+|-----------|-------------|-------------|
+| `pelvis` | `hips` | Root joint - center of pelvis |
+| `left-hip` | `left-upper-leg` | Left hip joint |
+| `right-hip` | `right-upper-leg` | Right hip joint |
 | `spine1` | `spine-lower` | Lower spine |
+| `left-knee` | `left-lower-leg` | Left knee joint |
+| `right-knee` | `right-lower-leg` | Right knee joint |
 | `spine2` | `spine-middle` | Middle spine |
+| `left-ankle` | `left-foot-ankle` | Left ankle joint |
+| `right-ankle` | `right-foot-ankle` | Right ankle joint |
 | `spine3` | `spine-upper` | Upper spine |
-| `left-shoulder` | `left-arm-upper` | Upper arm position |
-| `left-elbow` | `left-arm-lower` | Lower arm/elbow |
-| `left-wrist` | `left-hand-wrist` | Wrist joint |
-| `left-hand` | `left-hand-palm` | Hand center |
-| ... | ... | (And mirrors for right side) |
-
-This approach is based on the implementation in [`cloudxr-js/src/BodyTracking.ts`](https://gitlab.com/nvidia/omniverse/cloud-streaming-kit/cloudxr-js/-/blob/main/src/BodyTracking.ts).
+| `left-foot` | `left-foot-ball` | Left foot |
+| `right-foot` | `right-foot-ball` | Right foot |
+| `neck` | `neck` | Neck joint |
+| `left-collar` | `left-shoulder` | Left collar bone |
+| `right-collar` | `right-shoulder` | Right collar bone |
+| `head` | `head` | Head joint |
+| `left-shoulder` | `left-arm-upper` | Left shoulder/upper arm |
+| `right-shoulder` | `right-arm-upper` | Right shoulder/upper arm |
+| `left-elbow` | `left-arm-lower` | Left elbow/lower arm |
+| `right-elbow` | `right-arm-lower` | Right elbow/lower arm |
+| `left-wrist` | `left-hand-wrist` | Left wrist joint |
+| `right-wrist` | `right-hand-wrist` | Right wrist joint |
+| `left-hand` | `left-hand-palm` | Left hand center |
+| `right-hand` | `right-hand-palm` | Right hand center |
 
 ## Joint Comparison
 
@@ -103,4 +116,3 @@ Joints and bones are color-coded by body part:
 - [WebXR Body Tracking Module - Level 1](https://immersive-web.github.io/body-tracking/) - W3C Draft Community Group Report
 - [WebXR Device API](https://immersive-web.github.io/webxr/) - Core WebXR specification
 - [OpenXR XR_BD_body_tracking](https://registry.khronos.org/OpenXR/specs/1.1/html/xrspec.html#XR_BD_body_tracking) - OpenXR extension for ByteDance/Pico body tracking
-- [cloudxr-js BodyTracking.ts](https://gitlab.com/nvidia/omniverse/cloud-streaming-kit/cloudxr-js/-/blob/main/src/BodyTracking.ts) - Reference implementation
