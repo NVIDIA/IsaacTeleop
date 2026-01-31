@@ -1,0 +1,21 @@
+include "point.fbs";
+include "timestamp.fbs";
+
+namespace core;
+
+// Output from a generic 3-axis foot pedal device.
+//
+// Validated devices:
+// - https://www.logitechg.com/en-us/shop/p/flight-simulator-rudder-pedals
+table Generic3AxisPedalOutput {
+  // Dual timestamp with device and runtime clock domains.
+  timestamp: Timestamp (id: 0);
+
+  left_pedal: float (id: 1);
+
+  right_pedal: float (id: 2);
+
+  rudder: float (id: 3);
+}
+
+root_type Generic3AxisPedalOutput;
