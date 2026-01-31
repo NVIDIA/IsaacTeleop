@@ -33,6 +33,8 @@ from ._schema import (
     # Locomotion-related types.
     Twist,
     LocomotionCommand,
+    # Pedals-related types.
+    Generic3AxisPedalOutput,
 )
 
 __all__ = [
@@ -61,5 +63,7 @@ __all__ = [
     # Locomotion types.
     "Twist",
     "LocomotionCommand",
+    # Pedals types.
+    "Generic3AxisPedalOutput",
 ]
 

@@ -10,6 +10,7 @@ add_executable(schema_tests
   test_hand.cpp
   test_controller.cpp
   test_locomotion.cpp
+  test_pedals.cpp
 )
 target_link_libraries(schema_tests PRIVATE
   teleopcore_schema
