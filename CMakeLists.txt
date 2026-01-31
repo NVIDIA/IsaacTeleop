@@ -3,6 +3,9 @@
 
 cmake_minimum_required(VERSION 3.20...3.25)
 
+# Workaround for older CMake policy compatibility in dependencies
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "Minimum CMake policy version")
+
 # ==============================================================================
 # Version Configuration (SINGLE SOURCE OF TRUTH)
 # ==============================================================================
@@ -109,6 +112,12 @@ if(BUILD_PLUGINS)
     endif()
 
     include("${HUNTERGATE_PATH}")
+
+    # Set CMAKE_POLICY_VERSION_MINIMUM as environment variable so it's inherited
+    # by all child CMake processes (Hunter ExternalProject builds)
+    # This fixes compatibility with CMake >= 4.0 for packages with old cmake_minimum_required
+    set(ENV{CMAKE_POLICY_VERSION_MINIMUM} "3.5")
+
     HunterGate(
         URL "https://github.com/cpp-pm/hunter/archive/9d9242b60d5236269f894efd3ddd60a9ca83dd7f.tar.gz"
         SHA1 "16cc954aa723bccd16ea45fc91a858d0c5246376"
