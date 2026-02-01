@@ -3,7 +3,7 @@ SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All 
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# TeleopCore - Core
+# Isaac Teleop - Core
 
 Core implementations for Isaac Teleop.
 
