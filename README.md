@@ -20,11 +20,58 @@ SPDX-License-Identifier: Apache-2.0
 
 ## Overview
 
+**Isaac Teleop**: The unified standard for high-fidelity egocentric and robot data collection.
+It is designed to address the data bottleneck in robot learning by streamlining device integration;
+standardizing high-fidelity human demo data collection; and foster device & data interoperability.
 
-### Key Features
+## Key Features
 
-- **Simulation based teleop**: Based on Isaac Lab
-- **Real robot teleop**: Coming soon in early 2026
+### Unified Stack for Sim & Real Teleoperation
+
+- A single framework that works seamlessly across simulated and real-world robots, ensuring
+streamlined device workflow and consistent data schemas.
+- Currently supported robotics stacks:
+  - **ROS2**: Widely adopted middleware for robot software integration and communication
+  - **Isaac Sim**: Simulation platform to develop, test, and train AI-powered robots
+  - **Isaac Lab**: Unified framework for robot learning designed to help train robot policies
+- Upcoming robotics stacks:
+  - **Isaac OS**: Enterprise-ready robotics operating system (in early access)
+  - **Isaac Arena**: Isaac Lab extension for large-scale evaluation and resource orchestration
+
+### Standardized Device Interface
+
+- Provides a **standardized interface** for teleoperation devices, removing the need for custom
+device integrations and ongoing maintenance.
+  - Currently supported device categories:
+    - **XR Headsets** (with spatial controllers): Vision Pro, Pico, Quest
+    - **Gloves**: Manus
+    - **Foot Pedals** (hands-free lower body control): Logitech Rudder Pedal
+    - **Body Trackers**: Pico Motion Tracker
+  - Upcoming device categories:
+    - **Master Manipulators**: TBA
+    - **Exoskeletons**: TBA
+- Easily extend support for additional devices through a **plugin system**, enabling quick
+integration of new hardware.
+
+### Flexible Retargeting Framework
+
+- Retarget the standardized device outputs to different embodiments.
+- [Reference retargeter implementations](src/core/retargeting_engine/python/retargeters/),
+including popular embodiments such as Unitree G1.
+- [Retargeter tuning UI](src/core/retargeting_engine_ui/python) to facilitate
+live retargeter tuning.
+
+### Teleoperation Use Cases
+
+- Currently supported use cases
+  - Use XR headsets for gripper / tri-finger hand manipulation
+  - Use XR headsets with gloves for dex-hand manipulation
+  - Seated full body loco-manipulation (Homie)
+  - Tracking based full body loco-manipulation (Sonic)
+- Upcoming use cases
+  - Egocentric data collection (aka “no-robot”)
+  - Teleoperate cloud based robotics simulations
+  - Remote teleoperation with immersive camera streaming to XR headsets
 
 ## Hardware requirements
 
@@ -233,3 +280,28 @@ python ./examples/oxr/python/test_extensions.py
 # In the Teleop Core repo:
 ./scripts/run_isaac_lab.sh
 ```
+
+## Documentation
+
+### Getting Started
+- [Build Instructions](BUILD.md) - CMake build options, troubleshooting
+- [Contributing Guide](CONTRIBUTING.md) - Code style, PR process, DCO
+
+### Architecture
+- [Core Modules](src/core/README.md) - OXR, DeviceIO, Python bindings
+- [Retargeting Engine](src/core/retargeting_engine/python/retargeters/README.md) - Hand retargeters
+- [Teleop Session Manager](src/core/teleop_session_manager/README.md) - Session API
+
+### Plugins
+- [Manus Gloves](src/plugins/manus/README.md) - Manus SDK integration
+- [OAK-D Camera](src/plugins/oakd/README.md) - DepthAI camera plugin
+- [Synthetic Hands](src/plugins/controller_synthetic_hands/README.md) - Controller-based hand simulation
+
+### Examples
+- [OpenXR Examples](examples/oxr/README.md) - C++ and Python OpenXR tracking
+- [LeRobot Integration](examples/lerobot/README.md) - Dataset recording/visualization
+- [Camera Streaming](examples/cam_streamer/README.md) - GStreamer OAK-D pipeline
+- [Teleop Session](examples/teleop_session_manager/python/README.md) - Session API usage
+
+### Dependencies
+- [Dependencies Overview](deps/README.md) - Dependency management

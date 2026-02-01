@@ -32,6 +32,14 @@ Dependencies are automatically downloaded during CMake configuration. No manual 
 
 This centralized approach prevents duplicate includes and ensures consistent configuration across all modules.
 
+## CloudXR Dependencies
+
+The `cloudxr/` folder contains files and configurations for deploying the NVIDIA CloudXR, it
+uses Docker Compose to setup the entire system with 3 different containers:
+1. CloudXR runtime
+2. Web server that hosts the CloudXR Web XR app
+3. WebSocket SSL proxy
+
 ## Third-Party Dependencies
 
 ### OpenXR SDK
@@ -59,7 +67,21 @@ This centralized approach prevents duplicate includes and ensures consistent con
 
 When adding new third-party dependencies:
 
-1. Update `third_party/CMakeLists.txt` to add a FetchContent declaration with the repository URL and specific commit/tag
-2. Document it in this README with source, version, purpose, and license
-3. Update the main `BUILD.md` with any new requirements
+To add a new third-party dependency:
+
+1. Update `CMakeLists.txt` in this directory to add a FetchContent declaration:
+   ```cmake
+   FetchContent_Declare(
+       <name>
+       GIT_REPOSITORY <repository-url>
+       GIT_TAG        <commit-sha-or-tag>
+   )
+   FetchContent_MakeAvailable(<name>)
+   ```
+
+2. Document it in this README with purpose, license, version, and repository information
+
+3. If you need to preserve a specific version, use the full commit SHA in GIT_TAG
+
+4. Update the main `BUILD.md` with any new requirements
 
