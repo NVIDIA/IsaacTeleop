@@ -15,6 +15,9 @@ source scripts/setup_cloudxr_env.sh
 # Check CloudXR EULA acceptance
 ./scripts/check_cloudxr_eula.sh || exit 1
 
+# Download CloudXR Web SDK if not already present
+./scripts/download_cloudxr_sdk.sh || exit 1
+
 # Run the docker compose file
 # Note: When specifying multiple --env-file options to docker compose, variables in later files
 # override earlier ones. Here, variables in deps/cloudxr/.env.default are overridden by those in

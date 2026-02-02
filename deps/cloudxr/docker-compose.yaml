@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 services:
+  # CloudXR Runtime
   cloudxr-runtime:
     image: ${CXR_RUNTIME_IMAGE}
     pull_policy: never
@@ -28,9 +29,12 @@ services:
               count: all
               capabilities: [ gpu ]
 
+  # WebSocket SSL Proxy Service
   wss-proxy:
-    image: ${CXR_WSS_PROXY_IMAGE}
-    pull_policy: never
+    build:
+      context: .
+      dockerfile: Dockerfile.wss-proxy
+    container_name: cloudxr-wss-proxy-${CXR_WEB_SDK_VERSION}
     network_mode: host
     depends_on:
       cloudxr-runtime:
@@ -47,10 +51,22 @@ services:
       - HEALTH_CHECK_FALL=3
     restart: unless-stopped
 
-  isaac-web-front:
-    image: ${CXR_WEB_FRONT_IMAGE}
+  # Web App Service (serves CloudXR.js web client via nginx)
+  web-app:
+    build:
+      context: .
+      dockerfile: Dockerfile.web-app
+      args:
+        # Choose the version of the CloudXR Web SDK to use
+        CXR_WEB_SDK_VERSION: ${CXR_WEB_SDK_VERSION}
+        # Choose which example to build: simple, react, or isaac
+        EXAMPLE: isaac
+    container_name: cloudxr-web-app-${CXR_WEB_SDK_VERSION}
     network_mode: host
-    pull_policy: never
+    # Note: With network_mode: host, ports are exposed directly on the host
+    # HTTP:  http://localhost:8080
+    # HTTPS: https://localhost:8443
+    restart: unless-stopped
 
 volumes:
   openxr-volume:
