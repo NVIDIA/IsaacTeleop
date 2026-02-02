@@ -35,6 +35,8 @@ from ._schema import (
     LocomotionCommand,
     # Pedals-related types.
     Generic3AxisPedalOutput,
+    # Camera-related types.
+    FrameMetadata,
 )
 
 __all__ = [
@@ -65,5 +67,7 @@ __all__ = [
     "LocomotionCommand",
     # Pedals types.
     "Generic3AxisPedalOutput",
+    # Camera types.
+    "FrameMetadata",
 ]
 

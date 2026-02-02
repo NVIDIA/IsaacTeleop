@@ -1,0 +1,14 @@
+include "timestamp.fbs";
+
+namespace core;
+
+// Minimum FrameMetadata needed for camera plugin.
+// All camera device plugins should provide below data for each frame.
+table FrameMetadata {
+  // Dual timestamp with device and runtime clock domains.
+  timestamp: Timestamp (id: 0);
+
+  sequence_number: int (id: 1);
+}
+
+root_type FrameMetadata;
