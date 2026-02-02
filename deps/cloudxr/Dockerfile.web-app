@@ -1,0 +1,147 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# CloudXR Web App - Multi-stage build
+# Stage 1: Build the web application
+# Stage 2: Serve with nginx (HTTP on 8080, HTTPS on 8443)
+
+#############################################
+# Stage 1: Build the web application
+#############################################
+FROM node:24-slim AS builder
+
+WORKDIR /app
+
+# Install webpack globally for convenience
+RUN npm install -g webpack webpack-cli
+
+# Path to the CloudXR Web SDK (relative to build context)
+ARG CXR_WEB_SDK_VERSION=${CXR_WEB_SDK_VERSION}
+ENV SDK_PATH=cloudxr-web-sdk-${CXR_WEB_SDK_VERSION}
+
+# Argument to select which example to run (simple, react, or isaac)
+ARG EXAMPLE=isaac
+
+# Copy the entire SDK contents
+COPY ${SDK_PATH}/ ./
+
+# Install CloudXR SDK and dependencies, then build
+RUN cd ${EXAMPLE} && \
+    npm install ../nvidia-cloudxr-*.tgz && \
+    npm install && \
+    npm run build
+
+#############################################
+# Stage 2: Serve with nginx
+#############################################
+FROM nginx:alpine
+
+# Argument to select which example was built
+ARG EXAMPLE=simple
+
+WORKDIR /app
+
+# Install necessary tools
+RUN apk add --no-cache curl openssl bash
+
+# Copy built files from builder stage
+COPY --from=builder /app/${EXAMPLE}/build /usr/share/nginx/html
+
+# Create SSL certificate directory
+RUN mkdir -p /etc/nginx/ssl
+
+# Create certificate generation script
+COPY <<EOF /usr/local/bin/generate-cert.sh
+#!/bin/bash
+cd /etc/nginx/ssl
+if [ ! -f cert.pem ] || [ ! -f key.pem ]; then
+    echo "Generating self-signed SSL certificate..."
+    openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes -subj "/CN=localhost" -quiet
+    chmod 600 key.pem
+    chmod 644 cert.pem
+    echo "Self-signed certificate generated successfully"
+else
+    echo "Using existing SSL certificates"
+fi
+EOF
+
+RUN chmod +x /usr/local/bin/generate-cert.sh
+
+# Create nginx configuration for SPA with both HTTP and HTTPS (using non-privileged ports)
+RUN echo 'server { \
+    listen 8080; \
+    server_name localhost; \
+    location / { \
+        root /usr/share/nginx/html; \
+        index index.html; \
+        try_files $uri $uri/ /index.html; \
+    } \
+    # Enable CORS for WebXR \
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|hdr|glb|json)$ { \
+        root /usr/share/nginx/html; \
+        expires 1y; \
+        add_header Cache-Control "public, immutable"; \
+        add_header Access-Control-Allow-Origin "*"; \
+    } \
+} \
+\
+server { \
+    listen 8443 ssl; \
+    server_name localhost; \
+    \
+    ssl_certificate /etc/nginx/ssl/cert.pem; \
+    ssl_certificate_key /etc/nginx/ssl/key.pem; \
+    \
+    # SSL configuration \
+    ssl_protocols TLSv1.2 TLSv1.3; \
+    ssl_ciphers HIGH:!aNULL:!MD5; \
+    ssl_prefer_server_ciphers on; \
+    \
+    location / { \
+        root /usr/share/nginx/html; \
+        index index.html; \
+        try_files $uri $uri/ /index.html; \
+    } \
+    # Enable CORS for WebXR \
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|hdr|glb|json)$ { \
+        root /usr/share/nginx/html; \
+        expires 1y; \
+        add_header Cache-Control "public, immutable"; \
+        add_header Access-Control-Allow-Origin "*"; \
+    } \
+}' >/etc/nginx/conf.d/default.conf
+
+# Set proper permissions for nginx to run as non-root
+RUN chown -R nginx:nginx /usr/share/nginx/html \
+    && chown -R nginx:nginx /etc/nginx/ssl \
+    && chown -R nginx:nginx /var/cache/nginx \
+    && chown -R nginx:nginx /var/log/nginx \
+    && touch /var/run/nginx.pid \
+    && chown -R nginx:nginx /var/run/nginx.pid
+
+# Expose non-privileged ports
+EXPOSE 8080 8443
+
+# Health check (checks HTTP on port 8080)
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8080/ || exit 1
+
+# Create entrypoint script to generate certs and start nginx
+COPY <<EOF /entrypoint.sh
+#!/bin/bash
+set -e
+
+# Generate SSL certificate if not exists
+/usr/local/bin/generate-cert.sh
+
+# Start nginx
+exec nginx -g "daemon off;"
+EOF
+
+RUN chmod +x /entrypoint.sh
+
+# Switch to non-root user
+USER nginx
+
+# Start nginx with certificate generation
+ENTRYPOINT ["/entrypoint.sh"]

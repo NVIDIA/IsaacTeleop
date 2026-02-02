@@ -105,13 +105,12 @@ deps/
 │   └── cloudxr-runtime-6.1.0-pid4.tar.gz
 ```
 
-5. **Build and load CloudXR containers**
+5. **Load CloudXR runtime image**
 ```bash
-./examples/cxrjs/build_containers.sh
 ./scripts/cloudxr_image_ops.sh --load 6.1.0-pid4
 ```
 
-> **Important:** Make sure you place the `.gz` and `.tgz` files from the previous steps at the
+> **Important:** Make sure you place the `.gz` file from the previous steps at the
 > designated location. Otherwise, you will see an error like this:
 > ```
 > Error: File not found: ./deps/cloudxr/cloudxr-runtime-6.1.0-pid4.tar.gz
@@ -121,6 +120,14 @@ deps/
 ```bash
 ./scripts/run_cloudxr.sh
 ```
+
+This script will automatically:
+- Download the CloudXR Web SDK from NGC (if not already present)
+- Build the necessary Docker containers (wss-proxy, web-app)
+- Start all CloudXR services
+
+> **Note:** The first run may take a few minutes to download the SDK and build containers.
+> Subsequent runs will be faster as these are cached.
 
 7. **White list ports for Firewall**
 
