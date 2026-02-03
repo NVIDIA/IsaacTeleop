@@ -3,6 +3,7 @@
 
 #include <deviceio/controller_tracker.hpp>
 #include <deviceio/frame_metadata_tracker.hpp>
+#include <deviceio/full_body_tracker_pico.hpp>
 #include <deviceio/hand_tracker.hpp>
 #include <deviceio/head_tracker.hpp>
 #include <deviceio_py_utils/session.hpp>
@@ -64,6 +65,17 @@ PYBIND11_MODULE(_deviceio, m)
             py::arg("session"), py::return_value_policy::reference_internal,
             "Get the current frame metadata (timestamp and sequence_number)");
 
+    // FullBodyTrackerPico class (PICO XR_BD_body_tracking extension)
+    py::class_<core::FullBodyTrackerPico, core::ITracker, std::shared_ptr<core::FullBodyTrackerPico>>(
+        m, "FullBodyTrackerPico")
+        .def(py::init<>())
+        .def(
+            "get_body_pose",
+            [](core::FullBodyTrackerPico& self, PyDeviceIOSession& session) -> const core::FullBodyPosePicoT&
+            { return self.get_body_pose(session.native()); },
+            py::arg("session"), py::return_value_policy::reference_internal,
+            "Get full body pose data (24 joints from pelvis to hands)");
+
     // DeviceIOSession class (bound via wrapper for context management)
     // Other C++ modules (like mcap) should include <py_deviceio/session.hpp> and accept
     // PyDeviceIOSession& directly, calling .native() internally in C++ code.
@@ -88,7 +100,7 @@ PYBIND11_MODULE(_deviceio, m)
     // Module constants - XR_HAND_JOINT_COUNT_EXT
     m.attr("NUM_JOINTS") = 26;
 
-    // Joint indices
+    // Hand joint indices
     m.attr("JOINT_PALM") = static_cast<int>(XR_HAND_JOINT_PALM_EXT);
     m.attr("JOINT_WRIST") = static_cast<int>(XR_HAND_JOINT_WRIST_EXT);
     m.attr("JOINT_THUMB_TIP") = static_cast<int>(XR_HAND_JOINT_THUMB_TIP_EXT);

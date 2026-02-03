@@ -51,7 +51,7 @@ static_assert(sizeof(core::BodyJointsPico) == 24 * sizeof(core::BodyJointPose),
 // =============================================================================
 static_assert(core::BodyJointPico_PELVIS == 0, "PELVIS should be index 0");
 static_assert(core::BodyJointPico_RIGHT_HAND == 23, "RIGHT_HAND should be index 23");
-static_assert(core::BodyJointPico_MAX == core::BodyJointPico_RIGHT_HAND, "MAX should equal RIGHT_HAND");
+static_assert(core::BodyJointPico_NUM_JOINTS == 24, "NUM_JOINTS should be 24");
 
 // =============================================================================
 // BodyJointPose Tests
@@ -92,9 +92,9 @@ TEST_CASE("BodyJointPose default construction", "[full_body][struct]")
 // =============================================================================
 TEST_CASE("BodyJointsPico struct has correct size", "[full_body][struct]")
 {
-    // BodyJointsPico should have exactly 24 entries (XR_BD_body_tracking).
+    // BodyJointsPico should have exactly NUM_JOINTS entries (XR_BD_body_tracking).
     core::BodyJointsPico joints;
-    CHECK(joints.joints()->size() == 24);
+    CHECK(joints.joints()->size() == static_cast<size_t>(core::BodyJointPico_NUM_JOINTS));
 }
 
 TEST_CASE("BodyJointsPico can be accessed by index", "[full_body][struct]")
@@ -103,7 +103,7 @@ TEST_CASE("BodyJointsPico can be accessed by index", "[full_body][struct]")
 
     // Access first and last entries (returns pointers).
     const auto* first = (*joints.joints())[0];
-    const auto* last = (*joints.joints())[23];
+    const auto* last = (*joints.joints())[core::BodyJointPico_NUM_JOINTS - 1];
 
     // Default values should be zero.
     CHECK(first->pose().position().x() == 0.0f);
@@ -143,7 +143,7 @@ TEST_CASE("FullBodyPosePicoT can store joints data", "[full_body][native]")
 
     // Verify joints are set.
     REQUIRE(body_pose->joints != nullptr);
-    CHECK(body_pose->joints->joints()->size() == 24);
+    CHECK(body_pose->joints->joints()->size() == static_cast<size_t>(core::BodyJointPico_NUM_JOINTS));
 }
 
 TEST_CASE("FullBodyPosePicoT can store timestamp", "[full_body][native]")
@@ -213,7 +213,7 @@ TEST_CASE("FullBodyPosePicoT serialization and deserialization", "[full_body][fl
 
     // Verify.
     REQUIRE(deserialized->joints() != nullptr);
-    CHECK(deserialized->joints()->joints()->size() == 24);
+    CHECK(deserialized->joints()->joints()->size() == static_cast<size_t>(core::BodyJointPico_NUM_JOINTS));
 
     const auto* first_joint = (*deserialized->joints()->joints())[0];
     CHECK(first_joint->pose().position().x() == Catch::Approx(1.5f));
@@ -394,6 +394,7 @@ TEST_CASE("BodyJointPico enum has correct values", "[full_body][enum]")
     CHECK(core::BodyJointPico_RIGHT_WRIST == 21);
     CHECK(core::BodyJointPico_LEFT_HAND == 22);
     CHECK(core::BodyJointPico_RIGHT_HAND == 23);
+    CHECK(core::BodyJointPico_NUM_JOINTS == 24);
 }
 
 TEST_CASE("BodyJointPico enum can index BodyJointsPico", "[full_body][enum]")

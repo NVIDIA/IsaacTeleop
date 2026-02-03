@@ -47,7 +47,8 @@ inline void bind_full_body(py::module& m)
         .value("LEFT_WRIST", BodyJointPico_LEFT_WRIST)
         .value("RIGHT_WRIST", BodyJointPico_RIGHT_WRIST)
         .value("LEFT_HAND", BodyJointPico_LEFT_HAND)
-        .value("RIGHT_HAND", BodyJointPico_RIGHT_HAND);
+        .value("RIGHT_HAND", BodyJointPico_RIGHT_HAND)
+        .value("NUM_JOINTS", BodyJointPico_NUM_JOINTS);
 
     // Bind BodyJointPose struct (pose, is_valid).
     py::class_<BodyJointPose>(m, "BodyJointPose")
@@ -75,22 +76,23 @@ inline void bind_full_body(py::module& m)
             "joints",
             [](const BodyJointsPico& self, size_t index) -> const BodyJointPose*
             {
-                if (index >= 24)
+                if (index >= static_cast<size_t>(BodyJointPico_NUM_JOINTS))
                 {
                     throw py::index_error("BodyJointsPico index out of range (must be 0-23)");
                 }
                 return (*self.joints())[index];
             },
             py::arg("index"), py::return_value_policy::reference_internal,
-            "Get the BodyJointPose at the specified index (0-23).")
-        .def("__len__", [](const BodyJointsPico&) { return 24; })
+            "Get the BodyJointPose at the specified index (0 to NUM_JOINTS-1).")
+        .def("__len__", [](const BodyJointsPico&) { return static_cast<size_t>(BodyJointPico_NUM_JOINTS); })
         .def(
             "__getitem__",
             [](const BodyJointsPico& self, size_t index) -> const BodyJointPose*
             {
-                if (index >= 24)
+                if (index >= static_cast<size_t>(BodyJointPico_NUM_JOINTS))
                 {
-                    throw py::index_error("BodyJointsPico index out of range (must be 0-23)");
+                    throw py::index_error("BodyJointsPico index out of range (must be 0-" +
+                                          std::to_string(BodyJointPico_NUM_JOINTS - 1) + ")");
                 }
                 return (*self.joints())[index];
             },
