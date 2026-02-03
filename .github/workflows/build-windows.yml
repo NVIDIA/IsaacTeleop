@@ -36,6 +36,16 @@ jobs:
     - name: Install sccache
       run: choco install -y sccache
 
+    # Hunter cache - caches depthai dependencies
+    # Note: Hunter uses C:/.hunter on Windows (at drive root)
+    - name: Cache Hunter packages
+      uses: actions/cache@v4
+      with:
+        path: C:/.hunter
+        key: hunter-${{ runner.os }}-${{ hashFiles('cmake/SetupHunter.cmake') }}
+        restore-keys: |
+          hunter-${{ runner.os }}-
+
     - name: Cache sccache
       uses: actions/cache@v4
       with:
