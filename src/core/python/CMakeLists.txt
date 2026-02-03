@@ -3,7 +3,8 @@
 
 # Python wheel packaging (combines OXR, DEVICEIO, MCAP, PluginManager, and Schema modules).
 
-# Generate pyproject.toml from template with TELEOPCORE_PYTHON_VERSION
+
+# Generate pyproject.toml from template with ISAAC_TELEOP_PYPROJECT_VERSION
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/pyproject.toml.in"
     "${CMAKE_CURRENT_BINARY_DIR}/pyproject.toml"
