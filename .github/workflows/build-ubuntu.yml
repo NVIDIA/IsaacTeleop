@@ -30,6 +30,15 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache
 
+    # Hunter cache - caches depthai dependencies (OpenSSL, CURL, etc.)
+    - name: Cache Hunter packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.hunter
+        key: hunter-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('cmake/SetupHunter.cmake') }}
+        restore-keys: |
+          hunter-${{ runner.os }}-${{ runner.arch }}-
+
     - name: Cache ccache
       uses: actions/cache@v4
       with:
