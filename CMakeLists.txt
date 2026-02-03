@@ -6,15 +6,8 @@ cmake_minimum_required(VERSION 3.20...3.25)
 # Workaround for older CMake policy compatibility in dependencies
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "Minimum CMake policy version")
 
-# ==============================================================================
-# Version Configuration (SINGLE SOURCE OF TRUTH)
-# ==============================================================================
-# Read version from VERSION file - this is the single source of truth for the
-# TeleopCore version. Both CMake and Python (pyproject.toml) read from this file.
-file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" TELEOPCORE_VERSION)
-string(STRIP "${TELEOPCORE_VERSION}" TELEOPCORE_VERSION)
-message(STATUS "TeleopCore version: ${TELEOPCORE_VERSION}")
-# ==============================================================================
+include(cmake/IsaacTeleopVersion.cmake)
+isaac_teleop_read_version("${CMAKE_CURRENT_SOURCE_DIR}/VERSION" ISAAC_TELEOP_VERSION)
 
 # ==============================================================================
 # Install Prefix Setup (must be before HunterGate)
@@ -30,7 +23,7 @@ endif()
 # Defines BUILD_PLUGINS option and initializes Hunter for DepthAI dependencies
 include(cmake/SetupHunter.cmake)
 
-project(TeleopCore VERSION ${TELEOPCORE_VERSION} LANGUAGES CXX)
+project(TeleopCore VERSION ${ISAAC_TELEOP_VERSION} LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
