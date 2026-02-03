@@ -1,0 +1,63 @@
+include "pose.fbs";
+include "timestamp.fbs";
+
+namespace core;
+
+// Body joint indices for PICO body tracking (XR_BD_body_tracking extension).
+// See: https://registry.khronos.org/OpenXR/specs/1.1/html/xrspec.html#XrBodyJointBD
+enum BodyJointPico : uint8 {
+    PELVIS = 0,
+    LEFT_HIP = 1,
+    RIGHT_HIP = 2,
+    SPINE1 = 3,
+    LEFT_KNEE = 4,
+    RIGHT_KNEE = 5,
+    SPINE2 = 6,
+    LEFT_ANKLE = 7,
+    RIGHT_ANKLE = 8,
+    SPINE3 = 9,
+    LEFT_FOOT = 10,
+    RIGHT_FOOT = 11,
+    NECK = 12,
+    LEFT_COLLAR = 13,
+    RIGHT_COLLAR = 14,
+    HEAD = 15,
+    LEFT_SHOULDER = 16,
+    RIGHT_SHOULDER = 17,
+    LEFT_ELBOW = 18,
+    RIGHT_ELBOW = 19,
+    LEFT_WRIST = 20,
+    RIGHT_WRIST = 21,
+    LEFT_HAND = 22,
+    RIGHT_HAND = 23,
+}
+
+// Describe a single BodyJoint pose.
+struct BodyJointPose {
+    // The concrete pose data
+    pose: Pose;
+
+    // Whether this joint's pose data is valid
+    is_valid: bool;
+}
+
+// Fixed-size array of 24 body joint locations. This follows the joint format defined in:
+// See: https://registry.khronos.org/OpenXR/specs/1.1/html/xrspec.html#XR_BD_body_tracking
+struct BodyJointsPico {
+    joints: [BodyJointPose:24];
+}
+
+// Full body pose data for PICO body tracking (XR_BD_body_tracking extension).
+table FullBodyPosePico {
+    // Whether the body tracking is active
+    is_active: bool (id: 0);
+
+    // Dual timestamp with device and runtime clock domains
+    timestamp: Timestamp (id: 1);
+
+    // Vector of BodyJointPose.
+    // For XR_BD_body_tracking, this is 24 joints.
+    joints: BodyJointsPico (id: 2);
+}
+
+root_type FullBodyPosePico;
