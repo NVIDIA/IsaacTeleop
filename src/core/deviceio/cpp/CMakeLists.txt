@@ -24,6 +24,7 @@ add_library(deviceio_core STATIC
     schema_tracker.cpp
     generic_3axis_pedal_tracker.cpp
     frame_metadata_tracker.cpp
+    full_body_tracker_pico.cpp
     deviceio_session.cpp
     inc/deviceio/tracker.hpp
     inc/deviceio/hand_tracker.hpp
@@ -34,7 +35,6 @@ add_library(deviceio_core STATIC
     inc/deviceio/frame_metadata_tracker.hpp
     inc/deviceio/deviceio_session.hpp
 )
-
 target_include_directories(deviceio_core
     INTERFACE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>

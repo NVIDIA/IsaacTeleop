@@ -30,6 +30,8 @@ enum BodyJointPico : uint8 {
     RIGHT_WRIST = 21,
     LEFT_HAND = 22,
     RIGHT_HAND = 23,
+
+    NUM_JOINTS = 24,
 }
 
 // Describe a single BodyJoint pose.
