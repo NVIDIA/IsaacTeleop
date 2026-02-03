@@ -38,6 +38,7 @@ void print_pedal_data(const core::Generic3AxisPedalOutputT& data, size_t sample_
 }
 
 int main()
+try
 {
     std::cout << "Pedal Printer (collection: " << COLLECTION_ID << ")" << std::endl;
 
@@ -81,19 +82,28 @@ int main()
     while (received_count < MAX_SAMPLES)
     {
         // Update session (this calls update on all trackers)
-        session->update();
-
-        // Check if we have new data
-        size_t new_count = tracker->get_read_count(*session);
-        if (new_count > received_count)
+        if (!session->update())
         {
-            print_pedal_data(tracker->get_data(*session), new_count);
-            received_count = new_count;
+            std::cerr << "Update failed" << std::endl;
+            break;
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        // Print current data if available
+        const auto& data = tracker->get_data(*session);
+        if (data.timestamp)
+        {
+            print_pedal_data(data, received_count++);
+        }
+
+        // Sleep to approximately match the push rate (50ms)
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
 
-    std::cout << "\nTotal samples received: " << received_count << std::endl;
+    std::cout << "\nDone. Received " << received_count << " samples." << std::endl;
     return 0;
+}
+catch (const std::exception& e)
+{
+    std::cerr << "Error: " << e.what() << std::endl;
+    return 1;
 }

@@ -9,6 +9,7 @@
 #include <cassert>
 #include <cstring>
 #include <iostream>
+#include <optional>
 #include <stdexcept>
 
 namespace core
@@ -24,7 +25,7 @@ SchemaTracker::SchemaTracker(SchemaTrackerConfig config) : m_config(std::move(co
 
 std::vector<std::string> SchemaTracker::get_required_extensions() const
 {
-    return { REQUIRED_EXTENSIONS[0] };
+    return { "XR_NVX1_tensor_data" };
 }
 
 const SchemaTrackerConfig& SchemaTracker::get_config() const
@@ -63,41 +64,30 @@ public:
 
     ~ImplData()
     {
-        // Destroy tensor list
-        if (m_tensor_list != XR_NULL_HANDLE && m_destroy_list_fn != nullptr)
+        // m_tensor_list is guaranteed to be non-null by create_tensor_list(), or the constructor would have thrown.
+        assert(m_tensor_list != XR_NULL_HANDLE && m_destroy_list_fn != nullptr);
+
+        XrResult result = m_destroy_list_fn(m_tensor_list);
+        if (result != XR_SUCCESS)
         {
-            XrResult result = m_destroy_list_fn(m_tensor_list);
-            if (result != XR_SUCCESS)
-            {
-                std::cerr << "Warning: Failed to destroy tensor list, result=" << result << std::endl;
-            }
+            std::cerr << "Warning: Failed to destroy tensor list, result=" << result << std::endl;
         }
-    }
-
-    bool is_connected() const
-    {
-        return m_target_collection_index >= 0;
-    }
-
-    size_t get_read_count() const
-    {
-        return m_read_count;
     }
 
     bool read_buffer(std::vector<uint8_t>& buffer)
     {
-        // Poll for tensor list updates
-        poll_for_updates();
-
-        // Try to discover target collection if not found yet
-        if (m_target_collection_index < 0)
+        // Try to discover target collection if not found yet (or if it was lost)
+        if (!m_target_collection_index)
         {
+            // Poll for tensor list updates only when we need to discover
+            poll_for_updates();
+
             m_target_collection_index = find_target_collection();
-            if (m_target_collection_index < 0)
+            if (!m_target_collection_index)
             {
                 return false; // Collection not available yet
             }
-            std::cout << "Found target collection at index " << m_target_collection_index << std::endl;
+            std::cout << "Found target collection at index " << *m_target_collection_index << std::endl;
         }
 
         // Try to read next sample
@@ -188,45 +178,49 @@ private:
         // Check if tensor list needs update
         uint64_t latest_generation = 0;
         XrResult result = m_get_latest_gen_fn(m_handles.session, &latest_generation);
-        if (result == XR_SUCCESS && latest_generation != m_cached_generation)
+        if (result != XR_SUCCESS)
+        {
+            throw std::runtime_error("Failed to get latest generation, result=" + std::to_string(result));
+        }
+
+        if (latest_generation != m_cached_generation)
         {
             result = m_update_list_fn(m_tensor_list);
-            if (result == XR_SUCCESS)
+            if (result != XR_SUCCESS)
             {
-                m_cached_generation = latest_generation;
-                // Re-discover collections after update
-                m_target_collection_index = find_target_collection();
+                throw std::runtime_error("Failed to update tensor list, result=" + std::to_string(result));
             }
+            m_cached_generation = latest_generation;
+            // Re-discover collections after update
+            m_target_collection_index = find_target_collection();
         }
     }
 
-    int find_target_collection()
+    std::optional<uint32_t> find_target_collection()
     {
         // Get list properties
         XrSystemTensorListPropertiesNV listProps{ XR_TYPE_SYSTEM_TENSOR_LIST_PROPERTIES_NV };
-        listProps.next = nullptr;
 
         XrResult result = m_get_list_props_fn(m_tensor_list, &listProps);
         if (result != XR_SUCCESS)
         {
-            return -1;
+            throw std::runtime_error("Failed to get list properties, result=" + std::to_string(result));
         }
 
         if (listProps.tensorCollectionCount == 0)
         {
-            return -1; // No collections available yet
+            return std::nullopt; // No collections available yet
         }
 
         // Search for matching collection
         for (uint32_t i = 0; i < listProps.tensorCollectionCount; ++i)
         {
             XrTensorCollectionPropertiesNV collProps{ XR_TYPE_TENSOR_COLLECTION_PROPERTIES_NV };
-            collProps.next = nullptr;
 
             result = m_get_coll_props_fn(m_tensor_list, i, &collProps);
             if (result != XR_SUCCESS)
             {
-                continue;
+                throw std::runtime_error("Failed to get collection properties, result=" + std::to_string(result));
             }
 
             if (std::strncmp(collProps.data.identifier, m_config.collection_id.c_str(), XR_MAX_TENSOR_IDENTIFIER_SIZE) ==
@@ -235,16 +229,16 @@ private:
                 // Found matching collection
                 m_sample_batch_stride = collProps.sampleBatchStride;
                 m_sample_size = collProps.data.totalSampleSize;
-                return static_cast<int>(i);
+                return i;
             }
         }
 
-        return -1;
+        return std::nullopt;
     }
 
     bool read_next_sample(std::vector<uint8_t>& buffer)
     {
-        if (m_target_collection_index < 0)
+        if (!m_target_collection_index.has_value())
         {
             return false;
         }
@@ -252,8 +246,8 @@ private:
         // Prepare retrieval info
         XrTensorDataRetrievalInfoNV retrievalInfo{ XR_TYPE_TENSOR_DATA_RETRIEVAL_INFO_NV };
         retrievalInfo.next = nullptr;
-        retrievalInfo.tensorCollectionIndex = static_cast<uint32_t>(m_target_collection_index);
-        retrievalInfo.startSampleIndex = m_last_sample_index + 1;
+        retrievalInfo.tensorCollectionIndex = m_target_collection_index.value();
+        retrievalInfo.startSampleIndex = m_last_sample_index.has_value() ? m_last_sample_index.value() + 1 : 0;
 
         // Prepare output buffers (read one sample at a time for simplicity)
         XrTensorSampleMetadataNV metadata{};
@@ -271,11 +265,14 @@ private:
         XrResult result = m_get_data_fn(m_tensor_list, &retrievalInfo, &tensorData);
         if (result != XR_SUCCESS)
         {
-            if (result == XR_ERROR_TENSOR_LOST_NV)
-            {
-                std::cerr << "Tensor collection lost, will re-discover..." << std::endl;
-                m_target_collection_index = -1;
-            }
+            // TODO: Check against XR_ERROR_TENSOR_LOST_NV when it's reported by the runtime.
+            // if (result == XR_ERROR_TENSOR_LOST_NV)
+            // {
+            //     m_target_collection_index = std::nullopt;
+            //     return false;
+            // }
+            std::cerr << "Failed to get tensor data, result=" << result << std::endl;
+            m_target_collection_index = std::nullopt;
             return false;
         }
 
@@ -285,7 +282,7 @@ private:
         }
 
         // Update last sample index
-        if (metadata.sampleIndex > m_last_sample_index)
+        if (!m_last_sample_index.has_value() || metadata.sampleIndex > m_last_sample_index.value())
         {
             m_last_sample_index = metadata.sampleIndex;
         }
@@ -294,7 +291,6 @@ private:
         buffer.resize(m_sample_size);
         std::memcpy(buffer.data(), dataBuffer.data(), m_sample_size);
 
-        ++m_read_count;
         return true;
     }
 
@@ -314,7 +310,7 @@ private:
     PFN_xrDestroyTensorListNV m_destroy_list_fn{ nullptr };
 
     // Target collection info
-    int m_target_collection_index{ -1 };
+    std::optional<uint32_t> m_target_collection_index;
     uint32_t m_sample_batch_stride{ 0 };
     uint32_t m_sample_size{ 0 };
 
@@ -322,10 +318,7 @@ private:
     uint64_t m_cached_generation{ 0 };
 
     // Sample tracking
-    int64_t m_last_sample_index{ -1 };
-
-    // Statistics
-    size_t m_read_count{ 0 };
+    std::optional<int64_t> m_last_sample_index;
 };
 
 // =============================================================================
@@ -338,16 +331,6 @@ SchemaTracker::Impl::Impl(const OpenXRSessionHandles& handles, SchemaTrackerConf
 }
 
 SchemaTracker::Impl::~Impl() = default;
-
-bool SchemaTracker::Impl::is_connected() const
-{
-    return m_data->is_connected();
-}
-
-size_t SchemaTracker::Impl::get_read_count() const
-{
-    return m_data->get_read_count();
-}
 
 bool SchemaTracker::Impl::read_buffer(std::vector<uint8_t>& buffer)
 {

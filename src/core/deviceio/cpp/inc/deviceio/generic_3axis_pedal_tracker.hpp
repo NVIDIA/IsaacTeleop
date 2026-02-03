@@ -51,11 +51,6 @@ public:
      */
     const Generic3AxisPedalOutputT& get_data(const DeviceIOSession& session) const;
 
-    /*!
-     * @brief Get the number of samples read so far.
-     */
-    size_t get_read_count(const DeviceIOSession& session) const;
-
 private:
     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
 

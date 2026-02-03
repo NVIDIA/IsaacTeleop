@@ -81,18 +81,13 @@ std::string_view Generic3AxisPedalTracker::get_schema_name() const
 
 std::string_view Generic3AxisPedalTracker::get_schema_text() const
 {
-    // TODO: Return binary schema from pedals_bfbs_generated.h when available
-    return {};
+    return std::string_view(reinterpret_cast<const char*>(Generic3AxisPedalOutputBinarySchema::data()),
+                            Generic3AxisPedalOutputBinarySchema::size());
 }
 
 const Generic3AxisPedalOutputT& Generic3AxisPedalTracker::get_data(const DeviceIOSession& session) const
 {
     return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_data();
-}
-
-size_t Generic3AxisPedalTracker::get_read_count(const DeviceIOSession& session) const
-{
-    return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_read_count();
 }
 
 std::shared_ptr<ITrackerImpl> Generic3AxisPedalTracker::create_tracker(const OpenXRSessionHandles& handles) const

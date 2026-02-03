@@ -10,7 +10,7 @@ Demo example that demonstrates pushing and reading serialized FlatBuffer data vi
 ## Overview
 
 This example contains two binaries:
-- **pedal_pusher** - Serializes and pushes Generic3AxisPedalOutput FlatBuffer data into the OpenXR runtime using `SchemaPusherBase`
+- **pedal_pusher** - Serializes and pushes Generic3AxisPedalOutput FlatBuffer data into the OpenXR runtime using `SchemaPusher`
 - **pedal_printer** - Reads and deserializes Generic3AxisPedalOutput FlatBuffer data from the OpenXR runtime using `Generic3AxisPedalTracker` and `DeviceIOSession`
 
 Together they demonstrate the full tensor push/read workflow using the `XR_NVX1_push_tensor` and `XR_NVX1_tensor_data` extensions with serialized FlatBuffer messages.
@@ -47,23 +47,23 @@ The printer will discover the tensor collection created by the pusher and print 
 
 ### Components
 
-**SchemaPusherBase** (`pusherio` library) - Base class for pushing FlatBuffer schema data:
+**SchemaPusher** (`pusherio` library) - Pushes serialized FlatBuffer data via OpenXR tensor extensions:
 - Takes externally-provided OpenXR session handles
 - Creates a tensor collection with the configured identifier
-- Provides `push_buffer()` for subclasses to push serialized FlatBuffer data
-- Subclasses implement typed `push()` methods for specific schema types
+- Provides `push_buffer()` to push raw serialized FlatBuffer data
+- Use composition to create typed wrappers for specific schema types (see `Generic3AxisPedalPusher` in `pedal_pusher.cpp`)
 
-**SchemaTracker** (`deviceio` library) - Base class for reading FlatBuffer schema data:
-- Integrates with the `ITracker` interface for use with `DeviceIOSession`
+**SchemaTracker** (`deviceio` library) - Base class for reading FlatBuffer schema data via OpenXR tensor extensions:
+- Implements the `ITracker` interface for use with `DeviceIOSession`
 - Discovers tensor collections by identifier
-- Provides `read_buffer()` for subclasses to read raw sample data
-- Subclasses implement `update()` to deserialize and store typed data
+- Provides protected `read_buffer()` for subclasses to read raw sample data
+- Subclasses implement `update()` to deserialize and `serialize()` to re-serialize typed data
 
-**Generic3AxisPedalTracker** - Concrete tracker for Generic3AxisPedalOutput messages:
-- Extends `SchemaTracker` with Generic3AxisPedalOutput-specific deserialization
+**Generic3AxisPedalTracker** - Concrete tracker for `Generic3AxisPedalOutput` messages:
+- Extends `SchemaTracker` with `Generic3AxisPedalOutput`-specific deserialization
 - Provides `get_data()` to access the latest `Generic3AxisPedalOutputT`
 
 **DeviceIOSession** - Session manager that:
-- Collects required extensions from all trackers
-- Creates tracker implementations with OpenXR handles
-- Calls `update()`, just like how all the other trackers work
+- Collects required OpenXR extensions from all registered trackers
+- Creates tracker implementations with OpenXR session handles
+- Calls `update()` on all trackers during the update loop

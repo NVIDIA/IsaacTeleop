@@ -4,7 +4,7 @@
 /*!
  * @brief Demo application that pushes serialized FlatBuffer Generic3AxisPedalOutput data into the OpenXR runtime.
  *
- * This application demonstrates using the SchemaPusherBase class to push Generic3AxisPedalOutput FlatBuffer
+ * This application demonstrates using the SchemaPusher class to push Generic3AxisPedalOutput FlatBuffer
  * messages. The application creates the OpenXR session with required extensions and passes
  * the handles to the pusherio library.
  *
@@ -30,17 +30,19 @@ using namespace schemaio_example;
 
 /*!
  * @brief Generic3AxisPedalOutput-specific pusher that serializes and pushes foot pedal messages.
+ *
+ * Uses composition with SchemaPusher to handle the OpenXR tensor pushing.
  */
-class Generic3AxisPedalPusher : public core::SchemaPusherBase
+class Generic3AxisPedalPusher
 {
 public:
     Generic3AxisPedalPusher(const core::OpenXRSessionHandles& handles, const std::string& collection_id)
-        : SchemaPusherBase(handles,
-                           core::SchemaPusherConfig{ .collection_id = collection_id,
-                                                     .max_flatbuffer_size = MAX_FLATBUFFER_SIZE,
-                                                     .tensor_identifier = "generic_3axis_pedal",
-                                                     .localized_name = "Generic 3-Axis Pedal Pusher Demo",
-                                                     .app_name = "Generic3AxisPedalPusher" })
+        : m_pusher(handles,
+                   core::SchemaPusherConfig{ .collection_id = collection_id,
+                                             .max_flatbuffer_size = MAX_FLATBUFFER_SIZE,
+                                             .tensor_identifier = "generic_3axis_pedal",
+                                             .localized_name = "Generic 3-Axis Pedal Pusher Demo",
+                                             .app_name = "Generic3AxisPedalPusher" })
     {
     }
 
@@ -51,11 +53,19 @@ public:
      */
     bool push(const core::Generic3AxisPedalOutputT& data)
     {
-        flatbuffers::FlatBufferBuilder builder(config().max_flatbuffer_size);
+        flatbuffers::FlatBufferBuilder builder(m_pusher.config().max_flatbuffer_size);
         auto offset = core::Generic3AxisPedalOutput::Pack(builder, &data);
         builder.Finish(offset);
-        return push_buffer(builder.GetBufferPointer(), builder.GetSize());
+        return m_pusher.push_buffer(builder.GetBufferPointer(), builder.GetSize());
     }
+
+    size_t get_push_count() const
+    {
+        return m_pusher.get_push_count();
+    }
+
+private:
+    core::SchemaPusher m_pusher;
 };
 
 int main()
@@ -65,7 +75,7 @@ int main()
     // Step 1: Create OpenXR session with required extensions for pushing tensor data
     std::cout << "[Step 1] Creating OpenXR session with tensor push extensions..." << std::endl;
 
-    std::vector<std::string> required_extensions = { "XR_NVX1_push_tensor", "XR_NVX1_tensor_data" };
+    auto required_extensions = core::SchemaPusher::get_required_extensions();
 
     auto oxr_session = core::OpenXRSession::Create("SchemaPusher", required_extensions);
     if (!oxr_session)

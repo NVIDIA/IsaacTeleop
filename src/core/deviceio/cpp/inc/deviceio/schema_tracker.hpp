@@ -111,10 +111,6 @@ struct SchemaTrackerConfig
 class SchemaTracker : public ITracker
 {
 public:
-    //! Required OpenXR extensions for reading tensor data
-    static constexpr const char* REQUIRED_EXTENSIONS[] = { "XR_NVX1_tensor_data" };
-    static constexpr size_t REQUIRED_EXTENSIONS_COUNT = 1;
-
     /*!
      * @brief Constructs the tracker with configuration.
      * @param config Configuration for the tensor collection to discover.
@@ -182,11 +178,6 @@ protected:
          * @return true if connected to the target collection, false otherwise.
          */
         bool is_connected() const;
-
-        /*!
-         * @brief Returns the number of samples successfully read.
-         */
-        size_t get_read_count() const;
 
     protected:
         /*!
