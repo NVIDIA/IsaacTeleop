@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <openxr/openxr.h>
+#include <oxr_utils/oxr_time.hpp>
 #include <pusherio/schema_pusher.hpp>
 
 #include <XR_NVX1_push_tensor.h>
 #include <XR_NVX1_tensor_data.h>
 #include <cassert>
-#include <chrono>
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
@@ -29,7 +29,7 @@ class SchemaPusherBase::Impl
 {
 public:
     Impl(const OpenXRSessionHandles& handles, SchemaPusherConfig config)
-        : m_handles(handles), m_config(std::move(config))
+        : m_handles(handles), m_config(std::move(config)), m_time_converter(handles)
     {
         // Validate handles
         assert(handles.instance != XR_NULL_HANDLE && "OpenXR instance handle cannot be null");
@@ -74,16 +74,19 @@ public:
         std::memcpy(padded_buffer.data(), buffer, size);
 
         // Get current time for timestamps
-        auto now = std::chrono::steady_clock::now();
-        auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
-        XrTime xr_time = static_cast<XrTime>(ns);
+        XrTime xr_time;
+        if (!m_time_converter.get_current_time(xr_time))
+        {
+            std::cerr << "ERROR: Failed to get current XrTime. Skipping push." << std::endl;
+            return false;
+        }
 
         // Prepare push data structure
         XrPushTensorCollectionDataNV tensorData{};
         tensorData.type = XR_TYPE_PUSH_TENSOR_COLLECTION_DATA_NV;
         tensorData.next = nullptr;
         tensorData.timestamp = xr_time;
-        tensorData.rawDeviceTimestamp = static_cast<uint64_t>(ns);
+        tensorData.rawDeviceTimestamp = static_cast<uint64_t>(xr_time);
         tensorData.buffer = padded_buffer.data();
         tensorData.bufferSize = static_cast<uint32_t>(m_config.max_flatbuffer_size);
 
@@ -192,6 +195,7 @@ private:
 
     OpenXRSessionHandles m_handles;
     SchemaPusherConfig m_config;
+    XrTimeConverter m_time_converter;
 
     // Push tensor collection handle
     XrPushTensorCollectionNV m_push_tensor{ XR_NULL_HANDLE };

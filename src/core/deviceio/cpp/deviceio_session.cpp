@@ -7,7 +7,6 @@
 #include <iostream>
 #include <set>
 #include <stdexcept>
-#include <time.h>
 
 namespace core
 {
@@ -18,27 +17,9 @@ namespace core
 
 DeviceIOSession::DeviceIOSession(const std::vector<std::shared_ptr<ITracker>>& trackers,
                                  const OpenXRSessionHandles& handles)
-    : handles_(handles)
+    : handles_(handles), time_converter_(handles)
 {
-    // Get time conversion function using the provided xrGetInstanceProcAddr
     assert(handles_.xrGetInstanceProcAddr && "xrGetInstanceProcAddr cannot be null");
-
-#if defined(XR_USE_PLATFORM_WIN32)
-    handles_.xrGetInstanceProcAddr(handles_.instance, "xrConvertWin32PerformanceCounterToTimeKHR",
-                                   reinterpret_cast<PFN_xrVoidFunction*>(&pfn_convert_win32_));
-    if (!pfn_convert_win32_)
-    {
-        throw std::runtime_error("xrConvertWin32PerformanceCounterToTimeKHR not available");
-    }
-#elif defined(XR_USE_TIMESPEC)
-    handles_.xrGetInstanceProcAddr(handles_.instance, "xrConvertTimespecTimeToTimeKHR",
-                                   reinterpret_cast<PFN_xrVoidFunction*>(&pfn_convert_timespec_));
-
-    if (!pfn_convert_timespec_)
-    {
-        throw std::runtime_error("xrConvertTimespecTimeToTimeKHR not available");
-    }
-#endif
 
     // Initialize all trackers and collect their implementations
     for (const auto& tracker : trackers)
@@ -90,35 +71,11 @@ std::unique_ptr<DeviceIOSession> DeviceIOSession::run(const std::vector<std::sha
 
 bool DeviceIOSession::update()
 {
-    // Get current time
     XrTime current_time;
-#if defined(XR_USE_PLATFORM_WIN32)
-    LARGE_INTEGER counter;
-    QueryPerformanceCounter(&counter);
-
-    if (pfn_convert_win32_)
+    if (!time_converter_.get_current_time(current_time))
     {
-        pfn_convert_win32_(handles_.instance, &counter, &current_time);
-    }
-    else
-    {
-        std::cerr << "Cannot get time - time conversion not available" << std::endl;
         return false;
     }
-#elif defined(XR_USE_TIMESPEC)
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-
-    if (pfn_convert_timespec_)
-    {
-        pfn_convert_timespec_(handles_.instance, &ts, &current_time);
-    }
-    else
-    {
-        std::cerr << "Cannot get time - time conversion not available" << std::endl;
-        return false;
-    }
-#endif
 
     // Update all tracker implementations directly
     for (auto& impl : tracker_impls_)
