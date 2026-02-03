@@ -8,6 +8,7 @@
 // Include binding definitions.
 #include "camera_bindings.h"
 #include "controller_bindings.h"
+#include "full_body_bindings.h"
 #include "hand_bindings.h"
 #include "head_bindings.h"
 #include "locomotion_bindings.h"
@@ -44,4 +45,7 @@ PYBIND11_MODULE(_schema, m)
 
     // Bind camera types (FrameMetadata table with timestamp and sequence_number).
     core::bind_camera(m);
+
+    // Bind full body types (BodyJointPose, BodyJointsPico structs, FullBodyPosePicoT table).
+    core::bind_full_body(m);
 }

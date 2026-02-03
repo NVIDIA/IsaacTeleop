@@ -37,7 +37,13 @@ from ._schema import (
     Generic3AxisPedalOutput,
     # Camera-related types.
     FrameMetadata,
+    # Full body-related types.
+    BodyJointPico,
+    BodyJointPose,
+    BodyJointsPico,
+    FullBodyPosePicoT,
 )
+
 
 __all__ = [
     # Tensor types.
@@ -67,7 +73,10 @@ __all__ = [
     "LocomotionCommand",
     # Pedals types.
     "Generic3AxisPedalOutput",
-    # Camera types.
-    "FrameMetadata",
+    # Full body types.
+    "BodyJointPose",
+    "BodyJointsPico",
+    "BodyJointPico",
+    "FullBodyPosePicoT",
 ]
 

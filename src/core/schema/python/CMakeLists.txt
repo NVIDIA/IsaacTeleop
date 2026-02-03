@@ -4,6 +4,7 @@
 pybind11_add_module(schema_py
     camera_bindings.h
     controller_bindings.h
+    full_body_bindings.h
     hand_bindings.h
     head_bindings.h
     locomotion_bindings.h
