@@ -8,14 +8,17 @@ namespace core;
 // Validated devices:
 // - https://www.logitechg.com/en-us/shop/p/flight-simulator-rudder-pedals
 table Generic3AxisPedalOutput {
+  // Whether the output data is valid.
+  is_valid: bool (id: 0);
+  
   // Dual timestamp with device and runtime clock domains.
-  timestamp: Timestamp (id: 0);
+  timestamp: Timestamp (id: 1);
 
-  left_pedal: float (id: 1);
+  left_pedal: float (id: 2);
 
-  right_pedal: float (id: 2);
+  right_pedal: float (id: 3);
 
-  rudder: float (id: 3);
+  rudder: float (id: 4);
 }
 
 root_type Generic3AxisPedalOutput;
