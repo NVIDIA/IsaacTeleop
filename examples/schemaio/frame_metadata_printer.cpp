@@ -1,0 +1,172 @@
+// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+/*!
+ * @file frame_metadata_printer.cpp
+ * @brief Standalone application that reads and prints camera frame metadata from the OpenXR runtime.
+ *
+ * This application demonstrates using FrameMetadataTracker to read FrameMetadata
+ * FlatBuffer samples pushed by CameraPlugin. The application creates the OpenXR
+ * session with required extensions and uses DeviceIOSession to manage the tracker.
+ *
+ * Note: Both pusher and reader agree on the schema (FrameMetadata from camera.fbs), so the schema
+ * does not need to be sent over the wire.
+ *
+ * Usage:
+ *   ./frame_metadata_printer --collection-id=<id>
+ *
+ * The collection-id should match the plugin_root_id used by the camera plugin.
+ */
+
+#include <deviceio/deviceio_session.hpp>
+#include <deviceio/frame_metadata_tracker.hpp>
+#include <oxr/oxr_session.hpp>
+
+#include <chrono>
+#include <csignal>
+#include <iomanip>
+#include <iostream>
+#include <string>
+#include <thread>
+#include <vector>
+
+// Configuration
+static constexpr size_t MAX_FLATBUFFER_SIZE = 128;
+static std::string g_collection_id = "oakd_camera";
+static volatile bool g_running = true;
+
+void signal_handler(int /* signal */)
+{
+    g_running = false;
+}
+
+void print_frame_metadata(const core::FrameMetadataT& data, size_t sample_count)
+{
+    std::cout << "Sample " << sample_count;
+
+    std::cout << " [seq=" << data.sequence_number;
+    if (data.timestamp)
+    {
+        std::cout << ", device_time=" << data.timestamp->device_time()
+                  << ", common_time=" << data.timestamp->common_time();
+    }
+    std::cout << "]";
+
+    std::cout << std::endl;
+}
+
+void print_usage(const char* program_name)
+{
+    std::cout << "Usage: " << program_name << " [options]\n"
+              << "\nOptions:\n"
+              << "  --collection-id=ID  Tensor collection ID to read from (default: oakd_camera)\n"
+              << "  --help              Show this help message\n"
+              << "\nDescription:\n"
+              << "  Reads and prints FrameMetadata samples pushed by a camera plugin.\n"
+              << "  The collection-id must match the plugin_root_id of the camera plugin.\n";
+}
+
+int main(int argc, char** argv)
+try
+{
+    // Parse command line arguments
+    for (int i = 1; i < argc; ++i)
+    {
+        std::string arg = argv[i];
+
+        if (arg == "--help" || arg == "-h")
+        {
+            print_usage(argv[0]);
+            return 0;
+        }
+        else if (arg.find("--collection-id=") == 0)
+        {
+            g_collection_id = arg.substr(16);
+        }
+        else
+        {
+            std::cerr << "Unknown option: " << arg << std::endl;
+            print_usage(argv[0]);
+            return 1;
+        }
+    }
+
+    // Setup signal handler
+    std::signal(SIGINT, signal_handler);
+    std::signal(SIGTERM, signal_handler);
+
+    std::cout << "Frame Metadata Printer (collection: " << g_collection_id << ")" << std::endl;
+
+    // Step 1: Create the tracker
+    std::cout << "[Step 1] Creating FrameMetadataTracker..." << std::endl;
+    auto tracker = std::make_shared<core::FrameMetadataTracker>(g_collection_id, MAX_FLATBUFFER_SIZE);
+
+    // Step 2: Get required extensions and create OpenXR session
+    std::cout << "[Step 2] Creating OpenXR session with required extensions..." << std::endl;
+
+    std::vector<std::shared_ptr<core::ITracker>> trackers = { tracker };
+    auto required_extensions = core::DeviceIOSession::get_required_extensions(trackers);
+
+    auto oxr_session = core::OpenXRSession::Create("FrameMetadataPrinter", required_extensions);
+    if (!oxr_session)
+    {
+        std::cerr << "Failed to create OpenXR session" << std::endl;
+        return 1;
+    }
+
+    std::cout << "  OpenXR session created" << std::endl;
+
+    // Step 3: Create DeviceIOSession with the tracker
+    std::cout << "[Step 3] Creating DeviceIOSession..." << std::endl;
+
+    std::unique_ptr<core::DeviceIOSession> session;
+    session = core::DeviceIOSession::run(trackers, oxr_session->get_handles());
+
+    // Step 4: Read samples by updating the session
+    std::cout << "[Step 4] Reading samples (press Ctrl+C to stop)..." << std::endl;
+
+    size_t received_count = 0;
+    auto last_status_time = std::chrono::steady_clock::now();
+    constexpr auto status_interval = std::chrono::seconds(5);
+
+    while (g_running)
+    {
+        // Update session (this calls update on all trackers)
+        if (!session->update())
+        {
+            std::cerr << "Update failed" << std::endl;
+            break;
+        }
+
+        // Check if we have new data
+        size_t new_count = tracker->get_read_count(*session);
+        if (new_count > received_count)
+        {
+            print_frame_metadata(tracker->get_data(*session), new_count);
+            received_count = new_count;
+        }
+
+        // Periodic status update when no data
+        auto now = std::chrono::steady_clock::now();
+        if (received_count == 0 && now - last_status_time >= status_interval)
+        {
+            std::cout << "Waiting for data from collection: " << g_collection_id << "..." << std::endl;
+            last_status_time = now;
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    std::cout << "\nTotal samples received: " << received_count << std::endl;
+    return 0;
+}
+catch (const std::exception& e)
+{
+    std::cerr << argv[0] << ": " << e.what() << std::endl;
+    return 1;
+}
+catch (...)
+{
+    std::cerr << argv[0] << ": Unknown error occurred" << std::endl;
+    return 1;
+}

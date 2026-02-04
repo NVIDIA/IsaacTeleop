@@ -8,21 +8,23 @@
 
 #include <memory>
 
-namespace core
+namespace plugins
+{
+namespace oakd
 {
 
 /**
  * @brief OAK-D camera manager with hardware H.264 encoding
  *
- * Uses the DepthAI C++ library to capture video from OAK-D cameras
+ * Uses the DepthAI v3.x C++ library to capture video from OAK-D cameras
  * and encode to H.264 using the on-device video encoder.
  * Implements the ICamera interface for use with CameraPlugin.
  * Camera starts in constructor and stops in destructor (RAII).
  */
-class OakDCamera : public ICamera
+class OakDCamera : public core::ICamera
 {
 public:
-    explicit OakDCamera(const CameraConfig& config = CameraConfig{});
+    explicit OakDCamera(const core::CameraConfig& config = core::CameraConfig{});
 
     // Non-copyable, non-movable
     OakDCamera(const OakDCamera&) = delete;
@@ -31,8 +33,8 @@ public:
     OakDCamera& operator=(OakDCamera&&) = delete;
 
     // ICamera interface
-    std::optional<Frame> get_frame() override;
-    const CameraConfig& config() const override
+    std::optional<core::Frame> get_frame() override;
+    const core::CameraConfig& config() const override
     {
         return m_config;
     }
@@ -40,10 +42,11 @@ public:
 private:
     void create_pipeline();
 
-    CameraConfig m_config;
+    core::CameraConfig m_config;
     std::shared_ptr<dai::Pipeline> m_pipeline;
     std::shared_ptr<dai::Device> m_device;
     std::shared_ptr<dai::DataOutputQueue> m_h264_queue;
 };
 
-} // namespace core
+} // namespace oakd
+} // namespace plugins

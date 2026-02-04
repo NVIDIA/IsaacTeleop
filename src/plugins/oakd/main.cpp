@@ -37,6 +37,8 @@ void print_usage(const char* program_name)
               << "\nRecording Settings:\n"
               << "  --record=PATH       Output file path (.h264)\n"
               << "  --record-dir=DIR    Directory for auto-named recordings (default: ./recordings)\n"
+              << "\nOpenXR Settings:\n"
+              << "  --plugin-root-id=ID Tensor collection ID for metadata (default: oakd_camera)\n"
               << "\nGeneral Settings:\n"
               << "  --help              Show this help message\n"
               << "\nOutput:\n"
@@ -49,6 +51,7 @@ try
     // Default configurations
     CameraConfig camera_config;
     RecordConfig record_config;
+    std::string plugin_root_id = "oakd_camera";
 
     // Parse command line arguments
     for (int i = 1; i < argc; ++i)
@@ -90,7 +93,7 @@ try
         }
         else if (arg.find("--plugin-root-id=") == 0)
         {
-            // Accepted but ignored (passed by PluginManager)
+            plugin_root_id = arg.substr(17);
         }
         else
         {
@@ -107,24 +110,27 @@ try
     std::cout << "Camera Plugin (OAK-D)" << std::endl;
 
     // Create and run plugin
-    auto camera_factory = [](const CameraConfig& config) { return std::make_unique<OakDCamera>(config); };
-    CameraPlugin plugin(camera_factory, camera_config, record_config);
-    g_plugin = &plugin;
+    try
+    {
+        CameraFactory camera_factory = [](const CameraConfig& config) -> std::unique_ptr<ICamera>
+        { return std::make_unique<plugins::oakd::OakDCamera>(config); };
+        CameraPlugin plugin(camera_factory, camera_config, record_config, plugin_root_id);
+        g_plugin = &plugin;
 
-    std::cout << "Plugin running. Press Ctrl+C to stop." << std::endl;
-    plugin.capture_loop();
+        std::cout << "Plugin running. Press Ctrl+C to stop." << std::endl;
+        plugin.capture_loop();
 
-    g_plugin = nullptr;
+        g_plugin = nullptr;
 
-    return 0;
-}
-catch (const std::exception& e)
-{
-    std::cerr << argv[0] << ": " << e.what() << std::endl;
-    return 1;
-}
-catch (...)
-{
-    std::cerr << argv[0] << ": Unknown error occurred" << std::endl;
-    return 1;
-}
+        return 0;
+    }
+    catch (const std::exception& e)
+    {
+        std::cerr << argv[0] << ": " << e.what() << std::endl;
+        return 1;
+    }
+    catch (...)
+    {
+        std::cerr << argv[0] << ": Unknown error occurred" << std::endl;
+        return 1;
+    }

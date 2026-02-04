@@ -5,7 +5,8 @@
 
 #include "camera_config.hpp"
 
-#include <chrono>
+#include <schema/camera_generated.h>
+
 #include <cstdint>
 #include <optional>
 #include <vector>
@@ -21,14 +22,10 @@ struct Frame
     /// H.264 encoded frame data
     std::vector<uint8_t> data;
 
-    /// Frame timestamp synchronized to host clock
-    std::chrono::steady_clock::time_point timestamp;
+    /// Frame metadata (timestamp and sequence number)
+    FrameMetadataT metadata;
 
-    /// Frame timestamp from device's monotonic clock (not synced to host)
-    std::chrono::steady_clock::time_point timestamp_device;
-
-    /// Frame sequence number (monotonically increasing)
-    int64_t sequence_num = 0;
+    std::vector<uint8_t> vendor_payload;
 };
 
 /**

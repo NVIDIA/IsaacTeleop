@@ -5,10 +5,12 @@
 
 #include <iostream>
 
-namespace core
+namespace plugins
+{
+namespace oakd
 {
 
-OakDCamera::OakDCamera(const CameraConfig& config) : m_config(config)
+OakDCamera::OakDCamera(const core::CameraConfig& config) : m_config(config)
 {
     std::cout << "OAK-D Camera: " << m_config.width << "x" << m_config.height << " @ " << m_config.fps << "fps, "
               << (m_config.bitrate / 1'000'000.0) << "Mbps" << std::endl;
@@ -57,7 +59,7 @@ void OakDCamera::create_pipeline()
     videoEnc->bitstream.link(xoutH264->input);
 }
 
-std::optional<Frame> OakDCamera::get_frame()
+std::optional<core::Frame> OakDCamera::get_frame()
 {
     if (!m_h264_queue)
     {
@@ -79,20 +81,27 @@ std::optional<Frame> OakDCamera::get_frame()
     }
 
     // Build frame with metadata
-    Frame frame;
+    core::Frame frame;
     frame.data = std::vector<uint8_t>(data.begin(), data.end());
-    frame.timestamp = packet->getTimestamp();
-    frame.timestamp_device = packet->getTimestampDevice();
-    frame.sequence_num = packet->getSequenceNum();
+
+    // Convert timestamps to nanoseconds and populate FrameMetadata
+    auto device_time_ns =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(packet->getTimestampDevice().time_since_epoch()).count();
+    auto common_time_ns =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(packet->getTimestamp().time_since_epoch()).count();
+
+    frame.metadata.timestamp = std::make_unique<core::Timestamp>(device_time_ns, common_time_ns);
+    frame.metadata.sequence_number = packet->getSequenceNum();
 
     static std::chrono::steady_clock::time_point last_log_time{};
-    if (frame.timestamp - last_log_time >= std::chrono::seconds(5))
+    if (packet->getTimestamp() - last_log_time >= std::chrono::seconds(5))
     {
-        std::cout << "H.264 frame #" << frame.sequence_num << ": " << data.size() << " bytes" << std::endl;
-        last_log_time = frame.timestamp;
+        std::cout << "H.264 frame #" << packet->getSequenceNum() << ": " << data.size() << " bytes" << std::endl;
+        last_log_time = packet->getTimestamp();
     }
 
     return frame;
 }
 
-} // namespace core
+} // namespace oakd
+} // namespace plugins
