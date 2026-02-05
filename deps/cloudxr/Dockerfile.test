@@ -4,7 +4,8 @@
 # Test container for TeleopCore tests (Python and native C++)
 # This container installs dependencies and runs tests against CloudXR runtime
 
-FROM python:3.11-slim
+ARG PYTHON_VERSION=3.11
+FROM python:${PYTHON_VERSION}-slim
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \

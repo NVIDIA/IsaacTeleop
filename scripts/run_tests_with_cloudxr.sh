@@ -7,11 +7,12 @@
 # Runs TeleopCore tests using docker-compose with CloudXR runtime
 #
 # Usage:
-#   ./scripts/run_tests_with_cloudxr.sh [--build]
+#   ./scripts/run_tests_with_cloudxr.sh [--build] [--python-version <version>]
 #
 # Options:
-#   --build    Force rebuild of test container (no cache)
-#   --help     Show this help message
+#   --build           Force rebuild of test container (no cache)
+#   --python-version  Python version for test container (e.g. 3.10)
+#   --help            Show this help message
 
 set -e
 
@@ -49,6 +50,7 @@ cd "$GIT_ROOT" || exit 1
 # Default values
 FORCE_BUILD=false
 EXIT_CODE=0
+PYTHON_VERSION="${PYTHON_VERSION:-3.11}"
 
 # Compose files and project name
 COMPOSE_BASE="deps/cloudxr/docker-compose.yaml"
@@ -67,14 +69,23 @@ while [[ $# -gt 0 ]]; do
             FORCE_BUILD=true
             shift
             ;;
+        --python-version)
+            if [[ -z "${2:-}" ]]; then
+                echo -e "${RED}--python-version requires a value${NC}"
+                exit 1
+            fi
+            PYTHON_VERSION="$2"
+            shift 2
+            ;;
         --help)
             echo "Test Runner Script with CloudXR"
             echo ""
-            echo "Usage: $0 [--build]"
+            echo "Usage: $0 [--build] [--python-version <version>]"
             echo ""
             echo "Options:"
-            echo "  --build    Force rebuild of test container (no cache)"
-            echo "  --help     Show this help message"
+            echo "  --build           Force rebuild of test container (no cache)"
+            echo "  --python-version  Python version for test container (e.g. 3.10)"
+            echo "  --help            Show this help message"
             echo ""
             echo "Tests to run (edit CXR_PYTHON_GPU_TESTS/CXR_NATIVE_GPU_TESTS in this script):"
             echo ""
@@ -171,6 +182,7 @@ log_info "CXR_NATIVE_GPU_TESTS:"
 for test in "${CXR_NATIVE_GPU_TESTS[@]}"; do
     log_info "  - $test"
 done
+log_info "Test container Python version: $PYTHON_VERSION"
 
 # Join arrays into comma-separated strings for docker-compose environment variables
 CXR_PYTHON_GPU_TESTS_ENV=$(IFS=','; echo "${CXR_PYTHON_GPU_TESTS[*]}")
@@ -226,6 +238,7 @@ fi
 
 docker build \
     $BUILD_ARGS \
+    --build-arg PYTHON_VERSION="$PYTHON_VERSION" \
     -t teleopcore-tests:latest \
     -f deps/cloudxr/Dockerfile.test \
     .
