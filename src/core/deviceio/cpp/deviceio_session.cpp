@@ -19,8 +19,6 @@ DeviceIOSession::DeviceIOSession(const std::vector<std::shared_ptr<ITracker>>& t
                                  const OpenXRSessionHandles& handles)
     : handles_(handles), time_converter_(handles)
 {
-    assert(handles_.xrGetInstanceProcAddr && "xrGetInstanceProcAddr cannot be null");
-
     // Initialize all trackers and collect their implementations
     for (const auto& tracker : trackers)
     {
@@ -33,12 +31,11 @@ std::vector<std::string> DeviceIOSession::get_required_extensions(const std::vec
 {
     std::set<std::string> all_extensions;
 
-    // Required for getting the time without a frame loop
-#if defined(XR_USE_PLATFORM_WIN32)
-    all_extensions.insert(XR_KHR_WIN32_CONVERT_PERFORMANCE_COUNTER_TIME_EXTENSION_NAME);
-#else
-    all_extensions.insert(XR_KHR_CONVERT_TIMESPEC_TIME_EXTENSION_NAME);
-#endif
+    // Extensions required for XrTime conversion
+    for (const auto& ext : XrTimeConverter::get_required_extensions())
+    {
+        all_extensions.insert(ext);
+    }
 
     // Add extensions from each tracker
     for (const auto& tracker : trackers)
@@ -71,11 +68,7 @@ std::unique_ptr<DeviceIOSession> DeviceIOSession::run(const std::vector<std::sha
 
 bool DeviceIOSession::update()
 {
-    XrTime current_time;
-    if (!time_converter_.get_current_time(current_time))
-    {
-        return false;
-    }
+    XrTime current_time = time_converter_.get_current_time();
 
     // Update all tracker implementations directly
     for (auto& impl : tracker_impls_)

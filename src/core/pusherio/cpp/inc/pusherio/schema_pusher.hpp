@@ -67,14 +67,12 @@ struct SchemaPusherConfig
  *             .localized_name = "HeadPose Data"
  *         }) {}
  *
- *     bool push(const HeadPoseT& data) {
+ *     void push(const HeadPoseT& data) {
  *         flatbuffers::FlatBufferBuilder builder(m_pusher.config().max_flatbuffer_size);
  *         auto offset = HeadPose::Pack(builder, &data);
  *         builder.Finish(offset);
- *         return m_pusher.push_buffer(builder.GetBufferPointer(), builder.GetSize());
+ *         m_pusher.push_buffer(builder.GetBufferPointer(), builder.GetSize());
  *     }
- *
- *     size_t get_push_count() const { return m_pusher.get_push_count(); }
  *
  * private:
  *     SchemaPusher m_pusher;
@@ -91,13 +89,12 @@ public:
      */
     static std::vector<std::string> get_required_extensions()
     {
-#if defined(XR_USE_PLATFORM_WIN32)
-        return { "XR_NVX1_push_tensor", "XR_NVX1_tensor_data", "XR_KHR_win32_convert_performance_counter_time" };
-#elif defined(XR_USE_TIMESPEC)
-        return { "XR_NVX1_push_tensor", "XR_NVX1_tensor_data", "XR_KHR_convert_timespec_time" };
-#else
-        return { "XR_NVX1_push_tensor", "XR_NVX1_tensor_data" };
-#endif
+        std::vector<std::string> required_extensions = { "XR_NVX1_push_tensor", "XR_NVX1_tensor_data" };
+        for (const auto& ext : XrTimeConverter::get_required_extensions())
+        {
+            required_extensions.push_back(ext);
+        }
+        return required_extensions;
     }
 
     /*!
@@ -126,14 +123,9 @@ public:
      *
      * @param buffer Pointer to serialized FlatBuffer data.
      * @param size Size of the serialized data in bytes.
-     * @return true on success, false on failure.
+     * @throws std::runtime_error if the push fails.
      */
-    bool push_buffer(const uint8_t* buffer, size_t size);
-
-    /*!
-     * @brief Returns the number of samples successfully pushed.
-     */
-    size_t get_push_count() const;
+    void push_buffer(const uint8_t* buffer, size_t size);
 
     /*!
      * @brief Access the configuration.
@@ -141,24 +133,19 @@ public:
     const SchemaPusherConfig& config() const;
 
 private:
-    void initialize_push_tensor_functions();
-    void create_tensor_collection();
+    void initialize_push_tensor_functions(const OpenXRSessionHandles& handles);
+    void create_tensor_collection(const OpenXRSessionHandles& handles);
 
-    OpenXRSessionHandles m_handles;
     SchemaPusherConfig m_config;
     XrTimeConverter m_time_converter;
 
     // Push tensor collection handle
     XrPushTensorCollectionNV m_push_tensor{ XR_NULL_HANDLE };
-    XrTensorCollectionIDNV m_tensor_collection_id{ 0 };
 
     // Extension function pointers
     PFN_xrCreatePushTensorCollectionNV m_create_fn{ nullptr };
     PFN_xrPushTensorCollectionDataNV m_push_fn{ nullptr };
     PFN_xrDestroyPushTensorCollectionNV m_destroy_fn{ nullptr };
-
-    // Statistics
-    size_t m_push_count{ 0 };
 };
 
 } // namespace core

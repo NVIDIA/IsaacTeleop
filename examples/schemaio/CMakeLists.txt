@@ -14,7 +14,7 @@ add_executable(pedal_pusher
 target_link_libraries(pedal_pusher PRIVATE
     pusherio::pusherio
     oxr::oxr_core
-    teleopcore_schema
+    isaacteleop_schema
     ${CMAKE_DL_LIBS}
     Threads::Threads
 )
@@ -27,7 +27,7 @@ add_executable(pedal_printer
 target_link_libraries(pedal_printer PRIVATE
     deviceio::deviceio_core
     oxr::oxr_core
-    teleopcore_schema
+    isaacteleop_schema
     ${CMAKE_DL_LIBS}
     Threads::Threads
 )

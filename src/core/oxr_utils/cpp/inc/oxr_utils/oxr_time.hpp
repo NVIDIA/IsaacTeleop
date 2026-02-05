@@ -14,8 +14,11 @@
 // Include OpenXR platform header after platform-specific includes
 #include <openxr/openxr_platform.h>
 
+#include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <string>
+#include <vector>
 
 namespace core
 {
@@ -30,15 +33,27 @@ namespace core
  * Usage:
  * @code
  *     XrTimeConverter converter(handles);  // throws if extension not available
- *     XrTime time;
- *     if (converter.get_current_time(time)) {
- *         // use time
- *     }
+ *     XrTime time = converter.get_current_time();  // throws on failure
  * @endcode
  */
 class XrTimeConverter
 {
 public:
+    /*!
+     * @brief Returns the OpenXR extensions required for time conversion on this platform.
+     * @return Vector of extension name strings required for XrTime conversion.
+     */
+    static std::vector<std::string> get_required_extensions()
+    {
+#if defined(XR_USE_PLATFORM_WIN32)
+        return { XR_KHR_WIN32_CONVERT_PERFORMANCE_COUNTER_TIME_EXTENSION_NAME };
+#elif defined(XR_USE_TIMESPEC)
+        return { XR_KHR_CONVERT_TIMESPEC_TIME_EXTENSION_NAME };
+#else
+        return {};
+#endif
+    }
+
     /*!
      * @brief Constructs the converter and initializes platform-specific time conversion.
      * @param handles OpenXR session handles with valid instance and xrGetInstanceProcAddr.
@@ -65,32 +80,41 @@ public:
 
     /*!
      * @brief Gets the current time as XrTime using platform-specific conversion.
-     * @param[out] time The current XrTime value.
-     * @return true on success, false if time conversion failed.
+     * @return The current XrTime value.
+     * @throws std::runtime_error if time conversion failed.
      */
-    bool get_current_time(XrTime& time) const
+    XrTime get_current_time() const
     {
+        XrTime time;
 #if defined(XR_USE_PLATFORM_WIN32)
         LARGE_INTEGER counter;
-        QueryPerformanceCounter(&counter);
-
-        if (pfn_convert_win32_)
+        if (!QueryPerformanceCounter(&counter))
         {
-            pfn_convert_win32_(handles_.instance, &counter, &time);
-            return true;
+            throw std::runtime_error("get_current_time: QueryPerformanceCounter failed");
+        }
+
+        XrResult result = pfn_convert_win32_(handles_.instance, &counter, &time);
+        if (result != XR_SUCCESS)
+        {
+            throw std::runtime_error("xrConvertWin32PerformanceCounterToTimeKHR failed with code " +
+                                     std::to_string(result));
         }
 #elif defined(XR_USE_TIMESPEC)
         struct timespec ts;
-        clock_gettime(CLOCK_MONOTONIC, &ts);
-
-        if (pfn_convert_timespec_)
+        if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0)
         {
-            pfn_convert_timespec_(handles_.instance, &ts, &time);
-            return true;
+            throw std::runtime_error(std::string("clock_gettime failed: ") + std::strerror(errno));
         }
+
+        XrResult result = pfn_convert_timespec_(handles_.instance, &ts, &time);
+        if (result != XR_SUCCESS)
+        {
+            throw std::runtime_error("xrConvertTimespecTimeToTimeKHR failed with code " + std::to_string(result));
+        }
+#else
+        static_assert(false, "OpenXR time conversion not implemented on this platform.");
 #endif
-        std::cerr << "Cannot get time - time conversion not available" << std::endl;
-        return false;
+        return time;
     }
 
 private:

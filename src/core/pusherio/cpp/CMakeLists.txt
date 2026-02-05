@@ -4,7 +4,6 @@
 cmake_minimum_required(VERSION 3.20)
 
 # PusherIO library (static for distribution)
-# Note: SchemaReaderBase has been moved to deviceio as SchemaTracker
 add_library(pusherio STATIC
     schema_pusher.cpp
     inc/pusherio/schema_pusher.hpp
@@ -25,13 +24,6 @@ target_link_libraries(pusherio
         # OpenXR extensions for push tensor and tensor data APIs
         Teleop::openxr_extensions
 )
-
-# Platform-specific definitions
-if(WIN32)
-    target_compile_definitions(pusherio PUBLIC XR_USE_PLATFORM_WIN32 NOMINMAX)
-else()
-    target_compile_definitions(pusherio PUBLIC XR_USE_TIMESPEC)
-endif()
 
 # pusherio does NOT link to OpenXR loader - it's completely standalone
 # All OpenXR functions are loaded dynamically via xrGetInstanceProcAddr at runtime

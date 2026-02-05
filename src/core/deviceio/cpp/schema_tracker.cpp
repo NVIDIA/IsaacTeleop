@@ -9,7 +9,6 @@
 #include <cassert>
 #include <cstring>
 #include <iostream>
-#include <optional>
 #include <stdexcept>
 
 namespace core
@@ -19,327 +18,256 @@ namespace core
 // SchemaTracker Implementation
 // =============================================================================
 
-SchemaTracker::SchemaTracker(SchemaTrackerConfig config) : m_config(std::move(config))
+SchemaTracker::SchemaTracker(const OpenXRSessionHandles& handles, SchemaTrackerConfig config)
+    : m_handles(handles), m_config(std::move(config))
 {
+    // Validate handles
+    assert(handles.instance != XR_NULL_HANDLE && "OpenXR instance handle cannot be null");
+    assert(handles.session != XR_NULL_HANDLE && "OpenXR session handle cannot be null");
+    assert(handles.xrGetInstanceProcAddr && "xrGetInstanceProcAddr cannot be null");
+
+    // Initialize extension functions using the provided xrGetInstanceProcAddr
+    initialize_tensor_data_functions();
+
+    // Create tensor list
+    create_tensor_list();
+
+    std::cout << "SchemaTracker initialized, looking for collection: " << m_config.collection_id << std::endl;
 }
 
-std::vector<std::string> SchemaTracker::get_required_extensions() const
+SchemaTracker::~SchemaTracker()
+{
+    // m_tensor_list is guaranteed to be non-null by create_tensor_list(), or the constructor would have thrown.
+    assert(m_tensor_list != XR_NULL_HANDLE && m_destroy_list_fn != nullptr);
+
+    XrResult result = m_destroy_list_fn(m_tensor_list);
+    if (result != XR_SUCCESS)
+    {
+        std::cerr << "Warning: Failed to destroy tensor list, result=" << result << std::endl;
+    }
+}
+
+std::vector<std::string> SchemaTracker::get_required_extensions()
 {
     return { "XR_NVX1_tensor_data" };
 }
 
-const SchemaTrackerConfig& SchemaTracker::get_config() const
+bool SchemaTracker::read_buffer(std::vector<uint8_t>& buffer)
+{
+    // Try to discover target collection if not found yet (or if it was lost)
+    if (!m_target_collection_index)
+    {
+        // Poll for tensor list updates only when we need to discover
+        poll_for_updates();
+
+        m_target_collection_index = find_target_collection();
+        if (!m_target_collection_index)
+        {
+            return false; // Collection not available yet
+        }
+        std::cout << "Found target collection at index " << *m_target_collection_index << std::endl;
+    }
+
+    // Try to read next sample
+    return read_next_sample(buffer);
+}
+
+const SchemaTrackerConfig& SchemaTracker::config() const
 {
     return m_config;
 }
 
-// =============================================================================
-// SchemaTracker::Impl::ImplData - Internal data for tensor reading
-// =============================================================================
-
-/*!
- * @brief Internal data for SchemaTracker::Impl.
- *
- * Uses externally-provided OpenXR session handles for tensor read operations.
- */
-class SchemaTracker::Impl::ImplData
+void SchemaTracker::initialize_tensor_data_functions()
 {
-public:
-    ImplData(const OpenXRSessionHandles& handles, SchemaTrackerConfig config)
-        : m_handles(handles), m_config(std::move(config))
+    XrResult result;
+
+    // xrGetTensorListLatestGenerationNV
+    result = m_handles.xrGetInstanceProcAddr(m_handles.instance, "xrGetTensorListLatestGenerationNV",
+                                             reinterpret_cast<PFN_xrVoidFunction*>(&m_get_latest_gen_fn));
+    if (result != XR_SUCCESS || m_get_latest_gen_fn == nullptr)
     {
-        // Validate handles
-        assert(handles.instance != XR_NULL_HANDLE && "OpenXR instance handle cannot be null");
-        assert(handles.session != XR_NULL_HANDLE && "OpenXR session handle cannot be null");
-        assert(handles.xrGetInstanceProcAddr && "xrGetInstanceProcAddr cannot be null");
-
-        // Initialize extension functions using the provided xrGetInstanceProcAddr
-        initialize_tensor_data_functions();
-
-        // Create tensor list
-        create_tensor_list();
-
-        std::cout << "SchemaTracker initialized, looking for collection: " << m_config.collection_id << std::endl;
+        throw std::runtime_error("Failed to get xrGetTensorListLatestGenerationNV function pointer");
     }
 
-    ~ImplData()
+    // xrCreateTensorListNV
+    result = m_handles.xrGetInstanceProcAddr(
+        m_handles.instance, "xrCreateTensorListNV", reinterpret_cast<PFN_xrVoidFunction*>(&m_create_list_fn));
+    if (result != XR_SUCCESS || m_create_list_fn == nullptr)
     {
-        // m_tensor_list is guaranteed to be non-null by create_tensor_list(), or the constructor would have thrown.
-        assert(m_tensor_list != XR_NULL_HANDLE && m_destroy_list_fn != nullptr);
-
-        XrResult result = m_destroy_list_fn(m_tensor_list);
-        if (result != XR_SUCCESS)
-        {
-            std::cerr << "Warning: Failed to destroy tensor list, result=" << result << std::endl;
-        }
+        throw std::runtime_error("Failed to get xrCreateTensorListNV function pointer");
     }
 
-    bool read_buffer(std::vector<uint8_t>& buffer)
+    // xrGetTensorListPropertiesNV
+    result = m_handles.xrGetInstanceProcAddr(
+        m_handles.instance, "xrGetTensorListPropertiesNV", reinterpret_cast<PFN_xrVoidFunction*>(&m_get_list_props_fn));
+    if (result != XR_SUCCESS || m_get_list_props_fn == nullptr)
     {
-        // Try to discover target collection if not found yet (or if it was lost)
-        if (!m_target_collection_index)
-        {
-            // Poll for tensor list updates only when we need to discover
-            poll_for_updates();
-
-            m_target_collection_index = find_target_collection();
-            if (!m_target_collection_index)
-            {
-                return false; // Collection not available yet
-            }
-            std::cout << "Found target collection at index " << *m_target_collection_index << std::endl;
-        }
-
-        // Try to read next sample
-        return read_next_sample(buffer);
+        throw std::runtime_error("Failed to get xrGetTensorListPropertiesNV function pointer");
     }
 
-    const SchemaTrackerConfig& config() const
+    // xrGetTensorCollectionPropertiesNV
+    result = m_handles.xrGetInstanceProcAddr(m_handles.instance, "xrGetTensorCollectionPropertiesNV",
+                                             reinterpret_cast<PFN_xrVoidFunction*>(&m_get_coll_props_fn));
+    if (result != XR_SUCCESS || m_get_coll_props_fn == nullptr)
     {
-        return m_config;
+        throw std::runtime_error("Failed to get xrGetTensorCollectionPropertiesNV function pointer");
     }
 
-private:
-    void initialize_tensor_data_functions()
+    // xrGetTensorDataNV
+    result = m_handles.xrGetInstanceProcAddr(
+        m_handles.instance, "xrGetTensorDataNV", reinterpret_cast<PFN_xrVoidFunction*>(&m_get_data_fn));
+    if (result != XR_SUCCESS || m_get_data_fn == nullptr)
     {
-        XrResult result;
-
-        // xrGetTensorListLatestGenerationNV
-        result = m_handles.xrGetInstanceProcAddr(m_handles.instance, "xrGetTensorListLatestGenerationNV",
-                                                 reinterpret_cast<PFN_xrVoidFunction*>(&m_get_latest_gen_fn));
-        if (result != XR_SUCCESS || m_get_latest_gen_fn == nullptr)
-        {
-            throw std::runtime_error("Failed to get xrGetTensorListLatestGenerationNV function pointer");
-        }
-
-        // xrCreateTensorListNV
-        result = m_handles.xrGetInstanceProcAddr(
-            m_handles.instance, "xrCreateTensorListNV", reinterpret_cast<PFN_xrVoidFunction*>(&m_create_list_fn));
-        if (result != XR_SUCCESS || m_create_list_fn == nullptr)
-        {
-            throw std::runtime_error("Failed to get xrCreateTensorListNV function pointer");
-        }
-
-        // xrGetTensorListPropertiesNV
-        result = m_handles.xrGetInstanceProcAddr(m_handles.instance, "xrGetTensorListPropertiesNV",
-                                                 reinterpret_cast<PFN_xrVoidFunction*>(&m_get_list_props_fn));
-        if (result != XR_SUCCESS || m_get_list_props_fn == nullptr)
-        {
-            throw std::runtime_error("Failed to get xrGetTensorListPropertiesNV function pointer");
-        }
-
-        // xrGetTensorCollectionPropertiesNV
-        result = m_handles.xrGetInstanceProcAddr(m_handles.instance, "xrGetTensorCollectionPropertiesNV",
-                                                 reinterpret_cast<PFN_xrVoidFunction*>(&m_get_coll_props_fn));
-        if (result != XR_SUCCESS || m_get_coll_props_fn == nullptr)
-        {
-            throw std::runtime_error("Failed to get xrGetTensorCollectionPropertiesNV function pointer");
-        }
-
-        // xrGetTensorDataNV
-        result = m_handles.xrGetInstanceProcAddr(
-            m_handles.instance, "xrGetTensorDataNV", reinterpret_cast<PFN_xrVoidFunction*>(&m_get_data_fn));
-        if (result != XR_SUCCESS || m_get_data_fn == nullptr)
-        {
-            throw std::runtime_error("Failed to get xrGetTensorDataNV function pointer");
-        }
-
-        // xrUpdateTensorListNV
-        result = m_handles.xrGetInstanceProcAddr(
-            m_handles.instance, "xrUpdateTensorListNV", reinterpret_cast<PFN_xrVoidFunction*>(&m_update_list_fn));
-        if (result != XR_SUCCESS || m_update_list_fn == nullptr)
-        {
-            throw std::runtime_error("Failed to get xrUpdateTensorListNV function pointer");
-        }
-
-        // xrDestroyTensorListNV
-        result = m_handles.xrGetInstanceProcAddr(
-            m_handles.instance, "xrDestroyTensorListNV", reinterpret_cast<PFN_xrVoidFunction*>(&m_destroy_list_fn));
-        if (result != XR_SUCCESS || m_destroy_list_fn == nullptr)
-        {
-            throw std::runtime_error("Failed to get xrDestroyTensorListNV function pointer");
-        }
+        throw std::runtime_error("Failed to get xrGetTensorDataNV function pointer");
     }
 
-    void create_tensor_list()
+    // xrUpdateTensorListNV
+    result = m_handles.xrGetInstanceProcAddr(
+        m_handles.instance, "xrUpdateTensorListNV", reinterpret_cast<PFN_xrVoidFunction*>(&m_update_list_fn));
+    if (result != XR_SUCCESS || m_update_list_fn == nullptr)
     {
-        XrCreateTensorListInfoNV createInfo{ XR_TYPE_CREATE_TENSOR_LIST_INFO_NV };
-        createInfo.next = nullptr;
-
-        XrResult result = m_create_list_fn(m_handles.session, &createInfo, &m_tensor_list);
-        if (result != XR_SUCCESS)
-        {
-            throw std::runtime_error("Failed to create tensor list, result=" + std::to_string(result));
-        }
+        throw std::runtime_error("Failed to get xrUpdateTensorListNV function pointer");
     }
 
-    void poll_for_updates()
+    // xrDestroyTensorListNV
+    result = m_handles.xrGetInstanceProcAddr(
+        m_handles.instance, "xrDestroyTensorListNV", reinterpret_cast<PFN_xrVoidFunction*>(&m_destroy_list_fn));
+    if (result != XR_SUCCESS || m_destroy_list_fn == nullptr)
     {
-        // Check if tensor list needs update
-        uint64_t latest_generation = 0;
-        XrResult result = m_get_latest_gen_fn(m_handles.session, &latest_generation);
-        if (result != XR_SUCCESS)
-        {
-            throw std::runtime_error("Failed to get latest generation, result=" + std::to_string(result));
-        }
-
-        if (latest_generation != m_cached_generation)
-        {
-            result = m_update_list_fn(m_tensor_list);
-            if (result != XR_SUCCESS)
-            {
-                throw std::runtime_error("Failed to update tensor list, result=" + std::to_string(result));
-            }
-            m_cached_generation = latest_generation;
-            // Re-discover collections after update
-            m_target_collection_index = find_target_collection();
-        }
+        throw std::runtime_error("Failed to get xrDestroyTensorListNV function pointer");
     }
-
-    std::optional<uint32_t> find_target_collection()
-    {
-        // Get list properties
-        XrSystemTensorListPropertiesNV listProps{ XR_TYPE_SYSTEM_TENSOR_LIST_PROPERTIES_NV };
-
-        XrResult result = m_get_list_props_fn(m_tensor_list, &listProps);
-        if (result != XR_SUCCESS)
-        {
-            throw std::runtime_error("Failed to get list properties, result=" + std::to_string(result));
-        }
-
-        if (listProps.tensorCollectionCount == 0)
-        {
-            return std::nullopt; // No collections available yet
-        }
-
-        // Search for matching collection
-        for (uint32_t i = 0; i < listProps.tensorCollectionCount; ++i)
-        {
-            XrTensorCollectionPropertiesNV collProps{ XR_TYPE_TENSOR_COLLECTION_PROPERTIES_NV };
-
-            result = m_get_coll_props_fn(m_tensor_list, i, &collProps);
-            if (result != XR_SUCCESS)
-            {
-                throw std::runtime_error("Failed to get collection properties, result=" + std::to_string(result));
-            }
-
-            if (std::strncmp(collProps.data.identifier, m_config.collection_id.c_str(), XR_MAX_TENSOR_IDENTIFIER_SIZE) ==
-                0)
-            {
-                // Found matching collection
-                m_sample_batch_stride = collProps.sampleBatchStride;
-                m_sample_size = collProps.data.totalSampleSize;
-                return i;
-            }
-        }
-
-        return std::nullopt;
-    }
-
-    bool read_next_sample(std::vector<uint8_t>& buffer)
-    {
-        if (!m_target_collection_index.has_value())
-        {
-            return false;
-        }
-
-        // Prepare retrieval info
-        XrTensorDataRetrievalInfoNV retrievalInfo{ XR_TYPE_TENSOR_DATA_RETRIEVAL_INFO_NV };
-        retrievalInfo.next = nullptr;
-        retrievalInfo.tensorCollectionIndex = m_target_collection_index.value();
-        retrievalInfo.startSampleIndex = m_last_sample_index.has_value() ? m_last_sample_index.value() + 1 : 0;
-
-        // Prepare output buffers (read one sample at a time for simplicity)
-        XrTensorSampleMetadataNV metadata{};
-        std::vector<uint8_t> dataBuffer(m_sample_batch_stride);
-
-        XrTensorDataNV tensorData{ XR_TYPE_TENSOR_DATA_NV };
-        tensorData.next = nullptr;
-        tensorData.metadataArray = &metadata;
-        tensorData.metadataCapacity = 1;
-        tensorData.buffer = dataBuffer.data();
-        tensorData.bufferCapacity = static_cast<uint32_t>(dataBuffer.size());
-        tensorData.writtenSampleCount = 0;
-
-        // Retrieve samples
-        XrResult result = m_get_data_fn(m_tensor_list, &retrievalInfo, &tensorData);
-        if (result != XR_SUCCESS)
-        {
-            // TODO: Check against XR_ERROR_TENSOR_LOST_NV when it's reported by the runtime.
-            // if (result == XR_ERROR_TENSOR_LOST_NV)
-            // {
-            //     m_target_collection_index = std::nullopt;
-            //     return false;
-            // }
-            std::cerr << "Failed to get tensor data, result=" << result << std::endl;
-            m_target_collection_index = std::nullopt;
-            return false;
-        }
-
-        if (tensorData.writtenSampleCount == 0)
-        {
-            return false; // No new samples
-        }
-
-        // Update last sample index
-        if (!m_last_sample_index.has_value() || metadata.sampleIndex > m_last_sample_index.value())
-        {
-            m_last_sample_index = metadata.sampleIndex;
-        }
-
-        // Copy data to output buffer (trim to sample size, not batch stride)
-        buffer.resize(m_sample_size);
-        std::memcpy(buffer.data(), dataBuffer.data(), m_sample_size);
-
-        return true;
-    }
-
-    OpenXRSessionHandles m_handles;
-    SchemaTrackerConfig m_config;
-
-    // Tensor list handle
-    XrTensorListNV m_tensor_list{ XR_NULL_HANDLE };
-
-    // Extension function pointers
-    PFN_xrGetTensorListLatestGenerationNV m_get_latest_gen_fn{ nullptr };
-    PFN_xrCreateTensorListNV m_create_list_fn{ nullptr };
-    PFN_xrGetTensorListPropertiesNV m_get_list_props_fn{ nullptr };
-    PFN_xrGetTensorCollectionPropertiesNV m_get_coll_props_fn{ nullptr };
-    PFN_xrGetTensorDataNV m_get_data_fn{ nullptr };
-    PFN_xrUpdateTensorListNV m_update_list_fn{ nullptr };
-    PFN_xrDestroyTensorListNV m_destroy_list_fn{ nullptr };
-
-    // Target collection info
-    std::optional<uint32_t> m_target_collection_index;
-    uint32_t m_sample_batch_stride{ 0 };
-    uint32_t m_sample_size{ 0 };
-
-    // Generation tracking
-    uint64_t m_cached_generation{ 0 };
-
-    // Sample tracking
-    std::optional<int64_t> m_last_sample_index;
-};
-
-// =============================================================================
-// SchemaTracker::Impl Implementation (delegates to ImplData)
-// =============================================================================
-
-SchemaTracker::Impl::Impl(const OpenXRSessionHandles& handles, SchemaTrackerConfig config)
-    : m_data(std::make_unique<ImplData>(handles, std::move(config)))
-{
 }
 
-SchemaTracker::Impl::~Impl() = default;
-
-bool SchemaTracker::Impl::read_buffer(std::vector<uint8_t>& buffer)
+void SchemaTracker::create_tensor_list()
 {
-    return m_data->read_buffer(buffer);
+    XrCreateTensorListInfoNV createInfo{ XR_TYPE_CREATE_TENSOR_LIST_INFO_NV };
+    createInfo.next = nullptr;
+
+    XrResult result = m_create_list_fn(m_handles.session, &createInfo, &m_tensor_list);
+    if (result != XR_SUCCESS)
+    {
+        throw std::runtime_error("Failed to create tensor list, result=" + std::to_string(result));
+    }
 }
 
-const SchemaTrackerConfig& SchemaTracker::Impl::config() const
+void SchemaTracker::poll_for_updates()
 {
-    return m_data->config();
+    // Check if tensor list needs update
+    uint64_t latest_generation = 0;
+    XrResult result = m_get_latest_gen_fn(m_handles.session, &latest_generation);
+    if (result != XR_SUCCESS)
+    {
+        throw std::runtime_error("Failed to get latest generation, result=" + std::to_string(result));
+    }
+
+    if (latest_generation != m_cached_generation)
+    {
+        result = m_update_list_fn(m_tensor_list);
+        if (result != XR_SUCCESS)
+        {
+            throw std::runtime_error("Failed to update tensor list, result=" + std::to_string(result));
+        }
+        m_cached_generation = latest_generation;
+        // Re-discover collections after update
+        m_target_collection_index = find_target_collection();
+    }
+}
+
+std::optional<uint32_t> SchemaTracker::find_target_collection()
+{
+    // Get list properties
+    XrSystemTensorListPropertiesNV listProps{ XR_TYPE_SYSTEM_TENSOR_LIST_PROPERTIES_NV };
+
+    XrResult result = m_get_list_props_fn(m_tensor_list, &listProps);
+    if (result != XR_SUCCESS)
+    {
+        throw std::runtime_error("Failed to get list properties, result=" + std::to_string(result));
+    }
+
+    if (listProps.tensorCollectionCount == 0)
+    {
+        return std::nullopt; // No collections available yet
+    }
+
+    // Search for matching collection
+    for (uint32_t i = 0; i < listProps.tensorCollectionCount; ++i)
+    {
+        XrTensorCollectionPropertiesNV collProps{ XR_TYPE_TENSOR_COLLECTION_PROPERTIES_NV };
+
+        result = m_get_coll_props_fn(m_tensor_list, i, &collProps);
+        if (result != XR_SUCCESS)
+        {
+            throw std::runtime_error("Failed to get collection properties, result=" + std::to_string(result));
+        }
+
+        if (std::strncmp(collProps.data.identifier, m_config.collection_id.c_str(), XR_MAX_TENSOR_IDENTIFIER_SIZE) == 0)
+        {
+            // Found matching collection
+            m_sample_batch_stride = collProps.sampleBatchStride;
+            m_sample_size = collProps.data.totalSampleSize;
+            return i;
+        }
+    }
+
+    return std::nullopt;
+}
+
+bool SchemaTracker::read_next_sample(std::vector<uint8_t>& buffer)
+{
+    if (!m_target_collection_index.has_value())
+    {
+        return false;
+    }
+
+    // Prepare retrieval info
+    XrTensorDataRetrievalInfoNV retrievalInfo{ XR_TYPE_TENSOR_DATA_RETRIEVAL_INFO_NV };
+    retrievalInfo.next = nullptr;
+    retrievalInfo.tensorCollectionIndex = m_target_collection_index.value();
+    retrievalInfo.startSampleIndex = m_last_sample_index.has_value() ? m_last_sample_index.value() + 1 : 0;
+
+    // Prepare output buffers (read one sample at a time for simplicity)
+    XrTensorSampleMetadataNV metadata{};
+    std::vector<uint8_t> dataBuffer(m_sample_batch_stride);
+
+    XrTensorDataNV tensorData{ XR_TYPE_TENSOR_DATA_NV };
+    tensorData.next = nullptr;
+    tensorData.metadataArray = &metadata;
+    tensorData.metadataCapacity = 1;
+    tensorData.buffer = dataBuffer.data();
+    tensorData.bufferCapacity = static_cast<uint32_t>(dataBuffer.size());
+    tensorData.writtenSampleCount = 0;
+
+    // Retrieve samples
+    XrResult result = m_get_data_fn(m_tensor_list, &retrievalInfo, &tensorData);
+    if (result != XR_SUCCESS)
+    {
+        // TODO: Check against XR_ERROR_TENSOR_LOST_NV when it's reported by the runtime.
+        // if (result == XR_ERROR_TENSOR_LOST_NV)
+        // {
+        //     m_target_collection_index = std::nullopt;
+        //     return false;
+        // }
+        std::cerr << "Failed to get tensor data, result=" << result << std::endl;
+        m_target_collection_index = std::nullopt;
+        return false;
+    }
+
+    if (tensorData.writtenSampleCount == 0)
+    {
+        return false; // No new samples
+    }
+
+    // Update last sample index
+    if (!m_last_sample_index.has_value() || metadata.sampleIndex > m_last_sample_index.value())
+    {
+        m_last_sample_index = metadata.sampleIndex;
+    }
+
+    // Copy data to output buffer (trim to sample size, not batch stride)
+    buffer.resize(m_sample_size);
+    std::memcpy(buffer.data(), dataBuffer.data(), m_sample_size);
+
+    return true;
 }
 
 } // namespace core

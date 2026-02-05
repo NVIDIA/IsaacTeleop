@@ -17,7 +17,7 @@ namespace core
 static constexpr uint32_t DLPACK_DTYPE_UINT8 = (1 << 8) | 8;
 
 SchemaPusher::SchemaPusher(const OpenXRSessionHandles& handles, SchemaPusherConfig config)
-    : m_handles(handles), m_config(std::move(config)), m_time_converter(handles)
+    : m_config(std::move(config)), m_time_converter(handles)
 {
     // Validate handles
     assert(handles.instance != XR_NULL_HANDLE && "OpenXR instance handle cannot be null");
@@ -25,10 +25,10 @@ SchemaPusher::SchemaPusher(const OpenXRSessionHandles& handles, SchemaPusherConf
     assert(handles.xrGetInstanceProcAddr && "xrGetInstanceProcAddr cannot be null");
 
     // Initialize extension functions using the provided xrGetInstanceProcAddr
-    initialize_push_tensor_functions();
+    initialize_push_tensor_functions(handles);
 
     // Create the tensor collection
-    create_tensor_collection();
+    create_tensor_collection(handles);
 
     std::cout << "SchemaPusher initialized for collection: " << m_config.collection_id << std::endl;
 }
@@ -46,14 +46,14 @@ SchemaPusher::~SchemaPusher()
     }
 }
 
-bool SchemaPusher::push_buffer(const uint8_t* buffer, size_t size)
+void SchemaPusher::push_buffer(const uint8_t* buffer, size_t size)
 {
     // Validate that the serialized size fits within our declared buffer
     if (size > m_config.max_flatbuffer_size)
     {
-        std::cerr << "ERROR: Serialized data size (" << size << " bytes) exceeds max_flatbuffer_size ("
-                  << m_config.max_flatbuffer_size << " bytes). Skipping push." << std::endl;
-        return false;
+        throw std::runtime_error("Serialized data size (" + std::to_string(size) +
+                                 " bytes) exceeds max_flatbuffer_size (" +
+                                 std::to_string(m_config.max_flatbuffer_size) + " bytes)");
     }
 
     // Create padded buffer to match declared tensor size
@@ -62,12 +62,7 @@ bool SchemaPusher::push_buffer(const uint8_t* buffer, size_t size)
     std::memcpy(padded_buffer.data(), buffer, size);
 
     // Get current time for timestamps
-    XrTime xr_time;
-    if (!m_time_converter.get_current_time(xr_time))
-    {
-        std::cerr << "ERROR: Failed to get current XrTime. Skipping push." << std::endl;
-        return false;
-    }
+    XrTime xr_time = m_time_converter.get_current_time();
 
     // Prepare push data structure
     XrPushTensorCollectionDataNV tensorData{};
@@ -82,17 +77,8 @@ bool SchemaPusher::push_buffer(const uint8_t* buffer, size_t size)
     XrResult result = m_push_fn(m_push_tensor, &tensorData);
     if (result != XR_SUCCESS)
     {
-        std::cerr << "Failed to push tensor data, result=" << result << std::endl;
-        return false;
+        throw std::runtime_error("Failed to push tensor data, result=" + std::to_string(result));
     }
-
-    ++m_push_count;
-    return true;
-}
-
-size_t SchemaPusher::get_push_count() const
-{
-    return m_push_count;
 }
 
 const SchemaPusherConfig& SchemaPusher::config() const
@@ -100,33 +86,33 @@ const SchemaPusherConfig& SchemaPusher::config() const
     return m_config;
 }
 
-void SchemaPusher::initialize_push_tensor_functions()
+void SchemaPusher::initialize_push_tensor_functions(const OpenXRSessionHandles& handles)
 {
     XrResult result;
 
-    result = m_handles.xrGetInstanceProcAddr(
-        m_handles.instance, "xrCreatePushTensorCollectionNV", reinterpret_cast<PFN_xrVoidFunction*>(&m_create_fn));
+    result = handles.xrGetInstanceProcAddr(
+        handles.instance, "xrCreatePushTensorCollectionNV", reinterpret_cast<PFN_xrVoidFunction*>(&m_create_fn));
     if (result != XR_SUCCESS || m_create_fn == nullptr)
     {
         throw std::runtime_error("Failed to get xrCreatePushTensorCollectionNV function pointer");
     }
 
-    result = m_handles.xrGetInstanceProcAddr(
-        m_handles.instance, "xrPushTensorCollectionDataNV", reinterpret_cast<PFN_xrVoidFunction*>(&m_push_fn));
+    result = handles.xrGetInstanceProcAddr(
+        handles.instance, "xrPushTensorCollectionDataNV", reinterpret_cast<PFN_xrVoidFunction*>(&m_push_fn));
     if (result != XR_SUCCESS || m_push_fn == nullptr)
     {
         throw std::runtime_error("Failed to get xrPushTensorCollectionDataNV function pointer");
     }
 
-    result = m_handles.xrGetInstanceProcAddr(
-        m_handles.instance, "xrDestroyPushTensorCollectionNV", reinterpret_cast<PFN_xrVoidFunction*>(&m_destroy_fn));
+    result = handles.xrGetInstanceProcAddr(
+        handles.instance, "xrDestroyPushTensorCollectionNV", reinterpret_cast<PFN_xrVoidFunction*>(&m_destroy_fn));
     if (result != XR_SUCCESS || m_destroy_fn == nullptr)
     {
         throw std::runtime_error("Failed to get xrDestroyPushTensorCollectionNV function pointer");
     }
 }
 
-void SchemaPusher::create_tensor_collection()
+void SchemaPusher::create_tensor_collection(const OpenXRSessionHandles& handles)
 {
     // Set up DLPack tensor properties for a 1D uint8 array (byte buffer for FlatBuffer)
     XrPushTensorDlpackCreateInfoNV dlpackInfo{};
@@ -169,13 +155,11 @@ void SchemaPusher::create_tensor_collection()
     createResult.type = XR_TYPE_PUSH_TENSOR_COLLECTION_CREATE_RESULT_NV;
     createResult.next = nullptr;
 
-    XrResult result = m_create_fn(m_handles.session, &createInfo, &createResult, &m_push_tensor);
+    XrResult result = m_create_fn(handles.session, &createInfo, &createResult, &m_push_tensor);
     if (result != XR_SUCCESS)
     {
         throw std::runtime_error("Failed to create push tensor collection, result=" + std::to_string(result));
     }
-
-    m_tensor_collection_id = createResult.tensorCollectionId;
 }
 
 } // namespace core

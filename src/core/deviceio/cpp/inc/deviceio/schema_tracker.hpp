@@ -3,11 +3,12 @@
 
 #pragma once
 
-#include "tracker.hpp"
+#include <oxr_utils/oxr_session_handles.hpp>
 
+#include <XR_NVX1_tensor_data.h>
 #include <cstddef>
 #include <cstdint>
-#include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -15,7 +16,7 @@ namespace core
 {
 
 /*!
- * @brief Configuration for SchemaTracker classes.
+ * @brief Configuration for SchemaTracker utility class.
  *
  * This struct contains all parameters needed to set up a tensor collection
  * for reading FlatBuffer schema data via OpenXR extensions.
@@ -39,27 +40,29 @@ struct SchemaTrackerConfig
 };
 
 /*!
- * @brief Base class for trackers that read FlatBuffer schema data via OpenXR tensor extensions.
+ * @brief Utility class for reading FlatBuffer schema data via OpenXR tensor extensions.
  *
- * This class integrates with the ITracker interface, allowing schema-based trackers
- * to be used alongside standard device trackers (HeadTracker, HandTracker, etc.)
- * within a DeviceIOSession.
+ * This class handles all the OpenXR tensor extension calls for reading data.
+ * Use it via composition in your ITrackerImpl implementations.
  *
  * The caller is responsible for creating the OpenXR session with the required extensions
  * (XR_NVX1_TENSOR_DATA_EXTENSION_NAME).
  *
- * Example subclass:
+ * Example usage with an ITracker subclass:
  * @code
- * class LocomotionTracker : public SchemaTracker {
+ * class LocomotionTracker : public ITracker {
  * public:
  *     LocomotionTracker(const std::string& collection_id)
- *         : SchemaTracker({
+ *         : m_config({
  *             .collection_id = collection_id,
  *             .max_flatbuffer_size = 256,
  *             .tensor_identifier = "locomotion_command",
  *             .localized_name = "Locomotion Tracker"
  *         }) {}
  *
+ *     std::vector<std::string> get_required_extensions() const override {
+ *         return SchemaTracker::get_required_extensions();
+ *     }
  *     std::string_view get_name() const override { return "LocomotionTracker"; }
  *     std::string_view get_schema_name() const override { return "core.LocomotionCommand"; }
  *     std::string_view get_schema_text() const override {
@@ -74,16 +77,18 @@ struct SchemaTrackerConfig
  *
  * private:
  *     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override {
- *         return std::make_shared<Impl>(handles, get_config());
+ *         return std::make_shared<Impl>(handles, m_config);
  *     }
  *
- *     class Impl : public SchemaTracker::Impl {
+ *     SchemaTrackerConfig m_config;
+ *
+ *     class Impl : public ITrackerImpl {
  *     public:
  *         Impl(const OpenXRSessionHandles& handles, SchemaTrackerConfig config)
- *             : SchemaTracker::Impl(handles, std::move(config)) {}
+ *             : m_schema_reader(handles, std::move(config)) {}
  *
  *         bool update(XrTime time) override {
- *             if (read_buffer(buffer_)) {
+ *             if (m_schema_reader.read_buffer(buffer_)) {
  *                 auto fb = GetLocomotionCommand(buffer_.data());
  *                 if (fb) {
  *                     fb->UnPackTo(&data_);
@@ -102,25 +107,28 @@ struct SchemaTrackerConfig
  *         const LocomotionCommandT& get_data() const { return data_; }
  *
  *     private:
+ *         SchemaTracker m_schema_reader;
  *         std::vector<uint8_t> buffer_;
  *         LocomotionCommandT data_;
  *     };
  * };
  * @endcode
  */
-class SchemaTracker : public ITracker
+class SchemaTracker
 {
 public:
     /*!
-     * @brief Constructs the tracker with configuration.
-     * @param config Configuration for the tensor collection to discover.
+     * @brief Constructs the tracker and initializes the OpenXR tensor list.
+     * @param handles OpenXR session handles.
+     * @param config Configuration for the tensor collection.
+     * @throws std::runtime_error if initialization fails.
      */
-    explicit SchemaTracker(SchemaTrackerConfig config);
+    SchemaTracker(const OpenXRSessionHandles& handles, SchemaTrackerConfig config);
 
     /*!
-     * @brief Virtual destructor for proper cleanup.
+     * @brief Destroys the tracker and cleans up OpenXR resources.
      */
-    virtual ~SchemaTracker() = default;
+    ~SchemaTracker();
 
     // Non-copyable, non-movable
     SchemaTracker(const SchemaTracker&) = delete;
@@ -129,80 +137,54 @@ public:
     SchemaTracker& operator=(SchemaTracker&&) = delete;
 
     /*!
-     * @brief Get required OpenXR extensions (includes tensor data extension).
+     * @brief Get required OpenXR extensions for tensor data reading.
+     * @return Vector containing the tensor data extension name.
      */
-    std::vector<std::string> get_required_extensions() const override;
-
-    // Subclasses must implement these from ITracker:
-    // virtual std::string_view get_name() const = 0;
-    // virtual std::string_view get_schema_name() const = 0;
-    // virtual std::string_view get_schema_text() const = 0;
-
-protected:
-    /*!
-     * @brief Access the configuration for subclass use.
-     */
-    const SchemaTrackerConfig& get_config() const;
+    static std::vector<std::string> get_required_extensions();
 
     /*!
-     * @brief Base implementation for schema trackers that read from tensor extensions.
+     * @brief Read the next available raw sample buffer.
      *
-     * Subclasses should inherit from this and implement:
-     * - update(XrTime time): Call read_buffer() and deserialize the FlatBuffer
-     * - serialize(): Serialize the current data to a FlatBuffer
+     * This method polls for tensor list updates, discovers the target collection
+     * if not already connected, and retrieves the next available sample.
+     *
+     * @param buffer Output vector that will be resized and filled with sample data.
+     * @return true if data was read, false if no new data available.
      */
-    class Impl : public ITrackerImpl
-    {
-    public:
-        /*!
-         * @brief Constructs the implementation and initializes the OpenXR tensor list.
-         * @param handles OpenXR session handles.
-         * @param config Configuration for the tensor collection.
-         * @throws std::runtime_error if initialization fails.
-         */
-        Impl(const OpenXRSessionHandles& handles, SchemaTrackerConfig config);
+    bool read_buffer(std::vector<uint8_t>& buffer);
 
-        /*!
-         * @brief Destroys the implementation and cleans up OpenXR resources.
-         */
-        virtual ~Impl();
-
-        // Non-copyable, non-movable
-        Impl(const Impl&) = delete;
-        Impl& operator=(const Impl&) = delete;
-        Impl(Impl&&) = delete;
-        Impl& operator=(Impl&&) = delete;
-
-        /*!
-         * @brief Check if the target tensor collection has been discovered.
-         * @return true if connected to the target collection, false otherwise.
-         */
-        bool is_connected() const;
-
-    protected:
-        /*!
-         * @brief Read the next available raw sample buffer.
-         *
-         * This method polls for tensor list updates, discovers the target collection
-         * if not already connected, and retrieves the next available sample.
-         *
-         * @param buffer Output vector that will be resized and filled with sample data.
-         * @return true if data was read, false if no new data available.
-         */
-        bool read_buffer(std::vector<uint8_t>& buffer);
-
-        /*!
-         * @brief Access the configuration for subclass use.
-         */
-        const SchemaTrackerConfig& config() const;
-
-    private:
-        class ImplData;
-        std::unique_ptr<ImplData> m_data;
-    };
+    /*!
+     * @brief Access the configuration.
+     */
+    const SchemaTrackerConfig& config() const;
 
 private:
+    void initialize_tensor_data_functions();
+    void create_tensor_list();
+    void poll_for_updates();
+    std::optional<uint32_t> find_target_collection();
+    bool read_next_sample(std::vector<uint8_t>& buffer);
+
+    OpenXRSessionHandles m_handles;
     SchemaTrackerConfig m_config;
+
+    XrTensorListNV m_tensor_list{ XR_NULL_HANDLE };
+
+    PFN_xrGetTensorListLatestGenerationNV m_get_latest_gen_fn{ nullptr };
+    PFN_xrCreateTensorListNV m_create_list_fn{ nullptr };
+    PFN_xrGetTensorListPropertiesNV m_get_list_props_fn{ nullptr };
+    PFN_xrGetTensorCollectionPropertiesNV m_get_coll_props_fn{ nullptr };
+    PFN_xrGetTensorDataNV m_get_data_fn{ nullptr };
+    PFN_xrUpdateTensorListNV m_update_list_fn{ nullptr };
+    PFN_xrDestroyTensorListNV m_destroy_list_fn{ nullptr };
+
+    std::optional<uint32_t> m_target_collection_index;
+    uint32_t m_sample_batch_stride{ 0 };
+    uint32_t m_sample_size{ 0 };
+
+    uint64_t m_cached_generation{ 0 };
+
+    std::optional<int64_t> m_last_sample_index;
 };
 
 } // namespace core

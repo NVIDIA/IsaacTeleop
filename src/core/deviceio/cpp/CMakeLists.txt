@@ -16,11 +16,6 @@ if(NOT TARGET oxr::oxr_utils)
     message(FATAL_ERROR "oxr_utils target not found. Make sure oxr_utils is built first.")
 endif()
 
-# Check for openxr_extensions (needed for SchemaTracker tensor data APIs)
-if(NOT TARGET Teleop::openxr_extensions)
-    message(FATAL_ERROR "openxr_extensions target not found. Make sure OpenXR extensions are available.")
-endif()
-
 # Core DEVICEIO tracking library (static for distribution)
 add_library(deviceio_core STATIC
     hand_tracker.cpp
@@ -55,13 +50,6 @@ target_link_libraries(deviceio_core
         # OpenXR extensions for tensor data APIs (used by SchemaTracker)
         Teleop::openxr_extensions
 )
-
-# Platform-specific definitions
-if(WIN32)
-    target_compile_definitions(deviceio_core PUBLIC XR_USE_PLATFORM_WIN32 NOMINMAX)
-else()
-    target_compile_definitions(deviceio_core PUBLIC XR_USE_TIMESPEC)
-endif()
 
 # DEVICEIO does NOT link to OpenXR loader - it's completely standalone
 # All OpenXR functions are loaded dynamically via xrGetInstanceProcAddr at runtime

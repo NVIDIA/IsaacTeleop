@@ -49,19 +49,15 @@ public:
     /*!
      * @brief Push a Generic3AxisPedalOutput message.
      * @param data The Generic3AxisPedalOutputT native object to serialize and push.
-     * @return true on success, false on failure.
+     * @throws std::runtime_error if the push fails.
      */
-    bool push(const core::Generic3AxisPedalOutputT& data)
+    void push(const core::Generic3AxisPedalOutputT& data)
     {
         flatbuffers::FlatBufferBuilder builder(m_pusher.config().max_flatbuffer_size);
         auto offset = core::Generic3AxisPedalOutput::Pack(builder, &data);
         builder.Finish(offset);
-        return m_pusher.push_buffer(builder.GetBufferPointer(), builder.GetSize());
-    }
 
-    size_t get_push_count() const
-    {
-        return m_pusher.get_push_count();
+        m_pusher.push_buffer(builder.GetBufferPointer(), builder.GetSize());
     }
 
 private:
@@ -69,6 +65,7 @@ private:
 };
 
 int main()
+try
 {
     std::cout << "Schema Pusher (collection: " << COLLECTION_ID << ")" << std::endl;
 
@@ -90,16 +87,8 @@ int main()
     std::cout << "[Step 2] Creating Generic3AxisPedalPusher..." << std::endl;
 
     std::unique_ptr<Generic3AxisPedalPusher> pusher;
-    try
-    {
-        auto handles = oxr_session->get_handles();
-        pusher = std::make_unique<Generic3AxisPedalPusher>(handles, COLLECTION_ID);
-    }
-    catch (const std::exception& e)
-    {
-        std::cerr << "Failed to create pusher: " << e.what() << std::endl;
-        return 1;
-    }
+    auto handles = oxr_session->get_handles();
+    pusher = std::make_unique<Generic3AxisPedalPusher>(handles, COLLECTION_ID);
 
     // Step 3: Push samples
     std::cout << "[Step 3] Pushing samples..." << std::endl;
@@ -123,15 +112,17 @@ int main()
         auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
         pedal_output.timestamp = std::make_shared<core::Timestamp>(ns, ns);
 
-        if (pusher->push(pedal_output))
-        {
-            std::cout << "Pushed sample " << i << std::fixed << std::setprecision(3) << " [left=" << left_pedal
-                      << ", right=" << right_pedal << ", rudder=" << rudder << "]" << std::endl;
-        }
+        pusher->push(pedal_output);
+        std::cout << "Pushed sample " << i << std::fixed << std::setprecision(3) << " [left=" << left_pedal
+                  << ", right=" << right_pedal << ", rudder=" << rudder << "]" << std::endl;
 
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
 
-    std::cout << "\nTotal samples pushed: " << pusher->get_push_count() << std::endl;
     return 0;
+}
+catch (const std::exception& e)
+{
+    std::cerr << "Error: " << e.what() << std::endl;
+    return 1;
 }

@@ -16,46 +16,46 @@ namespace core
 // Generic3AxisPedalTracker::Impl
 // ============================================================================
 
-class Generic3AxisPedalTracker::Impl : public SchemaTracker::Impl
+class Generic3AxisPedalTracker::Impl : public ITrackerImpl
 {
 public:
-    Impl(const OpenXRSessionHandles& handles, SchemaTrackerConfig config)
-        : SchemaTracker::Impl(handles, std::move(config))
+    Impl(const OpenXRSessionHandles& handles, SchemaTrackerConfig config) : m_schema_reader(handles, std::move(config))
     {
     }
 
     bool update(XrTime /* time */) override
     {
         // Try to read new data from tensor stream
-        if (read_buffer(buffer_))
+        if (m_schema_reader.read_buffer(m_buffer))
         {
-            auto fb = GetGeneric3AxisPedalOutput(buffer_.data());
+            auto fb = GetGeneric3AxisPedalOutput(m_buffer.data());
             if (fb)
             {
-                fb->UnPackTo(&data_);
+                fb->UnPackTo(&m_data);
                 return true;
             }
         }
         // Return true even if no new data - we're still running, but invalid data.
-        data_.is_valid = false;
+        m_data.is_valid = false;
         return true;
     }
 
     Timestamp serialize(flatbuffers::FlatBufferBuilder& builder) const override
     {
-        auto offset = Generic3AxisPedalOutput::Pack(builder, &data_);
+        auto offset = Generic3AxisPedalOutput::Pack(builder, &m_data);
         builder.Finish(offset);
-        return data_.timestamp ? *data_.timestamp : Timestamp{};
+        return m_data.timestamp ? *m_data.timestamp : Timestamp{};
     }
 
     const Generic3AxisPedalOutputT& get_data() const
     {
-        return data_;
+        return m_data;
     }
 
 private:
-    std::vector<uint8_t> buffer_;
-    Generic3AxisPedalOutputT data_;
+    SchemaTracker m_schema_reader;
+    std::vector<uint8_t> m_buffer;
+    Generic3AxisPedalOutputT m_data;
 };
 
 // ============================================================================
@@ -63,11 +63,16 @@ private:
 // ============================================================================
 
 Generic3AxisPedalTracker::Generic3AxisPedalTracker(const std::string& collection_id, size_t max_flatbuffer_size)
-    : SchemaTracker(SchemaTrackerConfig{ .collection_id = collection_id,
-                                         .max_flatbuffer_size = max_flatbuffer_size,
-                                         .tensor_identifier = "generic_3axis_pedal",
-                                         .localized_name = "Generic3AxisPedalTracker" })
+    : m_config{ .collection_id = collection_id,
+                .max_flatbuffer_size = max_flatbuffer_size,
+                .tensor_identifier = "generic_3axis_pedal",
+                .localized_name = "Generic3AxisPedalTracker" }
 {
+}
+
+std::vector<std::string> Generic3AxisPedalTracker::get_required_extensions() const
+{
+    return SchemaTracker::get_required_extensions();
 }
 
 std::string_view Generic3AxisPedalTracker::get_name() const
@@ -84,6 +89,11 @@ std::string_view Generic3AxisPedalTracker::get_schema_text() const
 {
     return std::string_view(reinterpret_cast<const char*>(Generic3AxisPedalOutputBinarySchema::data()),
                             Generic3AxisPedalOutputBinarySchema::size());
+}
+
+const SchemaTrackerConfig& Generic3AxisPedalTracker::get_config() const
+{
+    return m_config;
 }
 
 const Generic3AxisPedalOutputT& Generic3AxisPedalTracker::get_data(const DeviceIOSession& session) const

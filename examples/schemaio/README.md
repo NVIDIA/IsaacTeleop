@@ -22,8 +22,6 @@ Together they demonstrate the full tensor push/read workflow using the `XR_NVX1_
 ### Build
 
 ```bash
-cd TeleopCore
-
 cmake -B build -DBUILD_EXAMPLES=ON
 cmake --build build --parallel
 cmake --install build
@@ -34,11 +32,12 @@ cmake --install build
 Run pusher and printer simultaneously in separate terminals:
 
 ```bash
-# Terminal 1: Start pusher
+# Terminal 1: Start printer
+./install/examples/schemaio/pedal_printer
+
+# Terminal 2: Start pusher
 ./install/examples/schemaio/pedal_pusher
 
-# Terminal 2: Start printer
-./install/examples/schemaio/pedal_printer
 ```
 
 The printer will discover the tensor collection created by the pusher and print received samples. Both exit automatically after 100 samples, or press Ctrl+C to exit early.

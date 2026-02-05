@@ -65,15 +65,7 @@ try
     std::cout << "[Step 3] Creating DeviceIOSession..." << std::endl;
 
     std::unique_ptr<core::DeviceIOSession> session;
-    try
-    {
-        session = core::DeviceIOSession::run(trackers, oxr_session->get_handles());
-    }
-    catch (const std::exception& e)
-    {
-        std::cerr << "Error: " << e.what() << std::endl;
-        return 1;
-    }
+    session = core::DeviceIOSession::run(trackers, oxr_session->get_handles());
 
     // Step 4: Read samples by updating the session
     std::cout << "[Step 4] Reading samples..." << std::endl;
@@ -94,9 +86,11 @@ try
         {
             print_pedal_data(data, received_count++);
         }
-
-        // Sleep to approximately match the push rate (50ms)
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        else
+        {
+            // Sleep to approximately match the push rate (50ms)
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
     }
 
     std::cout << "\nDone. Received " << received_count << " samples." << std::endl;
