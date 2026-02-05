@@ -149,7 +149,7 @@ jobs:
         echo "ACCEPT_CLOUDXR_EULA=Y" > deps/cloudxr/.env
 
         # Run tests with CloudXR runtime
-        ./scripts/run_tests_with_cloudxr.sh
+        ./scripts/run_tests_with_cloudxr.sh --python-version ${{ matrix.python_version }}
 
   publish-wheel:
     runs-on: [self-hosted, linux]
