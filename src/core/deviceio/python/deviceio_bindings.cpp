@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <deviceio/controller_tracker.hpp>
+#include <deviceio/frame_metadata_tracker.hpp>
 #include <deviceio/hand_tracker.hpp>
 #include <deviceio/head_tracker.hpp>
 #include <deviceio_py_utils/session.hpp>
@@ -49,6 +50,24 @@ PYBIND11_MODULE(_deviceio, m)
             { return self.get_controller_data(session.native()); },
             py::arg("session"), py::return_value_policy::reference_internal,
             "Get complete controller data for both left and right controllers");
+
+    // FrameMetadataTracker class
+    py::class_<core::FrameMetadataTracker, core::ITracker, std::shared_ptr<core::FrameMetadataTracker>>(
+        m, "FrameMetadataTracker")
+        .def(py::init<const std::string&, size_t>(), py::arg("collection_id"),
+             py::arg("max_flatbuffer_size") = core::FrameMetadataTracker::DEFAULT_MAX_FLATBUFFER_SIZE,
+             "Construct a FrameMetadataTracker for the given tensor collection ID")
+        .def(
+            "get_data",
+            [](core::FrameMetadataTracker& self, PyDeviceIOSession& session) -> const core::FrameMetadataT&
+            { return self.get_data(session.native()); },
+            py::arg("session"), py::return_value_policy::reference_internal,
+            "Get the current frame metadata (timestamp and sequence_number)")
+        .def(
+            "get_read_count",
+            [](core::FrameMetadataTracker& self, PyDeviceIOSession& session) -> size_t
+            { return self.get_read_count(session.native()); },
+            py::arg("session"), "Get the number of samples read so far");
 
     // DeviceIOSession class (bound via wrapper for context management)
     // Other C++ modules (like mcap) should include <py_deviceio/session.hpp> and accept
