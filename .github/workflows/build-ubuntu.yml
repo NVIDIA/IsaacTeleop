@@ -17,6 +17,7 @@ jobs:
       matrix:
         # On tag or branch pushes, only build Release (Debug is skipped). On PRs, build both Debug and Release.
         build_type: ${{ fromJSON((github.event_name == 'push') && '["Release"]' || '["Debug","Release"]') }}
+        python_version: ['3.10', '3.11', '3.12']
 
     steps:
     - name: Checkout code
@@ -45,9 +46,9 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/.cache/ccache
-        key: ccache-${{ runner.os }}-${{ matrix.build_type }}-${{ hashFiles('**/CMakeLists.txt') }}
+        key: ccache-${{ runner.os }}-${{ matrix.build_type }}-py${{ matrix.python_version }}-${{ hashFiles('**/CMakeLists.txt') }}
         restore-keys: |
-          ccache-${{ runner.os }}-${{ matrix.build_type }}-
+          ccache-${{ runner.os }}-${{ matrix.build_type }}-py${{ matrix.python_version }}-
 
     - name: Verify ccache
       run: |
@@ -55,7 +56,7 @@ jobs:
         ccache --show-config
 
     - name: Configure CMake
-      run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+      run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DTELEOPCORE_PYTHON_VERSION=${{ matrix.python_version }} -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
     - name: Build
       run: cmake --build build --parallel 4
@@ -78,14 +79,25 @@ jobs:
       if: matrix.build_type == 'Release'
       uses: actions/upload-artifact@v4
       with:
-        name: teleopcore-install-release
+        name: teleopcore-install-release-py${{ matrix.python_version }}
         path: teleopcore-install.tar
+        retention-days: 1
+    - name: Upload wheel artifacts
+      if: matrix.build_type == 'Release'
+      uses: actions/upload-artifact@v4
+      with:
+        name: teleopcore-wheels-py${{ matrix.python_version }}
+        path: install/wheels/*.whl
         retention-days: 1
 
   test-cloudxr:
     runs-on: [self-hosted, linux, gpu]
     needs: build-ubuntu
     environment: dev
+
+    strategy:
+      matrix:
+        python_version: ['3.10', '3.11', '3.12']
 
     steps:
     - name: Checkout code
@@ -99,7 +111,7 @@ jobs:
     - name: Download install artifacts
       uses: actions/download-artifact@v4
       with:
-        name: teleopcore-install-release
+        name: teleopcore-install-release-py${{ matrix.python_version }}
 
     - name: Extract tarball to preserve permissions
       run: |
@@ -154,15 +166,12 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Download install artifacts
+    - name: Download wheel artifacts
       uses: actions/download-artifact@v4
       with:
-        name: teleopcore-install-release
-
-    - name: Extract tarball to preserve permissions
-      run: |
-        mkdir -p install
-        tar -xvf teleopcore-install.tar -C install
+        pattern: teleopcore-wheels-py*
+        merge-multiple: true
+        path: wheels
 
     - name: Upload wheel(s) to Artifactory
       env:
@@ -179,11 +188,10 @@ jobs:
         fi
 
         shopt -s nullglob
-        wheels=(install/wheels/*.whl)
+        wheels=(wheels/*.whl)
         if (( ${#wheels[@]} == 0 )); then
-          echo "No wheels found under install/wheels/*.whl"
-          ls -la install || true
-          ls -la install/wheels || true
+          echo "No wheels found under wheels/*.whl"
+          ls -la wheels || true
           exit 1
         fi
 
