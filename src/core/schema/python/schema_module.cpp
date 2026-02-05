@@ -6,6 +6,7 @@
 #include <pybind11/pybind11.h>
 
 // Include binding definitions.
+#include "camera_bindings.h"
 #include "controller_bindings.h"
 #include "hand_bindings.h"
 #include "head_bindings.h"
@@ -40,4 +41,7 @@ PYBIND11_MODULE(_schema, m)
 
     // Bind pedals types (Generic3AxisPedalOutput table).
     core::bind_pedals(m);
+
+    // Bind camera types (FrameMetadata table with timestamp and sequence_number).
+    core::bind_camera(m);
 }
