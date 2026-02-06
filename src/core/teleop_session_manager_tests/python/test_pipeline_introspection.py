@@ -4,8 +4,8 @@
 """
 Tests for pipeline introspection utilities.
 
-Verifies that get_trackers_from_pipeline() and
-get_required_extensions_from_pipeline() correctly discover trackers and
+Verifies that _get_trackers_from_pipeline() and
+get_required_oxr_extensions_from_pipeline() correctly discover trackers and
 extensions from a retargeting pipeline without requiring an OpenXR runtime.
 """
 
@@ -17,10 +17,8 @@ from teleopcore.retargeting_engine.deviceio_source_nodes import (
     HeadSource,
     IDeviceIOSource,
 )
-from teleopcore.teleop_session_manager import (
-    get_required_extensions_from_pipeline,
-    get_trackers_from_pipeline,
-)
+from teleopcore.teleop_session_manager import get_required_oxr_extensions_from_pipeline
+from teleopcore.teleop_session_manager.helpers import _get_trackers_from_pipeline
 
 
 # ============================================================================
@@ -35,18 +33,18 @@ def _mock_pipeline_with_leaf_nodes(leaf_nodes):
 
 
 # ============================================================================
-# get_trackers_from_pipeline
+# _get_trackers_from_pipeline
 # ============================================================================
 
 class TestGetTrackersFromPipeline:
-    """Tests for get_trackers_from_pipeline()."""
+    """Tests for _get_trackers_from_pipeline()."""
 
     def test_discovers_single_controller_source(self):
         """A pipeline with one ControllersSource yields one ControllerTracker."""
         source = ControllersSource(name="controllers")
         pipeline = _mock_pipeline_with_leaf_nodes([source])
 
-        trackers = get_trackers_from_pipeline(pipeline)
+        trackers = _get_trackers_from_pipeline(pipeline)
 
         assert len(trackers) == 1
         assert trackers[0] is source.get_tracker()
@@ -58,7 +56,7 @@ class TestGetTrackersFromPipeline:
         head = HeadSource(name="head")
         pipeline = _mock_pipeline_with_leaf_nodes([controllers, hands, head])
 
-        trackers = get_trackers_from_pipeline(pipeline)
+        trackers = _get_trackers_from_pipeline(pipeline)
 
         assert len(trackers) == 3
         tracker_set = {id(t) for t in trackers}
@@ -79,7 +77,7 @@ class TestGetTrackersFromPipeline:
 
         pipeline = _mock_pipeline_with_leaf_nodes([source_a, source_b])
 
-        trackers = get_trackers_from_pipeline(pipeline)
+        trackers = _get_trackers_from_pipeline(pipeline)
 
         assert len(trackers) == 1
         assert trackers[0] is shared_tracker
@@ -90,7 +88,7 @@ class TestGetTrackersFromPipeline:
         non_source = MagicMock()  # Not an IDeviceIOSource
         pipeline = _mock_pipeline_with_leaf_nodes([source, non_source])
 
-        trackers = get_trackers_from_pipeline(pipeline)
+        trackers = _get_trackers_from_pipeline(pipeline)
 
         assert len(trackers) == 1
         assert trackers[0] is source.get_tracker()
@@ -99,7 +97,7 @@ class TestGetTrackersFromPipeline:
         """A pipeline with no leaf nodes returns an empty list."""
         pipeline = _mock_pipeline_with_leaf_nodes([])
 
-        trackers = get_trackers_from_pipeline(pipeline)
+        trackers = _get_trackers_from_pipeline(pipeline)
 
         assert trackers == []
 
@@ -109,25 +107,25 @@ class TestGetTrackersFromPipeline:
         hands = HandsSource(name="hands")
         pipeline = _mock_pipeline_with_leaf_nodes([controllers, hands])
 
-        trackers = get_trackers_from_pipeline(pipeline)
+        trackers = _get_trackers_from_pipeline(pipeline)
 
         assert trackers[0] is controllers.get_tracker()
         assert trackers[1] is hands.get_tracker()
 
 
 # ============================================================================
-# get_required_extensions_from_pipeline
+# get_required_oxr_extensions_from_pipeline
 # ============================================================================
 
-class TestGetRequiredExtensionsFromPipeline:
-    """Tests for get_required_extensions_from_pipeline()."""
+class TestGetRequiredOxrExtensionsFromPipeline:
+    """Tests for get_required_oxr_extensions_from_pipeline()."""
 
     def test_returns_extensions_for_hand_tracker(self):
         """A HandsSource pipeline requires at least one extension string."""
         hands = HandsSource(name="hands")
         pipeline = _mock_pipeline_with_leaf_nodes([hands])
 
-        extensions = get_required_extensions_from_pipeline(pipeline)
+        extensions = get_required_oxr_extensions_from_pipeline(pipeline)
 
         assert isinstance(extensions, list)
         assert len(extensions) > 0
@@ -137,7 +135,7 @@ class TestGetRequiredExtensionsFromPipeline:
         """An empty pipeline still returns the baseline platform extensions."""
         pipeline = _mock_pipeline_with_leaf_nodes([])
 
-        extensions = get_required_extensions_from_pipeline(pipeline)
+        extensions = get_required_oxr_extensions_from_pipeline(pipeline)
 
         # DeviceIOSession.get_required_extensions always adds the platform
         # time conversion extension even with no trackers.
@@ -149,7 +147,7 @@ class TestGetRequiredExtensionsFromPipeline:
         controllers = ControllersSource(name="controllers")
         pipeline = _mock_pipeline_with_leaf_nodes([hands, controllers])
 
-        extensions = get_required_extensions_from_pipeline(pipeline)
+        extensions = get_required_oxr_extensions_from_pipeline(pipeline)
 
         # Should include hand tracking extension at minimum
         assert isinstance(extensions, list)

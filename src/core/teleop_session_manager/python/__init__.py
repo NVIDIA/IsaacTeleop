@@ -8,8 +8,7 @@ from .config import (
 )
 from .helpers import (
     create_standard_inputs,
-    get_trackers_from_pipeline,
-    get_required_extensions_from_pipeline,
+    get_required_oxr_extensions_from_pipeline,
 )
 
 __all__ = [
@@ -17,7 +16,6 @@ __all__ = [
     "TeleopSessionConfig",
     "PluginConfig",
     "create_standard_inputs",
-    "get_trackers_from_pipeline",
-    "get_required_extensions_from_pipeline",
+    "get_required_oxr_extensions_from_pipeline",
 ]
 

@@ -14,12 +14,18 @@ Verifies that:
 All OpenXR / DeviceIO native calls are mocked so no OpenXR runtime is required.
 """
 
+from __future__ import annotations
+
 from contextlib import contextmanager
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from teleopcore.teleop_session_manager import TeleopSession, TeleopSessionConfig
+
+if TYPE_CHECKING:
+    from teleopcore.oxr import OpenXRSessionHandles
 
 
 # ============================================================================
@@ -31,7 +37,7 @@ def _make_stub_handles(
     session: int = 0x1234,
     space: int = 0x5678,
     proc_addr: int = 0x9ABC,
-):
+) -> OpenXRSessionHandles:
     """Create a lightweight stub that looks like OpenXRSessionHandles."""
     handles = MagicMock()
     handles.instance = instance

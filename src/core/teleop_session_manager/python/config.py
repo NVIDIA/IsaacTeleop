@@ -8,9 +8,14 @@ Configuration dataclasses for TeleopSession.
 These classes provide a clean, declarative way to configure teleop sessions.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Any, Optional
+from typing import TYPE_CHECKING, Any, List, Optional
+
+if TYPE_CHECKING:
+    from teleopcore.oxr import OpenXRSessionHandles
 
 
 @dataclass
@@ -94,6 +99,6 @@ class TeleopSessionConfig:
     trackers: List[Any] = field(default_factory=list)
     plugins: List[PluginConfig] = field(default_factory=list)
     verbose: bool = True
-    oxr_handles: Optional[Any] = None
+    oxr_handles: Optional[OpenXRSessionHandles] = None
 
 

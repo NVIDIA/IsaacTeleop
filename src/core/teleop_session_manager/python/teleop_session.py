@@ -79,7 +79,7 @@ class TeleopSession:
         self.pipeline = config.pipeline
 
         # Core components (will be created in __enter__)
-        self.oxr_session: Optional[Any] = None
+        self._oxr_session: Optional[oxr.OpenXRSession] = None
         self.deviceio_session: Optional[Any] = None
         self.plugin_managers: List[pm.PluginManager] = []
         self.plugin_contexts: List[Any] = []
@@ -97,6 +97,12 @@ class TeleopSession:
 
         # Discover sources from pipeline
         self._discover_sources()
+
+    @property
+    def oxr_session(self) -> Optional[oxr.OpenXRSession]:
+        """The internal OpenXR session, or ``None`` when using external handles (read-only)."""
+        return self._oxr_session
+
 
     def _discover_sources(self) -> None:
         """Discover DeviceIO source modules from the pipeline.
@@ -232,11 +238,10 @@ class TeleopSession:
             handles = self.config.oxr_handles
         else:
             # Create our own OpenXR session (standalone mode)
-            self.oxr_session = self._exit_stack.enter_context(
+            self._oxr_session = self._exit_stack.enter_context(
                 oxr.OpenXRSession(self.config.app_name, required_extensions)
             )
-            handles = self.oxr_session.get_handles()
-
+            handles = self._oxr_session.get_handles()
         # Create DeviceIO session with all trackers
         self.deviceio_session = self._exit_stack.enter_context(
             deviceio.DeviceIOSession.run(trackers, handles)
