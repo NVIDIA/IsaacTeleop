@@ -5,6 +5,7 @@
 
 #include "tracker.hpp"
 
+#include <oxr_utils/oxr_funcs.hpp>
 #include <schema/controller_bfbs_generated.h>
 #include <schema/controller_generated.h>
 

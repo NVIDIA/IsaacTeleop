@@ -3,10 +3,8 @@
 
 #pragma once
 
-#include "flatbuffers/flatbuffer_builder.h"
-
-#include <oxr_utils/oxr_funcs.hpp>
-#include <oxr_utils/oxr_session_handles.hpp>
+#include <flatbuffers/flatbuffer_builder.h>
+#include <openxr/openxr.h>
 #include <schema/timestamp_generated.h>
 
 #include <memory>
@@ -19,6 +17,7 @@ namespace core
 
 // Forward declarations
 class DeviceIOSession;
+struct OpenXRSessionHandles;
 
 // Base interface for tracker implementations
 // These are the actual worker objects that get updated by the session

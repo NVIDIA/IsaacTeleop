@@ -7,7 +7,8 @@
 
 // Include platform-specific headers first
 #if defined(XR_USE_PLATFORM_WIN32)
-#    include <windows.h>
+#    include <Unknwn.h>
+#    include <Windows.h>
 #elif defined(XR_USE_TIMESPEC)
 #    include <time.h>
 #endif

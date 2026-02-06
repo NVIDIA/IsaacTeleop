@@ -1,11 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-// Prevent Windows.h from defining min/max macros that conflict with std::min/max
-#if defined(_WIN32) || defined(_WIN64)
-#    define NOMINMAX
-#endif
-
 #include <deviceio/deviceio_session.hpp>
 #include <deviceio/hand_tracker.hpp>
 #include <deviceio/head_tracker.hpp>
