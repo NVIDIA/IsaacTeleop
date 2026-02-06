@@ -24,6 +24,13 @@ target_link_libraries(oxr_utils
         OpenXR::headers
 )
 
+# Platform-specific definitions for XrTime conversion (used by oxr_time.hpp)
+if(WIN32)
+    target_compile_definitions(oxr_utils INTERFACE XR_USE_PLATFORM_WIN32 NOMINMAX)
+else()
+    target_compile_definitions(oxr_utils INTERFACE XR_USE_TIMESPEC)
+endif()
+
 # Create alias for consistent naming
 add_library(oxr::oxr_utils ALIAS oxr_utils)
 

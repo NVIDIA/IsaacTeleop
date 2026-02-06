@@ -115,6 +115,7 @@ if(BUILD_EXAMPLES)
     add_subdirectory(examples/oxr)
     add_subdirectory(examples/retargeting)
     add_subdirectory(examples/teleop_session_manager)
+    add_subdirectory(examples/schemaio)
 endif()
 
 # Build plugins if requested

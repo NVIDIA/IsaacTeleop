@@ -21,11 +21,15 @@ add_library(deviceio_core STATIC
     hand_tracker.cpp
     head_tracker.cpp
     controller_tracker.cpp
+    schema_tracker.cpp
+    generic_3axis_pedal_tracker.cpp
     deviceio_session.cpp
     inc/deviceio/tracker.hpp
     inc/deviceio/hand_tracker.hpp
     inc/deviceio/head_tracker.hpp
     inc/deviceio/controller_tracker.hpp
+    inc/deviceio/schema_tracker.hpp
+    inc/deviceio/generic_3axis_pedal_tracker.hpp
     inc/deviceio/deviceio_session.hpp
 )
 
@@ -42,14 +46,10 @@ target_link_libraries(deviceio_core
 
         # Schema library for FlatBuffer types
         isaacteleop_schema
-)
 
-# Platform-specific definitions
-if(WIN32)
-    target_compile_definitions(deviceio_core PUBLIC XR_USE_PLATFORM_WIN32 NOMINMAX)
-else()
-    target_compile_definitions(deviceio_core PUBLIC XR_USE_TIMESPEC)
-endif()
+        # OpenXR extensions for tensor data APIs (used by SchemaTracker)
+        Teleop::openxr_extensions
+)
 
 # DEVICEIO does NOT link to OpenXR loader - it's completely standalone
 # All OpenXR functions are loaded dynamically via xrGetInstanceProcAddr at runtime

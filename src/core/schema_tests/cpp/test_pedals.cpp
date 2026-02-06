@@ -16,10 +16,11 @@
 // =============================================================================
 #define VT(field) (field + 2) * 2
 
-static_assert(core::Generic3AxisPedalOutput::VT_TIMESTAMP == VT(0));
-static_assert(core::Generic3AxisPedalOutput::VT_LEFT_PEDAL == VT(1));
-static_assert(core::Generic3AxisPedalOutput::VT_RIGHT_PEDAL == VT(2));
-static_assert(core::Generic3AxisPedalOutput::VT_RUDDER == VT(3));
+static_assert(core::Generic3AxisPedalOutput::VT_IS_VALID == VT(0));
+static_assert(core::Generic3AxisPedalOutput::VT_TIMESTAMP == VT(1));
+static_assert(core::Generic3AxisPedalOutput::VT_LEFT_PEDAL == VT(2));
+static_assert(core::Generic3AxisPedalOutput::VT_RIGHT_PEDAL == VT(3));
+static_assert(core::Generic3AxisPedalOutput::VT_RUDDER == VT(4));
 
 // =============================================================================
 // Generic3AxisPedalOutputT Tests (table native type)
@@ -28,12 +29,26 @@ TEST_CASE("Generic3AxisPedalOutputT default construction", "[pedals][native]")
 {
     core::Generic3AxisPedalOutputT output;
 
+    // is_valid should be false by default.
+    CHECK(output.is_valid == false);
     // Timestamp pointer should be null by default.
     CHECK(output.timestamp == nullptr);
     // Float fields should be zero by default.
     CHECK(output.left_pedal == 0.0f);
     CHECK(output.right_pedal == 0.0f);
     CHECK(output.rudder == 0.0f);
+}
+
+TEST_CASE("Generic3AxisPedalOutputT can handle is_valid value properly", "[pedals][native]")
+{
+    core::Generic3AxisPedalOutputT output;
+
+    // Default is_valid should be false.
+    CHECK(output.is_valid == false);
+
+    // Set is_valid to true.
+    output.is_valid = true;
+    CHECK(output.is_valid == true);
 }
 
 TEST_CASE("Generic3AxisPedalOutputT can store timestamp", "[pedals][native]")
@@ -66,11 +81,13 @@ TEST_CASE("Generic3AxisPedalOutputT can store full output", "[pedals][native]")
     core::Generic3AxisPedalOutputT output;
 
     // Set all fields.
+    output.is_valid = true;
     output.timestamp = std::make_unique<core::Timestamp>(3000000000, 4000000000);
     output.left_pedal = 1.0f;
     output.right_pedal = 0.0f;
     output.rudder = -0.5f;
 
+    CHECK(output.is_valid == true);
     CHECK(output.timestamp != nullptr);
     CHECK(output.timestamp->device_time() == 3000000000);
     CHECK(output.left_pedal == Catch::Approx(1.0f));
@@ -87,6 +104,7 @@ TEST_CASE("Generic3AxisPedalOutput serialization and deserialization", "[pedals]
 
     // Create native object.
     core::Generic3AxisPedalOutputT output;
+    output.is_valid = true;
     output.timestamp = std::make_unique<core::Timestamp>(1234567890, 9876543210);
     output.left_pedal = 0.8f;
     output.right_pedal = 0.2f;
@@ -98,6 +116,9 @@ TEST_CASE("Generic3AxisPedalOutput serialization and deserialization", "[pedals]
 
     // Deserialize.
     auto* deserialized = flatbuffers::GetRoot<core::Generic3AxisPedalOutput>(builder.GetBufferPointer());
+
+    // Verify is_valid.
+    CHECK(deserialized->is_valid() == true);
 
     // Verify timestamp.
     REQUIRE(deserialized->timestamp() != nullptr);
@@ -116,6 +137,7 @@ TEST_CASE("Generic3AxisPedalOutput can be unpacked from buffer", "[pedals][seria
 
     // Create native object with minimal data.
     core::Generic3AxisPedalOutputT output;
+    output.is_valid = true;
     output.timestamp = std::make_unique<core::Timestamp>(100, 200);
     output.left_pedal = 0.5f;
 
@@ -131,6 +153,7 @@ TEST_CASE("Generic3AxisPedalOutput can be unpacked from buffer", "[pedals][seria
     table->UnPackTo(unpacked.get());
 
     // Verify.
+    CHECK(unpacked->is_valid == true);
     REQUIRE(unpacked->timestamp != nullptr);
     CHECK(unpacked->timestamp->device_time() == 100);
     CHECK(unpacked->timestamp->common_time() == 200);
@@ -143,6 +166,7 @@ TEST_CASE("Generic3AxisPedalOutput without timestamp", "[pedals][serialize]")
 
     core::Generic3AxisPedalOutputT output;
     // timestamp is intentionally left null.
+    output.is_valid = true;
     output.left_pedal = 0.6f;
     output.right_pedal = 0.4f;
     output.rudder = 0.0f;
@@ -152,6 +176,7 @@ TEST_CASE("Generic3AxisPedalOutput without timestamp", "[pedals][serialize]")
 
     auto* deserialized = flatbuffers::GetRoot<core::Generic3AxisPedalOutput>(builder.GetBufferPointer());
 
+    CHECK(deserialized->is_valid() == true);
     CHECK(deserialized->timestamp() == nullptr);
     CHECK(deserialized->left_pedal() == Catch::Approx(0.6f));
     CHECK(deserialized->right_pedal() == Catch::Approx(0.4f));
@@ -164,11 +189,13 @@ TEST_CASE("Generic3AxisPedalOutput without timestamp", "[pedals][serialize]")
 TEST_CASE("Generic3AxisPedalOutput full forward press", "[pedals][scenario]")
 {
     core::Generic3AxisPedalOutputT output;
+    output.is_valid = true;
     output.timestamp = std::make_unique<core::Timestamp>(1000000, 1000000);
     output.left_pedal = 1.0f;
     output.right_pedal = 1.0f;
     output.rudder = 0.0f;
 
+    CHECK(output.is_valid == true);
     CHECK(output.left_pedal == Catch::Approx(1.0f));
     CHECK(output.right_pedal == Catch::Approx(1.0f));
     CHECK(output.rudder == Catch::Approx(0.0f));
@@ -177,6 +204,7 @@ TEST_CASE("Generic3AxisPedalOutput full forward press", "[pedals][scenario]")
 TEST_CASE("Generic3AxisPedalOutput left turn with rudder", "[pedals][scenario]")
 {
     core::Generic3AxisPedalOutputT output;
+    output.is_valid = true;
     output.timestamp = std::make_unique<core::Timestamp>(2000000, 2000000);
     output.left_pedal = 0.5f;
     output.right_pedal = 0.5f;
@@ -188,6 +216,7 @@ TEST_CASE("Generic3AxisPedalOutput left turn with rudder", "[pedals][scenario]")
 TEST_CASE("Generic3AxisPedalOutput right turn with rudder", "[pedals][scenario]")
 {
     core::Generic3AxisPedalOutputT output;
+    output.is_valid = true;
     output.timestamp = std::make_unique<core::Timestamp>(3000000, 3000000);
     output.left_pedal = 0.5f;
     output.right_pedal = 0.5f;
@@ -200,6 +229,7 @@ TEST_CASE("Generic3AxisPedalOutput differential braking", "[pedals][scenario]")
 {
     // Simulating differential braking (left brake only).
     core::Generic3AxisPedalOutputT output;
+    output.is_valid = true;
     output.timestamp = std::make_unique<core::Timestamp>(4000000, 4000000);
     output.left_pedal = 0.0f; // Left brake applied.
     output.right_pedal = 0.8f; // Right pedal pressed.
@@ -212,6 +242,7 @@ TEST_CASE("Generic3AxisPedalOutput differential braking", "[pedals][scenario]")
 TEST_CASE("Generic3AxisPedalOutput neutral position", "[pedals][scenario]")
 {
     core::Generic3AxisPedalOutputT output;
+    output.is_valid = true;
     output.timestamp = std::make_unique<core::Timestamp>(5000000, 5000000);
     output.left_pedal = 0.0f;
     output.right_pedal = 0.0f;
@@ -254,6 +285,7 @@ TEST_CASE("Generic3AxisPedalOutput with values greater than 1", "[pedals][edge]"
 TEST_CASE("Generic3AxisPedalOutput with large timestamp values", "[pedals][edge]")
 {
     core::Generic3AxisPedalOutputT output;
+    output.is_valid = true;
     int64_t max_int64 = 9223372036854775807;
     output.timestamp = std::make_unique<core::Timestamp>(max_int64, max_int64 - 1000);
     output.left_pedal = 0.5f;
@@ -267,6 +299,7 @@ TEST_CASE("Generic3AxisPedalOutput buffer size is reasonable", "[pedals][seriali
     flatbuffers::FlatBufferBuilder builder;
 
     core::Generic3AxisPedalOutputT output;
+    output.is_valid = true;
     output.timestamp = std::make_unique<core::Timestamp>(0, 0);
     output.left_pedal = 0.0f;
     output.right_pedal = 0.0f;
@@ -277,4 +310,28 @@ TEST_CASE("Generic3AxisPedalOutput buffer size is reasonable", "[pedals][seriali
 
     // Buffer should be reasonably small (under 100 bytes for this simple message).
     CHECK(builder.GetSize() < 100);
+}
+
+TEST_CASE("Generic3AxisPedalOutput with is_valid false", "[pedals][edge]")
+{
+    flatbuffers::FlatBufferBuilder builder;
+
+    core::Generic3AxisPedalOutputT output;
+    output.is_valid = false;
+    output.timestamp = std::make_unique<core::Timestamp>(1000, 2000);
+    output.left_pedal = 0.5f;
+    output.right_pedal = 0.5f;
+    output.rudder = 0.0f;
+
+    auto offset = core::Generic3AxisPedalOutput::Pack(builder, &output);
+    builder.Finish(offset);
+
+    auto* deserialized = flatbuffers::GetRoot<core::Generic3AxisPedalOutput>(builder.GetBufferPointer());
+
+    // Verify is_valid is false but other data is still present.
+    CHECK(deserialized->is_valid() == false);
+    REQUIRE(deserialized->timestamp() != nullptr);
+    CHECK(deserialized->left_pedal() == Catch::Approx(0.5f));
+    CHECK(deserialized->right_pedal() == Catch::Approx(0.5f));
+    CHECK(deserialized->rudder() == Catch::Approx(0.0f));
 }

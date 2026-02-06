@@ -18,6 +18,9 @@ add_subdirectory(plugin_manager)
 # Build OXR library (depends on oxr_utils for types)
 add_subdirectory(oxr)
 
+# Build PusherIO library (depends on oxr for session management)
+add_subdirectory(pusherio)
+
 # Build DEVICEIO library first (depends on oxr_utils for types)
 add_subdirectory(deviceio)
 
