@@ -3,9 +3,9 @@ SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All 
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Building TeleopCore
+# Building Isaac Teleop
 
-This document describes how to build the entire TeleopCore project including libraries and examples.
+This document describes how to build the entire Isaac Teleop project including libraries and examples.
 
 ## Prerequisites
 
@@ -35,7 +35,7 @@ Useful targets:
 - `clang_format_fix`: applies formatting in place
 
 > **Note:** The Python version requirement is centrally configured in the root `CMakeLists.txt` file. 
-> To change the Python version, modify the `TELEOPCORE_PYTHON_VERSION` variable in that file.
+> To change the Python version, modify the `ISAAC_TELEOP_PYTHON_VERSION` variable in that file.
 
 > **Note:** Dependencies (OpenXR SDK, pybind11, yaml-cpp) are automatically downloaded during CMake configuration using FetchContent. No manual dependency installation or git submodule initialization is required.
 
@@ -101,7 +101,7 @@ cmake --build build
 
 Build with different Python version:
 ```bash
-cmake -B build -DTELEOPCORE_PYTHON_VERSION=3.12
+cmake -B build -DISAAC_TELEOP_PYTHON_VERSION=3.12
 cmake --build build
 ```
 
@@ -122,7 +122,7 @@ cmake --build build
 ## Project Structure
 
 ```
-TeleopCore/
+IsaacTeleop/
 ├── CMakeLists.txt          # Top-level build file
 ├── src/core/
 │   ├── CMakeLists.txt      # Core build configuration
@@ -140,7 +140,7 @@ TeleopCore/
 │   │       └── CMakeLists.txt
 │   └── python/             # Python package configuration
 │       ├── pyproject.toml
-│       └── teleopcore_init.py
+│       └── isaacteleop_init.py
 └── examples/oxr/           # Examples
     ├── CMakeLists.txt      # Examples build configuration
     ├── cpp/                # C++ examples
@@ -162,7 +162,7 @@ The project uses modern CMake target-based approach:
 
 ### Using in Your Project
 
-If you've installed TeleopCore, you can use it in your own CMake project by linking against the appropriate targets.
+If you've installed Isaac Teleop, you can use it in your own CMake project by linking against the appropriate targets.
 
 ## Troubleshooting
 
@@ -188,7 +188,7 @@ When building from the top-level, examples automatically find the library in the
 
 After a successful build:
 - **C++ Static Libraries**: Built in `build/src/core/`
-- **Python Wheels**: `build/wheels/teleopcore-*.whl`
+- **Python Wheels**: `build/wheels/isaacteleop-*.whl`
 - **C++ Examples**: `build/examples/oxr/cpp/`
 - **Installed files**: `install/`
   - Libraries: `install/lib/`
@@ -203,10 +203,10 @@ The Python wheel can be installed using `uv` or `pip`:
 
 ```bash
 # Install from build directory
-uv pip install build/wheels/teleopcore-*.whl
+uv pip install build/wheels/isaacteleop-*.whl
 
 # Or with pip
-pip install build/wheels/teleopcore-*.whl
+pip install build/wheels/isaacteleop-*.whl
 ```
 
 ## Running Examples

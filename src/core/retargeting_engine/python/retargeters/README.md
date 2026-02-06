@@ -1,6 +1,6 @@
 # Dex Hand Retargeters
 
-This directory contains retargeters for TeleopCore's retargeting framework.
+This directory contains retargeters for Isaac Teleop's retargeting framework.
 
 ## Available Retargeters
 
@@ -23,7 +23,7 @@ Accurate hand tracking retargeter using the `dex-retargeting` library.
 **Configuration:**
 
 ```python
-from teleopcore.retargeting_engine import (
+from isaacteleop.retargeting_engine import (
     DexHandRetargeter,
     DexHandRetargeterConfig,
 )
@@ -79,7 +79,7 @@ Bimanual wrapper around two `DexHandRetargeter` instances for controlling both h
 **Configuration:**
 
 ```python
-from teleopcore.retargeting_engine import (
+from isaacteleop.retargeting_engine import (
     DexBiManualRetargeter,
     DexHandRetargeterConfig,
 )
@@ -122,7 +122,7 @@ Simple VR controller-based hand control. Maps trigger and squeeze inputs to G1 T
 **Configuration:**
 
 ```python
-from teleopcore.retargeting_engine import (
+from isaacteleop.retargeting_engine import (
     TriHandMotionControllerRetargeter,
     TriHandMotionControllerConfig,
 )
@@ -161,9 +161,9 @@ Bimanual wrapper around two `TriHandMotionControllerRetargeter` instances.
 See `g1_trihand_retargeting_example.py` for a complete working example.
 
 ```python
-from teleopcore.retargeting_engine.deviceio_source_nodes import HandsSource
-from teleopcore.retargeting_engine import DexHandRetargeter, DexHandRetargeterConfig
-import teleopcore.deviceio as deviceio
+from isaacteleop.retargeting_engine.deviceio_source_nodes import HandsSource
+from isaacteleop.retargeting_engine import DexHandRetargeter, DexHandRetargeterConfig
+import isaacteleop.deviceio as deviceio
 
 # Initialize hands source (tracker is internal)
 hands_source = HandsSource(name="hands")
@@ -204,7 +204,7 @@ Matrix is applied as: `target_pos = joint_pos @ wrist_rotation @ transform_matri
 
 ## Future Improvements
 
-- [ ] Add visualization support using TeleopCore's visualization system
+- [ ] Add visualization support using Isaac Teleop's visualization system
 - [ ] Add example config files for common robot hands
 - [ ] Add support for downloading URDFs from URLs
 - [ ] Add performance optimizations for real-time use

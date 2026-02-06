@@ -12,18 +12,17 @@ poses from hand tracking data.
 import sys
 import time
 import numpy as np
-from pathlib import Path
 
-from teleopcore.retargeting_engine.deviceio_source_nodes import (
+from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     HandsSource,
     ControllersSource,
 )
-from teleopcore.retargeting_engine.retargeters import (
+from isaacteleop.retargeting_engine.retargeters import (
     Se3AbsRetargeter,
     Se3RelRetargeter,
     Se3RetargeterConfig,
 )
-from teleopcore.teleop_session_manager import (
+from isaacteleop.teleop_session_manager import (
     TeleopSession,
     TeleopSessionConfig,
 )

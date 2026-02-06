@@ -36,7 +36,7 @@ void ensure_env_set(const char* env_name, const std::string& default_value)
     std::cerr << "Warning: " << env_name << " environment variable is not set." << std::endl;
     std::cerr << "  Please set it before running, e.g.:" << std::endl;
     std::cerr << "    export " << env_name << "=" << default_value << std::endl;
-    std::cerr << "  or set TELEOPCORE_DISABLE_CXR_ENV_CHECKS to disable this check" << std::endl;
+    std::cerr << "  or set ISAAC_TELEOP_DISABLE_CXR_ENV_CHECKS to disable this check" << std::endl;
 
     throw std::runtime_error("Environment variable " + std::string(env_name) + " is not set");
 }
@@ -44,8 +44,7 @@ void ensure_env_set(const char* env_name, const std::string& default_value)
 // Ensure required environment variables are set before xrCreateInstance.
 void ensure_cloudxr_runtime_configured()
 {
-    // Check the TELEOPCORE_DISABLE_CXR_ENV_CHECKS
-    if (std::getenv("TELEOPCORE_DISABLE_CXR_ENV_CHECKS") != nullptr)
+    if (std::getenv("ISAAC_TELEOP_DISABLE_CXR_ENV_CHECKS") != nullptr)
     {
         return;
     }

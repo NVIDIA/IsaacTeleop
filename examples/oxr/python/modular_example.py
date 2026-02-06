@@ -13,8 +13,8 @@ Demonstrates the modular architecture where you can:
 
 import sys
 import time
-import teleopcore.deviceio as deviceio
-import teleopcore.oxr as oxr
+import isaacteleop.deviceio as deviceio
+import isaacteleop.oxr as oxr
 
 
 def main():

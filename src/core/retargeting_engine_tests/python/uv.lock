@@ -263,7 +263,7 @@ wheels = [
 ]
 
 [[package]]
-name = "teleopcore-retargeting-engine"
+name = "isaacteleop-retargeting-engine"
 version = "0.1.0"
 source = { virtual = "." }
 

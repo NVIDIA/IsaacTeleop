@@ -8,16 +8,16 @@ cmake_minimum_required(VERSION 3.20)
 # ==============================================================================
 # Library containing generated FlatBuffer schema types.
 
-add_library(teleopcore_schema INTERFACE)
-add_dependencies(teleopcore_schema schema_header_generation)
+add_library(isaacteleop_schema INTERFACE)
+add_dependencies(isaacteleop_schema schema_header_generation)
 
 # Include directories for generated headers and FlatBuffers runtime.
-target_include_directories(teleopcore_schema INTERFACE
+target_include_directories(isaacteleop_schema INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/../fbs/generated>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
 )
 
 # Link FlatBuffers runtime (target created by FetchContent in deps/third_party).
-target_link_libraries(teleopcore_schema INTERFACE
+target_link_libraries(isaacteleop_schema INTERFACE
   flatbuffers
 )

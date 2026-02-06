@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Unit tests for HandPoseT and related types in teleopcore.schema.
+"""Unit tests for HandPoseT and related types in isaacteleop.schema.
 
 HandPoseT is a FlatBuffers table (read-only from Python) that represents hand pose data:
 - joints: HandJoints struct containing 26 HandJointPose entries (XR_HAND_JOINT_COUNT_EXT)
@@ -20,7 +20,7 @@ Note: Python code should only READ this data (created by C++ trackers), not modi
 
 import pytest
 
-from teleopcore.schema import (
+from isaacteleop.schema import (
     HandPoseT,
     HandJoints,
     HandJointPose,

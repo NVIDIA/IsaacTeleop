@@ -11,14 +11,13 @@ Uses hand tracking (thumb-index distance) to control gripper state.
 
 import sys
 import time
-from pathlib import Path
-import teleopcore.deviceio as deviceio
+import isaacteleop.deviceio as deviceio
 
-from teleopcore.retargeting_engine.retargeters import (
+from isaacteleop.retargeting_engine.retargeters import (
     GripperRetargeter,
     GripperRetargeterConfig,
 )
-from teleopcore.teleop_session_manager import (
+from isaacteleop.teleop_session_manager import (
     TeleopSession,
     TeleopSessionConfig,
     create_standard_inputs,

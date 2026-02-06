@@ -12,13 +12,8 @@ across multiple managers with different trackers.
 import sys
 import time
 
-try:
-    import teleopcore.deviceio as deviceio
-    import teleopcore.oxr as oxr
-except ImportError as e:
-    print(f"Error: {e}")
-    print("Make sure the module is built")
-    sys.exit(1)
+import isaacteleop.deviceio as deviceio
+import isaacteleop.oxr as oxr
 
 print("=" * 80)
 print("OpenXR Session Sharing Test (Python)")

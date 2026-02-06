@@ -8,7 +8,7 @@ using namespace core;
 
 PYBIND11_MODULE(_plugin_manager, m)
 {
-    m.doc() = "TeleopCore Plugin Manager bindings";
+    m.doc() = "Isaac Teleop Plugin Manager bindings";
 
     // Register custom exception
     py::register_exception<PluginCrashException>(m, "PluginCrashException");

@@ -5,9 +5,9 @@
 # Used by uv run to install dependencies needed for pybind11-stubgen
 
 [project]
-name = "teleopcore-stubgen"
+name = "isaacteleop-stubgen"
 version = "0.0.0"  # Internal tooling - not versioned
-description = "Stub generation dependencies for TeleopCore pybind11 modules"
+description = "Stub generation dependencies for Isaac Teleop pybind11 modules"
 requires-python = ">=3.10,<3.13"
 
 dependencies = [

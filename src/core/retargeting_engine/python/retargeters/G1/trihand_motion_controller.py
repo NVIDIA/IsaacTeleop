@@ -8,7 +8,7 @@ Retargeter that maps motion controller inputs to G1 robot hand joint angles.
 This class implements simple logic to map button presses and trigger/joystick inputs
 to finger joint angles, specifically designed for dexterous hand control.
 
-Based on IsaacLab's DexMotionController, adapted for TeleopCore's retargeting framework.
+Based on IsaacLab's DexMotionController, adapted for Isaac Teleop's retargeting framework.
 """
 
 import numpy as np

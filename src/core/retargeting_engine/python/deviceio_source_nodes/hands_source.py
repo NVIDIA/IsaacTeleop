@@ -17,8 +17,8 @@ from ..tensor_types import HandInput, NUM_HAND_JOINTS
 from .deviceio_tensor_types import DeviceIOHandPose
 
 if TYPE_CHECKING:
-    from teleopcore.deviceio import ITracker
-    from teleopcore.schema import HandPoseT
+    from isaacteleop.deviceio import ITracker
+    from isaacteleop.schema import HandPoseT
 
 
 class HandsSource(BaseRetargeter, IDeviceIOSource):
@@ -54,7 +54,7 @@ class HandsSource(BaseRetargeter, IDeviceIOSource):
         Args:
             name: Unique name for this source node
         """
-        import teleopcore.deviceio as deviceio
+        import isaacteleop.deviceio as deviceio
         self._hand_tracker = deviceio.HandTracker()
         super().__init__(name)
 

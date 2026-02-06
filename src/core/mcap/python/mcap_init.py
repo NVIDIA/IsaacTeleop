@@ -1,13 +1,13 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""TeleopCore MCAP - MCAP Recording Module
+"""Isaac Teleop MCAP - MCAP Recording Module
 
 This module provides MCAP file recording functionality for tracker data.
 
 Usage:
-    from teleopcore.mcap import McapRecorder
-    from teleopcore.deviceio import DeviceIOSession, HandTracker, HeadTracker
+    from isaacteleop.mcap import McapRecorder
+    from isaacteleop.deviceio import DeviceIOSession, HandTracker, HeadTracker
 
     hand_tracker = HandTracker()
     head_tracker = HeadTracker()

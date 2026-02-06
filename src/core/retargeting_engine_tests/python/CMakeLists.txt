@@ -22,7 +22,7 @@ foreach(test_file ${TEST_FILES})
     # Add the test
     add_test(
         NAME "retargeting_${test_name}"
-        COMMAND uv run --python ${TELEOPCORE_PYTHON_VERSION} --extra dev pytest -v --tb=short "${test_file}"
+        COMMAND uv run --python ${ISAAC_TELEOP_PYTHON_VERSION} --extra dev pytest -v --tb=short "${test_file}"
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     )
     
@@ -35,7 +35,7 @@ endforeach()
 # Add mypy type checking test
 add_test(
     NAME "retargeting_mypy_type_check"
-    COMMAND uv run --python ${TELEOPCORE_PYTHON_VERSION} --extra dev 
+    COMMAND uv run --python ${ISAAC_TELEOP_PYTHON_VERSION} --extra dev 
         mypy --config-file pyproject.toml
         "${CMAKE_SOURCE_DIR}/src/core/retargeting_engine/python"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"

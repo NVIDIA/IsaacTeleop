@@ -17,8 +17,8 @@ from ..tensor_types import ControllerInput
 from .deviceio_tensor_types import DeviceIOControllerSnapshot
 
 if TYPE_CHECKING:
-    from teleopcore.deviceio import ITracker
-    from teleopcore.schema import ControllerSnapshot
+    from isaacteleop.deviceio import ITracker
+    from isaacteleop.schema import ControllerSnapshot
 
 
 class ControllersSource(BaseRetargeter, IDeviceIOSource):
@@ -53,7 +53,7 @@ class ControllersSource(BaseRetargeter, IDeviceIOSource):
         Args:
             name: Unique name for this source node
         """
-        import teleopcore.deviceio as deviceio
+        import isaacteleop.deviceio as deviceio
         self._controller_tracker = deviceio.ControllerTracker()
         super().__init__(name)
 

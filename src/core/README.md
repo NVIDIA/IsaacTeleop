@@ -35,7 +35,7 @@ Provides OpenXR session management:
 
 **Quick start:**
 ```bash
-# From TeleopCore root
+# From IsaacTeleop root
 cmake -B build
 cmake --build build
 cmake --install build

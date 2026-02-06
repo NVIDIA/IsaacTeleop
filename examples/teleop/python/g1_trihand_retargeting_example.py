@@ -16,19 +16,16 @@ import sys
 import time
 from pathlib import Path
 
-import teleopcore.deviceio as deviceio
-import teleopcore.oxr as oxr
-import teleopcore.plugin_manager as pm
-from teleopcore.retargeting_engine.deviceio_source_nodes import ControllersSource
-from teleopcore.retargeting_engine.retargeters import (
+from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
+from isaacteleop.retargeting_engine.retargeters import (
     TriHandMotionControllerRetargeter,
     TriHandMotionControllerConfig
 )
-from teleopcore.teleop_session_manager import (
+from isaacteleop.teleop_session_manager import (
     TeleopSession,
     TeleopSessionConfig
 )
-from teleopcore.retargeting_engine.interface import OutputCombiner
+from isaacteleop.retargeting_engine.interface import OutputCombiner
 
 
 PLUGIN_ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent / "plugins"
@@ -102,7 +99,7 @@ def example_trihand_motion_controller():
     # Configure Plugins
     plugins = []
     if PLUGIN_ROOT_DIR.exists():
-        from teleopcore.teleop_session_manager import PluginConfig
+        from isaacteleop.teleop_session_manager import PluginConfig
         plugins.append(PluginConfig(
             plugin_name=PLUGIN_NAME,
             plugin_root_id=PLUGIN_ROOT_ID,

@@ -16,7 +16,7 @@ Reads controller grip and aim poses, generates realistic hand joint configuratio
 ### Build
 
 ```bash
-cd TeleopCore/build
+cd build
 cmake ..
 make controller_synthetic_hands
 ```

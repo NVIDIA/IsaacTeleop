@@ -18,7 +18,7 @@ import glfw  # type: ignore[import-not-found]
 import imgui  # type: ignore[import-not-found]
 from imgui.integrations.glfw import GlfwRenderer  # type: ignore[import-not-found]
 
-from teleopcore.retargeting_engine.interface import (
+from isaacteleop.retargeting_engine.interface import (
     BoolParameter,
     FloatParameter,
     IntParameter,
@@ -27,7 +27,7 @@ from teleopcore.retargeting_engine.interface import (
 )
 
 if TYPE_CHECKING:
-    from teleopcore.retargeting_engine.interface import BaseRetargeter, ParameterState
+    from isaacteleop.retargeting_engine.interface import BaseRetargeter, ParameterState
 
 
 # ============================================================================

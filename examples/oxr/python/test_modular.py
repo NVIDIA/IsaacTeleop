@@ -7,17 +7,11 @@ Test script for modular OpenXR tracking API
 """
 
 import sys
-import os
 import time
 
-try:
-    import teleopcore.deviceio as deviceio
-    import teleopcore.oxr as oxr
-    import teleopcore.schema as schema
-except ImportError as e:
-    print(f"Error: {e}")
-    print("Make sure the module is built")
-    sys.exit(1)
+import isaacteleop.deviceio as deviceio
+import isaacteleop.oxr as oxr
+import isaacteleop.schema as schema
 
 print("=" * 80)
 print("OpenXR Modular Tracking API Test")

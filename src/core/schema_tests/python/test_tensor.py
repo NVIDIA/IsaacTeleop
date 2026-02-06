@@ -1,12 +1,11 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Unit tests for TensorT and related types in teleopcore.schema."""
+"""Unit tests for TensorT and related types in isaacteleop.schema."""
 
-import pytest
 import numpy as np
 
-from teleopcore.schema import (
+from isaacteleop.schema import (
     TensorT,
     DLDataType,
     DLDataTypeCode,

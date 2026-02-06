@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Unit tests for FullBodyPosePicoT and related types in teleopcore.schema.
+"""Unit tests for FullBodyPosePicoT and related types in isaacteleop.schema.
 
 FullBodyPosePicoT is a FlatBuffers table (read-only from Python) that represents full body pose data:
 - joints: BodyJointsPico struct containing 24 BodyJointPose entries (XR_BD_body_tracking)
@@ -25,7 +25,7 @@ Note: Python code should only READ this data (created by C++ trackers), not modi
 
 import pytest
 
-from teleopcore.schema import (
+from isaacteleop.schema import (
     FullBodyPosePicoT,
     BodyJointsPico,
     BodyJointPose,

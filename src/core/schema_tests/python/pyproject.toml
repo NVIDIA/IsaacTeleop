@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 [project]
-name = "teleopcore-schema-tests"
+name = "isaacteleop-schema-tests"
 version = "0.0.0"  # Internal tests - not versioned
-description = "Tests for TeleopCore schema types"
+description = "Tests for Isaac Teleop schema types"
 requires-python = ">=3.10,<3.13"
 
 [project.optional-dependencies]

@@ -6,7 +6,7 @@ Tests for scalar tensor types.
 """
 
 import pytest
-from teleopcore.retargeting_engine.tensor_types import FloatType, IntType, BoolType
+from isaacteleop.retargeting_engine.tensor_types import FloatType, IntType, BoolType
 
 
 def test_float_type():

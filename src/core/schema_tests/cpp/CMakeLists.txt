@@ -15,7 +15,7 @@ add_executable(schema_tests
   test_pedals.cpp
 )
 target_link_libraries(schema_tests PRIVATE
-  teleopcore_schema
+  isaacteleop_schema
   Catch2::Catch2WithMain
 )
 

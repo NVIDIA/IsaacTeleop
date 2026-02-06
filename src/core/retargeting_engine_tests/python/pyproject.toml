@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 [project]
-name = "teleopcore-retargeting-engine"
+name = "isaacteleop-retargeting-engine"
 version = "0.0.0"  # Internal tests - not versioned
-description = "Retargeting engine type system for TeleopCore"
+description = "Retargeting engine type system for Isaac Teleop"
 requires-python = ">=3.10,<3.13"
 
 [project.optional-dependencies]
