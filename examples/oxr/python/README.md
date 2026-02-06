@@ -5,7 +5,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # OpenXR Python Examples
 
-Python examples demonstrating the OpenXR tracking API using the `teleopcore` Python wheel.
+Python examples demonstrating the OpenXR tracking API using the `isaacteleop` Python wheel.
 
 ## Prerequisites
 
@@ -79,8 +79,7 @@ uv run test_session_sharing.py
 ## Dependencies
 
 Dependencies are managed through `pyproject.toml` and automatically handled by `uv`:
-- `teleopcore` - The OpenXR tracking wheel (built from source)
-- `numpy>=1.19.0` - Required by teleopcore
+- `isaacteleop` - The OpenXR tracking wheel (built from source)
 
 ## Configuration
 

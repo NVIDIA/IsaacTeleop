@@ -12,13 +12,13 @@ from VR controller inputs.
 import sys
 import time
 from pathlib import Path
-import teleopcore.deviceio as deviceio
+import isaacteleop.deviceio as deviceio
 
-from teleopcore.retargeting_engine.retargeters import (
+from isaacteleop.retargeting_engine.retargeters import (
     LocomotionRootCmdRetargeter,
     LocomotionRootCmdRetargeterConfig,
 )
-from teleopcore.teleop_session_manager import (
+from isaacteleop.teleop_session_manager import (
     TeleopSession,
     TeleopSessionConfig,
     PluginConfig,

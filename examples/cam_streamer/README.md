@@ -2,7 +2,7 @@
 
 Low-latency H.264 video streaming from OAK-D camera using DepthAI + GStreamer.
 
-Note: This is a standalone example and not integrated in TeleopCore.
+Note: This is a standalone example and not integrated in Isaac Teleop.
 
 ## Quick Start
 

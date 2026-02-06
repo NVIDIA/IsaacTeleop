@@ -8,14 +8,14 @@ Tests the .connect() method and RetargeterSubgraph functionality.
 """
 
 import pytest
-from teleopcore.retargeting_engine.interface import (
+from isaacteleop.retargeting_engine.interface import (
     BaseRetargeter,
     TensorGroupType,
     TensorGroup,
     RetargeterSubgraph,
     OutputCombiner,
 )
-from teleopcore.retargeting_engine.tensor_types import (
+from isaacteleop.retargeting_engine.tensor_types import (
     FloatType,
     IntType,
 )

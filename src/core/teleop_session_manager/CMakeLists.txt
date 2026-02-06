@@ -4,7 +4,7 @@
 # TeleopSessionManager Python Module
 
 # Determine output directory for wheel packaging
-set(TELEOP_SESSION_MANAGER_OUTPUT_DIR "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/teleop_session_manager")
+set(TELEOP_SESSION_MANAGER_OUTPUT_DIR "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/teleop_session_manager")
 
 # List of Python files to copy
 set(TELEOP_SESSION_MANAGER_PYTHON_FILES
@@ -41,7 +41,7 @@ install(FILES
     python/config.py
     python/teleop_session.py
     python/helpers.py
-    DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/python3/dist-packages/teleopcore/teleop_session_manager
+    DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/python3/dist-packages/isaacteleop/teleop_session_manager
 )
 
 message(STATUS "TeleopSessionManager Python package configured for installation")

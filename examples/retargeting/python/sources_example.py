@@ -22,10 +22,10 @@ This example shows:
 
 import sys
 import time
-import teleopcore.deviceio as deviceio
-import teleopcore.oxr as oxr
-from teleopcore.retargeting_engine.deviceio_source_nodes import HandsSource, HeadSource, ControllersSource
-from teleopcore.retargeting_engine.interface import OutputCombiner
+import isaacteleop.deviceio as deviceio
+import isaacteleop.oxr as oxr
+from isaacteleop.retargeting_engine.deviceio_source_nodes import HandsSource, HeadSource, ControllersSource
+from isaacteleop.retargeting_engine.interface import OutputCombiner, TensorGroup
 
 
 def main():
@@ -127,7 +127,6 @@ def main():
                     # ====================================================
                     # Wrap raw data in TensorGroups for source inputs
                     # ====================================================
-                    from teleopcore.retargeting_engine.interface import TensorGroup
 
                     # Prepare inputs for each source module
                     hands_inputs = {}

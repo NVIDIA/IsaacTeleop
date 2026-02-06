@@ -41,7 +41,7 @@ target_link_libraries(deviceio_core
         oxr::oxr_utils
 
         # Schema library for FlatBuffer types
-        teleopcore_schema
+        isaacteleop_schema
 )
 
 # Platform-specific definitions

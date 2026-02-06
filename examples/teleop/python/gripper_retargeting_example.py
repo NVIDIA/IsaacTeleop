@@ -14,23 +14,20 @@ import sys
 import time
 from pathlib import Path
 
-import teleopcore.deviceio as deviceio
-import teleopcore.oxr as oxr
-import teleopcore.plugin_manager as pm
 import numpy as np
-from teleopcore.retargeting_engine.deviceio_source_nodes import (
+from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     ControllersSource,
     HandsSource,
 )
-from teleopcore.retargeting_engine.retargeters import (
+from isaacteleop.retargeting_engine.retargeters import (
     GripperRetargeter,
     GripperRetargeterConfig,
     Se3AbsRetargeter,
     Se3RetargeterConfig,
 )
-from teleopcore.retargeting_engine.interface import OutputCombiner
+from isaacteleop.retargeting_engine.interface import OutputCombiner
 # Import TeleopSession to handle the loop correctly with new sources
-from teleopcore.teleop_session_manager import (
+from isaacteleop.teleop_session_manager import (
     TeleopSession,
     TeleopSessionConfig,
     PluginConfig,

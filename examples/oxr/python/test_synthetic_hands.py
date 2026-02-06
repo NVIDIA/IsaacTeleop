@@ -15,14 +15,12 @@ This test:
 Note: Plugin crashes will raise pm.PluginCrashException
 """
 
-import sys
 import time
-import os
 from pathlib import Path
 
-import teleopcore.deviceio as deviceio
-import teleopcore.oxr as oxr
-import teleopcore.plugin_manager as pm
+import isaacteleop.deviceio as deviceio
+import isaacteleop.oxr as oxr
+import isaacteleop.plugin_manager as pm
 
 # Paths
 # The test will look for plugins in the install directory relative to this script

@@ -13,17 +13,16 @@ TeleopSession handles this by wrapping schema objects in the appropriate format.
 
 import pytest
 import numpy as np
-from teleopcore.retargeting_engine.deviceio_source_nodes import (
+from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     ControllersSource,
     HandsSource,
     HeadSource,
 )
-from teleopcore.retargeting_engine.tensor_types import NUM_HAND_JOINTS
-from teleopcore.schema import (
+from isaacteleop.retargeting_engine.interface import TensorGroup
+from isaacteleop.schema import (
     Point,
     Quaternion,
     Pose,
-    HandJointPose,
     ControllerPose,
     ControllerInputState,
     ControllerSnapshot,
@@ -127,7 +126,6 @@ class TestControllersSource:
         }
         
         # Create output structure
-        from teleopcore.retargeting_engine.interface import TensorGroup
         output_spec = source.output_spec()
         outputs = {}
         for name, group_type in output_spec.items():

@@ -130,8 +130,8 @@ source venv_isaac/bin/activate
 
 3. **Clone the repository**
 ```bash
-git clone git@github.com:NVIDIA/TeleopCore.git
-cd TeleopCore
+git clone git@github.com:NVIDIA/IsaacTeleop.git
+cd IsaacTeleop
 ```
 
 > **Note**: Dependencies (OpenXR SDK, pybind11, yaml-cpp) are automatically downloaded
@@ -231,10 +231,10 @@ uv pip install -U torch==2.7.0 torchvision==0.22.0 --index-url https://download.
 
 2. **Clone & install Isaac Lab**
 
-Run this out side of the `TeleopCore` code base.
+Run this out side of the `IsaacTeleop` code base.
 
 ```bash
-# In a separate folder outside of Teleop Core:
+# In a separate folder outside of Isaac Teleop:
 git clone git@github.com:isaac-sim/IsaacLab.git
 
 # Run the install command
@@ -245,7 +245,7 @@ cd IsaacLab
 export ISAACLAB_PATH=$(pwd)
 ```
 
-### Build Teleop Core and Run Isaac Lab Sample
+### Build Isaac Teleop and Run Isaac Lab Sample
 
 1. Build & install Teleop Python packages
 
@@ -259,12 +259,12 @@ cmake --install build
 
 Install the Python package
 ```bash
-uv pip install --find-links=install/wheels teleopcore
+uv pip install --find-links=install/wheels isaacteleop
 ```
 
 Validate the Python package has been successfully built and installed.
 ```bash
-python -c "import teleopcore.deviceio"
+python -c "import isaacteleop.deviceio"
 ```
 
 Run a quick test:
@@ -274,10 +274,10 @@ source scripts/setup_cloudxr_env.sh
 python ./examples/oxr/python/test_extensions.py
 ```
 
-2. **Run Teleop with Isaac Lab**
+2. **Run teleoperation with Isaac Lab**
 
 ```bash
-# In the Teleop Core repo:
+# In the IsaacTeleop repo:
 ./scripts/run_isaac_lab.sh
 ```
 

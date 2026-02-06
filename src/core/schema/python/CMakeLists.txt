@@ -16,7 +16,7 @@ pybind11_add_module(schema_py
 
 target_link_libraries(schema_py
     PRIVATE
-        teleopcore_schema
+        isaacteleop_schema
 )
 
 # Ensure generated headers are available.
@@ -25,5 +25,5 @@ add_dependencies(schema_py schema_header_generation)
 set_target_properties(schema_py PROPERTIES
     OUTPUT_NAME "_schema"
     # Use genex in output directory - CMake won't add another config subdirectory
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/schema"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/schema"
 )

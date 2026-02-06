@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Test Runner Script with CloudXR
-# Runs TeleopCore tests using docker-compose with CloudXR runtime
+# Runs Isaac Teleop tests using docker-compose with CloudXR runtime
 #
 # Usage:
 #   ./scripts/run_tests_with_cloudxr.sh [--build] [--python-version <version>]
@@ -57,7 +57,7 @@ COMPOSE_BASE="deps/cloudxr/docker-compose.yaml"
 COMPOSE_TEST="deps/cloudxr/docker-compose.test.yaml"
 
 # Use a different project name to isolate volumes from run_cloudxr.sh
-COMPOSE_PROJECT="teleopcore-test"
+COMPOSE_PROJECT="isaacteleop-test"
 
 # Environment file for test configuration
 ENV_TEST="deps/cloudxr/.env.test"
@@ -144,7 +144,7 @@ trap cleanup EXIT
 # Print banner
 echo ""
 echo -e "${BLUE}=========================================="
-echo "  TeleopCore Test Runner with CloudXR"
+echo "  Isaac Teleop Test Runner with CloudXR"
 echo -e "==========================================${NC}"
 echo ""
 
@@ -216,17 +216,17 @@ if [ ! -d "install/wheels" ]; then
     exit 1
 fi
 
-WHEEL_COUNT=$(find install/wheels -name "teleopcore-*.whl" | wc -l)
+WHEEL_COUNT=$(find install/wheels -name "isaacteleop-*.whl" | wc -l)
 if [ "$WHEEL_COUNT" -eq 0 ]; then
-    log_error "No teleopcore wheel found in install/wheels/"
+    log_error "No isaacteleop wheel found in install/wheels/"
     exit 1
 elif [ "$WHEEL_COUNT" -gt 1 ]; then
-    log_error "Multiple teleopcore wheels found - consider cleaning install/wheels/"
-    ls -la install/wheels/teleopcore-*.whl
+    log_error "Multiple isaacteleop wheels found - consider cleaning install/wheels/"
+    ls -la install/wheels/isaacteleop-*.whl
     exit 1
 fi
 
-log_success "Found teleopcore wheel in install/wheels/"
+log_success "Found isaacteleop wheel in install/wheels/"
 
 # Build test container
 log_info "Building test container..."
@@ -239,7 +239,7 @@ fi
 docker build \
     $BUILD_ARGS \
     --build-arg PYTHON_VERSION="$PYTHON_VERSION" \
-    -t teleopcore-tests:latest \
+    -t isaacteleop-tests:latest \
     -f deps/cloudxr/Dockerfile.test \
     .
 
@@ -306,7 +306,7 @@ if docker compose \
     ${ENV_TEST:+--env-file "$ENV_TEST"} \
     -f "$COMPOSE_BASE" \
     -f "$COMPOSE_TEST" \
-    run --rm teleopcore-tests; then
+    run --rm isaacteleop-tests; then
     log_success "All tests passed!"
     EXIT_CODE=0
 else

@@ -14,9 +14,9 @@ import sys
 import time
 import numpy as np
 from pathlib import Path
-import teleopcore.deviceio as deviceio
-import teleopcore.oxr as oxr
-import teleopcore.schema as schema
+import isaacteleop.deviceio as deviceio
+import isaacteleop.oxr as oxr
+import isaacteleop.schema as schema
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
 
 

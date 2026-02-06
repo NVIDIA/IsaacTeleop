@@ -5,7 +5,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # Isaac Teleop Device Plugins — Manus
 
-This folder provides a Linux-only example of using the Manus SDK for hand tracking within the TeleopCore framework.
+This folder provides a Linux-only example of using the Manus SDK for hand tracking within the Isaac Teleop framework.
 
 ## Components
 
@@ -45,7 +45,7 @@ src/plugins/manus/
 
 ## Build
 
-This plugin is built as part of the TeleopCore project. It will be automatically included if the Manus SDK is found.
+This plugin is built as part of the Isaac Teleop project. It will be automatically included if the Manus SDK is found.
 
 Run the project build from the repository root:
 

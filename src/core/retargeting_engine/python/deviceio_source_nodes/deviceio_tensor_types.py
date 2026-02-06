@@ -11,7 +11,7 @@ before conversion to the standard retargeting engine format.
 from typing import Any
 from ..interface.tensor_type import TensorType
 from ..interface.tensor_group_type import TensorGroupType
-from teleopcore.schema import HeadPoseT, HandPoseT, ControllerSnapshot
+from isaacteleop.schema import HeadPoseT, HandPoseT, ControllerSnapshot
 
 
 class HeadPoseTType(TensorType):

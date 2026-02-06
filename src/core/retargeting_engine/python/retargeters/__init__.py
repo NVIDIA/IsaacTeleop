@@ -4,7 +4,7 @@
 """
 Retargeting Modules.
 
-This module contains retargeters available in TeleopCore.
+This module contains retargeters available in Isaac Teleop.
 Many of these are adapted from IsaacLab (Isaac Sim).
 
 Available Retargeters:

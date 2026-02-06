@@ -15,19 +15,19 @@ import contextlib
 from types import SimpleNamespace
 from pathlib import Path
 
-import teleopcore.deviceio as deviceio
-import teleopcore.oxr as oxr
-from teleopcore.retargeting_engine.deviceio_source_nodes import HandsSource
-from teleopcore.retargeting_engine.retargeters import (
+import isaacteleop.deviceio as deviceio
+import isaacteleop.oxr as oxr
+from isaacteleop.retargeting_engine.deviceio_source_nodes import HandsSource
+from isaacteleop.retargeting_engine.retargeters import (
     DexHandRetargeter,
     DexHandRetargeterConfig
 )
-from teleopcore.retargeting_engine.interface import OutputCombiner
-from teleopcore.teleop_session_manager import (
+from isaacteleop.retargeting_engine.interface import OutputCombiner
+from isaacteleop.teleop_session_manager import (
     TeleopSession,
     TeleopSessionConfig
 )
-from teleopcore.retargeting_engine_ui import MultiRetargeterTuningUIImGui
+from isaacteleop.retargeting_engine_ui import MultiRetargeterTuningUIImGui
 
 
 def main():

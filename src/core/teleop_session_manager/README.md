@@ -17,12 +17,12 @@ The main component is `TeleopSession`, which manages the complete lifecycle of a
 Here's a minimal example:
 
 ```python
-from teleopcore.teleop_session_manager import (
+from isaacteleop.teleop_session_manager import (
     TeleopSession,
     TeleopSessionConfig,
 )
-from teleopcore.retargeting_engine.deviceio_source_nodes import ControllersSource
-from teleopcore.retargeting_engine.examples import GripperRetargeter
+from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
+from isaacteleop.retargeting_engine.examples import GripperRetargeter
 
 # Create source and build pipeline
 controllers = ControllersSource(name="controllers")

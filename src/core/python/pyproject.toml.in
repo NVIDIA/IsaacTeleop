@@ -9,11 +9,11 @@ requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "teleopcore"
+name = "isaacteleop"
 version = "@ISAAC_TELEOP_PYPROJECT_VERSION@"
-description = "TeleopCore - Teleoperation with Device I/O"
+description = "Isaac Teleop - Teleoperation with Device I/O"
 readme = "README.md"
-requires-python = "==@TELEOPCORE_PYTHON_VERSION@.*"
+requires-python = "==@ISAAC_TELEOP_PYTHON_VERSION@.*"
 license = "Apache-2.0"
 authors = [
     {name = "NVIDIA"}
@@ -28,30 +28,30 @@ optional-dependencies.retargeters = {file = ["requirements-retargeters.txt"]}
 
 [tool.setuptools]
 packages = [
-    "teleopcore",
-    "teleopcore.deviceio",
-    "teleopcore.mcap",
-    "teleopcore.oxr",
-    "teleopcore.plugin_manager",
-    "teleopcore.schema",
-    "teleopcore.retargeting_engine",
-    "teleopcore.retargeting_engine.interface",
-    "teleopcore.retargeting_engine.tensor_types",
-    "teleopcore.retargeting_engine.deviceio_source_nodes",
-    "teleopcore.retargeting_engine.retargeters",
-    "teleopcore.retargeting_engine.retargeters.G1",
-    "teleopcore.retargeting_engine_ui",
-    "teleopcore.teleop_session_manager"
+    "isaacteleop",
+    "isaacteleop.deviceio",
+    "isaacteleop.mcap",
+    "isaacteleop.oxr",
+    "isaacteleop.plugin_manager",
+    "isaacteleop.schema",
+    "isaacteleop.retargeting_engine",
+    "isaacteleop.retargeting_engine.interface",
+    "isaacteleop.retargeting_engine.tensor_types",
+    "isaacteleop.retargeting_engine.deviceio_source_nodes",
+    "isaacteleop.retargeting_engine.retargeters",
+    "isaacteleop.retargeting_engine.retargeters.G1",
+    "isaacteleop.retargeting_engine_ui",
+    "isaacteleop.teleop_session_manager"
 ]
 include-package-data = true
 
 [tool.setuptools.package-data]
-teleopcore = ["*.so", "*.pyd", "*.pyi", "py.typed"]
-"teleopcore.deviceio" = ["*.so", "*.pyd", "*.pyi"]
-"teleopcore.mcap" = ["*.so", "*.pyd", "*.pyi"]
-"teleopcore.oxr" = ["*.so", "*.pyd", "*.pyi"]
-"teleopcore.plugin_manager" = ["*.so", "*.pyd", "*.pyi"]
-"teleopcore.schema" = ["*.so", "*.pyd", "*.pyi"]
+isaacteleop = ["*.so", "*.pyd", "*.pyi", "py.typed"]
+"isaacteleop.deviceio" = ["*.so", "*.pyd", "*.pyi"]
+"isaacteleop.mcap" = ["*.so", "*.pyd", "*.pyi"]
+"isaacteleop.oxr" = ["*.so", "*.pyd", "*.pyi"]
+"isaacteleop.plugin_manager" = ["*.so", "*.pyd", "*.pyi"]
+"isaacteleop.schema" = ["*.so", "*.pyd", "*.pyi"]
 
 [tool.uv]
 # Only use managed Python installations (not system Python)

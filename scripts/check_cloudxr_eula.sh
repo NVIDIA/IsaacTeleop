@@ -26,7 +26,7 @@ fi
 # 2b. Prompt user to accept EULA
 echo "By installing or using NVIDIA CloudXR, I agree to the terms of
 NVIDIA CloudXR LICENSE AGREEMENT (EULA) in
-https://github.com/nvidia-isaac/TeleopCore/blob/main/deps/cloudxr/CLOUDXR_LICENSE"
+https://github.com/NVIDIA/IsaacTeleop/blob/main/deps/cloudxr/CLOUDXR_LICENSE"
 echo "Do you accept the EULA? (Yes/No)"
 
 echo -n "Type 'yes' to accept: "

@@ -10,7 +10,7 @@ namespace py = pybind11;
 
 PYBIND11_MODULE(_oxr, m)
 {
-    m.doc() = "TeleopCore OXR - OpenXR Session Module";
+    m.doc() = "Isaac Teleop OXR - OpenXR Session Module";
 
     // OpenXRSessionHandles structure (for sharing)
     py::class_<core::OpenXRSessionHandles>(m, "OpenXRSessionHandles")

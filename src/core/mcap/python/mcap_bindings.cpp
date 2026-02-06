@@ -47,11 +47,11 @@ private:
 
 PYBIND11_MODULE(_mcap, m)
 {
-    m.doc() = "TeleopCore MCAP - MCAP Recording Module";
+    m.doc() = "Isaac Teleop MCAP - MCAP Recording Module";
 
     // Import deviceio module to get PyDeviceIOSession type registered
     // This ensures cross-module type compatibility for pybind11
-    py::module_::import("teleopcore.deviceio._deviceio");
+    py::module_::import("isaacteleop.deviceio._deviceio");
 
     // McapRecorder class
     py::class_<PyMcapRecorder>(m, "McapRecorder")

@@ -130,7 +130,7 @@ export XR_RUNTIME_JSON=/path/to/cloudxr/openxr_cloudxr-dev.json
 
 After building:
 - **C++ Static Libraries**: Built in `build/src/core/`
-- **Python Wheel**: `build/wheels/teleopcore-*.whl`
+- **Python Wheel**: `build/wheels/isaacteleop-*.whl`
 - **C++ Examples**: `build/examples/oxr/cpp/`
 
 ## Documentation

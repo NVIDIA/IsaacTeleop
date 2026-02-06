@@ -6,7 +6,7 @@
 Helper utilities for creating input nodes and retargeters.
 """
 
-from teleopcore.retargeting_engine.deviceio_source_nodes import HandsSource, ControllersSource, HeadSource
+from isaacteleop.retargeting_engine.deviceio_source_nodes import HandsSource, ControllersSource, HeadSource
 
 
 def create_standard_inputs(trackers):

@@ -56,7 +56,7 @@ jobs:
         ccache --show-config
 
     - name: Configure CMake
-      run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DTELEOPCORE_PYTHON_VERSION=${{ matrix.python_version }} -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+      run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DISAAC_TELEOP_PYTHON_VERSION=${{ matrix.python_version }} -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
     - name: Build
       run: cmake --build build --parallel 4
@@ -73,20 +73,20 @@ jobs:
 
     - name: Create tarball to preserve permissions
       if: matrix.build_type == 'Release'
-      run: tar -cvf teleopcore-install.tar -C install .
+      run: tar -cvf isaacteleop-install.tar -C install .
 
     - name: Upload Release artifacts
       if: matrix.build_type == 'Release'
       uses: actions/upload-artifact@v4
       with:
-        name: teleopcore-install-release-py${{ matrix.python_version }}
-        path: teleopcore-install.tar
+        name: isaacteleop-install-release-py${{ matrix.python_version }}
+        path: isaacteleop-install.tar
         retention-days: 1
     - name: Upload wheel artifacts
       if: matrix.build_type == 'Release'
       uses: actions/upload-artifact@v4
       with:
-        name: teleopcore-wheels-py${{ matrix.python_version }}
+        name: isaacteleop-wheels-py${{ matrix.python_version }}
         path: install/wheels/*.whl
         retention-days: 1
 
@@ -111,12 +111,12 @@ jobs:
     - name: Download install artifacts
       uses: actions/download-artifact@v4
       with:
-        name: teleopcore-install-release-py${{ matrix.python_version }}
+        name: isaacteleop-install-release-py${{ matrix.python_version }}
 
     - name: Extract tarball to preserve permissions
       run: |
         mkdir -p install
-        tar -xvf teleopcore-install.tar -C install
+        tar -xvf isaacteleop-install.tar -C install
 
     - name: Parse CloudXR tag from .env.default
       id: cloudxr
@@ -169,7 +169,7 @@ jobs:
     - name: Download wheel artifacts
       uses: actions/download-artifact@v4
       with:
-        pattern: teleopcore-wheels-py*
+        pattern: isaacteleop-wheels-py*
         merge-multiple: true
         path: wheels
 

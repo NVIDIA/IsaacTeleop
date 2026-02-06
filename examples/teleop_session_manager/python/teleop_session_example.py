@@ -19,13 +19,13 @@ import numpy as np
 from pathlib import Path
 from typing import Dict, Optional
 
-from teleopcore.retargeting_engine.deviceio_source_nodes import HandsSource, ControllersSource
-from teleopcore.teleop_session_manager import TeleopSession, TeleopSessionConfig, PluginConfig
-from teleopcore.retargeting_engine.interface import BaseRetargeter
-from teleopcore.retargeting_engine.tensor_types import HandInput, ControllerInput
-from teleopcore.retargeting_engine.interface.tensor_group_type import TensorGroupType
-from teleopcore.retargeting_engine.interface.tensor_group import TensorGroup
-from teleopcore.retargeting_engine.tensor_types import FloatType
+from isaacteleop.retargeting_engine.deviceio_source_nodes import HandsSource, ControllersSource
+from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig, PluginConfig
+from isaacteleop.retargeting_engine.interface import BaseRetargeter
+from isaacteleop.retargeting_engine.tensor_types import HandInput, ControllerInput
+from isaacteleop.retargeting_engine.interface.tensor_group_type import TensorGroupType
+from isaacteleop.retargeting_engine.interface.tensor_group import TensorGroup
+from isaacteleop.retargeting_engine.tensor_types import FloatType
 
 
 PLUGIN_ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent / "plugins"

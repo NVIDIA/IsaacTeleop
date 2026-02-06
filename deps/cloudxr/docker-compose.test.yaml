@@ -1,13 +1,13 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Test docker-compose file for running TeleopCore tests with CloudXR
+# Test docker-compose file for running Isaac Teleop tests with CloudXR
 # Extends the base CloudXR compose and adds test runner service
 #
 # Note: Run with a different project name to isolate volumes from dev environment:
-#   docker compose -p teleopcore-test -f docker-compose.yaml -f docker-compose.test.yaml up
+#   docker compose -p isaacteleop-test -f docker-compose.yaml -f docker-compose.test.yaml up
 #
-# This creates volumes like "teleopcore-test_openxr-volume" instead of "cloudxr_openxr-volume"
+# This creates volumes like "isaacteleop-test_openxr-volume" instead of "cloudxr_openxr-volume"
 #
 # NOTE: Must be used with -f docker-compose.yaml -f docker-compose.test.yaml
 # (Docker Compose's include: directive doesn't allow service overrides)
@@ -21,9 +21,9 @@ services:
       - NV_DEVICE_PROFILE=Quest3
 
   # Test runner container
-  # Build with: docker build -t teleopcore-tests:latest -f deps/cloudxr/Dockerfile.test .
-  teleopcore-tests:
-    image: teleopcore-tests:latest
+  # Build with: docker build -t isaacteleop-tests:latest -f deps/cloudxr/Dockerfile.test .
+  isaacteleop-tests:
+    image: isaacteleop-tests:latest
     pull_policy: never
     network_mode: host
     depends_on:
@@ -42,7 +42,7 @@ services:
       - |
         set -e
         echo "=========================================="
-        echo "TeleopCore Test Runner"
+        echo "Isaac Teleop Test Runner"
         echo "=========================================="
         echo ""
         echo "XR_RUNTIME_JSON: $${XR_RUNTIME_JSON}"

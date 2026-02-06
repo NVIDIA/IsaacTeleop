@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Pytest configuration and fixtures for teleopcore.schema tests."""
+"""Pytest configuration and fixtures for isaacteleop.schema tests."""
 
 import pytest
 import numpy as np

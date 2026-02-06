@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""TeleopCore Schema - FlatBuffer message types for teleoperation.
+"""Isaac Teleop Schema - FlatBuffer message types for teleoperation.
 
 This module provides Python bindings for FlatBuffer-based message types
 used in teleoperation, including tensors, poses, and controller data.

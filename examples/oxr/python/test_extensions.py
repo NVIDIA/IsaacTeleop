@@ -10,9 +10,8 @@ Useful when creating external OpenXR sessions.
 """
 
 import sys
-import teleopcore.deviceio as deviceio
-import teleopcore.oxr as oxr
-from teleopcore.schema import HeadPoseT
+import isaacteleop.deviceio as deviceio
+import isaacteleop.oxr as oxr
 
 print("=" * 80)
 print("OpenXR Required Extensions Test")

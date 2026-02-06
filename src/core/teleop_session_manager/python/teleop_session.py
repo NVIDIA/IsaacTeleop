@@ -13,16 +13,17 @@ rather than initialization code.
 import sys
 import time
 from contextlib import ExitStack
-from typing import Optional, Dict, Any, List, Callable
-from pathlib import Path
+from typing import Optional, Dict, Any, List
 
-import teleopcore.deviceio as deviceio
-import teleopcore.oxr as oxr
-import teleopcore.plugin_manager as pm
+from isaacteleop.retargeting_engine.deviceio_source_nodes import IDeviceIOSource
+from isaacteleop.retargeting_engine.interface import TensorGroup
+
+import isaacteleop.deviceio as deviceio
+import isaacteleop.oxr as oxr
+import isaacteleop.plugin_manager as pm
 
 from .config import (
     TeleopSessionConfig,
-    PluginConfig,
 )
 
 
@@ -87,7 +88,7 @@ class TeleopSession:
         self._exit_stack = ExitStack()
         
         # Auto-discovered sources
-        self._sources: List[Any] = []
+        self._sources: List[IDeviceIOSource] = []
         
         # Runtime state
         self.frame_count: int = 0
@@ -102,8 +103,6 @@ class TeleopSession:
         
         Traverses the pipeline to find all IDeviceIOSource instances.
         """
-        from teleopcore.retargeting_engine.deviceio_source_nodes import IDeviceIOSource
-        
         # Get leaf nodes from pipeline (now correctly returns all BaseRetargeter instances)
         leaf_nodes = self.pipeline.get_leaf_nodes()
         
@@ -147,8 +146,6 @@ class TeleopSession:
             Dict mapping source module names to their complete input dictionaries.
             Each input dictionary maps input names to TensorGroups containing raw data.
         """
-        from teleopcore.retargeting_engine.interface import TensorGroup
-        
         leaf_inputs = {}
         
         for source in self._sources:

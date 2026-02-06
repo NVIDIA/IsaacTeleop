@@ -21,7 +21,7 @@ import time
 import argparse
 from pathlib import Path
 
-import teleopcore.plugin_manager as pm
+import isaacteleop.plugin_manager as pm
 
 # Paths
 # The test will look for plugins in the install directory relative to this script

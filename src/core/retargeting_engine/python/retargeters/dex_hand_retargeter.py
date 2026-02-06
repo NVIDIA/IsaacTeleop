@@ -8,7 +8,7 @@ Generic retargeter for dexterous hands using the dex_retargeting library.
 This module wraps the dex_retargeting library to retarget OpenXR hand tracking data
 to robot hand joint angles. It supports configuration via YAML files and URDFs.
 
-Based on IsaacLab's DexHandRetargeter, adapted for TeleopCore's retargeting framework.
+Based on IsaacLab's DexHandRetargeter, adapted for Isaac Teleop's retargeting framework.
 """
 
 import numpy as np

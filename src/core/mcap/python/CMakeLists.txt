@@ -15,5 +15,5 @@ target_link_libraries(mcap_py
 set_target_properties(mcap_py PROPERTIES
     OUTPUT_NAME "_mcap"
     # Use genex in output directory - CMake won't add another config subdirectory
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/mcap"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/mcap"
 )
