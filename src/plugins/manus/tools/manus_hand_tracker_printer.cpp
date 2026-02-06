@@ -79,11 +79,11 @@ try
 }
 catch (const std::exception& e)
 {
-    std::cerr << "Error: " << e.what() << std::endl;
+    std::cerr << argv[0] << ": " << e.what() << std::endl;
     return 1;
 }
 catch (...)
 {
-    std::cerr << "Unknown error occurred" << std::endl;
+    std::cerr << argv[0] << ": Unknown error occurred" << std::endl;
     return 1;
 }
