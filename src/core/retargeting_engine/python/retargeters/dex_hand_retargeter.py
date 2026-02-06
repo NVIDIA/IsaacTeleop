@@ -320,7 +320,7 @@ class DexHandRetargeter(BaseRetargeter):
 
         # 2. Transform to canonical frame
         # Center at wrist (index 0 of our subset)
-        joint_pos = joint_pos - joint_pos[0:1, :]
+        joint_pos -= joint_pos[0:1, :]
 
         # Apply wrist rotation alignment (OpenXR WXYZ -> Scipy XYZW)
         wrist_pose = poses.get("wrist")

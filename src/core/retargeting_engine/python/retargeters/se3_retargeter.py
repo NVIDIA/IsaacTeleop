@@ -188,8 +188,8 @@ class Se3RelRetargeter(BaseRetargeter):
         if not SCIPY_AVAILABLE:
             raise ImportError("scipy is required for Se3RelRetargeter")
 
-        self._smoothed_delta_pos = np.zeros(3)
-        self._smoothed_delta_rot = np.zeros(3)
+        self._smoothed_delta_pos: np.ndarray = np.zeros(3)
+        self._smoothed_delta_rot: np.ndarray = np.zeros(3)
 
         self._position_threshold = 0.001
         self._rotation_threshold = 0.01
