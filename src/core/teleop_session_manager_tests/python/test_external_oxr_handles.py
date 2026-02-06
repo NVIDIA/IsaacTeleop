@@ -22,10 +22,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from teleopcore.teleop_session_manager import TeleopSession, TeleopSessionConfig
+from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
 if TYPE_CHECKING:
-    from teleopcore.oxr import OpenXRSessionHandles
+    from isaacteleop.oxr import OpenXRSessionHandles
 
 
 # ============================================================================
@@ -72,8 +72,8 @@ def _mock_deviceio_and_oxr():
     mock_oxr_session.get_handles.return_value = _make_stub_handles()
 
     with (
-        patch("teleopcore.deviceio.DeviceIOSession.run", return_value=mock_dio_session) as dio_run,
-        patch("teleopcore.oxr.OpenXRSession.create", return_value=mock_oxr_session) as oxr_create,
+        patch("isaacteleop.deviceio.DeviceIOSession.run", return_value=mock_dio_session) as dio_run,
+        patch("isaacteleop.oxr.OpenXRSession.create", return_value=mock_oxr_session) as oxr_create,
     ):
         ns = MagicMock()
         ns.deviceio_run = dio_run

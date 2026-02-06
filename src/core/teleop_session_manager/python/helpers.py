@@ -51,7 +51,7 @@ def get_required_oxr_extensions_from_pipeline(pipeline: Any) -> List[str]:
     Returns:
         Sorted list of unique OpenXR extension name strings.
     """
-    import teleopcore.deviceio as deviceio
+    import isaacteleop.deviceio as deviceio
 
     trackers = _get_trackers_from_pipeline(pipeline)
     extensions = deviceio.DeviceIOSession.get_required_extensions(trackers)

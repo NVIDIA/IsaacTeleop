@@ -11,14 +11,14 @@ extensions from a retargeting pipeline without requiring an OpenXR runtime.
 
 from unittest.mock import MagicMock
 
-from teleopcore.retargeting_engine.deviceio_source_nodes import (
+from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     ControllersSource,
     HandsSource,
     HeadSource,
     IDeviceIOSource,
 )
-from teleopcore.teleop_session_manager import get_required_oxr_extensions_from_pipeline
-from teleopcore.teleop_session_manager.helpers import _get_trackers_from_pipeline
+from isaacteleop.teleop_session_manager import get_required_oxr_extensions_from_pipeline
+from isaacteleop.teleop_session_manager.helpers import _get_trackers_from_pipeline
 
 
 # ============================================================================
