@@ -26,6 +26,7 @@ void signal_handler(int signal)
 }
 
 int main(int argc, char** argv)
+try
 {
     std::string plugin_root_id = "synthetic_hands";
 
@@ -44,16 +45,7 @@ int main(int argc, char** argv)
     std::cout << "Controller Synthetic Hands Plugin" << std::endl;
     std::cout << "Plugin Root ID: " << plugin_root_id << std::endl;
 
-    std::unique_ptr<SyntheticHandsPlugin> plugin;
-    try
-    {
-        plugin = std::make_unique<SyntheticHandsPlugin>(plugin_root_id);
-    }
-    catch (const std::exception& e)
-    {
-        std::cerr << "Failed to create plugin: " << e.what() << std::endl;
-        return 1;
-    }
+    auto plugin = std::make_unique<SyntheticHandsPlugin>(plugin_root_id);
 
     std::cout << "Plugin running. Press Ctrl+C to stop." << std::endl;
     while (!g_stop_requested.load(std::memory_order_relaxed))
@@ -64,4 +56,14 @@ int main(int argc, char** argv)
     // RAII: plugin stops in destructor when unique_ptr goes out of scope
 
     return 0;
+}
+catch (const std::exception& e)
+{
+    std::cerr << "Error: " << e.what() << std::endl;
+    return 1;
+}
+catch (...)
+{
+    std::cerr << "Unknown error occurred" << std::endl;
+    return 1;
 }

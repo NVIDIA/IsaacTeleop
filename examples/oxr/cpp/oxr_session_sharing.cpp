@@ -17,6 +17,7 @@
 #include <thread>
 
 int main()
+try
 {
     std::cout << "OpenXR Session Sharing Example" << std::endl;
     std::cout << "================================" << std::endl;
@@ -143,4 +144,14 @@ int main()
     std::cout << std::endl;
 
     return 0;
+}
+catch (const std::exception& e)
+{
+    std::cerr << "Error: " << e.what() << std::endl;
+    return 1;
+}
+catch (...)
+{
+    std::cerr << "Unknown error occurred" << std::endl;
+    return 1;
 }
