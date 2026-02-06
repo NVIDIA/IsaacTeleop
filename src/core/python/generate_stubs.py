@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Generate Python stub file (.pyi) for a single TeleopCore pybind11 module.
+"""Generate Python stub file (.pyi) for a single Isaac Teleop pybind11 module.
 
 This script uses pybind11-stubgen's Python API to generate type stubs for IDE intellisense.
 
@@ -9,7 +9,7 @@ Usage:
     python generate_stubs.py <module_name> <package_dir>
 
 Example:
-    python generate_stubs.py teleopcore.deviceio._deviceio /path/to/python_package
+    python generate_stubs.py isaacteleop.deviceio._deviceio /path/to/python_package
 """
 
 import sys
@@ -20,8 +20,8 @@ def generate_stub(module_name: str, package_dir: Path) -> bool:
     """Generate stub file for a single pybind11 module.
 
     Args:
-        module_name: Fully qualified module name (e.g., "teleopcore.deviceio._deviceio")
-        package_dir: Path to the python_package directory containing teleopcore.
+        module_name: Fully qualified module name (e.g., "isaacteleop.deviceio._deviceio")
+        package_dir: Path to the python_package directory containing isaacteleop.
 
     Returns:
         True if successful, False otherwise.
@@ -96,7 +96,7 @@ def main() -> int:
     """Main entry point."""
     if len(sys.argv) != 3:
         print(f"Usage: {sys.argv[0]} <module_name> <package_dir>")
-        print(f"Example: {sys.argv[0]} teleopcore.deviceio._deviceio /path/to/python_package")
+        print(f"Example: {sys.argv[0]} isaacteleop.deviceio._deviceio /path/to/python_package")
         return 1
 
     module_name = sys.argv[1]

@@ -4,10 +4,10 @@
 [project]
 name = "teleop-examples"
 version = "0.1.0"
-description = "TeleopCore Retargeting Examples"
+description = "Isaac Teleop Retargeting Examples"
 requires-python = ">=3.10,<3.13"
 dependencies = [
-    "teleopcore[retargeters]",
+    "isaacteleop[retargeters]",
 ]
 
 [tool.uv]

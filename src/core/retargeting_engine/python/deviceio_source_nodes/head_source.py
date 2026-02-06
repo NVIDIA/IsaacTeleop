@@ -17,8 +17,8 @@ from ..tensor_types import HeadPose
 from .deviceio_tensor_types import DeviceIOHeadPose
 
 if TYPE_CHECKING:
-    from teleopcore.deviceio import ITracker
-    from teleopcore.schema import HeadPoseT
+    from isaacteleop.deviceio import ITracker
+    from isaacteleop.schema import HeadPoseT
 
 
 class HeadSource(BaseRetargeter, IDeviceIOSource):
@@ -45,7 +45,7 @@ class HeadSource(BaseRetargeter, IDeviceIOSource):
         Args:
             name: Unique name for this source node
         """
-        import teleopcore.deviceio as deviceio
+        import isaacteleop.deviceio as deviceio
         self._head_tracker = deviceio.HeadTracker()
         super().__init__(name)
     

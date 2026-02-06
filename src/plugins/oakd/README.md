@@ -57,7 +57,7 @@ Press `Ctrl+C` to stop recording.
 | `--record` | auto | Output file path (.h264) |
 | `--record-dir` | ./recordings | Directory for auto-named recordings |
 | `--retry-interval` | 5 | Camera init retry interval (seconds) |
-| `--plugin-root-id` | oakd_camera | Plugin ID for TeleopCore integration |
+| `--plugin-root-id` | oakd_camera | Plugin ID for Isaac Teleop integration |
 
 ## Architecture
 

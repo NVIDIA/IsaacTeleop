@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Unit tests for Locomotion types in teleopcore.schema.
+"""Unit tests for Locomotion types in isaacteleop.schema.
 
 Tests the following FlatBuffers types:
 - Twist: Struct with linear and angular velocity (Point types)
@@ -10,7 +10,7 @@ Tests the following FlatBuffers types:
 
 import pytest
 
-from teleopcore.schema import (
+from isaacteleop.schema import (
     Twist,
     LocomotionCommand,
     Point,

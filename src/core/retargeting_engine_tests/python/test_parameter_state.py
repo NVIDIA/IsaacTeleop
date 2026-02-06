@@ -7,8 +7,8 @@ import pytest
 import tempfile
 import os
 import numpy as np
-from teleopcore.retargeting_engine.interface.parameter_state import ParameterState
-from teleopcore.retargeting_engine.interface.tunable_parameter import (
+from isaacteleop.retargeting_engine.interface.parameter_state import ParameterState
+from isaacteleop.retargeting_engine.interface.tunable_parameter import (
     BoolParameter,
     FloatParameter,
     IntParameter,

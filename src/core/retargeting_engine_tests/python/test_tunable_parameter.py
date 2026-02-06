@@ -5,7 +5,7 @@
 
 import pytest
 import numpy as np
-from teleopcore.retargeting_engine.interface.tunable_parameter import (
+from isaacteleop.retargeting_engine.interface.tunable_parameter import (
     BoolParameter,
     FloatParameter,
     IntParameter,

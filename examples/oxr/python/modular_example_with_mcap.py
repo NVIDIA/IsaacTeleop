@@ -15,9 +15,9 @@ Demonstrates the modular architecture with MCAP data capture:
 import sys
 import time
 from datetime import datetime
-import teleopcore.deviceio as deviceio
-import teleopcore.mcap as mcap
-import teleopcore.oxr as oxr
+import isaacteleop.deviceio as deviceio
+import isaacteleop.mcap as mcap
+import isaacteleop.oxr as oxr
 
 
 def main():

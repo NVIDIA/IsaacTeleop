@@ -13,19 +13,19 @@ configure_file(
 
 # After building modules, create the Python package structure.
 add_custom_target(python_package ALL
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore"
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/deviceio"
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/mcap"
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/oxr"
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/plugin_manager"
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/schema"
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/teleop_session_manager"
-    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/../deviceio/python/deviceio_init.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/deviceio/__init__.py"
-    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/../mcap/python/mcap_init.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/mcap/__init__.py"
-    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/../oxr/python/oxr_init.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/oxr/__init__.py"
-    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/../plugin_manager/python/plugin_manager_init.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/plugin_manager/__init__.py"
-    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/../schema/python/schema_init.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/schema/__init__.py"
-    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/teleopcore_init.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/__init__.py"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/deviceio"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/mcap"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/oxr"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/plugin_manager"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/schema"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/teleop_session_manager"
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/../deviceio/python/deviceio_init.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/deviceio/__init__.py"
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/../mcap/python/mcap_init.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/mcap/__init__.py"
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/../oxr/python/oxr_init.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/oxr/__init__.py"
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/../plugin_manager/python/plugin_manager_init.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/plugin_manager/__init__.py"
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/../schema/python/schema_init.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/schema/__init__.py"
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/isaacteleop_init.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/__init__.py"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_BINARY_DIR}/pyproject.toml" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/MANIFEST.in" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/setup.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
@@ -43,7 +43,7 @@ add_custom_target(python_package ALL
 set(STUBGEN_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/generate_stubs.py")
 set(STUBGEN_PYPROJECT "${CMAKE_CURRENT_SOURCE_DIR}/stubgen_pyproject.toml")
 set(STUBGEN_PACKAGE_DIR "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>")
-set(PY_TYPED_MARKER "${STUBGEN_PACKAGE_DIR}/teleopcore/py.typed")
+set(PY_TYPED_MARKER "${STUBGEN_PACKAGE_DIR}/isaacteleop/py.typed")
 
 add_custom_command(
     OUTPUT "${PY_TYPED_MARKER}"
@@ -54,22 +54,22 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy "${STUBGEN_PYPROJECT}" "${CMAKE_BINARY_DIR}/stubgen/pyproject.toml"
 
     # Generate stubs for each pybind11 module using the stubgen pyproject.toml
-    COMMAND uv run --project "${CMAKE_BINARY_DIR}/stubgen" --python ${TELEOPCORE_PYTHON_VERSION}
-        python "${STUBGEN_SCRIPT}" teleopcore.deviceio._deviceio "${STUBGEN_PACKAGE_DIR}"
-    COMMAND uv run --project "${CMAKE_BINARY_DIR}/stubgen" --python ${TELEOPCORE_PYTHON_VERSION}
-        python "${STUBGEN_SCRIPT}" teleopcore.mcap._mcap "${STUBGEN_PACKAGE_DIR}"
-    COMMAND uv run --project "${CMAKE_BINARY_DIR}/stubgen" --python ${TELEOPCORE_PYTHON_VERSION}
-        python "${STUBGEN_SCRIPT}" teleopcore.oxr._oxr "${STUBGEN_PACKAGE_DIR}"
-    COMMAND uv run --project "${CMAKE_BINARY_DIR}/stubgen" --python ${TELEOPCORE_PYTHON_VERSION}
-        python "${STUBGEN_SCRIPT}" teleopcore.plugin_manager._plugin_manager "${STUBGEN_PACKAGE_DIR}"
-    COMMAND uv run --project "${CMAKE_BINARY_DIR}/stubgen" --python ${TELEOPCORE_PYTHON_VERSION}
-        python "${STUBGEN_SCRIPT}" teleopcore.schema._schema "${STUBGEN_PACKAGE_DIR}"
+    COMMAND uv run --project "${CMAKE_BINARY_DIR}/stubgen" --python ${ISAAC_TELEOP_PYTHON_VERSION}
+        python "${STUBGEN_SCRIPT}" isaacteleop.deviceio._deviceio "${STUBGEN_PACKAGE_DIR}"
+    COMMAND uv run --project "${CMAKE_BINARY_DIR}/stubgen" --python ${ISAAC_TELEOP_PYTHON_VERSION}
+        python "${STUBGEN_SCRIPT}" isaacteleop.mcap._mcap "${STUBGEN_PACKAGE_DIR}"
+    COMMAND uv run --project "${CMAKE_BINARY_DIR}/stubgen" --python ${ISAAC_TELEOP_PYTHON_VERSION}
+        python "${STUBGEN_SCRIPT}" isaacteleop.oxr._oxr "${STUBGEN_PACKAGE_DIR}"
+    COMMAND uv run --project "${CMAKE_BINARY_DIR}/stubgen" --python ${ISAAC_TELEOP_PYTHON_VERSION}
+        python "${STUBGEN_SCRIPT}" isaacteleop.plugin_manager._plugin_manager "${STUBGEN_PACKAGE_DIR}"
+    COMMAND uv run --project "${CMAKE_BINARY_DIR}/stubgen" --python ${ISAAC_TELEOP_PYTHON_VERSION}
+        python "${STUBGEN_SCRIPT}" isaacteleop.schema._schema "${STUBGEN_PACKAGE_DIR}"
 
     # Create py.typed marker file (PEP 561) - also serves as build stamp
     COMMAND ${CMAKE_COMMAND} -E touch "${PY_TYPED_MARKER}"
     DEPENDS python_package "${STUBGEN_SCRIPT}" "${STUBGEN_PYPROJECT}"
     WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
-    COMMENT "Generating .pyi stub files for teleopcore modules"
+    COMMENT "Generating .pyi stub files for isaacteleop modules"
 )
 
 add_custom_target(python_stubs
@@ -79,7 +79,7 @@ add_custom_target(python_stubs
 
 # Custom target to build the wheel using uv
 # Depends on python_stubs to ensure py.typed marker and .pyi files are present
-# This is required for mypy type checking of code that imports from teleopcore
+# This is required for mypy type checking of code that imports from isaacteleop
 add_custom_target(python_wheel ALL
     COMMAND ${CMAKE_COMMAND} -E echo "Building Python wheel with uv..."
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/wheels"

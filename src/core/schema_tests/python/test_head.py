@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Unit tests for HeadPoseT in teleopcore.schema.
+"""Unit tests for HeadPoseT in isaacteleop.schema.
 
 HeadPoseT is a FlatBuffers table (read-only from Python) that represents head pose data:
 - pose: The Pose struct (position and orientation)
@@ -13,7 +13,7 @@ Note: Python code should only READ this data (created by C++ trackers), not modi
 
 import pytest
 
-from teleopcore.schema import HeadPoseT, Pose, Point, Quaternion
+from isaacteleop.schema import HeadPoseT
 
 
 class TestHeadPoseTConstruction:

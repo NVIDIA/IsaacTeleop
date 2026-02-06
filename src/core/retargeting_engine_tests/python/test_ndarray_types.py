@@ -7,7 +7,7 @@ Tests for NDArray tensor types using NumPy as the DLPack-compatible framework.
 
 import pytest
 import numpy as np
-from teleopcore.retargeting_engine.tensor_types import NDArrayType, DLDataType, DLDeviceType
+from isaacteleop.retargeting_engine.tensor_types import NDArrayType, DLDataType, DLDeviceType
 
 
 def test_ndarray_type_creation():

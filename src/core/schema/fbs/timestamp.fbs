@@ -11,7 +11,7 @@ struct Timestamp {
     // sources so it may drift apart from other timestamps.
     device_time: int64;
 
-    // Timestamp assigned by the TeleopCore in a common clock domain in nanoseconds.
+    // Timestamp assigned by the Isaac Teleop in a common clock domain in nanoseconds.
     // This enables synchronization across different data sources.
     // These may be noisy, but will not drift apart arbitrary across different devices.
     common_time: int64;

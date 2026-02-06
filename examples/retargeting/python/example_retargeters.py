@@ -11,17 +11,16 @@ from typing import Optional
 
 import numpy as np
 
-from teleopcore.retargeting_engine.interface import (
+from isaacteleop.retargeting_engine.interface import (
     BaseRetargeter,
     BoolParameter,
     FloatParameter,
     IntParameter,
     ParameterState,
-    TensorGroup,
     TensorGroupType,
     VectorParameter,
 )
-from teleopcore.retargeting_engine.tensor_types import FloatType
+from isaacteleop.retargeting_engine.tensor_types import FloatType
 
 
 class GainOffsetRetargeter(BaseRetargeter):

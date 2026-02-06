@@ -7,13 +7,13 @@ Tests for TensorGroup class - collection of tensors with type validation.
 
 import pytest
 import numpy as np
-from teleopcore.retargeting_engine.interface import (
+from isaacteleop.retargeting_engine.interface import (
     TensorGroup,
     Tensor,
     TensorGroupType,
     UNSET_VALUE,
 )
-from teleopcore.retargeting_engine.tensor_types import (
+from isaacteleop.retargeting_engine.tensor_types import (
     FloatType,
     IntType,
     BoolType,

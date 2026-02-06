@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Test container for TeleopCore tests (Python and native C++)
+# Test container for Isaac Teleop tests (Python and native C++)
 # This container installs dependencies and runs tests against CloudXR runtime
 
 ARG PYTHON_VERSION=3.11
@@ -31,7 +31,7 @@ COPY examples/oxr/python/ /app/tests/
 WORKDIR /app/tests
 RUN uv venv /app/venv && \
     . /app/venv/bin/activate && \
-    uv pip install --find-links=/app/install/wheels teleopcore numpy
+    uv pip install --find-links=/app/install/wheels isaacteleop numpy
 
 # Set environment variables
 ENV PATH="/app/venv/bin:$PATH"

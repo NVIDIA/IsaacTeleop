@@ -14,5 +14,5 @@ target_link_libraries(deviceio_py
 set_target_properties(deviceio_py PROPERTIES
     OUTPUT_NAME "_deviceio"
     # Use genex in output directory - CMake won't add another config subdirectory
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/teleopcore/deviceio"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/deviceio"
 )
