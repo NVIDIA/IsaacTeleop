@@ -231,7 +231,7 @@ uv pip install -U torch==2.7.0 torchvision==0.22.0 --index-url https://download.
 
 2. **Clone & install Isaac Lab**
 
-Run this out side of the `IsaacTeleop` code base.
+Run this outside of the `IsaacTeleop` code base.
 
 ```bash
 # In a separate folder outside of Isaac Teleop:
