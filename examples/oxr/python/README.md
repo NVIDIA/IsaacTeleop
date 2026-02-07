@@ -76,20 +76,6 @@ Shows how to share sessions between multiple DeviceIOSession instances.
 uv run test_session_sharing.py
 ```
 
-## Dependencies
-
-Dependencies are managed through `pyproject.toml` and automatically handled by `uv`:
-- `isaacteleop` - The OpenXR tracking wheel (built from source)
-- `numpy>=1.22.0` - Numerical computations used by the examples
-
-## Configuration
-
-The `pyproject.toml` file configures:
-- Project metadata
-- Python version requirement
-- Dependencies
-- Wheel location for uv (`find-links`)
-
 ## Troubleshooting
 
 ### Wheel not found
