@@ -14,11 +14,19 @@ namespace core
 namespace
 {
 
-// Helper to get $HOME with fallback
+// Helper to get user home directory (cross-platform: HOME on Unix, USERPROFILE on Windows)
 std::string get_home_dir()
 {
+#ifdef _WIN32
+    const char* home = std::getenv("USERPROFILE");
+#else
     const char* home = std::getenv("HOME");
-    return home ? std::string(home) : "/tmp";
+#endif
+    if (home == nullptr)
+    {
+        throw std::runtime_error("Failed to get user home directory");
+    }
+    return std::string(home);
 }
 
 // Ensure an environment variable is set. If not set, warn and set to default_value.
