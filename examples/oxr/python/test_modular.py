@@ -37,13 +37,7 @@ print()
 print("[Test 3] Creating OpenXR session and initializing...")
 
 # Create OpenXR session
-oxr_session = oxr.OpenXRSession.create("ModularTest", required_extensions)
-if oxr_session is None:
-    print("❌ Failed to create OpenXR session")
-    sys.exit(1)
-
-# Use context managers for proper RAII cleanup
-with oxr_session:
+with oxr.OpenXRSession("ModularTest", required_extensions) as oxr_session:
     handles = oxr_session.get_handles()
     
     # Run deviceio session with trackers (throws exception on failure)

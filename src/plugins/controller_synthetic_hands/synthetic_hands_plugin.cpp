@@ -23,12 +23,8 @@ SyntheticHandsPlugin::SyntheticHandsPlugin(const std::string& plugin_root_id) no
     auto extensions = core::DeviceIOSession::get_required_extensions(trackers);
     extensions.push_back(XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME);
 
-    // Initialize session - Create() automatically begins the session
-    m_session = core::OpenXRSession::Create("ControllerSyntheticHands", extensions);
-    if (!m_session)
-    {
-        throw std::runtime_error("Failed to create OpenXR session");
-    }
+    // Initialize session - constructor automatically begins the session
+    m_session = std::make_shared<core::OpenXRSession>("ControllerSyntheticHands", extensions);
     const auto handles = m_session->get_handles();
 
     // Create DeviceIOSession with trackers

@@ -70,7 +70,7 @@ def run_test():
     
     with (
         manager.start(plugin_name, plugin_root_id) as plugin,
-        oxr.OpenXRSession.create("HandReader", extensions) as oxr_session
+        oxr.OpenXRSession("HandReader", extensions) as oxr_session
     ):
         print("  ✓ Plugin started")
         print("  ✓ Reader session created")

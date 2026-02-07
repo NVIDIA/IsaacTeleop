@@ -37,10 +37,7 @@ print("  Required extensions:")
 for ext in extensions:
     print(f"    - {ext}")
 
-oxr_session = oxr.OpenXRSession.create("SessionSharingExample", extensions)
-if oxr_session is None:
-    print("  ✗ Failed to create OpenXR session")
-    sys.exit(1)
+oxr_session = oxr.OpenXRSession("SessionSharingExample", extensions)
 
 print("  ✓ OpenXR session created")
 print()

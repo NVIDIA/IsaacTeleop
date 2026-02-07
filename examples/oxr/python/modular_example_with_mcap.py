@@ -45,9 +45,7 @@ def main():
     
     # Create OpenXR session
     print("\nCreating OpenXR session...")
-    
-    # Use context managers for proper RAII cleanup
-    with oxr.OpenXRSession.create("ModularExampleWithMCAP", required_extensions) as oxr_session:
+    with oxr.OpenXRSession("ModularExampleWithMCAP", required_extensions) as oxr_session:
         handles = oxr_session.get_handles()
         print("✓ OpenXR session created")
         

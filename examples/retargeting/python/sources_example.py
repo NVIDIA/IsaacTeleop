@@ -63,9 +63,7 @@ def main():
     # Step 3: Create OpenXR session
     # ========================================================================
     print("\n[Step 4] Creating OpenXR session...")
-    oxr_session = oxr.OpenXRSession.create("RetargetingSourcesExample", required_extensions)
-
-    with oxr_session:
+    with oxr.OpenXRSession("RetargetingSourcesExample", required_extensions) as oxr_session:
         handles = oxr_session.get_handles()
         print("  ✓ OpenXR session created successfully")
 

@@ -120,12 +120,8 @@ void ManusTracker::initialize(const std::string& app_name) noexcept(false)
         auto extensions = core::DeviceIOSession::get_required_extensions(trackers);
         extensions.push_back(XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME);
 
-        // Create session with required extensions - Create() automatically begins the session
-        m_session = core::OpenXRSession::Create(app_name, extensions);
-        if (!m_session)
-        {
-            throw std::runtime_error("Failed to create OpenXR session");
-        }
+        // Create session with required extensions - constructor automatically begins the session
+        m_session = std::make_shared<core::OpenXRSession>(app_name, extensions);
         auto handles = m_session->get_handles();
 
         // Initialize hand injector

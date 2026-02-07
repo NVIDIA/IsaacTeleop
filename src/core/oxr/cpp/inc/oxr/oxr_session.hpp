@@ -8,6 +8,7 @@
 
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 namespace core
@@ -17,18 +18,15 @@ namespace core
 class OpenXRSession
 {
 public:
-    ~OpenXRSession();
-
-    // Static factory method - returns nullptr on failure
-    static std::shared_ptr<OpenXRSession> Create(const std::string& app_name,
-                                                 const std::vector<std::string>& extensions = {});
+    OpenXRSession(const std::string& app_name, const std::vector<std::string>& extensions);
 
     // Get session handles for use with trackers
     OpenXRSessionHandles get_handles() const;
 
 private:
-    // Private constructor - use Create() instead
-    OpenXRSession();
+    using InstanceHandle = std::unique_ptr<std::remove_pointer_t<XrInstance>, decltype(&xrDestroyInstance)>;
+    using SessionHandle = std::unique_ptr<std::remove_pointer_t<XrSession>, decltype(&xrDestroySession)>;
+    using SpaceHandle = std::unique_ptr<std::remove_pointer_t<XrSpace>, decltype(&xrDestroySpace)>;
 
     // Initialization methods
     void create_instance(const std::string& app_name, const std::vector<std::string>& extensions);
@@ -37,10 +35,10 @@ private:
     void create_reference_space();
     void begin();
 
-    XrInstance instance_;
+    InstanceHandle instance_;
     XrSystemId system_id_;
-    XrSession session_;
-    XrSpace space_;
+    SessionHandle session_;
+    SpaceHandle space_;
 };
 
 } // namespace core

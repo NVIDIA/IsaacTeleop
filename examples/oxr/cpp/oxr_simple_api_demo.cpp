@@ -55,12 +55,7 @@ try
     std::cout << "[Step 3] Creating OpenXR session..." << std::endl;
 
     // Create OpenXR session with required extensions
-    auto oxr_session = core::OpenXRSession::Create("SimpleAPIDemo", required_extensions);
-    if (!oxr_session)
-    {
-        std::cerr << "  ✗ Failed to create OpenXR session" << std::endl;
-        return 1;
-    }
+    auto oxr_session = std::make_shared<core::OpenXRSession>("SimpleAPIDemo", required_extensions);
 
     std::cout << "  ✓ OpenXR session created" << std::endl;
     std::cout << std::endl;

@@ -37,7 +37,7 @@ print()
 print("[Test 3] Creating OpenXR session and initializing...")
 
 # Use context managers for proper RAII cleanup
-with oxr.OpenXRSession.create("ControllerTrackerTest", required_extensions) as oxr_session:
+with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_session:
     handles = oxr_session.get_handles()
     
     # Run deviceio session with trackers (throws exception on failure)

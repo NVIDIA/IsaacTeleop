@@ -74,12 +74,7 @@ try
 
     auto required_extensions = core::SchemaPusher::get_required_extensions();
 
-    auto oxr_session = core::OpenXRSession::Create("SchemaPusher", required_extensions);
-    if (!oxr_session)
-    {
-        std::cerr << "Failed to create OpenXR session" << std::endl;
-        return 1;
-    }
+    auto oxr_session = std::make_shared<core::OpenXRSession>("SchemaPusher", required_extensions);
 
     std::cout << "  OpenXR session created" << std::endl;
 
