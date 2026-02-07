@@ -13,7 +13,7 @@ FROM node:24-slim AS builder
 WORKDIR /app
 
 # Install webpack globally for convenience
-RUN npm install -g webpack webpack-cli
+RUN npm install --ignore-scripts -g webpack webpack-cli
 
 # Path to the CloudXR Web SDK (relative to build context)
 ARG CXR_WEB_SDK_VERSION=${CXR_WEB_SDK_VERSION}
@@ -27,8 +27,8 @@ COPY ${SDK_PATH}/ ./
 
 # Install CloudXR SDK and dependencies, then build
 RUN cd ${EXAMPLE} && \
-    npm install ../nvidia-cloudxr-*.tgz && \
-    npm install && \
+    npm install --ignore-scripts ../nvidia-cloudxr-*.tgz && \
+    npm install --ignore-scripts && \
     npm run build
 
 #############################################
