@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <core/manus_hand_tracking_plugin.hpp>
+#include <oxr/oxr_session.hpp>
 #include <oxr_utils/math.hpp>
 #include <oxr_utils/pose_conversions.hpp>
 #include <plugin_utils/hand_injector.hpp>
