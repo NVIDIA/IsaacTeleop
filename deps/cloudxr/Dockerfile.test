@@ -29,7 +29,7 @@ COPY examples/oxr/python/ /app/tests/
 
 # Install Python dependencies using uv
 WORKDIR /app/tests
-RUN uv venv /app/venv && \
+RUN uv venv --python $PYTHON_VERSION /app/venv && \
     . /app/venv/bin/activate && \
     uv pip install --find-links=/app/install/wheels isaacteleop numpy
 
