@@ -11,6 +11,7 @@ SPDX-License-Identifier: Apache-2.0
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![Isaac Lab](https://img.shields.io/badge/Isaac%20Lab-2.3.0-orange.svg)](https://isaac-sim.github.io/IsaacLab/)
+[![numpy](https://img.shields.io/badge/numpy-1.22%2B-lightgrey.svg)](https://numpy.org/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 
 
