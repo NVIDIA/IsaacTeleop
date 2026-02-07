@@ -126,12 +126,12 @@ void ManusTracker::initialize(const std::string& app_name) noexcept(false)
         {
             throw std::runtime_error("Failed to create OpenXR session");
         }
-        m_handles = m_session->get_handles();
+        auto handles = m_session->get_handles();
 
         // Initialize hand injector
-        m_injector.emplace(m_handles.instance, m_handles.session, m_handles.space);
+        m_injector.emplace(handles.instance, handles.session, handles.space);
 
-        m_deviceio_session = core::DeviceIOSession::run(trackers, m_handles);
+        m_deviceio_session = core::DeviceIOSession::run(trackers, handles);
 
         std::cout << "OpenXR session, HandInjector and DeviceIOSession initialized" << std::endl;
         success = true;

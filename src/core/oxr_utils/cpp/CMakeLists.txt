@@ -26,7 +26,7 @@ target_link_libraries(oxr_utils
 
 # Platform-specific definitions for XrTime conversion (used by oxr_time.hpp)
 if(WIN32)
-    target_compile_definitions(oxr_utils INTERFACE XR_USE_PLATFORM_WIN32 NOMINMAX)
+    target_compile_definitions(oxr_utils INTERFACE XR_USE_PLATFORM_WIN32 NOMINMAX WIN32_LEAN_AND_MEAN)
 else()
     target_compile_definitions(oxr_utils INTERFACE XR_USE_TIMESPEC)
 endif()
