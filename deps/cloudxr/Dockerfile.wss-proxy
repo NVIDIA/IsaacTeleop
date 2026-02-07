@@ -29,7 +29,7 @@ EOF
 RUN chmod +x /usr/local/bin/generate-cert.sh
 
 # Create the HAProxy configuration template file
-COPY --chown=haproxy:haproxy <<EOF /usr/local/etc/haproxy/haproxy.cfg.template
+COPY <<EOF /usr/local/etc/haproxy/haproxy.cfg.template
 global
         log stdout    local0 info
         stats timeout 30s
