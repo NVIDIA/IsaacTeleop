@@ -24,7 +24,8 @@
  * Internal lifecycle methods (initialize, update, cleanup) are hidden!
  */
 
-int main()
+int main(int argc, char** argv)
+try
 {
     std::cout << "OpenXR Simple API Demo" << std::endl;
     std::cout << "======================" << std::endl;
@@ -117,4 +118,14 @@ int main()
     std::cout << std::endl;
 
     return 0;
+}
+catch (const std::exception& e)
+{
+    std::cerr << argv[0] << ": " << e.what() << std::endl;
+    return 1;
+}
+catch (...)
+{
+    std::cerr << argv[0] << ": Unknown error occurred" << std::endl;
+    return 1;
 }

@@ -64,7 +64,7 @@ private:
     core::SchemaPusher m_pusher;
 };
 
-int main()
+int main(int argc, char** argv)
 try
 {
     std::cout << "Schema Pusher (collection: " << COLLECTION_ID << ")" << std::endl;
@@ -123,6 +123,11 @@ try
 }
 catch (const std::exception& e)
 {
-    std::cerr << "Error: " << e.what() << std::endl;
+    std::cerr << argv[0] << ": " << e.what() << std::endl;
+    return 1;
+}
+catch (...)
+{
+    std::cerr << argv[0] << ": Unknown error occurred" << std::endl;
     return 1;
 }
