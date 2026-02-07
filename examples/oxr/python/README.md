@@ -80,7 +80,7 @@ uv run test_session_sharing.py
 
 Dependencies are managed through `pyproject.toml` and automatically handled by `uv`:
 - `isaacteleop` - The OpenXR tracking wheel (built from source)
-- `numpy>=1.19.0` - Numerical computations used by the examples
+- `numpy>=1.22.0` - Numerical computations used by the examples
 
 ## Configuration
 
