@@ -11,7 +11,9 @@ on:
 
 jobs:
   build-ubuntu:
-    runs-on: ubuntu-latest
+    # Pin to 22.04 so the wheel is built with GCC 11's libstdc++. The resulting wheel
+    # then runs on both Ubuntu 22.04 and 24.04 (24.04's libstdc++ is backward compatible).
+    runs-on: ubuntu-22.04
 
     strategy:
       matrix:
