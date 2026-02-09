@@ -22,7 +22,7 @@ foreach(test_file ${TEST_FILES})
     # Add the test
     add_test(
         NAME "teleop_session_manager_${test_name}"
-        COMMAND uv run --python ${TELEOPCORE_PYTHON_VERSION} --extra dev pytest -v --tb=short "${test_file}"
+        COMMAND uv run --python ${ISAAC_TELEOP_PYTHON_VERSION} --extra dev pytest -v --tb=short "${test_file}"
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     )
     

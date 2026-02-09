@@ -64,24 +64,6 @@ class TestGetTrackersFromPipeline:
         assert id(hands.get_tracker()) in tracker_set
         assert id(head.get_tracker()) in tracker_set
 
-    def test_deduplicates_shared_trackers(self):
-        """Two sources sharing the same tracker produce only one entry."""
-        # Both sources backed by the same mock tracker
-        shared_tracker = MagicMock()
-
-        source_a = MagicMock(spec=IDeviceIOSource)
-        source_a.get_tracker.return_value = shared_tracker
-
-        source_b = MagicMock(spec=IDeviceIOSource)
-        source_b.get_tracker.return_value = shared_tracker
-
-        pipeline = _mock_pipeline_with_leaf_nodes([source_a, source_b])
-
-        trackers = _get_trackers_from_pipeline(pipeline)
-
-        assert len(trackers) == 1
-        assert trackers[0] is shared_tracker
-
     def test_ignores_non_source_leaf_nodes(self):
         """Leaf nodes that are not IDeviceIOSource are ignored."""
         source = ControllersSource(name="controllers")

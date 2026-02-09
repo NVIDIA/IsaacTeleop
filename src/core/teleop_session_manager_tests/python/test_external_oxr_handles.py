@@ -56,11 +56,13 @@ def _make_empty_pipeline():
 
 @contextmanager
 def _mock_deviceio_and_oxr():
-    """Patch DeviceIOSession.run and OpenXRSession.create to avoid native calls.
+    """Patch DeviceIOSession.run and the OpenXRSession constructor to avoid native calls.
 
     Yields a namespace object with attributes:
-        - deviceio_run:  the mock replacing DeviceIOSession.run
-        - oxr_create:    the mock replacing OpenXRSession.create
+        - deviceio_run:      the mock replacing DeviceIOSession.run
+        - oxr_cls:           the mock replacing the OpenXRSession class
+        - mock_dio_session:  the fake DeviceIOSession instance
+        - mock_oxr_session:  the fake OpenXRSession instance
     """
     mock_dio_session = MagicMock()
     mock_dio_session.__enter__ = MagicMock(return_value=mock_dio_session)
@@ -73,11 +75,11 @@ def _mock_deviceio_and_oxr():
 
     with (
         patch("isaacteleop.deviceio.DeviceIOSession.run", return_value=mock_dio_session) as dio_run,
-        patch("isaacteleop.oxr.OpenXRSession.create", return_value=mock_oxr_session) as oxr_create,
+        patch("isaacteleop.oxr.OpenXRSession", return_value=mock_oxr_session) as oxr_cls,
     ):
         ns = MagicMock()
         ns.deviceio_run = dio_run
-        ns.oxr_create = oxr_create
+        ns.oxr_cls = oxr_cls
         ns.mock_dio_session = mock_dio_session
         ns.mock_oxr_session = mock_oxr_session
         yield ns
@@ -129,7 +131,7 @@ class TestTeleopSessionExternalHandles:
             session = TeleopSession(config)
             session.__enter__()
             try:
-                mocks.oxr_create.assert_not_called()
+                mocks.oxr_cls.assert_not_called()
             finally:
                 session.__exit__(None, None, None)
 
@@ -207,7 +209,7 @@ class TestTeleopSessionStandaloneFallback:
             session = TeleopSession(config)
             session.__enter__()
             try:
-                mocks.oxr_create.assert_called_once()
+                mocks.oxr_cls.assert_called_once()
             finally:
                 session.__exit__(None, None, None)
 
