@@ -233,7 +233,7 @@ class TeleopSession:
 
         # Resolve OpenXR handles
         if self.config.oxr_handles is not None:
-            # Use externally provided handles (e.g. from Kit's XR bridge).
+            # Use externally provided handles.
             # The caller owns the OpenXR session lifetime; we only consume handles.
             handles = self.config.oxr_handles
         else:
@@ -242,6 +242,7 @@ class TeleopSession:
                 oxr.OpenXRSession(self.config.app_name, required_extensions)
             )
             handles = self._oxr_session.get_handles()
+
         # Create DeviceIO session with all trackers
         self.deviceio_session = self._exit_stack.enter_context(
             deviceio.DeviceIOSession.run(trackers, handles)
