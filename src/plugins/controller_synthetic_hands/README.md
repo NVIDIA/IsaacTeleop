@@ -38,8 +38,7 @@ Four focused components:
 **session** (`oxr/oxr_session.hpp`) - OpenXR initialization and session management (from core)
 ```cpp
 class OpenXRSession {
-    static std::shared_ptr<OpenXRSession> Create(const std::string& app_name,
-                                                 const std::vector<std::string>& extensions = {});
+    OpenXRSession(const std::string& app_name, const std::vector<std::string>& extensions);
     OpenXRSessionHandles get_handles() const;
 };
 ```
@@ -95,7 +94,7 @@ auto extensions = core::DeviceIOSession::get_required_extensions(trackers);
 extensions.push_back(XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME);
 
 // Create session with required extensions
-auto session = core::OpenXRSession::Create("MyApp", extensions);
+auto session = std::make_shared<core::OpenXRSession>("MyApp", extensions);
 auto h = session->get_handles();
 
 // Create DeviceIOSession to manage trackers
@@ -129,7 +128,7 @@ while (running) {
 ```cpp
 #include <oxr/oxr_session.hpp>
 
-auto session = core::OpenXRSession::Create("MyApp", {"XR_EXT_hand_tracking"});
+auto session = std::make_shared<core::OpenXRSession>("MyApp", {"XR_EXT_hand_tracking"});
 auto handles = session->get_handles();
 // handles.instance, handles.session, handles.space are available
 ```
@@ -222,47 +221,6 @@ class HandDataRecorder {
 class GestureRecognizer {
     Gesture recognize(const XrHandJointLocationEXT*);
 };
-```
-
-## Testing
-
-### Unit Tests
-
-```cpp
-TEST(Controllers, InitializeSucceeds) {
-    auto mock = create_mock_handles();
-    Controllers controllers(mock.instance, mock.session, mock.space);
-    // Validation happens in constructor (throws on failure)
-}
-
-TEST(HandGenerator, GeneratesCorrectJointCount) {
-    HandGenerator gen;
-    XrHandJointLocationEXT joints[XR_HAND_JOINT_COUNT_EXT];
-    XrPosef wrist = {{0,0,0,1}, {0,0,0}};
-    gen.generate(joints, wrist, true, 0.0f);
-    // Verify joints
-}
-```
-
-### Integration Tests
-
-```cpp
-TEST(Integration, FullPipeline) {
-    auto session = core::OpenXRSession::Create("TestApp");
-    auto h = session->get_handles();
-
-    Controllers controllers(h.instance, h.session, h.space);
-
-    HandGenerator gen;
-    HandInjector injector(h.instance, h.session, h.space);
-
-    controllers.update(0);
-    auto ctrl = controllers.left();
-    XrHandJointLocationEXT joints[XR_HAND_JOINT_COUNT_EXT];
-    XrPosef wrist = {ctrl.grip_pose.position, ctrl.aim_pose.orientation};
-    gen.generate(joints, wrist, true, 0.0f);
-    injector.push_left(joints, 0);
-}
 ```
 
 ## License

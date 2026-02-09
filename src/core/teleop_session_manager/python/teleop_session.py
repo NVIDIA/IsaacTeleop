@@ -223,7 +223,7 @@ class TeleopSession:
         
         # Create OpenXR session
         self.oxr_session = self._exit_stack.enter_context(
-            oxr.OpenXRSession.create(self.config.app_name, required_extensions)
+            oxr.OpenXRSession(self.config.app_name, required_extensions)
         )
         
         # Get OpenXR handles

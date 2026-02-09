@@ -79,26 +79,21 @@ print()
 print("[Test 5] Normal initialization with queried extensions (RAII)")
 
 # Create OpenXR session with the queried extensions
-oxr_session = oxr.OpenXRSession.create("ExtensionTest", required_exts)
-if oxr_session is None:
-    print("  ❌ Failed to create OpenXR session")
-else:
-    # Use context managers for proper RAII cleanup
-    with oxr_session:
-        handles = oxr_session.get_handles()
-        # run() throws exception on failure
-        with deviceio.DeviceIOSession.run(trackers, handles) as session:
-            print("  ✅ Initialized successfully")
-            
-            # Quick update test
-            if session.update():
-                left = hand.get_left_hand(session)
-                head_pose = head.get_head(session)
-                print(f"  ✅ Update successful")
-                print(f"    Hands: {'ACTIVE' if left.is_active else 'INACTIVE'}")
-                print(f"    Head:  {'VALID' if head_pose.is_valid else 'INVALID'}")
-            
-            # Session will be cleaned up when exiting 'with' block (RAII)
+with oxr.OpenXRSession("ExtensionTest", required_exts) as oxr_session:
+    handles = oxr_session.get_handles()
+    # run() throws exception on failure
+    with deviceio.DeviceIOSession.run(trackers, handles) as session:
+        print("  ✅ Initialized successfully")
+        
+        # Quick update test
+        if session.update():
+            left = hand.get_left_hand(session)
+            head_pose = head.get_head(session)
+            print(f"  ✅ Update successful")
+            print(f"    Hands: {'ACTIVE' if left.is_active else 'INACTIVE'}")
+            print(f"    Head:  {'VALID' if head_pose.is_valid else 'INVALID'}")
+        
+        # Session will be cleaned up when exiting 'with' block (RAII)
 
 print()
 print("=" * 80)

@@ -81,13 +81,7 @@ def main():
 
     # Create OpenXR session
     print("\nCreating OpenXR session...")
-    oxr_session = oxr.OpenXRSession.create("ModularExample", required_extensions)
-    if oxr_session is None:
-        print("Failed to create OpenXR session")
-        return 1
-
-    # Use context managers for proper RAII cleanup
-    with oxr_session:
+    with oxr.OpenXRSession("ModularExample", required_extensions) as oxr_session:
         handles = oxr_session.get_handles()
         print("OpenXR session created")
 

@@ -42,9 +42,8 @@ PYBIND11_MODULE(_oxr, m)
 
     // OpenXRSession class (for creating sessions)
     py::class_<core::OpenXRSession, std::shared_ptr<core::OpenXRSession>>(m, "OpenXRSession")
-        .def_static("create", &core::OpenXRSession::Create, py::arg("app_name"),
-                    py::arg("extensions") = std::vector<std::string>(),
-                    "Create an OpenXR session (returns None on failure)")
+        .def(py::init<const std::string&, const std::vector<std::string>&>(), py::arg("app_name"),
+             py::arg("extensions") = std::vector<std::string>())
         .def("get_handles", &core::OpenXRSession::get_handles, "Get session handles for sharing")
         .def("__enter__", [](core::OpenXRSession& self) -> core::OpenXRSession& { return self; })
         .def("__exit__",
