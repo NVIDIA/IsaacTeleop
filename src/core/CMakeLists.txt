@@ -55,6 +55,9 @@ if(BUILD_TESTING)
     # Retargeting engine tests (Python)
     add_subdirectory(retargeting_engine_tests)
 
+    # Teleop session manager tests (Python)
+    add_subdirectory(teleop_session_manager_tests)
+
     # MCAP tests (C++)
     add_subdirectory(mcap_tests/cpp)
 endif()

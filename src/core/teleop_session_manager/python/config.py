@@ -8,9 +8,14 @@ Configuration dataclasses for TeleopSession.
 These classes provide a clean, declarative way to configure teleop sessions.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Any, Optional
+from typing import TYPE_CHECKING, Any, List, Optional
+
+if TYPE_CHECKING:
+    from teleopcore.oxr import OpenXRSessionHandles
 
 
 @dataclass
@@ -38,6 +43,7 @@ class TeleopSessionConfig:
     - OpenXR application settings
     - Plugin configuration (optional)
     - Manual trackers (optional, for advanced use)
+    - Pre-existing OpenXR handles (optional, for external runtime integration)
     
     Loop control is handled externally by the user.
     
@@ -47,6 +53,11 @@ class TeleopSessionConfig:
         trackers: Optional list of manual trackers (usually not needed - auto-discovered!)
         plugins: List of plugin configurations
         verbose: Whether to print detailed progress information during setup
+        oxr_handles: Optional pre-existing OpenXRSessionHandles from an external runtime
+            (e.g. Kit's XR system). When provided, TeleopSession will use these handles
+            instead of creating its own OpenXR session via OpenXRSession.create().
+            Construct with ``OpenXRSessionHandles(instance, session, space, proc_addr)``
+            where each argument is a ``uint64`` handle value.
     
     Example (auto-discovery):
         # Source creates its own tracker automatically!
@@ -70,11 +81,24 @@ class TeleopSessionConfig:
             while True:
                 result = session.run()
                 left_gripper = result["gripper_left"][0]
+    
+    Example (external OpenXR handles from Kit):
+        from teleopcore.oxr import OpenXRSessionHandles
+        
+        handles = OpenXRSessionHandles(
+            instance_handle, session_handle, space_handle, proc_addr
+        )
+        config = TeleopSessionConfig(
+            app_name="MyApp",
+            pipeline=pipeline,
+            oxr_handles=handles,  # Skip internal OpenXR session creation
+        )
     """
     app_name: str
     pipeline: Any
     trackers: List[Any] = field(default_factory=list)
     plugins: List[PluginConfig] = field(default_factory=list)
     verbose: bool = True
+    oxr_handles: Optional[OpenXRSessionHandles] = None
 
 
