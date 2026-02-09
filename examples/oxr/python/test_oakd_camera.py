@@ -36,9 +36,12 @@ import isaacteleop.oxr as oxr
 PLUGIN_ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent / "plugins"
 
 
-def run_test(duration: float = 10.0):
+def run_test(duration: float = 10.0, metadata_track: bool = True):
     print("=" * 80)
-    print("OAK-D Camera Plugin Test with FrameMetadataTracker + MCAP Recording")
+    title = "OAK-D Camera Plugin Test"
+    if metadata_track:
+        title += " with FrameMetadataTracker + MCAP Recording"
+    print(title)
     print("=" * 80)
     print()
 
@@ -72,107 +75,122 @@ def run_test(duration: float = 10.0):
     print(f"  ✓ Available devices: {devices}")
     print()
 
-    # 3. Create FrameMetadataTracker
-    print("[Step 3] Creating FrameMetadataTracker...")
-    # The collection_id must match the plugin_root_id used by the camera plugin
-    frame_tracker = deviceio.FrameMetadataTracker(plugin_root_id)
-    print(f"  ✓ Created {frame_tracker.get_name()} (collection_id: {plugin_root_id})")
-    print()
+    # 3. Create FrameMetadataTracker (optional)
+    frame_tracker = None
+    trackers = []
+    required_extensions = []
+    mcap_filename = None
 
-    # 4. Get required OpenXR extensions
-    print("[Step 4] Getting required OpenXR extensions...")
-    trackers = [frame_tracker]
-    required_extensions = deviceio.DeviceIOSession.get_required_extensions(trackers)
-    print(f"  ✓ Required extensions: {required_extensions}")
-    print()
+    if metadata_track:
+        print("[Step 3] Creating FrameMetadataTracker...")
+        # The collection_id must match the plugin_root_id used by the camera plugin
+        frame_tracker = deviceio.FrameMetadataTracker(plugin_root_id)
+        trackers = [frame_tracker]
+        required_extensions = deviceio.DeviceIOSession.get_required_extensions(trackers)
+        print(f"  ✓ Created {frame_tracker.get_name()} (collection_id: {plugin_root_id})")
+        print()
+        print("[Step 4] Getting required OpenXR extensions...")
+        print(f"  ✓ Required extensions: {required_extensions}")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        mcap_filename = f"camera_metadata_{timestamp}.mcap"
+    else:
+        print("[Step 3] Skipping FrameMetadataTracker (--no-metadata)")
+        print()
 
-    # Generate timestamped filename for MCAP recording
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    mcap_filename = f"camera_metadata_{timestamp}.mcap"
-
-    # 5. Start Plugin and OpenXR session
-    print("[Step 5] Starting camera plugin and OpenXR session...")
+    # 5. Start Plugin and OpenXR session (if metadata tracking)
+    print("[Step 5] Starting camera plugin...")
     print(f"  Plugin root ID: {plugin_root_id}")
     print(f"  Recording duration: {duration} seconds")
-    print(f"  MCAP output: {mcap_filename}")
+    if metadata_track:
+        print(f"  MCAP output: {mcap_filename}")
     print()
     print("  Note: Video will be recorded to ./recordings/ in the plugin directory")
-    print("        Frame metadata will be recorded to MCAP file")
+    if metadata_track:
+        print("        Frame metadata will be recorded to MCAP file")
     print()
 
     with manager.start(plugin_name, plugin_root_id) as plugin:
         print("  ✓ Camera plugin started")
 
-        # Create OpenXR session for receiving metadata
-        with oxr.OpenXRSession.create("OakDCameraTest", required_extensions) as oxr_session:
-            handles = oxr_session.get_handles()
-            print("  ✓ OpenXR session created")
+        if metadata_track:
+            # Create OpenXR session for receiving metadata
+            with oxr.OpenXRSession("OakDCameraTest", required_extensions) as oxr_session:
+                handles = oxr_session.get_handles()
+                print("  ✓ OpenXR session created")
 
-            # Create DeviceIOSession with the tracker
-            with deviceio.DeviceIOSession.run(trackers, handles) as session:
-                print("  ✓ DeviceIO session initialized")
+                # Create DeviceIOSession with the tracker
+                with deviceio.DeviceIOSession.run(trackers, handles) as session:
+                    print("  ✓ DeviceIO session initialized")
 
-                # Create MCAP recorder
-                with mcap.McapRecorder.create(mcap_filename, [
-                    (frame_tracker, "camera_metadata"),
-                ]) as recorder:
-                    print("  ✓ MCAP recording started")
-                    print()
+                    # Create MCAP recorder
+                    with mcap.McapRecorder.create(mcap_filename, [
+                        (frame_tracker, "camera_metadata"),
+                    ]) as recorder:
+                        print("  ✓ MCAP recording started")
+                        print()
 
-                    # 6. Main tracking loop
-                    print(f"[Step 6] Recording video and metadata ({duration} seconds)...")
-                    print("-" * 80)
-                    start_time = time.time()
-                    frame_count = 0
-                    last_print_time = 0
-                    last_seq = -1
-                    metadata_samples = 0
+                        # 6. Main tracking loop
+                        print(f"[Step 6] Recording video and metadata ({duration} seconds)...")
+                        print("-" * 80)
+                        start_time = time.time()
+                        frame_count = 0
+                        last_print_time = 0
+                        last_seq = -1
+                        metadata_samples = 0
 
-                    while time.time() - start_time < duration:
-                        # Check plugin health
-                        plugin.check_health()
+                        while time.time() - start_time < duration:
+                            plugin.check_health()
+                            if not session.update():
+                                print("  Warning: Session update failed")
+                                continue
+                            recorder.record(session)
+                            frame_count += 1
+                            metadata = frame_tracker.get_data(session)
+                            if metadata.timestamp and metadata.sequence_number != last_seq:
+                                metadata_samples += 1
+                                last_seq = metadata.sequence_number
+                            elapsed = time.time() - start_time
+                            if int(elapsed) > last_print_time:
+                                last_print_time = int(elapsed)
+                                ts_info = ""
+                                if metadata.timestamp:
+                                    ts_info = f"seq={metadata.sequence_number}, device_time={metadata.timestamp.device_time}"
+                                else:
+                                    ts_info = f"seq={metadata.sequence_number}, timestamp=None"
+                                print(f"  [{last_print_time:3d}s] metadata_samples={metadata_samples}, {ts_info}")
+                            time.sleep(0.016)
 
-                        # Update session and all trackers
-                        if not session.update():
-                            print("  Warning: Session update failed")
-                            continue
-
-                        # Record frame metadata to MCAP
-                        recorder.record(session)
-                        frame_count += 1
-
-                        # Track new metadata samples (sequence_number changed)
-                        metadata = frame_tracker.get_data(session)
-                        if metadata.timestamp and metadata.sequence_number != last_seq:
-                            metadata_samples += 1
-                            last_seq = metadata.sequence_number
-
-                        # Print status every second
-                        elapsed = time.time() - start_time
-                        if int(elapsed) > last_print_time:
-                            last_print_time = int(elapsed)
-                            ts_info = ""
-                            if metadata.timestamp:
-                                ts_info = f"seq={metadata.sequence_number}, device_time={metadata.timestamp.device_time}"
-                            else:
-                                ts_info = f"seq={metadata.sequence_number}, timestamp=None"
-                            print(f"  [{last_print_time:3d}s] metadata_samples={metadata_samples}, {ts_info}")
-
-                        time.sleep(0.016)  # ~60 FPS polling rate
-
-                    print("-" * 80)
-                    print()
-                    print(f"  ✓ Recording completed ({duration:.1f} seconds)")
-                    print(f"  ✓ Processed {frame_count} update cycles")
-                    print(f"  ✓ Received {metadata_samples} metadata samples")
+                        print("-" * 80)
+                        print()
+                        print(f"  ✓ Recording completed ({duration:.1f} seconds)")
+                        print(f"  ✓ Processed {frame_count} update cycles")
+                        print(f"  ✓ Received {metadata_samples} metadata samples")
+        else:
+            # Video-only mode: just run plugin for duration
+            print()
+            print(f"[Step 6] Recording video ({duration} seconds)...")
+            print("-" * 80)
+            start_time = time.time()
+            last_print_time = 0
+            while time.time() - start_time < duration:
+                plugin.check_health()
+                elapsed = time.time() - start_time
+                if int(elapsed) > last_print_time:
+                    last_print_time = int(elapsed)
+                    print(f"  [{last_print_time:3d}s] Recording...")
+                time.sleep(0.1)
+            print("-" * 80)
+            print()
+            print(f"  ✓ Recording completed ({duration:.1f} seconds)")
 
     print()
     print("=" * 80)
     print("Test completed successfully!")
     print(f"  Video: {PLUGIN_ROOT_DIR / 'oakd_camera' / 'recordings'}")
-    print(f"  MCAP:  {Path.cwd() / mcap_filename}")
-    print()
-    print("View MCAP file with: foxglove-studio or mcap cat " + mcap_filename)
+    if metadata_track:
+        print(f"  MCAP:  {Path.cwd() / mcap_filename}")
+        print()
+        print("View MCAP file with: foxglove-studio or mcap cat " + mcap_filename)
     print("=" * 80)
 
     return True
@@ -180,7 +198,7 @@ def run_test(duration: float = 10.0):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Test OAK-D camera plugin with FrameMetadataTracker and MCAP recording"
+        description="Test OAK-D camera plugin. By default uses FrameMetadataTracker and MCAP recording; use --no-metadata for video only."
     )
     parser.add_argument(
         "--duration",
@@ -189,9 +207,14 @@ def main():
         default=10.0,
         help="Recording duration in seconds (default: 10.0)",
     )
+    parser.add_argument(
+        "--no-metadata",
+        action="store_true",
+        help="Disable metadata tracking and MCAP recording (video only)",
+    )
     args = parser.parse_args()
 
-    success = run_test(duration=args.duration)
+    success = run_test(duration=args.duration, metadata_track=not args.no_metadata)
     sys.exit(0 if success else 1)
 
 

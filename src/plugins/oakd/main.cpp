@@ -46,6 +46,7 @@ void print_usage(const char* program_name)
 }
 
 int main(int argc, char** argv)
+try
 {
     // Default configurations
     CameraConfig camera_config;
@@ -109,28 +110,24 @@ int main(int argc, char** argv)
     std::cout << "Camera Plugin (OAK-D)" << std::endl;
 
     // Create and run plugin
-    try
-    {
-        CameraFactory camera_factory = [](const CameraConfig& config) -> std::unique_ptr<ICamera>
-        { return std::make_unique<plugins::oakd::OakDCamera>(config); };
-        CameraPlugin plugin(camera_factory, camera_config, record_config, plugin_root_id);
-        g_plugin = &plugin;
+    auto camera = std::make_unique<plugins::oakd::OakDCamera>(camera_config);
+    CameraPlugin plugin(std::move(camera), record_config, plugin_root_id);
+    g_plugin = &plugin;
 
-        std::cout << "Plugin running. Press Ctrl+C to stop." << std::endl;
-        plugin.capture_loop();
+    std::cout << "Plugin running. Press Ctrl+C to stop." << std::endl;
+    plugin.capture_loop();
 
-        g_plugin = nullptr;
+    g_plugin = nullptr;
 
-        return 0;
-    }
-    catch (const std::exception& e)
-    {
-        std::cerr << argv[0] << ": " << e.what() << std::endl;
-        return 1;
-    }
-    catch (...)
-    {
-        std::cerr << argv[0] << ": Unknown error occurred" << std::endl;
-        return 1;
-    }
+    return 0;
+}
+catch (const std::exception& e)
+{
+    std::cerr << argv[0] << ": " << e.what() << std::endl;
+    return 1;
+}
+catch (...)
+{
+    std::cerr << argv[0] << ": Unknown error occurred" << std::endl;
+    return 1;
 }

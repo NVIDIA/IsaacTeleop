@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <camera_core/camera_config.hpp>
 #include <camera_core/camera_interface.hpp>
 #include <depthai/depthai.hpp>
 
@@ -16,7 +17,7 @@ namespace oakd
 /**
  * @brief OAK-D camera manager with hardware H.264 encoding
  *
- * Uses the DepthAI v3.x C++ library to capture video from OAK-D cameras
+ * Uses the DepthAI v2.x C++ library to capture video from OAK-D cameras
  * and encode to H.264 using the on-device video encoder.
  * Implements the ICamera interface for use with CameraPlugin.
  * Camera starts in constructor and stops in destructor (RAII).
@@ -34,10 +35,6 @@ public:
 
     // ICamera interface
     std::optional<core::Frame> get_frame() override;
-    const core::CameraConfig& config() const override
-    {
-        return m_config;
-    }
 
 private:
     void create_pipeline();

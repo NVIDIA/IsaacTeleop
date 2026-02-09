@@ -3,8 +3,6 @@
 
 #pragma once
 
-#include "camera_config.hpp"
-
 #include <schema/camera_generated.h>
 
 #include <cstdint>
@@ -24,8 +22,6 @@ struct Frame
 
     /// Frame metadata (timestamp and sequence number)
     FrameMetadataT metadata;
-
-    std::vector<uint8_t> vendor_payload;
 };
 
 /**
@@ -45,11 +41,6 @@ public:
      * @return Frame with H.264 data and metadata, or empty optional if no frame available
      */
     virtual std::optional<Frame> get_frame() = 0;
-
-    /**
-     * @brief Get camera configuration
-     */
-    virtual const CameraConfig& config() const = 0;
 };
 
 } // namespace core

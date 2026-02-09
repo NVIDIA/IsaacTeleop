@@ -23,8 +23,6 @@
 #include <oxr/oxr_session.hpp>
 
 #include <chrono>
-#include <csignal>
-#include <iomanip>
 #include <iostream>
 #include <string>
 #include <thread>
@@ -32,13 +30,6 @@
 
 // Configuration
 static constexpr size_t MAX_FLATBUFFER_SIZE = 128;
-static std::string g_collection_id = "oakd_camera";
-static volatile bool g_running = true;
-
-void signal_handler(int /* signal */)
-{
-    g_running = false;
-}
 
 void print_frame_metadata(const core::FrameMetadataT& data, size_t sample_count)
 {
@@ -69,6 +60,8 @@ void print_usage(const char* program_name)
 int main(int argc, char** argv)
 try
 {
+    std::string collection_id = "oakd_camera";
+
     // Parse command line arguments
     for (int i = 1; i < argc; ++i)
     {
@@ -81,7 +74,7 @@ try
         }
         else if (arg.find("--collection-id=") == 0)
         {
-            g_collection_id = arg.substr(16);
+            collection_id = arg.substr(16);
         }
         else
         {
@@ -91,15 +84,11 @@ try
         }
     }
 
-    // Setup signal handler
-    std::signal(SIGINT, signal_handler);
-    std::signal(SIGTERM, signal_handler);
-
-    std::cout << "Frame Metadata Printer (collection: " << g_collection_id << ")" << std::endl;
+    std::cout << "Frame Metadata Printer (collection: " << collection_id << ")" << std::endl;
 
     // Step 1: Create the tracker
     std::cout << "[Step 1] Creating FrameMetadataTracker..." << std::endl;
-    auto tracker = std::make_shared<core::FrameMetadataTracker>(g_collection_id, MAX_FLATBUFFER_SIZE);
+    auto tracker = std::make_shared<core::FrameMetadataTracker>(collection_id, MAX_FLATBUFFER_SIZE);
 
     // Step 2: Get required extensions and create OpenXR session
     std::cout << "[Step 2] Creating OpenXR session with required extensions..." << std::endl;
@@ -107,12 +96,7 @@ try
     std::vector<std::shared_ptr<core::ITracker>> trackers = { tracker };
     auto required_extensions = core::DeviceIOSession::get_required_extensions(trackers);
 
-    auto oxr_session = core::OpenXRSession::Create("FrameMetadataPrinter", required_extensions);
-    if (!oxr_session)
-    {
-        std::cerr << "Failed to create OpenXR session" << std::endl;
-        return 1;
-    }
+    auto oxr_session = std::make_shared<core::OpenXRSession>("FrameMetadataPrinter", required_extensions);
 
     std::cout << "  OpenXR session created" << std::endl;
 
@@ -130,7 +114,7 @@ try
     auto last_status_time = std::chrono::steady_clock::now();
     constexpr auto status_interval = std::chrono::seconds(5);
 
-    while (g_running)
+    while (true)
     {
         // Update session (this calls update on all trackers)
         if (!session->update())
@@ -151,7 +135,7 @@ try
         auto now = std::chrono::steady_clock::now();
         if (received_count == 0 && now - last_status_time >= status_interval)
         {
-            std::cout << "Waiting for data from collection: " << g_collection_id << "..." << std::endl;
+            std::cout << "Waiting for data from collection: " << collection_id << "..." << std::endl;
             last_status_time = now;
         }
 

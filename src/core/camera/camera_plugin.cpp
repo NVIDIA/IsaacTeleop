@@ -19,83 +19,45 @@ static const std::string APP_NAME = "CameraPlugin";
 // FrameMetadataPusher Implementation
 // =============================================================================
 
-std::unique_ptr<FrameMetadataPusher> FrameMetadataPusher::Create(const std::string& app_name,
-                                                                 const std::string& collection_id,
-                                                                 size_t max_flatbuffer_size)
-{
-    try
-    {
-        // Get required extensions from SchemaPusher
-        auto required_extensions = SchemaPusher::get_required_extensions();
-
-        // Create OpenXR session
-        auto session = OpenXRSession::Create(app_name, required_extensions);
-        if (!session)
-        {
-            std::cerr << "FrameMetadataPusher: Failed to create OpenXR session" << std::endl;
-            return nullptr;
-        }
-
-        return std::unique_ptr<FrameMetadataPusher>(
-            new FrameMetadataPusher(std::move(session), collection_id, max_flatbuffer_size));
-    }
-    catch (const std::exception& e)
-    {
-        std::cerr << "FrameMetadataPusher: Failed to initialize: " << e.what() << std::endl;
-        return nullptr;
-    }
-}
-
-FrameMetadataPusher::FrameMetadataPusher(std::shared_ptr<OpenXRSession> session,
+FrameMetadataPusher::FrameMetadataPusher(const std::string& app_name,
                                          const std::string& collection_id,
                                          size_t max_flatbuffer_size)
-    : m_session(std::move(session)),
-      m_pusher(std::make_unique<SchemaPusher>(m_session->get_handles(),
-                                              SchemaPusherConfig{ .collection_id = collection_id,
-                                                                  .max_flatbuffer_size = max_flatbuffer_size,
-                                                                  .tensor_identifier = "frame_metadata",
-                                                                  .localized_name = "Frame Metadata Pusher",
-                                                                  .app_name = "FrameMetadataPusher" }))
+    : m_session(std::make_shared<core::OpenXRSession>(app_name, SchemaPusher::get_required_extensions())),
+      m_pusher(m_session->get_handles(),
+               SchemaPusherConfig{ .collection_id = collection_id,
+                                   .max_flatbuffer_size = max_flatbuffer_size,
+                                   .tensor_identifier = "frame_metadata",
+                                   .localized_name = "Frame Metadata Pusher",
+                                   .app_name = "FrameMetadataPusher" })
 {
 }
 
-bool FrameMetadataPusher::push(const FrameMetadataT& data)
+void FrameMetadataPusher::push(const FrameMetadataT& data)
 {
-    try
-    {
-        flatbuffers::FlatBufferBuilder builder(m_pusher->config().max_flatbuffer_size);
-        auto offset = FrameMetadata::Pack(builder, &data);
-        builder.Finish(offset);
-        m_pusher->push_buffer(builder.GetBufferPointer(), builder.GetSize());
-        return true;
-    }
-    catch (const std::exception&)
-    {
-        return false;
-    }
+    flatbuffers::FlatBufferBuilder builder(m_pusher.config().max_flatbuffer_size);
+    auto offset = FrameMetadata::Pack(builder, &data);
+    builder.Finish(offset);
+    m_pusher.push_buffer(builder.GetBufferPointer(), builder.GetSize());
 }
 
 // =============================================================================
 // CameraPlugin Implementation
 // =============================================================================
 
-CameraPlugin::CameraPlugin(CameraFactory camera_factory,
-                           const CameraConfig& camera_config,
-                           const RecordConfig& record_config,
-                           const std::string& plugin_root_id)
-    : m_collection_id(plugin_root_id)
+CameraPlugin::CameraPlugin(std::unique_ptr<ICamera> camera, const RecordConfig& record_config, std::string collection_id)
 {
     std::cout << "============================================================" << std::endl;
     std::cout << "Camera Plugin Starting" << std::endl;
     std::cout << "============================================================" << std::endl;
 
-    m_camera = camera_factory(camera_config);
+    m_camera = std::move(camera);
     m_writer = std::make_unique<RawDataWriter>(record_config);
     m_start_time = std::chrono::steady_clock::now();
 
-    init_metadata_pusher();
-
-    std::cout << "Camera Plugin initialized" << std::endl;
+    if (!collection_id.empty())
+    {
+        m_metadata_pusher = std::make_unique<FrameMetadataPusher>(APP_NAME, collection_id);
+    }
 }
 
 CameraPlugin::~CameraPlugin()
@@ -113,20 +75,6 @@ CameraPlugin::~CameraPlugin()
 
     std::cout << "Plugin stopped" << std::endl;
     std::cout << "============================================================" << std::endl;
-}
-
-void CameraPlugin::init_metadata_pusher()
-{
-    std::cout << "Initializing frame metadata pusher..." << std::endl;
-
-    m_metadata_pusher = FrameMetadataPusher::Create(APP_NAME, m_collection_id);
-    if (!m_metadata_pusher)
-    {
-        std::cerr << "Warning: Failed to create frame metadata pusher" << std::endl;
-        return;
-    }
-
-    std::cout << "Frame metadata pusher initialized (collection: " << m_collection_id << ")" << std::endl;
 }
 
 void CameraPlugin::capture_loop()

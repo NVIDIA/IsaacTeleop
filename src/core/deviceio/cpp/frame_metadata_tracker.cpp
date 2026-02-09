@@ -44,11 +44,7 @@ public:
     {
         auto offset = FrameMetadata::Pack(builder, &m_data);
         builder.Finish(offset);
-        if (m_data.timestamp)
-        {
-            return *m_data.timestamp;
-        }
-        return Timestamp{};
+        return m_data.timestamp ? *m_data.timestamp : Timestamp{};
     }
 
     const FrameMetadataT& get_data() const
