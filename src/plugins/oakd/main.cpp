@@ -46,7 +46,6 @@ void print_usage(const char* program_name)
 }
 
 int main(int argc, char** argv)
-try
 {
     // Default configurations
     CameraConfig camera_config;
@@ -134,3 +133,4 @@ try
         std::cerr << argv[0] << ": Unknown error occurred" << std::endl;
         return 1;
     }
+}

@@ -125,6 +125,8 @@ def run_test(duration: float = 10.0):
                     start_time = time.time()
                     frame_count = 0
                     last_print_time = 0
+                    last_seq = -1
+                    metadata_samples = 0
 
                     while time.time() - start_time < duration:
                         # Check plugin health
@@ -139,21 +141,22 @@ def run_test(duration: float = 10.0):
                         recorder.record(session)
                         frame_count += 1
 
+                        # Track new metadata samples (sequence_number changed)
+                        metadata = frame_tracker.get_data(session)
+                        if metadata.timestamp and metadata.sequence_number != last_seq:
+                            metadata_samples += 1
+                            last_seq = metadata.sequence_number
+
                         # Print status every second
                         elapsed = time.time() - start_time
                         if int(elapsed) > last_print_time:
                             last_print_time = int(elapsed)
-                            metadata = frame_tracker.get_data(session)
-                            read_count = frame_tracker.get_read_count(session)
-                            
-                            # Format timestamp info
                             ts_info = ""
                             if metadata.timestamp:
                                 ts_info = f"seq={metadata.sequence_number}, device_time={metadata.timestamp.device_time}"
                             else:
                                 ts_info = f"seq={metadata.sequence_number}, timestamp=None"
-                            
-                            print(f"  [{last_print_time:3d}s] samples_read={read_count}, {ts_info}")
+                            print(f"  [{last_print_time:3d}s] metadata_samples={metadata_samples}, {ts_info}")
 
                         time.sleep(0.016)  # ~60 FPS polling rate
 
@@ -161,7 +164,7 @@ def run_test(duration: float = 10.0):
                     print()
                     print(f"  ✓ Recording completed ({duration:.1f} seconds)")
                     print(f"  ✓ Processed {frame_count} update cycles")
-                    print(f"  ✓ Received {frame_tracker.get_read_count(session)} metadata samples")
+                    print(f"  ✓ Received {metadata_samples} metadata samples")
 
     print()
     print("=" * 80)

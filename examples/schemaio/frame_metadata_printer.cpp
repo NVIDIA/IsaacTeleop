@@ -126,6 +126,7 @@ try
     std::cout << "[Step 4] Reading samples (press Ctrl+C to stop)..." << std::endl;
 
     size_t received_count = 0;
+    int last_printed_sequence = -1;
     auto last_status_time = std::chrono::steady_clock::now();
     constexpr auto status_interval = std::chrono::seconds(5);
 
@@ -138,12 +139,12 @@ try
             break;
         }
 
-        // Check if we have new data
-        size_t new_count = tracker->get_read_count(*session);
-        if (new_count > received_count)
+        // Print when we have new data (timestamp indicates real data; sequence_number changed)
+        const auto& data = tracker->get_data(*session);
+        if (data.timestamp && data.sequence_number != last_printed_sequence)
         {
-            print_frame_metadata(tracker->get_data(*session), new_count);
-            received_count = new_count;
+            print_frame_metadata(data, ++received_count);
+            last_printed_sequence = data.sequence_number;
         }
 
         // Periodic status update when no data

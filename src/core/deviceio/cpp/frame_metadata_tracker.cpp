@@ -17,23 +17,22 @@ namespace core
 // FrameMetadataTracker::Impl
 // ============================================================================
 
-class FrameMetadataTracker::Impl : public SchemaTracker::Impl
+class FrameMetadataTracker::Impl : public ITrackerImpl
 {
 public:
-    Impl(const OpenXRSessionHandles& handles, SchemaConfig config) : SchemaTracker::Impl(handles, std::move(config))
+    Impl(const OpenXRSessionHandles& handles, SchemaTrackerConfig config) : m_schema_reader(handles, std::move(config))
     {
     }
 
     bool update(XrTime /* time */) override
     {
         // Try to read new data from tensor stream
-        if (read_buffer(buffer_))
+        if (m_schema_reader.read_buffer(m_buffer))
         {
-            auto fb = GetFrameMetadata(buffer_.data());
+            auto fb = GetFrameMetadata(m_buffer.data());
             if (fb)
             {
-                fb->UnPackTo(&data_);
-                ++read_count_;
+                fb->UnPackTo(&m_data);
                 return true;
             }
         }
@@ -43,30 +42,24 @@ public:
 
     Timestamp serialize(flatbuffers::FlatBufferBuilder& builder) const override
     {
-        auto offset = FrameMetadata::Pack(builder, &data_);
+        auto offset = FrameMetadata::Pack(builder, &m_data);
         builder.Finish(offset);
-        // Extract timestamp from FrameMetadata
-        if (data_.timestamp)
+        if (m_data.timestamp)
         {
-            return *data_.timestamp;
+            return *m_data.timestamp;
         }
         return Timestamp{};
     }
 
     const FrameMetadataT& get_data() const
     {
-        return data_;
-    }
-
-    size_t get_read_count() const
-    {
-        return read_count_;
+        return m_data;
     }
 
 private:
-    std::vector<uint8_t> buffer_;
-    FrameMetadataT data_;
-    size_t read_count_ = 0;
+    SchemaTracker m_schema_reader;
+    std::vector<uint8_t> m_buffer;
+    FrameMetadataT m_data;
 };
 
 // ============================================================================
@@ -74,10 +67,16 @@ private:
 // ============================================================================
 
 FrameMetadataTracker::FrameMetadataTracker(const std::string& collection_id, size_t max_flatbuffer_size)
-    : SchemaTracker(SchemaConfig{ .schema_identifier = collection_id,
-                                  .max_flatbuffer_size = max_flatbuffer_size,
-                                  .localized_name = "FrameMetadataTracker" })
+    : m_config{ .collection_id = collection_id,
+                .max_flatbuffer_size = max_flatbuffer_size,
+                .tensor_identifier = "frame_metadata",
+                .localized_name = "FrameMetadataTracker" }
 {
+}
+
+std::vector<std::string> FrameMetadataTracker::get_required_extensions() const
+{
+    return SchemaTracker::get_required_extensions();
 }
 
 std::string_view FrameMetadataTracker::get_name() const
@@ -96,14 +95,14 @@ std::string_view FrameMetadataTracker::get_schema_text() const
         reinterpret_cast<const char*>(FrameMetadataBinarySchema::data()), FrameMetadataBinarySchema::size());
 }
 
+const SchemaTrackerConfig& FrameMetadataTracker::get_config() const
+{
+    return m_config;
+}
+
 const FrameMetadataT& FrameMetadataTracker::get_data(const DeviceIOSession& session) const
 {
     return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_data();
-}
-
-size_t FrameMetadataTracker::get_read_count(const DeviceIOSession& session) const
-{
-    return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_read_count();
 }
 
 std::shared_ptr<ITrackerImpl> FrameMetadataTracker::create_tracker(const OpenXRSessionHandles& handles) const

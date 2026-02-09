@@ -4,6 +4,7 @@
 #pragma once
 
 #include "schema_tracker.hpp"
+#include "tracker.hpp"
 
 #include <schema/camera_generated.h>
 
@@ -28,7 +29,7 @@ namespace core
  * const auto& data = tracker->get_data(*session);
  * @endcode
  */
-class FrameMetadataTracker : public SchemaTracker
+class FrameMetadataTracker : public ITracker
 {
 public:
     //! Default maximum FlatBuffer size for FrameMetadata messages.
@@ -42,6 +43,8 @@ public:
     explicit FrameMetadataTracker(const std::string& collection_id,
                                   size_t max_flatbuffer_size = DEFAULT_MAX_FLATBUFFER_SIZE);
 
+    // ITracker interface
+    std::vector<std::string> get_required_extensions() const override;
     std::string_view get_name() const override;
     std::string_view get_schema_name() const override;
     std::string_view get_schema_text() const override;
@@ -51,14 +54,13 @@ public:
      */
     const FrameMetadataT& get_data(const DeviceIOSession& session) const;
 
-    /*!
-     * @brief Get the number of samples read so far.
-     */
-    size_t get_read_count(const DeviceIOSession& session) const;
+protected:
+    const SchemaTrackerConfig& get_config() const;
 
 private:
     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
 
+    SchemaTrackerConfig m_config;
     class Impl;
 };
 

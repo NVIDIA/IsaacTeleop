@@ -62,12 +62,7 @@ PYBIND11_MODULE(_deviceio, m)
             [](core::FrameMetadataTracker& self, PyDeviceIOSession& session) -> const core::FrameMetadataT&
             { return self.get_data(session.native()); },
             py::arg("session"), py::return_value_policy::reference_internal,
-            "Get the current frame metadata (timestamp and sequence_number)")
-        .def(
-            "get_read_count",
-            [](core::FrameMetadataTracker& self, PyDeviceIOSession& session) -> size_t
-            { return self.get_read_count(session.native()); },
-            py::arg("session"), "Get the number of samples read so far");
+            "Get the current frame metadata (timestamp and sequence_number)");
 
     // DeviceIOSession class (bound via wrapper for context management)
     // Other C++ modules (like mcap) should include <py_deviceio/session.hpp> and accept
