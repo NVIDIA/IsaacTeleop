@@ -10,6 +10,7 @@ add_library(teleop_plugin_utils STATIC
 # Dependencies
 target_link_libraries(teleop_plugin_utils
     PUBLIC
+    oxr::oxr_utils
     Teleop::openxr_extensions
     OpenXR::openxr_loader
 )

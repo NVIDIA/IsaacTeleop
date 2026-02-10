@@ -9,9 +9,6 @@
 #include <cstring>
 #include <iostream>
 
-// XR_BD_body_tracking extension types are defined in <openxr/openxr.h>
-// which is included via oxr_utils/oxr_funcs.hpp
-
 namespace core
 {
 
@@ -81,13 +78,12 @@ FullBodyTrackerPicoImpl::FullBodyTrackerPicoImpl(const OpenXRSessionHandles& han
         throw std::runtime_error("OpenXR: failed to get system: " + std::to_string(result));
     }
 
-    // Get extension function pointers using the provided xrGetInstanceProcAddr
-    handles.xrGetInstanceProcAddr(
-        handles.instance, "xrCreateBodyTrackerBD", reinterpret_cast<PFN_xrVoidFunction*>(&pfn_create_body_tracker_));
-    handles.xrGetInstanceProcAddr(
-        handles.instance, "xrDestroyBodyTrackerBD", reinterpret_cast<PFN_xrVoidFunction*>(&pfn_destroy_body_tracker_));
-    handles.xrGetInstanceProcAddr(
-        handles.instance, "xrLocateBodyJointsBD", reinterpret_cast<PFN_xrVoidFunction*>(&pfn_locate_body_joints_));
+    loadExtensionFunction(handles.instance, handles.xrGetInstanceProcAddr, "xrCreateBodyTrackerBD",
+                          reinterpret_cast<PFN_xrVoidFunction*>(&pfn_create_body_tracker_));
+    loadExtensionFunction(handles.instance, handles.xrGetInstanceProcAddr, "xrDestroyBodyTrackerBD",
+                          reinterpret_cast<PFN_xrVoidFunction*>(&pfn_destroy_body_tracker_));
+    loadExtensionFunction(handles.instance, handles.xrGetInstanceProcAddr, "xrLocateBodyJointsBD",
+                          reinterpret_cast<PFN_xrVoidFunction*>(&pfn_locate_body_joints_));
 
     if (!pfn_create_body_tracker_ || !pfn_destroy_body_tracker_ || !pfn_locate_body_joints_)
     {

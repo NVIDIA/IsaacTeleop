@@ -3,6 +3,7 @@
 
 // Hand tracking data injection via push devices
 
+#include <oxr_utils/oxr_funcs.hpp>
 #include <plugin_utils/hand_injector.hpp>
 
 #include <cstring>
@@ -66,15 +67,12 @@ void HandInjector::initialize(XrInstance instance, XrSession session, XrSpace le
 
 void HandInjector::load_functions(XrInstance instance)
 {
-    if (XR_FAILED(xrGetInstanceProcAddr(
-            instance, "xrCreatePushDeviceNV", reinterpret_cast<PFN_xrVoidFunction*>(&pfn_create_))) ||
-        XR_FAILED(xrGetInstanceProcAddr(
-            instance, "xrDestroyPushDeviceNV", reinterpret_cast<PFN_xrVoidFunction*>(&pfn_destroy_))) ||
-        XR_FAILED(xrGetInstanceProcAddr(
-            instance, "xrPushDevicePushHandTrackingNV", reinterpret_cast<PFN_xrVoidFunction*>(&pfn_push_))))
-    {
-        throw std::runtime_error("Push device extension (XR_NVX1_device_interface_base) not available");
-    }
+    core::loadExtensionFunction(
+        instance, xrGetInstanceProcAddr, "xrCreatePushDeviceNV", reinterpret_cast<PFN_xrVoidFunction*>(&pfn_create_));
+    core::loadExtensionFunction(
+        instance, xrGetInstanceProcAddr, "xrDestroyPushDeviceNV", reinterpret_cast<PFN_xrVoidFunction*>(&pfn_destroy_));
+    core::loadExtensionFunction(instance, xrGetInstanceProcAddr, "xrPushDevicePushHandTrackingNV",
+                                reinterpret_cast<PFN_xrVoidFunction*>(&pfn_push_));
 }
 
 void HandInjector::create_device(XrSession session, XrSpace base_space, XrHandEXT hand, XrPushDeviceNV& device)

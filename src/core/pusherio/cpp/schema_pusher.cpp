@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+#include <oxr_utils/oxr_funcs.hpp>
 #include <pusherio/schema_pusher.hpp>
 
 #include <cassert>
@@ -88,28 +89,12 @@ const SchemaPusherConfig& SchemaPusher::config() const
 
 void SchemaPusher::initialize_push_tensor_functions(const OpenXRSessionHandles& handles)
 {
-    XrResult result;
-
-    result = handles.xrGetInstanceProcAddr(
-        handles.instance, "xrCreatePushTensorCollectionNV", reinterpret_cast<PFN_xrVoidFunction*>(&m_create_fn));
-    if (result != XR_SUCCESS || m_create_fn == nullptr)
-    {
-        throw std::runtime_error("Failed to get xrCreatePushTensorCollectionNV function pointer");
-    }
-
-    result = handles.xrGetInstanceProcAddr(
-        handles.instance, "xrPushTensorCollectionDataNV", reinterpret_cast<PFN_xrVoidFunction*>(&m_push_fn));
-    if (result != XR_SUCCESS || m_push_fn == nullptr)
-    {
-        throw std::runtime_error("Failed to get xrPushTensorCollectionDataNV function pointer");
-    }
-
-    result = handles.xrGetInstanceProcAddr(
-        handles.instance, "xrDestroyPushTensorCollectionNV", reinterpret_cast<PFN_xrVoidFunction*>(&m_destroy_fn));
-    if (result != XR_SUCCESS || m_destroy_fn == nullptr)
-    {
-        throw std::runtime_error("Failed to get xrDestroyPushTensorCollectionNV function pointer");
-    }
+    loadExtensionFunction(handles.instance, handles.xrGetInstanceProcAddr, "xrCreatePushTensorCollectionNV",
+                          reinterpret_cast<PFN_xrVoidFunction*>(&m_create_fn));
+    loadExtensionFunction(handles.instance, handles.xrGetInstanceProcAddr, "xrPushTensorCollectionDataNV",
+                          reinterpret_cast<PFN_xrVoidFunction*>(&m_push_fn));
+    loadExtensionFunction(handles.instance, handles.xrGetInstanceProcAddr, "xrDestroyPushTensorCollectionNV",
+                          reinterpret_cast<PFN_xrVoidFunction*>(&m_destroy_fn));
 }
 
 void SchemaPusher::create_tensor_collection(const OpenXRSessionHandles& handles)

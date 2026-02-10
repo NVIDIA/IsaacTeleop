@@ -50,18 +50,12 @@ HandTracker::Impl::Impl(const OpenXRSessionHandles& handles)
         }
     }
 
-    // Get extension function pointers using the provided xrGetInstanceProcAddr
-    handles.xrGetInstanceProcAddr(
-        handles.instance, "xrCreateHandTrackerEXT", reinterpret_cast<PFN_xrVoidFunction*>(&pfn_create_hand_tracker_));
-    handles.xrGetInstanceProcAddr(
-        handles.instance, "xrDestroyHandTrackerEXT", reinterpret_cast<PFN_xrVoidFunction*>(&pfn_destroy_hand_tracker_));
-    handles.xrGetInstanceProcAddr(
-        handles.instance, "xrLocateHandJointsEXT", reinterpret_cast<PFN_xrVoidFunction*>(&pfn_locate_hand_joints_));
-
-    if (!pfn_create_hand_tracker_ || !pfn_destroy_hand_tracker_ || !pfn_locate_hand_joints_)
-    {
-        throw std::runtime_error("Failed to get hand tracking function pointers");
-    }
+    loadExtensionFunction(handles.instance, handles.xrGetInstanceProcAddr, "xrCreateHandTrackerEXT",
+                          reinterpret_cast<PFN_xrVoidFunction*>(&pfn_create_hand_tracker_));
+    loadExtensionFunction(handles.instance, handles.xrGetInstanceProcAddr, "xrDestroyHandTrackerEXT",
+                          reinterpret_cast<PFN_xrVoidFunction*>(&pfn_destroy_hand_tracker_));
+    loadExtensionFunction(handles.instance, handles.xrGetInstanceProcAddr, "xrLocateHandJointsEXT",
+                          reinterpret_cast<PFN_xrVoidFunction*>(&pfn_locate_hand_joints_));
 
     // Create hand trackers
     XrHandTrackerCreateInfoEXT create_info{ XR_TYPE_HAND_TRACKER_CREATE_INFO_EXT };
