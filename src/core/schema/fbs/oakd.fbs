@@ -2,8 +2,7 @@ include "timestamp.fbs";
 
 namespace core;
 
-// Minimum FrameMetadata needed for camera plugin.
-// All camera device plugins should provide below data for each frame.
+// OAK-D frame metadata pushed by the OAK-D camera plugin.
 table FrameMetadata {
   // Dual timestamp with device and runtime clock domains.
   timestamp: Timestamp (id: 0);

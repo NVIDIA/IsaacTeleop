@@ -33,8 +33,8 @@ cmake --build build --target camera_plugin_oakd --parallel
 # Record with defaults (auto-named file in ./recordings/)
 ./build/src/plugins/oakd/camera_plugin_oakd
 
-# Record to specific file
-./build/src/plugins/oakd/camera_plugin_oakd --record=my_video.h264
+# Custom recording directory
+./build/src/plugins/oakd/camera_plugin_oakd --record-dir=/tmp/my_recordings
 
 # Custom camera settings
 ./build/src/plugins/oakd/camera_plugin_oakd --width=1920 --height=1080 --fps=30 --bitrate=15000000
@@ -49,24 +49,27 @@ Press `Ctrl+C` to stop recording.
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--width` | 1280 | Frame width |
-| `--height` | 720 | Frame height |
+| `--width` | 1920 | Frame width |
+| `--height` | 1080 | Frame height |
 | `--fps` | 30 | Frame rate |
 | `--bitrate` | 8000000 | H.264 bitrate (bps) |
 | `--quality` | 80 | H.264 quality (1-100) |
-| `--record` | auto | Output file path (.h264) |
 | `--record-dir` | ./recordings | Directory for auto-named recordings |
-| `--retry-interval` | 5 | Camera init retry interval (seconds) |
 | `--plugin-root-id` | oakd_camera | Plugin ID for Isaac Teleop integration |
 
 ## Architecture
 
 ```
 ┌─────────────────┐     ┌──────────────────┐     ┌───────────────┐     ┌──────────────┐
-│   OakDCamera    │────>│  CameraPlugin    │────>│ RawDataWriter │────>│  .h264 File  │
-│  (H.264 encode) │     │  (lifecycle mgmt)│     │ (file writer) │     │              │
-└─────────────────┘     └──────────────────┘     └───────────────┘     └──────────────┘
-     oakd/                      core/                   core/
+│   OakDCamera    │────>│    FrameSink     │────>│ RawDataWriter │────>│  .h264 File  │
+│  (H.264 encode) │     │ (write + push)   │     │ (file writer) │     │              │
+└─────────────────┘     └──────┬───────────┘     └───────────────┘     └──────────────┘
+     core/                     │    core/                core/
+                               v
+                     ┌──────────────────┐
+                     │ MetadataPusher   │
+                     │ (OpenXR tensor)  │
+                     └──────────────────┘
 ```
 
 ## Dependencies

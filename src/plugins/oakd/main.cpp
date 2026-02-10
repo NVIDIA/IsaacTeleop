@@ -1,41 +1,46 @@
 // SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-#include "oakd_camera.hpp"
+#include "core/frame_sink.hpp"
+#include "core/oakd_camera.hpp"
 
-#include <camera_core/camera_plugin.hpp>
-
+#include <atomic>
+#include <chrono>
 #include <csignal>
+#include <iomanip>
 #include <iostream>
 #include <string>
 
-using namespace core;
+using namespace plugins::oakd;
 
-// Global plugin pointer for signal handler
-CameraPlugin* g_plugin = nullptr;
+// =============================================================================
+// Signal handling
+// =============================================================================
+
+static std::atomic<bool> g_stop_requested{ false };
 
 void signal_handler(int signal)
 {
     if (signal == SIGINT || signal == SIGTERM)
     {
-        if (g_plugin)
-        {
-            g_plugin->request_stop();
-        }
+        g_stop_requested.store(true, std::memory_order_relaxed);
     }
 }
+
+// =============================================================================
+// Usage
+// =============================================================================
 
 void print_usage(const char* program_name)
 {
     std::cout << "Usage: " << program_name << " [options]\n"
               << "\nCamera Settings:\n"
-              << "  --width=N           Frame width (default: 1280)\n"
-              << "  --height=N          Frame height (default: 720)\n"
+              << "  --width=N           Frame width (default: 1920)\n"
+              << "  --height=N          Frame height (default: 1080)\n"
               << "  --fps=N             Frame rate (default: 30)\n"
               << "  --bitrate=N         H.264 bitrate in bps (default: 8000000)\n"
               << "  --quality=N         H.264 quality 1-100 (default: 80)\n"
               << "\nRecording Settings:\n"
-              << "  --record=PATH       Output file path (.h264)\n"
               << "  --record-dir=DIR    Directory for auto-named recordings (default: ./recordings)\n"
               << "\nOpenXR Settings:\n"
               << "  --plugin-root-id=ID Tensor collection ID for metadata (default: oakd_camera)\n"
@@ -45,12 +50,16 @@ void print_usage(const char* program_name)
               << "  Records raw H.264 NAL units to file.\n";
 }
 
+// =============================================================================
+// Main
+// =============================================================================
+
 int main(int argc, char** argv)
 try
 {
     // Default configurations
-    CameraConfig camera_config;
-    RecordConfig record_config;
+    OakDConfig camera_config;
+    std::string record_dir = "./recordings";
     std::string plugin_root_id = "oakd_camera";
 
     // Parse command line arguments
@@ -83,13 +92,9 @@ try
         {
             camera_config.quality = std::stoi(arg.substr(10));
         }
-        else if (arg.find("--record=") == 0)
-        {
-            record_config.output_path = arg.substr(9);
-        }
         else if (arg.find("--record-dir=") == 0)
         {
-            record_config.output_dir = arg.substr(13);
+            record_dir = arg.substr(13);
         }
         else if (arg.find("--plugin-root-id=") == 0)
         {
@@ -107,17 +112,54 @@ try
     std::signal(SIGINT, signal_handler);
     std::signal(SIGTERM, signal_handler);
 
-    std::cout << "Camera Plugin (OAK-D)" << std::endl;
+    std::cout << "============================================================" << std::endl;
+    std::cout << "OAK-D Camera Plugin Starting" << std::endl;
+    std::cout << "============================================================" << std::endl;
 
-    // Create and run plugin
-    auto camera = std::make_unique<plugins::oakd::OakDCamera>(camera_config);
-    CameraPlugin plugin(std::move(camera), record_config, plugin_root_id);
-    g_plugin = &plugin;
+    // Create camera and frame sink (H.264 writer + metadata pusher)
+    OakDCamera camera(camera_config);
+    FrameSink sink(record_dir, plugin_root_id);
 
-    std::cout << "Plugin running. Press Ctrl+C to stop." << std::endl;
-    plugin.capture_loop();
+    uint64_t frame_count = 0;
+    auto start_time = std::chrono::steady_clock::now();
 
-    g_plugin = nullptr;
+    std::cout << "------------------------------------------------------------" << std::endl;
+    std::cout << "Running capture loop. Press Ctrl+C to stop." << std::endl;
+
+    constexpr auto status_interval = std::chrono::seconds(10);
+    auto last_status_time = std::chrono::steady_clock::now();
+
+    // Main capture loop
+    while (!g_stop_requested.load(std::memory_order_relaxed))
+    {
+        auto frame = camera.get_frame();
+        if (frame)
+        {
+            sink.on_frame(*frame);
+            frame_count++;
+        }
+
+        // Periodic status update
+        auto now = std::chrono::steady_clock::now();
+        if (now - last_status_time >= status_interval)
+        {
+            std::cout << "Frames: " << frame_count << std::endl;
+            last_status_time = now;
+        }
+    }
+
+    // Print statistics
+    std::cout << "------------------------------------------------------------" << std::endl;
+    std::cout << "Shutting down OAK-D Camera Plugin..." << std::endl;
+
+    auto duration = std::chrono::steady_clock::now() - start_time;
+    auto seconds = std::chrono::duration_cast<std::chrono::seconds>(duration).count();
+    double fps = seconds > 0 ? static_cast<double>(frame_count) / seconds : 0.0;
+
+    std::cout << "Session stats: " << frame_count << " frames in " << seconds << "s (" << std::fixed
+              << std::setprecision(1) << fps << " fps)" << std::endl;
+    std::cout << "Plugin stopped" << std::endl;
+    std::cout << "============================================================" << std::endl;
 
     return 0;
 }

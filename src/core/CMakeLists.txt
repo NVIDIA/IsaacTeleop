@@ -36,9 +36,6 @@ add_subdirectory(retargeting_engine_ui)
 # Build TeleopSessionManager (pure Python module)
 add_subdirectory(teleop_session_manager)
 
-# Build Camera Plugin Core library
-add_subdirectory(camera)
-
 # Python wheel packaging (combines both modules)
 if(BUILD_PYTHON_BINDINGS)
     add_subdirectory(python)

@@ -33,13 +33,17 @@ message(STATUS "Building OAK-D camera plugin with DepthAI ${depthai_VERSION}")
 # ==============================================================================
 add_executable(camera_plugin_oakd
     main.cpp
-    oakd_camera.cpp
+    core/oakd_camera.cpp
+    core/rawdata_writer.cpp
+    core/frame_sink.cpp
 )
 
 target_link_libraries(camera_plugin_oakd
     PRIVATE
         depthai::core
-        camera_core
+        isaacteleop_schema
+        oxr::oxr_core
+        pusherio::pusherio
 )
 
 # Set RPATH to find bundled libraries in same directory

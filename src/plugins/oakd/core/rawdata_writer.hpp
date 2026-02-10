@@ -3,13 +3,14 @@
 
 #pragma once
 
-#include "record_config.hpp"
-
 #include <cstdint>
 #include <fstream>
+#include <string>
 #include <vector>
 
-namespace core
+namespace plugins
+{
+namespace oakd
 {
 
 /**
@@ -18,11 +19,15 @@ namespace core
  * Writes H.264 NAL units directly to a file without container.
  * File opens in constructor and closes in destructor (RAII).
  */
-// TODO(shaoxiangs): abstract RawDataWriter with writer interface.
 class RawDataWriter
 {
 public:
-    explicit RawDataWriter(const RecordConfig& config);
+    /**
+     * @brief Construct the writer and open the file.
+     * @param path Output file path. Must not be empty.
+     * @throws std::runtime_error if the file cannot be opened.
+     */
+    explicit RawDataWriter(const std::string& path);
     ~RawDataWriter();
 
     // Non-copyable, non-movable
@@ -31,13 +36,9 @@ public:
 
     void write(const std::vector<uint8_t>& data);
 
-    size_t bytes_written() const;
-    size_t frame_count() const;
-
 private:
     std::ofstream m_file;
-    size_t m_bytes_written = 0;
-    size_t m_frame_count = 0;
 };
 
-} // namespace core
+} // namespace oakd
+} // namespace plugins

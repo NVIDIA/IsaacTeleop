@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <deviceio/controller_tracker.hpp>
-#include <deviceio/frame_metadata_tracker.hpp>
+#include <deviceio/frame_metadata_tracker_oakd.hpp>
 #include <deviceio/full_body_tracker_pico.hpp>
 #include <deviceio/hand_tracker.hpp>
 #include <deviceio/head_tracker.hpp>
@@ -52,15 +52,15 @@ PYBIND11_MODULE(_deviceio, m)
             py::arg("session"), py::return_value_policy::reference_internal,
             "Get complete controller data for both left and right controllers");
 
-    // FrameMetadataTracker class
-    py::class_<core::FrameMetadataTracker, core::ITracker, std::shared_ptr<core::FrameMetadataTracker>>(
-        m, "FrameMetadataTracker")
+    // FrameMetadataTrackerOakD class
+    py::class_<core::FrameMetadataTrackerOakD, core::ITracker, std::shared_ptr<core::FrameMetadataTrackerOakD>>(
+        m, "FrameMetadataTrackerOakD")
         .def(py::init<const std::string&, size_t>(), py::arg("collection_id"),
-             py::arg("max_flatbuffer_size") = core::FrameMetadataTracker::DEFAULT_MAX_FLATBUFFER_SIZE,
-             "Construct a FrameMetadataTracker for the given tensor collection ID")
+             py::arg("max_flatbuffer_size") = core::FrameMetadataTrackerOakD::DEFAULT_MAX_FLATBUFFER_SIZE,
+             "Construct a FrameMetadataTrackerOakD for the given tensor collection ID")
         .def(
             "get_data",
-            [](core::FrameMetadataTracker& self, PyDeviceIOSession& session) -> const core::FrameMetadataT&
+            [](core::FrameMetadataTrackerOakD& self, PyDeviceIOSession& session) -> const core::FrameMetadataT&
             { return self.get_data(session.native()); },
             py::arg("session"), py::return_value_policy::reference_internal,
             "Get the current frame metadata (timestamp and sequence_number)");
