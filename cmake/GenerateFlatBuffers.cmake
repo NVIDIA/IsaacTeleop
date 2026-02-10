@@ -48,6 +48,7 @@ function(generate_flatbuffer_headers OUT_VAR INPUT_DIR OUTPUT_DIR)
               --cpp
               --cpp-ptr-type std::shared_ptr
               --gen-object-api
+              --gen-mutable
               --schema
               --bfbs-gen-embed
               --reflect-names
