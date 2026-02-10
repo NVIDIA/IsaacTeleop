@@ -3,13 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Test OAK-D camera plugin using Plugin Manager with FrameMetadataTrackerOakD and MCAP recording.
+Test OAK camera plugin using Plugin Manager with FrameMetadataTrackerOak and MCAP recording.
 
 This test:
 1. Uses PluginManager to discover and launch the camera plugin
 2. Queries available devices from the manifest
-3. Starts the OAK-D camera plugin (which records H.264 video to file)
-4. Creates FrameMetadataTrackerOakD to receive frame metadata via OpenXR tensor extensions
+3. Starts the OAK camera plugin (which records H.264 video to file)
+4. Creates FrameMetadataTrackerOak to receive frame metadata via OpenXR tensor extensions
 5. Records frame metadata to MCAP file for playback/analysis
 6. Periodically polls plugin health
 
@@ -38,9 +38,9 @@ PLUGIN_ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent / "plugin
 
 def run_test(duration: float = 10.0, metadata_track: bool = True):
     print("=" * 80)
-    title = "OAK-D Camera Plugin Test"
+    title = "OAK Camera Plugin Test"
     if metadata_track:
-        title += " with FrameMetadataTrackerOakD + MCAP Recording"
+        title += " with FrameMetadataTrackerOak + MCAP Recording"
     print(title)
     print("=" * 80)
     print()
@@ -58,8 +58,8 @@ def run_test(duration: float = 10.0, metadata_track: bool = True):
     plugins = manager.get_plugin_names()
     print(f"  Discovered plugins: {plugins}")
 
-    plugin_name = "oakd_camera"
-    plugin_root_id = "oakd_camera"
+    plugin_name = "oak_camera"
+    plugin_root_id = "oak_camera"
 
     if plugin_name not in plugins:
         print(f"  ✗ {plugin_name} plugin not found")
@@ -75,16 +75,16 @@ def run_test(duration: float = 10.0, metadata_track: bool = True):
     print(f"  ✓ Available devices: {devices}")
     print()
 
-    # 3. Create FrameMetadataTrackerOakD (optional)
+    # 3. Create FrameMetadataTrackerOak (optional)
     frame_tracker = None
     trackers = []
     required_extensions = []
     mcap_filename = None
 
     if metadata_track:
-        print("[Step 3] Creating FrameMetadataTrackerOakD...")
+        print("[Step 3] Creating FrameMetadataTrackerOak...")
         # The collection_id must match the plugin_root_id used by the camera plugin
-        frame_tracker = deviceio.FrameMetadataTrackerOakD(plugin_root_id)
+        frame_tracker = deviceio.FrameMetadataTrackerOak(plugin_root_id)
         trackers = [frame_tracker]
         required_extensions = deviceio.DeviceIOSession.get_required_extensions(trackers)
         print(f"  ✓ Created {frame_tracker.get_name()} (collection_id: {plugin_root_id})")
@@ -94,7 +94,7 @@ def run_test(duration: float = 10.0, metadata_track: bool = True):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         mcap_filename = f"camera_metadata_{timestamp}.mcap"
     else:
-        print("[Step 3] Skipping FrameMetadataTrackerOakD (--no-metadata)")
+        print("[Step 3] Skipping FrameMetadataTrackerOak (--no-metadata)")
         print()
 
     # 5. Start Plugin and OpenXR session (if metadata tracking)
@@ -114,7 +114,7 @@ def run_test(duration: float = 10.0, metadata_track: bool = True):
 
         if metadata_track:
             # Create OpenXR session for receiving metadata
-            with oxr.OpenXRSession("OakDCameraTest", required_extensions) as oxr_session:
+            with oxr.OpenXRSession("OakCameraTest", required_extensions) as oxr_session:
                 handles = oxr_session.get_handles()
                 print("  ✓ OpenXR session created")
 
@@ -186,7 +186,7 @@ def run_test(duration: float = 10.0, metadata_track: bool = True):
     print()
     print("=" * 80)
     print("Test completed successfully!")
-    print(f"  Video: {PLUGIN_ROOT_DIR / 'oakd_camera' / 'recordings'}")
+    print(f"  Video: {PLUGIN_ROOT_DIR / 'oak_camera' / 'recordings'}")
     if metadata_track:
         print(f"  MCAP:  {Path.cwd() / mcap_filename}")
         print()
@@ -198,7 +198,7 @@ def run_test(duration: float = 10.0, metadata_track: bool = True):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Test OAK-D camera plugin. By default uses FrameMetadataTrackerOakD and MCAP recording; use --no-metadata for video only."
+        description="Test OAK camera plugin. By default uses FrameMetadataTrackerOak and MCAP recording; use --no-metadata for video only."
     )
     parser.add_argument(
         "--duration",

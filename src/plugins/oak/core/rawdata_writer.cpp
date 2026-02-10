@@ -8,7 +8,7 @@
 
 namespace plugins
 {
-namespace oakd
+namespace oak
 {
 
 RawDataWriter::RawDataWriter(const std::string& path)
@@ -49,5 +49,5 @@ void RawDataWriter::write(const std::vector<uint8_t>& data)
     }
 }
 
-} // namespace oakd
+} // namespace oak
 } // namespace plugins

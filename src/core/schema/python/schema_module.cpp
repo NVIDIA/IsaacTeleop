@@ -11,7 +11,7 @@
 #include "hand_bindings.h"
 #include "head_bindings.h"
 #include "locomotion_bindings.h"
-#include "oakd_bindings.h"
+#include "oak_bindings.h"
 #include "pedals_bindings.h"
 #include "pose_bindings.h"
 #include "tensor_bindings.h"
@@ -43,8 +43,8 @@ PYBIND11_MODULE(_schema, m)
     // Bind pedals types (Generic3AxisPedalOutput table).
     core::bind_pedals(m);
 
-    // Bind OAK-D types (FrameMetadata table with timestamp and sequence_number).
-    core::bind_oakd(m);
+    // Bind OAK types (FrameMetadata table with timestamp and sequence_number).
+    core::bind_oak(m);
 
     // Bind full body types (BodyJointPose, BodyJointsPico structs, FullBodyPosePicoT table).
     core::bind_full_body(m);

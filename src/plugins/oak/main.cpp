@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "core/frame_sink.hpp"
-#include "core/oakd_camera.hpp"
+#include "core/oak_camera.hpp"
 
 #include <atomic>
 #include <chrono>
@@ -11,7 +11,7 @@
 #include <iostream>
 #include <string>
 
-using namespace plugins::oakd;
+using namespace plugins::oak;
 
 // =============================================================================
 // Signal handling
@@ -43,7 +43,7 @@ void print_usage(const char* program_name)
               << "\nRecording Settings:\n"
               << "  --record-dir=DIR    Directory for auto-named recordings (default: ./recordings)\n"
               << "\nOpenXR Settings:\n"
-              << "  --plugin-root-id=ID Tensor collection ID for metadata (default: oakd_camera)\n"
+              << "  --plugin-root-id=ID Tensor collection ID for metadata (default: oak_camera)\n"
               << "\nGeneral Settings:\n"
               << "  --help              Show this help message\n"
               << "\nOutput:\n"
@@ -58,9 +58,9 @@ int main(int argc, char** argv)
 try
 {
     // Default configurations
-    OakDConfig camera_config;
+    OakConfig camera_config;
     std::string record_dir = "./recordings";
-    std::string plugin_root_id = "oakd_camera";
+    std::string plugin_root_id = "oak_camera";
 
     // Parse command line arguments
     for (int i = 1; i < argc; ++i)
@@ -113,11 +113,11 @@ try
     std::signal(SIGTERM, signal_handler);
 
     std::cout << "============================================================" << std::endl;
-    std::cout << "OAK-D Camera Plugin Starting" << std::endl;
+    std::cout << "OAK Camera Plugin Starting" << std::endl;
     std::cout << "============================================================" << std::endl;
 
     // Create camera and frame sink (H.264 writer + metadata pusher)
-    OakDCamera camera(camera_config);
+    OakCamera camera(camera_config);
     FrameSink sink(record_dir, plugin_root_id);
 
     uint64_t frame_count = 0;
@@ -150,7 +150,7 @@ try
 
     // Print statistics
     std::cout << "------------------------------------------------------------" << std::endl;
-    std::cout << "Shutting down OAK-D Camera Plugin..." << std::endl;
+    std::cout << "Shutting down OAK Camera Plugin..." << std::endl;
 
     auto duration = std::chrono::steady_clock::now() - start_time;
     auto seconds = std::chrono::duration_cast<std::chrono::seconds>(duration).count();

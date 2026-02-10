@@ -6,7 +6,7 @@
 #include "schema_tracker.hpp"
 #include "tracker.hpp"
 
-#include <schema/oakd_generated.h>
+#include <schema/oak_generated.h>
 
 #include <memory>
 #include <string>
@@ -15,33 +15,33 @@ namespace core
 {
 
 /*!
- * @brief Tracker for reading OAK-D FrameMetadata FlatBuffer messages via OpenXR tensor extensions.
+ * @brief Tracker for reading OAK FrameMetadata FlatBuffer messages via OpenXR tensor extensions.
  *
- * This tracker reads frame metadata (timestamp, sequence_number) pushed by the OAK-D camera plugin
+ * This tracker reads frame metadata (timestamp, sequence_number) pushed by the OAK camera plugin
  * using the SchemaTracker infrastructure. Both pusher and reader must agree on the
- * collection_id and use the FrameMetadata schema from oakd.fbs.
+ * collection_id and use the FrameMetadata schema from oak.fbs.
  *
  * Usage:
  * @code
- * auto tracker = std::make_shared<FrameMetadataTrackerOakD>("oakd_camera");
+ * auto tracker = std::make_shared<FrameMetadataTrackerOak>("oak_camera");
  * // ... create DeviceIOSession with tracker ...
  * session->update();
  * const auto& data = tracker->get_data(*session);
  * @endcode
  */
-class FrameMetadataTrackerOakD : public ITracker
+class FrameMetadataTrackerOak : public ITracker
 {
 public:
     //! Default maximum FlatBuffer size for FrameMetadata messages.
     static constexpr size_t DEFAULT_MAX_FLATBUFFER_SIZE = 128;
 
     /*!
-     * @brief Constructs a FrameMetadataTrackerOakD.
+     * @brief Constructs a FrameMetadataTrackerOak.
      * @param collection_id Tensor collection identifier for discovery.
      * @param max_flatbuffer_size Maximum serialized FlatBuffer size (default: 128 bytes).
      */
-    explicit FrameMetadataTrackerOakD(const std::string& collection_id,
-                                      size_t max_flatbuffer_size = DEFAULT_MAX_FLATBUFFER_SIZE);
+    explicit FrameMetadataTrackerOak(const std::string& collection_id,
+                                     size_t max_flatbuffer_size = DEFAULT_MAX_FLATBUFFER_SIZE);
 
     // ITracker interface
     std::vector<std::string> get_required_extensions() const override;

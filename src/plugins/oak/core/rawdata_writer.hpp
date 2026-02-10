@@ -10,7 +10,7 @@
 
 namespace plugins
 {
-namespace oakd
+namespace oak
 {
 
 /**
@@ -40,5 +40,5 @@ private:
     std::ofstream m_file;
 };
 
-} // namespace oakd
+} // namespace oak
 } // namespace plugins

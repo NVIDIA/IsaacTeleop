@@ -106,7 +106,7 @@ class TestFrameMetadataCombined:
 
 
 class TestFrameMetadataScenarios:
-    """Tests for realistic OAK-D frame metadata scenarios."""
+    """Tests for realistic OAK frame metadata scenarios."""
 
     def test_first_frame(self):
         """Test metadata for the first captured frame."""

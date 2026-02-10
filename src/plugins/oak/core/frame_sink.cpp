@@ -6,7 +6,7 @@
 #include <flatbuffers/flatbuffers.h>
 #include <oxr/oxr_session.hpp>
 #include <pusherio/schema_pusher.hpp>
-#include <schema/oakd_generated.h>
+#include <schema/oak_generated.h>
 
 #include <chrono>
 #include <filesystem>
@@ -15,7 +15,7 @@
 
 namespace plugins
 {
-namespace oakd
+namespace oak
 {
 
 // =============================================================================
@@ -30,14 +30,13 @@ struct FrameSink::MetadataPusher
     static constexpr size_t MAX_FLATBUFFER_SIZE = 128;
 
     MetadataPusher(const std::string& collection_id)
-        : session(
-              std::make_shared<core::OpenXRSession>("OakDCameraPlugin", core::SchemaPusher::get_required_extensions())),
+        : session(std::make_shared<core::OpenXRSession>("OakCameraPlugin", core::SchemaPusher::get_required_extensions())),
           pusher(session->get_handles(),
                  core::SchemaPusherConfig{ .collection_id = collection_id,
                                            .max_flatbuffer_size = MAX_FLATBUFFER_SIZE,
                                            .tensor_identifier = "frame_metadata",
                                            .localized_name = "Frame Metadata Pusher",
-                                           .app_name = "OakDCameraPlugin" })
+                                           .app_name = "OakCameraPlugin" })
     {
     }
 
@@ -61,7 +60,7 @@ static std::string generate_record_path(const std::string& record_dir)
     auto time = std::chrono::system_clock::to_time_t(now);
     std::tm tm = *std::localtime(&time);
     std::ostringstream oss;
-    oss << record_dir << "/oakd_recording_" << std::put_time(&tm, "%Y%m%d_%H%M%S") << ".h264";
+    oss << record_dir << "/oak_recording_" << std::put_time(&tm, "%Y%m%d_%H%M%S") << ".h264";
     return oss.str();
 }
 
@@ -76,7 +75,7 @@ FrameSink::FrameSink(const std::string& record_dir, const std::string& collectio
 
 FrameSink::~FrameSink() = default;
 
-void FrameSink::on_frame(const OakDFrame& frame)
+void FrameSink::on_frame(const OakFrame& frame)
 {
     m_writer.write(frame.h264_data);
 
@@ -86,5 +85,5 @@ void FrameSink::on_frame(const OakDFrame& frame)
     }
 }
 
-} // namespace oakd
+} // namespace oak
 } // namespace plugins

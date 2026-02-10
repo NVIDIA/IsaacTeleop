@@ -1,10 +1,10 @@
-# OAK-D Camera Plugin
+# OAK Camera Plugin
 
-C++ plugin that captures H.264 video from OAK-D cameras and saves to raw H.264 files.
+C++ plugin that captures H.264 video from OAK cameras and saves to raw H.264 files.
 
 ## Features
 
-- **Hardware H.264 Encoding**: Uses OAK-D's built-in video encoder
+- **Hardware H.264 Encoding**: Uses OAK's built-in video encoder
 - **Raw H.264 Recording**: Writes H.264 NAL units directly to file (no container overhead)
 - **OpenXR Integration**: Optional CloudXR runtime integration
 - **Self-contained build**: DepthAI built automatically via CMake
@@ -24,23 +24,23 @@ cmake --build build --target depthai_external --parallel
 
 # Reconfigure and build plugin
 cmake -B build
-cmake --build build --target camera_plugin_oakd --parallel
+cmake --build build --target camera_plugin_oak --parallel
 ```
 
 ## Usage
 
 ```bash
 # Record with defaults (auto-named file in ./recordings/)
-./build/src/plugins/oakd/camera_plugin_oakd
+./build/src/plugins/oak/camera_plugin_oak
 
 # Custom recording directory
-./build/src/plugins/oakd/camera_plugin_oakd --record-dir=/tmp/my_recordings
+./build/src/plugins/oak/camera_plugin_oak --record-dir=/tmp/my_recordings
 
 # Custom camera settings
-./build/src/plugins/oakd/camera_plugin_oakd --width=1920 --height=1080 --fps=30 --bitrate=15000000
+./build/src/plugins/oak/camera_plugin_oak --width=1920 --height=1080 --fps=30 --bitrate=15000000
 
 # Show help
-./build/src/plugins/oakd/camera_plugin_oakd --help
+./build/src/plugins/oak/camera_plugin_oak --help
 ```
 
 Press `Ctrl+C` to stop recording.
@@ -55,13 +55,13 @@ Press `Ctrl+C` to stop recording.
 | `--bitrate` | 8000000 | H.264 bitrate (bps) |
 | `--quality` | 80 | H.264 quality (1-100) |
 | `--record-dir` | ./recordings | Directory for auto-named recordings |
-| `--plugin-root-id` | oakd_camera | Plugin ID for Isaac Teleop integration |
+| `--plugin-root-id` | oak_camera | Plugin ID for Isaac Teleop integration |
 
 ## Architecture
 
 ```
 ┌─────────────────┐     ┌──────────────────┐     ┌───────────────┐     ┌──────────────┐
-│   OakDCamera    │────>│    FrameSink     │────>│ RawDataWriter │────>│  .h264 File  │
+│   OakCamera     │────>│    FrameSink     │────>│ RawDataWriter │────>│  .h264 File  │
 │  (H.264 encode) │     │ (write + push)   │     │ (file writer) │     │              │
 └─────────────────┘     └──────┬───────────┘     └───────────────┘     └──────────────┘
      core/                     │    core/                core/
@@ -82,7 +82,7 @@ sudo apt install libusb-1.0-0-dev
 
 **Automatically built via CMake:**
 
-- **DepthAI** - OAK-D camera interface
+- **DepthAI** - OAK camera interface
 
 ## Output Format
 
@@ -102,7 +102,7 @@ ffmpeg -f h264 -framerate 30 -i recording.h264 -c copy output.mp4
 ## Troubleshooting
 
 ```bash
-# Check OAK-D camera connection
+# Check OAK camera connection
 lsusb | grep 03e7
 
 # Verify recording (convert to MP4 first)

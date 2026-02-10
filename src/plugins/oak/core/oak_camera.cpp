@@ -1,34 +1,34 @@
 // SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-#include "oakd_camera.hpp"
+#include "oak_camera.hpp"
 
 #include <iostream>
 
 namespace plugins
 {
-namespace oakd
+namespace oak
 {
 
-OakDCamera::OakDCamera(const OakDConfig& config)
+OakCamera::OakCamera(const OakConfig& config)
 {
-    std::cout << "OAK-D Camera: " << config.width << "x" << config.height << " @ " << config.fps << "fps, "
+    std::cout << "OAK Camera: " << config.width << "x" << config.height << " @ " << config.fps << "fps, "
               << (config.bitrate / 1'000'000.0) << "Mbps" << std::endl;
 
     create_pipeline(config);
 
     // Find and connect to device
-    std::cout << "Connecting to OAK-D device..." << std::endl;
+    std::cout << "Connecting to OAK device..." << std::endl;
     m_device = std::make_shared<dai::Device>(*m_pipeline);
     std::cout << "Device connected: " << m_device->getMxId() << std::endl;
 
     // Get output queue (blocking=false to not wait for frames)
     m_h264_queue = m_device->getOutputQueue("h264", 8, false);
 
-    std::cout << "OAK-D camera pipeline started" << std::endl;
+    std::cout << "OAK camera pipeline started" << std::endl;
 }
 
-void OakDCamera::create_pipeline(const OakDConfig& config)
+void OakCamera::create_pipeline(const OakConfig& config)
 {
     m_pipeline = std::make_shared<dai::Pipeline>();
 
@@ -59,7 +59,7 @@ void OakDCamera::create_pipeline(const OakDConfig& config)
     videoEnc->bitstream.link(xoutH264->input);
 }
 
-std::optional<OakDFrame> OakDCamera::get_frame()
+std::optional<OakFrame> OakCamera::get_frame()
 {
     if (!m_h264_queue)
     {
@@ -84,7 +84,7 @@ std::optional<OakDFrame> OakDCamera::get_frame()
     auto common_time_ns =
         std::chrono::duration_cast<std::chrono::nanoseconds>(packet->getTimestamp().time_since_epoch()).count();
 
-    OakDFrame frame;
+    OakFrame frame;
     frame.h264_data = std::vector<uint8_t>(data.begin(), data.end());
     frame.metadata.timestamp = std::make_shared<core::Timestamp>(device_time_ns, common_time_ns);
     frame.metadata.sequence_number = static_cast<int32_t>(packet->getSequenceNum());
@@ -99,5 +99,5 @@ std::optional<OakDFrame> OakDCamera::get_frame()
     return frame;
 }
 
-} // namespace oakd
+} // namespace oak
 } // namespace plugins

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 pybind11_add_module(schema_py
-    oakd_bindings.h
+    oak_bindings.h
     controller_bindings.h
     full_body_bindings.h
     hand_bindings.h

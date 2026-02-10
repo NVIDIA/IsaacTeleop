@@ -2,7 +2,7 @@ include "timestamp.fbs";
 
 namespace core;
 
-// OAK-D frame metadata pushed by the OAK-D camera plugin.
+// OAK frame metadata pushed by the OAK camera plugin.
 table FrameMetadata {
   // Dual timestamp with device and runtime clock domains.
   timestamp: Timestamp (id: 0);

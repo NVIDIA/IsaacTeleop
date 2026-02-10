@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "oakd_camera.hpp"
+#include "oak_camera.hpp"
 #include "rawdata_writer.hpp"
 
 #include <memory>
@@ -18,11 +18,11 @@ class SchemaPusher;
 
 namespace plugins
 {
-namespace oakd
+namespace oak
 {
 
 /**
- * @brief Combined output sink for OAK-D frames.
+ * @brief Combined output sink for OAK frames.
  *
  * Writes raw H.264 data to a file via RawDataWriter and optionally pushes
  * frame metadata (timestamp + sequence number) via OpenXR tensor extensions.
@@ -50,7 +50,7 @@ public:
     /**
      * @brief Process a frame: writes H.264 data to file and pushes metadata via OpenXR.
      */
-    void on_frame(const OakDFrame& frame);
+    void on_frame(const OakFrame& frame);
 
 private:
     RawDataWriter m_writer;
@@ -60,5 +60,5 @@ private:
     std::unique_ptr<MetadataPusher> m_pusher;
 };
 
-} // namespace oakd
+} // namespace oak
 } // namespace plugins

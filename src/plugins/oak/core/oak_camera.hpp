@@ -4,7 +4,7 @@
 #pragma once
 
 #include <depthai/depthai.hpp>
-#include <schema/oakd_generated.h>
+#include <schema/oak_generated.h>
 
 #include <cstdint>
 #include <memory>
@@ -13,13 +13,13 @@
 
 namespace plugins
 {
-namespace oakd
+namespace oak
 {
 
 /**
- * @brief OAK-D specific camera configuration.
+ * @brief OAK specific camera configuration.
  */
-struct OakDConfig
+struct OakConfig
 {
     int width = 1920;
     int height = 1080;
@@ -30,48 +30,48 @@ struct OakDConfig
 };
 
 /**
- * @brief OAK-D encoded video frame with metadata.
+ * @brief OAK encoded video frame with metadata.
  */
-struct OakDFrame
+struct OakFrame
 {
     /// H.264 encoded frame data
     std::vector<uint8_t> h264_data;
 
-    /// Frame metadata (timestamp + sequence number) from oakd.fbs
+    /// Frame metadata (timestamp + sequence number) from oak.fbs
     core::FrameMetadataT metadata;
 };
 
 /**
- * @brief OAK-D camera manager with hardware H.264 encoding.
+ * @brief OAK camera manager with hardware H.264 encoding.
  *
- * Uses the DepthAI v2.x C++ library to capture video from OAK-D cameras
+ * Uses the DepthAI v2.x C++ library to capture video from OAK cameras
  * and encode to H.264 using the on-device video encoder.
  * Camera starts in constructor and stops in destructor (RAII).
  */
-class OakDCamera
+class OakCamera
 {
 public:
-    explicit OakDCamera(const OakDConfig& config = OakDConfig{});
+    explicit OakCamera(const OakConfig& config = OakConfig{});
 
     // Non-copyable, non-movable
-    OakDCamera(const OakDCamera&) = delete;
-    OakDCamera& operator=(const OakDCamera&) = delete;
-    OakDCamera(OakDCamera&&) = delete;
-    OakDCamera& operator=(OakDCamera&&) = delete;
+    OakCamera(const OakCamera&) = delete;
+    OakCamera& operator=(const OakCamera&) = delete;
+    OakCamera(OakCamera&&) = delete;
+    OakCamera& operator=(OakCamera&&) = delete;
 
     /**
      * @brief Get the next available encoded frame (non-blocking).
      * @return Frame with H.264 data and timestamps, or empty optional if no frame available.
      */
-    std::optional<OakDFrame> get_frame();
+    std::optional<OakFrame> get_frame();
 
 private:
-    void create_pipeline(const OakDConfig& config);
+    void create_pipeline(const OakConfig& config);
 
     std::shared_ptr<dai::Pipeline> m_pipeline;
     std::shared_ptr<dai::Device> m_device;
     std::shared_ptr<dai::DataOutputQueue> m_h264_queue;
 };
 
-} // namespace oakd
+} // namespace oak
 } // namespace plugins
