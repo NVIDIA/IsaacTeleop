@@ -44,7 +44,7 @@ module.exports = {
     extensions: ['.tsx', '.ts', '.js'],
     alias: {
       // @helpers can be used instead of relative paths to the helpers directory
-      '@helpers': path.resolve(__dirname, '../helpers'),
+      '@helpers': path.resolve(__dirname, 'helpers'),
     },
   },
 
