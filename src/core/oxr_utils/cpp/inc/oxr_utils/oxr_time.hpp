@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "oxr_funcs.hpp"
 #include "oxr_session_handles.hpp"
 
 // Include platform-specific headers first
@@ -63,19 +64,12 @@ public:
     explicit XrTimeConverter(const OpenXRSessionHandles& handles) : handles_(handles)
     {
 #if defined(XR_USE_PLATFORM_WIN32)
-        handles_.xrGetInstanceProcAddr(handles_.instance, "xrConvertWin32PerformanceCounterToTimeKHR",
-                                       reinterpret_cast<PFN_xrVoidFunction*>(&pfn_convert_win32_));
-        if (!pfn_convert_win32_)
-        {
-            throw std::runtime_error("xrConvertWin32PerformanceCounterToTimeKHR not available");
-        }
+        loadExtensionFunction(handles_.instance, handles_.xrGetInstanceProcAddr,
+                              "xrConvertWin32PerformanceCounterToTimeKHR",
+                              reinterpret_cast<PFN_xrVoidFunction*>(&pfn_convert_win32_));
 #elif defined(XR_USE_TIMESPEC)
-        handles_.xrGetInstanceProcAddr(handles_.instance, "xrConvertTimespecTimeToTimeKHR",
-                                       reinterpret_cast<PFN_xrVoidFunction*>(&pfn_convert_timespec_));
-        if (!pfn_convert_timespec_)
-        {
-            throw std::runtime_error("xrConvertTimespecTimeToTimeKHR not available");
-        }
+        loadExtensionFunction(handles_.instance, handles_.xrGetInstanceProcAddr, "xrConvertTimespecTimeToTimeKHR",
+                              reinterpret_cast<PFN_xrVoidFunction*>(&pfn_convert_timespec_));
 #endif
     }
 

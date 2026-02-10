@@ -4,6 +4,7 @@
 #include "inc/deviceio/schema_tracker.hpp"
 
 #include <openxr/openxr.h>
+#include <oxr_utils/oxr_funcs.hpp>
 
 #include <XR_NVX1_tensor_data.h>
 #include <cassert>
@@ -79,63 +80,20 @@ const SchemaTrackerConfig& SchemaTracker::config() const
 
 void SchemaTracker::initialize_tensor_data_functions()
 {
-    XrResult result;
-
-    // xrGetTensorListLatestGenerationNV
-    result = m_handles.xrGetInstanceProcAddr(m_handles.instance, "xrGetTensorListLatestGenerationNV",
-                                             reinterpret_cast<PFN_xrVoidFunction*>(&m_get_latest_gen_fn));
-    if (result != XR_SUCCESS || m_get_latest_gen_fn == nullptr)
-    {
-        throw std::runtime_error("Failed to get xrGetTensorListLatestGenerationNV function pointer");
-    }
-
-    // xrCreateTensorListNV
-    result = m_handles.xrGetInstanceProcAddr(
-        m_handles.instance, "xrCreateTensorListNV", reinterpret_cast<PFN_xrVoidFunction*>(&m_create_list_fn));
-    if (result != XR_SUCCESS || m_create_list_fn == nullptr)
-    {
-        throw std::runtime_error("Failed to get xrCreateTensorListNV function pointer");
-    }
-
-    // xrGetTensorListPropertiesNV
-    result = m_handles.xrGetInstanceProcAddr(
-        m_handles.instance, "xrGetTensorListPropertiesNV", reinterpret_cast<PFN_xrVoidFunction*>(&m_get_list_props_fn));
-    if (result != XR_SUCCESS || m_get_list_props_fn == nullptr)
-    {
-        throw std::runtime_error("Failed to get xrGetTensorListPropertiesNV function pointer");
-    }
-
-    // xrGetTensorCollectionPropertiesNV
-    result = m_handles.xrGetInstanceProcAddr(m_handles.instance, "xrGetTensorCollectionPropertiesNV",
-                                             reinterpret_cast<PFN_xrVoidFunction*>(&m_get_coll_props_fn));
-    if (result != XR_SUCCESS || m_get_coll_props_fn == nullptr)
-    {
-        throw std::runtime_error("Failed to get xrGetTensorCollectionPropertiesNV function pointer");
-    }
-
-    // xrGetTensorDataNV
-    result = m_handles.xrGetInstanceProcAddr(
-        m_handles.instance, "xrGetTensorDataNV", reinterpret_cast<PFN_xrVoidFunction*>(&m_get_data_fn));
-    if (result != XR_SUCCESS || m_get_data_fn == nullptr)
-    {
-        throw std::runtime_error("Failed to get xrGetTensorDataNV function pointer");
-    }
-
-    // xrUpdateTensorListNV
-    result = m_handles.xrGetInstanceProcAddr(
-        m_handles.instance, "xrUpdateTensorListNV", reinterpret_cast<PFN_xrVoidFunction*>(&m_update_list_fn));
-    if (result != XR_SUCCESS || m_update_list_fn == nullptr)
-    {
-        throw std::runtime_error("Failed to get xrUpdateTensorListNV function pointer");
-    }
-
-    // xrDestroyTensorListNV
-    result = m_handles.xrGetInstanceProcAddr(
-        m_handles.instance, "xrDestroyTensorListNV", reinterpret_cast<PFN_xrVoidFunction*>(&m_destroy_list_fn));
-    if (result != XR_SUCCESS || m_destroy_list_fn == nullptr)
-    {
-        throw std::runtime_error("Failed to get xrDestroyTensorListNV function pointer");
-    }
+    loadExtensionFunction(m_handles.instance, m_handles.xrGetInstanceProcAddr, "xrGetTensorListLatestGenerationNV",
+                          reinterpret_cast<PFN_xrVoidFunction*>(&m_get_latest_gen_fn));
+    loadExtensionFunction(m_handles.instance, m_handles.xrGetInstanceProcAddr, "xrCreateTensorListNV",
+                          reinterpret_cast<PFN_xrVoidFunction*>(&m_create_list_fn));
+    loadExtensionFunction(m_handles.instance, m_handles.xrGetInstanceProcAddr, "xrGetTensorListPropertiesNV",
+                          reinterpret_cast<PFN_xrVoidFunction*>(&m_get_list_props_fn));
+    loadExtensionFunction(m_handles.instance, m_handles.xrGetInstanceProcAddr, "xrGetTensorCollectionPropertiesNV",
+                          reinterpret_cast<PFN_xrVoidFunction*>(&m_get_coll_props_fn));
+    loadExtensionFunction(m_handles.instance, m_handles.xrGetInstanceProcAddr, "xrGetTensorDataNV",
+                          reinterpret_cast<PFN_xrVoidFunction*>(&m_get_data_fn));
+    loadExtensionFunction(m_handles.instance, m_handles.xrGetInstanceProcAddr, "xrUpdateTensorListNV",
+                          reinterpret_cast<PFN_xrVoidFunction*>(&m_update_list_fn));
+    loadExtensionFunction(m_handles.instance, m_handles.xrGetInstanceProcAddr, "xrDestroyTensorListNV",
+                          reinterpret_cast<PFN_xrVoidFunction*>(&m_destroy_list_fn));
 }
 
 void SchemaTracker::create_tensor_list()

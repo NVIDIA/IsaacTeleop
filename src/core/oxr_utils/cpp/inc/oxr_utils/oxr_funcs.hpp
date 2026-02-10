@@ -99,6 +99,21 @@ struct OpenXRCoreFunctions
     }
 };
 
+// Load a single extension function; throws std::runtime_error on failure.
+// Use from tracker/session code that already has instance and xrGetInstanceProcAddr.
+inline void loadExtensionFunction(XrInstance instance,
+                                  PFN_xrGetInstanceProcAddr getProcAddr,
+                                  const char* name,
+                                  PFN_xrVoidFunction* fn_ptr)
+{
+    assert(getProcAddr && fn_ptr);
+    XrResult r = getProcAddr(instance, name, fn_ptr);
+    if (XR_FAILED(r))
+    {
+        throw std::runtime_error(std::string("Failed to get ") + name + " function pointer: " + std::to_string(r));
+    }
+}
+
 // Smart pointer type aliases for OpenXR resources
 using XrActionSetPtr = std::unique_ptr<std::remove_pointer_t<XrActionSet>, PFN_xrDestroyActionSet>;
 using XrSpacePtr = std::unique_ptr<std::remove_pointer_t<XrSpace>, PFN_xrDestroySpace>;
