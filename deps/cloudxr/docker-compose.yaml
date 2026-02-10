@@ -59,8 +59,6 @@ services:
       args:
         # Choose the version of the CloudXR Web SDK to use
         CXR_WEB_SDK_VERSION: ${CXR_WEB_SDK_VERSION}
-        # Choose which example to build: simple, react, or isaac
-        EXAMPLE: isaac
     container_name: cloudxr-web-app-${CXR_WEB_SDK_VERSION}
     network_mode: host
     # Note: With network_mode: host, ports are exposed directly on the host

@@ -17,17 +17,15 @@ RUN npm install --ignore-scripts -g webpack webpack-cli
 
 # Path to the CloudXR Web SDK (relative to build context)
 ARG CXR_WEB_SDK_VERSION=${CXR_WEB_SDK_VERSION}
-ENV SDK_PATH=cloudxr-web-sdk-${CXR_WEB_SDK_VERSION}
-
-# Argument to select which example to run (simple, react, or isaac)
-ARG EXAMPLE=isaac
+ENV SDK_TARBALL_NAME=nvidia-cloudxr-${CXR_WEB_SDK_VERSION}.tgz
 
 # Copy the entire SDK contents
-COPY ${SDK_PATH}/ ./
+COPY ${SDK_TARBALL_NAME} ./
+COPY webxr_client/ ./webxr_client/
 
 # Install CloudXR SDK and dependencies, then build
-RUN cd ${EXAMPLE} && \
-    npm install --ignore-scripts ../nvidia-cloudxr-*.tgz && \
+RUN cd webxr_client && \
+    npm install --ignore-scripts ../${SDK_TARBALL_NAME} && \
     npm install --ignore-scripts && \
     npm run build
 
@@ -36,16 +34,13 @@ RUN cd ${EXAMPLE} && \
 #############################################
 FROM nginx:alpine
 
-# Argument to select which example was built
-ARG EXAMPLE=simple
-
 WORKDIR /app
 
 # Install necessary tools
 RUN apk add --no-cache curl openssl bash
 
 # Copy built files from builder stage
-COPY --from=builder /app/${EXAMPLE}/build /usr/share/nginx/html
+COPY --from=builder /app/webxr_client/build /usr/share/nginx/html
 
 # Create SSL certificate directory
 RUN mkdir -p /etc/nginx/ssl
