@@ -21,6 +21,9 @@ venv/
 **/.venv/
 **/venv/
 
+# uv lock files.
+uv.lock
+
 # Compiled files
 *.o
 *.so
