@@ -23,6 +23,7 @@ add_library(deviceio_core STATIC
     controller_tracker.cpp
     schema_tracker.cpp
     generic_3axis_pedal_tracker.cpp
+    frame_metadata_tracker.cpp
     deviceio_session.cpp
     inc/deviceio/tracker.hpp
     inc/deviceio/hand_tracker.hpp
@@ -30,6 +31,7 @@ add_library(deviceio_core STATIC
     inc/deviceio/controller_tracker.hpp
     inc/deviceio/schema_tracker.hpp
     inc/deviceio/generic_3axis_pedal_tracker.hpp
+    inc/deviceio/frame_metadata_tracker.hpp
     inc/deviceio/deviceio_session.hpp
 )
 

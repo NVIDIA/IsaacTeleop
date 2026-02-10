@@ -32,8 +32,21 @@ target_link_libraries(pedal_printer PRIVATE
     Threads::Threads
 )
 
+# Create frame metadata printer executable
+add_executable(frame_metadata_printer
+    frame_metadata_printer.cpp
+)
+
+target_link_libraries(frame_metadata_printer PRIVATE
+    deviceio::deviceio_core
+    oxr::oxr_core
+    isaacteleop_schema
+    ${CMAKE_DL_LIBS}
+    Threads::Threads
+)
+
 # Install
-install(TARGETS pedal_pusher pedal_printer
+install(TARGETS pedal_pusher pedal_printer frame_metadata_printer
     RUNTIME DESTINATION examples/schemaio
 )
 

@@ -12,6 +12,10 @@ add_library(isaac::camera_core ALIAS camera_core)
 target_include_directories(camera_core INTERFACE inc)
 
 target_link_libraries(camera_core
+    PUBLIC
+        isaacteleop_schema
+        oxr::oxr_core
+        pusherio::pusherio
     PRIVATE
         Threads::Threads
 )

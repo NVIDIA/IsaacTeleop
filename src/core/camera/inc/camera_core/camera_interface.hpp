@@ -3,9 +3,8 @@
 
 #pragma once
 
-#include "camera_config.hpp"
+#include <schema/camera_generated.h>
 
-#include <chrono>
 #include <cstdint>
 #include <optional>
 #include <vector>
@@ -21,14 +20,8 @@ struct Frame
     /// H.264 encoded frame data
     std::vector<uint8_t> data;
 
-    /// Frame timestamp synchronized to host clock
-    std::chrono::steady_clock::time_point timestamp;
-
-    /// Frame timestamp from device's monotonic clock (not synced to host)
-    std::chrono::steady_clock::time_point timestamp_device;
-
-    /// Frame sequence number (monotonically increasing)
-    int64_t sequence_num = 0;
+    /// Frame metadata (timestamp and sequence number)
+    FrameMetadataT metadata;
 };
 
 /**
@@ -48,11 +41,6 @@ public:
      * @return Frame with H.264 data and metadata, or empty optional if no frame available
      */
     virtual std::optional<Frame> get_frame() = 0;
-
-    /**
-     * @brief Get camera configuration
-     */
-    virtual const CameraConfig& config() const = 0;
 };
 
 } // namespace core

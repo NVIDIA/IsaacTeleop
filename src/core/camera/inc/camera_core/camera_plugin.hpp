@@ -6,36 +6,71 @@
 #include "camera_interface.hpp"
 #include "rawdata_writer.hpp"
 
+#include <oxr/oxr_session.hpp>
+#include <pusherio/schema_pusher.hpp>
+
 #include <atomic>
 #include <chrono>
-#include <functional>
 #include <memory>
+#include <string>
 
 namespace core
 {
 
 /**
- * @brief Factory function type for creating camera instances
+ * @brief FrameMetadata-specific pusher that serializes and pushes camera frame metadata.
+ *
+ * This class creates its own OpenXR session and uses SchemaPusher via composition to provide
+ * typed push functionality for FrameMetadata FlatBuffer messages from camera.fbs.
  */
-using CameraFactory = std::function<std::unique_ptr<ICamera>(const CameraConfig&)>;
+class FrameMetadataPusher
+{
+public:
+    //! Default maximum FlatBuffer size for FrameMetadata (timestamp + sequence number)
+    static constexpr size_t DEFAULT_MAX_FLATBUFFER_SIZE = 128;
+
+    /**
+     * @brief Construct a FrameMetadataPusher.
+     * @param app_name Application name for the OpenXR session.
+     * @param collection_id Tensor collection identifier for discovery.
+     * @param max_flatbuffer_size Maximum serialized message size (default: 128 bytes).
+     */
+    FrameMetadataPusher(const std::string& app_name,
+                        const std::string& collection_id,
+                        size_t max_flatbuffer_size = DEFAULT_MAX_FLATBUFFER_SIZE);
+
+    /**
+     * @brief Push a FrameMetadata message.
+     * @param data The FrameMetadataT native object to serialize and push.
+     */
+    void push(const FrameMetadataT& data);
+
+private:
+    //! Owns the OpenXR session to keep handles valid
+    std::shared_ptr<OpenXRSession> m_session;
+
+    //! The underlying schema pusher (composition)
+    SchemaPusher m_pusher;
+};
 
 /**
  * @brief Main plugin class for camera recording
  *
  * Coordinates camera capture with file recording.
  * Optionally integrates with OpenXR for CloudXR integration.
- * Camera implementation is injected via a factory function.
+ * Takes ownership of an ICamera instance.
  */
 class CameraPlugin
 {
 public:
     /**
      * @brief Construct the camera plugin
-     * @param camera_factory Factory function to create cameras
-     * @param camera_config Camera configuration
+     * @param camera Camera instance (plugin takes ownership)
      * @param record_config Recording configuration
+     * @param collection_id Optional tensor collection ID for frame metadata; if provided, enables metadata pushing via
+     * OpenXR
      */
-    CameraPlugin(CameraFactory camera_factory, const CameraConfig& camera_config, const RecordConfig& record_config);
+    CameraPlugin(std::unique_ptr<ICamera> camera, const RecordConfig& record_config, std::string collection_id = "");
 
     ~CameraPlugin();
 
@@ -67,6 +102,7 @@ private:
     // Components
     std::unique_ptr<ICamera> m_camera;
     std::unique_ptr<RawDataWriter> m_writer;
+    std::unique_ptr<FrameMetadataPusher> m_metadata_pusher;
 
     // State
     std::atomic<bool> m_stop_requested{ false };
