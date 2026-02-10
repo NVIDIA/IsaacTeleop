@@ -195,6 +195,34 @@ def ControllerInput() -> TensorGroupType:
     ])
 
 
+# ============================================================================
+# Transform Types
+# ============================================================================
+
+def TransformMatrix() -> TensorGroupType:
+    """
+    Standard TensorGroupType for a 4x4 homogeneous transformation matrix.
+
+    Fields:
+        - matrix: (4, 4) float32 array - Homogeneous transformation matrix
+
+    Returns:
+        TensorGroupType for a 4x4 transform matrix
+    """
+    return TensorGroupType("transform", [
+        NDArrayType(
+            "transform_matrix",
+            shape=(4, 4),
+            dtype=DLDataType.FLOAT,
+            dtype_bits=32
+        ),
+    ])
+
+
+# ============================================================================
+# Robot Types
+# ============================================================================
+
 def RobotHandJoints(name: str, joint_names: list[str]) -> TensorGroupType:
     """
     Standard TensorGroupType for robot hand joint angles.

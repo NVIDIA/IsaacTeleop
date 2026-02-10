@@ -5,6 +5,7 @@
 
 from .base_retargeter import BaseRetargeter
 from .output_combiner import OutputCombiner
+from .passthrough_input import PassthroughInput
 from .parameter_state import ParameterState
 from .retargeter_core_types import (
     ExecutionContext,
@@ -33,6 +34,7 @@ __all__ = [
     "TensorGroup",
     "UNSET_VALUE",
     "BaseRetargeter",
+    "PassthroughInput",
     "RetargeterSubgraph",
     "OutputCombiner",
     "OutputSelector",

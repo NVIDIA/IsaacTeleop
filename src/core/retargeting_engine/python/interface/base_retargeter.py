@@ -71,6 +71,11 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
         self._outputs: RetargeterIOType = self.output_spec()
         self._parameter_state: Optional[ParameterState] = parameter_state
 
+    @property
+    def name(self) -> str:
+        """Get the name of this retargeter."""
+        return self._name
+
     def _sync_parameters_from_state(self) -> None:
         """
         Sync parameter values from ParameterState (main thread only).
@@ -186,7 +191,7 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
                 msg.append(f"Missing inputs: {missing}")
             if extra:
                 msg.append(f"Extra inputs: {extra}")
-            raise ValueError(f"Input mismatch for {self._name}: {', '.join(msg)}")
+            raise ValueError(f"Input mismatch for {self.name}: {', '.join(msg)}")
 
         # Validate types
         for input_name, output_selector in input_connections.items():
@@ -233,9 +238,9 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
 
         # Get inputs from context (if any are needed)
         if len(self._inputs) > 0:  # Only look for inputs if this module has any
-            inputs = context.get_leaf_input(self._name)
+            inputs = context.get_leaf_input(self.name)
             if inputs is None:
-                raise ValueError(f"Input '{self._name}' not found in context")
+                raise ValueError(f"Input '{self.name}' not found in context")
         else:
             # Source modules with no inputs use empty dict
             inputs = {}

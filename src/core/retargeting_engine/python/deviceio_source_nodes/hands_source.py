@@ -9,9 +9,9 @@ Converts raw HandPoseT flatbuffer data to standard HandInput tensor format.
 
 import numpy as np
 from typing import TYPE_CHECKING
-from ..interface.base_retargeter import BaseRetargeter
 from .interface import IDeviceIOSource
-from ..interface.retargeter_core_types import RetargeterIO, RetargeterIOType
+from ..interface.retargeter_core_types import OutputSelector, RetargeterIO, RetargeterIOType
+from ..interface.retargeter_subgraph import RetargeterSubgraph
 from ..interface.tensor_group import TensorGroup
 from ..tensor_types import HandInput, NUM_HAND_JOINTS
 from .deviceio_tensor_types import DeviceIOHandPose
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from isaacteleop.schema import HandPoseT
 
 
-class HandsSource(BaseRetargeter, IDeviceIOSource):
+class HandsSource(IDeviceIOSource):
     """
     Stateless converter: DeviceIO HandPoseT → HandInput tensors.
 
@@ -57,11 +57,6 @@ class HandsSource(BaseRetargeter, IDeviceIOSource):
         import isaacteleop.deviceio as deviceio
         self._hand_tracker = deviceio.HandTracker()
         super().__init__(name)
-
-    @property
-    def name(self) -> str:
-        """Get the name of this source node."""
-        return self._name
 
     def get_tracker(self) -> "ITracker":
         """Get the HandTracker instance.
@@ -128,3 +123,32 @@ class HandsSource(BaseRetargeter, IDeviceIOSource):
         group[3] = valid
         group[4] = hand_data.is_active
         group[5] = int(hand_data.timestamp.device_time)
+
+    def transformed(self, transform_input: OutputSelector) -> RetargeterSubgraph:
+        """
+        Create a subgraph that applies a 4x4 transform to all hand joint poses.
+
+        This is a convenience method equivalent to manually creating a HandTransform
+        node and connecting it.
+
+        Args:
+            transform_input: An OutputSelector providing a TransformMatrix
+                (e.g., passthrough_input.output("value")).
+
+        Returns:
+            A RetargeterSubgraph with outputs "hand_left" and "hand_right"
+            containing the transformed HandInput data.
+
+        Example:
+            hand_source = HandsSource("hands")
+            xform_input = PassthroughInput("xform", TransformMatrix())
+            transformed = hand_source.transformed(xform_input.output("value"))
+        """
+        from ..utilities.hand_transform import HandTransform
+
+        xform_node = HandTransform(f"{self.name}_transform")
+        return xform_node.connect({
+            self.LEFT: self.output(self.LEFT),
+            self.RIGHT: self.output(self.RIGHT),
+            "transform": transform_input,
+        })

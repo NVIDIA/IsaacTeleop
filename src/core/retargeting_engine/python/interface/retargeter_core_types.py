@@ -30,6 +30,12 @@ class OutputSelector:
         self.output_name = output_name
 
 class BaseExecutable(ABC):
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """Get the name of this executable."""
+        pass
+
     @abstractmethod
     def _compute_without_context(self, inputs: RetargeterIO) -> RetargeterIO:
         """
