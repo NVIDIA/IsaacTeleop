@@ -21,8 +21,11 @@ On Linux (Ubuntu) builds, clang-format is enforced by default and the build fail
 
 ```bash
 sudo apt update
-sudo apt install -y clang-format
+sudo apt install -y clang-format-14
 ```
+
+Note that we use clang-format-14 so that it gives us consistent results between different Linux
+distributions.
 
 You can disable enforcement if needed:
 
@@ -34,7 +37,7 @@ Useful targets:
 - `clang_format_check`: verifies formatting (part of `ALL` on Linux)
 - `clang_format_fix`: applies formatting in place
 
-> **Note:** The Python version requirement is centrally configured in the root `CMakeLists.txt` file. 
+> **Note:** The Python version requirement is centrally configured in the root `CMakeLists.txt` file.
 > To change the Python version, modify the `ISAAC_TELEOP_PYTHON_VERSION` variable in that file.
 
 > **Note:** Dependencies (OpenXR SDK, pybind11, yaml-cpp) are automatically downloaded during CMake configuration using FetchContent. No manual dependency installation or git submodule initialization is required.
