@@ -155,9 +155,6 @@ bool FullBodyTrackerPicoImpl::update(XrTime time)
         body_pose_.joints = std::make_unique<BodyJointsPico>();
     }
 
-    // Get mutable access to the joints array
-    auto* mutable_array = const_cast<flatbuffers::Array<BodyJointPose, 24>*>(body_pose_.joints->joints());
-
     for (uint32_t i = 0; i < XR_BODY_JOINT_COUNT_BD; ++i)
     {
         const auto& joint_loc = joint_locations[i];
@@ -173,7 +170,7 @@ bool FullBodyTrackerPicoImpl::update(XrTime time)
 
         // Create BodyJointPose and set it in the array
         BodyJointPose joint_pose(pose, is_valid);
-        mutable_array->Mutate(i, joint_pose);
+        body_pose_.joints->mutable_joints()->Mutate(i, joint_pose);
     }
 
     return true;

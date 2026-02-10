@@ -171,9 +171,8 @@ TEST_CASE("FullBodyPosePicoT joints can be mutated via flatbuffers Array", "[ful
     core::Pose pose(position, orientation);
     core::BodyJointPose joint_pose(pose, true);
 
-    // Mutate first joint using const_cast (FlatBuffers struct mutation).
-    auto* mutable_array = const_cast<flatbuffers::Array<core::BodyJointPose, 24>*>(body_pose->joints->joints());
-    mutable_array->Mutate(0, joint_pose);
+    // Mutate first joint
+    body_pose->joints->mutable_joints()->Mutate(0, joint_pose);
 
     // Verify.
     const auto* first_joint = (*body_pose->joints->joints())[0];
@@ -191,14 +190,13 @@ TEST_CASE("FullBodyPosePicoT serialization and deserialization", "[full_body][fl
     auto body_pose = std::make_unique<core::FullBodyPosePicoT>();
     body_pose->joints = std::make_unique<core::BodyJointsPico>();
 
-    // Set a few joint poses using const_cast.
+    // Set a few joint poses
     core::Point position(1.5f, 2.5f, 3.5f);
     core::Quaternion orientation(0.0f, 0.0f, 0.0f, 1.0f);
     core::Pose pose(position, orientation);
     core::BodyJointPose joint_pose(pose, true);
 
-    auto* mutable_array = const_cast<flatbuffers::Array<core::BodyJointPose, 24>*>(body_pose->joints->joints());
-    mutable_array->Mutate(0, joint_pose);
+    body_pose->joints->mutable_joints()->Mutate(0, joint_pose);
 
     body_pose->is_active = true;
     body_pose->timestamp = std::make_shared<core::Timestamp>(9876543210LL, 1234567890LL);
@@ -235,15 +233,14 @@ TEST_CASE("FullBodyPosePicoT can be unpacked from buffer", "[full_body][flatbuff
     auto original = std::make_unique<core::FullBodyPosePicoT>();
     original->joints = std::make_unique<core::BodyJointsPico>();
 
-    // Set multiple joint poses.
-    auto* mutable_array = const_cast<flatbuffers::Array<core::BodyJointPose, 24>*>(original->joints->joints());
+    // Set multiple joint poses (--gen-mutable provides mutable_joints()).
     for (size_t i = 0; i < 24; ++i)
     {
         core::Point position(static_cast<float>(i), static_cast<float>(i * 2), static_cast<float>(i * 3));
         core::Quaternion orientation(0.0f, 0.0f, 0.0f, 1.0f);
         core::Pose pose(position, orientation);
         core::BodyJointPose joint_pose(pose, true);
-        mutable_array->Mutate(i, joint_pose);
+        original->joints->mutable_joints()->Mutate(i, joint_pose);
     }
 
     original->is_active = true;
@@ -283,15 +280,14 @@ TEST_CASE("FullBodyPosePicoT all 24 joints can be set and verified", "[full_body
     auto body_pose = std::make_unique<core::FullBodyPosePicoT>();
     body_pose->joints = std::make_unique<core::BodyJointsPico>();
 
-    // Set all 24 joints with unique positions.
-    auto* mutable_array = const_cast<flatbuffers::Array<core::BodyJointPose, 24>*>(body_pose->joints->joints());
+    // Set all 24 joints with unique positions (--gen-mutable provides mutable_joints()).
     for (size_t i = 0; i < 24; ++i)
     {
         core::Point position(static_cast<float>(i), 0.0f, 0.0f);
         core::Quaternion orientation(0.0f, 0.0f, 0.0f, 1.0f);
         core::Pose pose(position, orientation);
         core::BodyJointPose joint_pose(pose, true);
-        mutable_array->Mutate(i, joint_pose);
+        body_pose->joints->mutable_joints()->Mutate(i, joint_pose);
     }
 
     // Verify all joints.
@@ -402,21 +398,19 @@ TEST_CASE("BodyJointPico enum can index BodyJointsPico", "[full_body][enum]")
     auto body_pose = std::make_unique<core::FullBodyPosePicoT>();
     body_pose->joints = std::make_unique<core::BodyJointsPico>();
 
-    // Set specific joints using enum values.
-    auto* mutable_array = const_cast<flatbuffers::Array<core::BodyJointPose, 24>*>(body_pose->joints->joints());
-
+    // Set specific joints using enum values (--gen-mutable provides mutable_joints()).
     // Set HEAD joint with a recognizable position.
     core::Point head_position(0.0f, 1.7f, 0.0f);
     core::Quaternion orientation(0.0f, 0.0f, 0.0f, 1.0f);
     core::Pose head_pose(head_position, orientation);
     core::BodyJointPose head_joint(head_pose, true);
-    mutable_array->Mutate(core::BodyJointPico_HEAD, head_joint);
+    body_pose->joints->mutable_joints()->Mutate(core::BodyJointPico_HEAD, head_joint);
 
     // Set LEFT_HAND joint with a recognizable position.
     core::Point left_hand_position(-0.5f, 1.0f, 0.3f);
     core::Pose left_hand_pose(left_hand_position, orientation);
     core::BodyJointPose left_hand_joint(left_hand_pose, true);
-    mutable_array->Mutate(core::BodyJointPico_LEFT_HAND, left_hand_joint);
+    body_pose->joints->mutable_joints()->Mutate(core::BodyJointPico_LEFT_HAND, left_hand_joint);
 
     // Verify using enum values to access.
     const auto* head = (*body_pose->joints->joints())[core::BodyJointPico_HEAD];

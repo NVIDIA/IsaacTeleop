@@ -185,9 +185,6 @@ bool HandTracker::Impl::update_hand(XrHandTrackerEXT tracker, XrTime time, HandP
         out_data.joints = std::make_unique<HandJoints>();
     }
 
-    // Get mutable access to the joints array
-    auto* mutable_array = const_cast<flatbuffers::Array<HandJointPose, 26>*>(out_data.joints->poses());
-
     for (uint32_t i = 0; i < 26; ++i)
     {
         const auto& joint_loc = joint_locations[i];
@@ -203,7 +200,7 @@ bool HandTracker::Impl::update_hand(XrHandTrackerEXT tracker, XrTime time, HandP
 
         // Create HandJointPose and set it in the array
         HandJointPose joint_pose(pose, is_valid, joint_loc.radius);
-        mutable_array->Mutate(i, joint_pose);
+        out_data.joints->mutable_poses()->Mutate(i, joint_pose);
     }
 
     return true;

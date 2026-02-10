@@ -170,9 +170,8 @@ TEST_CASE("HandPoseT joints can be mutated via flatbuffers Array", "[hand][nativ
     core::Pose pose(position, orientation);
     core::HandJointPose joint_pose(pose, true, 0.015f);
 
-    // Mutate first joint using const_cast (FlatBuffers struct mutation).
-    auto* mutable_array = const_cast<flatbuffers::Array<core::HandJointPose, 26>*>(hand_pose->joints->poses());
-    mutable_array->Mutate(0, joint_pose);
+    // Mutate first joint
+    hand_pose->joints->mutable_poses()->Mutate(0, joint_pose);
 
     // Verify.
     const auto* first_joint = (*hand_pose->joints->poses())[0];
@@ -191,14 +190,13 @@ TEST_CASE("HandPoseT serialization and deserialization", "[hand][flatbuffers]")
     auto hand_pose = std::make_unique<core::HandPoseT>();
     hand_pose->joints = std::make_unique<core::HandJoints>();
 
-    // Set a few joint poses using const_cast.
+    // Set a few joint poses
     core::Point position(1.5f, 2.5f, 3.5f);
     core::Quaternion orientation(0.0f, 0.0f, 0.0f, 1.0f);
     core::Pose pose(position, orientation);
     core::HandJointPose joint_pose(pose, true, 0.02f);
 
-    auto* mutable_array = const_cast<flatbuffers::Array<core::HandJointPose, 26>*>(hand_pose->joints->poses());
-    mutable_array->Mutate(0, joint_pose);
+    hand_pose->joints->mutable_poses()->Mutate(0, joint_pose);
 
     hand_pose->is_active = true;
     hand_pose->timestamp = std::make_shared<core::Timestamp>(9876543210LL, 1234567890LL);
@@ -236,15 +234,14 @@ TEST_CASE("HandPoseT can be unpacked from buffer", "[hand][flatbuffers]")
     auto original = std::make_unique<core::HandPoseT>();
     original->joints = std::make_unique<core::HandJoints>();
 
-    // Set multiple joint poses.
-    auto* mutable_array = const_cast<flatbuffers::Array<core::HandJointPose, 26>*>(original->joints->poses());
+    // Set multiple joint poses
     for (size_t i = 0; i < 26; ++i)
     {
         core::Point position(static_cast<float>(i), static_cast<float>(i * 2), static_cast<float>(i * 3));
         core::Quaternion orientation(0.0f, 0.0f, 0.0f, 1.0f);
         core::Pose pose(position, orientation);
         core::HandJointPose joint_pose(pose, true, 0.01f + static_cast<float>(i) * 0.001f);
-        mutable_array->Mutate(i, joint_pose);
+        original->joints->mutable_poses()->Mutate(i, joint_pose);
     }
 
     original->is_active = true;
@@ -285,14 +282,13 @@ TEST_CASE("HandPoseT all 26 joints can be set and verified", "[hand][native]")
     hand_pose->joints = std::make_unique<core::HandJoints>();
 
     // Set all 26 joints with unique positions.
-    auto* mutable_array = const_cast<flatbuffers::Array<core::HandJointPose, 26>*>(hand_pose->joints->poses());
     for (size_t i = 0; i < 26; ++i)
     {
         core::Point position(static_cast<float>(i), 0.0f, 0.0f);
         core::Quaternion orientation(0.0f, 0.0f, 0.0f, 1.0f);
         core::Pose pose(position, orientation);
         core::HandJointPose joint_pose(pose, true, 0.01f);
-        mutable_array->Mutate(i, joint_pose);
+        hand_pose->joints->mutable_poses()->Mutate(i, joint_pose);
     }
 
     // Verify all joints.
