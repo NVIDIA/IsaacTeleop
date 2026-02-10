@@ -12,9 +12,9 @@ namespace schemaio_example
 static constexpr size_t MAX_FLATBUFFER_SIZE = 256;
 
 //! Maximum total samples to push/receive before exiting.
-static constexpr int MAX_SAMPLES = 100;
+static constexpr int MAX_SAMPLES = 1000;
 
 //! Collection ID shared between pusher and reader.
-static constexpr const char* COLLECTION_ID = "schemaio_example";
+static constexpr const char* COLLECTION_ID = "generic_3axis_pedal";
 
 } // namespace schemaio_example

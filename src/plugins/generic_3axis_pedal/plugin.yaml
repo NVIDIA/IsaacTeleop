@@ -1,0 +1,8 @@
+name: generic_3axis_pedal
+description: "3-axis pedal (left/right pedal, rudder) via Linux joystick device"
+command: "./generic_3axis_pedal_plugin"
+version: "1.0.0"
+devices:
+  - path: "/pedal/generic_3axis"
+    type: "generic_3axis_pedal"
+    description: "3-axis pedal from /dev/input/js*"
