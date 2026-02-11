@@ -30,14 +30,11 @@ cmake --build build --target camera_plugin_oak --parallel
 ## Usage
 
 ```bash
-# Record with defaults (auto-named file in ./recordings/)
-./build/src/plugins/oak/camera_plugin_oak
+# Record to a file (--output is required)
+./build/src/plugins/oak/camera_plugin_oak --output=./recordings/session.h264
 
-# Custom recording directory
-./build/src/plugins/oak/camera_plugin_oak --record-dir=/tmp/my_recordings
-
-# Custom camera settings
-./build/src/plugins/oak/camera_plugin_oak --width=1920 --height=1080 --fps=30 --bitrate=15000000
+# Custom path and camera settings
+./build/src/plugins/oak/camera_plugin_oak --output=/tmp/session.h264 --width=1920 --height=1080 --fps=30 --bitrate=15000000
 
 # Show help
 ./build/src/plugins/oak/camera_plugin_oak --help
@@ -54,7 +51,7 @@ Press `Ctrl+C` to stop recording.
 | `--fps` | 30 | Frame rate |
 | `--bitrate` | 8000000 | H.264 bitrate (bps) |
 | `--quality` | 80 | H.264 quality (1-100) |
-| `--record-dir` | ./recordings | Directory for auto-named recordings |
+| `--output` | (required) | Full path for recording file |
 | `--plugin-root-id` | oak_camera | Plugin ID for Isaac Teleop integration |
 
 ## Architecture

@@ -7,7 +7,6 @@
 #include <atomic>
 #include <chrono>
 #include <csignal>
-#include <iomanip>
 #include <iostream>
 #include <string>
 
@@ -41,7 +40,7 @@ void print_usage(const char* program_name)
               << "  --bitrate=N         H.264 bitrate in bps (default: 8000000)\n"
               << "  --quality=N         H.264 quality 1-100 (default: 80)\n"
               << "\nRecording Settings:\n"
-              << "  --record-dir=DIR    Directory for auto-named recordings (default: ./recordings)\n"
+              << "  --output=PATH       Full path for recording file (required)\n"
               << "\nOpenXR Settings:\n"
               << "  --plugin-root-id=ID Tensor collection ID for metadata (default: oak_camera)\n"
               << "\nGeneral Settings:\n"
@@ -59,7 +58,7 @@ try
 {
     // Default configurations
     OakConfig camera_config;
-    std::string record_dir = "./recordings";
+    std::string output_path;
     std::string plugin_root_id = "oak_camera";
 
     // Parse command line arguments
@@ -92,9 +91,9 @@ try
         {
             camera_config.quality = std::stoi(arg.substr(10));
         }
-        else if (arg.find("--record-dir=") == 0)
+        else if (arg.find("--output=") == 0)
         {
-            record_dir = arg.substr(13);
+            output_path = arg.substr(9);
         }
         else if (arg.find("--plugin-root-id=") == 0)
         {
@@ -116,9 +115,16 @@ try
     std::cout << "OAK Camera Plugin Starting" << std::endl;
     std::cout << "============================================================" << std::endl;
 
+    if (output_path.empty())
+    {
+        std::cerr << "Error: --output=PATH is required." << std::endl;
+        print_usage(argv[0]);
+        return 1;
+    }
+
     // Create camera and frame sink (H.264 writer + metadata pusher)
     OakCamera camera(camera_config);
-    FrameSink sink(record_dir, plugin_root_id);
+    FrameSink sink(output_path, plugin_root_id);
 
     uint64_t frame_count = 0;
     auto start_time = std::chrono::steady_clock::now();

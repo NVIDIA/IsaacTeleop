@@ -34,13 +34,12 @@ class FrameSink
 public:
     /**
      * @brief Construct the frame sink.
-     * @param record_dir Directory for auto-named H.264 recordings.
-     *                   A timestamped filename is generated automatically.
+     * @param record_path Full path to the output H.264 recording file.
      * @param collection_id OpenXR tensor collection ID for metadata pushing.
      *                      If empty, metadata pushing is disabled.
-     * @throws std::runtime_error if the directory cannot be created or file cannot be opened.
+     * @throws std::runtime_error if the parent directory cannot be created or file cannot be opened.
      */
-    FrameSink(const std::string& record_dir, const std::string& collection_id = "");
+    FrameSink(const std::string& record_path, const std::string& collection_id = "");
     ~FrameSink();
 
     // Non-copyable, non-movable

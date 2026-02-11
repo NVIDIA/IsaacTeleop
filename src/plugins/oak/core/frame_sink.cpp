@@ -8,10 +8,7 @@
 #include <pusherio/schema_pusher.hpp>
 #include <schema/oak_generated.h>
 
-#include <chrono>
 #include <filesystem>
-#include <iomanip>
-#include <sstream>
 
 namespace plugins
 {
@@ -53,19 +50,16 @@ struct FrameSink::MetadataPusher
 // FrameSink
 // =============================================================================
 
-static std::string generate_record_path(const std::string& record_dir)
-{
-    std::filesystem::create_directories(record_dir);
-    auto now = std::chrono::system_clock::now();
-    auto time = std::chrono::system_clock::to_time_t(now);
-    std::tm tm = *std::localtime(&time);
-    std::ostringstream oss;
-    oss << record_dir << "/oak_recording_" << std::put_time(&tm, "%Y%m%d_%H%M%S") << ".h264";
-    return oss.str();
-}
-
-FrameSink::FrameSink(const std::string& record_dir, const std::string& collection_id)
-    : m_writer(generate_record_path(record_dir))
+FrameSink::FrameSink(const std::string& record_path, const std::string& collection_id)
+    : m_writer(
+          [&record_path]()
+          {
+              std::filesystem::path p(record_path);
+              auto parent = p.parent_path();
+              if (!parent.empty())
+                  std::filesystem::create_directories(parent);
+              return record_path;
+          }())
 {
     if (!collection_id.empty())
     {
