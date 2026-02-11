@@ -8,8 +8,7 @@ Converts raw ControllerSnapshot flatbuffer data to standard ControllerInput tens
 """
 
 import numpy as np
-from typing import TYPE_CHECKING
-from ..interface.base_retargeter import BaseRetargeter
+from typing import Any, TYPE_CHECKING
 from .interface import IDeviceIOSource
 from ..interface.retargeter_core_types import RetargeterIO, RetargeterIOType
 from ..interface.tensor_group import TensorGroup
@@ -21,7 +20,7 @@ if TYPE_CHECKING:
     from isaacteleop.schema import ControllerSnapshot
 
 
-class ControllersSource(BaseRetargeter, IDeviceIOSource):
+class ControllersSource(IDeviceIOSource):
     """
     Stateless converter: DeviceIO ControllerSnapshot → ControllerInput tensors.
 
@@ -57,11 +56,6 @@ class ControllersSource(BaseRetargeter, IDeviceIOSource):
         self._controller_tracker = deviceio.ControllerTracker()
         super().__init__(name)
 
-    @property
-    def name(self) -> str:
-        """Get the name of this source node."""
-        return self._name
-
     def get_tracker(self) -> "ITracker":
         """Get the ControllerTracker instance.
 
@@ -69,6 +63,28 @@ class ControllersSource(BaseRetargeter, IDeviceIOSource):
             The ControllerTracker instance for TeleopSession to initialize
         """
         return self._controller_tracker
+
+    def poll_tracker(self, deviceio_session: Any) -> RetargeterIO:
+        """Poll controller tracker and return input data.
+
+        Args:
+            deviceio_session: The active DeviceIO session.
+
+        Returns:
+            Dict with "deviceio_controller_left" and "deviceio_controller_right"
+            TensorGroups containing raw ControllerSnapshot data.
+        """
+        controller_data = self._controller_tracker.get_controller_data(deviceio_session)
+        source_inputs = self.input_spec()
+        result = {}
+        for input_name, group_type in source_inputs.items():
+            tg = TensorGroup(group_type)
+            if "left" in input_name:
+                tg[0] = controller_data.left_controller
+            elif "right" in input_name:
+                tg[0] = controller_data.right_controller
+            result[input_name] = tg
+        return result
 
     def input_spec(self) -> RetargeterIOType:
         """Declare DeviceIO controller inputs."""

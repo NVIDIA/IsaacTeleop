@@ -8,8 +8,7 @@ Converts raw HeadPoseT flatbuffer data to standard HeadPose tensor format.
 """
 
 import numpy as np
-from typing import TYPE_CHECKING
-from ..interface.base_retargeter import BaseRetargeter
+from typing import Any, TYPE_CHECKING
 from .interface import IDeviceIOSource
 from ..interface.retargeter_core_types import RetargeterIO, RetargeterIOType
 from ..interface.tensor_group import TensorGroup
@@ -21,7 +20,7 @@ if TYPE_CHECKING:
     from isaacteleop.schema import HeadPoseT
 
 
-class HeadSource(BaseRetargeter, IDeviceIOSource):
+class HeadSource(IDeviceIOSource):
     """
     Stateless converter: DeviceIO HeadPoseT → HeadPose tensor.
 
@@ -48,12 +47,7 @@ class HeadSource(BaseRetargeter, IDeviceIOSource):
         import isaacteleop.deviceio as deviceio
         self._head_tracker = deviceio.HeadTracker()
         super().__init__(name)
-    
-    @property
-    def name(self) -> str:
-        """Get the name of this source node."""
-        return self._name
-    
+
     def get_tracker(self) -> "ITracker":
         """Get the HeadTracker instance.
         
@@ -61,6 +55,24 @@ class HeadSource(BaseRetargeter, IDeviceIOSource):
             The HeadTracker instance for TeleopSession to initialize
         """
         return self._head_tracker
+
+    def poll_tracker(self, deviceio_session: Any) -> RetargeterIO:
+        """Poll head tracker and return input data.
+
+        Args:
+            deviceio_session: The active DeviceIO session.
+
+        Returns:
+            Dict with "deviceio_head" TensorGroup containing raw HeadPoseT data.
+        """
+        head_data = self._head_tracker.get_head(deviceio_session)
+        source_inputs = self.input_spec()
+        result = {}
+        for input_name, group_type in source_inputs.items():
+            tg = TensorGroup(group_type)
+            tg[0] = head_data
+            result[input_name] = tg
+        return result
 
     def input_spec(self) -> RetargeterIOType:
         """Declare DeviceIO head input."""

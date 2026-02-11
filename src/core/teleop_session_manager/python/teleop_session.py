@@ -148,58 +148,17 @@ class TeleopSession:
     def _collect_tracker_data(self) -> Dict[str, Any]:
         """Collect raw tracking data from all sources and map to module names.
 
+        Each source polls its own tracker via poll_tracker() and returns
+        a RetargeterIO dict matching its input_spec().
+
         Returns:
             Dict mapping source module names to their complete input dictionaries.
             Each input dictionary maps input names to TensorGroups containing raw data.
         """
-        leaf_inputs = {}
-
-        for source in self._sources:
-            tracker = source.get_tracker()
-            tracker_type = type(tracker).__name__
-
-            # Get the input spec for this source (defines TensorGroupTypes for each input)
-            source_inputs = source.input_spec()
-
-            # Build the input dict for this source module
-            source_input_data = {}
-
-            # Get raw data based on tracker type and wrap in TensorGroups
-            if tracker_type == "HeadTracker":
-                head_data = tracker.get_head(self.deviceio_session)
-                # Wrap in TensorGroup for each input
-                for input_name, group_type in source_inputs.items():
-                    tg = TensorGroup(group_type)
-                    tg[0] = head_data  # First (and only) tensor in the group
-                    source_input_data[input_name] = tg
-
-            elif tracker_type == "HandTracker":
-                left_hand = tracker.get_left_hand(self.deviceio_session)
-                right_hand = tracker.get_right_hand(self.deviceio_session)
-                # Wrap in TensorGroups for each input
-                for input_name, group_type in source_inputs.items():
-                    tg = TensorGroup(group_type)
-                    if "left" in input_name.lower():
-                        tg[0] = left_hand
-                    elif "right" in input_name.lower():
-                        tg[0] = right_hand
-                    source_input_data[input_name] = tg
-
-            elif tracker_type == "ControllerTracker":
-                controller_data = tracker.get_controller_data(self.deviceio_session)
-                # Wrap in TensorGroups for each input
-                for input_name, group_type in source_inputs.items():
-                    tg = TensorGroup(group_type)
-                    if "left" in input_name.lower():
-                        tg[0] = controller_data.left_controller
-                    elif "right" in input_name.lower():
-                        tg[0] = controller_data.right_controller
-                    source_input_data[input_name] = tg
-
-            # Map the source module's name to its complete input dictionary
-            leaf_inputs[source.name] = source_input_data
-
-        return leaf_inputs
+        return {
+            source.name: source.poll_tracker(self.deviceio_session)
+            for source in self._sources
+        }
 
     def _check_plugin_health(self):
         """Check health of all running plugins."""
@@ -223,10 +182,18 @@ class TeleopSession:
         Returns:
             self for context manager protocol
         """
-        # Collect all trackers (from sources + manual config)
-        trackers = [source.get_tracker() for source in self._sources]
+        # Collect and deduplicate trackers by type.
+        # OpenXR only supports one tracker per type (e.g. one ControllerTracker).
+        # Trackers are stateless, so keeping a single instance per type is safe.
+        # Source trackers are added first so they take priority over config trackers.
+        tracker_by_type: Dict[type, Any] = {}
+        for source in self._sources:
+            tracker = source.get_tracker()
+            tracker_by_type.setdefault(type(tracker), tracker)
         if self.config.trackers:
-            trackers.extend(self.config.trackers)
+            for tracker in self.config.trackers:
+                tracker_by_type.setdefault(type(tracker), tracker)
+        trackers = list(tracker_by_type.values())
 
         # Get required extensions from all trackers
         required_extensions = deviceio.DeviceIOSession.get_required_extensions(trackers)
