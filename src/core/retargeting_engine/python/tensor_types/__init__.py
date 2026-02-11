@@ -9,6 +9,7 @@ from .standard_types import (
     HandInput,
     HeadPose,
     ControllerInput,
+    TransformMatrix,
     NUM_HAND_JOINTS,
     RobotHandJoints,
 )
@@ -29,6 +30,7 @@ __all__ = [
     "HandInput",
     "HeadPose",
     "ControllerInput",
+    "TransformMatrix",
     "NUM_HAND_JOINTS",
     "RobotHandJoints",
     # Indices
