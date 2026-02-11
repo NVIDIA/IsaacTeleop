@@ -49,7 +49,7 @@ class TensorReorderer(BaseRetargeter):
             input_config: Dict mapping input names to the list of joint/element names they contain.
                           e.g. {
                               "left_hand": ["joint_1", "joint_2"],
-                              "right_arm_ik": ["pos_x", "pos_y", "pos_z", "quat_w", ...]
+                              "right_arm_ik": ["pos_x", "pos_y", "pos_z", "quat_x", ...]
                           }
             output_order: List of names in the desired output order.
                           e.g. ["pos_x", "pos_y", ..., "joint_1", "joint_2"]

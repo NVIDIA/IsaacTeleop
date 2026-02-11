@@ -91,7 +91,7 @@ def main():
     left_arm_cfg = Se3RetargeterConfig(
         input_device="hand_left",
         target_offset_pos=(0.0, 0.0, 0.0),
-        target_offset_rot=(1.0, 0.0, 0.0, 0.0) # w,x,y,z
+        target_offset_rot=(0.0, 0.0, 0.0, 1.0) # x,y,z,w
     )
     left_arm_retargeter = Se3AbsRetargeter(left_arm_cfg, name="left_arm")
 
@@ -99,7 +99,7 @@ def main():
     right_arm_cfg = Se3RetargeterConfig(
         input_device="hand_right",
         target_offset_pos=(0.0, 0.0, 0.0),
-        target_offset_rot=(1.0, 0.0, 0.0, 0.0)
+        target_offset_rot=(0.0, 0.0, 0.0, 1.0)
     )
     right_arm_retargeter = Se3AbsRetargeter(right_arm_cfg, name="right_arm")
 
@@ -126,9 +126,9 @@ def main():
     # ==================================================================
 
     # Define the names for the 7 elements of the SE3 output (Pos + Rot)
-    # Order: [pos_x, pos_y, pos_z, rot_w, rot_x, rot_y, rot_z]
-    left_arm_elements = [f"left_ee_{x}" for x in ["px", "py", "pz", "rw", "rx", "ry", "rz"]]
-    right_arm_elements = [f"right_ee_{x}" for x in ["px", "py", "pz", "rw", "rx", "ry", "rz"]]
+    # Order: [pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, rot_w]
+    left_arm_elements = [f"left_ee_{x}" for x in ["px", "py", "pz", "rx", "ry", "rz", "rw"]]
+    right_arm_elements = [f"right_ee_{x}" for x in ["px", "py", "pz", "rx", "ry", "rz", "rw"]]
 
     # Define the full flattened order expected by "Isaac Lab" (Hypothetically)
     # Let's say the robot expects: [Left Arm Pose, Left Hand Joints, Right Arm Pose, Right Hand Joints]

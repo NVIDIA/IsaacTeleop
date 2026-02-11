@@ -8,6 +8,6 @@ struct Pose {
   // Position of the pose (x, y, z) in meters.
   position: Point (id: 0);
 
-  // Orientation of the pose (w, x, y, z).
+  // Orientation of the pose (x, y, z, w).
   orientation: Quaternion (id: 1);
 }
