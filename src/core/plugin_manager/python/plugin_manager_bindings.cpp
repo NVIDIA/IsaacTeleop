@@ -26,5 +26,5 @@ PYBIND11_MODULE(_plugin_manager, m)
         .def("query_devices", &PluginManager::query_devices, py::arg("plugin_name"),
              "Query available devices from a plugin")
         .def("start", &PluginManager::start, py::arg("plugin_name"), py::arg("plugin_root_id"),
-             "Start a plugin and return a RAII handle");
+             py::arg("plugin_args") = std::vector<std::string>{}, "Start a plugin and return a RAII handle.");
 }

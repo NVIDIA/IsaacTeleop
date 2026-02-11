@@ -20,9 +20,12 @@
 namespace core
 {
 
-Plugin::Plugin(const std::string& command, const std::string& working_dir, const std::string& plugin_root_id)
+Plugin::Plugin(const std::string& command,
+               const std::string& working_dir,
+               const std::string& plugin_root_id,
+               const std::vector<std::string>& plugin_args)
 {
-    start_process(command, working_dir, plugin_root_id);
+    start_process(command, working_dir, plugin_root_id, plugin_args);
 }
 
 Plugin::~Plugin()
@@ -77,7 +80,10 @@ void Plugin::check_health() const
 #endif
 }
 
-void Plugin::start_process(const std::string& command, const std::string& working_dir, const std::string& plugin_root_id)
+void Plugin::start_process(const std::string& command,
+                           const std::string& working_dir,
+                           const std::string& plugin_root_id,
+                           const std::vector<std::string>& plugin_args)
 {
 #ifndef _WIN32
     m_pid = fork();
@@ -126,6 +132,13 @@ void Plugin::start_process(const std::string& command, const std::string& workin
         if (!plugin_root_id.empty())
         {
             args_str.push_back("--plugin-root-id=" + plugin_root_id);
+        }
+
+        // Append any plugin arguments (e.g. --device-path=..., --device-mxid=...)
+        for (const auto& arg : plugin_args)
+        {
+            if (!arg.empty())
+                args_str.push_back(arg);
         }
 
         std::vector<char*> args;

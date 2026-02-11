@@ -73,7 +73,8 @@ PluginConfig(
     plugin_name="controller_synthetic_hands",
     plugin_root_id="synthetic_hands",
     search_paths=[Path("/path/to/plugins")],
-    enabled=True
+    enabled=True,
+    plugin_args=[],
 )
 ```
 

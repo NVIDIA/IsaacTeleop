@@ -27,11 +27,13 @@ class PluginConfig:
         plugin_root_id: Root ID for the plugin instance
         search_paths: List of directories to search for plugins
         enabled: Whether to load and use this plugin
+        plugin_args: Optional list of arguments passed to the plugin process
     """
     plugin_name: str
     plugin_root_id: str
     search_paths: List[Path]
     enabled: bool = True
+    plugin_args: List[str] = field(default_factory=list)
 
 
 @dataclass
