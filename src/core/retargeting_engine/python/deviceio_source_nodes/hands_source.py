@@ -156,7 +156,7 @@ class HandsSource(IDeviceIOSource):
 
         Args:
             transform_input: An OutputSelector providing a TransformMatrix
-                (e.g., passthrough_input.output("value")).
+                (e.g., value_input.output("value")).
 
         Returns:
             A RetargeterSubgraph with outputs "hand_left" and "hand_right"
@@ -164,7 +164,7 @@ class HandsSource(IDeviceIOSource):
 
         Example:
             hand_source = HandsSource("hands")
-            xform_input = PassthroughInput("xform", TransformMatrix())
+            xform_input = ValueInput("xform", TransformMatrix())
             transformed = hand_source.transformed(xform_input.output("value"))
         """
         from ..utilities.hand_transform import HandTransform

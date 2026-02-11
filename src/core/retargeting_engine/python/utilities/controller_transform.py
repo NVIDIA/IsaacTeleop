@@ -51,7 +51,7 @@ class ControllerTransform(BaseRetargeter):
         - "controller_right": ControllerInput tensor with transformed poses
 
     Example:
-        transform_input = PassthroughInput("xform_input", TransformMatrix())
+        transform_input = ValueInput("xform_input", TransformMatrix())
         controller_transform = ControllerTransform("ctrl_xform")
 
         transformed = controller_transform.connect({
