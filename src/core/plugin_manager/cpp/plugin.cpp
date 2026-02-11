@@ -10,6 +10,7 @@
 #    include <unistd.h>
 #endif
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <iostream>
@@ -95,7 +96,6 @@ void Plugin::start_process(const std::string& command,
     if (m_pid == 0)
     {
         // Child process
-        static const std::string plugin_root_id_prefix("--plugin-root-id=");
 
         // Change working directory
         if (!working_dir.empty())
@@ -132,14 +132,24 @@ void Plugin::start_process(const std::string& command,
         // Append plugin root ID argument if set
         if (!plugin_root_id.empty())
         {
-            args_str.push_back(plugin_root_id_prefix + plugin_root_id);
+            args_str.push_back("--plugin-root-id=" + plugin_root_id);
         }
 
-        // Append any plugin arguments (skip --plugin-root-id= so plugin_root_id parameter cannot be overridden)
+        // Append plugin arguments; skip if option already in args_str (e.g. --plugin-root-id= from above)
         for (const auto& arg : plugin_args)
         {
-            if (!arg.empty() && !arg.starts_with(plugin_root_id_prefix))
+            // Option prefix: "--name=" or whole arg for "--flag"
+            const std::string arg_prefix = (arg.find('=') != std::string::npos) ? arg.substr(0, arg.find('=') + 1) : arg;
+            const bool already = std::any_of(args_str.cbegin(), args_str.cend(),
+                                             [&arg_prefix](const std::string& s) { return s.starts_with(arg_prefix); });
+            if (!already)
+            {
                 args_str.push_back(arg);
+            }
+            else
+            {
+                std::cerr << "Warning: Option " << arg_prefix << " already specified, ignoring duplicate" << std::endl;
+            }
         }
 
         std::vector<char*> args;
