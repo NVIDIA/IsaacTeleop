@@ -30,6 +30,7 @@ CXR_PYTHON_GPU_TESTS=(
 )
 
 CXR_NATIVE_GPU_TESTS=(
+    "install/examples/native_openxr/xdev_list/xdev_list"
     "install/examples/oxr/cpp/oxr_session_sharing"
     "install/examples/oxr/cpp/oxr_simple_api_demo"
 )
