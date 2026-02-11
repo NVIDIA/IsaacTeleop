@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Common library sources (minimal set for xdev_list headless app)
+# Common library sources (minimal set for native OpenXR headless apps)
 set(COMMON_SOURCES
     main_helpers.cpp
     main_helpers.hpp
