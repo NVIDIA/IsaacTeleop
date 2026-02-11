@@ -74,7 +74,7 @@ install_from_local_tarball() {
 # NGC: resource path and download/install logic
 # Resource: nvidia/cloudxr-js-early-access:${CXR_WEB_SDK_VERSION}
 # -----------------------------------------------------------------------------
-install_from_ngc() {
+install_from_public_ngc() {
     local SDK_RESOURCE="nvidia/cloudxr-js-early-access:${CXR_WEB_SDK_VERSION}"
     local SDK_DOWNLOAD_DIR="$GIT_ROOT/deps/cloudxr/.sdk-download"
 
@@ -101,7 +101,7 @@ install_from_ngc() {
     DOWNLOADED_DIR=$(ls -d cloudxr-js-early-access_v* 2>/dev/null | head -n1)
     if [ -z "$DOWNLOADED_DIR" ]; then
         echo -e "${RED}Error: Failed to find downloaded SDK directory${NC}"
-        exit 1
+        return 1
     fi
 
     echo -e "${GREEN}✓ CloudXR Web SDK downloaded${NC}"
@@ -112,7 +112,7 @@ install_from_ngc() {
 
     if [ ! -f "release.tar.gz" ]; then
         echo -e "${RED}Error: release.tar.gz not found in downloaded SDK${NC}"
-        exit 1
+        return 1
     fi
 
     SDK_EXTRACT_DIR="$SDK_DOWNLOAD_DIR/extracted"
@@ -127,6 +127,36 @@ install_from_ngc() {
 
     echo -e "${GREEN}✓ CloudXR Web SDK installed successfully${NC}"
     echo ""
+}
+
+# -----------------------------------------------------------------------------
+# NGC: resource path and download/install logic
+# Resource: 0566138804516934/cloudxr-dev/cloudxr-js:${CXR_WEB_SDK_VERSION}
+# -----------------------------------------------------------------------------
+install_from_private_ngc() {
+    local SDK_RESOURCE="0566138804516934/cloudxr-dev/cloudxr-js:${CXR_WEB_SDK_VERSION}"
+    local SDK_DOWNLOAD_DIR="$GIT_ROOT/deps/cloudxr/.sdk-download"
+    local DOWNLOADED_TAR_BALL="$SDK_DOWNLOAD_DIR/cloudxr-js_v${CXR_WEB_SDK_VERSION}/nvidia-cloudxr-${CXR_WEB_SDK_VERSION}.tgz"
+
+    mkdir -p "$SDK_DOWNLOAD_DIR"
+
+    echo -e "${YELLOW}[1/3] Downloading CloudXR Web SDK from NGC...${NC}"
+    cd "$SDK_DOWNLOAD_DIR"
+    ngc registry resource download-version \
+        --team no-team \
+        "$SDK_RESOURCE"
+
+    DOWNLOADED_DIR=$(ls -d cloudxr-js_v* 2>/dev/null | head -n1)
+    if [ -z "$DOWNLOADED_DIR" ]; then
+        echo -e "${RED}Error: Failed to find downloaded SDK directory${NC}"
+        return 1
+    fi
+
+    mv "$DOWNLOADED_TAR_BALL" "$GIT_ROOT/deps/cloudxr"
+
+    echo -e "${GREEN}✓ CloudXR Web SDK installed successfully${NC}"
+    echo ""
+    return 0
 }
 
 # -----------------------------------------------------------------------------
@@ -153,4 +183,15 @@ if install_from_local_tarball; then
     exit 0
 fi
 
-install_from_ngc
+echo "Cannot install from local tarball, trying public NGC..."
+if install_from_public_ngc; then
+    exit 0
+fi
+
+echo "Cannot install from public NGC, trying private NGC..."
+if install_from_private_ngc; then
+    exit 0
+fi
+
+echo "Cannot install from private NGC, exiting..."
+exit 1
