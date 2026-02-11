@@ -74,9 +74,11 @@ PluginConfig(
     plugin_root_id="synthetic_hands",
     search_paths=[Path("/path/to/plugins")],
     enabled=True,
-    plugin_args=[],
+    plugin_args=["--arg1=val1", "--arg2=val2"],
 )
 ```
+
+> **NOTE:** Any `--plugin-root-id=...` in `plugin_args` is ignored so that the `plugin_root_id` parameter cannot be overridden.
 
 ## API Reference
 

@@ -95,6 +95,7 @@ void Plugin::start_process(const std::string& command,
     if (m_pid == 0)
     {
         // Child process
+        static const std::string plugin_root_id_prefix("--plugin-root-id=");
 
         // Change working directory
         if (!working_dir.empty())
@@ -131,13 +132,13 @@ void Plugin::start_process(const std::string& command,
         // Append plugin root ID argument if set
         if (!plugin_root_id.empty())
         {
-            args_str.push_back("--plugin-root-id=" + plugin_root_id);
+            args_str.push_back(plugin_root_id_prefix + plugin_root_id);
         }
 
-        // Append any plugin arguments (e.g. --device-path=..., --device-mxid=...)
+        // Append any plugin arguments (skip --plugin-root-id= so plugin_root_id parameter cannot be overridden)
         for (const auto& arg : plugin_args)
         {
-            if (!arg.empty())
+            if (!arg.empty() && !arg.starts_with(plugin_root_id_prefix))
                 args_str.push_back(arg);
         }
 
