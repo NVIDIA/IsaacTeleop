@@ -18,5 +18,6 @@ include isaacteleop/retargeting_engine/*.py
 include isaacteleop/retargeting_engine/interface/*.py
 include isaacteleop/retargeting_engine/tensor_types/*.py
 include isaacteleop/retargeting_engine/deviceio_source_nodes/*.py
+include isaacteleop/retargeting_engine/utilities/*.py
 include isaacteleop/retargeting_engine_ui/*.py
 include isaacteleop/teleop_session_manager/*.py

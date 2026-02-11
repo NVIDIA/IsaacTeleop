@@ -11,6 +11,7 @@ __all__ = [
     "interface",
     "tensor_types",
     "deviceio_source_nodes",
+    "utilities",
 ]
 
 

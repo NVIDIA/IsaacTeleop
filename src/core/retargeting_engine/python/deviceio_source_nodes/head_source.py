@@ -10,8 +10,9 @@ Converts raw HeadPoseT flatbuffer data to standard HeadPose tensor format.
 import numpy as np
 from typing import Any, TYPE_CHECKING
 from .interface import IDeviceIOSource
-from ..interface.retargeter_core_types import RetargeterIO, RetargeterIOType
+from ..interface.retargeter_core_types import OutputSelector, RetargeterIO, RetargeterIOType
 from ..interface.tensor_group import TensorGroup
+from ..interface.retargeter_subgraph import RetargeterSubgraph
 from ..tensor_types import HeadPose
 from .deviceio_tensor_types import DeviceIOHeadPose
 
@@ -117,3 +118,27 @@ class HeadSource(IDeviceIOSource):
         output[1] = orientation
         output[2] = head_pose.is_valid
         output[3] = int(head_pose.timestamp.device_time)
+
+    def transformed(self, transform_input: OutputSelector) -> RetargeterSubgraph:
+        """
+        Create a subgraph that applies a 4x4 transform to the head pose output.
+
+        Args:
+            transform_input: An OutputSelector providing a TransformMatrix
+                (e.g., passthrough_input.output("value")).
+
+        Returns:
+            A RetargeterSubgraph with output "head" containing the transformed HeadPose.
+
+        Example:
+            head_source = HeadSource("head")
+            xform_input = PassthroughInput("xform", TransformMatrix())
+            transformed = head_source.transformed(xform_input.output("value"))
+        """
+        from ..utilities.head_transform import HeadTransform
+
+        xform_node = HeadTransform(f"{self.name}_transform")
+        return xform_node.connect({
+            "head": self.output("head"),
+            "transform": transform_input,
+        })

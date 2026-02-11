@@ -10,7 +10,8 @@ Converts raw ControllerSnapshot flatbuffer data to standard ControllerInput tens
 import numpy as np
 from typing import Any, TYPE_CHECKING
 from .interface import IDeviceIOSource
-from ..interface.retargeter_core_types import RetargeterIO, RetargeterIOType
+from ..interface.retargeter_core_types import OutputSelector, RetargeterIO, RetargeterIOType
+from ..interface.retargeter_subgraph import RetargeterSubgraph
 from ..interface.tensor_group import TensorGroup
 from ..tensor_types import ControllerInput
 from .deviceio_tensor_types import DeviceIOControllerSnapshot
@@ -161,3 +162,32 @@ class ControllersSource(IDeviceIOSource):
         group[9] = float(snapshot.inputs.squeeze_value)
         group[10] = float(snapshot.inputs.trigger_value)
         group[11] = snapshot.is_active  # BoolType, don't convert
+
+    def transformed(self, transform_input: OutputSelector) -> RetargeterSubgraph:
+        """
+        Create a subgraph that applies a 4x4 transform to controller poses.
+
+        This is a convenience method equivalent to manually creating a
+        ControllerTransform node and connecting it.
+
+        Args:
+            transform_input: An OutputSelector providing a TransformMatrix
+                (e.g., passthrough_input.output("value")).
+
+        Returns:
+            A RetargeterSubgraph with outputs "controller_left" and "controller_right"
+            containing the transformed ControllerInput data.
+
+        Example:
+            ctrl_source = ControllersSource("controllers")
+            xform_input = PassthroughInput("xform", TransformMatrix())
+            transformed = ctrl_source.transformed(xform_input.output("value"))
+        """
+        from ..utilities.controller_transform import ControllerTransform
+
+        xform_node = ControllerTransform(f"{self.name}_transform")
+        return xform_node.connect({
+            self.LEFT: self.output(self.LEFT),
+            self.RIGHT: self.output(self.RIGHT),
+            "transform": transform_input,
+        })
