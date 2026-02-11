@@ -8,8 +8,7 @@ Converts raw HandPoseT flatbuffer data to standard HandInput tensor format.
 """
 
 import numpy as np
-from typing import TYPE_CHECKING
-from ..interface.base_retargeter import BaseRetargeter
+from typing import Any, TYPE_CHECKING
 from .interface import IDeviceIOSource
 from ..interface.retargeter_core_types import RetargeterIO, RetargeterIOType
 from ..interface.tensor_group import TensorGroup
@@ -21,7 +20,7 @@ if TYPE_CHECKING:
     from isaacteleop.schema import HandPoseT
 
 
-class HandsSource(BaseRetargeter, IDeviceIOSource):
+class HandsSource(IDeviceIOSource):
     """
     Stateless converter: DeviceIO HandPoseT → HandInput tensors.
 
@@ -58,11 +57,6 @@ class HandsSource(BaseRetargeter, IDeviceIOSource):
         self._hand_tracker = deviceio.HandTracker()
         super().__init__(name)
 
-    @property
-    def name(self) -> str:
-        """Get the name of this source node."""
-        return self._name
-
     def get_tracker(self) -> "ITracker":
         """Get the HandTracker instance.
 
@@ -70,6 +64,29 @@ class HandsSource(BaseRetargeter, IDeviceIOSource):
             The HandTracker instance for TeleopSession to initialize
         """
         return self._hand_tracker
+
+    def poll_tracker(self, deviceio_session: Any) -> RetargeterIO:
+        """Poll hand tracker and return input data.
+
+        Args:
+            deviceio_session: The active DeviceIO session.
+
+        Returns:
+            Dict with "deviceio_hand_left" and "deviceio_hand_right" TensorGroups
+            containing raw HandPoseT data.
+        """
+        left_hand = self._hand_tracker.get_left_hand(deviceio_session)
+        right_hand = self._hand_tracker.get_right_hand(deviceio_session)
+        source_inputs = self.input_spec()
+        result = {}
+        for input_name, group_type in source_inputs.items():
+            tg = TensorGroup(group_type)
+            if "left" in input_name:
+                tg[0] = left_hand
+            elif "right" in input_name:
+                tg[0] = right_hand
+            result[input_name] = tg
+        return result
 
     def input_spec(self) -> RetargeterIOType:
         """Declare DeviceIO hand inputs."""
