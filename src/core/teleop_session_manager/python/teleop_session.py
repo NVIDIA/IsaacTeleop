@@ -269,7 +269,11 @@ class TeleopSession:
                     continue
 
                 # Start plugin and add to exit stack
-                context = manager.start(plugin_config.plugin_name, plugin_config.plugin_root_id)
+                context = manager.start(
+                    plugin_config.plugin_name,
+                    plugin_config.plugin_root_id,
+                    plugin_config.plugin_args,
+                )
                 self._exit_stack.enter_context(context)
                 self.plugin_contexts.append(context)
 

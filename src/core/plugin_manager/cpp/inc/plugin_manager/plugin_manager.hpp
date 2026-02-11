@@ -52,9 +52,12 @@ public:
      * @brief Start a plugin and return a RAII handle.
      * @param plugin_name The name of the plugin to start.
      * @param plugin_root_id The root ID for the plugin.
+     * @param plugin_args Optional arguments passed to the plugin process.
      * @return A unique pointer to the Plugin instance (stops on destruction).
      */
-    std::unique_ptr<Plugin> start(const std::string& plugin_name, const std::string& plugin_root_id);
+    std::unique_ptr<Plugin> start(const std::string& plugin_name,
+                                  const std::string& plugin_root_id,
+                                  const std::vector<std::string>& plugin_args = {});
 
 private:
     void discover_plugins();

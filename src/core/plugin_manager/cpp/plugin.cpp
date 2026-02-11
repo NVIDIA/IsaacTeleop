@@ -10,6 +10,7 @@
 #    include <unistd.h>
 #endif
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <iostream>
@@ -20,9 +21,12 @@
 namespace core
 {
 
-Plugin::Plugin(const std::string& command, const std::string& working_dir, const std::string& plugin_root_id)
+Plugin::Plugin(const std::string& command,
+               const std::string& working_dir,
+               const std::string& plugin_root_id,
+               const std::vector<std::string>& plugin_args)
 {
-    start_process(command, working_dir, plugin_root_id);
+    start_process(command, working_dir, plugin_root_id, plugin_args);
 }
 
 Plugin::~Plugin()
@@ -77,7 +81,10 @@ void Plugin::check_health() const
 #endif
 }
 
-void Plugin::start_process(const std::string& command, const std::string& working_dir, const std::string& plugin_root_id)
+void Plugin::start_process(const std::string& command,
+                           const std::string& working_dir,
+                           const std::string& plugin_root_id,
+                           const std::vector<std::string>& plugin_args)
 {
 #ifndef _WIN32
     m_pid = fork();
@@ -126,6 +133,23 @@ void Plugin::start_process(const std::string& command, const std::string& workin
         if (!plugin_root_id.empty())
         {
             args_str.push_back("--plugin-root-id=" + plugin_root_id);
+        }
+
+        // Append plugin arguments; skip if option already in args_str (e.g. --plugin-root-id= from above)
+        for (const auto& arg : plugin_args)
+        {
+            // Option prefix: "--name=" or whole arg for "--flag"
+            const std::string arg_prefix = (arg.find('=') != std::string::npos) ? arg.substr(0, arg.find('=') + 1) : arg;
+            const bool already = std::any_of(args_str.cbegin(), args_str.cend(),
+                                             [&arg_prefix](const std::string& s) { return s.starts_with(arg_prefix); });
+            if (!already)
+            {
+                args_str.push_back(arg);
+            }
+            else
+            {
+                std::cerr << "Warning: Option " << arg_prefix << " already specified, ignoring duplicate" << std::endl;
+            }
         }
 
         std::vector<char*> args;

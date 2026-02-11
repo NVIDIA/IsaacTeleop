@@ -30,8 +30,12 @@ public:
      * @param command The command to run the plugin (from metadata)
      * @param working_dir The directory to run the plugin in (where metadata was found)
      * @param plugin_root_id The root ID for the plugin
+     * @param plugin_args Optional list of arguments to append to the command
      */
-    Plugin(const std::string& command, const std::string& working_dir, const std::string& plugin_root_id);
+    Plugin(const std::string& command,
+           const std::string& working_dir,
+           const std::string& plugin_root_id,
+           const std::vector<std::string>& plugin_args = {});
 
     /**
      * @brief Destructor - stops the plugin process
@@ -51,7 +55,11 @@ public:
     void check_health() const;
 
 private:
-    void start_process(const std::string& command, const std::string& working_dir, const std::string& plugin_root_id);
+    void start_process(const std::string& command,
+                       const std::string& working_dir,
+                       const std::string& plugin_root_id,
+                       const std::vector<std::string>& plugin_args);
+
     void stop_process();
 
 #ifndef _WIN32
