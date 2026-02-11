@@ -10,13 +10,13 @@ plugins, and retargeting engines, allowing users to focus on configuration
 rather than initialization code.
 """
 
-import sys
 import time
 from contextlib import ExitStack
 from typing import Optional, Dict, Any, List
 
 from isaacteleop.retargeting_engine.deviceio_source_nodes import IDeviceIOSource
-from isaacteleop.retargeting_engine.interface import TensorGroup
+from isaacteleop.retargeting_engine.interface import BaseRetargeter
+from isaacteleop.retargeting_engine.interface.retargeter_core_types import RetargeterIO, RetargeterIOType
 
 import isaacteleop.deviceio as deviceio
 import isaacteleop.oxr as oxr
@@ -37,33 +37,51 @@ class TeleopSession:
     1. Creating OpenXR session with required extensions
     2. Creating DeviceIO session with trackers
     3. Initializing plugins
-    4. Running retargeting pipeline via run() method
+    4. Running retargeting pipeline via step() method
     5. Cleanup on exit
 
-    Usage with new retargeting engine:
-        # Create tracker and source modules
-        controller_tracker = deviceio.ControllerTracker()
-        controllers = ControllersSource(controller_tracker, name="controllers")
-
-        # Build retargeting pipeline
+    Pipelines may contain leaf nodes that are DeviceIO sources (auto-polled from
+    hardware trackers) and/or leaf nodes that are regular retargeters requiring
+    external inputs. External inputs are provided by the caller when calling step().
+    
+    Usage with DeviceIO-only pipeline:
+        controllers = ControllersSource(name="controllers")
         gripper = GripperRetargeter(name="gripper")
         pipeline = gripper.connect({
             "controller_left": controllers.output("controller_left"),
             "controller_right": controllers.output("controller_right")
         })
 
-        # Configure session
-        config = TeleopSessionConfig(
-            app_name="MyApp",
-            trackers=[controller_tracker],
-            pipeline=pipeline,
-        )
-
-        # Run session
+        config = TeleopSessionConfig(app_name="MyApp", pipeline=pipeline)
         with TeleopSession(config) as session:
             while True:
-                result = session.step()  # Returns Dict[str, TensorGroup]
+                result = session.step()
                 left = result["gripper_left"][0]
+    
+    Usage with external (non-DeviceIO) inputs via ValueInput:
+        controllers = ControllersSource(name="controllers")
+        ee_state = ValueInput("ee_state", RobotEEState())  # external leaf
+        pipeline = combiner.connect({
+            "controller_left": controllers.output("controller_left"),
+            "ee_pos": ee_state.output("value"),
+        })
+        
+        config = TeleopSessionConfig(app_name="MyApp", pipeline=pipeline)
+        with TeleopSession(config) as session:
+            ext_specs = session.get_external_input_specs()
+            # ext_specs == {"ee_state": {"value": TensorGroupType(...)}}
+            
+            while True:
+                ee_tg = TensorGroup(RobotEEState())
+                ee_tg[0] = get_ee_position()
+                
+                result = session.step(external_inputs={
+                    "ee_state": {"value": ee_tg}
+                })
+    
+    Any BaseRetargeter that is a leaf (not connected to a DeviceIO source)
+    automatically becomes an external input -- ValueInput is just a shortcut
+    for the common single-value passthrough case. See external_inputs_example.py.
     """
 
     def __init__(self, config: TeleopSessionConfig):
@@ -90,12 +108,15 @@ class TeleopSession:
         # Auto-discovered sources
         self._sources: List[IDeviceIOSource] = []
 
+        # External (non-DeviceIO) leaf nodes that require caller-provided inputs
+        self._external_leaves: List[BaseRetargeter] = []
+
         # Runtime state
         self.frame_count: int = 0
         self.start_time: float = 0.0
         self._setup_complete: bool = False
 
-        # Discover sources from pipeline
+        # Discover sources and external leaves from pipeline
         self._discover_sources()
 
     @property
@@ -105,24 +126,84 @@ class TeleopSession:
 
 
     def _discover_sources(self) -> None:
-        """Discover DeviceIO source modules from the pipeline.
+        """Discover DeviceIO source modules and external leaf nodes from the pipeline.
 
-        Traverses the pipeline to find all IDeviceIOSource instances.
+        Traverses the pipeline to find all leaf nodes, partitioning them into:
+        - IDeviceIOSource instances (auto-polled from hardware trackers)
+        - External leaves (non-DeviceIO leaves with non-empty input_spec() that
+          require caller-provided inputs in step()). Leaves with empty input_spec()
+          (e.g. fixed-command retargeters) are not treated as external and do not
+          require external_inputs.
         """
-        # Get leaf nodes from pipeline (now correctly returns all BaseRetargeter instances)
         leaf_nodes = self.pipeline.get_leaf_nodes()
 
-        # Filter for IDeviceIOSource instances
-        self._sources = [node for node in leaf_nodes if isinstance(node, IDeviceIOSource)]
+        self._sources = []
+        self._external_leaves = []
+        for node in leaf_nodes:
+            if isinstance(node, IDeviceIOSource):
+                self._sources.append(node)
+            elif node.input_spec():
+                self._external_leaves.append(node)
 
-    def step(self):
+        # Create tracker-to-source mapping for efficient lookup
+        self._tracker_to_source: Dict[Any, Any] = {}
+        for source in self._sources:
+            tracker = source.get_tracker()
+            self._tracker_to_source[id(tracker)] = source
+
+    def get_external_input_specs(self) -> Dict[str, RetargeterIOType]:
+        """Get the input specifications for all external leaf nodes that need inputs.
+
+        Only includes non-DeviceIO leaves with non-empty input_spec(). Leaves with
+        empty input_spec() (e.g. fixed-command retargeters) are not included.
+
+        Returns:
+            Dict mapping leaf node name to its input_spec (Dict[str, TensorGroupType]).
+            Empty dict if no leaves require caller-provided inputs.
+
+        Example:
+            specs = session.get_external_input_specs()
+            # specs == {"sim_state": {"joint_positions": TensorGroupType(...)}}
+        """
+        return {
+            leaf.name: leaf.input_spec()
+            for leaf in self._external_leaves
+        }
+
+    def has_external_inputs(self) -> bool:
+        """Check whether this pipeline requires caller-provided external inputs.
+
+        Returns True only if there are leaf nodes that are not DeviceIO sources
+        and have a non-empty input_spec() (i.e. they need inputs in step()).
+        """
+        return len(self._external_leaves) > 0
+
+    def step(self, external_inputs: Optional[Dict[str, RetargeterIO]] = None):
         """Execute a single step of the teleop session.
-
-        Updates DeviceIO session, polls tracker data, and executes the retargeting pipeline.
+        
+        Updates DeviceIO session, polls tracker data, merges any caller-provided
+        external inputs, and executes the retargeting pipeline.
+        
+        Args:
+            external_inputs: Optional dict mapping external leaf node names to their
+                input data (Dict[str, TensorGroup]). Required when the pipeline has
+                leaf nodes that require caller-provided inputs. Use get_external_input_specs()
+                to discover what external inputs are expected. Keys that do not correspond
+                to an external leaf node or a DeviceIO source name are silently ignored.
+                Keys that collide with a DeviceIO source name are invalid and cause
+                validation to raise.
 
         Returns:
             Dict[str, TensorGroup] - Output from the retargeting pipeline
+
+        Raises:
+            ValueError: If external leaves exist but external_inputs is missing or
+                incomplete, or if external_inputs contains keys that collide with
+                DeviceIO source names.
         """
+        # Validate external inputs
+        self._validate_external_inputs(external_inputs)
+        
         # Check plugin health periodically
         if self.frame_count % 60 == 0:
             self._check_plugin_health()
@@ -133,11 +214,73 @@ class TeleopSession:
         # Build input dictionary from tracker data
         pipeline_inputs = self._collect_tracker_data()
 
-        # Execute retargeting pipeline with tracker data
+        # Merge external inputs (for non-DeviceIO leaf nodes)
+        if external_inputs:
+            pipeline_inputs.update(external_inputs)
+
+        # Execute retargeting pipeline with all inputs
         result = self.pipeline(pipeline_inputs)
 
         self.frame_count += 1
         return result
+
+    def _validate_external_inputs(self, external_inputs: Optional[Dict[str, RetargeterIO]]) -> None:
+        """Validate that all required external inputs are provided.
+        
+        Checks that:
+        1. No external input name collides with a DeviceIO source name (always).
+        2. If external leaves exist: all required leaf names and keys are present.
+        
+        Args:
+            external_inputs: The external inputs provided by the caller.
+        
+        Raises:
+            ValueError: If external input names collide with source names, or if
+                external leaves exist but inputs are missing or incomplete.
+        """
+        if external_inputs:
+            source_names = {source.name for source in self._sources}
+            provided_names = set(external_inputs.keys())
+            collisions = provided_names & source_names
+            if collisions:
+                raise ValueError(
+                    f"External input names collide with DeviceIO source names: {collisions}. "
+                    f"Do not provide external inputs for source nodes; they are polled from hardware."
+                )
+
+        if not self._external_leaves:
+            return
+
+        expected_names = {leaf.name for leaf in self._external_leaves}
+
+        if external_inputs is None:
+            raise ValueError(
+                f"Pipeline has external (non-DeviceIO) leaf nodes that require inputs: "
+                f"{expected_names}. Pass external_inputs to step(). "
+                f"Use get_external_input_specs() to discover required inputs."
+            )
+
+        provided_names = set(external_inputs.keys())
+        missing = expected_names - provided_names
+        if missing:
+            raise ValueError(
+                f"Missing external inputs for leaf nodes: {missing}. "
+                f"Expected inputs for: {expected_names}. "
+                f"Use get_external_input_specs() to discover required inputs."
+            )
+
+        # Validate per-leaf input keys
+        for leaf in self._external_leaves:
+            leaf_data = external_inputs[leaf.name]
+            expected_keys = set(leaf.input_spec().keys())
+            provided_keys = set(leaf_data.keys())
+            missing_keys = expected_keys - provided_keys
+            if missing_keys:
+                raise ValueError(
+                    f"External input '{leaf.name}' is missing input keys: {missing_keys}. "
+                    f"Expected keys: {expected_keys}. "
+                    f"Use get_external_input_specs() to discover required inputs."
+                )
 
     def _collect_tracker_data(self) -> Dict[str, Any]:
         """Collect raw tracking data from all sources and map to module names.
@@ -162,6 +305,10 @@ class TeleopSession:
     def get_elapsed_time(self) -> float:
         """Get elapsed time since session started."""
         return time.time() - self.start_time
+
+    # ========================================================================
+    # Context manager protocol
+    # ========================================================================
 
     def __enter__(self):
         """Enter the context - create sessions and resources.

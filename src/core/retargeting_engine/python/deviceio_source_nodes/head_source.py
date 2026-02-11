@@ -125,14 +125,14 @@ class HeadSource(IDeviceIOSource):
 
         Args:
             transform_input: An OutputSelector providing a TransformMatrix
-                (e.g., passthrough_input.output("value")).
+                (e.g., value_input.output("value")).
 
         Returns:
             A RetargeterSubgraph with output "head" containing the transformed HeadPose.
 
         Example:
             head_source = HeadSource("head")
-            xform_input = PassthroughInput("xform", TransformMatrix())
+            xform_input = ValueInput("xform", TransformMatrix())
             transformed = head_source.transformed(xform_input.output("value"))
         """
         from ..utilities.head_transform import HeadTransform

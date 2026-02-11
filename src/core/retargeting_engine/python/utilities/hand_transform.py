@@ -56,7 +56,7 @@ class HandTransform(BaseRetargeter):
         - "hand_right": HandInput tensor with transformed joint poses
 
     Example:
-        transform_input = PassthroughInput("xform_input", TransformMatrix())
+        transform_input = ValueInput("xform_input", TransformMatrix())
         hand_transform = HandTransform("hand_xform")
 
         transformed = hand_transform.connect({

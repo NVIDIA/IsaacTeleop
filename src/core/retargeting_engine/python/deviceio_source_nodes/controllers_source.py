@@ -172,7 +172,7 @@ class ControllersSource(IDeviceIOSource):
 
         Args:
             transform_input: An OutputSelector providing a TransformMatrix
-                (e.g., passthrough_input.output("value")).
+                (e.g., value_input.output("value")).
 
         Returns:
             A RetargeterSubgraph with outputs "controller_left" and "controller_right"
@@ -180,7 +180,7 @@ class ControllersSource(IDeviceIOSource):
 
         Example:
             ctrl_source = ControllersSource("controllers")
-            xform_input = PassthroughInput("xform", TransformMatrix())
+            xform_input = ValueInput("xform", TransformMatrix())
             transformed = ctrl_source.transformed(xform_input.output("value"))
         """
         from ..utilities.controller_transform import ControllerTransform

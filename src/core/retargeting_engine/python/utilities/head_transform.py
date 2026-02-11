@@ -47,7 +47,7 @@ class HeadTransform(BaseRetargeter):
         - "head": HeadPose tensor with transformed position and orientation
 
     Example:
-        transform_input = PassthroughInput("xform_input", TransformMatrix())
+        transform_input = ValueInput("xform_input", TransformMatrix())
         head_transform = HeadTransform("head_xform")
 
         transformed = head_transform.connect({
