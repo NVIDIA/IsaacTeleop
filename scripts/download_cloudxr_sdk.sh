@@ -35,7 +35,13 @@ if [ -z "$CXR_WEB_SDK_VERSION" ]; then
 fi
 
 # SDK configuration (shared)
-SDK_RELEASE_DIR="$GIT_ROOT/deps/cloudxr/cloudxr-web-sdk-${CXR_WEB_SDK_VERSION}"
+CXR_DEPLOYMENT_DIR="$GIT_ROOT/deps/cloudxr"
+SDK_RELEASE_DIR="$CXR_DEPLOYMENT_DIR/cloudxr-web-sdk-${CXR_WEB_SDK_VERSION}"
+
+is_valid_sdk_bundle() {
+    local dir="$1"
+    [ -f "$dir/nvidia-cloudxr-${CXR_WEB_SDK_VERSION}.tgz" ]
+}
 
 # Returns 0 if the given directory has valid SDK layout (isaac/ and nvidia-cloudxr-*.tgz)
 is_valid_sdk_layout() {
@@ -94,9 +100,12 @@ install_from_public_ngc() {
 
     echo -e "${YELLOW}[1/3] Downloading CloudXR Web SDK from NGC...${NC}"
     cd "$SDK_DOWNLOAD_DIR"
-    ngc registry resource download-version \
+    if ! ngc registry resource download-version \
         --team no-team \
-        "$SDK_RESOURCE"
+        "$SDK_RESOURCE"; then
+        echo -e "${RED}Error: Failed to download CloudXR Web SDK from NGC${NC}"
+        return 1
+    fi
 
     DOWNLOADED_DIR=$(ls -d cloudxr-js-early-access_v* 2>/dev/null | head -n1)
     if [ -z "$DOWNLOADED_DIR" ]; then
@@ -152,6 +161,7 @@ install_from_private_ngc() {
         return 1
     fi
 
+    echo -e "Moving $DOWNLOADED_TAR_BALL to $GIT_ROOT/deps/cloudxr"
     mv "$DOWNLOADED_TAR_BALL" "$GIT_ROOT/deps/cloudxr"
 
     echo -e "${GREEN}✓ CloudXR Web SDK installed successfully${NC}"
@@ -164,7 +174,8 @@ install_from_private_ngc() {
 # -----------------------------------------------------------------------------
 
 # Check if SDK is already downloaded and extracted
-if [ -d "$SDK_RELEASE_DIR" ] && is_valid_sdk_layout "$SDK_RELEASE_DIR"; then
+if ([ -d "$SDK_RELEASE_DIR" ] && is_valid_sdk_layout "$SDK_RELEASE_DIR") || \
+    (is_valid_sdk_bundle "$CXR_DEPLOYMENT_DIR"); then
     echo -e "${GREEN}CloudXR Web SDK already present, skipping download${NC}"
     exit 0
 fi
