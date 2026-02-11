@@ -1,8 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-add_subdirectory(common)
-
 # Main test executable
 add_executable(xdev_list main.cpp)
 
@@ -16,4 +14,4 @@ target_link_libraries(xdev_list PRIVATE examples_common Teleop::openxr_extension
 set_target_properties(xdev_list PROPERTIES OUTPUT_NAME "xdev_list")
 
 # Install the xdev_list executable and README
-install(TARGETS xdev_list RUNTIME DESTINATION examples/xdev_list)
+install(TARGETS xdev_list RUNTIME DESTINATION examples/native_openxr/xdev_list)
