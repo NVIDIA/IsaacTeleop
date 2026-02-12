@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[project]
+name = "teleop-ros2-example"
+version = "0.1.0"
+description = "Isaac Teleop ROS2 Example"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "isaacteleop[retargeters]",
+    "msgpack",
+    "msgpack-numpy",
+]
+
+[tool.uv]
+find-links = ["/opt/isaacteleop/install/wheels"]
+python-preference = "only-managed"
