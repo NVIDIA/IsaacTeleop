@@ -32,10 +32,11 @@ public:
     void update();
 
 private:
-    void open_device(const std::string& device_path, const std::string& collection_id);
+    bool open_device();
     void close_device();
     void push_current_state();
 
+    std::string device_path_;
     int device_fd_ = -1;
     double axes_[3] = { 0.0, 0.0, 0.0 };
 

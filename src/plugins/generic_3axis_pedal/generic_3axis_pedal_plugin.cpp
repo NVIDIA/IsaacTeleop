@@ -36,7 +36,8 @@ double normalize_axis(int16_t raw_value)
 } // namespace
 
 Generic3AxisPedalPlugin::Generic3AxisPedalPlugin(const std::string& device_path, const std::string& collection_id)
-    : session_(std::make_shared<core::OpenXRSession>(
+    : device_path_(device_path),
+      session_(std::make_shared<core::OpenXRSession>(
           "Generic3AxisPedalPlugin", core::SchemaPusher::get_required_extensions())),
       pusher_(session_->get_handles(),
               core::SchemaPusherConfig{ .collection_id = collection_id,
@@ -45,7 +46,8 @@ Generic3AxisPedalPlugin::Generic3AxisPedalPlugin(const std::string& device_path,
                                         .localized_name = "Generic 3-Axis Pedal",
                                         .app_name = "Generic3AxisPedalPlugin" })
 {
-    open_device(device_path, collection_id);
+    if (!open_device())
+        throw std::runtime_error("Generic3AxisPedalPlugin: Failed to open " + device_path + " (" + strerror(errno) + ")");
 }
 
 Generic3AxisPedalPlugin::~Generic3AxisPedalPlugin()
@@ -56,7 +58,15 @@ Generic3AxisPedalPlugin::~Generic3AxisPedalPlugin()
 
 void Generic3AxisPedalPlugin::update()
 {
-    assert(device_fd_ >= 0);
+    if (device_fd_ < 0)
+    {
+        open_device();
+        if (device_fd_ < 0)
+        {
+            push_current_state();
+            return;
+        }
+    }
 
     fd_set read_fds;
     struct timeval timeout = { 0, 0 };
@@ -74,10 +84,14 @@ void Generic3AxisPedalPlugin::update()
                 return;
             close_device();
             push_current_state();
-            throw std::runtime_error("Generic3AxisPedalPlugin: Select error " + std::string(strerror(errno)));
+            return;
         }
         if (ret == 0 || !FD_ISSET(device_fd_, &read_fds))
+        {
+            // If there is no data to read (ret == 0) or the device file descriptor is not set in
+            // the read set, break out of the loop; this means there's no new event available.
             break;
+        }
 
         js_event event;
         ssize_t n = read(device_fd_, &event, kJsEventSize);
@@ -87,7 +101,7 @@ void Generic3AxisPedalPlugin::update()
                 break;
             close_device();
             push_current_state();
-            throw std::runtime_error("Generic3AxisPedalPlugin: Read error " + std::string(strerror(errno)));
+            return;
         }
 
         if ((event.type & JS_EVENT_AXIS) != 0u && event.number < 3)
@@ -99,18 +113,17 @@ void Generic3AxisPedalPlugin::update()
     push_current_state();
 }
 
-void Generic3AxisPedalPlugin::open_device(const std::string& device_path, const std::string& collection_id)
+bool Generic3AxisPedalPlugin::open_device()
 {
     assert(device_fd_ < 0);
 
-    device_fd_ = open(device_path.c_str(), O_RDONLY | O_NONBLOCK);
-    if (device_fd_ < 0)
-    {
-        throw std::runtime_error("Generic3AxisPedalPlugin: Failed to open " + device_path + " (" + strerror(errno) + ")");
-    }
+    int fd = open(device_path_.c_str(), O_RDONLY | O_NONBLOCK);
+    if (fd < 0)
+        return false;
 
-    std::cout << "Generic3AxisPedalPlugin: Opened " << device_path << " (collection: " << collection_id << ")"
-              << std::endl;
+    device_fd_ = fd;
+    std::cout << "Generic3AxisPedalPlugin: Opened " << device_path_ << std::endl;
+    return true;
 }
 
 void Generic3AxisPedalPlugin::close_device()
