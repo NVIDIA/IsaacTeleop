@@ -81,6 +81,7 @@ def run_test(duration: float = 10.0, metadata_track: bool = True):
     required_extensions = []
     mcap_filename = None
 
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     if metadata_track:
         print("[Step 3] Creating FrameMetadataTrackerOak...")
         # The collection_id must match the plugin_root_id used by the camera plugin
@@ -90,8 +91,7 @@ def run_test(duration: float = 10.0, metadata_track: bool = True):
         print(f"  ✓ Created {frame_tracker.get_name()} (collection_id: {plugin_root_id})")
         print()
         print("[Step 4] Getting required OpenXR extensions...")
-        print(f"  ✓ Required extensions: {required_extensions}")
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        print(f"  ✓ Required extensions: {required_extensions}")  
         mcap_filename = f"camera_metadata_{timestamp}.mcap"
     else:
         print("[Step 3] Skipping FrameMetadataTrackerOak (--no-metadata)")
@@ -109,7 +109,8 @@ def run_test(duration: float = 10.0, metadata_track: bool = True):
         print("        Frame metadata will be recorded to MCAP file")
     print()
 
-    with manager.start(plugin_name, plugin_root_id) as plugin:
+    output_path = f"./recordings/camera_{timestamp}.h264"
+    with manager.start(plugin_name, plugin_root_id, ["--output=" + output_path]) as plugin:
         print("  ✓ Camera plugin started")
 
         if metadata_track:
