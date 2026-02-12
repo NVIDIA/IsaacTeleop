@@ -73,7 +73,7 @@ def run_abs_example(use_controller=False):
             # Output: [x, y, z, qx, qy, qz, qw]
             pose = result["ee_pose"][0]
             pos = pose[:3]
-            rot = pose[3:] # w,x,y,z
+            rot = pose[3:] # x,y,z,w
 
             if session.frame_count % 30 == 0:
                 elapsed = session.get_elapsed_time()

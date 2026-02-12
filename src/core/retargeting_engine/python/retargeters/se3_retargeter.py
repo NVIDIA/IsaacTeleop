@@ -44,7 +44,7 @@ class Se3RetargeterConfig:
 
     # Abs specific
     target_offset_pos: Tuple[float, float, float] = (0.0, 0.0, 0.0)
-    target_offset_rot: Tuple[float, float, float, float] = (0.7071068, 0.7071068, 0.0, 0.0) # w, x, y, z
+    target_offset_rot: Tuple[float, float, float, float] = (0.7071068, 0.0, 0.0, 0.7071068) # x, y, z, w
 
     # Rel specific
     delta_pos_scale_factor: float = 10.0
@@ -57,7 +57,7 @@ class Se3AbsRetargeter(BaseRetargeter):
     """
     Retargets tracking data to end-effector commands using absolute positioning.
 
-    Outputs a 7D pose (position [x,y,z] + orientation quaternion [w,x,y,z]).
+    Outputs a 7D pose (position [x,y,z] + orientation quaternion [x,y,z,w]).
     """
 
     def __init__(self, config: Se3RetargeterConfig, name: str) -> None:
@@ -68,11 +68,11 @@ class Se3AbsRetargeter(BaseRetargeter):
 
         # Store offsets
         self._target_offset_pos = np.array(config.target_offset_pos)
-        # Convert w,x,y,z (Isaac Lab) to x,y,z,w (scipy)
-        self._target_offset_rot = np.array([*config.target_offset_rot[1:], config.target_offset_rot[0]])
+        # Config is already x,y,z,w (matches scipy convention)
+        self._target_offset_rot = np.array(config.target_offset_rot)
 
-        # Initialize last pose (pos: 0,0,0, rot: 1,0,0,0 wxyz)
-        self._last_pose = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+        # Initialize last pose (pos: 0,0,0, rot: identity xyzw)
+        self._last_pose = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], dtype=np.float32)
 
     def input_spec(self) -> RetargeterIOType:
         if "hand" in self._config.input_device:
@@ -97,7 +97,7 @@ class Se3AbsRetargeter(BaseRetargeter):
 
         inp = inputs[device_name]
 
-        wrist = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]) # x,y,z, w,x,y,z
+        wrist = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]) # x,y,z, qx,qy,qz,qw
 
         thumb_tip = None
         index_tip = None
@@ -115,7 +115,7 @@ class Se3AbsRetargeter(BaseRetargeter):
                 # Wrist = 1
                 if joint_valid[HandJointIndex.WRIST]:
                     wrist_pos = joint_positions[HandJointIndex.WRIST]
-                    wrist_ori = joint_orientations[HandJointIndex.WRIST] # WXYZ
+                    wrist_ori = joint_orientations[HandJointIndex.WRIST] # XYZW
                     wrist = np.concatenate([wrist_pos, wrist_ori])
 
                 if joint_valid[HandJointIndex.THUMB_TIP]: thumb_tip = np.concatenate([joint_positions[HandJointIndex.THUMB_TIP], joint_orientations[HandJointIndex.THUMB_TIP]])
@@ -128,7 +128,7 @@ class Se3AbsRetargeter(BaseRetargeter):
                 active = True
                 # Grip Pose
                 grip_pos = np.from_dlpack(inp[ControllerInputIndex.GRIP_POSITION])
-                grip_ori = np.from_dlpack(inp[ControllerInputIndex.GRIP_ORIENTATION]) # WXYZ
+                grip_ori = np.from_dlpack(inp[ControllerInputIndex.GRIP_ORIENTATION]) # XYZW
                 wrist = np.concatenate([grip_pos, grip_ori])
 
         if not active:
@@ -145,12 +145,12 @@ class Se3AbsRetargeter(BaseRetargeter):
 
         # Get rotation
         if self._config.use_wrist_rotation or thumb_tip is None or index_tip is None:
-            # wrist is w,x,y,z but scipy expects x,y,z,w
-            base_rot = Rotation.from_quat([*wrist[4:], wrist[3]])
+            # wrist quat is already x,y,z,w (scipy convention) at indices 3:7
+            base_rot = Rotation.from_quat(wrist[3:7])
         else:
-            # thumb_tip is w,x,y,z but scipy expects x,y,z,w
-            r0 = Rotation.from_quat([*thumb_tip[4:], thumb_tip[3]])
-            r1 = Rotation.from_quat([*index_tip[4:], index_tip[3]])
+            # thumb_tip/index_tip quats are already x,y,z,w at indices 3:7
+            r0 = Rotation.from_quat(thumb_tip[3:7])
+            r1 = Rotation.from_quat(index_tip[3:7])
             key_times = [0, 1]
             slerp = Slerp(key_times, Rotation.concatenate([r0, r1]))
             base_rot = slerp([0.5])[0]
@@ -166,9 +166,8 @@ class Se3AbsRetargeter(BaseRetargeter):
             z, _, _ = final_rot.as_euler("ZYX")
             final_rot = Rotation.from_euler("ZYX", np.array([z, 0.0, 0.0])) * Rotation.from_euler("X", np.pi, degrees=False)
 
-        # Convert back to w,x,y,z format
-        quat = final_rot.as_quat() # x,y,z,w
-        rotation = np.array([quat[3], quat[0], quat[1], quat[2]])
+        # as_quat() returns x,y,z,w which matches our convention
+        rotation = final_rot.as_quat()
 
         final_pose = np.concatenate([position, rotation]).astype(np.float32)
         self._last_pose = final_pose
@@ -196,7 +195,7 @@ class Se3RelRetargeter(BaseRetargeter):
 
         self._previous_thumb_tip: Optional[np.ndarray] = None
         self._previous_index_tip: Optional[np.ndarray] = None
-        self._previous_wrist = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
+        self._previous_wrist = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
 
         self._first_frame = True
 
@@ -222,7 +221,7 @@ class Se3RelRetargeter(BaseRetargeter):
 
         inp = inputs[device_name]
 
-        wrist = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
+        wrist = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
         thumb_tip = None
         index_tip = None
 
@@ -307,9 +306,9 @@ class Se3RelRetargeter(BaseRetargeter):
 
     def _calculate_delta_pose(self, joint_pose: np.ndarray, previous_joint_pose: np.ndarray) -> np.ndarray:
         delta_pos = joint_pose[:3] - previous_joint_pose[:3]
-        # w,x,y,z -> x,y,z,w
-        abs_rotation = Rotation.from_quat([*joint_pose[4:7], joint_pose[3]])
-        previous_rot = Rotation.from_quat([*previous_joint_pose[4:7], previous_joint_pose[3]])
+        # Quat at indices 3:7 is already x,y,z,w (scipy convention)
+        abs_rotation = Rotation.from_quat(joint_pose[3:7])
+        previous_rot = Rotation.from_quat(previous_joint_pose[3:7])
         relative_rotation = abs_rotation * previous_rot.inv()
         return np.concatenate([delta_pos, relative_rotation.as_rotvec()])
 

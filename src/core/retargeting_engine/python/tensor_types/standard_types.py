@@ -32,7 +32,7 @@ def HandInput() -> TensorGroupType:
 
     Fields:
         - joint_positions: (26, 3) float32 array - XYZ positions for each joint
-        - joint_orientations: (26, 4) float32 array - WXYZ quaternions for each joint
+        - joint_orientations: (26, 4) float32 array - XYZW quaternions for each joint
         - joint_radii: (26,) float32 array - Radius of each joint
         - joint_valid: (26,) bool array - Validity flag for each joint
         - is_active: bool - Whether hand tracking is active
@@ -93,7 +93,7 @@ def HeadPose() -> TensorGroupType:
 
     Fields:
         - head_position: (3,) float32 array - XYZ position
-        - head_orientation: (4,) float32 array - WXYZ quaternion
+        - head_orientation: (4,) float32 array - XYZW quaternion
         - head_is_valid: bool - Whether head tracking data is valid
         - head_timestamp: int - Timestamp in XrTime format (int64)
 
@@ -136,9 +136,9 @@ def ControllerInput() -> TensorGroupType:
 
     Fields:
         - grip_position: (3,) float32 array - XYZ position of grip pose
-        - grip_orientation: (4,) float32 array - WXYZ quaternion of grip pose
+        - grip_orientation: (4,) float32 array - XYZW quaternion of grip pose
         - aim_position: (3,) float32 array - XYZ position of aim pose
-        - aim_orientation: (4,) float32 array - WXYZ quaternion of aim pose
+        - aim_orientation: (4,) float32 array - XYZW quaternion of aim pose
         - primary_click: float - Primary button (e.g., A/X button) [0.0-1.0]
         - secondary_click: float - Secondary button (e.g., B/Y button) [0.0-1.0]
         - thumbstick_x: float - Thumbstick X axis [-1.0 to 1.0]
