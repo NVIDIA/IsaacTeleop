@@ -51,19 +51,18 @@ services:
       - HEALTH_CHECK_FALL=3
     restart: unless-stopped
 
-  # Web App Service (serves CloudXR.js web client via nginx)
+  # Web App Service (serves CloudXR.js web client; webxr_client mounted for live reload)
   web-app:
     build:
       context: .
       dockerfile: Dockerfile.web-app
       args:
-        # Choose the version of the CloudXR Web SDK to use
         CXR_WEB_SDK_VERSION: ${CXR_WEB_SDK_VERSION}
     container_name: cloudxr-web-app-${CXR_WEB_SDK_VERSION}
     network_mode: host
-    # Note: With network_mode: host, ports are exposed directly on the host
-    # HTTP:  http://localhost:8080
-    # HTTPS: https://localhost:8443
+    user: "${CXR_UID:-1000}:${CXR_GID:-1000}"
+    volumes:
+      - ./webxr_client:/app/webxr_client
     restart: unless-stopped
 
 volumes:

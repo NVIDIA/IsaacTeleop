@@ -1,57 +1,45 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# CloudXR Web App - Multi-stage build
-# Stage 1: Build the web application
-# Stage 2: Serve with nginx (HTTP on 8080, HTTPS on 8443)
+# CloudXR Web App - Dev server on 8080 (HTTP), nginx on 8443 (HTTPS only, proxies to 8080).
+# Mount webxr_client (e.g. docker-compose.dev.yaml) for live reload.
 
 #############################################
-# Stage 1: Build the web application
+# Single stage: dev server + nginx proxy
 #############################################
-FROM node:24-slim AS builder
+FROM node:24-slim
 
 WORKDIR /app
 
-# Install webpack globally for convenience
-RUN npm install --ignore-scripts -g webpack webpack-cli
-
-# Path to the CloudXR Web SDK (relative to build context)
+# Path to the CloudXR Web SDK (from build context)
 ARG CXR_WEB_SDK_VERSION=${CXR_WEB_SDK_VERSION}
 ENV SDK_TARBALL_NAME=nvidia-cloudxr-${CXR_WEB_SDK_VERSION}.tgz
 
-# Copy the entire SDK contents
-COPY ${SDK_TARBALL_NAME} ./
-COPY webxr_client/ ./webxr_client/
+# Install nginx and openssl
+RUN apt-get update && apt-get install -y --no-install-recommends nginx openssl \
+    && rm -rf /var/lib/apt/lists/* \
+    && sed -i '/^user /s/^/# /' /etc/nginx/nginx.conf \
+    && sed -i 's|^pid .*|pid /app/nginx.pid;|' /etc/nginx/nginx.conf \
+    && rm -f /etc/nginx/sites-enabled/default
 
-# Install CloudXR SDK and dependencies, then build
-RUN cd webxr_client && \
-    npm install --ignore-scripts ../${SDK_TARBALL_NAME} && \
-    npm install --ignore-scripts && \
-    npm run build
+# Copy SDK tarball only; webxr_client must be mounted at /app/webxr_client at runtime
+COPY ${SDK_TARBALL_NAME} ./sdk.tgz
 
-#############################################
-# Stage 2: Serve with nginx
-#############################################
-FROM nginx:alpine
+# npm cache under /app so non-root (CXR_UID) can write; default would use /.npm (root-owned)
+ENV NPM_CONFIG_CACHE=/app/.npm
 
-WORKDIR /app
+# Install webpack globally
+RUN npm install --ignore-scripts -g webpack webpack-cli
 
-# Install necessary tools
-RUN apk add --no-cache curl openssl bash
-
-# Copy built files from builder stage
-COPY --from=builder /app/webxr_client/build /usr/share/nginx/html
-
-# Create SSL certificate directory
+# SSL certificate generation (same as production)
 RUN mkdir -p /etc/nginx/ssl
-
-# Create certificate generation script
 COPY <<EOF /usr/local/bin/generate-cert.sh
 #!/bin/bash
+set -e
 cd /etc/nginx/ssl
 if [ ! -f cert.pem ] || [ ! -f key.pem ]; then
     echo "Generating self-signed SSL certificate..."
-    openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes -subj "/CN=localhost" -quiet
+    openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes -subj "/CN=localhost" 2>/dev/null
     chmod 600 key.pem
     chmod 644 cert.pem
     echo "Self-signed certificate generated successfully"
@@ -59,84 +47,64 @@ else
     echo "Using existing SSL certificates"
 fi
 EOF
-
 RUN chmod +x /usr/local/bin/generate-cert.sh
 
-# Create nginx configuration for SPA with both HTTP and HTTPS (using non-privileged ports)
+# Nginx: only HTTPS (8443), proxying to dev server on 8080. HTTP (8080) is served by dev server directly.
 RUN echo 'server { \
-    listen 8080; \
-    server_name localhost; \
-    location / { \
-        root /usr/share/nginx/html; \
-        index index.html; \
-        try_files $uri $uri/ /index.html; \
-    } \
-    # Enable CORS for WebXR \
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|hdr|glb|json)$ { \
-        root /usr/share/nginx/html; \
-        expires 1y; \
-        add_header Cache-Control "public, immutable"; \
-        add_header Access-Control-Allow-Origin "*"; \
-    } \
-} \
-\
-server { \
     listen 8443 ssl; \
     server_name localhost; \
-    \
     ssl_certificate /etc/nginx/ssl/cert.pem; \
     ssl_certificate_key /etc/nginx/ssl/key.pem; \
-    \
-    # SSL configuration \
     ssl_protocols TLSv1.2 TLSv1.3; \
     ssl_ciphers HIGH:!aNULL:!MD5; \
     ssl_prefer_server_ciphers on; \
-    \
     location / { \
-        root /usr/share/nginx/html; \
-        index index.html; \
-        try_files $uri $uri/ /index.html; \
+        proxy_pass http://127.0.0.1:8080; \
+        proxy_http_version 1.1; \
+        proxy_set_header Upgrade $http_upgrade; \
+        proxy_set_header Connection "upgrade"; \
+        proxy_set_header Host $host; \
+        proxy_cache_bypass $http_upgrade; \
     } \
-    # Enable CORS for WebXR \
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|hdr|glb|json)$ { \
-        root /usr/share/nginx/html; \
-        expires 1y; \
-        add_header Cache-Control "public, immutable"; \
-        add_header Access-Control-Allow-Origin "*"; \
-    } \
-}' >/etc/nginx/conf.d/default.conf
+}' > /etc/nginx/conf.d/default.conf
 
-# Set proper permissions for nginx to run as non-root
-RUN chown -R nginx:nginx /usr/share/nginx/html \
-    && chown -R nginx:nginx /etc/nginx/ssl \
-    && chown -R nginx:nginx /var/cache/nginx \
-    && chown -R nginx:nginx /var/log/nginx \
-    && touch /var/run/nginx.pid \
-    && chown -R nginx:nginx /var/run/nginx.pid
-
-# Expose non-privileged ports
-EXPOSE 8080 8443
-
-# Health check (checks HTTP on port 8080)
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8080/ || exit 1
-
-# Create entrypoint script to generate certs and start nginx
+# Entrypoint: require mount, then generate cert, install deps if needed, start dev server and nginx
 COPY <<EOF /entrypoint.sh
 #!/bin/bash
 set -e
-
-# Generate SSL certificate if not exists
+if [ ! -f /app/webxr_client/package.json ]; then
+  echo "Error: webxr_client must be mounted at /app/webxr_client (volume in docker-compose)."
+  exit 1
+fi
 /usr/local/bin/generate-cert.sh
-
-# Start nginx
+cd /app/webxr_client
+if [ ! -d node_modules ]; then
+  echo "Installing dependencies..."
+  npm install --ignore-scripts ../sdk.tgz && npm install --ignore-scripts
+fi
+npm run dev-server &
 exec nginx -g "daemon off;"
 EOF
 
 RUN chmod +x /entrypoint.sh
 
-# Switch to non-root user
-USER nginx
+# Writable dirs: world-writable so container can run as any UID (docker-compose user: CXR_UID:CXR_GID)
+# (nginx pid file is set to /app/nginx.pid in nginx.conf so we avoid /var/run)
+RUN mkdir -p \
+    /var/cache/nginx \
+    /var/log/nginx \
+    /var/lib/nginx/body \
+    /var/lib/nginx/fastcgi \
+    /var/lib/nginx/proxy \
+    /var/lib/nginx/scgi \
+    /var/lib/nginx/uwsgi \
+    && chmod -R a+rwX \
+        /app \
+        /etc/nginx/ssl \
+        /var/cache/nginx \
+        /var/log/nginx \
+        /var/lib/nginx
 
-# Start nginx with certificate generation
+EXPOSE 8080 8443
+
 ENTRYPOINT ["/entrypoint.sh"]
