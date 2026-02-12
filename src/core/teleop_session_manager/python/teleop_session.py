@@ -115,12 +115,6 @@ class TeleopSession:
         # Filter for IDeviceIOSource instances
         self._sources = [node for node in leaf_nodes if isinstance(node, IDeviceIOSource)]
 
-        # Create tracker-to-source mapping for efficient lookup
-        self._tracker_to_source: Dict[Any, Any] = {}
-        for source in self._sources:
-            tracker = source.get_tracker()
-            self._tracker_to_source[id(tracker)] = source
-
     def step(self):
         """Execute a single step of the teleop session.
 
@@ -182,18 +176,10 @@ class TeleopSession:
         Returns:
             self for context manager protocol
         """
-        # Collect and deduplicate trackers by type.
-        # OpenXR only supports one tracker per type (e.g. one ControllerTracker).
-        # Trackers are stateless, so keeping a single instance per type is safe.
-        # Source trackers are added first so they take priority over config trackers.
-        tracker_by_type: Dict[type, Any] = {}
-        for source in self._sources:
-            tracker = source.get_tracker()
-            tracker_by_type.setdefault(type(tracker), tracker)
+        # Collect trackers from source nodes and config
+        trackers = [source.get_tracker() for source in self._sources]
         if self.config.trackers:
-            for tracker in self.config.trackers:
-                tracker_by_type.setdefault(type(tracker), tracker)
-        trackers = list(tracker_by_type.values())
+            trackers.extend(self.config.trackers)
 
         # Get required extensions from all trackers
         required_extensions = deviceio.DeviceIOSession.get_required_extensions(trackers)
