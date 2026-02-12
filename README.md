@@ -125,8 +125,8 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 2. **Create UV virtual environment**
 
 ```bash
-uv venv --python 3.11 venv_isaac
-source venv_isaac/bin/activate
+uv venv --python 3.11 venv_isaacteleop
+source venv_isaacteleop/bin/activate
 ```
 
 3. **Clone the repository**
@@ -225,7 +225,7 @@ Isaac Tepeop Core is design to work side by side with [NVIDIA Isaac Lab](https:/
 1. **Install dependencies**
 
 ```bash
-source venv_isaac/bin/activate
+source venv_isaacteleop/bin/activate
 uv pip install "isaacsim[all,extscache]==5.1.0" --extra-index-url https://pypi.nvidia.com
 uv pip install -U torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
 ```
