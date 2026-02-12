@@ -8,6 +8,10 @@ const useHttps = process.env.HTTPS === 'true';
 module.exports = merge(common, {
   mode: 'development',
   devtool: 'eval-source-map',
+  // New script URL every build so browser cannot serve cached bundle
+  output: {
+    filename: 'bundle.[contenthash:8].js',
+  },
   devServer: {
     allowedHosts: 'all',
     hot: true,
