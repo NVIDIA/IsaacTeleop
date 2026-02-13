@@ -49,6 +49,7 @@ RUN uv python install 3.10 --quiet \
     && uv python find 3.10
 
 RUN --mount=type=cache,target=/opt/isaacteleop/build,id=isaacteleop-teleop-ros2-build \
+    --mount=type=cache,target=/root/.hunter,id=isaacteleop-hunter \
     cmake -B build -S . \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=/opt/isaacteleop/install \
