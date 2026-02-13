@@ -14,6 +14,8 @@ if(NOT DEFINED ISAAC_TELEOP_PYTHON_VERSION)
     message(FATAL_ERROR "ISAAC_TELEOP_PYTHON_VERSION must be set before including SetupPython.cmake")
 endif()
 
+option(BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
+
 # Guard to prevent multiple inclusions from overwriting our settings
 if(NOT ISAAC_TELEOP_PYTHON_CONFIGURED)
     # Unset any previously found Python to prevent interference from venvs
@@ -75,3 +77,46 @@ if(NOT ISAAC_TELEOP_PYTHON_CONFIGURED)
     set(ISAAC_TELEOP_PYTHON_CONFIGURED TRUE CACHE INTERNAL "Python configuration completed")
 endif()
 
+# ==============================================================================
+# NumPy 2.x build venv
+# ==============================================================================
+# When building Python bindings, extensions must be compiled against NumPy 2.x so a single
+# wheel works with both NumPy 1.x and 2.x at runtime. The uv-managed Python cannot be
+# modified, so we create a build venv with numpy>=2.0 when needed.
+if(BUILD_PYTHON_BINDINGS)
+    set(_build_venv "${CMAKE_BINARY_DIR}/teleop_build_venv")
+    execute_process(
+        COMMAND "${Python3_EXECUTABLE}" -c
+            "import sys, re; import numpy; p = re.findall(r'\\d+', numpy.__version__); v = (int(p[0]), int(p[1])) if len(p) >= 2 else (int(p[0]), 0) if p else (0, 0); sys.exit(0 if v >= (2, 0) else 1)"
+        RESULT_VARIABLE _numpy_ok
+        ERROR_QUIET
+        OUTPUT_QUIET
+    )
+    if(NOT _numpy_ok EQUAL 0)
+        message(STATUS "Creating build venv with numpy>=2.0 for ABI-compatible extensions...")
+        execute_process(
+            COMMAND "${UV_EXECUTABLE}" venv --python "${Python3_EXECUTABLE}" "${_build_venv}"
+            RESULT_VARIABLE _venv_ok
+            ERROR_VARIABLE _venv_err
+        )
+        if(NOT _venv_ok EQUAL 0)
+            message(FATAL_ERROR "Failed to create build venv: ${_venv_err}")
+        endif()
+        if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+            set(_venv_python "${_build_venv}/Scripts/python.exe")
+        else()
+            set(_venv_python "${_build_venv}/bin/python")
+        endif()
+        execute_process(
+            COMMAND "${UV_EXECUTABLE}" pip install --python "${_venv_python}" "numpy>=2.0"
+            RESULT_VARIABLE _pip_ok
+            ERROR_VARIABLE _pip_err
+        )
+        if(NOT _pip_ok EQUAL 0)
+            message(FATAL_ERROR "Failed to install numpy>=2.0 in build venv: ${_pip_err}")
+        endif()
+        set(Python3_EXECUTABLE "${_venv_python}" CACHE FILEPATH "Path to Python3 executable (build venv)" FORCE)
+        set(PYTHON_EXECUTABLE "${_venv_python}" CACHE FILEPATH "Path to Python executable (build venv)" FORCE)
+        message(STATUS "Using build venv Python: ${Python3_EXECUTABLE}")
+    endif()
+endif()

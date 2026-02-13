@@ -53,11 +53,12 @@ endif()
 # internal project() call.
 
 # Options
+# Note: BUILD_PLUGINS is defined in cmake/SetupHunter.cmake before project()
+# Note: BUILD_PYTHON_BINDINGS is defined in cmake/SetupPython.cmake
 option(BUILD_EXAMPLES "Build examples" ON)
-option(BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
-# Note: BUILD_PLUGINS is defined before project() for HunterGate initialization
 option(BUILD_TESTING "Build unit tests" ON)
 option(ENABLE_EXPERIMENTAL_WINDOWS_BUILD "Enable experimental Windows build support (source code only)" OFF)
+
 ## Enforce clang-format on Linux builds by default
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(_clang_default ON)
