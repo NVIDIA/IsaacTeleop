@@ -81,14 +81,16 @@ def run_test(duration: float = 10.0, metadata_track: bool = True):
     required_extensions = []
     mcap_filename = None
 
+    collection_id = "oak_camera" if metadata_track else ""
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     if metadata_track:
         print("[Step 3] Creating FrameMetadataTrackerOak...")
-        # The collection_id must match the plugin_root_id used by the camera plugin
-        frame_tracker = deviceio.FrameMetadataTrackerOak(plugin_root_id)
+        # The collection_id must match the --collection-id used by the camera plugin
+        frame_tracker = deviceio.FrameMetadataTrackerOak(collection_id)
         trackers = [frame_tracker]
         required_extensions = deviceio.DeviceIOSession.get_required_extensions(trackers)
-        print(f"  ✓ Created {frame_tracker.get_name()} (collection_id: {plugin_root_id})")
+        print(f"  ✓ Created {frame_tracker.get_name()} (collection_id: {collection_id})")
         print()
         print("[Step 4] Getting required OpenXR extensions...")
         print(f"  ✓ Required extensions: {required_extensions}")  
@@ -100,6 +102,8 @@ def run_test(duration: float = 10.0, metadata_track: bool = True):
     # 5. Start Plugin and OpenXR session (if metadata tracking)
     print("[Step 5] Starting camera plugin...")
     print(f"  Plugin root ID: {plugin_root_id}")
+    if metadata_track:
+        print(f"  Collection ID:  {collection_id}")
     print(f"  Recording duration: {duration} seconds")
     if metadata_track:
         print(f"  MCAP output: {mcap_filename}")
@@ -110,7 +114,10 @@ def run_test(duration: float = 10.0, metadata_track: bool = True):
     print()
 
     output_path = f"./recordings/camera_{timestamp}.h264"
-    with manager.start(plugin_name, plugin_root_id, ["--output=" + output_path]) as plugin:
+    extra_args = ["--output=" + output_path]
+    if metadata_track:
+        extra_args.append("--collection-id=" + collection_id)
+    with manager.start(plugin_name, plugin_root_id, extra_args) as plugin:
         print("  ✓ Camera plugin started")
 
         if metadata_track:

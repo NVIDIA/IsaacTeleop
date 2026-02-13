@@ -42,7 +42,7 @@ void print_usage(const char* program_name)
               << "\nRecording Settings:\n"
               << "  --output=PATH       Full path for recording file (required)\n"
               << "\nOpenXR Settings:\n"
-              << "  --plugin-root-id=ID Tensor collection ID for metadata (default: oak_camera)\n"
+              << "  --collection-id=ID  Tensor collection ID for metadata (default: oak_camera)\n"
               << "\nGeneral Settings:\n"
               << "  --help              Show this help message\n"
               << "\nOutput:\n"
@@ -60,6 +60,7 @@ try
     OakConfig camera_config;
     std::string output_path;
     std::string plugin_root_id = "oak_camera";
+    std::string collection_id;
 
     // Parse command line arguments
     for (int i = 1; i < argc; ++i)
@@ -95,9 +96,12 @@ try
         {
             output_path = arg.substr(9);
         }
+        else if (arg.find("--collection-id=") == 0)
+        {
+            collection_id = arg.substr(16);
+        }
         else if (arg.find("--plugin-root-id=") == 0)
         {
-            plugin_root_id = arg.substr(17);
         }
         else
         {
@@ -124,7 +128,7 @@ try
 
     // Create camera and frame sink (H.264 writer + metadata pusher)
     OakCamera camera(camera_config);
-    FrameSink sink(output_path, plugin_root_id);
+    FrameSink sink(output_path, collection_id);
 
     uint64_t frame_count = 0;
     auto start_time = std::chrono::steady_clock::now();
