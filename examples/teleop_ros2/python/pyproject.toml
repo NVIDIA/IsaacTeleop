@@ -15,3 +15,8 @@ dependencies = [
 [tool.uv]
 find-links = ["/opt/isaacteleop/install/wheels"]
 python-preference = "only-managed"
+
+# Build-time dependencies for packages that must compile from source on aarch64.
+# nlopt has no pre-built wheel for Linux ARM64; swig + numpy are needed to build it.
+[tool.uv.extra-build-dependencies]
+nlopt = ["numpy"]
