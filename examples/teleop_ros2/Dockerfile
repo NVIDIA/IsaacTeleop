@@ -37,6 +37,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxrender-dev \
     libxfixes-dev \
     libxxf86vm-dev \
+    swig \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip3 install --no-cache-dir uv
