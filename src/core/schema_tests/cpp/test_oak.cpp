@@ -1,13 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-// Unit tests for the generated Camera FlatBuffer types.
+// Unit tests for the generated OAK FlatBuffer types.
 
 #include <catch2/catch_test_macros.hpp>
 #include <flatbuffers/flatbuffers.h>
 
 // Include generated FlatBuffer headers.
-#include <schema/camera_generated.h>
+#include <schema/oak_generated.h>
 
 // =============================================================================
 // Compile-time verification of FlatBuffer field IDs for FrameMetadata table.

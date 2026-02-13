@@ -5,11 +5,11 @@
  * @file frame_metadata_printer.cpp
  * @brief Standalone application that reads and prints camera frame metadata from the OpenXR runtime.
  *
- * This application demonstrates using FrameMetadataTracker to read FrameMetadata
- * FlatBuffer samples pushed by CameraPlugin. The application creates the OpenXR
+ * This application demonstrates using FrameMetadataTrackerOak to read FrameMetadata
+ * FlatBuffer samples pushed by a camera plugin. The application creates the OpenXR
  * session with required extensions and uses DeviceIOSession to manage the tracker.
  *
- * Note: Both pusher and reader agree on the schema (FrameMetadata from camera.fbs), so the schema
+ * Note: Both pusher and reader agree on the schema (FrameMetadata from oak.fbs), so the schema
  * does not need to be sent over the wire.
  *
  * Usage:
@@ -19,7 +19,7 @@
  */
 
 #include <deviceio/deviceio_session.hpp>
-#include <deviceio/frame_metadata_tracker.hpp>
+#include <deviceio/frame_metadata_tracker_oak.hpp>
 #include <oxr/oxr_session.hpp>
 
 #include <chrono>
@@ -50,7 +50,7 @@ void print_usage(const char* program_name)
 {
     std::cout << "Usage: " << program_name << " [options]\n"
               << "\nOptions:\n"
-              << "  --collection-id=ID  Tensor collection ID to read from (default: oakd_camera)\n"
+              << "  --collection-id=ID  Tensor collection ID to read from (default: oak_camera)\n"
               << "  --help              Show this help message\n"
               << "\nDescription:\n"
               << "  Reads and prints FrameMetadata samples pushed by a camera plugin.\n"
@@ -60,7 +60,7 @@ void print_usage(const char* program_name)
 int main(int argc, char** argv)
 try
 {
-    std::string collection_id = "oakd_camera";
+    std::string collection_id = "oak_camera";
 
     // Parse command line arguments
     for (int i = 1; i < argc; ++i)
@@ -87,8 +87,8 @@ try
     std::cout << "Frame Metadata Printer (collection: " << collection_id << ")" << std::endl;
 
     // Step 1: Create the tracker
-    std::cout << "[Step 1] Creating FrameMetadataTracker..." << std::endl;
-    auto tracker = std::make_shared<core::FrameMetadataTracker>(collection_id, MAX_FLATBUFFER_SIZE);
+    std::cout << "[Step 1] Creating FrameMetadataTrackerOak..." << std::endl;
+    auto tracker = std::make_shared<core::FrameMetadataTrackerOak>(collection_id, MAX_FLATBUFFER_SIZE);
 
     // Step 2: Get required extensions and create OpenXR session
     std::cout << "[Step 2] Creating OpenXR session with required extensions..." << std::endl;

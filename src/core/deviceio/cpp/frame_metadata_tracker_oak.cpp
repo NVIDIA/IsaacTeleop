@@ -1,12 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-#include "inc/deviceio/frame_metadata_tracker.hpp"
+#include "inc/deviceio/frame_metadata_tracker_oak.hpp"
 
 #include "inc/deviceio/deviceio_session.hpp"
 
 #include <flatbuffers/flatbuffers.h>
-#include <schema/camera_bfbs_generated.h>
+#include <schema/oak_bfbs_generated.h>
 
 #include <vector>
 
@@ -14,10 +14,10 @@ namespace core
 {
 
 // ============================================================================
-// FrameMetadataTracker::Impl
+// FrameMetadataTrackerOak::Impl
 // ============================================================================
 
-class FrameMetadataTracker::Impl : public ITrackerImpl
+class FrameMetadataTrackerOak::Impl : public ITrackerImpl
 {
 public:
     Impl(const OpenXRSessionHandles& handles, SchemaTrackerConfig config) : m_schema_reader(handles, std::move(config))
@@ -59,49 +59,49 @@ private:
 };
 
 // ============================================================================
-// FrameMetadataTracker
+// FrameMetadataTrackerOak
 // ============================================================================
 
-FrameMetadataTracker::FrameMetadataTracker(const std::string& collection_id, size_t max_flatbuffer_size)
+FrameMetadataTrackerOak::FrameMetadataTrackerOak(const std::string& collection_id, size_t max_flatbuffer_size)
     : m_config{ .collection_id = collection_id,
                 .max_flatbuffer_size = max_flatbuffer_size,
                 .tensor_identifier = "frame_metadata",
-                .localized_name = "FrameMetadataTracker" }
+                .localized_name = "FrameMetadataTrackerOak" }
 {
 }
 
-std::vector<std::string> FrameMetadataTracker::get_required_extensions() const
+std::vector<std::string> FrameMetadataTrackerOak::get_required_extensions() const
 {
     return SchemaTracker::get_required_extensions();
 }
 
-std::string_view FrameMetadataTracker::get_name() const
+std::string_view FrameMetadataTrackerOak::get_name() const
 {
-    return "FrameMetadataTracker";
+    return "FrameMetadataTrackerOak";
 }
 
-std::string_view FrameMetadataTracker::get_schema_name() const
+std::string_view FrameMetadataTrackerOak::get_schema_name() const
 {
     return "core.FrameMetadata";
 }
 
-std::string_view FrameMetadataTracker::get_schema_text() const
+std::string_view FrameMetadataTrackerOak::get_schema_text() const
 {
     return std::string_view(
         reinterpret_cast<const char*>(FrameMetadataBinarySchema::data()), FrameMetadataBinarySchema::size());
 }
 
-const SchemaTrackerConfig& FrameMetadataTracker::get_config() const
+const SchemaTrackerConfig& FrameMetadataTrackerOak::get_config() const
 {
     return m_config;
 }
 
-const FrameMetadataT& FrameMetadataTracker::get_data(const DeviceIOSession& session) const
+const FrameMetadataT& FrameMetadataTrackerOak::get_data(const DeviceIOSession& session) const
 {
     return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_data();
 }
 
-std::shared_ptr<ITrackerImpl> FrameMetadataTracker::create_tracker(const OpenXRSessionHandles& handles) const
+std::shared_ptr<ITrackerImpl> FrameMetadataTrackerOak::create_tracker(const OpenXRSessionHandles& handles) const
 {
     return std::make_shared<Impl>(handles, get_config());
 }

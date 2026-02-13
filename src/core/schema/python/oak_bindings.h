@@ -1,13 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-// Python bindings for the Camera FlatBuffer schema.
+// Python bindings for the OAK FlatBuffer schema.
 // Types: FrameMetadata (table with timestamp and sequence_number).
 
 #pragma once
 
 #include <pybind11/pybind11.h>
-#include <schema/camera_generated.h>
+#include <schema/oak_generated.h>
 
 #include <memory>
 
@@ -16,7 +16,7 @@ namespace py = pybind11;
 namespace core
 {
 
-inline void bind_camera(py::module& m)
+inline void bind_oak(py::module& m)
 {
     // Bind FrameMetadata table using the native type (FrameMetadataT).
     // This is the base metadata type for all camera frames.
