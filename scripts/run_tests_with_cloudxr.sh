@@ -7,12 +7,15 @@
 # Runs Isaac Teleop tests using docker-compose with CloudXR runtime
 #
 # Usage:
-#   ./scripts/run_tests_with_cloudxr.sh [--build] [--python-version <version>]
+#   ./scripts/run_tests_with_cloudxr.sh [--build] [--python-version <version>] [--install-from-artifactory [--artifactory-index-url <url>]]
 #
 # Options:
-#   --build           Force rebuild of test container (no cache)
-#   --python-version  Python version for test container (e.g. 3.10)
-#   --help            Show this help message
+#   --build                    Force rebuild of test container (no cache)
+#   --python-version          Python version for test container (e.g. 3.10)
+#   --install-from-artifactory Install isaacteleop from Artifactory instead of install/wheels
+#   --artifactory-index-url   PyPI index URL for Artifactory (required if --install-from-artifactory; can use env ARTIFACTORY_INDEX_URL)
+#   --isaacteleop-version      Pin isaacteleop version when using --install-from-artifactory (e.g. 1.2.3; can use env ISAACTELEOP_VERSION)
+#   --help                     Show this help message
 
 set -e
 
@@ -52,6 +55,9 @@ cd "$GIT_ROOT" || exit 1
 FORCE_BUILD=false
 EXIT_CODE=0
 PYTHON_VERSION="${PYTHON_VERSION:-3.11}"
+INSTALL_FROM_ARTIFACTORY=false
+ARTIFACTORY_INDEX_URL="${ARTIFACTORY_INDEX_URL:-}"
+ISAACTELEOP_VERSION="${ISAACTELEOP_VERSION:-}"
 
 # Compose files and project name
 COMPOSE_BASE="deps/cloudxr/docker-compose.yaml"
@@ -78,15 +84,38 @@ while [[ $# -gt 0 ]]; do
             PYTHON_VERSION="$2"
             shift 2
             ;;
+        --install-from-artifactory)
+            INSTALL_FROM_ARTIFACTORY=true
+            shift
+            ;;
+        --artifactory-index-url)
+            if [[ -z "${2:-}" ]]; then
+                echo -e "${RED}--artifactory-index-url requires a value${NC}"
+                exit 1
+            fi
+            ARTIFACTORY_INDEX_URL="$2"
+            shift 2
+            ;;
+        --isaacteleop-version)
+            if [[ -z "${2:-}" ]]; then
+                echo -e "${RED}--isaacteleop-version requires a value${NC}"
+                exit 1
+            fi
+            ISAACTELEOP_VERSION="$2"
+            shift 2
+            ;;
         --help)
             echo "Test Runner Script with CloudXR"
             echo ""
-            echo "Usage: $0 [--build] [--python-version <version>]"
+            echo "Usage: $0 [--build] [--python-version <version>] [--install-from-artifactory [--artifactory-index-url <url>]]"
             echo ""
             echo "Options:"
-            echo "  --build           Force rebuild of test container (no cache)"
-            echo "  --python-version  Python version for test container (e.g. 3.10)"
-            echo "  --help            Show this help message"
+            echo "  --build                    Force rebuild of test container (no cache)"
+            echo "  --python-version           Python version for test container (e.g. 3.10)"
+            echo "  --install-from-artifactory Install isaacteleop from Artifactory instead of install/wheels"
+            echo "  --artifactory-index-url    PyPI index URL for Artifactory (required with --install-from-artifactory unless ARTIFACTORY_INDEX_URL is set)"
+            echo "  --isaacteleop-version       Pin isaacteleop version when using --install-from-artifactory (e.g. 1.2.3)"
+            echo "  --help                      Show this help message"
             echo ""
             echo "Tests to run (edit CXR_PYTHON_GPU_TESTS/CXR_NATIVE_GPU_TESTS in this script):"
             echo ""
@@ -209,36 +238,59 @@ fi
 # Verify install directory exists and has required artifacts
 log_info "Verifying build artifacts..."
 
-if [ ! -d "install/wheels" ]; then
-    log_error "install/wheels not found. Please build first:"
-    echo "  cmake -B build"
-    echo "  cmake --build build --parallel"
-    echo "  cmake --install build"
-    exit 1
-fi
+if [ "$INSTALL_FROM_ARTIFACTORY" = true ]; then
+    if [ ! -d "install" ]; then
+        log_error "install/ not found. Need install artifacts for install/examples (native tests)."
+        exit 1
+    fi
+    if [ ! -d "install/examples" ]; then
+        log_error "install/examples not found. Required for native GPU tests."
+        exit 1
+    fi
+    if [ -z "$ARTIFACTORY_INDEX_URL" ]; then
+        log_error "Artifactory index URL required. Set --artifactory-index-url or ARTIFACTORY_INDEX_URL."
+        exit 1
+    fi
+    log_success "Install artifacts present; will install isaacteleop from Artifactory"
+else
+    if [ ! -d "install/wheels" ]; then
+        log_error "install/wheels not found. Please build first:"
+        echo "  cmake -B build"
+        echo "  cmake --build build --parallel"
+        echo "  cmake --install build"
+        exit 1
+    fi
 
-WHEEL_COUNT=$(find install/wheels -name "isaacteleop-*.whl" | wc -l)
-if [ "$WHEEL_COUNT" -eq 0 ]; then
-    log_error "No isaacteleop wheel found in install/wheels/"
-    exit 1
-elif [ "$WHEEL_COUNT" -gt 1 ]; then
-    log_error "Multiple isaacteleop wheels found - consider cleaning install/wheels/"
-    ls -la install/wheels/isaacteleop-*.whl
-    exit 1
-fi
+    WHEEL_COUNT=$(find install/wheels -name "isaacteleop-*.whl" | wc -l)
+    if [ "$WHEEL_COUNT" -eq 0 ]; then
+        log_error "No isaacteleop wheel found in install/wheels/"
+        exit 1
+    elif [ "$WHEEL_COUNT" -gt 1 ]; then
+        log_error "Multiple isaacteleop wheels found - consider cleaning install/wheels/"
+        ls -la install/wheels/isaacteleop-*.whl
+        exit 1
+    fi
 
-log_success "Found isaacteleop wheel in install/wheels/"
+    log_success "Found isaacteleop wheel in install/wheels/"
+fi
 
 # Build test container
 log_info "Building test container..."
 
-BUILD_ARGS="-q"
+BUILD_ARGS=(-q)
 if [ "$FORCE_BUILD" = true ]; then
-    BUILD_ARGS="$BUILD_ARGS --no-cache"
+    BUILD_ARGS+=("--no-cache")
+fi
+
+if [ "$INSTALL_FROM_ARTIFACTORY" = true ]; then
+    BUILD_ARGS+=(--build-arg "PIP_INDEX_URL=$ARTIFACTORY_INDEX_URL")
+    if [ -n "$ISAACTELEOP_VERSION" ]; then
+        BUILD_ARGS+=(--build-arg "ISAACTELEOP_VERSION=$ISAACTELEOP_VERSION")
+    fi
 fi
 
 docker build \
-    $BUILD_ARGS \
+    "${BUILD_ARGS[@]}" \
     --build-arg PYTHON_VERSION="$PYTHON_VERSION" \
     -t isaacteleop-tests:latest \
     -f deps/cloudxr/Dockerfile.test \
