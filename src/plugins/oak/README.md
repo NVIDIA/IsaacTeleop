@@ -52,7 +52,7 @@ Press `Ctrl+C` to stop recording.
 | `--bitrate` | 8000000 | H.264 bitrate (bps) |
 | `--quality` | 80 | H.264 quality (1-100) |
 | `--output` | (required) | Full path for recording file |
-| `--plugin-root-id` | oak_camera | Plugin ID for Isaac Teleop integration |
+| `--collection-id` | oak_camera | Tensor collection ID for metadata (must match `FrameMetadataTrackerOak`) |
 
 ## Architecture
 
