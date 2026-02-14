@@ -14,16 +14,12 @@
 #include "oak_bindings.h"
 #include "pedals_bindings.h"
 #include "pose_bindings.h"
-#include "tensor_bindings.h"
 
 namespace py = pybind11;
 
 PYBIND11_MODULE(_schema, m)
 {
     m.doc() = "Isaac Teleop Schema - FlatBuffer message types for teleoperation";
-
-    // Bind tensor types (enums, structs, TensorT).
-    core::bind_tensor(m);
 
     // Bind pose types (Point, Quaternion, Pose structs).
     core::bind_pose(m);
