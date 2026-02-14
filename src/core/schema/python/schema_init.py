@@ -4,16 +4,10 @@
 """Isaac Teleop Schema - FlatBuffer message types for teleoperation.
 
 This module provides Python bindings for FlatBuffer-based message types
-used in teleoperation, including tensors, poses, and controller data.
+used in teleoperation, including poses, and controller data.
 """
 
 from ._schema import (
-    # Tensor-related types.
-    DLDataTypeCode,
-    DLDeviceType,
-    DLDataType,
-    DLDevice,
-    TensorT,
     # Pose-related types (structs).
     Point,
     Quaternion,
@@ -46,12 +40,6 @@ from ._schema import (
 
 
 __all__ = [
-    # Tensor types.
-    "DLDataTypeCode",
-    "DLDeviceType",
-    "DLDataType",
-    "DLDevice",
-    "TensorT",
     # Pose types (structs).
     "Point",
     "Quaternion",

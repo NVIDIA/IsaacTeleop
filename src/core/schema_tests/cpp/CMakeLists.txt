@@ -5,7 +5,6 @@ cmake_minimum_required(VERSION 3.20)
 
 add_executable(schema_tests
   test_oak.cpp
-  test_tensor.cpp
   test_pose.cpp
   test_head.cpp
   test_hand.cpp
