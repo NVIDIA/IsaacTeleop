@@ -278,15 +278,15 @@ bool ControllerTracker::Impl::update(XrTime time)
         return false;
     }
 
-    // Helper to update a single controller - creates a new immutable struct snapshot
+    // Helper to update a single controller - creates a new ControllerSnapshotT (table)
     auto update_controller = [&](XrPath hand_path, const XrSpacePtr& grip_space, const XrSpacePtr& aim_space,
-                                 std::shared_ptr<ControllerSnapshot>& snapshot_ptr)
+                                 std::shared_ptr<ControllerSnapshotT>& snapshot_ptr)
     {
         // Initialize with default values
         ControllerPose grip_pose{};
         ControllerPose aim_pose{};
         ControllerInputState inputs{};
-        bool is_active = false;
+        bool is_valid = false;
         Timestamp timestamp{};
 
         // Update grip pose
@@ -301,7 +301,7 @@ bool ControllerTracker::Impl::update(XrTime time)
             Quaternion orientation(grip_location.pose.orientation.x, grip_location.pose.orientation.y,
                                    grip_location.pose.orientation.z, grip_location.pose.orientation.w);
             Pose pose(position, orientation);
-            grip_pose = ControllerPose(pose, is_valid);
+            grip_pose = ControllerPose(is_valid, pose);
         }
 
         // Update aim pose
@@ -316,10 +316,10 @@ bool ControllerTracker::Impl::update(XrTime time)
             Quaternion orientation(aim_location.pose.orientation.x, aim_location.pose.orientation.y,
                                    aim_location.pose.orientation.z, aim_location.pose.orientation.w);
             Pose pose(position, orientation);
-            aim_pose = ControllerPose(pose, is_valid);
+            aim_pose = ControllerPose(is_valid, pose);
         }
 
-        is_active = grip_pose.is_valid() || aim_pose.is_valid();
+        is_valid = grip_pose.is_valid() || aim_pose.is_valid();
 
         // Update timestamp
         timestamp = Timestamp(time, time);
@@ -338,15 +338,21 @@ bool ControllerTracker::Impl::update(XrTime time)
         inputs = ControllerInputState(
             primary_click, secondary_click, thumbstick_click, thumbstick_x, thumbstick_y, squeeze_value, trigger_value);
 
-        // Create new snapshot struct
-        snapshot_ptr = std::make_shared<ControllerSnapshot>(grip_pose, aim_pose, inputs, is_active, timestamp);
+        // Create new snapshot (table T type; codegen uses shared_ptr for nested fields)
+        auto snapshot = std::make_shared<ControllerSnapshotT>();
+        snapshot->is_valid = is_valid;
+        snapshot->grip_pose = std::make_shared<ControllerPose>(grip_pose);
+        snapshot->aim_pose = std::make_shared<ControllerPose>(aim_pose);
+        snapshot->inputs = std::make_shared<ControllerInputState>(inputs);
+        snapshot->timestamp = std::make_shared<Timestamp>(timestamp);
+        snapshot_ptr = snapshot;
     };
 
     // Update both controllers
     update_controller(left_hand_path_, left_grip_space_, left_aim_space_, controller_data_.left_controller);
     update_controller(right_hand_path_, right_grip_space_, right_aim_space_, controller_data_.right_controller);
 
-    return controller_data_.left_controller->is_active() || controller_data_.right_controller->is_active();
+    return controller_data_.left_controller->is_valid || controller_data_.right_controller->is_valid;
 }
 
 const ControllerDataT& ControllerTracker::Impl::get_controller_data() const
@@ -360,13 +366,15 @@ Timestamp ControllerTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& bui
     builder.Finish(offset);
 
     // Use left controller timestamp (or right if left is inactive)
-    if (controller_data_.left_controller && controller_data_.left_controller->is_active())
+    if (controller_data_.left_controller && controller_data_.left_controller->is_valid &&
+        controller_data_.left_controller->timestamp)
     {
-        return controller_data_.left_controller->timestamp();
+        return *controller_data_.left_controller->timestamp;
     }
-    else if (controller_data_.right_controller && controller_data_.right_controller->is_active())
+    else if (controller_data_.right_controller && controller_data_.right_controller->is_valid &&
+             controller_data_.right_controller->timestamp)
     {
-        return controller_data_.right_controller->timestamp();
+        return *controller_data_.right_controller->timestamp;
     }
     return Timestamp{};
 }

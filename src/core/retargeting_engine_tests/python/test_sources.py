@@ -40,13 +40,13 @@ def create_controller_snapshot(grip_pos, aim_pos, trigger_val):
     grip_position = Point(grip_pos[0], grip_pos[1], grip_pos[2])
     grip_orientation = Quaternion(1.0, 0.0, 0.0, 0.0)  # XYZW format
     grip_pose_obj = Pose(grip_position, grip_orientation)
-    grip_controller_pose = ControllerPose(grip_pose_obj, True)
+    grip_controller_pose = ControllerPose(True, grip_pose_obj)
     
     # Create aim pose  
     aim_position = Point(aim_pos[0], aim_pos[1], aim_pos[2])
     aim_orientation = Quaternion(0.707, 0.707, 0.0, 0.0)
     aim_pose_obj = Pose(aim_position, aim_orientation)
-    aim_controller_pose = ControllerPose(aim_pose_obj, True)
+    aim_controller_pose = ControllerPose(True, aim_pose_obj)
     
     # Create input state
     inputs = ControllerInputState(
@@ -63,7 +63,7 @@ def create_controller_snapshot(grip_pos, aim_pos, trigger_val):
     timestamp = Timestamp(123, 456)
     
     # Create snapshot
-    return ControllerSnapshot(grip_controller_pose, aim_controller_pose, inputs, True, timestamp)
+    return ControllerSnapshot(True, grip_controller_pose, aim_controller_pose, inputs, timestamp)
 
 
 # ============================================================================

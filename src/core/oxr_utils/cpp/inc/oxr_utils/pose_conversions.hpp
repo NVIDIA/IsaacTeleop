@@ -31,18 +31,20 @@ inline XrPosef to_xr_posef(const core::ControllerPose& controller_pose, bool& ou
     return to_xr_posef(controller_pose.pose());
 }
 
-// Convert core::ControllerSnapshot to get aim pose as XrPosef
-inline XrPosef get_aim_pose(const core::ControllerSnapshot& snapshot, bool& out_valid)
+// Convert core::ControllerSnapshotT to get aim pose as XrPosef
+inline XrPosef get_aim_pose(const core::ControllerSnapshotT& snapshot, bool& out_valid)
 {
-    out_valid = snapshot.aim_pose().is_valid();
-    return to_xr_posef(snapshot.aim_pose().pose());
+    out_valid = snapshot.aim_pose != nullptr && snapshot.aim_pose->is_valid();
+    return out_valid ? to_xr_posef(snapshot.aim_pose->pose()) :
+                       XrPosef{ { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, 0.0f } };
 }
 
-// Convert core::ControllerSnapshot to get grip pose as XrPosef
-inline XrPosef get_grip_pose(const core::ControllerSnapshot& snapshot, bool& out_valid)
+// Convert core::ControllerSnapshotT to get grip pose as XrPosef
+inline XrPosef get_grip_pose(const core::ControllerSnapshotT& snapshot, bool& out_valid)
 {
-    out_valid = snapshot.grip_pose().is_valid();
-    return to_xr_posef(snapshot.grip_pose().pose());
+    out_valid = snapshot.grip_pose != nullptr && snapshot.grip_pose->is_valid();
+    return out_valid ? to_xr_posef(snapshot.grip_pose->pose()) :
+                       XrPosef{ { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, 0.0f } };
 }
 
 } // namespace oxr_utils

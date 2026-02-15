@@ -22,29 +22,29 @@ struct ControllerInputState {
 
 // Controller pose data with validity flag
 struct ControllerPose {
-    // The concrete pose data (position + orientation)
-    pose: Pose;
-
     // Whether the pose data is valid
     is_valid: bool;
+
+    // The concrete pose data (position + orientation)
+    pose: Pose;
 }
 
 // Snapshot data for a single controller
-struct ControllerSnapshot {
+table ControllerSnapshot {
+    // Whether the controller is valid (connected and tracked)
+    is_valid: bool (id: 0);
+
     // Grip pose - represents the physical controller position/orientation
-    grip_pose: ControllerPose;
+    grip_pose: ControllerPose (id: 1);
 
     // Aim pose - represents where the controller is pointing
-    aim_pose: ControllerPose;
+    aim_pose: ControllerPose (id: 2);
 
     // Input state - all buttons and axes
-    inputs: ControllerInputState;
-
-    // Whether the controller is active (connected and tracked)
-    is_active: bool;
+    inputs: ControllerInputState (id: 3);
 
     // Dual timestamp with device and runtime clock domains
-    timestamp: Timestamp;
+    timestamp: Timestamp (id: 4);
 }
 
 // Controller data for both hands (table type for top-level serialization)

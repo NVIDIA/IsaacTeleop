@@ -7,7 +7,7 @@ Tests the following FlatBuffers types:
 - ControllerInputState: Struct with button and axis inputs (immutable)
 - ControllerPose: Struct with pose and validity (immutable)
 - Timestamp: Struct with device and common time timestamps (immutable)
-- ControllerSnapshot: Struct representing complete controller state (immutable)
+- ControllerSnapshot: Table representing complete controller state
 - ControllerData: Root table with both left and right controllers
 """
 
@@ -132,7 +132,7 @@ class TestControllerPose:
         position = Point(1.0, 2.0, 3.0)
         orientation = Quaternion(0.0, 0.0, 0.0, 1.0)
         pose = Pose(position, orientation)
-        controller_pose = ControllerPose(pose, True)
+        controller_pose = ControllerPose(True, pose)
 
         assert controller_pose.pose.position.x == pytest.approx(1.0)
         assert controller_pose.pose.position.y == pytest.approx(2.0)
@@ -145,7 +145,7 @@ class TestControllerPose:
         position = Point(0.0, 0.0, 0.0)
         orientation = Quaternion(0.0, 0.0, 0.0, 1.0)
         pose = Pose(position, orientation)
-        controller_pose = ControllerPose(pose, True)
+        controller_pose = ControllerPose(True, pose)
 
         assert controller_pose.is_valid is True
 
@@ -155,7 +155,7 @@ class TestControllerPose:
         # 90-degree rotation around Z axis
         orientation = Quaternion(0.0, 0.0, 0.7071068, 0.7071068)
         pose = Pose(position, orientation)
-        controller_pose = ControllerPose(pose, True)
+        controller_pose = ControllerPose(True, pose)
 
         assert controller_pose.pose.orientation.z == pytest.approx(0.7071068, abs=1e-5)
         assert controller_pose.pose.orientation.w == pytest.approx(0.7071068, abs=1e-5)
@@ -174,7 +174,7 @@ class TestControllerPose:
         position = Point(1.0, 2.0, 3.0)
         orientation = Quaternion(0.0, 0.0, 0.0, 1.0)
         pose = Pose(position, orientation)
-        controller_pose = ControllerPose(pose, True)
+        controller_pose = ControllerPose(True, pose)
 
         repr_str = repr(controller_pose)
         assert "ControllerPose" in repr_str
@@ -182,19 +182,19 @@ class TestControllerPose:
 
 
 class TestControllerSnapshot:
-    """Tests for ControllerSnapshot struct (immutable)."""
+    """Tests for ControllerSnapshot table (ControllerSnapshotT in C++)."""
 
     def test_default_construction(self):
         """Test default construction creates ControllerSnapshot with default values."""
         snapshot = ControllerSnapshot()
 
         assert snapshot is not None
-        # Structs always have default values
-        assert snapshot.grip_pose is not None
-        assert snapshot.aim_pose is not None
-        assert snapshot.inputs is not None
-        assert snapshot.timestamp is not None
-        assert snapshot.is_active is False
+        assert snapshot.is_valid is False
+        # Table type: optional nested fields are None when not set
+        assert snapshot.grip_pose is None
+        assert snapshot.aim_pose is None
+        assert snapshot.inputs is None
+        assert snapshot.timestamp is None
 
     def test_complete_snapshot(self):
         """Test creating a complete controller snapshot with all fields."""
@@ -202,12 +202,12 @@ class TestControllerSnapshot:
         grip_position = Point(0.1, 0.2, 0.3)
         grip_orientation = Quaternion(0.0, 0.0, 0.0, 1.0)
         grip_pose_data = Pose(grip_position, grip_orientation)
-        grip_pose = ControllerPose(grip_pose_data, True)
+        grip_pose = ControllerPose(True, grip_pose_data)
 
         aim_position = Point(0.15, 0.25, 0.35)
         aim_orientation = Quaternion(0.0, 0.1, 0.0, 0.99)
         aim_pose_data = Pose(aim_position, aim_orientation)
-        aim_pose = ControllerPose(aim_pose_data, True)
+        aim_pose = ControllerPose(True, aim_pose_data)
 
         # Create inputs
         inputs = ControllerInputState(
@@ -224,7 +224,7 @@ class TestControllerSnapshot:
         timestamp = Timestamp(device_time=1000000000, common_time=2000000000)
 
         # Create snapshot
-        snapshot = ControllerSnapshot(grip_pose, aim_pose, inputs, True, timestamp)
+        snapshot = ControllerSnapshot(True, grip_pose, aim_pose, inputs, timestamp)
 
         # Verify all fields
         assert snapshot.grip_pose.is_valid is True
@@ -233,7 +233,7 @@ class TestControllerSnapshot:
         assert snapshot.aim_pose.pose.position.x == pytest.approx(0.15)
         assert snapshot.inputs.primary_click is True
         assert snapshot.inputs.trigger_value == pytest.approx(1.0)
-        assert snapshot.is_active is True
+        assert snapshot.is_valid is True
         assert snapshot.timestamp.device_time == 1000000000
         assert snapshot.timestamp.common_time == 2000000000
 
@@ -243,7 +243,7 @@ class TestControllerSnapshot:
         repr_str = repr(snapshot)
 
         assert "ControllerSnapshot" in repr_str
-        assert "is_active=False" in repr_str
+        assert "is_valid=False" in repr_str
 
 
 class TestControllerData:
@@ -274,8 +274,8 @@ class TestControllerIntegration:
         left_position = Point(-0.2, 0.0, 0.0)
         left_orientation = Quaternion(0.0, 0.0, 0.0, 1.0)
         left_pose_data = Pose(left_position, left_orientation)
-        left_grip = ControllerPose(left_pose_data, True)
-        left_aim = ControllerPose(left_pose_data, True)
+        left_grip = ControllerPose(True, left_pose_data)
+        left_aim = ControllerPose(True, left_pose_data)
         left_inputs = ControllerInputState(
             primary_click=True,
             secondary_click=False,
@@ -286,24 +286,28 @@ class TestControllerIntegration:
             trigger_value=0.5,
         )
         left_timestamp = Timestamp(device_time=1000, common_time=2000)
-        left_snapshot = ControllerSnapshot(left_grip, left_aim, left_inputs, True, left_timestamp)
+        left_snapshot = ControllerSnapshot(True, left_grip, left_aim, left_inputs, left_timestamp)
 
         # Create right controller (inactive)
         right_snapshot = ControllerSnapshot()
 
         # Verify different states
-        assert left_snapshot.is_active is True
-        assert right_snapshot.is_active is False
+        assert left_snapshot.is_valid is True
+        assert right_snapshot.is_valid is False
         assert left_snapshot.inputs.trigger_value == pytest.approx(0.5)
-        assert right_snapshot.inputs.trigger_value == pytest.approx(0.0)
+        # Default-constructed snapshot has optional fields; inputs may be None
+        assert right_snapshot.inputs is None or right_snapshot.inputs.trigger_value == pytest.approx(0.0)
 
     def test_inactive_controller(self):
         """Test representing an inactive controller."""
         snapshot = ControllerSnapshot()
 
-        assert snapshot.is_active is False
-        assert snapshot.grip_pose.is_valid is False
-        assert snapshot.aim_pose.is_valid is False
+        assert snapshot.is_valid is False
+        # Optional pose fields may be None for default-constructed inactive snapshot
+        if snapshot.grip_pose is not None:
+            assert snapshot.grip_pose.is_valid is False
+        if snapshot.aim_pose is not None:
+            assert snapshot.aim_pose.is_valid is False
 
 
 class TestControllerEdgeCases:
@@ -363,7 +367,7 @@ class TestControllerEdgeCases:
         position = Point(1.0, 2.0, 3.0)
         orientation = Quaternion(0.0, 0.0, 0.0, 1.0)
         pose = Pose(position, orientation)
-        controller_pose = ControllerPose(pose, False)
+        controller_pose = ControllerPose(False, pose)
 
         assert controller_pose.is_valid is False
         # Pose data is still present even if not valid

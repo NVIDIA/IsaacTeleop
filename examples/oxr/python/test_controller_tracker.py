@@ -59,14 +59,14 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
         controller_data = controller_tracker.get_controller_data(session)
         left_snap = controller_data.left_controller
         right_snap = controller_data.right_controller
-        print(f"  Left controller: {'ACTIVE' if left_snap and left_snap.is_active else 'INACTIVE'}")
-        print(f"  Right controller: {'ACTIVE' if right_snap and right_snap.is_active else 'INACTIVE'}")
+        print(f"  Left controller: {'ACTIVE' if left_snap and left_snap.is_valid else 'INACTIVE'}")
+        print(f"  Right controller: {'ACTIVE' if right_snap and right_snap.is_valid else 'INACTIVE'}")
         
-        if left_snap and left_snap.is_active and left_snap.grip_pose.is_valid:
+        if left_snap and left_snap.is_valid and left_snap.grip_pose and left_snap.grip_pose.is_valid:
             pos = left_snap.grip_pose.pose.position
             print(f"  Left grip position: [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
         
-        if right_snap and right_snap.is_active and right_snap.grip_pose.is_valid:
+        if right_snap and right_snap.is_valid and right_snap.grip_pose and right_snap.grip_pose.is_valid:
             pos = right_snap.grip_pose.pose.position
             print(f"  Right grip position: [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
         print()
@@ -150,7 +150,7 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
         
         def print_controller_summary(hand_name, snapshot):
             print(f"  {hand_name} Controller:")
-            if snapshot and snapshot.is_active:
+            if snapshot and snapshot.is_valid:
                 print(f"    Status: ACTIVE")
                 
                 # Poses from snapshot

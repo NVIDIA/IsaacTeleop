@@ -75,26 +75,28 @@ void SyntheticHandsPlugin::worker_thread()
 
         // Get timestamp from controller data
         XrTime time = 0;
-        if (controller_data.left_controller && controller_data.left_controller->is_active())
+        if (controller_data.left_controller && controller_data.left_controller->is_valid &&
+            controller_data.left_controller->timestamp)
         {
-            time = controller_data.left_controller->timestamp().device_time();
+            time = controller_data.left_controller->timestamp->device_time();
         }
-        else if (controller_data.right_controller && controller_data.right_controller->is_active())
+        else if (controller_data.right_controller && controller_data.right_controller->is_valid &&
+                 controller_data.right_controller->timestamp)
         {
-            time = controller_data.right_controller->timestamp().device_time();
+            time = controller_data.right_controller->timestamp->device_time();
         }
 
         // Get target curl values from trigger inputs
         float left_target = 0.0f;
         float right_target = 0.0f;
 
-        if (controller_data.left_controller)
+        if (controller_data.left_controller && controller_data.left_controller->inputs)
         {
-            left_target = controller_data.left_controller->inputs().trigger_value();
+            left_target = controller_data.left_controller->inputs->trigger_value();
         }
-        if (controller_data.right_controller)
+        if (controller_data.right_controller && controller_data.right_controller->inputs)
         {
-            right_target = controller_data.right_controller->inputs().trigger_value();
+            right_target = controller_data.right_controller->inputs->trigger_value();
         }
 
         // Smoothly interpolate

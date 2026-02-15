@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Python bindings for the Controller FlatBuffer schema.
-// ControllerInputState, ControllerPose, ControllerSnapshot, Timestamp are structs.
-// ControllerDataT is a table (native type) containing struct snapshots.
+// ControllerInputState, ControllerPose, Timestamp are structs.
+// ControllerSnapshotT and ControllerDataT are tables (native types).
 
 #pragma once
 
@@ -59,12 +59,13 @@ inline void bind_controller(py::module& m)
                         ", trigger=" + std::to_string(self.trigger_value()) + ")";
              });
 
-    // Bind ControllerPose struct
+    // Bind ControllerPose struct (generated ctor is bool is_valid, const Pose& pose)
     py::class_<ControllerPose>(m, "ControllerPose")
         .def(py::init<>())
-        .def(py::init<const Pose&, bool>(), py::arg("pose"), py::arg("is_valid"))
-        .def_property_readonly("pose", &ControllerPose::pose, py::return_value_policy::reference_internal)
+        .def(py::init([](bool is_valid, const Pose& pose) { return ControllerPose(is_valid, pose); }),
+             py::arg("is_valid"), py::arg("pose"))
         .def_property_readonly("is_valid", &ControllerPose::is_valid)
+        .def_property_readonly("pose", &ControllerPose::pose, py::return_value_policy::reference_internal)
         .def("__repr__",
              [](const ControllerPose& self)
              {
@@ -76,28 +77,52 @@ inline void bind_controller(py::module& m)
                                         ", z=" + std::to_string(self.pose().orientation().z()) +
                                         ", w=" + std::to_string(self.pose().orientation().w()) + "))";
 
-                 return "ControllerPose(pose=" + pose_str + ", is_valid=" + (self.is_valid() ? "True" : "False") + ")";
+                 return std::string("ControllerPose(is_valid=") + (self.is_valid() ? "True" : "False") +
+                        ", pose=" + pose_str + ")";
              });
 
-    // Bind ControllerSnapshot struct
-    py::class_<ControllerSnapshot>(m, "ControllerSnapshot")
+    // Bind ControllerSnapshotT (table native type) as "ControllerSnapshot" for Python
+    py::class_<ControllerSnapshotT, std::unique_ptr<ControllerSnapshotT>>(m, "ControllerSnapshot")
         .def(py::init<>())
-        .def(py::init<const ControllerPose&, const ControllerPose&, const ControllerInputState&, bool, const Timestamp&>(),
-             py::arg("grip_pose"), py::arg("aim_pose"), py::arg("inputs"), py::arg("is_active"), py::arg("timestamp"))
-        .def_property_readonly("grip_pose", &ControllerSnapshot::grip_pose, py::return_value_policy::reference_internal)
-        .def_property_readonly("aim_pose", &ControllerSnapshot::aim_pose, py::return_value_policy::reference_internal)
-        .def_property_readonly("inputs", &ControllerSnapshot::inputs, py::return_value_policy::reference_internal)
-        .def_property_readonly("is_active", &ControllerSnapshot::is_active)
-        .def_property_readonly("timestamp", &ControllerSnapshot::timestamp, py::return_value_policy::reference_internal)
+        .def(py::init(
+                 [](bool is_valid, const ControllerPose& grip_pose, const ControllerPose& aim_pose,
+                    const ControllerInputState& inputs, const Timestamp& timestamp)
+                 {
+                     auto t = std::make_unique<ControllerSnapshotT>();
+                     t->is_valid = is_valid;
+                     t->grip_pose = std::make_shared<ControllerPose>(grip_pose);
+                     t->aim_pose = std::make_shared<ControllerPose>(aim_pose);
+                     t->inputs = std::make_shared<ControllerInputState>(inputs);
+                     t->timestamp = std::make_shared<Timestamp>(timestamp);
+                     return t;
+                 }),
+             py::arg("is_valid"), py::arg("grip_pose"), py::arg("aim_pose"), py::arg("inputs"), py::arg("timestamp"))
+        .def_readonly("is_valid", &ControllerSnapshotT::is_valid)
+        .def_property_readonly(
+            "grip_pose", [](const ControllerSnapshotT& self) -> const ControllerPose* { return self.grip_pose.get(); },
+            py::return_value_policy::reference_internal)
+        .def_property_readonly(
+            "aim_pose", [](const ControllerSnapshotT& self) -> const ControllerPose* { return self.aim_pose.get(); },
+            py::return_value_policy::reference_internal)
+        .def_property_readonly(
+            "inputs", [](const ControllerSnapshotT& self) -> const ControllerInputState* { return self.inputs.get(); },
+            py::return_value_policy::reference_internal)
+        .def_property_readonly(
+            "timestamp", [](const ControllerSnapshotT& self) -> const Timestamp* { return self.timestamp.get(); },
+            py::return_value_policy::reference_internal)
         .def("__repr__",
-             [](const ControllerSnapshot& self)
+             [](const ControllerSnapshotT& self)
              {
                  std::string grip_str =
-                     "ControllerPose(is_valid=" + std::string(self.grip_pose().is_valid() ? "True" : "False") + ")";
+                     self.grip_pose ?
+                         ("ControllerPose(is_valid=" + std::string(self.grip_pose->is_valid() ? "True" : "False") + ")") :
+                         "None";
                  std::string aim_str =
-                     "ControllerPose(is_valid=" + std::string(self.aim_pose().is_valid() ? "True" : "False") + ")";
-                 return "ControllerSnapshot(grip_pose=" + grip_str + ", aim_pose=" + aim_str +
-                        ", is_active=" + (self.is_active() ? "True" : "False") + ")";
+                     self.aim_pose ?
+                         ("ControllerPose(is_valid=" + std::string(self.aim_pose->is_valid() ? "True" : "False") + ")") :
+                         "None";
+                 return std::string("ControllerSnapshot(is_valid=") + (self.is_valid ? "True" : "False") +
+                        ", grip_pose=" + grip_str + ", aim_pose=" + aim_str + ")";
              });
 
     // Bind ControllerDataT class (table native type - root object, read-only from Python)
@@ -105,19 +130,19 @@ inline void bind_controller(py::module& m)
         .def(py::init<>())
         .def_property_readonly(
             "left_controller",
-            [](const ControllerDataT& self) -> const ControllerSnapshot* { return self.left_controller.get(); },
+            [](const ControllerDataT& self) -> const ControllerSnapshotT* { return self.left_controller.get(); },
             py::return_value_policy::reference_internal)
         .def_property_readonly(
             "right_controller",
-            [](const ControllerDataT& self) -> const ControllerSnapshot* { return self.right_controller.get(); },
+            [](const ControllerDataT& self) -> const ControllerSnapshotT* { return self.right_controller.get(); },
             py::return_value_policy::reference_internal)
         .def("__repr__",
              [](const ControllerDataT& self)
              {
                  std::string left_str =
-                     self.left_controller ? (self.left_controller->is_active() ? "active" : "inactive") : "None";
+                     self.left_controller ? (self.left_controller->is_valid ? "valid" : "invalid") : "None";
                  std::string right_str =
-                     self.right_controller ? (self.right_controller->is_active() ? "active" : "inactive") : "None";
+                     self.right_controller ? (self.right_controller->is_valid ? "valid" : "invalid") : "None";
                  return "ControllerData(left=" + left_str + ", right=" + right_str + ")";
              });
 }

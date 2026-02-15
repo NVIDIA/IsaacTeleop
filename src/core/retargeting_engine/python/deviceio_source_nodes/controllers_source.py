@@ -161,7 +161,7 @@ class ControllersSource(IDeviceIOSource):
         group[8] = float(snapshot.inputs.thumbstick_y)
         group[9] = float(snapshot.inputs.squeeze_value)
         group[10] = float(snapshot.inputs.trigger_value)
-        group[11] = snapshot.is_active  # BoolType, don't convert
+        group[11] = snapshot.is_valid  # BoolType, don't convert
 
     def transformed(self, transform_input: OutputSelector) -> RetargeterSubgraph:
         """

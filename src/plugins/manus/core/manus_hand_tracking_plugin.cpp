@@ -347,11 +347,11 @@ void ManusTracker::inject_hand_data()
 
     // Get timestamp from controller data for injection
     XrTime time = 0;
-    if (controller_data.left_controller && controller_data.left_controller->is_active())
+    if (controller_data.left_controller && controller_data.left_controller->is_valid)
     {
         time = controller_data.left_controller->timestamp().device_time();
     }
-    else if (controller_data.right_controller && controller_data.right_controller->is_active())
+    else if (controller_data.right_controller && controller_data.right_controller->is_valid)
     {
         time = controller_data.right_controller->timestamp().device_time();
     }
@@ -368,7 +368,7 @@ void ManusTracker::inject_hand_data()
         bool is_root_tracked = false;
 
         // Get controller snapshot for this hand
-        const core::ControllerSnapshot* snapshot =
+        const core::ControllerSnapshotT* snapshot =
             is_left ? controller_data.left_controller.get() : controller_data.right_controller.get();
 
         if (snapshot)
