@@ -1,0 +1,3 @@
+# Sphinx and theme
+sphinx>=5.0
+sphinx-book-theme>=1.0
