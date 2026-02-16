@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
 from pathlib import Path
 import numpy as np

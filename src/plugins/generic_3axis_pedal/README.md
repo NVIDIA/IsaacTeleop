@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Generic 3-Axis Pedal Plugin
 
 Reads a 3-axis joystick from `/dev/input/js*` and pushes `Generic3AxisPedalOutput` via OpenXR. Use with `Generic3AxisPedalTracker` or `pedal_printer` with the same `collection_id`.

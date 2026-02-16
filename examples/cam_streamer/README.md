@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # OAK-D Camera Streamer Example
 
 Low-latency H.264 video streaming from OAK-D camera using DepthAI + GStreamer.
