@@ -27,3 +27,10 @@ repos:
       - id: check-shebang-scripts-are-executable
       - id: detect-private-key
       - id: debug-statements
+  # SPDX license headers (REUSE): require SPDX-FileCopyrightText and SPDX-License-Identifier
+  - repo: https://github.com/fsfe/reuse-tool
+    rev: v6.2.0
+    hooks:
+      - id: reuse-lint-file
+        name: REUSE lint (SPDX headers on changed files)
+        files: \.(py|js|ts|cpp|c|h|hpp|cxx|hxx|cmake|md|yaml|yml|sh|fbs|toml|html)$

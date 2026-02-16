@@ -48,6 +48,34 @@ ruff check . --fix
 ruff format .
 ```
 
+### License headers
+
+We use [REUSE](https://reuse.software/) to enforce SPDX license headers on source files. Pre-commit runs `reuse lint-file` on changed files (e.g. `.py`, `.cpp`, `.md`, `.yaml`):
+
+1. **Required fields**: Each file must have `SPDX-FileCopyrightText` and `SPDX-License-Identifier`.
+2. **License**: `SPDX-License-Identifier` must be `Apache-2.0` (full text in `LICENSES/Apache-2.0.txt`).
+
+Example header:
+
+```
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+```
+
+To add or fix headers, install the [reuse tool](https://github.com/fsfe/reuse-tool)
+
+```bash
+uv tool install reuse
+```
+
+and run for example:
+
+```bash
+reuse annotate -t compact -l Apache-2.0 --skip-unrecognised -r path/to/file
+```
+
+REUSE does not auto-update the copyright year when you touch a file; include the current year when adding or editing headers.
+
 ## CI
 GitHub Actions builds the default targets and runs tests.
 
