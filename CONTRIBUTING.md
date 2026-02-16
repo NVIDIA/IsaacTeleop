@@ -23,6 +23,31 @@ Thanks for your interest in contributing! This document outlines how to build, t
 - Follow PEP 8 for style.
 - Use type annotations (PEP 484) and prefer formatted string literals (PEP 701, f-strings).
 
+## Pre-commit
+
+We use [pre-commit](https://pre-commit.com/) to run Python linters and formatters (including
+[Ruff](https://docs.astral.sh/ruff/)) before commits. If you are using uv like us, install the
+tools and hooks as follows:
+
+```bash
+uv tool install ruff
+uv tool install pre-commit
+pre-commit install
+```
+
+After that, pre-commit runs automatically on `git commit`. To run on all files manually:
+
+```bash
+pre-commit run --all-files
+```
+
+To run only Ruff (check + fix and format):
+
+```bash
+ruff check . --fix
+ruff format .
+```
+
 ## CI
 GitHub Actions builds the default targets and runs tests.
 
