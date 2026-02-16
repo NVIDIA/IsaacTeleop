@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 repos:
@@ -33,4 +33,12 @@ repos:
     hooks:
       - id: reuse-lint-file
         name: REUSE lint (SPDX headers on changed files)
+        files: \.(py|js|ts|cpp|c|h|hpp|cxx|hxx|cmake|md|yaml|yml|sh|fbs|toml|html)$
+  # Copyright year: ensure SPDX-FileCopyrightText includes current year (--fix updates in place)
+  - repo: local
+    hooks:
+      - id: check-copyright-year
+        name: Check copyright year (include current year)
+        entry: python scripts/check_copyright_year.py --fix
+        language: system
         files: \.(py|js|ts|cpp|c|h|hpp|cxx|hxx|cmake|md|yaml|yml|sh|fbs|toml|html)$
