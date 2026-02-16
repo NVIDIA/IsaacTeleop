@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # OAK Camera Plugin
 
 C++ plugin that captures H.264 video from OAK cameras and saves to raw H.264 files.

@@ -222,8 +222,3 @@ class GestureRecognizer {
     Gesture recognize(const XrHandJointLocationEXT*);
 };
 ```
-
-## License
-
-Copyright 2025, NVIDIA CORPORATION.
-SPDX-License-Identifier: BSL-1.0

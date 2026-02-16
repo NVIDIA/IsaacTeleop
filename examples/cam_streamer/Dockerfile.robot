@@ -1,4 +1,7 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 # syntax=docker/dockerfile:1
+
 # OAK-D Camera Streamer - ARM (sender only)
 FROM ubuntu:22.04
 
