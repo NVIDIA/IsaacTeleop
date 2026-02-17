@@ -214,7 +214,7 @@ class DexHandRetargeter(BaseRetargeter):
         for i, joint_name in enumerate(joint_names):
             if joint_valid[i] > 0:  # Joint is valid
                 pos = joint_positions[i]
-                ori = joint_orientations[i]  # WXYZ format
+                ori = joint_orientations[i]  # XYZW format (from HandsSource)
                 poses[joint_name] = np.concatenate([pos, ori])
 
         # Compute retargeting
@@ -322,14 +322,13 @@ class DexHandRetargeter(BaseRetargeter):
         # Center at wrist (index 0 of our subset)
         joint_pos -= joint_pos[0:1, :]
 
-        # Apply wrist rotation alignment (OpenXR WXYZ -> Scipy XYZW)
+        # Apply wrist rotation alignment to normalize to wrist-local frame
         wrist_pose = poses.get("wrist")
         if wrist_pose is None:
             return np.zeros(len(self._dex_hand.optimizer.robot.dof_joint_names))
 
-        xr_wrist_quat = wrist_pose[3:]  # [qw, qx, qy, qz]
-        # Convert to scipy format [qx, qy, qz, qw]
-        wrist_rot = R.from_quat([xr_wrist_quat[1], xr_wrist_quat[2], xr_wrist_quat[3], xr_wrist_quat[0]]).as_matrix()
+        xr_wrist_quat = wrist_pose[3:]  # [qx, qy, qz, qw] - XYZW from HandsSource, matches scipy convention
+        wrist_rot = R.from_quat(xr_wrist_quat).as_matrix()
 
         # Apply transformations
         target_pos = joint_pos @ wrist_rot @ self._handtracking2baselink
