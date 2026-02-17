@@ -156,9 +156,9 @@ class ControllersSource(IDeviceIOSource):
         group[3] = aim_orientation
         group[4] = float(snapshot.inputs.primary_click)
         group[5] = float(snapshot.inputs.secondary_click)
-        group[6] = float(snapshot.inputs.thumbstick_click)
-        group[7] = float(snapshot.inputs.thumbstick_x)
-        group[8] = float(snapshot.inputs.thumbstick_y)
+        group[6] = float(snapshot.inputs.thumbstick_x)
+        group[7] = float(snapshot.inputs.thumbstick_y)
+        group[8] = float(snapshot.inputs.thumbstick_click)
         group[9] = float(snapshot.inputs.squeeze_value)
         group[10] = float(snapshot.inputs.trigger_value)
         group[11] = snapshot.is_active  # BoolType, don't convert
