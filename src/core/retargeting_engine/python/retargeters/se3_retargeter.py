@@ -9,12 +9,14 @@ Retargets hand/controller tracking data to end-effector commands using absolute 
 
 import numpy as np
 from dataclasses import dataclass
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional
 
 from ..interface import (
     BaseRetargeter,
+    ParameterState,
     RetargeterIOType,
 )
+from ..interface.tunable_parameter import BoolParameter, VectorParameter
 from ..interface.tensor_group_type import TensorGroupType
 from ..interface.tensor_group import TensorGroup
 from ..tensor_types import (
@@ -42,15 +44,24 @@ class Se3RetargeterConfig:
     use_wrist_rotation: bool = False
     use_wrist_position: bool = True
 
-    # Abs specific
-    target_offset_pos: Tuple[float, float, float] = (0.0, 0.0, 0.0)
-    target_offset_rot: Tuple[float, float, float, float] = (0.7071068, 0.0, 0.0, 0.7071068) # x, y, z, w
+    # Abs specific - Position offset (meters)
+    target_offset_x: float = 0.0
+    target_offset_y: float = 0.0
+    target_offset_z: float = 0.0
+
+    # Abs specific - Rotation offset (degrees, applied as intrinsic XYZ Euler angles)
+    target_offset_roll: float = 90.0    # rotation about X axis
+    target_offset_pitch: float = 0.0    # rotation about Y axis
+    target_offset_yaw: float = 0.0      # rotation about Z axis
 
     # Rel specific
     delta_pos_scale_factor: float = 10.0
     delta_rot_scale_factor: float = 10.0
     alpha_pos: float = 0.5
     alpha_rot: float = 0.5
+
+    # Optional path for persisting tuned parameter values to JSON
+    parameter_config_path: Optional[str] = None
 
 
 class Se3AbsRetargeter(BaseRetargeter):
@@ -62,17 +73,93 @@ class Se3AbsRetargeter(BaseRetargeter):
 
     def __init__(self, config: Se3RetargeterConfig, name: str) -> None:
         self._config = config
-        super().__init__(name=name)
         if not SCIPY_AVAILABLE:
             raise ImportError("scipy is required for Se3AbsRetargeter")
 
-        # Store offsets
-        self._target_offset_pos = np.array(config.target_offset_pos)
-        # Config is already x,y,z,w (matches scipy convention)
-        self._target_offset_rot = np.array(config.target_offset_rot)
+        # Build position offset from individual x/y/z components
+        self._target_offset_pos = np.array([
+            config.target_offset_x,
+            config.target_offset_y,
+            config.target_offset_z,
+        ])
+        # Build rotation offset quaternion (x,y,z,w) from roll/pitch/yaw Euler angles
+        self._target_offset_rot = Rotation.from_euler(
+            "XYZ",
+            [config.target_offset_roll, config.target_offset_pitch, config.target_offset_yaw],
+            degrees=True,
+        ).as_quat()  # returns x,y,z,w (scipy convention)
 
         # Initialize last pose (pos: 0,0,0, rot: identity xyzw)
         self._last_pose = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], dtype=np.float32)
+
+        # Build tunable parameters for the UI
+        rotation_offset_param = VectorParameter(
+            name="rotation_offset_rpy",
+            description="Rotation offset (Roll, Pitch, Yaw in degrees)",
+            element_names=["roll", "pitch", "yaw"],
+            default_value=np.array([config.target_offset_roll, config.target_offset_pitch, config.target_offset_yaw],
+                                   dtype=np.float32),
+            min_value=-180.0,
+            max_value=180.0,
+            sync_fn=self._update_rotation_offset,
+        )
+
+        position_offset_param = VectorParameter(
+            name="position_offset_xyz",
+            description="Position offset (X, Y, Z in meters)",
+            element_names=["x", "y", "z"],
+            default_value=np.array([config.target_offset_x, config.target_offset_y, config.target_offset_z],
+                                   dtype=np.float32),
+            min_value=-2.0,
+            max_value=2.0,
+            step_size=0.001,
+            sync_fn=self._update_position_offset,
+        )
+
+        zero_out_xy_param = BoolParameter(
+            name="zero_out_xy_rotation",
+            description="Zero out X/Y rotation (keep only yaw)",
+            default_value=config.zero_out_xy_rotation,
+            sync_fn=lambda v: setattr(self._config, "zero_out_xy_rotation", v),
+        )
+
+        use_wrist_rotation_param = BoolParameter(
+            name="use_wrist_rotation",
+            description="Use wrist rotation instead of fingertip average",
+            default_value=config.use_wrist_rotation,
+            sync_fn=lambda v: setattr(self._config, "use_wrist_rotation", v),
+        )
+
+        use_wrist_position_param = BoolParameter(
+            name="use_wrist_position",
+            description="Use wrist position instead of fingertip average",
+            default_value=config.use_wrist_position,
+            sync_fn=lambda v: setattr(self._config, "use_wrist_position", v),
+        )
+
+        param_state = ParameterState(
+            name,
+            parameters=[
+                rotation_offset_param,
+                position_offset_param,
+                zero_out_xy_param,
+                use_wrist_rotation_param,
+                use_wrist_position_param,
+            ],
+            config_file=config.parameter_config_path,
+        )
+
+        super().__init__(name=name, parameter_state=param_state)
+
+    def _update_rotation_offset(self, rpy) -> None:
+        """Sync function: recompute rotation offset quaternion from RPY (degrees)."""
+        self._target_offset_rot = Rotation.from_euler(
+            "XYZ", list(rpy), degrees=True
+        ).as_quat()
+
+    def _update_position_offset(self, xyz) -> None:
+        """Sync function: update position offset vector."""
+        self._target_offset_pos = np.array(xyz, dtype=np.float64)
 
     def input_spec(self) -> RetargeterIOType:
         if "hand" in self._config.input_device:

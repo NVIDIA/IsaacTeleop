@@ -90,16 +90,18 @@ def main():
     # Left Arm (Absolute Pose)
     left_arm_cfg = Se3RetargeterConfig(
         input_device="hand_left",
-        target_offset_pos=(0.0, 0.0, 0.0),
-        target_offset_rot=(0.0, 0.0, 0.0, 1.0) # x,y,z,w
+        target_offset_roll=0.0,
+        target_offset_pitch=0.0,
+        target_offset_yaw=0.0,
     )
     left_arm_retargeter = Se3AbsRetargeter(left_arm_cfg, name="left_arm")
 
     # Right Arm (Absolute Pose)
     right_arm_cfg = Se3RetargeterConfig(
         input_device="hand_right",
-        target_offset_pos=(0.0, 0.0, 0.0),
-        target_offset_rot=(0.0, 0.0, 0.0, 1.0)
+        target_offset_roll=0.0,
+        target_offset_pitch=0.0,
+        target_offset_yaw=0.0,
     )
     right_arm_retargeter = Se3AbsRetargeter(right_arm_cfg, name="right_arm")
 
