@@ -3,13 +3,12 @@
 
 #pragma once
 
-#include <depthai/depthai.hpp>
-#include <schema/oak_generated.h>
+#include "frame_sink_interface.hpp"
 
-#include <cstdint>
+#include <depthai/depthai.hpp>
+
 #include <memory>
 #include <optional>
-#include <vector>
 
 namespace plugins
 {
@@ -27,18 +26,6 @@ struct OakConfig
     int bitrate = 8'000'000;
     int quality = 80;
     int keyframe_frequency = 30;
-};
-
-/**
- * @brief OAK encoded video frame with metadata.
- */
-struct OakFrame
-{
-    /// H.264 encoded frame data
-    std::vector<uint8_t> h264_data;
-
-    /// Frame metadata (timestamp + sequence number) from oak.fbs
-    core::FrameMetadataT metadata;
 };
 
 /**

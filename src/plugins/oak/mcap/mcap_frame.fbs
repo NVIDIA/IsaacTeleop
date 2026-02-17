@@ -1,0 +1,11 @@
+include "oak.fbs";
+
+namespace core;
+
+// Bundled OAK frame: metadata + raw H.264 encoded data.
+table McapFrame {
+    metadata: FrameMetadata (id: 0);
+    h264_data: [ubyte] (id: 1);
+}
+
+root_type McapFrame;

@@ -3,11 +3,13 @@
 
 #include "core/frame_sink.hpp"
 #include "core/oak_camera.hpp"
+#include "mcap/mcap_frame_sink.hpp"
 
 #include <atomic>
 #include <chrono>
 #include <csignal>
 #include <iostream>
+#include <memory>
 #include <string>
 
 using namespace plugins::oak;
@@ -41,12 +43,13 @@ void print_usage(const char* program_name)
               << "  --quality=N         H.264 quality 1-100 (default: 80)\n"
               << "\nRecording Settings:\n"
               << "  --output=PATH       Full path for recording file (required)\n"
+              << "  --mcap              Write to MCAP container instead of raw H.264\n"
               << "\nOpenXR Settings:\n"
               << "  --collection-id=ID  Tensor collection ID for metadata (default: oak_camera)\n"
               << "\nGeneral Settings:\n"
               << "  --help              Show this help message\n"
               << "\nOutput:\n"
-              << "  Records raw H.264 NAL units to file.\n";
+              << "  Records raw H.264 NAL units to file, or MCAP with --mcap.\n";
 }
 
 // =============================================================================
@@ -61,6 +64,7 @@ try
     std::string output_path;
     std::string plugin_root_id = "oak_camera";
     std::string collection_id;
+    bool use_mcap = false;
 
     // Parse command line arguments
     for (int i = 1; i < argc; ++i)
@@ -96,6 +100,10 @@ try
         {
             output_path = arg.substr(9);
         }
+        else if (arg == "--mcap")
+        {
+            use_mcap = true;
+        }
         else if (arg.find("--collection-id=") == 0)
         {
             collection_id = arg.substr(16);
@@ -126,9 +134,18 @@ try
         return 1;
     }
 
-    // Create camera and frame sink (H.264 writer + metadata pusher)
+    // Create camera and frame sink
     OakCamera camera(camera_config);
-    FrameSink sink(output_path, collection_id);
+
+    std::unique_ptr<IFrameSink> sink;
+    if (use_mcap)
+    {
+        sink = std::make_unique<McapFrameSink>(output_path);
+    }
+    else
+    {
+        sink = std::make_unique<FrameSink>(output_path, collection_id);
+    }
 
     uint64_t frame_count = 0;
     auto start_time = std::chrono::steady_clock::now();
@@ -145,7 +162,7 @@ try
         auto frame = camera.get_frame();
         if (frame)
         {
-            sink.on_frame(*frame);
+            sink->on_frame(*frame);
             frame_count++;
         }
 

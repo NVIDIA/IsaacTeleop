@@ -54,7 +54,7 @@ private:
  *
  * RAII: resources are acquired in constructor and released in destructor.
  */
-class FrameSink
+class FrameSink : public IFrameSink
 {
 public:
     /**
@@ -73,7 +73,7 @@ public:
     /**
      * @brief Process a frame: writes H.264 data to file and pushes metadata via OpenXR.
      */
-    void on_frame(const OakFrame& frame);
+    void on_frame(const OakFrame& frame) override;
 
 private:
     RawDataWriter m_writer;

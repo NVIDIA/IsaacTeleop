@@ -29,6 +29,16 @@ FetchContent_MakeAvailable(depthai)
 message(STATUS "Building OAK camera plugin with DepthAI ${depthai_VERSION}")
 
 # ==============================================================================
+# Shared include path for core/ headers (e.g. oak_frame.hpp)
+# ==============================================================================
+set(OAK_CORE_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/core)
+
+# ==============================================================================
+# MCAP Frame Library (schema generation + sink)
+# ==============================================================================
+add_subdirectory(mcap)
+
+# ==============================================================================
 # Build OAK Plugin
 # ==============================================================================
 add_executable(camera_plugin_oak
@@ -42,6 +52,7 @@ target_link_libraries(camera_plugin_oak
     PRIVATE
         depthai::core
         isaacteleop_schema
+        oak_mcap
         oxr::oxr_core
         pusherio::pusherio
 )
