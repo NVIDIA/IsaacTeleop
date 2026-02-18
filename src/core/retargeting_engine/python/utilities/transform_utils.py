@@ -38,8 +38,7 @@ def validate_transform_matrix(matrix: np.ndarray) -> np.ndarray:
     expected_bottom = np.array([0.0, 0.0, 0.0, 1.0])
     if not np.allclose(matrix[3, :], expected_bottom, atol=1e-6):
         raise ValueError(
-            f"Bottom row of transform matrix must be [0, 0, 0, 1], "
-            f"got {matrix[3, :]}"
+            f"Bottom row of transform matrix must be [0, 0, 0, 1], got {matrix[3, :]}"
         )
 
     return matrix
@@ -63,9 +62,7 @@ def decompose_transform(matrix: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
 
 
 def transform_position(
-    position: np.ndarray,
-    rotation_3x3: np.ndarray,
-    translation: np.ndarray
+    position: np.ndarray, rotation_3x3: np.ndarray, translation: np.ndarray
 ) -> None:
     """
     Apply a rigid transform to a position vector in-place: p[:] = R @ p + t.
@@ -79,9 +76,7 @@ def transform_position(
 
 
 def transform_positions_batch(
-    positions: np.ndarray,
-    rotation_3x3: np.ndarray,
-    translation: np.ndarray
+    positions: np.ndarray, rotation_3x3: np.ndarray, translation: np.ndarray
 ) -> None:
     """
     Apply a rigid transform to a batch of position vectors in-place: p[:] = R @ p + t.
@@ -98,6 +93,7 @@ def transform_positions_batch(
 # ============================================================================
 # Quaternion helpers (pure numpy, no scipy)
 # ============================================================================
+
 
 def _rotation_matrix_to_quat_xyzw(R: np.ndarray) -> np.ndarray:
     """
@@ -154,12 +150,14 @@ def _quat_multiply_xyzw(q1: np.ndarray, q2: np.ndarray) -> np.ndarray:
     """
     x1, y1, z1, w1 = q1
     x2, y2, z2, w2 = q2
-    return np.array([
-        w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
-        w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
-        w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
-        w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
-    ])
+    return np.array(
+        [
+            w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+            w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
+            w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
+            w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
+        ]
+    )
 
 
 def _quat_multiply_batch_xyzw(q1: np.ndarray, q2: np.ndarray) -> np.ndarray:
@@ -178,21 +176,23 @@ def _quat_multiply_batch_xyzw(q1: np.ndarray, q2: np.ndarray) -> np.ndarray:
     y2 = q2[:, 1]
     z2 = q2[:, 2]
     w2 = q2[:, 3]
-    return np.column_stack([
-        w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
-        w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
-        w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
-        w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
-    ])
+    return np.column_stack(
+        [
+            w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+            w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
+            w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
+            w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
+        ]
+    )
 
 
 # ============================================================================
 # Public orientation transform functions
 # ============================================================================
 
+
 def transform_orientation(
-    orientation_xyzw: np.ndarray,
-    rotation_3x3: np.ndarray
+    orientation_xyzw: np.ndarray, rotation_3x3: np.ndarray
 ) -> None:
     """
     Apply a rotation to an orientation quaternion in-place: q[:] = R_quat * q.
@@ -211,8 +211,7 @@ def transform_orientation(
 
 
 def transform_orientations_batch(
-    orientations_xyzw: np.ndarray,
-    rotation_3x3: np.ndarray
+    orientations_xyzw: np.ndarray, rotation_3x3: np.ndarray
 ) -> None:
     """
     Apply a rotation to a batch of orientation quaternions in-place: q[:] = R_quat * q.
@@ -222,6 +221,6 @@ def transform_orientations_batch(
         rotation_3x3: (3, 3) rotation matrix to apply.
     """
     rot_quat = _rotation_matrix_to_quat_xyzw(rotation_3x3)
-    orientations_xyzw[:] = _quat_multiply_batch_xyzw(rot_quat, orientations_xyzw).astype(
-        orientations_xyzw.dtype
-    )
+    orientations_xyzw[:] = _quat_multiply_batch_xyzw(
+        rot_quat, orientations_xyzw
+    ).astype(orientations_xyzw.dtype)

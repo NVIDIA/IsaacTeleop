@@ -8,9 +8,15 @@ A subgraph wraps a target retargeter module with its input connections,
 enabling composition of retargeters into larger computational graphs.
 """
 
-from abc import ABC
 from typing import Dict, List
-from .retargeter_core_types import GraphExecutable, BaseExecutable, RetargeterIOType, ExecutionContext, OutputSelector, RetargeterIO
+from .retargeter_core_types import (
+    GraphExecutable,
+    BaseExecutable,
+    RetargeterIOType,
+    ExecutionContext,
+    OutputSelector,
+    RetargeterIO,
+)
 
 
 class RetargeterSubgraph(GraphExecutable):
@@ -26,7 +32,12 @@ class RetargeterSubgraph(GraphExecutable):
     The subgraph is created automatically by calling connect() on a BaseRetargeter.
     """
 
-    def __init__(self, target_module: BaseExecutable, input_connections: Dict[str, OutputSelector], output_types: RetargeterIOType) -> None:
+    def __init__(
+        self,
+        target_module: BaseExecutable,
+        input_connections: Dict[str, OutputSelector],
+        output_types: RetargeterIOType,
+    ) -> None:
         """
         Initialize a retargeter subgraph.
 
@@ -117,4 +128,3 @@ class RetargeterSubgraph(GraphExecutable):
                     visited.add(id(leaf))
 
         return leaves
-

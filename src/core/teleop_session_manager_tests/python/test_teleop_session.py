@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
@@ -155,9 +154,7 @@ class MockHandsSource(MockDeviceIOSource):
     """Mock hands source for testing."""
 
     def __init__(self, name: str = "hands"):
-        super().__init__(
-            name, HandTracker(), input_names=["hand_left", "hand_right"]
-        )
+        super().__init__(name, HandTracker(), input_names=["hand_left", "hand_right"])
 
     def poll_tracker(self, deviceio_session):
         source_inputs = self.input_spec()
@@ -276,6 +273,7 @@ class MockPipeline:
 
 class MockOpenXRHandles:
     """Mock OpenXR session handles."""
+
     pass
 
 
@@ -357,11 +355,13 @@ class MockPluginManager:
         return self._plugin_names
 
     def start(self, plugin_name, plugin_root_id, plugin_args=None):
-        self.start_calls.append({
-            "plugin_name": plugin_name,
-            "plugin_root_id": plugin_root_id,
-            "plugin_args": plugin_args,
-        })
+        self.start_calls.append(
+            {
+                "plugin_name": plugin_name,
+                "plugin_root_id": plugin_root_id,
+                "plugin_args": plugin_args,
+            }
+        )
         return self._contexts[plugin_name]
 
 
@@ -395,15 +395,21 @@ def mock_session_dependencies(
     mock_pm = mock_pm or MockPluginManager()
 
     if collected_trackers is not None:
+
         def get_ext_side_effect(trackers):
             collected_trackers.extend(trackers)
             return []
+
         patch_get_ext = patch(
             "isaacteleop.deviceio.DeviceIOSession.get_required_extensions",
             side_effect=get_ext_side_effect,
         )
     else:
-        get_ext_return = get_required_extensions_return if get_required_extensions_return is not None else []
+        get_ext_return = (
+            get_required_extensions_return
+            if get_required_extensions_return is not None
+            else []
+        )
         patch_get_ext = patch(
             "isaacteleop.deviceio.DeviceIOSession.get_required_extensions",
             return_value=get_ext_return,
@@ -596,7 +602,9 @@ class TestExternalInputSpecs:
     def test_step_succeeds_without_external_inputs_for_empty_input_spec_leaf(self):
         """step() succeeds without external_inputs when pipeline has only empty input_spec() leaves."""
         constant_source = MockEmptyInputRetargeter("constant")
-        pipeline = MockPipeline(leaf_nodes=[constant_source], call_result={"constant": None})
+        pipeline = MockPipeline(
+            leaf_nodes=[constant_source], call_result={"constant": None}
+        )
 
         config = make_config(pipeline)
         with mock_session_dependencies():
@@ -665,10 +673,12 @@ class TestValidateExternalInputs:
         session = TeleopSession(config)
 
         # Should not raise
-        session._validate_external_inputs({
-            "sim_state": {"external_data": MagicMock()},
-            "robot_state": {"external_data": MagicMock()},
-        })
+        session._validate_external_inputs(
+            {
+                "sim_state": {"external_data": MagicMock()},
+                "robot_state": {"external_data": MagicMock()},
+            }
+        )
 
     def test_external_leaves_extra_inputs_allowed(self):
         """Extra inputs beyond what's required should not cause errors."""
@@ -679,10 +689,12 @@ class TestValidateExternalInputs:
         session = TeleopSession(config)
 
         # Provide required plus extra
-        session._validate_external_inputs({
-            "sim_state": {"external_data": MagicMock()},
-            "bonus_data": {"something": MagicMock()},
-        })
+        session._validate_external_inputs(
+            {
+                "sim_state": {"external_data": MagicMock()},
+                "bonus_data": {"something": MagicMock()},
+            }
+        )
 
 
 class TestSessionLifecycle:

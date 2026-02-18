@@ -10,7 +10,11 @@ Converts raw ControllerSnapshot flatbuffer data to standard ControllerInput tens
 import numpy as np
 from typing import Any, TYPE_CHECKING
 from .interface import IDeviceIOSource
-from ..interface.retargeter_core_types import OutputSelector, RetargeterIO, RetargeterIOType
+from ..interface.retargeter_core_types import (
+    OutputSelector,
+    RetargeterIO,
+    RetargeterIOType,
+)
 from ..interface.retargeter_subgraph import RetargeterSubgraph
 from ..interface.tensor_group import TensorGroup
 from ..tensor_types import ControllerInput
@@ -54,6 +58,7 @@ class ControllersSource(IDeviceIOSource):
             name: Unique name for this source node
         """
         import isaacteleop.deviceio as deviceio
+
         self._controller_tracker = deviceio.ControllerTracker()
         super().__init__(name)
 
@@ -91,14 +96,14 @@ class ControllersSource(IDeviceIOSource):
         """Declare DeviceIO controller inputs."""
         return {
             "deviceio_controller_left": DeviceIOControllerSnapshot(),
-            "deviceio_controller_right": DeviceIOControllerSnapshot()
+            "deviceio_controller_right": DeviceIOControllerSnapshot(),
         }
 
     def output_spec(self) -> RetargeterIOType:
         """Declare standard controller input outputs."""
         return {
             "controller_left": ControllerInput(),
-            "controller_right": ControllerInput()
+            "controller_right": ControllerInput(),
         }
 
     def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
@@ -119,35 +124,49 @@ class ControllersSource(IDeviceIOSource):
         # Convert right controller
         self._update_controller_data(outputs["controller_right"], right_snapshot)
 
-    def _update_controller_data(self, group: TensorGroup, snapshot: "ControllerSnapshot") -> None:
+    def _update_controller_data(
+        self, group: TensorGroup, snapshot: "ControllerSnapshot"
+    ) -> None:
         """Helper to convert controller data for a single controller."""
         # Extract grip pose
-        grip_position = np.array([
-            snapshot.grip_pose.pose.position.x,
-            snapshot.grip_pose.pose.position.y,
-            snapshot.grip_pose.pose.position.z
-        ], dtype=np.float32)
+        grip_position = np.array(
+            [
+                snapshot.grip_pose.pose.position.x,
+                snapshot.grip_pose.pose.position.y,
+                snapshot.grip_pose.pose.position.z,
+            ],
+            dtype=np.float32,
+        )
 
-        grip_orientation = np.array([
-            snapshot.grip_pose.pose.orientation.x,
-            snapshot.grip_pose.pose.orientation.y,
-            snapshot.grip_pose.pose.orientation.z,
-            snapshot.grip_pose.pose.orientation.w
-        ], dtype=np.float32)
+        grip_orientation = np.array(
+            [
+                snapshot.grip_pose.pose.orientation.x,
+                snapshot.grip_pose.pose.orientation.y,
+                snapshot.grip_pose.pose.orientation.z,
+                snapshot.grip_pose.pose.orientation.w,
+            ],
+            dtype=np.float32,
+        )
 
         # Extract aim pose
-        aim_position = np.array([
-            snapshot.aim_pose.pose.position.x,
-            snapshot.aim_pose.pose.position.y,
-            snapshot.aim_pose.pose.position.z
-        ], dtype=np.float32)
+        aim_position = np.array(
+            [
+                snapshot.aim_pose.pose.position.x,
+                snapshot.aim_pose.pose.position.y,
+                snapshot.aim_pose.pose.position.z,
+            ],
+            dtype=np.float32,
+        )
 
-        aim_orientation = np.array([
-            snapshot.aim_pose.pose.orientation.x,
-            snapshot.aim_pose.pose.orientation.y,
-            snapshot.aim_pose.pose.orientation.z,
-            snapshot.aim_pose.pose.orientation.w
-        ], dtype=np.float32)
+        aim_orientation = np.array(
+            [
+                snapshot.aim_pose.pose.orientation.x,
+                snapshot.aim_pose.pose.orientation.y,
+                snapshot.aim_pose.pose.orientation.z,
+                snapshot.aim_pose.pose.orientation.w,
+            ],
+            dtype=np.float32,
+        )
 
         # Update output tensor group
         group[0] = grip_position
@@ -186,8 +205,10 @@ class ControllersSource(IDeviceIOSource):
         from ..utilities.controller_transform import ControllerTransform
 
         xform_node = ControllerTransform(f"{self.name}_transform")
-        return xform_node.connect({
-            self.LEFT: self.output(self.LEFT),
-            self.RIGHT: self.output(self.RIGHT),
-            "transform": transform_input,
-        })
+        return xform_node.connect(
+            {
+                self.LEFT: self.output(self.LEFT),
+                self.RIGHT: self.output(self.RIGHT),
+                "transform": transform_input,
+            }
+        )

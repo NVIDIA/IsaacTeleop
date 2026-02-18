@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
@@ -29,7 +28,6 @@ Pipeline structure:
 
 import sys
 import time
-import numpy as np
 
 from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     ControllersSource,
@@ -64,10 +62,16 @@ def main() -> int:
     print("[Step 1] Creating two ControllersSource nodes...")
     ctrl_left_source = ControllersSource(name="ctrl_left")
     ctrl_right_source = ControllersSource(name="ctrl_right")
-    print(f"  ✓ ControllersSource('ctrl_left')  - tracker id: {id(ctrl_left_source.get_tracker())}")
-    print(f"  ✓ ControllersSource('ctrl_right') - tracker id: {id(ctrl_right_source.get_tracker())}")
-    print(f"  ⚠ Both trackers are type: {type(ctrl_left_source.get_tracker()).__name__}")
-    print(f"    Only one will survive deduplication in TeleopSession.__enter__()")
+    print(
+        f"  ✓ ControllersSource('ctrl_left')  - tracker id: {id(ctrl_left_source.get_tracker())}"
+    )
+    print(
+        f"  ✓ ControllersSource('ctrl_right') - tracker id: {id(ctrl_right_source.get_tracker())}"
+    )
+    print(
+        f"  ⚠ Both trackers are type: {type(ctrl_left_source.get_tracker()).__name__}"
+    )
+    print("    Only one will survive deduplication in TeleopSession.__enter__()")
 
     # ==================================================================
     # Step 2: Build retargeting pipeline
@@ -85,9 +89,11 @@ def main() -> int:
         zero_out_xy_rotation=False,
     )
     left_se3 = Se3AbsRetargeter(left_se3_config, name="left_se3")
-    connected_left = left_se3.connect({
-        ControllersSource.LEFT: ctrl_left_source.output(ControllersSource.LEFT),
-    })
+    connected_left = left_se3.connect(
+        {
+            ControllersSource.LEFT: ctrl_left_source.output(ControllersSource.LEFT),
+        }
+    )
     print("  ✓ Left SE3: ctrl_left_source.controller_left -> left_ee_pose")
 
     # Right arm SE3 retargeter (using right controller from second source)
@@ -98,9 +104,11 @@ def main() -> int:
         zero_out_xy_rotation=False,
     )
     right_se3 = Se3AbsRetargeter(right_se3_config, name="right_se3")
-    connected_right = right_se3.connect({
-        ControllersSource.RIGHT: ctrl_right_source.output(ControllersSource.RIGHT),
-    })
+    connected_right = right_se3.connect(
+        {
+            ControllersSource.RIGHT: ctrl_right_source.output(ControllersSource.RIGHT),
+        }
+    )
     print("  ✓ Right SE3: ctrl_right_source.controller_right -> right_ee_pose")
 
     # ==================================================================
@@ -108,10 +116,12 @@ def main() -> int:
     # ==================================================================
     print("\n[Step 3] Combining outputs...")
 
-    pipeline = OutputCombiner({
-        "left_ee_pose": connected_left.output("ee_pose"),
-        "right_ee_pose": connected_right.output("ee_pose"),
-    })
+    pipeline = OutputCombiner(
+        {
+            "left_ee_pose": connected_left.output("ee_pose"),
+            "right_ee_pose": connected_right.output("ee_pose"),
+        }
+    )
     print("  ✓ Pipeline: 2 ControllersSource -> 2 Se3AbsRetargeter -> OutputCombiner")
 
     # ==================================================================
@@ -132,7 +142,9 @@ def main() -> int:
         print("\n  [Diagnostic] Discovered sources:")
         for source in session._sources:
             tracker = source.get_tracker()
-            print(f"    - {source.name}: tracker id={id(tracker)}, type={type(tracker).__name__}")
+            print(
+                f"    - {source.name}: tracker id={id(tracker)}, type={type(tracker).__name__}"
+            )
 
         print("\n" + "=" * 80)
         print("  Running Bimanual Controller Teleop (20 seconds)")
@@ -157,8 +169,12 @@ def main() -> int:
                 right_pos = right_pose[:3]
 
                 print(f"[{elapsed:5.1f}s] Frame {session.frame_count}")
-                print(f"  Left  arm: ({left_pos[0]:+6.3f}, {left_pos[1]:+6.3f}, {left_pos[2]:+6.3f})")
-                print(f"  Right arm: ({right_pos[0]:+6.3f}, {right_pos[1]:+6.3f}, {right_pos[2]:+6.3f})")
+                print(
+                    f"  Left  arm: ({left_pos[0]:+6.3f}, {left_pos[1]:+6.3f}, {left_pos[2]:+6.3f})"
+                )
+                print(
+                    f"  Right arm: ({right_pos[0]:+6.3f}, {right_pos[1]:+6.3f}, {right_pos[2]:+6.3f})"
+                )
 
             time.sleep(0.016)
 

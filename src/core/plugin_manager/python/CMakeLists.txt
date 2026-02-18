@@ -15,4 +15,3 @@ set_target_properties(plugin_manager_py PROPERTIES
     # Use genex in output directory - CMake won't add another config subdirectory
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/plugin_manager"
 )
-

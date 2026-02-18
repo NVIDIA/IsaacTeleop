@@ -10,7 +10,11 @@ Converts raw HandPoseT flatbuffer data to standard HandInput tensor format.
 import numpy as np
 from typing import Any, TYPE_CHECKING
 from .interface import IDeviceIOSource
-from ..interface.retargeter_core_types import OutputSelector, RetargeterIO, RetargeterIOType
+from ..interface.retargeter_core_types import (
+    OutputSelector,
+    RetargeterIO,
+    RetargeterIOType,
+)
 from ..interface.retargeter_subgraph import RetargeterSubgraph
 from ..interface.tensor_group import TensorGroup
 from ..tensor_types import HandInput, NUM_HAND_JOINTS
@@ -55,6 +59,7 @@ class HandsSource(IDeviceIOSource):
             name: Unique name for this source node
         """
         import isaacteleop.deviceio as deviceio
+
         self._hand_tracker = deviceio.HandTracker()
         super().__init__(name)
 
@@ -93,15 +98,12 @@ class HandsSource(IDeviceIOSource):
         """Declare DeviceIO hand inputs."""
         return {
             "deviceio_hand_left": DeviceIOHandPose(),
-            "deviceio_hand_right": DeviceIOHandPose()
+            "deviceio_hand_right": DeviceIOHandPose(),
         }
 
     def output_spec(self) -> RetargeterIOType:
         """Declare standard hand input outputs."""
-        return {
-            "hand_left": HandInput(),
-            "hand_right": HandInput()
-        }
+        return {"hand_left": HandInput(), "hand_right": HandInput()}
 
     def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
         """
@@ -133,9 +135,17 @@ class HandsSource(IDeviceIOSource):
         joints = hand_data.joints
         for i in range(NUM_HAND_JOINTS):
             joint = joints[i]
-            positions[i] = [joint.pose.position.x, joint.pose.position.y, joint.pose.position.z]
-            orientations[i] = [joint.pose.orientation.x, joint.pose.orientation.y,
-                              joint.pose.orientation.z, joint.pose.orientation.w]
+            positions[i] = [
+                joint.pose.position.x,
+                joint.pose.position.y,
+                joint.pose.position.z,
+            ]
+            orientations[i] = [
+                joint.pose.orientation.x,
+                joint.pose.orientation.y,
+                joint.pose.orientation.z,
+                joint.pose.orientation.w,
+            ]
             radii[i] = joint.radius
             valid[i] = 1 if joint.is_valid else 0
 
@@ -170,8 +180,10 @@ class HandsSource(IDeviceIOSource):
         from ..utilities.hand_transform import HandTransform
 
         xform_node = HandTransform(f"{self.name}_transform")
-        return xform_node.connect({
-            self.LEFT: self.output(self.LEFT),
-            self.RIGHT: self.output(self.RIGHT),
-            "transform": transform_input,
-        })
+        return xform_node.connect(
+            {
+                self.LEFT: self.output(self.LEFT),
+                self.RIGHT: self.output(self.RIGHT),
+                "transform": transform_input,
+            }
+        )

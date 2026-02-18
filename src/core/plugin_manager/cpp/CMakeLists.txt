@@ -37,4 +37,3 @@ install(TARGETS teleop_plugin_manager
 install(DIRECTORY inc/
     DESTINATION include
 )
-

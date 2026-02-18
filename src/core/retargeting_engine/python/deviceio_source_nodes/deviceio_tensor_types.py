@@ -16,25 +16,27 @@ from isaacteleop.schema import HeadPoseT, HandPoseT, ControllerSnapshot
 
 class HeadPoseTType(TensorType):
     """HeadPoseT flatbuffer schema type."""
-    
+
     def __init__(self, name: str) -> None:
         """
         Initialize a HeadPoseT type.
-        
+
         Args:
             name: Name for this tensor
         """
         super().__init__(name)
-    
+
     def _check_instance_compatibility(self, other: TensorType) -> bool:
         """HeadPoseT types are always compatible with other HeadPoseT types."""
-        assert isinstance(other, HeadPoseTType), f"Expected HeadPoseTType, got {type(other).__name__}"
+        assert isinstance(other, HeadPoseTType), (
+            f"Expected HeadPoseTType, got {type(other).__name__}"
+        )
         return True
-    
+
     def validate_value(self, value: Any) -> None:
         """
         Validate if the given value is a HeadPoseT schema object.
-        
+
         Raises:
             TypeError: If value is not a HeadPoseT
         """
@@ -46,25 +48,27 @@ class HeadPoseTType(TensorType):
 
 class HandPoseTType(TensorType):
     """HandPoseT flatbuffer schema type."""
-    
+
     def __init__(self, name: str) -> None:
         """
         Initialize a HandPoseT type.
-        
+
         Args:
             name: Name for this tensor
         """
         super().__init__(name)
-    
+
     def _check_instance_compatibility(self, other: TensorType) -> bool:
         """HandPoseT types are always compatible with other HandPoseT types."""
-        assert isinstance(other, HandPoseTType), f"Expected HandPoseTType, got {type(other).__name__}"
+        assert isinstance(other, HandPoseTType), (
+            f"Expected HandPoseTType, got {type(other).__name__}"
+        )
         return True
-    
+
     def validate_value(self, value: Any) -> None:
         """
         Validate if the given value is a HandPoseT schema object.
-        
+
         Raises:
             TypeError: If value is not a HandPoseT
         """
@@ -76,25 +80,27 @@ class HandPoseTType(TensorType):
 
 class ControllerSnapshotType(TensorType):
     """ControllerSnapshot flatbuffer schema type."""
-    
+
     def __init__(self, name: str) -> None:
         """
         Initialize a ControllerSnapshot type.
-        
+
         Args:
             name: Name for this tensor
         """
         super().__init__(name)
-    
+
     def _check_instance_compatibility(self, other: TensorType) -> bool:
         """ControllerSnapshot types are always compatible with other ControllerSnapshot types."""
-        assert isinstance(other, ControllerSnapshotType), f"Expected ControllerSnapshotType, got {type(other).__name__}"
+        assert isinstance(other, ControllerSnapshotType), (
+            f"Expected ControllerSnapshotType, got {type(other).__name__}"
+        )
         return True
-    
+
     def validate_value(self, value: Any) -> None:
         """
         Validate if the given value is a ControllerSnapshot schema object.
-        
+
         Raises:
             TypeError: If value is not a ControllerSnapshot
         """
@@ -106,32 +112,28 @@ class ControllerSnapshotType(TensorType):
 
 def DeviceIOHeadPose() -> TensorGroupType:
     """Raw head pose data from DeviceIO HeadTracker.
-    
+
     Contains:
         head_data: HeadPoseT flatbuffer schema object
     """
-    return TensorGroupType("deviceio_head_pose", [
-        HeadPoseTType("head_data")
-    ])
+    return TensorGroupType("deviceio_head_pose", [HeadPoseTType("head_data")])
 
 
 def DeviceIOHandPose() -> TensorGroupType:
     """Raw hand pose data from DeviceIO HandTracker.
-    
+
     Contains:
         hand_data: HandPoseT flatbuffer schema object
     """
-    return TensorGroupType("deviceio_hand_pose", [
-        HandPoseTType("hand_data")
-    ])
+    return TensorGroupType("deviceio_hand_pose", [HandPoseTType("hand_data")])
 
 
 def DeviceIOControllerSnapshot() -> TensorGroupType:
     """Raw controller snapshot from DeviceIO ControllerTracker.
-    
+
     Contains:
         controller_data: ControllerSnapshot flatbuffer schema object
     """
-    return TensorGroupType("deviceio_controller_snapshot", [
-        ControllerSnapshotType("controller_data")
-    ])
+    return TensorGroupType(
+        "deviceio_controller_snapshot", [ControllerSnapshotType("controller_data")]
+    )

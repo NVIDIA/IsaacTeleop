@@ -20,4 +20,3 @@ class BinaryDistribution(Distribution):
 
 
 setup(distclass=BinaryDistribution)
-

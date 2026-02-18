@@ -54,4 +54,3 @@ def orientation_array():
     """Create a quaternion orientation array (x, y, z, w)."""
     # Unit quaternion (identity rotation)
     return np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32)
-

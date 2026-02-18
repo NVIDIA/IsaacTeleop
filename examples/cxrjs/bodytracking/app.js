@@ -1,6 +1,6 @@
 /**
  * WebXR Body Tracking Testbed
- * 
+ *
  * This application demonstrates the WebXR Body Tracking API by:
  * 1. Requesting a WebXR session with body-tracking feature
  * 2. Reading body joint poses each frame
@@ -55,7 +55,7 @@ const BONE_CONNECTIONS = [
     ["spine-upper", "chest"],
     ["chest", "neck"],
     ["neck", "head"],
-    
+
     // Left arm
     ["chest", "left-shoulder"],
     ["left-shoulder", "left-scapula"],
@@ -63,7 +63,7 @@ const BONE_CONNECTIONS = [
     ["left-arm-upper", "left-arm-lower"],
     ["left-arm-lower", "left-hand-wrist-twist"],
     ["left-hand-wrist-twist", "left-hand-wrist"],
-    
+
     // Right arm
     ["chest", "right-shoulder"],
     ["right-shoulder", "right-scapula"],
@@ -71,7 +71,7 @@ const BONE_CONNECTIONS = [
     ["right-arm-upper", "right-arm-lower"],
     ["right-arm-lower", "right-hand-wrist-twist"],
     ["right-hand-wrist-twist", "right-hand-wrist"],
-    
+
     // Left hand
     ["left-hand-wrist", "left-hand-palm"],
     ["left-hand-wrist", "left-hand-thumb-metacarpal"],
@@ -98,7 +98,7 @@ const BONE_CONNECTIONS = [
     ["left-hand-little-phalanx-proximal", "left-hand-little-phalanx-intermediate"],
     ["left-hand-little-phalanx-intermediate", "left-hand-little-phalanx-distal"],
     ["left-hand-little-phalanx-distal", "left-hand-little-tip"],
-    
+
     // Right hand
     ["right-hand-wrist", "right-hand-palm"],
     ["right-hand-wrist", "right-hand-thumb-metacarpal"],
@@ -125,7 +125,7 @@ const BONE_CONNECTIONS = [
     ["right-hand-little-phalanx-proximal", "right-hand-little-phalanx-intermediate"],
     ["right-hand-little-phalanx-intermediate", "right-hand-little-phalanx-distal"],
     ["right-hand-little-phalanx-distal", "right-hand-little-tip"],
-    
+
     // Left leg
     ["hips", "left-upper-leg"],
     ["left-upper-leg", "left-lower-leg"],
@@ -134,7 +134,7 @@ const BONE_CONNECTIONS = [
     ["left-foot-ankle", "left-foot-subtalar"],
     ["left-foot-subtalar", "left-foot-transverse"],
     ["left-foot-transverse", "left-foot-ball"],
-    
+
     // Right leg
     ["hips", "right-upper-leg"],
     ["right-upper-leg", "right-lower-leg"],
@@ -222,26 +222,26 @@ const BONE_CONNECTIONS_PICO = [
     ["spine2", "spine3"],
     ["spine3", "neck"],
     ["neck", "head"],
-    
+
     // Left leg
     ["pelvis", "left-hip"],
     ["left-hip", "left-knee"],
     ["left-knee", "left-ankle"],
     ["left-ankle", "left-foot"],
-    
+
     // Right leg
     ["pelvis", "right-hip"],
     ["right-hip", "right-knee"],
     ["right-knee", "right-ankle"],
     ["right-ankle", "right-foot"],
-    
+
     // Left arm
     ["spine3", "left-collar"],
     ["left-collar", "left-shoulder"],
     ["left-shoulder", "left-elbow"],
     ["left-elbow", "left-wrist"],
     ["left-wrist", "left-hand"],
-    
+
     // Right arm
     ["spine3", "right-collar"],
     ["right-collar", "right-shoulder"],
@@ -263,15 +263,15 @@ const BONE_RADIUS = 0.008;
 const VERTEX_SHADER = `
     attribute vec4 aPosition;
     attribute vec3 aNormal;
-    
+
     uniform mat4 uModelMatrix;
     uniform mat4 uViewMatrix;
     uniform mat4 uProjectionMatrix;
     uniform mat3 uNormalMatrix;
-    
+
     varying vec3 vNormal;
     varying vec3 vPosition;
-    
+
     void main() {
         vec4 worldPosition = uModelMatrix * aPosition;
         vPosition = worldPosition.xyz;
@@ -282,26 +282,26 @@ const VERTEX_SHADER = `
 
 const FRAGMENT_SHADER = `
     precision mediump float;
-    
+
     uniform vec3 uColor;
     uniform vec3 uLightDirection;
-    
+
     varying vec3 vNormal;
     varying vec3 vPosition;
-    
+
     void main() {
         vec3 normal = normalize(vNormal);
         vec3 lightDir = normalize(uLightDirection);
-        
+
         // Ambient
         float ambient = 0.3;
-        
+
         // Diffuse
         float diffuse = max(dot(normal, lightDir), 0.0);
-        
+
         // Combine
         vec3 finalColor = uColor * (ambient + diffuse * 0.7);
-        
+
         gl_FragColor = vec4(finalColor, 1.0);
     }
 `;
@@ -328,35 +328,35 @@ async function init() {
     canvas = document.getElementById('glCanvas');
     const statusEl = document.getElementById('status');
     const enterVRBtn = document.getElementById('enterVR');
-    
+
     // Initialize WebGL
     gl = canvas.getContext('webgl', { xrCompatible: true });
     if (!gl) {
         statusEl.textContent = 'WebGL not supported';
         return;
     }
-    
+
     // Setup shaders and geometry
     setupShaders();
     setupGeometry();
-    
+
     // Check WebXR support
     if (!navigator.xr) {
         statusEl.textContent = 'WebXR not supported in this browser';
         return;
     }
-    
+
     // Check for immersive-vr support
     const vrSupported = await navigator.xr.isSessionSupported('immersive-vr');
     if (!vrSupported) {
         statusEl.textContent = 'Immersive VR not supported on this device';
         return;
     }
-    
+
     statusEl.textContent = 'WebXR ready. Click "Enter VR" to start body tracking.';
     enterVRBtn.disabled = false;
     enterVRBtn.addEventListener('click', startXRSession);
-    
+
     // Start non-XR render loop for preview
     requestAnimationFrame(renderNonXR);
 }
@@ -370,7 +370,7 @@ function setupShaders() {
         console.error('Vertex shader error:', gl.getShaderInfoLog(vertShader));
         return;
     }
-    
+
     // Compile fragment shader
     const fragShader = gl.createShader(gl.FRAGMENT_SHADER);
     gl.shaderSource(fragShader, FRAGMENT_SHADER);
@@ -379,7 +379,7 @@ function setupShaders() {
         console.error('Fragment shader error:', gl.getShaderInfoLog(fragShader));
         return;
     }
-    
+
     // Link program
     shaderProgram = gl.createProgram();
     gl.attachShader(shaderProgram, vertShader);
@@ -389,7 +389,7 @@ function setupShaders() {
         console.error('Program link error:', gl.getProgramInfoLog(shaderProgram));
         return;
     }
-    
+
     // Get uniform locations
     uniforms.modelMatrix = gl.getUniformLocation(shaderProgram, 'uModelMatrix');
     uniforms.viewMatrix = gl.getUniformLocation(shaderProgram, 'uViewMatrix');
@@ -406,7 +406,7 @@ function setupGeometry() {
 
 function createCubeBuffers() {
     const s = 0.5; // Half size, will be scaled
-    
+
     // Vertices
     const positions = new Float32Array([
         // Front
@@ -422,7 +422,7 @@ function createCubeBuffers() {
         // Left
         -s, -s, -s,  -s, -s,  s,  -s,  s,  s,  -s,  s, -s
     ]);
-    
+
     const normals = new Float32Array([
         // Front
         0, 0, 1,  0, 0, 1,  0, 0, 1,  0, 0, 1,
@@ -437,7 +437,7 @@ function createCubeBuffers() {
         // Left
         -1, 0, 0,  -1, 0, 0,  -1, 0, 0,  -1, 0, 0
     ]);
-    
+
     const indices = new Uint16Array([
         0, 1, 2,  0, 2, 3,    // Front
         4, 5, 6,  4, 6, 7,    // Back
@@ -446,19 +446,19 @@ function createCubeBuffers() {
         16, 17, 18,  16, 18, 19, // Right
         20, 21, 22,  20, 22, 23  // Left
     ]);
-    
+
     const posBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
-    
+
     const normalBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, normals, gl.STATIC_DRAW);
-    
+
     const indexBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
-    
+
     return {
         position: posBuffer,
         normal: normalBuffer,
@@ -471,45 +471,45 @@ function createCylinderBuffers(segments) {
     const positions = [];
     const normals = [];
     const indices = [];
-    
+
     // Cylinder along Y axis, from y=0 to y=1, radius=1 (will be scaled)
     for (let i = 0; i <= segments; i++) {
         const angle = (i / segments) * Math.PI * 2;
         const x = Math.cos(angle);
         const z = Math.sin(angle);
-        
+
         // Bottom vertex
         positions.push(x, 0, z);
         normals.push(x, 0, z);
-        
+
         // Top vertex
         positions.push(x, 1, z);
         normals.push(x, 0, z);
     }
-    
+
     // Indices
     for (let i = 0; i < segments; i++) {
         const i0 = i * 2;
         const i1 = i * 2 + 1;
         const i2 = i * 2 + 2;
         const i3 = i * 2 + 3;
-        
+
         indices.push(i0, i2, i1);
         indices.push(i1, i2, i3);
     }
-    
+
     const posBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
-    
+
     const normalBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals), gl.STATIC_DRAW);
-    
+
     const indexBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
-    
+
     return {
         position: posBuffer,
         normal: normalBuffer,
@@ -529,27 +529,27 @@ async function startXRSession() {
             requiredFeatures: ['local-floor'],
             optionalFeatures: ['body-tracking']
         });
-        
+
         console.log('WebXR session started');
         console.log('Body tracking available:', xrSession.enabledFeatures?.includes('body-tracking') ?? 'unknown');
-        
+
         document.getElementById('overlay').style.display = 'none';
-        
+
         // Setup WebGL for XR
         await gl.makeXRCompatible();
-        
+
         const baseLayer = new XRWebGLLayer(xrSession, gl);
         xrSession.updateRenderState({ baseLayer });
-        
+
         // Get reference space
         xrRefSpace = await xrSession.requestReferenceSpace('local-floor');
-        
+
         // Handle session end
         xrSession.addEventListener('end', onXRSessionEnd);
-        
+
         // Start XR render loop
         xrSession.requestAnimationFrame(onXRFrame);
-        
+
     } catch (error) {
         console.error('Failed to start XR session:', error);
         document.getElementById('status').textContent = 'Failed to start XR: ' + error.message;
@@ -571,46 +571,46 @@ function onXRSessionEnd() {
 function onXRFrame(time, frame) {
     const session = frame.session;
     session.requestAnimationFrame(onXRFrame);
-    
+
     const pose = frame.getViewerPose(xrRefSpace);
     if (!pose) return;
-    
+
     const glLayer = session.renderState.baseLayer;
     gl.bindFramebuffer(gl.FRAMEBUFFER, glLayer.framebuffer);
-    
+
     gl.clearColor(0.1, 0.1, 0.15, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.enable(gl.DEPTH_TEST);
     gl.enable(gl.CULL_FACE);
-    
+
     // Get body tracking data from WebXR
     const body = frame.body;
     let jointPositions = null;
     let jointPositionsPico = null;
-    
+
     if (body) {
         // Extract standard WebXR joint positions
         jointPositions = {};
-        
+
         // Log body data periodically
         if (frameCount % 60 === 0) {
             console.log('=== Body Tracking Data ===');
             console.log('WebXR Body size (number of joints):', body.size);
         }
-        
+
         // Iterate through all WebXR joints
         for (const [jointName, jointSpace] of body) {
             const jointPose = frame.getPose(jointSpace, xrRefSpace);
-            
+
             if (jointPose) {
                 const pos = jointPose.transform.position;
                 const rot = jointPose.transform.orientation;
-                
+
                 jointPositions[jointName] = {
                     position: [pos.x, pos.y, pos.z],
                     orientation: [rot.x, rot.y, rot.z, rot.w]
                 };
-                
+
                 // Log joint data periodically
                 if (frameCount % 60 === 0) {
                     console.log(`Joint: ${jointName}`);
@@ -618,14 +618,14 @@ function onXRFrame(time, frame) {
                 }
             }
         }
-        
+
         // Derive Pico skeleton from WebXR skeleton using mapping
         jointPositionsPico = convertWebXRToPico(jointPositions);
-        
+
         // Update UI
         const webxrJointCount = Object.keys(jointPositions).length;
         const picoJointCount = Object.keys(jointPositionsPico).length;
-        document.getElementById('jointCount').textContent = 
+        document.getElementById('jointCount').textContent =
             `WebXR: ${webxrJointCount} joints | Pico: ${picoJointCount} joints`;
     } else {
         // No body tracking available
@@ -634,15 +634,15 @@ function onXRFrame(time, frame) {
         }
         document.getElementById('jointCount').textContent = 'Body tracking not available';
     }
-    
+
     // Render for each view (eye)
     for (const view of pose.views) {
         const viewport = glLayer.getViewport(view);
         gl.viewport(viewport.x, viewport.y, viewport.width, viewport.height);
-        
+
         renderScene(view.projectionMatrix, view.transform.inverse.matrix, jointPositions, jointPositionsPico);
     }
-    
+
     frameCount++;
 }
 
@@ -654,13 +654,13 @@ function onXRFrame(time, frame) {
  */
 function convertWebXRToPico(webxrJoints) {
     const picoJoints = {};
-    
+
     if (!webxrJoints) return picoJoints;
-    
+
     // Map each Pico joint to its WebXR equivalent
     for (const picoJoint of BODY_JOINTS_PICO) {
         const webxrJoint = PICO_TO_WEBXR_JOINT_MAP[picoJoint];
-        
+
         if (webxrJoints[webxrJoint]) {
             picoJoints[picoJoint] = {
                 position: [...webxrJoints[webxrJoint].position],
@@ -668,67 +668,67 @@ function convertWebXRToPico(webxrJoints) {
             };
         }
     }
-    
+
     return picoJoints;
 }
 
 function renderNonXR() {
     if (xrSession) return;
-    
+
     // Resize canvas
     canvas.width = canvas.clientWidth * window.devicePixelRatio;
     canvas.height = canvas.clientHeight * window.devicePixelRatio;
-    
+
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.clearColor(0.1, 0.1, 0.15, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.enable(gl.DEPTH_TEST);
     gl.enable(gl.CULL_FACE);
-    
+
     // Create simple preview - render standard skeleton and derived Pico skeleton
     const aspect = canvas.width / canvas.height;
     const projMatrix = createPerspectiveMatrix(Math.PI / 4, aspect, 0.1, 100);
     const viewMatrix = createLookAtMatrix([0, 1.5, 4], [0, 1, 0], [0, 1, 0]);
-    
+
     const time = performance.now() / 1000;
-    
+
     // Create standard WebXR skeleton
     const standardPositions = createDemoSkeleton(time);
-    
+
     // Convert to Pico format
     const picoPositions = convertWebXRToPico(standardPositions);
-    
+
     renderSceneMultiFormat(projMatrix, viewMatrix, standardPositions, picoPositions);
-    
+
     requestAnimationFrame(renderNonXR);
 }
 
 // Render scene with both WebXR and Pico skeletons
 function renderSceneMultiFormat(projectionMatrix, viewMatrix, standardPositions, picoPositions) {
     gl.useProgram(shaderProgram);
-    
+
     // Set view and projection matrices
     gl.uniformMatrix4fv(uniforms.projectionMatrix, false, projectionMatrix);
     gl.uniformMatrix4fv(uniforms.viewMatrix, false, viewMatrix);
-    
+
     // Set light direction
     gl.uniform3fv(uniforms.lightDirection, [0.5, 1.0, 0.5]);
-    
+
     // Draw standard WebXR skeleton on the left
     if (standardPositions) {
         const standardOffset = offsetSkeleton(standardPositions, -0.8, 0, 0);
         drawSkeleton(standardOffset, 1.0, SKELETON_FORMAT.STANDARD);
-        
+
         // Draw skeleton facing away from user
         const facingAwayStandard = createFacingAwaySkeleton(standardOffset, 2.0);
         drawSkeleton(facingAwayStandard, 0.7, SKELETON_FORMAT.STANDARD);
     }
-    
+
     // Draw Pico skeleton (derived from WebXR) on the right
     if (picoPositions) {
         const picoOffset = offsetSkeleton(picoPositions, 0.8, 0, 0);
         drawSkeleton(picoOffset, 1.0, SKELETON_FORMAT.PICO);
-        
+
         // Draw skeleton facing away from user
         const facingAwayPico = createFacingAwaySkeleton(picoOffset, 2.0);
         drawSkeleton(facingAwayPico, 0.7, SKELETON_FORMAT.PICO);
@@ -737,31 +737,31 @@ function renderSceneMultiFormat(projectionMatrix, viewMatrix, standardPositions,
 
 function renderScene(projectionMatrix, viewMatrix, jointPositions, jointPositionsPico) {
     gl.useProgram(shaderProgram);
-    
+
     // Set view and projection matrices
     gl.uniformMatrix4fv(uniforms.projectionMatrix, false, projectionMatrix);
     gl.uniformMatrix4fv(uniforms.viewMatrix, false, viewMatrix);
-    
+
     // Set light direction
     gl.uniform3fv(uniforms.lightDirection, [0.5, 1.0, 0.5]);
-    
+
     if (!jointPositions && !jointPositionsPico) return;
-    
+
     // Draw the WebXR skeleton (user's body) if available
     if (jointPositions) {
         drawSkeleton(jointPositions, 1.0, SKELETON_FORMAT.STANDARD);
-        
+
         // Draw skeleton facing away from user
         const facingAwayStandard = createFacingAwaySkeleton(jointPositions, 2.0);
         drawSkeleton(facingAwayStandard, 0.7, SKELETON_FORMAT.STANDARD);
     }
-    
+
     // Draw the Pico skeleton (derived from WebXR) if available
     if (jointPositionsPico) {
         // Offset Pico skeleton to the side so both are visible
         const offsetPico = offsetSkeleton(jointPositionsPico, 0.8, 0, 0);
         drawSkeleton(offsetPico, 1.0, SKELETON_FORMAT.PICO);
-        
+
         // Draw skeleton facing away from user
         const facingAwayPico = createFacingAwaySkeleton(offsetPico, 2.0);
         drawSkeleton(facingAwayPico, 0.7, SKELETON_FORMAT.PICO);
@@ -783,11 +783,11 @@ function offsetSkeleton(jointPositions, offsetX, offsetY, offsetZ) {
 
 function createFacingAwaySkeleton(jointPositions, offsetZ) {
     const facingAway = {};
-    
+
     for (const jointName in jointPositions) {
         const joint = jointPositions[jointName];
         const pos = joint.position;
-        
+
         // Offset Z backward to place skeleton behind, facing away (no coordinate flipping)
         // This preserves left/right - when you raise your left hand, its left hand raises
         facingAway[jointName] = {
@@ -795,16 +795,16 @@ function createFacingAwaySkeleton(jointPositions, offsetZ) {
             orientation: joint.orientation
         };
     }
-    
+
     return facingAway;
 }
 
 function drawSkeleton(jointPositions, brightness, skeletonFormat) {
     // Select appropriate bone connections based on format
-    const boneConnections = skeletonFormat === SKELETON_FORMAT.PICO 
-        ? BONE_CONNECTIONS_PICO 
+    const boneConnections = skeletonFormat === SKELETON_FORMAT.PICO
+        ? BONE_CONNECTIONS_PICO
         : BONE_CONNECTIONS;
-    
+
     // Draw joints as cubes
     for (const jointName in jointPositions) {
         const joint = jointPositions[jointName];
@@ -812,12 +812,12 @@ function drawSkeleton(jointPositions, brightness, skeletonFormat) {
         const adjustedColor = [color[0] * brightness, color[1] * brightness, color[2] * brightness];
         drawCube(joint.position, JOINT_SIZE, adjustedColor);
     }
-    
+
     // Draw bones as cylinders
     for (const [joint1Name, joint2Name] of boneConnections) {
         const joint1 = jointPositions[joint1Name];
         const joint2 = jointPositions[joint2Name];
-        
+
         if (joint1 && joint2) {
             const color = getBoneColor(joint1Name, joint2Name);
             const adjustedColor = [color[0] * brightness, color[1] * brightness, color[2] * brightness];
@@ -834,23 +834,23 @@ function drawCube(position, size, color) {
     const modelMatrix = createTranslationMatrix(position[0], position[1], position[2]);
     const scaleMatrix = createScaleMatrix(size, size, size);
     const finalMatrix = multiplyMatrices(modelMatrix, scaleMatrix);
-    
+
     gl.uniformMatrix4fv(uniforms.modelMatrix, false, finalMatrix);
     gl.uniformMatrix3fv(uniforms.normalMatrix, false, extractNormalMatrix(finalMatrix));
     gl.uniform3fv(uniforms.color, color);
-    
+
     // Bind buffers
     const posLoc = gl.getAttribLocation(shaderProgram, 'aPosition');
     const normLoc = gl.getAttribLocation(shaderProgram, 'aNormal');
-    
+
     gl.bindBuffer(gl.ARRAY_BUFFER, cubeBuffers.position);
     gl.enableVertexAttribArray(posLoc);
     gl.vertexAttribPointer(posLoc, 3, gl.FLOAT, false, 0, 0);
-    
+
     gl.bindBuffer(gl.ARRAY_BUFFER, cubeBuffers.normal);
     gl.enableVertexAttribArray(normLoc);
     gl.vertexAttribPointer(normLoc, 3, gl.FLOAT, false, 0, 0);
-    
+
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cubeBuffers.indices);
     gl.drawElements(gl.TRIANGLES, cubeBuffers.indexCount, gl.UNSIGNED_SHORT, 0);
 }
@@ -861,28 +861,28 @@ function drawCylinder(start, end, radius, color) {
     const dy = end[1] - start[1];
     const dz = end[2] - start[2];
     const length = Math.sqrt(dx*dx + dy*dy + dz*dz);
-    
+
     if (length < 0.001) return;
-    
+
     // Create transformation matrix to position and orient cylinder
     const modelMatrix = createCylinderTransform(start, end, radius, length);
-    
+
     gl.uniformMatrix4fv(uniforms.modelMatrix, false, modelMatrix);
     gl.uniformMatrix3fv(uniforms.normalMatrix, false, extractNormalMatrix(modelMatrix));
     gl.uniform3fv(uniforms.color, color);
-    
+
     // Bind buffers
     const posLoc = gl.getAttribLocation(shaderProgram, 'aPosition');
     const normLoc = gl.getAttribLocation(shaderProgram, 'aNormal');
-    
+
     gl.bindBuffer(gl.ARRAY_BUFFER, cylinderBuffers.position);
     gl.enableVertexAttribArray(posLoc);
     gl.vertexAttribPointer(posLoc, 3, gl.FLOAT, false, 0, 0);
-    
+
     gl.bindBuffer(gl.ARRAY_BUFFER, cylinderBuffers.normal);
     gl.enableVertexAttribArray(normLoc);
     gl.vertexAttribPointer(normLoc, 3, gl.FLOAT, false, 0, 0);
-    
+
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cylinderBuffers.indices);
     gl.drawElements(gl.TRIANGLES, cylinderBuffers.indexCount, gl.UNSIGNED_SHORT, 0);
 }
@@ -894,7 +894,7 @@ function drawCylinder(start, end, radius, color) {
 function createPerspectiveMatrix(fov, aspect, near, far) {
     const f = 1.0 / Math.tan(fov / 2);
     const nf = 1 / (near - far);
-    
+
     return new Float32Array([
         f / aspect, 0, 0, 0,
         0, f, 0, 0,
@@ -907,7 +907,7 @@ function createLookAtMatrix(eye, target, up) {
     const zAxis = normalize([eye[0] - target[0], eye[1] - target[1], eye[2] - target[2]]);
     const xAxis = normalize(cross(up, zAxis));
     const yAxis = cross(zAxis, xAxis);
-    
+
     return new Float32Array([
         xAxis[0], yAxis[0], zAxis[0], 0,
         xAxis[1], yAxis[1], zAxis[1], 0,
@@ -939,19 +939,19 @@ function createCylinderTransform(start, end, radius, length) {
     const dx = end[0] - start[0];
     const dy = end[1] - start[1];
     const dz = end[2] - start[2];
-    
+
     // Normalize
     const dir = normalize([dx, dy, dz]);
-    
+
     // Find perpendicular vectors
     let up = [0, 1, 0];
     if (Math.abs(dir[1]) > 0.99) {
         up = [1, 0, 0];
     }
-    
+
     const right = normalize(cross(up, dir));
     const newUp = cross(dir, right);
-    
+
     // Create rotation matrix that aligns Y axis with direction
     // Then scale and translate
     return new Float32Array([
@@ -966,7 +966,7 @@ function multiplyMatrices(a, b) {
     const result = new Float32Array(16);
     for (let i = 0; i < 4; i++) {
         for (let j = 0; j < 4; j++) {
-            result[j * 4 + i] = 
+            result[j * 4 + i] =
                 a[i] * b[j * 4] +
                 a[i + 4] * b[j * 4 + 1] +
                 a[i + 8] * b[j * 4 + 2] +
@@ -1009,44 +1009,44 @@ function dot(a, b) {
 
 function getJointColor(jointName) {
     // Color coding by body part (supports both standard and Pico joint names)
-    
+
     // Head/neck - skin tone
     if (jointName.includes('head') || jointName.includes('neck')) {
         return [0.9, 0.7, 0.5];
     }
-    
+
     // Torso - blue (standard: spine/chest/hips, Pico: pelvis/spine-1/2/3)
-    if (jointName.includes('spine') || jointName.includes('chest') || 
+    if (jointName.includes('spine') || jointName.includes('chest') ||
         jointName.includes('hips') || jointName === 'pelvis') {
         return [0.2, 0.6, 0.9];
     }
-    
+
     // Left arm/hand - red (includes collar, shoulder, elbow, wrist, hand)
-    if (jointName.includes('left-hand') || jointName.includes('left-arm') || 
+    if (jointName.includes('left-hand') || jointName.includes('left-arm') ||
         jointName.includes('left-shoulder') || jointName.includes('left-scapula') ||
         jointName.includes('left-collar') || jointName.includes('left-elbow') ||
         jointName.includes('left-wrist')) {
         return [0.9, 0.3, 0.3];
     }
-    
+
     // Right arm/hand - green (includes collar, shoulder, elbow, wrist, hand)
-    if (jointName.includes('right-hand') || jointName.includes('right-arm') || 
+    if (jointName.includes('right-hand') || jointName.includes('right-arm') ||
         jointName.includes('right-shoulder') || jointName.includes('right-scapula') ||
         jointName.includes('right-collar') || jointName.includes('right-elbow') ||
         jointName.includes('right-wrist')) {
         return [0.3, 0.9, 0.3];
     }
-    
+
     // Left leg - orange (hip, knee, ankle, foot)
     if (jointName.includes('left-')) {
         return [0.9, 0.5, 0.2];
     }
-    
+
     // Right leg - purple (hip, knee, ankle, foot)
     if (jointName.includes('right-')) {
         return [0.5, 0.2, 0.9];
     }
-    
+
     return [0.8, 0.8, 0.8]; // Default gray
 }
 
@@ -1063,11 +1063,11 @@ function getBoneColor(joint1Name, joint2Name) {
 // Create demo skeleton in standard format
 function createDemoSkeleton(time) {
     const positions = {};
-    
+
     // Animate slightly
     const breathe = Math.sin(time * 2) * 0.02;
     const sway = Math.sin(time) * 0.05;
-    
+
     // Torso
     positions['hips'] = { position: [sway, 0.9, 0], orientation: [0, 0, 0, 1] };
     positions['spine-lower'] = { position: [sway, 1.0, 0], orientation: [0, 0, 0, 1] };
@@ -1076,7 +1076,7 @@ function createDemoSkeleton(time) {
     positions['chest'] = { position: [sway, 1.3 + breathe, 0], orientation: [0, 0, 0, 1] };
     positions['neck'] = { position: [sway, 1.45 + breathe, 0], orientation: [0, 0, 0, 1] };
     positions['head'] = { position: [sway, 1.6 + breathe, 0], orientation: [0, 0, 0, 1] };
-    
+
     // Left arm
     const leftArmSwing = Math.sin(time * 1.5) * 0.1;
     positions['left-shoulder'] = { position: [0.15 + sway, 1.4 + breathe, 0], orientation: [0, 0, 0, 1] };
@@ -1086,7 +1086,7 @@ function createDemoSkeleton(time) {
     positions['left-hand-wrist-twist'] = { position: [0.38 + sway, 0.88 + breathe, leftArmSwing * 1.8], orientation: [0, 0, 0, 1] };
     positions['left-hand-wrist'] = { position: [0.4 + sway, 0.85 + breathe, leftArmSwing * 2], orientation: [0, 0, 0, 1] };
     positions['left-hand-palm'] = { position: [0.4 + sway, 0.82 + breathe, leftArmSwing * 2], orientation: [0, 0, 0, 1] };
-    
+
     // Right arm
     const rightArmSwing = Math.sin(time * 1.5 + Math.PI) * 0.1;
     positions['right-shoulder'] = { position: [-0.15 + sway, 1.4 + breathe, 0], orientation: [0, 0, 0, 1] };
@@ -1096,7 +1096,7 @@ function createDemoSkeleton(time) {
     positions['right-hand-wrist-twist'] = { position: [-0.38 + sway, 0.88 + breathe, rightArmSwing * 1.8], orientation: [0, 0, 0, 1] };
     positions['right-hand-wrist'] = { position: [-0.4 + sway, 0.85 + breathe, rightArmSwing * 2], orientation: [0, 0, 0, 1] };
     positions['right-hand-palm'] = { position: [-0.4 + sway, 0.82 + breathe, rightArmSwing * 2], orientation: [0, 0, 0, 1] };
-    
+
     // Left leg
     positions['left-upper-leg'] = { position: [0.1 + sway, 0.85, 0], orientation: [0, 0, 0, 1] };
     positions['left-lower-leg'] = { position: [0.1 + sway * 0.5, 0.45, 0], orientation: [0, 0, 0, 1] };
@@ -1105,7 +1105,7 @@ function createDemoSkeleton(time) {
     positions['left-foot-subtalar'] = { position: [0.1 + sway * 0.1, 0.05, 0.02], orientation: [0, 0, 0, 1] };
     positions['left-foot-transverse'] = { position: [0.1, 0.03, 0.06], orientation: [0, 0, 0, 1] };
     positions['left-foot-ball'] = { position: [0.1, 0.02, 0.12], orientation: [0, 0, 0, 1] };
-    
+
     // Right leg
     positions['right-upper-leg'] = { position: [-0.1 + sway, 0.85, 0], orientation: [0, 0, 0, 1] };
     positions['right-lower-leg'] = { position: [-0.1 + sway * 0.5, 0.45, 0], orientation: [0, 0, 0, 1] };
@@ -1114,18 +1114,18 @@ function createDemoSkeleton(time) {
     positions['right-foot-subtalar'] = { position: [-0.1 + sway * 0.1, 0.05, 0.02], orientation: [0, 0, 0, 1] };
     positions['right-foot-transverse'] = { position: [-0.1, 0.03, 0.06], orientation: [0, 0, 0, 1] };
     positions['right-foot-ball'] = { position: [-0.1, 0.02, 0.12], orientation: [0, 0, 0, 1] };
-    
+
     return positions;
 }
 
 // Create demo skeleton in Pico format (24 joints)
 function createDemoSkeletonPico(time) {
     const positions = {};
-    
+
     // Animate slightly
     const breathe = Math.sin(time * 2) * 0.02;
     const sway = Math.sin(time) * 0.05;
-    
+
     // Torso/Spine
     positions['pelvis'] = { position: [sway, 0.95, 0], orientation: [0, 0, 0, 1] };
     positions['spine1'] = { position: [sway, 1.05, 0], orientation: [0, 0, 0, 1] };
@@ -1133,7 +1133,7 @@ function createDemoSkeletonPico(time) {
     positions['spine3'] = { position: [sway, 1.3 + breathe, 0], orientation: [0, 0, 0, 1] };
     positions['neck'] = { position: [sway, 1.45 + breathe, 0], orientation: [0, 0, 0, 1] };
     positions['head'] = { position: [sway, 1.6 + breathe, 0], orientation: [0, 0, 0, 1] };
-    
+
     // Left arm
     const leftArmSwing = Math.sin(time * 1.5) * 0.1;
     positions['left-collar'] = { position: [0.1 + sway, 1.35 + breathe, 0], orientation: [0, 0, 0, 1] };
@@ -1141,7 +1141,7 @@ function createDemoSkeletonPico(time) {
     positions['left-elbow'] = { position: [0.35 + sway, 1.1 + breathe, leftArmSwing], orientation: [0, 0, 0, 1] };
     positions['left-wrist'] = { position: [0.4 + sway, 0.88 + breathe, leftArmSwing * 1.5], orientation: [0, 0, 0, 1] };
     positions['left-hand'] = { position: [0.42 + sway, 0.82 + breathe, leftArmSwing * 1.8], orientation: [0, 0, 0, 1] };
-    
+
     // Right arm
     const rightArmSwing = Math.sin(time * 1.5 + Math.PI) * 0.1;
     positions['right-collar'] = { position: [-0.1 + sway, 1.35 + breathe, 0], orientation: [0, 0, 0, 1] };
@@ -1149,19 +1149,19 @@ function createDemoSkeletonPico(time) {
     positions['right-elbow'] = { position: [-0.35 + sway, 1.1 + breathe, rightArmSwing], orientation: [0, 0, 0, 1] };
     positions['right-wrist'] = { position: [-0.4 + sway, 0.88 + breathe, rightArmSwing * 1.5], orientation: [0, 0, 0, 1] };
     positions['right-hand'] = { position: [-0.42 + sway, 0.82 + breathe, rightArmSwing * 1.8], orientation: [0, 0, 0, 1] };
-    
+
     // Left leg
     positions['left-hip'] = { position: [0.1 + sway, 0.9, 0], orientation: [0, 0, 0, 1] };
     positions['left-knee'] = { position: [0.1 + sway * 0.5, 0.5, 0], orientation: [0, 0, 0, 1] };
     positions['left-ankle'] = { position: [0.1 + sway * 0.2, 0.08, 0], orientation: [0, 0, 0, 1] };
     positions['left-foot'] = { position: [0.1, 0.03, 0.08], orientation: [0, 0, 0, 1] };
-    
+
     // Right leg
     positions['right-hip'] = { position: [-0.1 + sway, 0.9, 0], orientation: [0, 0, 0, 1] };
     positions['right-knee'] = { position: [-0.1 + sway * 0.5, 0.5, 0], orientation: [0, 0, 0, 1] };
     positions['right-ankle'] = { position: [-0.1 + sway * 0.2, 0.08, 0], orientation: [0, 0, 0, 1] };
     positions['right-foot'] = { position: [-0.1, 0.03, 0.08], orientation: [0, 0, 0, 1] };
-    
+
     return positions;
 }
 
@@ -1170,4 +1170,3 @@ function createDemoSkeletonPico(time) {
 // ============================================================================
 
 init();
-

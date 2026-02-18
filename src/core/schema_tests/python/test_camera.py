@@ -7,8 +7,6 @@ Tests the following FlatBuffers types:
 - FrameMetadata: Table with timestamp and sequence_number
 """
 
-import pytest
-
 from isaacteleop.schema import (
     FrameMetadata,
     Timestamp,
@@ -127,7 +125,9 @@ class TestFrameMetadataScenarios:
             metadata = FrameMetadata()
             metadata.timestamp = Timestamp(
                 device_time=base_device_time + i * frame_interval,
-                common_time=base_device_time + i * frame_interval + 100,  # Small offset.
+                common_time=base_device_time
+                + i * frame_interval
+                + 100,  # Small offset.
             )
             metadata.sequence_number = i
             frames.append(metadata)
@@ -154,7 +154,9 @@ class TestFrameMetadataScenarios:
     def test_sequence_rollover_scenario(self):
         """Test metadata near sequence number boundaries."""
         metadata = FrameMetadata()
-        metadata.timestamp = Timestamp(device_time=999999999999, common_time=999999999999)
+        metadata.timestamp = Timestamp(
+            device_time=999999999999, common_time=999999999999
+        )
         metadata.sequence_number = 2147483646  # Near max int32
 
         assert metadata.sequence_number == 2147483646

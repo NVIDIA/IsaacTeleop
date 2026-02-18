@@ -244,4 +244,3 @@ Available examples:
 - `test_modular.py` - Complete API test
 - `test_extensions.py` - Extension query demonstration
 - `test_session_sharing.py` - Session sharing between managers
-

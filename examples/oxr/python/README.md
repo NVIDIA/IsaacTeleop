@@ -97,4 +97,3 @@ Set the XR_RUNTIME_JSON environment variable:
 ```bash
 export XR_RUNTIME_JSON=/path/to/your/openxr_runtime.json
 ```
-

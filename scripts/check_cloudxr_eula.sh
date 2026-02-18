@@ -48,4 +48,3 @@ else
     echo "CloudXR EULA not accepted. Exiting."
     exit 1
 fi
-

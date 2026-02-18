@@ -28,4 +28,3 @@ install(TARGETS manus_hand_plugin
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../plugin.yaml" "${CMAKE_CURRENT_SOURCE_DIR}/../README.md"
     DESTINATION plugins/manus
 )
-

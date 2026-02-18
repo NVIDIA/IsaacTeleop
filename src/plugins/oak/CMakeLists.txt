@@ -55,8 +55,8 @@ install(TARGETS camera_plugin_oak
     RUNTIME DESTINATION plugins/oak_camera
 )
 
-install(FILES 
-    "${CMAKE_CURRENT_SOURCE_DIR}/plugin.yaml" 
+install(FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/plugin.yaml"
     "${CMAKE_CURRENT_SOURCE_DIR}/README.md"
     DESTINATION plugins/oak_camera
 )
@@ -67,7 +67,7 @@ install(CODE "
     # Find libusb in depthai's dependency installation
     set(LIBUSB_SOURCE \"\${CMAKE_INSTALL_PREFIX}/lib/cmake/depthai/dependencies/lib/libusb-1.0.so\")
     set(LIBUSB_DEST \"\${CMAKE_INSTALL_PREFIX}/plugins/oak_camera/libusb-1.0.so\")
-    
+
     if(EXISTS \"\${LIBUSB_SOURCE}\")
         message(STATUS \"Installing libusb-1.0.so from depthai dependencies to plugin directory\")
         file(COPY \"\${LIBUSB_SOURCE}\" DESTINATION \"\${CMAKE_INSTALL_PREFIX}/plugins/oak_camera/\")

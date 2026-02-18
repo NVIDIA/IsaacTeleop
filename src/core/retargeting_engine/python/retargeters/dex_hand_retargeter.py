@@ -60,6 +60,7 @@ class DexHandRetargeterConfig:
         hand_side: Which hand to retarget ("left" or "right")
         parameter_config_path: Optional path to JSON file for saving/loading tunable parameters.
     """
+
     hand_retargeting_config: str
     hand_urdf: str
     hand_joint_names: Optional[List[str]] = None
@@ -100,15 +101,19 @@ class DexHandRetargeter(BaseRetargeter):
         self._config = config
         self._hand_side = config.hand_side.lower()
         if self._hand_side not in ["left", "right"]:
-            raise ValueError(f"hand_side must be 'left' or 'right', got: {self._hand_side}")
+            raise ValueError(
+                f"hand_side must be 'left' or 'right', got: {self._hand_side}"
+            )
 
         # Initialize the transform matrix
-        self._handtracking2baselink = np.array(config.handtracking_to_baselink_frame_transform).reshape(3, 3)
+        self._handtracking2baselink = np.array(
+            config.handtracking_to_baselink_frame_transform
+        ).reshape(3, 3)
 
         # Calculate initial Euler angles for the parameter default
         # We use 'xyz' convention (extrinsic) and degrees for intuitive tuning
         r = R.from_matrix(self._handtracking2baselink)
-        default_rpy = r.as_euler('xyz', degrees=True)
+        default_rpy = r.as_euler("xyz", degrees=True)
 
         # Initialize last RPY for change detection
         self._last_rpy: Optional[np.ndarray] = None
@@ -120,14 +125,16 @@ class DexHandRetargeter(BaseRetargeter):
             default_value=default_rpy,
             min_value=-180.0,
             max_value=180.0,
-            sync_fn=self._update_transform_from_rpy
+            sync_fn=self._update_transform_from_rpy,
         )
 
         # Setup paths and configs
         self._prepare_configs()
 
         # Initialize dex retargeting optimizer
-        self._dex_hand = RetargetingConfig.load_from_file(config.hand_retargeting_config).build()
+        self._dex_hand = RetargetingConfig.load_from_file(
+            config.hand_retargeting_config
+        ).build()
 
         # Cache joint names from optimizer
         self._dof_names = self._dex_hand.optimizer.robot.dof_joint_names
@@ -138,7 +145,9 @@ class DexHandRetargeter(BaseRetargeter):
             self._hand_joint_names = config.hand_joint_names
 
         # Create ParameterState for tuning
-        param_state = ParameterState(name, parameters=[transform_param], config_file=config.parameter_config_path)
+        param_state = ParameterState(
+            name, parameters=[transform_param], config_file=config.parameter_config_path
+        )
 
         super().__init__(name=name, parameter_state=param_state)
 
@@ -147,11 +156,26 @@ class DexHandRetargeter(BaseRetargeter):
         # We skip index 0 (palm) and skip metacarpal joints for non-thumb fingers
         self._hand_joints_index = [
             HandJointIndex.WRIST,
-            HandJointIndex.THUMB_METACARPAL, HandJointIndex.THUMB_PROXIMAL, HandJointIndex.THUMB_DISTAL, HandJointIndex.THUMB_TIP,
-            HandJointIndex.INDEX_PROXIMAL, HandJointIndex.INDEX_INTERMEDIATE, HandJointIndex.INDEX_DISTAL, HandJointIndex.INDEX_TIP,
-            HandJointIndex.MIDDLE_PROXIMAL, HandJointIndex.MIDDLE_INTERMEDIATE, HandJointIndex.MIDDLE_DISTAL, HandJointIndex.MIDDLE_TIP,
-            HandJointIndex.RING_PROXIMAL, HandJointIndex.RING_INTERMEDIATE, HandJointIndex.RING_DISTAL, HandJointIndex.RING_TIP,
-            HandJointIndex.LITTLE_PROXIMAL, HandJointIndex.LITTLE_INTERMEDIATE, HandJointIndex.LITTLE_DISTAL, HandJointIndex.LITTLE_TIP
+            HandJointIndex.THUMB_METACARPAL,
+            HandJointIndex.THUMB_PROXIMAL,
+            HandJointIndex.THUMB_DISTAL,
+            HandJointIndex.THUMB_TIP,
+            HandJointIndex.INDEX_PROXIMAL,
+            HandJointIndex.INDEX_INTERMEDIATE,
+            HandJointIndex.INDEX_DISTAL,
+            HandJointIndex.INDEX_TIP,
+            HandJointIndex.MIDDLE_PROXIMAL,
+            HandJointIndex.MIDDLE_INTERMEDIATE,
+            HandJointIndex.MIDDLE_DISTAL,
+            HandJointIndex.MIDDLE_TIP,
+            HandJointIndex.RING_PROXIMAL,
+            HandJointIndex.RING_INTERMEDIATE,
+            HandJointIndex.RING_DISTAL,
+            HandJointIndex.RING_TIP,
+            HandJointIndex.LITTLE_PROXIMAL,
+            HandJointIndex.LITTLE_INTERMEDIATE,
+            HandJointIndex.LITTLE_DISTAL,
+            HandJointIndex.LITTLE_TIP,
         ]
 
     def input_spec(self) -> RetargeterIOType:
@@ -166,11 +190,13 @@ class DexHandRetargeter(BaseRetargeter):
         return {
             "hand_joints": TensorGroupType(
                 f"hand_joints_{self._hand_side}",
-                [FloatType(name) for name in self._hand_joint_names]
+                [FloatType(name) for name in self._hand_joint_names],
             )
         }
 
-    def compute(self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]) -> None:
+    def compute(
+        self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]
+    ) -> None:
         """
         Execute the hand retargeting transformation.
 
@@ -193,9 +219,15 @@ class DexHandRetargeter(BaseRetargeter):
             return
 
         # Convert NDArray inputs to numpy
-        joint_positions = np.from_dlpack(hand_group[HandInputIndex.JOINT_POSITIONS])      # (26, 3) float32
-        joint_orientations = np.from_dlpack(hand_group[HandInputIndex.JOINT_ORIENTATIONS])   # (26, 4) float32
-        joint_valid = np.from_dlpack(hand_group[HandInputIndex.JOINT_VALID])          # (26,) uint8
+        joint_positions = np.from_dlpack(
+            hand_group[HandInputIndex.JOINT_POSITIONS]
+        )  # (26, 3) float32
+        joint_orientations = np.from_dlpack(
+            hand_group[HandInputIndex.JOINT_ORIENTATIONS]
+        )  # (26, 4) float32
+        joint_valid = np.from_dlpack(
+            hand_group[HandInputIndex.JOINT_VALID]
+        )  # (26,) uint8
 
         # Create poses dictionary (joint positions + orientations)
         # Format: {joint_name: [x, y, z, qw, qx, qy, qz], ...}
@@ -203,12 +235,32 @@ class DexHandRetargeter(BaseRetargeter):
 
         # Joint names in OpenXR order
         joint_names = [
-            "palm", "wrist",
-            "thumb_metacarpal", "thumb_proximal", "thumb_distal", "thumb_tip",
-            "index_metacarpal", "index_proximal", "index_intermediate", "index_distal", "index_tip",
-            "middle_metacarpal", "middle_proximal", "middle_intermediate", "middle_distal", "middle_tip",
-            "ring_metacarpal", "ring_proximal", "ring_intermediate", "ring_distal", "ring_tip",
-            "little_metacarpal", "little_proximal", "little_intermediate", "little_distal", "little_tip"
+            "palm",
+            "wrist",
+            "thumb_metacarpal",
+            "thumb_proximal",
+            "thumb_distal",
+            "thumb_tip",
+            "index_metacarpal",
+            "index_proximal",
+            "index_intermediate",
+            "index_distal",
+            "index_tip",
+            "middle_metacarpal",
+            "middle_proximal",
+            "middle_intermediate",
+            "middle_distal",
+            "middle_tip",
+            "ring_metacarpal",
+            "ring_proximal",
+            "ring_intermediate",
+            "ring_distal",
+            "ring_tip",
+            "little_metacarpal",
+            "little_proximal",
+            "little_intermediate",
+            "little_distal",
+            "little_tip",
         ]
 
         for i, joint_name in enumerate(joint_names):
@@ -234,12 +286,12 @@ class DexHandRetargeter(BaseRetargeter):
 
     def _update_transform_from_rpy(self, value: np.ndarray) -> None:
         """Update the hand tracking to base link transform from Euler angles (degrees)."""
-        r = R.from_euler('xyz', value, degrees=True)
+        r = R.from_euler("xyz", value, degrees=True)
         self._handtracking2baselink = r.as_matrix()  # type: ignore
 
         # Only print if value has changed significantly
         if self._last_rpy is None or not np.allclose(self._last_rpy, value, atol=1e-3):
-            name = getattr(self, '_name', 'Initializing')
+            name = getattr(self, "_name", "Initializing")
             print(f"[{name}] Updated transform RPY: {value}")
             self._last_rpy = np.copy(value)
 
@@ -251,7 +303,9 @@ class DexHandRetargeter(BaseRetargeter):
 
         # Update YAML with correct URDF path
         # Returns path to temporary config file
-        temp_config = self._update_yaml(self._config.hand_retargeting_config, local_urdf)
+        temp_config = self._update_yaml(
+            self._config.hand_retargeting_config, local_urdf
+        )
 
         if temp_config:
             self._config.hand_retargeting_config = temp_config
@@ -270,7 +324,7 @@ class DexHandRetargeter(BaseRetargeter):
 
                 # Write to temp file to avoid modifying original config
                 fd, path = tempfile.mkstemp(suffix=".yml", prefix="dex_retarget_")
-                with os.fdopen(fd, 'w') as f:
+                with os.fdopen(fd, "w") as f:
                     yaml.dump(config, f)
                 return path
 
@@ -295,12 +349,32 @@ class DexHandRetargeter(BaseRetargeter):
         # 1. Extract positions for relevant joints (21 joints)
         hand_joints = []
         joint_names = [
-            "palm", "wrist",
-            "thumb_metacarpal", "thumb_proximal", "thumb_distal", "thumb_tip",
-            "index_metacarpal", "index_proximal", "index_intermediate", "index_distal", "index_tip",
-            "middle_metacarpal", "middle_proximal", "middle_intermediate", "middle_distal", "middle_tip",
-            "ring_metacarpal", "ring_proximal", "ring_intermediate", "ring_distal", "ring_tip",
-            "little_metacarpal", "little_proximal", "little_intermediate", "little_distal", "little_tip"
+            "palm",
+            "wrist",
+            "thumb_metacarpal",
+            "thumb_proximal",
+            "thumb_distal",
+            "thumb_tip",
+            "index_metacarpal",
+            "index_proximal",
+            "index_intermediate",
+            "index_distal",
+            "index_tip",
+            "middle_metacarpal",
+            "middle_proximal",
+            "middle_intermediate",
+            "middle_distal",
+            "middle_tip",
+            "ring_metacarpal",
+            "ring_proximal",
+            "ring_intermediate",
+            "ring_distal",
+            "ring_tip",
+            "little_metacarpal",
+            "little_proximal",
+            "little_intermediate",
+            "little_distal",
+            "little_tip",
         ]
 
         for idx in self._hand_joints_index:
@@ -327,7 +401,9 @@ class DexHandRetargeter(BaseRetargeter):
         if wrist_pose is None:
             return np.zeros(len(self._dex_hand.optimizer.robot.dof_joint_names))
 
-        xr_wrist_quat = wrist_pose[3:]  # [qx, qy, qz, qw] - XYZW from HandsSource, matches scipy convention
+        xr_wrist_quat = wrist_pose[
+            3:
+        ]  # [qx, qy, qz, qw] - XYZW from HandsSource, matches scipy convention
         wrist_rot = R.from_quat(xr_wrist_quat).as_matrix()
 
         # Apply transformations
@@ -345,6 +421,7 @@ class DexHandRetargeter(BaseRetargeter):
         # 4. Run optimizer
         try:
             import torch  # type: ignore
+
             with torch.enable_grad(), torch.inference_mode(False):
                 return self._dex_hand.retarget(ref_value)  # type: ignore
         except Exception as e:
@@ -373,7 +450,7 @@ class DexBiManualRetargeter(BaseRetargeter):
         left_joint_names: List[str],
         right_joint_names: List[str],
         target_joint_names: List[str],
-        name: str
+        name: str,
     ) -> None:
         """
         Initialize the bimanual joint reorderer.
@@ -411,13 +488,12 @@ class DexBiManualRetargeter(BaseRetargeter):
         """Define input collections for both hands."""
         return {
             "left_hand_joints": TensorGroupType(
-                "left_hand_joints",
-                [FloatType(name) for name in self._left_joint_names]
+                "left_hand_joints", [FloatType(name) for name in self._left_joint_names]
             ),
             "right_hand_joints": TensorGroupType(
                 "right_hand_joints",
-                [FloatType(name) for name in self._right_joint_names]
-            )
+                [FloatType(name) for name in self._right_joint_names],
+            ),
         }
 
     def output_spec(self) -> RetargeterIOType:
@@ -425,11 +501,13 @@ class DexBiManualRetargeter(BaseRetargeter):
         return {
             "hand_joints": TensorGroupType(
                 "hand_joints_bimanual",
-                [FloatType(name) for name in self._target_joint_names]
+                [FloatType(name) for name in self._target_joint_names],
             )
         }
 
-    def compute(self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]) -> None:
+    def compute(
+        self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]
+    ) -> None:
         """
         Execute bimanual joint reordering.
 

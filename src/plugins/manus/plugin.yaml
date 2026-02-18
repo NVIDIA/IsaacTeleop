@@ -9,4 +9,3 @@ devices:
   - path: "/hand/right"
     type: "hand_tracker"
     description: "Right Manus glove"
-

@@ -84,4 +84,3 @@ To add a new third-party dependency:
 3. If you need to preserve a specific version, use the full commit SHA in GIT_TAG
 
 4. Update the main `BUILD.md` with any new requirements
-

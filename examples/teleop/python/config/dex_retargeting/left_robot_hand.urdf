@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<!-- 
+<!--
 SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 SPDX-License-Identifier: Apache-2.0
 
@@ -160,4 +160,3 @@ Required structure:
   </link>
 
 </robot>
-

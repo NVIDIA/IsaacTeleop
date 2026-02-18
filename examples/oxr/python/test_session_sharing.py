@@ -9,7 +9,6 @@ This demonstrates how to create one OpenXR session directly and share it
 across multiple managers with different trackers.
 """
 
-import sys
 import time
 
 import isaacteleop.deviceio as deviceio
@@ -28,9 +27,9 @@ print("[Step 1] Creating standalone OpenXR session...")
 # Define all extensions needed by our trackers
 extensions = [
     "XR_KHR_convert_timespec_time",  # Required for time conversion
-    "XR_MND_headless",                # Headless mode
-    "XR_EXTX_overlay",                # Overlay mode
-    "XR_EXT_hand_tracking"            # Hand tracking
+    "XR_MND_headless",  # Headless mode
+    "XR_EXTX_overlay",  # Overlay mode
+    "XR_EXT_hand_tracking",  # Hand tracking
 ]
 
 print("  Required extensions:")
@@ -90,19 +89,19 @@ try:
         if not session1.update():
             print("Session 1 update failed")
             break
-        
+
         if not session2.update():
             print("Session 2 update failed")
             break
-        
+
         # Print status every 60 frames
         if frame_count % 60 == 0:
             elapsed = time.time() - start_time
-            
+
             # Get data from both trackers
             left = hand_tracker.get_left_hand(session1)
             head = head_tracker.get_head(session2)
-            
+
             print(f"[{elapsed:4.1f}s] Frame {frame_count:3d}:")
             print(f"  Hands: {'ACTIVE' if left.is_active else 'INACTIVE':8s}")
             print(f"  Head:  {'VALID' if head.is_valid else 'INVALID':8s}")
@@ -118,7 +117,7 @@ try:
                 print(f"    Head pos:   [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]")
 
             print()
-        
+
         frame_count += 1
         time.sleep(0.016)
 
@@ -155,4 +154,3 @@ print("  ✓ Two managers shared the same session")
 print("  ✓ HandTracker (Manager 1) and HeadTracker (Manager 2)")
 print("  ✓ Both updated successfully with shared session")
 print()
-

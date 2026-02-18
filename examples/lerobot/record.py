@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
@@ -34,7 +33,9 @@ def main():
             "shape": (3,),  # head_pos(3)
             "names": [
                 # Head (3)
-                "head_x", "head_y", "head_z",
+                "head_x",
+                "head_y",
+                "head_z",
             ],
         },
         "observation.left_hand": {
@@ -42,7 +43,9 @@ def main():
             "shape": (3,),  # left_hand_pos(3)
             "names": [
                 # Left hand (3)
-                "left_hand_x", "left_hand_y", "left_hand_z",
+                "left_hand_x",
+                "left_hand_y",
+                "left_hand_z",
             ],
         },
         "observation.right_hand": {
@@ -50,7 +53,9 @@ def main():
             "shape": (3,),  # right_hand_pos(3)
             "names": [
                 # Right hand (3)
-                "right_hand_x", "right_hand_y", "right_hand_z",
+                "right_hand_x",
+                "right_hand_y",
+                "right_hand_z",
             ],
         },
     }
@@ -128,7 +133,9 @@ def main():
                         wrist = right.joints[deviceio.JOINT_WRIST]
                         if wrist.is_valid:
                             pos = wrist.pose.position
-                            right_pos = np.array([pos.x, pos.y, pos.z], dtype=np.float32)
+                            right_pos = np.array(
+                                [pos.x, pos.y, pos.z], dtype=np.float32
+                            )
 
                     head_pos = np.zeros(3, dtype=np.float32)
                     if head.is_valid and head.pose:
@@ -136,24 +143,32 @@ def main():
                         head_pos = np.array([pos.x, pos.y, pos.z], dtype=np.float32)
 
                     # STEP 3: Record frame to dataset
-                    observation_head = np.concatenate([
-                        head_pos, # head_pos(3)
-                    ])
+                    observation_head = np.concatenate(
+                        [
+                            head_pos,  # head_pos(3)
+                        ]
+                    )
 
-                    observation_left_hand = np.concatenate([
-                        left_pos, # left_hand_pos(3)
-                    ])
+                    observation_left_hand = np.concatenate(
+                        [
+                            left_pos,  # left_hand_pos(3)
+                        ]
+                    )
 
-                    observation_right_hand = np.concatenate([
-                        right_pos, # right_hand_pos(3)
-                    ])
+                    observation_right_hand = np.concatenate(
+                        [
+                            right_pos,  # right_hand_pos(3)
+                        ]
+                    )
 
-                    dataset.add_frame({
-                        "task": "teleop_tracking",
-                        "observation.head": observation_head,
-                        "observation.left_hand": observation_left_hand,
-                        "observation.right_hand": observation_right_hand,
-                    })
+                    dataset.add_frame(
+                        {
+                            "task": "teleop_tracking",
+                            "observation.head": observation_head,
+                            "observation.left_hand": observation_left_hand,
+                            "observation.right_hand": observation_right_hand,
+                        }
+                    )
 
                     # Print every 60 frames (~1 second)
                     if frame_count % 60 == 0:
@@ -195,4 +210,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-

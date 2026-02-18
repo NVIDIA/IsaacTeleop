@@ -15,22 +15,28 @@ from typing import Any
 from enum import IntEnum
 from .standard_types import HandInput, ControllerInput
 
+
 def _create_index_enum(name: str, group_type, prefix: str = "") -> IntEnum:
     """Helper to create an IntEnum from a TensorGroupType."""
     members = {}
     for i, t in enumerate(group_type.types):
         key = t.name
         if prefix and key.startswith(prefix):
-            key = key[len(prefix):]
+            key = key[len(prefix) :]
         members[key.upper()] = i
     return IntEnum(name, members)
 
+
 # Generate indices dynamically
 HandInputIndex: Any = _create_index_enum("HandInputIndex", HandInput(), "hand_")
-ControllerInputIndex: Any = _create_index_enum("ControllerInputIndex", ControllerInput(), "controller_")
+ControllerInputIndex: Any = _create_index_enum(
+    "ControllerInputIndex", ControllerInput(), "controller_"
+)
+
 
 class HandJointIndex(IntEnum):
     """Indices for OpenXR hand joints (XR_HAND_JOINT_COUNT_EXT = 26)."""
+
     PALM = 0
     WRIST = 1
     THUMB_METACARPAL = 2

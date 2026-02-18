@@ -80,9 +80,7 @@ class HeadTransform(BaseRetargeter):
 
     def output_spec(self) -> RetargeterIOType:
         """Declare transformed head pose output."""
-        return {
-            "head": HeadPose()
-        }
+        return {"head": HeadPose()}
 
     def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
         """

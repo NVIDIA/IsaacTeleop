@@ -5,8 +5,7 @@ import rerun as rr
 
 # Load dataset
 dataset = LeRobotDataset(
-    repo_id="teleop/tracking_demo",
-    root=Path("local_datasets/teleop_tracking")
+    repo_id="teleop/tracking_demo", root=Path("local_datasets/teleop_tracking")
 )
 
 # Start Rerun

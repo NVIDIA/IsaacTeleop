@@ -14,4 +14,3 @@ dependencies = [
     "pybind11-stubgen",
     "numpy",
 ]
-

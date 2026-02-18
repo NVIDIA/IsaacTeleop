@@ -17,4 +17,3 @@ cmake_minimum_required(VERSION 3.20)
 if(BUILD_PYTHON_BINDINGS)
     add_subdirectory(python)
 endif()
-

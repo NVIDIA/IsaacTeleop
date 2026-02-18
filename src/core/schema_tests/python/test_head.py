@@ -11,8 +11,6 @@ HeadPoseT is a FlatBuffers table (read-only from Python) that represents head po
 Note: Python code should only READ this data (created by C++ trackers), not modify it.
 """
 
-import pytest
-
 from isaacteleop.schema import HeadPoseT
 
 

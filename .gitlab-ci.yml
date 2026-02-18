@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-image: 
+image:
     name: sonarsource/sonar-scanner-cli:11
     entrypoint: [""]
 
@@ -17,15 +17,15 @@ build-sonar:
   stage: build-sonar
   tags:
     - type/docker
-  
+
   cache:
     policy: pull-push
     key: "sonar-cache-$CI_COMMIT_REF_SLUG"
     paths:
       - "${SONAR_USER_HOME}/cache"
       - sonar-scanner/
-      
-  script: 
+
+  script:
     - sonar-scanner -Dsonar.host.url="${SONAR_HOST_URL}"
   allow_failure: true
   rules:

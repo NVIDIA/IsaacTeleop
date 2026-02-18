@@ -9,7 +9,7 @@ for validation.
 """
 
 import os
-from typing import Any, TYPE_CHECKING, Optional
+from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .tensor_type import TensorType
@@ -18,8 +18,10 @@ if TYPE_CHECKING:
 # Sentinel value to indicate an unset tensor
 class _UnsetValue:
     """Sentinel type for unset tensor values."""
+
     def __repr__(self) -> str:
         return "<UNSET>"
+
 
 UNSET_VALUE = _UnsetValue()
 
@@ -33,7 +35,9 @@ class Tensor:
     """
 
     # Class-level flag to enable/disable runtime validation (for performance)
-    _runtime_validation_enabled: bool = os.environ.get("RETARGETING_RUNTIME_VALIDATION", "1") == "1"
+    _runtime_validation_enabled: bool = (
+        os.environ.get("RETARGETING_RUNTIME_VALIDATION", "1") == "1"
+    )
 
     @classmethod
     def set_runtime_validation(cls, enabled: bool) -> None:
@@ -50,7 +54,7 @@ class Tensor:
         """Check if runtime validation is currently enabled."""
         return cls._runtime_validation_enabled
 
-    def __init__(self, tensor_type: 'TensorType', value: Any = None) -> None:
+    def __init__(self, tensor_type: "TensorType", value: Any = None) -> None:
         """
         Initialize a tensor with a type and optional value.
 
@@ -103,7 +107,7 @@ class Tensor:
         self._value = new_value
 
     @property
-    def tensor_type(self) -> 'TensorType':
+    def tensor_type(self) -> "TensorType":
         """Get the tensor's type."""
         return self._type
 

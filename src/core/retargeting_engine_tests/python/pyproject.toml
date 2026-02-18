@@ -47,4 +47,3 @@ pretty = true
 exclude = [
     "test_.*",
 ]
-

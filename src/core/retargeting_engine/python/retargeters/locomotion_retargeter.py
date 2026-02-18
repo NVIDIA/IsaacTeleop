@@ -28,6 +28,7 @@ from ..tensor_types import (
 @dataclass
 class LocomotionFixedRootCmdRetargeterConfig:
     """Configuration for fixed root command retargeter."""
+
     hip_height: float = 0.72
 
 
@@ -39,7 +40,9 @@ class LocomotionFixedRootCmdRetargeter(BaseRetargeter):
     locomotion commands.
     """
 
-    def __init__(self, config: LocomotionFixedRootCmdRetargeterConfig, name: str) -> None:
+    def __init__(
+        self, config: LocomotionFixedRootCmdRetargeterConfig, name: str
+    ) -> None:
         super().__init__(name=name)
         self._config = config
 
@@ -50,12 +53,19 @@ class LocomotionFixedRootCmdRetargeter(BaseRetargeter):
     def output_spec(self) -> RetargeterIOType:
         """Outputs a 4D root command vector [vel_x, vel_y, rot_vel_z, hip_height]."""
         return {
-            "root_command": TensorGroupType("root_command", [
-                NDArrayType("command", shape=(4,), dtype=DLDataType.FLOAT, dtype_bits=32)
-            ])
+            "root_command": TensorGroupType(
+                "root_command",
+                [
+                    NDArrayType(
+                        "command", shape=(4,), dtype=DLDataType.FLOAT, dtype_bits=32
+                    )
+                ],
+            )
         }
 
-    def compute(self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]) -> None:
+    def compute(
+        self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]
+    ) -> None:
         """Sets the fixed command."""
         output_group = outputs["root_command"]
         # [vel_x, vel_y, rot_vel_z, hip_height]
@@ -66,6 +76,7 @@ class LocomotionFixedRootCmdRetargeter(BaseRetargeter):
 @dataclass
 class LocomotionRootCmdRetargeterConfig:
     """Configuration for locomotion root command retargeter."""
+
     initial_hip_height: float = 0.72
     movement_scale: float = 0.5
     rotation_scale: float = 0.35
@@ -91,18 +102,25 @@ class LocomotionRootCmdRetargeter(BaseRetargeter):
         """Requires left and right controller inputs."""
         return {
             "controller_left": ControllerInput(),
-            "controller_right": ControllerInput()
+            "controller_right": ControllerInput(),
         }
 
     def output_spec(self) -> RetargeterIOType:
         """Outputs a 4D root command vector [vel_x, vel_y, rot_vel_z, hip_height]."""
         return {
-            "root_command": TensorGroupType("root_command", [
-                NDArrayType("command", shape=(4,), dtype=DLDataType.FLOAT, dtype_bits=32)
-            ])
+            "root_command": TensorGroupType(
+                "root_command",
+                [
+                    NDArrayType(
+                        "command", shape=(4,), dtype=DLDataType.FLOAT, dtype_bits=32
+                    )
+                ],
+            )
         }
 
-    def compute(self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]) -> None:
+    def compute(
+        self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]
+    ) -> None:
         """Computes root command from controller inputs."""
         left_thumbstick_x = 0.0
         left_thumbstick_y = 0.0
@@ -114,16 +132,24 @@ class LocomotionRootCmdRetargeter(BaseRetargeter):
             left_ctrl = inputs["controller_left"]
             # Check is_active
             if left_ctrl[ControllerInputIndex.IS_ACTIVE]:
-                left_thumbstick_x = float(left_ctrl[ControllerInputIndex.THUMBSTICK_X])  # thumbstick_x
-                left_thumbstick_y = float(left_ctrl[ControllerInputIndex.THUMBSTICK_Y])  # thumbstick_y
+                left_thumbstick_x = float(
+                    left_ctrl[ControllerInputIndex.THUMBSTICK_X]
+                )  # thumbstick_x
+                left_thumbstick_y = float(
+                    left_ctrl[ControllerInputIndex.THUMBSTICK_Y]
+                )  # thumbstick_y
 
         # Process Right Controller
         if "controller_right" in inputs:
             right_ctrl = inputs["controller_right"]
             # Check is_active
             if right_ctrl[ControllerInputIndex.IS_ACTIVE]:
-                right_thumbstick_x = float(right_ctrl[ControllerInputIndex.THUMBSTICK_X])  # thumbstick_x
-                right_thumbstick_y = float(right_ctrl[ControllerInputIndex.THUMBSTICK_Y])  # thumbstick_y
+                right_thumbstick_x = float(
+                    right_ctrl[ControllerInputIndex.THUMBSTICK_X]
+                )  # thumbstick_x
+                right_thumbstick_y = float(
+                    right_ctrl[ControllerInputIndex.THUMBSTICK_Y]
+                )  # thumbstick_y
 
         # Scale inputs
         # Note: In IsaacLab implementation:
@@ -149,12 +175,9 @@ class LocomotionRootCmdRetargeter(BaseRetargeter):
         # vel_y = -left_stick_x
         # rot_vel_z = -right_stick_x
 
-        cmd = np.array([
-            -scaled_left_y,
-            -scaled_left_x,
-            -right_thumbstick_x,
-            self._hip_height
-        ], dtype=np.float32)
+        cmd = np.array(
+            [-scaled_left_y, -scaled_left_x, -right_thumbstick_x, self._hip_height],
+            dtype=np.float32,
+        )
 
         outputs["root_command"][0] = cmd
-

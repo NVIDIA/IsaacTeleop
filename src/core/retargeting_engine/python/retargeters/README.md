@@ -209,4 +209,3 @@ Matrix is applied as: `target_pos = joint_pos @ wrist_rotation @ transform_matri
 - [ ] Add support for downloading URDFs from URLs
 - [ ] Add performance optimizations for real-time use
 - [ ] Add tests for retargeting accuracy
-

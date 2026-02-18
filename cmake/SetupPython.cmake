@@ -68,7 +68,7 @@ if(NOT ISAAC_TELEOP_PYTHON_CONFIGURED)
     set(PYBIND11_PYTHON_VERSION "${Python3_VERSION}" CACHE STRING "Python version for pybind11" FORCE)
     set(PYBIND11_PYTHON_INCLUDE_DIR "${Python3_INCLUDE_DIRS}" CACHE STRING "Python include dir for pybind11" FORCE)
     set(PYBIND11_PYTHON_LIBRARIES "${Python3_LIBRARIES}" CACHE STRING "Python libraries for pybind11" FORCE)
-    
+
     # Set legacy variables for compatibility (important for some find modules)
     set(PYTHON_INCLUDE_DIRS "${Python3_INCLUDE_DIRS}" CACHE PATH "Python include dirs" FORCE)
     set(PYTHON_LIBRARIES "${Python3_LIBRARIES}" CACHE FILEPATH "Python libraries" FORCE)

@@ -108,8 +108,12 @@ class HandTransform(BaseRetargeter):
         matrix = np.from_dlpack(inputs["transform"][_MATRIX_INDEX])
         rotation, translation = decompose_transform(matrix)
 
-        self._transform_hand(inputs[self.LEFT], outputs[self.LEFT], rotation, translation)
-        self._transform_hand(inputs[self.RIGHT], outputs[self.RIGHT], rotation, translation)
+        self._transform_hand(
+            inputs[self.LEFT], outputs[self.LEFT], rotation, translation
+        )
+        self._transform_hand(
+            inputs[self.RIGHT], outputs[self.RIGHT], rotation, translation
+        )
 
     @staticmethod
     def _transform_hand(
@@ -124,5 +128,9 @@ class HandTransform(BaseRetargeter):
             out[i] = copy.deepcopy(inp[i])
 
         # Transform pose fields in-place on the output buffers
-        transform_positions_batch(np.from_dlpack(out[HandInputIndex.JOINT_POSITIONS]), rotation, translation)
-        transform_orientations_batch(np.from_dlpack(out[HandInputIndex.JOINT_ORIENTATIONS]), rotation)
+        transform_positions_batch(
+            np.from_dlpack(out[HandInputIndex.JOINT_POSITIONS]), rotation, translation
+        )
+        transform_orientations_batch(
+            np.from_dlpack(out[HandInputIndex.JOINT_ORIENTATIONS]), rotation
+        )

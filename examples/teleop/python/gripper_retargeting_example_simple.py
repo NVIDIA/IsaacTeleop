@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
@@ -16,13 +15,13 @@ import isaacteleop.deviceio as deviceio
 
 from isaacteleop.retargeting_engine.retargeters import (
     GripperRetargeter,
-    GripperRetargeterConfig
+    GripperRetargeterConfig,
 )
 from isaacteleop.teleop_session_manager import (
     TeleopSession,
     TeleopSessionConfig,
     PluginConfig,
-    create_standard_inputs
+    create_standard_inputs,
 )
 
 
@@ -49,10 +48,12 @@ def main():
 
     retargeter_config = GripperRetargeterConfig()
     gripper = GripperRetargeter(retargeter_config, name="gripper")
-    pipeline = gripper.connect({
-        "hand_right": hands.output(hands.RIGHT),
-        "controller_right": controllers.output(controllers.RIGHT)
-    })
+    pipeline = gripper.connect(
+        {
+            "hand_right": hands.output(hands.RIGHT),
+            "controller_right": controllers.output(controllers.RIGHT),
+        }
+    )
 
     # ==================================================================
     # Configure Plugins (optional)
@@ -60,11 +61,13 @@ def main():
 
     plugins = []
     if PLUGIN_ROOT_DIR.exists():
-        plugins.append(PluginConfig(
-            plugin_name=PLUGIN_NAME,
-            plugin_root_id=PLUGIN_ROOT_ID,
-            search_paths=[PLUGIN_ROOT_DIR],
-        ))
+        plugins.append(
+            PluginConfig(
+                plugin_name=PLUGIN_NAME,
+                plugin_root_id=PLUGIN_ROOT_ID,
+                search_paths=[PLUGIN_ROOT_DIR],
+            )
+        )
 
     # ==================================================================
     # Create and run TeleopSession
@@ -72,7 +75,7 @@ def main():
 
     config = TeleopSessionConfig(
         app_name="GripperRetargetingSimple",
-        trackers=[], # Empty list if using new sources
+        trackers=[],  # Empty list if using new sources
         pipeline=pipeline,
         plugins=plugins,
     )
@@ -99,7 +102,6 @@ def main():
                 print(f"[{elapsed:5.1f}s] Right: {right:.2f}")
 
             time.sleep(0.016)  # ~60 FPS
-
 
     return 0
 

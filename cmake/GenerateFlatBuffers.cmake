@@ -66,5 +66,3 @@ function(generate_flatbuffer_headers OUT_VAR INPUT_DIR OUTPUT_DIR)
 
   set(${OUT_VAR} ${GENERATED_HEADER_LIST} PARENT_SCOPE)
 endfunction()
-
-

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
@@ -62,10 +61,12 @@ def main():
 
     locomotion = LocomotionRootCmdRetargeter(config, name="locomotion")
 
-    pipeline = locomotion.connect({
-        "controller_left": controllers.output(controllers.LEFT),
-        "controller_right": controllers.output(controllers.RIGHT)
-    })
+    pipeline = locomotion.connect(
+        {
+            "controller_left": controllers.output(controllers.LEFT),
+            "controller_right": controllers.output(controllers.RIGHT),
+        }
+    )
 
     # ==================================================================
     # Configure Plugins (optional)
@@ -73,11 +74,13 @@ def main():
 
     plugins = []
     if PLUGIN_ROOT_DIR.exists():
-        plugins.append(PluginConfig(
-            plugin_name=PLUGIN_NAME,
-            plugin_root_id=PLUGIN_ROOT_ID,
-            search_paths=[PLUGIN_ROOT_DIR],
-        ))
+        plugins.append(
+            PluginConfig(
+                plugin_name=PLUGIN_NAME,
+                plugin_root_id=PLUGIN_ROOT_ID,
+                search_paths=[PLUGIN_ROOT_DIR],
+            )
+        )
 
     # ==================================================================
     # Create and run TeleopSession
@@ -85,7 +88,7 @@ def main():
 
     session_config = TeleopSessionConfig(
         app_name="LocomotionExample",
-        trackers=[], # Empty list if using new sources via create_standard_inputs
+        trackers=[],  # Empty list if using new sources via create_standard_inputs
         pipeline=pipeline,
         plugins=plugins,
     )
@@ -105,12 +108,13 @@ def main():
             # Print status every 0.2 seconds
             if session.frame_count % 12 == 0:
                 elapsed = session.get_elapsed_time()
-                print(f"[{elapsed:5.1f}s] Vel: ({cmd[0]:5.2f}, {cmd[1]:5.2f})  Rot: {cmd[2]:5.2f}  Height: {cmd[3]:.3f}")
+                print(
+                    f"[{elapsed:5.1f}s] Vel: ({cmd[0]:5.2f}, {cmd[1]:5.2f})  Rot: {cmd[2]:5.2f}  Height: {cmd[3]:.3f}"
+                )
 
             time.sleep(0.016)  # ~60 FPS
 
         print("\nTime limit reached.")
-
 
     return 0
 

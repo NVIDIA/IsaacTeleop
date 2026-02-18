@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
@@ -19,8 +18,15 @@ import numpy as np
 from pathlib import Path
 from typing import Dict, Optional
 
-from isaacteleop.retargeting_engine.deviceio_source_nodes import HandsSource, ControllersSource
-from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig, PluginConfig
+from isaacteleop.retargeting_engine.deviceio_source_nodes import (
+    HandsSource,
+    ControllersSource,
+)
+from isaacteleop.teleop_session_manager import (
+    TeleopSession,
+    TeleopSessionConfig,
+    PluginConfig,
+)
 from isaacteleop.retargeting_engine.interface import BaseRetargeter
 from isaacteleop.retargeting_engine.tensor_types import HandInput, ControllerInput
 from isaacteleop.retargeting_engine.interface.tensor_group_type import TensorGroupType
@@ -34,6 +40,7 @@ PLUGIN_ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent / "plugin
 # ==============================================================================
 # Velocity Tracker
 # ==============================================================================
+
 
 class VelocityTracker(BaseRetargeter):
     """Computes velocity from hand wrist and controller position changes."""
@@ -58,19 +65,41 @@ class VelocityTracker(BaseRetargeter):
 
     def output_spec(self):
         return {
-            "hand_velocity_left": TensorGroupType("hand_velocity_left", [FloatType("magnitude")]),
-            "hand_velocity_right": TensorGroupType("hand_velocity_right", [FloatType("magnitude")]),
-            "controller_velocity_left": TensorGroupType("controller_velocity_left", [FloatType("magnitude")]),
-            "controller_velocity_right": TensorGroupType("controller_velocity_right", [FloatType("magnitude")]),
+            "hand_velocity_left": TensorGroupType(
+                "hand_velocity_left", [FloatType("magnitude")]
+            ),
+            "hand_velocity_right": TensorGroupType(
+                "hand_velocity_right", [FloatType("magnitude")]
+            ),
+            "controller_velocity_left": TensorGroupType(
+                "controller_velocity_left", [FloatType("magnitude")]
+            ),
+            "controller_velocity_right": TensorGroupType(
+                "controller_velocity_right", [FloatType("magnitude")]
+            ),
         }
 
-    def compute(self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]) -> None:
+    def compute(
+        self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]
+    ) -> None:
         # Get hand wrist positions (first joint of hand_joint_positions)
         hand_left_positions = inputs[HandsSource.LEFT][0]  # (26, 3) array
         hand_right_positions = inputs[HandsSource.RIGHT][0]
 
-        hand_left_wrist = np.array([hand_left_positions[0][0], hand_left_positions[0][1], hand_left_positions[0][2]])
-        hand_right_wrist = np.array([hand_right_positions[0][0], hand_right_positions[0][1], hand_right_positions[0][2]])
+        hand_left_wrist = np.array(
+            [
+                hand_left_positions[0][0],
+                hand_left_positions[0][1],
+                hand_left_positions[0][2],
+            ]
+        )
+        hand_right_wrist = np.array(
+            [
+                hand_right_positions[0][0],
+                hand_right_positions[0][1],
+                hand_right_positions[0][2],
+            ]
+        )
 
         # Get controller positions (first tensor in ControllerInput is position array)
         ctrl_left_pos = inputs[ControllersSource.LEFT][0]  # (3,) array
@@ -85,10 +114,18 @@ class VelocityTracker(BaseRetargeter):
         if self._prev_hand_left is not None and self._prev_time is not None:
             dt = current_time - self._prev_time
             if dt > 0:
-                hand_left_vel = float(np.linalg.norm(hand_left_wrist - self._prev_hand_left) / dt)
-                hand_right_vel = float(np.linalg.norm(hand_right_wrist - self._prev_hand_right) / dt)
-                ctrl_left_vel = float(np.linalg.norm(ctrl_left - self._prev_ctrl_left) / dt)
-                ctrl_right_vel = float(np.linalg.norm(ctrl_right - self._prev_ctrl_right) / dt)
+                hand_left_vel = float(
+                    np.linalg.norm(hand_left_wrist - self._prev_hand_left) / dt
+                )
+                hand_right_vel = float(
+                    np.linalg.norm(hand_right_wrist - self._prev_hand_right) / dt
+                )
+                ctrl_left_vel = float(
+                    np.linalg.norm(ctrl_left - self._prev_ctrl_left) / dt
+                )
+                ctrl_right_vel = float(
+                    np.linalg.norm(ctrl_right - self._prev_ctrl_right) / dt
+                )
 
                 outputs["hand_velocity_left"][0] = hand_left_vel
                 outputs["hand_velocity_right"][0] = hand_right_vel
@@ -123,12 +160,14 @@ def main():
     controllers = ControllersSource(name="controllers")
 
     tracker = VelocityTracker(name="velocity_tracker")
-    pipeline = tracker.connect({
-        HandsSource.LEFT: hands.output(HandsSource.LEFT),
-        HandsSource.RIGHT: hands.output(HandsSource.RIGHT),
-        ControllersSource.LEFT: controllers.output(ControllersSource.LEFT),
-        ControllersSource.RIGHT: controllers.output(ControllersSource.RIGHT),
-    })
+    pipeline = tracker.connect(
+        {
+            HandsSource.LEFT: hands.output(HandsSource.LEFT),
+            HandsSource.RIGHT: hands.output(HandsSource.RIGHT),
+            ControllersSource.LEFT: controllers.output(ControllersSource.LEFT),
+            ControllersSource.RIGHT: controllers.output(ControllersSource.RIGHT),
+        }
+    )
 
     # ==================================================================
     # Create TeleopSession with synthetic hands plugin
@@ -162,8 +201,10 @@ def main():
 
             if session.frame_count % 30 == 0:
                 elapsed = session.get_elapsed_time()
-                print(f"[{elapsed:5.1f}s] Hand L/R: {hand_left_vel:.3f}/{hand_right_vel:.3f} m/s  "
-                      f"Ctrl L/R: {ctrl_left_vel:.3f}/{ctrl_right_vel:.3f} m/s")
+                print(
+                    f"[{elapsed:5.1f}s] Hand L/R: {hand_left_vel:.3f}/{hand_right_vel:.3f} m/s  "
+                    f"Ctrl L/R: {ctrl_left_vel:.3f}/{ctrl_right_vel:.3f} m/s"
+                )
 
             time.sleep(0.016)  # ~60 FPS
 

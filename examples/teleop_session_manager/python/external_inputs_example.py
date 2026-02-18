@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
@@ -85,9 +84,12 @@ def RobotEndEffectorState() -> TensorGroupType:
     Contains:
         position: (3,) float32 array [x, y, z]
     """
-    return TensorGroupType("robot_ee_state", [
-        NDArrayType("position", shape=(3,), dtype=DLDataType.FLOAT, dtype_bits=32),
-    ])
+    return TensorGroupType(
+        "robot_ee_state",
+        [
+            NDArrayType("position", shape=(3,), dtype=DLDataType.FLOAT, dtype_bits=32),
+        ],
+    )
 
 
 def DeltaCommand() -> TensorGroupType:
@@ -96,9 +98,14 @@ def DeltaCommand() -> TensorGroupType:
     Contains:
         delta_position: (3,) float32 array [dx, dy, dz]
     """
-    return TensorGroupType("delta_command", [
-        NDArrayType("delta_position", shape=(3,), dtype=DLDataType.FLOAT, dtype_bits=32),
-    ])
+    return TensorGroupType(
+        "delta_command",
+        [
+            NDArrayType(
+                "delta_position", shape=(3,), dtype=DLDataType.FLOAT, dtype_bits=32
+            ),
+        ],
+    )
 
 
 # ==============================================================================
@@ -191,21 +198,27 @@ def main() -> int:
     )
 
     delta_left = DeltaPositionRetargeter(name="delta_left")
-    pipeline_left = delta_left.connect({
-        "controller": transformed_controllers.output(ControllersSource.LEFT),
-        "ee_state": ee_state.output(ValueInput.VALUE),
-    })
+    pipeline_left = delta_left.connect(
+        {
+            "controller": transformed_controllers.output(ControllersSource.LEFT),
+            "ee_state": ee_state.output(ValueInput.VALUE),
+        }
+    )
 
     delta_right = DeltaPositionRetargeter(name="delta_right")
-    pipeline_right = delta_right.connect({
-        "controller": transformed_controllers.output(ControllersSource.RIGHT),
-        "ee_state": ee_state.output(ValueInput.VALUE),
-    })
+    pipeline_right = delta_right.connect(
+        {
+            "controller": transformed_controllers.output(ControllersSource.RIGHT),
+            "ee_state": ee_state.output(ValueInput.VALUE),
+        }
+    )
 
-    pipeline = OutputCombiner({
-        "delta_left": pipeline_left.output("delta"),
-        "delta_right": pipeline_right.output("delta"),
-    })
+    pipeline = OutputCombiner(
+        {
+            "delta_left": pipeline_left.output("delta"),
+            "delta_right": pipeline_right.output("delta"),
+        }
+    )
 
     # ------------------------------------------------------------------
     # Alternative: using an existing retargeter directly as an external leaf
@@ -261,7 +274,7 @@ def main() -> int:
         print("External Inputs Example (with transform)")
         print("=" * 70)
         print(f"\nPipeline has external inputs: {session.has_external_inputs()}")
-        print(f"External leaf nodes and their input specs:")
+        print("External leaf nodes and their input specs:")
         for leaf_name, input_spec in ext_specs.items():
             print(f"  - {leaf_name}:")
             for input_name, tensor_group_type in input_spec.items():
@@ -275,12 +288,15 @@ def main() -> int:
 
         # Example: 90-degree rotation about Y to align VR frame with robot frame,
         # plus a 1m translation along Z.
-        vr_to_robot = np.array([
-            [ 0.0, 0.0, 1.0, 0.0],
-            [ 0.0, 1.0, 0.0, 0.0],
-            [-1.0, 0.0, 0.0, 1.0],
-            [ 0.0, 0.0, 0.0, 1.0],
-        ], dtype=np.float32)
+        vr_to_robot = np.array(
+            [
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [-1.0, 0.0, 0.0, 1.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+            dtype=np.float32,
+        )
 
         # ==============================================================
         # 5. Main loop -- pass external inputs to step()
@@ -297,10 +313,12 @@ def main() -> int:
             # Call step() with external inputs for the non-DeviceIO leaves.
             # Keys match the ValueInput node names; inner keys are always "value"
             # for ValueInput nodes.
-            result = session.step(external_inputs={
-                "ee_state": {ValueInput.VALUE: ee_input},
-                "transform_input": {ValueInput.VALUE: xform_input},
-            })
+            result = session.step(
+                external_inputs={
+                    "ee_state": {ValueInput.VALUE: ee_input},
+                    "transform_input": {ValueInput.VALUE: xform_input},
+                }
+            )
 
             # Read outputs
             delta_l = result["delta_left"][0]

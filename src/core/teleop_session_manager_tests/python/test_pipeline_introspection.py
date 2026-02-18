@@ -15,7 +15,6 @@ from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     ControllersSource,
     HandsSource,
     HeadSource,
-    IDeviceIOSource,
 )
 from isaacteleop.teleop_session_manager import get_required_oxr_extensions_from_pipeline
 from isaacteleop.teleop_session_manager.helpers import _get_trackers_from_pipeline
@@ -24,6 +23,7 @@ from isaacteleop.teleop_session_manager.helpers import _get_trackers_from_pipeli
 # ============================================================================
 # Helpers
 # ============================================================================
+
 
 def _mock_pipeline_with_leaf_nodes(leaf_nodes):
     """Create a mock pipeline whose get_leaf_nodes() returns *leaf_nodes*."""
@@ -35,6 +35,7 @@ def _mock_pipeline_with_leaf_nodes(leaf_nodes):
 # ============================================================================
 # _get_trackers_from_pipeline
 # ============================================================================
+
 
 class TestGetTrackersFromPipeline:
     """Tests for _get_trackers_from_pipeline()."""
@@ -98,6 +99,7 @@ class TestGetTrackersFromPipeline:
 # ============================================================================
 # get_required_oxr_extensions_from_pipeline
 # ============================================================================
+
 
 class TestGetRequiredOxrExtensionsFromPipeline:
     """Tests for get_required_oxr_extensions_from_pipeline()."""

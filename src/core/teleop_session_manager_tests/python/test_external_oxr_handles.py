@@ -20,7 +20,6 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
@@ -31,6 +30,7 @@ if TYPE_CHECKING:
 # ============================================================================
 # Helpers
 # ============================================================================
+
 
 def _make_stub_handles(
     instance: int = 0xABCD,
@@ -74,8 +74,12 @@ def _mock_deviceio_and_oxr():
     mock_oxr_session.get_handles.return_value = _make_stub_handles()
 
     with (
-        patch("isaacteleop.deviceio.DeviceIOSession.run", return_value=mock_dio_session) as dio_run,
-        patch("isaacteleop.oxr.OpenXRSession", return_value=mock_oxr_session) as oxr_cls,
+        patch(
+            "isaacteleop.deviceio.DeviceIOSession.run", return_value=mock_dio_session
+        ) as dio_run,
+        patch(
+            "isaacteleop.oxr.OpenXRSession", return_value=mock_oxr_session
+        ) as oxr_cls,
     ):
         ns = MagicMock()
         ns.deviceio_run = dio_run
@@ -88,6 +92,7 @@ def _mock_deviceio_and_oxr():
 # ============================================================================
 # TeleopSessionConfig.oxr_handles
 # ============================================================================
+
 
 class TestTeleopSessionConfigOxrHandles:
     """Tests for the oxr_handles field on TeleopSessionConfig."""
@@ -114,6 +119,7 @@ class TestTeleopSessionConfigOxrHandles:
 # ============================================================================
 # TeleopSession.__enter__ with external handles
 # ============================================================================
+
 
 class TestTeleopSessionExternalHandles:
     """Tests for TeleopSession when external OpenXR handles are provided."""
@@ -151,7 +157,9 @@ class TestTeleopSessionExternalHandles:
                 mocks.deviceio_run.assert_called_once()
                 _, call_kwargs = mocks.deviceio_run.call_args
                 if call_kwargs:
-                    actual_handles = call_kwargs.get("handles", mocks.deviceio_run.call_args[0][1])
+                    actual_handles = call_kwargs.get(
+                        "handles", mocks.deviceio_run.call_args[0][1]
+                    )
                 else:
                     actual_handles = mocks.deviceio_run.call_args[0][1]
                 assert actual_handles is external_handles
@@ -194,6 +202,7 @@ class TestTeleopSessionExternalHandles:
 # ============================================================================
 # TeleopSession.__enter__ without external handles (standalone fallback)
 # ============================================================================
+
 
 class TestTeleopSessionStandaloneFallback:
     """Tests for TeleopSession when no external handles are provided."""

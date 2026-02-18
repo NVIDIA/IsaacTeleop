@@ -44,7 +44,13 @@ class TestControllerInputState:
     def test_button_states(self):
         """Test constructing with button states."""
         inputs = ControllerInputState(
-            primary_click=True, secondary_click=True, thumbstick_click=True, thumbstick_x=0.0, thumbstick_y=0.0, squeeze_value=0.0, trigger_value=0.0
+            primary_click=True,
+            secondary_click=True,
+            thumbstick_click=True,
+            thumbstick_x=0.0,
+            thumbstick_y=0.0,
+            squeeze_value=0.0,
+            trigger_value=0.0,
         )
 
         assert inputs.primary_click is True
@@ -71,7 +77,13 @@ class TestControllerInputState:
     def test_repr(self):
         """Test __repr__ method."""
         inputs = ControllerInputState(
-            primary_click=True, secondary_click=False, thumbstick_click=False, thumbstick_x=0.0, thumbstick_y=0.0, squeeze_value=0.0, trigger_value=0.5
+            primary_click=True,
+            secondary_click=False,
+            thumbstick_click=False,
+            thumbstick_x=0.0,
+            thumbstick_y=0.0,
+            squeeze_value=0.0,
+            trigger_value=0.5,
         )
 
         repr_str = repr(inputs)
@@ -286,7 +298,9 @@ class TestControllerIntegration:
             trigger_value=0.5,
         )
         left_timestamp = Timestamp(device_time=1000, common_time=2000)
-        left_snapshot = ControllerSnapshot(left_grip, left_aim, left_inputs, True, left_timestamp)
+        left_snapshot = ControllerSnapshot(
+            left_grip, left_aim, left_inputs, True, left_timestamp
+        )
 
         # Create right controller (inactive)
         right_snapshot = ControllerSnapshot()

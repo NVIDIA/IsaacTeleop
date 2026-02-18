@@ -20,4 +20,3 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 # Prevent pytest from recursing into parent directories
 norecursedirs = [".git", ".venv", "build", "dist", "*.egg", "__pycache__"]
-
