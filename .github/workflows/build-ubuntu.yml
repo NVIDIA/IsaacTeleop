@@ -122,24 +122,48 @@ jobs:
         mkdir -p install
         tar -xvf isaacteleop-install.tar -C install
 
-    - name: Parse CloudXR tag from .env.default
+    - name: Parse CloudXR SDK versions from .env.default
       id: cloudxr
       run: |
-        # Extract the tag from CXR_RUNTIME_IMAGE in .env.default
-        CLOUDXR_TAG=$(grep '^CXR_RUNTIME_IMAGE=' deps/cloudxr/.env.default | sed 's/.*cloudxr-runtime://')
-        echo "tag=${CLOUDXR_TAG}" >> $GITHUB_OUTPUT
-        echo "CloudXR tag: ${CLOUDXR_TAG}"
+        # Extract CloudXR SDK versions from .env.default.
+        CXR_RUNTIME_SDK_VERSION=$(grep '^CXR_RUNTIME_SDK_VERSION=' deps/cloudxr/.env.default | cut -d= -f2)
+        CXR_WEB_SDK_VERSION=$(grep '^CXR_WEB_SDK_VERSION=' deps/cloudxr/.env.default | cut -d= -f2)
 
-    - name: Login to NVIDIA Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: nvcr.io
-        username: $oauthtoken
-        password: ${{ secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY }}
+        echo "runtime_version=${CXR_RUNTIME_SDK_VERSION}" >> $GITHUB_OUTPUT
+        echo "web_version=${CXR_WEB_SDK_VERSION}" >> $GITHUB_OUTPUT
+        echo "CloudXR Runtime SDK version: ${CXR_RUNTIME_SDK_VERSION}"
+        echo "CloudXR Web SDK version: ${CXR_WEB_SDK_VERSION}"
 
-    - name: Pull CloudXR Runtime
+    - name: Install NGC CLI
       run: |
-        ./scripts/cloudxr_image_ops.sh --pull ${{ steps.cloudxr.outputs.tag }}
+        NGC_CLI_VERSION=4.13.0
+        case "$(uname -m)" in
+          x86_64)        NGC_CLI_ZIP="ngccli_linux.zip" ;;
+          aarch64|arm64) NGC_CLI_ZIP="ngccli_arm64.zip" ;;
+          *) echo "Unsupported architecture: $(uname -m)"; exit 1 ;;
+        esac
+        wget -q --content-disposition \
+          "https://api.ngc.nvidia.com/v2/resources/nvidia/ngc-apps/ngc_cli/versions/${NGC_CLI_VERSION}/files/${NGC_CLI_ZIP}" \
+          -O ngccli.zip
+        mkdir -p ~/.local/bin
+        unzip -o ngccli.zip -d ~/.local/bin/
+        chmod u+x ~/.local/bin/ngc-cli/ngc
+        echo "$HOME/.local/bin/ngc-cli" >> "$GITHUB_PATH"
+        rm ngccli.zip
+
+    - name: Download CloudXR Runtime SDK
+      env:
+        CXR_RUNTIME_SDK_VERSION: ${{ steps.cloudxr.outputs.runtime_version }}
+        NGC_CLI_API_KEY: ${{ secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY }}
+      run: |
+        ./scripts/download_cloudxr_runtime_sdk.sh
+
+    - name: Download CloudXR Web SDK
+      env:
+        CXR_WEB_SDK_VERSION: ${{ steps.cloudxr.outputs.web_version }}
+        NGC_CLI_API_KEY: ${{ secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY }}
+      run: |
+        ./scripts/download_cloudxr_sdk.sh
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3

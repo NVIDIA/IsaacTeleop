@@ -1,3 +1,4 @@
+#!/bin/bash
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
@@ -46,7 +47,7 @@ set +a
 mkdir -p "$CXR_HOST_VOLUME_PATH"
 
 # Export OpenXR configs
-export XR_RUNTIME_JSON="$CXR_HOST_VOLUME_PATH/share/openxr/1/openxr_cloudxr.json"
+export XR_RUNTIME_JSON="$CXR_HOST_VOLUME_PATH/openxr_cloudxr.json"
 export NV_CXR_RUNTIME_DIR="$CXR_HOST_VOLUME_PATH/run"
 
 echo "CloudXR has been configured as the OpenXR runtime:"

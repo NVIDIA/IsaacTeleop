@@ -1,0 +1,137 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Minimal CloudXR runtime image (~205 MB).
+# The SDK must be downloaded first (see scripts/download_cloudxr_runtime_sdk.sh).
+#
+# Build context: deps/cloudxr/ (contains CloudXR-<VERSION>-Linux-<ARCH>-sdk.tar.gz)
+#
+# Environment overrides:
+#   NV_DEVICE_PROFILE   Device profile (default: auto-webrtc).
+#                        Values: auto-native, auto-webrtc,
+#                        apple-vision-pro, ipad-pro, quest3
+
+# -------------------------------------------------------------------
+# Stage 0: Extract the SDK tarball.
+# -------------------------------------------------------------------
+FROM scratch AS sdk
+ARG TARGETARCH
+ARG CXR_RUNTIME_SDK_VERSION
+ADD CloudXR-${CXR_RUNTIME_SDK_VERSION}-Linux-${TARGETARCH}-sdk.tar.gz /sdk/
+
+# -------------------------------------------------------------------
+# Stage 1: Build the cloudxr-service launcher.
+# -------------------------------------------------------------------
+FROM ubuntu:24.04 AS build
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends gcc libc6-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+COPY --from=sdk /sdk/include/ include/
+COPY --from=sdk /sdk/libcloudxr.so .
+
+RUN cat <<'EOF' > main.c
+#include <signal.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include "cxrServiceAPI.h"
+
+static struct nv_cxr_service *svc;
+static void stop(int sig) { (void)sig; if (svc) nv_cxr_service_stop(svc); }
+
+int main(void) {
+    if (nv_cxr_service_create(&svc)) return 1;
+    signal(SIGINT, stop);
+    signal(SIGTERM, stop);
+    if (nv_cxr_service_start(svc)) { nv_cxr_service_destroy(svc); return 1; }
+    nv_cxr_service_join(svc);
+    nv_cxr_service_destroy(svc);
+    return 0;
+}
+EOF
+
+RUN gcc -O2 -o cloudxr-service main.c \
+    -Iinclude -L. -lcloudxr \
+    -Wl,-rpath,'$ORIGIN' \
+    -Wl,--allow-shlib-undefined
+
+# -------------------------------------------------------------------
+# Stage 2: Extract minimal EGL/GLdispatch runtime libraries.
+# -------------------------------------------------------------------
+FROM ubuntu:24.04 AS egl
+
+# Extract libEGL.so.1 and libGLdispatch.so.0 without pulling in Mesa/LLVM.
+RUN apt-get update && \
+    apt-get download libegl1 libglvnd0 && \
+    dpkg-deb -x libegl1_*.deb /egl && \
+    dpkg-deb -x libglvnd0_*.deb /egl && \
+    rm -rf /var/lib/apt/lists/*
+
+# -------------------------------------------------------------------
+# Stage 3: Minimal runtime image.
+# -------------------------------------------------------------------
+FROM ubuntu:24.04
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        libbsd0 libatomic1 libx11-6 libxext6 && \
+    rm -rf /var/lib/apt/lists/*
+
+# EGL/GLdispatch from build stage (avoids ~180 MB Mesa/LLVM dependency).
+COPY --from=egl /egl/usr/lib/ /usr/lib/
+
+RUN mkdir -p /openxr/run && chmod 777 /openxr /openxr/run && \
+    touch /var/run/utmp
+
+WORKDIR /opt/cloudxr
+
+COPY --from=build /build/cloudxr-service .
+COPY --from=sdk /sdk/*.so /sdk/*.so.* ./
+COPY --from=sdk /sdk/openxr_cloudxr.json .
+
+# NVIDIA container runtime configuration.
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=all
+
+# CloudXR / OpenXR runtime configuration.
+ENV XR_RUNTIME_JSON=/openxr/openxr_cloudxr.json
+ENV NV_CXR_RUNTIME_DIR=/openxr/run
+ENV XRT_NO_STDIN=true
+ENV NV_CXR_FILE_LOGGING=false
+ENV NV_DEVICE_PROFILE=auto-webrtc
+
+# EULA gate.
+RUN cat <<'EOF' > /eula.sh
+#!/bin/sh
+EULA=$(printf '%s' "${ACCEPT_EULA:-}" | tr '[:upper:]' '[:lower:]')
+case "$EULA" in
+  y|yes|1) exec "$@" ;;
+  *)
+    echo ""
+    echo "The NVIDIA Software License Agreement (EULA) must be accepted before CloudXR"
+    echo "Runtime in this container can start. The license terms can be viewed at"
+    echo "https://developer.download.nvidia.com/cloudxr/EULA/NVIDIA_CloudXR_GA_License_without_Data_Collection_25Feb2025.pdf."
+    echo ""
+    echo 'Please accept the EULA by setting the ACCEPT_EULA environment variable.'
+    echo 'e.g.: -e "ACCEPT_EULA=Y"'
+    exit 1 ;;
+esac
+EOF
+
+# Entrypoint: shared-volume setup, stale IPC cleanup, EULA gate, exec.
+RUN cat <<'EOF' > /entrypoint.sh
+#!/bin/sh
+set -e
+mkdir -p /openxr/run
+cp -f /opt/cloudxr/libopenxr_cloudxr.so /openxr/
+cp -f /opt/cloudxr/openxr_cloudxr.json /openxr/
+rm -f /openxr/run/ipc_cloudxr /openxr/run/runtime_started
+exec /eula.sh "$@"
+EOF
+
+RUN chmod +x /eula.sh /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh", "/opt/cloudxr/cloudxr-service"]
