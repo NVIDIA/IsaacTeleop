@@ -37,6 +37,7 @@ class TriHandMotionControllerConfig:
         hand_joint_names: List of joint names in the robot hand (in order)
         controller_side: Which controller to use ("left" or "right")
     """
+
     hand_joint_names: List[str]
     controller_side: str = "left"
 
@@ -89,9 +90,11 @@ class TriHandMotionControllerRetargeter(BaseRetargeter):
         self._controller_side = config.controller_side.lower()
 
         if self._controller_side not in ["left", "right"]:
-            raise ValueError(f"controller_side must be 'left' or 'right', got: {self._controller_side}")
+            raise ValueError(
+                f"controller_side must be 'left' or 'right', got: {self._controller_side}"
+            )
 
-        self._is_left = (self._controller_side == "left")
+        self._is_left = self._controller_side == "left"
 
         super().__init__(name=name)
 
@@ -106,12 +109,13 @@ class TriHandMotionControllerRetargeter(BaseRetargeter):
         """Define output collections for robot hand joint angles."""
         return {
             "hand_joints": RobotHandJoints(
-                f"hand_joints_{self._controller_side}",
-                self._hand_joint_names
+                f"hand_joints_{self._controller_side}", self._hand_joint_names
             )
         }
 
-    def compute(self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]) -> None:
+    def compute(
+        self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]
+    ) -> None:
         """
         Execute the motion controller to hand joint mapping.
 
@@ -124,7 +128,9 @@ class TriHandMotionControllerRetargeter(BaseRetargeter):
         controller_group = inputs[controller_input_key]
 
         # Check if controller is active
-        is_active = controller_group[ControllerInputIndex.IS_ACTIVE]  # is_active field at index 11
+        is_active = controller_group[
+            ControllerInputIndex.IS_ACTIVE
+        ]  # is_active field at index 11
 
         if not is_active:
             # Output zeros if controller is not active
@@ -136,8 +142,12 @@ class TriHandMotionControllerRetargeter(BaseRetargeter):
         # Extract controller inputs
         # Index mapping (from constants.py ControllerInputIndex):
 
-        trigger_value = float(controller_group[ControllerInputIndex.TRIGGER_VALUE])  # trigger_value
-        squeeze_value = float(controller_group[ControllerInputIndex.SQUEEZE_VALUE])   # squeeze_value
+        trigger_value = float(
+            controller_group[ControllerInputIndex.TRIGGER_VALUE]
+        )  # trigger_value
+        squeeze_value = float(
+            controller_group[ControllerInputIndex.SQUEEZE_VALUE]
+        )  # squeeze_value
 
         # Map controller inputs to hand joints (7 DOFs)
         hand_joints = self._map_to_hand_joints(trigger_value, squeeze_value)
@@ -178,19 +188,22 @@ class TriHandMotionControllerRetargeter(BaseRetargeter):
 
         # Thumb rotation: combination of trigger and squeeze
         # This creates different thumb poses depending on input
-        thumb_rotation = self.THUMB_ROTATION_TRIGGER_SCALE * trigger - self.THUMB_ROTATION_SQUEEZE_SCALE * squeeze
+        thumb_rotation = (
+            self.THUMB_ROTATION_TRIGGER_SCALE * trigger
+            - self.THUMB_ROTATION_SQUEEZE_SCALE * squeeze
+        )
         if not self._is_left:
             thumb_rotation = -thumb_rotation
 
         # Set thumb joints
-        hand_joints[0] = thumb_rotation      # Thumb rotation
-        hand_joints[1] = thumb_angle * self.THUMB_PROXIMAL_SCALE   # Thumb proximal
-        hand_joints[2] = thumb_angle * self.THUMB_DISTAL_SCALE   # Thumb distal
+        hand_joints[0] = thumb_rotation  # Thumb rotation
+        hand_joints[1] = thumb_angle * self.THUMB_PROXIMAL_SCALE  # Thumb proximal
+        hand_joints[2] = thumb_angle * self.THUMB_DISTAL_SCALE  # Thumb distal
 
         # Index finger: controlled by trigger
         index_angle = trigger * 1.0
-        hand_joints[3] = index_angle   # Index proximal
-        hand_joints[4] = index_angle   # Index distal
+        hand_joints[3] = index_angle  # Index proximal
+        hand_joints[4] = index_angle  # Index distal
 
         # Middle finger: controlled by squeeze
         middle_angle = squeeze * 1.0
@@ -220,7 +233,7 @@ class TriHandBiManualMotionControllerRetargeter(BaseRetargeter):
         left_config: TriHandMotionControllerConfig,
         right_config: TriHandMotionControllerConfig,
         target_joint_names: List[str],
-        name: str
+        name: str,
     ) -> None:
         """
         Initialize the bimanual motion controller retargeter.
@@ -240,8 +253,12 @@ class TriHandBiManualMotionControllerRetargeter(BaseRetargeter):
         right_config.controller_side = "right"
 
         # Create individual controllers
-        self._left_controller = TriHandMotionControllerRetargeter(left_config, name=f"{name}_left")
-        self._right_controller = TriHandMotionControllerRetargeter(right_config, name=f"{name}_right")
+        self._left_controller = TriHandMotionControllerRetargeter(
+            left_config, name=f"{name}_left"
+        )
+        self._right_controller = TriHandMotionControllerRetargeter(
+            right_config, name=f"{name}_right"
+        )
 
         # Prepare index mapping
         self._left_indices = []
@@ -264,19 +281,20 @@ class TriHandBiManualMotionControllerRetargeter(BaseRetargeter):
         """Define input collections for both controllers."""
         return {
             "controller_left": ControllerInput(),
-            "controller_right": ControllerInput()
+            "controller_right": ControllerInput(),
         }
 
     def output_spec(self) -> RetargeterIOType:
         """Define output collections for combined hand joints."""
         return {
             "hand_joints": RobotHandJoints(
-                "hand_joints_bimanual",
-                self._target_joint_names
+                "hand_joints_bimanual", self._target_joint_names
             )
         }
 
-    def compute(self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]) -> None:
+    def compute(
+        self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]
+    ) -> None:
         """
         Execute bimanual motion controller retargeting.
 
@@ -286,10 +304,14 @@ class TriHandBiManualMotionControllerRetargeter(BaseRetargeter):
         """
         # Create temporary output groups for individual controllers
         left_outputs = {
-            "hand_joints": TensorGroup(self._left_controller.output_spec()["hand_joints"])
+            "hand_joints": TensorGroup(
+                self._left_controller.output_spec()["hand_joints"]
+            )
         }
         right_outputs = {
-            "hand_joints": TensorGroup(self._right_controller.output_spec()["hand_joints"])
+            "hand_joints": TensorGroup(
+                self._right_controller.output_spec()["hand_joints"]
+            )
         }
 
         # Run individual controllers
@@ -309,4 +331,3 @@ class TriHandBiManualMotionControllerRetargeter(BaseRetargeter):
         # Map right hand joints
         for src_idx, dst_idx in zip(self._right_indices, self._output_indices_right):
             combined_output[dst_idx] = float(right_outputs["hand_joints"][src_idx])
-

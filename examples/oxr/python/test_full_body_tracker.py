@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
@@ -72,9 +71,14 @@ try:
 
             if body_pose.joints:
                 # Count valid joints
-                valid_count = sum(1 for i in range(schema.BodyJointPico.NUM_JOINTS)
-                                  if body_pose.joints[i].is_valid)
-                print(f"  Valid joints: {valid_count}/{schema.BodyJointPico.NUM_JOINTS}")
+                valid_count = sum(
+                    1
+                    for i in range(schema.BodyJointPico.NUM_JOINTS)
+                    if body_pose.joints[i].is_valid
+                )
+                print(
+                    f"  Valid joints: {valid_count}/{schema.BodyJointPico.NUM_JOINTS}"
+                )
             print()
 
             # Test 7: Run tracking loop
@@ -105,13 +109,17 @@ try:
                         pelvis = body_pose.joints[schema.BodyJointPico.PELVIS]
                         if pelvis.is_valid:
                             pos = pelvis.pose.position
-                            status += f" | Pelvis: [{pos.x:+.2f}, {pos.y:+.2f}, {pos.z:+.2f}]"
+                            status += (
+                                f" | Pelvis: [{pos.x:+.2f}, {pos.y:+.2f}, {pos.z:+.2f}]"
+                            )
 
                         # Get head position
                         head = body_pose.joints[schema.BodyJointPico.HEAD]
                         if head.is_valid:
                             pos = head.pose.position
-                            status += f" | Head: [{pos.x:+.2f}, {pos.y:+.2f}, {pos.z:+.2f}]"
+                            status += (
+                                f" | Head: [{pos.x:+.2f}, {pos.y:+.2f}, {pos.z:+.2f}]"
+                            )
 
                     print(f"  [{elapsed:5.2f}s] Frame {frame_count:4d} | {status}")
                     last_status_print = current_time
@@ -138,8 +146,10 @@ try:
                     if joint.is_valid:
                         pos = joint.pose.position
                         rot = joint.pose.orientation
-                        print(f"    [{i:2d}] {name:15s}: pos=[{pos.x:+.3f}, {pos.y:+.3f}, {pos.z:+.3f}]"
-                              f"  rot=[{rot.x:+.3f}, {rot.y:+.3f}, {rot.z:+.3f}, {rot.w:+.3f}]")
+                        print(
+                            f"    [{i:2d}] {name:15s}: pos=[{pos.x:+.3f}, {pos.y:+.3f}, {pos.z:+.3f}]"
+                            f"  rot=[{rot.x:+.3f}, {rot.y:+.3f}, {rot.z:+.3f}, {rot.w:+.3f}]"
+                        )
                     else:
                         print(f"    [{i:2d}] {name:15s}: (invalid)")
             print()

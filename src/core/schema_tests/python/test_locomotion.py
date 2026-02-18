@@ -345,7 +345,9 @@ class TestTwistEdgeCases:
     def test_max_velocities(self):
         """Test with maximum reasonable velocities."""
         max_vel = 10.0  # Reasonable max velocity for robot
-        twist = Twist(Point(max_vel, max_vel, max_vel), Point(max_vel, max_vel, max_vel))
+        twist = Twist(
+            Point(max_vel, max_vel, max_vel), Point(max_vel, max_vel, max_vel)
+        )
 
         assert twist.linear.x == pytest.approx(max_vel)
         assert twist.angular.z == pytest.approx(max_vel)

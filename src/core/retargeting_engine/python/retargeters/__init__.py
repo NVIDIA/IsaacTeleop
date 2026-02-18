@@ -57,25 +57,21 @@ __all__ = [
     "DexHandRetargeter",
     "DexBiManualRetargeter",
     "DexHandRetargeterConfig",
-
     # Motion controller retargeters
     "TriHandMotionControllerRetargeter",
     "TriHandBiManualMotionControllerRetargeter",
     "TriHandMotionControllerConfig",
-
     # Locomotion retargeters
     "LocomotionFixedRootCmdRetargeter",
     "LocomotionFixedRootCmdRetargeterConfig",
     "LocomotionRootCmdRetargeter",
     "LocomotionRootCmdRetargeterConfig",
-
     # Manipulator retargeters
     "GripperRetargeter",
     "GripperRetargeterConfig",
     "Se3AbsRetargeter",
     "Se3RelRetargeter",
     "Se3RetargeterConfig",
-
     # Utility retargeters
     "TensorReorderer",
 ]

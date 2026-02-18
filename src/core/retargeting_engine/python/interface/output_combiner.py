@@ -8,8 +8,14 @@ This is a GraphExecutable that can be used as a source in further connections.
 """
 
 from typing import Dict, List
-from .retargeter_core_types import GraphExecutable, ExecutionContext, OutputSelector, RetargeterIO, RetargeterIOType, BaseExecutable
-from .tensor_group import TensorGroup
+from .retargeter_core_types import (
+    GraphExecutable,
+    ExecutionContext,
+    OutputSelector,
+    RetargeterIO,
+    RetargeterIOType,
+    BaseExecutable,
+)
 
 
 class OutputCombiner(GraphExecutable):
@@ -147,4 +153,3 @@ class OutputCombiner(GraphExecutable):
                     visited.add(id(leaf))
 
         return leaves
-

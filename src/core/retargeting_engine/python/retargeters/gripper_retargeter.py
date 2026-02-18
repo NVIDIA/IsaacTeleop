@@ -30,6 +30,7 @@ from ..tensor_types import (
 @dataclass
 class GripperRetargeterConfig:
     """Configuration for gripper retargeter."""
+
     hand_side: str = "right"
     gripper_close_meters: float = 0.03
     gripper_open_meters: float = 0.05
@@ -48,7 +49,9 @@ class GripperRetargeter(BaseRetargeter):
     def __init__(self, config: GripperRetargeterConfig, name: str) -> None:
         self._config = config
         if self._config.hand_side not in ["left", "right"]:
-             raise ValueError(f"hand_side must be 'left' or 'right', got: {self._config.hand_side}")
+            raise ValueError(
+                f"hand_side must be 'left' or 'right', got: {self._config.hand_side}"
+            )
 
         super().__init__(name=name)
 
@@ -72,12 +75,14 @@ class GripperRetargeter(BaseRetargeter):
     def output_spec(self) -> RetargeterIOType:
         """Outputs a single float value (-1.0 for closed, 1.0 for open)."""
         return {
-            "gripper_command": TensorGroupType("gripper_command", [
-                FloatType("command")
-            ])
+            "gripper_command": TensorGroupType(
+                "gripper_command", [FloatType("command")]
+            )
         }
 
-    def compute(self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]) -> None:
+    def compute(
+        self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]
+    ) -> None:
         """Computes gripper command based on controller trigger (priority) or pinch distance (fallback)."""
 
         # Try to use controller input first if active
@@ -117,7 +122,10 @@ class GripperRetargeter(BaseRetargeter):
             # 2: thumb_metacarpal, 3: thumb_proximal, 4: thumb_distal, 5: thumb_tip
             # 6: index_metacarpal, 7: index_proximal, 8: index_intermediate, 9: index_distal, 10: index_tip
 
-            if joint_valid[HandJointIndex.THUMB_TIP] and joint_valid[HandJointIndex.INDEX_TIP]:
+            if (
+                joint_valid[HandJointIndex.THUMB_TIP]
+                and joint_valid[HandJointIndex.INDEX_TIP]
+            ):
                 thumb_pos = joint_positions[HandJointIndex.THUMB_TIP]
                 index_pos = joint_positions[HandJointIndex.INDEX_TIP]
 
@@ -130,4 +138,3 @@ class GripperRetargeter(BaseRetargeter):
 
         # Output: -1.0 if closed, 1.0 if open (matching IsaacLab implementation)
         outputs["gripper_command"][0] = -1.0 if self._previous_gripper_command else 1.0
-

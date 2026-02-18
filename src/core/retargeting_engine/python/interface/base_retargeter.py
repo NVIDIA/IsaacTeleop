@@ -7,17 +7,18 @@ Retargeting module interfaces and base classes.
 Defines the common API for retargeting modules with flat (unkeyed) outputs.
 """
 
-from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, TYPE_CHECKING
-import json
-import os
-from pathlib import Path
-from .tensor_group_type import TensorGroupType
+from abc import abstractmethod
+from typing import Dict, List, Optional
 from .tensor_group import TensorGroup
-from .tensor import UNSET_VALUE
-from .retargeter_core_types import OutputSelector, RetargeterIO, ExecutionContext, GraphExecutable, BaseExecutable, RetargeterIOType
+from .retargeter_core_types import (
+    OutputSelector,
+    RetargeterIO,
+    ExecutionContext,
+    GraphExecutable,
+    BaseExecutable,
+    RetargeterIOType,
+)
 from .retargeter_subgraph import RetargeterSubgraph
-from .tunable_parameter import ParameterSpec
 from .parameter_state import ParameterState
 
 
@@ -58,7 +59,9 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
                 outputs["result"][0] = inputs["x"][0] * self.smoothing
     """
 
-    def __init__(self, name: str, parameter_state: Optional[ParameterState] = None) -> None:
+    def __init__(
+        self, name: str, parameter_state: Optional[ParameterState] = None
+    ) -> None:
         """
         Initialize a base retargeter.
 
@@ -165,7 +168,9 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
         """
         return [self]
 
-    def connect(self, input_connections: Dict[str, OutputSelector]) -> RetargeterSubgraph:
+    def connect(
+        self, input_connections: Dict[str, OutputSelector]
+    ) -> RetargeterSubgraph:
         """
         Connect this retargeter's inputs to outputs from other retargeters.
 
@@ -196,15 +201,16 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
         # Validate types
         for input_name, output_selector in input_connections.items():
             expected_type = self._inputs[input_name]
-            actual_type = output_selector.module.output_types()[output_selector.output_name]
+            actual_type = output_selector.module.output_types()[
+                output_selector.output_name
+            ]
             # Throws error if types are not compatible.
             expected_type.check_compatibility(actual_type)
-
 
         return RetargeterSubgraph(
             target_module=self,
             input_connections=input_connections,
-            output_types=self._outputs
+            output_types=self._outputs,
         )
 
     def _validate_inputs(self, inputs: RetargeterIO) -> None:
@@ -215,7 +221,9 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
             inputs: The inputs to the retargeter
         """
         if set(inputs.keys()) != set(self._inputs.keys()):
-            raise ValueError(f"Expected inputs {set(self._inputs.keys())}, got {set(inputs.keys())}")
+            raise ValueError(
+                f"Expected inputs {set(self._inputs.keys())}, got {set(inputs.keys())}"
+            )
 
         for name, input_group in inputs.items():
             expected_type = self._inputs[name]
@@ -247,8 +255,7 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
 
         # Create output tensor groups.
         outputs = {
-            name: TensorGroup(group_type)
-            for name, group_type in self._outputs.items()
+            name: TensorGroup(group_type) for name, group_type in self._outputs.items()
         }
 
         # Execute compute with parameter sync (only on cache miss)
@@ -272,8 +279,7 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
 
         # Create output tensor groups.
         outputs = {
-            name: TensorGroup(group_type)
-            for name, group_type in self._outputs.items()
+            name: TensorGroup(group_type) for name, group_type in self._outputs.items()
         }
 
         # Execute compute with parameter sync
@@ -289,7 +295,7 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
     # Tunable Parameters API
     # ========================================================================
 
-    def get_parameter_state(self) -> Optional['ParameterState']:
+    def get_parameter_state(self) -> Optional["ParameterState"]:
         """
         Get the ParameterState instance (thread-safe parameter storage).
 

@@ -90,10 +90,12 @@ def run_test(duration: float = 10.0, metadata_track: bool = True):
         frame_tracker = deviceio.FrameMetadataTrackerOak(collection_id)
         trackers = [frame_tracker]
         required_extensions = deviceio.DeviceIOSession.get_required_extensions(trackers)
-        print(f"  ✓ Created {frame_tracker.get_name()} (collection_id: {collection_id})")
+        print(
+            f"  ✓ Created {frame_tracker.get_name()} (collection_id: {collection_id})"
+        )
         print()
         print("[Step 4] Getting required OpenXR extensions...")
-        print(f"  ✓ Required extensions: {required_extensions}")  
+        print(f"  ✓ Required extensions: {required_extensions}")
         mcap_filename = f"camera_metadata_{timestamp}.mcap"
     else:
         print("[Step 3] Skipping FrameMetadataTrackerOak (--no-metadata)")
@@ -131,14 +133,19 @@ def run_test(duration: float = 10.0, metadata_track: bool = True):
                     print("  ✓ DeviceIO session initialized")
 
                     # Create MCAP recorder
-                    with mcap.McapRecorder.create(mcap_filename, [
-                        (frame_tracker, "camera_metadata"),
-                    ]) as recorder:
+                    with mcap.McapRecorder.create(
+                        mcap_filename,
+                        [
+                            (frame_tracker, "camera_metadata"),
+                        ],
+                    ) as recorder:
                         print("  ✓ MCAP recording started")
                         print()
 
                         # 6. Main tracking loop
-                        print(f"[Step 6] Recording video and metadata ({duration} seconds)...")
+                        print(
+                            f"[Step 6] Recording video and metadata ({duration} seconds)..."
+                        )
                         print("-" * 80)
                         start_time = time.time()
                         frame_count = 0
@@ -154,7 +161,10 @@ def run_test(duration: float = 10.0, metadata_track: bool = True):
                             recorder.record(session)
                             frame_count += 1
                             metadata = frame_tracker.get_data(session)
-                            if metadata.timestamp and metadata.sequence_number != last_seq:
+                            if (
+                                metadata.timestamp
+                                and metadata.sequence_number != last_seq
+                            ):
                                 metadata_samples += 1
                                 last_seq = metadata.sequence_number
                             elapsed = time.time() - start_time
@@ -165,7 +175,9 @@ def run_test(duration: float = 10.0, metadata_track: bool = True):
                                     ts_info = f"seq={metadata.sequence_number}, device_time={metadata.timestamp.device_time}"
                                 else:
                                     ts_info = f"seq={metadata.sequence_number}, timestamp=None"
-                                print(f"  [{last_print_time:3d}s] metadata_samples={metadata_samples}, {ts_info}")
+                                print(
+                                    f"  [{last_print_time:3d}s] metadata_samples={metadata_samples}, {ts_info}"
+                                )
                             time.sleep(0.016)
 
                         print("-" * 80)
@@ -228,6 +240,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-

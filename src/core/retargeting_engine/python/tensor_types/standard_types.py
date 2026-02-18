@@ -10,7 +10,7 @@ and provide type-safe specifications for hand tracking, head tracking, and contr
 
 from ..interface.tensor_group_type import TensorGroupType
 from .scalar_types import FloatType, IntType, BoolType
-from .ndarray_types import NDArrayType, DLDataType, DLDeviceType
+from .ndarray_types import NDArrayType, DLDataType
 
 
 # Constants
@@ -19,6 +19,7 @@ NUM_HAND_JOINTS = 26  # XR_HAND_JOINT_COUNT_EXT from OpenXR
 # ============================================================================
 # Hand Tracking Types
 # ============================================================================
+
 
 def HandInput() -> TensorGroupType:
     """
@@ -51,39 +52,43 @@ def HandInput() -> TensorGroupType:
                 "hand_right": HandInput(),   # key indicates right hand
             }
     """
-    return TensorGroupType("hand", [
-        NDArrayType(
-            "hand_joint_positions",
-            shape=(NUM_HAND_JOINTS, 3),
-            dtype=DLDataType.FLOAT,
-            dtype_bits=32
-        ),
-        NDArrayType(
-            "hand_joint_orientations",
-            shape=(NUM_HAND_JOINTS, 4),
-            dtype=DLDataType.FLOAT,
-            dtype_bits=32
-        ),
-        NDArrayType(
-            "hand_joint_radii",
-            shape=(NUM_HAND_JOINTS,),
-            dtype=DLDataType.FLOAT,
-            dtype_bits=32
-        ),
-        NDArrayType(
-            "hand_joint_valid",
-            shape=(NUM_HAND_JOINTS,),
-            dtype=DLDataType.UINT,
-            dtype_bits=8  # bool represented as uint8
-        ),
-        BoolType("hand_is_active"),
-        IntType("hand_timestamp"),
-    ])
+    return TensorGroupType(
+        "hand",
+        [
+            NDArrayType(
+                "hand_joint_positions",
+                shape=(NUM_HAND_JOINTS, 3),
+                dtype=DLDataType.FLOAT,
+                dtype_bits=32,
+            ),
+            NDArrayType(
+                "hand_joint_orientations",
+                shape=(NUM_HAND_JOINTS, 4),
+                dtype=DLDataType.FLOAT,
+                dtype_bits=32,
+            ),
+            NDArrayType(
+                "hand_joint_radii",
+                shape=(NUM_HAND_JOINTS,),
+                dtype=DLDataType.FLOAT,
+                dtype_bits=32,
+            ),
+            NDArrayType(
+                "hand_joint_valid",
+                shape=(NUM_HAND_JOINTS,),
+                dtype=DLDataType.UINT,
+                dtype_bits=8,  # bool represented as uint8
+            ),
+            BoolType("hand_is_active"),
+            IntType("hand_timestamp"),
+        ],
+    )
 
 
 # ============================================================================
 # Head Tracking Types
 # ============================================================================
+
 
 def HeadPose() -> TensorGroupType:
     """
@@ -102,27 +107,25 @@ def HeadPose() -> TensorGroupType:
 
     Schema reference: IsaacTeleop/src/core/schema/fbs/head.fbs
     """
-    return TensorGroupType("head", [
-        NDArrayType(
-            "head_position",
-            shape=(3,),
-            dtype=DLDataType.FLOAT,
-            dtype_bits=32
-        ),
-        NDArrayType(
-            "head_orientation",
-            shape=(4,),
-            dtype=DLDataType.FLOAT,
-            dtype_bits=32
-        ),
-        BoolType("head_is_valid"),
-        IntType("head_timestamp"),
-    ])
+    return TensorGroupType(
+        "head",
+        [
+            NDArrayType(
+                "head_position", shape=(3,), dtype=DLDataType.FLOAT, dtype_bits=32
+            ),
+            NDArrayType(
+                "head_orientation", shape=(4,), dtype=DLDataType.FLOAT, dtype_bits=32
+            ),
+            BoolType("head_is_valid"),
+            IntType("head_timestamp"),
+        ],
+    )
 
 
 # ============================================================================
 # Controller Types
 # ============================================================================
+
 
 def ControllerInput() -> TensorGroupType:
     """
@@ -159,45 +162,49 @@ def ControllerInput() -> TensorGroupType:
                 "controller_right": ControllerInput(),   # key indicates right controller
             }
     """
-    return TensorGroupType("controller", [
-        NDArrayType(
-            "controller_grip_position",
-            shape=(3,),
-            dtype=DLDataType.FLOAT,
-            dtype_bits=32
-        ),
-        NDArrayType(
-            "controller_grip_orientation",
-            shape=(4,),
-            dtype=DLDataType.FLOAT,
-            dtype_bits=32
-        ),
-        NDArrayType(
-            "controller_aim_position",
-            shape=(3,),
-            dtype=DLDataType.FLOAT,
-            dtype_bits=32
-        ),
-        NDArrayType(
-            "controller_aim_orientation",
-            shape=(4,),
-            dtype=DLDataType.FLOAT,
-            dtype_bits=32
-        ),
-        FloatType("controller_primary_click"),
-        FloatType("controller_secondary_click"),
-        FloatType("controller_thumbstick_x"),
-        FloatType("controller_thumbstick_y"),
-        FloatType("controller_thumbstick_click"),
-        FloatType("controller_squeeze_value"),
-        FloatType("controller_trigger_value"),
-        BoolType("controller_is_active"),
-    ])
+    return TensorGroupType(
+        "controller",
+        [
+            NDArrayType(
+                "controller_grip_position",
+                shape=(3,),
+                dtype=DLDataType.FLOAT,
+                dtype_bits=32,
+            ),
+            NDArrayType(
+                "controller_grip_orientation",
+                shape=(4,),
+                dtype=DLDataType.FLOAT,
+                dtype_bits=32,
+            ),
+            NDArrayType(
+                "controller_aim_position",
+                shape=(3,),
+                dtype=DLDataType.FLOAT,
+                dtype_bits=32,
+            ),
+            NDArrayType(
+                "controller_aim_orientation",
+                shape=(4,),
+                dtype=DLDataType.FLOAT,
+                dtype_bits=32,
+            ),
+            FloatType("controller_primary_click"),
+            FloatType("controller_secondary_click"),
+            FloatType("controller_thumbstick_x"),
+            FloatType("controller_thumbstick_y"),
+            FloatType("controller_thumbstick_click"),
+            FloatType("controller_squeeze_value"),
+            FloatType("controller_trigger_value"),
+            BoolType("controller_is_active"),
+        ],
+    )
 
 
 # ============================================================================
 # Transform Types
 # ============================================================================
+
 
 def TransformMatrix() -> TensorGroupType:
     """
@@ -209,19 +216,20 @@ def TransformMatrix() -> TensorGroupType:
     Returns:
         TensorGroupType for a 4x4 transform matrix
     """
-    return TensorGroupType("transform", [
-        NDArrayType(
-            "transform_matrix",
-            shape=(4, 4),
-            dtype=DLDataType.FLOAT,
-            dtype_bits=32
-        ),
-    ])
+    return TensorGroupType(
+        "transform",
+        [
+            NDArrayType(
+                "transform_matrix", shape=(4, 4), dtype=DLDataType.FLOAT, dtype_bits=32
+            ),
+        ],
+    )
 
 
 # ============================================================================
 # Robot Types
 # ============================================================================
+
 
 def RobotHandJoints(name: str, joint_names: list[str]) -> TensorGroupType:
     """
@@ -237,4 +245,3 @@ def RobotHandJoints(name: str, joint_names: list[str]) -> TensorGroupType:
         TensorGroupType for robot hand joints
     """
     return TensorGroupType(name, [FloatType(joint_name) for joint_name in joint_names])
-

@@ -9,7 +9,6 @@ Demonstrates how to query required extensions before initialization.
 Useful when creating external OpenXR sessions.
 """
 
-import sys
 import isaacteleop.deviceio as deviceio
 import isaacteleop.oxr as oxr
 
@@ -43,7 +42,9 @@ print("[Test 3] HandTracker + HeadTracker extensions")
 hand_tracker3 = deviceio.HandTracker()
 head_tracker3 = deviceio.HeadTracker()
 
-extensions3 = deviceio.DeviceIOSession.get_required_extensions([hand_tracker3, head_tracker3])
+extensions3 = deviceio.DeviceIOSession.get_required_extensions(
+    [hand_tracker3, head_tracker3]
+)
 print(f"  Required extensions: {len(extensions3)}")
 for ext in extensions3:
     print(f"    - {ext}")
@@ -84,15 +85,15 @@ with oxr.OpenXRSession("ExtensionTest", required_exts) as oxr_session:
     # run() throws exception on failure
     with deviceio.DeviceIOSession.run(trackers, handles) as session:
         print("  ✅ Initialized successfully")
-        
+
         # Quick update test
         if session.update():
             left = hand.get_left_hand(session)
             head_pose = head.get_head(session)
-            print(f"  ✅ Update successful")
+            print("  ✅ Update successful")
             print(f"    Hands: {'ACTIVE' if left.is_active else 'INACTIVE'}")
             print(f"    Head:  {'VALID' if head_pose.is_valid else 'INVALID'}")
-        
+
         # Session will be cleaned up when exiting 'with' block (RAII)
 
 print()

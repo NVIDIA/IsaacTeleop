@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
@@ -15,18 +14,13 @@ import contextlib
 from types import SimpleNamespace
 from pathlib import Path
 
-import isaacteleop.deviceio as deviceio
-import isaacteleop.oxr as oxr
 from isaacteleop.retargeting_engine.deviceio_source_nodes import HandsSource
 from isaacteleop.retargeting_engine.retargeters import (
     DexHandRetargeter,
-    DexHandRetargeterConfig
+    DexHandRetargeterConfig,
 )
 from isaacteleop.retargeting_engine.interface import OutputCombiner
-from isaacteleop.teleop_session_manager import (
-    TeleopSession,
-    TeleopSessionConfig
-)
+from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
 from isaacteleop.retargeting_engine_ui import MultiRetargeterTuningUIImGui
 
 
@@ -42,11 +36,21 @@ def main():
     parser = argparse.ArgumentParser(description="Dex BiManual Retargeting Example")
     parser.add_argument("--left-urdf", type=str, help="Path to left hand URDF")
     parser.add_argument("--right-urdf", type=str, help="Path to right hand URDF")
-    parser.add_argument("--left-config", type=str, help="Path to left hand retargeting config (YAML)")
-    parser.add_argument("--right-config", type=str, help="Path to right hand retargeting config (YAML)")
-    parser.add_argument("--left-params", type=str, help="Path to left hand tunable parameters (JSON)")
-    parser.add_argument("--right-params", type=str, help="Path to right hand tunable parameters (JSON)")
-    parser.add_argument("--enable-tuning", action="store_true", help="Enable retargeting tuning UI")
+    parser.add_argument(
+        "--left-config", type=str, help="Path to left hand retargeting config (YAML)"
+    )
+    parser.add_argument(
+        "--right-config", type=str, help="Path to right hand retargeting config (YAML)"
+    )
+    parser.add_argument(
+        "--left-params", type=str, help="Path to left hand tunable parameters (JSON)"
+    )
+    parser.add_argument(
+        "--right-params", type=str, help="Path to right hand tunable parameters (JSON)"
+    )
+    parser.add_argument(
+        "--enable-tuning", action="store_true", help="Enable retargeting tuning UI"
+    )
     args = parser.parse_args()
 
     # Check for config files
@@ -58,10 +62,24 @@ def main():
     config_dir = Path(__file__).parent / "config" / "dex_retargeting"
 
     # Determine paths based on args or defaults
-    left_yaml = Path(args.left_config) if args.left_config else config_dir / "hand_left_config.yml"
-    right_yaml = Path(args.right_config) if args.right_config else config_dir / "hand_right_config.yml"
-    left_urdf_path = Path(args.left_urdf) if args.left_urdf else config_dir / "left_robot_hand.urdf"
-    right_urdf_path = Path(args.right_urdf) if args.right_urdf else config_dir / "right_robot_hand.urdf"
+    left_yaml = (
+        Path(args.left_config)
+        if args.left_config
+        else config_dir / "hand_left_config.yml"
+    )
+    right_yaml = (
+        Path(args.right_config)
+        if args.right_config
+        else config_dir / "hand_right_config.yml"
+    )
+    left_urdf_path = (
+        Path(args.left_urdf) if args.left_urdf else config_dir / "left_robot_hand.urdf"
+    )
+    right_urdf_path = (
+        Path(args.right_urdf)
+        if args.right_urdf
+        else config_dir / "right_robot_hand.urdf"
+    )
 
     # Check if files exist (soft check)
     if not left_yaml.exists():
@@ -76,10 +94,20 @@ def main():
 
     # Define parameter config paths for persistence
     # Use provided args or default to /tmp/dex_bimanual_example_{side}_params.json
-    left_param_path = args.left_params if args.left_params else "/tmp/dex_bimanual_example_left_params.json"
-    right_param_path = args.right_params if args.right_params else "/tmp/dex_bimanual_example_right_params.json"
+    left_param_path = (
+        args.left_params
+        if args.left_params
+        else "/tmp/dex_bimanual_example_left_params.json"
+    )
+    right_param_path = (
+        args.right_params
+        if args.right_params
+        else "/tmp/dex_bimanual_example_right_params.json"
+    )
 
-    print(f"Parameter persistence enabled. Configs will be saved to:\n  - {left_param_path}\n  - {right_param_path}")
+    print(
+        f"Parameter persistence enabled. Configs will be saved to:\n  - {left_param_path}\n  - {right_param_path}"
+    )
 
     # Left Config
     left_cfg = DexHandRetargeterConfig(
@@ -104,18 +132,20 @@ def main():
     right_retargeter = DexHandRetargeter(right_cfg, name="right_hand")
 
     # Connect them
-    connected_left = left_retargeter.connect({
-        HandsSource.LEFT: hands.output(HandsSource.LEFT)
-    })
-    connected_right = right_retargeter.connect({
-        HandsSource.RIGHT: hands.output(HandsSource.RIGHT)
-    })
+    connected_left = left_retargeter.connect(
+        {HandsSource.LEFT: hands.output(HandsSource.LEFT)}
+    )
+    connected_right = right_retargeter.connect(
+        {HandsSource.RIGHT: hands.output(HandsSource.RIGHT)}
+    )
 
     # Combine outputs
-    pipeline = OutputCombiner({
-        "left_hand_joints": connected_left.output("hand_joints"),
-        "right_hand_joints": connected_right.output("hand_joints")
-    })
+    pipeline = OutputCombiner(
+        {
+            "left_hand_joints": connected_left.output("hand_joints"),
+            "right_hand_joints": connected_right.output("hand_joints"),
+        }
+    )
 
     # ==================================================================
     # Create and run TeleopSession
@@ -123,20 +153,19 @@ def main():
 
     session_config = TeleopSessionConfig(
         app_name="DexBiManualExample",
-        trackers=[], # Auto-discovered from pipeline
+        trackers=[],  # Auto-discovered from pipeline
         pipeline=pipeline,
     )
 
     # Access the internal retargeters for tuning
-    retargeters_to_tune = [
-        left_retargeter,
-        right_retargeter
-    ]
+    retargeters_to_tune = [left_retargeter, right_retargeter]
 
     # Open the UI using the context manager
     if args.enable_tuning:
         print("Opening Retargeting UI...")
-        ui_context = MultiRetargeterTuningUIImGui(retargeters_to_tune, title="Hand Retargeting Tuning")
+        ui_context = MultiRetargeterTuningUIImGui(
+            retargeters_to_tune, title="Hand Retargeting Tuning"
+        )
     else:
         ui_context = contextlib.nullcontext(SimpleNamespace(is_running=lambda: True))
 
@@ -155,13 +184,12 @@ def main():
                 if session.frame_count % 30 == 0:
                     elapsed = session.get_elapsed_time()
                     # Print first few joints from left and right parts
-                    l_print = left_vals[:min(3, len(left_vals))]
-                    r_print = right_vals[:min(3, len(right_vals))]
+                    l_print = left_vals[: min(3, len(left_vals))]
+                    r_print = right_vals[: min(3, len(right_vals))]
 
                     print(f"[{elapsed:5.1f}s] L: {l_print} ... R: {r_print} ...")
 
                 time.sleep(0.016)
-
 
     return 0
 

@@ -23,7 +23,7 @@ Builds arm64 image, deploys to robot via SSH. Container auto-restarts on boot.
 ### Run Receiver
 
 ```bash
-./cam_streamer.sh receive --port 5000 
+./cam_streamer.sh receive --port 5000
 ```
 
 ### Local Testing
@@ -79,5 +79,5 @@ sudo ufw allow 5000/udp
 
 ## Requirements
 
-**Sender (Jetson/arm64):** Docker, OAK-D camera, network access  
+**Sender (Jetson/arm64):** Docker, OAK-D camera, network access
 **Receiver (x86):** Docker, X11 display, network access

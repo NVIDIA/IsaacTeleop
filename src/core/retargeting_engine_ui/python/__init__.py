@@ -5,7 +5,7 @@
 
 This module requires imgui and glfw to be installed:
     pip install isaacteleop[ui]
-    
+
 Or manually:
     pip install imgui[glfw]
 """
@@ -13,7 +13,7 @@ Or manually:
 try:
     from .multi_retargeter_tuning_ui import (
         MultiRetargeterTuningUIImGui,
-        LayoutModeImGui
+        LayoutModeImGui,
     )
 
     __all__ = [
@@ -22,6 +22,7 @@ try:
     ]
 except ImportError as e:
     import sys
+
     error_msg = (
         "\n"
         "ImGui UI dependencies are not installed.\n"

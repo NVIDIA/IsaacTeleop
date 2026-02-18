@@ -103,8 +103,12 @@ class ControllerTransform(BaseRetargeter):
         matrix = np.from_dlpack(inputs["transform"][_MATRIX_INDEX])
         rotation, translation = decompose_transform(matrix)
 
-        self._transform_controller(inputs[self.LEFT], outputs[self.LEFT], rotation, translation)
-        self._transform_controller(inputs[self.RIGHT], outputs[self.RIGHT], rotation, translation)
+        self._transform_controller(
+            inputs[self.LEFT], outputs[self.LEFT], rotation, translation
+        )
+        self._transform_controller(
+            inputs[self.RIGHT], outputs[self.RIGHT], rotation, translation
+        )
 
     @staticmethod
     def _transform_controller(
@@ -119,7 +123,19 @@ class ControllerTransform(BaseRetargeter):
             out[i] = copy.deepcopy(inp[i])
 
         # Transform pose fields in-place on the output buffers
-        transform_position(np.from_dlpack(out[ControllerInputIndex.GRIP_POSITION]), rotation, translation)
-        transform_orientation(np.from_dlpack(out[ControllerInputIndex.GRIP_ORIENTATION]), rotation)
-        transform_position(np.from_dlpack(out[ControllerInputIndex.AIM_POSITION]), rotation, translation)
-        transform_orientation(np.from_dlpack(out[ControllerInputIndex.AIM_ORIENTATION]), rotation)
+        transform_position(
+            np.from_dlpack(out[ControllerInputIndex.GRIP_POSITION]),
+            rotation,
+            translation,
+        )
+        transform_orientation(
+            np.from_dlpack(out[ControllerInputIndex.GRIP_ORIENTATION]), rotation
+        )
+        transform_position(
+            np.from_dlpack(out[ControllerInputIndex.AIM_POSITION]),
+            rotation,
+            translation,
+        )
+        transform_orientation(
+            np.from_dlpack(out[ControllerInputIndex.AIM_ORIENTATION]), rotation
+        )

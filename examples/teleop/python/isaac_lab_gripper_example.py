@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
@@ -50,16 +49,18 @@ def main():
 
     config = GripperRetargeterConfig(
         hand_side="right",
-        gripper_close_meters=0.03, # 3cm
+        gripper_close_meters=0.03,  # 3cm
         gripper_open_meters=0.05,  # 5cm (hysteresis)
     )
 
     gripper = GripperRetargeter(config, name="gripper")
 
-    pipeline = gripper.connect({
-        "hand_right": hands.output(hands.RIGHT),
-        "controller_right": controllers.output(controllers.RIGHT),
-    })
+    pipeline = gripper.connect(
+        {
+            "hand_right": hands.output(hands.RIGHT),
+            "controller_right": controllers.output(controllers.RIGHT),
+        }
+    )
 
     # ==================================================================
     # Create and run TeleopSession
@@ -67,7 +68,7 @@ def main():
 
     session_config = TeleopSessionConfig(
         app_name="IsaacLabGripperExample",
-        trackers=[], # Empty list if using new sources
+        trackers=[],  # Empty list if using new sources
         pipeline=pipeline,
     )
 
@@ -91,7 +92,6 @@ def main():
             time.sleep(0.016)
 
         print("\nTime limit reached.")
-
 
     return 0
 

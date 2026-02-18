@@ -61,10 +61,11 @@ __all__ = [
     "LocomotionCommand",
     # Pedals types.
     "Generic3AxisPedalOutput",
+    # Camera types.
+    "FrameMetadata",
     # Full body types.
     "BodyJointPose",
     "BodyJointsPico",
     "BodyJointPico",
     "FullBodyPosePicoT",
 ]
-

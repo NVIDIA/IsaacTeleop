@@ -14,10 +14,7 @@ latest_folder = candidates[-1]
 print(f"Playing back from folder: {latest_folder}")
 
 # Load dataset
-dataset = LeRobotDataset(
-    repo_id="teleop/tracking_demo",
-    root=Path(latest_folder)
-)
+dataset = LeRobotDataset(repo_id="teleop/tracking_demo", root=Path(latest_folder))
 
 
 print("\n=== Timestamp Analysis ===")
@@ -25,15 +22,15 @@ print("\n=== Timestamp Analysis ===")
 # Get timestamps for first episode
 episode_idx = 0
 episode_info = dataset.meta.episodes[episode_idx]
-start_idx = episode_info['dataset_from_index']
-end_idx = episode_info['dataset_to_index']
+start_idx = episode_info["dataset_from_index"]
+end_idx = episode_info["dataset_to_index"]
 
 timestamps = []
 frame_indices = []
 for idx in range(start_idx, end_idx):
     sample = dataset[idx]
-    timestamps.append(sample['timestamp'].item())
-    frame_indices.append(sample['frame_index'].item())
+    timestamps.append(sample["timestamp"].item())
+    frame_indices.append(sample["frame_index"].item())
 
 print(f"Episode {episode_idx} timestamps (all frames):")
 for frame_idx, ts in zip(frame_indices, timestamps):
@@ -41,10 +38,9 @@ for frame_idx, ts in zip(frame_indices, timestamps):
         print(f"  Frame {frame_idx:4d}: {ts:.4f}s")
 
 # Calculate FPS from timestamps
-fps = dataset.meta.info['fps']
+fps = dataset.meta.info["fps"]
 print(f"\nDataset FPS: {fps}")
 if len(timestamps) > 1:
     avg_dt = (timestamps[-1] - timestamps[0]) / (len(timestamps) - 1)
     measured_fps = 1.0 / avg_dt
     print(f"Measured FPS from timestamps: {measured_fps:.2f}")
-

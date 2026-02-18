@@ -12,4 +12,3 @@ option(BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
 if(BUILD_PYTHON_BINDINGS)
     add_subdirectory(python)
 endif()
-

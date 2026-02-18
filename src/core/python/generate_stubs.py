@@ -67,7 +67,9 @@ def generate_stub(module_name: str, package_dir: Path) -> bool:
 
     try:
         parser = stub_parser_from_args(args)
-        printer = Printer(invalid_expr_as_ellipses=not args.print_invalid_expressions_as_is)
+        printer = Printer(
+            invalid_expr_as_ellipses=not args.print_invalid_expressions_as_is
+        )
         out_dir, sub_dir = to_output_and_subdir(
             output_dir=args.output_dir,
             module_name=args.module_name,
@@ -96,7 +98,9 @@ def main() -> int:
     """Main entry point."""
     if len(sys.argv) != 3:
         print(f"Usage: {sys.argv[0]} <module_name> <package_dir>")
-        print(f"Example: {sys.argv[0]} isaacteleop.deviceio._deviceio /path/to/python_package")
+        print(
+            f"Example: {sys.argv[0]} isaacteleop.deviceio._deviceio /path/to/python_package"
+        )
         return 1
 
     module_name = sys.argv[1]

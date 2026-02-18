@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
@@ -28,6 +27,7 @@ import isaacteleop.plugin_manager as pm
 # Plugins are in install/plugins
 PLUGIN_ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent / "plugins"
 
+
 def run_test():
     print("=" * 80)
     print("Controller Synthetic Hands Plugin Test")
@@ -43,13 +43,13 @@ def run_test():
     print("[Step 1] Initializing Plugin Manager...")
     print(f"  Search path: {PLUGIN_ROOT_DIR}")
     manager = pm.PluginManager([str(PLUGIN_ROOT_DIR)])
-    
+
     plugins = manager.get_plugin_names()
     print(f"  Discovered plugins: {plugins}")
-    
+
     plugin_name = "controller_synthetic_hands"
     plugin_root_id = "synthetic_hands"
-    
+
     if plugin_name not in plugins:
         print(f"  ✗ {plugin_name} not found")
         return
@@ -65,22 +65,22 @@ def run_test():
     extensions = [
         "XR_KHR_convert_timespec_time",
         "XR_MND_headless",
-        "XR_EXT_hand_tracking"
+        "XR_EXT_hand_tracking",
     ]
-    
+
     with (
         manager.start(plugin_name, plugin_root_id) as plugin,
-        oxr.OpenXRSession("HandReader", extensions) as oxr_session
+        oxr.OpenXRSession("HandReader", extensions) as oxr_session,
     ):
         print("  ✓ Plugin started")
         print("  ✓ Reader session created")
         print()
 
         handles = oxr_session.get_handles()
-        
+
         hand_tracker = deviceio.HandTracker()
         trackers = [hand_tracker]
-        
+
         # run() throws exception on failure
         with deviceio.DeviceIOSession.run(trackers, handles) as deviceio_session:
             print("  ✓ DeviceIO session created")
@@ -90,43 +90,48 @@ def run_test():
             print("[Step 4] Reading data (10 seconds)...")
             start_time = time.time()
             frame_count = 0
-            
+
             while time.time() - start_time < 10.0:
                 # Poll plugin health every ~1 second
                 if frame_count % 60 == 0:
                     try:
-                        plugin.check_health() # Throws PluginCrashException if plugin crashed
+                        plugin.check_health()  # Throws PluginCrashException if plugin crashed
                     except pm.PluginCrashException as e:
                         print(f"Plugin crashed: {e}")
                         break
-                
+
                 if not deviceio_session.update():
                     print("  ✗ Reader session update failed")
                     break
-                
+
                 if frame_count % 60 == 0:
                     left = hand_tracker.get_left_hand(deviceio_session)
                     right = hand_tracker.get_right_hand(deviceio_session)
-                    
+
                     print(f"Frame {frame_count}:")
                     print(f"  Left Hand: {'ACTIVE' if left.is_active else 'INACTIVE'}")
-                    print(f"  Right Hand: {'ACTIVE' if right.is_active else 'INACTIVE'}")
+                    print(
+                        f"  Right Hand: {'ACTIVE' if right.is_active else 'INACTIVE'}"
+                    )
 
                     if left.is_active:
                         wrist = left.joints[deviceio.JOINT_WRIST]
                         if wrist.is_valid:
                             pos = wrist.pose.position
-                            print(f"    Left Wrist: [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
+                            print(
+                                f"    Left Wrist: [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]"
+                            )
                     print()
-                    
+
                 frame_count += 1
                 time.sleep(0.016)
-    
+
     # Plugin automatically stopped when exiting 'with' block
     # If plugin crashed, PluginCrashException will be raised during stop()
     print("[Cleanup]")
     print("  ✓ Plugin stopped")
     print("  ✓ Done")
+
 
 if __name__ == "__main__":
     run_test()

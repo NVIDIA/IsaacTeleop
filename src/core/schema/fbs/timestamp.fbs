@@ -16,4 +16,3 @@ struct Timestamp {
     // These may be noisy, but will not drift apart arbitrary across different devices.
     common_time: int64;
 }
-

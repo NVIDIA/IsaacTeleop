@@ -169,4 +169,3 @@ class TestHandPoseTRepr:
         repr_str = repr(hand_pose)
         assert "HandPoseT" in repr_str
         assert "None" in repr_str
-

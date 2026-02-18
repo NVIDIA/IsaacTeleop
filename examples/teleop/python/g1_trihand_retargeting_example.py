@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
@@ -19,12 +18,9 @@ from pathlib import Path
 from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
 from isaacteleop.retargeting_engine.retargeters import (
     TriHandMotionControllerRetargeter,
-    TriHandMotionControllerConfig
+    TriHandMotionControllerConfig,
 )
-from isaacteleop.teleop_session_manager import (
-    TeleopSession,
-    TeleopSessionConfig
-)
+from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
 from isaacteleop.retargeting_engine.interface import OutputCombiner
 
 
@@ -62,37 +58,43 @@ def example_trihand_motion_controller():
         hand_joint_names=hand_joint_names,
         controller_side="left",
     )
-    left_controller = TriHandMotionControllerRetargeter(left_config, name="trihand_motion_left")
+    left_controller = TriHandMotionControllerRetargeter(
+        left_config, name="trihand_motion_left"
+    )
 
     # Connect left controller to source
-    connected_left = left_controller.connect({
-        ControllersSource.LEFT: controllers.output(ControllersSource.LEFT)
-    })
+    connected_left = left_controller.connect(
+        {ControllersSource.LEFT: controllers.output(ControllersSource.LEFT)}
+    )
 
     # Create right hand controller
     right_config = TriHandMotionControllerConfig(
         hand_joint_names=hand_joint_names,
         controller_side="right",
     )
-    right_controller = TriHandMotionControllerRetargeter(right_config, name="trihand_motion_right")
+    right_controller = TriHandMotionControllerRetargeter(
+        right_config, name="trihand_motion_right"
+    )
 
     # Connect right controller to source
-    connected_right = right_controller.connect({
-        ControllersSource.RIGHT: controllers.output(ControllersSource.RIGHT)
-    })
+    connected_right = right_controller.connect(
+        {ControllersSource.RIGHT: controllers.output(ControllersSource.RIGHT)}
+    )
 
     # ==================================================================
     # Create and run TeleopSession
     # ==================================================================
 
-    combined_pipeline = OutputCombiner({
-        "left_hand": connected_left.output("hand_joints"),
-        "right_hand": connected_right.output("hand_joints")
-    })
+    combined_pipeline = OutputCombiner(
+        {
+            "left_hand": connected_left.output("hand_joints"),
+            "right_hand": connected_right.output("hand_joints"),
+        }
+    )
 
     session_config = TeleopSessionConfig(
         app_name="TriHandMotionControllerRetargeterExample",
-        trackers=[], # Auto-discovered from pipeline
+        trackers=[],  # Auto-discovered from pipeline
         pipeline=combined_pipeline,
     )
 
@@ -100,11 +102,14 @@ def example_trihand_motion_controller():
     plugins = []
     if PLUGIN_ROOT_DIR.exists():
         from isaacteleop.teleop_session_manager import PluginConfig
-        plugins.append(PluginConfig(
-            plugin_name=PLUGIN_NAME,
-            plugin_root_id=PLUGIN_ROOT_ID,
-            search_paths=[PLUGIN_ROOT_DIR],
-        ))
+
+        plugins.append(
+            PluginConfig(
+                plugin_name=PLUGIN_NAME,
+                plugin_root_id=PLUGIN_ROOT_ID,
+                search_paths=[PLUGIN_ROOT_DIR],
+            )
+        )
     session_config.plugins = plugins
 
     with TeleopSession(session_config) as session:
@@ -145,7 +150,9 @@ def run_motion_controller_loop(session):
             r_index = joints_right[3]
             r_middle = joints_right[5]
 
-            print(f"[{elapsed:5.1f}s] L: T={l_thumb:5.2f} I={l_index:5.2f} M={l_middle:5.2f} | R: T={r_thumb:5.2f} I={r_index:5.2f} M={r_middle:5.2f}")
+            print(
+                f"[{elapsed:5.1f}s] L: T={l_thumb:5.2f} I={l_index:5.2f} M={l_middle:5.2f} | R: T={r_thumb:5.2f} I={r_index:5.2f} M={r_middle:5.2f}"
+            )
 
         frame_count += 1
         time.sleep(0.016)  # ~60 FPS

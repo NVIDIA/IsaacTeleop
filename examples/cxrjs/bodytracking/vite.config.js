@@ -8,4 +8,3 @@ export default defineConfig({
     host: true  // Exposes to local network (needed for Quest to access)
   }
 });
-

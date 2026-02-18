@@ -7,4 +7,3 @@
 
 # Python tests
 add_subdirectory(python)
-

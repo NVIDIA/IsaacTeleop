@@ -9,7 +9,6 @@ RetargeterIOType = Dict[str, TensorGroupType]
 RetargeterIO = Dict[str, TensorGroup]
 
 
-
 class ExecutionContext:
     def __init__(self, leaf_inputs: Dict[str, RetargeterIO]):
         self.leaf_inputs: Dict[str, RetargeterIO] = leaf_inputs
@@ -24,10 +23,12 @@ class ExecutionContext:
     def get_leaf_input(self, name: str) -> RetargeterIO | None:
         return self.leaf_inputs.get(name, None)
 
+
 class OutputSelector:
-    def __init__(self, module: 'GraphExecutable', output_name: str):
+    def __init__(self, module: "GraphExecutable", output_name: str):
         self.module = module
         self.output_name = output_name
+
 
 class BaseExecutable(ABC):
     @property
@@ -47,10 +48,12 @@ class BaseExecutable(ABC):
         """
         pass
 
+
 class GraphExecutable(ABC):
     """
     Protocol for retargeter subgraphs that can be executed in a graph context.
     """
+
     @abstractmethod
     def _compute_in_graph(self, context: ExecutionContext) -> RetargeterIO:
         pass
@@ -69,7 +72,7 @@ class GraphExecutable(ABC):
         return OutputSelector(self, output_name)
 
     @abstractmethod
-    def get_leaf_nodes(self) -> List['BaseExecutable']:
+    def get_leaf_nodes(self) -> List["BaseExecutable"]:
         """
         Get all leaf nodes (sources) in this graph.
 

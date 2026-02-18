@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
@@ -16,7 +15,10 @@ from typing import Optional, Dict, Any, List
 
 from isaacteleop.retargeting_engine.deviceio_source_nodes import IDeviceIOSource
 from isaacteleop.retargeting_engine.interface import BaseRetargeter
-from isaacteleop.retargeting_engine.interface.retargeter_core_types import RetargeterIO, RetargeterIOType
+from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
+    RetargeterIO,
+    RetargeterIOType,
+)
 
 import isaacteleop.deviceio as deviceio
 import isaacteleop.oxr as oxr
@@ -43,7 +45,7 @@ class TeleopSession:
     Pipelines may contain leaf nodes that are DeviceIO sources (auto-polled from
     hardware trackers) and/or leaf nodes that are regular retargeters requiring
     external inputs. External inputs are provided by the caller when calling step().
-    
+
     Usage with DeviceIO-only pipeline:
         controllers = ControllersSource(name="controllers")
         gripper = GripperRetargeter(name="gripper")
@@ -57,7 +59,7 @@ class TeleopSession:
             while True:
                 result = session.step()
                 left = result["gripper_left"][0]
-    
+
     Usage with external (non-DeviceIO) inputs via ValueInput:
         controllers = ControllersSource(name="controllers")
         ee_state = ValueInput("ee_state", RobotEEState())  # external leaf
@@ -65,20 +67,20 @@ class TeleopSession:
             "controller_left": controllers.output("controller_left"),
             "ee_pos": ee_state.output("value"),
         })
-        
+
         config = TeleopSessionConfig(app_name="MyApp", pipeline=pipeline)
         with TeleopSession(config) as session:
             ext_specs = session.get_external_input_specs()
             # ext_specs == {"ee_state": {"value": TensorGroupType(...)}}
-            
+
             while True:
                 ee_tg = TensorGroup(RobotEEState())
                 ee_tg[0] = get_ee_position()
-                
+
                 result = session.step(external_inputs={
                     "ee_state": {"value": ee_tg}
                 })
-    
+
     Any BaseRetargeter that is a leaf (not connected to a DeviceIO source)
     automatically becomes an external input -- ValueInput is just a shortcut
     for the common single-value passthrough case. See external_inputs_example.py.
@@ -124,7 +126,6 @@ class TeleopSession:
         """The internal OpenXR session, or ``None`` when using external handles (read-only)."""
         return self._oxr_session
 
-
     def _discover_sources(self) -> None:
         """Discover DeviceIO source modules and external leaf nodes from the pipeline.
 
@@ -165,10 +166,7 @@ class TeleopSession:
             specs = session.get_external_input_specs()
             # specs == {"sim_state": {"joint_positions": TensorGroupType(...)}}
         """
-        return {
-            leaf.name: leaf.input_spec()
-            for leaf in self._external_leaves
-        }
+        return {leaf.name: leaf.input_spec() for leaf in self._external_leaves}
 
     def has_external_inputs(self) -> bool:
         """Check whether this pipeline requires caller-provided external inputs.
@@ -180,10 +178,10 @@ class TeleopSession:
 
     def step(self, external_inputs: Optional[Dict[str, RetargeterIO]] = None):
         """Execute a single step of the teleop session.
-        
+
         Updates DeviceIO session, polls tracker data, merges any caller-provided
         external inputs, and executes the retargeting pipeline.
-        
+
         Args:
             external_inputs: Optional dict mapping external leaf node names to their
                 input data (Dict[str, TensorGroup]). Required when the pipeline has
@@ -203,7 +201,7 @@ class TeleopSession:
         """
         # Validate external inputs
         self._validate_external_inputs(external_inputs)
-        
+
         # Check plugin health periodically
         if self.frame_count % 60 == 0:
             self._check_plugin_health()
@@ -224,16 +222,18 @@ class TeleopSession:
         self.frame_count += 1
         return result
 
-    def _validate_external_inputs(self, external_inputs: Optional[Dict[str, RetargeterIO]]) -> None:
+    def _validate_external_inputs(
+        self, external_inputs: Optional[Dict[str, RetargeterIO]]
+    ) -> None:
         """Validate that all required external inputs are provided.
-        
+
         Checks that:
         1. No external input name collides with a DeviceIO source name (always).
         2. If external leaves exist: all required leaf names and keys are present.
-        
+
         Args:
             external_inputs: The external inputs provided by the caller.
-        
+
         Raises:
             ValueError: If external input names collide with source names, or if
                 external leaves exist but inputs are missing or incomplete.
@@ -393,5 +393,3 @@ class TeleopSession:
         self._exit_stack.__exit__(exc_type, exc_val, exc_tb)
 
         return exc_type is None  # Suppress exception only if we didn't have one
-
-

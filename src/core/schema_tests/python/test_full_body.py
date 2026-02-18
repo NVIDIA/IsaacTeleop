@@ -232,14 +232,30 @@ class TestBodyJointPicoEnum:
 
         # Test each joint index explicitly.
         all_joints = [
-            BodyJointPico.PELVIS, BodyJointPico.LEFT_HIP, BodyJointPico.RIGHT_HIP,
-            BodyJointPico.SPINE1, BodyJointPico.LEFT_KNEE, BodyJointPico.RIGHT_KNEE,
-            BodyJointPico.SPINE2, BodyJointPico.LEFT_ANKLE, BodyJointPico.RIGHT_ANKLE,
-            BodyJointPico.SPINE3, BodyJointPico.LEFT_FOOT, BodyJointPico.RIGHT_FOOT,
-            BodyJointPico.NECK, BodyJointPico.LEFT_COLLAR, BodyJointPico.RIGHT_COLLAR,
-            BodyJointPico.HEAD, BodyJointPico.LEFT_SHOULDER, BodyJointPico.RIGHT_SHOULDER,
-            BodyJointPico.LEFT_ELBOW, BodyJointPico.RIGHT_ELBOW, BodyJointPico.LEFT_WRIST,
-            BodyJointPico.RIGHT_WRIST, BodyJointPico.LEFT_HAND, BodyJointPico.RIGHT_HAND,
+            BodyJointPico.PELVIS,
+            BodyJointPico.LEFT_HIP,
+            BodyJointPico.RIGHT_HIP,
+            BodyJointPico.SPINE1,
+            BodyJointPico.LEFT_KNEE,
+            BodyJointPico.RIGHT_KNEE,
+            BodyJointPico.SPINE2,
+            BodyJointPico.LEFT_ANKLE,
+            BodyJointPico.RIGHT_ANKLE,
+            BodyJointPico.SPINE3,
+            BodyJointPico.LEFT_FOOT,
+            BodyJointPico.RIGHT_FOOT,
+            BodyJointPico.NECK,
+            BodyJointPico.LEFT_COLLAR,
+            BodyJointPico.RIGHT_COLLAR,
+            BodyJointPico.HEAD,
+            BodyJointPico.LEFT_SHOULDER,
+            BodyJointPico.RIGHT_SHOULDER,
+            BodyJointPico.LEFT_ELBOW,
+            BodyJointPico.RIGHT_ELBOW,
+            BodyJointPico.LEFT_WRIST,
+            BodyJointPico.RIGHT_WRIST,
+            BodyJointPico.LEFT_HAND,
+            BodyJointPico.RIGHT_HAND,
         ]
         assert len(all_joints) == 24
 

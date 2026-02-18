@@ -10,7 +10,7 @@ namespace core;
 table Generic3AxisPedalOutput {
   // Whether the output data is valid.
   is_valid: bool (id: 0);
-  
+
   // Dual timestamp with device and runtime clock domains.
   timestamp: Timestamp (id: 1);
 

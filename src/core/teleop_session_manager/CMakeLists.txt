@@ -18,14 +18,14 @@ set(TELEOP_SESSION_MANAGER_PYTHON_FILES
 foreach(PYTHON_FILE ${TELEOP_SESSION_MANAGER_PYTHON_FILES})
     get_filename_component(FILE_NAME ${PYTHON_FILE} NAME)
     set(OUTPUT_PATH "${TELEOP_SESSION_MANAGER_OUTPUT_DIR}/${FILE_NAME}")
-    
+
     add_custom_command(
         OUTPUT "${OUTPUT_PATH}"
         COMMAND ${CMAKE_COMMAND} -E copy "${PYTHON_FILE}" "${OUTPUT_PATH}"
         DEPENDS "${PYTHON_FILE}"
         COMMENT "Copying ${FILE_NAME} to teleop_session_manager package"
     )
-    
+
     list(APPEND TELEOP_SESSION_MANAGER_OUTPUT_FILES "${OUTPUT_PATH}")
 endforeach()
 
@@ -45,4 +45,3 @@ install(FILES
 )
 
 message(STATUS "TeleopSessionManager Python package configured for installation")
-

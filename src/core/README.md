@@ -49,4 +49,3 @@ uv run test_modular.py
 ## Development
 
 The project uses CMake for building. See the top-level `BUILD.md` for complete build instructions.
-

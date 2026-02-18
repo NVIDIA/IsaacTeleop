@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
@@ -25,13 +24,10 @@ from isaacteleop.retargeting_engine.retargeters import (
     DexHandRetargeterConfig,
     Se3AbsRetargeter,
     Se3RetargeterConfig,
-    TensorReorderer
+    TensorReorderer,
 )
 from isaacteleop.retargeting_engine.interface import OutputCombiner
-from isaacteleop.teleop_session_manager import (
-    TeleopSession,
-    TeleopSessionConfig
-)
+from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
 from isaacteleop.retargeting_engine_ui import MultiRetargeterTuningUIImGui
 
 
@@ -46,17 +42,37 @@ def main():
     parser = argparse.ArgumentParser(description="Full Bimanual Retargeting Example")
     parser.add_argument("--left-urdf", type=str, help="Path to left hand URDF")
     parser.add_argument("--right-urdf", type=str, help="Path to right hand URDF")
-    parser.add_argument("--left-config", type=str, help="Path to left hand retargeting config (YAML)")
-    parser.add_argument("--right-config", type=str, help="Path to right hand retargeting config (YAML)")
-    parser.add_argument("--enable-tuning", action="store_true", help="Enable retargeting tuning UI")
+    parser.add_argument(
+        "--left-config", type=str, help="Path to left hand retargeting config (YAML)"
+    )
+    parser.add_argument(
+        "--right-config", type=str, help="Path to right hand retargeting config (YAML)"
+    )
+    parser.add_argument(
+        "--enable-tuning", action="store_true", help="Enable retargeting tuning UI"
+    )
     args = parser.parse_args()
 
     # Config paths (similar to dex_bimanual_example)
     config_dir = Path(__file__).parent / "config" / "dex_retargeting"
-    left_yaml = Path(args.left_config) if args.left_config else config_dir / "hand_left_config.yml"
-    right_yaml = Path(args.right_config) if args.right_config else config_dir / "hand_right_config.yml"
-    left_urdf_path = Path(args.left_urdf) if args.left_urdf else config_dir / "left_robot_hand.urdf"
-    right_urdf_path = Path(args.right_urdf) if args.right_urdf else config_dir / "right_robot_hand.urdf"
+    left_yaml = (
+        Path(args.left_config)
+        if args.left_config
+        else config_dir / "hand_left_config.yml"
+    )
+    right_yaml = (
+        Path(args.right_config)
+        if args.right_config
+        else config_dir / "hand_right_config.yml"
+    )
+    left_urdf_path = (
+        Path(args.left_urdf) if args.left_urdf else config_dir / "left_robot_hand.urdf"
+    )
+    right_urdf_path = (
+        Path(args.right_urdf)
+        if args.right_urdf
+        else config_dir / "right_robot_hand.urdf"
+    )
 
     # ==================================================================
     # 1. Build Retargeting Pipeline
@@ -108,20 +124,20 @@ def main():
     # --- Connect Inputs ---
 
     # Connect Hands
-    left_hand_connected = left_hand_retargeter.connect({
-        HandsSource.LEFT: hands.output(HandsSource.LEFT)
-    })
-    right_hand_connected = right_hand_retargeter.connect({
-        HandsSource.RIGHT: hands.output(HandsSource.RIGHT)
-    })
+    left_hand_connected = left_hand_retargeter.connect(
+        {HandsSource.LEFT: hands.output(HandsSource.LEFT)}
+    )
+    right_hand_connected = right_hand_retargeter.connect(
+        {HandsSource.RIGHT: hands.output(HandsSource.RIGHT)}
+    )
 
     # Connect Arms
-    left_arm_connected = left_arm_retargeter.connect({
-        "hand_left": hands.output(HandsSource.LEFT)
-    })
-    right_arm_connected = right_arm_retargeter.connect({
-        "hand_right": hands.output(HandsSource.RIGHT)
-    })
+    left_arm_connected = left_arm_retargeter.connect(
+        {"hand_left": hands.output(HandsSource.LEFT)}
+    )
+    right_arm_connected = right_arm_retargeter.connect(
+        {"hand_right": hands.output(HandsSource.RIGHT)}
+    )
 
     # ==================================================================
     # 2. Configure Tensor Reorderer
@@ -129,8 +145,12 @@ def main():
 
     # Define the names for the 7 elements of the SE3 output (Pos + Rot)
     # Order: [pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, rot_w]
-    left_arm_elements = [f"left_ee_{x}" for x in ["px", "py", "pz", "rx", "ry", "rz", "rw"]]
-    right_arm_elements = [f"right_ee_{x}" for x in ["px", "py", "pz", "rx", "ry", "rz", "rw"]]
+    left_arm_elements = [
+        f"left_ee_{x}" for x in ["px", "py", "pz", "rx", "ry", "rz", "rw"]
+    ]
+    right_arm_elements = [
+        f"right_ee_{x}" for x in ["px", "py", "pz", "rx", "ry", "rz", "rw"]
+    ]
 
     # Define the full flattened order expected by "Isaac Lab" (Hypothetically)
     # Let's say the robot expects: [Left Arm Pose, Left Hand Joints, Right Arm Pose, Right Hand Joints]
@@ -164,21 +184,21 @@ def main():
         input_types={
             "left_arm_pose": "array",
             "right_arm_pose": "array",
-        }
+        },
     )
 
     # Connect Reorderer to Retargeters
-    reorderer_connected = reorderer.connect({
-        "left_arm_pose": left_arm_connected.output("ee_pose"),
-        "right_arm_pose": right_arm_connected.output("ee_pose"),
-        "left_hand_joints": left_hand_connected.output("hand_joints"),
-        "right_hand_joints": right_hand_connected.output("hand_joints"),
-    })
+    reorderer_connected = reorderer.connect(
+        {
+            "left_arm_pose": left_arm_connected.output("ee_pose"),
+            "right_arm_pose": right_arm_connected.output("ee_pose"),
+            "left_hand_joints": left_hand_connected.output("hand_joints"),
+            "right_hand_joints": right_hand_connected.output("hand_joints"),
+        }
+    )
 
     # Final Pipeline Output
-    pipeline = OutputCombiner({
-        "action": reorderer_connected.output("output")
-    })
+    pipeline = OutputCombiner({"action": reorderer_connected.output("output")})
 
     # ==================================================================
     # 3. Run Session
@@ -195,12 +215,14 @@ def main():
         left_hand_retargeter,
         right_hand_retargeter,
         left_arm_retargeter,
-        right_arm_retargeter
+        right_arm_retargeter,
     ]
 
     if args.enable_tuning:
         print("Opening Retargeting UI...")
-        ui_context = MultiRetargeterTuningUIImGui(retargeters_to_tune, title="Full Bimanual Tuning")
+        ui_context = MultiRetargeterTuningUIImGui(
+            retargeters_to_tune, title="Full Bimanual Tuning"
+        )
     else:
         ui_context = contextlib.nullcontext(SimpleNamespace(is_running=lambda: True))
 
@@ -216,7 +238,7 @@ def main():
 
                 # result["action"] is a TensorGroup containing ONE tensor (our array)
                 # Access it at index 0
-                action_tensor = result["action"][0] # This is a numpy array (float32)
+                action_tensor = result["action"][0]  # This is a numpy array (float32)
 
                 if session.frame_count % 60 == 0:
                     elapsed = session.get_elapsed_time()
@@ -225,19 +247,21 @@ def main():
                     l_pos = action_tensor[0:3]
                     # Right Arm Pos (index depends on length of left hand joints)
                     r_start_idx = 7 + len(left_hand_retargeter._hand_joint_names)
-                    r_pos = action_tensor[r_start_idx:r_start_idx+3]
+                    r_pos = action_tensor[r_start_idx : r_start_idx + 3]
 
                     # Left Hand Joints (first 3)
                     l_hand_start = 7
-                    l_hand_joints = action_tensor[l_hand_start:l_hand_start+3]
+                    l_hand_joints = action_tensor[l_hand_start : l_hand_start + 3]
 
                     # Right Hand Joints (first 3)
                     r_hand_start = r_start_idx + 7
-                    r_hand_joints = action_tensor[r_hand_start:r_hand_start+3]
+                    r_hand_joints = action_tensor[r_hand_start : r_hand_start + 3]
 
-                    print(f"[{elapsed:5.1f}s] Action Shape: {action_tensor.shape} | "
-                          f"L_Arm: {np.round(l_pos, 3)} | L_Hand(3): {np.round(l_hand_joints, 3)} | "
-                          f"R_Arm: {np.round(r_pos, 3)} | R_Hand(3): {np.round(r_hand_joints, 3)}")
+                    print(
+                        f"[{elapsed:5.1f}s] Action Shape: {action_tensor.shape} | "
+                        f"L_Arm: {np.round(l_pos, 3)} | L_Hand(3): {np.round(l_hand_joints, 3)} | "
+                        f"R_Arm: {np.round(r_pos, 3)} | R_Hand(3): {np.round(r_hand_joints, 3)}"
+                    )
 
                 time.sleep(0.016)
 

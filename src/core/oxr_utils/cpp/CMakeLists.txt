@@ -49,4 +49,3 @@ install(EXPORT oxr_utils-targets
     NAMESPACE oxr::
     DESTINATION lib/cmake/oxr_utils
 )
-

@@ -10,7 +10,11 @@ Converts raw HeadPoseT flatbuffer data to standard HeadPose tensor format.
 import numpy as np
 from typing import Any, TYPE_CHECKING
 from .interface import IDeviceIOSource
-from ..interface.retargeter_core_types import OutputSelector, RetargeterIO, RetargeterIOType
+from ..interface.retargeter_core_types import (
+    OutputSelector,
+    RetargeterIO,
+    RetargeterIOType,
+)
 from ..interface.tensor_group import TensorGroup
 from ..interface.retargeter_subgraph import RetargeterSubgraph
 from ..tensor_types import HeadPose
@@ -27,10 +31,10 @@ class HeadSource(IDeviceIOSource):
 
     Inputs:
         - "deviceio_head": Raw HeadPoseT flatbuffer object from DeviceIO
-    
+
     Outputs:
         - "head": Standard HeadPose tensor (position, orientation, is_valid, timestamp)
-    
+
     Usage:
         # In TeleopSession, manually poll tracker and pass data
         head_data = head_tracker.get_head(session)
@@ -39,19 +43,20 @@ class HeadSource(IDeviceIOSource):
 
     def __init__(self, name: str) -> None:
         """Initialize stateless head source node.
-        
+
         Creates a HeadTracker instance for TeleopSession to discover and use.
-        
+
         Args:
             name: Unique name for this source node
         """
         import isaacteleop.deviceio as deviceio
+
         self._head_tracker = deviceio.HeadTracker()
         super().__init__(name)
 
     def get_tracker(self) -> "ITracker":
         """Get the HeadTracker instance.
-        
+
         Returns:
             The HeadTracker instance for TeleopSession to initialize
         """
@@ -77,15 +82,11 @@ class HeadSource(IDeviceIOSource):
 
     def input_spec(self) -> RetargeterIOType:
         """Declare DeviceIO head input."""
-        return {
-            "deviceio_head": DeviceIOHeadPose()
-        }
+        return {"deviceio_head": DeviceIOHeadPose()}
 
     def output_spec(self) -> RetargeterIOType:
         """Declare standard head pose output."""
-        return {
-            "head": HeadPose()
-        }
+        return {"head": HeadPose()}
 
     def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
         """
@@ -99,18 +100,24 @@ class HeadSource(IDeviceIOSource):
         head_pose: "HeadPoseT" = inputs["deviceio_head"][0]
 
         # Convert to numpy arrays
-        position = np.array([
-            head_pose.pose.position.x,
-            head_pose.pose.position.y,
-            head_pose.pose.position.z
-        ], dtype=np.float32)
-        
-        orientation = np.array([
-            head_pose.pose.orientation.x,
-            head_pose.pose.orientation.y,
-            head_pose.pose.orientation.z,
-            head_pose.pose.orientation.w
-        ], dtype=np.float32)
+        position = np.array(
+            [
+                head_pose.pose.position.x,
+                head_pose.pose.position.y,
+                head_pose.pose.position.z,
+            ],
+            dtype=np.float32,
+        )
+
+        orientation = np.array(
+            [
+                head_pose.pose.orientation.x,
+                head_pose.pose.orientation.y,
+                head_pose.pose.orientation.z,
+                head_pose.pose.orientation.w,
+            ],
+            dtype=np.float32,
+        )
 
         # Update output tensor group
         output = outputs["head"]
@@ -138,7 +145,9 @@ class HeadSource(IDeviceIOSource):
         from ..utilities.head_transform import HeadTransform
 
         xform_node = HeadTransform(f"{self.name}_transform")
-        return xform_node.connect({
-            "head": self.output("head"),
-            "transform": transform_input,
-        })
+        return xform_node.connect(
+            {
+                "head": self.output("head"),
+                "transform": transform_input,
+            }
+        )

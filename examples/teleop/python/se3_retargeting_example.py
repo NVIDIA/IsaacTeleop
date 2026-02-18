@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
@@ -53,13 +52,11 @@ def run_abs_example(use_controller=False):
 
     retargeter = Se3AbsRetargeter(config, name="se3_abs")
 
-    pipeline = retargeter.connect({
-        input_device: source.output(input_device)
-    })
+    pipeline = retargeter.connect({input_device: source.output(input_device)})
 
     session_config = TeleopSessionConfig(
         app_name="Se3AbsExample",
-        trackers=[], # Auto-discovered
+        trackers=[],  # Auto-discovered
         pipeline=pipeline,
     )
 
@@ -73,11 +70,13 @@ def run_abs_example(use_controller=False):
             # Output: [x, y, z, qx, qy, qz, qw]
             pose = result["ee_pose"][0]
             pos = pose[:3]
-            rot = pose[3:] # x,y,z,w
+            rot = pose[3:]  # x,y,z,w
 
             if session.frame_count % 30 == 0:
                 elapsed = session.get_elapsed_time()
-                print(f"[{elapsed:5.1f}s] Pos: ({pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f})  Rot: ({rot[0]:.2f}, {rot[1]:.2f}, {rot[2]:.2f}, {rot[3]:.2f})")
+                print(
+                    f"[{elapsed:5.1f}s] Pos: ({pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f})  Rot: ({rot[0]:.2f}, {rot[1]:.2f}, {rot[2]:.2f}, {rot[3]:.2f})"
+                )
 
             time.sleep(0.016)
 
@@ -109,13 +108,11 @@ def run_rel_example(use_controller=False):
 
     retargeter = Se3RelRetargeter(config, name="se3_rel")
 
-    pipeline = retargeter.connect({
-        input_device: source.output(input_device)
-    })
+    pipeline = retargeter.connect({input_device: source.output(input_device)})
 
     session_config = TeleopSessionConfig(
         app_name="Se3RelExample",
-        trackers=[], # Auto-discovered
+        trackers=[],  # Auto-discovered
         pipeline=pipeline,
     )
 
@@ -136,7 +133,9 @@ def run_rel_example(use_controller=False):
                 # Calculate magnitude for easier reading
                 vel_mag = np.linalg.norm(dpos)
                 rot_mag = np.linalg.norm(drot)
-                print(f"[{elapsed:5.1f}s] Vel Mag: {vel_mag:.4f}  Rot Mag: {rot_mag:.4f} | dPos: ({dpos[0]:.3f}, ...)")
+                print(
+                    f"[{elapsed:5.1f}s] Vel Mag: {vel_mag:.4f}  Rot Mag: {rot_mag:.4f} | dPos: ({dpos[0]:.3f}, ...)"
+                )
 
             time.sleep(0.016)
 

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
@@ -8,7 +7,11 @@ Helper utilities for pipeline introspection and input node creation.
 
 from typing import Any, List
 
-from isaacteleop.retargeting_engine.deviceio_source_nodes import HandsSource, ControllersSource, HeadSource
+from isaacteleop.retargeting_engine.deviceio_source_nodes import (
+    HandsSource,
+    ControllersSource,
+    HeadSource,
+)
 
 
 def _get_trackers_from_pipeline(pipeline: Any) -> List[Any]:
@@ -94,5 +97,3 @@ def create_standard_inputs(trackers):
             inputs["head"] = HeadSource(name="head")
 
     return inputs
-
-

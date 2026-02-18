@@ -40,7 +40,7 @@ class TensorReorderer(BaseRetargeter):
         input_config: Dict[str, List[str]],
         output_order: List[str],
         name: str,
-        input_types: Optional[Dict[str, str]] = None
+        input_types: Optional[Dict[str, str]] = None,
     ) -> None:
         """
         Initialize the reorderer.
@@ -96,31 +96,35 @@ class TensorReorderer(BaseRetargeter):
                             "array_input",
                             shape=(len(element_names),),
                             dtype=DLDataType.FLOAT,
-                            dtype_bits=32
+                            dtype_bits=32,
                         )
-                    ]
+                    ],
                 )
             else:
                 inputs[input_name] = TensorGroupType(
-                    input_name,
-                    [FloatType(name) for name in element_names]
+                    input_name, [FloatType(name) for name in element_names]
                 )
         return inputs
 
     def output_spec(self) -> RetargeterIOType:
         """Define output as a single 1D NDArray."""
         return {
-            "output": TensorGroupType("output", [
-                NDArrayType(
-                    "action_flat",
-                    shape=(self._output_len,),
-                    dtype=DLDataType.FLOAT,
-                    dtype_bits=32
-                )
-            ])
+            "output": TensorGroupType(
+                "output",
+                [
+                    NDArrayType(
+                        "action_flat",
+                        shape=(self._output_len,),
+                        dtype=DLDataType.FLOAT,
+                        dtype_bits=32,
+                    )
+                ],
+            )
         }
 
-    def compute(self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]) -> None:
+    def compute(
+        self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]
+    ) -> None:
         """
         Gather values and pack them into a single numpy array.
         """
@@ -132,12 +136,12 @@ class TensorReorderer(BaseRetargeter):
         for name, group in inputs.items():
             # Check if group contains a single NDArray (like Se3Retargeter)
             if len(group) == 1 and isinstance(group[0], (np.ndarray, list, tuple)):
-                 # It's likely an array wrapped in a TensorGroup
-                 val = group[0]
-                 if hasattr(val, "flatten"):
-                     flattened_inputs[name] = val.flatten()
-                 else:
-                     flattened_inputs[name] = np.array(val).flatten()
+                # It's likely an array wrapped in a TensorGroup
+                val = group[0]
+                if hasattr(val, "flatten"):
+                    flattened_inputs[name] = val.flatten()
+                else:
+                    flattened_inputs[name] = np.array(val).flatten()
             else:
                 # It's likely a group of scalars (like DexHandRetargeter)
                 # We can treat the group itself as the list

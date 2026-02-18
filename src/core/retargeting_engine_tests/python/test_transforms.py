@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
@@ -45,6 +44,7 @@ from isaacteleop.retargeting_engine.utilities import (
 # Helpers
 # ============================================================================
 
+
 def _identity_4x4() -> np.ndarray:
     return np.eye(4, dtype=np.float32)
 
@@ -58,8 +58,10 @@ def _translation_4x4(tx: float, ty: float, tz: float) -> np.ndarray:
 def _rotation_z_90() -> np.ndarray:
     """90-degree rotation about Z axis."""
     m = np.eye(4, dtype=np.float32)
-    m[0, 0] = 0.0;  m[0, 1] = -1.0
-    m[1, 0] = 1.0;  m[1, 1] = 0.0
+    m[0, 0] = 0.0
+    m[0, 1] = -1.0
+    m[1, 0] = 1.0
+    m[1, 1] = 0.0
     return m
 
 
@@ -90,6 +92,7 @@ def _run_retargeter(retargeter, inputs):
 # Tests: validate_transform_matrix
 # ============================================================================
 
+
 class TestValidateTransformMatrix:
     def test_valid_identity(self):
         result = validate_transform_matrix(np.eye(4))
@@ -117,6 +120,7 @@ class TestValidateTransformMatrix:
 # Tests: decompose_transform
 # ============================================================================
 
+
 class TestDecomposeTransform:
     def test_identity(self):
         R, t = decompose_transform(np.eye(4))
@@ -139,6 +143,7 @@ class TestDecomposeTransform:
 # ============================================================================
 # Tests: transform_position
 # ============================================================================
+
 
 class TestTransformPosition:
     def test_identity(self):
@@ -167,6 +172,7 @@ class TestTransformPosition:
 # ============================================================================
 # Tests: transform_positions_batch
 # ============================================================================
+
 
 class TestTransformPositionsBatch:
     def test_batch_identity(self):
@@ -198,6 +204,7 @@ class TestTransformPositionsBatch:
 # Tests: quaternion helpers
 # ============================================================================
 
+
 class TestQuaternionHelpers:
     def test_identity_matrix_to_quat(self):
         q = _rotation_matrix_to_quat_xyzw(np.eye(3))
@@ -228,6 +235,7 @@ class TestQuaternionHelpers:
 # ============================================================================
 # Tests: transform_orientation / transform_orientations_batch
 # ============================================================================
+
 
 class TestTransformOrientation:
     def test_identity_rotation(self):
@@ -278,6 +286,7 @@ class TestTransformOrientationsBatch:
 # Tests: HeadTransform node
 # ============================================================================
 
+
 class TestHeadTransform:
     def _make_head_input(self, position, orientation, is_valid=True, timestamp=100):
         tg = TensorGroup(HeadPose())
@@ -295,7 +304,7 @@ class TestHeadTransform:
         out = result["head"]
         npt.assert_array_almost_equal(np.from_dlpack(out[0]), [1, 2, 3], decimal=5)
         npt.assert_array_almost_equal(np.from_dlpack(out[1]), [0, 0, 0, 1], decimal=5)
-        assert out[2] == True
+        assert out[2] is True
         assert out[3] == 100
 
     def test_translation_transform(self):
@@ -318,11 +327,13 @@ class TestHeadTransform:
 
     def test_passthrough_fields_preserved(self):
         node = HeadTransform("head_xform")
-        head_in = self._make_head_input([0, 0, 0], [0, 0, 0, 1], is_valid=False, timestamp=42)
+        head_in = self._make_head_input(
+            [0, 0, 0], [0, 0, 0, 1], is_valid=False, timestamp=42
+        )
         xform_in = _make_transform_input(_rotation_z_90_with_translation())
         result = _run_retargeter(node, {"head": head_in, "transform": xform_in})
         out = result["head"]
-        assert out[2] == False
+        assert out[2] is False
         assert out[3] == 42
 
 
@@ -330,9 +341,11 @@ class TestHeadTransform:
 # Tests: ControllerTransform node
 # ============================================================================
 
+
 class TestControllerTransform:
-    def _make_controller_input(self, grip_pos, grip_ori, aim_pos, aim_ori,
-                                primary_click=0.0, is_active=True):
+    def _make_controller_input(
+        self, grip_pos, grip_ori, aim_pos, aim_ori, primary_click=0.0, is_active=True
+    ):
         tg = TensorGroup(ControllerInput())
         tg[ControllerInputIndex.GRIP_POSITION] = np.array(grip_pos, dtype=np.float32)
         tg[ControllerInputIndex.GRIP_ORIENTATION] = np.array(grip_ori, dtype=np.float32)
@@ -355,18 +368,27 @@ class TestControllerTransform:
         right = self._make_controller_input([3, 0, 0], id_quat, [4, 0, 0], id_quat)
         xform = _make_transform_input(_identity_4x4())
 
-        result = _run_retargeter(node, {
-            "controller_left": left,
-            "controller_right": right,
-            "transform": xform,
-        })
+        result = _run_retargeter(
+            node,
+            {
+                "controller_left": left,
+                "controller_right": right,
+                "transform": xform,
+            },
+        )
 
         out_l = result["controller_left"]
         npt.assert_array_almost_equal(
-            np.from_dlpack(out_l[ControllerInputIndex.GRIP_POSITION]), [1, 0, 0], decimal=5)
+            np.from_dlpack(out_l[ControllerInputIndex.GRIP_POSITION]),
+            [1, 0, 0],
+            decimal=5,
+        )
         out_r = result["controller_right"]
         npt.assert_array_almost_equal(
-            np.from_dlpack(out_r[ControllerInputIndex.GRIP_POSITION]), [3, 0, 0], decimal=5)
+            np.from_dlpack(out_r[ControllerInputIndex.GRIP_POSITION]),
+            [3, 0, 0],
+            decimal=5,
+        )
 
     def test_translation_transforms_both_poses(self):
         node = ControllerTransform("ctrl_xform")
@@ -375,37 +397,53 @@ class TestControllerTransform:
         right = self._make_controller_input([0, 0, 0], id_quat, [0, 0, 0], id_quat)
         xform = _make_transform_input(_translation_4x4(10, 20, 30))
 
-        result = _run_retargeter(node, {
-            "controller_left": left,
-            "controller_right": right,
-            "transform": xform,
-        })
+        result = _run_retargeter(
+            node,
+            {
+                "controller_left": left,
+                "controller_right": right,
+                "transform": xform,
+            },
+        )
 
         out_l = result["controller_left"]
         npt.assert_array_almost_equal(
-            np.from_dlpack(out_l[ControllerInputIndex.GRIP_POSITION]), [11, 20, 30], decimal=5)
+            np.from_dlpack(out_l[ControllerInputIndex.GRIP_POSITION]),
+            [11, 20, 30],
+            decimal=5,
+        )
         npt.assert_array_almost_equal(
-            np.from_dlpack(out_l[ControllerInputIndex.AIM_POSITION]), [12, 20, 30], decimal=5)
+            np.from_dlpack(out_l[ControllerInputIndex.AIM_POSITION]),
+            [12, 20, 30],
+            decimal=5,
+        )
 
     def test_button_fields_preserved(self):
         node = ControllerTransform("ctrl_xform")
         id_quat = [0, 0, 0, 1]
         left = self._make_controller_input(
-            [0, 0, 0], id_quat, [0, 0, 0], id_quat,
-            primary_click=1.0, is_active=False,
+            [0, 0, 0],
+            id_quat,
+            [0, 0, 0],
+            id_quat,
+            primary_click=1.0,
+            is_active=False,
         )
         right = self._make_controller_input([0, 0, 0], id_quat, [0, 0, 0], id_quat)
         xform = _make_transform_input(_rotation_z_90_with_translation())
 
-        result = _run_retargeter(node, {
-            "controller_left": left,
-            "controller_right": right,
-            "transform": xform,
-        })
+        result = _run_retargeter(
+            node,
+            {
+                "controller_left": left,
+                "controller_right": right,
+                "transform": xform,
+            },
+        )
 
         out_l = result["controller_left"]
         assert float(out_l[ControllerInputIndex.PRIMARY_CLICK]) == 1.0
-        assert out_l[ControllerInputIndex.IS_ACTIVE] == False
+        assert out_l[ControllerInputIndex.IS_ACTIVE] is False
 
     def test_rotation_transforms_grip_and_aim(self):
         node = ControllerTransform("ctrl_xform")
@@ -414,22 +452,32 @@ class TestControllerTransform:
         right = self._make_controller_input([0, 0, 0], id_quat, [0, 0, 0], id_quat)
         xform = _make_transform_input(_rotation_z_90())
 
-        result = _run_retargeter(node, {
-            "controller_left": left,
-            "controller_right": right,
-            "transform": xform,
-        })
+        result = _run_retargeter(
+            node,
+            {
+                "controller_left": left,
+                "controller_right": right,
+                "transform": xform,
+            },
+        )
 
         out_l = result["controller_left"]
         npt.assert_array_almost_equal(
-            np.from_dlpack(out_l[ControllerInputIndex.GRIP_POSITION]), [0, 1, 0], decimal=5)
+            np.from_dlpack(out_l[ControllerInputIndex.GRIP_POSITION]),
+            [0, 1, 0],
+            decimal=5,
+        )
         npt.assert_array_almost_equal(
-            np.from_dlpack(out_l[ControllerInputIndex.AIM_POSITION]), [-1, 0, 0], decimal=5)
+            np.from_dlpack(out_l[ControllerInputIndex.AIM_POSITION]),
+            [-1, 0, 0],
+            decimal=5,
+        )
 
 
 # ============================================================================
 # Tests: HandTransform node
 # ============================================================================
+
 
 class TestHandTransform:
     def _make_hand_input(self, joint_offset=0.0, is_active=True, timestamp=200):
@@ -455,11 +503,14 @@ class TestHandTransform:
         right = self._make_hand_input(joint_offset=100.0)
         xform = _make_transform_input(_identity_4x4())
 
-        result = _run_retargeter(node, {
-            "hand_left": left,
-            "hand_right": right,
-            "transform": xform,
-        })
+        result = _run_retargeter(
+            node,
+            {
+                "hand_left": left,
+                "hand_right": right,
+                "transform": xform,
+            },
+        )
 
         out_l = result["hand_left"]
         out_pos = np.from_dlpack(out_l[HandInputIndex.JOINT_POSITIONS])
@@ -472,11 +523,14 @@ class TestHandTransform:
         right = self._make_hand_input()
         xform = _make_transform_input(_translation_4x4(1, 2, 3))
 
-        result = _run_retargeter(node, {
-            "hand_left": left,
-            "hand_right": right,
-            "transform": xform,
-        })
+        result = _run_retargeter(
+            node,
+            {
+                "hand_left": left,
+                "hand_right": right,
+                "transform": xform,
+            },
+        )
 
         out_l = result["hand_left"]
         out_pos = np.from_dlpack(out_l[HandInputIndex.JOINT_POSITIONS])
@@ -491,17 +545,20 @@ class TestHandTransform:
         right = self._make_hand_input(is_active=True, timestamp=99)
         xform = _make_transform_input(_rotation_z_90_with_translation())
 
-        result = _run_retargeter(node, {
-            "hand_left": left,
-            "hand_right": right,
-            "transform": xform,
-        })
+        result = _run_retargeter(
+            node,
+            {
+                "hand_left": left,
+                "hand_right": right,
+                "transform": xform,
+            },
+        )
 
         out_l = result["hand_left"]
         out_r = result["hand_right"]
-        assert out_l[HandInputIndex.IS_ACTIVE] == False
+        assert out_l[HandInputIndex.IS_ACTIVE] is False
         assert out_l[HandInputIndex.TIMESTAMP] == 42
-        assert out_r[HandInputIndex.IS_ACTIVE] == True
+        assert out_r[HandInputIndex.IS_ACTIVE] is True
         assert out_r[HandInputIndex.TIMESTAMP] == 99
 
         # Radii and validity should be unchanged
@@ -517,11 +574,14 @@ class TestHandTransform:
         right = self._make_hand_input()
         xform = _make_transform_input(_rotation_z_90())
 
-        result = _run_retargeter(node, {
-            "hand_left": left,
-            "hand_right": right,
-            "transform": xform,
-        })
+        result = _run_retargeter(
+            node,
+            {
+                "hand_left": left,
+                "hand_right": right,
+                "transform": xform,
+            },
+        )
 
         out_l = result["hand_left"]
         out_pos = np.from_dlpack(out_l[HandInputIndex.JOINT_POSITIONS])
@@ -543,6 +603,7 @@ class TestHandTransform:
 # ============================================================================
 # Tests: Output-to-input aliasing (regression)
 # ============================================================================
+
 
 class TestHeadTransformNoAliasing:
     """Verify HeadTransform outputs do not alias inputs."""
@@ -604,11 +665,14 @@ class TestControllerTransformNoAliasing:
 
         orig_grip = np.array([1, 2, 3], dtype=np.float32)
 
-        result = _run_retargeter(node, {
-            "controller_left": left,
-            "controller_right": right,
-            "transform": xform,
-        })
+        result = _run_retargeter(
+            node,
+            {
+                "controller_left": left,
+                "controller_right": right,
+                "transform": xform,
+            },
+        )
 
         out_l = result["controller_left"]
 
@@ -618,7 +682,8 @@ class TestControllerTransformNoAliasing:
 
         # Original input must be unchanged
         npt.assert_array_equal(
-            np.from_dlpack(left[ControllerInputIndex.GRIP_POSITION]), orig_grip)
+            np.from_dlpack(left[ControllerInputIndex.GRIP_POSITION]), orig_grip
+        )
 
 
 class TestHandTransformNoAliasing:
@@ -653,11 +718,14 @@ class TestHandTransformNoAliasing:
         orig_radii = radii.copy()
         orig_positions = positions.copy()
 
-        result = _run_retargeter(node, {
-            "hand_left": left,
-            "hand_right": right,
-            "transform": xform,
-        })
+        result = _run_retargeter(
+            node,
+            {
+                "hand_left": left,
+                "hand_right": right,
+                "transform": xform,
+            },
+        )
 
         out_l = result["hand_left"]
 
@@ -670,5 +738,9 @@ class TestHandTransformNoAliasing:
         out_pos[:] = 999.0
 
         # Original input must be unchanged
-        npt.assert_array_equal(np.from_dlpack(left[HandInputIndex.JOINT_RADII]), orig_radii)
-        npt.assert_array_equal(np.from_dlpack(left[HandInputIndex.JOINT_POSITIONS]), orig_positions)
+        npt.assert_array_equal(
+            np.from_dlpack(left[HandInputIndex.JOINT_RADII]), orig_radii
+        )
+        npt.assert_array_equal(
+            np.from_dlpack(left[HandInputIndex.JOINT_POSITIONS]), orig_positions
+        )

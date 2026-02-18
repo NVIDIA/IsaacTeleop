@@ -31,6 +31,7 @@ from ..tensor_types import (
 
 try:
     from scipy.spatial.transform import Rotation, Slerp
+
     SCIPY_AVAILABLE = True
 except ImportError:
     SCIPY_AVAILABLE = False
@@ -39,7 +40,10 @@ except ImportError:
 @dataclass
 class Se3RetargeterConfig:
     """Configuration for SE3 retargeters."""
-    input_device: str = "hand_right"  # "hand_left", "hand_right", "controller_left", "controller_right"
+
+    input_device: str = (
+        "hand_right"  # "hand_left", "hand_right", "controller_left", "controller_right"
+    )
     zero_out_xy_rotation: bool = True
     use_wrist_rotation: bool = False
     use_wrist_position: bool = True
@@ -50,9 +54,9 @@ class Se3RetargeterConfig:
     target_offset_z: float = 0.0
 
     # Abs specific - Rotation offset (degrees, applied as intrinsic XYZ Euler angles)
-    target_offset_roll: float = 90.0    # rotation about X axis
-    target_offset_pitch: float = 0.0    # rotation about Y axis
-    target_offset_yaw: float = 0.0      # rotation about Z axis
+    target_offset_roll: float = 90.0  # rotation about X axis
+    target_offset_pitch: float = 0.0  # rotation about Y axis
+    target_offset_yaw: float = 0.0  # rotation about Z axis
 
     # Rel specific
     delta_pos_scale_factor: float = 10.0
@@ -77,28 +81,42 @@ class Se3AbsRetargeter(BaseRetargeter):
             raise ImportError("scipy is required for Se3AbsRetargeter")
 
         # Build position offset from individual x/y/z components
-        self._target_offset_pos = np.array([
-            config.target_offset_x,
-            config.target_offset_y,
-            config.target_offset_z,
-        ])
+        self._target_offset_pos = np.array(
+            [
+                config.target_offset_x,
+                config.target_offset_y,
+                config.target_offset_z,
+            ]
+        )
         # Build rotation offset quaternion (x,y,z,w) from roll/pitch/yaw Euler angles
         self._target_offset_rot = Rotation.from_euler(
             "XYZ",
-            [config.target_offset_roll, config.target_offset_pitch, config.target_offset_yaw],
+            [
+                config.target_offset_roll,
+                config.target_offset_pitch,
+                config.target_offset_yaw,
+            ],
             degrees=True,
         ).as_quat()  # returns x,y,z,w (scipy convention)
 
         # Initialize last pose (pos: 0,0,0, rot: identity xyzw)
-        self._last_pose = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], dtype=np.float32)
+        self._last_pose = np.array(
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], dtype=np.float32
+        )
 
         # Build tunable parameters for the UI
         rotation_offset_param = VectorParameter(
             name="rotation_offset_rpy",
             description="Rotation offset (Roll, Pitch, Yaw in degrees)",
             element_names=["roll", "pitch", "yaw"],
-            default_value=np.array([config.target_offset_roll, config.target_offset_pitch, config.target_offset_yaw],
-                                   dtype=np.float32),
+            default_value=np.array(
+                [
+                    config.target_offset_roll,
+                    config.target_offset_pitch,
+                    config.target_offset_yaw,
+                ],
+                dtype=np.float32,
+            ),
             min_value=-180.0,
             max_value=180.0,
             sync_fn=self._update_rotation_offset,
@@ -108,8 +126,14 @@ class Se3AbsRetargeter(BaseRetargeter):
             name="position_offset_xyz",
             description="Position offset (X, Y, Z in meters)",
             element_names=["x", "y", "z"],
-            default_value=np.array([config.target_offset_x, config.target_offset_y, config.target_offset_z],
-                                   dtype=np.float32),
+            default_value=np.array(
+                [
+                    config.target_offset_x,
+                    config.target_offset_y,
+                    config.target_offset_z,
+                ],
+                dtype=np.float32,
+            ),
             min_value=-2.0,
             max_value=2.0,
             step_size=0.001,
@@ -171,12 +195,19 @@ class Se3AbsRetargeter(BaseRetargeter):
 
     def output_spec(self) -> RetargeterIOType:
         return {
-            "ee_pose": TensorGroupType("ee_pose", [
-                NDArrayType("pose", shape=(7,), dtype=DLDataType.FLOAT, dtype_bits=32)
-            ])
+            "ee_pose": TensorGroupType(
+                "ee_pose",
+                [
+                    NDArrayType(
+                        "pose", shape=(7,), dtype=DLDataType.FLOAT, dtype_bits=32
+                    )
+                ],
+            )
         }
 
-    def compute(self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]) -> None:
+    def compute(
+        self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]
+    ) -> None:
         device_name = self._config.input_device
         if device_name not in inputs:
             outputs["ee_pose"][0] = self._last_pose
@@ -184,7 +215,7 @@ class Se3AbsRetargeter(BaseRetargeter):
 
         inp = inputs[device_name]
 
-        wrist = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]) # x,y,z, qx,qy,qz,qw
+        wrist = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])  # x,y,z, qx,qy,qz,qw
 
         thumb_tip = None
         index_tip = None
@@ -193,29 +224,45 @@ class Se3AbsRetargeter(BaseRetargeter):
         if "hand" in device_name:
             # Hand Input
             # Check active
-            if inp[HandInputIndex.IS_ACTIVE]: # is_active
+            if inp[HandInputIndex.IS_ACTIVE]:  # is_active
                 active = True
                 joint_positions = np.from_dlpack(inp[HandInputIndex.JOINT_POSITIONS])
-                joint_orientations = np.from_dlpack(inp[HandInputIndex.JOINT_ORIENTATIONS])
+                joint_orientations = np.from_dlpack(
+                    inp[HandInputIndex.JOINT_ORIENTATIONS]
+                )
                 joint_valid = np.from_dlpack(inp[HandInputIndex.JOINT_VALID])
 
                 # Wrist = 1
                 if joint_valid[HandJointIndex.WRIST]:
                     wrist_pos = joint_positions[HandJointIndex.WRIST]
-                    wrist_ori = joint_orientations[HandJointIndex.WRIST] # XYZW
+                    wrist_ori = joint_orientations[HandJointIndex.WRIST]  # XYZW
                     wrist = np.concatenate([wrist_pos, wrist_ori])
 
-                if joint_valid[HandJointIndex.THUMB_TIP]: thumb_tip = np.concatenate([joint_positions[HandJointIndex.THUMB_TIP], joint_orientations[HandJointIndex.THUMB_TIP]])
-                if joint_valid[HandJointIndex.INDEX_TIP]: index_tip = np.concatenate([joint_positions[HandJointIndex.INDEX_TIP], joint_orientations[HandJointIndex.INDEX_TIP]])
+                if joint_valid[HandJointIndex.THUMB_TIP]:
+                    thumb_tip = np.concatenate(
+                        [
+                            joint_positions[HandJointIndex.THUMB_TIP],
+                            joint_orientations[HandJointIndex.THUMB_TIP],
+                        ]
+                    )
+                if joint_valid[HandJointIndex.INDEX_TIP]:
+                    index_tip = np.concatenate(
+                        [
+                            joint_positions[HandJointIndex.INDEX_TIP],
+                            joint_orientations[HandJointIndex.INDEX_TIP],
+                        ]
+                    )
 
         else:
             # Controller Input
             # Check active
-            if inp[ControllerInputIndex.IS_ACTIVE]: # is_active
+            if inp[ControllerInputIndex.IS_ACTIVE]:  # is_active
                 active = True
                 # Grip Pose
                 grip_pos = np.from_dlpack(inp[ControllerInputIndex.GRIP_POSITION])
-                grip_ori = np.from_dlpack(inp[ControllerInputIndex.GRIP_ORIENTATION]) # XYZW
+                grip_ori = np.from_dlpack(
+                    inp[ControllerInputIndex.GRIP_ORIENTATION]
+                )  # XYZW
                 wrist = np.concatenate([grip_pos, grip_ori])
 
         if not active:
@@ -251,7 +298,9 @@ class Se3AbsRetargeter(BaseRetargeter):
 
         if self._config.zero_out_xy_rotation:
             z, _, _ = final_rot.as_euler("ZYX")
-            final_rot = Rotation.from_euler("ZYX", np.array([z, 0.0, 0.0])) * Rotation.from_euler("X", np.pi, degrees=False)
+            final_rot = Rotation.from_euler(
+                "ZYX", np.array([z, 0.0, 0.0])
+            ) * Rotation.from_euler("X", np.pi, degrees=False)
 
         # as_quat() returns x,y,z,w which matches our convention
         rotation = final_rot.as_quat()
@@ -296,12 +345,19 @@ class Se3RelRetargeter(BaseRetargeter):
 
     def output_spec(self) -> RetargeterIOType:
         return {
-            "ee_delta": TensorGroupType("ee_delta", [
-                NDArrayType("delta", shape=(6,), dtype=DLDataType.FLOAT, dtype_bits=32)
-            ])
+            "ee_delta": TensorGroupType(
+                "ee_delta",
+                [
+                    NDArrayType(
+                        "delta", shape=(6,), dtype=DLDataType.FLOAT, dtype_bits=32
+                    )
+                ],
+            )
         }
 
-    def compute(self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]) -> None:
+    def compute(
+        self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]
+    ) -> None:
         device_name = self._config.input_device
         if device_name not in inputs:
             return
@@ -315,24 +371,41 @@ class Se3RelRetargeter(BaseRetargeter):
         active = False
 
         if "hand" in device_name:
-            if inp[HandInputIndex.IS_ACTIVE]: # is_active
+            if inp[HandInputIndex.IS_ACTIVE]:  # is_active
                 active = True
                 joint_positions = np.from_dlpack(inp[HandInputIndex.JOINT_POSITIONS])
-                joint_orientations = np.from_dlpack(inp[HandInputIndex.JOINT_ORIENTATIONS])
+                joint_orientations = np.from_dlpack(
+                    inp[HandInputIndex.JOINT_ORIENTATIONS]
+                )
 
-                wrist = np.concatenate([joint_positions[HandJointIndex.WRIST], joint_orientations[HandJointIndex.WRIST]])
-                thumb_tip = np.concatenate([joint_positions[HandJointIndex.THUMB_TIP], joint_orientations[HandJointIndex.THUMB_TIP]])
-                index_tip = np.concatenate([joint_positions[HandJointIndex.INDEX_TIP], joint_orientations[HandJointIndex.INDEX_TIP]])
+                wrist = np.concatenate(
+                    [
+                        joint_positions[HandJointIndex.WRIST],
+                        joint_orientations[HandJointIndex.WRIST],
+                    ]
+                )
+                thumb_tip = np.concatenate(
+                    [
+                        joint_positions[HandJointIndex.THUMB_TIP],
+                        joint_orientations[HandJointIndex.THUMB_TIP],
+                    ]
+                )
+                index_tip = np.concatenate(
+                    [
+                        joint_positions[HandJointIndex.INDEX_TIP],
+                        joint_orientations[HandJointIndex.INDEX_TIP],
+                    ]
+                )
         else:
-            if inp[ControllerInputIndex.IS_ACTIVE]: # is_active
+            if inp[ControllerInputIndex.IS_ACTIVE]:  # is_active
                 active = True
                 grip_pos = np.from_dlpack(inp[ControllerInputIndex.GRIP_POSITION])
                 grip_ori = np.from_dlpack(inp[ControllerInputIndex.GRIP_ORIENTATION])
                 wrist = np.concatenate([grip_pos, grip_ori])
 
         if not active:
-             outputs["ee_delta"][0] = np.zeros(6, dtype=np.float32)
-             return
+            outputs["ee_delta"][0] = np.zeros(6, dtype=np.float32)
+            return
 
         if self._first_frame:
             self._previous_wrist = wrist
@@ -345,24 +418,36 @@ class Se3RelRetargeter(BaseRetargeter):
         # Calculate Deltas
         delta_thumb_tip = None
         if thumb_tip is not None and self._previous_thumb_tip is not None:
-            delta_thumb_tip = self._calculate_delta_pose(thumb_tip, self._previous_thumb_tip)
+            delta_thumb_tip = self._calculate_delta_pose(
+                thumb_tip, self._previous_thumb_tip
+            )
 
         delta_index_tip = None
         if index_tip is not None and self._previous_index_tip is not None:
-            delta_index_tip = self._calculate_delta_pose(index_tip, self._previous_index_tip)
+            delta_index_tip = self._calculate_delta_pose(
+                index_tip, self._previous_index_tip
+            )
 
         delta_wrist = self._calculate_delta_pose(wrist, self._previous_wrist)
 
         # Retarget Rel
 
         # Position
-        if self._config.use_wrist_position or delta_thumb_tip is None or delta_index_tip is None:
+        if (
+            self._config.use_wrist_position
+            or delta_thumb_tip is None
+            or delta_index_tip is None
+        ):
             position = delta_wrist[:3]
         else:
             position = (delta_thumb_tip[:3] + delta_index_tip[:3]) / 2
 
         # Rotation
-        if self._config.use_wrist_rotation or delta_thumb_tip is None or delta_index_tip is None:
+        if (
+            self._config.use_wrist_rotation
+            or delta_thumb_tip is None
+            or delta_index_tip is None
+        ):
             rotation = delta_wrist[3:6]
         else:
             rotation = (delta_thumb_tip[3:6] + delta_index_tip[3:6]) / 2
@@ -373,13 +458,19 @@ class Se3RelRetargeter(BaseRetargeter):
             rotation[1] = 0
 
         # Smooth Position
-        self._smoothed_delta_pos = self._config.alpha_pos * position + (1 - self._config.alpha_pos) * self._smoothed_delta_pos
+        self._smoothed_delta_pos = (
+            self._config.alpha_pos * position
+            + (1 - self._config.alpha_pos) * self._smoothed_delta_pos
+        )
         if np.linalg.norm(self._smoothed_delta_pos) < self._position_threshold:
             self._smoothed_delta_pos = np.zeros(3)
         position = self._smoothed_delta_pos * self._config.delta_pos_scale_factor
 
         # Smooth Rotation
-        self._smoothed_delta_rot = self._config.alpha_rot * rotation + (1 - self._config.alpha_rot) * self._smoothed_delta_rot
+        self._smoothed_delta_rot = (
+            self._config.alpha_rot * rotation
+            + (1 - self._config.alpha_rot) * self._smoothed_delta_rot
+        )
         if np.linalg.norm(self._smoothed_delta_rot) < self._rotation_threshold:
             self._smoothed_delta_rot = np.zeros(3)
         rotation = self._smoothed_delta_rot * self._config.delta_rot_scale_factor
@@ -391,11 +482,12 @@ class Se3RelRetargeter(BaseRetargeter):
 
         outputs["ee_delta"][0] = np.concatenate([position, rotation]).astype(np.float32)
 
-    def _calculate_delta_pose(self, joint_pose: np.ndarray, previous_joint_pose: np.ndarray) -> np.ndarray:
+    def _calculate_delta_pose(
+        self, joint_pose: np.ndarray, previous_joint_pose: np.ndarray
+    ) -> np.ndarray:
         delta_pos = joint_pose[:3] - previous_joint_pose[:3]
         # Quat at indices 3:7 is already x,y,z,w (scipy convention)
         abs_rotation = Rotation.from_quat(joint_pose[3:7])
         previous_rot = Rotation.from_quat(previous_joint_pose[3:7])
         relative_rotation = abs_rotation * previous_rot.inv()
         return np.concatenate([delta_pos, relative_rotation.as_rotvec()])
-

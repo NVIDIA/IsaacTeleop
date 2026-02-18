@@ -15,4 +15,3 @@ set_target_properties(manus_hand_tracker_printer PROPERTIES
   BUILD_RPATH "${_ISAAC_MANUS_EFFECTIVE_BUILD_RPATH_STR}"
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
-

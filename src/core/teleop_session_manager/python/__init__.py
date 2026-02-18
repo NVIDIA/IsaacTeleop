@@ -18,4 +18,3 @@ __all__ = [
     "create_standard_inputs",
     "get_required_oxr_extensions_from_pipeline",
 ]
-
