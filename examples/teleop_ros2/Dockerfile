@@ -26,6 +26,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libmpdec3 \
     libusb-1.0-0-dev \
     libudev-dev \
+    libvulkan1 \
     libgl1-mesa-dev \
     libegl1-mesa-dev \
     libx11-dev \
