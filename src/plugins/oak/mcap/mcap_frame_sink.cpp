@@ -69,7 +69,7 @@ void McapFrameSink::on_frame(const OakFrame& frame)
     builder.Finish(mcap_frame);
 
     auto log_time = static_cast<mcap::Timestamp>(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count());
+        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
 
     // Write the MCAP message
     mcap::Message msg;
