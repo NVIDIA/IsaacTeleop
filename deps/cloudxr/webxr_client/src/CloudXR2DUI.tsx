@@ -46,6 +46,8 @@ export class CloudXR2DUI {
   private deviceFrameRateSelect!: HTMLSelectElement;
   /** Dropdown to select max streaming bitrate (Mbps) */
   private maxStreamingBitrateMbpsSelect!: HTMLSelectElement;
+  /** Dropdown to select preferred streaming codec */
+  private codecSelect!: HTMLSelectElement;
   /** Input field for per-eye width configuration */
   private perEyeWidthInput!: HTMLInputElement;
   /** Input field for per-eye height configuration */
@@ -90,6 +92,8 @@ export class CloudXR2DUI {
   private mediaAddressInput!: HTMLInputElement;
   /** Input field for media server port */
   private mediaPortInput!: HTMLInputElement;
+  /** Dropdown for controller model visibility (show / hide) */
+  private controllerModelVisibilitySelect!: HTMLSelectElement;
   /** Flag to track if the 2D UI has been initialized */
   private initialized: boolean = false;
 
@@ -155,6 +159,7 @@ export class CloudXR2DUI {
     this.deviceFrameRateSelect = this.getElement<HTMLSelectElement>('deviceFrameRate');
     this.maxStreamingBitrateMbpsSelect =
       this.getElement<HTMLSelectElement>('maxStreamingBitrateMbps');
+    this.codecSelect = this.getElement<HTMLSelectElement>('codec');
     this.perEyeWidthInput = this.getElement<HTMLInputElement>('perEyeWidth');
     this.perEyeHeightInput = this.getElement<HTMLInputElement>('perEyeHeight');
     this.enablePoseSmoothingSelect = this.getElement<HTMLSelectElement>('enablePoseSmoothing');
@@ -178,6 +183,9 @@ export class CloudXR2DUI {
     this.certLink = this.getElement<HTMLAnchorElement>('certLink');
     this.mediaAddressInput = this.getElement<HTMLInputElement>('mediaAddress');
     this.mediaPortInput = this.getElement<HTMLInputElement>('mediaPort');
+    this.controllerModelVisibilitySelect = this.getElement<HTMLSelectElement>(
+      'controllerModelVisibility'
+    );
   }
 
   /**
@@ -210,6 +218,7 @@ export class CloudXR2DUI {
       perEyeHeight: 1792,
       deviceFrameRate: 90,
       maxStreamingBitrateMbps: 150,
+      codec: 'av1',
       immersiveMode: 'ar',
       deviceProfileId: 'custom',
       app: 'generic',
@@ -220,6 +229,7 @@ export class CloudXR2DUI {
       posePredictionFactor: 1.0,
       enableTexSubImage2D: false,
       useQuestColorWorkaround: false,
+      hideControllerModel: false,
     };
   }
 
@@ -236,6 +246,7 @@ export class CloudXR2DUI {
     enableLocalStorage(this.proxyUrlInput, 'proxyUrl');
     enableLocalStorage(this.deviceFrameRateSelect, 'deviceFrameRate');
     enableLocalStorage(this.maxStreamingBitrateMbpsSelect, 'maxStreamingBitrateMbps');
+    enableLocalStorage(this.codecSelect, 'codec');
     enableLocalStorage(this.enablePoseSmoothingSelect, 'enablePoseSmoothing');
     enableLocalStorage(this.posePredictionFactorInput, 'posePredictionFactor');
     enableLocalStorage(this.enableTexSubImage2DSelect, 'enableTexSubImage2D');
@@ -249,6 +260,7 @@ export class CloudXR2DUI {
     enableLocalStorage(this.xrOffsetZInput, 'xrOffsetZ');
     enableLocalStorage(this.mediaAddressInput, 'mediaAddress');
     enableLocalStorage(this.mediaPortInput, 'mediaPort');
+    enableLocalStorage(this.controllerModelVisibilitySelect, 'controllerModelVisibility');
   }
 
   /**
@@ -300,6 +312,7 @@ export class CloudXR2DUI {
     addListener(this.perEyeHeightInput, 'change', updateConfig);
     addListener(this.deviceFrameRateSelect, 'change', updateConfig);
     addListener(this.maxStreamingBitrateMbpsSelect, 'change', updateConfig);
+    addListener(this.codecSelect, 'change', updateConfig);
     addListener(this.enablePoseSmoothingSelect, 'change', updateConfig);
     addListener(this.posePredictionFactorInput, 'change', updateConfig);
     addListener(this.posePredictionFactorInput, 'input', () => {
@@ -323,6 +336,7 @@ export class CloudXR2DUI {
     addListener(this.mediaAddressInput, 'change', updateConfig);
     addListener(this.mediaPortInput, 'input', updateConfig);
     addListener(this.mediaPortInput, 'change', updateConfig);
+    addListener(this.controllerModelVisibilitySelect, 'change', updateConfig);
 
     addListener(this.deviceProfileSelect, 'change', () => {
       this.applyDeviceProfileToForm(resolveDeviceProfileId(this.deviceProfileSelect.value));
@@ -368,6 +382,8 @@ export class CloudXR2DUI {
       maxStreamingBitrateMbps:
         parseInt(this.maxStreamingBitrateMbpsSelect.value) ||
         this.getDefaultConfiguration().maxStreamingBitrateMbps,
+      codec:
+        (this.codecSelect.value as 'h264' | 'h265' | 'av1') || this.getDefaultConfiguration().codec,
       immersiveMode:
         (this.immersiveSelect.value as 'ar' | 'vr') || this.getDefaultConfiguration().immersiveMode,
       deviceProfileId: resolveDeviceProfileId(this.deviceProfileSelect.value),
@@ -400,6 +416,7 @@ export class CloudXR2DUI {
         const v = parseInt(this.mediaPortInput.value, 10);
         return !isNaN(v) ? v : undefined;
       })(),
+      hideControllerModel: this.controllerModelVisibilitySelect.value === 'hide',
     };
 
     this.currentConfiguration = newConfiguration;
@@ -431,6 +448,9 @@ export class CloudXR2DUI {
     if (cloudxr.maxStreamingBitrateKbps !== undefined) {
       const mbps = Math.round(cloudxr.maxStreamingBitrateKbps / 1000);
       setSelectValueIfAvailable(this.maxStreamingBitrateMbpsSelect, String(mbps));
+    }
+    if (cloudxr.codec) {
+      setSelectValueIfAvailable(this.codecSelect, cloudxr.codec);
     }
     if (cloudxr.enablePoseSmoothing !== undefined) {
       this.enablePoseSmoothingSelect.value = String(cloudxr.enablePoseSmoothing);

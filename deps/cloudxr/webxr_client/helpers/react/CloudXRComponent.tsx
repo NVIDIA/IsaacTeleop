@@ -198,6 +198,7 @@ export default function CloudXRComponent({
             signalingResourcePath: connectionConfig.resourcePath,
             perEyeWidth: config.perEyeWidth,
             perEyeHeight: config.perEyeHeight,
+            codec: config.codec,
             gl: gl,
             referenceSpace: referenceSpace,
             deviceFrameRate: config.deviceFrameRate,

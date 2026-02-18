@@ -19,9 +19,9 @@ import { loadIWERIfNeeded } from '@helpers/LoadIWER';
 import { overridePressureObserver } from '@helpers/overridePressureObserver';
 import { kPerformanceOptions } from '@helpers/PerformanceProfiles';
 import CloudXRComponent from '@helpers/react/CloudXRComponent';
+import { SimpleEnvironment } from '@helpers/react/SimpleEnvironment';
 import * as CloudXR from '@nvidia/cloudxr';
 import { signal, computed } from '@preact/signals-react';
-import { Environment } from '@react-three/drei';
 import { Canvas } from '@react-three/fiber';
 import { setPreferredColorScheme } from '@react-three/uikit';
 import { XR, createXRStore, noEvents, PointerEvents, XROrigin, useXR } from '@react-three/xr';
@@ -61,19 +61,6 @@ const START_TELEOP_COMMAND = {
     command: 'start teleop',
   },
 } as const;
-
-// Environment component like controller-test
-function NonAREnvironment() {
-  // Load HDRI from CDN to avoid build-time asset downloads.
-  return (
-    <Environment
-      blur={0.2}
-      background={false}
-      environmentIntensity={2}
-      files="https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/potsdamer_platz_1k.hdr"
-    />
-  );
-}
 
 function App() {
   const COUNTDOWN_MAX_SECONDS = 9;
@@ -228,6 +215,7 @@ function App() {
   const xrFrameBufferScaling =
     deviceProfile.web?.frameBufferScaling ??
     kPerformanceOptions.xrWebGLLayer_framebufferScaleFactor;
+  const hideControllerModel = cloudXR2DUI?.getConfiguration().hideControllerModel ?? false;
 
   // XR store must be created after we know which device profile is active.
   // useMemo prevents re-creating the store for unrelated UI changes.
@@ -243,12 +231,22 @@ function App() {
         hand: {
           model: false, // Disable hand models but keep pointer functionality
         },
+        controller: {
+          model: !hideControllerModel, // Allow UI to hide controller models while keeping input active
+        },
         // Request optional WebXR features - use property names, not optionalFeatures array!
         handTracking: true,
         bodyTracking: true,
       }),
+    // hideControllerModel omitted: changing it must not recreate the store or the session would be lost
     [xrFoveation, xrFrameBufferScaling]
   );
+
+  // Apply controller model visibility when the option changes. store.setController() updates
+  // at runtime without recreating the store, so the change takes effect immediately (including in XR).
+  useEffect(() => {
+    store.setController({ model: !hideControllerModel });
+  }, [store, hideControllerModel]);
 
   // Initialize CloudXR2DUI
   useEffect(() => {
@@ -698,7 +696,7 @@ function App() {
       >
         <PointerEvents batchEvents={false} />
         <XR store={store}>
-          <NonAREnvironment />
+          <SimpleEnvironment />
           <XROrigin />
           {cloudXR2DUI && config && (
             <>

@@ -123,6 +123,9 @@ export interface CloudXRConfig {
   /** Maximum streaming bitrate in Megabits per second (Mbps) */
   maxStreamingBitrateMbps: number;
 
+  /** Preferred video codec used for streaming */
+  codec?: 'h264' | 'h265' | 'av1';
+
   /** XR immersive mode: 'ar' for augmented reality, 'vr' for virtual reality */
   immersiveMode: 'ar' | 'vr';
 
@@ -156,6 +159,8 @@ export interface CloudXRConfig {
   enableTexSubImage2D?: boolean;
   /** Quest-specific color workaround in CloudXR */
   useQuestColorWorkaround?: boolean;
+  /** Whether WebXR controller models should be hidden */
+  hideControllerModel?: boolean;
 
   /** Media server address for WebRTC streaming (for NAT traversal) */
   mediaAddress?: string;
