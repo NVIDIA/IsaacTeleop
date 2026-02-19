@@ -17,10 +17,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: write
-  pull-requests: write
-
 jobs:
   check-repo:
     name: Check repo
@@ -75,6 +71,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [check-repo, build-docs]
     if: needs.check-repo.outputs.is-canonical-repo == 'true' && needs.check-repo.outputs.is-deploy-branch == 'true'
+    permissions:
+      contents: write  # push to gh-pages
     steps:
       - name: Download docs artifact
         uses: actions/download-artifact@v4
@@ -93,6 +91,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: [check-repo, build-docs]
     if: needs.check-repo.outputs.is-canonical-repo == 'true' && github.event_name == 'pull_request'
+    permissions:
+      contents: write       # push to gh-pages preview dir
+      pull-requests: write  # comment with preview URL
     steps:
       - name: Download docs artifact
         uses: actions/download-artifact@v4
