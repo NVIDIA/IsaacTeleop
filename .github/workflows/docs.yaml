@@ -64,7 +64,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: docs-html
-          path: ./docs/build/current
+          path: ./docs/build
 
   deploy-docs:
     name: Deploy to GitHub Pages
@@ -78,13 +78,14 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: docs-html
-          path: ./docs/build/current
+          path: ./docs/build
 
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./docs/build
+          keep_files: true
 
   deploy-preview:
     name: Deploy PR preview
@@ -99,7 +100,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: docs-html
-          path: ./docs/build/current
+          path: ./docs/build
 
       - name: Deploy preview to gh-pages
         uses: peaceiris/actions-gh-pages@v3
@@ -107,6 +108,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./docs/build/current
           destination_dir: preview/pr-${{ github.event.pull_request.number }}
+          keep_files: true
 
       - name: Comment PR with preview URL
         uses: actions/github-script@v7
