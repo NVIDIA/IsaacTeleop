@@ -1,0 +1,68 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Minimal CloudXR runtime image.
+# The SDK must be downloaded first (see scripts/download_cloudxr_runtime_sdk.sh).
+#
+# Build context: deps/cloudxr/ (contains CloudXR-<VERSION>-Linux-<ARCH>-sdk.tar.gz)
+#
+# Environment overrides:
+#   NV_DEVICE_PROFILE   Device profile (default: auto-webrtc).
+#                        Values: auto-native, auto-webrtc,
+#                        apple-vision-pro, ipad-pro, quest3
+
+# -------------------------------------------------------------------
+# Stage 0: Extract the SDK tarball.
+# -------------------------------------------------------------------
+FROM scratch AS sdk
+ARG TARGETARCH
+ARG CXR_RUNTIME_SDK_VERSION
+ADD CloudXR-${CXR_RUNTIME_SDK_VERSION}-Linux-${TARGETARCH}-sdk.tar.gz /sdk/
+
+# -------------------------------------------------------------------
+# Stage 1: Runtime image.
+# -------------------------------------------------------------------
+FROM ubuntu:24.04
+
+ENV NVIDIA_VISIBLE_DEVICES=all NVIDIA_DRIVER_CAPABILITIES=all
+ENV LD_LIBRARY_PATH=/opt/cloudxr
+
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        libatomic1 \
+        libbsd0 \
+        libegl1 \
+        libgl1 \
+        libglx0 \
+        libvulkan1 \
+        libx11-6 \
+        libxext6 \
+        python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Vulkan ICD + EGL vendor so the loader can find the NVIDIA driver.
+RUN mkdir -p /etc/vulkan/icd.d /usr/share/glvnd/egl_vendor.d
+COPY runtime/data/10_nvidia.json /usr/share/glvnd/egl_vendor.d/
+COPY runtime/data/nvidia_icd.json /etc/vulkan/icd.d/
+ENV VK_DRIVER_FILES=/etc/vulkan/icd.d/nvidia_icd.json
+
+RUN mkdir -p /openxr/run && chmod 777 /openxr /openxr/run && \
+    touch /var/run/utmp
+
+WORKDIR /opt/cloudxr
+
+COPY runtime/main.py .
+COPY --from=sdk /sdk/*.so /sdk/*.so.* ./
+COPY --from=sdk /sdk/openxr_cloudxr.json .
+
+# CloudXR / OpenXR runtime configuration.
+ENV XR_RUNTIME_JSON=/openxr/openxr_cloudxr.json
+ENV NV_CXR_RUNTIME_DIR=/openxr/run
+ENV XRT_NO_STDIN=true
+ENV NV_CXR_FILE_LOGGING=false
+ENV NV_DEVICE_PROFILE=auto-webrtc
+
+COPY --chmod=0755 runtime/eula.sh /eula.sh
+COPY --chmod=0755 runtime/entrypoint.sh /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh", "python3", "/opt/cloudxr/main.py"]

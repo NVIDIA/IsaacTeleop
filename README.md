@@ -139,38 +139,44 @@ cd IsaacTeleop
 > during CMake configuration using FetchContent. No manual dependency installation or
 > git submodule initialization is required.
 
-4. **Download CloudXR**
+4. **(Optional) Pre-download CloudXR Runtime SDK**
 
-Download CloudXR PID (Product Information Delivery) from NVOnline (https://partners.nvidia.com/).
-In the package, you should found a `tar.gz` file:
+If you are using the default flow, skip this step and run step 6.
+`./scripts/run_cloudxr.sh` automatically downloads both CloudXR SDKs.
 
-Place `cloudxr-runtime-6.1.0-pid4.tar.gz` under the `deps/cloudxr` folder:
-```
-deps/
-├── cloudxr
-│   ├── CLOUDXR_LICENSE
-│   ├── docker-compose.yaml
-│   └── cloudxr-runtime-6.1.0-pid4.tar.gz
-```
+Use this step only if you want to pre-download the Runtime SDK manually:
 
-5. **Load CloudXR runtime image**
-```bash
-./scripts/cloudxr_image_ops.sh --load 6.1.0-pid4
-```
+- Download via script (NGC default):
+  ```bash
+  ./scripts/download_cloudxr_runtime_sdk.sh
+  ```
+- Or place local tarball in `deps/cloudxr/`:
+  `CloudXR-<version>-Linux-<arch>-sdk.tar.gz`
+- Version is controlled by `CXR_RUNTIME_SDK_VERSION` in `deps/cloudxr/.env.default`.
 
-> **Important:** Make sure you place the `.gz` file from the previous steps at the
-> designated location. Otherwise, you will see an error like this:
-> ```
-> Error: File not found: ./deps/cloudxr/cloudxr-runtime-6.1.0-pid4.tar.gz
-> ```
+5. **(Optional) Pre-download CloudXR Web SDK**
+
+If you are using the default flow, skip this step and run step 6.
+`./scripts/run_cloudxr.sh` automatically downloads both CloudXR SDKs.
+
+Use this step only if you want to pre-download the Runtime SDK manually:
+
+- Download via script (NGC default):
+  ```bash
+  ./scripts/download_cloudxr_sdk.sh
+  ```
+- Or place local tarball in `deps/cloudxr/`:
+  `cloudxr-web-sdk-<version>.tar.gz`
+- Version is controlled by `CXR_WEB_SDK_VERSION` in `deps/cloudxr/.env.default`.
 
 6. **Run CloudXR**
 ```bash
 ./scripts/run_cloudxr.sh
 ```
 
-This script will automatically:
-- Download the CloudXR Web SDK from NGC (if not already present)
+The `./scripts/run_cloudxr.sh` script will automatically:
+- Download the CloudXR Runtime SDK (if not already present)
+- Download the CloudXR Web SDK (if not already present)
 - Build the necessary Docker containers (wss-proxy, web-app)
 - Start all CloudXR services
 

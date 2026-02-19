@@ -4,8 +4,12 @@
 services:
   # CloudXR Runtime
   cloudxr-runtime:
-    image: ${CXR_RUNTIME_IMAGE}
-    pull_policy: never
+    build:
+      context: .
+      dockerfile: Dockerfile.runtime
+      args:
+        CXR_RUNTIME_SDK_VERSION: ${CXR_RUNTIME_SDK_VERSION}
+    container_name: cloudxr-runtime-${CXR_RUNTIME_SDK_VERSION}
     user: "${CXR_UID:-1000}:${CXR_GID:-1000}"
     network_mode: host
     healthcheck:
@@ -21,13 +25,7 @@ services:
       - NV_DEVICE_PROFILE=${NV_DEVICE_PROFILE:-auto-webrtc}
     volumes:
       - openxr-volume:/openxr/
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [ gpu ]
+    runtime: nvidia
 
   # WebSocket SSL Proxy Service
   wss-proxy:

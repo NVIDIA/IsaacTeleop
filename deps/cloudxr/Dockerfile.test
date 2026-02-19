@@ -36,7 +36,7 @@ RUN uv venv --python $PYTHON_VERSION /app/venv && \
 # Set environment variables
 ENV PATH="/app/venv/bin:$PATH"
 ENV PYTHONPATH="/app/install/lib:$PYTHONPATH"
-ENV XR_RUNTIME_JSON="/openxr/share/openxr/1/openxr_cloudxr.json"
+ENV XR_RUNTIME_JSON="/openxr/openxr_cloudxr.json"
 
 WORKDIR /app/tests
 

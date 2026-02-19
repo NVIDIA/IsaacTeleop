@@ -13,12 +13,23 @@
 # (Docker Compose's include: directive doesn't allow service overrides)
 
 services:
-  # Override cloudxr-runtime to always accept EULA in CI
+  # Override cloudxr-runtime for CI: accept EULA, use runc + deploy block for
+  # hook-based GPU injection (the base file's runtime: nvidia is unavailable on
+  # CI runners where the nvidia runtime is not registered).
   cloudxr-runtime:
+    runtime: runc
     environment:
       - ACCEPT_EULA=Y
       - NV_CXR_ENABLE_PUSH_DEVICES=${NV_CXR_ENABLE_PUSH_DEVICES}
       - NV_DEVICE_PROFILE=Quest3
+      - VK_LOADER_DEBUG=all
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [ gpu ]
 
   # Test runner container
   # Build with: docker build -t isaacteleop-tests:latest -f deps/cloudxr/Dockerfile.test .
@@ -31,7 +42,7 @@ services:
         condition: service_healthy
     environment:
       - NV_CXR_RUNTIME_DIR=/cloudxr-test/run
-      - XR_RUNTIME_JSON=/cloudxr-test/share/openxr/1/openxr_cloudxr.json
+      - XR_RUNTIME_JSON=/cloudxr-test/openxr_cloudxr.json
       - CXR_PYTHON_GPU_TESTS=${CXR_PYTHON_GPU_TESTS:-}
       - CXR_NATIVE_GPU_TESTS=${CXR_NATIVE_GPU_TESTS:-}
     volumes:
