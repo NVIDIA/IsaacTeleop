@@ -1,17 +1,26 @@
 {
   "name": "cloudxr-isaac-lab-teleop",
-  "version": "0.0.0-main",
+  "version": "6.1.0",
   "private": true,
   "description": "CloudXR.js Isaac Lab Teleop application",
+  "author": "NVIDIA Corporation",
+  "license": "Apache-2.0",
+  "keywords": [
+    "react",
+    "three.js",
+    "webxr",
+    "cloudxr",
+    "vr"
+  ],
   "scripts": {
     "build": "webpack --config ./webpack.prod.js",
     "dev": "webpack --config ./webpack.dev.js",
     "dev-server": "webpack serve --config ./webpack.dev.js --no-open",
     "dev-server:https": "cross-env HTTPS=true webpack serve --config ./webpack.dev.js --no-open",
-    "clean": "rimraf dist",
-    "clean:all": "npm run clean && rimraf node_modules .cache"
+    "clean": "rimraf dist"
   },
   "dependencies": {
+    "@nvidia/cloudxr": "dev",
     "@preact/signals-react": "^2.2.0",
     "@react-three/drei": "^10.6.1",
     "@react-three/fiber": "^9.3.0",
@@ -20,13 +29,13 @@
     "@react-three/uikit-default": "^1.0.0",
     "@react-three/xr": "^6.6.22",
     "@webxr-input-profiles/assets": "1.0.19",
-    "react": "^19.2.1",
-    "react-dom": "^19.2.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
     "three": "^0.172.0"
   },
   "devDependencies": {
-    "@types/react": "^19.2.1",
-    "@types/react-dom": "^19.2.1",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "@types/three": "^0.172.0",
     "copy-webpack-plugin": "^13.0.0",
     "cross-env": "^10.1.0",
@@ -36,19 +45,7 @@
     "style-loader": "^3.3.3",
     "ts-loader": "^9.5.1",
     "typescript": "^5.8.2",
-    "webpack-cli": "^6.0.1",
-    "webpack-dev-server": "^5.2.1"
-  },
-  "overrides": {
-    "memfs": "4.56.9"
-  },
-  "keywords": [
-    "react",
-    "three.js",
-    "webxr",
-    "cloudxr",
-    "vr"
-  ],
-  "author": "NVIDIA Corporation",
-  "license": "Apache-2.0"
+    "webpack-dev-server": "^5.2.1",
+    "webpack-cli": "^6.0.1"
+  }
 }

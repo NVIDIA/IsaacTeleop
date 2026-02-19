@@ -19,7 +19,7 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
-      "@helpers/*": ["helpers/*"]
+      "@helpers/*": ["./helpers/*"]
     }
   },
   "include": ["src/**/*"],
