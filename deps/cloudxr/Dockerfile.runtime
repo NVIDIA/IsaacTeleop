@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-# Minimal CloudXR runtime image (~205 MB).
+# Minimal CloudXR runtime image.
 # The SDK must be downloaded first (see scripts/download_cloudxr_runtime_sdk.sh).
 #
 # Build context: deps/cloudxr/ (contains CloudXR-<VERSION>-Linux-<ARCH>-sdk.tar.gz)
@@ -20,50 +20,12 @@ ARG CXR_RUNTIME_SDK_VERSION
 ADD CloudXR-${CXR_RUNTIME_SDK_VERSION}-Linux-${TARGETARCH}-sdk.tar.gz /sdk/
 
 # -------------------------------------------------------------------
-# Stage 1: Build the cloudxr-service launcher.
-# -------------------------------------------------------------------
-FROM ubuntu:24.04 AS build
-
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc libc6-dev && \
-    rm -rf /var/lib/apt/lists/*
-
-WORKDIR /build
-
-COPY --from=sdk /sdk/include/ include/
-COPY --from=sdk /sdk/libcloudxr.so .
-
-RUN cat <<'EOF' > main.c
-#include <signal.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include "cxrServiceAPI.h"
-
-static struct nv_cxr_service *svc;
-static void stop(int sig) { (void)sig; if (svc) nv_cxr_service_stop(svc); }
-
-int main(void) {
-    if (nv_cxr_service_create(&svc)) return 1;
-    signal(SIGINT, stop);
-    signal(SIGTERM, stop);
-    if (nv_cxr_service_start(svc)) { nv_cxr_service_destroy(svc); return 1; }
-    nv_cxr_service_join(svc);
-    nv_cxr_service_destroy(svc);
-    return 0;
-}
-EOF
-
-RUN gcc -O2 -o cloudxr-service main.c \
-    -Iinclude -L. -lcloudxr \
-    -Wl,-rpath,'$ORIGIN' \
-    -Wl,--allow-shlib-undefined
-
-# -------------------------------------------------------------------
-# Stage 2: Runtime image.
+# Stage 1: Runtime image.
 # -------------------------------------------------------------------
 FROM ubuntu:24.04
 
 ENV NVIDIA_VISIBLE_DEVICES=all NVIDIA_DRIVER_CAPABILITIES=all
+ENV LD_LIBRARY_PATH=/opt/cloudxr
 
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -75,30 +37,13 @@ RUN apt-get update && \
         libvulkan1 \
         libx11-6 \
         libxext6 \
+        python3 \
     && rm -rf /var/lib/apt/lists/*
 
 # Vulkan ICD + EGL vendor so the loader can find the NVIDIA driver.
-RUN <<EOF
-mkdir -p /etc/vulkan/icd.d /usr/share/glvnd/egl_vendor.d
-cat > /usr/share/glvnd/egl_vendor.d/10_nvidia.json <<'EGL'
-{
-    "file_format_version" : "1.0.0",
-    "ICD": {
-        "library_path" : "libEGL_nvidia.so.0"
-    }
-}
-EGL
-cat > /etc/vulkan/icd.d/nvidia_icd.json <<'ICD'
-{
-    "file_format_version" : "1.0.0",
-    "ICD": {
-        "library_path": "libGLX_nvidia.so.0",
-        "api_version" : "1.3.194"
-    }
-}
-ICD
-EOF
-
+RUN mkdir -p /etc/vulkan/icd.d /usr/share/glvnd/egl_vendor.d
+COPY runtime/data/10_nvidia.json /usr/share/glvnd/egl_vendor.d/
+COPY runtime/data/nvidia_icd.json /etc/vulkan/icd.d/
 ENV VK_DRIVER_FILES=/etc/vulkan/icd.d/nvidia_icd.json
 
 RUN mkdir -p /openxr/run && chmod 777 /openxr /openxr/run && \
@@ -106,7 +51,7 @@ RUN mkdir -p /openxr/run && chmod 777 /openxr /openxr/run && \
 
 WORKDIR /opt/cloudxr
 
-COPY --from=build /build/cloudxr-service .
+COPY runtime/main.py .
 COPY --from=sdk /sdk/*.so /sdk/*.so.* ./
 COPY --from=sdk /sdk/openxr_cloudxr.json .
 
@@ -117,35 +62,7 @@ ENV XRT_NO_STDIN=true
 ENV NV_CXR_FILE_LOGGING=false
 ENV NV_DEVICE_PROFILE=auto-webrtc
 
-# EULA gate.
-RUN cat <<'EOF' > /eula.sh
-#!/bin/sh
-EULA=$(printf '%s' "${ACCEPT_EULA:-}" | tr '[:upper:]' '[:lower:]')
-case "$EULA" in
-  y|yes|1) exec "$@" ;;
-  *)
-    echo ""
-    echo "The NVIDIA Software License Agreement (EULA) must be accepted before CloudXR"
-    echo "Runtime in this container can start. The license terms can be viewed at"
-    echo "https://developer.download.nvidia.com/cloudxr/EULA/NVIDIA_CloudXR_GA_License_without_Data_Collection_25Feb2025.pdf."
-    echo ""
-    echo 'Please accept the EULA by setting the ACCEPT_EULA environment variable.'
-    echo 'e.g.: -e "ACCEPT_EULA=Y"'
-    exit 1 ;;
-esac
-EOF
+COPY --chmod=0755 runtime/eula.sh /eula.sh
+COPY --chmod=0755 runtime/entrypoint.sh /entrypoint.sh
 
-# Entrypoint: shared-volume setup, stale IPC cleanup, EULA gate, exec.
-RUN cat <<'EOF' > /entrypoint.sh
-#!/bin/sh
-set -e
-mkdir -p /openxr/run
-cp -f /opt/cloudxr/libopenxr_cloudxr.so /openxr/
-cp -f /opt/cloudxr/openxr_cloudxr.json /openxr/
-rm -f /openxr/run/ipc_cloudxr /openxr/run/runtime_started
-exec /eula.sh "$@"
-EOF
-
-RUN chmod +x /eula.sh /entrypoint.sh
-
-ENTRYPOINT ["/entrypoint.sh", "/opt/cloudxr/cloudxr-service"]
+ENTRYPOINT ["/entrypoint.sh", "python3", "/opt/cloudxr/main.py"]
