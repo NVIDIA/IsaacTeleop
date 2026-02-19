@@ -12,7 +12,6 @@
     "clean:all": "npm run clean && rimraf node_modules .cache"
   },
   "dependencies": {
-    "@nvidia/cloudxr": "file:../sdk.tgz",
     "@preact/signals-react": "^2.2.0",
     "@react-three/drei": "^10.6.1",
     "@react-three/fiber": "^9.3.0",
