@@ -11,6 +11,12 @@ SPDX-FileCopyrightText = "Copyright (c) NVIDIA CORPORATION & AFFILIATES. All rig
 SPDX-License-Identifier = "Apache-2.0"
 
 [[annotations]]
+path = "deps/cloudxr/webxr_client/**"
+precedence = "override"
+SPDX-FileCopyrightText = "Copyright (c) NVIDIA CORPORATION & AFFILIATES. All rights reserved."
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
 path = "examples/cxrjs/**"
 precedence = "override"
 SPDX-FileCopyrightText = "Copyright (c) NVIDIA CORPORATION & AFFILIATES. All rights reserved."

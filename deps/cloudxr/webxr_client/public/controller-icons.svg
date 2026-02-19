@@ -1,13 +1,13 @@
 <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
   <!-- Diamond (top-left) -->
   <polygon points="6,2 10,6 6,10 2,6" fill="black"/>
-  
+
   <!-- Triangle (top-right) -->
   <polygon points="18,2 22,10 14,10" fill="black"/>
-  
+
   <!-- Circle (bottom-left) -->
   <circle cx="6" cy="18" r="4" fill="black"/>
-  
+
   <!-- Square (bottom-right) -->
   <rect x="14" y="14" width="8" height="8" fill="black"/>
 </svg>
