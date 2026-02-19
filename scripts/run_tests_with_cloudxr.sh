@@ -256,7 +256,7 @@ docker compose \
     ${ENV_TEST:+--env-file "$ENV_TEST"} \
     -f "$COMPOSE_BASE" \
     -f "$COMPOSE_TEST" \
-    up -d cloudxr-runtime
+    up --build -d cloudxr-runtime
 
 # Wait for CloudXR runtime to be healthy
 log_info "Waiting for CloudXR runtime to be healthy..."

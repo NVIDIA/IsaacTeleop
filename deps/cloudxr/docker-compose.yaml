@@ -25,6 +25,7 @@ services:
       - NV_DEVICE_PROFILE=${NV_DEVICE_PROFILE:-auto-webrtc}
     volumes:
       - openxr-volume:/openxr/
+    runtime: nvidia
 
   # WebSocket SSL Proxy Service
   wss-proxy:
