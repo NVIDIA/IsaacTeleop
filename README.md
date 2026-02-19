@@ -180,8 +180,8 @@ This script will automatically:
 7. **White list ports for Firewall**
 
 ```bash
-# CloudXR streaming ports.
-sudo ufw allow 47998:48000,48005,48008,48012/udp
+# CloudXR signaling and media streaming ports.
+sudo ufw allow 47998/udp
 sudo ufw allow 49100/tcp
 sudo ufw allow 48322/tcp
 
