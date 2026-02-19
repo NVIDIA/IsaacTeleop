@@ -13,3 +13,8 @@ current-docs:
 	@rm -rf "$(BUILDDIR)/current"
 	@$(SPHINXBUILD) -W --keep-going "$(SOURCEDIR)" "$(BUILDDIR)/current" $(SPHINXOPTS)
 	@touch "$(BUILDDIR)/current/.nojekyll"
+
+.PHONY: multi-docs
+multi-docs:
+	@sphinx-multiversion "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS)
+	@cp index.html $(BUILDDIR)/index.html
