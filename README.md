@@ -179,15 +179,10 @@ This script will automatically:
 
 7. **White list ports for Firewall**
 
+Open the [required CloudXR ports](https://docs.nvidia.com/cloudxr-sdk/latest/requirement/network_setup.html#ports-and-firewalls)
+and the web server ports for the WebXR client:
 ```bash
-# CloudXR streaming ports.
-sudo ufw allow 47998:48000,48005,48008,48012/udp
-sudo ufw allow 49100/tcp
-sudo ufw allow 48322/tcp
-
-# The web server for HTTP and HTTPS.
-sudo ufw allow 8080
-sudo ufw allow 8443
+sudo ufw allow 47998/udp && sudo ufw allow 49100/tcp && sudo ufw allow 48322/tcp && sudo ufw allow 8080/tcp && sudo ufw allow 8443/tcp
 ```
 
 8. **WebXR Client Setup**
