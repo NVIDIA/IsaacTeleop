@@ -517,6 +517,17 @@
                 </div>
 
                 <div class="config-section">
+                    <label for="controllerModelVisibility" class="input-label">Controller Model</label>
+                    <select id="controllerModelVisibility" class="ui-input config-input">
+                        <option value="show" selected>Show</option>
+                        <option value="hide">Hide</option>
+                    </select>
+                    <div class="config-text">
+                        Show or hide WebXR controller model meshes in XR. Input remains active either way.
+                    </div>
+                </div>
+
+                <div class="config-section">
                     <label class="input-label">Proxy Configuration</label>
                     <label for="proxyUrl" class="input-label">Proxy URL</label>
                     <input id="proxyUrl" class="ui-input config-input" type="text" placeholder="" spellcheck="false">
@@ -562,6 +573,18 @@
                     </select>
                     <div class="config-text">
                         Select the maximum streaming bitrate (in Megabits per second) for the XR session
+                    </div>
+                </div>
+
+                <div class="config-section">
+                    <label for="codec" class="input-label">Video Codec</label>
+                    <select id="codec" class="ui-input config-input">
+                        <option value="h264">H.264</option>
+                        <option value="h265">H.265 (HEVC)</option>
+                        <option value="av1" selected>AV1</option>
+                    </select>
+                    <div class="config-text">
+                        Select the preferred streaming codec. Availability depends on browser and server support.
                     </div>
                 </div>
 
