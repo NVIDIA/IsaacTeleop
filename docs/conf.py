@@ -25,9 +25,15 @@ else:
 
 extensions = [
     "sphinx.ext.githubpages",
+    "sphinx_multiversion",
 ]
 
 exclude_patterns = ["build", "Thumbs.db", ".DS_Store"]
+
+# sphinx-multiversion: which refs to build (avoids "No matching refs found" in CI)
+smv_remote_whitelist = r"^.*$"
+smv_branch_whitelist = os.getenv("SMV_BRANCH_WHITELIST", r"^(main|release/.*)$")
+smv_tag_whitelist = os.getenv("SMV_TAG_WHITELIST", r"^v[1-9]\d*\.\d+\.\d+$")
 
 # -- Options for HTML output ---------------------------------------------------
 

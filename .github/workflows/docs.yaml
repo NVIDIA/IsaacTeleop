@@ -38,9 +38,15 @@ jobs:
         working-directory: ./docs
         run: pip install -r requirements.txt
 
-      - name: Build docs
+      - name: Build docs for the current branch
         working-directory: ./docs
         run: make current-docs
+
+      - name: Generate multi-version docs
+        working-directory: ./docs
+        run: |
+          git fetch --prune --unshallow --tags
+          make multi-docs
 
       - name: Upload docs artifact
         uses: actions/upload-artifact@v4
@@ -52,7 +58,7 @@ jobs:
     name: Deploy to GitHub Pages
     runs-on: ubuntu-latest
     needs: [build-docs]
-    if: github.repository == 'NVIDIA/IsaacTeleop' && github.ref == 'refs/heads/main'
+    if: "${{ github.repository == 'NVIDIA/IsaacTeleop' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) }}"
     steps:
       - name: Download docs artifact
         uses: actions/download-artifact@v4
@@ -64,8 +70,7 @@ jobs:
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs/build/current
-          force_orphan: true
+          publish_dir: ./docs/build
 
   deploy-preview:
     name: Deploy PR preview
@@ -85,7 +90,6 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./docs/build/current
           destination_dir: preview/pr-${{ github.event.pull_request.number }}
-          force_orphan: false
 
       - name: Comment PR with preview URL
         uses: actions/github-script@v7
