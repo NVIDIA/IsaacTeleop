@@ -1,6 +1,9 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+# macOS
+.DS_Store
+
 # Node.js
 node_modules/
 package-lock.json
