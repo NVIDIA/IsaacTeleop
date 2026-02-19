@@ -1,0 +1,51 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Manual workflow to remove accumulated PR preview deployments from GitHub Pages.
+# Run from the Actions tab when you want to clean up preview/pr-* directories.
+
+name: Clean docs PR previews
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  clean-previews:
+    name: Remove PR preview dirs from gh-pages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set remote for push
+        run: |
+          git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+
+      - name: Clean PR preview deployments
+        run: |
+          git fetch origin gh-pages 2>/dev/null || true
+          if ! git rev-parse --verify origin/gh-pages >/dev/null 2>&1; then
+            echo "No gh-pages branch found. Nothing to clean."
+            exit 0
+          fi
+          git checkout gh-pages
+          if [ ! -d preview ]; then
+            echo "No preview/ directory. Nothing to clean."
+            exit 0
+          fi
+          rm -rf preview
+          git add -A
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore(docs): remove PR preview deployments [workflow]"
+          git push origin gh-pages
+          echo "Removed all preview deployments from gh-pages."
