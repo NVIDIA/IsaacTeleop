@@ -11,7 +11,7 @@ before conversion to the standard retargeting engine format.
 from typing import Any
 from ..interface.tensor_type import TensorType
 from ..interface.tensor_group_type import TensorGroupType
-from isaacteleop.schema import HeadPoseT, HandPoseT, ControllerSnapshot
+from isaacteleop.schema import HeadPoseT, HandPoseT, ControllerSnapshot, FullBodyPosePicoT
 
 
 class HeadPoseTType(TensorType):
@@ -136,4 +136,48 @@ def DeviceIOControllerSnapshot() -> TensorGroupType:
     """
     return TensorGroupType(
         "deviceio_controller_snapshot", [ControllerSnapshotType("controller_data")]
+    )
+
+
+class FullBodyPosePicoTType(TensorType):
+    """FullBodyPosePicoT flatbuffer schema type."""
+
+    def __init__(self, name: str) -> None:
+        """
+        Initialize a FullBodyPosePicoT type.
+
+        Args:
+            name: Name for this tensor
+        """
+        super().__init__(name)
+
+    def _check_instance_compatibility(self, other: TensorType) -> bool:
+        """FullBodyPosePicoT types are always compatible with other FullBodyPosePicoT types."""
+        assert isinstance(other, FullBodyPosePicoTType), (
+            f"Expected FullBodyPosePicoTType, got {type(other).__name__}"
+        )
+        return True
+
+    def validate_value(self, value: Any) -> None:
+        """
+        Validate if the given value is a FullBodyPosePicoT schema object.
+
+        Raises:
+            TypeError: If value is not a FullBodyPosePicoT
+        """
+        if not isinstance(value, FullBodyPosePicoT):
+            raise TypeError(
+                f"Expected FullBodyPosePicoT for '{self.name}', got {type(value).__name__}"
+            )
+
+
+def DeviceIOFullBodyPosePico() -> TensorGroupType:
+    """Raw full body pose data from DeviceIO FullBodyTrackerPico.
+
+    Contains:
+        full_body_data: FullBodyPosePicoT flatbuffer schema object
+    """
+    return TensorGroupType(
+        "deviceio_full_body_pose_pico",
+        [FullBodyPosePicoTType("full_body_data")],
     )

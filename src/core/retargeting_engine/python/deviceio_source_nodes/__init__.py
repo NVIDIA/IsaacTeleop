@@ -7,13 +7,16 @@ from .interface import IDeviceIOSource
 from .head_source import HeadSource
 from .hands_source import HandsSource
 from .controllers_source import ControllersSource
+from .full_body_source import FullBodySource
 from .deviceio_tensor_types import (
     HeadPoseTType,
     HandPoseTType,
     ControllerSnapshotType,
+    FullBodyPosePicoTType,
     DeviceIOHeadPose,
     DeviceIOHandPose,
     DeviceIOControllerSnapshot,
+    DeviceIOFullBodyPosePico,
 )
 
 __all__ = [
@@ -21,10 +24,13 @@ __all__ = [
     "HeadSource",
     "HandsSource",
     "ControllersSource",
+    "FullBodySource",
     "HeadPoseTType",
     "HandPoseTType",
     "ControllerSnapshotType",
+    "FullBodyPosePicoTType",
     "DeviceIOHeadPose",
     "DeviceIOHandPose",
     "DeviceIOControllerSnapshot",
+    "DeviceIOFullBodyPosePico",
 ]
