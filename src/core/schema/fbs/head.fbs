@@ -21,4 +21,10 @@ table HeadPoseRecord {
     timestamp: DeviceDataTimestamp (id: 1);
 }
 
+// Tracker output wrapper: pairs a HeadPose with a DeviceOutputTimestamp.
+table HeadPoseTracked {
+    data: HeadPose (id: 0);
+    timestamp: DeviceOutputTimestamp (id: 1);
+}
+
 root_type HeadPoseRecord;

@@ -51,9 +51,9 @@ public:
     std::vector<std::string> get_record_channels() const override;
 
     /*!
-     * @brief Get the current foot pedal data.
+     * @brief Get the current foot pedal data (returns tracked output with timestamp).
      */
-    const Generic3AxisPedalOutputT& get_data(const DeviceIOSession& session) const;
+    const Generic3AxisPedalOutputTrackedT& get_data(const DeviceIOSession& session) const;
 
 protected:
     /*!

@@ -24,3 +24,22 @@ struct DeviceDataTimestamp {
     // Useful for measuring pipeline latency (available - sample).
     available_time_common_clock: int64;
 }
+
+// Timestamp attached to tracker output (what the consumer receives).
+//
+// All timestamps are in nanoseconds. The "common clock" is the system monotonic
+// clock (CLOCK_MONOTONIC on Linux, QueryPerformanceCounter on Windows).
+// The "consumer clock" is the application-domain clock, which may differ from
+// real time (e.g., a simulation running slower than real time).
+struct DeviceOutputTimestamp {
+    // When the tracker query was executed, in the common clock domain.
+    query_time_common_clock: int64;
+
+    // The target prediction time requested, in the common clock domain.
+    // Zero if not applicable (e.g., for historical tensor data).
+    target_time_common_clock: int64;
+
+    // The target time in the consumer's application-domain clock.
+    // TODO: Not yet wired — will be passed into update() in a future change.
+    target_time_consumer_clock: int64;
+}

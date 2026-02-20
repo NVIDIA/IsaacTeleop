@@ -6,6 +6,7 @@
 #include "inc/deviceio/deviceio_session.hpp"
 
 #include <cassert>
+#include <chrono>
 #include <cstring>
 #include <iostream>
 
@@ -80,24 +81,29 @@ HandTracker::Impl::Impl(const OpenXRSessionHandles& handles)
         throw std::runtime_error("Failed to create right hand tracker: " + std::to_string(result));
     }
 
-    left_hand_.is_active = false;
-    right_hand_.is_active = false;
+    left_tracked_.data = std::make_shared<HandPoseT>();
+    left_tracked_.timestamp = std::make_shared<DeviceOutputTimestamp>();
+    right_tracked_.data = std::make_shared<HandPoseT>();
+    right_tracked_.timestamp = std::make_shared<DeviceOutputTimestamp>();
+
+    left_tracked_.data->is_active = false;
+    right_tracked_.data->is_active = false;
 
     std::cout << "HandTracker initialized (left + right)" << std::endl;
 }
 
 DeviceDataTimestamp HandTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const
 {
-    const HandPoseT& hand = (channel_index == 0) ? left_hand_ : right_hand_;
+    const HandPoseT& hand = (channel_index == 0) ? *left_tracked_.data : *right_tracked_.data;
 
     auto data_offset = HandPose::Pack(builder, &hand);
 
     HandPoseRecordBuilder record_builder(builder);
     record_builder.add_data(data_offset);
-    record_builder.add_timestamp(&last_timestamp_);
+    record_builder.add_timestamp(&last_record_timestamp_);
     builder.Finish(record_builder.Finish());
 
-    return last_timestamp_;
+    return last_record_timestamp_;
 }
 
 HandTracker::Impl::~Impl()
@@ -120,23 +126,27 @@ HandTracker::Impl::~Impl()
 // Override from ITrackerImpl
 bool HandTracker::Impl::update(XrTime time)
 {
-    bool left_ok = update_hand(left_hand_tracker_, time, left_hand_);
-    bool right_ok = update_hand(right_hand_tracker_, time, right_hand_);
+    bool left_ok = update_hand(left_hand_tracker_, time, *left_tracked_.data);
+    bool right_ok = update_hand(right_hand_tracker_, time, *right_tracked_.data);
 
-    last_timestamp_ = DeviceDataTimestamp(time, time, 0);
+    auto now_ns =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    *left_tracked_.timestamp = DeviceOutputTimestamp(now_ns, time, 0);
+    *right_tracked_.timestamp = DeviceOutputTimestamp(now_ns, time, 0);
+    last_record_timestamp_ = DeviceDataTimestamp(time, time, 0);
 
     // Return true if at least one hand updated successfully
     return left_ok || right_ok;
 }
 
-const HandPoseT& HandTracker::Impl::get_left_hand() const
+const HandPoseTrackedT& HandTracker::Impl::get_left_hand() const
 {
-    return left_hand_;
+    return left_tracked_;
 }
 
-const HandPoseT& HandTracker::Impl::get_right_hand() const
+const HandPoseTrackedT& HandTracker::Impl::get_right_hand() const
 {
-    return right_hand_;
+    return right_tracked_;
 }
 
 bool HandTracker::Impl::update_hand(XrHandTrackerEXT tracker, XrTime time, HandPoseT& out_data)
@@ -197,12 +207,12 @@ std::vector<std::string> HandTracker::get_required_extensions() const
     return { XR_EXT_HAND_TRACKING_EXTENSION_NAME };
 }
 
-const HandPoseT& HandTracker::get_left_hand(const DeviceIOSession& session) const
+const HandPoseTrackedT& HandTracker::get_left_hand(const DeviceIOSession& session) const
 {
     return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_left_hand();
 }
 
-const HandPoseT& HandTracker::get_right_hand(const DeviceIOSession& session) const
+const HandPoseTrackedT& HandTracker::get_right_hand(const DeviceIOSession& session) const
 {
     return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_right_hand();
 }

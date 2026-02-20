@@ -5,11 +5,15 @@
 
 This module provides trackers and teleop session functionality.
 
-Note: HeadTracker.get_head(session) returns HeadPoseT from isaacteleop.schema.
-    HandTracker.get_left_hand(session) / get_right_hand(session) return HandPoseT from isaacteleop.schema.
-    ControllerTracker.get_left_controller(session) / get_right_controller(session) return ControllerSnapshot from isaacteleop.schema.
-    FrameMetadataTrackerOak.get_data(session) returns FrameMetadata from isaacteleop.schema.
-Import these types from isaacteleop.schema if you need to work with pose types.
+Tracker getters return TrackedT wrapper types containing `.data` (the raw data)
+and `.timestamp` (DeviceOutputTimestamp with query/target times):
+    HandTracker.get_left_hand(session) / get_right_hand(session) -> HandPoseTrackedT
+    HeadTracker.get_head(session) -> HeadPoseTrackedT
+    ControllerTracker.get_left_controller(session) / get_right_controller(session) -> ControllerSnapshotTrackedT
+    FrameMetadataTrackerOak.get_data(session) -> FrameMetadataTrackedT
+    FullBodyTrackerPico.get_body_pose(session) -> FullBodyPosePicoTrackedT
+
+Import raw data types from isaacteleop.schema if you need to work with pose types.
 """
 
 from ._deviceio import (
@@ -20,6 +24,12 @@ from ._deviceio import (
     FrameMetadataTrackerOak,
     FullBodyTrackerPico,
     DeviceIOSession,
+    DeviceOutputTimestamp,
+    HandPoseTrackedT,
+    HeadPoseTrackedT,
+    ControllerSnapshotTrackedT,
+    FrameMetadataTrackedT,
+    FullBodyPosePicoTrackedT,
     NUM_JOINTS,
     JOINT_PALM,
     JOINT_WRIST,
@@ -44,7 +54,13 @@ __all__ = [
     "ControllerPose",
     "ControllerSnapshot",
     "DeviceDataTimestamp",
+    "DeviceOutputTimestamp",
     "FrameMetadata",
+    "HandPoseTrackedT",
+    "HeadPoseTrackedT",
+    "ControllerSnapshotTrackedT",
+    "FrameMetadataTrackedT",
+    "FullBodyPosePicoTrackedT",
     "ITracker",
     "HandTracker",
     "HeadTracker",

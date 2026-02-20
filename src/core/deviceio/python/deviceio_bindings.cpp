@@ -15,6 +15,72 @@ PYBIND11_MODULE(_deviceio, m)
 {
     m.doc() = "Isaac Teleop DeviceIO - Device I/O Module";
 
+    // DeviceOutputTimestamp (FlatBuffer struct for tracker output timestamps)
+    py::class_<core::DeviceOutputTimestamp>(m, "DeviceOutputTimestamp")
+        .def_property_readonly("query_time_common_clock", &core::DeviceOutputTimestamp::query_time_common_clock)
+        .def_property_readonly("target_time_common_clock", &core::DeviceOutputTimestamp::target_time_common_clock)
+        .def_property_readonly("target_time_consumer_clock", &core::DeviceOutputTimestamp::target_time_consumer_clock)
+        .def("__repr__",
+             [](const core::DeviceOutputTimestamp& self)
+             {
+                 return "DeviceOutputTimestamp(query_time=" + std::to_string(self.query_time_common_clock()) +
+                        ", target_time=" + std::to_string(self.target_time_common_clock()) +
+                        ", target_time_consumer=" + std::to_string(self.target_time_consumer_clock()) + ")";
+             });
+
+    // TrackedT wrapper types (pair data + DeviceOutputTimestamp from each tracker)
+    py::class_<core::HandPoseTrackedT>(m, "HandPoseTrackedT")
+        .def_property_readonly(
+            "data", [](const core::HandPoseTrackedT& self) -> const core::HandPoseT* { return self.data.get(); },
+            py::return_value_policy::reference_internal)
+        .def_property_readonly(
+            "timestamp",
+            [](const core::HandPoseTrackedT& self) -> const core::DeviceOutputTimestamp* { return self.timestamp.get(); },
+            py::return_value_policy::reference_internal);
+
+    py::class_<core::HeadPoseTrackedT>(m, "HeadPoseTrackedT")
+        .def_property_readonly(
+            "data", [](const core::HeadPoseTrackedT& self) -> const core::HeadPoseT* { return self.data.get(); },
+            py::return_value_policy::reference_internal)
+        .def_property_readonly(
+            "timestamp",
+            [](const core::HeadPoseTrackedT& self) -> const core::DeviceOutputTimestamp* { return self.timestamp.get(); },
+            py::return_value_policy::reference_internal);
+
+    py::class_<core::ControllerSnapshotTrackedT>(m, "ControllerSnapshotTrackedT")
+        .def_property_readonly(
+            "data",
+            [](const core::ControllerSnapshotTrackedT& self) -> const core::ControllerSnapshot*
+            { return self.data.get(); },
+            py::return_value_policy::reference_internal)
+        .def_property_readonly(
+            "timestamp",
+            [](const core::ControllerSnapshotTrackedT& self) -> const core::DeviceOutputTimestamp*
+            { return self.timestamp.get(); },
+            py::return_value_policy::reference_internal);
+
+    py::class_<core::FrameMetadataTrackedT>(m, "FrameMetadataTrackedT")
+        .def_property_readonly(
+            "data",
+            [](const core::FrameMetadataTrackedT& self) -> const core::FrameMetadataT* { return self.data.get(); },
+            py::return_value_policy::reference_internal)
+        .def_property_readonly(
+            "timestamp",
+            [](const core::FrameMetadataTrackedT& self) -> const core::DeviceOutputTimestamp*
+            { return self.timestamp.get(); },
+            py::return_value_policy::reference_internal);
+
+    py::class_<core::FullBodyPosePicoTrackedT>(m, "FullBodyPosePicoTrackedT")
+        .def_property_readonly(
+            "data",
+            [](const core::FullBodyPosePicoTrackedT& self) -> const core::FullBodyPosePicoT* { return self.data.get(); },
+            py::return_value_policy::reference_internal)
+        .def_property_readonly(
+            "timestamp",
+            [](const core::FullBodyPosePicoTrackedT& self) -> const core::DeviceOutputTimestamp*
+            { return self.timestamp.get(); },
+            py::return_value_policy::reference_internal);
+
     // ITracker interface (base class)
     py::class_<core::ITracker, std::shared_ptr<core::ITracker>>(m, "ITracker").def("get_name", &core::ITracker::get_name);
 
@@ -23,12 +89,12 @@ PYBIND11_MODULE(_deviceio, m)
         .def(py::init<>())
         .def(
             "get_left_hand",
-            [](core::HandTracker& self, PyDeviceIOSession& session) -> const core::HandPoseT&
+            [](core::HandTracker& self, PyDeviceIOSession& session) -> const core::HandPoseTrackedT&
             { return self.get_left_hand(session.native()); },
             py::arg("session"), py::return_value_policy::reference_internal)
         .def(
             "get_right_hand",
-            [](core::HandTracker& self, PyDeviceIOSession& session) -> const core::HandPoseT&
+            [](core::HandTracker& self, PyDeviceIOSession& session) -> const core::HandPoseTrackedT&
             { return self.get_right_hand(session.native()); },
             py::arg("session"), py::return_value_policy::reference_internal)
         .def_static("get_joint_name", &core::HandTracker::get_joint_name);
@@ -38,7 +104,7 @@ PYBIND11_MODULE(_deviceio, m)
         .def(py::init<>())
         .def(
             "get_head",
-            [](core::HeadTracker& self, PyDeviceIOSession& session) -> const core::HeadPoseT&
+            [](core::HeadTracker& self, PyDeviceIOSession& session) -> const core::HeadPoseTrackedT&
             { return self.get_head(session.native()); },
             py::arg("session"), py::return_value_policy::reference_internal);
 
@@ -47,19 +113,14 @@ PYBIND11_MODULE(_deviceio, m)
         .def(py::init<>())
         .def(
             "get_left_controller",
-            [](core::ControllerTracker& self, PyDeviceIOSession& session) -> const core::ControllerSnapshot&
+            [](core::ControllerTracker& self, PyDeviceIOSession& session) -> const core::ControllerSnapshotTrackedT&
             { return self.get_left_controller(session.native()); },
-            py::arg("session"), py::return_value_policy::reference_internal, "Get the left controller snapshot")
+            py::arg("session"), py::return_value_policy::reference_internal, "Get the left controller tracked output")
         .def(
             "get_right_controller",
-            [](core::ControllerTracker& self, PyDeviceIOSession& session) -> const core::ControllerSnapshot&
+            [](core::ControllerTracker& self, PyDeviceIOSession& session) -> const core::ControllerSnapshotTrackedT&
             { return self.get_right_controller(session.native()); },
-            py::arg("session"), py::return_value_policy::reference_internal, "Get the right controller snapshot")
-        .def(
-            "get_last_update_time",
-            [](core::ControllerTracker& self, PyDeviceIOSession& session) -> int64_t
-            { return self.get_last_update_time(session.native()); },
-            py::arg("session"), "Get the XrTime from the last update");
+            py::arg("session"), py::return_value_policy::reference_internal, "Get the right controller tracked output");
 
     // FrameMetadataTrackerOak class
     py::class_<core::FrameMetadataTrackerOak, core::ITracker, std::shared_ptr<core::FrameMetadataTrackerOak>>(
@@ -69,10 +130,10 @@ PYBIND11_MODULE(_deviceio, m)
              "Construct a FrameMetadataTrackerOak for the given tensor collection ID")
         .def(
             "get_data",
-            [](core::FrameMetadataTrackerOak& self, PyDeviceIOSession& session) -> const core::FrameMetadataT&
+            [](core::FrameMetadataTrackerOak& self, PyDeviceIOSession& session) -> const core::FrameMetadataTrackedT&
             { return self.get_data(session.native()); },
             py::arg("session"), py::return_value_policy::reference_internal,
-            "Get the current frame metadata (timestamp and sequence_number)");
+            "Get the current frame metadata tracked output (data + timestamp)");
 
     // FullBodyTrackerPico class (PICO XR_BD_body_tracking extension)
     py::class_<core::FullBodyTrackerPico, core::ITracker, std::shared_ptr<core::FullBodyTrackerPico>>(
@@ -80,10 +141,10 @@ PYBIND11_MODULE(_deviceio, m)
         .def(py::init<>())
         .def(
             "get_body_pose",
-            [](core::FullBodyTrackerPico& self, PyDeviceIOSession& session) -> const core::FullBodyPosePicoT&
+            [](core::FullBodyTrackerPico& self, PyDeviceIOSession& session) -> const core::FullBodyPosePicoTrackedT&
             { return self.get_body_pose(session.native()); },
             py::arg("session"), py::return_value_policy::reference_internal,
-            "Get full body pose data (24 joints from pelvis to hands)");
+            "Get full body pose tracked output (24 joints from pelvis to hands)");
 
     // DeviceIOSession class (bound via wrapper for context management)
     // Other C++ modules (like mcap) should include <py_deviceio/session.hpp> and accept

@@ -73,9 +73,11 @@ void SyntheticHandsPlugin::worker_thread()
             continue;
         }
 
-        const auto& left_ctrl = m_controller_tracker->get_left_controller(*m_deviceio_session);
-        const auto& right_ctrl = m_controller_tracker->get_right_controller(*m_deviceio_session);
-        XrTime time = m_controller_tracker->get_last_update_time(*m_deviceio_session);
+        const auto& left_tracked = m_controller_tracker->get_left_controller(*m_deviceio_session);
+        const auto& right_tracked = m_controller_tracker->get_right_controller(*m_deviceio_session);
+        const auto& left_ctrl = *left_tracked.data;
+        const auto& right_ctrl = *right_tracked.data;
+        XrTime time = left_tracked.timestamp->target_time_common_clock();
 
         float left_target = left_ctrl.inputs().trigger_value();
         float right_target = right_ctrl.inputs().trigger_value();

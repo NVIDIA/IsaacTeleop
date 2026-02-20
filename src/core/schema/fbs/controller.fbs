@@ -50,4 +50,10 @@ table ControllerSnapshotRecord {
     timestamp: DeviceDataTimestamp (id: 1);
 }
 
+// Tracker output wrapper: pairs a ControllerSnapshot with a DeviceOutputTimestamp.
+table ControllerSnapshotTracked {
+    data: ControllerSnapshot (id: 0);
+    timestamp: DeviceOutputTimestamp (id: 1);
+}
+
 root_type ControllerSnapshotRecord;

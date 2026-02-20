@@ -87,13 +87,13 @@ try
         const auto& head = head_tracker->get_head(*session);
 
         std::cout << "Frame " << i << ":" << std::endl;
-        std::cout << "  Left hand:  " << (left.is_active ? "ACTIVE" : "INACTIVE") << std::endl;
-        std::cout << "  Right hand: " << (right.is_active ? "ACTIVE" : "INACTIVE") << std::endl;
-        std::cout << "  Head pose:  " << (head.is_valid ? "VALID" : "INVALID") << std::endl;
+        std::cout << "  Left hand:  " << (left.data->is_active ? "ACTIVE" : "INACTIVE") << std::endl;
+        std::cout << "  Right hand: " << (right.data->is_active ? "ACTIVE" : "INACTIVE") << std::endl;
+        std::cout << "  Head pose:  " << (head.data->is_valid ? "VALID" : "INVALID") << std::endl;
 
-        if (head.is_valid && head.pose)
+        if (head.data->is_valid && head.data->pose)
         {
-            const auto& pos = head.pose->position();
+            const auto& pos = head.data->pose->position();
             std::cout << "    Position: [" << pos.x() << ", " << pos.y() << ", " << pos.z() << "]" << std::endl;
         }
         std::cout << std::endl;

@@ -6,6 +6,7 @@
 #include "inc/deviceio/deviceio_session.hpp"
 
 #include <cassert>
+#include <chrono>
 #include <cmath>
 #include <cstring>
 #include <iostream>
@@ -259,6 +260,11 @@ ControllerTracker::Impl::Impl(const OpenXRSessionHandles& handles)
         throw std::runtime_error("Failed to attach action sets: " + std::to_string(result));
     }
 
+    left_tracked_.data = std::make_shared<ControllerSnapshot>();
+    left_tracked_.timestamp = std::make_shared<DeviceOutputTimestamp>();
+    right_tracked_.data = std::make_shared<ControllerSnapshot>();
+    right_tracked_.timestamp = std::make_shared<DeviceOutputTimestamp>();
+
     std::cout << "ControllerTracker initialized (left + right)" << std::endl;
 }
 
@@ -335,39 +341,38 @@ bool ControllerTracker::Impl::update(XrTime time)
         snapshot_out = ControllerSnapshot(grip_pose, aim_pose, inputs, is_active);
     };
 
-    update_controller(left_hand_path_, left_grip_space_, left_aim_space_, left_controller_);
-    update_controller(right_hand_path_, right_grip_space_, right_aim_space_, right_controller_);
+    update_controller(left_hand_path_, left_grip_space_, left_aim_space_, *left_tracked_.data);
+    update_controller(right_hand_path_, right_grip_space_, right_aim_space_, *right_tracked_.data);
 
-    last_timestamp_ = DeviceDataTimestamp(time, time, 0);
+    auto now_ns =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    *left_tracked_.timestamp = DeviceOutputTimestamp(now_ns, time, 0);
+    *right_tracked_.timestamp = DeviceOutputTimestamp(now_ns, time, 0);
+    last_record_timestamp_ = DeviceDataTimestamp(time, time, 0);
 
-    return left_controller_.is_active() || right_controller_.is_active();
+    return left_tracked_.data->is_active() || right_tracked_.data->is_active();
 }
 
-const ControllerSnapshot& ControllerTracker::Impl::get_left_controller() const
+const ControllerSnapshotTrackedT& ControllerTracker::Impl::get_left_controller() const
 {
-    return left_controller_;
+    return left_tracked_;
 }
 
-const ControllerSnapshot& ControllerTracker::Impl::get_right_controller() const
+const ControllerSnapshotTrackedT& ControllerTracker::Impl::get_right_controller() const
 {
-    return right_controller_;
-}
-
-XrTime ControllerTracker::Impl::get_last_update_time() const
-{
-    return last_timestamp_.sample_time_device_clock();
+    return right_tracked_;
 }
 
 DeviceDataTimestamp ControllerTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const
 {
-    const ControllerSnapshot& snapshot = (channel_index == 0) ? left_controller_ : right_controller_;
+    const ControllerSnapshot& snapshot = (channel_index == 0) ? *left_tracked_.data : *right_tracked_.data;
 
     ControllerSnapshotRecordBuilder record_builder(builder);
     record_builder.add_data(&snapshot);
-    record_builder.add_timestamp(&last_timestamp_);
+    record_builder.add_timestamp(&last_record_timestamp_);
     builder.Finish(record_builder.Finish());
 
-    return last_timestamp_;
+    return last_record_timestamp_;
 }
 
 // ============================================================================
@@ -380,19 +385,14 @@ std::vector<std::string> ControllerTracker::get_required_extensions() const
     return {};
 }
 
-const ControllerSnapshot& ControllerTracker::get_left_controller(const DeviceIOSession& session) const
+const ControllerSnapshotTrackedT& ControllerTracker::get_left_controller(const DeviceIOSession& session) const
 {
     return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_left_controller();
 }
 
-const ControllerSnapshot& ControllerTracker::get_right_controller(const DeviceIOSession& session) const
+const ControllerSnapshotTrackedT& ControllerTracker::get_right_controller(const DeviceIOSession& session) const
 {
     return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_right_controller();
-}
-
-XrTime ControllerTracker::get_last_update_time(const DeviceIOSession& session) const
-{
-    return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_last_update_time();
 }
 
 std::shared_ptr<ITrackerImpl> ControllerTracker::create_tracker(const OpenXRSessionHandles& handles) const

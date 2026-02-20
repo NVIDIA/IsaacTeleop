@@ -342,9 +342,9 @@ void ManusTracker::inject_hand_data()
         right_nodes = m_right_hand_nodes;
     }
 
-    const auto& left_ctrl = m_controller_tracker->get_left_controller(*m_deviceio_session);
-    const auto& right_ctrl = m_controller_tracker->get_right_controller(*m_deviceio_session);
-    XrTime time = m_controller_tracker->get_last_update_time(*m_deviceio_session);
+    const auto& left_tracked = m_controller_tracker->get_left_controller(*m_deviceio_session);
+    const auto& right_tracked = m_controller_tracker->get_right_controller(*m_deviceio_session);
+    XrTime time = left_tracked.timestamp->target_time_common_clock();
 
     auto process_hand = [&](const std::vector<SkeletonNode>& nodes, bool is_left)
     {
@@ -357,7 +357,7 @@ void ManusTracker::inject_hand_data()
         XrPosef root_pose = { { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, 0.0f } };
         bool is_root_tracked = false;
 
-        const core::ControllerSnapshot& snapshot = is_left ? left_ctrl : right_ctrl;
+        const core::ControllerSnapshot& snapshot = is_left ? *left_tracked.data : *right_tracked.data;
 
         if (snapshot.is_active())
         {
