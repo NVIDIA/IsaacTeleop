@@ -24,18 +24,30 @@ public:
     {
     }
 
-    bool update(XrTime time) override
+    bool update(XrTime /* time */) override
     {
-        if (m_schema_reader.read_buffer(m_buffer))
+        m_pending_records.clear();
+
+        std::vector<SchemaTracker::SampleResult> raw_samples;
+        m_schema_reader.read_all_samples(raw_samples);
+
+        for (auto& sample : raw_samples)
         {
-            auto fb = flatbuffers::GetRoot<FrameMetadata>(m_buffer.data());
+            auto fb = flatbuffers::GetRoot<FrameMetadata>(sample.buffer.data());
             if (fb)
             {
-                fb->UnPackTo(&m_data);
-                m_last_timestamp = DeviceDataTimestamp(time, time, 0);
-                return true;
+                FrameMetadataT parsed;
+                fb->UnPackTo(&parsed);
+                m_pending_records.push_back({ std::move(parsed), sample.timestamp });
             }
         }
+
+        if (!m_pending_records.empty())
+        {
+            m_data = m_pending_records.back().data;
+            m_last_timestamp = m_pending_records.back().timestamp;
+        }
+
         return true;
     }
 
@@ -51,16 +63,38 @@ public:
         return m_last_timestamp;
     }
 
+    void serialize_all(size_t /* channel_index */, const RecordCallback& callback) const override
+    {
+        for (const auto& record : m_pending_records)
+        {
+            flatbuffers::FlatBufferBuilder builder(256);
+            auto data_offset = FrameMetadata::Pack(builder, &record.data);
+
+            FrameMetadataRecordBuilder record_builder(builder);
+            record_builder.add_data(data_offset);
+            record_builder.add_timestamp(&record.timestamp);
+            builder.Finish(record_builder.Finish());
+
+            callback(record.timestamp, builder.GetBufferPointer(), builder.GetSize());
+        }
+    }
+
     const FrameMetadataT& get_data() const
     {
         return m_data;
     }
 
 private:
+    struct PendingRecord
+    {
+        FrameMetadataT data;
+        DeviceDataTimestamp timestamp;
+    };
+
     SchemaTracker m_schema_reader;
-    std::vector<uint8_t> m_buffer;
     FrameMetadataT m_data;
     DeviceDataTimestamp m_last_timestamp{};
+    std::vector<PendingRecord> m_pending_records;
 };
 
 // ============================================================================

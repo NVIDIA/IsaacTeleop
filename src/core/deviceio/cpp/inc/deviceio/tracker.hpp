@@ -7,6 +7,7 @@
 #include <openxr/openxr.h>
 #include <schema/timestamp_generated.h>
 
+#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -41,6 +42,29 @@ public:
      * @return DeviceDataTimestamp for MCAP log time.
      */
     virtual DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const = 0;
+
+    /**
+     * @brief Callback type for serialize_all: receives timestamp, raw buffer pointer, and size.
+     */
+    using RecordCallback = std::function<void(const DeviceDataTimestamp&, const uint8_t*, size_t)>;
+
+    /**
+     * @brief Serialize all pending records for a channel, invoking the callback for each.
+     *
+     * The default implementation calls serialize() once, which is correct for
+     * direct OpenXR trackers that always have exactly one state per update.
+     * SchemaTracker-based trackers override this to emit every queued tensor
+     * sample so that no data is lost in MCAP recording.
+     *
+     * @param channel_index Which record channel to serialize.
+     * @param callback Invoked once per record with (timestamp, data_ptr, data_size).
+     */
+    virtual void serialize_all(size_t channel_index, const RecordCallback& callback) const
+    {
+        flatbuffers::FlatBufferBuilder builder(256);
+        DeviceDataTimestamp ts = serialize(builder, channel_index);
+        callback(ts, builder.GetBufferPointer(), builder.GetSize());
+    }
 };
 
 // Base interface for all trackers

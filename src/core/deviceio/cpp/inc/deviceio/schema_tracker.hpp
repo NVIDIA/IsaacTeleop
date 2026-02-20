@@ -4,6 +4,7 @@
 #pragma once
 
 #include <oxr_utils/oxr_session_handles.hpp>
+#include <schema/timestamp_generated.h>
 
 #include <XR_NVX1_tensor_data.h>
 #include <cstddef>
@@ -87,32 +88,51 @@ struct SchemaTrackerConfig
  *         Impl(const OpenXRSessionHandles& handles, SchemaTrackerConfig config)
  *             : m_schema_reader(handles, std::move(config)) {}
  *
- *         bool update(XrTime time) override {
- *             if (m_schema_reader.read_buffer(buffer_)) {
- *                 auto fb = GetLocomotionCommand(buffer_.data());
+ *         bool update(XrTime) override {
+ *             m_pending.clear();
+ *             std::vector<SchemaTracker::SampleResult> raw;
+ *             m_schema_reader.read_all_samples(raw);
+ *             for (auto& s : raw) {
+ *                 auto fb = flatbuffers::GetRoot<LocomotionCommand>(s.buffer.data());
  *                 if (fb) {
- *                     fb->UnPackTo(&data_);
- *                     return true;
+ *                     LocomotionCommandT parsed;
+ *                     fb->UnPackTo(&parsed);
+ *                     m_pending.push_back({std::move(parsed), s.timestamp});
  *                 }
  *             }
- *             return false;
+ *             if (!m_pending.empty()) data_ = m_pending.back().data;
+ *             return true;
  *         }
  *
  *         DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t) const override {
- *             auto data_offset = LocomotionCommand::Pack(builder, &data_);
+ *             auto offset = LocomotionCommand::Pack(builder, &data_);
+ *             auto& ts = m_pending.empty() ? DeviceDataTimestamp{} : m_pending.back().timestamp;
  *             LocomotionCommandRecordBuilder rb(builder);
- *             rb.add_data(data_offset);
- *             rb.add_timestamp(&m_last_timestamp);
+ *             rb.add_data(offset);
+ *             rb.add_timestamp(&ts);
  *             builder.Finish(rb.Finish());
- *             return m_last_timestamp;
+ *             return ts;
+ *         }
+ *
+ *         void serialize_all(size_t, const RecordCallback& cb) const override {
+ *             for (const auto& r : m_pending) {
+ *                 flatbuffers::FlatBufferBuilder b(256);
+ *                 auto offset = LocomotionCommand::Pack(b, &r.data);
+ *                 LocomotionCommandRecordBuilder rb(b);
+ *                 rb.add_data(offset);
+ *                 rb.add_timestamp(&r.timestamp);
+ *                 b.Finish(rb.Finish());
+ *                 cb(r.timestamp, b.GetBufferPointer(), b.GetSize());
+ *             }
  *         }
  *
  *         const LocomotionCommandT& get_data() const { return data_; }
  *
  *     private:
+ *         struct Pending { LocomotionCommandT data; DeviceDataTimestamp timestamp; };
  *         SchemaTracker m_schema_reader;
- *         std::vector<uint8_t> buffer_;
  *         LocomotionCommandT data_;
+ *         std::vector<Pending> m_pending;
  *     };
  * };
  * @endcode
@@ -145,16 +165,26 @@ public:
      */
     static std::vector<std::string> get_required_extensions();
 
+    //! A single tensor sample with its data buffer and real timestamps.
+    struct SampleResult
+    {
+        std::vector<uint8_t> buffer;
+        DeviceDataTimestamp timestamp;
+    };
+
     /*!
-     * @brief Read the next available raw sample buffer.
+     * @brief Read ALL pending samples from the tensor collection.
      *
-     * This method polls for tensor list updates, discovers the target collection
-     * if not already connected, and retrieves the next available sample.
+     * Drains every available sample since the last read, appending each to the
+     * output vector with real timestamps from XrTensorSampleMetadataNV:
+     *   - sample_time_device_clock  = rawDeviceTimestamp
+     *   - sample_time_common_clock  = timestamp  (OpenXR time domain)
+     *   - available_time_common_clock = arrivalTimestamp
      *
-     * @param buffer Output vector that will be resized and filled with sample data.
-     * @return true if data was read, false if no new data available.
+     * @param samples Output vector; new samples are appended (not cleared).
+     * @return Number of samples read in this call.
      */
-    bool read_buffer(std::vector<uint8_t>& buffer);
+    size_t read_all_samples(std::vector<SampleResult>& samples);
 
     /*!
      * @brief Access the configuration.
@@ -164,9 +194,10 @@ public:
 private:
     void initialize_tensor_data_functions();
     void create_tensor_list();
+    bool ensure_collection();
     void poll_for_updates();
     std::optional<uint32_t> find_target_collection();
-    bool read_next_sample(std::vector<uint8_t>& buffer);
+    bool read_next_sample(SampleResult& out);
 
     OpenXRSessionHandles m_handles;
     SchemaTrackerConfig m_config;

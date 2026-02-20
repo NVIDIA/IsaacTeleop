@@ -101,38 +101,43 @@ private:
 
     bool record_channel(const ChannelBinding& binding, const ITrackerImpl& tracker_impl)
     {
-        flatbuffers::FlatBufferBuilder builder(256);
-        DeviceDataTimestamp timestamp = tracker_impl.serialize(builder, binding.channel_index);
+        bool success = true;
 
-        mcap::Timestamp log_time;
-        if (timestamp.sample_time_common_clock() != 0)
-        {
-            log_time = static_cast<mcap::Timestamp>(timestamp.sample_time_common_clock());
-        }
-        else
-        {
-            log_time = static_cast<mcap::Timestamp>(
-                std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
-                    .count());
-        }
+        tracker_impl.serialize_all(
+            binding.channel_index,
+            [&](const DeviceDataTimestamp& timestamp, const uint8_t* data, size_t size)
+            {
+                mcap::Timestamp log_time;
+                if (timestamp.sample_time_common_clock() != 0)
+                {
+                    log_time = static_cast<mcap::Timestamp>(timestamp.sample_time_common_clock());
+                }
+                else
+                {
+                    log_time = static_cast<mcap::Timestamp>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                                                std::chrono::system_clock::now().time_since_epoch())
+                                                                .count());
+                }
 
-        mcap::Message msg;
-        msg.channelId = binding.mcap_channel_id;
-        msg.logTime = log_time;
-        msg.publishTime = log_time;
-        msg.sequence = static_cast<uint32_t>(message_count_);
-        msg.data = reinterpret_cast<const std::byte*>(builder.GetBufferPointer());
-        msg.dataSize = builder.GetSize();
+                mcap::Message msg;
+                msg.channelId = binding.mcap_channel_id;
+                msg.logTime = log_time;
+                msg.publishTime = log_time;
+                msg.sequence = static_cast<uint32_t>(message_count_);
+                msg.data = reinterpret_cast<const std::byte*>(data);
+                msg.dataSize = size;
 
-        auto status = writer_.write(msg);
-        if (!status.ok())
-        {
-            std::cerr << "McapRecorder: Failed to write message: " << status.message << std::endl;
-            return false;
-        }
+                auto status = writer_.write(msg);
+                if (!status.ok())
+                {
+                    std::cerr << "McapRecorder: Failed to write message: " << status.message << std::endl;
+                    success = false;
+                }
 
-        ++message_count_;
-        return true;
+                ++message_count_;
+            });
+
+        return success;
     }
 
     std::string filename_;
