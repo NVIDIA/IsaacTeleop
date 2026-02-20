@@ -94,14 +94,14 @@ jobs:
         retention-days: 1
 
   test-cloudxr:
-    runs-on: [self-hosted, linux, gpu]
+    runs-on: [self-hosted, linux, gpu, "${{ matrix.arch }}"]
     needs: build-ubuntu
     environment: dev
 
     strategy:
       matrix:
         python_version: ['3.10', '3.11', '3.12']
-        arch: ['x64'] # CloudXR runtime is only available for x64, so we skip testing on arm64.
+        arch: ['x64', 'arm64']
 
     steps:
     - name: Checkout code
