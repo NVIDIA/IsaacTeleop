@@ -63,8 +63,8 @@ if(BUILD_PLUGINS)
     endif()
 
     # Download DepthAI Hunter config from GitHub if not present or empty
-    set(DEPTHAI_VERSION "v2.29.0")
-    set(DEPTHAI_CONFIG_SHA1 "a88698ab81b7edef79a2446edcf649dc92cddcbc")
+    set(DEPTHAI_VERSION "v2.32.0")
+    set(DEPTHAI_CONFIG_SHA1 "7e22f35b14009c65a15122d8b3e179e79440db7f")
     set(DEPTHAI_CONFIG_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Hunter/config-depthai.cmake")
 
     set(_depthai_config_need_download FALSE)

@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace plugins
@@ -42,6 +43,17 @@ struct OakFrame
 };
 
 /**
+ * @brief Sensor capabilities detected at runtime by probing the device.
+ */
+struct SensorInfo
+{
+    std::string name;
+    dai::ColorCameraProperties::SensorResolution resolution;
+    int max_width;
+    int max_height;
+};
+
+/**
  * @brief OAK camera manager with hardware H.264 encoding.
  *
  * Uses the DepthAI v2.x C++ library to capture video from OAK cameras
@@ -53,7 +65,6 @@ class OakCamera
 public:
     explicit OakCamera(const OakConfig& config = OakConfig{});
 
-    // Non-copyable, non-movable
     OakCamera(const OakCamera&) = delete;
     OakCamera& operator=(const OakCamera&) = delete;
     OakCamera(OakCamera&&) = delete;
@@ -66,7 +77,9 @@ public:
     std::optional<OakFrame> get_frame();
 
 private:
-    void create_pipeline(const OakConfig& config);
+    static dai::DeviceInfo find_device_with_retry(int max_attempts = 5, int retry_delay_ms = 1000);
+    static SensorInfo probe_color_sensor(const dai::DeviceInfo& device_info);
+    void create_pipeline(const OakConfig& config, const SensorInfo& sensor);
 
     std::shared_ptr<dai::Pipeline> m_pipeline;
     std::shared_ptr<dai::Device> m_device;

@@ -21,7 +21,7 @@ set(DEPTHAI_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 
 FetchContent_Declare(
     depthai
-    URL https://github.com/luxonis/depthai-core/releases/download/v2.29.0/depthai-core-v2.29.0.tar.gz
+    URL https://github.com/luxonis/depthai-core/releases/download/v2.32.0/depthai-core-v2.32.0.tar.gz
 )
 
 FetchContent_MakeAvailable(depthai)
