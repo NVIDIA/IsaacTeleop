@@ -16,6 +16,7 @@ from isaacteleop.schema import (
     HandPoseT,
     ControllerSnapshot,
     Generic3AxisPedalOutput,
+    FullBodyPosePicoT,
 )
 
 
@@ -147,6 +148,38 @@ class Generic3AxisPedalOutputType(TensorType):
             )
 
 
+class FullBodyPosePicoTType(TensorType):
+    """FullBodyPosePicoT flatbuffer schema type."""
+
+    def __init__(self, name: str) -> None:
+        """
+        Initialize a FullBodyPosePicoT type.
+
+        Args:
+            name: Name for this tensor
+        """
+        super().__init__(name)
+
+    def _check_instance_compatibility(self, other: TensorType) -> bool:
+        """FullBodyPosePicoT types are always compatible with other FullBodyPosePicoT types."""
+        assert isinstance(other, FullBodyPosePicoTType), (
+            f"Expected FullBodyPosePicoTType, got {type(other).__name__}"
+        )
+        return True
+
+    def validate_value(self, value: Any) -> None:
+        """
+        Validate if the given value is a FullBodyPosePicoT schema object.
+
+        Raises:
+            TypeError: If value is not a FullBodyPosePicoT
+        """
+        if not isinstance(value, FullBodyPosePicoT):
+            raise TypeError(
+                f"Expected FullBodyPosePicoT for '{self.name}', got {type(value).__name__}"
+            )
+
+
 def DeviceIOHeadPose() -> TensorGroupType:
     """Raw head pose data from DeviceIO HeadTracker.
 
@@ -185,4 +218,16 @@ def DeviceIOGeneric3AxisPedalOutput() -> TensorGroupType:
     return TensorGroupType(
         "deviceio_generic_3axis_pedal_output",
         [Generic3AxisPedalOutputType("pedal_data")],
+    )
+
+
+def DeviceIOFullBodyPosePico() -> TensorGroupType:
+    """Raw full body pose data from DeviceIO FullBodyTrackerPico.
+
+    Contains:
+        full_body_data: FullBodyPosePicoT flatbuffer schema object
+    """
+    return TensorGroupType(
+        "deviceio_full_body_pose_pico",
+        [FullBodyPosePicoTType("full_body_data")],
     )

@@ -9,16 +9,20 @@ from .standard_types import (
     HandInput,
     HeadPose,
     ControllerInput,
+    FullBodyInput,
     TransformMatrix,
     Generic3AxisPedalInput,
     NUM_HAND_JOINTS,
+    NUM_BODY_JOINTS_PICO,
     RobotHandJoints,
 )
 from .indices import (
     HandInputIndex,
     ControllerInputIndex,
     Generic3AxisPedalInputIndex,
+    FullBodyInputIndex,
     HandJointIndex,
+    BodyJointPicoIndex,
 )
 
 __all__ = [
@@ -32,13 +36,17 @@ __all__ = [
     "HandInput",
     "HeadPose",
     "ControllerInput",
+    "FullBodyInput",
     "TransformMatrix",
     "Generic3AxisPedalInput",
     "NUM_HAND_JOINTS",
+    "NUM_BODY_JOINTS_PICO",
     "RobotHandJoints",
     # Indices
     "HandInputIndex",
     "ControllerInputIndex",
     "Generic3AxisPedalInputIndex",
+    "FullBodyInputIndex",
     "HandJointIndex",
+    "BodyJointPicoIndex",
 ]
