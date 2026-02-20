@@ -137,6 +137,7 @@ def main() -> int:
     parser.add_argument("--rate-hz", type=float, default=60.0)
     parser.add_argument("--use-mock-operators", action="store_true")
     args = parser.parse_args()
+    sleep_period_s = 1.0 / max(args.rate_hz, 1e-3)
 
     rclpy.init()
     node = Node("teleop_ros2_reference")
@@ -183,7 +184,6 @@ def main() -> int:
         plugins=plugins,
     )
 
-    rate = node.create_rate(args.rate_hz)
     with TeleopSession(config) as session:
         while rclpy.ok():
             result = session.step()
@@ -254,7 +254,7 @@ def main() -> int:
                 controller_msg.data = payload
                 pub_controller.publish(controller_msg)
 
-            rate.sleep()
+            time.sleep(sleep_period_s)
 
     node.destroy_node()
     rclpy.shutdown()
