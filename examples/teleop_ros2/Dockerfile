@@ -63,15 +63,22 @@ RUN --mount=type=cache,target=/opt/isaacteleop/build,id=isaacteleop-teleop-ros2-
 
 ENV ISAAC_TELEOP_PLUGIN_PATH=/opt/isaacteleop/install/plugins
 
+COPY --chmod=644 <<'EOF' /usr/local/bin/teleop-env-setup
+source /opt/ros/humble/setup.bash
+EOF
+
 COPY --chmod=755 <<'EOF' /usr/local/bin/teleop-entrypoint
 #!/bin/bash
 set -e
-source /opt/ros/humble/setup.bash
-if [ "$#" -eq 0 ] || [[ "$1" == "-"* ]]; then
-    set -- uv run teleop_ros2_bridge.py "$@"
-fi
+source /usr/local/bin/teleop-env-setup
 exec "$@"
 EOF
+
+# Set BASH_ENV so non-interactive bash shells automatically source the environment setup.
+ENV BASH_ENV=/usr/local/bin/teleop-env-setup
+
+# Ensure interactive bash shells source the environment setup.
+RUN echo "source /usr/local/bin/teleop-env-setup" >> /etc/bash.bashrc
 
 WORKDIR /opt/isaacteleop/examples/teleop_ros2/python
 RUN uv sync
