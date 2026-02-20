@@ -17,7 +17,7 @@
 
 // Device profiles provide per-device defaults used by the example UIs.
 // These are not hard requirements; they are applied as suggested values and remain user-editable.
-export type DeviceProfileId = 'custom' | 'quest3' | 'pico4ultra';
+export type DeviceProfileId = 'custom' | 'quest2' | 'quest3' | 'quest3s' | 'pico4ultra';
 
 export interface DeviceProfile {
   id: DeviceProfileId;
@@ -94,6 +94,23 @@ const QUEST3_PROFILE: DeviceProfile = {
   },
 };
 
+// Quest 3S: same as Quest 3 pending device-specific validation.
+const QUEST3S_PROFILE: DeviceProfile = {
+  ...QUEST3_PROFILE,
+  id: 'quest3s',
+  label: 'Quest 3S',
+  description: 'Same as Quest 3 for now.',
+};
+
+// Quest 2: same as Quest 3 but default codec H.265 (no hardware AV1 support).
+const QUEST2_PROFILE: DeviceProfile = {
+  ...QUEST3_PROFILE,
+  id: 'quest2',
+  label: 'Quest 2',
+  description: 'Same as Quest 3 except using H.265.',
+  cloudxr: { ...QUEST3_PROFILE.cloudxr!, codec: 'h265' },
+};
+
 // Pico 4 Ultra defaults are conservative until device-specific validation is complete.
 const PICO4ULTRA_PROFILE: DeviceProfile = {
   id: 'pico4ultra',
@@ -125,12 +142,20 @@ const PICO4ULTRA_PROFILE: DeviceProfile = {
 
 export const DEVICE_PROFILES: Record<DeviceProfileId, DeviceProfile> = {
   custom: CUSTOM_PROFILE,
+  quest2: QUEST2_PROFILE,
   quest3: QUEST3_PROFILE,
+  quest3s: QUEST3S_PROFILE,
   pico4ultra: PICO4ULTRA_PROFILE,
 };
 
 export function resolveDeviceProfileId(value: string | null | undefined): DeviceProfileId {
-  if (value === 'quest3' || value === 'pico4ultra' || value === 'custom') {
+  if (
+    value === 'custom' ||
+    value === 'quest2' ||
+    value === 'quest3' ||
+    value === 'quest3s' ||
+    value === 'pico4ultra'
+  ) {
     return value;
   }
   return 'custom';

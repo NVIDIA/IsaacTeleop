@@ -37,11 +37,19 @@ import {
   type DeviceProfileId,
 } from '@helpers/DeviceProfiles';
 import {
+  ControlPanelPosition,
+  parseControlPanelPosition,
+  ReactUIConfig,
+} from '@helpers/react/utils';
+import {
   CloudXRConfig,
   enableLocalStorage,
   setSelectValueIfAvailable,
   setupCertificateAcceptanceLink,
 } from '@helpers/utils';
+
+/** Full config: CloudXR connection settings + React UI options. */
+type AppConfig = CloudXRConfig & ReactUIConfig;
 
 /**
  * 2D UI Management for CloudXR React Example
@@ -93,6 +101,8 @@ export class CloudXR2DUI {
   private xrOffsetYInput!: HTMLInputElement;
   /** Input for XR reference space Z offset (cm) */
   private xrOffsetZInput!: HTMLInputElement;
+  /** Select for in-XR control panel start position (left / center / right) */
+  private controlPanelPositionSelect!: HTMLSelectElement;
   /** Text element displaying proxy configuration help */
   private proxyDefaultText!: HTMLElement;
   /** Device profile warning text */
@@ -115,9 +125,9 @@ export class CloudXR2DUI {
   private initialized: boolean = false;
 
   /** Current form configuration state */
-  private currentConfiguration: CloudXRConfig;
+  private currentConfiguration: AppConfig;
   /** Callback function for configuration changes */
-  private onConfigurationChange: ((config: CloudXRConfig) => void) | null = null;
+  private onConfigurationChange: ((config: AppConfig) => void) | null = null;
   /** Connect button click handler for cleanup */
   private handleConnectClick: ((event: Event) => void) | null = null;
   /** Array to store all event listeners for proper cleanup */
@@ -133,7 +143,7 @@ export class CloudXR2DUI {
    * Creates a new CloudXR2DUI instance
    * @param onConfigurationChange - Callback function called when configuration changes
    */
-  constructor(onConfigurationChange?: (config: CloudXRConfig) => void) {
+  constructor(onConfigurationChange?: (config: AppConfig) => void) {
     this.onConfigurationChange = onConfigurationChange || null;
     this.currentConfiguration = this.getDefaultConfiguration();
   }
@@ -192,6 +202,7 @@ export class CloudXR2DUI {
     this.xrOffsetXInput = this.getElement<HTMLInputElement>('xrOffsetX');
     this.xrOffsetYInput = this.getElement<HTMLInputElement>('xrOffsetY');
     this.xrOffsetZInput = this.getElement<HTMLInputElement>('xrOffsetZ');
+    this.controlPanelPositionSelect = this.getElement<HTMLSelectElement>('controlPanelPosition');
     this.proxyDefaultText = this.getElement<HTMLElement>('proxyDefaultText');
     this.deviceProfileWarning = this.getElement<HTMLElement>('deviceProfileWarning');
     this.errorMessageBox = this.getElement<HTMLElement>('errorMessageBox');
@@ -223,7 +234,7 @@ export class CloudXR2DUI {
    * Gets the default configuration values
    * @returns Default configuration object
    */
-  private getDefaultConfiguration(): CloudXRConfig {
+  private getDefaultConfiguration(): AppConfig {
     const useSecure = typeof window !== 'undefined' ? window.location.protocol === 'https:' : false;
     // Default port: HTTP → 49100, HTTPS without proxy → 48322, HTTPS with proxy → 443
     const defaultPort = useSecure ? 48322 : 49100;
@@ -242,6 +253,7 @@ export class CloudXR2DUI {
       serverType: 'manual',
       proxyUrl: '',
       referenceSpaceType: 'auto',
+      controlPanelPosition: 'center',
       enablePoseSmoothing: true,
       posePredictionFactor: 1.0,
       enableTexSubImage2D: false,
@@ -275,6 +287,7 @@ export class CloudXR2DUI {
     enableLocalStorage(this.xrOffsetXInput, 'xrOffsetX');
     enableLocalStorage(this.xrOffsetYInput, 'xrOffsetY');
     enableLocalStorage(this.xrOffsetZInput, 'xrOffsetZ');
+    enableLocalStorage(this.controlPanelPositionSelect, 'controlPanelPosition');
     enableLocalStorage(this.mediaAddressInput, 'mediaAddress');
     enableLocalStorage(this.mediaPortInput, 'mediaPort');
     enableLocalStorage(this.controllerModelVisibilitySelect, 'controllerModelVisibility');
@@ -310,6 +323,10 @@ export class CloudXR2DUI {
   private setupEventListeners(): void {
     // Update configuration when form inputs change
     const updateConfig = () => this.updateConfiguration();
+    const onProfileLinkedChange = () => {
+      this.setProfileToCustomIfNeeded();
+      updateConfig();
+    };
 
     // Helper function to add listeners and store them for cleanup
     const addListener = (element: HTMLElement, event: string, handler: EventListener) => {
@@ -323,21 +340,22 @@ export class CloudXR2DUI {
     addListener(this.serverIpInput, 'change', updateConfig);
     addListener(this.portInput, 'input', updateConfig);
     addListener(this.portInput, 'change', updateConfig);
-    addListener(this.perEyeWidthInput, 'input', updateConfig);
-    addListener(this.perEyeWidthInput, 'change', updateConfig);
-    addListener(this.perEyeHeightInput, 'input', updateConfig);
-    addListener(this.perEyeHeightInput, 'change', updateConfig);
-    addListener(this.deviceFrameRateSelect, 'change', updateConfig);
-    addListener(this.maxStreamingBitrateMbpsSelect, 'change', updateConfig);
-    addListener(this.codecSelect, 'change', updateConfig);
-    addListener(this.enablePoseSmoothingSelect, 'change', updateConfig);
-    addListener(this.posePredictionFactorInput, 'change', updateConfig);
+    addListener(this.perEyeWidthInput, 'input', onProfileLinkedChange);
+    addListener(this.perEyeWidthInput, 'change', onProfileLinkedChange);
+    addListener(this.perEyeHeightInput, 'input', onProfileLinkedChange);
+    addListener(this.perEyeHeightInput, 'change', onProfileLinkedChange);
+    addListener(this.deviceFrameRateSelect, 'change', onProfileLinkedChange);
+    addListener(this.maxStreamingBitrateMbpsSelect, 'change', onProfileLinkedChange);
+    addListener(this.codecSelect, 'change', onProfileLinkedChange);
+    addListener(this.enablePoseSmoothingSelect, 'change', onProfileLinkedChange);
+    addListener(this.posePredictionFactorInput, 'change', onProfileLinkedChange);
     addListener(this.posePredictionFactorInput, 'input', () => {
+      this.setProfileToCustomIfNeeded();
       this.posePredictionFactorValue.textContent = this.posePredictionFactorInput.value;
       this.updateConfiguration();
     });
-    addListener(this.enableTexSubImage2DSelect, 'change', updateConfig);
-    addListener(this.useQuestColorWorkaroundSelect, 'change', updateConfig);
+    addListener(this.enableTexSubImage2DSelect, 'change', onProfileLinkedChange);
+    addListener(this.useQuestColorWorkaroundSelect, 'change', onProfileLinkedChange);
     addListener(this.immersiveSelect, 'change', updateConfig);
     addListener(this.appSelect, 'change', updateConfig);
     addListener(this.referenceSpaceSelect, 'change', updateConfig);
@@ -347,6 +365,7 @@ export class CloudXR2DUI {
     addListener(this.xrOffsetYInput, 'change', updateConfig);
     addListener(this.xrOffsetZInput, 'input', updateConfig);
     addListener(this.xrOffsetZInput, 'change', updateConfig);
+    addListener(this.controlPanelPositionSelect, 'change', updateConfig);
     addListener(this.proxyUrlInput, 'input', updateConfig);
     addListener(this.proxyUrlInput, 'change', updateConfig);
     addListener(this.mediaAddressInput, 'input', updateConfig);
@@ -357,6 +376,7 @@ export class CloudXR2DUI {
 
     addListener(this.deviceProfileSelect, 'change', () => {
       this.applyDeviceProfileToForm(resolveDeviceProfileId(this.deviceProfileSelect.value));
+      this.persistProfileFieldsToLocalStorage();
       this.updateConfiguration();
     });
 
@@ -385,7 +405,7 @@ export class CloudXR2DUI {
       defaultPort = hasProxy ? 443 : 48322; // HTTPS with proxy → 443, HTTPS without → 48322
     }
 
-    const newConfiguration: CloudXRConfig = {
+    const newConfiguration: AppConfig = {
       serverIP: this.serverIpInput.value || this.getDefaultConfiguration().serverIP,
       port: portValue || defaultPort,
       useSecureConnection: useSecure,
@@ -427,6 +447,10 @@ export class CloudXR2DUI {
         const v = parseFloat(this.xrOffsetZInput.value);
         return Number.isFinite(v) ? v / 100 : 0;
       })(),
+      controlPanelPosition: parseControlPanelPosition(
+        this.controlPanelPositionSelect.value,
+        this.getDefaultConfiguration().controlPanelPosition ?? 'center'
+      ),
       // Parse media address and port if provided
       mediaAddress: this.mediaAddressInput.value.trim() || undefined,
       mediaPort: (() => {
@@ -444,6 +468,12 @@ export class CloudXR2DUI {
     }
   }
 
+  /**
+   * Applies a device profile to the form: sets the CloudXR-related fields that the profile defines.
+   * Profile values are defined in @helpers/DeviceProfiles (DEVICE_PROFILES, QUEST3_PROFILE, etc.).
+   * The fields below are the only ones profiles change; editing any of them should switch the
+   * device profile to Custom (see onProfileLinkedChange / setProfileToCustomIfNeeded).
+   */
   private applyDeviceProfileToForm(profileId: DeviceProfileId): void {
     const profile = getDeviceProfile(profileId);
     const cloudxr = profile.cloudxr;
@@ -484,6 +514,33 @@ export class CloudXR2DUI {
     }
   }
 
+  /** When user edits a profile-driven setting, switch device profile to Custom and persist. */
+  private setProfileToCustomIfNeeded(): void {
+    if (this.deviceProfileSelect.value === 'custom') return;
+    this.deviceProfileSelect.value = 'custom';
+    this.updateDeviceProfileWarning('custom');
+    try {
+      localStorage.setItem('deviceProfile', 'custom');
+    } catch (_) {}
+  }
+
+  /** Persist profile-driven form fields to localStorage so they are restored on load. */
+  private persistProfileFieldsToLocalStorage(): void {
+    try {
+      localStorage.setItem('perEyeWidth', this.perEyeWidthInput.value);
+      localStorage.setItem('perEyeHeight', this.perEyeHeightInput.value);
+      localStorage.setItem('deviceFrameRate', this.deviceFrameRateSelect.value);
+      localStorage.setItem('maxStreamingBitrateMbps', this.maxStreamingBitrateMbpsSelect.value);
+      localStorage.setItem('codec', this.codecSelect.value);
+      localStorage.setItem('enablePoseSmoothing', this.enablePoseSmoothingSelect.value);
+      localStorage.setItem('posePredictionFactor', this.posePredictionFactorInput.value);
+      localStorage.setItem('enableTexSubImage2D', this.enableTexSubImage2DSelect.value);
+      localStorage.setItem('useQuestColorWorkaround', this.useQuestColorWorkaroundSelect.value);
+    } catch (e) {
+      console.warn('Failed to persist profile fields to localStorage:', e);
+    }
+  }
+
   private updateDeviceProfileWarning(profileId: DeviceProfileId): void {
     if (!this.deviceProfileWarning) return;
     const profile = getDeviceProfile(profileId);
@@ -503,7 +560,7 @@ export class CloudXR2DUI {
    * Gets the current configuration
    * @returns Current configuration object
    */
-  public getConfiguration(): CloudXRConfig {
+  public getConfiguration(): AppConfig {
     return { ...this.currentConfiguration };
   }
 

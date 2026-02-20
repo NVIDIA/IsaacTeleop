@@ -1,4 +1,21 @@
 <!DOCTYPE html>
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
 <html lang="en">
 
 <head>
@@ -508,6 +525,8 @@
                     <select id="deviceProfile" class="ui-input config-input">
                         <option value="custom" selected>Custom</option>
                         <option value="quest3">Quest 3</option>
+                        <option value="quest3s">Quest 3S</option>
+                        <option value="quest2">Quest 2</option>
                         <option value="pico4ultra">Pico 4 Ultra</option>
                     </select>
                     <div class="config-text">
@@ -524,6 +543,18 @@
                     </select>
                     <div class="config-text">
                         Show or hide WebXR controller model meshes in XR. Input remains active either way.
+                    </div>
+                </div>
+
+                <div class="config-section">
+                    <label for="controlPanelPosition" class="input-label">Control Panel Start Position</label>
+                    <select id="controlPanelPosition" class="ui-input config-input" aria-label="Control panel start position">
+                        <option value="left">Left</option>
+                        <option value="center" selected>Center</option>
+                        <option value="right">Right</option>
+                    </select>
+                    <div class="config-text">
+                        Where the in-XR control panel appears when you enter the session: left, center, or right.
                     </div>
                 </div>
 
