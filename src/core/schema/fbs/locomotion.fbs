@@ -9,14 +9,17 @@ namespace core;
 
 // Locomotion command output from input devices (foot pedal, gamepad, etc.)
 table LocomotionCommand {
-  // Dual timestamp with device and runtime clock domains.
-  timestamp: Timestamp (id: 0);
-
   // Computed velocity command.
-  velocity: Twist (id: 1);
+  velocity: Twist (id: 0);
 
   // Computed pose command (e.g., for squat/vertical mode).
-  pose: Pose (id: 2);
+  pose: Pose (id: 1);
 }
 
-root_type LocomotionCommand;
+// MCAP recording wrapper: pairs a LocomotionCommand with a DeviceDataTimestamp.
+table LocomotionCommandRecord {
+  data: LocomotionCommand (id: 0);
+  timestamp: DeviceDataTimestamp (id: 1);
+}
+
+root_type LocomotionCommandRecord;

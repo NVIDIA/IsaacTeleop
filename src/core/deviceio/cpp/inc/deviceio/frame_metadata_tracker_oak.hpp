@@ -48,6 +48,7 @@ public:
     std::string_view get_name() const override;
     std::string_view get_schema_name() const override;
     std::string_view get_schema_text() const override;
+    std::vector<std::string> get_record_channels() const override;
 
     /*!
      * @brief Get the current frame metadata.

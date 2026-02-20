@@ -106,9 +106,6 @@ inline void bind_full_body(py::module& m)
             "joints", [](const FullBodyPosePicoT& self) -> const BodyJointsPico* { return self.joints.get(); },
             py::return_value_policy::reference_internal)
         .def_readonly("is_active", &FullBodyPosePicoT::is_active)
-        .def_property_readonly(
-            "timestamp", [](const FullBodyPosePicoT& self) -> const Timestamp* { return self.timestamp.get(); },
-            py::return_value_policy::reference_internal)
         .def("__repr__",
              [](const FullBodyPosePicoT& self)
              {
@@ -117,14 +114,8 @@ inline void bind_full_body(py::module& m)
                  {
                      joints_str = "BodyJointsPico(joints=[...24 entries...])";
                  }
-                 std::string timestamp_str = "None";
-                 if (self.timestamp)
-                 {
-                     timestamp_str = "Timestamp(device=" + std::to_string(self.timestamp->device_time()) +
-                                     ", common=" + std::to_string(self.timestamp->common_time()) + ")";
-                 }
                  return "FullBodyPosePicoT(joints=" + joints_str +
-                        ", is_active=" + (self.is_active ? "True" : "False") + ", timestamp=" + timestamp_str + ")";
+                        ", is_active=" + (self.is_active ? "True" : "False") + ")";
              });
 }
 

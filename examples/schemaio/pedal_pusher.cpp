@@ -51,13 +51,13 @@ public:
      * @param data The Generic3AxisPedalOutputT native object to serialize and push.
      * @throws std::runtime_error if the push fails.
      */
-    void push(const core::Generic3AxisPedalOutputT& data)
+    void push(const core::Generic3AxisPedalOutputT& data, int64_t device_time_ns, int64_t common_time_ns)
     {
         flatbuffers::FlatBufferBuilder builder(m_pusher.config().max_flatbuffer_size);
         auto offset = core::Generic3AxisPedalOutput::Pack(builder, &data);
         builder.Finish(offset);
 
-        m_pusher.push_buffer(builder.GetBufferPointer(), builder.GetSize());
+        m_pusher.push_buffer(builder.GetBufferPointer(), builder.GetSize(), device_time_ns, common_time_ns);
     }
 
 private:
@@ -105,9 +105,8 @@ try
 
         auto now = std::chrono::steady_clock::now();
         auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
-        pedal_output.timestamp = std::make_shared<core::Timestamp>(ns, ns);
 
-        pusher->push(pedal_output);
+        pusher->push(pedal_output, ns, ns);
         std::cout << "Pushed sample " << i << std::fixed << std::setprecision(3) << " [left=" << left_pedal
                   << ", right=" << right_pedal << ", rudder=" << rudder << "]" << std::endl;
 

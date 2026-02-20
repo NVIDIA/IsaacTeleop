@@ -7,10 +7,13 @@ namespace core;
 
 // OAK frame metadata pushed by the OAK camera plugin.
 table FrameMetadata {
-  // Dual timestamp with device and runtime clock domains.
-  timestamp: Timestamp (id: 0);
-
-  sequence_number: int (id: 1);
+  sequence_number: int (id: 0);
 }
 
-root_type FrameMetadata;
+// MCAP recording wrapper: pairs a FrameMetadata with a DeviceDataTimestamp.
+table FrameMetadataRecord {
+  data: FrameMetadata (id: 0);
+  timestamp: DeviceDataTimestamp (id: 1);
+}
+
+root_type FrameMetadataRecord;

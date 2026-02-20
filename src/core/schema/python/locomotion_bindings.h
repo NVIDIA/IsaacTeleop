@@ -37,9 +37,6 @@ inline void bind_locomotion(py::module& m)
     py::class_<LocomotionCommandT>(m, "LocomotionCommand")
         .def(py::init<>())
         .def_property(
-            "timestamp", [](const LocomotionCommandT& self) -> const Timestamp* { return self.timestamp.get(); },
-            [](LocomotionCommandT& self, const Timestamp& ts) { self.timestamp = std::make_unique<Timestamp>(ts); })
-        .def_property(
             "velocity", [](const LocomotionCommandT& self) -> const Twist* { return self.velocity.get(); },
             [](LocomotionCommandT& self, const Twist& vel) { self.velocity = std::make_unique<Twist>(vel); })
         .def_property(
@@ -48,17 +45,7 @@ inline void bind_locomotion(py::module& m)
         .def("__repr__",
              [](const LocomotionCommandT& cmd)
              {
-                 std::string result = "LocomotionCommand(";
-                 if (cmd.timestamp)
-                 {
-                     result += "timestamp=Timestamp(device_time=" + std::to_string(cmd.timestamp->device_time()) +
-                               ", common_time=" + std::to_string(cmd.timestamp->common_time()) + ")";
-                 }
-                 else
-                 {
-                     result += "timestamp=None";
-                 }
-                 result += ", velocity=";
+                 std::string result = "LocomotionCommand(velocity=";
                  if (cmd.velocity)
                  {
                      result += "Twist(...)";

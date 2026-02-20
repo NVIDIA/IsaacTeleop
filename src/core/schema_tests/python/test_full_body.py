@@ -6,7 +6,6 @@
 FullBodyPosePicoT is a FlatBuffers table (read-only from Python) that represents full body pose data:
 - joints: BodyJointsPico struct containing 24 BodyJointPose entries (XR_BD_body_tracking)
 - is_active: Whether the body tracking is active
-- timestamp: Timestamp struct with device and common time
 
 BodyJointsPico is a struct with a fixed-size array of 24 BodyJointPose entries.
 
@@ -153,7 +152,6 @@ class TestFullBodyPosePicoTConstruction:
         assert body_pose is not None
         assert body_pose.joints is None
         assert body_pose.is_active is False
-        assert body_pose.timestamp is None
 
 
 class TestFullBodyPosePicoTRepr:

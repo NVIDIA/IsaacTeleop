@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -34,7 +34,12 @@ public:
     std::string_view get_schema_text() const override
     {
         return std::string_view(
-            reinterpret_cast<const char*>(HeadPoseBinarySchema::data()), HeadPoseBinarySchema::size());
+            reinterpret_cast<const char*>(HeadPoseRecordBinarySchema::data()), HeadPoseRecordBinarySchema::size());
+    }
+
+    std::vector<std::string> get_record_channels() const override
+    {
+        return { "head" };
     }
 
     // Query methods - public API for getting head data
@@ -42,7 +47,7 @@ public:
 
 private:
     static constexpr const char* TRACKER_NAME = "HeadTracker";
-    static constexpr const char* SCHEMA_NAME = "core.HeadPose";
+    static constexpr const char* SCHEMA_NAME = "core.HeadPoseRecord";
 
     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
 
@@ -54,7 +59,7 @@ private:
         // Override from ITrackerImpl
         bool update(XrTime time) override;
 
-        Timestamp serialize(flatbuffers::FlatBufferBuilder& builder) const override;
+        DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const override;
 
         const HeadPoseT& get_head() const;
 
@@ -63,6 +68,7 @@ private:
         XrSpace base_space_;
         XrSpacePtr view_space_;
         HeadPoseT head_;
+        DeviceDataTimestamp last_timestamp_{};
     };
 };
 

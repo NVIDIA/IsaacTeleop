@@ -37,7 +37,6 @@ def HandInput() -> TensorGroupType:
         - joint_radii: (26,) float32 array - Radius of each joint
         - joint_valid: (26,) bool array - Validity flag for each joint
         - is_active: bool - Whether hand tracking is active
-        - timestamp: int - Timestamp in XrTime format (int64)
 
     Returns:
         TensorGroupType for hand tracking data
@@ -80,7 +79,6 @@ def HandInput() -> TensorGroupType:
                 dtype_bits=8,  # bool represented as uint8
             ),
             BoolType("hand_is_active"),
-            IntType("hand_timestamp"),
         ],
     )
 
@@ -100,7 +98,6 @@ def HeadPose() -> TensorGroupType:
         - head_position: (3,) float32 array - XYZ position
         - head_orientation: (4,) float32 array - XYZW quaternion
         - head_is_valid: bool - Whether head tracking data is valid
-        - head_timestamp: int - Timestamp in XrTime format (int64)
 
     Returns:
         TensorGroupType for head tracking data
@@ -117,7 +114,6 @@ def HeadPose() -> TensorGroupType:
                 "head_orientation", shape=(4,), dtype=DLDataType.FLOAT, dtype_bits=32
             ),
             BoolType("head_is_valid"),
-            IntType("head_timestamp"),
         ],
     )
 

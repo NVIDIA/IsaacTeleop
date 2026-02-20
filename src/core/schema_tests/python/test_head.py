@@ -6,7 +6,6 @@
 HeadPoseT is a FlatBuffers table (read-only from Python) that represents head pose data:
 - pose: The Pose struct (position and orientation)
 - is_valid: Whether the head pose data is valid
-- timestamp: Timestamp struct with device and common time
 
 Note: Python code should only READ this data (created by C++ trackers), not modify it.
 """
@@ -24,7 +23,6 @@ class TestHeadPoseTConstruction:
         assert head_pose is not None
         assert head_pose.pose is None
         assert head_pose.is_valid is False
-        assert head_pose.timestamp is None
 
 
 class TestHeadPoseTRepr:

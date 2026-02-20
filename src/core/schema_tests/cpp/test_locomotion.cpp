@@ -31,9 +31,8 @@ static_assert(std::is_same_v<decltype(std::declval<core::Twist>().angular()), co
 // =============================================================================
 #define VT(field) (field + 2) * 2
 
-static_assert(core::LocomotionCommand::VT_TIMESTAMP == VT(0));
-static_assert(core::LocomotionCommand::VT_VELOCITY == VT(1));
-static_assert(core::LocomotionCommand::VT_POSE == VT(2));
+static_assert(core::LocomotionCommand::VT_VELOCITY == VT(0));
+static_assert(core::LocomotionCommand::VT_POSE == VT(1));
 
 // =============================================================================
 // Twist Tests (struct)
@@ -108,7 +107,6 @@ TEST_CASE("LocomotionCommandT default construction", "[locomotion][native]")
     core::LocomotionCommandT cmd;
 
     // Struct pointers should be null by default for table fields.
-    CHECK(cmd.timestamp == nullptr);
     CHECK(cmd.velocity == nullptr);
     CHECK(cmd.pose == nullptr);
 }
@@ -117,17 +115,11 @@ TEST_CASE("LocomotionCommandT can store velocity command", "[locomotion][native]
 {
     core::LocomotionCommandT cmd;
 
-    // Create timestamp.
-    cmd.timestamp = std::make_unique<core::Timestamp>(1000000000, 2000000000);
-
     // Create velocity (twist).
     core::Point linear(1.0f, 0.0f, 0.0f);
     core::Point angular(0.0f, 0.0f, 0.5f);
     cmd.velocity = std::make_unique<core::Twist>(linear, angular);
 
-    CHECK(cmd.timestamp != nullptr);
-    CHECK(cmd.timestamp->device_time() == 1000000000);
-    CHECK(cmd.timestamp->common_time() == 2000000000);
     CHECK(cmd.velocity != nullptr);
     CHECK(cmd.velocity->linear().x() == Catch::Approx(1.0f));
     CHECK(cmd.velocity->angular().z() == Catch::Approx(0.5f));
@@ -138,15 +130,11 @@ TEST_CASE("LocomotionCommandT can store pose command", "[locomotion][native]")
 {
     core::LocomotionCommandT cmd;
 
-    // Create timestamp.
-    cmd.timestamp = std::make_unique<core::Timestamp>(3000000000, 4000000000);
-
     // Create pose (for squat/vertical mode).
     core::Point position(0.0f, 0.0f, -0.2f); // Squat down.
     core::Quaternion orientation(0.0f, 0.0f, 0.0f, 1.0f);
     cmd.pose = std::make_unique<core::Pose>(position, orientation);
 
-    CHECK(cmd.timestamp != nullptr);
     CHECK(cmd.pose != nullptr);
     CHECK(cmd.pose->position().z() == Catch::Approx(-0.2f));
     CHECK(cmd.velocity == nullptr); // Velocity not set.
@@ -155,9 +143,6 @@ TEST_CASE("LocomotionCommandT can store pose command", "[locomotion][native]")
 TEST_CASE("LocomotionCommandT can store both velocity and pose", "[locomotion][native]")
 {
     core::LocomotionCommandT cmd;
-
-    // Create timestamp.
-    cmd.timestamp = std::make_unique<core::Timestamp>(5000000000, 6000000000);
 
     // Create velocity.
     core::Point linear(0.5f, 0.0f, 0.0f);
@@ -169,7 +154,6 @@ TEST_CASE("LocomotionCommandT can store both velocity and pose", "[locomotion][n
     core::Quaternion orientation(0.0f, 0.0f, 0.0f, 1.0f);
     cmd.pose = std::make_unique<core::Pose>(position, orientation);
 
-    CHECK(cmd.timestamp != nullptr);
     CHECK(cmd.velocity != nullptr);
     CHECK(cmd.pose != nullptr);
 }
@@ -183,7 +167,6 @@ TEST_CASE("LocomotionCommand serialization and deserialization", "[locomotion][s
 
     // Create native object.
     core::LocomotionCommandT cmd;
-    cmd.timestamp = std::make_unique<core::Timestamp>(1234567890, 9876543210);
 
     core::Point linear(2.0f, 1.0f, 0.0f);
     core::Point angular(0.0f, 0.0f, 0.75f);
@@ -193,17 +176,19 @@ TEST_CASE("LocomotionCommand serialization and deserialization", "[locomotion][s
     core::Quaternion orientation(0.0f, 0.0f, 0.0f, 1.0f);
     cmd.pose = std::make_unique<core::Pose>(position, orientation);
 
+    // Create LocomotionCommandRecord for serialization (root type)
+    core::LocomotionCommandRecordT record;
+    record.data = std::make_unique<core::LocomotionCommandT>(cmd);
+    record.timestamp = std::make_unique<core::DeviceDataTimestamp>(1234567890, 9876543210, 0);
+
     // Serialize.
-    auto offset = core::LocomotionCommand::Pack(builder, &cmd);
+    auto offset = core::LocomotionCommandRecord::Pack(builder, &record);
     builder.Finish(offset);
 
     // Deserialize.
-    auto* deserialized = flatbuffers::GetRoot<core::LocomotionCommand>(builder.GetBufferPointer());
-
-    // Verify timestamp.
-    REQUIRE(deserialized->timestamp() != nullptr);
-    CHECK(deserialized->timestamp()->device_time() == 1234567890);
-    CHECK(deserialized->timestamp()->common_time() == 9876543210);
+    auto* deserialized_record = flatbuffers::GetRoot<core::LocomotionCommandRecord>(builder.GetBufferPointer());
+    REQUIRE(deserialized_record->data() != nullptr);
+    auto* deserialized = deserialized_record->data();
 
     // Verify velocity.
     REQUIRE(deserialized->velocity() != nullptr);
@@ -223,23 +208,27 @@ TEST_CASE("LocomotionCommand can be unpacked from buffer", "[locomotion][seriali
 
     // Create native object with minimal data.
     core::LocomotionCommandT cmd;
-    cmd.timestamp = std::make_unique<core::Timestamp>(100, 200);
+
+    core::LocomotionCommandRecordT record;
+    record.data = std::make_unique<core::LocomotionCommandT>(cmd);
+    record.timestamp = std::make_unique<core::DeviceDataTimestamp>(100, 200, 0);
 
     // Serialize.
-    auto offset = core::LocomotionCommand::Pack(builder, &cmd);
+    auto offset = core::LocomotionCommandRecord::Pack(builder, &record);
     builder.Finish(offset);
 
     // Deserialize to table.
-    auto* table = flatbuffers::GetRoot<core::LocomotionCommand>(builder.GetBufferPointer());
+    auto* record_table = flatbuffers::GetRoot<core::LocomotionCommandRecord>(builder.GetBufferPointer());
+    REQUIRE(record_table->data() != nullptr);
 
     // Unpack to native.
     auto unpacked = std::make_unique<core::LocomotionCommandT>();
-    table->UnPackTo(unpacked.get());
+    record_table->data()->UnPackTo(unpacked.get());
 
     // Verify.
-    REQUIRE(unpacked->timestamp != nullptr);
-    CHECK(unpacked->timestamp->device_time() == 100);
-    CHECK(unpacked->timestamp->common_time() == 200);
+    REQUIRE(record_table->timestamp() != nullptr);
+    CHECK(record_table->timestamp()->sample_time_device_clock() == 100);
+    CHECK(record_table->timestamp()->sample_time_common_clock() == 200);
 }
 
 TEST_CASE("LocomotionCommand with only velocity (no pose)", "[locomotion][serialize]")
@@ -247,17 +236,22 @@ TEST_CASE("LocomotionCommand with only velocity (no pose)", "[locomotion][serial
     flatbuffers::FlatBufferBuilder builder;
 
     core::LocomotionCommandT cmd;
-    cmd.timestamp = std::make_unique<core::Timestamp>(1000, 2000);
 
     core::Point linear(1.0f, 0.0f, 0.0f);
     core::Point angular(0.0f, 0.0f, 0.0f);
     cmd.velocity = std::make_unique<core::Twist>(linear, angular);
     // pose is intentionally left null.
 
-    auto offset = core::LocomotionCommand::Pack(builder, &cmd);
+    core::LocomotionCommandRecordT record;
+    record.data = std::make_unique<core::LocomotionCommandT>(cmd);
+    record.timestamp = std::make_unique<core::DeviceDataTimestamp>(1000, 2000, 0);
+
+    auto offset = core::LocomotionCommandRecord::Pack(builder, &record);
     builder.Finish(offset);
 
-    auto* deserialized = flatbuffers::GetRoot<core::LocomotionCommand>(builder.GetBufferPointer());
+    auto* deserialized_record = flatbuffers::GetRoot<core::LocomotionCommandRecord>(builder.GetBufferPointer());
+    REQUIRE(deserialized_record->data() != nullptr);
+    auto* deserialized = deserialized_record->data();
 
     REQUIRE(deserialized->velocity() != nullptr);
     CHECK(deserialized->pose() == nullptr);
@@ -268,17 +262,22 @@ TEST_CASE("LocomotionCommand with only pose (no velocity)", "[locomotion][serial
     flatbuffers::FlatBufferBuilder builder;
 
     core::LocomotionCommandT cmd;
-    cmd.timestamp = std::make_unique<core::Timestamp>(3000, 4000);
 
     core::Point position(0.0f, 0.0f, -0.1f);
     core::Quaternion orientation(0.0f, 0.0f, 0.0f, 1.0f);
     cmd.pose = std::make_unique<core::Pose>(position, orientation);
     // velocity is intentionally left null.
 
-    auto offset = core::LocomotionCommand::Pack(builder, &cmd);
+    core::LocomotionCommandRecordT record;
+    record.data = std::make_unique<core::LocomotionCommandT>(cmd);
+    record.timestamp = std::make_unique<core::DeviceDataTimestamp>(3000, 4000, 0);
+
+    auto offset = core::LocomotionCommandRecord::Pack(builder, &record);
     builder.Finish(offset);
 
-    auto* deserialized = flatbuffers::GetRoot<core::LocomotionCommand>(builder.GetBufferPointer());
+    auto* deserialized_record = flatbuffers::GetRoot<core::LocomotionCommandRecord>(builder.GetBufferPointer());
+    REQUIRE(deserialized_record->data() != nullptr);
+    auto* deserialized = deserialized_record->data();
 
     CHECK(deserialized->velocity() == nullptr);
     REQUIRE(deserialized->pose() != nullptr);
@@ -317,7 +316,6 @@ TEST_CASE("LocomotionCommand buffer size is reasonable", "[locomotion][serialize
     flatbuffers::FlatBufferBuilder builder;
 
     core::LocomotionCommandT cmd;
-    cmd.timestamp = std::make_unique<core::Timestamp>(0, 0);
 
     core::Point linear(0.0f, 0.0f, 0.0f);
     core::Point angular(0.0f, 0.0f, 0.0f);
@@ -327,7 +325,11 @@ TEST_CASE("LocomotionCommand buffer size is reasonable", "[locomotion][serialize
     core::Quaternion orientation(0.0f, 0.0f, 0.0f, 1.0f);
     cmd.pose = std::make_unique<core::Pose>(position, orientation);
 
-    auto offset = core::LocomotionCommand::Pack(builder, &cmd);
+    core::LocomotionCommandRecordT record;
+    record.data = std::make_unique<core::LocomotionCommandT>(cmd);
+    record.timestamp = std::make_unique<core::DeviceDataTimestamp>(0, 0, 0);
+
+    auto offset = core::LocomotionCommandRecord::Pack(builder, &record);
     builder.Finish(offset);
 
     // Buffer should be reasonably small (under 200 bytes for this simple message).

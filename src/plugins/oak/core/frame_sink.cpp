@@ -27,12 +27,12 @@ MetadataPusher::MetadataPusher(const std::string& collection_id)
 {
 }
 
-void MetadataPusher::push(const core::FrameMetadataT& data)
+void MetadataPusher::push(const core::FrameMetadataT& data, int64_t device_time_ns, int64_t common_time_ns)
 {
     flatbuffers::FlatBufferBuilder builder(m_pusher.config().max_flatbuffer_size);
     auto offset = core::FrameMetadata::Pack(builder, &data);
     builder.Finish(offset);
-    m_pusher.push_buffer(builder.GetBufferPointer(), builder.GetSize());
+    m_pusher.push_buffer(builder.GetBufferPointer(), builder.GetSize(), device_time_ns, common_time_ns);
 }
 
 // =============================================================================
@@ -62,7 +62,7 @@ void FrameSink::on_frame(const OakFrame& frame)
 
     if (m_pusher)
     {
-        m_pusher->push(frame.metadata);
+        m_pusher->push(frame.metadata, frame.device_time_ns, frame.common_time_ns);
     }
 }
 

@@ -35,9 +35,11 @@ public:
     /**
      * @brief Push a FrameMetadata message.
      * @param data The FrameMetadataT native object to serialize and push.
+     * @param device_time_ns Device clock timestamp in nanoseconds.
+     * @param common_time_ns Common clock (monotonic) timestamp in nanoseconds.
      * @throws std::runtime_error if the push fails.
      */
-    void push(const core::FrameMetadataT& data);
+    void push(const core::FrameMetadataT& data, int64_t device_time_ns, int64_t common_time_ns);
 
 private:
     static constexpr size_t MAX_FLATBUFFER_SIZE = 128;

@@ -73,32 +73,12 @@ void SyntheticHandsPlugin::worker_thread()
             continue;
         }
 
-        // Get controller data from tracker
-        const auto& controller_data = m_controller_tracker->get_controller_data(*m_deviceio_session);
+        const auto& left_ctrl = m_controller_tracker->get_left_controller(*m_deviceio_session);
+        const auto& right_ctrl = m_controller_tracker->get_right_controller(*m_deviceio_session);
+        XrTime time = m_controller_tracker->get_last_update_time(*m_deviceio_session);
 
-        // Get timestamp from controller data
-        XrTime time = 0;
-        if (controller_data.left_controller && controller_data.left_controller->is_active())
-        {
-            time = controller_data.left_controller->timestamp().device_time();
-        }
-        else if (controller_data.right_controller && controller_data.right_controller->is_active())
-        {
-            time = controller_data.right_controller->timestamp().device_time();
-        }
-
-        // Get target curl values from trigger inputs
-        float left_target = 0.0f;
-        float right_target = 0.0f;
-
-        if (controller_data.left_controller)
-        {
-            left_target = controller_data.left_controller->inputs().trigger_value();
-        }
-        if (controller_data.right_controller)
-        {
-            right_target = controller_data.right_controller->inputs().trigger_value();
-        }
+        float left_target = left_ctrl.inputs().trigger_value();
+        float right_target = right_ctrl.inputs().trigger_value();
 
         // Smoothly interpolate
         float curl_delta = CURL_SPEED * FRAME_TIME;
@@ -120,12 +100,12 @@ void SyntheticHandsPlugin::worker_thread()
             m_right_curl = right_curl_current;
         }
 
-        if (m_left_enabled && controller_data.left_controller)
+        if (m_left_enabled && left_ctrl.is_active())
         {
             bool grip_valid = false;
             bool aim_valid = false;
-            oxr_utils::get_grip_pose(*controller_data.left_controller, grip_valid);
-            XrPosef wrist = oxr_utils::get_aim_pose(*controller_data.left_controller, aim_valid);
+            oxr_utils::get_grip_pose(left_ctrl, grip_valid);
+            XrPosef wrist = oxr_utils::get_aim_pose(left_ctrl, aim_valid);
 
             if (grip_valid && aim_valid)
             {
@@ -134,12 +114,12 @@ void SyntheticHandsPlugin::worker_thread()
             }
         }
 
-        if (m_right_enabled && controller_data.right_controller)
+        if (m_right_enabled && right_ctrl.is_active())
         {
             bool grip_valid = false;
             bool aim_valid = false;
-            oxr_utils::get_grip_pose(*controller_data.right_controller, grip_valid);
-            XrPosef wrist = oxr_utils::get_aim_pose(*controller_data.right_controller, aim_valid);
+            oxr_utils::get_grip_pose(right_ctrl, grip_valid);
+            XrPosef wrist = oxr_utils::get_aim_pose(right_ctrl, aim_valid);
 
             if (grip_valid && aim_valid)
             {

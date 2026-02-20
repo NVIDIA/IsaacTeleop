@@ -98,10 +98,13 @@ struct SchemaTrackerConfig
  *             return false;
  *         }
  *
- *         Timestamp serialize(flatbuffers::FlatBufferBuilder& builder) const override {
- *             auto offset = LocomotionCommand::Pack(builder, &data_);
- *             builder.Finish(offset);
- *             return data_.timestamp ? *data_.timestamp : Timestamp{};
+ *         DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t) const override {
+ *             auto data_offset = LocomotionCommand::Pack(builder, &data_);
+ *             LocomotionCommandRecordBuilder rb(builder);
+ *             rb.add_data(data_offset);
+ *             rb.add_timestamp(&m_last_timestamp);
+ *             builder.Finish(rb.Finish());
+ *             return m_last_timestamp;
  *         }
  *
  *         const LocomotionCommandT& get_data() const { return data_; }

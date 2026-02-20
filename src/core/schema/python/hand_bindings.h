@@ -79,9 +79,6 @@ inline void bind_hand(py::module& m)
             "joints", [](const HandPoseT& self) -> const HandJoints* { return self.joints.get(); },
             py::return_value_policy::reference_internal)
         .def_readonly("is_active", &HandPoseT::is_active)
-        .def_property_readonly(
-            "timestamp", [](const HandPoseT& self) -> const Timestamp* { return self.timestamp.get(); },
-            py::return_value_policy::reference_internal)
         .def("__repr__",
              [](const HandPoseT& self)
              {
@@ -90,14 +87,7 @@ inline void bind_hand(py::module& m)
                  {
                      joints_str = "HandJoints(poses=[...26 entries...])";
                  }
-                 std::string timestamp_str = "None";
-                 if (self.timestamp)
-                 {
-                     timestamp_str = "Timestamp(device=" + std::to_string(self.timestamp->device_time()) +
-                                     ", common=" + std::to_string(self.timestamp->common_time()) + ")";
-                 }
-                 return "HandPoseT(joints=" + joints_str + ", is_active=" + (self.is_active ? "True" : "False") +
-                        ", timestamp=" + timestamp_str + ")";
+                 return "HandPoseT(joints=" + joints_str + ", is_active=" + (self.is_active ? "True" : "False") + ")";
              });
 }
 

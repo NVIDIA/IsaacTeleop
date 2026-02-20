@@ -33,7 +33,7 @@ class HeadSource(IDeviceIOSource):
         - "deviceio_head": Raw HeadPoseT flatbuffer object from DeviceIO
 
     Outputs:
-        - "head": Standard HeadPose tensor (position, orientation, is_valid, timestamp)
+        - "head": Standard HeadPose tensor (position, orientation, is_valid)
 
     Usage:
         # In TeleopSession, manually poll tracker and pass data
@@ -124,7 +124,6 @@ class HeadSource(IDeviceIOSource):
         output[0] = position
         output[1] = orientation
         output[2] = head_pose.is_valid
-        output[3] = int(head_pose.timestamp.device_time)
 
     def transformed(self, transform_input: OutputSelector) -> RetargeterSubgraph:
         """

@@ -6,9 +6,8 @@
 Tests the following FlatBuffers types:
 - ControllerInputState: Struct with button and axis inputs (immutable)
 - ControllerPose: Struct with pose and validity (immutable)
-- Timestamp: Struct with device and common time timestamps (immutable)
+- DeviceDataTimestamp: Struct with device and common time timestamps (immutable)
 - ControllerSnapshot: Struct representing complete controller state (immutable)
-- ControllerData: Root table with both left and right controllers
 """
 
 import pytest
@@ -16,9 +15,8 @@ import pytest
 from isaacteleop.schema import (
     ControllerInputState,
     ControllerPose,
-    Timestamp,
+    DeviceDataTimestamp,
     ControllerSnapshot,
-    ControllerData,
     Pose,
     Point,
     Quaternion,
@@ -91,40 +89,40 @@ class TestControllerInputState:
         assert "primary=True" in repr_str
 
 
-class TestTimestamp:
-    """Tests for Timestamp struct (immutable)."""
+class TestDeviceDataTimestamp:
+    """Tests for DeviceDataTimestamp struct (immutable)."""
 
     def test_default_construction(self):
-        """Test default construction creates Timestamp with default values."""
-        timestamp = Timestamp()
+        """Test default construction creates DeviceDataTimestamp with default values."""
+        timestamp = DeviceDataTimestamp()
 
         assert timestamp is not None
-        assert timestamp.device_time == 0
-        assert timestamp.common_time == 0
+        assert timestamp.sample_time_device_clock == 0
+        assert timestamp.sample_time_common_clock == 0
 
     def test_set_timestamp_values(self):
         """Test constructing with timestamp values."""
-        timestamp = Timestamp(device_time=1234567890123456789, common_time=9876543210)
+        timestamp = DeviceDataTimestamp(sample_time_device_clock=1234567890123456789, sample_time_common_clock=9876543210)
 
-        assert timestamp.device_time == 1234567890123456789
-        assert timestamp.common_time == 9876543210
+        assert timestamp.sample_time_device_clock == 1234567890123456789
+        assert timestamp.sample_time_common_clock == 9876543210
 
     def test_large_timestamp_values(self):
         """Test with large int64 timestamp values."""
         max_int64 = 9223372036854775807
-        timestamp = Timestamp(device_time=max_int64, common_time=max_int64 - 1000)
+        timestamp = DeviceDataTimestamp(sample_time_device_clock=max_int64, sample_time_common_clock=max_int64 - 1000)
 
-        assert timestamp.device_time == max_int64
-        assert timestamp.common_time == max_int64 - 1000
+        assert timestamp.sample_time_device_clock == max_int64
+        assert timestamp.sample_time_common_clock == max_int64 - 1000
 
     def test_repr(self):
         """Test __repr__ method."""
-        timestamp = Timestamp(device_time=1000, common_time=2000)
+        timestamp = DeviceDataTimestamp(sample_time_device_clock=1000, sample_time_common_clock=2000)
 
         repr_str = repr(timestamp)
-        assert "Timestamp" in repr_str
-        assert "device_time=1000" in repr_str
-        assert "common_time=2000" in repr_str
+        assert "DeviceDataTimestamp" in repr_str
+        assert "sample_time_device_clock=1000" in repr_str
+        assert "sample_time_common_clock=2000" in repr_str
 
 
 class TestControllerPose:
@@ -205,7 +203,6 @@ class TestControllerSnapshot:
         assert snapshot.grip_pose is not None
         assert snapshot.aim_pose is not None
         assert snapshot.inputs is not None
-        assert snapshot.timestamp is not None
         assert snapshot.is_active is False
 
     def test_complete_snapshot(self):
@@ -232,11 +229,8 @@ class TestControllerSnapshot:
             trigger_value=1.0,
         )
 
-        # Create timestamp
-        timestamp = Timestamp(device_time=1000000000, common_time=2000000000)
-
         # Create snapshot
-        snapshot = ControllerSnapshot(grip_pose, aim_pose, inputs, True, timestamp)
+        snapshot = ControllerSnapshot(grip_pose, aim_pose, inputs, True)
 
         # Verify all fields
         assert snapshot.grip_pose.is_valid is True
@@ -246,8 +240,6 @@ class TestControllerSnapshot:
         assert snapshot.inputs.primary_click is True
         assert snapshot.inputs.trigger_value == pytest.approx(1.0)
         assert snapshot.is_active is True
-        assert snapshot.timestamp.device_time == 1000000000
-        assert snapshot.timestamp.common_time == 2000000000
 
     def test_repr_with_default(self):
         """Test __repr__ with default values."""
@@ -256,25 +248,6 @@ class TestControllerSnapshot:
 
         assert "ControllerSnapshot" in repr_str
         assert "is_active=False" in repr_str
-
-
-class TestControllerData:
-    """Tests for ControllerData table."""
-
-    def test_default_construction(self):
-        """Test default construction creates ControllerData with None controllers."""
-        controller_data = ControllerData()
-
-        assert controller_data is not None
-        assert controller_data.left_controller is None
-        assert controller_data.right_controller is None
-
-    def test_repr(self):
-        """Test __repr__ method."""
-        controller_data = ControllerData()
-        repr_str = repr(controller_data)
-
-        assert "ControllerData" in repr_str
 
 
 class TestControllerIntegration:
@@ -297,10 +270,7 @@ class TestControllerIntegration:
             squeeze_value=0.0,
             trigger_value=0.5,
         )
-        left_timestamp = Timestamp(device_time=1000, common_time=2000)
-        left_snapshot = ControllerSnapshot(
-            left_grip, left_aim, left_inputs, True, left_timestamp
-        )
+        left_snapshot = ControllerSnapshot(left_grip, left_aim, left_inputs, True)
 
         # Create right controller (inactive)
         right_snapshot = ControllerSnapshot()
@@ -385,14 +355,14 @@ class TestControllerEdgeCases:
 
     def test_zero_timestamp(self):
         """Test with zero timestamp values."""
-        timestamp = Timestamp(device_time=0, common_time=0)
+        timestamp = DeviceDataTimestamp(sample_time_device_clock=0, sample_time_common_clock=0)
 
-        assert timestamp.device_time == 0
-        assert timestamp.common_time == 0
+        assert timestamp.sample_time_device_clock == 0
+        assert timestamp.sample_time_common_clock == 0
 
     def test_negative_timestamp(self):
         """Test with negative timestamp values (valid for relative times)."""
-        timestamp = Timestamp(device_time=-1000, common_time=-2000)
+        timestamp = DeviceDataTimestamp(sample_time_device_clock=-1000, sample_time_common_clock=-2000)
 
-        assert timestamp.device_time == -1000
-        assert timestamp.common_time == -2000
+        assert timestamp.sample_time_device_clock == -1000
+        assert timestamp.sample_time_common_clock == -2000

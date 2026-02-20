@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -30,12 +30,17 @@ public:
     virtual bool update(XrTime time) = 0;
 
     /**
-     * @brief Serialize the tracker data to a FlatBuffer.
+     * @brief Serialize a single record channel to a FlatBuffer.
+     *
+     * Each call serializes the XXRecord type (data + DeviceDataTimestamp) for
+     * the given channel. Multi-channel trackers (e.g., left/right hand) are
+     * called once per channel.
      *
      * @param builder Output FlatBufferBuilder to write serialized data into.
-     * @return Timestamp for MCAP recording (device_time and common_time).
+     * @param channel_index Which record channel to serialize (0-based).
+     * @return DeviceDataTimestamp for MCAP log time.
      */
-    virtual Timestamp serialize(flatbuffers::FlatBufferBuilder& builder) const = 0;
+    virtual DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const = 0;
 };
 
 // Base interface for all trackers
@@ -53,15 +58,25 @@ public:
     /**
      * @brief Get the FlatBuffer schema name (root type) for MCAP recording.
      *
-     * This should return the fully qualified FlatBuffer type name (e.g., "core.HandPose")
-     * which matches the root_type defined in the .fbs schema file.
+     * Returns the fully qualified FlatBuffer record type name (e.g.,
+     * "core.HandPoseRecord") matching the root_type in the .fbs schema.
      */
     virtual std::string_view get_schema_name() const = 0;
 
     /**
-     * @brief Get the binary FlatBuffer schema text for MCAP recording.
+     * @brief Get the binary FlatBuffer schema for MCAP recording.
      */
     virtual std::string_view get_schema_text() const = 0;
+
+    /**
+     * @brief Get the MCAP channel names this tracker produces.
+     *
+     * Single-channel trackers return one name (e.g., {"head"}).
+     * Multi-channel trackers return multiple (e.g., {"left_hand", "right_hand"}).
+     * The indices correspond to the channel_index parameter in
+     * ITrackerImpl::serialize().
+     */
+    virtual std::vector<std::string> get_record_channels() const = 0;
 
 protected:
     // Internal lifecycle methods - only accessible to friend classes

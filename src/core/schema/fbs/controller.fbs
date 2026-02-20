@@ -42,18 +42,12 @@ struct ControllerSnapshot {
 
     // Whether the controller is active (connected and tracked)
     is_active: bool;
-
-    // Dual timestamp with device and runtime clock domains
-    timestamp: Timestamp;
 }
 
-// Controller data for both hands (table type for top-level serialization)
-table ControllerData {
-    // Left controller state
-    left_controller: ControllerSnapshot (id: 0);
-
-    // Right controller state
-    right_controller: ControllerSnapshot (id: 1);
+// MCAP recording wrapper: pairs a ControllerSnapshot with a DeviceDataTimestamp.
+table ControllerSnapshotRecord {
+    data: ControllerSnapshot (id: 0);
+    timestamp: DeviceDataTimestamp (id: 1);
 }
 
-root_type ControllerData;
+root_type ControllerSnapshotRecord;

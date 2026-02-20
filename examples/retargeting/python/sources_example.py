@@ -132,7 +132,10 @@ def main():
                     hand_left_raw = hand_tracker.get_left_hand(session)
                     hand_right_raw = hand_tracker.get_right_hand(session)
                     head_raw = head_tracker.get_head(session)
-                    controller_data_raw = controller_tracker.get_controller_data(
+                    left_controller_raw = controller_tracker.get_left_controller(
+                        session
+                    )
+                    right_controller_raw = controller_tracker.get_right_controller(
                         session
                     )
 
@@ -163,9 +166,9 @@ def main():
                     for input_name, group_type in controllers_input_spec.items():
                         tg = TensorGroup(group_type)
                         if "left" in input_name.lower():
-                            tg[0] = controller_data_raw.left_controller
+                            tg[0] = left_controller_raw
                         elif "right" in input_name.lower():
-                            tg[0] = controller_data_raw.right_controller
+                            tg[0] = right_controller_raw
                         controllers_inputs[input_name] = tg
 
                     # ====================================================

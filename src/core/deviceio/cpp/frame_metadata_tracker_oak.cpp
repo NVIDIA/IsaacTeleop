@@ -24,27 +24,31 @@ public:
     {
     }
 
-    bool update(XrTime /* time */) override
+    bool update(XrTime time) override
     {
-        // Try to read new data from tensor stream
         if (m_schema_reader.read_buffer(m_buffer))
         {
-            auto fb = GetFrameMetadata(m_buffer.data());
+            auto fb = flatbuffers::GetRoot<FrameMetadata>(m_buffer.data());
             if (fb)
             {
                 fb->UnPackTo(&m_data);
+                m_last_timestamp = DeviceDataTimestamp(time, time, 0);
                 return true;
             }
         }
-        // Return true even if no new data - we're still running
         return true;
     }
 
-    Timestamp serialize(flatbuffers::FlatBufferBuilder& builder) const override
+    DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t /* channel_index */) const override
     {
-        auto offset = FrameMetadata::Pack(builder, &m_data);
-        builder.Finish(offset);
-        return m_data.timestamp ? *m_data.timestamp : Timestamp{};
+        auto data_offset = FrameMetadata::Pack(builder, &m_data);
+
+        FrameMetadataRecordBuilder record_builder(builder);
+        record_builder.add_data(data_offset);
+        record_builder.add_timestamp(&m_last_timestamp);
+        builder.Finish(record_builder.Finish());
+
+        return m_last_timestamp;
     }
 
     const FrameMetadataT& get_data() const
@@ -56,6 +60,7 @@ private:
     SchemaTracker m_schema_reader;
     std::vector<uint8_t> m_buffer;
     FrameMetadataT m_data;
+    DeviceDataTimestamp m_last_timestamp{};
 };
 
 // ============================================================================
@@ -82,13 +87,18 @@ std::string_view FrameMetadataTrackerOak::get_name() const
 
 std::string_view FrameMetadataTrackerOak::get_schema_name() const
 {
-    return "core.FrameMetadata";
+    return "core.FrameMetadataRecord";
 }
 
 std::string_view FrameMetadataTrackerOak::get_schema_text() const
 {
-    return std::string_view(
-        reinterpret_cast<const char*>(FrameMetadataBinarySchema::data()), FrameMetadataBinarySchema::size());
+    return std::string_view(reinterpret_cast<const char*>(FrameMetadataRecordBinarySchema::data()),
+                            FrameMetadataRecordBinarySchema::size());
+}
+
+std::vector<std::string> FrameMetadataTrackerOak::get_record_channels() const
+{
+    return { "frame_metadata" };
 }
 
 const SchemaTrackerConfig& FrameMetadataTrackerOak::get_config() const
