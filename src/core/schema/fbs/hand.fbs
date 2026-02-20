@@ -39,10 +39,4 @@ table HandPoseRecord {
     timestamp: DeviceDataTimestamp (id: 1);
 }
 
-// Tracker output wrapper: pairs a HandPose with a DeviceOutputTimestamp.
-table HandPoseTracked {
-    data: HandPose (id: 0);
-    timestamp: DeviceOutputTimestamp (id: 1);
-}
-
 root_type HandPoseRecord;

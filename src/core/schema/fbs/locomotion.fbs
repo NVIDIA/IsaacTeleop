@@ -22,10 +22,4 @@ table LocomotionCommandRecord {
   timestamp: DeviceDataTimestamp (id: 1);
 }
 
-// Tracker output wrapper: pairs a LocomotionCommand with a DeviceOutputTimestamp.
-table LocomotionCommandTracked {
-    data: LocomotionCommand (id: 0);
-    timestamp: DeviceOutputTimestamp (id: 1);
-}
-
 root_type LocomotionCommandRecord;

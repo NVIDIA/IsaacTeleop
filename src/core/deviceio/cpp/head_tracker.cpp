@@ -5,7 +5,6 @@
 
 #include "inc/deviceio/deviceio_session.hpp"
 
-#include <chrono>
 #include <cstring>
 #include <iostream>
 
@@ -25,10 +24,9 @@ HeadTracker::Impl::Impl(const OpenXRSessionHandles& handles)
                                        handles.session,
                                        { .type = XR_TYPE_REFERENCE_SPACE_CREATE_INFO,
                                          .referenceSpaceType = XR_REFERENCE_SPACE_TYPE_VIEW,
-                                         .poseInReferenceSpace = { .orientation = { 0, 0, 0, 1 } } }))
+                                         .poseInReferenceSpace = { .orientation = { 0, 0, 0, 1 } } })),
+      head_{}
 {
-    tracked_.data = std::make_shared<HeadPoseT>();
-    tracked_.timestamp = std::make_shared<DeviceOutputTimestamp>();
 }
 
 // Override from ITrackerImpl
@@ -40,7 +38,7 @@ bool HeadTracker::Impl::update(XrTime time)
 
     if (XR_FAILED(result))
     {
-        tracked_.data->is_valid = false;
+        head_.is_valid = false;
         return false;
     }
 
@@ -48,45 +46,42 @@ bool HeadTracker::Impl::update(XrTime time)
     bool position_valid = (location.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0;
     bool orientation_valid = (location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0;
 
-    tracked_.data->is_valid = position_valid && orientation_valid;
+    head_.is_valid = position_valid && orientation_valid;
 
-    auto now_ns =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-    *tracked_.timestamp = DeviceOutputTimestamp(now_ns, time, 0);
-    last_record_timestamp_ = DeviceDataTimestamp(time, time, 0);
+    last_timestamp_ = DeviceDataTimestamp(time, time, 0);
 
-    if (tracked_.data->is_valid)
+    if (head_.is_valid)
     {
         // Create pose from position and orientation using FlatBuffers structs
         Point position(location.pose.position.x, location.pose.position.y, location.pose.position.z);
         Quaternion orientation(location.pose.orientation.x, location.pose.orientation.y, location.pose.orientation.z,
                                location.pose.orientation.w);
-        tracked_.data->pose = std::make_shared<Pose>(position, orientation);
+        head_.pose = std::make_shared<Pose>(position, orientation);
     }
     else
     {
         // Invalid - reset pose
-        tracked_.data->pose.reset();
+        head_.pose.reset();
     }
 
     return true;
 }
 
-const HeadPoseTrackedT& HeadTracker::Impl::get_head() const
+const HeadPoseT& HeadTracker::Impl::get_head() const
 {
-    return tracked_;
+    return head_;
 }
 
 DeviceDataTimestamp HeadTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, size_t /* channel_index */) const
 {
-    auto data_offset = HeadPose::Pack(builder, tracked_.data.get());
+    auto data_offset = HeadPose::Pack(builder, &head_);
 
     HeadPoseRecordBuilder record_builder(builder);
     record_builder.add_data(data_offset);
-    record_builder.add_timestamp(&last_record_timestamp_);
+    record_builder.add_timestamp(&last_timestamp_);
     builder.Finish(record_builder.Finish());
 
-    return last_record_timestamp_;
+    return last_timestamp_;
 }
 
 // ============================================================================
@@ -99,7 +94,7 @@ std::vector<std::string> HeadTracker::get_required_extensions() const
     return {};
 }
 
-const HeadPoseTrackedT& HeadTracker::get_head(const DeviceIOSession& session) const
+const HeadPoseT& HeadTracker::get_head(const DeviceIOSession& session) const
 {
     return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_head();
 }

@@ -114,8 +114,7 @@ try
         }
 
         // Print when we have new data (sequence_number changed)
-        const auto& tracked = tracker->get_data(*session);
-        const auto& data = *tracked.data;
+        const auto& data = tracker->get_data(*session);
         if (data.sequence_number != last_printed_sequence)
         {
             print_frame_metadata(data, ++received_count);

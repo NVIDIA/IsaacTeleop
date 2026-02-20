@@ -68,10 +68,4 @@ table FullBodyPosePicoRecord {
     timestamp: DeviceDataTimestamp (id: 1);
 }
 
-// Tracker output wrapper: pairs a FullBodyPosePico with a DeviceOutputTimestamp.
-table FullBodyPosePicoTracked {
-    data: FullBodyPosePico (id: 0);
-    timestamp: DeviceOutputTimestamp (id: 1);
-}
-
 root_type FullBodyPosePicoRecord;

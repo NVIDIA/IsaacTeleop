@@ -76,8 +76,7 @@ try
         }
 
         // Print current data if available
-        const auto& tracked = tracker->get_data(*session);
-        const auto& data = *tracked.data;
+        const auto& data = tracker->get_data(*session);
         if (data.is_valid)
         {
             print_pedal_data(data, received_count++);

@@ -16,10 +16,4 @@ table FrameMetadataRecord {
   timestamp: DeviceDataTimestamp (id: 1);
 }
 
-// Tracker output wrapper: pairs a FrameMetadata with a DeviceOutputTimestamp.
-table FrameMetadataTracked {
-    data: FrameMetadata (id: 0);
-    timestamp: DeviceOutputTimestamp (id: 1);
-}
-
 root_type FrameMetadataRecord;

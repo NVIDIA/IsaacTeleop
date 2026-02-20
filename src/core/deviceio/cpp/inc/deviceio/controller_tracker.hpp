@@ -43,9 +43,12 @@ public:
         return { "left_controller", "right_controller" };
     }
 
-    // Query methods - public API for getting individual controller data (returns tracked output with timestamp)
-    const ControllerSnapshotTrackedT& get_left_controller(const DeviceIOSession& session) const;
-    const ControllerSnapshotTrackedT& get_right_controller(const DeviceIOSession& session) const;
+    // Query methods - public API for getting individual controller data
+    const ControllerSnapshot& get_left_controller(const DeviceIOSession& session) const;
+    const ControllerSnapshot& get_right_controller(const DeviceIOSession& session) const;
+
+    // Get the XrTime from the last update (useful for plugins that need timing)
+    XrTime get_last_update_time(const DeviceIOSession& session) const;
 
 private:
     static constexpr const char* TRACKER_NAME = "ControllerTracker";
@@ -63,8 +66,9 @@ private:
 
         DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const override;
 
-        const ControllerSnapshotTrackedT& get_left_controller() const;
-        const ControllerSnapshotTrackedT& get_right_controller() const;
+        const ControllerSnapshot& get_left_controller() const;
+        const ControllerSnapshot& get_right_controller() const;
+        XrTime get_last_update_time() const;
 
     private:
         const OpenXRCoreFunctions core_funcs_;
@@ -93,12 +97,12 @@ private:
         XrSpacePtr left_aim_space_;
         XrSpacePtr right_aim_space_;
 
-        // Tracked output (data + DeviceOutputTimestamp)
-        ControllerSnapshotTrackedT left_tracked_;
-        ControllerSnapshotTrackedT right_tracked_;
+        // Controller snapshots stored separately
+        ControllerSnapshot left_controller_{};
+        ControllerSnapshot right_controller_{};
 
-        // Record timestamp for MCAP
-        DeviceDataTimestamp last_record_timestamp_{};
+        // Timestamp from last update
+        DeviceDataTimestamp last_timestamp_{};
     };
 };
 

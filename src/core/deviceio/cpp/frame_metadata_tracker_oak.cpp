@@ -8,7 +8,6 @@
 #include <flatbuffers/flatbuffers.h>
 #include <schema/oak_bfbs_generated.h>
 
-#include <chrono>
 #include <vector>
 
 namespace core
@@ -23,8 +22,6 @@ class FrameMetadataTrackerOak::Impl : public ITrackerImpl
 public:
     Impl(const OpenXRSessionHandles& handles, SchemaTrackerConfig config) : m_schema_reader(handles, std::move(config))
     {
-        m_tracked.data = std::make_shared<FrameMetadataT>();
-        m_tracked.timestamp = std::make_shared<DeviceOutputTimestamp>();
     }
 
     bool update(XrTime /* time */) override
@@ -47,12 +44,8 @@ public:
 
         if (!m_pending_records.empty())
         {
-            *m_tracked.data = m_pending_records.back().data;
-            auto now_ns =
-                std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch())
-                    .count();
-            *m_tracked.timestamp = DeviceOutputTimestamp(now_ns, 0, 0);
-            m_last_record_timestamp = m_pending_records.back().timestamp;
+            m_data = m_pending_records.back().data;
+            m_last_timestamp = m_pending_records.back().timestamp;
         }
 
         return true;
@@ -60,14 +53,14 @@ public:
 
     DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t /* channel_index */) const override
     {
-        auto data_offset = FrameMetadata::Pack(builder, m_tracked.data.get());
+        auto data_offset = FrameMetadata::Pack(builder, &m_data);
 
         FrameMetadataRecordBuilder record_builder(builder);
         record_builder.add_data(data_offset);
-        record_builder.add_timestamp(&m_last_record_timestamp);
+        record_builder.add_timestamp(&m_last_timestamp);
         builder.Finish(record_builder.Finish());
 
-        return m_last_record_timestamp;
+        return m_last_timestamp;
     }
 
     void serialize_all(size_t /* channel_index */, const RecordCallback& callback) const override
@@ -86,9 +79,9 @@ public:
         }
     }
 
-    const FrameMetadataTrackedT& get_data() const
+    const FrameMetadataT& get_data() const
     {
-        return m_tracked;
+        return m_data;
     }
 
 private:
@@ -99,8 +92,8 @@ private:
     };
 
     SchemaTracker m_schema_reader;
-    FrameMetadataTrackedT m_tracked;
-    DeviceDataTimestamp m_last_record_timestamp{};
+    FrameMetadataT m_data;
+    DeviceDataTimestamp m_last_timestamp{};
     std::vector<PendingRecord> m_pending_records;
 };
 
@@ -147,7 +140,7 @@ const SchemaTrackerConfig& FrameMetadataTrackerOak::get_config() const
     return m_config;
 }
 
-const FrameMetadataTrackedT& FrameMetadataTrackerOak::get_data(const DeviceIOSession& session) const
+const FrameMetadataT& FrameMetadataTrackerOak::get_data(const DeviceIOSession& session) const
 {
     return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_data();
 }

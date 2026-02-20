@@ -41,9 +41,9 @@ public:
         return { "left_hand", "right_hand" };
     }
 
-    // Query methods - public API for getting hand data (returns tracked output with timestamp)
-    const HandPoseTrackedT& get_left_hand(const DeviceIOSession& session) const;
-    const HandPoseTrackedT& get_right_hand(const DeviceIOSession& session) const;
+    // Query methods - public API for getting hand data
+    const HandPoseT& get_left_hand(const DeviceIOSession& session) const;
+    const HandPoseT& get_right_hand(const DeviceIOSession& session) const;
 
     // Get joint name for debugging
     static std::string get_joint_name(uint32_t joint_index);
@@ -67,8 +67,8 @@ private:
 
         DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const override;
 
-        const HandPoseTrackedT& get_left_hand() const;
-        const HandPoseTrackedT& get_right_hand() const;
+        const HandPoseT& get_left_hand() const;
+        const HandPoseT& get_right_hand() const;
 
     private:
         bool update_hand(XrHandTrackerEXT tracker, XrTime time, HandPoseT& out_data);
@@ -79,12 +79,12 @@ private:
         XrHandTrackerEXT left_hand_tracker_;
         XrHandTrackerEXT right_hand_tracker_;
 
-        // Tracked output (data + DeviceOutputTimestamp)
-        HandPoseTrackedT left_tracked_;
-        HandPoseTrackedT right_tracked_;
+        // Hand data
+        HandPoseT left_hand_;
+        HandPoseT right_hand_;
 
-        // Record timestamp for MCAP
-        DeviceDataTimestamp last_record_timestamp_{};
+        // Timestamp from last update
+        DeviceDataTimestamp last_timestamp_{};
 
         // Extension function pointers
         PFN_xrCreateHandTrackerEXT pfn_create_hand_tracker_;

@@ -51,9 +51,9 @@ public:
     std::vector<std::string> get_record_channels() const override;
 
     /*!
-     * @brief Get the current frame metadata (returns tracked output with timestamp).
+     * @brief Get the current frame metadata.
      */
-    const FrameMetadataTrackedT& get_data(const DeviceIOSession& session) const;
+    const FrameMetadataT& get_data(const DeviceIOSession& session) const;
 
 protected:
     const SchemaTrackerConfig& get_config() const;

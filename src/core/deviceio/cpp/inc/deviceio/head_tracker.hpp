@@ -42,8 +42,8 @@ public:
         return { "head" };
     }
 
-    // Query methods - public API for getting head data (returns tracked output with timestamp)
-    const HeadPoseTrackedT& get_head(const DeviceIOSession& session) const;
+    // Query methods - public API for getting head data
+    const HeadPoseT& get_head(const DeviceIOSession& session) const;
 
 private:
     static constexpr const char* TRACKER_NAME = "HeadTracker";
@@ -61,14 +61,14 @@ private:
 
         DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const override;
 
-        const HeadPoseTrackedT& get_head() const;
+        const HeadPoseT& get_head() const;
 
     private:
         const OpenXRCoreFunctions core_funcs_;
         XrSpace base_space_;
         XrSpacePtr view_space_;
-        HeadPoseTrackedT tracked_;
-        DeviceDataTimestamp last_record_timestamp_{};
+        HeadPoseT head_;
+        DeviceDataTimestamp last_timestamp_{};
     };
 };
 
