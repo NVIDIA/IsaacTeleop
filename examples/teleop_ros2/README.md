@@ -8,6 +8,14 @@ SPDX-License-Identifier: Apache-2.0
 Reference ROS2 bridge for Isaac Teleop data. It publishes the same topic set as
 `xr_teleop_ros2` using standard ROS2 message types.
 
+## Prerequisite: Start CloudXR Runtime
+
+Before running this ROS2 reference bridge, start the CloudXR runtime (see the `README.md` setup flow, step "Run CloudXR"):
+
+```bash
+./scripts/run_cloudxr.sh
+```
+
 ## Published Topics
 
 - `xr_teleop/hand` (`geometry_msgs/PoseArray`)
@@ -33,14 +41,19 @@ Incremental rebuilds use Docker BuildKit cache. Ensure BuildKit is enabled (defa
 
 Use host networking (recommended for ROS2 DDS):
 ```bash
+source scripts/setup_cloudxr_env.sh
 docker run --rm --net=host \
-  teleop_ros2_ref \
-  --use-mock-operators
+  -e XR_RUNTIME_JSON -e NV_CXR_RUNTIME_DIR \
+  -v $CXR_HOST_VOLUME_PATH:$CXR_HOST_VOLUME_PATH:ro \
+  --name teleop_ros2_ref \
+  teleop_ros2_ref
 ```
 
 ## Echo Topics
 
 ```bash
+docker exec -it teleop_ros2_ref /bin/bash
+
 ros2 topic echo /xr_teleop/hand geometry_msgs/msg/PoseArray
 ros2 topic echo /xr_teleop/root_twist geometry_msgs/msg/TwistStamped
 ros2 topic echo /xr_teleop/root_pose geometry_msgs/msg/PoseStamped
