@@ -102,7 +102,10 @@ class TestDeviceDataTimestamp:
 
     def test_set_timestamp_values(self):
         """Test constructing with timestamp values."""
-        timestamp = DeviceDataTimestamp(sample_time_device_clock=1234567890123456789, sample_time_common_clock=9876543210)
+        timestamp = DeviceDataTimestamp(
+            sample_time_device_clock=1234567890123456789,
+            sample_time_common_clock=9876543210,
+        )
 
         assert timestamp.sample_time_device_clock == 1234567890123456789
         assert timestamp.sample_time_common_clock == 9876543210
@@ -110,14 +113,19 @@ class TestDeviceDataTimestamp:
     def test_large_timestamp_values(self):
         """Test with large int64 timestamp values."""
         max_int64 = 9223372036854775807
-        timestamp = DeviceDataTimestamp(sample_time_device_clock=max_int64, sample_time_common_clock=max_int64 - 1000)
+        timestamp = DeviceDataTimestamp(
+            sample_time_device_clock=max_int64,
+            sample_time_common_clock=max_int64 - 1000,
+        )
 
         assert timestamp.sample_time_device_clock == max_int64
         assert timestamp.sample_time_common_clock == max_int64 - 1000
 
     def test_repr(self):
         """Test __repr__ method."""
-        timestamp = DeviceDataTimestamp(sample_time_device_clock=1000, sample_time_common_clock=2000)
+        timestamp = DeviceDataTimestamp(
+            sample_time_device_clock=1000, sample_time_common_clock=2000
+        )
 
         repr_str = repr(timestamp)
         assert "DeviceDataTimestamp" in repr_str
@@ -355,14 +363,18 @@ class TestControllerEdgeCases:
 
     def test_zero_timestamp(self):
         """Test with zero timestamp values."""
-        timestamp = DeviceDataTimestamp(sample_time_device_clock=0, sample_time_common_clock=0)
+        timestamp = DeviceDataTimestamp(
+            sample_time_device_clock=0, sample_time_common_clock=0
+        )
 
         assert timestamp.sample_time_device_clock == 0
         assert timestamp.sample_time_common_clock == 0
 
     def test_negative_timestamp(self):
         """Test with negative timestamp values (valid for relative times)."""
-        timestamp = DeviceDataTimestamp(sample_time_device_clock=-1000, sample_time_common_clock=-2000)
+        timestamp = DeviceDataTimestamp(
+            sample_time_device_clock=-1000, sample_time_common_clock=-2000
+        )
 
         assert timestamp.sample_time_device_clock == -1000
         assert timestamp.sample_time_common_clock == -2000

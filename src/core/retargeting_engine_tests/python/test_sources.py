@@ -60,9 +60,7 @@ def create_controller_snapshot(grip_pos, aim_pos, trigger_val):
     )
 
     # Create snapshot
-    return ControllerSnapshot(
-        grip_controller_pose, aim_controller_pose, inputs, True
-    )
+    return ControllerSnapshot(grip_controller_pose, aim_controller_pose, inputs, True)
 
 
 # ============================================================================

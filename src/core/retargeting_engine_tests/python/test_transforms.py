@@ -325,9 +325,7 @@ class TestHeadTransform:
 
     def test_passthrough_fields_preserved(self):
         node = HeadTransform("head_xform")
-        head_in = self._make_head_input(
-            [0, 0, 0], [0, 0, 0, 1], is_valid=False
-        )
+        head_in = self._make_head_input([0, 0, 0], [0, 0, 0, 1], is_valid=False)
         xform_in = _make_transform_input(_rotation_z_90_with_translation())
         result = _run_retargeter(node, {"head": head_in, "transform": xform_in})
         out = result["head"]
