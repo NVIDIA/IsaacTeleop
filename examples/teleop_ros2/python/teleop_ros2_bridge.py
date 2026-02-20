@@ -27,7 +27,10 @@ from geometry_msgs.msg import Pose, PoseArray, PoseStamped, TwistStamped
 from rclpy.node import Node
 from std_msgs.msg import ByteMultiArray
 
-from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource, HandsSource
+from isaacteleop.retargeting_engine.deviceio_source_nodes import (
+    ControllersSource,
+    HandsSource,
+)
 from isaacteleop.retargeting_engine.interface import OutputCombiner
 from isaacteleop.retargeting_engine.retargeters import (
     LocomotionRootCmdRetargeter,
@@ -38,7 +41,11 @@ from isaacteleop.retargeting_engine.tensor_types.indices import (
     HandInputIndex,
     HandJointIndex,
 )
-from isaacteleop.teleop_session_manager import PluginConfig, TeleopSession, TeleopSessionConfig
+from isaacteleop.teleop_session_manager import (
+    PluginConfig,
+    TeleopSession,
+    TeleopSessionConfig,
+)
 
 
 def _find_plugins_dirs(start: Path) -> List[Path]:
@@ -81,23 +88,45 @@ def _build_controller_payload(
             _as_float(right_ctrl, ControllerInputIndex.THUMBSTICK_Y),
         ],
         "left_trigger_value": _as_float(left_ctrl, ControllerInputIndex.TRIGGER_VALUE),
-        "right_trigger_value": _as_float(right_ctrl, ControllerInputIndex.TRIGGER_VALUE),
+        "right_trigger_value": _as_float(
+            right_ctrl, ControllerInputIndex.TRIGGER_VALUE
+        ),
         "left_squeeze_value": _as_float(left_ctrl, ControllerInputIndex.SQUEEZE_VALUE),
-        "right_squeeze_value": _as_float(right_ctrl, ControllerInputIndex.SQUEEZE_VALUE),
+        "right_squeeze_value": _as_float(
+            right_ctrl, ControllerInputIndex.SQUEEZE_VALUE
+        ),
         "left_aim_position": _as_list(left_ctrl, ControllerInputIndex.AIM_POSITION),
         "right_aim_position": _as_list(right_ctrl, ControllerInputIndex.AIM_POSITION),
         "left_grip_position": _as_list(left_ctrl, ControllerInputIndex.GRIP_POSITION),
         "right_grip_position": _as_list(right_ctrl, ControllerInputIndex.GRIP_POSITION),
-        "left_aim_orientation": _as_quat(left_ctrl, ControllerInputIndex.AIM_ORIENTATION),
-        "right_aim_orientation": _as_quat(right_ctrl, ControllerInputIndex.AIM_ORIENTATION),
-        "left_grip_orientation": _as_quat(left_ctrl, ControllerInputIndex.GRIP_ORIENTATION),
-        "right_grip_orientation": _as_quat(right_ctrl, ControllerInputIndex.GRIP_ORIENTATION),
+        "left_aim_orientation": _as_quat(
+            left_ctrl, ControllerInputIndex.AIM_ORIENTATION
+        ),
+        "right_aim_orientation": _as_quat(
+            right_ctrl, ControllerInputIndex.AIM_ORIENTATION
+        ),
+        "left_grip_orientation": _as_quat(
+            left_ctrl, ControllerInputIndex.GRIP_ORIENTATION
+        ),
+        "right_grip_orientation": _as_quat(
+            right_ctrl, ControllerInputIndex.GRIP_ORIENTATION
+        ),
         "left_primary_click": _as_float(left_ctrl, ControllerInputIndex.PRIMARY_CLICK),
-        "right_primary_click": _as_float(right_ctrl, ControllerInputIndex.PRIMARY_CLICK),
-        "left_secondary_click": _as_float(left_ctrl, ControllerInputIndex.SECONDARY_CLICK),
-        "right_secondary_click": _as_float(right_ctrl, ControllerInputIndex.SECONDARY_CLICK),
-        "left_thumbstick_click": _as_float(left_ctrl, ControllerInputIndex.THUMBSTICK_CLICK),
-        "right_thumbstick_click": _as_float(right_ctrl, ControllerInputIndex.THUMBSTICK_CLICK),
+        "right_primary_click": _as_float(
+            right_ctrl, ControllerInputIndex.PRIMARY_CLICK
+        ),
+        "left_secondary_click": _as_float(
+            left_ctrl, ControllerInputIndex.SECONDARY_CLICK
+        ),
+        "right_secondary_click": _as_float(
+            right_ctrl, ControllerInputIndex.SECONDARY_CLICK
+        ),
+        "left_thumbstick_click": _as_float(
+            left_ctrl, ControllerInputIndex.THUMBSTICK_CLICK
+        ),
+        "right_thumbstick_click": _as_float(
+            right_ctrl, ControllerInputIndex.THUMBSTICK_CLICK
+        ),
         "left_is_active": bool(_as_float(left_ctrl, ControllerInputIndex.IS_ACTIVE)),
         "right_is_active": bool(_as_float(right_ctrl, ControllerInputIndex.IS_ACTIVE)),
     }
@@ -123,8 +152,12 @@ def _append_hand_poses(
     joint_positions: np.ndarray,
     joint_orientations: np.ndarray,
 ) -> None:
-    for joint_idx in range(HandJointIndex.THUMB_METACARPAL, HandJointIndex.LITTLE_TIP + 1):
-        poses.append(_to_pose(joint_positions[joint_idx], joint_orientations[joint_idx]))
+    for joint_idx in range(
+        HandJointIndex.THUMB_METACARPAL, HandJointIndex.LITTLE_TIP + 1
+    ):
+        poses.append(
+            _to_pose(joint_positions[joint_idx], joint_orientations[joint_idx])
+        )
 
 
 def main() -> int:
@@ -149,19 +182,25 @@ def main() -> int:
 
     hands = HandsSource(name="hands")
     controllers = ControllersSource(name="controllers")
-    locomotion = LocomotionRootCmdRetargeter(LocomotionRootCmdRetargeterConfig(), name="locomotion")
-    locomotion_connected = locomotion.connect({
-        "controller_left": controllers.output(ControllersSource.LEFT),
-        "controller_right": controllers.output(ControllersSource.RIGHT),
-    })
+    locomotion = LocomotionRootCmdRetargeter(
+        LocomotionRootCmdRetargeterConfig(), name="locomotion"
+    )
+    locomotion_connected = locomotion.connect(
+        {
+            "controller_left": controllers.output(ControllersSource.LEFT),
+            "controller_right": controllers.output(ControllersSource.RIGHT),
+        }
+    )
 
-    pipeline = OutputCombiner({
-        "hand_left": hands.output(HandsSource.LEFT),
-        "hand_right": hands.output(HandsSource.RIGHT),
-        "controller_left": controllers.output(ControllersSource.LEFT),
-        "controller_right": controllers.output(ControllersSource.RIGHT),
-        "root_command": locomotion_connected.output("root_command"),
-    })
+    pipeline = OutputCombiner(
+        {
+            "hand_left": hands.output(HandsSource.LEFT),
+            "hand_right": hands.output(HandsSource.RIGHT),
+            "controller_left": controllers.output(ControllersSource.LEFT),
+            "controller_right": controllers.output(ControllersSource.RIGHT),
+            "root_command": locomotion_connected.output("root_command"),
+        }
+    )
 
     plugins = []
     if args.use_mock_operators:
@@ -198,7 +237,9 @@ def main() -> int:
 
             if right_hand is not None and right_hand[HandInputIndex.IS_ACTIVE]:
                 right_positions = np.asarray(right_hand[HandInputIndex.JOINT_POSITIONS])
-                right_orientations = np.asarray(right_hand[HandInputIndex.JOINT_ORIENTATIONS])
+                right_orientations = np.asarray(
+                    right_hand[HandInputIndex.JOINT_ORIENTATIONS]
+                )
                 hand_msg.poses.append(
                     _to_pose(
                         right_positions[HandJointIndex.WRIST],
@@ -207,7 +248,9 @@ def main() -> int:
                 )
             if left_hand is not None and left_hand[HandInputIndex.IS_ACTIVE]:
                 left_positions = np.asarray(left_hand[HandInputIndex.JOINT_POSITIONS])
-                left_orientations = np.asarray(left_hand[HandInputIndex.JOINT_ORIENTATIONS])
+                left_orientations = np.asarray(
+                    left_hand[HandInputIndex.JOINT_ORIENTATIONS]
+                )
                 hand_msg.poses.append(
                     _to_pose(
                         left_positions[HandJointIndex.WRIST],
@@ -244,8 +287,12 @@ def main() -> int:
 
             left_ctrl = result.get("controller_left")
             right_ctrl = result.get("controller_right")
-            left_active = left_ctrl is not None and bool(left_ctrl[ControllerInputIndex.IS_ACTIVE])
-            right_active = right_ctrl is not None and bool(right_ctrl[ControllerInputIndex.IS_ACTIVE])
+            left_active = left_ctrl is not None and bool(
+                left_ctrl[ControllerInputIndex.IS_ACTIVE]
+            )
+            right_active = right_ctrl is not None and bool(
+                right_ctrl[ControllerInputIndex.IS_ACTIVE]
+            )
             if left_active or right_active:
                 controller_payload = _build_controller_payload(left_ctrl, right_ctrl)
                 payload = msgpack.packb(controller_payload, default=mnp.encode)
