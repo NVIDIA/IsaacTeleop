@@ -8,5 +8,5 @@ description = "Retargeting Engine Python Examples"
 requires-python = ">=3.10,<3.13"
 dependencies = [
     "isaacteleop[ui]",
-    "numpy>=1.22.0",
+    "numpy>=1.22.2",
 ]
