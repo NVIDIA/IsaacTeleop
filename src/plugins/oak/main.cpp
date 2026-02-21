@@ -7,7 +7,10 @@
 #include <atomic>
 #include <chrono>
 #include <csignal>
+#include <iomanip>
 #include <iostream>
+#include <map>
+#include <sstream>
 #include <string>
 
 using namespace plugins::oak;
@@ -27,26 +30,87 @@ void signal_handler(int signal)
 }
 
 // =============================================================================
+// --add-stream parser
+// =============================================================================
+
+static core::StreamType parse_camera_name(const std::string& name)
+{
+    if (name == "Color")
+        return core::StreamType_Color;
+    if (name == "MonoLeft")
+        return core::StreamType_MonoLeft;
+    if (name == "MonoRight")
+        return core::StreamType_MonoRight;
+
+    throw std::runtime_error("Unknown camera name: '" + name + "'. Expected Color, MonoLeft, or MonoRight.");
+}
+
+static StreamConfig parse_stream_arg(const std::string& arg)
+{
+    StreamConfig cfg{};
+    bool has_camera = false;
+    bool has_output = false;
+
+    std::istringstream ss(arg);
+    std::string token;
+    while (std::getline(ss, token, ','))
+    {
+        auto eq = token.find('=');
+        if (eq == std::string::npos)
+            throw std::runtime_error("Invalid key=value in --add-stream: '" + token + "'");
+
+        auto key = token.substr(0, eq);
+        auto val = token.substr(eq + 1);
+
+        if (key == "camera")
+        {
+            cfg.camera = parse_camera_name(val);
+            has_camera = true;
+        }
+        else if (key == "output")
+        {
+            cfg.output_path = val;
+            has_output = true;
+        }
+        else
+        {
+            throw std::runtime_error("Unknown key in --add-stream: '" + key + "'");
+        }
+    }
+
+    if (!has_camera)
+        throw std::runtime_error("--add-stream requires camera=<name>");
+    if (!has_output)
+        throw std::runtime_error("--add-stream requires output=<path>");
+
+    return cfg;
+}
+
+// =============================================================================
 // Usage
 // =============================================================================
 
 void print_usage(const char* program_name)
 {
-    std::cout << "Usage: " << program_name << " [options]\n"
-              << "\nCamera Settings:\n"
-              << "  --width=N           Frame width (default: 1920)\n"
-              << "  --height=N          Frame height (default: 1080)\n"
-              << "  --fps=N             Frame rate (default: 30)\n"
-              << "  --bitrate=N         H.264 bitrate in bps (default: 8000000)\n"
-              << "  --quality=N         H.264 quality 1-100 (default: 80)\n"
-              << "\nRecording Settings:\n"
-              << "  --output=PATH       Full path for recording file (required)\n"
-              << "\nOpenXR Settings:\n"
-              << "  --collection-id=ID  Tensor collection ID for metadata (default: oak_camera)\n"
-              << "\nGeneral Settings:\n"
-              << "  --help              Show this help message\n"
-              << "\nOutput:\n"
-              << "  Records raw H.264 NAL units to file.\n";
+    std::cout
+        << "Usage: " << program_name << " [options] --add-stream ...\n"
+        << "\nStream Configuration (repeatable):\n"
+        << "  --add-stream camera=<name>,output=<path>\n"
+        << "      camera: Color, MonoLeft, or MonoRight\n"
+        << "      output: file path for this stream's H.264 data\n"
+        << "\nGlobal Camera Settings:\n"
+        << "  --fps=N             Frame rate for all streams (default: 30)\n"
+        << "  --bitrate=N         H.264 bitrate in bps (default: 8000000)\n"
+        << "  --quality=N         H.264 quality 1-100 (default: 80)\n"
+        << "  --device-id=ID      OAK device MxId (default: first available)\n"
+        << "\nMetadata:\n"
+        << "  --collection-id=ID  Tensor collection ID for metadata (default: none)\n"
+        << "\nGeneral:\n"
+        << "  --help              Show this help message\n"
+        << "\nExamples:\n"
+        << "  " << program_name << " --add-stream camera=Color,output=./color.h264\n"
+        << "  " << program_name
+        << " --add-stream=camera=Color,output=./color.h264 --add-stream=camera=LeftMono,output=./left.h264 --add-stream=camera=RightMono,output=./right.h264\n";
 }
 
 // =============================================================================
@@ -56,13 +120,10 @@ void print_usage(const char* program_name)
 int main(int argc, char** argv)
 try
 {
-    // Default configurations
     OakConfig camera_config;
-    std::string output_path;
-    std::string plugin_root_id = "oak_camera";
+    std::map<core::StreamType, StreamConfig> stream_map;
     std::string collection_id;
 
-    // Parse command line arguments
     for (int i = 1; i < argc; ++i)
     {
         std::string arg = argv[i];
@@ -72,17 +133,14 @@ try
             print_usage(argv[0]);
             return 0;
         }
-        else if (arg.find("--width=") == 0)
+        else if (arg.find("--add-stream=") == 0)
         {
-            camera_config.width = std::stoi(arg.substr(8));
-        }
-        else if (arg.find("--height=") == 0)
-        {
-            camera_config.height = std::stoi(arg.substr(9));
+            auto cfg = parse_stream_arg(arg.substr(13));
+            stream_map[cfg.camera] = cfg;
         }
         else if (arg.find("--fps=") == 0)
         {
-            camera_config.fps = std::stoi(arg.substr(6));
+            camera_config.fps = std::stof(arg.substr(6));
         }
         else if (arg.find("--bitrate=") == 0)
         {
@@ -92,16 +150,13 @@ try
         {
             camera_config.quality = std::stoi(arg.substr(10));
         }
-        else if (arg.find("--output=") == 0)
+        else if (arg.find("--device-id=") == 0)
         {
-            output_path = arg.substr(9);
+            camera_config.device_id = arg.substr(12);
         }
         else if (arg.find("--collection-id=") == 0)
         {
             collection_id = arg.substr(16);
-        }
-        else if (arg.find("--plugin-root-id=") == 0)
-        {
         }
         else
         {
@@ -111,7 +166,18 @@ try
         }
     }
 
-    // Setup signal handlers
+    if (stream_map.empty())
+    {
+        std::cerr << "Error: at least one --add-stream is required." << std::endl;
+        print_usage(argv[0]);
+        return 1;
+    }
+
+    std::vector<StreamConfig> stream_configs;
+    stream_configs.reserve(stream_map.size());
+    for (auto& [_, cfg] : stream_map)
+        stream_configs.push_back(std::move(cfg));
+
     std::signal(SIGINT, signal_handler);
     std::signal(SIGTERM, signal_handler);
 
@@ -119,16 +185,8 @@ try
     std::cout << "OAK Camera Plugin Starting" << std::endl;
     std::cout << "============================================================" << std::endl;
 
-    if (output_path.empty())
-    {
-        std::cerr << "Error: --output=PATH is required." << std::endl;
-        print_usage(argv[0]);
-        return 1;
-    }
-
-    // Create camera and frame sink (H.264 writer + metadata pusher)
-    OakCamera camera(camera_config);
-    FrameSink sink(output_path, collection_id);
+    FrameSink sink(collection_id);
+    OakCamera camera(camera_config, stream_configs, sink);
 
     uint64_t frame_count = 0;
     auto start_time = std::chrono::steady_clock::now();
@@ -139,17 +197,10 @@ try
     constexpr auto status_interval = std::chrono::seconds(10);
     auto last_status_time = std::chrono::steady_clock::now();
 
-    // Main capture loop
     while (!g_stop_requested.load(std::memory_order_relaxed))
     {
-        auto frame = camera.get_frame();
-        if (frame)
-        {
-            sink.on_frame(*frame);
-            frame_count++;
-        }
+        frame_count += camera.update();
 
-        // Periodic status update
         auto now = std::chrono::steady_clock::now();
         if (now - last_status_time >= status_interval)
         {
@@ -158,7 +209,6 @@ try
         }
     }
 
-    // Print statistics
     std::cout << "------------------------------------------------------------" << std::endl;
     std::cout << "Shutting down OAK Camera Plugin..." << std::endl;
 

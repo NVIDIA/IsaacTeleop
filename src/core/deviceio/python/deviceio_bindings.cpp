@@ -63,7 +63,7 @@ PYBIND11_MODULE(_deviceio, m)
             [](core::FrameMetadataTrackerOak& self, PyDeviceIOSession& session) -> const core::FrameMetadataT&
             { return self.get_data(session.native()); },
             py::arg("session"), py::return_value_policy::reference_internal,
-            "Get the current frame metadata (timestamp and sequence_number)");
+            "Get the current frame metadata (per-stream timestamps and sequence numbers)");
 
     // FullBodyTrackerPico class (PICO XR_BD_body_tracking extension)
     py::class_<core::FullBodyTrackerPico, core::ITracker, std::shared_ptr<core::FullBodyTrackerPico>>(

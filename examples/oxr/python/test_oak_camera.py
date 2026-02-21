@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Test OAK camera plugin using Plugin Manager with FrameMetadataTrackerOak and MCAP recording.
+Test OAK camera plugin with Color + MonoLeft streams, metadata tracking, and MCAP recording.
 
 This test:
 1. Uses PluginManager to discover and launch the camera plugin
 2. Queries available devices from the manifest
-3. Starts the OAK camera plugin (which records H.264 video to file)
+3. Starts the OAK camera plugin with Color and MonoLeft streams (H.264)
 4. Creates FrameMetadataTrackerOak to receive frame metadata via OpenXR tensor extensions
 5. Records frame metadata to MCAP file for playback/analysis
 6. Periodically polls plugin health
@@ -110,13 +110,19 @@ def run_test(duration: float = 10.0, metadata_track: bool = True):
     if metadata_track:
         print(f"  MCAP output: {mcap_filename}")
     print()
-    print("  Note: Video will be recorded to ./recordings/ in the plugin directory")
+    print(
+        "  Note: Color + MonoLeft H.264 streams recorded to ./recordings/ in the plugin directory"
+    )
     if metadata_track:
         print("        Frame metadata will be recorded to MCAP file")
     print()
 
-    output_path = f"./recordings/camera_{timestamp}.h264"
-    extra_args = ["--output=" + output_path]
+    color_path = f"./recordings/color_{timestamp}.h264"
+    mono_left_path = f"./recordings/mono_left_{timestamp}.h264"
+    extra_args = [
+        f"--add-stream=camera=Color,output={color_path}",
+        f"--add-stream=camera=MonoLeft,output={mono_left_path}",
+    ]
     if metadata_track:
         extra_args.append("--collection-id=" + collection_id)
     with manager.start(plugin_name, plugin_root_id, extra_args) as plugin:
@@ -150,7 +156,7 @@ def run_test(duration: float = 10.0, metadata_track: bool = True):
                         start_time = time.time()
                         frame_count = 0
                         last_print_time = 0
-                        last_seq = -1
+                        last_device_time = -1
                         metadata_samples = 0
 
                         while time.time() - start_time < duration:
@@ -163,18 +169,20 @@ def run_test(duration: float = 10.0, metadata_track: bool = True):
                             metadata = frame_tracker.get_data(session)
                             if (
                                 metadata.timestamp
-                                and metadata.sequence_number != last_seq
+                                and metadata.timestamp.device_time != last_device_time
                             ):
                                 metadata_samples += 1
-                                last_seq = metadata.sequence_number
+                                last_device_time = metadata.timestamp.device_time
                             elapsed = time.time() - start_time
                             if int(elapsed) > last_print_time:
                                 last_print_time = int(elapsed)
                                 ts_info = ""
                                 if metadata.timestamp:
-                                    ts_info = f"seq={metadata.sequence_number}, device_time={metadata.timestamp.device_time}"
+                                    ts_info = f"stream={metadata.stream.name}, device_time={metadata.timestamp.device_time}"
                                 else:
-                                    ts_info = f"seq={metadata.sequence_number}, timestamp=None"
+                                    ts_info = (
+                                        f"stream={metadata.stream.name}, timestamp=None"
+                                    )
                                 print(
                                     f"  [{last_print_time:3d}s] metadata_samples={metadata_samples}, {ts_info}"
                                 )
@@ -206,9 +214,11 @@ def run_test(duration: float = 10.0, metadata_track: bool = True):
     print()
     print("=" * 80)
     print("Test completed successfully!")
-    print(f"  Video: {PLUGIN_ROOT_DIR / 'oak_camera' / 'recordings'}")
+    recordings_dir = PLUGIN_ROOT_DIR / "oak_camera" / "recordings"
+    print(f"  Color H.264:    {recordings_dir / Path(color_path).name}")
+    print(f"  MonoLeft H.264: {recordings_dir / Path(mono_left_path).name}")
     if metadata_track:
-        print(f"  MCAP:  {Path.cwd() / mcap_filename}")
+        print(f"  MCAP:           {Path.cwd() / mcap_filename}")
         print()
         print("View MCAP file with: foxglove-studio or mcap cat " + mcap_filename)
     print("=" * 80)

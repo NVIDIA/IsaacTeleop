@@ -35,7 +35,7 @@ void print_frame_metadata(const core::FrameMetadataT& data, size_t sample_count)
 {
     std::cout << "Sample " << sample_count;
 
-    std::cout << " [seq=" << data.sequence_number;
+    std::cout << " [stream=" << core::EnumNameStreamType(data.stream) << ", seq=" << data.sequence_number;
     if (data.timestamp)
     {
         std::cout << ", device_time=" << data.timestamp->device_time()
@@ -110,7 +110,7 @@ try
     std::cout << "[Step 4] Reading samples (press Ctrl+C to stop)..." << std::endl;
 
     size_t received_count = 0;
-    int last_printed_sequence = -1;
+    int64_t last_device_time = -1;
     auto last_status_time = std::chrono::steady_clock::now();
     constexpr auto status_interval = std::chrono::seconds(5);
 
@@ -123,12 +123,12 @@ try
             break;
         }
 
-        // Print when we have new data (timestamp indicates real data; sequence_number changed)
+        // Print when we have new data (new timestamp means new frame)
         const auto& data = tracker->get_data(*session);
-        if (data.timestamp && data.sequence_number != last_printed_sequence)
+        if (data.timestamp && data.timestamp->device_time() != last_device_time)
         {
             print_frame_metadata(data, ++received_count);
-            last_printed_sequence = data.sequence_number;
+            last_device_time = data.timestamp->device_time();
         }
 
         // Periodic status update when no data

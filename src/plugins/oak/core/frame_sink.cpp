@@ -6,6 +6,8 @@
 #include <flatbuffers/flatbuffers.h>
 
 #include <filesystem>
+#include <iostream>
+#include <memory>
 
 namespace plugins
 {
@@ -39,16 +41,7 @@ void MetadataPusher::push(const core::FrameMetadataT& data)
 // FrameSink
 // =============================================================================
 
-FrameSink::FrameSink(const std::string& record_path, const std::string& collection_id)
-    : m_writer(
-          [&record_path]()
-          {
-              std::filesystem::path p(record_path);
-              auto parent = p.parent_path();
-              if (!parent.empty())
-                  std::filesystem::create_directories(parent);
-              return record_path;
-          }())
+FrameSink::FrameSink(const std::string& collection_id)
 {
     if (!collection_id.empty())
     {
@@ -56,14 +49,27 @@ FrameSink::FrameSink(const std::string& record_path, const std::string& collecti
     }
 }
 
+void FrameSink::add_stream(core::StreamType type, const std::string& output_path)
+{
+    std::filesystem::path p(output_path);
+    auto parent = p.parent_path();
+    if (!parent.empty())
+        std::filesystem::create_directories(parent);
+
+    m_writers[type] = std::make_unique<RawDataWriter>(output_path);
+    std::cout << "  " << core::EnumNameStreamType(type) << " -> " << output_path << std::endl;
+}
+
 void FrameSink::on_frame(const OakFrame& frame)
 {
-    m_writer.write(frame.h264_data);
+    auto it = m_writers.find(frame.stream);
+    if (it == m_writers.end())
+        return;
+
+    it->second->write(frame.data);
 
     if (m_pusher)
-    {
         m_pusher->push(frame.metadata);
-    }
 }
 
 } // namespace oak

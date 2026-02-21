@@ -35,6 +35,7 @@ from ..schema import (
     ControllerInputState,
     ControllerPose,
     ControllerSnapshot,
+    StreamType,
     FrameMetadata,
     Timestamp,
 )
@@ -43,6 +44,7 @@ __all__ = [
     "ControllerInputState",
     "ControllerPose",
     "ControllerSnapshot",
+    "StreamType",
     "FrameMetadata",
     "Timestamp",
     "ITracker",

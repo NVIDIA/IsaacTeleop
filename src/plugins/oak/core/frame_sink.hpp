@@ -10,6 +10,7 @@
 #include <pusherio/schema_pusher.hpp>
 #include <schema/oak_generated.h>
 
+#include <map>
 #include <memory>
 #include <string>
 
@@ -47,38 +48,35 @@ private:
 };
 
 /**
- * @brief Combined output sink for OAK frames.
+ * @brief Multi-stream output sink for OAK frames.
  *
- * Writes raw H.264 data to a file via RawDataWriter and optionally pushes
- * frame metadata (timestamp + sequence number) via OpenXR tensor extensions.
- *
- * RAII: resources are acquired in constructor and released in destructor.
+ * Owns one RawDataWriter per configured stream and a single MetadataPusher.
+ * on_frame() writes raw data to disk and pushes metadata per frame.
  */
 class FrameSink
 {
 public:
     /**
-     * @brief Construct the frame sink.
-     * @param record_path Full path to the output H.264 recording file.
      * @param collection_id OpenXR tensor collection ID for metadata pushing.
      *                      If empty, metadata pushing is disabled.
-     * @throws std::runtime_error if the parent directory cannot be created or file cannot be opened.
      */
-    FrameSink(const std::string& record_path, const std::string& collection_id = "");
+    explicit FrameSink(const std::string& collection_id = "");
 
-    // Non-copyable, non-movable
     FrameSink(const FrameSink&) = delete;
     FrameSink& operator=(const FrameSink&) = delete;
 
     /**
-     * @brief Process a frame: writes H.264 data to file and pushes metadata via OpenXR.
+     * @brief Register an output stream. Creates a RawDataWriter for the given path.
+     */
+    void add_stream(core::StreamType type, const std::string& output_path);
+
+    /**
+     * @brief Write raw frame data and push metadata.
      */
     void on_frame(const OakFrame& frame);
 
 private:
-    RawDataWriter m_writer;
-
-    // Optional OpenXR metadata pusher
+    std::map<core::StreamType, std::unique_ptr<RawDataWriter>> m_writers;
     std::unique_ptr<MetadataPusher> m_pusher;
 };
 

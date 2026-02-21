@@ -17,7 +17,7 @@ namespace core
 /*!
  * @brief Tracker for reading OAK FrameMetadata FlatBuffer messages via OpenXR tensor extensions.
  *
- * This tracker reads frame metadata (timestamp, sequence_number) pushed by the OAK camera plugin
+ * This tracker reads frame metadata (timestamp, stream) pushed by the OAK camera plugin
  * using the SchemaTracker infrastructure. Both pusher and reader must agree on the
  * collection_id and use the FrameMetadata schema from oak.fbs.
  *

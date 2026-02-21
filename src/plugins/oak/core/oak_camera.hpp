@@ -8,8 +8,8 @@
 
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace plugins
@@ -17,53 +17,54 @@ namespace plugins
 namespace oak
 {
 
-/**
- * @brief OAK specific camera configuration.
- */
+// Forward declaration -- FrameSink is defined in frame_sink.hpp.
+class FrameSink;
+
+// ============================================================================
+// Stream configuration
+// ============================================================================
+
+struct StreamConfig
+{
+    core::StreamType camera;
+    std::string output_path;
+};
+
+// ============================================================================
+// OAK camera configuration and frame types
+// ============================================================================
+
 struct OakConfig
 {
-    int width = 1920;
-    int height = 1080;
-    int fps = 30;
+    std::string device_id = "";
+    float fps = 30;
     int bitrate = 8'000'000;
     int quality = 80;
     int keyframe_frequency = 30;
 };
 
-/**
- * @brief OAK encoded video frame with metadata.
- */
 struct OakFrame
 {
-    /// H.264 encoded frame data
-    std::vector<uint8_t> h264_data;
-
-    /// Frame metadata (timestamp + sequence number) from oak.fbs
+    core::StreamType stream;
+    std::vector<uint8_t> data;
     core::FrameMetadataT metadata;
 };
 
-/**
- * @brief Sensor capabilities detected at runtime by probing the device.
- */
-struct SensorInfo
-{
-    std::string name;
-    dai::ColorCameraProperties::SensorResolution resolution;
-    int max_width;
-    int max_height;
-};
+// ============================================================================
+// OAK camera manager
+// ============================================================================
 
 /**
- * @brief OAK camera manager with hardware H.264 encoding.
+ * @brief Multi-stream OAK camera manager.
  *
- * Uses the DepthAI v2.x C++ library to capture video from OAK cameras
- * and encode to H.264 using the on-device video encoder.
- * Camera starts in constructor and stops in destructor (RAII).
+ * Builds a DepthAI pipeline based on the requested streams (Color, MonoLeft,
+ * MonoRight) and routes captured frames to a FrameSink. Each call to
+ * update() polls every active output queue and dispatches ready frames.
  */
 class OakCamera
 {
 public:
-    explicit OakCamera(const OakConfig& config = OakConfig{});
+    OakCamera(const OakConfig& config, const std::vector<StreamConfig>& streams, FrameSink& sink);
 
     OakCamera(const OakCamera&) = delete;
     OakCamera& operator=(const OakCamera&) = delete;
@@ -71,19 +72,21 @@ public:
     OakCamera& operator=(OakCamera&&) = delete;
 
     /**
-     * @brief Get the next available encoded frame (non-blocking).
-     * @return Frame with H.264 data and timestamps, or empty optional if no frame available.
+     * @brief Poll all active queues and dispatch ready frames to FrameSink.
+     * @return Number of frames processed this call.
      */
-    std::optional<OakFrame> get_frame();
+    size_t update();
 
 private:
-    static dai::DeviceInfo find_device_with_retry(int max_attempts = 5, int retry_delay_ms = 1000);
-    static SensorInfo probe_color_sensor(const dai::DeviceInfo& device_info);
-    void create_pipeline(const OakConfig& config, const SensorInfo& sensor);
+    dai::DeviceInfo find_device(const std::string& device_id);
+    void create_pipeline(const OakConfig& config,
+                         const std::vector<StreamConfig>& streams,
+                         const std::unordered_map<dai::CameraBoardSocket, std::string>& sensors);
 
     std::shared_ptr<dai::Pipeline> m_pipeline;
     std::shared_ptr<dai::Device> m_device;
-    std::shared_ptr<dai::DataOutputQueue> m_h264_queue;
+    std::map<core::StreamType, std::shared_ptr<dai::DataOutputQueue>> m_queues;
+    FrameSink& m_sink;
 };
 
 } // namespace oak

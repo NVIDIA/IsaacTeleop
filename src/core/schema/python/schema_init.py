@@ -30,6 +30,7 @@ from ._schema import (
     # Pedals-related types.
     Generic3AxisPedalOutput,
     # Camera-related types.
+    StreamType,
     FrameMetadata,
     # Full body-related types.
     BodyJointPico,
@@ -62,6 +63,7 @@ __all__ = [
     # Pedals types.
     "Generic3AxisPedalOutput",
     # Camera types.
+    "StreamType",
     "FrameMetadata",
     # Full body types.
     "BodyJointPose",
