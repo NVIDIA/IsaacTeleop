@@ -38,7 +38,7 @@ pre-commit install
 After that, pre-commit runs automatically on `git commit`. To run on all files manually:
 
 ```bash
-pre-commit run --all-files
+SKIP=check-copyright-year pre-commit run --all-files
 ```
 
 To run only Ruff (check + fix and format):
