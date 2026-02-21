@@ -37,6 +37,7 @@ import { overridePressureObserver } from '@helpers/overridePressureObserver';
 import { kPerformanceOptions } from '@helpers/PerformanceProfiles';
 import CloudXRComponent from '@helpers/react/CloudXRComponent';
 import { SimpleEnvironment } from '@helpers/react/SimpleEnvironment';
+import { getControlPanelPositionVector } from '@helpers/react/utils';
 import * as CloudXR from '@nvidia/cloudxr';
 import { signal, computed } from '@preact/signals-react';
 import { Canvas } from '@react-three/fiber';
@@ -66,6 +67,12 @@ const streamingFpsText = computed(() =>
 const poseToRenderText = computed(() =>
   streamingMetrics.value ? `${streamingMetrics.value.latencyMs.toFixed(1)}ms` : '-'
 );
+
+const CONTROL_PANEL_LAYOUT = {
+  distance: 1.8,
+  height: 1.85,
+  angleDegrees: 70,
+} as const;
 
 // Override PressureObserver early to catch errors from buggy browser implementations
 overridePressureObserver();
@@ -604,6 +611,13 @@ function App() {
     [cloudXR2DUI, configVersion]
   );
 
+  // Calculate panel position from config and memoize it as the vector used in CloudXR3DUI.
+  const controlPanelPositionVector = useMemo(
+    () =>
+      getControlPanelPositionVector(config?.controlPanelPosition ?? 'center', CONTROL_PANEL_LAYOUT),
+    [config?.controlPanelPosition]
+  );
+
   // Sync XR mode state to body class for CSS styling
   useEffect(() => {
     if (isXRMode) {
@@ -744,12 +758,12 @@ function App() {
                       ? `Starting in ${countdownRemaining} sec...`
                       : 'Play'
                 }
-                playDisabled={isCountingDown || isTeleopRunning}
+                playInProgress={isCountingDown || isTeleopRunning}
                 countdownSeconds={countdownDuration}
                 onCountdownIncrease={handleIncreaseCountdown}
                 onCountdownDecrease={handleDecreaseCountdown}
                 countdownDisabled={isCountingDown}
-                position={[0, 1.6, -1.8]}
+                position={controlPanelPositionVector}
                 rotation={[0, 0, 0]}
                 renderFpsText={renderFpsText}
                 streamingFpsText={streamingFpsText}
