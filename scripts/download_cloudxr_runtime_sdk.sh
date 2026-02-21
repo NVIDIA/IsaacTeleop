@@ -11,10 +11,19 @@
 # 1) NGC (default): requires ngc CLI; downloads from public or private NGC.
 # 2) Local tarball: place CloudXR-<VERSION>-Linux-<ARCH>-sdk.tar.gz in deps/cloudxr/.
 
-set -e
+set -Eeuo pipefail
+
+on_error() {
+    local exit_code="$?"
+    local line_no="$1"
+    echo "Error: ${BASH_SOURCE[0]} failed at line ${line_no} (exit ${exit_code})" >&2
+    exit "$exit_code"
+}
+
+trap 'on_error $LINENO' ERR
 
 # Ensure we're in the git root
-if [ -z "$GIT_ROOT" ]; then
+if [ -z "${GIT_ROOT:-}" ]; then
     GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
     if [ -z "$GIT_ROOT" ]; then
         echo "Error: Could not determine git root. Set GIT_ROOT before sourcing." >&2
@@ -28,7 +37,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-if [ -z "$CXR_RUNTIME_SDK_VERSION" ]; then
+if [ -z "${CXR_RUNTIME_SDK_VERSION:-}" ]; then
     echo -e "${RED}Error: CXR_RUNTIME_SDK_VERSION is not set${NC}"
     exit 1
 fi
@@ -100,7 +109,7 @@ install_from_public_ngc() {
         return 1
     fi
 
-    DOWNLOADED_DIR=$(ls -d cloudxr-runtime_v* 2>/dev/null | head -n1)
+    local DOWNLOADED_DIR="$(basename "$(find . -mindepth 1 -maxdepth 1 -type d -name 'cloudxr-runtime_v*' -print -quit)")"
     if [ -z "$DOWNLOADED_DIR" ]; then
         echo -e "${RED}Error: Failed to find downloaded SDK directory${NC}"
         return 1
@@ -140,7 +149,7 @@ install_from_private_ngc() {
     echo -e "${YELLOW}[1/2] Downloading CloudXR Runtime SDK from NGC...${NC}"
     cd "$SDK_DOWNLOAD_DIR"
     ngc registry resource download-version \
-        --org $NGC_ORG \
+        --org "$NGC_ORG" \
         --team no-team \
         --file "$NGC_SDK_FILE" \
         "$SDK_RESOURCE"

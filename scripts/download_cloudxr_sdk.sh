@@ -12,10 +12,19 @@
 #    The tarball must extract to the same layout as the NGC release: root must contain
 #    isaac/ and nvidia-cloudxr-${CXR_WEB_SDK_VERSION}.tgz (optionally inside a single top-level directory).
 
-set -e
+set -Eeuo pipefail
+
+on_error() {
+    local exit_code="$?"
+    local line_no="$1"
+    echo "Error: ${BASH_SOURCE[0]} failed at line ${line_no} (exit ${exit_code})" >&2
+    exit "$exit_code"
+}
+
+trap 'on_error $LINENO' ERR
 
 # Ensure we're in the git root
-if [ -z "$GIT_ROOT" ]; then
+if [ -z "${GIT_ROOT:-}" ]; then
     GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
     if [ -z "$GIT_ROOT" ]; then
         echo "Error: Could not determine git root. Set GIT_ROOT before sourcing." >&2
@@ -29,7 +38,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-if [ -z "$CXR_WEB_SDK_VERSION" ]; then
+if [ -z "${CXR_WEB_SDK_VERSION:-}" ]; then
     echo -e "${RED}Error: CXR_WEB_SDK_VERSION is not set${NC}"
     exit 1
 fi
@@ -110,7 +119,7 @@ install_from_public_ngc() {
         return 1
     fi
 
-    DOWNLOADED_DIR=$(ls -d cloudxr-js-early-access_v* 2>/dev/null | head -n1)
+    local DOWNLOADED_DIR="$(basename "$(find . -mindepth 1 -maxdepth 1 -type d -name 'cloudxr-js-early-access_v*' -print -quit)")"
     if [ -z "$DOWNLOADED_DIR" ]; then
         echo -e "${RED}Error: Failed to find downloaded SDK directory${NC}"
         return 1
@@ -148,12 +157,12 @@ install_from_private_ngc() {
     echo -e "${YELLOW}[1/3] Downloading CloudXR Web SDK from NGC...${NC}"
     cd "$SDK_DOWNLOAD_DIR"
     ngc registry resource download-version \
-        --org $NGC_ORG \
+        --org "$NGC_ORG" \
         --team no-team \
         --file "$SDK_FILE" \
         "$SDK_RESOURCE"
 
-    DOWNLOADED_DIR=$(ls -d cloudxr-js_v* 2>/dev/null | head -n1)
+    local DOWNLOADED_DIR="$(basename "$(find . -mindepth 1 -maxdepth 1 -type d -name 'cloudxr-js_v*' -print -quit)")"
     if [ -z "$DOWNLOADED_DIR" ]; then
         echo -e "${RED}Error: Failed to find downloaded SDK directory${NC}"
         return 1
