@@ -57,7 +57,7 @@ void FrameSink::add_stream(core::StreamType type, const std::string& output_path
         std::filesystem::create_directories(parent);
 
     m_writers[type] = std::make_unique<RawDataWriter>(output_path);
-    std::cout << "  " << core::EnumNameStreamType(type) << " -> " << output_path << std::endl;
+    std::cout << "Add stream:  " << core::EnumNameStreamType(type) << " -> " << output_path << std::endl;
 }
 
 void FrameSink::on_frame(const OakFrame& frame)

@@ -158,6 +158,10 @@ try
         {
             collection_id = arg.substr(16);
         }
+        else if (arg.find("--plugin-root-id=") == 0)
+        {
+            // plugin-root-id is a default argument, so we don't need to store it
+        }
         else
         {
             std::cerr << "Unknown option: " << arg << std::endl;

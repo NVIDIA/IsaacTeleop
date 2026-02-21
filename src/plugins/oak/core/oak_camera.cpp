@@ -32,7 +32,6 @@ OakCamera::OakCamera(const OakConfig& config, const std::vector<StreamConfig>& s
     std::cout << "OAK Camera: " << config.fps << " fps, " << (config.bitrate / 1'000'000.0) << " Mbps" << std::endl;
     for (const auto& s : streams)
     {
-        std::cout << "Add Stream: " << core::EnumNameStreamType(s.camera) << std::endl;
         m_sink.add_stream(s.camera, s.output_path);
     }
 
@@ -42,6 +41,10 @@ OakCamera::OakCamera(const OakConfig& config, const std::vector<StreamConfig>& s
     std::cout << "Device connected: " << m_device->getMxId() << std::endl;
 
     auto sensors = m_device->getCameraSensorNames();
+    std::cout << "Sensors found: " << sensors.size() << std::endl;
+    for (const auto& [socket, name] : sensors)
+        std::cout << "  Socket " << static_cast<int>(socket) << ": " << name << std::endl;
+
     create_pipeline(config, streams, sensors);
 
     m_device->startPipeline(*m_pipeline);
