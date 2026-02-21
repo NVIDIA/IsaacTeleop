@@ -11,6 +11,18 @@ SPDX-FileCopyrightText = "Copyright (c) NVIDIA CORPORATION & AFFILIATES. All rig
 SPDX-License-Identifier = "Apache-2.0"
 
 [[annotations]]
+path = "SECURITY.md"
+precedence = "override"
+SPDX-FileCopyrightText = "Copyright (c) NVIDIA CORPORATION & AFFILIATES. All rights reserved."
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = "CODE_OF_CONDUCT.md"
+precedence = "override"
+SPDX-FileCopyrightText = "Copyright (c) NVIDIA CORPORATION & AFFILIATES. All rights reserved."
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
 path = "examples/cxrjs/**"
 precedence = "override"
 SPDX-FileCopyrightText = "Copyright (c) NVIDIA CORPORATION & AFFILIATES. All rights reserved."
