@@ -46,9 +46,6 @@ COPY runtime/data/10_nvidia.json /usr/share/glvnd/egl_vendor.d/
 COPY runtime/data/nvidia_icd.json /etc/vulkan/icd.d/
 ENV VK_DRIVER_FILES=/etc/vulkan/icd.d/nvidia_icd.json
 
-RUN mkdir -p /openxr/run && chmod 777 /openxr /openxr/run && \
-    touch /var/run/utmp
-
 WORKDIR /opt/cloudxr
 
 COPY runtime/main.py .
