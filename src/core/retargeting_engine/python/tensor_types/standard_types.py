@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -245,3 +245,40 @@ def RobotHandJoints(name: str, joint_names: list[str]) -> TensorGroupType:
         TensorGroupType for robot hand joints
     """
     return TensorGroupType(name, [FloatType(joint_name) for joint_name in joint_names])
+
+
+# ============================================================================
+# Pedal Types
+# ============================================================================
+
+
+def Generic3AxisPedalInput() -> TensorGroupType:
+    """
+    Standard TensorGroupType for generic 3-axis foot pedal data.
+
+    Matches the Generic3AxisPedalOutput schema from pedals.fbs. Used as input
+    to foot-pedal retargeters (e.g., FootPedalRootCmdRetargeter) for lower-body
+    control. Axis values are typically in [-1, 1].
+
+    Fields:
+        - left_pedal: float - Left pedal axis [-1.0 to 1.0]
+        - right_pedal: float - Right pedal axis [-1.0 to 1.0]
+        - rudder: float - Rudder axis [-1.0 to 1.0]
+        - is_valid: bool - Whether pedal data is valid
+        - timestamp: int - Timestamp (e.g., XrTime or device clock)
+
+    Returns:
+        TensorGroupType for pedal data
+
+    Schema reference: TeleopCore/src/core/schema/fbs/pedals.fbs
+    """
+    return TensorGroupType(
+        "generic_3axis_pedal",
+        [
+            FloatType("pedal_left_pedal"),
+            FloatType("pedal_right_pedal"),
+            FloatType("pedal_rudder"),
+            BoolType("pedal_is_valid"),
+            IntType("pedal_timestamp"),
+        ],
+    )

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -11,7 +11,12 @@ before conversion to the standard retargeting engine format.
 from typing import Any
 from ..interface.tensor_type import TensorType
 from ..interface.tensor_group_type import TensorGroupType
-from isaacteleop.schema import HeadPoseT, HandPoseT, ControllerSnapshot
+from isaacteleop.schema import (
+    HeadPoseT,
+    HandPoseT,
+    ControllerSnapshot,
+    Generic3AxisPedalOutput,
+)
 
 
 class HeadPoseTType(TensorType):
@@ -110,6 +115,38 @@ class ControllerSnapshotType(TensorType):
             )
 
 
+class Generic3AxisPedalOutputType(TensorType):
+    """Generic3AxisPedalOutput flatbuffer schema type (Generic3AxisPedalOutputT from tracker)."""
+
+    def __init__(self, name: str) -> None:
+        """
+        Initialize a Generic3AxisPedalOutput type.
+
+        Args:
+            name: Name for this tensor
+        """
+        super().__init__(name)
+
+    def _check_instance_compatibility(self, other: TensorType) -> bool:
+        """Generic3AxisPedalOutput types are always compatible with other Generic3AxisPedalOutput types."""
+        assert isinstance(other, Generic3AxisPedalOutputType), (
+            f"Expected Generic3AxisPedalOutputType, got {type(other).__name__}"
+        )
+        return True
+
+    def validate_value(self, value: Any) -> None:
+        """
+        Validate if the given value is a Generic3AxisPedalOutput schema object.
+
+        Raises:
+            TypeError: If value is not a Generic3AxisPedalOutput
+        """
+        if not isinstance(value, Generic3AxisPedalOutput):
+            raise TypeError(
+                f"Expected Generic3AxisPedalOutput for '{self.name}', got {type(value).__name__}"
+            )
+
+
 def DeviceIOHeadPose() -> TensorGroupType:
     """Raw head pose data from DeviceIO HeadTracker.
 
@@ -136,4 +173,16 @@ def DeviceIOControllerSnapshot() -> TensorGroupType:
     """
     return TensorGroupType(
         "deviceio_controller_snapshot", [ControllerSnapshotType("controller_data")]
+    )
+
+
+def DeviceIOGeneric3AxisPedalOutput() -> TensorGroupType:
+    """Raw pedal data from DeviceIO Generic3AxisPedalTracker.
+
+    Contains:
+        pedal_data: Generic3AxisPedalOutput (Generic3AxisPedalOutputT) flatbuffer schema object
+    """
+    return TensorGroupType(
+        "deviceio_generic_3axis_pedal_output",
+        [Generic3AxisPedalOutputType("pedal_data")],
     )

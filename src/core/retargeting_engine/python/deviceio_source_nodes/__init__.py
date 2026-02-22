@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """DeviceIO Source Nodes - Stateless converters from DeviceIO to retargeting engine formats."""
@@ -7,13 +7,16 @@ from .interface import IDeviceIOSource
 from .head_source import HeadSource
 from .hands_source import HandsSource
 from .controllers_source import ControllersSource
+from .pedals_source import Generic3AxisPedalSource
 from .deviceio_tensor_types import (
     HeadPoseTType,
     HandPoseTType,
     ControllerSnapshotType,
+    Generic3AxisPedalOutputType,
     DeviceIOHeadPose,
     DeviceIOHandPose,
     DeviceIOControllerSnapshot,
+    DeviceIOGeneric3AxisPedalOutput,
 )
 
 __all__ = [
@@ -21,10 +24,13 @@ __all__ = [
     "HeadSource",
     "HandsSource",
     "ControllersSource",
+    "Generic3AxisPedalSource",
     "HeadPoseTType",
     "HandPoseTType",
     "ControllerSnapshotType",
+    "Generic3AxisPedalOutputType",
     "DeviceIOHeadPose",
     "DeviceIOHandPose",
     "DeviceIOControllerSnapshot",
+    "DeviceIOGeneric3AxisPedalOutput",
 ]
