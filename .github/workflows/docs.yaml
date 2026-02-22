@@ -9,9 +9,14 @@ name: Build & deploy docs
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - 'release/**'
   pull_request:
     types: [opened, synchronize, reopened]
+    paths:
+      - "docs/**"
+      - ".github/workflows/docs.yaml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
