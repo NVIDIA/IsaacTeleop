@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """Basic tensor types for the retargeting engine."""
@@ -10,12 +10,14 @@ from .standard_types import (
     HeadPose,
     ControllerInput,
     TransformMatrix,
+    Generic3AxisPedalInput,
     NUM_HAND_JOINTS,
     RobotHandJoints,
 )
 from .indices import (
     HandInputIndex,
     ControllerInputIndex,
+    Generic3AxisPedalInputIndex,
     HandJointIndex,
 )
 
@@ -31,10 +33,12 @@ __all__ = [
     "HeadPose",
     "ControllerInput",
     "TransformMatrix",
+    "Generic3AxisPedalInput",
     "NUM_HAND_JOINTS",
     "RobotHandJoints",
     # Indices
     "HandInputIndex",
     "ControllerInputIndex",
+    "Generic3AxisPedalInputIndex",
     "HandJointIndex",
 ]

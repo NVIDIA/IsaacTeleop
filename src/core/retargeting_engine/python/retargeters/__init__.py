@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -14,6 +14,7 @@ Available Retargeters:
     - TriHandBiManualMotionControllerRetargeter: Bimanual version of TriHandMotionControllerRetargeter
     - LocomotionFixedRootCmdRetargeter: Fixed root command (standing still)
     - LocomotionRootCmdRetargeter: Locomotion from controller inputs
+    - FootPedalRootCmdRetargeter: Root command from 3-axis foot pedal (horizontal/vertical + rudder)
     - GripperRetargeter: Pinch-based gripper control
     - Se3AbsRetargeter: Absolute EE pose control
     - Se3RelRetargeter: Relative EE delta control
@@ -37,6 +38,11 @@ from .locomotion_retargeter import (
     LocomotionFixedRootCmdRetargeterConfig,
     LocomotionRootCmdRetargeter,
     LocomotionRootCmdRetargeterConfig,
+)
+
+from .foot_pedal_retargeter import (
+    FootPedalRootCmdRetargeter,
+    FootPedalRootCmdRetargeterConfig,
 )
 
 from .gripper_retargeter import (
@@ -66,6 +72,8 @@ __all__ = [
     "LocomotionFixedRootCmdRetargeterConfig",
     "LocomotionRootCmdRetargeter",
     "LocomotionRootCmdRetargeterConfig",
+    "FootPedalRootCmdRetargeter",
+    "FootPedalRootCmdRetargeterConfig",
     # Manipulator retargeters
     "GripperRetargeter",
     "GripperRetargeterConfig",

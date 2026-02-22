@@ -4,6 +4,7 @@
 #include <deviceio/controller_tracker.hpp>
 #include <deviceio/frame_metadata_tracker_oak.hpp>
 #include <deviceio/full_body_tracker_pico.hpp>
+#include <deviceio/generic_3axis_pedal_tracker.hpp>
 #include <deviceio/hand_tracker.hpp>
 #include <deviceio/head_tracker.hpp>
 #include <deviceio_py_utils/session.hpp>
@@ -65,6 +66,19 @@ PYBIND11_MODULE(_deviceio, m)
             { return self.get_data(session.native()); },
             py::arg("session"), py::return_value_policy::reference_internal,
             "Get composed CameraMetadataOak containing all tracked streams");
+
+    // Generic3AxisPedalTracker class
+    py::class_<core::Generic3AxisPedalTracker, core::ITracker, std::shared_ptr<core::Generic3AxisPedalTracker>>(
+        m, "Generic3AxisPedalTracker")
+        .def(py::init<const std::string&, size_t>(), py::arg("collection_id"),
+             py::arg("max_flatbuffer_size") = core::Generic3AxisPedalTracker::DEFAULT_MAX_FLATBUFFER_SIZE,
+             "Construct a Generic3AxisPedalTracker for the given tensor collection ID")
+        .def(
+            "get_pedal_data",
+            [](core::Generic3AxisPedalTracker& self, PyDeviceIOSession& session) -> const core::Generic3AxisPedalOutputT&
+            { return self.get_data(session.native()); },
+            py::arg("session"), py::return_value_policy::reference_internal,
+            "Get the current foot pedal data (Generic3AxisPedalOutput) for this session");
 
     // FullBodyTrackerPico class (PICO XR_BD_body_tracking extension)
     py::class_<core::FullBodyTrackerPico, core::ITracker, std::shared_ptr<core::FullBodyTrackerPico>>(
