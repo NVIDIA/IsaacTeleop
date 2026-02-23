@@ -35,6 +35,8 @@ static_assert(core::LocomotionCommand::VT_TIMESTAMP == VT(0));
 static_assert(core::LocomotionCommand::VT_VELOCITY == VT(1));
 static_assert(core::LocomotionCommand::VT_POSE == VT(2));
 
+static_assert(core::LocomotionCommandRecord::VT_DATA == VT(0));
+
 // =============================================================================
 // Twist Tests (struct)
 // =============================================================================

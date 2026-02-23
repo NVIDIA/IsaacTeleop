@@ -179,8 +179,11 @@ const FullBodyPosePicoT& FullBodyTrackerPicoImpl::get_body_pose() const
 
 Timestamp FullBodyTrackerPicoImpl::serialize(flatbuffers::FlatBufferBuilder& builder, size_t /*channel_index*/) const
 {
-    auto offset = FullBodyPosePico::Pack(builder, &body_pose_);
-    builder.Finish(offset);
+    auto data_offset = FullBodyPosePico::Pack(builder, &body_pose_);
+
+    FullBodyPosePicoRecordBuilder record_builder(builder);
+    record_builder.add_data(data_offset);
+    builder.Finish(record_builder.Finish());
 
     if (body_pose_.timestamp)
     {

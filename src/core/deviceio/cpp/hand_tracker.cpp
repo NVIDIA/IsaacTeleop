@@ -99,8 +99,11 @@ Timestamp HandTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, 
 
     const HandPoseT& hand = (channel_index == 0) ? left_hand_ : right_hand_;
 
-    auto offset = HandPose::Pack(builder, &hand);
-    builder.Finish(offset);
+    auto data_offset = HandPose::Pack(builder, &hand);
+
+    HandPoseRecordBuilder record_builder(builder);
+    record_builder.add_data(data_offset);
+    builder.Finish(record_builder.Finish());
 
     if (hand.timestamp)
     {

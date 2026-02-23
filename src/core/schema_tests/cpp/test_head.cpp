@@ -22,6 +22,8 @@ static_assert(core::HeadPose::VT_POSE == VT(0));
 static_assert(core::HeadPose::VT_IS_VALID == VT(1));
 static_assert(core::HeadPose::VT_TIMESTAMP == VT(2));
 
+static_assert(core::HeadPoseRecord::VT_DATA == VT(0));
+
 // =============================================================================
 // Compile-time verification of FlatBuffer field types.
 // These ensure schema field types remain stable across changes.
@@ -121,7 +123,7 @@ TEST_CASE("HeadPoseT serialization and deserialization", "[head][flatbuffers]")
 
     // Deserialize.
     auto buffer = builder.GetBufferPointer();
-    auto deserialized = core::GetHeadPose(buffer);
+    auto deserialized = flatbuffers::GetRoot<core::HeadPose>(buffer);
 
     // Verify.
     REQUIRE(deserialized->pose() != nullptr);
@@ -151,7 +153,7 @@ TEST_CASE("HeadPoseT can be unpacked from buffer", "[head][flatbuffers]")
 
     // Unpack to HeadPoseT.
     auto buffer = builder.GetBufferPointer();
-    auto head_pose_fb = core::GetHeadPose(buffer);
+    auto head_pose_fb = flatbuffers::GetRoot<core::HeadPose>(buffer);
     auto unpacked = std::make_unique<core::HeadPoseT>();
     head_pose_fb->UnPackTo(unpacked.get());
 

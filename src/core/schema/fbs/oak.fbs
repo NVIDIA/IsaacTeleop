@@ -21,4 +21,13 @@ table FrameMetadataOak {
   sequence_number: uint64 (id: 2);
 }
 
-root_type FrameMetadataOak;
+// MCAP recording wrapper for FrameMetadataOak.
+//
+// Record types are the root types written to MCAP channels by the McapRecorder.
+// Trackers serialize into Record types via their serialize() method, but the
+// public query API returns the inner data type directly.
+table FrameMetadataOakRecord {
+    data: FrameMetadataOak (id: 0);
+}
+
+root_type FrameMetadataOakRecord;

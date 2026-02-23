@@ -34,8 +34,8 @@ public:
 
     std::string_view get_schema_text() const override
     {
-        return std::string_view(
-            reinterpret_cast<const char*>(ControllerDataBinarySchema::data()), ControllerDataBinarySchema::size());
+        return std::string_view(reinterpret_cast<const char*>(ControllerSnapshotRecordBinarySchema::data()),
+                                ControllerSnapshotRecordBinarySchema::size());
     }
 
     std::vector<std::string> get_record_channels() const override
@@ -49,7 +49,7 @@ public:
 
 private:
     static constexpr const char* TRACKER_NAME = "ControllerTracker";
-    static constexpr const char* SCHEMA_NAME = "core.ControllerData";
+    static constexpr const char* SCHEMA_NAME = "core.ControllerSnapshotRecord";
 
     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
 

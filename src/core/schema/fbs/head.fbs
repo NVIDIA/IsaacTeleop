@@ -18,4 +18,13 @@ table HeadPose {
     timestamp: Timestamp (id: 2);
 }
 
-root_type HeadPose;
+// MCAP recording wrapper for HeadPose.
+//
+// Record types are the root types written to MCAP channels by the McapRecorder.
+// Trackers serialize into Record types via their serialize() method, but the
+// public query API returns the inner data type directly.
+table HeadPoseRecord {
+    data: HeadPose (id: 0);
+}
+
+root_type HeadPoseRecord;

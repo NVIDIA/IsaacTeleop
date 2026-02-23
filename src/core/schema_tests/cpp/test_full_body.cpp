@@ -23,6 +23,8 @@ static_assert(core::FullBodyPosePico::VT_IS_ACTIVE == VT(0));
 static_assert(core::FullBodyPosePico::VT_TIMESTAMP == VT(1));
 static_assert(core::FullBodyPosePico::VT_JOINTS == VT(2));
 
+static_assert(core::FullBodyPosePicoRecord::VT_DATA == VT(0));
+
 // =============================================================================
 // Compile-time verification of FlatBuffer field types.
 // These ensure schema field types remain stable across changes.
@@ -207,7 +209,7 @@ TEST_CASE("FullBodyPosePicoT serialization and deserialization", "[full_body][fl
 
     // Deserialize.
     auto buffer = builder.GetBufferPointer();
-    auto deserialized = core::GetFullBodyPosePico(buffer);
+    auto deserialized = flatbuffers::GetRoot<core::FullBodyPosePico>(buffer);
 
     // Verify.
     REQUIRE(deserialized->joints() != nullptr);
@@ -251,7 +253,7 @@ TEST_CASE("FullBodyPosePicoT can be unpacked from buffer", "[full_body][flatbuff
 
     // Unpack to FullBodyPosePicoT.
     auto buffer = builder.GetBufferPointer();
-    auto body_pose_fb = core::GetFullBodyPosePico(buffer);
+    auto body_pose_fb = flatbuffers::GetRoot<core::FullBodyPosePico>(buffer);
     auto unpacked = std::make_unique<core::FullBodyPosePicoT>();
     body_pose_fb->UnPackTo(unpacked.get());
 
