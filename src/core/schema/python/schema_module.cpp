@@ -39,7 +39,7 @@ PYBIND11_MODULE(_schema, m)
     // Bind pedals types (Generic3AxisPedalOutput table).
     core::bind_pedals(m);
 
-    // Bind OAK types (StreamType enum, FrameMetadata table).
+    // Bind OAK types (StreamType enum, FrameMetadataOak table).
     core::bind_oak(m);
 
     // Bind full body types (BodyJointPose, BodyJointsPico structs, FullBodyPosePicoT table).

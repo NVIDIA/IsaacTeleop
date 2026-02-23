@@ -64,7 +64,7 @@ struct SchemaTrackerConfig
  *         return SchemaTracker::get_required_extensions();
  *     }
  *     std::string_view get_name() const override { return "LocomotionTracker"; }
- *     std::string_view get_schema_name() const override { return "core.LocomotionCommand"; }
+ *     std::string_view get_schema_name() const override { return "core.LocomotionCommandRecord"; }
  *     std::string_view get_schema_text() const override {
  *         return std::string_view(
  *             reinterpret_cast<const char*>(LocomotionBinarySchema::data()),
@@ -89,7 +89,7 @@ struct SchemaTrackerConfig
  *
  *         bool update(XrTime time) override {
  *             if (m_schema_reader.read_buffer(buffer_)) {
- *                 auto fb = GetLocomotionCommand(buffer_.data());
+ *                 auto fb = flatbuffers::GetRoot<LocomotionCommand>(buffer_.data());
  *                 if (fb) {
  *                     fb->UnPackTo(&data_);
  *                     return true;
@@ -101,8 +101,10 @@ struct SchemaTrackerConfig
  *         Timestamp serialize(flatbuffers::FlatBufferBuilder& builder,
  *                            size_t channel_index) const override
  *         {
- *             auto offset = LocomotionCommand::Pack(builder, &data_);
- *             builder.Finish(offset);
+ *             auto data_offset = LocomotionCommand::Pack(builder, &data_);
+ *             LocomotionCommandRecordBuilder record_builder(builder);
+ *             record_builder.add_data(data_offset);
+ *             builder.Finish(record_builder.Finish());
  *             return data_.timestamp ? *data_.timestamp : Timestamp{};
  *         }
  *

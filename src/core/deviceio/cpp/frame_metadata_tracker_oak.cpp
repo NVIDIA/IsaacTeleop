@@ -62,8 +62,11 @@ public:
         }
 
         const auto& data = m_streams[channel_index].data;
-        auto offset = FrameMetadataOak::Pack(builder, &data);
-        builder.Finish(offset);
+        auto data_offset = FrameMetadataOak::Pack(builder, &data);
+
+        FrameMetadataOakRecordBuilder record_builder(builder);
+        record_builder.add_data(data_offset);
+        builder.Finish(record_builder.Finish());
 
         if (data.timestamp)
             return *data.timestamp;
@@ -122,13 +125,13 @@ std::string_view FrameMetadataTrackerOak::get_name() const
 
 std::string_view FrameMetadataTrackerOak::get_schema_name() const
 {
-    return "core.FrameMetadataOak";
+    return "core.FrameMetadataOakRecord";
 }
 
 std::string_view FrameMetadataTrackerOak::get_schema_text() const
 {
-    return std::string_view(
-        reinterpret_cast<const char*>(FrameMetadataOakBinarySchema::data()), FrameMetadataOakBinarySchema::size());
+    return std::string_view(reinterpret_cast<const char*>(FrameMetadataOakRecordBinarySchema::data()),
+                            FrameMetadataOakRecordBinarySchema::size());
 }
 
 const FrameMetadataOakT& FrameMetadataTrackerOak::get_stream_data(const DeviceIOSession& session, size_t stream_index) const

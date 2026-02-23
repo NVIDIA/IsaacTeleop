@@ -22,6 +22,8 @@ static_assert(core::Generic3AxisPedalOutput::VT_LEFT_PEDAL == VT(2));
 static_assert(core::Generic3AxisPedalOutput::VT_RIGHT_PEDAL == VT(3));
 static_assert(core::Generic3AxisPedalOutput::VT_RUDDER == VT(4));
 
+static_assert(core::Generic3AxisPedalOutputRecord::VT_DATA == VT(0));
+
 // =============================================================================
 // Generic3AxisPedalOutputT Tests (table native type)
 // =============================================================================

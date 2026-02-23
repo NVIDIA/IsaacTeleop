@@ -13,14 +13,14 @@
 #include <type_traits>
 
 // =============================================================================
-// Compile-time verification of FlatBuffer field IDs for ControllerData table.
+// Compile-time verification of FlatBuffer field IDs for ControllerSnapshotRecord table.
 // These ensure schema field IDs remain stable across changes.
 // VT values are computed as: (field_id + 2) * 2.
 // =============================================================================
 #define VT(field) (field + 2) * 2
 
-// ControllerData field IDs
-static_assert(core::ControllerData::VT_DATA == VT(0));
+// ControllerSnapshotRecord field IDs
+static_assert(core::ControllerSnapshotRecord::VT_DATA == VT(0));
 
 // =============================================================================
 // Compile-time verification that controller types are structs (not tables)
@@ -151,19 +151,19 @@ TEST_CASE("ControllerSnapshot can store complete controller state", "[controller
 }
 
 // =============================================================================
-// ControllerDataT Tests (table native type)
+// ControllerSnapshotRecordT Tests (table native type)
 // =============================================================================
-TEST_CASE("ControllerDataT default construction", "[controller][native]")
+TEST_CASE("ControllerSnapshotRecordT default construction", "[controller][native]")
 {
-    core::ControllerDataT controller_data;
+    core::ControllerSnapshotRecordT record;
 
-    CHECK(controller_data.data == nullptr);
+    CHECK(record.data == nullptr);
 }
 
 // =============================================================================
-// ControllerData Serialization Tests
+// ControllerSnapshotRecord Serialization Tests
 // =============================================================================
-TEST_CASE("ControllerData serialization and deserialization", "[controller][serialize]")
+TEST_CASE("ControllerSnapshotRecord serialization and deserialization", "[controller][serialize]")
 {
     flatbuffers::FlatBufferBuilder builder;
 
@@ -176,13 +176,13 @@ TEST_CASE("ControllerData serialization and deserialization", "[controller][seri
     core::Timestamp timestamp(1000, 2000);
     core::ControllerSnapshot snapshot(grip, grip, inputs, true, timestamp);
 
-    // Serialize using the ControllerData builder
-    core::ControllerDataBuilder data_builder(builder);
-    data_builder.add_data(&snapshot);
-    builder.Finish(data_builder.Finish());
+    // Serialize using the Record builder
+    core::ControllerSnapshotRecordBuilder record_builder(builder);
+    record_builder.add_data(&snapshot);
+    builder.Finish(record_builder.Finish());
 
     // Deserialize
-    auto* deserialized = flatbuffers::GetRoot<core::ControllerData>(builder.GetBufferPointer());
+    auto* deserialized = flatbuffers::GetRoot<core::ControllerSnapshotRecord>(builder.GetBufferPointer());
 
     // Verify
     CHECK(deserialized->data() != nullptr);
@@ -190,21 +190,21 @@ TEST_CASE("ControllerData serialization and deserialization", "[controller][seri
     CHECK(deserialized->data()->inputs().primary_click() == true);
 }
 
-TEST_CASE("ControllerData can be unpacked from buffer", "[controller][serialize]")
+TEST_CASE("ControllerSnapshotRecord can be unpacked from buffer", "[controller][serialize]")
 {
     flatbuffers::FlatBufferBuilder builder;
 
     core::ControllerSnapshot snapshot;
 
-    core::ControllerDataBuilder data_builder(builder);
-    data_builder.add_data(&snapshot);
-    builder.Finish(data_builder.Finish());
+    core::ControllerSnapshotRecordBuilder record_builder(builder);
+    record_builder.add_data(&snapshot);
+    builder.Finish(record_builder.Finish());
 
     // Deserialize to table
-    auto* table = flatbuffers::GetRoot<core::ControllerData>(builder.GetBufferPointer());
+    auto* table = flatbuffers::GetRoot<core::ControllerSnapshotRecord>(builder.GetBufferPointer());
 
     // Unpack to native
-    auto unpacked = std::make_unique<core::ControllerDataT>();
+    auto unpacked = std::make_unique<core::ControllerSnapshotRecordT>();
     table->UnPackTo(unpacked.get());
 
     // Verify

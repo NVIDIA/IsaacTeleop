@@ -24,4 +24,13 @@ table Generic3AxisPedalOutput {
   rudder: float (id: 4);
 }
 
-root_type Generic3AxisPedalOutput;
+// MCAP recording wrapper for Generic3AxisPedalOutput.
+//
+// Record types are the root types written to MCAP channels by the McapRecorder.
+// Trackers serialize into Record types via their serialize() method, but the
+// public query API returns the inner data type directly.
+table Generic3AxisPedalOutputRecord {
+    data: Generic3AxisPedalOutput (id: 0);
+}
+
+root_type Generic3AxisPedalOutputRecord;

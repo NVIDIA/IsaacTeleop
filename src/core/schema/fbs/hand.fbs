@@ -36,4 +36,13 @@ table HandPose {
     timestamp: Timestamp (id: 2);
 }
 
-root_type HandPose;
+// MCAP recording wrapper for HandPose.
+//
+// Record types are the root types written to MCAP channels by the McapRecorder.
+// Trackers serialize into Record types via their serialize() method, but the
+// public query API returns the inner data type directly.
+table HandPoseRecord {
+    data: HandPose (id: 0);
+}
+
+root_type HandPoseRecord;

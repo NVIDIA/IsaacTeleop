@@ -19,6 +19,8 @@ static_assert(core::FrameMetadataOak::VT_STREAM == VT(0));
 static_assert(core::FrameMetadataOak::VT_TIMESTAMP == VT(1));
 static_assert(core::FrameMetadataOak::VT_SEQUENCE_NUMBER == VT(2));
 
+static_assert(core::FrameMetadataOakRecord::VT_DATA == VT(0));
+
 // =============================================================================
 // StreamType Enum Tests
 // =============================================================================
