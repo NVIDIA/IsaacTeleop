@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #include <deviceio/controller_tracker.hpp>
@@ -55,15 +55,16 @@ PYBIND11_MODULE(_deviceio, m)
     // FrameMetadataTrackerOak class
     py::class_<core::FrameMetadataTrackerOak, core::ITracker, std::shared_ptr<core::FrameMetadataTrackerOak>>(
         m, "FrameMetadataTrackerOak")
-        .def(py::init<const std::string&, size_t>(), py::arg("collection_id"),
+        .def(py::init<const std::string&, const std::vector<core::StreamType>&, size_t>(), py::arg("collection_prefix"),
+             py::arg("streams"),
              py::arg("max_flatbuffer_size") = core::FrameMetadataTrackerOak::DEFAULT_MAX_FLATBUFFER_SIZE,
-             "Construct a FrameMetadataTrackerOak for the given tensor collection ID")
+             "Construct a multi-stream FrameMetadataTrackerOak")
         .def(
             "get_data",
-            [](core::FrameMetadataTrackerOak& self, PyDeviceIOSession& session) -> const core::FrameMetadataT&
+            [](core::FrameMetadataTrackerOak& self, PyDeviceIOSession& session) -> const core::OakMetadataT&
             { return self.get_data(session.native()); },
             py::arg("session"), py::return_value_policy::reference_internal,
-            "Get the current frame metadata (per-stream timestamps and sequence numbers)");
+            "Get composed OakMetadata containing all tracked streams");
 
     // FullBodyTrackerPico class (PICO XR_BD_body_tracking extension)
     py::class_<core::FullBodyTrackerPico, core::ITracker, std::shared_ptr<core::FullBodyTrackerPico>>(

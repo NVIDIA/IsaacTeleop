@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """Isaac Teleop Schema - FlatBuffer message types for teleoperation.
@@ -32,6 +32,7 @@ from ._schema import (
     # Camera-related types.
     StreamType,
     FrameMetadata,
+    OakMetadata,
     # Full body-related types.
     BodyJointPico,
     BodyJointPose,
@@ -65,6 +66,7 @@ __all__ = [
     # Camera types.
     "StreamType",
     "FrameMetadata",
+    "OakMetadata",
     # Full body types.
     "BodyJointPose",
     "BodyJointsPico",

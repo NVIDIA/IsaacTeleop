@@ -104,7 +104,7 @@ void print_usage(const char* program_name)
         << "  --quality=N         H.264 quality 1-100 (default: 80)\n"
         << "  --device-id=ID      OAK device MxId (default: first available)\n"
         << "\nMetadata:\n"
-        << "  --collection-id=ID  Tensor collection ID for metadata (default: none)\n"
+        << "  --collection_prefix=PREFIX  Tensor collection PREFIX for metadata (default: none)\n"
         << "\nGeneral:\n"
         << "  --help              Show this help message\n"
         << "\nExamples:\n"
@@ -122,7 +122,7 @@ try
 {
     OakConfig camera_config;
     std::map<core::StreamType, StreamConfig> stream_map;
-    std::string collection_id;
+    std::string collection_prefix;
 
     for (int i = 1; i < argc; ++i)
     {
@@ -154,9 +154,9 @@ try
         {
             camera_config.device_id = arg.substr(12);
         }
-        else if (arg.find("--collection-id=") == 0)
+        else if (arg.find("--collection-prefix=") == 0)
         {
-            collection_id = arg.substr(16);
+            collection_prefix = arg.substr(20);
         }
         else if (arg.find("--plugin-root-id=") == 0)
         {
@@ -180,7 +180,11 @@ try
     std::vector<StreamConfig> stream_configs;
     stream_configs.reserve(stream_map.size());
     for (auto& [_, cfg] : stream_map)
+    {
+        if (!collection_prefix.empty())
+            cfg.collection_id = collection_prefix + "/" + core::EnumNameStreamType(cfg.camera);
         stream_configs.push_back(std::move(cfg));
+    }
 
     std::signal(SIGINT, signal_handler);
     std::signal(SIGTERM, signal_handler);
@@ -189,7 +193,10 @@ try
     std::cout << "OAK Camera Plugin Starting" << std::endl;
     std::cout << "============================================================" << std::endl;
 
-    FrameSink sink(collection_id);
+    FrameSink sink;
+    for (const auto& s : stream_configs)
+        sink.add_stream(s);
+
     OakCamera camera(camera_config, stream_configs, sink);
 
     uint64_t frame_count = 0;

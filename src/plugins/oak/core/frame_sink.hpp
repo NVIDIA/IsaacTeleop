@@ -23,15 +23,17 @@ namespace oak
  * @brief FrameMetadata-specific pusher that serializes and pushes frame metadata messages.
  *
  * Uses composition with SchemaPusher to handle the OpenXR tensor pushing.
+ * Does not own the OpenXR session — the caller must keep it alive.
  */
 class MetadataPusher
 {
 public:
     /**
-     * @brief Construct the metadata pusher.
+     * @brief Construct the metadata pusher using an existing OpenXR session.
+     * @param handles OpenXR session handles (caller must keep the session alive).
      * @param collection_id OpenXR tensor collection ID for metadata pushing.
      */
-    MetadataPusher(const std::string& collection_id);
+    MetadataPusher(const core::OpenXRSessionHandles& handles, const std::string& collection_id);
 
     /**
      * @brief Push a FrameMetadata message.
@@ -43,41 +45,37 @@ public:
 private:
     static constexpr size_t MAX_FLATBUFFER_SIZE = 128;
 
-    std::shared_ptr<core::OpenXRSession> m_session;
     core::SchemaPusher m_pusher;
 };
 
 /**
  * @brief Multi-stream output sink for OAK frames.
  *
- * Owns one RawDataWriter per configured stream and a single MetadataPusher.
- * on_frame() writes raw data to disk and pushes metadata per frame.
+ * Owns one RawDataWriter and one MetadataPusher per configured stream,
+ * sharing a single OpenXR session across all pushers.
  */
 class FrameSink
 {
 public:
-    /**
-     * @param collection_id OpenXR tensor collection ID for metadata pushing.
-     *                      If empty, metadata pushing is disabled.
-     */
-    explicit FrameSink(const std::string& collection_id = "");
-
+    FrameSink() = default;
     FrameSink(const FrameSink&) = delete;
     FrameSink& operator=(const FrameSink&) = delete;
 
     /**
-     * @brief Register an output stream. Creates a RawDataWriter for the given path.
+     * @brief Register an output stream. Creates a RawDataWriter and, if metadata
+     *        is enabled, a per-stream MetadataPusher.
      */
-    void add_stream(core::StreamType type, const std::string& output_path);
+    void add_stream(StreamConfig config);
 
     /**
-     * @brief Write raw frame data and push metadata.
+     * @brief Write raw frame data and push metadata for the corresponding stream.
      */
     void on_frame(const OakFrame& frame);
 
 private:
+    std::shared_ptr<core::OpenXRSession> m_oxr_session;
     std::map<core::StreamType, std::unique_ptr<RawDataWriter>> m_writers;
-    std::unique_ptr<MetadataPusher> m_pusher;
+    std::map<core::StreamType, std::unique_ptr<MetadataPusher>> m_pushers;
 };
 
 } // namespace oak

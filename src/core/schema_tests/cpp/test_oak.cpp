@@ -213,3 +213,45 @@ TEST_CASE("FrameMetadata can update timestamp", "[camera][native]")
     CHECK(metadata.timestamp->device_time() == 300);
     CHECK(metadata.timestamp->common_time() == 400);
 }
+
+// =============================================================================
+// OakMetadata Tests (composite table)
+// =============================================================================
+TEST_CASE("OakMetadataT default construction", "[camera][native]")
+{
+    core::OakMetadataT oak;
+    CHECK(oak.streams.empty());
+}
+
+TEST_CASE("OakMetadata roundtrip with multiple streams", "[camera][serialize]")
+{
+    core::OakMetadataT original;
+
+    auto color = std::make_unique<core::FrameMetadataT>();
+    color->stream = core::StreamType_Color;
+    color->timestamp = std::make_unique<core::Timestamp>(1000, 2000);
+    color->sequence_number = 10;
+    original.streams.push_back(std::move(color));
+
+    auto mono = std::make_unique<core::FrameMetadataT>();
+    mono->stream = core::StreamType_MonoLeft;
+    mono->timestamp = std::make_unique<core::Timestamp>(1001, 2001);
+    mono->sequence_number = 11;
+    original.streams.push_back(std::move(mono));
+
+    flatbuffers::FlatBufferBuilder builder;
+    auto offset = core::OakMetadata::Pack(builder, &original);
+    builder.Finish(offset);
+
+    auto* table = flatbuffers::GetRoot<core::OakMetadata>(builder.GetBufferPointer());
+    core::OakMetadataT roundtrip;
+    table->UnPackTo(&roundtrip);
+
+    REQUIRE(roundtrip.streams.size() == 2);
+    CHECK(roundtrip.streams[0]->stream == core::StreamType_Color);
+    CHECK(roundtrip.streams[0]->sequence_number == 10);
+    REQUIRE(roundtrip.streams[0]->timestamp != nullptr);
+    CHECK(roundtrip.streams[0]->timestamp->device_time() == 1000);
+    CHECK(roundtrip.streams[1]->stream == core::StreamType_MonoLeft);
+    CHECK(roundtrip.streams[1]->sequence_number == 11);
+}

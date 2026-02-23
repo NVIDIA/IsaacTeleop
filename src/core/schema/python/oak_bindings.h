@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Python bindings for the OAK FlatBuffer schema.
-// Types: StreamType (enum), FrameMetadata (table with stream, timestamp, sequence_number).
+// Types: StreamType (enum), FrameMetadata (table), OakMetadata (composite table).
 
 #pragma once
 
 #include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include <schema/oak_generated.h>
 
 #include <memory>
@@ -50,6 +51,22 @@ inline void bind_oak(py::module& m)
                  result += ", sequence_number=" + std::to_string(metadata.sequence_number) + ")";
                  return result;
              });
+
+    py::class_<OakMetadataT>(m, "OakMetadata")
+        .def(py::init<>())
+        .def_property_readonly(
+            "streams",
+            [](const OakMetadataT& self)
+            {
+                std::vector<const FrameMetadataT*> out;
+                out.reserve(self.streams.size());
+                for (const auto& entry : self.streams)
+                    out.push_back(entry.get());
+                return out;
+            },
+            "List of per-stream FrameMetadata entries")
+        .def("__repr__", [](const OakMetadataT& self)
+             { return "OakMetadata(streams=" + std::to_string(self.streams.size()) + ")"; });
 }
 
 } // namespace core

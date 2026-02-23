@@ -18,9 +18,8 @@ namespace oak
 // MetadataPusher
 // =============================================================================
 
-MetadataPusher::MetadataPusher(const std::string& collection_id)
-    : m_session(std::make_shared<core::OpenXRSession>("OakCameraPlugin", core::SchemaPusher::get_required_extensions())),
-      m_pusher(m_session->get_handles(),
+MetadataPusher::MetadataPusher(const core::OpenXRSessionHandles& handles, const std::string& collection_id)
+    : m_pusher(handles,
                core::SchemaPusherConfig{ .collection_id = collection_id,
                                          .max_flatbuffer_size = MAX_FLATBUFFER_SIZE,
                                          .tensor_identifier = "frame_metadata",
@@ -41,23 +40,24 @@ void MetadataPusher::push(const core::FrameMetadataT& data)
 // FrameSink
 // =============================================================================
 
-FrameSink::FrameSink(const std::string& collection_id)
+void FrameSink::add_stream(StreamConfig config)
 {
-    if (!collection_id.empty())
-    {
-        m_pusher = std::make_unique<MetadataPusher>(collection_id);
-    }
-}
-
-void FrameSink::add_stream(core::StreamType type, const std::string& output_path)
-{
-    std::filesystem::path p(output_path);
+    std::filesystem::path p(config.output_path);
     auto parent = p.parent_path();
     if (!parent.empty())
         std::filesystem::create_directories(parent);
 
-    m_writers[type] = std::make_unique<RawDataWriter>(output_path);
-    std::cout << "Add stream:  " << core::EnumNameStreamType(type) << " -> " << output_path << std::endl;
+    m_writers[config.camera] = std::make_unique<RawDataWriter>(config.output_path);
+    std::cout << "Add stream:  " << core::EnumNameStreamType(config.camera) << " -> " << config.output_path << std::endl;
+
+    if (!config.collection_id.empty())
+    {
+        if (!m_oxr_session)
+            m_oxr_session =
+                std::make_shared<core::OpenXRSession>("OakCameraPlugin", core::SchemaPusher::get_required_extensions());
+        m_pushers[config.camera] = std::make_unique<MetadataPusher>(m_oxr_session->get_handles(), config.collection_id);
+        std::cout << "  Metadata:  " << config.collection_id << std::endl;
+    }
 }
 
 void FrameSink::on_frame(const OakFrame& frame)
@@ -68,8 +68,9 @@ void FrameSink::on_frame(const OakFrame& frame)
 
     it->second->write(frame.data);
 
-    if (m_pusher)
-        m_pusher->push(frame.metadata);
+    auto pusher_it = m_pushers.find(frame.stream);
+    if (pusher_it != m_pushers.end())
+        pusher_it->second->push(frame.metadata);
 }
 
 } // namespace oak

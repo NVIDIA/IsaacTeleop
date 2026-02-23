@@ -30,10 +30,6 @@ static bool has_stream(const std::vector<StreamConfig>& streams, core::StreamTyp
 OakCamera::OakCamera(const OakConfig& config, const std::vector<StreamConfig>& streams, FrameSink& sink) : m_sink(sink)
 {
     std::cout << "OAK Camera: " << config.fps << " fps, " << (config.bitrate / 1'000'000.0) << " Mbps" << std::endl;
-    for (const auto& s : streams)
-    {
-        m_sink.add_stream(s.camera, s.output_path);
-    }
 
     auto device_info = find_device(config.device_id);
 

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -10,38 +10,44 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace core
 {
 
 /*!
- * @brief Tracker for reading OAK FrameMetadata FlatBuffer messages via OpenXR tensor extensions.
+ * @brief Composite tracker for reading OAK FrameMetadata from multiple streams.
  *
- * This tracker reads frame metadata (timestamp, stream) pushed by the OAK camera plugin
- * using the SchemaTracker infrastructure. Both pusher and reader must agree on the
- * collection_id and use the FrameMetadata schema from oak.fbs.
+ * Maintains one SchemaTracker per stream and composes them into a single
+ * OakMetadata message for serialization / MCAP recording.
  *
  * Usage:
  * @code
- * auto tracker = std::make_shared<FrameMetadataTrackerOak>("oak_camera");
+ * auto tracker = std::make_shared<FrameMetadataTrackerOak>(
+ *     "oak_camera", {StreamType_Color, StreamType_MonoLeft});
  * // ... create DeviceIOSession with tracker ...
  * session->update();
  * const auto& data = tracker->get_data(*session);
+ * for (const auto& md : data.streams)
+ *     std::cout << EnumNameStreamType(md->stream) << std::endl;
  * @endcode
  */
 class FrameMetadataTrackerOak : public ITracker
 {
 public:
-    //! Default maximum FlatBuffer size for FrameMetadata messages.
+    //! Default maximum FlatBuffer size for individual FrameMetadata messages.
     static constexpr size_t DEFAULT_MAX_FLATBUFFER_SIZE = 128;
 
     /*!
-     * @brief Constructs a FrameMetadataTrackerOak.
-     * @param collection_id Tensor collection identifier for discovery.
-     * @param max_flatbuffer_size Maximum serialized FlatBuffer size (default: 128 bytes).
+     * @brief Constructs a multi-stream FrameMetadata tracker.
+     * @param collection_prefix Base prefix for per-stream collection IDs.
+     *        Each stream gets collection_id = "{collection_prefix}/{StreamName}".
+     * @param streams Stream types to track.
+     * @param max_flatbuffer_size Maximum serialized FlatBuffer size per stream (default: 128 bytes).
      */
-    explicit FrameMetadataTrackerOak(const std::string& collection_id,
-                                     size_t max_flatbuffer_size = DEFAULT_MAX_FLATBUFFER_SIZE);
+    FrameMetadataTrackerOak(const std::string& collection_prefix,
+                            const std::vector<StreamType>& streams,
+                            size_t max_flatbuffer_size = DEFAULT_MAX_FLATBUFFER_SIZE);
 
     // ITracker interface
     std::vector<std::string> get_required_extensions() const override;
@@ -50,17 +56,14 @@ public:
     std::string_view get_schema_text() const override;
 
     /*!
-     * @brief Get the current frame metadata.
+     * @brief Get the composed OAK metadata containing all tracked streams.
      */
-    const FrameMetadataT& get_data(const DeviceIOSession& session) const;
-
-protected:
-    const SchemaTrackerConfig& get_config() const;
+    const OakMetadataT& get_data(const DeviceIOSession& session) const;
 
 private:
     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
 
-    SchemaTrackerConfig m_config;
+    std::vector<SchemaTrackerConfig> m_configs;
     class Impl;
 };
 

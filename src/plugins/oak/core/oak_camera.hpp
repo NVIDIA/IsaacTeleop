@@ -28,6 +28,7 @@ struct StreamConfig
 {
     core::StreamType camera;
     std::string output_path;
+    std::string collection_id = "";
 };
 
 // ============================================================================

@@ -8,7 +8,7 @@ namespace core;
 // Identifies which OAK camera sensor produced a frame.
 enum StreamType : byte { Color = 0, MonoLeft = 1, MonoRight = 2 }
 
-// Per-frame metadata pushed by the OAK camera plugin.
+// Per-frame metadata pushed by the OAK camera plugin (one per stream).
 table FrameMetadata {
   // Which camera sensor this metadata belongs to.
   stream: StreamType (id: 0);
@@ -20,4 +20,9 @@ table FrameMetadata {
   sequence_number: uint64 (id: 2);
 }
 
-root_type FrameMetadata;
+// Composed metadata from all active OAK camera streams.
+table OakMetadata {
+  streams: [FrameMetadata] (id: 0);
+}
+
+root_type OakMetadata;
