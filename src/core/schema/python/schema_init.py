@@ -23,7 +23,6 @@ from ._schema import (
     ControllerPose,
     Timestamp,
     ControllerSnapshot,
-    ControllerData,
     # Locomotion-related types.
     Twist,
     LocomotionCommand,
@@ -57,7 +56,6 @@ __all__ = [
     "ControllerPose",
     "Timestamp",
     "ControllerSnapshot",
-    "ControllerData",
     # Locomotion types.
     "Twist",
     "LocomotionCommand",

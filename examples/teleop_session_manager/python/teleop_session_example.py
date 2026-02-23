@@ -51,8 +51,8 @@ class VelocityTracker(BaseRetargeter):
         # Store previous positions for velocity computation
         self._prev_hand_left: Optional[np.ndarray] = None
         self._prev_hand_right: Optional[np.ndarray] = None
-        self._prev_ctrl_left: Optional[np.ndarray] = None
-        self._prev_ctrl_right: Optional[np.ndarray] = None
+        self._prev_controller_left: Optional[np.ndarray] = None
+        self._prev_controller_right: Optional[np.ndarray] = None
         self._prev_time: Optional[float] = None
 
     def input_spec(self):
@@ -102,11 +102,15 @@ class VelocityTracker(BaseRetargeter):
         )
 
         # Get controller positions (first tensor in ControllerInput is position array)
-        ctrl_left_pos = inputs[ControllersSource.LEFT][0]  # (3,) array
-        ctrl_right_pos = inputs[ControllersSource.RIGHT][0]
+        controller_left_pos = inputs[ControllersSource.LEFT][0]  # (3,) array
+        controller_right_pos = inputs[ControllersSource.RIGHT][0]
 
-        ctrl_left = np.array([ctrl_left_pos[0], ctrl_left_pos[1], ctrl_left_pos[2]])
-        ctrl_right = np.array([ctrl_right_pos[0], ctrl_right_pos[1], ctrl_right_pos[2]])
+        controller_left = np.array(
+            [controller_left_pos[0], controller_left_pos[1], controller_left_pos[2]]
+        )
+        controller_right = np.array(
+            [controller_right_pos[0], controller_right_pos[1], controller_right_pos[2]]
+        )
 
         current_time = time.time()
 
@@ -120,17 +124,17 @@ class VelocityTracker(BaseRetargeter):
                 hand_right_vel = float(
                     np.linalg.norm(hand_right_wrist - self._prev_hand_right) / dt
                 )
-                ctrl_left_vel = float(
-                    np.linalg.norm(ctrl_left - self._prev_ctrl_left) / dt
+                controller_left_vel = float(
+                    np.linalg.norm(controller_left - self._prev_controller_left) / dt
                 )
-                ctrl_right_vel = float(
-                    np.linalg.norm(ctrl_right - self._prev_ctrl_right) / dt
+                controller_right_vel = float(
+                    np.linalg.norm(controller_right - self._prev_controller_right) / dt
                 )
 
                 outputs["hand_velocity_left"][0] = hand_left_vel
                 outputs["hand_velocity_right"][0] = hand_right_vel
-                outputs["controller_velocity_left"][0] = ctrl_left_vel
-                outputs["controller_velocity_right"][0] = ctrl_right_vel
+                outputs["controller_velocity_left"][0] = controller_left_vel
+                outputs["controller_velocity_right"][0] = controller_right_vel
             else:
                 outputs["hand_velocity_left"][0] = 0.0
                 outputs["hand_velocity_right"][0] = 0.0
@@ -146,8 +150,8 @@ class VelocityTracker(BaseRetargeter):
         # Store current positions for next frame
         self._prev_hand_left = hand_left_wrist
         self._prev_hand_right = hand_right_wrist
-        self._prev_ctrl_left = ctrl_left
-        self._prev_ctrl_right = ctrl_right
+        self._prev_controller_left = controller_left
+        self._prev_controller_right = controller_right
         self._prev_time = current_time
 
 
@@ -196,14 +200,14 @@ def main():
 
             hand_left_vel = result["hand_velocity_left"][0]
             hand_right_vel = result["hand_velocity_right"][0]
-            ctrl_left_vel = result["controller_velocity_left"][0]
-            ctrl_right_vel = result["controller_velocity_right"][0]
+            controller_left_vel = result["controller_velocity_left"][0]
+            controller_right_vel = result["controller_velocity_right"][0]
 
             if session.frame_count % 30 == 0:
                 elapsed = session.get_elapsed_time()
                 print(
                     f"[{elapsed:5.1f}s] Hand L/R: {hand_left_vel:.3f}/{hand_right_vel:.3f} m/s  "
-                    f"Ctrl L/R: {ctrl_left_vel:.3f}/{ctrl_right_vel:.3f} m/s"
+                    f"Controller L/R: {controller_left_vel:.3f}/{controller_right_vel:.3f} m/s"
                 )
 
             time.sleep(0.016)  # ~60 FPS

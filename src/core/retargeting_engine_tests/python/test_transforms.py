@@ -362,7 +362,7 @@ class TestControllerTransform:
         return tg
 
     def test_identity_transform(self):
-        node = ControllerTransform("ctrl_xform")
+        node = ControllerTransform("controller_xform")
         id_quat = [0, 0, 0, 1]
         left = self._make_controller_input([1, 0, 0], id_quat, [2, 0, 0], id_quat)
         right = self._make_controller_input([3, 0, 0], id_quat, [4, 0, 0], id_quat)
@@ -391,7 +391,7 @@ class TestControllerTransform:
         )
 
     def test_translation_transforms_both_poses(self):
-        node = ControllerTransform("ctrl_xform")
+        node = ControllerTransform("controller_xform")
         id_quat = [0, 0, 0, 1]
         left = self._make_controller_input([1, 0, 0], id_quat, [2, 0, 0], id_quat)
         right = self._make_controller_input([0, 0, 0], id_quat, [0, 0, 0], id_quat)
@@ -419,7 +419,7 @@ class TestControllerTransform:
         )
 
     def test_button_fields_preserved(self):
-        node = ControllerTransform("ctrl_xform")
+        node = ControllerTransform("controller_xform")
         id_quat = [0, 0, 0, 1]
         left = self._make_controller_input(
             [0, 0, 0],
@@ -446,7 +446,7 @@ class TestControllerTransform:
         assert out_l[ControllerInputIndex.IS_ACTIVE] is False
 
     def test_rotation_transforms_grip_and_aim(self):
-        node = ControllerTransform("ctrl_xform")
+        node = ControllerTransform("controller_xform")
         id_quat = [0, 0, 0, 1]
         left = self._make_controller_input([1, 0, 0], id_quat, [0, 1, 0], id_quat)
         right = self._make_controller_input([0, 0, 0], id_quat, [0, 0, 0], id_quat)
@@ -658,7 +658,7 @@ class TestControllerTransformNoAliasing:
         return tg
 
     def test_mutating_output_does_not_affect_input(self):
-        node = ControllerTransform("ctrl_xform")
+        node = ControllerTransform("controller_xform")
         left = self._make_controller([1, 2, 3])
         right = self._make_controller([4, 5, 6])
         xform = _make_transform_input(_identity_4x4())

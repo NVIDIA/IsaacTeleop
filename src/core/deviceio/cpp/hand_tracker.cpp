@@ -5,11 +5,12 @@
 
 #include "inc/deviceio/deviceio_session.hpp"
 
-#include <schema/hands_generated.h>
+#include <schema/hand_generated.h>
 
 #include <cassert>
 #include <cstring>
 #include <iostream>
+#include <stdexcept>
 
 namespace core
 {
@@ -88,21 +89,22 @@ HandTracker::Impl::Impl(const OpenXRSessionHandles& handles)
     std::cout << "HandTracker initialized (left + right)" << std::endl;
 }
 
-Timestamp HandTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder) const
+Timestamp HandTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const
 {
-    // Serialize both hands into a combined HandsPose message
-    auto left_offset = HandPose::Pack(builder, &left_hand_);
-    auto right_offset = HandPose::Pack(builder, &right_hand_);
-
-    HandsPoseBuilder hands_builder(builder);
-    hands_builder.add_left_hand(left_offset);
-    hands_builder.add_right_hand(right_offset);
-    builder.Finish(hands_builder.Finish());
-
-    // For hand tracker, we use left hand's timestamp (both hands are updated at the same time)
-    if (left_hand_.timestamp)
+    if (channel_index > 1)
     {
-        return *left_hand_.timestamp;
+        throw std::runtime_error("HandTracker::serialize: invalid channel_index " + std::to_string(channel_index) +
+                                 " (expected 0=left, 1=right)");
+    }
+
+    const HandPoseT& hand = (channel_index == 0) ? left_hand_ : right_hand_;
+
+    auto offset = HandPose::Pack(builder, &hand);
+    builder.Finish(offset);
+
+    if (hand.timestamp)
+    {
+        return *hand.timestamp;
     }
     return Timestamp{};
 }

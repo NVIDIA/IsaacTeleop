@@ -73,7 +73,7 @@ const HeadPoseT& HeadTracker::Impl::get_head() const
     return head_;
 }
 
-Timestamp HeadTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder) const
+Timestamp HeadTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, size_t /*channel_index*/) const
 {
     auto offset = HeadPose::Pack(builder, &head_);
     builder.Finish(offset);

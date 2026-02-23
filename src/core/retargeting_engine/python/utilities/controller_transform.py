@@ -52,11 +52,11 @@ class ControllerTransform(BaseRetargeter):
 
     Example:
         transform_input = ValueInput("xform_input", TransformMatrix())
-        controller_transform = ControllerTransform("ctrl_xform")
+        controller_transform = ControllerTransform("controller_xform")
 
         transformed = controller_transform.connect({
-            "controller_left": ctrl_source.output("controller_left"),
-            "controller_right": ctrl_source.output("controller_right"),
+            "controller_left": controller_source.output("controller_left"),
+            "controller_right": controller_source.output("controller_right"),
             "transform": transform_input.output("value"),
         })
     """

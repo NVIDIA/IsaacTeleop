@@ -26,7 +26,6 @@ public:
             throw std::runtime_error("McapRecorder: No trackers provided");
         }
 
-        // Configure MCAP writer options
         mcap::McapWriterOptions options("teleop");
         options.compression = mcap::Compression::None; // No compression to avoid deps
 
@@ -36,7 +35,6 @@ public:
             throw std::runtime_error("McapRecorder: Failed to open file " + filename_ + ": " + status.message);
         }
 
-        // Register all trackers immediately
         for (const auto& config : tracker_configs_)
         {
             register_tracker(config.first.get(), config.second);
@@ -58,9 +56,18 @@ public:
             try
             {
                 const auto& tracker_impl = session.get_tracker_impl(*config.first);
-                if (!record_tracker(config.first.get(), tracker_impl))
+                auto it = tracker_channel_ids_.find(config.first.get());
+                if (it == tracker_channel_ids_.end())
                 {
-                    std::cerr << "McapRecorder: Failed to record tracker " << config.second << std::endl;
+                    std::cerr << "McapRecorder: Tracker " << config.second << " not registered" << std::endl;
+                    continue;
+                }
+                for (size_t i = 0; i < it->second.size(); ++i)
+                {
+                    if (!record_tracker(config.first.get(), tracker_impl, i))
+                    {
+                        std::cerr << "McapRecorder: Failed to record tracker " << config.second << std::endl;
+                    }
                 }
             }
             catch (const std::exception& e)
@@ -71,9 +78,29 @@ public:
     }
 
 private:
-    void register_tracker(const ITracker* tracker, const std::string& channel_name)
+    void register_tracker(const ITracker* tracker, const std::string& base_channel_name)
     {
-        // Get schema info from the tracker
+        if (base_channel_name.empty())
+        {
+            throw std::runtime_error("McapRecorder: Empty base channel name for tracker '" +
+                                     std::string(tracker->get_name()) + "'");
+        }
+
+        auto record_channels = tracker->get_record_channels();
+        if (record_channels.empty())
+        {
+            throw std::runtime_error("McapRecorder: Tracker '" + std::string(tracker->get_name()) +
+                                     "' returned no record channels");
+        }
+        for (const auto& ch : record_channels)
+        {
+            if (ch.empty())
+            {
+                throw std::runtime_error("McapRecorder: Tracker '" + std::string(tracker->get_name()) +
+                                         "' returned an empty channel name");
+            }
+        }
+
         std::string schema_name(tracker->get_schema_name());
 
         if (schema_ids_.find(schema_name) == schema_ids_.end())
@@ -83,24 +110,30 @@ private:
             schema_ids_[schema_name] = schema.id;
         }
 
-        mcap::Channel channel(channel_name, "flatbuffer", schema_ids_[schema_name]);
-        writer_.addChannel(channel);
+        std::vector<mcap::ChannelId> channel_ids;
 
-        // Store the mapping from tracker to its assigned channel ID
-        tracker_channel_ids_[tracker] = channel.id;
+        for (const auto& sub_channel : record_channels)
+        {
+            std::string full_name = base_channel_name + "/" + sub_channel;
+            mcap::Channel channel(full_name, "flatbuffer", schema_ids_[schema_name]);
+            writer_.addChannel(channel);
+            channel_ids.push_back(channel.id);
+        }
+
+        tracker_channel_ids_[tracker] = std::move(channel_ids);
     }
 
-    bool record_tracker(const ITracker* tracker, const ITrackerImpl& tracker_impl)
+    bool record_tracker(const ITracker* tracker, const ITrackerImpl& tracker_impl, size_t channel_index)
     {
         auto it = tracker_channel_ids_.find(tracker);
-        if (it == tracker_channel_ids_.end())
+        if (it == tracker_channel_ids_.end() || channel_index >= it->second.size())
         {
-            std::cerr << "McapRecorder: Tracker not registered" << std::endl;
+            std::cerr << "McapRecorder: Tracker not registered or invalid channel index" << std::endl;
             return false;
         }
 
         flatbuffers::FlatBufferBuilder builder(256);
-        Timestamp timestamp = tracker_impl.serialize(builder);
+        Timestamp timestamp = tracker_impl.serialize(builder, channel_index);
 
         // Use tracker timestamp for log time, fall back to system time if 0
         mcap::Timestamp log_time;
@@ -117,7 +150,7 @@ private:
         }
 
         mcap::Message msg;
-        msg.channelId = it->second;
+        msg.channelId = it->second[channel_index];
         msg.logTime = log_time;
         msg.publishTime = log_time;
         msg.sequence = static_cast<uint32_t>(message_count_);
@@ -141,7 +174,7 @@ private:
     uint64_t message_count_ = 0;
 
     std::unordered_map<std::string, mcap::SchemaId> schema_ids_;
-    std::unordered_map<const ITracker*, mcap::ChannelId> tracker_channel_ids_;
+    std::unordered_map<const ITracker*, std::vector<mcap::ChannelId>> tracker_channel_ids_;
 };
 
 // McapRecorder public interface implementation

@@ -55,6 +55,11 @@ public:
     std::string_view get_schema_name() const override;
     std::string_view get_schema_text() const override;
 
+    std::vector<std::string> get_record_channels() const override
+    {
+        return { "frame_metadata" };
+    }
+
     /*!
      * @brief Get the composed OAK metadata containing all tracked streams.
      */

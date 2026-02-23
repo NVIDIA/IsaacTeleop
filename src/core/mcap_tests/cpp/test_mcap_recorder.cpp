@@ -37,7 +37,7 @@ public:
         return true;
     }
 
-    core::Timestamp serialize(flatbuffers::FlatBufferBuilder& builder) const override
+    core::Timestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t /*channel_index*/) const override
     {
         // Create minimal valid FlatBuffer data (just some bytes for testing)
         // In a real scenario, this would be actual FlatBuffer serialization
@@ -101,9 +101,109 @@ public:
         return SCHEMA_TEXT;
     }
 
+    std::vector<std::string> get_record_channels() const override
+    {
+        return { "mock" };
+    }
+
     std::shared_ptr<MockTrackerImpl> get_impl() const
     {
         return impl_;
+    }
+
+protected:
+    std::shared_ptr<core::ITrackerImpl> create_tracker(const core::OpenXRSessionHandles& handles) const override
+    {
+        return impl_;
+    }
+
+private:
+    std::shared_ptr<MockTrackerImpl> impl_;
+};
+
+// =============================================================================
+// Multi-channel mock tracker for testing
+// =============================================================================
+class MockMultiChannelTracker : public core::ITracker
+{
+public:
+    MockMultiChannelTracker() : impl_(std::make_shared<MockTrackerImpl>())
+    {
+    }
+
+    std::vector<std::string> get_required_extensions() const override
+    {
+        return {};
+    }
+
+    std::string_view get_name() const override
+    {
+        return "MockMultiChannelTracker";
+    }
+
+    std::string_view get_schema_name() const override
+    {
+        return MockTracker::SCHEMA_NAME;
+    }
+
+    std::string_view get_schema_text() const override
+    {
+        return MockTracker::SCHEMA_TEXT;
+    }
+
+    std::vector<std::string> get_record_channels() const override
+    {
+        return { "left", "right" };
+    }
+
+    std::shared_ptr<MockTrackerImpl> get_impl() const
+    {
+        return impl_;
+    }
+
+protected:
+    std::shared_ptr<core::ITrackerImpl> create_tracker(const core::OpenXRSessionHandles& handles) const override
+    {
+        return impl_;
+    }
+
+private:
+    std::shared_ptr<MockTrackerImpl> impl_;
+};
+
+// =============================================================================
+// Mock tracker returning an empty channel name (for validation testing)
+// =============================================================================
+class MockEmptyChannelTracker : public core::ITracker
+{
+public:
+    MockEmptyChannelTracker() : impl_(std::make_shared<MockTrackerImpl>())
+    {
+    }
+
+    std::vector<std::string> get_required_extensions() const override
+    {
+        return {};
+    }
+
+    std::string_view get_name() const override
+    {
+        return "MockEmptyChannelTracker";
+    }
+
+    std::string_view get_schema_name() const override
+    {
+        return MockTracker::SCHEMA_NAME;
+    }
+
+    std::string_view get_schema_text() const override
+    {
+        return MockTracker::SCHEMA_TEXT;
+    }
+
+    std::vector<std::string> get_record_channels() const override
+    {
+        return { "" };
     }
 
 protected:
@@ -247,6 +347,67 @@ TEST_CASE("McapRecorder creates valid MCAP file", "[mcap_recorder][file]")
     CHECK(magic[2] == 'C');
     CHECK(magic[3] == 'A');
     CHECK(magic[4] == 'P');
+}
+
+// =============================================================================
+// Multi-channel tracker tests
+// =============================================================================
+
+TEST_CASE("McapRecorder with multi-channel tracker", "[mcap_recorder]")
+{
+    auto path = get_temp_mcap_path();
+    TempFileCleanup cleanup(path);
+
+    auto tracker = std::make_shared<MockMultiChannelTracker>();
+
+    auto recorder = core::McapRecorder::create(path, { { tracker, "controllers" } });
+    REQUIRE(recorder != nullptr);
+
+    recorder.reset();
+
+    // Verify file was created with content (channels "controllers/left" and "controllers/right")
+    CHECK(fs::exists(path));
+    CHECK(fs::file_size(path) > 0);
+}
+
+TEST_CASE("McapRecorder with mixed single and multi-channel trackers", "[mcap_recorder]")
+{
+    auto path = get_temp_mcap_path();
+    TempFileCleanup cleanup(path);
+
+    auto single_tracker = std::make_shared<MockTracker>();
+    auto multi_tracker = std::make_shared<MockMultiChannelTracker>();
+
+    auto recorder = core::McapRecorder::create(path, { { single_tracker, "head" }, { multi_tracker, "controllers" } });
+    REQUIRE(recorder != nullptr);
+
+    recorder.reset();
+    CHECK(fs::exists(path));
+    CHECK(fs::file_size(path) > 0);
+}
+
+// =============================================================================
+// Channel name validation tests
+// =============================================================================
+
+TEST_CASE("McapRecorder rejects empty base channel name", "[mcap_recorder]")
+{
+    auto path = get_temp_mcap_path();
+    TempFileCleanup cleanup(path);
+
+    auto tracker = std::make_shared<MockTracker>();
+
+    CHECK_THROWS_AS(core::McapRecorder::create(path, { { tracker, "" } }), std::runtime_error);
+}
+
+TEST_CASE("McapRecorder rejects tracker with empty channel name", "[mcap_recorder]")
+{
+    auto path = get_temp_mcap_path();
+    TempFileCleanup cleanup(path);
+
+    auto tracker = std::make_shared<MockEmptyChannelTracker>();
+
+    CHECK_THROWS_AS(core::McapRecorder::create(path, { { tracker, "base" } }), std::runtime_error);
 }
 
 // =============================================================================

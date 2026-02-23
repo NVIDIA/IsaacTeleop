@@ -41,6 +41,11 @@ public:
             reinterpret_cast<const char*>(FullBodyPosePicoBinarySchema::data()), FullBodyPosePicoBinarySchema::size());
     }
 
+    std::vector<std::string> get_record_channels() const override
+    {
+        return { "full_body" };
+    }
+
     // Query method - public API for getting body pose data
     const FullBodyPosePicoT& get_body_pose(const DeviceIOSession& session) const;
 

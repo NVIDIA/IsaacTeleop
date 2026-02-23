@@ -19,9 +19,8 @@
 // =============================================================================
 #define VT(field) (field + 2) * 2
 
-// ControllerData field IDs (ControllerData is a table)
-static_assert(core::ControllerData::VT_LEFT_CONTROLLER == VT(0));
-static_assert(core::ControllerData::VT_RIGHT_CONTROLLER == VT(1));
+// ControllerData field IDs
+static_assert(core::ControllerData::VT_DATA == VT(0));
 
 // =============================================================================
 // Compile-time verification that controller types are structs (not tables)
@@ -158,75 +157,48 @@ TEST_CASE("ControllerDataT default construction", "[controller][native]")
 {
     core::ControllerDataT controller_data;
 
-    // Controllers should be null by default
-    CHECK(controller_data.left_controller == nullptr);
-    CHECK(controller_data.right_controller == nullptr);
-}
-
-TEST_CASE("ControllerDataT can store both controllers", "[controller][native]")
-{
-    core::ControllerDataT controller_data;
-
-    // Create left controller
-    auto left = std::make_unique<core::ControllerSnapshot>();
-    controller_data.left_controller = std::move(left);
-
-    // Create right controller
-    auto right = std::make_unique<core::ControllerSnapshot>();
-    controller_data.right_controller = std::move(right);
-
-    CHECK(controller_data.left_controller != nullptr);
-    CHECK(controller_data.right_controller != nullptr);
+    CHECK(controller_data.data == nullptr);
 }
 
 // =============================================================================
-// ControllerDataT Serialization Tests
+// ControllerData Serialization Tests
 // =============================================================================
-TEST_CASE("ControllerDataT serialization and deserialization", "[controller][serialize]")
+TEST_CASE("ControllerData serialization and deserialization", "[controller][serialize]")
 {
     flatbuffers::FlatBufferBuilder builder;
 
-    // Create controller data
-    core::ControllerDataT controller_data;
+    // Create a snapshot
+    core::Point pos(1.0f, 2.0f, 3.0f);
+    core::Quaternion orient(0.0f, 0.0f, 0.0f, 1.0f);
+    core::Pose p(pos, orient);
+    core::ControllerPose grip(p, true);
+    core::ControllerInputState inputs(true, false, false, 0.5f, 0.0f, 0.5f, 0.5f);
+    core::Timestamp timestamp(1000, 2000);
+    core::ControllerSnapshot snapshot(grip, grip, inputs, true, timestamp);
 
-    // Create left controller snapshot
-    core::Point left_pos(1.0f, 2.0f, 3.0f);
-    core::Quaternion left_orient(0.0f, 0.0f, 0.0f, 1.0f);
-    core::Pose left_p(left_pos, left_orient);
-    core::ControllerPose left_grip(left_p, true);
-    core::ControllerInputState left_inputs(true, false, false, 0.5f, 0.0f, 0.5f, 0.5f);
-    core::Timestamp left_timestamp(1000, 2000);
-    controller_data.left_controller =
-        std::make_unique<core::ControllerSnapshot>(left_grip, left_grip, left_inputs, true, left_timestamp);
-
-    // Serialize
-    auto offset = core::ControllerData::Pack(builder, &controller_data);
-    builder.Finish(offset);
+    // Serialize using the ControllerData builder
+    core::ControllerDataBuilder data_builder(builder);
+    data_builder.add_data(&snapshot);
+    builder.Finish(data_builder.Finish());
 
     // Deserialize
     auto* deserialized = flatbuffers::GetRoot<core::ControllerData>(builder.GetBufferPointer());
 
     // Verify
-    CHECK(deserialized->left_controller() != nullptr);
-    CHECK(deserialized->left_controller()->is_active() == true);
-    CHECK(deserialized->left_controller()->inputs().primary_click() == true);
+    CHECK(deserialized->data() != nullptr);
+    CHECK(deserialized->data()->is_active() == true);
+    CHECK(deserialized->data()->inputs().primary_click() == true);
 }
 
-// =============================================================================
-// ControllerSnapshot Serialization/Unpacking Tests
-// =============================================================================
-TEST_CASE("ControllerSnapshot can be unpacked from buffer", "[controller][serialize]")
+TEST_CASE("ControllerData can be unpacked from buffer", "[controller][serialize]")
 {
     flatbuffers::FlatBufferBuilder builder;
 
-    // Create native object
-    core::ControllerDataT controller_data;
     core::ControllerSnapshot snapshot;
-    controller_data.left_controller = std::make_unique<core::ControllerSnapshot>(snapshot);
 
-    // Serialize
-    auto offset = core::ControllerData::Pack(builder, &controller_data);
-    builder.Finish(offset);
+    core::ControllerDataBuilder data_builder(builder);
+    data_builder.add_data(&snapshot);
+    builder.Finish(data_builder.Finish());
 
     // Deserialize to table
     auto* table = flatbuffers::GetRoot<core::ControllerData>(builder.GetBufferPointer());
@@ -236,5 +208,5 @@ TEST_CASE("ControllerSnapshot can be unpacked from buffer", "[controller][serial
     table->UnPackTo(unpacked.get());
 
     // Verify
-    CHECK(unpacked->left_controller != nullptr);
+    CHECK(unpacked->data != nullptr);
 }
