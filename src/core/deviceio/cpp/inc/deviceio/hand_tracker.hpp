@@ -33,7 +33,7 @@ public:
     std::string_view get_schema_text() const override
     {
         return std::string_view(
-            reinterpret_cast<const char*>(HandPoseBinarySchema::data()), HandPoseBinarySchema::size());
+            reinterpret_cast<const char*>(HandPoseRecordBinarySchema::data()), HandPoseRecordBinarySchema::size());
     }
 
     std::vector<std::string> get_record_channels() const override
@@ -50,7 +50,7 @@ public:
 
 private:
     static constexpr const char* TRACKER_NAME = "HandTracker";
-    static constexpr const char* SCHEMA_NAME = "core.HandPose";
+    static constexpr const char* SCHEMA_NAME = "core.HandPoseRecord";
 
     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
 

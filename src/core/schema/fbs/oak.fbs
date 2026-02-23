@@ -13,4 +13,9 @@ table FrameMetadata {
   sequence_number: int (id: 1);
 }
 
-root_type FrameMetadata;
+// Record wrapper for a single frame metadata (used as root type for serialization).
+table FrameMetadataRecord {
+    data: FrameMetadata (id: 0);
+}
+
+root_type FrameMetadataRecord;

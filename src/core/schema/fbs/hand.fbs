@@ -36,4 +36,9 @@ table HandPose {
     timestamp: Timestamp (id: 2);
 }
 
-root_type HandPose;
+// Record wrapper for a single hand pose (used as root type for serialization).
+table HandPoseRecord {
+    data: HandPose (id: 0);
+}
+
+root_type HandPoseRecord;

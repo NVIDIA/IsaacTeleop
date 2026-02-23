@@ -29,7 +29,7 @@ public:
         // Try to read new data from tensor stream
         if (m_schema_reader.read_buffer(m_buffer))
         {
-            auto fb = GetFrameMetadata(m_buffer.data());
+            auto fb = flatbuffers::GetRoot<FrameMetadata>(m_buffer.data());
             if (fb)
             {
                 fb->UnPackTo(&m_data);
@@ -42,8 +42,12 @@ public:
 
     Timestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t /*channel_index*/ = 0) const override
     {
-        auto offset = FrameMetadata::Pack(builder, &m_data);
-        builder.Finish(offset);
+        auto data_offset = FrameMetadata::Pack(builder, &m_data);
+
+        FrameMetadataRecordBuilder record_builder(builder);
+        record_builder.add_data(data_offset);
+        builder.Finish(record_builder.Finish());
+
         return m_data.timestamp ? *m_data.timestamp : Timestamp{};
     }
 
@@ -82,13 +86,13 @@ std::string_view FrameMetadataTrackerOak::get_name() const
 
 std::string_view FrameMetadataTrackerOak::get_schema_name() const
 {
-    return "core.FrameMetadata";
+    return "core.FrameMetadataRecord";
 }
 
 std::string_view FrameMetadataTrackerOak::get_schema_text() const
 {
-    return std::string_view(
-        reinterpret_cast<const char*>(FrameMetadataBinarySchema::data()), FrameMetadataBinarySchema::size());
+    return std::string_view(reinterpret_cast<const char*>(FrameMetadataRecordBinarySchema::data()),
+                            FrameMetadataRecordBinarySchema::size());
 }
 
 const SchemaTrackerConfig& FrameMetadataTrackerOak::get_config() const

@@ -47,9 +47,9 @@ struct ControllerSnapshot {
     timestamp: Timestamp;
 }
 
-// Controller data wrapper for a single controller (table type for top-level serialization).
-table ControllerData {
+// Record wrapper for a single controller snapshot (used as root type for serialization).
+table ControllerSnapshotRecord {
     data: ControllerSnapshot (id: 0);
 }
 
-root_type ControllerData;
+root_type ControllerSnapshotRecord;

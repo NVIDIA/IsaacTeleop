@@ -65,4 +65,9 @@ table FullBodyPosePico {
     joints: BodyJointsPico (id: 2);
 }
 
-root_type FullBodyPosePico;
+// Record wrapper for a single full body pose (used as root type for serialization).
+table FullBodyPosePicoRecord {
+    data: FullBodyPosePico (id: 0);
+}
+
+root_type FullBodyPosePicoRecord;

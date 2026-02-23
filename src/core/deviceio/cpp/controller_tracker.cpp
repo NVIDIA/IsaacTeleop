@@ -354,9 +354,9 @@ Timestamp ControllerTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& bui
 {
     const ControllerSnapshot& snapshot = (channel_index == 0) ? left_controller_ : right_controller_;
 
-    ControllerDataBuilder data_builder(builder);
-    data_builder.add_data(&snapshot);
-    builder.Finish(data_builder.Finish());
+    ControllerSnapshotRecordBuilder record_builder(builder);
+    record_builder.add_data(&snapshot);
+    builder.Finish(record_builder.Finish());
 
     return snapshot.timestamp();
 }

@@ -34,7 +34,7 @@ public:
     std::string_view get_schema_text() const override
     {
         return std::string_view(
-            reinterpret_cast<const char*>(HeadPoseBinarySchema::data()), HeadPoseBinarySchema::size());
+            reinterpret_cast<const char*>(HeadPoseRecordBinarySchema::data()), HeadPoseRecordBinarySchema::size());
     }
 
     // Query methods - public API for getting head data
@@ -42,7 +42,7 @@ public:
 
 private:
     static constexpr const char* TRACKER_NAME = "HeadTracker";
-    static constexpr const char* SCHEMA_NAME = "core.HeadPose";
+    static constexpr const char* SCHEMA_NAME = "core.HeadPoseRecord";
 
     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
 

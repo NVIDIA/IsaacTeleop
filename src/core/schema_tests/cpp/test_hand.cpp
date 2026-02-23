@@ -207,7 +207,7 @@ TEST_CASE("HandPoseT serialization and deserialization", "[hand][flatbuffers]")
 
     // Deserialize.
     auto buffer = builder.GetBufferPointer();
-    auto deserialized = core::GetHandPose(buffer);
+    auto deserialized = flatbuffers::GetRoot<core::HandPose>(buffer);
 
     // Verify.
     REQUIRE(deserialized->joints() != nullptr);
@@ -252,7 +252,7 @@ TEST_CASE("HandPoseT can be unpacked from buffer", "[hand][flatbuffers]")
 
     // Unpack to HandPoseT.
     auto buffer = builder.GetBufferPointer();
-    auto hand_pose_fb = core::GetHandPose(buffer);
+    auto hand_pose_fb = flatbuffers::GetRoot<core::HandPose>(buffer);
     auto unpacked = std::make_unique<core::HandPoseT>();
     hand_pose_fb->UnPackTo(unpacked.get());
 

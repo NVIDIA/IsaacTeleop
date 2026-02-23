@@ -18,6 +18,8 @@
 static_assert(core::FrameMetadata::VT_TIMESTAMP == VT(0));
 static_assert(core::FrameMetadata::VT_SEQUENCE_NUMBER == VT(1));
 
+static_assert(core::FrameMetadataRecord::VT_DATA == VT(0));
+
 // =============================================================================
 // FrameMetadataT Tests (table native type)
 // =============================================================================

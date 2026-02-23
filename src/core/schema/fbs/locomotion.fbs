@@ -19,4 +19,9 @@ table LocomotionCommand {
   pose: Pose (id: 2);
 }
 
-root_type LocomotionCommand;
+// Record wrapper for a single locomotion command (used as root type for serialization).
+table LocomotionCommandRecord {
+    data: LocomotionCommand (id: 0);
+}
+
+root_type LocomotionCommandRecord;

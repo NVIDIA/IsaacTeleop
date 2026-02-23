@@ -24,4 +24,9 @@ table Generic3AxisPedalOutput {
   rudder: float (id: 4);
 }
 
-root_type Generic3AxisPedalOutput;
+// Record wrapper for a single pedal output (used as root type for serialization).
+table Generic3AxisPedalOutputRecord {
+    data: Generic3AxisPedalOutput (id: 0);
+}
+
+root_type Generic3AxisPedalOutputRecord;
