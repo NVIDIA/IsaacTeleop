@@ -236,13 +236,13 @@ def main() -> int:
     #         specs = session.get_external_input_specs()
     #         # specs == {"delta_manual": {"controller": ..., "ee_state": ...}}
     #
-    #         ctrl_tg = TensorGroup(ControllerInput())
-    #         ctrl_tg[0] = my_controller_data
+    #         controller_tg = TensorGroup(ControllerInput())
+    #         controller_tg[0] = my_controller_data
     #         ee_tg = TensorGroup(RobotEndEffectorState())
     #         ee_tg[0] = my_ee_position
     #
     #         result = session.step(external_inputs={
-    #             "delta_manual": {"controller": ctrl_tg, "ee_state": ee_tg}
+    #             "delta_manual": {"controller": controller_tg, "ee_state": ee_tg}
     #         })
     #
     # This works with any retargeter -- ValueInput is just a convenience

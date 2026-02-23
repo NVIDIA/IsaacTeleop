@@ -47,13 +47,9 @@ struct ControllerSnapshot {
     timestamp: Timestamp;
 }
 
-// Controller data for both hands (table type for top-level serialization)
+// Controller data wrapper for a single controller (table type for top-level serialization).
 table ControllerData {
-    // Left controller state
-    left_controller: ControllerSnapshot (id: 0);
-
-    // Right controller state
-    right_controller: ControllerSnapshot (id: 1);
+    data: ControllerSnapshot (id: 0);
 }
 
 root_type ControllerData;

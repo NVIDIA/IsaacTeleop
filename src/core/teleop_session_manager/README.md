@@ -135,11 +135,12 @@ pipeline = gripper.connect({...})
 while True:
     deviceio_session.update()
     # Manual data injection needed for new sources
-    controller_data = controller_tracker.get_controller_data(deviceio_session)
+    left_controller = controller_tracker.get_left_controller(deviceio_session)
+    right_controller = controller_tracker.get_right_controller(deviceio_session)
     inputs = {
         "controllers": {
-            "deviceio_controller_left": [controller_data.left_controller],
-            "deviceio_controller_right": [controller_data.right_controller]
+            "deviceio_controller_left": [left_controller],
+            "deviceio_controller_right": [right_controller]
         }
     }
     result = pipeline(inputs)

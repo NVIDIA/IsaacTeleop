@@ -47,11 +47,15 @@ PYBIND11_MODULE(_deviceio, m)
     py::class_<core::ControllerTracker, core::ITracker, std::shared_ptr<core::ControllerTracker>>(m, "ControllerTracker")
         .def(py::init<>())
         .def(
-            "get_controller_data",
-            [](core::ControllerTracker& self, PyDeviceIOSession& session) -> const core::ControllerDataT&
-            { return self.get_controller_data(session.native()); },
-            py::arg("session"), py::return_value_policy::reference_internal,
-            "Get complete controller data for both left and right controllers");
+            "get_left_controller",
+            [](core::ControllerTracker& self, PyDeviceIOSession& session) -> const core::ControllerSnapshot&
+            { return self.get_left_controller(session.native()); },
+            py::arg("session"), py::return_value_policy::reference_internal, "Get the left controller snapshot")
+        .def(
+            "get_right_controller",
+            [](core::ControllerTracker& self, PyDeviceIOSession& session) -> const core::ControllerSnapshot&
+            { return self.get_right_controller(session.native()); },
+            py::arg("session"), py::return_value_policy::reference_internal, "Get the right controller snapshot");
 
     // FrameMetadataTrackerOak class
     py::class_<core::FrameMetadataTrackerOak, core::ITracker, std::shared_ptr<core::FrameMetadataTrackerOak>>(

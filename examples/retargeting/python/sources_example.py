@@ -132,7 +132,10 @@ def main():
                     hand_left_raw = hand_tracker.get_left_hand(session)
                     hand_right_raw = hand_tracker.get_right_hand(session)
                     head_raw = head_tracker.get_head(session)
-                    controller_data_raw = controller_tracker.get_controller_data(
+                    left_controller_raw = controller_tracker.get_left_controller(
+                        session
+                    )
+                    right_controller_raw = controller_tracker.get_right_controller(
                         session
                     )
 
@@ -163,9 +166,9 @@ def main():
                     for input_name, group_type in controllers_input_spec.items():
                         tg = TensorGroup(group_type)
                         if "left" in input_name.lower():
-                            tg[0] = controller_data_raw.left_controller
+                            tg[0] = left_controller_raw
                         elif "right" in input_name.lower():
-                            tg[0] = controller_data_raw.right_controller
+                            tg[0] = right_controller_raw
                         controllers_inputs[input_name] = tg
 
                     # ====================================================
@@ -218,21 +221,25 @@ def main():
                         )
 
                     # Extract controller data
-                    left_ctrl = all_data[ControllersSource.LEFT]
-                    left_ctrl_active = left_ctrl[11]  # is_active boolean
-                    left_trigger = left_ctrl[10]  # trigger_value float
+                    left_controller = all_data[ControllersSource.LEFT]
+                    left_controller_active = left_controller[11]  # is_active boolean
+                    left_trigger = left_controller[10]  # trigger_value float
 
-                    right_ctrl = all_data[ControllersSource.RIGHT]
-                    right_ctrl_active = right_ctrl[11]  # is_active boolean
-                    right_trigger = right_ctrl[10]  # trigger_value float
+                    right_controller = all_data[ControllersSource.RIGHT]
+                    right_controller_active = right_controller[11]  # is_active boolean
+                    right_trigger = right_controller[10]  # trigger_value float
 
                     print("  Controllers:")
-                    print(f"    Left:  {'ACTIVE' if left_ctrl_active else 'INACTIVE'}")
-                    if left_ctrl_active:
+                    print(
+                        f"    Left:  {'ACTIVE' if left_controller_active else 'INACTIVE'}"
+                    )
+                    if left_controller_active:
                         print(f"      Trigger: {left_trigger:4.2f}")
 
-                    print(f"    Right: {'ACTIVE' if right_ctrl_active else 'INACTIVE'}")
-                    if right_ctrl_active:
+                    print(
+                        f"    Right: {'ACTIVE' if right_controller_active else 'INACTIVE'}"
+                    )
+                    if right_controller_active:
                         print(f"      Trigger: {right_trigger:4.2f}")
 
                     print()

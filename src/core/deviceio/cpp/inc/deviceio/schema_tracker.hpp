@@ -98,7 +98,9 @@ struct SchemaTrackerConfig
  *             return false;
  *         }
  *
- *         Timestamp serialize(flatbuffers::FlatBufferBuilder& builder) const override {
+ *         Timestamp serialize(flatbuffers::FlatBufferBuilder& builder,
+ *                            size_t channel_index) const override
+ *         {
  *             auto offset = LocomotionCommand::Pack(builder, &data_);
  *             builder.Finish(offset);
  *             return data_.timestamp ? *data_.timestamp : Timestamp{};

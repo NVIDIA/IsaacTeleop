@@ -6,6 +6,7 @@
 #include "schema_tracker.hpp"
 #include "tracker.hpp"
 
+#include <schema/pedals_bfbs_generated.h>
 #include <schema/pedals_generated.h>
 
 #include <memory>
@@ -48,6 +49,11 @@ public:
     std::string_view get_name() const override;
     std::string_view get_schema_name() const override;
     std::string_view get_schema_text() const override;
+
+    std::vector<std::string> get_record_channels() const override
+    {
+        return { "pedals" };
+    }
 
     /*!
      * @brief Get the current foot pedal data.

@@ -38,8 +38,14 @@ public:
             reinterpret_cast<const char*>(ControllerDataBinarySchema::data()), ControllerDataBinarySchema::size());
     }
 
-    // Get complete controller data (both left and right controllers)
-    const ControllerDataT& get_controller_data(const DeviceIOSession& session) const;
+    std::vector<std::string> get_record_channels() const override
+    {
+        return { "left_controller", "right_controller" };
+    }
+
+    // Query methods - public API for getting individual controller data
+    const ControllerSnapshot& get_left_controller(const DeviceIOSession& session) const;
+    const ControllerSnapshot& get_right_controller(const DeviceIOSession& session) const;
 
 private:
     static constexpr const char* TRACKER_NAME = "ControllerTracker";
@@ -55,9 +61,10 @@ private:
         // Override from ITrackerImpl
         bool update(XrTime time) override;
 
-        Timestamp serialize(flatbuffers::FlatBufferBuilder& builder) const override;
+        Timestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const override;
 
-        const ControllerDataT& get_controller_data() const;
+        const ControllerSnapshot& get_left_controller() const;
+        const ControllerSnapshot& get_right_controller() const;
 
     private:
         const OpenXRCoreFunctions core_funcs_;
@@ -86,8 +93,9 @@ private:
         XrSpacePtr left_aim_space_;
         XrSpacePtr right_aim_space_;
 
-        // Controller data for both hands (table wrapper with struct snapshots)
-        ControllerDataT controller_data_;
+        // Controller snapshots stored separately
+        ControllerSnapshot left_controller_{};
+        ControllerSnapshot right_controller_{};
     };
 };
 

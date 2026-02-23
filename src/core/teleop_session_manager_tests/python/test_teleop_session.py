@@ -71,22 +71,18 @@ class HandTracker:
         return ["XR_EXT_hand_tracking"]
 
 
-class _MockControllerData:
-    """Mock controller data returned by ControllerTracker."""
-
-    def __init__(self):
-        self.left_controller = 3.0
-        self.right_controller = 4.0
-
-
 class ControllerTracker:
     """Mock controller tracker for testing."""
 
     def __init__(self):
-        self._data = _MockControllerData()
+        self._left_controller = 3.0
+        self._right_controller = 4.0
 
-    def get_controller_data(self, session):
-        return self._data
+    def get_left_controller(self, session):
+        return self._left_controller
+
+    def get_right_controller(self, session):
+        return self._right_controller
 
     def get_required_extensions(self):
         return ["XR_EXT_controller_interaction"]
@@ -181,14 +177,15 @@ class MockControllersSource(MockDeviceIOSource):
 
     def poll_tracker(self, deviceio_session):
         source_inputs = self.input_spec()
-        controller_data = self._tracker.get_controller_data(deviceio_session)
+        left_controller = self._tracker.get_left_controller(deviceio_session)
+        right_controller = self._tracker.get_right_controller(deviceio_session)
         result = {}
         for input_name, group_type in source_inputs.items():
             tg = TensorGroup(group_type)
             if "left" in input_name:
-                tg[0] = controller_data.left_controller
+                tg[0] = left_controller
             elif "right" in input_name:
-                tg[0] = controller_data.right_controller
+                tg[0] = right_controller
             result[input_name] = tg
         return result
 
@@ -261,9 +258,16 @@ class MockPipeline:
     def get_leaf_nodes(self):
         return self._leaf_nodes
 
-    def __call__(self, inputs):
+    def compute(self, inputs):
         self.last_inputs = inputs
         return self._call_result
+
+    def compute_at(self, graph_time, inputs):
+        self.last_inputs = inputs
+        return self._call_result
+
+    def __call__(self, inputs):
+        return self.compute(inputs)
 
 
 # ============================================================================
@@ -522,11 +526,11 @@ class TestSourceDiscovery:
 
         # Each source's tracker id should map back to that source
         head_tracker = head.get_tracker()
-        ctrl_tracker = controllers.get_tracker()
+        controller_tracker = controllers.get_tracker()
         assert id(head_tracker) in session._tracker_to_source
-        assert id(ctrl_tracker) in session._tracker_to_source
+        assert id(controller_tracker) in session._tracker_to_source
         assert session._tracker_to_source[id(head_tracker)] is head
-        assert session._tracker_to_source[id(ctrl_tracker)] is controllers
+        assert session._tracker_to_source[id(controller_tracker)] is controllers
 
 
 class TestExternalInputSpecs:
@@ -1109,8 +1113,8 @@ class TestTrackerDataCollection:
 
     def test_collect_controller_tracker_data(self):
         """Controller tracker data should be split into left/right."""
-        ctrl_source = MockControllersSource()
-        pipeline = MockPipeline(leaf_nodes=[ctrl_source])
+        controller_source = MockControllersSource()
+        pipeline = MockPipeline(leaf_nodes=[controller_source])
 
         config = make_config(pipeline)
         with mock_session_dependencies():

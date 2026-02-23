@@ -34,7 +34,12 @@ class DeviceIOSession;
 class McapRecorder
 {
 public:
-    /// Tracker configuration: pair of (tracker, channel_name)
+    /// Tracker configuration: pair of (tracker, base_channel_name).
+    /// The base_channel_name must be non-empty. It is combined with each tracker's
+    /// record channel names as "base_channel_name/channel_name" to form the final
+    /// MCAP topic names. For example, registering a hand tracker with base name
+    /// "hands" that returns channels {"left_hand", "right_hand"} produces MCAP
+    /// topics "hands/left_hand" and "hands/right_hand".
     using TrackerChannelPair = std::pair<std::shared_ptr<ITracker>, std::string>;
 
     /**
@@ -44,9 +49,11 @@ public:
      * and returns a recorder ready for use.
      *
      * @param filename Path to the output MCAP file.
-     * @param trackers List of (tracker, channel_name) pairs to record.
+     * @param trackers List of (tracker, base_channel_name) pairs to record.
+     *                 Both base_channel_name and the tracker's channel names must be non-empty.
      * @return A unique_ptr to the McapRecorder.
-     * @throws std::runtime_error if the recorder cannot be created.
+     * @throws std::runtime_error if the recorder cannot be created, or if any
+     *         base_channel_name or tracker channel name is empty.
      */
     static std::unique_ptr<McapRecorder> create(const std::string& filename,
                                                 const std::vector<TrackerChannelPair>& trackers);

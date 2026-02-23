@@ -21,8 +21,8 @@ Bug location:
     its OWN tracker -- the second source's tracker was never given to DeviceIO
 
 Pipeline structure:
-  ControllersSource("ctrl_left")  ──> Se3AbsRetargeter ──> "left_ee_pose"
-  ControllersSource("ctrl_right") ──> Se3AbsRetargeter ──> "right_ee_pose"
+  ControllersSource("controller_left")  ──> Se3AbsRetargeter ──> "left_ee_pose"
+  ControllersSource("controller_right") ──> Se3AbsRetargeter ──> "right_ee_pose"
                                                       └──> OutputCombiner
 """
 
@@ -60,16 +60,16 @@ def main() -> int:
     #       source's tracker is orphaned.
 
     print("[Step 1] Creating two ControllersSource nodes...")
-    ctrl_left_source = ControllersSource(name="ctrl_left")
-    ctrl_right_source = ControllersSource(name="ctrl_right")
+    controller_left_source = ControllersSource(name="controller_left")
+    controller_right_source = ControllersSource(name="controller_right")
     print(
-        f"  ✓ ControllersSource('ctrl_left')  - tracker id: {id(ctrl_left_source.get_tracker())}"
+        f"  ✓ ControllersSource('controller_left')  - tracker id: {id(controller_left_source.get_tracker())}"
     )
     print(
-        f"  ✓ ControllersSource('ctrl_right') - tracker id: {id(ctrl_right_source.get_tracker())}"
+        f"  ✓ ControllersSource('controller_right') - tracker id: {id(controller_right_source.get_tracker())}"
     )
     print(
-        f"  ⚠ Both trackers are type: {type(ctrl_left_source.get_tracker()).__name__}"
+        f"  ⚠ Both trackers are type: {type(controller_left_source.get_tracker()).__name__}"
     )
     print("    Only one will survive deduplication in TeleopSession.__enter__()")
 
@@ -91,10 +91,12 @@ def main() -> int:
     left_se3 = Se3AbsRetargeter(left_se3_config, name="left_se3")
     connected_left = left_se3.connect(
         {
-            ControllersSource.LEFT: ctrl_left_source.output(ControllersSource.LEFT),
+            ControllersSource.LEFT: controller_left_source.output(
+                ControllersSource.LEFT
+            ),
         }
     )
-    print("  ✓ Left SE3: ctrl_left_source.controller_left -> left_ee_pose")
+    print("  ✓ Left SE3: controller_left_source.controller_left -> left_ee_pose")
 
     # Right arm SE3 retargeter (using right controller from second source)
     right_se3_config = Se3RetargeterConfig(
@@ -106,10 +108,12 @@ def main() -> int:
     right_se3 = Se3AbsRetargeter(right_se3_config, name="right_se3")
     connected_right = right_se3.connect(
         {
-            ControllersSource.RIGHT: ctrl_right_source.output(ControllersSource.RIGHT),
+            ControllersSource.RIGHT: controller_right_source.output(
+                ControllersSource.RIGHT
+            ),
         }
     )
-    print("  ✓ Right SE3: ctrl_right_source.controller_right -> right_ee_pose")
+    print("  ✓ Right SE3: controller_right_source.controller_right -> right_ee_pose")
 
     # ==================================================================
     # Step 3: Combine outputs

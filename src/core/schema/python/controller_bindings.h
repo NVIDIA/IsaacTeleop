@@ -3,7 +3,6 @@
 
 // Python bindings for the Controller FlatBuffer schema.
 // ControllerInputState, ControllerPose, ControllerSnapshot, Timestamp are structs.
-// ControllerDataT is a table (native type) containing struct snapshots.
 
 #pragma once
 
@@ -98,27 +97,6 @@ inline void bind_controller(py::module& m)
                      "ControllerPose(is_valid=" + std::string(self.aim_pose().is_valid() ? "True" : "False") + ")";
                  return "ControllerSnapshot(grip_pose=" + grip_str + ", aim_pose=" + aim_str +
                         ", is_active=" + (self.is_active() ? "True" : "False") + ")";
-             });
-
-    // Bind ControllerDataT class (table native type - root object, read-only from Python)
-    py::class_<ControllerDataT, std::unique_ptr<ControllerDataT>>(m, "ControllerData")
-        .def(py::init<>())
-        .def_property_readonly(
-            "left_controller",
-            [](const ControllerDataT& self) -> const ControllerSnapshot* { return self.left_controller.get(); },
-            py::return_value_policy::reference_internal)
-        .def_property_readonly(
-            "right_controller",
-            [](const ControllerDataT& self) -> const ControllerSnapshot* { return self.right_controller.get(); },
-            py::return_value_policy::reference_internal)
-        .def("__repr__",
-             [](const ControllerDataT& self)
-             {
-                 std::string left_str =
-                     self.left_controller ? (self.left_controller->is_active() ? "active" : "inactive") : "None";
-                 std::string right_str =
-                     self.right_controller ? (self.right_controller->is_active() ? "active" : "inactive") : "None";
-                 return "ControllerData(left=" + left_str + ", right=" + right_str + ")";
              });
 }
 

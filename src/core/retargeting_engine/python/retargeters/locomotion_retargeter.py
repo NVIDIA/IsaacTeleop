@@ -129,27 +129,25 @@ class LocomotionRootCmdRetargeter(BaseRetargeter):
 
         # Process Left Controller
         if "controller_left" in inputs:
-            left_ctrl = inputs["controller_left"]
-            # Check is_active
-            if left_ctrl[ControllerInputIndex.IS_ACTIVE]:
+            left_controller = inputs["controller_left"]
+            if left_controller[ControllerInputIndex.IS_ACTIVE]:
                 left_thumbstick_x = float(
-                    left_ctrl[ControllerInputIndex.THUMBSTICK_X]
-                )  # thumbstick_x
+                    left_controller[ControllerInputIndex.THUMBSTICK_X]
+                )
                 left_thumbstick_y = float(
-                    left_ctrl[ControllerInputIndex.THUMBSTICK_Y]
-                )  # thumbstick_y
+                    left_controller[ControllerInputIndex.THUMBSTICK_Y]
+                )
 
         # Process Right Controller
         if "controller_right" in inputs:
-            right_ctrl = inputs["controller_right"]
-            # Check is_active
-            if right_ctrl[ControllerInputIndex.IS_ACTIVE]:
+            right_controller = inputs["controller_right"]
+            if right_controller[ControllerInputIndex.IS_ACTIVE]:
                 right_thumbstick_x = float(
-                    right_ctrl[ControllerInputIndex.THUMBSTICK_X]
-                )  # thumbstick_x
+                    right_controller[ControllerInputIndex.THUMBSTICK_X]
+                )
                 right_thumbstick_y = float(
-                    right_ctrl[ControllerInputIndex.THUMBSTICK_Y]
-                )  # thumbstick_y
+                    right_controller[ControllerInputIndex.THUMBSTICK_Y]
+                )
 
         # Scale inputs
         # Note: In IsaacLab implementation:

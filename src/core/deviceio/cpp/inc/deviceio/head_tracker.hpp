@@ -37,6 +37,11 @@ public:
             reinterpret_cast<const char*>(HeadPoseBinarySchema::data()), HeadPoseBinarySchema::size());
     }
 
+    std::vector<std::string> get_record_channels() const override
+    {
+        return { "head" };
+    }
+
     // Query methods - public API for getting head data
     const HeadPoseT& get_head(const DeviceIOSession& session) const;
 
@@ -54,7 +59,7 @@ private:
         // Override from ITrackerImpl
         bool update(XrTime time) override;
 
-        Timestamp serialize(flatbuffers::FlatBufferBuilder& builder) const override;
+        Timestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const override;
 
         const HeadPoseT& get_head() const;
 
