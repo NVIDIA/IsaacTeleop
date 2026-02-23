@@ -25,26 +25,61 @@ public:
 
     bool update(XrTime /* time */) override
     {
-        // Try to read new data from tensor stream
-        if (m_schema_reader.read_buffer(m_buffer))
+        m_pending_records.clear();
+
+        std::vector<SchemaTracker::SampleResult> raw_samples;
+        m_schema_reader.read_all_samples(raw_samples);
+
+        for (auto& sample : raw_samples)
         {
-            auto fb = GetGeneric3AxisPedalOutput(m_buffer.data());
+            auto fb = flatbuffers::GetRoot<Generic3AxisPedalOutput>(sample.buffer.data());
             if (fb)
             {
-                fb->UnPackTo(&m_data);
-                return true;
+                Generic3AxisPedalOutputT parsed;
+                fb->UnPackTo(&parsed);
+                m_pending_records.push_back({ std::move(parsed), sample.timestamp });
             }
         }
-        // Return true even if no new data - we're still running, but invalid data.
-        m_data.is_valid = false;
+
+        if (!m_pending_records.empty())
+        {
+            m_data = m_pending_records.back().data;
+            m_last_timestamp = m_pending_records.back().timestamp;
+        }
+        else
+        {
+            m_data.is_valid = false;
+        }
+
         return true;
     }
 
-    Timestamp serialize(flatbuffers::FlatBufferBuilder& builder) const override
+    DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t /* channel_index */) const override
     {
-        auto offset = Generic3AxisPedalOutput::Pack(builder, &m_data);
-        builder.Finish(offset);
-        return m_data.timestamp ? *m_data.timestamp : Timestamp{};
+        auto data_offset = Generic3AxisPedalOutput::Pack(builder, &m_data);
+
+        Generic3AxisPedalOutputRecordBuilder record_builder(builder);
+        record_builder.add_data(data_offset);
+        record_builder.add_timestamp(&m_last_timestamp);
+        builder.Finish(record_builder.Finish());
+
+        return m_last_timestamp;
+    }
+
+    void serialize_all(size_t /* channel_index */, const RecordCallback& callback) const override
+    {
+        for (const auto& record : m_pending_records)
+        {
+            flatbuffers::FlatBufferBuilder builder(256);
+            auto data_offset = Generic3AxisPedalOutput::Pack(builder, &record.data);
+
+            Generic3AxisPedalOutputRecordBuilder record_builder(builder);
+            record_builder.add_data(data_offset);
+            record_builder.add_timestamp(&record.timestamp);
+            builder.Finish(record_builder.Finish());
+
+            callback(record.timestamp, builder.GetBufferPointer(), builder.GetSize());
+        }
     }
 
     const Generic3AxisPedalOutputT& get_data() const
@@ -53,9 +88,16 @@ public:
     }
 
 private:
+    struct PendingRecord
+    {
+        Generic3AxisPedalOutputT data;
+        DeviceDataTimestamp timestamp;
+    };
+
     SchemaTracker m_schema_reader;
-    std::vector<uint8_t> m_buffer;
     Generic3AxisPedalOutputT m_data;
+    DeviceDataTimestamp m_last_timestamp{};
+    std::vector<PendingRecord> m_pending_records;
 };
 
 // ============================================================================
@@ -82,13 +124,18 @@ std::string_view Generic3AxisPedalTracker::get_name() const
 
 std::string_view Generic3AxisPedalTracker::get_schema_name() const
 {
-    return "core.Generic3AxisPedalOutput";
+    return "core.Generic3AxisPedalOutputRecord";
 }
 
 std::string_view Generic3AxisPedalTracker::get_schema_text() const
 {
-    return std::string_view(reinterpret_cast<const char*>(Generic3AxisPedalOutputBinarySchema::data()),
-                            Generic3AxisPedalOutputBinarySchema::size());
+    return std::string_view(reinterpret_cast<const char*>(Generic3AxisPedalOutputRecordBinarySchema::data()),
+                            Generic3AxisPedalOutputRecordBinarySchema::size());
+}
+
+std::vector<std::string> Generic3AxisPedalTracker::get_record_channels() const
+{
+    return { "generic_3axis_pedal" };
 }
 
 const SchemaTrackerConfig& Generic3AxisPedalTracker::get_config() const

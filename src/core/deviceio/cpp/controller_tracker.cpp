@@ -278,16 +278,13 @@ bool ControllerTracker::Impl::update(XrTime time)
         return false;
     }
 
-    // Helper to update a single controller - creates a new immutable struct snapshot
     auto update_controller = [&](XrPath hand_path, const XrSpacePtr& grip_space, const XrSpacePtr& aim_space,
-                                 std::shared_ptr<ControllerSnapshot>& snapshot_ptr)
+                                 ControllerSnapshot& snapshot_out)
     {
-        // Initialize with default values
         ControllerPose grip_pose{};
         ControllerPose aim_pose{};
         ControllerInputState inputs{};
         bool is_active = false;
-        Timestamp timestamp{};
 
         // Update grip pose
         XrSpaceLocation grip_location{ XR_TYPE_SPACE_LOCATION };
@@ -321,9 +318,6 @@ bool ControllerTracker::Impl::update(XrTime time)
 
         is_active = grip_pose.is_valid() || aim_pose.is_valid();
 
-        // Update timestamp
-        timestamp = Timestamp(time, time);
-
         // Update all input values
         bool primary_click = get_boolean_action_state(session_, core_funcs_, primary_click_action_, hand_path);
         bool secondary_click = get_boolean_action_state(session_, core_funcs_, secondary_click_action_, hand_path);
@@ -338,37 +332,42 @@ bool ControllerTracker::Impl::update(XrTime time)
         inputs = ControllerInputState(
             primary_click, secondary_click, thumbstick_click, thumbstick_x, thumbstick_y, squeeze_value, trigger_value);
 
-        // Create new snapshot struct
-        snapshot_ptr = std::make_shared<ControllerSnapshot>(grip_pose, aim_pose, inputs, is_active, timestamp);
+        snapshot_out = ControllerSnapshot(grip_pose, aim_pose, inputs, is_active);
     };
 
-    // Update both controllers
-    update_controller(left_hand_path_, left_grip_space_, left_aim_space_, controller_data_.left_controller);
-    update_controller(right_hand_path_, right_grip_space_, right_aim_space_, controller_data_.right_controller);
+    update_controller(left_hand_path_, left_grip_space_, left_aim_space_, left_controller_);
+    update_controller(right_hand_path_, right_grip_space_, right_aim_space_, right_controller_);
 
-    return controller_data_.left_controller->is_active() || controller_data_.right_controller->is_active();
+    last_timestamp_ = DeviceDataTimestamp(time, time, 0);
+
+    return left_controller_.is_active() || right_controller_.is_active();
 }
 
-const ControllerDataT& ControllerTracker::Impl::get_controller_data() const
+const ControllerSnapshot& ControllerTracker::Impl::get_left_controller() const
 {
-    return controller_data_;
+    return left_controller_;
 }
 
-Timestamp ControllerTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder) const
+const ControllerSnapshot& ControllerTracker::Impl::get_right_controller() const
 {
-    auto offset = ControllerData::Pack(builder, &controller_data_);
-    builder.Finish(offset);
+    return right_controller_;
+}
 
-    // Use left controller timestamp (or right if left is inactive)
-    if (controller_data_.left_controller && controller_data_.left_controller->is_active())
-    {
-        return controller_data_.left_controller->timestamp();
-    }
-    else if (controller_data_.right_controller && controller_data_.right_controller->is_active())
-    {
-        return controller_data_.right_controller->timestamp();
-    }
-    return Timestamp{};
+XrTime ControllerTracker::Impl::get_last_update_time() const
+{
+    return last_timestamp_.sample_time_device_clock();
+}
+
+DeviceDataTimestamp ControllerTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const
+{
+    const ControllerSnapshot& snapshot = (channel_index == 0) ? left_controller_ : right_controller_;
+
+    ControllerSnapshotRecordBuilder record_builder(builder);
+    record_builder.add_data(&snapshot);
+    record_builder.add_timestamp(&last_timestamp_);
+    builder.Finish(record_builder.Finish());
+
+    return last_timestamp_;
 }
 
 // ============================================================================
@@ -381,9 +380,19 @@ std::vector<std::string> ControllerTracker::get_required_extensions() const
     return {};
 }
 
-const ControllerDataT& ControllerTracker::get_controller_data(const DeviceIOSession& session) const
+const ControllerSnapshot& ControllerTracker::get_left_controller(const DeviceIOSession& session) const
 {
-    return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_controller_data();
+    return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_left_controller();
+}
+
+const ControllerSnapshot& ControllerTracker::get_right_controller(const DeviceIOSession& session) const
+{
+    return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_right_controller();
+}
+
+XrTime ControllerTracker::get_last_update_time(const DeviceIOSession& session) const
+{
+    return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_last_update_time();
 }
 
 std::shared_ptr<ITrackerImpl> ControllerTracker::create_tracker(const OpenXRSessionHandles& handles) const

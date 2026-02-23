@@ -20,7 +20,6 @@
 #define VT(field) (field + 2) * 2
 static_assert(core::HeadPose::VT_POSE == VT(0));
 static_assert(core::HeadPose::VT_IS_VALID == VT(1));
-static_assert(core::HeadPose::VT_TIMESTAMP == VT(2));
 
 // =============================================================================
 // Compile-time verification of FlatBuffer field types.
@@ -29,7 +28,6 @@ static_assert(core::HeadPose::VT_TIMESTAMP == VT(2));
 #define TYPE(field) decltype(std::declval<core::HeadPose>().field())
 static_assert(std::is_same_v<TYPE(pose), const core::Pose*>);
 static_assert(std::is_same_v<TYPE(is_valid), bool>);
-static_assert(std::is_same_v<TYPE(timestamp), const core::Timestamp*>);
 
 
 TEST_CASE("HeadPoseT can handle is_valid value properly", "[head][native]")
@@ -52,7 +50,6 @@ TEST_CASE("HeadPoseT default construction", "[head][native]")
     // Default values.
     CHECK(head_pose->pose == nullptr);
     CHECK(head_pose->is_valid == false);
-    CHECK(head_pose->timestamp == nullptr);
 }
 
 TEST_CASE("HeadPoseT can store pose data", "[head][native]")
@@ -73,20 +70,6 @@ TEST_CASE("HeadPoseT can store pose data", "[head][native]")
     CHECK(head_pose->pose->orientation().y() == Catch::Approx(0.0f));
     CHECK(head_pose->pose->orientation().z() == Catch::Approx(0.0f));
     CHECK(head_pose->pose->orientation().w() == Catch::Approx(1.0f));
-}
-
-TEST_CASE("HeadPoseT can store timestamp", "[head][native]")
-{
-    auto head_pose = std::make_unique<core::HeadPoseT>();
-
-    // Set timestamp (XrTime is int64_t).
-    int64_t test_device_time = 1234567890123456789LL;
-    int64_t test_common_time = 9876543210LL;
-    head_pose->timestamp = std::make_shared<core::Timestamp>(test_device_time, test_common_time);
-
-    REQUIRE(head_pose->timestamp != nullptr);
-    CHECK(head_pose->timestamp->device_time() == test_device_time);
-    CHECK(head_pose->timestamp->common_time() == test_common_time);
 }
 
 TEST_CASE("HeadPoseT can store rotation quaternion", "[head][native]")
@@ -113,25 +96,27 @@ TEST_CASE("HeadPoseT serialization and deserialization", "[head][flatbuffers]")
     core::Quaternion orientation(0.0f, 0.0f, 0.0f, 1.0f);
     head_pose->pose = std::make_unique<core::Pose>(position, orientation);
     head_pose->is_valid = true;
-    head_pose->timestamp = std::make_shared<core::Timestamp>(9876543210LL, 1234567890LL);
+
+    // Create HeadPoseRecord for serialization (root type)
+    core::HeadPoseRecordT record;
+    record.data = std::move(head_pose);
+    record.timestamp = std::make_unique<core::DeviceDataTimestamp>(9876543210LL, 1234567890LL, 0);
 
     // Serialize.
-    auto offset = core::HeadPose::Pack(builder, head_pose.get());
+    auto offset = core::HeadPoseRecord::Pack(builder, &record);
     builder.Finish(offset);
 
     // Deserialize.
     auto buffer = builder.GetBufferPointer();
-    auto deserialized = core::GetHeadPose(buffer);
+    auto deserialized = flatbuffers::GetRoot<core::HeadPoseRecord>(buffer);
 
-    // Verify.
-    REQUIRE(deserialized->pose() != nullptr);
-    CHECK(deserialized->pose()->position().x() == Catch::Approx(1.0f));
-    CHECK(deserialized->pose()->position().y() == Catch::Approx(2.0f));
-    CHECK(deserialized->pose()->position().z() == Catch::Approx(3.0f));
-    CHECK(deserialized->is_valid() == true);
-    REQUIRE(deserialized->timestamp() != nullptr);
-    CHECK(deserialized->timestamp()->device_time() == 9876543210LL);
-    CHECK(deserialized->timestamp()->common_time() == 1234567890LL);
+    // Verify (access data via record).
+    REQUIRE(deserialized->data() != nullptr);
+    REQUIRE(deserialized->data()->pose() != nullptr);
+    CHECK(deserialized->data()->pose()->position().x() == Catch::Approx(1.0f));
+    CHECK(deserialized->data()->pose()->position().y() == Catch::Approx(2.0f));
+    CHECK(deserialized->data()->pose()->position().z() == Catch::Approx(3.0f));
+    CHECK(deserialized->data()->is_valid() == true);
 }
 
 TEST_CASE("HeadPoseT can be unpacked from buffer", "[head][flatbuffers]")
@@ -144,16 +129,21 @@ TEST_CASE("HeadPoseT can be unpacked from buffer", "[head][flatbuffers]")
     core::Quaternion orientation(0.1f, 0.2f, 0.3f, 0.9f);
     original->pose = std::make_unique<core::Pose>(position, orientation);
     original->is_valid = true;
-    original->timestamp = std::make_shared<core::Timestamp>(1111111111LL, 2222222222LL);
 
-    auto offset = core::HeadPose::Pack(builder, original.get());
+    // Create HeadPoseRecord for serialization (root type)
+    core::HeadPoseRecordT record;
+    record.data = std::move(original);
+    record.timestamp = std::make_unique<core::DeviceDataTimestamp>(1111111111LL, 2222222222LL, 0);
+
+    auto offset = core::HeadPoseRecord::Pack(builder, &record);
     builder.Finish(offset);
 
-    // Unpack to HeadPoseT.
+    // Unpack to HeadPoseRecordT, then extract data.
     auto buffer = builder.GetBufferPointer();
-    auto head_pose_fb = core::GetHeadPose(buffer);
+    auto record_fb = flatbuffers::GetRoot<core::HeadPoseRecord>(buffer);
     auto unpacked = std::make_unique<core::HeadPoseT>();
-    head_pose_fb->UnPackTo(unpacked.get());
+    REQUIRE(record_fb->data() != nullptr);
+    record_fb->data()->UnPackTo(unpacked.get());
 
     // Verify unpacked data.
     REQUIRE(unpacked->pose != nullptr);
@@ -161,7 +151,4 @@ TEST_CASE("HeadPoseT can be unpacked from buffer", "[head][flatbuffers]")
     CHECK(unpacked->pose->position().y() == Catch::Approx(6.0f));
     CHECK(unpacked->pose->position().z() == Catch::Approx(7.0f));
     CHECK(unpacked->is_valid == true);
-    REQUIRE(unpacked->timestamp != nullptr);
-    CHECK(unpacked->timestamp->device_time() == 1111111111LL);
-    CHECK(unpacked->timestamp->common_time() == 2222222222LL);
 }

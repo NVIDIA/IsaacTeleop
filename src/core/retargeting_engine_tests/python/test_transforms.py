@@ -288,12 +288,11 @@ class TestTransformOrientationsBatch:
 
 
 class TestHeadTransform:
-    def _make_head_input(self, position, orientation, is_valid=True, timestamp=100):
+    def _make_head_input(self, position, orientation, is_valid=True):
         tg = TensorGroup(HeadPose())
         tg[0] = np.array(position, dtype=np.float32)
         tg[1] = np.array(orientation, dtype=np.float32)
         tg[2] = is_valid
-        tg[3] = timestamp
         return tg
 
     def test_identity_transform(self):
@@ -305,7 +304,6 @@ class TestHeadTransform:
         npt.assert_array_almost_equal(np.from_dlpack(out[0]), [1, 2, 3], decimal=5)
         npt.assert_array_almost_equal(np.from_dlpack(out[1]), [0, 0, 0, 1], decimal=5)
         assert out[2] is True
-        assert out[3] == 100
 
     def test_translation_transform(self):
         node = HeadTransform("head_xform")
@@ -327,14 +325,11 @@ class TestHeadTransform:
 
     def test_passthrough_fields_preserved(self):
         node = HeadTransform("head_xform")
-        head_in = self._make_head_input(
-            [0, 0, 0], [0, 0, 0, 1], is_valid=False, timestamp=42
-        )
+        head_in = self._make_head_input([0, 0, 0], [0, 0, 0, 1], is_valid=False)
         xform_in = _make_transform_input(_rotation_z_90_with_translation())
         result = _run_retargeter(node, {"head": head_in, "transform": xform_in})
         out = result["head"]
         assert out[2] is False
-        assert out[3] == 42
 
 
 # ============================================================================
@@ -480,7 +475,7 @@ class TestControllerTransform:
 
 
 class TestHandTransform:
-    def _make_hand_input(self, joint_offset=0.0, is_active=True, timestamp=200):
+    def _make_hand_input(self, joint_offset=0.0, is_active=True):
         tg = TensorGroup(HandInput())
         positions = np.zeros((NUM_HAND_JOINTS, 3), dtype=np.float32)
         positions[:, 0] = np.arange(NUM_HAND_JOINTS, dtype=np.float32) + joint_offset
@@ -494,7 +489,6 @@ class TestHandTransform:
         tg[HandInputIndex.JOINT_RADII] = radii
         tg[HandInputIndex.JOINT_VALID] = valid
         tg[HandInputIndex.IS_ACTIVE] = is_active
-        tg[HandInputIndex.TIMESTAMP] = timestamp
         return tg
 
     def test_identity_transform(self):
@@ -541,8 +535,8 @@ class TestHandTransform:
 
     def test_passthrough_fields_preserved(self):
         node = HandTransform("hand_xform")
-        left = self._make_hand_input(is_active=False, timestamp=42)
-        right = self._make_hand_input(is_active=True, timestamp=99)
+        left = self._make_hand_input(is_active=False)
+        right = self._make_hand_input(is_active=True)
         xform = _make_transform_input(_rotation_z_90_with_translation())
 
         result = _run_retargeter(
@@ -557,9 +551,7 @@ class TestHandTransform:
         out_l = result["hand_left"]
         out_r = result["hand_right"]
         assert out_l[HandInputIndex.IS_ACTIVE] is False
-        assert out_l[HandInputIndex.TIMESTAMP] == 42
         assert out_r[HandInputIndex.IS_ACTIVE] is True
-        assert out_r[HandInputIndex.TIMESTAMP] == 99
 
         # Radii and validity should be unchanged
         npt.assert_array_almost_equal(
@@ -614,7 +606,6 @@ class TestHeadTransformNoAliasing:
         head_in[0] = np.array([1.0, 2.0, 3.0], dtype=np.float32)
         head_in[1] = np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32)
         head_in[2] = True
-        head_in[3] = 100
         xform_in = _make_transform_input(_identity_4x4())
 
         # Save a copy of the original input values
@@ -703,7 +694,6 @@ class TestHandTransformNoAliasing:
         left[HandInputIndex.JOINT_RADII] = radii
         left[HandInputIndex.JOINT_VALID] = valid
         left[HandInputIndex.IS_ACTIVE] = True
-        left[HandInputIndex.TIMESTAMP] = 200
 
         right = TensorGroup(HandInput())
         right[HandInputIndex.JOINT_POSITIONS] = positions.copy()
@@ -711,7 +701,6 @@ class TestHandTransformNoAliasing:
         right[HandInputIndex.JOINT_RADII] = radii.copy()
         right[HandInputIndex.JOINT_VALID] = valid.copy()
         right[HandInputIndex.IS_ACTIVE] = True
-        right[HandInputIndex.TIMESTAMP] = 200
 
         xform = _make_transform_input(_identity_4x4())
 

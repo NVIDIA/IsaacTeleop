@@ -57,9 +57,8 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
 
         # Test 5: Check initial controller state
         print("[Test 5] Checking controller state...")
-        controller_data = controller_tracker.get_controller_data(session)
-        left_snap = controller_data.left_controller
-        right_snap = controller_data.right_controller
+        left_snap = controller_tracker.get_left_controller(session)
+        right_snap = controller_tracker.get_right_controller(session)
         print(
             f"  Left controller: {'ACTIVE' if left_snap and left_snap.is_active else 'INACTIVE'}"
         )
@@ -101,9 +100,8 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
                 current_time = time.time()
                 if current_time - last_status_print >= 0.5:  # Print every 0.5 seconds
                     elapsed = current_time - start_time
-                    controller_data = controller_tracker.get_controller_data(session)
-                    left_snap = controller_data.left_controller
-                    right_snap = controller_data.right_controller
+                    left_snap = controller_tracker.get_left_controller(session)
+                    right_snap = controller_tracker.get_right_controller(session)
 
                     # Show current state
                     left_trigger = left_snap.inputs.trigger_value if left_snap else 0.0
@@ -212,10 +210,11 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
             else:
                 print("    Status: INACTIVE")
 
-        controller_data = controller_tracker.get_controller_data(session)
-        print_controller_summary("Left", controller_data.left_controller)
+        left_snap = controller_tracker.get_left_controller(session)
+        right_snap = controller_tracker.get_right_controller(session)
+        print_controller_summary("Left", left_snap)
         print()
-        print_controller_summary("Right", controller_data.right_controller)
+        print_controller_summary("Right", right_snap)
         print()
 
         # Cleanup

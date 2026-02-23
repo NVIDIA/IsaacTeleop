@@ -112,6 +112,50 @@ public:
         return time;
     }
 
+    /*!
+     * @brief Converts a system monotonic time (in nanoseconds) to XrTime.
+     * @param monotonic_ns Time in nanoseconds from the system monotonic clock
+     *                     (CLOCK_MONOTONIC on Linux).
+     * @return The equivalent XrTime value.
+     * @throws std::runtime_error if time conversion failed.
+     */
+    XrTime convert_monotonic_ns_to_xrtime(int64_t monotonic_ns) const
+    {
+        XrTime time;
+#if defined(XR_USE_PLATFORM_WIN32)
+        LARGE_INTEGER frequency;
+        QueryPerformanceFrequency(&frequency);
+
+        // Convert nanoseconds back to QPC ticks, splitting to avoid overflow:
+        //   ticks = seconds * freq + (remainder_ns * freq) / 1e9
+        int64_t seconds = monotonic_ns / 1000000000LL;
+        int64_t remainder_ns = monotonic_ns % 1000000000LL;
+
+        LARGE_INTEGER counter;
+        counter.QuadPart = seconds * frequency.QuadPart + remainder_ns * frequency.QuadPart / 1000000000LL;
+
+        XrResult result = pfn_convert_win32_(handles_.instance, &counter, &time);
+        if (result != XR_SUCCESS)
+        {
+            throw std::runtime_error("xrConvertWin32PerformanceCounterToTimeKHR failed with code " +
+                                     std::to_string(result));
+        }
+#elif defined(XR_USE_TIMESPEC)
+        struct timespec ts;
+        ts.tv_sec = static_cast<time_t>(monotonic_ns / 1000000000LL);
+        ts.tv_nsec = static_cast<long>(monotonic_ns % 1000000000LL);
+
+        XrResult result = pfn_convert_timespec_(handles_.instance, &ts, &time);
+        if (result != XR_SUCCESS)
+        {
+            throw std::runtime_error("xrConvertTimespecTimeToTimeKHR failed with code " + std::to_string(result));
+        }
+#else
+        static_assert(false, "OpenXR time conversion not implemented on this platform.");
+#endif
+        return time;
+    }
+
 private:
     OpenXRSessionHandles handles_;
 

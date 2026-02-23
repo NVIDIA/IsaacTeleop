@@ -53,24 +53,39 @@ std::vector<std::string> SchemaTracker::get_required_extensions()
     return { "XR_NVX1_tensor_data" };
 }
 
-bool SchemaTracker::read_buffer(std::vector<uint8_t>& buffer)
+bool SchemaTracker::ensure_collection()
 {
-    // Try to discover target collection if not found yet (or if it was lost)
-    if (!m_target_collection_index)
+    if (m_target_collection_index)
     {
-        // Poll for tensor list updates only when we need to discover
-        poll_for_updates();
-
-        m_target_collection_index = find_target_collection();
-        if (!m_target_collection_index)
-        {
-            return false; // Collection not available yet
-        }
-        std::cout << "Found target collection at index " << *m_target_collection_index << std::endl;
+        return true;
     }
 
-    // Try to read next sample
-    return read_next_sample(buffer);
+    poll_for_updates();
+
+    m_target_collection_index = find_target_collection();
+    if (!m_target_collection_index)
+    {
+        return false;
+    }
+    std::cout << "Found target collection at index " << *m_target_collection_index << std::endl;
+    return true;
+}
+
+size_t SchemaTracker::read_all_samples(std::vector<SampleResult>& samples)
+{
+    if (!ensure_collection())
+    {
+        return 0;
+    }
+
+    size_t count = 0;
+    SampleResult result;
+    while (read_next_sample(result))
+    {
+        samples.push_back(std::move(result));
+        ++count;
+    }
+    return count;
 }
 
 const SchemaTrackerConfig& SchemaTracker::config() const
@@ -170,20 +185,18 @@ std::optional<uint32_t> SchemaTracker::find_target_collection()
     return std::nullopt;
 }
 
-bool SchemaTracker::read_next_sample(std::vector<uint8_t>& buffer)
+bool SchemaTracker::read_next_sample(SampleResult& out)
 {
     if (!m_target_collection_index.has_value())
     {
         return false;
     }
 
-    // Prepare retrieval info
     XrTensorDataRetrievalInfoNV retrievalInfo{ XR_TYPE_TENSOR_DATA_RETRIEVAL_INFO_NV };
     retrievalInfo.next = nullptr;
     retrievalInfo.tensorCollectionIndex = m_target_collection_index.value();
     retrievalInfo.startSampleIndex = m_last_sample_index.has_value() ? m_last_sample_index.value() + 1 : 0;
 
-    // Prepare output buffers (read one sample at a time for simplicity)
     XrTensorSampleMetadataNV metadata{};
     std::vector<uint8_t> dataBuffer(m_sample_batch_stride);
 
@@ -195,16 +208,9 @@ bool SchemaTracker::read_next_sample(std::vector<uint8_t>& buffer)
     tensorData.bufferCapacity = static_cast<uint32_t>(dataBuffer.size());
     tensorData.writtenSampleCount = 0;
 
-    // Retrieve samples
     XrResult result = m_get_data_fn(m_tensor_list, &retrievalInfo, &tensorData);
     if (result != XR_SUCCESS)
     {
-        // TODO: Check against XR_ERROR_TENSOR_LOST_NV when it's reported by the runtime.
-        // if (result == XR_ERROR_TENSOR_LOST_NV)
-        // {
-        //     m_target_collection_index = std::nullopt;
-        //     return false;
-        // }
         std::cerr << "Failed to get tensor data, result=" << result << std::endl;
         m_target_collection_index = std::nullopt;
         return false;
@@ -212,18 +218,20 @@ bool SchemaTracker::read_next_sample(std::vector<uint8_t>& buffer)
 
     if (tensorData.writtenSampleCount == 0)
     {
-        return false; // No new samples
+        return false;
     }
 
-    // Update last sample index
     if (!m_last_sample_index.has_value() || metadata.sampleIndex > m_last_sample_index.value())
     {
         m_last_sample_index = metadata.sampleIndex;
     }
 
-    // Copy data to output buffer (trim to sample size, not batch stride)
-    buffer.resize(m_sample_size);
-    std::memcpy(buffer.data(), dataBuffer.data(), m_sample_size);
+    out.buffer.resize(m_sample_size);
+    std::memcpy(out.buffer.data(), dataBuffer.data(), m_sample_size);
+
+    out.timestamp =
+        DeviceDataTimestamp(static_cast<int64_t>(metadata.rawDeviceTimestamp), static_cast<int64_t>(metadata.timestamp),
+                            static_cast<int64_t>(metadata.arrivalTimestamp));
 
     return true;
 }

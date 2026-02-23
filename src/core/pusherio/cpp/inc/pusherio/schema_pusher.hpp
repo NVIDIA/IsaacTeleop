@@ -67,11 +67,12 @@ struct SchemaPusherConfig
  *             .localized_name = "HeadPose Data"
  *         }) {}
  *
- *     void push(const HeadPoseT& data) {
+ *     void push(const HeadPoseT& data, int64_t device_time_ns, int64_t common_time_ns) {
  *         flatbuffers::FlatBufferBuilder builder(m_pusher.config().max_flatbuffer_size);
  *         auto offset = HeadPose::Pack(builder, &data);
  *         builder.Finish(offset);
- *         m_pusher.push_buffer(builder.GetBufferPointer(), builder.GetSize());
+ *         m_pusher.push_buffer(builder.GetBufferPointer(), builder.GetSize(),
+ *                              device_time_ns, common_time_ns);
  *     }
  *
  * private:
@@ -120,12 +121,24 @@ public:
      * @brief Push raw serialized FlatBuffer data.
      *
      * The buffer will be padded to max_flatbuffer_size if smaller.
+     * The available_time_common_clock is calculated internally when this method
+     * is called (system monotonic time at push time).
+     *
+     * The tensor API's timestamp is set to sample_time_common_clock_ns converted
+     * to XrTime, and rawDeviceTimestamp is set to sample_time_device_clock_ns as-is.
      *
      * @param buffer Pointer to serialized FlatBuffer data.
      * @param size Size of the serialized data in bytes.
+     * @param sample_time_device_clock_ns Sample timestamp from the device's own clock
+     *        (nanoseconds, device-specific clock domain).
+     * @param sample_time_common_clock_ns Sample timestamp in the common clock domain
+     *        (system monotonic time, nanoseconds).
      * @throws std::runtime_error if the push fails.
      */
-    void push_buffer(const uint8_t* buffer, size_t size);
+    void push_buffer(const uint8_t* buffer,
+                     size_t size,
+                     int64_t sample_time_device_clock_ns,
+                     int64_t sample_time_common_clock_ns);
 
     /*!
      * @brief Access the configuration.

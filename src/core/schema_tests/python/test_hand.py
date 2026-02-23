@@ -6,7 +6,6 @@
 HandPoseT is a FlatBuffers table (read-only from Python) that represents hand pose data:
 - joints: HandJoints struct containing 26 HandJointPose entries (XR_HAND_JOINT_COUNT_EXT)
 - is_active: Whether the hand pose data is active
-- timestamp: Timestamp struct with device and common time
 
 HandJoints is a struct with a fixed-size array of 26 HandJointPose entries.
 
@@ -156,7 +155,6 @@ class TestHandPoseTConstruction:
         assert hand_pose is not None
         assert hand_pose.joints is None
         assert hand_pose.is_active is False
-        assert hand_pose.timestamp is None
 
 
 class TestHandPoseTRepr:

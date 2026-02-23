@@ -36,6 +36,9 @@ add_subdirectory(retargeting_engine_ui)
 # Build TeleopSessionManager (pure Python module)
 add_subdirectory(teleop_session_manager)
 
+# Build Synchronization utilities (clock sync, etc.)
+add_subdirectory(synchronization)
+
 # Python wheel packaging (combines both modules)
 if(BUILD_PYTHON_BINDINGS)
     add_subdirectory(python)

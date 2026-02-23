@@ -25,9 +25,6 @@ inline void bind_head(py::module& m)
             "pose", [](const HeadPoseT& self) -> const Pose* { return self.pose.get(); },
             py::return_value_policy::reference_internal)
         .def_readonly("is_valid", &HeadPoseT::is_valid)
-        .def_property_readonly(
-            "timestamp", [](const HeadPoseT& self) -> const Timestamp* { return self.timestamp.get(); },
-            py::return_value_policy::reference_internal)
         .def("__repr__",
              [](const HeadPoseT& self)
              {
@@ -42,14 +39,7 @@ inline void bind_head(py::module& m)
                                 ", z=" + std::to_string(self.pose->orientation().z()) +
                                 ", w=" + std::to_string(self.pose->orientation().w()) + "))";
                  }
-                 std::string timestamp_str = "None";
-                 if (self.timestamp)
-                 {
-                     timestamp_str = "Timestamp(device=" + std::to_string(self.timestamp->device_time()) +
-                                     ", common=" + std::to_string(self.timestamp->common_time()) + ")";
-                 }
-                 return "HeadPoseT(pose=" + pose_str + ", is_valid=" + (self.is_valid ? "True" : "False") +
-                        ", timestamp=" + timestamp_str + ")";
+                 return "HeadPoseT(pose=" + pose_str + ", is_valid=" + (self.is_valid ? "True" : "False") + ")";
              });
 }
 

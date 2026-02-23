@@ -5,7 +5,7 @@
 
 Tests the following FlatBuffers types:
 - Twist: Struct with linear and angular velocity (Point types)
-- LocomotionCommand: Table with timestamp, velocity (Twist), and pose
+- LocomotionCommand: Table with velocity (Twist) and pose
 """
 
 import pytest
@@ -16,7 +16,6 @@ from isaacteleop.schema import (
     Point,
     Pose,
     Quaternion,
-    Timestamp,
 )
 
 
@@ -144,7 +143,6 @@ class TestLocomotionCommandConstruction:
         """Test default construction creates LocomotionCommand with None fields."""
         cmd = LocomotionCommand()
 
-        assert cmd.timestamp is None
         assert cmd.velocity is None
         assert cmd.pose is None
 
@@ -154,30 +152,6 @@ class TestLocomotionCommandConstruction:
         repr_str = repr(cmd)
 
         assert "LocomotionCommand" in repr_str
-
-
-class TestLocomotionCommandTimestamp:
-    """Tests for LocomotionCommand timestamp property."""
-
-    def test_set_timestamp(self):
-        """Test setting timestamp."""
-        cmd = LocomotionCommand()
-        timestamp = Timestamp(device_time=1000000000, common_time=2000000000)
-        cmd.timestamp = timestamp
-
-        assert cmd.timestamp is not None
-        assert cmd.timestamp.device_time == 1000000000
-        assert cmd.timestamp.common_time == 2000000000
-
-    def test_large_timestamp_values(self):
-        """Test with large int64 timestamp values."""
-        cmd = LocomotionCommand()
-        max_int64 = 9223372036854775807
-        timestamp = Timestamp(device_time=max_int64, common_time=max_int64 - 1000)
-        cmd.timestamp = timestamp
-
-        assert cmd.timestamp.device_time == max_int64
-        assert cmd.timestamp.common_time == max_int64 - 1000
 
 
 class TestLocomotionCommandVelocity:
@@ -245,31 +219,25 @@ class TestLocomotionCommandCombined:
     def test_velocity_only(self):
         """Test command with only velocity set (no pose)."""
         cmd = LocomotionCommand()
-        cmd.timestamp = Timestamp(device_time=1000, common_time=2000)
         cmd.velocity = Twist(Point(1.0, 0.0, 0.0), Point(0.0, 0.0, 0.0))
 
-        assert cmd.timestamp is not None
         assert cmd.velocity is not None
         assert cmd.pose is None
 
     def test_pose_only(self):
         """Test command with only pose set (no velocity)."""
         cmd = LocomotionCommand()
-        cmd.timestamp = Timestamp(device_time=3000, common_time=4000)
         cmd.pose = Pose(Point(0.0, 0.0, -0.1), Quaternion(0.0, 0.0, 0.0, 1.0))
 
-        assert cmd.timestamp is not None
         assert cmd.velocity is None
         assert cmd.pose is not None
 
     def test_both_velocity_and_pose(self):
         """Test command with both velocity and pose set."""
         cmd = LocomotionCommand()
-        cmd.timestamp = Timestamp(device_time=5000, common_time=6000)
         cmd.velocity = Twist(Point(0.5, 0.0, 0.0), Point(0.0, 0.0, 0.1))
         cmd.pose = Pose(Point(0.0, 0.0, 0.05), Quaternion(0.0, 0.0, 0.0, 1.0))
 
-        assert cmd.timestamp is not None
         assert cmd.velocity is not None
         assert cmd.pose is not None
         assert cmd.velocity.linear.x == pytest.approx(0.5)
@@ -282,8 +250,6 @@ class TestLocomotionCommandFootPedalScenarios:
     def test_forward_motion(self):
         """Test typical forward motion command from foot pedal."""
         cmd = LocomotionCommand()
-        cmd.timestamp = Timestamp(device_time=1000000, common_time=1000000)
-        # Forward velocity from foot pedal
         cmd.velocity = Twist(Point(0.5, 0.0, 0.0), Point(0.0, 0.0, 0.0))
 
         assert cmd.velocity.linear.x == pytest.approx(0.5)
@@ -293,8 +259,6 @@ class TestLocomotionCommandFootPedalScenarios:
     def test_turning_motion(self):
         """Test turning motion command from foot pedal."""
         cmd = LocomotionCommand()
-        cmd.timestamp = Timestamp(device_time=2000000, common_time=2000000)
-        # Forward + turning
         cmd.velocity = Twist(Point(0.3, 0.0, 0.0), Point(0.0, 0.0, 0.5))
 
         assert cmd.velocity.linear.x == pytest.approx(0.3)
@@ -303,8 +267,6 @@ class TestLocomotionCommandFootPedalScenarios:
     def test_squat_mode(self):
         """Test squat mode command (vertical mode) from foot pedal."""
         cmd = LocomotionCommand()
-        cmd.timestamp = Timestamp(device_time=3000000, common_time=3000000)
-        # Squat down pose
         cmd.pose = Pose(Point(0.0, 0.0, -0.15), Quaternion(0.0, 0.0, 0.0, 1.0))
 
         assert cmd.pose.position.z == pytest.approx(-0.15)
@@ -312,7 +274,6 @@ class TestLocomotionCommandFootPedalScenarios:
     def test_stationary(self):
         """Test stationary command (zero velocity)."""
         cmd = LocomotionCommand()
-        cmd.timestamp = Timestamp(device_time=4000000, common_time=4000000)
         cmd.velocity = Twist(Point(0.0, 0.0, 0.0), Point(0.0, 0.0, 0.0))
 
         assert cmd.velocity.linear.x == pytest.approx(0.0)
@@ -355,22 +316,6 @@ class TestTwistEdgeCases:
 
 class TestLocomotionCommandEdgeCases:
     """Edge case tests for LocomotionCommand table."""
-
-    def test_zero_timestamp(self):
-        """Test with zero timestamp values."""
-        cmd = LocomotionCommand()
-        cmd.timestamp = Timestamp(device_time=0, common_time=0)
-
-        assert cmd.timestamp.device_time == 0
-        assert cmd.timestamp.common_time == 0
-
-    def test_negative_timestamp(self):
-        """Test with negative timestamp values (valid for relative times)."""
-        cmd = LocomotionCommand()
-        cmd.timestamp = Timestamp(device_time=-1000, common_time=-2000)
-
-        assert cmd.timestamp.device_time == -1000
-        assert cmd.timestamp.common_time == -2000
 
     def test_overwrite_velocity(self):
         """Test overwriting velocity field."""

@@ -3,19 +3,24 @@
 
 namespace core;
 
-// Dual timestamp representation with device and runtime clock domains.
-// Device timestamps come from the measurement source and provide low-jitter
-// timing, but may be in different clock domains for different data sources.
-// Runtime timestamps are assigned by CloudXR runtime in a common clock domain
-// to enable cross-source synchronization.
-struct Timestamp {
-    // Low-jitter timestamp from the measurement source (e.g., device clock).
-    // This is in nanoseconds, but may be in different clock domains for different data
-    // sources so it may drift apart from other timestamps.
-    device_time: int64;
+// Timestamp for recording and synchronization across data sources.
+//
+// All timestamps are in nanoseconds. The "common clock" is the system monotonic
+// clock (CLOCK_MONOTONIC on Linux, QueryPerformanceCounter on Windows).
+struct DeviceDataTimestamp {
+    // Timestamp from the measurement source's own clock (e.g., device clock).
+    // This is in nanoseconds, but may be in a different clock domain for each
+    // data source, so values from different devices are not directly comparable.
+    sample_time_device_clock: int64;
 
-    // Timestamp assigned by the Isaac Teleop in a common clock domain in nanoseconds.
-    // This enables synchronization across different data sources.
-    // These may be noisy, but will not drift apart arbitrary across different devices.
-    common_time: int64;
+    // Timestamp of when the sample was taken, expressed in the common clock domain
+    // (system monotonic time, nanoseconds). Enables synchronization across
+    // different data sources. May be noisier than device clock timestamps, but
+    // values from different devices will not drift apart arbitrarily.
+    sample_time_common_clock: int64;
+
+    // Timestamp of when the sample became available to the recording system,
+    // expressed in the common clock domain (system monotonic time, nanoseconds).
+    // Useful for measuring pipeline latency (available - sample).
+    available_time_common_clock: int64;
 }
