@@ -37,8 +37,12 @@ struct OakFrame
     /// H.264 encoded frame data
     std::vector<uint8_t> h264_data;
 
-    /// Frame metadata (timestamp + sequence number) from oak.fbs
+    /// Frame metadata (sequence number) from oak.fbs
     core::FrameMetadataT metadata;
+
+    /// Timestamps stored externally (no longer embedded in FrameMetadataT)
+    int64_t device_time_ns = 0;
+    int64_t common_time_ns = 0;
 };
 
 /**

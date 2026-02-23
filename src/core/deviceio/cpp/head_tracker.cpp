@@ -48,8 +48,7 @@ bool HeadTracker::Impl::update(XrTime time)
 
     head_.is_valid = position_valid && orientation_valid;
 
-    // Update timestamp (device time and common time)
-    head_.timestamp = std::make_shared<Timestamp>(time, time);
+    last_timestamp_ = DeviceDataTimestamp(time, time, 0);
 
     if (head_.is_valid)
     {
@@ -73,16 +72,16 @@ const HeadPoseT& HeadTracker::Impl::get_head() const
     return head_;
 }
 
-Timestamp HeadTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder) const
+DeviceDataTimestamp HeadTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, size_t /* channel_index */) const
 {
-    auto offset = HeadPose::Pack(builder, &head_);
-    builder.Finish(offset);
+    auto data_offset = HeadPose::Pack(builder, &head_);
 
-    if (head_.timestamp)
-    {
-        return *head_.timestamp;
-    }
-    return Timestamp{};
+    HeadPoseRecordBuilder record_builder(builder);
+    record_builder.add_data(data_offset);
+    record_builder.add_timestamp(&last_timestamp_);
+    builder.Finish(record_builder.Finish());
+
+    return last_timestamp_;
 }
 
 // ============================================================================

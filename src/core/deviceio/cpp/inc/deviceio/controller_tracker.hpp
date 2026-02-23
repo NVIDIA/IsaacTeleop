@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -34,16 +34,25 @@ public:
 
     std::string_view get_schema_text() const override
     {
-        return std::string_view(
-            reinterpret_cast<const char*>(ControllerDataBinarySchema::data()), ControllerDataBinarySchema::size());
+        return std::string_view(reinterpret_cast<const char*>(ControllerSnapshotRecordBinarySchema::data()),
+                                ControllerSnapshotRecordBinarySchema::size());
     }
 
-    // Get complete controller data (both left and right controllers)
-    const ControllerDataT& get_controller_data(const DeviceIOSession& session) const;
+    std::vector<std::string> get_record_channels() const override
+    {
+        return { "left_controller", "right_controller" };
+    }
+
+    // Query methods - public API for getting individual controller data
+    const ControllerSnapshot& get_left_controller(const DeviceIOSession& session) const;
+    const ControllerSnapshot& get_right_controller(const DeviceIOSession& session) const;
+
+    // Get the XrTime from the last update (useful for plugins that need timing)
+    XrTime get_last_update_time(const DeviceIOSession& session) const;
 
 private:
     static constexpr const char* TRACKER_NAME = "ControllerTracker";
-    static constexpr const char* SCHEMA_NAME = "core.ControllerData";
+    static constexpr const char* SCHEMA_NAME = "core.ControllerSnapshotRecord";
 
     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
 
@@ -55,9 +64,11 @@ private:
         // Override from ITrackerImpl
         bool update(XrTime time) override;
 
-        Timestamp serialize(flatbuffers::FlatBufferBuilder& builder) const override;
+        DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const override;
 
-        const ControllerDataT& get_controller_data() const;
+        const ControllerSnapshot& get_left_controller() const;
+        const ControllerSnapshot& get_right_controller() const;
+        XrTime get_last_update_time() const;
 
     private:
         const OpenXRCoreFunctions core_funcs_;
@@ -69,7 +80,7 @@ private:
         XrPath left_hand_path_;
         XrPath right_hand_path_;
 
-        // Actions - simplified to only the inputs we care about
+        // Actions
         XrActionSetPtr action_set_;
         XrAction grip_pose_action_;
         XrAction aim_pose_action_;
@@ -86,8 +97,12 @@ private:
         XrSpacePtr left_aim_space_;
         XrSpacePtr right_aim_space_;
 
-        // Controller data for both hands (table wrapper with struct snapshots)
-        ControllerDataT controller_data_;
+        // Controller snapshots stored separately
+        ControllerSnapshot left_controller_{};
+        ControllerSnapshot right_controller_{};
+
+        // Timestamp from last update
+        DeviceDataTimestamp last_timestamp_{};
     };
 };
 

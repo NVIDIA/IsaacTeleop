@@ -26,7 +26,6 @@ from isaacteleop.schema import (
     ControllerPose,
     ControllerInputState,
     ControllerSnapshot,
-    Timestamp,
 )
 
 
@@ -60,13 +59,8 @@ def create_controller_snapshot(grip_pos, aim_pos, trigger_val):
         trigger_value=trigger_val,
     )
 
-    # Create timestamp
-    timestamp = Timestamp(123, 456)
-
     # Create snapshot
-    return ControllerSnapshot(
-        grip_controller_pose, aim_controller_pose, inputs, True, timestamp
-    )
+    return ControllerSnapshot(grip_controller_pose, aim_controller_pose, inputs, True)
 
 
 # ============================================================================

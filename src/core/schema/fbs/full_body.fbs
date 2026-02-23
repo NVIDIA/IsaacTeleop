@@ -57,12 +57,15 @@ table FullBodyPosePico {
     // Whether the body tracking is active
     is_active: bool (id: 0);
 
-    // Dual timestamp with device and runtime clock domains
-    timestamp: Timestamp (id: 1);
-
     // Vector of BodyJointPose.
     // For XR_BD_body_tracking, this is 24 joints.
-    joints: BodyJointsPico (id: 2);
+    joints: BodyJointsPico (id: 1);
 }
 
-root_type FullBodyPosePico;
+// MCAP recording wrapper: pairs a FullBodyPosePico with a DeviceDataTimestamp.
+table FullBodyPosePicoRecord {
+    data: FullBodyPosePico (id: 0);
+    timestamp: DeviceDataTimestamp (id: 1);
+}
+
+root_type FullBodyPosePicoRecord;

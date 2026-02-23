@@ -155,7 +155,6 @@ class HandsSource(IDeviceIOSource):
         group[2] = radii
         group[3] = valid
         group[4] = hand_data.is_active
-        group[5] = int(hand_data.timestamp.device_time)
 
     def transformed(self, transform_input: OutputSelector) -> RetargeterSubgraph:
         """

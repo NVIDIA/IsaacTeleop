@@ -5,8 +5,6 @@
 
 #include "inc/deviceio/deviceio_session.hpp"
 
-#include <schema/hands_generated.h>
-
 #include <cassert>
 #include <cstring>
 #include <iostream>
@@ -88,23 +86,18 @@ HandTracker::Impl::Impl(const OpenXRSessionHandles& handles)
     std::cout << "HandTracker initialized (left + right)" << std::endl;
 }
 
-Timestamp HandTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder) const
+DeviceDataTimestamp HandTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const
 {
-    // Serialize both hands into a combined HandsPose message
-    auto left_offset = HandPose::Pack(builder, &left_hand_);
-    auto right_offset = HandPose::Pack(builder, &right_hand_);
+    const HandPoseT& hand = (channel_index == 0) ? left_hand_ : right_hand_;
 
-    HandsPoseBuilder hands_builder(builder);
-    hands_builder.add_left_hand(left_offset);
-    hands_builder.add_right_hand(right_offset);
-    builder.Finish(hands_builder.Finish());
+    auto data_offset = HandPose::Pack(builder, &hand);
 
-    // For hand tracker, we use left hand's timestamp (both hands are updated at the same time)
-    if (left_hand_.timestamp)
-    {
-        return *left_hand_.timestamp;
-    }
-    return Timestamp{};
+    HandPoseRecordBuilder record_builder(builder);
+    record_builder.add_data(data_offset);
+    record_builder.add_timestamp(&last_timestamp_);
+    builder.Finish(record_builder.Finish());
+
+    return last_timestamp_;
 }
 
 HandTracker::Impl::~Impl()
@@ -129,6 +122,8 @@ bool HandTracker::Impl::update(XrTime time)
 {
     bool left_ok = update_hand(left_hand_tracker_, time, left_hand_);
     bool right_ok = update_hand(right_hand_tracker_, time, right_hand_);
+
+    last_timestamp_ = DeviceDataTimestamp(time, time, 0);
 
     // Return true if at least one hand updated successfully
     return left_ok || right_ok;
@@ -165,13 +160,6 @@ bool HandTracker::Impl::update_hand(XrHandTrackerEXT tracker, XrTime time, HandP
     }
 
     out_data.is_active = locations.isActive;
-
-    // Update timestamp (device time and common time)
-    if (!out_data.timestamp)
-    {
-        out_data.timestamp = std::make_shared<Timestamp>();
-    }
-    out_data.timestamp = std::make_shared<Timestamp>(time, time);
 
     // Ensure joints struct is allocated
     if (!out_data.joints)

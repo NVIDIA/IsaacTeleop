@@ -1,13 +1,12 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
 
 #include "tracker.hpp"
 
+#include <schema/hand_bfbs_generated.h>
 #include <schema/hand_generated.h>
-#include <schema/hands_bfbs_generated.h>
-#include <schema/hands_generated.h>
 
 #include <memory>
 
@@ -34,7 +33,12 @@ public:
     std::string_view get_schema_text() const override
     {
         return std::string_view(
-            reinterpret_cast<const char*>(HandsPoseBinarySchema::data()), HandsPoseBinarySchema::size());
+            reinterpret_cast<const char*>(HandPoseRecordBinarySchema::data()), HandPoseRecordBinarySchema::size());
+    }
+
+    std::vector<std::string> get_record_channels() const override
+    {
+        return { "left_hand", "right_hand" };
     }
 
     // Query methods - public API for getting hand data
@@ -46,7 +50,7 @@ public:
 
 private:
     static constexpr const char* TRACKER_NAME = "HandTracker";
-    static constexpr const char* SCHEMA_NAME = "core.HandsPose";
+    static constexpr const char* SCHEMA_NAME = "core.HandPoseRecord";
 
     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
 
@@ -61,13 +65,12 @@ private:
         // Override from ITrackerImpl
         bool update(XrTime time) override;
 
-        Timestamp serialize(flatbuffers::FlatBufferBuilder& builder) const override;
+        DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const override;
 
         const HandPoseT& get_left_hand() const;
         const HandPoseT& get_right_hand() const;
 
     private:
-        // Helper functions
         bool update_hand(XrHandTrackerEXT tracker, XrTime time, HandPoseT& out_data);
 
         XrSpace base_space_;
@@ -79,6 +82,9 @@ private:
         // Hand data
         HandPoseT left_hand_;
         HandPoseT right_hand_;
+
+        // Timestamp from last update
+        DeviceDataTimestamp last_timestamp_{};
 
         // Extension function pointers
         PFN_xrCreateHandTrackerEXT pfn_create_hand_tracker_;

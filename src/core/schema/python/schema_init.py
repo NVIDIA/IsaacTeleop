@@ -12,6 +12,8 @@ from ._schema import (
     Point,
     Quaternion,
     Pose,
+    # Timestamp type.
+    DeviceDataTimestamp,
     # Head-related types.
     HeadPoseT,
     # Hand-related types.
@@ -21,9 +23,7 @@ from ._schema import (
     # Controller-related types.
     ControllerInputState,
     ControllerPose,
-    Timestamp,
     ControllerSnapshot,
-    ControllerData,
     # Locomotion-related types.
     Twist,
     LocomotionCommand,
@@ -44,6 +44,8 @@ __all__ = [
     "Point",
     "Quaternion",
     "Pose",
+    # Timestamp type.
+    "DeviceDataTimestamp",
     # Head types.
     "HeadPoseT",
     # Hand types.
@@ -53,9 +55,7 @@ __all__ = [
     # Controller types.
     "ControllerInputState",
     "ControllerPose",
-    "Timestamp",
     "ControllerSnapshot",
-    "ControllerData",
     # Locomotion types.
     "Twist",
     "LocomotionCommand",

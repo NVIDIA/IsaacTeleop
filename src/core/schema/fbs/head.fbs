@@ -13,9 +13,12 @@ table HeadPose {
 
     // Whether the head pose data is valid
     is_valid: bool (id: 1);
-
-    // Dual timestamp with device and runtime clock domains
-    timestamp: Timestamp (id: 2);
 }
 
-root_type HeadPose;
+// MCAP recording wrapper: pairs a HeadPose with a DeviceDataTimestamp.
+table HeadPoseRecord {
+    data: HeadPose (id: 0);
+    timestamp: DeviceDataTimestamp (id: 1);
+}
+
+root_type HeadPoseRecord;

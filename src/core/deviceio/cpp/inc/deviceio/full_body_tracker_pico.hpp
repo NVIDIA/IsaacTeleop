@@ -32,13 +32,18 @@ public:
 
     std::string_view get_schema_name() const override
     {
-        return "core.FullBodyPosePico";
+        return "core.FullBodyPosePicoRecord";
     }
 
     std::string_view get_schema_text() const override
     {
-        return std::string_view(
-            reinterpret_cast<const char*>(FullBodyPosePicoBinarySchema::data()), FullBodyPosePicoBinarySchema::size());
+        return std::string_view(reinterpret_cast<const char*>(FullBodyPosePicoRecordBinarySchema::data()),
+                                FullBodyPosePicoRecordBinarySchema::size());
+    }
+
+    std::vector<std::string> get_record_channels() const override
+    {
+        return { "full_body" };
     }
 
     // Query method - public API for getting body pose data

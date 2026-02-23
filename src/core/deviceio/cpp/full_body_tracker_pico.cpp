@@ -19,21 +19,20 @@ namespace core
 class FullBodyTrackerPicoImpl : public ITrackerImpl
 {
 public:
-    // Constructor - throws std::runtime_error on failure
     explicit FullBodyTrackerPicoImpl(const OpenXRSessionHandles& handles);
     ~FullBodyTrackerPicoImpl();
 
     // Override from ITrackerImpl
     bool update(XrTime time) override;
-    Timestamp serialize(flatbuffers::FlatBufferBuilder& builder) const override;
+    DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const override;
 
-    // Get body pose data
     const FullBodyPosePicoT& get_body_pose() const;
 
 private:
     XrSpace base_space_;
     XrBodyTrackerBD body_tracker_;
     FullBodyPosePicoT body_pose_;
+    DeviceDataTimestamp last_timestamp_{};
 
     // Extension function pointers
     PFN_xrCreateBodyTrackerBD pfn_create_body_tracker_;
@@ -142,8 +141,7 @@ bool FullBodyTrackerPicoImpl::update(XrTime time)
     // allJointPosesTracked indicates if all joint poses are valid
     body_pose_.is_active = locations.allJointPosesTracked;
 
-    // Update timestamp (device time and common time)
-    body_pose_.timestamp = std::make_shared<Timestamp>(time, time);
+    last_timestamp_ = DeviceDataTimestamp(time, time, 0);
 
     // Ensure joints struct is allocated
     if (!body_pose_.joints)
@@ -177,16 +175,17 @@ const FullBodyPosePicoT& FullBodyTrackerPicoImpl::get_body_pose() const
     return body_pose_;
 }
 
-Timestamp FullBodyTrackerPicoImpl::serialize(flatbuffers::FlatBufferBuilder& builder) const
+DeviceDataTimestamp FullBodyTrackerPicoImpl::serialize(flatbuffers::FlatBufferBuilder& builder,
+                                                       size_t /* channel_index */) const
 {
-    auto offset = FullBodyPosePico::Pack(builder, &body_pose_);
-    builder.Finish(offset);
+    auto data_offset = FullBodyPosePico::Pack(builder, &body_pose_);
 
-    if (body_pose_.timestamp)
-    {
-        return *body_pose_.timestamp;
-    }
-    return Timestamp{};
+    FullBodyPosePicoRecordBuilder record_builder(builder);
+    record_builder.add_data(data_offset);
+    record_builder.add_timestamp(&last_timestamp_);
+    builder.Finish(record_builder.Finish());
+
+    return last_timestamp_;
 }
 
 // ============================================================================

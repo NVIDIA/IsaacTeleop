@@ -52,7 +52,7 @@ PYBIND11_MODULE(_mcap, m)
     py::class_<PyMcapRecorder>(m, "McapRecorder")
         .def_static(
             "create",
-            [](const std::string& filename, const std::vector<core::McapRecorder::TrackerChannelPair>& trackers)
+            [](const std::string& filename, const std::vector<std::shared_ptr<core::ITracker>>& trackers)
             { return std::make_unique<PyMcapRecorder>(core::McapRecorder::create(filename, trackers)); },
             py::arg("filename"), py::arg("trackers"),
             "Create a recorder for an MCAP file with the specified trackers. "
