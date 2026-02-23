@@ -39,10 +39,11 @@ class ControllersSource(IDeviceIOSource):
 
     Usage:
         # In TeleopSession, manually poll tracker and pass data
-        controller_data = controller_tracker.get_controller_data(session)
+        left_snap = controller_tracker.get_left_controller(session)
+        right_snap = controller_tracker.get_right_controller(session)
         result = controllers_source_node({
-            "deviceio_controller_left": controller_data.left_controller,
-            "deviceio_controller_right": controller_data.right_controller
+            "deviceio_controller_left": left_snap,
+            "deviceio_controller_right": right_snap
         })
     """
 
@@ -80,15 +81,16 @@ class ControllersSource(IDeviceIOSource):
             Dict with "deviceio_controller_left" and "deviceio_controller_right"
             TensorGroups containing raw ControllerSnapshot data.
         """
-        controller_data = self._controller_tracker.get_controller_data(deviceio_session)
+        left_ctrl = self._controller_tracker.get_left_controller(deviceio_session)
+        right_ctrl = self._controller_tracker.get_right_controller(deviceio_session)
         source_inputs = self.input_spec()
         result = {}
         for input_name, group_type in source_inputs.items():
             tg = TensorGroup(group_type)
             if "left" in input_name:
-                tg[0] = controller_data.left_controller
+                tg[0] = left_ctrl
             elif "right" in input_name:
-                tg[0] = controller_data.right_controller
+                tg[0] = right_ctrl
             result[input_name] = tg
         return result
 

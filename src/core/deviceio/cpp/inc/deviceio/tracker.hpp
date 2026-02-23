@@ -33,9 +33,10 @@ public:
      * @brief Serialize the tracker data to a FlatBuffer.
      *
      * @param builder Output FlatBufferBuilder to write serialized data into.
+     * @param channel_index Which channel to serialize (0 for single-channel trackers).
      * @return Timestamp for MCAP recording (device_time and common_time).
      */
-    virtual Timestamp serialize(flatbuffers::FlatBufferBuilder& builder) const = 0;
+    virtual Timestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index = 0) const = 0;
 };
 
 // Base interface for all trackers
@@ -62,6 +63,20 @@ public:
      * @brief Get the binary FlatBuffer schema text for MCAP recording.
      */
     virtual std::string_view get_schema_text() const = 0;
+
+    /**
+     * @brief Get the channel names for multi-channel trackers.
+     *
+     * Trackers that produce multiple independent data streams (e.g. left/right hand)
+     * override this to return named channels. Single-channel trackers use the default.
+     * The returned vector size determines how many times serialize() is called per update.
+     *
+     * @return Channel names. Default returns {""} for single-channel trackers.
+     */
+    virtual std::vector<std::string> get_record_channels() const
+    {
+        return { "" };
+    }
 
 protected:
     // Internal lifecycle methods - only accessible to friend classes

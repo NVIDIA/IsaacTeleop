@@ -37,7 +37,7 @@ public:
         return true;
     }
 
-    core::Timestamp serialize(flatbuffers::FlatBufferBuilder& builder) const override
+    core::Timestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t /*channel_index*/ = 0) const override
     {
         // Create minimal valid FlatBuffer data (just some bytes for testing)
         // In a real scenario, this would be actual FlatBuffer serialization

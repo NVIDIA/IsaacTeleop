@@ -71,22 +71,18 @@ class HandTracker:
         return ["XR_EXT_hand_tracking"]
 
 
-class _MockControllerData:
-    """Mock controller data returned by ControllerTracker."""
-
-    def __init__(self):
-        self.left_controller = 3.0
-        self.right_controller = 4.0
-
-
 class ControllerTracker:
     """Mock controller tracker for testing."""
 
     def __init__(self):
-        self._data = _MockControllerData()
+        self._left_controller = 3.0
+        self._right_controller = 4.0
 
-    def get_controller_data(self, session):
-        return self._data
+    def get_left_controller(self, session):
+        return self._left_controller
+
+    def get_right_controller(self, session):
+        return self._right_controller
 
     def get_required_extensions(self):
         return ["XR_EXT_controller_interaction"]
@@ -181,14 +177,15 @@ class MockControllersSource(MockDeviceIOSource):
 
     def poll_tracker(self, deviceio_session):
         source_inputs = self.input_spec()
-        controller_data = self._tracker.get_controller_data(deviceio_session)
+        left_ctrl = self._tracker.get_left_controller(deviceio_session)
+        right_ctrl = self._tracker.get_right_controller(deviceio_session)
         result = {}
         for input_name, group_type in source_inputs.items():
             tg = TensorGroup(group_type)
             if "left" in input_name:
-                tg[0] = controller_data.left_controller
+                tg[0] = left_ctrl
             elif "right" in input_name:
-                tg[0] = controller_data.right_controller
+                tg[0] = right_ctrl
             result[input_name] = tg
         return result
 

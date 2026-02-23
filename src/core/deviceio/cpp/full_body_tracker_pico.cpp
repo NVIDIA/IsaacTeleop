@@ -25,7 +25,7 @@ public:
 
     // Override from ITrackerImpl
     bool update(XrTime time) override;
-    Timestamp serialize(flatbuffers::FlatBufferBuilder& builder) const override;
+    Timestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index = 0) const override;
 
     // Get body pose data
     const FullBodyPosePicoT& get_body_pose() const;
@@ -177,7 +177,7 @@ const FullBodyPosePicoT& FullBodyTrackerPicoImpl::get_body_pose() const
     return body_pose_;
 }
 
-Timestamp FullBodyTrackerPicoImpl::serialize(flatbuffers::FlatBufferBuilder& builder) const
+Timestamp FullBodyTrackerPicoImpl::serialize(flatbuffers::FlatBufferBuilder& builder, size_t /*channel_index*/) const
 {
     auto offset = FullBodyPosePico::Pack(builder, &body_pose_);
     builder.Finish(offset);

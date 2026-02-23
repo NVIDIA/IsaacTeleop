@@ -7,7 +7,7 @@ This module provides trackers and teleop session functionality.
 
 Note: HeadTracker.get_head(session) returns HeadPoseT from isaacteleop.schema.
     HandTracker.get_left_hand(session) / get_right_hand(session) return HandPoseT from isaacteleop.schema.
-    ControllerTracker.get_controller_data(session) returns ControllerSnapshot from isaacteleop.schema.
+    ControllerTracker.get_left_controller(session) / get_right_controller(session) return ControllerSnapshot from isaacteleop.schema.
     FrameMetadataTrackerOak.get_data(session) returns FrameMetadata from isaacteleop.schema.
 Import these types from isaacteleop.schema if you need to work with pose types.
 """

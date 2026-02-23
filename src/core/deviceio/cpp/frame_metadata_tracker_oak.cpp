@@ -40,7 +40,7 @@ public:
         return true;
     }
 
-    Timestamp serialize(flatbuffers::FlatBufferBuilder& builder) const override
+    Timestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t /*channel_index*/ = 0) const override
     {
         auto offset = FrameMetadata::Pack(builder, &m_data);
         builder.Finish(offset);

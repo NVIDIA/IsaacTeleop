@@ -8,7 +8,6 @@ Tests the following FlatBuffers types:
 - ControllerPose: Struct with pose and validity (immutable)
 - Timestamp: Struct with device and common time timestamps (immutable)
 - ControllerSnapshot: Struct representing complete controller state (immutable)
-- ControllerData: Root table with both left and right controllers
 """
 
 import pytest
@@ -18,7 +17,6 @@ from isaacteleop.schema import (
     ControllerPose,
     Timestamp,
     ControllerSnapshot,
-    ControllerData,
     Pose,
     Point,
     Quaternion,
@@ -256,25 +254,6 @@ class TestControllerSnapshot:
 
         assert "ControllerSnapshot" in repr_str
         assert "is_active=False" in repr_str
-
-
-class TestControllerData:
-    """Tests for ControllerData table."""
-
-    def test_default_construction(self):
-        """Test default construction creates ControllerData with None controllers."""
-        controller_data = ControllerData()
-
-        assert controller_data is not None
-        assert controller_data.left_controller is None
-        assert controller_data.right_controller is None
-
-    def test_repr(self):
-        """Test __repr__ method."""
-        controller_data = ControllerData()
-        repr_str = repr(controller_data)
-
-        assert "ControllerData" in repr_str
 
 
 class TestControllerIntegration:

@@ -6,6 +6,7 @@
 #include "schema_tracker.hpp"
 #include "tracker.hpp"
 
+#include <schema/pedals_bfbs_generated.h>
 #include <schema/pedals_generated.h>
 
 #include <memory>
