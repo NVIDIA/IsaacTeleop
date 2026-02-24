@@ -83,9 +83,6 @@ HandTracker::Impl::Impl(const OpenXRSessionHandles& handles)
         throw std::runtime_error("Failed to create right hand tracker: " + std::to_string(result));
     }
 
-    left_hand_.is_active = false;
-    right_hand_.is_active = false;
-
     std::cout << "HandTracker initialized (left + right)" << std::endl;
 }
 
@@ -94,22 +91,21 @@ Timestamp HandTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, 
     if (channel_index > 1)
     {
         throw std::runtime_error("HandTracker::serialize: invalid channel_index " + std::to_string(channel_index) +
-                                 " (expected 0=left, 1=right)");
+                                 " (must be 0 or 1)");
     }
+    const auto& tracked = (channel_index == 0) ? left_tracked_ : right_tracked_;
 
-    const HandPoseT& hand = (channel_index == 0) ? left_hand_ : right_hand_;
-
-    auto data_offset = HandPose::Pack(builder, &hand);
-
-    HandPoseRecordBuilder record_builder(builder);
-    record_builder.add_data(data_offset);
-    builder.Finish(record_builder.Finish());
-
-    if (hand.timestamp)
+    if (tracked.data)
     {
-        return *hand.timestamp;
+        auto data_offset = HandPose::Pack(builder, tracked.data.get());
+        HandPoseRecordBuilder record_builder(builder);
+        record_builder.add_data(data_offset);
+        builder.Finish(record_builder.Finish());
+        return *tracked.data->timestamp;
     }
-    return Timestamp{};
+    HandPoseRecordBuilder record_builder(builder);
+    builder.Finish(record_builder.Finish());
+    return Timestamp(last_update_time_, last_update_time_);
 }
 
 HandTracker::Impl::~Impl()
@@ -132,24 +128,25 @@ HandTracker::Impl::~Impl()
 // Override from ITrackerImpl
 bool HandTracker::Impl::update(XrTime time)
 {
-    bool left_ok = update_hand(left_hand_tracker_, time, left_hand_);
-    bool right_ok = update_hand(right_hand_tracker_, time, right_hand_);
+    last_update_time_ = time;
+    bool left_ok = update_hand(left_hand_tracker_, time, left_tracked_);
+    bool right_ok = update_hand(right_hand_tracker_, time, right_tracked_);
 
     // Return true if at least one hand updated successfully
     return left_ok || right_ok;
 }
 
-const HandPoseT& HandTracker::Impl::get_left_hand() const
+const HandPoseTrackedT& HandTracker::Impl::get_left_hand() const
 {
-    return left_hand_;
+    return left_tracked_;
 }
 
-const HandPoseT& HandTracker::Impl::get_right_hand() const
+const HandPoseTrackedT& HandTracker::Impl::get_right_hand() const
 {
-    return right_hand_;
+    return right_tracked_;
 }
 
-bool HandTracker::Impl::update_hand(XrHandTrackerEXT tracker, XrTime time, HandPoseT& out_data)
+bool HandTracker::Impl::update_hand(XrHandTrackerEXT tracker, XrTime time, HandPoseTrackedT& tracked)
 {
     XrHandJointsLocateInfoEXT locate_info{ XR_TYPE_HAND_JOINTS_LOCATE_INFO_EXT };
     locate_info.baseSpace = base_space_;
@@ -165,30 +162,32 @@ bool HandTracker::Impl::update_hand(XrHandTrackerEXT tracker, XrTime time, HandP
     XrResult result = pfn_locate_hand_joints_(tracker, &locate_info, &locations);
     if (XR_FAILED(result))
     {
-        out_data.is_active = false;
+        tracked.data.reset();
         return false;
     }
 
-    out_data.is_active = locations.isActive;
-
-    // Update timestamp (device time and common time)
-    if (!out_data.timestamp)
+    if (!locations.isActive)
     {
-        out_data.timestamp = std::make_shared<Timestamp>();
+        tracked.data.reset();
+        return true;
     }
-    out_data.timestamp = std::make_shared<Timestamp>(time, time);
 
-    // Ensure joints struct is allocated
-    if (!out_data.joints)
+    if (!tracked.data)
     {
-        out_data.joints = std::make_unique<HandJoints>();
+        tracked.data = std::make_shared<HandPoseT>();
+    }
+
+    tracked.data->timestamp = std::make_shared<Timestamp>(time, time);
+
+    if (!tracked.data->joints)
+    {
+        tracked.data->joints = std::make_shared<HandJoints>();
     }
 
     for (uint32_t i = 0; i < 26; ++i)
     {
         const auto& joint_loc = joint_locations[i];
 
-        // Create Pose from position and orientation using FlatBuffers structs
         Point position(joint_loc.pose.position.x, joint_loc.pose.position.y, joint_loc.pose.position.z);
         Quaternion orientation(joint_loc.pose.orientation.x, joint_loc.pose.orientation.y, joint_loc.pose.orientation.z,
                                joint_loc.pose.orientation.w);
@@ -197,9 +196,8 @@ bool HandTracker::Impl::update_hand(XrHandTrackerEXT tracker, XrTime time, HandP
         bool is_valid = (joint_loc.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) &&
                         (joint_loc.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT);
 
-        // Create HandJointPose and set it in the array
         HandJointPose joint_pose(pose, is_valid, joint_loc.radius);
-        out_data.joints->mutable_poses()->Mutate(i, joint_pose);
+        tracked.data->joints->mutable_poses()->Mutate(i, joint_pose);
     }
 
     return true;
@@ -214,12 +212,12 @@ std::vector<std::string> HandTracker::get_required_extensions() const
     return { XR_EXT_HAND_TRACKING_EXTENSION_NAME };
 }
 
-const HandPoseT& HandTracker::get_left_hand(const DeviceIOSession& session) const
+const HandPoseTrackedT& HandTracker::get_left_hand(const DeviceIOSession& session) const
 {
     return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_left_hand();
 }
 
-const HandPoseT& HandTracker::get_right_hand(const DeviceIOSession& session) const
+const HandPoseTrackedT& HandTracker::get_right_hand(const DeviceIOSession& session) const
 {
     return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_right_hand();
 }

@@ -57,22 +57,20 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
 
         # Test 5: Check initial controller state
         print("[Test 5] Checking controller state...")
-        left_snapshot = controller_tracker.get_left_controller(session)
-        right_snapshot = controller_tracker.get_right_controller(session)
-        print(
-            f"  Left controller: {'ACTIVE' if left_snapshot.is_active else 'INACTIVE'}"
-        )
-        print(
-            f"  Right controller: {'ACTIVE' if right_snapshot.is_active else 'INACTIVE'}"
-        )
+        left_tracked = controller_tracker.get_left_controller(session)
+        right_tracked = controller_tracker.get_right_controller(session)
 
-        if left_snapshot.is_active and left_snapshot.grip_pose.is_valid:
-            pos = left_snapshot.grip_pose.pose.position
-            print(f"  Left grip position: [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
+        if left_tracked.data is not None and left_tracked.data.grip_pose.is_valid:
+            pos = left_tracked.data.grip_pose.pose.position
+            print(f"  Left grip:  [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
+        else:
+            print("  Left:  inactive")
 
-        if right_snapshot.is_active and right_snapshot.grip_pose.is_valid:
-            pos = right_snapshot.grip_pose.pose.position
-            print(f"  Right grip position: [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
+        if right_tracked.data is not None and right_tracked.data.grip_pose.is_valid:
+            pos = right_tracked.data.grip_pose.pose.position
+            print(f"  Right grip: [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
+        else:
+            print("  Right: inactive")
         print()
 
         # Test 6: Available inputs
@@ -100,48 +98,32 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
                 current_time = time.time()
                 if current_time - last_status_print >= 0.5:  # Print every 0.5 seconds
                     elapsed = current_time - start_time
-                    left_snapshot = controller_tracker.get_left_controller(session)
-                    right_snapshot = controller_tracker.get_right_controller(session)
+                    left_tracked = controller_tracker.get_left_controller(session)
+                    right_tracked = controller_tracker.get_right_controller(session)
 
-                    # Show current state
-                    left_trigger = left_snapshot.inputs.trigger_value
-                    left_squeeze = left_snapshot.inputs.squeeze_value
-                    left_stick_x = left_snapshot.inputs.thumbstick_x
-                    left_stick_y = left_snapshot.inputs.thumbstick_y
-                    left_primary = left_snapshot.inputs.primary_click
-                    left_secondary = left_snapshot.inputs.secondary_click
+                    print(f"  [{elapsed:5.2f}s] Frame {frame_count:4d}")
 
-                    right_trigger = right_snapshot.inputs.trigger_value
-                    right_squeeze = right_snapshot.inputs.squeeze_value
-                    right_stick_x = right_snapshot.inputs.thumbstick_x
-                    right_stick_y = right_snapshot.inputs.thumbstick_y
-                    right_primary = right_snapshot.inputs.primary_click
-                    right_secondary = right_snapshot.inputs.secondary_click
-
-                    # Build status strings
-                    left_status = f"Trig={left_trigger:.2f} Sq={left_squeeze:.2f}"
-                    if abs(left_stick_x) > 0.1 or abs(left_stick_y) > 0.1:
-                        left_status += (
-                            f" Stick=({left_stick_x:+.2f},{left_stick_y:+.2f})"
+                    left_data = left_tracked.data
+                    if left_data is not None:
+                        li = left_data.inputs
+                        print(
+                            f"    L: Trig={li.trigger_value:.2f} Sq={li.squeeze_value:.2f}"
+                            f" Stick=({li.thumbstick_x:+.2f},{li.thumbstick_y:+.2f})"
+                            f" Btn=[{int(li.primary_click)}{int(li.secondary_click)}{int(li.thumbstick_click)}]"
                         )
-                    if left_primary:
-                        left_status += " [X]"
-                    if left_secondary:
-                        left_status += " [Y]"
+                    else:
+                        print("    L: INACTIVE")
 
-                    right_status = f"Trig={right_trigger:.2f} Sq={right_squeeze:.2f}"
-                    if abs(right_stick_x) > 0.1 or abs(right_stick_y) > 0.1:
-                        right_status += (
-                            f" Stick=({right_stick_x:+.2f},{right_stick_y:+.2f})"
+                    right_data = right_tracked.data
+                    if right_data is not None:
+                        ri = right_data.inputs
+                        print(
+                            f"    R: Trig={ri.trigger_value:.2f} Sq={ri.squeeze_value:.2f}"
+                            f" Stick=({ri.thumbstick_x:+.2f},{ri.thumbstick_y:+.2f})"
+                            f" Btn=[{int(ri.primary_click)}{int(ri.secondary_click)}{int(ri.thumbstick_click)}]"
                         )
-                    if right_primary:
-                        right_status += " [A]"
-                    if right_secondary:
-                        right_status += " [B]"
-
-                    print(
-                        f"  [{elapsed:5.2f}s] Frame {frame_count:4d} | L: {left_status} | R: {right_status}"
-                    )
+                    else:
+                        print("    R: INACTIVE")
                     last_status_print = current_time
 
                 frame_count += 1
@@ -157,29 +139,14 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
         # Test 8: Show final statistics
         print("[Test 8] Final controller state...")
 
-        def print_controller_summary(hand_name, snapshot):
+        def print_controller_summary(hand_name, tracked):
             print(f"  {hand_name} Controller:")
-            if snapshot.is_active:
-                print("    Status: ACTIVE")
-
-                # Poses from snapshot
-                grip = snapshot.grip_pose
-                aim = snapshot.aim_pose
-
-                if grip.is_valid:
-                    pos = grip.pose.position
-                    print(
-                        f"    Grip position: [{pos.x:+.3f}, {pos.y:+.3f}, {pos.z:+.3f}]"
-                    )
-
-                if aim.is_valid:
-                    pos = aim.pose.position
-                    print(
-                        f"    Aim position: [{pos.x:+.3f}, {pos.y:+.3f}, {pos.z:+.3f}]"
-                    )
-
-                # Input values
-                inputs = snapshot.inputs
+            if tracked.data is not None:
+                pos = tracked.data.grip_pose.pose.position
+                print(f"    Grip position: [{pos.x:+.3f}, {pos.y:+.3f}, {pos.z:+.3f}]")
+                pos = tracked.data.aim_pose.pose.position
+                print(f"    Aim position:  [{pos.x:+.3f}, {pos.y:+.3f}, {pos.z:+.3f}]")
+                inputs = tracked.data.inputs
                 print(f"    Trigger: {inputs.trigger_value:.2f}")
                 print(f"    Squeeze: {inputs.squeeze_value:.2f}")
                 print(
@@ -192,13 +159,13 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
                     f"    Secondary: {'PRESSED' if inputs.secondary_click else 'released'}"
                 )
             else:
-                print("    Status: INACTIVE")
+                print("    inactive")
 
-        left_snapshot = controller_tracker.get_left_controller(session)
-        right_snapshot = controller_tracker.get_right_controller(session)
-        print_controller_summary("Left", left_snapshot)
+        left_tracked = controller_tracker.get_left_controller(session)
+        right_tracked = controller_tracker.get_right_controller(session)
+        print_controller_summary("Left", left_tracked)
         print()
-        print_controller_summary("Right", right_snapshot)
+        print_controller_summary("Right", right_tracked)
         print()
 
         # Cleanup

@@ -46,8 +46,8 @@ public:
         return { "full_body" };
     }
 
-    // Query method - public API for getting body pose data
-    const FullBodyPosePicoT& get_body_pose(const DeviceIOSession& session) const;
+    // Query method - public API for getting body pose data (tracked.data is null when inactive)
+    const FullBodyPosePicoTrackedT& get_body_pose(const DeviceIOSession& session) const;
 
 private:
     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;

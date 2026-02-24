@@ -132,38 +132,35 @@ def main():
                     print("-" * 70)
 
                     # ====================================================
-                    # Manually poll DeviceIO trackers for raw data
+                    # Manually poll DeviceIO trackers for tracked objects
                     # ====================================================
-                    hand_left_raw = hand_tracker.get_left_hand(session)
-                    hand_right_raw = hand_tracker.get_right_hand(session)
-                    head_raw = head_tracker.get_head(session)
-                    left_controller_raw = controller_tracker.get_left_controller(
-                        session
-                    )
-                    right_controller_raw = controller_tracker.get_right_controller(
+                    hand_left_tracked = hand_tracker.get_left_hand(session)
+                    hand_right_tracked = hand_tracker.get_right_hand(session)
+                    head_tracked = head_tracker.get_head(session)
+                    left_ctrl_tracked = controller_tracker.get_left_controller(session)
+                    right_ctrl_tracked = controller_tracker.get_right_controller(
                         session
                     )
 
                     # ====================================================
-                    # Wrap raw data in TensorGroups for source inputs
+                    # Wrap tracked objects in TensorGroups for source inputs
                     # ====================================================
 
-                    # Prepare inputs for each source module
                     hands_inputs = {}
                     hands_input_spec = hands_source.input_spec()
                     for input_name, group_type in hands_input_spec.items():
                         tg = TensorGroup(group_type)
                         if "left" in input_name.lower():
-                            tg[0] = hand_left_raw
+                            tg[0] = hand_left_tracked
                         elif "right" in input_name.lower():
-                            tg[0] = hand_right_raw
+                            tg[0] = hand_right_tracked
                         hands_inputs[input_name] = tg
 
                     head_inputs = {}
                     head_input_spec = head_source.input_spec()
                     for input_name, group_type in head_input_spec.items():
                         tg = TensorGroup(group_type)
-                        tg[0] = head_raw
+                        tg[0] = head_tracked
                         head_inputs[input_name] = tg
 
                     controllers_inputs = {}
@@ -171,9 +168,9 @@ def main():
                     for input_name, group_type in controllers_input_spec.items():
                         tg = TensorGroup(group_type)
                         if "left" in input_name.lower():
-                            tg[0] = left_controller_raw
+                            tg[0] = left_ctrl_tracked
                         elif "right" in input_name.lower():
-                            tg[0] = right_controller_raw
+                            tg[0] = right_ctrl_tracked
                         controllers_inputs[input_name] = tg
 
                     # ====================================================

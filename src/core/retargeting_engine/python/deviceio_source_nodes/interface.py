@@ -25,7 +25,7 @@ class IDeviceIOSource(BaseRetargeter):
     Extends BaseRetargeter to add DeviceIO tracker discovery and polling.
 
     DeviceIO source nodes are retargeters that:
-    - Take DeviceIO flatbuffer objects as input (DeviceIOHeadPose, DeviceIOHandPose, etc.)
+    - Take DeviceIO tracked wrappers as input (DeviceIOHeadPoseTracked, DeviceIOHandPoseTracked, etc.)
     - Convert them to standard retargeting engine tensor formats (HeadPose, HandInput, etc.)
     - Are pure converters with no internal state or session dependencies
     - Provide access to their associated tracker via get_tracker()

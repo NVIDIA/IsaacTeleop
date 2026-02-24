@@ -18,9 +18,26 @@ namespace core
 
 inline void bind_head(py::module& m)
 {
-    // Bind HeadPoseT class (FlatBuffers object API for tables, read-only from Python).
-    py::class_<HeadPoseT, std::unique_ptr<HeadPoseT>>(m, "HeadPoseT")
-        .def(py::init<>())
+    // Bind HeadPoseT class (FlatBuffers object API for tables).
+    py::class_<HeadPoseT, std::shared_ptr<HeadPoseT>>(m, "HeadPoseT")
+        .def(py::init(
+            []()
+            {
+                auto obj = std::make_shared<HeadPoseT>();
+                obj->pose = std::make_shared<Pose>();
+                obj->timestamp = std::make_shared<Timestamp>();
+                return obj;
+            }))
+        .def(py::init(
+                 [](const Pose& pose, bool is_valid, const Timestamp& timestamp)
+                 {
+                     auto obj = std::make_shared<HeadPoseT>();
+                     obj->pose = std::make_shared<Pose>(pose);
+                     obj->is_valid = is_valid;
+                     obj->timestamp = std::make_shared<Timestamp>(timestamp);
+                     return obj;
+                 }),
+             py::arg("pose"), py::arg("is_valid"), py::arg("timestamp"))
         .def_property_readonly(
             "pose", [](const HeadPoseT& self) -> const Pose* { return self.pose.get(); },
             py::return_value_policy::reference_internal)
@@ -51,6 +68,21 @@ inline void bind_head(py::module& m)
                  return "HeadPoseT(pose=" + pose_str + ", is_valid=" + (self.is_valid ? "True" : "False") +
                         ", timestamp=" + timestamp_str + ")";
              });
+
+    py::class_<HeadPoseTrackedT>(m, "HeadPoseTrackedT")
+        .def(py::init<>())
+        .def(py::init(
+                 [](const HeadPoseT& data)
+                 {
+                     auto obj = std::make_unique<HeadPoseTrackedT>();
+                     obj->data = std::make_shared<HeadPoseT>(data);
+                     return obj;
+                 }),
+             py::arg("data"))
+        .def_property_readonly(
+            "data", [](const HeadPoseTrackedT& self) -> std::shared_ptr<HeadPoseT> { return self.data; })
+        .def("__repr__", [](const HeadPoseTrackedT& self)
+             { return std::string("HeadPoseTrackedT(data=") + (self.data ? "HeadPoseT(...)" : "None") + ")"; });
 }
 
 } // namespace core

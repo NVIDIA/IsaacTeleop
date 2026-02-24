@@ -25,41 +25,47 @@ public:
 
     bool update(XrTime /* time */) override
     {
-        // Try to read new data from tensor stream
         if (m_schema_reader.read_buffer(m_buffer))
         {
             auto fb = flatbuffers::GetRoot<Generic3AxisPedalOutput>(m_buffer.data());
             if (fb)
             {
-                fb->UnPackTo(&m_data);
+                if (!m_tracked.data)
+                {
+                    m_tracked.data = std::make_shared<Generic3AxisPedalOutputT>();
+                }
+                fb->UnPackTo(m_tracked.data.get());
                 return true;
             }
         }
-        // Return true even if no new data - we're still running, but inactive.
-        m_data.is_active = false;
+        m_tracked.data.reset();
         return true;
     }
 
     Timestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t /*channel_index*/) const override
     {
-        auto data_offset = Generic3AxisPedalOutput::Pack(builder, &m_data);
-
+        if (m_tracked.data)
+        {
+            auto data_offset = Generic3AxisPedalOutput::Pack(builder, m_tracked.data.get());
+            Generic3AxisPedalOutputRecordBuilder record_builder(builder);
+            record_builder.add_data(data_offset);
+            builder.Finish(record_builder.Finish());
+            return *m_tracked.data->timestamp;
+        }
         Generic3AxisPedalOutputRecordBuilder record_builder(builder);
-        record_builder.add_data(data_offset);
         builder.Finish(record_builder.Finish());
-
-        return m_data.timestamp ? *m_data.timestamp : Timestamp{};
+        return Timestamp{};
     }
 
-    const Generic3AxisPedalOutputT& get_data() const
+    const Generic3AxisPedalOutputTrackedT& get_data() const
     {
-        return m_data;
+        return m_tracked;
     }
 
 private:
     SchemaTracker m_schema_reader;
     std::vector<uint8_t> m_buffer;
-    Generic3AxisPedalOutputT m_data;
+    Generic3AxisPedalOutputTrackedT m_tracked;
 };
 
 // ============================================================================
@@ -100,7 +106,7 @@ const SchemaTrackerConfig& Generic3AxisPedalTracker::get_config() const
     return m_config;
 }
 
-const Generic3AxisPedalOutputT& Generic3AxisPedalTracker::get_data(const DeviceIOSession& session) const
+const Generic3AxisPedalOutputTrackedT& Generic3AxisPedalTracker::get_data(const DeviceIOSession& session) const
 {
     return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_data();
 }

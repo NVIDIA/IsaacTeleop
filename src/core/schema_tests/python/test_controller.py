@@ -7,7 +7,7 @@ Tests the following FlatBuffers types:
 - ControllerInputState: Struct with button and axis inputs (immutable)
 - ControllerPose: Struct with pose and validity (immutable)
 - Timestamp: Struct with device and common time timestamps (immutable)
-- ControllerSnapshot: Struct representing complete controller state (immutable)
+- ControllerSnapshot: Table representing complete controller state
 """
 
 import pytest
@@ -192,19 +192,17 @@ class TestControllerPose:
 
 
 class TestControllerSnapshot:
-    """Tests for ControllerSnapshot struct (immutable)."""
+    """Tests for ControllerSnapshot table."""
 
     def test_default_construction(self):
         """Test default construction creates ControllerSnapshot with default values."""
         snapshot = ControllerSnapshot()
 
         assert snapshot is not None
-        # Structs always have default values
         assert snapshot.grip_pose is not None
         assert snapshot.aim_pose is not None
         assert snapshot.inputs is not None
         assert snapshot.timestamp is not None
-        assert snapshot.is_active is False
 
     def test_complete_snapshot(self):
         """Test creating a complete controller snapshot with all fields."""
@@ -234,7 +232,7 @@ class TestControllerSnapshot:
         timestamp = Timestamp(device_time=1000000000, common_time=2000000000)
 
         # Create snapshot
-        snapshot = ControllerSnapshot(grip_pose, aim_pose, inputs, True, timestamp)
+        snapshot = ControllerSnapshot(grip_pose, aim_pose, inputs, timestamp)
 
         # Verify all fields
         assert snapshot.grip_pose.is_valid is True
@@ -243,7 +241,6 @@ class TestControllerSnapshot:
         assert snapshot.aim_pose.pose.position.x == pytest.approx(0.15)
         assert snapshot.inputs.primary_click is True
         assert snapshot.inputs.trigger_value == pytest.approx(1.0)
-        assert snapshot.is_active is True
         assert snapshot.timestamp.device_time == 1000000000
         assert snapshot.timestamp.common_time == 2000000000
 
@@ -253,7 +250,6 @@ class TestControllerSnapshot:
         repr_str = repr(snapshot)
 
         assert "ControllerSnapshot" in repr_str
-        assert "is_active=False" in repr_str
 
 
 class TestControllerIntegration:
@@ -278,23 +274,20 @@ class TestControllerIntegration:
         )
         left_timestamp = Timestamp(device_time=1000, common_time=2000)
         left_snapshot = ControllerSnapshot(
-            left_grip, left_aim, left_inputs, True, left_timestamp
+            left_grip, left_aim, left_inputs, left_timestamp
         )
 
-        # Create right controller (inactive)
+        # Create right controller (default)
         right_snapshot = ControllerSnapshot()
 
         # Verify different states
-        assert left_snapshot.is_active is True
-        assert right_snapshot.is_active is False
         assert left_snapshot.inputs.trigger_value == pytest.approx(0.5)
         assert right_snapshot.inputs.trigger_value == pytest.approx(0.0)
 
-    def test_inactive_controller(self):
-        """Test representing an inactive controller."""
+    def test_default_controller(self):
+        """Test representing a default-constructed controller."""
         snapshot = ControllerSnapshot()
 
-        assert snapshot.is_active is False
         assert snapshot.grip_pose.is_valid is False
         assert snapshot.aim_pose.is_valid is False
 

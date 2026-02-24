@@ -35,7 +35,7 @@ class TestFrameMetadataOakConstruction:
     def test_default_construction(self):
         metadata = FrameMetadataOak()
 
-        assert metadata.timestamp is None
+        assert metadata.timestamp is not None
         assert metadata.stream == StreamType.Color
         assert metadata.sequence_number == 0
 
@@ -54,7 +54,6 @@ class TestFrameMetadataOakTimestamp:
         timestamp = Timestamp(device_time=1000000000, common_time=2000000000)
         metadata.timestamp = timestamp
 
-        assert metadata.timestamp is not None
         assert metadata.timestamp.device_time == 1000000000
         assert metadata.timestamp.common_time == 2000000000
 
@@ -208,4 +207,4 @@ class TestFrameMetadataOakEdgeCases:
         repr_str = repr(metadata)
 
         assert "FrameMetadataOak" in repr_str
-        assert "None" in repr_str or "timestamp" in repr_str
+        assert "Timestamp" in repr_str or "timestamp" in repr_str

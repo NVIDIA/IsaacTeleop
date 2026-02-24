@@ -18,11 +18,11 @@ from ..interface.tensor_group import TensorGroup
 from ..tensor_types import FullBodyInput, FullBodyInputIndex
 from ..interface.tensor_group_type import OptionalType
 from ..tensor_types.standard_types import NUM_BODY_JOINTS_PICO
-from .deviceio_tensor_types import DeviceIOFullBodyPosePico
+from .deviceio_tensor_types import DeviceIOFullBodyPosePicoTracked
 
 if TYPE_CHECKING:
     from isaacteleop.deviceio import ITracker
-    from isaacteleop.schema import FullBodyPosePicoT
+    from isaacteleop.schema import FullBodyPosePicoT, FullBodyPosePicoTrackedT
 
 
 class FullBodySource(IDeviceIOSource):
@@ -87,7 +87,7 @@ class FullBodySource(IDeviceIOSource):
     def input_spec(self) -> RetargeterIOType:
         """Declare DeviceIO full body input."""
         return {
-            "deviceio_full_body": DeviceIOFullBodyPosePico(),
+            "deviceio_full_body": DeviceIOFullBodyPosePicoTracked(),
         }
 
     def output_spec(self) -> RetargeterIOType:
@@ -103,12 +103,13 @@ class FullBodySource(IDeviceIOSource):
         Calls ``set_none()`` on the output when body tracking is inactive.
 
         Args:
-            inputs: Dict with "deviceio_full_body" flatbuffer object
+            inputs: Dict with "deviceio_full_body" containing FullBodyPosePicoTrackedT wrapper
             outputs: Dict with "full_body" OptionalTensorGroup
         """
-        body_pose: "FullBodyPosePicoT" = inputs["deviceio_full_body"][0]
+        tracked: "FullBodyPosePicoTrackedT" = inputs["deviceio_full_body"][0]
+        body_pose: "FullBodyPosePicoT | None" = tracked.data
 
-        if not body_pose.is_active:
+        if body_pose is None:
             outputs["full_body"].set_none()
             return
 
@@ -120,7 +121,7 @@ class FullBodySource(IDeviceIOSource):
 
         if body_pose.joints is not None:
             for i in range(NUM_BODY_JOINTS_PICO):
-                joint = body_pose.joints[i]
+                joint = body_pose.joints.joints(i)
                 positions[i] = [
                     joint.pose.position.x,
                     joint.pose.position.y,

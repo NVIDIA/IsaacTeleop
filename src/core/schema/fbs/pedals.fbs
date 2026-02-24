@@ -7,21 +7,24 @@ include "timestamp.fbs";
 namespace core;
 
 // Output from a generic 3-axis foot pedal device.
+// All fields are always present when the parent Tracked/Record wrapper's data is non-null.
 //
 // Validated devices:
 // - https://www.logitechg.com/en-us/shop/p/flight-simulator-rudder-pedals
 table Generic3AxisPedalOutput {
-  // Whether the pedal device is active (connected and producing data).
-  is_active: bool (id: 0);
-
   // Dual timestamp with device and runtime clock domains.
-  timestamp: Timestamp (id: 1);
+  timestamp: Timestamp (id: 0);
 
-  left_pedal: float (id: 2);
+  left_pedal: float (id: 1);
 
-  right_pedal: float (id: 3);
+  right_pedal: float (id: 2);
 
-  rudder: float (id: 4);
+  rudder: float (id: 3);
+}
+
+// Tracked wrapper for the in-memory tracker API (data is null when no pedal data available).
+table Generic3AxisPedalOutputTracked {
+    data: Generic3AxisPedalOutput (id: 0);
 }
 
 // MCAP recording wrapper for Generic3AxisPedalOutput.

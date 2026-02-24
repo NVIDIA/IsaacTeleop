@@ -98,7 +98,6 @@ try
 
         // Create and populate Generic3AxisPedalOutputT
         core::Generic3AxisPedalOutputT pedal_output;
-        pedal_output.is_active = true;
         pedal_output.left_pedal = left_pedal;
         pedal_output.right_pedal = right_pedal;
         pedal_output.rudder = rudder;

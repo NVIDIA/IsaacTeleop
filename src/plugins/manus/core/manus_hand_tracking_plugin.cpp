@@ -343,19 +343,18 @@ void ManusTracker::inject_hand_data()
     }
 
     // Get controller data from DeviceIOSession
-    const auto& left_controller = m_controller_tracker->get_left_controller(*m_deviceio_session);
-    const auto& right_controller = m_controller_tracker->get_right_controller(*m_deviceio_session);
+    const auto& left_tracked = m_controller_tracker->get_left_controller(*m_deviceio_session);
+    const auto& right_tracked = m_controller_tracker->get_right_controller(*m_deviceio_session);
+
+    // Need at least one active controller for a valid timestamp
+    if (!left_tracked.data && !right_tracked.data)
+    {
+        return;
+    }
 
     // Get timestamp from controller data for injection
-    XrTime time = 0;
-    if (left_controller.is_active())
-    {
-        time = left_controller.timestamp().device_time();
-    }
-    else if (right_controller.is_active())
-    {
-        time = right_controller.timestamp().device_time();
-    }
+    XrTime time =
+        left_tracked.data ? left_tracked.data->timestamp->device_time() : right_tracked.data->timestamp->device_time();
 
     auto process_hand = [&](const std::vector<SkeletonNode>& nodes, bool is_left)
     {
@@ -369,12 +368,12 @@ void ManusTracker::inject_hand_data()
         bool is_root_tracked = false;
 
         // Get controller snapshot for this hand
-        const core::ControllerSnapshot& snapshot = is_left ? left_controller : right_controller;
+        const auto& tracked = is_left ? left_tracked : right_tracked;
 
-        if (snapshot.is_active())
+        if (tracked.data)
         {
             bool aim_valid = false;
-            XrPosef raw_pose = oxr_utils::get_aim_pose(snapshot, aim_valid);
+            XrPosef raw_pose = oxr_utils::get_aim_pose(*tracked.data, aim_valid);
 
             if (aim_valid)
             {

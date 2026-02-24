@@ -115,22 +115,28 @@ def main():
                         break
 
                     # Get hand data
-                    left: schema.HandPoseT = hand_tracker.get_left_hand(session)
-                    right: schema.HandPoseT = hand_tracker.get_right_hand(session)
-                    head: schema.HeadPoseT = head_tracker.get_head(session)
+                    left_tracked: schema.HandPoseTrackedT = hand_tracker.get_left_hand(
+                        session
+                    )
+                    right_tracked: schema.HandPoseTrackedT = (
+                        hand_tracker.get_right_hand(session)
+                    )
+                    head_tracked: schema.HeadPoseTrackedT = head_tracker.get_head(
+                        session
+                    )
 
                     # Extract positions and orientations (with defaults for invalid data)
                     left_pos = np.zeros(3, dtype=np.float32)
                     right_pos = np.zeros(3, dtype=np.float32)
 
-                    if left.is_active and left.joints:
-                        wrist = left.joints[deviceio.JOINT_WRIST]
+                    if left_tracked.data is not None and left_tracked.data.joints:
+                        wrist = left_tracked.data.joints.poses(deviceio.JOINT_WRIST)
                         if wrist.is_valid:
                             pos = wrist.pose.position
                             left_pos = np.array([pos.x, pos.y, pos.z], dtype=np.float32)
 
-                    if right.is_active and right.joints:
-                        wrist = right.joints[deviceio.JOINT_WRIST]
+                    if right_tracked.data is not None and right_tracked.data.joints:
+                        wrist = right_tracked.data.joints.poses(deviceio.JOINT_WRIST)
                         if wrist.is_valid:
                             pos = wrist.pose.position
                             right_pos = np.array(
@@ -138,8 +144,8 @@ def main():
                             )
 
                     head_pos = np.zeros(3, dtype=np.float32)
-                    if head.is_valid and head.pose:
-                        pos = head.pose.position
+                    if head_tracked.data is not None and head_tracked.data.is_valid:
+                        pos = head_tracked.data.pose.position
                         head_pos = np.array([pos.x, pos.y, pos.z], dtype=np.float32)
 
                     # STEP 3: Record frame to dataset

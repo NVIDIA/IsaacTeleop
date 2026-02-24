@@ -4,13 +4,15 @@
 """Unit tests for Generic3AxisPedalOutput type in isaacteleop.schema.
 
 Tests the following FlatBuffers types:
-- Generic3AxisPedalOutput: Table with is_active, timestamp, left_pedal, right_pedal, and rudder
+- Generic3AxisPedalOutput: Table with timestamp, left_pedal, right_pedal, and rudder
+- Generic3AxisPedalOutputTrackedT: Tracked wrapper (data is None when inactive)
 """
 
 import pytest
 
 from isaacteleop.schema import (
     Generic3AxisPedalOutput,
+    Generic3AxisPedalOutputTrackedT,
     Timestamp,
 )
 
@@ -19,11 +21,10 @@ class TestGeneric3AxisPedalOutputConstruction:
     """Tests for Generic3AxisPedalOutput table construction."""
 
     def test_default_construction(self):
-        """Test default construction creates Generic3AxisPedalOutput with None/zero fields."""
+        """Test default construction creates Generic3AxisPedalOutput with default-initialized fields."""
         output = Generic3AxisPedalOutput()
 
-        assert output.is_active is False
-        assert output.timestamp is None
+        assert output.timestamp is not None
         assert output.left_pedal == 0.0
         assert output.right_pedal == 0.0
         assert output.rudder == 0.0
@@ -36,28 +37,6 @@ class TestGeneric3AxisPedalOutputConstruction:
         assert "Generic3AxisPedalOutput" in repr_str
 
 
-class TestGeneric3AxisPedalOutputIsValid:
-    """Tests for Generic3AxisPedalOutput is_active property."""
-
-    def test_default_is_active_is_false(self):
-        """Test is_active defaults to False."""
-        output = Generic3AxisPedalOutput()
-        assert output.is_active is False
-
-    def test_set_is_active_to_true(self):
-        """Test setting is_active to True."""
-        output = Generic3AxisPedalOutput()
-        output.is_active = True
-        assert output.is_active is True
-
-    def test_set_is_active_to_false(self):
-        """Test setting is_active back to False."""
-        output = Generic3AxisPedalOutput()
-        output.is_active = True
-        output.is_active = False
-        assert output.is_active is False
-
-
 class TestGeneric3AxisPedalOutputTimestamp:
     """Tests for Generic3AxisPedalOutput timestamp property."""
 
@@ -67,7 +46,6 @@ class TestGeneric3AxisPedalOutputTimestamp:
         timestamp = Timestamp(device_time=1000000000, common_time=2000000000)
         output.timestamp = timestamp
 
-        assert output.timestamp is not None
         assert output.timestamp.device_time == 1000000000
         assert output.timestamp.common_time == 2000000000
 
@@ -124,14 +102,11 @@ class TestGeneric3AxisPedalOutputCombined:
     def test_full_output(self):
         """Test with all fields set."""
         output = Generic3AxisPedalOutput()
-        output.is_active = True
         output.timestamp = Timestamp(device_time=1000, common_time=2000)
         output.left_pedal = 1.0
         output.right_pedal = 0.0
         output.rudder = -0.5
 
-        assert output.is_active is True
-        assert output.timestamp is not None
         assert output.timestamp.device_time == 1000
         assert output.left_pedal == pytest.approx(1.0)
         assert output.right_pedal == pytest.approx(0.0)
@@ -144,13 +119,11 @@ class TestGeneric3AxisPedalOutputScenarios:
     def test_full_forward_press(self):
         """Test full forward press on both pedals."""
         output = Generic3AxisPedalOutput()
-        output.is_active = True
         output.timestamp = Timestamp(device_time=1000000, common_time=1000000)
         output.left_pedal = 1.0
         output.right_pedal = 1.0
         output.rudder = 0.0
 
-        assert output.is_active is True
         assert output.left_pedal == pytest.approx(1.0)
         assert output.right_pedal == pytest.approx(1.0)
         assert output.rudder == pytest.approx(0.0)
@@ -158,7 +131,6 @@ class TestGeneric3AxisPedalOutputScenarios:
     def test_left_turn_with_rudder(self):
         """Test left turn using rudder."""
         output = Generic3AxisPedalOutput()
-        output.is_active = True
         output.timestamp = Timestamp(device_time=2000000, common_time=2000000)
         output.left_pedal = 0.5
         output.right_pedal = 0.5
@@ -169,7 +141,6 @@ class TestGeneric3AxisPedalOutputScenarios:
     def test_right_turn_with_rudder(self):
         """Test right turn using rudder."""
         output = Generic3AxisPedalOutput()
-        output.is_active = True
         output.timestamp = Timestamp(device_time=3000000, common_time=3000000)
         output.left_pedal = 0.5
         output.right_pedal = 0.5
@@ -180,7 +151,6 @@ class TestGeneric3AxisPedalOutputScenarios:
     def test_differential_braking(self):
         """Test differential braking scenario."""
         output = Generic3AxisPedalOutput()
-        output.is_active = True
         output.timestamp = Timestamp(device_time=4000000, common_time=4000000)
         output.left_pedal = 0.0  # Left brake applied.
         output.right_pedal = 0.8  # Right pedal pressed.
@@ -192,7 +162,6 @@ class TestGeneric3AxisPedalOutputScenarios:
     def test_neutral_position(self):
         """Test neutral/idle position."""
         output = Generic3AxisPedalOutput()
-        output.is_active = True
         output.timestamp = Timestamp(device_time=5000000, common_time=5000000)
         output.left_pedal = 0.0
         output.right_pedal = 0.0
@@ -277,18 +246,52 @@ class TestGeneric3AxisPedalOutputEdgeCases:
         assert output.timestamp.device_time == 300
         assert output.timestamp.common_time == 400
 
-    def test_is_active_false_with_data(self):
-        """Test is_active=False doesn't prevent storing data."""
+    def test_overwrite_all_fields(self):
+        """Test overwriting all data fields."""
         output = Generic3AxisPedalOutput()
-        output.is_active = False
         output.timestamp = Timestamp(device_time=1000, common_time=2000)
         output.left_pedal = 0.5
         output.right_pedal = 0.5
         output.rudder = 0.0
 
-        # Data is present even when is_active is False.
-        assert output.is_active is False
-        assert output.timestamp is not None
-        assert output.left_pedal == pytest.approx(0.5)
-        assert output.right_pedal == pytest.approx(0.5)
-        assert output.rudder == pytest.approx(0.0)
+        output.timestamp = Timestamp(device_time=3000, common_time=4000)
+        output.left_pedal = 0.8
+        output.right_pedal = 0.2
+        output.rudder = -0.5
+
+        assert output.timestamp.device_time == 3000
+        assert output.timestamp.common_time == 4000
+        assert output.left_pedal == pytest.approx(0.8)
+        assert output.right_pedal == pytest.approx(0.2)
+        assert output.rudder == pytest.approx(-0.5)
+
+
+class TestGeneric3AxisPedalOutputTrackedT:
+    """Tests for Generic3AxisPedalOutputTrackedT tracked wrapper."""
+
+    def test_default_construction_inactive(self):
+        """Default-constructed TrackedT has data=None (inactive)."""
+        tracked = Generic3AxisPedalOutputTrackedT()
+        assert tracked.data is None
+
+    def test_construction_with_data(self):
+        """TrackedT constructed with data wraps the payload correctly."""
+        output = Generic3AxisPedalOutput(0.8, 0.2, -0.5, Timestamp(1000, 2000))
+        tracked = Generic3AxisPedalOutputTrackedT(output)
+
+        assert tracked.data is not None
+        assert tracked.data.left_pedal == pytest.approx(0.8)
+        assert tracked.data.right_pedal == pytest.approx(0.2)
+        assert tracked.data.rudder == pytest.approx(-0.5)
+        assert tracked.data.timestamp.device_time == 1000
+
+    def test_repr_inactive(self):
+        """Repr of inactive TrackedT mentions None."""
+        tracked = Generic3AxisPedalOutputTrackedT()
+        assert "None" in repr(tracked)
+
+    def test_repr_active(self):
+        """Repr of active TrackedT mentions the payload type."""
+        output = Generic3AxisPedalOutput()
+        tracked = Generic3AxisPedalOutputTrackedT(output)
+        assert "Generic3AxisPedalOutput" in repr(tracked)

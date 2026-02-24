@@ -23,17 +23,20 @@ struct HandJoints {
     poses: [HandJointPose:26];
 }
 
-// Describe a hand pose.
+// Hand pose data.
+// All fields are always present when the parent Tracked/Record wrapper's data is non-null.
 table HandPose {
     // Vector of HandJointPose.
     // For OpenXR, this should be 26 according to XR_HAND_JOINT_COUNT_EXT
     joints: HandJoints (id: 0);
 
-    // Whether the hand pose data is active
-    is_active: bool (id: 1);
-
     // Dual timestamp with device and runtime clock domains
-    timestamp: Timestamp (id: 2);
+    timestamp: Timestamp (id: 1);
+}
+
+// Tracked wrapper for the in-memory tracker API (data is null when hand is inactive).
+table HandPoseTracked {
+    data: HandPose (id: 0);
 }
 
 // MCAP recording wrapper for HandPose.

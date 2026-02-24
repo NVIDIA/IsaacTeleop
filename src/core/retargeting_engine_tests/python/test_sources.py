@@ -5,10 +5,8 @@
 Tests for DeviceIO source nodes - ControllersSource, HandsSource, HeadSource.
 
 Tests the stateless converters that transform raw DeviceIO flatbuffer data
-into standard retargeting engine tensor formats.
-
-NOTE: These tests call source nodes directly with schema objects. In production,
-TeleopSession handles this by wrapping schema objects in the appropriate format.
+into standard retargeting engine tensor formats, using real schema types
+(TrackedT wrappers and table T types) constructed via Python bindings.
 """
 
 import pytest
@@ -18,10 +16,12 @@ from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     HandsSource,
     HeadSource,
 )
-from isaacteleop.retargeting_engine.interface import TensorGroup
 from isaacteleop.retargeting_engine.interface.tensor_group import OptionalTensorGroup
 from isaacteleop.retargeting_engine.interface.base_retargeter import _make_output_group
-from isaacteleop.retargeting_engine.tensor_types import ControllerInputIndex
+from isaacteleop.retargeting_engine.tensor_types import (
+    ControllerInputIndex,
+    HeadPoseIndex,
+)
 from isaacteleop.schema import (
     Point,
     Quaternion,
@@ -29,6 +29,9 @@ from isaacteleop.schema import (
     ControllerPose,
     ControllerInputState,
     ControllerSnapshot,
+    ControllerSnapshotTrackedT,
+    HeadPoseT,
+    HeadPoseTrackedT,
     Timestamp,
 )
 
@@ -38,7 +41,7 @@ from isaacteleop.schema import (
 # ============================================================================
 
 
-def create_controller_snapshot(grip_pos, aim_pos, trigger_val, is_active=True):
+def create_controller_snapshot(grip_pos, aim_pos, trigger_val):
     """Create a ControllerSnapshot using actual FlatBuffer types."""
     # Create grip pose
     grip_position = Point(grip_pos[0], grip_pos[1], grip_pos[2])
@@ -68,7 +71,7 @@ def create_controller_snapshot(grip_pos, aim_pos, trigger_val, is_active=True):
 
     # Create snapshot
     return ControllerSnapshot(
-        grip_controller_pose, aim_controller_pose, inputs, is_active, timestamp
+        grip_controller_pose, aim_controller_pose, inputs, timestamp
     )
 
 
@@ -113,7 +116,7 @@ class TestControllersSource:
         """
         source = ControllersSource(name="controllers")
 
-        # Create raw DeviceIO flatbuffer inputs
+        # Create raw DeviceIO flatbuffer inputs wrapped in TrackedT types
         left_snapshot = create_controller_snapshot(
             grip_pos=(0.1, 0.2, 0.3), aim_pos=(0.4, 0.5, 0.6), trigger_val=0.5
         )
@@ -121,18 +124,15 @@ class TestControllersSource:
             grip_pos=(0.4, 0.5, 0.6), aim_pos=(0.7, 0.8, 0.9), trigger_val=0.8
         )
 
-        # Call compute directly (bypassing __call__ and its validation)
-        # Prepare input dict with schema objects wrapped in lists (simulating TensorGroup access)
+        # Prepare input dict with TrackedT wrappers (active controllers)
         inputs = {
-            "deviceio_controller_left": [left_snapshot],
-            "deviceio_controller_right": [right_snapshot],
+            "deviceio_controller_left": [ControllerSnapshotTrackedT(left_snapshot)],
+            "deviceio_controller_right": [ControllerSnapshotTrackedT(right_snapshot)],
         }
 
         # Create output structure
         output_spec = source.output_spec()
-        outputs = {}
-        for name, group_type in output_spec.items():
-            outputs[name] = TensorGroup(group_type)
+        outputs = {name: _make_output_group(gt) for name, gt in output_spec.items()}
 
         # Call compute directly
         source.compute(inputs, outputs)
@@ -157,7 +157,7 @@ class TestControllersSource:
 
 
 # ============================================================================
-# Hands Source Tests - Skipped (requires mutable HandPoseT construction)
+# Hands Source Tests
 # ============================================================================
 
 
@@ -191,7 +191,7 @@ class TestHandsSource:
 
 
 # ============================================================================
-# Head Source Tests - Skipped (requires mutable HeadPoseT construction)
+# Head Source Tests
 # ============================================================================
 
 
@@ -221,6 +221,45 @@ class TestHeadSource:
         assert "head" in output_spec
         assert len(output_spec) == 1
 
+    def test_head_source_compute_active(self):
+        """Test that HeadSource converts active tracked data correctly."""
+        source = HeadSource(name="head")
+
+        head_data = HeadPoseT(
+            Pose(Point(1.0, 2.0, 3.0), Quaternion(0.0, 0.0, 0.0, 1.0)),
+            True,
+            Timestamp(12345, 0),
+        )
+
+        inputs = {"deviceio_head": [HeadPoseTrackedT(head_data)]}
+        outputs = {
+            name: _make_output_group(gt) for name, gt in source.output_spec().items()
+        }
+        source.compute(inputs, outputs)
+
+        head = outputs["head"]
+        assert not head.is_none
+        np.testing.assert_array_almost_equal(
+            head[HeadPoseIndex.POSITION], [1.0, 2.0, 3.0]
+        )
+        np.testing.assert_array_almost_equal(
+            head[HeadPoseIndex.ORIENTATION], [0.0, 0.0, 0.0, 1.0]
+        )
+        assert head[HeadPoseIndex.IS_VALID] is True
+        assert head[HeadPoseIndex.TIMESTAMP] == 12345
+
+    def test_head_source_compute_inactive(self):
+        """Test that inactive head (TrackedT.data is None) produces absent output."""
+        source = HeadSource(name="head")
+
+        inputs = {"deviceio_head": [HeadPoseTrackedT()]}
+        outputs = {
+            name: _make_output_group(gt) for name, gt in source.output_spec().items()
+        }
+        source.compute(inputs, outputs)
+
+        assert outputs["head"].is_none
+
 
 # ============================================================================
 # Optional Behavior Tests
@@ -239,19 +278,19 @@ class TestControllersSourceOptional:
         assert output_spec["controller_right"].is_optional
 
     def test_active_controller_produces_data(self):
-        """Active controllers produce non-absent OptionalTensorGroups."""
+        """Active controllers (TrackedT.data is not None) produce non-absent OptionalTensorGroups."""
         source = ControllersSource(name="controllers")
 
         left_snapshot = create_controller_snapshot(
-            grip_pos=(1, 2, 3), aim_pos=(4, 5, 6), trigger_val=0.5, is_active=True
+            grip_pos=(1, 2, 3), aim_pos=(4, 5, 6), trigger_val=0.5
         )
         right_snapshot = create_controller_snapshot(
-            grip_pos=(7, 8, 9), aim_pos=(10, 11, 12), trigger_val=0.9, is_active=True
+            grip_pos=(7, 8, 9), aim_pos=(10, 11, 12), trigger_val=0.9
         )
 
         inputs = {
-            "deviceio_controller_left": [left_snapshot],
-            "deviceio_controller_right": [right_snapshot],
+            "deviceio_controller_left": [ControllerSnapshotTrackedT(left_snapshot)],
+            "deviceio_controller_right": [ControllerSnapshotTrackedT(right_snapshot)],
         }
         outputs = {
             name: _make_output_group(gt) for name, gt in source.output_spec().items()
@@ -268,19 +307,16 @@ class TestControllersSourceOptional:
         ] == pytest.approx(0.9)
 
     def test_inactive_controller_sets_none(self):
-        """Inactive controllers produce absent OptionalTensorGroups."""
+        """Inactive controllers (TrackedT.data is None) produce absent OptionalTensorGroups."""
         source = ControllersSource(name="controllers")
 
-        left_snapshot = create_controller_snapshot(
-            grip_pos=(0, 0, 0), aim_pos=(0, 0, 0), trigger_val=0.0, is_active=False
-        )
         right_snapshot = create_controller_snapshot(
-            grip_pos=(0, 0, 0), aim_pos=(0, 0, 0), trigger_val=0.0, is_active=True
+            grip_pos=(0, 0, 0), aim_pos=(0, 0, 0), trigger_val=0.0
         )
 
         inputs = {
-            "deviceio_controller_left": [left_snapshot],
-            "deviceio_controller_right": [right_snapshot],
+            "deviceio_controller_left": [ControllerSnapshotTrackedT()],
+            "deviceio_controller_right": [ControllerSnapshotTrackedT(right_snapshot)],
         }
         outputs = {
             name: _make_output_group(gt) for name, gt in source.output_spec().items()
@@ -294,16 +330,9 @@ class TestControllersSourceOptional:
         """Accessing fields of an absent controller raises ValueError."""
         source = ControllersSource(name="controllers")
 
-        left_snapshot = create_controller_snapshot(
-            grip_pos=(0, 0, 0), aim_pos=(0, 0, 0), trigger_val=0.0, is_active=False
-        )
-        right_snapshot = create_controller_snapshot(
-            grip_pos=(0, 0, 0), aim_pos=(0, 0, 0), trigger_val=0.0, is_active=False
-        )
-
         inputs = {
-            "deviceio_controller_left": [left_snapshot],
-            "deviceio_controller_right": [right_snapshot],
+            "deviceio_controller_left": [ControllerSnapshotTrackedT()],
+            "deviceio_controller_right": [ControllerSnapshotTrackedT()],
         }
         outputs = {
             name: _make_output_group(gt) for name, gt in source.output_spec().items()
@@ -351,12 +380,7 @@ class TestHandsSourceOptional:
 
 
 class TestHeadSourceOptional:
-    """Test that HeadSource outputs are Optional.
-
-    HeadSource always populates the output (is_valid is a data field, not an
-    absence signal).  The Optional wrapper allows downstream nodes to accept
-    an absent head when no head tracker is connected to the pipeline.
-    """
+    """Test that HeadSource outputs are Optional and handle inactive tracking."""
 
     def test_output_spec_is_optional(self):
         """Head output must be declared as Optional."""
@@ -374,15 +398,48 @@ class TestHeadSourceOptional:
 
         assert isinstance(outputs["head"], OptionalTensorGroup)
 
-    def test_absent_head_raises_on_access(self):
-        """Accessing fields of an absent head output raises ValueError."""
+    def test_active_head_produces_data(self):
+        """Active head (TrackedT.data is not None) produces non-absent OptionalTensorGroup."""
         source = HeadSource(name="head")
+
+        head_data = HeadPoseT(
+            Pose(Point(0.5, 1.5, 0.0), Quaternion(0.0, 0.707, 0.0, 0.707)),
+            True,
+            Timestamp(99999, 0),
+        )
+
+        inputs = {"deviceio_head": [HeadPoseTrackedT(head_data)]}
         outputs = {
             name: _make_output_group(gt) for name, gt in source.output_spec().items()
         }
+        source.compute(inputs, outputs)
 
-        outputs["head"].set_none()
+        assert not outputs["head"].is_none
+        np.testing.assert_array_almost_equal(
+            outputs["head"][HeadPoseIndex.POSITION], [0.5, 1.5, 0.0]
+        )
+
+    def test_inactive_head_sets_none(self):
+        """Inactive head (TrackedT.data is None) produces absent OptionalTensorGroup."""
+        source = HeadSource(name="head")
+
+        inputs = {"deviceio_head": [HeadPoseTrackedT()]}
+        outputs = {
+            name: _make_output_group(gt) for name, gt in source.output_spec().items()
+        }
+        source.compute(inputs, outputs)
+
         assert outputs["head"].is_none
 
+    def test_absent_head_raises_on_access(self):
+        """Accessing fields of an absent head output raises ValueError."""
+        source = HeadSource(name="head")
+
+        inputs = {"deviceio_head": [HeadPoseTrackedT()]}
+        outputs = {
+            name: _make_output_group(gt) for name, gt in source.output_spec().items()
+        }
+        source.compute(inputs, outputs)
+
         with pytest.raises(ValueError, match="absent"):
-            _ = outputs["head"][0]
+            _ = outputs["head"][HeadPoseIndex.POSITION]

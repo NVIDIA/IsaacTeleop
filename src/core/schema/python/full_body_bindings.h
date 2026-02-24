@@ -84,28 +84,30 @@ inline void bind_full_body(py::module& m)
             },
             py::arg("index"), py::return_value_policy::reference_internal,
             "Get the BodyJointPose at the specified index (0 to NUM_JOINTS-1).")
-        .def("__len__", [](const BodyJointsPico&) { return static_cast<size_t>(BodyJointPico_NUM_JOINTS); })
-        .def(
-            "__getitem__",
-            [](const BodyJointsPico& self, size_t index) -> const BodyJointPose*
-            {
-                if (index >= static_cast<size_t>(BodyJointPico_NUM_JOINTS))
-                {
-                    throw py::index_error("BodyJointsPico index out of range (must be 0-" +
-                                          std::to_string(BodyJointPico_NUM_JOINTS - 1) + ")");
-                }
-                return (*self.joints())[index];
-            },
-            py::return_value_policy::reference_internal)
         .def("__repr__", [](const BodyJointsPico&) { return "BodyJointsPico(joints=[...24 BodyJointPose entries...])"; });
 
-    // Bind FullBodyPosePicoT class (FlatBuffers object API for tables, read-only from Python).
-    py::class_<FullBodyPosePicoT, std::unique_ptr<FullBodyPosePicoT>>(m, "FullBodyPosePicoT")
-        .def(py::init<>())
+    // Bind FullBodyPosePicoT class (FlatBuffers object API for tables).
+    py::class_<FullBodyPosePicoT, std::shared_ptr<FullBodyPosePicoT>>(m, "FullBodyPosePicoT")
+        .def(py::init(
+            []()
+            {
+                auto obj = std::make_shared<FullBodyPosePicoT>();
+                obj->joints = std::make_shared<BodyJointsPico>();
+                obj->timestamp = std::make_shared<Timestamp>();
+                return obj;
+            }))
+        .def(py::init(
+                 [](const BodyJointsPico& joints, const Timestamp& timestamp)
+                 {
+                     auto obj = std::make_shared<FullBodyPosePicoT>();
+                     obj->joints = std::make_shared<BodyJointsPico>(joints);
+                     obj->timestamp = std::make_shared<Timestamp>(timestamp);
+                     return obj;
+                 }),
+             py::arg("joints"), py::arg("timestamp"))
         .def_property_readonly(
             "joints", [](const FullBodyPosePicoT& self) -> const BodyJointsPico* { return self.joints.get(); },
             py::return_value_policy::reference_internal)
-        .def_readonly("is_active", &FullBodyPosePicoT::is_active)
         .def_property_readonly(
             "timestamp", [](const FullBodyPosePicoT& self) -> const Timestamp* { return self.timestamp.get(); },
             py::return_value_policy::reference_internal)
@@ -123,8 +125,25 @@ inline void bind_full_body(py::module& m)
                      timestamp_str = "Timestamp(device=" + std::to_string(self.timestamp->device_time()) +
                                      ", common=" + std::to_string(self.timestamp->common_time()) + ")";
                  }
-                 return "FullBodyPosePicoT(joints=" + joints_str +
-                        ", is_active=" + (self.is_active ? "True" : "False") + ", timestamp=" + timestamp_str + ")";
+                 return "FullBodyPosePicoT(joints=" + joints_str + ", timestamp=" + timestamp_str + ")";
+             });
+
+    py::class_<FullBodyPosePicoTrackedT>(m, "FullBodyPosePicoTrackedT")
+        .def(py::init<>())
+        .def(py::init(
+                 [](const FullBodyPosePicoT& data)
+                 {
+                     auto obj = std::make_unique<FullBodyPosePicoTrackedT>();
+                     obj->data = std::make_shared<FullBodyPosePicoT>(data);
+                     return obj;
+                 }),
+             py::arg("data"))
+        .def_property_readonly(
+            "data", [](const FullBodyPosePicoTrackedT& self) -> std::shared_ptr<FullBodyPosePicoT> { return self.data; })
+        .def("__repr__",
+             [](const FullBodyPosePicoTrackedT& self) {
+                 return std::string("FullBodyPosePicoTrackedT(data=") +
+                        (self.data ? "FullBodyPosePicoT(...)" : "None") + ")";
              });
 }
 
