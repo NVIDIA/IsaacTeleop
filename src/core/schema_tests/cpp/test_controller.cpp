@@ -22,12 +22,17 @@
 // ControllerSnapshotRecord field IDs
 static_assert(core::ControllerSnapshotRecord::VT_DATA == VT(0));
 
+// ControllerSnapshot field IDs (table)
+static_assert(core::ControllerSnapshot::VT_GRIP_POSE == VT(0));
+static_assert(core::ControllerSnapshot::VT_AIM_POSE == VT(1));
+static_assert(core::ControllerSnapshot::VT_INPUTS == VT(2));
+static_assert(core::ControllerSnapshot::VT_TIMESTAMP == VT(3));
+
 // =============================================================================
-// Compile-time verification that controller types are structs (not tables)
+// Compile-time verification that helper types are structs (not tables)
 // =============================================================================
 static_assert(std::is_trivially_copyable_v<core::ControllerInputState>);
 static_assert(std::is_trivially_copyable_v<core::ControllerPose>);
-static_assert(std::is_trivially_copyable_v<core::ControllerSnapshot>);
 static_assert(std::is_trivially_copyable_v<core::Timestamp>);
 
 // =============================================================================
@@ -109,16 +114,9 @@ TEST_CASE("Timestamp can store timestamp values", "[controller][struct]")
 }
 
 // =============================================================================
-// ControllerSnapshot Tests (struct)
+// ControllerSnapshotT Tests (table native type)
 // =============================================================================
-TEST_CASE("ControllerSnapshot default construction", "[controller][struct]")
-{
-    core::ControllerSnapshot snapshot{};
-
-    CHECK(snapshot.is_active() == false);
-}
-
-TEST_CASE("ControllerSnapshot can store complete controller state", "[controller][struct]")
+TEST_CASE("ControllerSnapshotT can store complete controller state", "[controller][table]")
 {
     // Create grip pose
     core::Point grip_pos(1.0f, 2.0f, 3.0f);
@@ -138,16 +136,19 @@ TEST_CASE("ControllerSnapshot can store complete controller state", "[controller
     // Create timestamp
     core::Timestamp timestamp(1000000000, 2000000000);
 
-    // Create snapshot
-    core::ControllerSnapshot snapshot(grip_pose, aim_pose, inputs, true, timestamp);
+    // Create snapshot via T type
+    core::ControllerSnapshotT snapshot;
+    snapshot.grip_pose = std::make_shared<core::ControllerPose>(grip_pose);
+    snapshot.aim_pose = std::make_shared<core::ControllerPose>(aim_pose);
+    snapshot.inputs = std::make_shared<core::ControllerInputState>(inputs);
+    snapshot.timestamp = std::make_shared<core::Timestamp>(timestamp);
 
-    CHECK(snapshot.is_active() == true);
-    CHECK(snapshot.grip_pose().is_valid() == true);
-    CHECK(snapshot.aim_pose().is_valid() == true);
-    CHECK(snapshot.inputs().primary_click() == true);
-    CHECK(snapshot.inputs().trigger_value() == Catch::Approx(1.0f));
-    CHECK(snapshot.timestamp().device_time() == 1000000000);
-    CHECK(snapshot.timestamp().common_time() == 2000000000);
+    CHECK(snapshot.grip_pose->is_valid() == true);
+    CHECK(snapshot.aim_pose->is_valid() == true);
+    CHECK(snapshot.inputs->primary_click() == true);
+    CHECK(snapshot.inputs->trigger_value() == Catch::Approx(1.0f));
+    CHECK(snapshot.timestamp->device_time() == 1000000000);
+    CHECK(snapshot.timestamp->common_time() == 2000000000);
 }
 
 // =============================================================================
@@ -167,37 +168,34 @@ TEST_CASE("ControllerSnapshotRecord serialization and deserialization", "[contro
 {
     flatbuffers::FlatBufferBuilder builder;
 
-    // Create a snapshot
+    // Create struct fields
     core::Point pos(1.0f, 2.0f, 3.0f);
     core::Quaternion orient(0.0f, 0.0f, 0.0f, 1.0f);
     core::Pose p(pos, orient);
     core::ControllerPose grip(p, true);
     core::ControllerInputState inputs(true, false, false, 0.5f, 0.0f, 0.5f, 0.5f);
     core::Timestamp timestamp(1000, 2000);
-    core::ControllerSnapshot snapshot(grip, grip, inputs, true, timestamp);
 
-    // Serialize using the Record builder
+    // Build ControllerSnapshot table, then wrap in Record
+    auto snapshot_offset = core::CreateControllerSnapshot(builder, &grip, &grip, &inputs, &timestamp);
     core::ControllerSnapshotRecordBuilder record_builder(builder);
-    record_builder.add_data(&snapshot);
+    record_builder.add_data(snapshot_offset);
     builder.Finish(record_builder.Finish());
 
     // Deserialize
     auto* deserialized = flatbuffers::GetRoot<core::ControllerSnapshotRecord>(builder.GetBufferPointer());
 
-    // Verify
-    CHECK(deserialized->data() != nullptr);
-    CHECK(deserialized->data()->is_active() == true);
-    CHECK(deserialized->data()->inputs().primary_click() == true);
+    CHECK(deserialized->data()->inputs()->primary_click() == true);
 }
 
 TEST_CASE("ControllerSnapshotRecord can be unpacked from buffer", "[controller][serialize]")
 {
     flatbuffers::FlatBufferBuilder builder;
 
-    core::ControllerSnapshot snapshot;
-
+    // Build an empty ControllerSnapshot table
+    auto snapshot_offset = core::CreateControllerSnapshot(builder);
     core::ControllerSnapshotRecordBuilder record_builder(builder);
-    record_builder.add_data(&snapshot);
+    record_builder.add_data(snapshot_offset);
     builder.Finish(record_builder.Finish());
 
     // Deserialize to table
@@ -207,6 +205,5 @@ TEST_CASE("ControllerSnapshotRecord can be unpacked from buffer", "[controller][
     auto unpacked = std::make_unique<core::ControllerSnapshotRecordT>();
     table->UnPackTo(unpacked.get());
 
-    // Verify
     CHECK(unpacked->data != nullptr);
 }

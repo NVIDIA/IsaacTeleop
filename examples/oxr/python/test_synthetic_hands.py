@@ -105,22 +105,24 @@ def run_test():
                     break
 
                 if frame_count % 60 == 0:
-                    left = hand_tracker.get_left_hand(deviceio_session)
-                    right = hand_tracker.get_right_hand(deviceio_session)
+                    left_tracked = hand_tracker.get_left_hand(deviceio_session)
+                    right_tracked = hand_tracker.get_right_hand(deviceio_session)
 
                     print(f"Frame {frame_count}:")
-                    print(f"  Left Hand: {'ACTIVE' if left.is_active else 'INACTIVE'}")
-                    print(
-                        f"  Right Hand: {'ACTIVE' if right.is_active else 'INACTIVE'}"
-                    )
-
-                    if left.is_active:
-                        wrist = left.joints[deviceio.JOINT_WRIST]
-                        if wrist.is_valid:
-                            pos = wrist.pose.position
-                            print(
-                                f"    Left Wrist: [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]"
-                            )
+                    if left_tracked.data is not None:
+                        pos = left_tracked.data.joints.poses(
+                            deviceio.JOINT_WRIST
+                        ).pose.position
+                        print(f"  Left wrist:  [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
+                    else:
+                        print("  Left hand:   inactive")
+                    if right_tracked.data is not None:
+                        pos = right_tracked.data.joints.poses(
+                            deviceio.JOINT_WRIST
+                        ).pose.position
+                        print(f"  Right wrist: [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
+                    else:
+                        print("  Right hand:  inactive")
                     print()
 
                 frame_count += 1

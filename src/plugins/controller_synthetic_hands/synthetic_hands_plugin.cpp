@@ -74,26 +74,17 @@ void SyntheticHandsPlugin::worker_thread()
         }
 
         // Get controller data from tracker
-        const auto& left_controller = m_controller_tracker->get_left_controller(*m_deviceio_session);
-        const auto& right_controller = m_controller_tracker->get_right_controller(*m_deviceio_session);
-
-        // Get timestamp from controller data
-        XrTime time = 0;
-        if (left_controller.is_active())
-        {
-            time = left_controller.timestamp().device_time();
-        }
-        else if (right_controller.is_active())
-        {
-            time = right_controller.timestamp().device_time();
-        }
+        const auto& left_tracked = m_controller_tracker->get_left_controller(*m_deviceio_session);
+        const auto& right_tracked = m_controller_tracker->get_right_controller(*m_deviceio_session);
 
         // Get target curl values from trigger inputs
         float left_target = 0.0f;
         float right_target = 0.0f;
 
-        left_target = left_controller.inputs().trigger_value();
-        right_target = right_controller.inputs().trigger_value();
+        if (left_tracked.data)
+            left_target = left_tracked.data->inputs->trigger_value();
+        if (right_tracked.data)
+            right_target = right_tracked.data->inputs->trigger_value();
 
         // Smoothly interpolate
         float curl_delta = CURL_SPEED * FRAME_TIME;
@@ -115,31 +106,31 @@ void SyntheticHandsPlugin::worker_thread()
             m_right_curl = right_curl_current;
         }
 
-        if (m_left_enabled && left_controller.is_active())
+        if (m_left_enabled && left_tracked.data)
         {
             bool grip_valid = false;
             bool aim_valid = false;
-            oxr_utils::get_grip_pose(left_controller, grip_valid);
-            XrPosef wrist = oxr_utils::get_aim_pose(left_controller, aim_valid);
+            oxr_utils::get_grip_pose(*left_tracked.data, grip_valid);
+            XrPosef wrist = oxr_utils::get_aim_pose(*left_tracked.data, aim_valid);
 
             if (grip_valid && aim_valid)
             {
                 m_hand_gen.generate(left_joints, wrist, true, left_curl_current);
-                m_injector->push_left(left_joints, time);
+                m_injector->push_left(left_joints, left_tracked.data->timestamp->device_time());
             }
         }
 
-        if (m_right_enabled && right_controller.is_active())
+        if (m_right_enabled && right_tracked.data)
         {
             bool grip_valid = false;
             bool aim_valid = false;
-            oxr_utils::get_grip_pose(right_controller, grip_valid);
-            XrPosef wrist = oxr_utils::get_aim_pose(right_controller, aim_valid);
+            oxr_utils::get_grip_pose(*right_tracked.data, grip_valid);
+            XrPosef wrist = oxr_utils::get_aim_pose(*right_tracked.data, aim_valid);
 
             if (grip_valid && aim_valid)
             {
                 m_hand_gen.generate(right_joints, wrist, false, right_curl_current);
-                m_injector->push_right(right_joints, time);
+                m_injector->push_right(right_joints, right_tracked.data->timestamp->device_time());
             }
         }
 

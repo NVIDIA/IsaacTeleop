@@ -68,12 +68,13 @@ class TensorType(ABC):
         """
         pass
 
+    @abstractmethod
     def validate_value(self, value: Any) -> None:
         """
         Validate that a value conforms to this tensor type.
 
-        By default, any value is accepted. Subclasses can override to provide
-        specific validation (e.g., checking array shapes, dtypes, etc.) and
+        Subclasses must implement this to provide specific validation
+        (e.g., checking array shapes, dtypes, schema types, etc.) and
         raise TypeError with a descriptive message if validation fails.
 
         Args:

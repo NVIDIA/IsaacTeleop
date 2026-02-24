@@ -14,28 +14,35 @@ from ._schema import (
     Pose,
     # Head-related types.
     HeadPoseT,
+    HeadPoseTrackedT,
     # Hand-related types.
     HandJointPose,
     HandJoints,
     HandPoseT,
+    HandPoseTrackedT,
     # Controller-related types.
     ControllerInputState,
     ControllerPose,
     Timestamp,
     ControllerSnapshot,
+    ControllerSnapshotTrackedT,
     # Locomotion-related types.
     Twist,
     LocomotionCommand,
+    LocomotionCommandTrackedT,
     # Pedals-related types.
     Generic3AxisPedalOutput,
+    Generic3AxisPedalOutputTrackedT,
     # Camera-related types.
     StreamType,
     FrameMetadataOak,
+    FrameMetadataOakTrackedT,
     # Full body-related types.
     BodyJointPico,
     BodyJointPose,
     BodyJointsPico,
     FullBodyPosePicoT,
+    FullBodyPosePicoTrackedT,
 )
 
 
@@ -46,26 +53,33 @@ __all__ = [
     "Pose",
     # Head types.
     "HeadPoseT",
+    "HeadPoseTrackedT",
     # Hand types.
     "HandJointPose",
     "HandJoints",
     "HandPoseT",
+    "HandPoseTrackedT",
     # Controller types.
     "ControllerInputState",
     "ControllerPose",
     "Timestamp",
     "ControllerSnapshot",
+    "ControllerSnapshotTrackedT",
     # Locomotion types.
     "Twist",
     "LocomotionCommand",
+    "LocomotionCommandTrackedT",
     # Pedals types.
     "Generic3AxisPedalOutput",
+    "Generic3AxisPedalOutputTrackedT",
     # Camera types.
     "StreamType",
     "FrameMetadataOak",
+    "FrameMetadataOakTrackedT",
     # Full body types.
     "BodyJointPose",
     "BodyJointsPico",
     "BodyJointPico",
     "FullBodyPosePicoT",
+    "FullBodyPosePicoTrackedT",
 ]

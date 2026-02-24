@@ -9,6 +9,7 @@ namespace core;
 enum StreamType : byte { Color = 0, MonoLeft = 1, MonoRight = 2 }
 
 // Per-frame metadata pushed by the OAK camera plugin (one per stream).
+// All fields are always present when the parent Tracked/Record wrapper's data is non-null.
 // Each stream is recorded as a separate MCAP channel using this as the root type.
 table FrameMetadataOak {
   // Which camera sensor this metadata belongs to.
@@ -19,6 +20,11 @@ table FrameMetadataOak {
 
   // Per-stream frame sequence number from the device.
   sequence_number: uint64 (id: 2);
+}
+
+// Tracked wrapper for the in-memory tracker API (data is null when no metadata available).
+table FrameMetadataOakTracked {
+    data: FrameMetadataOak (id: 0);
 }
 
 // MCAP recording wrapper for FrameMetadataOak.

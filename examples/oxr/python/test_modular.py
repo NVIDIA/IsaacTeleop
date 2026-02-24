@@ -56,30 +56,34 @@ with oxr.OpenXRSession("ModularTest", required_extensions) as oxr_session:
 
         # Test 5: Check hand data
         print("[Test 5] Checking hand tracking data...")
-        left = hand_tracker.get_left_hand(session)
-        right = hand_tracker.get_right_hand(session)
-        print(f"  Left hand: {'ACTIVE' if left.is_active else 'INACTIVE'}")
-        print(f"  Right hand: {'ACTIVE' if right.is_active else 'INACTIVE'}")
+        left_tracked: schema.HandPoseTrackedT = hand_tracker.get_left_hand(session)
+        right_tracked: schema.HandPoseTrackedT = hand_tracker.get_right_hand(session)
+        print(
+            f"  Left hand: {'ACTIVE' if left_tracked.data is not None else 'INACTIVE'}"
+        )
+        print(
+            f"  Right hand: {'ACTIVE' if right_tracked.data is not None else 'INACTIVE'}"
+        )
 
-        if left.is_active and left.joints:
-            wrist = left.joints[deviceio.JOINT_WRIST]
-            if wrist.is_valid:
-                pos = wrist.pose.position
-                print(f"  Left wrist position: [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
+        if left_tracked.data is not None:
+            pos = left_tracked.data.joints.poses(deviceio.JOINT_WRIST).pose.position
+            print(f"  Left wrist position: [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
+        else:
+            print("  Left hand: inactive")
         print()
 
-        # Test 6: Check head data (returns HeadPoseT from schema)
+        # Test 6: Check head data
         print("[Test 6] Checking head tracking data...")
-        head: schema.HeadPoseT = head_tracker.get_head(session)
-        print(f"  Head: {'VALID' if head.is_valid else 'INVALID'}")
-
-        if head.is_valid and head.pose:
-            pos = head.pose.position
-            ori = head.pose.orientation
+        head_tracked: schema.HeadPoseTrackedT = head_tracker.get_head(session)
+        if head_tracked.data is not None:
+            pos = head_tracked.data.pose.position
+            ori = head_tracked.data.pose.orientation
             print(f"  Head position: [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
             print(
                 f"  Head orientation: [{ori.x:.3f}, {ori.y:.3f}, {ori.z:.3f}, {ori.w:.3f}]"
             )
+        else:
+            print("  Head: inactive")
         print()
 
         # Test 7: Run tracking loop
@@ -95,13 +99,25 @@ with oxr.OpenXRSession("ModularTest", required_extensions) as oxr_session:
 
                 if frame_count % 60 == 0:
                     elapsed = time.time() - start_time
-                    left = hand_tracker.get_left_hand(session)
-                    head = head_tracker.get_head(session)
-                    print(
-                        f"  [{elapsed:4.1f}s] Frame {frame_count:3d}: "
-                        f"Hands={'ACTIVE' if left.is_active else 'INACTIVE':8s} | "
-                        f"Head={'VALID' if head.is_valid else 'INVALID':8s}"
-                    )
+                    left_tracked = hand_tracker.get_left_hand(session)
+                    head_tracked = head_tracker.get_head(session)
+                    print(f"  [{elapsed:4.1f}s] Frame {frame_count:3d}:")
+                    if left_tracked.data is not None:
+                        pos = left_tracked.data.joints.poses(
+                            deviceio.JOINT_WRIST
+                        ).pose.position
+                        print(
+                            f"    Left wrist: [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]"
+                        )
+                    else:
+                        print("    Left hand:  inactive")
+                    if head_tracked.data is not None:
+                        pos = head_tracked.data.pose.position
+                        print(
+                            f"    Head pos:   [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]"
+                        )
+                    else:
+                        print("    Head:       inactive")
 
                 frame_count += 1
                 time.sleep(0.016)

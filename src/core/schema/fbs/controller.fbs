@@ -29,22 +29,25 @@ struct ControllerPose {
     is_valid: bool;
 }
 
-// Snapshot data for a single controller
-struct ControllerSnapshot {
+// Snapshot data for a single controller.
+// All fields are always present when the parent Tracked/Record wrapper's data is non-null.
+table ControllerSnapshot {
     // Grip pose - represents the physical controller position/orientation
-    grip_pose: ControllerPose;
+    grip_pose: ControllerPose (id: 0);
 
     // Aim pose - represents where the controller is pointing
-    aim_pose: ControllerPose;
+    aim_pose: ControllerPose (id: 1);
 
     // Input state - all buttons and axes
-    inputs: ControllerInputState;
-
-    // Whether the controller is active (connected and tracked)
-    is_active: bool;
+    inputs: ControllerInputState (id: 2);
 
     // Dual timestamp with device and runtime clock domains
-    timestamp: Timestamp;
+    timestamp: Timestamp (id: 3);
+}
+
+// Tracked wrapper for the in-memory tracker API (data is null when controller is inactive).
+table ControllerSnapshotTracked {
+    data: ControllerSnapshot (id: 0);
 }
 
 // MCAP recording wrapper for ControllerSnapshot.

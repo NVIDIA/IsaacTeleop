@@ -106,14 +106,14 @@ HandInjector injector(h.instance, h.session, h.space);
 while (running) {
     deviceio_session->update();
 
-    const auto& left_controller = controller_tracker->get_left_controller(*deviceio_session);
-    if (left_controller.is_active()) {
+    const auto& left_tracked = controller_tracker->get_left_controller(*deviceio_session);
+    if (left_tracked.data) {
         bool grip_valid, aim_valid;
-        oxr_utils::get_grip_pose(left_controller, grip_valid);
-        XrPosef wrist = oxr_utils::get_aim_pose(left_controller, aim_valid);
+        oxr_utils::get_grip_pose(*left_tracked.data, grip_valid);
+        XrPosef wrist = oxr_utils::get_aim_pose(*left_tracked.data, aim_valid);
 
         if (grip_valid && aim_valid) {
-            float trigger = left_controller.inputs().trigger_value();
+            float trigger = left_tracked.data->inputs().trigger_value();
             hands.generate(joints, wrist, true, trigger);
             injector.push_left(joints, time);
         }
@@ -145,9 +145,9 @@ std::vector<std::shared_ptr<core::ITracker>> trackers = { controller_tracker };
 auto deviceio_session = core::DeviceIOSession::run(trackers, handles);
 
 deviceio_session->update();
-const auto& left_controller = controller_tracker->get_left_controller(*deviceio_session);
-const auto& right_controller = controller_tracker->get_right_controller(*deviceio_session);
-// Use left_controller and right_controller (const ControllerSnapshot&)
+const auto& left_tracked = controller_tracker->get_left_controller(*deviceio_session);
+const auto& right_tracked = controller_tracker->get_right_controller(*deviceio_session);
+// Use left_tracked.data and right_tracked.data (null when inactive)
 ```
 
 #### Hand Generation

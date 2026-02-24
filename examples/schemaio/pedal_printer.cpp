@@ -31,8 +31,8 @@ void print_pedal_data(const core::Generic3AxisPedalOutputT& data, size_t sample_
 {
     std::cout << "Sample " << sample_count;
 
-    std::cout << std::fixed << std::setprecision(3) << " [is_active=" << (data.is_active ? "true" : "false")
-              << ", left=" << data.left_pedal << ", right=" << data.right_pedal << ", rudder=" << data.rudder << "]";
+    std::cout << std::fixed << std::setprecision(3) << " [left=" << data.left_pedal << ", right=" << data.right_pedal
+              << ", rudder=" << data.rudder << "]";
 
     std::cout << std::endl;
 }
@@ -76,10 +76,10 @@ try
         }
 
         // Print current data if available
-        const auto& data = tracker->get_data(*session);
-        if (data.is_active)
+        const auto& tracked = tracker->get_data(*session);
+        if (tracked.data)
         {
-            print_pedal_data(data, received_count++);
+            print_pedal_data(*tracked.data, received_count++);
         }
         else
         {

@@ -58,7 +58,6 @@ TEST_CASE("FrameMetadataOakT can store all fields", "[camera][native]")
     metadata.sequence_number = 42;
 
     CHECK(metadata.stream == core::StreamType_MonoLeft);
-    REQUIRE(metadata.timestamp != nullptr);
     CHECK(metadata.timestamp->device_time() == 1000000000);
     CHECK(metadata.timestamp->common_time() == 2000000000);
     CHECK(metadata.sequence_number == 42);
@@ -81,7 +80,6 @@ TEST_CASE("FrameMetadataOak serialization and deserialization", "[camera][serial
 
     auto* deserialized = flatbuffers::GetRoot<core::FrameMetadataOak>(builder.GetBufferPointer());
 
-    REQUIRE(deserialized->timestamp() != nullptr);
     CHECK(deserialized->timestamp()->device_time() == 1234567890);
     CHECK(deserialized->timestamp()->common_time() == 9876543210);
     CHECK(deserialized->stream() == core::StreamType_MonoRight);
@@ -105,7 +103,6 @@ TEST_CASE("FrameMetadataOak roundtrip preserves all data", "[camera][serialize]"
     table->UnPackTo(&roundtrip);
 
     CHECK(roundtrip.stream == core::StreamType_Color);
-    REQUIRE(roundtrip.timestamp != nullptr);
     CHECK(roundtrip.timestamp->device_time() == 5555555555);
     CHECK(roundtrip.timestamp->common_time() == 6666666666);
     CHECK(roundtrip.sequence_number == 99);

@@ -6,7 +6,8 @@ include "timestamp.fbs";
 
 namespace core;
 
-// Describe a Head pose.
+// Head pose data.
+// All fields are always present when the parent Tracked/Record wrapper's data is non-null.
 table HeadPose {
     // The concrete pose data
     pose: Pose (id: 0);
@@ -16,6 +17,11 @@ table HeadPose {
 
     // Dual timestamp with device and runtime clock domains
     timestamp: Timestamp (id: 2);
+}
+
+// Tracked wrapper for the in-memory tracker API (data is null when head is inactive).
+table HeadPoseTracked {
+    data: HeadPose (id: 0);
 }
 
 // MCAP recording wrapper for HeadPose.

@@ -19,11 +19,11 @@ from ..interface.retargeter_subgraph import RetargeterSubgraph
 from ..interface.tensor_group import OptionalTensorGroup, TensorGroup
 from ..tensor_types import HandInput, HandInputIndex, NUM_HAND_JOINTS
 from ..interface.tensor_group_type import OptionalType
-from .deviceio_tensor_types import DeviceIOHandPose
+from .deviceio_tensor_types import DeviceIOHandPoseTracked
 
 if TYPE_CHECKING:
     from isaacteleop.deviceio import ITracker
-    from isaacteleop.schema import HandPoseT
+    from isaacteleop.schema import HandPoseT, HandPoseTrackedT
 
 
 class HandsSource(IDeviceIOSource):
@@ -39,12 +39,12 @@ class HandsSource(IDeviceIOSource):
         - "hand_right": OptionalTensorGroup (check ``.is_none`` before access)
 
     Usage:
-        # In TeleopSession, manually poll tracker and pass data
-        left_data = hand_tracker.get_left_hand(session)
-        right_data = hand_tracker.get_right_hand(session)
+        # In TeleopSession, manually poll tracker and pass tracked objects
+        left_tracked = hand_tracker.get_left_hand(session)
+        right_tracked = hand_tracker.get_right_hand(session)
         result = hands_source_node({
-            "deviceio_hand_left": left_data,
-            "deviceio_hand_right": right_data
+            "deviceio_hand_left": left_tracked,
+            "deviceio_hand_right": right_tracked
         })
     """
 
@@ -80,26 +80,26 @@ class HandsSource(IDeviceIOSource):
 
         Returns:
             Dict with "deviceio_hand_left" and "deviceio_hand_right" TensorGroups
-            containing raw HandPoseT data.
+            containing HandPoseTrackedT wrappers.
         """
-        left_hand = self._hand_tracker.get_left_hand(deviceio_session)
-        right_hand = self._hand_tracker.get_right_hand(deviceio_session)
+        left_tracked = self._hand_tracker.get_left_hand(deviceio_session)
+        right_tracked = self._hand_tracker.get_right_hand(deviceio_session)
         source_inputs = self.input_spec()
         result: RetargeterIO = {}
         for input_name, group_type in source_inputs.items():
             tg = TensorGroup(group_type)
             if "left" in input_name:
-                tg[0] = left_hand
+                tg[0] = left_tracked
             elif "right" in input_name:
-                tg[0] = right_hand
+                tg[0] = right_tracked
             result[input_name] = tg
         return result
 
     def input_spec(self) -> RetargeterIOType:
         """Declare DeviceIO hand inputs."""
         return {
-            "deviceio_hand_left": DeviceIOHandPose(),
-            "deviceio_hand_right": DeviceIOHandPose(),
+            "deviceio_hand_left": DeviceIOHandPoseTracked(),
+            "deviceio_hand_right": DeviceIOHandPoseTracked(),
         }
 
     def output_spec(self) -> RetargeterIOType:
@@ -111,41 +111,35 @@ class HandsSource(IDeviceIOSource):
 
     def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
         """
-        Convert DeviceIO HandPoseT to standard HandInput tensors.
+        Convert DeviceIO HandPoseTrackedT to standard HandInput tensors.
 
         Calls ``set_none()`` on the output when the corresponding hand is inactive.
 
         Args:
-            inputs: Dict with "deviceio_hand_left" and "deviceio_hand_right" flatbuffer objects
+            inputs: Dict with "deviceio_hand_left" and "deviceio_hand_right" HandPoseTrackedT wrappers
             outputs: Dict with "hand_left" and "hand_right" OptionalTensorGroups
         """
-        left_data: "HandPoseT" = inputs["deviceio_hand_left"][0]
-        right_data: "HandPoseT" = inputs["deviceio_hand_right"][0]
+        left_tracked: "HandPoseTrackedT" = inputs["deviceio_hand_left"][0]
+        right_tracked: "HandPoseTrackedT" = inputs["deviceio_hand_right"][0]
 
-        if left_data.is_active:
-            self._update_hand_data(outputs["hand_left"], left_data)
-        else:
-            outputs["hand_left"].set_none()
-
-        if right_data.is_active:
-            self._update_hand_data(outputs["hand_right"], right_data)
-        else:
-            outputs["hand_right"].set_none()
+        self._update_hand_data(outputs["hand_left"], left_tracked.data)
+        self._update_hand_data(outputs["hand_right"], right_tracked.data)
 
     def _update_hand_data(
-        self, group: OptionalTensorGroup, hand_data: "HandPoseT"
+        self, group: OptionalTensorGroup, hand_data: "HandPoseT | None"
     ) -> None:
         """Helper to convert hand data for a single hand."""
-        # Pre-allocate arrays
+        if hand_data is None:
+            group.set_none()
+            return
+
         positions = np.zeros((NUM_HAND_JOINTS, 3), dtype=np.float32)
         orientations = np.zeros((NUM_HAND_JOINTS, 4), dtype=np.float32)
         radii = np.zeros(NUM_HAND_JOINTS, dtype=np.float32)
         valid = np.zeros(NUM_HAND_JOINTS, dtype=np.uint8)
 
-        # Extract joint data from HandJoints struct
-        joints = hand_data.joints
         for i in range(NUM_HAND_JOINTS):
-            joint = joints[i]
+            joint = hand_data.joints.poses(i)
             positions[i] = [
                 joint.pose.position.x,
                 joint.pose.position.y,

@@ -14,7 +14,7 @@
 namespace core
 {
 
-// Head tracker - tracks HMD pose (returns HeadPoseT from FlatBuffer schema)
+// Head tracker - tracks HMD pose (returns HeadPoseTrackedT from FlatBuffer schema)
 // PUBLIC API: Only exposes query methods
 class HeadTracker : public ITracker
 {
@@ -42,8 +42,8 @@ public:
         return { "head" };
     }
 
-    // Query methods - public API for getting head data
-    const HeadPoseT& get_head(const DeviceIOSession& session) const;
+    // Query methods - public API for getting head data (tracked.data is always set)
+    const HeadPoseTrackedT& get_head(const DeviceIOSession& session) const;
 
 private:
     static constexpr const char* TRACKER_NAME = "HeadTracker";
@@ -61,13 +61,14 @@ private:
 
         Timestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const override;
 
-        const HeadPoseT& get_head() const;
+        const HeadPoseTrackedT& get_head() const;
 
     private:
         const OpenXRCoreFunctions core_funcs_;
         XrSpace base_space_;
         XrSpacePtr view_space_;
-        HeadPoseT head_;
+        HeadPoseTrackedT tracked_;
+        XrTime last_update_time_ = 0;
     };
 };
 

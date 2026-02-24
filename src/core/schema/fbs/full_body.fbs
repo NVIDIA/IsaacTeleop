@@ -53,16 +53,19 @@ struct BodyJointsPico {
 }
 
 // Full body pose data for PICO body tracking (XR_BD_body_tracking extension).
+// All fields are always present when the parent Tracked/Record wrapper's data is non-null.
 table FullBodyPosePico {
-    // Whether the body tracking is active
-    is_active: bool (id: 0);
-
     // Dual timestamp with device and runtime clock domains
-    timestamp: Timestamp (id: 1);
+    timestamp: Timestamp (id: 0);
 
     // Vector of BodyJointPose.
     // For XR_BD_body_tracking, this is 24 joints.
-    joints: BodyJointsPico (id: 2);
+    joints: BodyJointsPico (id: 1);
+}
+
+// Tracked wrapper for the in-memory tracker API (data is null when body tracking is inactive).
+table FullBodyPosePicoTracked {
+    data: FullBodyPosePico (id: 0);
 }
 
 // MCAP recording wrapper for FullBodyPosePico.

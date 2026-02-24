@@ -3,9 +3,8 @@
 
 """Unit tests for FullBodyPosePicoT and related types in isaacteleop.schema.
 
-FullBodyPosePicoT is a FlatBuffers table (read-only from Python) that represents full body pose data:
+FullBodyPosePicoT is a FlatBuffers table that represents full body pose data:
 - joints: BodyJointsPico struct containing 24 BodyJointPose entries (XR_BD_body_tracking)
-- is_active: Whether the body tracking is active
 - timestamp: Timestamp struct with device and common time
 
 BodyJointsPico is a struct with a fixed-size array of 24 BodyJointPose entries.
@@ -19,8 +18,6 @@ Joint indices follow XrBodyJointBD enum:
   6: Spine2, 7-8: Left/Right Ankle, 9: Spine3, 10-11: Left/Right Foot,
   12: Neck, 13-14: Left/Right Collar, 15: Head, 16-17: Left/Right Shoulder,
   18-19: Left/Right Elbow, 20-21: Left/Right Wrist, 22-23: Left/Right Hand
-
-Note: Python code should only READ this data (created by C++ trackers), not modify it.
 """
 
 import pytest
@@ -33,6 +30,7 @@ from isaacteleop.schema import (
     Pose,
     Point,
     Quaternion,
+    Timestamp,
 )
 
 
@@ -101,35 +99,20 @@ class TestBodyJointPoseRepr:
 class TestBodyJointsPicoStruct:
     """Tests for BodyJointsPico struct."""
 
-    def test_length(self):
-        """Test that BodyJointsPico has exactly 24 joints."""
+    def test_joints_access(self):
+        """Test accessing all 24 joints via joints() method."""
         body_joints = BodyJointsPico()
 
-        assert len(body_joints) == 24
-
-    def test_getitem_access(self):
-        """Test accessing joints via __getitem__ (indexing)."""
-        body_joints = BodyJointsPico()
-
-        # Should be able to access all 24 joints.
         for i in range(24):
-            joint = body_joints[i]
+            joint = body_joints.joints(i)
             assert joint is not None
 
-    def test_joints_method(self):
-        """Test accessing joints via joints() method."""
-        body_joints = BodyJointsPico()
-
-        # Should be able to access via joints method.
-        joint = body_joints.joints(0)
-        assert joint is not None
-
-    def test_index_out_of_range(self):
+    def test_joints_out_of_range(self):
         """Test that accessing out of range index raises IndexError."""
         body_joints = BodyJointsPico()
 
         with pytest.raises(IndexError):
-            _ = body_joints[24]  # Should fail (0-23 are valid)
+            _ = body_joints.joints(24)
 
 
 class TestBodyJointsPicoRepr:
@@ -147,25 +130,33 @@ class TestFullBodyPosePicoTConstruction:
     """Tests for FullBodyPosePicoT construction and basic properties."""
 
     def test_default_construction(self):
-        """Test default construction creates FullBodyPosePicoT with None joints."""
+        """Test default construction creates FullBodyPosePicoT with default-initialized fields."""
         body_pose = FullBodyPosePicoT()
 
         assert body_pose is not None
-        assert body_pose.joints is None
-        assert body_pose.is_active is False
-        assert body_pose.timestamp is None
+        assert body_pose.joints is not None
+        assert body_pose.timestamp is not None
+
+    def test_parameterized_construction(self):
+        """Test construction with joints and timestamp."""
+        joints = BodyJointsPico()
+        timestamp = Timestamp(device_time=12345, common_time=67890)
+        body_pose = FullBodyPosePicoT(joints, timestamp)
+
+        assert body_pose.joints is not None
+        assert body_pose.timestamp.device_time == 12345
+        assert body_pose.timestamp.common_time == 67890
 
 
 class TestFullBodyPosePicoTRepr:
     """Tests for FullBodyPosePicoT __repr__ method."""
 
-    def test_repr_with_no_joints(self):
-        """Test __repr__ when joints is None."""
+    def test_repr_default(self):
+        """Test __repr__ with default construction."""
         body_pose = FullBodyPosePicoT()
 
         repr_str = repr(body_pose)
         assert "FullBodyPosePicoT" in repr_str
-        assert "None" in repr_str
 
 
 class TestBodyJointPicoEnum:
@@ -260,7 +251,7 @@ class TestBodyJointPicoEnum:
         assert len(all_joints) == 24
 
         for joint in all_joints:
-            joint_pose = body_joints[int(joint)]
+            joint_pose = body_joints.joints(int(joint))
             assert joint_pose is not None
 
     def test_enum_int_conversion(self):

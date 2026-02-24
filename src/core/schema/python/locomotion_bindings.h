@@ -34,50 +34,77 @@ inline void bind_locomotion(py::module& m)
              });
 
     // Bind LocomotionCommand table using the native type (LocomotionCommandT).
-    py::class_<LocomotionCommandT>(m, "LocomotionCommand")
-        .def(py::init<>())
+    // velocity_valid and pose_valid indicate the active mode; both velocity and pose are
+    // always populated when data is non-null, but should only be consumed when the flag is true.
+    py::class_<LocomotionCommandT, std::shared_ptr<LocomotionCommandT>>(m, "LocomotionCommand")
+        .def(py::init(
+            []()
+            {
+                auto obj = std::make_shared<LocomotionCommandT>();
+                obj->timestamp = std::make_shared<Timestamp>();
+                obj->velocity = std::make_shared<Twist>();
+                obj->pose = std::make_shared<Pose>();
+                obj->velocity_valid = false;
+                obj->pose_valid = false;
+                return obj;
+            }))
+        .def(py::init(
+                 [](const Twist& velocity, bool velocity_valid, const Pose& pose, bool pose_valid,
+                    const Timestamp& timestamp)
+                 {
+                     auto obj = std::make_shared<LocomotionCommandT>();
+                     obj->velocity = std::make_shared<Twist>(velocity);
+                     obj->velocity_valid = velocity_valid;
+                     obj->pose = std::make_shared<Pose>(pose);
+                     obj->pose_valid = pose_valid;
+                     obj->timestamp = std::make_shared<Timestamp>(timestamp);
+                     return obj;
+                 }),
+             py::arg("velocity"), py::arg("velocity_valid"), py::arg("pose"), py::arg("pose_valid"), py::arg("timestamp"))
         .def_property(
             "timestamp", [](const LocomotionCommandT& self) -> const Timestamp* { return self.timestamp.get(); },
-            [](LocomotionCommandT& self, const Timestamp& ts) { self.timestamp = std::make_unique<Timestamp>(ts); })
+            [](LocomotionCommandT& self, const Timestamp& ts) { self.timestamp = std::make_shared<Timestamp>(ts); })
         .def_property(
             "velocity", [](const LocomotionCommandT& self) -> const Twist* { return self.velocity.get(); },
-            [](LocomotionCommandT& self, const Twist& vel) { self.velocity = std::make_unique<Twist>(vel); })
+            [](LocomotionCommandT& self, const Twist& vel) { self.velocity = std::make_shared<Twist>(vel); })
         .def_property(
             "pose", [](const LocomotionCommandT& self) -> const Pose* { return self.pose.get(); },
-            [](LocomotionCommandT& self, const Pose& p) { self.pose = std::make_unique<Pose>(p); })
+            [](LocomotionCommandT& self, const Pose& p) { self.pose = std::make_shared<Pose>(p); })
+        .def_property(
+            "velocity_valid", [](const LocomotionCommandT& self) { return self.velocity_valid; },
+            [](LocomotionCommandT& self, bool v) { self.velocity_valid = v; })
+        .def_property(
+            "pose_valid", [](const LocomotionCommandT& self) { return self.pose_valid; },
+            [](LocomotionCommandT& self, bool v) { self.pose_valid = v; })
         .def("__repr__",
              [](const LocomotionCommandT& cmd)
              {
-                 std::string result = "LocomotionCommand(";
-                 if (cmd.timestamp)
+                 std::string ts = cmd.timestamp ?
+                                      "Timestamp(device_time=" + std::to_string(cmd.timestamp->device_time()) +
+                                          ", common_time=" + std::to_string(cmd.timestamp->common_time()) + ")" :
+                                      "None";
+                 return "LocomotionCommand(timestamp=" + ts +
+                        ", velocity_valid=" + (cmd.velocity_valid ? "True" : "False") +
+                        ", pose_valid=" + (cmd.pose_valid ? "True" : "False") + ")";
+             });
+
+    py::class_<LocomotionCommandTrackedT>(m, "LocomotionCommandTrackedT")
+        .def(py::init<>())
+        .def(py::init(
+                 [](const LocomotionCommandT& data)
                  {
-                     result += "timestamp=Timestamp(device_time=" + std::to_string(cmd.timestamp->device_time()) +
-                               ", common_time=" + std::to_string(cmd.timestamp->common_time()) + ")";
-                 }
-                 else
-                 {
-                     result += "timestamp=None";
-                 }
-                 result += ", velocity=";
-                 if (cmd.velocity)
-                 {
-                     result += "Twist(...)";
-                 }
-                 else
-                 {
-                     result += "None";
-                 }
-                 result += ", pose=";
-                 if (cmd.pose)
-                 {
-                     result += "Pose(...)";
-                 }
-                 else
-                 {
-                     result += "None";
-                 }
-                 result += ")";
-                 return result;
+                     auto obj = std::make_unique<LocomotionCommandTrackedT>();
+                     obj->data = std::make_shared<LocomotionCommandT>(data);
+                     return obj;
+                 }),
+             py::arg("data"))
+        .def_property_readonly("data",
+                               [](const LocomotionCommandTrackedT& self) -> std::shared_ptr<LocomotionCommandT>
+                               { return self.data; })
+        .def("__repr__",
+             [](const LocomotionCommandTrackedT& self) {
+                 return std::string("LocomotionCommandTrackedT(data=") +
+                        (self.data ? "LocomotionCommand(...)" : "None") + ")";
              });
 }
 

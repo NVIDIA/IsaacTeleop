@@ -7,16 +7,30 @@ include "pose.fbs";
 
 namespace core;
 
-// Locomotion command output from input devices (foot pedal, gamepad, etc.)
+// Locomotion command output from input devices (foot pedal, gamepad, etc.).
+// All fields are always present when the parent Tracked/Record wrapper's data is non-null.
+// velocity_valid and pose_valid indicate which mode is active; the corresponding
+// velocity/pose data is always populated but should only be consumed when the flag is true.
 table LocomotionCommand {
   // Dual timestamp with device and runtime clock domains.
   timestamp: Timestamp (id: 0);
 
-  // Computed velocity command.
+  // Computed velocity command (always populated; meaningful when velocity_valid is true).
   velocity: Twist (id: 1);
 
-  // Computed pose command (e.g., for squat/vertical mode).
+  // Computed pose command, e.g. for squat/vertical mode (always populated; meaningful when pose_valid is true).
   pose: Pose (id: 2);
+
+  // True when this command carries a velocity (locomotion) mode output.
+  velocity_valid: bool (id: 3);
+
+  // True when this command carries a pose (squat/vertical) mode output.
+  pose_valid: bool (id: 4);
+}
+
+// Tracked wrapper for the in-memory tracker API (data is null when no command available).
+table LocomotionCommandTracked {
+    data: LocomotionCommand (id: 0);
 }
 
 // MCAP recording wrapper for LocomotionCommand.
