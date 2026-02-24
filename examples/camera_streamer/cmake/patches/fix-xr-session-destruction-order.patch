@@ -1,0 +1,30 @@
+diff --git a/operators/xr/xr_session.cpp b/operators/xr/xr_session.cpp
+index 702e42884..137615a51 100644
+--- a/operators/xr/xr_session.cpp
++++ b/operators/xr/xr_session.cpp
+@@ -226,7 +226,24 @@ void XrSession::initialize() {
+ }
+ 
+ XrSession::~XrSession() {
+-  session_->requestExitSession();
++  // Request session exit before destruction for proper OpenXR cleanup.
++  if (session_) {
++    session_->requestExitSession();
++  }
++
++  // CRITICAL: Explicitly destroy OpenXR resources BEFORE Vulkan resources.
++  // C++ will destroy members in reverse declaration order, which means Vulkan
++  // resources (declared after OpenXR in the header) would be destroyed first.
++  // This causes crashes because xrDestroySession needs valid Vulkan resources.
++
++  // Destroy OpenXR spaces first (they depend on the session).
++  view_space_.reset();
++  reference_space_.reset();
++
++  // Destroy the OpenXR session while Vulkan resources are still valid.
++  session_.reset();
++
++  // Vulkan resources will be destroyed automatically by C++ after this.
+ }
+ 
+ xr::SpaceLocation XrSession::locate_view_space() const noexcept(false) {

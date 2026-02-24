@@ -1,0 +1,13 @@
+diff --git a/operators/xr/CMakeLists.txt b/operators/xr/CMakeLists.txt
+index e637f743e..a1b2c3d4e 100644
+--- a/operators/xr/CMakeLists.txt
++++ b/operators/xr/CMakeLists.txt
+@@ -19,7 +19,8 @@ find_package(Vulkan REQUIRED)
+ find_package(Eigen3 3.4 REQUIRED)
+ 
+-set(CMAKE_CUDA_ARCHITECTURES 75)
++# Auto-detect GPU architecture at build time (supports x86_64 and aarch64/Jetson Thor).
++set(CMAKE_CUDA_ARCHITECTURES native)
+ set(CMAKE_CUDA_COMPILER /usr/local/cuda/bin/nvcc)
+ 
+ enable_language(CUDA)
