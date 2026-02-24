@@ -1,0 +1,132 @@
+# Camera Configuration - Dexmate Vega
+
+# Camera source for teleop_camera_app:
+#   "rtp"   - Receive H.264 streams from teleop_camera_sender (default)
+#   "local" - Open cameras directly on this machine (no sender needed)
+source: "local"
+
+# -----------------------------------------------------------------------------
+# Streaming (used by sender, and by receiver when source is "rtp")
+# -----------------------------------------------------------------------------
+streaming:
+  host: "127.0.0.1"              # Receiver IP address
+
+# -----------------------------------------------------------------------------
+# Cameras (used by both sender and receiver)
+# -----------------------------------------------------------------------------
+cameras:
+  # Head Camera - ZED Mini Stereo
+  head:
+    enabled: true
+    # type: oakd
+    # stereo: false
+    # device_id: "19443010F1A6327E00"
+    type: v4l2
+    stereo: false
+    device: "/dev/video4"
+    width: 1280
+    height: 720
+    fps: 30
+    streams:
+      mono:
+        stream_id: 0
+        port: 5000
+        bitrate_mbps: 10
+
+  # Left Wrist Camera - OAK-D
+  # left_wrist:
+  #   enabled: true
+  #   type: oakd
+  #   stereo: false
+  #   device_id: "19443010311D177E00"
+  #   width: 1280
+  #   height: 720
+  #   fps: 30
+  #   streams:
+  #     mono:
+  #       stream_id: 2
+  #       port: 5002
+  #       bitrate_mbps: 10
+
+  # # Right Wrist Camera - OAK-D
+  # right_wrist:
+  #   enabled: true
+  #   type: oakd
+  #   stereo: false
+  #   device_id: "19443010F1A6327E00"
+  #   width: 1280
+  #   height: 720
+  #   fps: 30
+  #   streams:
+  #     mono:
+  #       stream_id: 3
+  #       port: 5003
+  #       bitrate_mbps: 10
+
+  # USB Camera - V4L2 (requires NVENC for H.264 encoding)
+  # usb_cam:
+  #   enabled: false
+  #   type: v4l2
+  #   stereo: false
+  #   device: "/dev/video0"
+  #   width: 1280
+  #   height: 720
+  #   fps: 30
+  #   streams:
+  #     mono:
+  #       stream_id: 4
+  #       port: 5004
+  #       bitrate_mbps: 10
+
+# -----------------------------------------------------------------------------
+# Display (used by receiver)
+# -----------------------------------------------------------------------------
+display:
+  mode: "xr"                # "monitor" or "xr"
+  cuda_device: 0
+
+  # Monitor mode settings
+  monitor:
+    width: 1920
+    height: 1080
+    title: "Teleop Camera - Vega"
+    padding: 4
+    stream_timeout: 2.0
+
+  # XR mode settings
+  # Each camera is rendered on a 2D plane in front of the user.
+  #
+  # Plane geometry:
+  #   distance  - How far the plane is from the user (meters)
+  #   width     - Plane width in meters (height auto-calculated from aspect ratio)
+  #   offset_x  - Horizontal offset from center (meters, + = right, - = left)
+  #   offset_y  - Vertical offset from center (meters, + = up, - = down)
+  #
+  # Locking modes:
+  #   "head"  - Plane follows head rotation (always in view)
+  #   "world" - Plane stays fixed in world space
+  #   "lazy"  - World-locked but smoothly repositions when user looks away
+  xr:
+    planes:
+      head:
+        distance: 1.5
+        width: 1.0
+        offset_x: 0.0
+        offset_y: 0.0
+
+      # left_wrist:
+      #   distance: 1.2
+      #   width: 0.4
+      #   offset_x: -1.0
+      #   offset_y: -0.4
+
+      # right_wrist:
+      #   distance: 1.2
+      #   width: 0.4
+      #   offset_x: 1.0
+      #   offset_y: -0.4
+
+    lock_mode: "lazy"
+    look_away_angle: 45.0
+    reposition_delay: 0.5
+    transition_duration: 0.3
