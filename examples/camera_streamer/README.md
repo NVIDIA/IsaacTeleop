@@ -33,7 +33,7 @@ python3 teleop_camera_app.py --source rtp --mode monitor  # on workstation
 Set the top-level `source` field in your YAML config:
 
 ```yaml
-source: "local"     # "rtp" (default) or "local"
+source: "local"     # "rtp" or "local"
 ```
 
 Or override via CLI: `python3 teleop_camera_app.py --source local`
@@ -70,7 +70,7 @@ Uses the baked-in Docker image with `--restart unless-stopped`. The config file 
 
 ```bash
 ./camera_streamer.sh deploy --receiver-host 192.168.1.100
-vim config/dexmate/vega/cameras.yaml   # edit config
+vim config/multi_camera.yaml           # edit config
 ./camera_streamer.sh restart            # picks up changes
 ```
 
@@ -85,7 +85,13 @@ The `build/` directory is mounted from the host so cmake cache, FetchContent dow
 
 ## Camera Configuration
 
-Edit `config/dexmate/vega/cameras.yaml`. Each camera has a name, type, and one or more streams with unique ports and stream IDs.
+Edit a config file under `config/` (e.g. `config/multi_camera.yaml`). Each camera has a name, type, and one or more streams with unique ports and stream IDs. Sample configs:
+
+| Config | Description |
+|---|---|
+| `config/multi_camera.yaml` | 1 stereo ZED + 2 mono OAK-D (default) |
+| `config/single_camera.yaml` | Single mono OAK-D |
+| `config/v4l2.yaml` | Single V4L2 camera (USB/HDMI capture) |
 
 ### ZED Camera
 
@@ -159,7 +165,7 @@ cameras:
 | **ZED cameras** | NVENC H.264 | No NVENC — use OAK-D | NVENC H.264 |
 | **OAK-D cameras** | VPU encoding | VPU encoding | VPU encoding |
 | **V4L2 cameras** | NVENC H.264 | No NVENC | NVENC H.264 |
-| **Base image** | `holoscan:v3.10.0-cuda13` | TBD | `holoscan:v3.10.0-cuda12-dgpu` |
+| **Base image** | `holoscan:v3.11.0-cuda13` | TBD | `holoscan:v3.11.0-cuda12-dgpu` |
 
 ## Troubleshooting
 

@@ -15,7 +15,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 IMAGE_NAME="isaac-teleop-camera"
 CONTAINER_NAME="isaac-teleop-camera"
-DEFAULT_CONFIG="config/dexmate/vega/cameras.yaml"
+DEFAULT_CONFIG="config/multi_camera.yaml"
 DEFAULT_RECEIVER_HOST="127.0.0.1"
 
 # ---------------------------------------------------------------------------

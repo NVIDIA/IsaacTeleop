@@ -22,6 +22,16 @@ from loguru import logger
 from holoscan import as_tensor
 from holoscan.core import ConditionType, Operator, OperatorSpec
 
+# ZED resolution name (width, height)
+ZED_RESOLUTION_DIMS = {
+    "HD2K": (2208, 1242),
+    "HD1080": (1920, 1080),
+    "HD720": (1280, 720),
+    "VGA": (672, 376),
+}
+
+assert set(ZED_RESOLUTION_DIMS.keys()) == {"HD2K", "HD1080", "HD720", "VGA"}, \
+    "ZED_RESOLUTION_DIMS keys drifted — update ZedCameraOp.RESOLUTION_MAP too"
 
 STATS_INTERVAL_SEC = 30.0
 
@@ -93,7 +103,14 @@ class ZedCameraOp(Operator):
 
         if self._bus_type not in self.BUS_TYPE_MAP:
             raise ValueError(
-                f"Invalid bus_type '{bus_type}'. Valid options: {list(self.BUS_TYPE_MAP.keys())}"
+                f"Invalid bus_type '{bus_type}'. "
+                f"Valid options: {list(self.BUS_TYPE_MAP.keys())}"
+            )
+
+        if self._resolution not in self.RESOLUTION_MAP:
+            raise ValueError(
+                f"Invalid resolution '{resolution}'. "
+                f"Valid options: {list(self.RESOLUTION_MAP.keys())}"
             )
 
         self._camera: Optional[sl.Camera] = None
@@ -138,15 +155,6 @@ class ZedCameraOp(Operator):
 
         self._camera = sl.Camera()
         self._init_params = sl.InitParameters()
-
-        # Set resolution
-        if self._resolution not in self.RESOLUTION_MAP:
-            logger.error(
-                f"Invalid resolution '{self._resolution}'. "
-                f"Valid options: {list(self.RESOLUTION_MAP.keys())}"
-            )
-            return False
-
         self._init_params.camera_resolution = self.RESOLUTION_MAP[self._resolution]
         self._init_params.camera_fps = self._fps
         self._init_params.depth_mode = sl.DEPTH_MODE.NONE

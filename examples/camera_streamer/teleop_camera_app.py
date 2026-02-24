@@ -8,16 +8,7 @@ Displays multiple camera streams in either monitor mode (tiled 2D) or XR mode (3
 
 Supports camera sources:
   - RTP receiver: Receives H.264 streams from teleop_camera_sender
-  - Direct (future): Connect cameras directly without sender/receiver
-
-Configuration is loaded from:
-  - teleop_camera_config.yaml: Camera definitions (shared with sender)
-  - teleop_camera_app.yaml: Display and visualization settings
-
-Usage:
-    python3 teleop_camera_app.py --mode monitor
-    python3 teleop_camera_app.py --mode xr
-    python3 teleop_camera_app.py --config my_config.yaml
+  - Direct: Connect cameras directly without sender/receiver
 """
 
 import argparse
@@ -25,7 +16,7 @@ import os
 import sys
 
 from holoscan.core import Application
-from holoscan.schedulers import EventBasedScheduler, MultiThreadScheduler
+from holoscan.schedulers import EventBasedScheduler
 from loguru import logger
 
 from teleop_camera_subgraph import (
@@ -97,7 +88,7 @@ def main():
         "--config",
         type=str,
         default=os.path.join(
-            os.path.dirname(__file__), "config/dexmate/vega/cameras.yaml"
+            os.path.dirname(__file__), "config/multi_camera.yaml"
         ),
         help="Path to camera configuration file",
     )
@@ -178,13 +169,8 @@ def main():
         raise
     finally:
         logger.info("Shutdown complete")
-
-    # Workaround: CPython 3.12 crashes during interpreter finalization when
-    # C++ threads from V4L2VideoCaptureOp and HolovizOp haven't been joined.
-    # The Holoscan graph has already shut down cleanly above. This skips
-    # Python's atexit/finalization phase to avoid the crash.
-    # TODO: Remove when Holoscan SDK fixes thread cleanup on shutdown.
-    os._exit(0)
+        # Required to avoid GIL crash.
+        os._exit(0)
 
 
 if __name__ == "__main__":

@@ -27,7 +27,7 @@ from loguru import logger
 from operators.gstreamer_h264_sender.gstreamer_h264_sender_op import (
     GStreamerH264SenderOp,
 )
-from camera_config import CameraConfig
+from camera_config import CameraConfig, validate_camera_configs
 from camera_sources import create_camera_source, ensure_nvenc_support
 
 
@@ -63,62 +63,19 @@ class TeleopCameraSenderConfig:
             cameras=cameras,
         )
 
-    def get_zed_cameras(self) -> Dict[str, CameraConfig]:
-        """Get all ZED camera configurations."""
+    def get_cameras_by_type(self, camera_type: str) -> Dict[str, CameraConfig]:
+        """Get camera configurations filtered by type."""
         return {
-            name: cfg for name, cfg in self.cameras.items() if cfg.camera_type == "zed"
-        }
-
-    def get_oakd_cameras(self) -> Dict[str, CameraConfig]:
-        """Get all OAK-D camera configurations."""
-        return {
-            name: cfg for name, cfg in self.cameras.items() if cfg.camera_type == "oakd"
-        }
-
-    def get_v4l2_cameras(self) -> Dict[str, CameraConfig]:
-        """Get all V4L2 camera configurations."""
-        return {
-            name: cfg for name, cfg in self.cameras.items() if cfg.camera_type == "v4l2"
+            name: cfg
+            for name, cfg in self.cameras.items()
+            if cfg.camera_type == camera_type
         }
 
     def validate(self) -> List[str]:
         """Validate configuration and return list of errors."""
-        errors = []
-
-        # Collect all ports for collision detection
-        all_ports: Dict[int, str] = {}
+        errors = validate_camera_configs(self.cameras)
 
         for cam_name, cam_cfg in self.cameras.items():
-            # Check stereo cameras have required streams
-            if cam_cfg.stereo:
-                if "left" not in cam_cfg.streams:
-                    errors.append(
-                        f"Camera '{cam_name}': stereo camera missing 'left' stream"
-                    )
-                if "right" not in cam_cfg.streams:
-                    errors.append(
-                        f"Camera '{cam_name}': stereo camera missing 'right' stream"
-                    )
-            else:
-                if "mono" not in cam_cfg.streams:
-                    errors.append(
-                        f"Camera '{cam_name}': mono camera missing 'mono' stream"
-                    )
-
-            # Check for port collisions
-            for stream_name, stream_cfg in cam_cfg.streams.items():
-                port = stream_cfg.port
-                stream_key = f"{cam_name}/{stream_name}"
-
-                if port in all_ports:
-                    errors.append(
-                        f"Port collision: port {port} used by both "
-                        f"'{all_ports[port]}' and '{stream_key}'"
-                    )
-                else:
-                    all_ports[port] = stream_key
-
-            # Validate V4L2 cameras
             if cam_cfg.camera_type == "v4l2":
                 if not cam_cfg.device:
                     errors.append(f"Camera '{cam_name}': V4L2 camera missing 'device'")
@@ -127,18 +84,19 @@ class TeleopCameraSenderConfig:
                         f"Camera '{cam_name}': V4L2 cameras only support mono mode"
                     )
 
-            # Validate ZED resolution
             if cam_cfg.camera_type == "zed":
                 if cam_cfg.resolution is None:
                     errors.append(
                         f"Camera '{cam_name}': ZED camera missing 'resolution'"
                     )
                 else:
-                    valid_resolutions = {"HD2K", "HD1080", "HD720", "VGA"}
-                    if cam_cfg.resolution.upper() not in valid_resolutions:
+                    from operators.zed_camera.zed_camera_op import ZED_RESOLUTION_DIMS
+
+                    if cam_cfg.resolution.upper() not in ZED_RESOLUTION_DIMS:
                         errors.append(
                             f"Camera '{cam_name}': invalid ZED resolution "
-                            f"'{cam_cfg.resolution}' (valid: {valid_resolutions})"
+                            f"'{cam_cfg.resolution}' "
+                            f"(valid: {set(ZED_RESOLUTION_DIMS.keys())})"
                         )
 
         return errors
@@ -183,13 +141,10 @@ class TeleopCameraSenderApp(Application):
         cuda_device = self._cuda_device
         allocator = UnboundedAllocator(self, name="allocator")
 
-        # For ZED/V4L2 cameras, we need NVENC for H.264 encoding.
-        needs_nvenc = bool(
-            self._config.get_zed_cameras() or self._config.get_v4l2_cameras()
-        )
-        if needs_nvenc:
-            ensure_nvenc_support()
-            from camera_sources import _NvStreamEncoderOp
+        # ZED and V4L2 cameras output raw frames — need NVENC for H.264 encoding.
+        NvStreamEncoderOp = None
+        if self._config.get_cameras_by_type("zed") or self._config.get_cameras_by_type("v4l2"):
+            NvStreamEncoderOp = ensure_nvenc_support()
 
         for cam_name, cam_cfg in self._config.cameras.items():
             logger.info(f"Adding camera: {cam_name} ({cam_cfg.camera_type})")
@@ -226,7 +181,7 @@ class TeleopCameraSenderApp(Application):
                     self.add_flow(src_op, rtp_sender, {(src_port, "h264_packets")})
                 else:
                     # ZED/V4L2: raw frames -> NVENC encoder -> RTP sender.
-                    encoder = _NvStreamEncoderOp(
+                    encoder = NvStreamEncoderOp(
                         self,
                         name=f"{cam_name}_{stream_name}_encoder",
                         width=cam_cfg.width,
@@ -274,7 +229,7 @@ def main():
         "--config",
         type=str,
         default=os.path.join(
-            os.path.dirname(__file__), "config/dexmate/vega/cameras.yaml"
+            os.path.dirname(__file__), "config/multi_camera.yaml"
         ),
         help="Path to camera configuration file",
     )
@@ -323,8 +278,9 @@ def main():
     logger.info("Teleop Camera Sender")
     logger.info("=" * 60)
     logger.info(f"Target host: {config.host}")
-    logger.info(f"ZED cameras: {len(config.get_zed_cameras())}")
-    logger.info(f"OAK-D cameras: {len(config.get_oakd_cameras())}")
+    logger.info(f"ZED cameras: {len(config.get_cameras_by_type('zed'))}")
+    logger.info(f"OAK-D cameras: {len(config.get_cameras_by_type('oakd'))}")
+    logger.info(f"V4L2 cameras: {len(config.get_cameras_by_type('v4l2'))}")
     logger.info("=" * 60)
     logger.info("Press Ctrl+C to stop")
 
@@ -344,7 +300,8 @@ def main():
         raise
     finally:
         logger.info("Shutdown complete")
-
+        # Required to avoid GIL crash.
+        os._exit(0)
 
 if __name__ == "__main__":
     main()
