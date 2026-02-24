@@ -33,9 +33,9 @@ SyntheticHandsPlugin::SyntheticHandsPlugin(const std::string& plugin_root_id) no
     // Create DeviceIOSession with trackers
     m_deviceio_session = core::DeviceIOSession::run(trackers, handles);
 
-    // Initialize hand injection (world space mode only - space-based injection would need
-    // access to controller spaces which are internal to ControllerTracker)
-    m_injector.emplace(handles.instance, handles.session, handles.space);
+    // Injectors are created lazily in worker_thread once a controller is first seen,
+    // and destroyed when the controller disappears. This ensures isActive reflects
+    // whether a controller is actually present.
     m_time_converter.emplace(handles);
 
     // Start worker thread
@@ -82,7 +82,6 @@ void SyntheticHandsPlugin::worker_thread()
         // runtime's own time domain (XrTime), rather than a raw steady_clock cast.
         XrTime time = m_time_converter->os_monotonic_now();
 
-
         // Get target curl values from trigger inputs
         float left_target = 0.0f;
         float right_target = 0.0f;
@@ -112,6 +111,11 @@ void SyntheticHandsPlugin::worker_thread()
             m_right_curl = right_curl_current;
         }
 
+        // This plugin treats controller presence as a prerequisite for hand injection:
+        // if the controller is gone, the synthetic hand is deactivated by resetting the
+        // injector. A different plugin could choose a different policy — for example, a
+        // plugin with independent joint data (e.g. a glove) could keep pushing joints
+        // even when no controller pose is available.
         if (m_left_enabled && left_tracked.data)
         {
             bool grip_valid = false;
@@ -121,9 +125,21 @@ void SyntheticHandsPlugin::worker_thread()
 
             if (grip_valid && aim_valid)
             {
+                if (!m_left_injector)
+                {
+                    const auto handles = m_session->get_handles();
+                    m_left_injector = std::make_unique<plugin_utils::HandInjector>(
+                        handles.instance, handles.session, XR_HAND_LEFT_EXT, handles.space);
+                }
                 m_hand_gen.generate(left_joints, wrist, true, left_curl_current);
-                m_injector->push_left(left_joints, time);
+                m_left_injector->push(left_joints, time);
             }
+        }
+        else
+        {
+            // Controller not present — destroy the injector so the runtime sees
+            // isActive=false rather than a frozen hand pose.
+            m_left_injector.reset();
         }
 
         if (m_right_enabled && right_tracked.data)
@@ -135,9 +151,21 @@ void SyntheticHandsPlugin::worker_thread()
 
             if (grip_valid && aim_valid)
             {
+                if (!m_right_injector)
+                {
+                    const auto handles = m_session->get_handles();
+                    m_right_injector = std::make_unique<plugin_utils::HandInjector>(
+                        handles.instance, handles.session, XR_HAND_RIGHT_EXT, handles.space);
+                }
                 m_hand_gen.generate(right_joints, wrist, false, right_curl_current);
-                m_injector->push_right(right_joints, time);
+                m_right_injector->push(right_joints, time);
             }
+        }
+        else
+        {
+            // Controller not present — destroy the injector so the runtime sees
+            // isActive=false rather than a frozen hand pose.
+            m_right_injector.reset();
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(16));

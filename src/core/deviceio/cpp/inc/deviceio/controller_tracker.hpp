@@ -62,7 +62,7 @@ private:
         // Override from ITrackerImpl
         bool update(XrTime time) override;
 
-        DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index = 0) const override;
+        void serialize_all(size_t channel_index, const RecordCallback& callback) const override;
 
         const ControllerSnapshotTrackedT& get_left_controller() const;
         const ControllerSnapshotTrackedT& get_right_controller() const;

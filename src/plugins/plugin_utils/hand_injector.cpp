@@ -22,29 +22,15 @@ void CheckXrResult(XrResult result, const char* message)
         throw std::runtime_error(std::string(message) + " failed with XrResult: " + std::to_string(result));
     }
 }
-}
+} // namespace
 
-HandInjector::HandInjector(XrInstance instance,
-                           XrSession session,
-                           XrSpace left_controller_space,
-                           XrSpace right_controller_space)
+HandInjector::HandInjector(XrInstance instance, XrSession session, XrHandEXT hand, XrSpace base_space)
+    : time_converter_(core::OpenXRSessionHandles{ instance, session, base_space, ::xrGetInstanceProcAddr })
 {
     try
     {
-        initialize(instance, session, left_controller_space, right_controller_space);
-    }
-    catch (...)
-    {
-        cleanup();
-        throw;
-    }
-}
-
-HandInjector::HandInjector(XrInstance instance, XrSession session, XrSpace reference_space)
-{
-    try
-    {
-        initialize(instance, session, reference_space, reference_space);
+        load_functions(instance);
+        create_device(session, hand, base_space);
     }
     catch (...)
     {
@@ -58,13 +44,6 @@ HandInjector::~HandInjector()
     cleanup();
 }
 
-void HandInjector::initialize(XrInstance instance, XrSession session, XrSpace left_space, XrSpace right_space)
-{
-    load_functions(instance);
-    create_device(session, left_space, XR_HAND_LEFT_EXT, left_device_);
-    create_device(session, right_space, XR_HAND_RIGHT_EXT, right_device_);
-}
-
 void HandInjector::load_functions(XrInstance instance)
 {
     core::loadExtensionFunction(
@@ -75,7 +54,7 @@ void HandInjector::load_functions(XrInstance instance)
                                 reinterpret_cast<PFN_xrVoidFunction*>(&pfn_push_));
 }
 
-void HandInjector::create_device(XrSession session, XrSpace base_space, XrHandEXT hand, XrPushDeviceNV& device)
+void HandInjector::create_device(XrSession session, XrHandEXT hand, XrSpace base_space)
 {
     XrPushDeviceHandTrackingInfoNV hand_info{ XR_TYPE_PUSH_DEVICE_HAND_TRACKING_INFO_NV };
     hand_info.hand = hand;
@@ -89,15 +68,15 @@ void HandInjector::create_device(XrSession session, XrSpace base_space, XrHandEX
     strcpy(create_info.localizedName, hand == XR_HAND_LEFT_EXT ? "Left Hand" : "Right Hand");
     strcpy(create_info.serial, hand == XR_HAND_LEFT_EXT ? "LEFT" : "RIGHT");
 
-    CheckXrResult(pfn_create_(session, &create_info, nullptr, &device),
+    CheckXrResult(pfn_create_(session, &create_info, nullptr, &device_),
                   (std::string("xrCreatePushDeviceNV(") + (hand == XR_HAND_LEFT_EXT ? "left" : "right") + ")").c_str());
 }
 
-void HandInjector::push_left(const XrHandJointLocationEXT* joints, XrTime timestamp)
+void HandInjector::push(const XrHandJointLocationEXT* joints, XrTime timestamp)
 {
-    if (left_device_ == XR_NULL_HANDLE)
+    if (device_ == XR_NULL_HANDLE)
     {
-        throw std::runtime_error("Left push device not initialized");
+        throw std::runtime_error("HandInjector: push device not initialized");
     }
 
     XrPushDeviceHandTrackingDataNV data{ XR_TYPE_PUSH_DEVICE_HAND_TRACKING_DATA_NV };
@@ -105,38 +84,36 @@ void HandInjector::push_left(const XrHandJointLocationEXT* joints, XrTime timest
     data.jointCount = XR_HAND_JOINT_COUNT_EXT;
     data.jointLocations = joints;
 
-    CheckXrResult(pfn_push_(left_device_, &data), "xrPushDevicePushHandTrackingNV(left)");
-}
-
-void HandInjector::push_right(const XrHandJointLocationEXT* joints, XrTime timestamp)
-{
-    if (right_device_ == XR_NULL_HANDLE)
-    {
-        throw std::runtime_error("Right push device not initialized");
-    }
-
-    XrPushDeviceHandTrackingDataNV data{ XR_TYPE_PUSH_DEVICE_HAND_TRACKING_DATA_NV };
-    data.timestamp = timestamp;
-    data.jointCount = XR_HAND_JOINT_COUNT_EXT;
-    data.jointLocations = joints;
-
-    CheckXrResult(pfn_push_(right_device_, &data), "xrPushDevicePushHandTrackingNV(right)");
+    CheckXrResult(pfn_push_(device_, &data), "xrPushDevicePushHandTrackingNV");
 }
 
 void HandInjector::cleanup()
 {
-    if (pfn_destroy_)
+    if (pfn_destroy_ && device_ != XR_NULL_HANDLE)
     {
-        if (left_device_ != XR_NULL_HANDLE)
+        // Signal inactive before destroying so readers see is_active=false
+        // rather than stale data. Ignore errors; we're tearing down anyway.
+        if (pfn_push_)
         {
-            pfn_destroy_(left_device_);
-            left_device_ = XR_NULL_HANDLE;
+            // Get a valid XrTime; fall back to 1 if conversion fails (timestamp must be > 0).
+            XrTime time = 1;
+            try
+            {
+                time = time_converter_.os_monotonic_now();
+            }
+            catch (...)
+            {
+            }
+
+            XrHandJointLocationEXT dummy{};
+            XrPushDeviceHandTrackingDataNV data{ XR_TYPE_PUSH_DEVICE_HAND_TRACKING_DATA_NV };
+            data.timestamp = time;
+            data.jointCount = 0;
+            data.jointLocations = &dummy;
+            pfn_push_(device_, &data);
         }
-        if (right_device_ != XR_NULL_HANDLE)
-        {
-            pfn_destroy_(right_device_);
-            right_device_ = XR_NULL_HANDLE;
-        }
+        pfn_destroy_(device_);
+        device_ = XR_NULL_HANDLE;
     }
 }
 

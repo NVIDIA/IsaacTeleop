@@ -27,7 +27,7 @@ public:
 
     // Override from ITrackerImpl
     bool update(XrTime time) override;
-    DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index = 0) const override;
+    void serialize_all(size_t channel_index, const RecordCallback& callback) const override;
 
     // Get body pose data
     const FullBodyPosePicoTrackedT& get_body_pose() const;
@@ -144,16 +144,14 @@ bool FullBodyTrackerPicoImpl::update(XrTime time)
         return false;
     }
 
-    if (!locations.allJointPosesTracked)
-    {
-        tracked_.data.reset();
-        return true;
-    }
-
     if (!tracked_.data)
     {
         tracked_.data = std::make_shared<FullBodyPosePicoT>();
     }
+
+    // all_joint_poses_tracked is a quality flag: the body tracker is present even when
+    // false, so we always populate tracked_.data and reflect quality via the field.
+    tracked_.data->all_joint_poses_tracked = locations.allJointPosesTracked;
 
     if (!tracked_.data->joints)
     {
@@ -184,9 +182,15 @@ const FullBodyPosePicoTrackedT& FullBodyTrackerPicoImpl::get_body_pose() const
     return tracked_;
 }
 
-DeviceDataTimestamp FullBodyTrackerPicoImpl::serialize(flatbuffers::FlatBufferBuilder& builder,
-                                                       size_t /*channel_index*/) const
+void FullBodyTrackerPicoImpl::serialize_all(size_t channel_index, const RecordCallback& callback) const
 {
+    if (channel_index != 0)
+    {
+        return;
+    }
+
+    flatbuffers::FlatBufferBuilder builder(256);
+
     int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
     DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
 
@@ -198,7 +202,8 @@ DeviceDataTimestamp FullBodyTrackerPicoImpl::serialize(flatbuffers::FlatBufferBu
     }
     record_builder.add_timestamp(&timestamp);
     builder.Finish(record_builder.Finish());
-    return timestamp;
+
+    callback(timestamp, builder.GetBufferPointer(), builder.GetSize());
 }
 
 // ============================================================================

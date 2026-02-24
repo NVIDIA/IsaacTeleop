@@ -70,7 +70,25 @@ private:
     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
 
     SchemaTrackerConfig m_config;
-    class Impl;
+
+    class Impl : public ITrackerImpl
+    {
+    public:
+        Impl(const OpenXRSessionHandles& handles, SchemaTrackerConfig config);
+
+        bool update(XrTime time) override;
+        void serialize_all(size_t channel_index, const RecordCallback& callback) const override;
+
+        const Generic3AxisPedalOutputTrackedT& get_data() const;
+
+    private:
+        SchemaTracker m_schema_reader;
+        XrTimeConverter m_time_converter_;
+        XrTime m_last_update_time_ = 0;
+        bool m_collection_present = false;
+        Generic3AxisPedalOutputTrackedT m_tracked;
+        std::vector<SchemaTracker::SampleResult> m_pending_records;
+    };
 };
 
 } // namespace core

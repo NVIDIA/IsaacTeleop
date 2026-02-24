@@ -58,6 +58,11 @@ table FullBodyPosePico {
     // Vector of BodyJointPose.
     // For XR_BD_body_tracking, this is 24 joints.
     joints: BodyJointsPico (id: 0);
+
+    // allJointPosesTracked from the OpenXR extension — quality flag only.
+    // When false, individual joint is_valid flags should be consulted.
+    // Does not affect whether the data pointer is null; see the Tracked wrapper.
+    all_joint_poses_tracked: bool (id: 1);
 }
 
 // Tracked wrapper for the in-memory tracker API (data is null when body tracking is inactive).

@@ -28,7 +28,6 @@ HeadTracker::Impl::Impl(const OpenXRSessionHandles& handles)
                                          .poseInReferenceSpace = { .orientation = { 0, 0, 0, 1 } } })),
       tracked_{}
 {
-    tracked_.data = std::make_shared<HeadPoseT>();
 }
 
 // Override from ITrackerImpl
@@ -42,19 +41,25 @@ bool HeadTracker::Impl::update(XrTime time)
 
     if (XR_FAILED(result))
     {
-        tracked_.data->is_valid = false;
+        // Hard failure: clear tracked data so callers see null, consistent with other trackers.
+        tracked_.data.reset();
         return false;
     }
 
-    // Check if tracking is valid
+    // position/orientation valid bits are a quality flag — the HMD is still present even when
+    // they are unset, so we always populate tracked_.data and reflect quality via is_valid.
     bool position_valid = (location.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0;
     bool orientation_valid = (location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0;
+
+    if (!tracked_.data)
+    {
+        tracked_.data = std::make_shared<HeadPoseT>();
+    }
 
     tracked_.data->is_valid = position_valid && orientation_valid;
 
     if (tracked_.data->is_valid)
     {
-        // Create pose from position and orientation using FlatBuffers structs
         Point position(location.pose.position.x, location.pose.position.y, location.pose.position.z);
         Quaternion orientation(location.pose.orientation.x, location.pose.orientation.y, location.pose.orientation.z,
                                location.pose.orientation.w);
@@ -62,7 +67,6 @@ bool HeadTracker::Impl::update(XrTime time)
     }
     else
     {
-        // Invalid - reset pose
         tracked_.data->pose.reset();
     }
 
@@ -74,8 +78,16 @@ const HeadPoseTrackedT& HeadTracker::Impl::get_head() const
     return tracked_;
 }
 
-DeviceDataTimestamp HeadTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, size_t /*channel_index*/) const
+void HeadTracker::Impl::serialize_all(size_t channel_index, const RecordCallback& callback) const
 {
+    if (channel_index != 0)
+    {
+        throw std::runtime_error("HeadTracker::serialize_all: invalid channel_index " + std::to_string(channel_index) +
+                                 " (only channel 0 exists)");
+    }
+
+    flatbuffers::FlatBufferBuilder builder(256);
+
     int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
     DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
 
@@ -87,7 +99,8 @@ DeviceDataTimestamp HeadTracker::Impl::serialize(flatbuffers::FlatBufferBuilder&
     }
     record_builder.add_timestamp(&timestamp);
     builder.Finish(record_builder.Finish());
-    return timestamp;
+
+    callback(timestamp, builder.GetBufferPointer(), builder.GetSize());
 }
 
 // ============================================================================

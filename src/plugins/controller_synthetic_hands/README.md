@@ -66,9 +66,9 @@ class HandGenerator {
 **hand_injector** (`hand_injector.hpp/cpp`) - Push device data injection
 ```cpp
 class HandInjector {
-    HandInjector(XrInstance, XrSession, XrSpace);
-    void push_left(const XrHandJointLocationEXT*, XrTime);
-    void push_right(const XrHandJointLocationEXT*, XrTime);
+    HandInjector(XrInstance, XrSession, XrHandEXT hand, XrSpace base_space);
+    void push(const XrHandJointLocationEXT*, XrTime);
+    // Destructor automatically signals isActive=false before releasing the push device.
 };
 ```
 
@@ -101,7 +101,8 @@ auto h = session->get_handles();
 auto deviceio_session = core::DeviceIOSession::run(trackers, h);
 
 HandGenerator hands;
-HandInjector injector(h.instance, h.session, h.space);
+HandInjector left_injector(h.instance, h.session, XR_HAND_LEFT_EXT, h.space);
+HandInjector right_injector(h.instance, h.session, XR_HAND_RIGHT_EXT, h.space);
 
 while (running) {
     deviceio_session->update();
@@ -115,10 +116,11 @@ while (running) {
         if (grip_valid && aim_valid) {
             float trigger = left_tracked.data->inputs().trigger_value();
             hands.generate(joints, wrist, true, trigger);
-            injector.push_left(joints, time);
+            left_injector.push(joints, time);
         }
     }
 }
+// left_injector and right_injector signal isActive=false on destruction.
 ```
 
 ### Using Individual Components
@@ -165,8 +167,10 @@ generator.generate(joints, wrist_pose, true, curl_value);
 ```cpp
 #include <plugin_utils/hand_injector.hpp>
 
-HandInjector injector(instance, session, space);
-injector.push_left(joints, timestamp);
+HandInjector left_injector(instance, session, XR_HAND_LEFT_EXT, space);
+HandInjector right_injector(instance, session, XR_HAND_RIGHT_EXT, space);
+left_injector.push(joints, timestamp);
+// Destruction automatically signals isActive=false.
 ```
 
 ## Technical Details

@@ -28,7 +28,8 @@ namespace core
  * // ... create DeviceIOSession with tracker ...
  * session->update();
  * const auto& color = tracker->get_stream_data(*session, 0);
- * std::cout << EnumNameStreamType(color.stream) << " seq=" << color.sequence_number << std::endl;
+ * if (color.data)
+ *     std::cout << EnumNameStreamType(color.data->stream) << " seq=" << color.data->sequence_number << std::endl;
  * @endcode
  */
 class FrameMetadataTrackerOak : public ITracker
@@ -63,9 +64,10 @@ public:
      * @brief Get per-stream frame metadata.
      * @param session Active DeviceIOSession.
      * @param stream_index Index into the streams vector passed at construction.
-     * @return Reference to the FrameMetadataOakT for that stream.
+     * @return Reference to the FrameMetadataOakTrackedT for that stream.
+     *         The inner @c data pointer is null until the first frame arrives.
      */
-    const FrameMetadataOakT& get_stream_data(const DeviceIOSession& session, size_t stream_index) const;
+    const FrameMetadataOakTrackedT& get_stream_data(const DeviceIOSession& session, size_t stream_index) const;
 
     //! Number of streams this tracker is configured for.
     size_t get_stream_count() const
@@ -78,7 +80,30 @@ private:
 
     std::vector<SchemaTrackerConfig> m_configs;
     std::vector<std::string> m_channel_names;
-    class Impl;
+
+    class Impl : public ITrackerImpl
+    {
+    public:
+        Impl(const OpenXRSessionHandles& handles, std::vector<SchemaTrackerConfig> configs);
+
+        bool update(XrTime time) override;
+        void serialize_all(size_t channel_index, const RecordCallback& callback) const override;
+
+        const FrameMetadataOakTrackedT& get_stream_data(size_t stream_index) const;
+
+    private:
+        struct StreamState
+        {
+            std::unique_ptr<SchemaTracker> reader;
+            FrameMetadataOakTrackedT tracked;
+            bool collection_present = false;
+            std::vector<SchemaTracker::SampleResult> pending_records;
+        };
+
+        XrTimeConverter m_time_converter_;
+        XrTime m_last_update_time_ = 0;
+        std::vector<StreamState> m_streams;
+    };
 };
 
 } // namespace core

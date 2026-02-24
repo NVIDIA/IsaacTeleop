@@ -38,7 +38,6 @@ void ManusTracker::update()
     // Update DeviceIOSession which handles time conversion and tracker updates internally
     if (!m_deviceio_session->update())
     {
-        // Update failed, skip this frame
         return;
     }
 
@@ -125,8 +124,11 @@ void ManusTracker::initialize(const std::string& app_name) noexcept(false)
         m_session = std::make_shared<core::OpenXRSession>(app_name, extensions);
         auto handles = m_session->get_handles();
 
-        // Initialize hand injector and time converter
-        m_injector.emplace(handles.instance, handles.session, handles.space);
+        // Initialize hand injectors (one per hand) and time converter
+        m_left_injector = std::make_unique<plugin_utils::HandInjector>(
+            handles.instance, handles.session, XR_HAND_LEFT_EXT, handles.space);
+        m_right_injector = std::make_unique<plugin_utils::HandInjector>(
+            handles.instance, handles.session, XR_HAND_RIGHT_EXT, handles.space);
         m_time_converter.emplace(handles);
 
         m_deviceio_session = core::DeviceIOSession::run(trackers, handles);
@@ -317,18 +319,40 @@ void ManusTracker::OnLandscapeStream(const Landscape* landscape)
         return;
     }
 
-    // Extract glove IDs from landscape data
+    // Determine which sides are present in this landscape update.
+    bool left_present = false;
+    bool right_present = false;
+
     for (uint32_t i = 0; i < gloves.gloveCount; i++)
     {
         const GloveLandscapeData& glove = gloves.gloves[i];
         if (glove.side == Side::Side_Left)
         {
             tracker.left_glove_id = glove.id;
+            left_present = true;
         }
         else if (glove.side == Side::Side_Right)
         {
             tracker.right_glove_id = glove.id;
+            right_present = true;
         }
+    }
+
+    // If a glove that was previously known is no longer in the landscape, it has
+    // disconnected. Clear its cached nodes and reset its injector so readers see
+    // isActive=false rather than a stale pose.
+    if (!left_present && tracker.left_glove_id.has_value())
+    {
+        tracker.left_glove_id.reset();
+        std::lock_guard<std::mutex> skeleton_lock(tracker.m_skeleton_mutex);
+        tracker.m_left_hand_nodes.clear();
+    }
+
+    if (!right_present && tracker.right_glove_id.has_value())
+    {
+        tracker.right_glove_id.reset();
+        std::lock_guard<std::mutex> skeleton_lock(tracker.m_skeleton_mutex);
+        tracker.m_right_hand_nodes.clear();
     }
 }
 
@@ -351,11 +375,24 @@ void ManusTracker::inject_hand_data()
     // runtime's own time domain (XrTime), rather than a raw steady_clock cast.
     XrTime time = m_time_converter->os_monotonic_now();
 
-    auto process_hand = [&](const std::vector<SkeletonNode>& nodes, bool is_left)
+    auto process_hand =
+        [&](const std::vector<SkeletonNode>& nodes, bool is_left, std::unique_ptr<plugin_utils::HandInjector>& injector)
     {
         if (nodes.empty())
         {
+            // Glove has disconnected — reset the injector so the runtime sees
+            // isActive=false. No-op if already null.
+            injector.reset();
             return;
+        }
+
+        if (!injector)
+        {
+            // Glove reconnected — lazily recreate the push device.
+            const auto handles = m_session->get_handles();
+            XrHandEXT hand = is_left ? XR_HAND_LEFT_EXT : XR_HAND_RIGHT_EXT;
+            injector =
+                std::make_unique<plugin_utils::HandInjector>(handles.instance, handles.session, hand, handles.space);
         }
 
         XrHandJointLocationEXT joints[XR_HAND_JOINT_COUNT_EXT];
@@ -449,16 +486,18 @@ void ManusTracker::inject_hand_data()
 
         if (is_left)
         {
-            m_injector->push_left(joints, time);
+            if (m_left_injector)
+                m_left_injector->push(joints, time);
         }
         else
         {
-            m_injector->push_right(joints, time);
+            if (m_right_injector)
+                m_right_injector->push(joints, time);
         }
     };
 
-    process_hand(left_nodes, true);
-    process_hand(right_nodes, false);
+    process_hand(left_nodes, true, m_left_injector);
+    process_hand(right_nodes, false, m_right_injector);
 }
 
 } // namespace manus

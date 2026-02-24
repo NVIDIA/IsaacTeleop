@@ -58,24 +58,45 @@ std::vector<std::string> SchemaTracker::get_required_extensions()
     return exts;
 }
 
-bool SchemaTracker::read_sample(SampleResult& out)
+bool SchemaTracker::ensure_collection()
 {
-    // Try to discover target collection if not found yet (or if it was lost)
-    if (!m_target_collection_index)
-    {
-        // Poll for tensor list updates only when we need to discover
-        poll_for_updates();
+    poll_for_updates();
 
-        m_target_collection_index = find_target_collection();
-        if (!m_target_collection_index)
-        {
-            return false; // Collection not available yet
-        }
+    auto new_index = find_target_collection();
+    if (!new_index)
+    {
+        return false;
+    }
+    if (new_index != m_target_collection_index)
+    {
+        m_target_collection_index = new_index;
+        m_last_sample_index.reset();
         std::cout << "Found target collection at index " << *m_target_collection_index << std::endl;
     }
+    return true;
+}
 
-    // Try to read next sample
-    return read_next_sample(out);
+bool SchemaTracker::read_all_samples(std::vector<SampleResult>& samples)
+{
+    if (!ensure_collection())
+    {
+        return false;
+    }
+
+    SampleResult result;
+    while (read_next_sample(result))
+    {
+        samples.push_back(std::move(result));
+    }
+
+    // read_next_sample clears m_target_collection_index on API failure.
+    // If it's now empty we hit an error mid-drain, not a normal end-of-data.
+    if (!m_target_collection_index.has_value())
+    {
+        return false;
+    }
+
+    return true;
 }
 
 const SchemaTrackerConfig& SchemaTracker::config() const
@@ -131,8 +152,9 @@ void SchemaTracker::poll_for_updates()
             throw std::runtime_error("Failed to update tensor list, result=" + std::to_string(result));
         }
         m_cached_generation = latest_generation;
-        // Re-discover collections after update
-        m_target_collection_index = find_target_collection();
+        // Invalidate the cached collection index so ensure_collection() re-discovers
+        // it on the next call, which also resets m_last_sample_index for the new collection.
+        m_target_collection_index = std::nullopt;
     }
 }
 

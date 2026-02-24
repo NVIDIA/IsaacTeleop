@@ -38,7 +38,8 @@ private:
     std::shared_ptr<core::OpenXRSession> m_session;
     std::shared_ptr<core::ControllerTracker> m_controller_tracker;
     std::unique_ptr<core::DeviceIOSession> m_deviceio_session;
-    std::optional<plugin_utils::HandInjector> m_injector;
+    std::unique_ptr<plugin_utils::HandInjector> m_left_injector;
+    std::unique_ptr<plugin_utils::HandInjector> m_right_injector;
     std::optional<core::XrTimeConverter> m_time_converter;
     HandGenerator m_hand_gen;
 

@@ -87,15 +87,16 @@ HandTracker::Impl::Impl(const OpenXRSessionHandles& handles)
     std::cout << "HandTracker initialized (left + right)" << std::endl;
 }
 
-DeviceDataTimestamp HandTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const
+void HandTracker::Impl::serialize_all(size_t channel_index, const RecordCallback& callback) const
 {
     if (channel_index > 1)
     {
-        throw std::runtime_error("HandTracker::serialize: invalid channel_index " + std::to_string(channel_index) +
+        throw std::runtime_error("HandTracker::serialize_all: invalid channel_index " + std::to_string(channel_index) +
                                  " (must be 0 or 1)");
     }
-    const auto& tracked = (channel_index == 0) ? left_tracked_ : right_tracked_;
+    flatbuffers::FlatBufferBuilder builder(256);
 
+    const auto& tracked = (channel_index == 0) ? left_tracked_ : right_tracked_;
     int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
     DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
 
@@ -107,7 +108,8 @@ DeviceDataTimestamp HandTracker::Impl::serialize(flatbuffers::FlatBufferBuilder&
     }
     record_builder.add_timestamp(&timestamp);
     builder.Finish(record_builder.Finish());
-    return timestamp;
+
+    callback(timestamp, builder.GetBufferPointer(), builder.GetSize());
 }
 
 HandTracker::Impl::~Impl()
@@ -164,12 +166,15 @@ bool HandTracker::Impl::update_hand(XrHandTrackerEXT tracker, XrTime time, HandP
     XrResult result = pfn_locate_hand_joints_(tracker, &locate_info, &locations);
     if (XR_FAILED(result))
     {
+        // Hard failure: treat as device loss and clear tracked data.
         tracked.data.reset();
         return false;
     }
 
     if (!locations.isActive)
     {
+        // Hand not active: equivalent to collection loss for schema-tracker devices.
+        // Clear tracked data so callers see null rather than a stale pose.
         tracked.data.reset();
         return true;
     }

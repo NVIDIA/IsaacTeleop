@@ -90,7 +90,10 @@ try
     size_t stream_count = tracker->get_stream_count();
     std::vector<uint64_t> last_sequences(stream_count);
     for (size_t i = 0; i < stream_count; ++i)
-        last_sequences[i] = tracker->get_stream_data(*session, i).sequence_number;
+    {
+        const auto& tracked = tracker->get_stream_data(*session, i);
+        last_sequences[i] = tracked.data ? tracked.data->sequence_number : 0;
+    }
 
     auto last_status_time = std::chrono::steady_clock::now();
     constexpr auto status_interval = std::chrono::seconds(5);
@@ -112,19 +115,23 @@ try
             // Seed newly added streams with their current sequence so they don't
             // trigger a spurious print on the next iteration.
             for (size_t i = old_count; i < stream_count; ++i)
-                last_sequences[i] = tracker->get_stream_data(*session, i).sequence_number;
+            {
+                const auto& tracked = tracker->get_stream_data(*session, i);
+                last_sequences[i] = tracked.data ? tracked.data->sequence_number : 0;
+            }
         }
 
         // Print one line per stream that has a new sample.
         for (size_t i = 0; i < stream_count; ++i)
         {
-            const auto& md = tracker->get_stream_data(*session, i);
-            if (md.sequence_number != last_sequences[i])
+            const auto& tracked = tracker->get_stream_data(*session, i);
+            if (!tracked.data || tracked.data->sequence_number == last_sequences[i])
             {
-                last_sequences[i] = md.sequence_number;
-                std::cout << "Sample " << ++received_count << ": " << core::EnumNameStreamType(md.stream)
-                          << " seq=" << md.sequence_number << std::endl;
+                continue;
             }
+            last_sequences[i] = tracked.data->sequence_number;
+            std::cout << "Sample " << ++received_count << ": " << core::EnumNameStreamType(tracked.data->stream)
+                      << " seq=" << tracked.data->sequence_number << std::endl;
         }
 
         auto now = std::chrono::steady_clock::now();

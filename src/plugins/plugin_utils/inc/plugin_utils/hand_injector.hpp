@@ -5,18 +5,25 @@
 #pragma once
 
 #include <openxr/openxr.h>
+#include <oxr_utils/oxr_session_handles.hpp>
+#include <oxr_utils/oxr_time.hpp>
 
 #include <XR_NVX1_device_interface.h>
 
 namespace plugin_utils
 {
 
+/**
+ * @brief Manages a single-hand push device for injecting hand tracking data.
+ *
+ * Create one instance per hand. Destroying the injector automatically signals
+ * inactivity to the runtime before releasing the push device, so readers see
+ * `isActive = false` rather than stale data.
+ */
 class HandInjector
 {
 public:
-    HandInjector(XrInstance instance, XrSession session, XrSpace left_controller_space, XrSpace right_controller_space);
-
-    HandInjector(XrInstance instance, XrSession session, XrSpace reference_space);
+    HandInjector(XrInstance instance, XrSession session, XrHandEXT hand, XrSpace base_space);
 
     ~HandInjector();
 
@@ -26,21 +33,21 @@ public:
     HandInjector(HandInjector&&) = delete;
     HandInjector& operator=(HandInjector&&) = delete;
 
-    void push_left(const XrHandJointLocationEXT* joints, XrTime timestamp);
-    void push_right(const XrHandJointLocationEXT* joints, XrTime timestamp);
+    /** @brief Push a full set of joint locations. */
+    void push(const XrHandJointLocationEXT* joints, XrTime timestamp);
 
 private:
-    void initialize(XrInstance instance, XrSession session, XrSpace left_space, XrSpace right_space);
     void load_functions(XrInstance instance);
-    void create_device(XrSession session, XrSpace base_space, XrHandEXT hand, XrPushDeviceNV& device);
+    void create_device(XrSession session, XrHandEXT hand, XrSpace base_space);
     void cleanup();
 
-    XrPushDeviceNV left_device_ = XR_NULL_HANDLE;
-    XrPushDeviceNV right_device_ = XR_NULL_HANDLE;
+    XrPushDeviceNV device_ = XR_NULL_HANDLE;
 
     PFN_xrCreatePushDeviceNV pfn_create_ = nullptr;
     PFN_xrDestroyPushDeviceNV pfn_destroy_ = nullptr;
     PFN_xrPushDevicePushHandTrackingNV pfn_push_ = nullptr;
+
+    core::XrTimeConverter time_converter_;
 };
 
 } // namespace plugin_utils
