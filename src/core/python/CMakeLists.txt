@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 # Python wheel packaging (combines OXR, DEVICEIO, MCAP, PluginManager, and Schema modules).
@@ -20,6 +20,7 @@ add_custom_target(python_package ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/plugin_manager"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/schema"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/teleop_session_manager"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/cloudxr"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/../deviceio/python/deviceio_init.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/deviceio/__init__.py"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/../mcap/python/mcap_init.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/mcap/__init__.py"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/../oxr/python/oxr_init.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/oxr/__init__.py"
@@ -33,7 +34,7 @@ add_custom_target(python_package ALL
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-dev.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-ui.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-retargeters.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
-    DEPENDS deviceio_py mcap_py oxr_py plugin_manager_py schema_py retargeting_engine_python retargeting_engine_ui_python teleop_session_manager_python
+    DEPENDS deviceio_py mcap_py oxr_py plugin_manager_py schema_py retargeting_engine_python retargeting_engine_ui_python teleop_session_manager_python cloudxr_python
     COMMENT "Preparing Python package structure"
 )
 
