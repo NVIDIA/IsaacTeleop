@@ -6,16 +6,12 @@
 #ifndef _WIN32
 #    include <sys/wait.h>
 
-#    include <map>
-#    include <mutex>
 #    include <signal.h>
 #    include <string.h>
 #    include <unistd.h>
 #endif
 
-#include <algorithm>
 #include <chrono>
-#include <filesystem>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
@@ -138,20 +134,17 @@ void Plugin::start_process(const std::string& command,
             args_str.push_back("--plugin-root-id=" + plugin_root_id);
         }
 
-        // Append plugin arguments; skip if option already in args_str (e.g. --plugin-root-id= from above)
+        // Append plugin arguments, skipping --plugin-root-id if already injected above
         for (const auto& arg : plugin_args)
         {
-            // Option prefix: "--name=" or whole arg for "--flag"
-            const std::string arg_prefix = (arg.find('=') != std::string::npos) ? arg.substr(0, arg.find('=') + 1) : arg;
-            const bool already = std::any_of(args_str.cbegin(), args_str.cend(),
-                                             [&arg_prefix](const std::string& s) { return s.starts_with(arg_prefix); });
-            if (!already)
+            if (!arg.starts_with("--plugin-root-id="))
             {
                 args_str.push_back(arg);
             }
             else
             {
-                std::cerr << "Warning: Option " << arg_prefix << " already specified, ignoring duplicate" << std::endl;
+                std::cerr << "Warning: --plugin-root-id is managed by the plugin launcher, ignoring manual override"
+                          << std::endl;
             }
         }
 

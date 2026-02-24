@@ -51,7 +51,7 @@ Press `Ctrl+C` to stop recording.
 | `--bitrate` | 8000000 | H.264 bitrate (bps) |
 | `--quality` | 80 | H.264 quality (1-100) |
 | `--output` | (required) | Full path for recording file |
-| `--collection-id` | oak_camera | Tensor collection ID for metadata (must match `FrameMetadataTrackerOak`) |
+| `--collection-prefix` | oak_camera | Tensor collection prefix for metadata (per-stream IDs: `prefix/StreamName`) |
 
 ## Architecture
 

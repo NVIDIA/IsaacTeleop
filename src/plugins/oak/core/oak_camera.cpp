@@ -3,100 +3,188 @@
 
 #include "oak_camera.hpp"
 
+#include "frame_sink.hpp"
+
+#include <algorithm>
 #include <iostream>
+#include <stdexcept>
 
 namespace plugins
 {
 namespace oak
 {
 
-OakCamera::OakCamera(const OakConfig& config)
+// =============================================================================
+// Free helpers
+// =============================================================================
+
+static bool has_stream(const std::vector<StreamConfig>& streams, core::StreamType type)
 {
-    std::cout << "OAK Camera: " << config.width << "x" << config.height << " @ " << config.fps << "fps, "
-              << (config.bitrate / 1'000'000.0) << "Mbps" << std::endl;
+    return std::any_of(streams.begin(), streams.end(), [type](const StreamConfig& s) { return s.camera == type; });
+}
 
-    create_pipeline(config);
+// =============================================================================
+// OakCamera
+// =============================================================================
 
-    // Find and connect to device
-    std::cout << "Connecting to OAK device..." << std::endl;
-    m_device = std::make_shared<dai::Device>(*m_pipeline);
+OakCamera::OakCamera(const OakConfig& config, const std::vector<StreamConfig>& streams, FrameSink& sink) : m_sink(sink)
+{
+    std::cout << "OAK Camera: " << config.fps << " fps, " << (config.bitrate / 1'000'000.0) << " Mbps" << std::endl;
+
+    auto device_info = find_device(config.device_id);
+
+    m_device = std::make_shared<dai::Device>(device_info);
     std::cout << "Device connected: " << m_device->getMxId() << std::endl;
 
-    // Get output queue (blocking=false to not wait for frames)
-    m_h264_queue = m_device->getOutputQueue("h264", 8, false);
+    auto sensors = m_device->getCameraSensorNames();
+    std::cout << "Sensors found: " << sensors.size() << std::endl;
+    for (const auto& [socket, name] : sensors)
+        std::cout << "  Socket " << static_cast<int>(socket) << ": " << name << std::endl;
+
+    create_pipeline(config, streams, sensors);
+
+    m_device->startPipeline(*m_pipeline);
+
+    for (const auto& s : streams)
+    {
+        m_queues[s.camera] = m_device->getOutputQueue(core::EnumNameStreamType(s.camera), 8, false);
+    }
 
     std::cout << "OAK camera pipeline started" << std::endl;
 }
 
-void OakCamera::create_pipeline(const OakConfig& config)
+dai::DeviceInfo OakCamera::find_device(const std::string& device_id)
+{
+    auto devices = dai::Device::getAllAvailableDevices();
+
+    if (devices.empty())
+        throw std::runtime_error("No OAK devices found. Check USB connection and udev rules.");
+
+    if (device_id.empty())
+    {
+        std::cout << "Found " << devices.size() << " OAK device(s), using: " << devices[0].getMxId() << std::endl;
+        return devices[0];
+    }
+
+    for (const auto& device : devices)
+    {
+        if (device.getMxId() == device_id)
+        {
+            std::cout << "Found device with ID: " << device.getMxId() << std::endl;
+            return device;
+        }
+    }
+
+    throw std::runtime_error("Device with ID " + device_id + " not found.");
+}
+
+// =============================================================================
+// Pipeline construction
+// =============================================================================
+
+void OakCamera::create_pipeline(const OakConfig& config,
+                                const std::vector<StreamConfig>& streams,
+                                const std::unordered_map<dai::CameraBoardSocket, std::string>& sensors)
 {
     m_pipeline = std::make_shared<dai::Pipeline>();
 
-    // Create camera node
-    auto camRgb = m_pipeline->create<dai::node::ColorCamera>();
-    camRgb->setBoardSocket(dai::CameraBoardSocket::CAM_A);
-    camRgb->setResolution(dai::ColorCameraProperties::SensorResolution::THE_1080_P);
-    camRgb->setVideoSize(config.width, config.height);
-    camRgb->setFps(static_cast<float>(config.fps));
-    camRgb->setColorOrder(dai::ColorCameraProperties::ColorOrder::BGR);
+    bool need_color = has_stream(streams, core::StreamType_Color);
+    bool need_mono_left = has_stream(streams, core::StreamType_MonoLeft);
+    bool need_mono_right = has_stream(streams, core::StreamType_MonoRight);
 
-    // Create video encoder for H.264
-    auto videoEnc = m_pipeline->create<dai::node::VideoEncoder>();
-    videoEnc->setDefaultProfilePreset(
-        static_cast<float>(config.fps), dai::VideoEncoderProperties::Profile::H264_BASELINE);
-    videoEnc->setBitrate(config.bitrate);
-    videoEnc->setQuality(config.quality);
-    videoEnc->setKeyframeFrequency(config.keyframe_frequency);
-    videoEnc->setNumBFrames(0); // No B-frames for lower latency
-    videoEnc->setRateControlMode(dai::VideoEncoderProperties::RateControlMode::CBR);
+    auto create_h264_output = [&](dai::Node::Output& source, const char* stream_name)
+    {
+        auto enc = m_pipeline->create<dai::node::VideoEncoder>();
+        enc->setDefaultProfilePreset(config.fps, dai::VideoEncoderProperties::Profile::H264_BASELINE);
+        enc->setBitrate(config.bitrate);
+        enc->setQuality(config.quality);
+        enc->setKeyframeFrequency(config.keyframe_frequency);
+        enc->setNumBFrames(0);
+        enc->setRateControlMode(dai::VideoEncoderProperties::RateControlMode::CBR);
 
-    // Create output for encoded H.264
-    auto xoutH264 = m_pipeline->create<dai::node::XLinkOut>();
-    xoutH264->setStreamName("h264");
+        auto xout = m_pipeline->create<dai::node::XLinkOut>();
+        xout->setStreamName(stream_name);
 
-    // Link: Camera -> Encoder -> Output
-    camRgb->video.link(videoEnc->input);
-    videoEnc->bitstream.link(xoutH264->input);
+        source.link(enc->input);
+        enc->bitstream.link(xout->input);
+    };
+
+    // ---- Color camera ----
+    if (need_color)
+    {
+        auto it = sensors.find(dai::CameraBoardSocket::CAM_A);
+        if (it == sensors.end())
+            throw std::runtime_error("Color stream requested but no sensor found on CAM_A");
+
+        auto resolution = it->second == "OV9782" ? dai::ColorCameraProperties::SensorResolution::THE_800_P :
+                                                   dai::ColorCameraProperties::SensorResolution::THE_1080_P;
+
+        auto camRgb = m_pipeline->create<dai::node::ColorCamera>();
+        camRgb->setBoardSocket(dai::CameraBoardSocket::CAM_A);
+        camRgb->setResolution(resolution);
+        camRgb->setFps(config.fps);
+        camRgb->setColorOrder(dai::ColorCameraProperties::ColorOrder::BGR);
+
+        create_h264_output(camRgb->video, core::EnumNameStreamType(core::StreamType_Color));
+    }
+
+    // ---- Mono cameras ----
+    if (need_mono_left)
+    {
+        auto monoLeft = m_pipeline->create<dai::node::MonoCamera>();
+        monoLeft->setBoardSocket(dai::CameraBoardSocket::CAM_B);
+        monoLeft->setResolution(dai::MonoCameraProperties::SensorResolution::THE_400_P);
+        monoLeft->setFps(config.fps);
+
+        create_h264_output(monoLeft->out, core::EnumNameStreamType(core::StreamType_MonoLeft));
+    }
+
+    if (need_mono_right)
+    {
+        auto monoRight = m_pipeline->create<dai::node::MonoCamera>();
+        monoRight->setBoardSocket(dai::CameraBoardSocket::CAM_C);
+        monoRight->setResolution(dai::MonoCameraProperties::SensorResolution::THE_400_P);
+        monoRight->setFps(config.fps);
+
+        create_h264_output(monoRight->out, core::EnumNameStreamType(core::StreamType_MonoRight));
+    }
 }
 
-std::optional<OakFrame> OakCamera::get_frame()
+// =============================================================================
+// update() -- poll all queues and dispatch to FrameSink
+// =============================================================================
+
+size_t OakCamera::update()
 {
-    if (!m_h264_queue)
+    size_t count = 0;
+
+    for (auto& [type, queue] : m_queues)
     {
-        return std::nullopt;
+        auto packet = queue->tryGet<dai::ImgFrame>();
+        if (!packet)
+            continue;
+
+        const auto& raw = packet->getData();
+        if (raw.empty())
+            continue;
+
+        auto device_time_ns =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(packet->getTimestampDevice().time_since_epoch()).count();
+        auto common_time_ns =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(packet->getTimestamp().time_since_epoch()).count();
+
+        OakFrame frame;
+        frame.stream = type;
+        frame.data.assign(raw.begin(), raw.end());
+        frame.metadata.stream = type;
+        frame.metadata.timestamp = std::make_unique<core::Timestamp>(device_time_ns, common_time_ns);
+        frame.metadata.sequence_number = packet->getSequenceNum();
+
+        m_sink.on_frame(frame);
+        ++count;
     }
 
-    // Try to get a frame (non-blocking)
-    auto packet = m_h264_queue->tryGet<dai::ImgFrame>();
-    if (!packet)
-    {
-        return std::nullopt;
-    }
-
-    const auto& data = packet->getData();
-    if (data.empty())
-    {
-        return std::nullopt;
-    }
-
-    auto device_time_ns =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(packet->getTimestampDevice().time_since_epoch()).count();
-    auto common_time_ns =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(packet->getTimestamp().time_since_epoch()).count();
-
-    OakFrame frame;
-    frame.h264_data = std::vector<uint8_t>(data.begin(), data.end());
-    frame.metadata.timestamp = std::make_shared<core::Timestamp>(device_time_ns, common_time_ns);
-    frame.metadata.sequence_number = static_cast<int32_t>(packet->getSequenceNum());
-
-    static std::chrono::steady_clock::time_point last_log_time{};
-    if (packet->getTimestamp() - last_log_time >= std::chrono::seconds(5))
-    {
-        std::cout << "H.264 frame #" << packet->getSequenceNum() << ": " << data.size() << " bytes" << std::endl;
-        last_log_time = packet->getTimestamp();
-    }
-
-    return frame;
+    return count;
 }
 
 } // namespace oak

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #include "inc/deviceio/frame_metadata_tracker_oak.hpp"
@@ -20,54 +20,81 @@ namespace core
 class FrameMetadataTrackerOak::Impl : public ITrackerImpl
 {
 public:
-    Impl(const OpenXRSessionHandles& handles, SchemaTrackerConfig config) : m_schema_reader(handles, std::move(config))
+    struct StreamState
     {
+        std::unique_ptr<SchemaTracker> reader;
+        FrameMetadataOakT data;
+    };
+
+    Impl(const OpenXRSessionHandles& handles, std::vector<SchemaTrackerConfig> configs)
+    {
+        for (auto& config : configs)
+        {
+            StreamState state;
+            state.reader = std::make_unique<SchemaTracker>(handles, std::move(config));
+            m_streams.push_back(std::move(state));
+        }
     }
 
     bool update(XrTime /* time */) override
     {
-        // Try to read new data from tensor stream
-        if (m_schema_reader.read_buffer(m_buffer))
+        for (auto& stream : m_streams)
         {
-            auto fb = GetFrameMetadata(m_buffer.data());
-            if (fb)
+            if (stream.reader->read_buffer(m_buffer))
             {
-                fb->UnPackTo(&m_data);
-                return true;
+                auto fb = flatbuffers::GetRoot<FrameMetadataOak>(m_buffer.data());
+                if (fb)
+                    fb->UnPackTo(&stream.data);
             }
         }
-        // Return true even if no new data - we're still running
+
+        m_data.streams.clear();
+        for (const auto& s : m_streams)
+            m_data.streams.push_back(std::make_unique<FrameMetadataOakT>(s.data));
+
         return true;
     }
 
     Timestamp serialize(flatbuffers::FlatBufferBuilder& builder) const override
     {
-        auto offset = FrameMetadata::Pack(builder, &m_data);
+        auto offset = CameraMetadataOak::Pack(builder, &m_data);
         builder.Finish(offset);
-        return m_data.timestamp ? *m_data.timestamp : Timestamp{};
+
+        Timestamp latest{};
+        for (const auto& entry : m_data.streams)
+        {
+            if (entry->timestamp && entry->timestamp->device_time() > latest.device_time())
+                latest = *entry->timestamp;
+        }
+        return latest;
     }
 
-    const FrameMetadataT& get_data() const
+    const CameraMetadataOakT& get_data() const
     {
         return m_data;
     }
 
 private:
-    SchemaTracker m_schema_reader;
+    std::vector<StreamState> m_streams;
     std::vector<uint8_t> m_buffer;
-    FrameMetadataT m_data;
+    CameraMetadataOakT m_data;
 };
 
 // ============================================================================
 // FrameMetadataTrackerOak
 // ============================================================================
 
-FrameMetadataTrackerOak::FrameMetadataTrackerOak(const std::string& collection_id, size_t max_flatbuffer_size)
-    : m_config{ .collection_id = collection_id,
-                .max_flatbuffer_size = max_flatbuffer_size,
-                .tensor_identifier = "frame_metadata",
-                .localized_name = "FrameMetadataTrackerOak" }
+FrameMetadataTrackerOak::FrameMetadataTrackerOak(const std::string& collection_prefix,
+                                                 const std::vector<StreamType>& streams,
+                                                 size_t max_flatbuffer_size)
 {
+    for (auto type : streams)
+    {
+        m_configs.push_back({ .collection_id = collection_prefix + "/" + EnumNameStreamType(type),
+                              .max_flatbuffer_size = max_flatbuffer_size,
+                              .tensor_identifier = "frame_metadata",
+                              .localized_name = std::string("FrameMetadataTracker_") + EnumNameStreamType(type) });
+    }
 }
 
 std::vector<std::string> FrameMetadataTrackerOak::get_required_extensions() const
@@ -82,28 +109,23 @@ std::string_view FrameMetadataTrackerOak::get_name() const
 
 std::string_view FrameMetadataTrackerOak::get_schema_name() const
 {
-    return "core.FrameMetadata";
+    return "core.CameraMetadataOak";
 }
 
 std::string_view FrameMetadataTrackerOak::get_schema_text() const
 {
     return std::string_view(
-        reinterpret_cast<const char*>(FrameMetadataBinarySchema::data()), FrameMetadataBinarySchema::size());
+        reinterpret_cast<const char*>(CameraMetadataOakBinarySchema::data()), CameraMetadataOakBinarySchema::size());
 }
 
-const SchemaTrackerConfig& FrameMetadataTrackerOak::get_config() const
-{
-    return m_config;
-}
-
-const FrameMetadataT& FrameMetadataTrackerOak::get_data(const DeviceIOSession& session) const
+const CameraMetadataOakT& FrameMetadataTrackerOak::get_data(const DeviceIOSession& session) const
 {
     return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_data();
 }
 
 std::shared_ptr<ITrackerImpl> FrameMetadataTrackerOak::create_tracker(const OpenXRSessionHandles& handles) const
 {
-    return std::make_shared<Impl>(handles, get_config());
+    return std::make_shared<Impl>(handles, m_configs);
 }
 
 } // namespace core

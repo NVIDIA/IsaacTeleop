@@ -23,8 +23,6 @@ RawDataWriter::RawDataWriter(const std::string& path)
     {
         throw std::runtime_error("Failed to open file: " + path);
     }
-
-    std::cout << "Recording to: " << path << std::endl;
 }
 
 RawDataWriter::~RawDataWriter()

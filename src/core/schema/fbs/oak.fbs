@@ -5,12 +5,24 @@ include "timestamp.fbs";
 
 namespace core;
 
-// OAK frame metadata pushed by the OAK camera plugin.
-table FrameMetadata {
-  // Dual timestamp with device and runtime clock domains.
-  timestamp: Timestamp (id: 0);
+// Identifies which OAK camera sensor produced a frame.
+enum StreamType : byte { Color = 0, MonoLeft = 1, MonoRight = 2 }
 
-  sequence_number: int (id: 1);
+// Per-frame metadata pushed by the OAK camera plugin (one per stream).
+table FrameMetadataOak {
+  // Which camera sensor this metadata belongs to.
+  stream: StreamType (id: 0);
+
+  // Dual timestamp with device and runtime clock domains.
+  timestamp: Timestamp (id: 1);
+
+  // Per-stream frame sequence number from the device.
+  sequence_number: uint64 (id: 2);
 }
 
-root_type FrameMetadata;
+// Composed metadata from all active OAK camera streams.
+table CameraMetadataOak {
+  streams: [FrameMetadataOak] (id: 0);
+}
+
+root_type CameraMetadataOak;

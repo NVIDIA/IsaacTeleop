@@ -1,21 +1,17 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 /*!
  * @file frame_metadata_printer.cpp
  * @brief Standalone application that reads and prints camera frame metadata from the OpenXR runtime.
  *
- * This application demonstrates using FrameMetadataTrackerOak to read FrameMetadata
- * FlatBuffer samples pushed by a camera plugin. The application creates the OpenXR
- * session with required extensions and uses DeviceIOSession to manage the tracker.
- *
- * Note: Both pusher and reader agree on the schema (FrameMetadata from oak.fbs), so the schema
- * does not need to be sent over the wire.
+ * This application demonstrates using FrameMetadataTrackerOak to read composed
+ * CameraMetadataOak (containing per-stream FrameMetadataOak) pushed by a camera plugin.
  *
  * Usage:
- *   ./frame_metadata_printer --collection-id=<id>
+ *   ./frame_metadata_printer --collection-prefix=<prefix>
  *
- * The collection-id should match the plugin_root_id used by the camera plugin.
+ * The collection-prefix should match the value used by the camera plugin.
  */
 
 #include <deviceio/deviceio_session.hpp>
@@ -28,21 +24,20 @@
 #include <thread>
 #include <vector>
 
-// Configuration
 static constexpr size_t MAX_FLATBUFFER_SIZE = 128;
 
-void print_frame_metadata(const core::FrameMetadataT& data, size_t sample_count)
+void print_oak_metadata(const core::CameraMetadataOakT& data, size_t sample_count)
 {
-    std::cout << "Sample " << sample_count;
-
-    std::cout << " [seq=" << data.sequence_number;
-    if (data.timestamp)
+    std::cout << "Sample " << sample_count << ": ";
+    for (size_t i = 0; i < data.streams.size(); ++i)
     {
-        std::cout << ", device_time=" << data.timestamp->device_time()
-                  << ", common_time=" << data.timestamp->common_time();
+        const auto& md = *data.streams[i];
+        if (i > 0)
+            std::cout << " | ";
+        std::cout << core::EnumNameStreamType(md.stream) << " seq=" << md.sequence_number;
+        if (md.timestamp)
+            std::cout << " dt=" << md.timestamp->device_time();
     }
-    std::cout << "]";
-
     std::cout << std::endl;
 }
 
@@ -50,19 +45,18 @@ void print_usage(const char* program_name)
 {
     std::cout << "Usage: " << program_name << " [options]\n"
               << "\nOptions:\n"
-              << "  --collection-id=ID  Tensor collection ID to read from (default: oak_camera)\n"
-              << "  --help              Show this help message\n"
+              << "  --collection-prefix=PREFIX  Tensor collection prefix (default: oak_camera)\n"
+              << "  --help                      Show this help message\n"
               << "\nDescription:\n"
-              << "  Reads and prints FrameMetadata samples pushed by a camera plugin.\n"
-              << "  The collection-id must match the plugin_root_id of the camera plugin.\n";
+              << "  Reads and prints CameraMetadataOak samples (all streams) pushed by a camera plugin.\n"
+              << "  The collection-prefix must match the value used by the camera plugin.\n";
 }
 
 int main(int argc, char** argv)
 try
 {
-    std::string collection_id = "oak_camera";
+    std::string collection_prefix = "oak_camera";
 
-    // Parse command line arguments
     for (int i = 1; i < argc; ++i)
     {
         std::string arg = argv[i];
@@ -72,9 +66,9 @@ try
             print_usage(argv[0]);
             return 0;
         }
-        else if (arg.find("--collection-id=") == 0)
+        else if (arg.find("--collection-prefix=") == 0)
         {
-            collection_id = arg.substr(16);
+            collection_prefix = arg.substr(20);
         }
         else
         {
@@ -84,58 +78,58 @@ try
         }
     }
 
-    std::cout << "Frame Metadata Printer (collection: " << collection_id << ")" << std::endl;
+    std::cout << "Frame Metadata Printer (prefix: " << collection_prefix << ")" << std::endl;
 
-    // Step 1: Create the tracker
+    // Track all three stream types; streams without a pusher simply won't receive data.
+    std::vector<core::StreamType> streams = { core::StreamType_Color, core::StreamType_MonoLeft,
+                                              core::StreamType_MonoRight };
+
     std::cout << "[Step 1] Creating FrameMetadataTrackerOak..." << std::endl;
-    auto tracker = std::make_shared<core::FrameMetadataTrackerOak>(collection_id, MAX_FLATBUFFER_SIZE);
+    auto tracker = std::make_shared<core::FrameMetadataTrackerOak>(collection_prefix, streams, MAX_FLATBUFFER_SIZE);
 
-    // Step 2: Get required extensions and create OpenXR session
     std::cout << "[Step 2] Creating OpenXR session with required extensions..." << std::endl;
-
     std::vector<std::shared_ptr<core::ITracker>> trackers = { tracker };
     auto required_extensions = core::DeviceIOSession::get_required_extensions(trackers);
-
     auto oxr_session = std::make_shared<core::OpenXRSession>("FrameMetadataPrinter", required_extensions);
-
     std::cout << "  OpenXR session created" << std::endl;
 
-    // Step 3: Create DeviceIOSession with the tracker
     std::cout << "[Step 3] Creating DeviceIOSession..." << std::endl;
+    auto session = core::DeviceIOSession::run(trackers, oxr_session->get_handles());
 
-    std::unique_ptr<core::DeviceIOSession> session;
-    session = core::DeviceIOSession::run(trackers, oxr_session->get_handles());
-
-    // Step 4: Read samples by updating the session
     std::cout << "[Step 4] Reading samples (press Ctrl+C to stop)..." << std::endl;
 
     size_t received_count = 0;
-    int last_printed_sequence = -1;
+    int64_t last_device_time = -1;
     auto last_status_time = std::chrono::steady_clock::now();
     constexpr auto status_interval = std::chrono::seconds(5);
 
     while (true)
     {
-        // Update session (this calls update on all trackers)
         if (!session->update())
         {
             std::cerr << "Update failed" << std::endl;
             break;
         }
 
-        // Print when we have new data (timestamp indicates real data; sequence_number changed)
         const auto& data = tracker->get_data(*session);
-        if (data.timestamp && data.sequence_number != last_printed_sequence)
+
+        // Detect new data by checking if any stream has a newer device_time
+        int64_t max_dt = -1;
+        for (const auto& md : data.streams)
         {
-            print_frame_metadata(data, ++received_count);
-            last_printed_sequence = data.sequence_number;
+            if (md->timestamp)
+                max_dt = std::max(max_dt, md->timestamp->device_time());
+        }
+        if (max_dt > last_device_time)
+        {
+            print_oak_metadata(data, ++received_count);
+            last_device_time = max_dt;
         }
 
-        // Periodic status update when no data
         auto now = std::chrono::steady_clock::now();
         if (received_count == 0 && now - last_status_time >= status_interval)
         {
-            std::cout << "Waiting for data from collection: " << collection_id << "..." << std::endl;
+            std::cout << "Waiting for data from prefix: " << collection_prefix << "..." << std::endl;
             last_status_time = now;
         }
 
