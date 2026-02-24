@@ -3,13 +3,13 @@ SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All 
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Teleop ROS2 Reference (Python)
+# Teleop ROS 2 Reference (Python)
 
-Reference ROS2 publisher for Isaac Teleop data.
+Reference ROS 2 publisher for Isaac Teleop data.
 
 ## Prerequisite: Start CloudXR Runtime
 
-Before running this ROS2 reference publisher, start the CloudXR runtime (see the `README.md` setup flow, step "Run CloudXR"):
+Before running this ROS 2 reference publisher, start the CloudXR runtime (see the `README.md` setup flow, step "Run CloudXR"):
 
 ```bash
 ./scripts/run_cloudxr.sh
@@ -25,7 +25,7 @@ Before running this ROS2 reference publisher, start the CloudXR runtime (see the
 - `xr_teleop/root_pose` (`geometry_msgs/PoseStamped`)
 - `xr_teleop/controller_data` (`std_msgs/ByteMultiArray`, msgpack-encoded dictionary)
 
-## Run in Docker (ROS2 Humble)
+## Run in Docker
 
 ### Build the container
 
@@ -38,7 +38,7 @@ Incremental rebuilds use Docker BuildKit cache. Ensure BuildKit is enabled (defa
 
 ### Run the container
 
-Use host networking (recommended for ROS2 DDS):
+Use host networking (recommended for ROS 2 DDS):
 ```bash
 source scripts/setup_cloudxr_env.sh
 docker run --rm --net=host \
