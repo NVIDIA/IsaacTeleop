@@ -31,8 +31,8 @@ from ._schema import (
     Generic3AxisPedalOutput,
     # Camera-related types.
     StreamType,
-    FrameMetadata,
-    OakMetadata,
+    FrameMetadataOak,
+    CameraMetadataOak,
     # Full body-related types.
     BodyJointPico,
     BodyJointPose,
@@ -65,8 +65,8 @@ __all__ = [
     "Generic3AxisPedalOutput",
     # Camera types.
     "StreamType",
-    "FrameMetadata",
-    "OakMetadata",
+    "FrameMetadataOak",
+    "CameraMetadataOak",
     # Full body types.
     "BodyJointPose",
     "BodyJointsPico",

@@ -28,10 +28,10 @@ MetadataPusher::MetadataPusher(const core::OpenXRSessionHandles& handles, const 
 {
 }
 
-void MetadataPusher::push(const core::FrameMetadataT& data)
+void MetadataPusher::push(const core::FrameMetadataOakT& data)
 {
     flatbuffers::FlatBufferBuilder builder(m_pusher.config().max_flatbuffer_size);
-    auto offset = core::FrameMetadata::Pack(builder, &data);
+    auto offset = core::FrameMetadataOak::Pack(builder, &data);
     builder.Finish(offset);
     m_pusher.push_buffer(builder.GetBufferPointer(), builder.GetSize());
 }

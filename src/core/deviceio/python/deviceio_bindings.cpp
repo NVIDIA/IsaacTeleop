@@ -61,10 +61,10 @@ PYBIND11_MODULE(_deviceio, m)
              "Construct a multi-stream FrameMetadataTrackerOak")
         .def(
             "get_data",
-            [](core::FrameMetadataTrackerOak& self, PyDeviceIOSession& session) -> const core::OakMetadataT&
+            [](core::FrameMetadataTrackerOak& self, PyDeviceIOSession& session) -> const core::CameraMetadataOakT&
             { return self.get_data(session.native()); },
             py::arg("session"), py::return_value_policy::reference_internal,
-            "Get composed OakMetadata containing all tracked streams");
+            "Get composed CameraMetadataOak containing all tracked streams");
 
     // FullBodyTrackerPico class (PICO XR_BD_body_tracking extension)
     py::class_<core::FullBodyTrackerPico, core::ITracker, std::shared_ptr<core::FullBodyTrackerPico>>(

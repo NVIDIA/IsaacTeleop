@@ -139,7 +139,7 @@ def run_test(duration: float = 10.0, metadata_track: bool = True):
                 with deviceio.DeviceIOSession.run(trackers, handles) as session:
                     print("  ✓ DeviceIO session initialized")
 
-                    # Create MCAP recorder with single OakMetadata channel
+                    # Create MCAP recorder with single CameraMetadataOak channel
                     mcap_entries = [(tracker, "oak_metadata")]
                     with mcap.McapRecorder.create(
                         mcap_filename,

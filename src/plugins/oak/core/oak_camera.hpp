@@ -48,7 +48,7 @@ struct OakFrame
 {
     core::StreamType stream;
     std::vector<uint8_t> data;
-    core::FrameMetadataT metadata;
+    core::FrameMetadataOakT metadata;
 };
 
 // ============================================================================

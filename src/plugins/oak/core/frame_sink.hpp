@@ -20,7 +20,7 @@ namespace oak
 {
 
 /**
- * @brief FrameMetadata-specific pusher that serializes and pushes frame metadata messages.
+ * @brief FrameMetadataOak-specific pusher that serializes and pushes frame metadata messages.
  *
  * Uses composition with SchemaPusher to handle the OpenXR tensor pushing.
  * Does not own the OpenXR session — the caller must keep it alive.
@@ -36,11 +36,11 @@ public:
     MetadataPusher(const core::OpenXRSessionHandles& handles, const std::string& collection_id);
 
     /**
-     * @brief Push a FrameMetadata message.
-     * @param data The FrameMetadataT native object to serialize and push.
+     * @brief Push a FrameMetadataOak message.
+     * @param data The FrameMetadataOakT native object to serialize and push.
      * @throws std::runtime_error if the push fails.
      */
-    void push(const core::FrameMetadataT& data);
+    void push(const core::FrameMetadataOakT& data);
 
 private:
     static constexpr size_t MAX_FLATBUFFER_SIZE = 128;

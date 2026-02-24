@@ -16,10 +16,10 @@ namespace core
 {
 
 /*!
- * @brief Composite tracker for reading OAK FrameMetadata from multiple streams.
+ * @brief Composite tracker for reading OAK FrameMetadataOak from multiple streams.
  *
  * Maintains one SchemaTracker per stream and composes them into a single
- * OakMetadata message for serialization / MCAP recording.
+ * CameraMetadataOak message for serialization / MCAP recording.
  *
  * Usage:
  * @code
@@ -35,11 +35,11 @@ namespace core
 class FrameMetadataTrackerOak : public ITracker
 {
 public:
-    //! Default maximum FlatBuffer size for individual FrameMetadata messages.
+    //! Default maximum FlatBuffer size for individual FrameMetadataOak messages.
     static constexpr size_t DEFAULT_MAX_FLATBUFFER_SIZE = 128;
 
     /*!
-     * @brief Constructs a multi-stream FrameMetadata tracker.
+     * @brief Constructs a multi-stream FrameMetadataOak tracker.
      * @param collection_prefix Base prefix for per-stream collection IDs.
      *        Each stream gets collection_id = "{collection_prefix}/{StreamName}".
      * @param streams Stream types to track.
@@ -58,7 +58,7 @@ public:
     /*!
      * @brief Get the composed OAK metadata containing all tracked streams.
      */
-    const OakMetadataT& get_data(const DeviceIOSession& session) const;
+    const CameraMetadataOakT& get_data(const DeviceIOSession& session) const;
 
 private:
     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;

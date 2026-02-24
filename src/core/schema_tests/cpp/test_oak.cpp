@@ -15,9 +15,9 @@
 // =============================================================================
 #define VT(field) (field + 2) * 2
 
-static_assert(core::FrameMetadata::VT_STREAM == VT(0));
-static_assert(core::FrameMetadata::VT_TIMESTAMP == VT(1));
-static_assert(core::FrameMetadata::VT_SEQUENCE_NUMBER == VT(2));
+static_assert(core::FrameMetadataOak::VT_STREAM == VT(0));
+static_assert(core::FrameMetadataOak::VT_TIMESTAMP == VT(1));
+static_assert(core::FrameMetadataOak::VT_SEQUENCE_NUMBER == VT(2));
 
 // =============================================================================
 // StreamType Enum Tests
@@ -37,20 +37,20 @@ TEST_CASE("StreamType enum name lookup", "[camera][enum]")
 }
 
 // =============================================================================
-// FrameMetadataT Tests (table native type)
+// FrameMetadataOakT Tests (table native type)
 // =============================================================================
-TEST_CASE("FrameMetadataT default construction", "[camera][native]")
+TEST_CASE("FrameMetadataOakT default construction", "[camera][native]")
 {
-    core::FrameMetadataT metadata;
+    core::FrameMetadataOakT metadata;
 
     CHECK(metadata.stream == core::StreamType_Color);
     CHECK(metadata.timestamp == nullptr);
     CHECK(metadata.sequence_number == 0);
 }
 
-TEST_CASE("FrameMetadataT can store all fields", "[camera][native]")
+TEST_CASE("FrameMetadataOakT can store all fields", "[camera][native]")
 {
-    core::FrameMetadataT metadata;
+    core::FrameMetadataOakT metadata;
     metadata.stream = core::StreamType_MonoLeft;
     metadata.timestamp = std::make_unique<core::Timestamp>(1000000000, 2000000000);
     metadata.sequence_number = 42;
@@ -65,19 +65,19 @@ TEST_CASE("FrameMetadataT can store all fields", "[camera][native]")
 // =============================================================================
 // Serialization Tests
 // =============================================================================
-TEST_CASE("FrameMetadata serialization and deserialization", "[camera][serialize]")
+TEST_CASE("FrameMetadataOak serialization and deserialization", "[camera][serialize]")
 {
     flatbuffers::FlatBufferBuilder builder;
 
-    core::FrameMetadataT metadata;
+    core::FrameMetadataOakT metadata;
     metadata.stream = core::StreamType_MonoRight;
     metadata.timestamp = std::make_unique<core::Timestamp>(1234567890, 9876543210);
     metadata.sequence_number = 10;
 
-    auto offset = core::FrameMetadata::Pack(builder, &metadata);
+    auto offset = core::FrameMetadataOak::Pack(builder, &metadata);
     builder.Finish(offset);
 
-    auto* deserialized = flatbuffers::GetRoot<core::FrameMetadata>(builder.GetBufferPointer());
+    auto* deserialized = flatbuffers::GetRoot<core::FrameMetadataOak>(builder.GetBufferPointer());
 
     REQUIRE(deserialized->timestamp() != nullptr);
     CHECK(deserialized->timestamp()->device_time() == 1234567890);
@@ -86,20 +86,20 @@ TEST_CASE("FrameMetadata serialization and deserialization", "[camera][serialize
     CHECK(deserialized->sequence_number() == 10);
 }
 
-TEST_CASE("FrameMetadata roundtrip preserves all data", "[camera][serialize]")
+TEST_CASE("FrameMetadataOak roundtrip preserves all data", "[camera][serialize]")
 {
     flatbuffers::FlatBufferBuilder builder;
 
-    core::FrameMetadataT original;
+    core::FrameMetadataOakT original;
     original.stream = core::StreamType_Color;
     original.timestamp = std::make_unique<core::Timestamp>(5555555555, 6666666666);
     original.sequence_number = 99;
 
-    auto offset = core::FrameMetadata::Pack(builder, &original);
+    auto offset = core::FrameMetadataOak::Pack(builder, &original);
     builder.Finish(offset);
 
-    auto* table = flatbuffers::GetRoot<core::FrameMetadata>(builder.GetBufferPointer());
-    core::FrameMetadataT roundtrip;
+    auto* table = flatbuffers::GetRoot<core::FrameMetadataOak>(builder.GetBufferPointer());
+    core::FrameMetadataOakT roundtrip;
     table->UnPackTo(&roundtrip);
 
     CHECK(roundtrip.stream == core::StreamType_Color);
@@ -109,34 +109,34 @@ TEST_CASE("FrameMetadata roundtrip preserves all data", "[camera][serialize]")
     CHECK(roundtrip.sequence_number == 99);
 }
 
-TEST_CASE("FrameMetadata without timestamp", "[camera][serialize]")
+TEST_CASE("FrameMetadataOak without timestamp", "[camera][serialize]")
 {
     flatbuffers::FlatBufferBuilder builder;
 
-    core::FrameMetadataT metadata;
+    core::FrameMetadataOakT metadata;
     metadata.stream = core::StreamType_MonoLeft;
     metadata.sequence_number = 7;
 
-    auto offset = core::FrameMetadata::Pack(builder, &metadata);
+    auto offset = core::FrameMetadataOak::Pack(builder, &metadata);
     builder.Finish(offset);
 
-    auto* deserialized = flatbuffers::GetRoot<core::FrameMetadata>(builder.GetBufferPointer());
+    auto* deserialized = flatbuffers::GetRoot<core::FrameMetadataOak>(builder.GetBufferPointer());
 
     CHECK(deserialized->timestamp() == nullptr);
     CHECK(deserialized->stream() == core::StreamType_MonoLeft);
     CHECK(deserialized->sequence_number() == 7);
 }
 
-TEST_CASE("FrameMetadata buffer size is reasonable", "[camera][serialize]")
+TEST_CASE("FrameMetadataOak buffer size is reasonable", "[camera][serialize]")
 {
     flatbuffers::FlatBufferBuilder builder;
 
-    core::FrameMetadataT metadata;
+    core::FrameMetadataOakT metadata;
     metadata.stream = core::StreamType_Color;
     metadata.timestamp = std::make_unique<core::Timestamp>(0, 0);
     metadata.sequence_number = 0;
 
-    auto offset = core::FrameMetadata::Pack(builder, &metadata);
+    auto offset = core::FrameMetadataOak::Pack(builder, &metadata);
     builder.Finish(offset);
 
     CHECK(builder.GetSize() < 100);
@@ -145,14 +145,14 @@ TEST_CASE("FrameMetadata buffer size is reasonable", "[camera][serialize]")
 // =============================================================================
 // Realistic Scenarios
 // =============================================================================
-TEST_CASE("FrameMetadata streaming at 30 FPS with sequence numbers", "[camera][scenario]")
+TEST_CASE("FrameMetadataOak streaming at 30 FPS with sequence numbers", "[camera][scenario]")
 {
     constexpr int64_t base_time = 1000000000;
     constexpr int64_t frame_interval = 33333333;
 
     for (int i = 0; i < 5; ++i)
     {
-        core::FrameMetadataT metadata;
+        core::FrameMetadataOakT metadata;
         metadata.stream = core::StreamType_Color;
         metadata.timestamp =
             std::make_unique<core::Timestamp>(base_time + i * frame_interval, base_time + i * frame_interval + 100);
@@ -166,35 +166,35 @@ TEST_CASE("FrameMetadata streaming at 30 FPS with sequence numbers", "[camera][s
 // =============================================================================
 // Edge Cases
 // =============================================================================
-TEST_CASE("FrameMetadata with large sequence number", "[camera][edge]")
+TEST_CASE("FrameMetadataOak with large sequence number", "[camera][edge]")
 {
-    core::FrameMetadataT metadata;
+    core::FrameMetadataOakT metadata;
     metadata.sequence_number = UINT64_MAX;
 
     CHECK(metadata.sequence_number == UINT64_MAX);
 }
 
-TEST_CASE("FrameMetadata with zero timestamp", "[camera][edge]")
+TEST_CASE("FrameMetadataOak with zero timestamp", "[camera][edge]")
 {
-    core::FrameMetadataT metadata;
+    core::FrameMetadataOakT metadata;
     metadata.timestamp = std::make_unique<core::Timestamp>(0, 0);
 
     CHECK(metadata.timestamp->device_time() == 0);
     CHECK(metadata.timestamp->common_time() == 0);
 }
 
-TEST_CASE("FrameMetadata with negative timestamp", "[camera][edge]")
+TEST_CASE("FrameMetadataOak with negative timestamp", "[camera][edge]")
 {
-    core::FrameMetadataT metadata;
+    core::FrameMetadataOakT metadata;
     metadata.timestamp = std::make_unique<core::Timestamp>(-1000, -2000);
 
     CHECK(metadata.timestamp->device_time() == -1000);
     CHECK(metadata.timestamp->common_time() == -2000);
 }
 
-TEST_CASE("FrameMetadata with large timestamp values", "[camera][edge]")
+TEST_CASE("FrameMetadataOak with large timestamp values", "[camera][edge]")
 {
-    core::FrameMetadataT metadata;
+    core::FrameMetadataOakT metadata;
     int64_t max_int64 = 9223372036854775807;
     metadata.timestamp = std::make_unique<core::Timestamp>(max_int64, max_int64 - 1000);
 
@@ -202,9 +202,9 @@ TEST_CASE("FrameMetadata with large timestamp values", "[camera][edge]")
     CHECK(metadata.timestamp->common_time() == max_int64 - 1000);
 }
 
-TEST_CASE("FrameMetadata can update timestamp", "[camera][native]")
+TEST_CASE("FrameMetadataOak can update timestamp", "[camera][native]")
 {
-    core::FrameMetadataT metadata;
+    core::FrameMetadataOakT metadata;
 
     metadata.timestamp = std::make_unique<core::Timestamp>(100, 200);
     CHECK(metadata.timestamp->device_time() == 100);
@@ -215,36 +215,36 @@ TEST_CASE("FrameMetadata can update timestamp", "[camera][native]")
 }
 
 // =============================================================================
-// OakMetadata Tests (composite table)
+// CameraMetadataOak Tests (composite table)
 // =============================================================================
-TEST_CASE("OakMetadataT default construction", "[camera][native]")
+TEST_CASE("CameraMetadataOakT default construction", "[camera][native]")
 {
-    core::OakMetadataT oak;
+    core::CameraMetadataOakT oak;
     CHECK(oak.streams.empty());
 }
 
-TEST_CASE("OakMetadata roundtrip with multiple streams", "[camera][serialize]")
+TEST_CASE("CameraMetadataOak roundtrip with multiple streams", "[camera][serialize]")
 {
-    core::OakMetadataT original;
+    core::CameraMetadataOakT original;
 
-    auto color = std::make_unique<core::FrameMetadataT>();
+    auto color = std::make_unique<core::FrameMetadataOakT>();
     color->stream = core::StreamType_Color;
     color->timestamp = std::make_unique<core::Timestamp>(1000, 2000);
     color->sequence_number = 10;
     original.streams.push_back(std::move(color));
 
-    auto mono = std::make_unique<core::FrameMetadataT>();
+    auto mono = std::make_unique<core::FrameMetadataOakT>();
     mono->stream = core::StreamType_MonoLeft;
     mono->timestamp = std::make_unique<core::Timestamp>(1001, 2001);
     mono->sequence_number = 11;
     original.streams.push_back(std::move(mono));
 
     flatbuffers::FlatBufferBuilder builder;
-    auto offset = core::OakMetadata::Pack(builder, &original);
+    auto offset = core::CameraMetadataOak::Pack(builder, &original);
     builder.Finish(offset);
 
-    auto* table = flatbuffers::GetRoot<core::OakMetadata>(builder.GetBufferPointer());
-    core::OakMetadataT roundtrip;
+    auto* table = flatbuffers::GetRoot<core::CameraMetadataOak>(builder.GetBufferPointer());
+    core::CameraMetadataOakT roundtrip;
     table->UnPackTo(&roundtrip);
 
     REQUIRE(roundtrip.streams.size() == 2);

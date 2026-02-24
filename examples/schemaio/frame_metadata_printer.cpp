@@ -6,7 +6,7 @@
  * @brief Standalone application that reads and prints camera frame metadata from the OpenXR runtime.
  *
  * This application demonstrates using FrameMetadataTrackerOak to read composed
- * OakMetadata (containing per-stream FrameMetadata) pushed by a camera plugin.
+ * CameraMetadataOak (containing per-stream FrameMetadataOak) pushed by a camera plugin.
  *
  * Usage:
  *   ./frame_metadata_printer --collection-prefix=<prefix>
@@ -26,7 +26,7 @@
 
 static constexpr size_t MAX_FLATBUFFER_SIZE = 128;
 
-void print_oak_metadata(const core::OakMetadataT& data, size_t sample_count)
+void print_oak_metadata(const core::CameraMetadataOakT& data, size_t sample_count)
 {
     std::cout << "Sample " << sample_count << ": ";
     for (size_t i = 0; i < data.streams.size(); ++i)
@@ -48,7 +48,7 @@ void print_usage(const char* program_name)
               << "  --collection-prefix=PREFIX  Tensor collection prefix (default: oak_camera)\n"
               << "  --help                      Show this help message\n"
               << "\nDescription:\n"
-              << "  Reads and prints OakMetadata samples (all streams) pushed by a camera plugin.\n"
+              << "  Reads and prints CameraMetadataOak samples (all streams) pushed by a camera plugin.\n"
               << "  The collection-prefix must match the value used by the camera plugin.\n";
 }
 

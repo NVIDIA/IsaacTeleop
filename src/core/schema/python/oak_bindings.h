@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Python bindings for the OAK FlatBuffer schema.
-// Types: StreamType (enum), FrameMetadata (table), OakMetadata (composite table).
+// Types: StreamType (enum), FrameMetadataOak (table), CameraMetadataOak (composite table).
 
 #pragma once
 
@@ -24,21 +24,21 @@ inline void bind_oak(py::module& m)
         .value("MonoLeft", StreamType_MonoLeft)
         .value("MonoRight", StreamType_MonoRight);
 
-    py::class_<FrameMetadataT>(m, "FrameMetadata")
+    py::class_<FrameMetadataOakT>(m, "FrameMetadataOak")
         .def(py::init<>())
         .def_property(
-            "stream", [](const FrameMetadataT& self) { return self.stream; },
-            [](FrameMetadataT& self, StreamType val) { self.stream = val; },
+            "stream", [](const FrameMetadataOakT& self) { return self.stream; },
+            [](FrameMetadataOakT& self, StreamType val) { self.stream = val; },
             "Get or set the stream type that produced this frame")
         .def_property(
-            "timestamp", [](const FrameMetadataT& self) -> const Timestamp* { return self.timestamp.get(); },
-            [](FrameMetadataT& self, const Timestamp& ts) { self.timestamp = std::make_unique<Timestamp>(ts); },
+            "timestamp", [](const FrameMetadataOakT& self) -> const Timestamp* { return self.timestamp.get(); },
+            [](FrameMetadataOakT& self, const Timestamp& ts) { self.timestamp = std::make_unique<Timestamp>(ts); },
             "Get or set the dual timestamp (device and common time)")
-        .def_readwrite("sequence_number", &FrameMetadataT::sequence_number, "Get or set the per-stream sequence number")
+        .def_readwrite("sequence_number", &FrameMetadataOakT::sequence_number, "Get or set the per-stream sequence number")
         .def("__repr__",
-             [](const FrameMetadataT& metadata)
+             [](const FrameMetadataOakT& metadata)
              {
-                 std::string result = "FrameMetadata(stream=" + std::string(EnumNameStreamType(metadata.stream));
+                 std::string result = "FrameMetadataOak(stream=" + std::string(EnumNameStreamType(metadata.stream));
                  if (metadata.timestamp)
                  {
                      result += ", timestamp=Timestamp(device_time=" + std::to_string(metadata.timestamp->device_time()) +
@@ -52,21 +52,21 @@ inline void bind_oak(py::module& m)
                  return result;
              });
 
-    py::class_<OakMetadataT>(m, "OakMetadata")
+    py::class_<CameraMetadataOakT>(m, "CameraMetadataOak")
         .def(py::init<>())
         .def_property_readonly(
             "streams",
-            [](const OakMetadataT& self)
+            [](const CameraMetadataOakT& self)
             {
-                std::vector<const FrameMetadataT*> out;
+                std::vector<const FrameMetadataOakT*> out;
                 out.reserve(self.streams.size());
                 for (const auto& entry : self.streams)
                     out.push_back(entry.get());
                 return out;
             },
-            "List of per-stream FrameMetadata entries")
-        .def("__repr__", [](const OakMetadataT& self)
-             { return "OakMetadata(streams=" + std::to_string(self.streams.size()) + ")"; });
+            "List of per-stream FrameMetadataOak entries")
+        .def("__repr__", [](const CameraMetadataOakT& self)
+             { return "CameraMetadataOak(streams=" + std::to_string(self.streams.size()) + ")"; });
 }
 
 } // namespace core

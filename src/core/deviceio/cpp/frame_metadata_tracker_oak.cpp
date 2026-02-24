@@ -23,8 +23,7 @@ public:
     struct StreamState
     {
         std::unique_ptr<SchemaTracker> reader;
-        std::vector<uint8_t> buffer;
-        FrameMetadataT data;
+        FrameMetadataOakT data;
     };
 
     Impl(const OpenXRSessionHandles& handles, std::vector<SchemaTrackerConfig> configs)
@@ -41,9 +40,9 @@ public:
     {
         for (auto& stream : m_streams)
         {
-            if (stream.reader->read_buffer(stream.buffer))
+            if (stream.reader->read_buffer(m_buffer))
             {
-                auto fb = flatbuffers::GetRoot<FrameMetadata>(stream.buffer.data());
+                auto fb = flatbuffers::GetRoot<FrameMetadataOak>(m_buffer.data());
                 if (fb)
                     fb->UnPackTo(&stream.data);
             }
@@ -51,14 +50,14 @@ public:
 
         m_data.streams.clear();
         for (const auto& s : m_streams)
-            m_data.streams.push_back(std::make_unique<FrameMetadataT>(s.data));
+            m_data.streams.push_back(std::make_unique<FrameMetadataOakT>(s.data));
 
         return true;
     }
 
     Timestamp serialize(flatbuffers::FlatBufferBuilder& builder) const override
     {
-        auto offset = OakMetadata::Pack(builder, &m_data);
+        auto offset = CameraMetadataOak::Pack(builder, &m_data);
         builder.Finish(offset);
 
         Timestamp latest{};
@@ -70,14 +69,15 @@ public:
         return latest;
     }
 
-    const OakMetadataT& get_data() const
+    const CameraMetadataOakT& get_data() const
     {
         return m_data;
     }
 
 private:
     std::vector<StreamState> m_streams;
-    OakMetadataT m_data;
+    std::vector<uint8_t> m_buffer;
+    CameraMetadataOakT m_data;
 };
 
 // ============================================================================
@@ -109,16 +109,16 @@ std::string_view FrameMetadataTrackerOak::get_name() const
 
 std::string_view FrameMetadataTrackerOak::get_schema_name() const
 {
-    return "core.OakMetadata";
+    return "core.CameraMetadataOak";
 }
 
 std::string_view FrameMetadataTrackerOak::get_schema_text() const
 {
     return std::string_view(
-        reinterpret_cast<const char*>(OakMetadataBinarySchema::data()), OakMetadataBinarySchema::size());
+        reinterpret_cast<const char*>(CameraMetadataOakBinarySchema::data()), CameraMetadataOakBinarySchema::size());
 }
 
-const OakMetadataT& FrameMetadataTrackerOak::get_data(const DeviceIOSession& session) const
+const CameraMetadataOakT& FrameMetadataTrackerOak::get_data(const DeviceIOSession& session) const
 {
     return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_data();
 }
