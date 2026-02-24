@@ -86,4 +86,4 @@ RUN echo "source /usr/local/bin/teleop-env-setup" >> /etc/bash.bashrc
 WORKDIR /opt/isaacteleop/examples/teleop_ros2/python
 RUN uv sync
 
-ENTRYPOINT ["/usr/local/bin/teleop-entrypoint", "uv", "run", "teleop_ros2_bridge.py"]
+ENTRYPOINT ["/usr/local/bin/teleop-entrypoint", "uv", "run", "teleop_ros2_publisher.py"]

@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Teleop ROS2 Reference Bridge.
+Teleop ROS2 Reference Publisher.
 
 Publishes teleoperation data over ROS2 topics using isaacteleop TeleopSession:
   - xr_teleop/hand (PoseArray): [right_wrist, left_wrist, finger_joint_poses...]
@@ -161,7 +161,7 @@ def _append_hand_poses(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Teleop ROS2 reference bridge")
+    parser = argparse.ArgumentParser(description="Teleop ROS2 reference publisher")
     parser.add_argument("--hand-topic", default="xr_teleop/hand")
     parser.add_argument("--twist-topic", default="xr_teleop/root_twist")
     parser.add_argument("--pose-topic", default="xr_teleop/root_pose")
@@ -173,7 +173,7 @@ def main() -> int:
     sleep_period_s = 1.0 / max(args.rate_hz, 1e-3)
 
     rclpy.init()
-    node = Node("teleop_ros2_reference")
+    node = Node("teleop_ros2_publisher")
 
     pub_hand = node.create_publisher(PoseArray, args.hand_topic, 10)
     pub_twist = node.create_publisher(TwistStamped, args.twist_topic, 10)
@@ -218,7 +218,7 @@ def main() -> int:
         )
 
     config = TeleopSessionConfig(
-        app_name="TeleopRos2Reference",
+        app_name="TeleopRos2Publisher",
         pipeline=pipeline,
         plugins=plugins,
     )

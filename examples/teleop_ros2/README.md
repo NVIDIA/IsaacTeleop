@@ -5,12 +5,11 @@ SPDX-License-Identifier: Apache-2.0
 
 # Teleop ROS2 Reference (Python)
 
-Reference ROS2 bridge for Isaac Teleop data. It publishes the same topic set as
-`xr_teleop_ros2` using standard ROS2 message types.
+Reference ROS2 publisher for Isaac Teleop data.
 
 ## Prerequisite: Start CloudXR Runtime
 
-Before running this ROS2 reference bridge, start the CloudXR runtime (see the `README.md` setup flow, step "Run CloudXR"):
+Before running this ROS2 reference publisher, start the CloudXR runtime (see the `README.md` setup flow, step "Run CloudXR"):
 
 ```bash
 ./scripts/run_cloudxr.sh
