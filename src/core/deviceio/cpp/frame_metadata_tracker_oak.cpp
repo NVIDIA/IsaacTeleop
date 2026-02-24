@@ -29,10 +29,10 @@ public:
         // Try to read new data from tensor stream
         if (m_schema_reader.read_buffer(m_buffer))
         {
-            auto fb = flatbuffers::GetRoot<FrameMetadata>(m_buffer.data());
-            if (fb)
+            auto record = flatbuffers::GetRoot<FrameMetadataRecord>(m_buffer.data());
+            if (record && record->data())
             {
-                fb->UnPackTo(&m_data);
+                m_data = *record->data();
                 return true;
             }
         }
@@ -42,16 +42,14 @@ public:
 
     Timestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t /*channel_index*/ = 0) const override
     {
-        auto data_offset = FrameMetadata::Pack(builder, &m_data);
-
         FrameMetadataRecordBuilder record_builder(builder);
-        record_builder.add_data(data_offset);
+        record_builder.add_data(&m_data);
         builder.Finish(record_builder.Finish());
 
-        return m_data.timestamp ? *m_data.timestamp : Timestamp{};
+        return m_data.timestamp();
     }
 
-    const FrameMetadataT& get_data() const
+    const FrameMetadata& get_data() const
     {
         return m_data;
     }
@@ -59,7 +57,7 @@ public:
 private:
     SchemaTracker m_schema_reader;
     std::vector<uint8_t> m_buffer;
-    FrameMetadataT m_data;
+    FrameMetadata m_data;
 };
 
 // ============================================================================
@@ -100,7 +98,7 @@ const SchemaTrackerConfig& FrameMetadataTrackerOak::get_config() const
     return m_config;
 }
 
-const FrameMetadataT& FrameMetadataTrackerOak::get_data(const DeviceIOSession& session) const
+const FrameMetadata& FrameMetadataTrackerOak::get_data(const DeviceIOSession& session) const
 {
     return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_data();
 }

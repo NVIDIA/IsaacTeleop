@@ -86,8 +86,8 @@ std::optional<OakFrame> OakCamera::get_frame()
 
     OakFrame frame;
     frame.h264_data = std::vector<uint8_t>(data.begin(), data.end());
-    frame.metadata.timestamp = std::make_shared<core::Timestamp>(device_time_ns, common_time_ns);
-    frame.metadata.sequence_number = static_cast<int32_t>(packet->getSequenceNum());
+    frame.metadata.mutable_timestamp() = core::Timestamp(device_time_ns, common_time_ns);
+    frame.metadata.mutate_sequence_number(static_cast<int32_t>(packet->getSequenceNum()));
 
     static std::chrono::steady_clock::time_point last_log_time{};
     if (packet->getTimestamp() - last_log_time >= std::chrono::seconds(5))

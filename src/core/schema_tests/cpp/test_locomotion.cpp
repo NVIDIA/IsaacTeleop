@@ -1,16 +1,19 @@
 // SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-// Unit tests for the generated Locomotion FlatBuffer types.
+// Unit tests for the generated LocomotionCommand FlatBuffer struct.
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <flatbuffers/flatbuffers.h>
-
-// Include generated FlatBuffer headers.
 #include <schema/locomotion_generated.h>
 
+#include <memory>
 #include <type_traits>
+
+#define VT(field) (field + 2) * 2
+static_assert(core::LocomotionCommandRecord::VT_DATA == VT(0));
+static_assert(std::is_trivially_copyable_v<core::LocomotionCommand>);
 
 // =============================================================================
 // Compile-time verification that Twist is a struct (not a table).
@@ -24,18 +27,6 @@ static_assert(sizeof(core::Twist) == 2 * sizeof(core::Point), "Twist size should
 // =============================================================================
 static_assert(std::is_same_v<decltype(std::declval<core::Twist>().linear()), const core::Point&>);
 static_assert(std::is_same_v<decltype(std::declval<core::Twist>().angular()), const core::Point&>);
-
-// =============================================================================
-// Compile-time verification of FlatBuffer field IDs for LocomotionCommand table.
-// VT values are computed as: (field_id + 2) * 2.
-// =============================================================================
-#define VT(field) (field + 2) * 2
-
-static_assert(core::LocomotionCommand::VT_TIMESTAMP == VT(0));
-static_assert(core::LocomotionCommand::VT_VELOCITY == VT(1));
-static_assert(core::LocomotionCommand::VT_POSE == VT(2));
-
-static_assert(core::LocomotionCommandRecord::VT_DATA == VT(0));
 
 // =============================================================================
 // Twist Tests (struct)
@@ -103,188 +94,98 @@ TEST_CASE("Twist struct is trivially copyable", "[locomotion][twist][struct]")
 }
 
 // =============================================================================
-// LocomotionCommandT Tests (table native type)
+// LocomotionCommand Tests (struct)
 // =============================================================================
-TEST_CASE("LocomotionCommandT default construction", "[locomotion][native]")
+TEST_CASE("LocomotionCommand default construction", "[locomotion][struct]")
 {
-    core::LocomotionCommandT cmd;
+    core::LocomotionCommand cmd{};
 
-    // Struct pointers should be null by default for table fields.
-    CHECK(cmd.timestamp == nullptr);
-    CHECK(cmd.velocity == nullptr);
-    CHECK(cmd.pose == nullptr);
+    // Struct fields are always present, initialized to default values.
+    CHECK(cmd.timestamp().device_time() == 0);
+    CHECK(cmd.timestamp().common_time() == 0);
+    CHECK(cmd.velocity().linear().x() == 0.0f);
+    CHECK(cmd.velocity().angular().z() == 0.0f);
+    CHECK(cmd.pose().position().z() == 0.0f);
 }
 
-TEST_CASE("LocomotionCommandT can store velocity command", "[locomotion][native]")
+TEST_CASE("LocomotionCommand can store velocity command", "[locomotion][struct]")
 {
-    core::LocomotionCommandT cmd;
+    core::LocomotionCommand cmd{};
 
-    // Create timestamp.
-    cmd.timestamp = std::make_unique<core::Timestamp>(1000000000, 2000000000);
+    // Set timestamp.
+    cmd.mutable_timestamp() = core::Timestamp(1000000000, 2000000000);
 
-    // Create velocity (twist).
+    // Set velocity (twist).
     core::Point linear(1.0f, 0.0f, 0.0f);
     core::Point angular(0.0f, 0.0f, 0.5f);
-    cmd.velocity = std::make_unique<core::Twist>(linear, angular);
+    cmd.mutable_velocity() = core::Twist(linear, angular);
 
-    CHECK(cmd.timestamp != nullptr);
-    CHECK(cmd.timestamp->device_time() == 1000000000);
-    CHECK(cmd.timestamp->common_time() == 2000000000);
-    CHECK(cmd.velocity != nullptr);
-    CHECK(cmd.velocity->linear().x() == Catch::Approx(1.0f));
-    CHECK(cmd.velocity->angular().z() == Catch::Approx(0.5f));
-    CHECK(cmd.pose == nullptr); // Pose not set.
+    CHECK(cmd.timestamp().device_time() == 1000000000);
+    CHECK(cmd.timestamp().common_time() == 2000000000);
+    CHECK(cmd.velocity().linear().x() == Catch::Approx(1.0f));
+    CHECK(cmd.velocity().angular().z() == Catch::Approx(0.5f));
 }
 
-TEST_CASE("LocomotionCommandT can store pose command", "[locomotion][native]")
+TEST_CASE("LocomotionCommand can store pose command", "[locomotion][struct]")
 {
-    core::LocomotionCommandT cmd;
+    core::LocomotionCommand cmd{};
 
-    // Create timestamp.
-    cmd.timestamp = std::make_unique<core::Timestamp>(3000000000, 4000000000);
+    // Set timestamp.
+    cmd.mutable_timestamp() = core::Timestamp(3000000000, 4000000000);
 
-    // Create pose (for squat/vertical mode).
+    // Set pose (for squat/vertical mode).
     core::Point position(0.0f, 0.0f, -0.2f); // Squat down.
     core::Quaternion orientation(0.0f, 0.0f, 0.0f, 1.0f);
-    cmd.pose = std::make_unique<core::Pose>(position, orientation);
+    cmd.mutable_pose() = core::Pose(position, orientation);
 
-    CHECK(cmd.timestamp != nullptr);
-    CHECK(cmd.pose != nullptr);
-    CHECK(cmd.pose->position().z() == Catch::Approx(-0.2f));
-    CHECK(cmd.velocity == nullptr); // Velocity not set.
+    CHECK(cmd.timestamp().device_time() == 3000000000);
+    CHECK(cmd.pose().position().z() == Catch::Approx(-0.2f));
 }
 
-TEST_CASE("LocomotionCommandT can store both velocity and pose", "[locomotion][native]")
+TEST_CASE("LocomotionCommand can store both velocity and pose", "[locomotion][struct]")
 {
-    core::LocomotionCommandT cmd;
+    core::LocomotionCommand cmd{};
 
-    // Create timestamp.
-    cmd.timestamp = std::make_unique<core::Timestamp>(5000000000, 6000000000);
+    // Set timestamp.
+    cmd.mutable_timestamp() = core::Timestamp(5000000000, 6000000000);
 
-    // Create velocity.
+    // Set velocity.
     core::Point linear(0.5f, 0.0f, 0.0f);
     core::Point angular(0.0f, 0.0f, 0.1f);
-    cmd.velocity = std::make_unique<core::Twist>(linear, angular);
+    cmd.mutable_velocity() = core::Twist(linear, angular);
 
-    // Create pose.
+    // Set pose.
     core::Point position(0.0f, 0.0f, 0.1f);
     core::Quaternion orientation(0.0f, 0.0f, 0.0f, 1.0f);
-    cmd.pose = std::make_unique<core::Pose>(position, orientation);
+    cmd.mutable_pose() = core::Pose(position, orientation);
 
-    CHECK(cmd.timestamp != nullptr);
-    CHECK(cmd.velocity != nullptr);
-    CHECK(cmd.pose != nullptr);
+    CHECK(cmd.timestamp().device_time() == 5000000000);
+    CHECK(cmd.velocity().linear().x() == Catch::Approx(0.5f));
+    CHECK(cmd.pose().position().z() == Catch::Approx(0.1f));
 }
 
-// =============================================================================
-// LocomotionCommand Serialization Tests
-// =============================================================================
-TEST_CASE("LocomotionCommand serialization and deserialization", "[locomotion][serialize]")
+TEST_CASE("LocomotionCommand is trivially copyable", "[locomotion][struct]")
 {
-    flatbuffers::FlatBufferBuilder builder;
-
-    // Create native object.
-    core::LocomotionCommandT cmd;
-    cmd.timestamp = std::make_unique<core::Timestamp>(1234567890, 9876543210);
+    core::LocomotionCommand cmd1{};
+    cmd1.mutable_timestamp() = core::Timestamp(1234567890, 9876543210);
 
     core::Point linear(2.0f, 1.0f, 0.0f);
     core::Point angular(0.0f, 0.0f, 0.75f);
-    cmd.velocity = std::make_unique<core::Twist>(linear, angular);
+    cmd1.mutable_velocity() = core::Twist(linear, angular);
 
     core::Point position(0.0f, 0.0f, 0.05f);
     core::Quaternion orientation(0.0f, 0.0f, 0.0f, 1.0f);
-    cmd.pose = std::make_unique<core::Pose>(position, orientation);
+    cmd1.mutable_pose() = core::Pose(position, orientation);
 
-    // Serialize.
-    auto offset = core::LocomotionCommand::Pack(builder, &cmd);
-    builder.Finish(offset);
+    // Copy the command.
+    core::LocomotionCommand cmd2 = cmd1;
 
-    // Deserialize.
-    auto* deserialized = flatbuffers::GetRoot<core::LocomotionCommand>(builder.GetBufferPointer());
-
-    // Verify timestamp.
-    REQUIRE(deserialized->timestamp() != nullptr);
-    CHECK(deserialized->timestamp()->device_time() == 1234567890);
-    CHECK(deserialized->timestamp()->common_time() == 9876543210);
-
-    // Verify velocity.
-    REQUIRE(deserialized->velocity() != nullptr);
-    CHECK(deserialized->velocity()->linear().x() == Catch::Approx(2.0f));
-    CHECK(deserialized->velocity()->linear().y() == Catch::Approx(1.0f));
-    CHECK(deserialized->velocity()->angular().z() == Catch::Approx(0.75f));
-
-    // Verify pose.
-    REQUIRE(deserialized->pose() != nullptr);
-    CHECK(deserialized->pose()->position().z() == Catch::Approx(0.05f));
-    CHECK(deserialized->pose()->orientation().w() == Catch::Approx(1.0f));
-}
-
-TEST_CASE("LocomotionCommand can be unpacked from buffer", "[locomotion][serialize]")
-{
-    flatbuffers::FlatBufferBuilder builder;
-
-    // Create native object with minimal data.
-    core::LocomotionCommandT cmd;
-    cmd.timestamp = std::make_unique<core::Timestamp>(100, 200);
-
-    // Serialize.
-    auto offset = core::LocomotionCommand::Pack(builder, &cmd);
-    builder.Finish(offset);
-
-    // Deserialize to table.
-    auto* table = flatbuffers::GetRoot<core::LocomotionCommand>(builder.GetBufferPointer());
-
-    // Unpack to native.
-    auto unpacked = std::make_unique<core::LocomotionCommandT>();
-    table->UnPackTo(unpacked.get());
-
-    // Verify.
-    REQUIRE(unpacked->timestamp != nullptr);
-    CHECK(unpacked->timestamp->device_time() == 100);
-    CHECK(unpacked->timestamp->common_time() == 200);
-}
-
-TEST_CASE("LocomotionCommand with only velocity (no pose)", "[locomotion][serialize]")
-{
-    flatbuffers::FlatBufferBuilder builder;
-
-    core::LocomotionCommandT cmd;
-    cmd.timestamp = std::make_unique<core::Timestamp>(1000, 2000);
-
-    core::Point linear(1.0f, 0.0f, 0.0f);
-    core::Point angular(0.0f, 0.0f, 0.0f);
-    cmd.velocity = std::make_unique<core::Twist>(linear, angular);
-    // pose is intentionally left null.
-
-    auto offset = core::LocomotionCommand::Pack(builder, &cmd);
-    builder.Finish(offset);
-
-    auto* deserialized = flatbuffers::GetRoot<core::LocomotionCommand>(builder.GetBufferPointer());
-
-    REQUIRE(deserialized->velocity() != nullptr);
-    CHECK(deserialized->pose() == nullptr);
-}
-
-TEST_CASE("LocomotionCommand with only pose (no velocity)", "[locomotion][serialize]")
-{
-    flatbuffers::FlatBufferBuilder builder;
-
-    core::LocomotionCommandT cmd;
-    cmd.timestamp = std::make_unique<core::Timestamp>(3000, 4000);
-
-    core::Point position(0.0f, 0.0f, -0.1f);
-    core::Quaternion orientation(0.0f, 0.0f, 0.0f, 1.0f);
-    cmd.pose = std::make_unique<core::Pose>(position, orientation);
-    // velocity is intentionally left null.
-
-    auto offset = core::LocomotionCommand::Pack(builder, &cmd);
-    builder.Finish(offset);
-
-    auto* deserialized = flatbuffers::GetRoot<core::LocomotionCommand>(builder.GetBufferPointer());
-
-    CHECK(deserialized->velocity() == nullptr);
-    REQUIRE(deserialized->pose() != nullptr);
-    CHECK(deserialized->pose()->position().z() == Catch::Approx(-0.1f));
+    // Verify the copy has the same values.
+    CHECK(cmd2.timestamp().device_time() == cmd1.timestamp().device_time());
+    CHECK(cmd2.timestamp().common_time() == cmd1.timestamp().common_time());
+    CHECK(cmd2.velocity().linear().x() == cmd1.velocity().linear().x());
+    CHECK(cmd2.velocity().angular().z() == cmd1.velocity().angular().z());
+    CHECK(cmd2.pose().position().z() == cmd1.pose().position().z());
 }
 
 // =============================================================================
@@ -312,26 +213,4 @@ TEST_CASE("Twist with maximum float values", "[locomotion][twist][edge]")
 
     CHECK(twist.linear().x() == Catch::Approx(max_vel));
     CHECK(twist.angular().z() == Catch::Approx(max_vel));
-}
-
-TEST_CASE("LocomotionCommand buffer size is reasonable", "[locomotion][serialize]")
-{
-    flatbuffers::FlatBufferBuilder builder;
-
-    core::LocomotionCommandT cmd;
-    cmd.timestamp = std::make_unique<core::Timestamp>(0, 0);
-
-    core::Point linear(0.0f, 0.0f, 0.0f);
-    core::Point angular(0.0f, 0.0f, 0.0f);
-    cmd.velocity = std::make_unique<core::Twist>(linear, angular);
-
-    core::Point position(0.0f, 0.0f, 0.0f);
-    core::Quaternion orientation(0.0f, 0.0f, 0.0f, 1.0f);
-    cmd.pose = std::make_unique<core::Pose>(position, orientation);
-
-    auto offset = core::LocomotionCommand::Pack(builder, &cmd);
-    builder.Finish(offset);
-
-    // Buffer should be reasonably small (under 200 bytes for this simple message).
-    CHECK(builder.GetSize() < 200);
 }

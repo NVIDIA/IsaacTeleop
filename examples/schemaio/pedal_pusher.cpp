@@ -48,14 +48,15 @@ public:
 
     /*!
      * @brief Push a Generic3AxisPedalOutput message.
-     * @param data The Generic3AxisPedalOutputT native object to serialize and push.
+     * @param data The Generic3AxisPedalOutput struct to serialize and push.
      * @throws std::runtime_error if the push fails.
      */
-    void push(const core::Generic3AxisPedalOutputT& data)
+    void push(const core::Generic3AxisPedalOutput& data)
     {
         flatbuffers::FlatBufferBuilder builder(m_pusher.config().max_flatbuffer_size);
-        auto offset = core::Generic3AxisPedalOutput::Pack(builder, &data);
-        builder.Finish(offset);
+        core::Generic3AxisPedalOutputRecordBuilder record_builder(builder);
+        record_builder.add_data(&data);
+        builder.Finish(record_builder.Finish());
 
         m_pusher.push_buffer(builder.GetBufferPointer(), builder.GetSize());
     }
@@ -96,16 +97,15 @@ try
         float right_pedal = (std::cos(t) + 1.0f) * 0.5f; // 0.0 to 1.0
         float rudder = std::sin(t * 0.5f); // -1.0 to 1.0
 
-        // Create and populate Generic3AxisPedalOutputT
-        core::Generic3AxisPedalOutputT pedal_output;
-        pedal_output.is_valid = true;
-        pedal_output.left_pedal = left_pedal;
-        pedal_output.right_pedal = right_pedal;
-        pedal_output.rudder = rudder;
+        core::Generic3AxisPedalOutput pedal_output{};
+        pedal_output.mutate_is_active(true);
+        pedal_output.mutate_left_pedal(left_pedal);
+        pedal_output.mutate_right_pedal(right_pedal);
+        pedal_output.mutate_rudder(rudder);
 
         auto now = std::chrono::steady_clock::now();
         auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
-        pedal_output.timestamp = std::make_shared<core::Timestamp>(ns, ns);
+        pedal_output.mutable_timestamp() = core::Timestamp(ns, ns);
 
         pusher->push(pedal_output);
         std::cout << "Pushed sample " << i << std::fixed << std::setprecision(3) << " [left=" << left_pedal

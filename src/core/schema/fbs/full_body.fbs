@@ -46,23 +46,16 @@ struct BodyJointPose {
     is_valid: bool;
 }
 
-// Fixed-size array of 24 body joint locations. This follows the joint format defined in:
-// See: https://registry.khronos.org/OpenXR/specs/1.1/html/xrspec.html#XR_BD_body_tracking
-struct BodyJointsPico {
-    joints: [BodyJointPose:24];
-}
-
 // Full body pose data for PICO body tracking (XR_BD_body_tracking extension).
-table FullBodyPosePico {
+struct FullBodyPosePico {
     // Whether the body tracking is active
-    is_active: bool (id: 0);
+    is_active: bool;
 
     // Dual timestamp with device and runtime clock domains
-    timestamp: Timestamp (id: 1);
+    timestamp: Timestamp;
 
-    // Vector of BodyJointPose.
-    // For XR_BD_body_tracking, this is 24 joints.
-    joints: BodyJointsPico (id: 2);
+    // 24 body joint poses (XR_BD_body_tracking).
+    joints: [BodyJointPose:24];
 }
 
 // Record wrapper for a single full body pose (used as root type for serialization).

@@ -34,10 +34,10 @@ public:
 
     /**
      * @brief Push a FrameMetadata message.
-     * @param data The FrameMetadataT native object to serialize and push.
+     * @param data The FrameMetadata struct to serialize and push.
      * @throws std::runtime_error if the push fails.
      */
-    void push(const core::FrameMetadataT& data);
+    void push(const core::FrameMetadata& data);
 
 private:
     static constexpr size_t MAX_FLATBUFFER_SIZE = 128;

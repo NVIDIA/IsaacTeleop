@@ -16,7 +16,6 @@ from ._schema import (
     HeadPoseT,
     # Hand-related types.
     HandJointPose,
-    HandJoints,
     HandPoseT,
     # Controller-related types.
     ControllerInputState,
@@ -33,7 +32,6 @@ from ._schema import (
     # Full body-related types.
     BodyJointPico,
     BodyJointPose,
-    BodyJointsPico,
     FullBodyPosePicoT,
 )
 
@@ -47,7 +45,6 @@ __all__ = [
     "HeadPoseT",
     # Hand types.
     "HandJointPose",
-    "HandJoints",
     "HandPoseT",
     # Controller types.
     "ControllerInputState",
@@ -63,7 +60,6 @@ __all__ = [
     "FrameMetadata",
     # Full body types.
     "BodyJointPose",
-    "BodyJointsPico",
     "BodyJointPico",
     "FullBodyPosePicoT",
 ]

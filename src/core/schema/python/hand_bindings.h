@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Python bindings for the HandPose FlatBuffer schema.
-// Includes HandJointPose struct, HandJoints struct, and HandPoseT table.
+// Includes HandJointPose struct and HandPose struct.
 
 #pragma once
 
@@ -43,61 +43,43 @@ inline void bind_hand(py::module& m)
                         ", radius=" + std::to_string(self.radius()) + ")";
              });
 
-    // Bind HandJoints struct (fixed-size array of 26 HandJointPose).
-    py::class_<HandJoints>(m, "HandJoints")
+    // Bind HandPose struct (read-only from Python, exposed as HandPoseT for backward compat).
+    py::class_<HandPose>(m, "HandPoseT")
         .def(py::init<>())
+        .def_property_readonly("is_active", &HandPose::is_active)
+        .def_property_readonly(
+            "timestamp", [](const HandPose& self) -> const Timestamp& { return self.timestamp(); },
+            py::return_value_policy::reference_internal)
+        .def_property_readonly("num_joints", [](const HandPose& self) { return self.joints()->size(); })
         .def(
-            "poses",
-            [](const HandJoints& self, size_t index) -> const HandJointPose*
+            "joint",
+            [](const HandPose& self, size_t index) -> const HandJointPose*
             {
                 if (index >= 26)
                 {
-                    throw py::index_error("HandJoints index out of range (must be 0-25)");
+                    throw py::index_error("Joint index out of range (must be 0-25)");
                 }
-                return (*self.poses())[index];
+                return (*self.joints())[index];
             },
             py::arg("index"), py::return_value_policy::reference_internal,
             "Get the HandJointPose at the specified index (0-25).")
-        .def("__len__", [](const HandJoints&) { return 26; })
-        .def(
-            "__getitem__",
-            [](const HandJoints& self, size_t index) -> const HandJointPose*
-            {
-                if (index >= 26)
-                {
-                    throw py::index_error("HandJoints index out of range (must be 0-25)");
-                }
-                return (*self.poses())[index];
-            },
-            py::return_value_policy::reference_internal)
-        .def("__repr__", [](const HandJoints&) { return "HandJoints(poses=[...26 HandJointPose entries...])"; });
-
-    // Bind HandPoseT class (FlatBuffers object API for tables, read-only from Python).
-    py::class_<HandPoseT, std::unique_ptr<HandPoseT>>(m, "HandPoseT")
-        .def(py::init<>())
-        .def_property_readonly(
-            "joints", [](const HandPoseT& self) -> const HandJoints* { return self.joints.get(); },
-            py::return_value_policy::reference_internal)
-        .def_readonly("is_active", &HandPoseT::is_active)
-        .def_property_readonly(
-            "timestamp", [](const HandPoseT& self) -> const Timestamp* { return self.timestamp.get(); },
-            py::return_value_policy::reference_internal)
-        .def("__repr__",
-             [](const HandPoseT& self)
+        .def("joints",
+             [](const HandPose& self) -> py::list
              {
-                 std::string joints_str = "None";
-                 if (self.joints)
+                 py::list result;
+                 for (size_t i = 0; i < self.joints()->size(); ++i)
                  {
-                     joints_str = "HandJoints(poses=[...26 entries...])";
+                     result.append(py::cast(*(*self.joints())[i]));
                  }
-                 std::string timestamp_str = "None";
-                 if (self.timestamp)
-                 {
-                     timestamp_str = "Timestamp(device=" + std::to_string(self.timestamp->device_time()) +
-                                     ", common=" + std::to_string(self.timestamp->common_time()) + ")";
-                 }
-                 return "HandPoseT(joints=" + joints_str + ", is_active=" + (self.is_active ? "True" : "False") +
-                        ", timestamp=" + timestamp_str + ")";
+                 return result;
+             })
+        .def("__repr__",
+             [](const HandPose& self)
+             {
+                 return "HandPoseT(" + std::to_string(self.joints()->size()) + " joints" +
+                        ", is_active=" + (self.is_active() ? "True" : "False") +
+                        ", timestamp=Timestamp(device=" + std::to_string(self.timestamp().device_time()) +
+                        ", common=" + std::to_string(self.timestamp().common_time()) + "))";
              });
 }
 

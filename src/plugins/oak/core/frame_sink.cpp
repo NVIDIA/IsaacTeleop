@@ -27,11 +27,12 @@ MetadataPusher::MetadataPusher(const std::string& collection_id)
 {
 }
 
-void MetadataPusher::push(const core::FrameMetadataT& data)
+void MetadataPusher::push(const core::FrameMetadata& data)
 {
     flatbuffers::FlatBufferBuilder builder(m_pusher.config().max_flatbuffer_size);
-    auto offset = core::FrameMetadata::Pack(builder, &data);
-    builder.Finish(offset);
+    core::FrameMetadataRecordBuilder record_builder(builder);
+    record_builder.add_data(&data);
+    builder.Finish(record_builder.Finish());
     m_pusher.push_buffer(builder.GetBufferPointer(), builder.GetSize());
 }
 

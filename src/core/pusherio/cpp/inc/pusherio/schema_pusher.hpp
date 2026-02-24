@@ -67,10 +67,11 @@ struct SchemaPusherConfig
  *             .localized_name = "HeadPose Data"
  *         }) {}
  *
- *     void push(const HeadPoseT& data) {
+ *     void push(const HeadPose& data) {
  *         flatbuffers::FlatBufferBuilder builder(m_pusher.config().max_flatbuffer_size);
- *         auto offset = HeadPose::Pack(builder, &data);
- *         builder.Finish(offset);
+ *         HeadPoseRecordBuilder record_builder(builder);
+ *         record_builder.add_data(&data);
+ *         builder.Finish(record_builder.Finish());
  *         m_pusher.push_buffer(builder.GetBufferPointer(), builder.GetSize());
  *     }
  *

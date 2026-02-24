@@ -24,24 +24,24 @@ PYBIND11_MODULE(_schema, m)
     // Bind pose types (Point, Quaternion, Pose structs).
     core::bind_pose(m);
 
-    // Bind head types (HeadPoseT table).
+    // Bind head types (HeadPose struct).
     core::bind_head(m);
 
-    // Bind hand types (HandJointPose, HandJoints structs, HandPoseT table).
+    // Bind hand types (HandJointPose struct, HandPose struct).
     core::bind_hand(m);
 
-    // Bind controller types (ControllerInputState, ControllerPose structs, ControllerSnapshotT table, Hand enum).
+    // Bind controller types (ControllerInputState, ControllerPose structs, ControllerSnapshot struct).
     core::bind_controller(m);
 
-    // Bind locomotion types (Twist struct, LocomotionCommand table).
+    // Bind locomotion types (Twist struct, LocomotionCommand struct).
     core::bind_locomotion(m);
 
-    // Bind pedals types (Generic3AxisPedalOutput table).
+    // Bind pedals types (Generic3AxisPedalOutput struct).
     core::bind_pedals(m);
 
-    // Bind OAK types (FrameMetadata table with timestamp and sequence_number).
+    // Bind OAK types (FrameMetadata struct).
     core::bind_oak(m);
 
-    // Bind full body types (BodyJointPose, BodyJointsPico structs, FullBodyPosePicoT table).
+    // Bind full body types (BodyJointPose struct, FullBodyPosePico struct).
     core::bind_full_body(m);
 }

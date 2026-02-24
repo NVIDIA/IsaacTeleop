@@ -60,7 +60,7 @@ The printer will discover the tensor collection created by the pusher and print 
 
 **Generic3AxisPedalTracker** - Concrete tracker for `Generic3AxisPedalOutput` messages:
 - Extends `SchemaTracker` with `Generic3AxisPedalOutput`-specific deserialization
-- Provides `get_data()` to access the latest `Generic3AxisPedalOutputT`
+- Provides `get_data()` to access the latest `Generic3AxisPedalOutput`
 
 **DeviceIOSession** - Session manager that:
 - Collects required OpenXR extensions from all registered trackers
