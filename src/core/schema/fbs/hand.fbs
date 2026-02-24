@@ -19,21 +19,16 @@ struct HandJointPose {
     radius: float32;
 }
 
-struct HandJoints {
-    poses: [HandJointPose:26];
-}
-
 // Describe a hand pose.
-table HandPose {
-    // Vector of HandJointPose.
-    // For OpenXR, this should be 26 according to XR_HAND_JOINT_COUNT_EXT
-    joints: HandJoints (id: 0);
-
+struct HandPose {
     // Whether the hand pose data is active
-    is_active: bool (id: 1);
+    is_active: bool;
 
     // Dual timestamp with device and runtime clock domains
-    timestamp: Timestamp (id: 2);
+    timestamp: Timestamp;
+
+    // 26 hand joint poses (XR_HAND_JOINT_COUNT_EXT).
+    joints: [HandJointPose:26];
 }
 
 // Record wrapper for a single hand pose (used as root type for serialization).

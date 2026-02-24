@@ -3,12 +3,10 @@
 
 """Unit tests for HandPoseT and related types in isaacteleop.schema.
 
-HandPoseT is a FlatBuffers table (read-only from Python) that represents hand pose data:
-- joints: HandJoints struct containing 26 HandJointPose entries (XR_HAND_JOINT_COUNT_EXT)
+HandPoseT is a FlatBuffers struct (read-only from Python) that represents hand pose data:
+- joints: Direct access to 26 HandJointPose entries via .joint(i) and .num_joints (XR_HAND_JOINT_COUNT_EXT)
 - is_active: Whether the hand pose data is active
 - timestamp: Timestamp struct with device and common time
-
-HandJoints is a struct with a fixed-size array of 26 HandJointPose entries.
 
 HandJointPose is a struct containing:
 - pose: The Pose (position and orientation)
@@ -22,7 +20,6 @@ import pytest
 
 from isaacteleop.schema import (
     HandPoseT,
-    HandJoints,
     HandJointPose,
     Pose,
     Point,
@@ -101,71 +98,25 @@ class TestHandJointPoseRepr:
         assert "Pose" in repr_str
 
 
-class TestHandJointsStruct:
-    """Tests for HandJoints struct."""
-
-    def test_length(self):
-        """Test that HandJoints has exactly 26 joints."""
-        hand_joints = HandJoints()
-
-        assert len(hand_joints) == 26
-
-    def test_getitem_access(self):
-        """Test accessing joints via __getitem__ (indexing)."""
-        hand_joints = HandJoints()
-
-        # Should be able to access all 26 joints.
-        for i in range(26):
-            joint = hand_joints[i]
-            assert joint is not None
-
-    def test_poses_method(self):
-        """Test accessing joints via poses() method."""
-        hand_joints = HandJoints()
-
-        # Should be able to access via poses method.
-        joint = hand_joints.poses(0)
-        assert joint is not None
-
-    def test_index_out_of_range(self):
-        """Test that accessing out of range index raises IndexError."""
-        hand_joints = HandJoints()
-
-        with pytest.raises(IndexError):
-            _ = hand_joints[26]  # Should fail (0-25 are valid)
-
-
-class TestHandJointsRepr:
-    """Tests for HandJoints __repr__ method."""
-
-    def test_repr(self):
-        """Test __repr__ returns a meaningful string."""
-        hand_joints = HandJoints()
-
-        repr_str = repr(hand_joints)
-        assert "HandJoints" in repr_str
-
-
 class TestHandPoseTConstruction:
     """Tests for HandPoseT construction and basic properties."""
 
     def test_default_construction(self):
-        """Test default construction creates HandPoseT with None joints."""
+        """Test default construction creates HandPoseT with zero-initialized fields."""
         hand_pose = HandPoseT()
 
         assert hand_pose is not None
-        assert hand_pose.joints is None
+        assert hand_pose.num_joints == 26
         assert hand_pose.is_active is False
-        assert hand_pose.timestamp is None
+        assert hand_pose.timestamp.device_time == 0
 
 
 class TestHandPoseTRepr:
     """Tests for HandPoseT __repr__ method."""
 
-    def test_repr_with_no_joints(self):
-        """Test __repr__ when joints is None."""
+    def test_repr(self):
+        """Test __repr__ returns a meaningful string."""
         hand_pose = HandPoseT()
 
         repr_str = repr(hand_pose)
         assert "HandPoseT" in repr_str
-        assert "None" in repr_str

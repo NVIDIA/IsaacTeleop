@@ -28,12 +28,12 @@ public:
     Timestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index = 0) const override;
 
     // Get body pose data
-    const FullBodyPosePicoT& get_body_pose() const;
+    const FullBodyPosePico& get_body_pose() const;
 
 private:
     XrSpace base_space_;
     XrBodyTrackerBD body_tracker_;
-    FullBodyPosePicoT body_pose_;
+    FullBodyPosePico body_pose_;
 
     // Extension function pointers
     PFN_xrCreateBodyTrackerBD pfn_create_body_tracker_;
@@ -101,7 +101,7 @@ FullBodyTrackerPicoImpl::FullBodyTrackerPicoImpl(const OpenXRSessionHandles& han
         throw std::runtime_error("Failed to create body tracker: " + std::to_string(result));
     }
 
-    body_pose_.is_active = false;
+    body_pose_.mutate_is_active(false);
 
     std::cout << "FullBodyTrackerPico initialized (24 joints)" << std::endl;
 }
@@ -135,21 +135,14 @@ bool FullBodyTrackerPicoImpl::update(XrTime time)
     XrResult result = pfn_locate_body_joints_(body_tracker_, &locate_info, &locations);
     if (XR_FAILED(result))
     {
-        body_pose_.is_active = false;
+        body_pose_.mutate_is_active(false);
         return false;
     }
 
-    // allJointPosesTracked indicates if all joint poses are valid
-    body_pose_.is_active = locations.allJointPosesTracked;
+    body_pose_.mutate_is_active(locations.allJointPosesTracked);
 
     // Update timestamp (device time and common time)
-    body_pose_.timestamp = std::make_shared<Timestamp>(time, time);
-
-    // Ensure joints struct is allocated
-    if (!body_pose_.joints)
-    {
-        body_pose_.joints = std::make_unique<BodyJointsPico>();
-    }
+    body_pose_.mutable_timestamp() = Timestamp(time, time);
 
     for (uint32_t i = 0; i < XR_BODY_JOINT_COUNT_BD; ++i)
     {
@@ -164,32 +157,25 @@ bool FullBodyTrackerPicoImpl::update(XrTime time)
         bool is_valid = (joint_loc.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) &&
                         (joint_loc.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT);
 
-        // Create BodyJointPose and set it in the array
         BodyJointPose joint_pose(pose, is_valid);
-        body_pose_.joints->mutable_joints()->Mutate(i, joint_pose);
+        body_pose_.mutable_joints()->Mutate(i, joint_pose);
     }
 
     return true;
 }
 
-const FullBodyPosePicoT& FullBodyTrackerPicoImpl::get_body_pose() const
+const FullBodyPosePico& FullBodyTrackerPicoImpl::get_body_pose() const
 {
     return body_pose_;
 }
 
 Timestamp FullBodyTrackerPicoImpl::serialize(flatbuffers::FlatBufferBuilder& builder, size_t /*channel_index*/) const
 {
-    auto data_offset = FullBodyPosePico::Pack(builder, &body_pose_);
-
     FullBodyPosePicoRecordBuilder record_builder(builder);
-    record_builder.add_data(data_offset);
+    record_builder.add_data(&body_pose_);
     builder.Finish(record_builder.Finish());
 
-    if (body_pose_.timestamp)
-    {
-        return *body_pose_.timestamp;
-    }
-    return Timestamp{};
+    return body_pose_.timestamp();
 }
 
 // ============================================================================
@@ -201,7 +187,7 @@ std::vector<std::string> FullBodyTrackerPico::get_required_extensions() const
     return { XR_BD_BODY_TRACKING_EXTENSION_NAME };
 }
 
-const FullBodyPosePicoT& FullBodyTrackerPico::get_body_pose(const DeviceIOSession& session) const
+const FullBodyPosePico& FullBodyTrackerPico::get_body_pose(const DeviceIOSession& session) const
 {
     return static_cast<const FullBodyTrackerPicoImpl&>(session.get_tracker_impl(*this)).get_body_pose();
 }

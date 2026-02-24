@@ -31,16 +31,12 @@
 // Configuration
 static constexpr size_t MAX_FLATBUFFER_SIZE = 128;
 
-void print_frame_metadata(const core::FrameMetadataT& data, size_t sample_count)
+void print_frame_metadata(const core::FrameMetadata& data, size_t sample_count)
 {
     std::cout << "Sample " << sample_count;
 
-    std::cout << " [seq=" << data.sequence_number;
-    if (data.timestamp)
-    {
-        std::cout << ", device_time=" << data.timestamp->device_time()
-                  << ", common_time=" << data.timestamp->common_time();
-    }
+    std::cout << " [seq=" << data.sequence_number() << ", device_time=" << data.timestamp().device_time()
+              << ", common_time=" << data.timestamp().common_time();
     std::cout << "]";
 
     std::cout << std::endl;
@@ -125,10 +121,10 @@ try
 
         // Print when we have new data (timestamp indicates real data; sequence_number changed)
         const auto& data = tracker->get_data(*session);
-        if (data.timestamp && data.sequence_number != last_printed_sequence)
+        if (data.sequence_number() != last_printed_sequence)
         {
             print_frame_metadata(data, ++received_count);
-            last_printed_sequence = data.sequence_number;
+            last_printed_sequence = data.sequence_number();
         }
 
         // Periodic status update when no data

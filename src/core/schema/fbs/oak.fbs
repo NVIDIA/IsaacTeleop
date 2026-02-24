@@ -6,11 +6,11 @@ include "timestamp.fbs";
 namespace core;
 
 // OAK frame metadata pushed by the OAK camera plugin.
-table FrameMetadata {
+struct FrameMetadata {
   // Dual timestamp with device and runtime clock domains.
-  timestamp: Timestamp (id: 0);
+  timestamp: Timestamp;
 
-  sequence_number: int (id: 1);
+  sequence_number: int;
 }
 
 // Record wrapper for a single frame metadata (used as root type for serialization).

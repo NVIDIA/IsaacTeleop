@@ -95,11 +95,11 @@ try
         if (i % 3 == 0)
         {
             std::cout << "Frame " << i << ": "
-                      << "Hands=" << (left.is_active ? "ACTIVE" : "INACTIVE") << " | "
-                      << "Head=" << (head.is_valid ? "VALID" : "INVALID");
-            if (head.is_valid && head.pose)
+                      << "Hands=" << (left.is_active() ? "ACTIVE" : "INACTIVE") << " | "
+                      << "Head=" << (head.is_valid() ? "VALID" : "INVALID");
+            if (head.is_valid())
             {
-                const auto& pos = head.pose->position();
+                const auto& pos = head.pose().position();
                 std::cout << " [" << pos.x() << ", " << pos.y() << ", " << pos.z() << "]";
             }
             std::cout << std::endl;

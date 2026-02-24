@@ -7,15 +7,15 @@ include "timestamp.fbs";
 namespace core;
 
 // Describe a Head pose.
-table HeadPose {
+struct HeadPose {
     // The concrete pose data
-    pose: Pose (id: 0);
+    pose: Pose;
 
     // Whether the head pose data is valid
-    is_valid: bool (id: 1);
+    is_valid: bool;
 
     // Dual timestamp with device and runtime clock domains
-    timestamp: Timestamp (id: 2);
+    timestamp: Timestamp;
 }
 
 // Record wrapper for a single head pose (used as root type for serialization).

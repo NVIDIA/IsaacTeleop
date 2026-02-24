@@ -23,12 +23,12 @@ PYBIND11_MODULE(_deviceio, m)
         .def(py::init<>())
         .def(
             "get_left_hand",
-            [](core::HandTracker& self, PyDeviceIOSession& session) -> const core::HandPoseT&
+            [](core::HandTracker& self, PyDeviceIOSession& session) -> const core::HandPose&
             { return self.get_left_hand(session.native()); },
             py::arg("session"), py::return_value_policy::reference_internal)
         .def(
             "get_right_hand",
-            [](core::HandTracker& self, PyDeviceIOSession& session) -> const core::HandPoseT&
+            [](core::HandTracker& self, PyDeviceIOSession& session) -> const core::HandPose&
             { return self.get_right_hand(session.native()); },
             py::arg("session"), py::return_value_policy::reference_internal)
         .def_static("get_joint_name", &core::HandTracker::get_joint_name);
@@ -38,7 +38,7 @@ PYBIND11_MODULE(_deviceio, m)
         .def(py::init<>())
         .def(
             "get_head",
-            [](core::HeadTracker& self, PyDeviceIOSession& session) -> const core::HeadPoseT&
+            [](core::HeadTracker& self, PyDeviceIOSession& session) -> const core::HeadPose&
             { return self.get_head(session.native()); },
             py::arg("session"), py::return_value_policy::reference_internal);
 
@@ -64,7 +64,7 @@ PYBIND11_MODULE(_deviceio, m)
              "Construct a FrameMetadataTrackerOak for the given tensor collection ID")
         .def(
             "get_data",
-            [](core::FrameMetadataTrackerOak& self, PyDeviceIOSession& session) -> const core::FrameMetadataT&
+            [](core::FrameMetadataTrackerOak& self, PyDeviceIOSession& session) -> const core::FrameMetadata&
             { return self.get_data(session.native()); },
             py::arg("session"), py::return_value_policy::reference_internal,
             "Get the current frame metadata (timestamp and sequence_number)");
@@ -75,7 +75,7 @@ PYBIND11_MODULE(_deviceio, m)
         .def(py::init<>())
         .def(
             "get_body_pose",
-            [](core::FullBodyTrackerPico& self, PyDeviceIOSession& session) -> const core::FullBodyPosePicoT&
+            [](core::FullBodyTrackerPico& self, PyDeviceIOSession& session) -> const core::FullBodyPosePico&
             { return self.get_body_pose(session.native()); },
             py::arg("session"), py::return_value_policy::reference_internal,
             "Get full body pose data (24 joints from pelvis to hands)");

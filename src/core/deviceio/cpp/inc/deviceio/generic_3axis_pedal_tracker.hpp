@@ -53,7 +53,7 @@ public:
     /*!
      * @brief Get the current foot pedal data.
      */
-    const Generic3AxisPedalOutputT& get_data(const DeviceIOSession& session) const;
+    const Generic3AxisPedalOutput& get_data(const DeviceIOSession& session) const;
 
 protected:
     /*!

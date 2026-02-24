@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Python bindings for the Pedals FlatBuffer schema.
-// Types: Generic3AxisPedalOutput (table).
+// Types: Generic3AxisPedalOutput (struct).
 
 #pragma once
 
@@ -18,41 +18,25 @@ namespace core
 
 inline void bind_pedals(py::module& m)
 {
-    // Bind Generic3AxisPedalOutput table using the native type (Generic3AxisPedalOutputT).
-    py::class_<Generic3AxisPedalOutputT>(m, "Generic3AxisPedalOutput")
+    // Bind Generic3AxisPedalOutput struct.
+    py::class_<Generic3AxisPedalOutput>(m, "Generic3AxisPedalOutput")
         .def(py::init<>())
-        .def_readwrite("is_valid", &Generic3AxisPedalOutputT::is_valid)
-        .def_property(
-            "timestamp", [](const Generic3AxisPedalOutputT& self) -> const Timestamp* { return self.timestamp.get(); },
-            [](Generic3AxisPedalOutputT& self, const Timestamp& ts) { self.timestamp = std::make_unique<Timestamp>(ts); })
-        .def_property(
-            "left_pedal", [](const Generic3AxisPedalOutputT& self) { return self.left_pedal; },
-            [](Generic3AxisPedalOutputT& self, float val) { self.left_pedal = val; })
-        .def_property(
-            "right_pedal", [](const Generic3AxisPedalOutputT& self) { return self.right_pedal; },
-            [](Generic3AxisPedalOutputT& self, float val) { self.right_pedal = val; })
-        .def_property(
-            "rudder", [](const Generic3AxisPedalOutputT& self) { return self.rudder; },
-            [](Generic3AxisPedalOutputT& self, float val) { self.rudder = val; })
+        .def_property_readonly("is_active", &Generic3AxisPedalOutput::is_active)
+        .def_property_readonly(
+            "timestamp", [](const Generic3AxisPedalOutput& self) -> const Timestamp& { return self.timestamp(); },
+            py::return_value_policy::reference_internal)
+        .def_property_readonly("left_pedal", &Generic3AxisPedalOutput::left_pedal)
+        .def_property_readonly("right_pedal", &Generic3AxisPedalOutput::right_pedal)
+        .def_property_readonly("rudder", &Generic3AxisPedalOutput::rudder)
         .def("__repr__",
-             [](const Generic3AxisPedalOutputT& output)
+             [](const Generic3AxisPedalOutput& output)
              {
-                 std::string result =
-                     "Generic3AxisPedalOutput(is_valid=" + std::string(output.is_valid ? "True" : "False");
-                 if (output.timestamp)
-                 {
-                     result += ", timestamp=Timestamp(device_time=" + std::to_string(output.timestamp->device_time()) +
-                               ", common_time=" + std::to_string(output.timestamp->common_time()) + ")";
-                 }
-                 else
-                 {
-                     result += ", timestamp=None";
-                 }
-                 result += ", left_pedal=" + std::to_string(output.left_pedal);
-                 result += ", right_pedal=" + std::to_string(output.right_pedal);
-                 result += ", rudder=" + std::to_string(output.rudder);
-                 result += ")";
-                 return result;
+                 return "Generic3AxisPedalOutput(is_active=" + std::string(output.is_active() ? "True" : "False") +
+                        ", timestamp=Timestamp(device_time=" + std::to_string(output.timestamp().device_time()) +
+                        ", common_time=" + std::to_string(output.timestamp().common_time()) + ")" +
+                        ", left_pedal=" + std::to_string(output.left_pedal()) +
+                        ", right_pedal=" + std::to_string(output.right_pedal()) +
+                        ", rudder=" + std::to_string(output.rudder()) + ")";
              });
 }
 

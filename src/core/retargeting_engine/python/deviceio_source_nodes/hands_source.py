@@ -131,10 +131,9 @@ class HandsSource(IDeviceIOSource):
         radii = np.zeros(NUM_HAND_JOINTS, dtype=np.float32)
         valid = np.zeros(NUM_HAND_JOINTS, dtype=np.uint8)
 
-        # Extract joint data from HandJoints struct
-        joints = hand_data.joints
+        # Extract joint data from HandPose struct
         for i in range(NUM_HAND_JOINTS):
-            joint = joints[i]
+            joint = hand_data.joint(i)
             positions[i] = [
                 joint.pose.position.x,
                 joint.pose.position.y,

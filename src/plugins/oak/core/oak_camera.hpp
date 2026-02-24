@@ -38,7 +38,7 @@ struct OakFrame
     std::vector<uint8_t> h264_data;
 
     /// Frame metadata (timestamp + sequence number) from oak.fbs
-    core::FrameMetadataT metadata;
+    core::FrameMetadata metadata;
 };
 
 /**

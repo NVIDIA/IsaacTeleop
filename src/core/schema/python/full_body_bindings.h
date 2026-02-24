@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Python bindings for the FullBodyPosePico FlatBuffer schema.
-// Includes BodyJointPose struct, BodyJointsPico struct, and FullBodyPosePicoT table.
+// Includes BodyJointPose struct and FullBodyPosePico struct.
 
 #pragma once
 
@@ -69,62 +69,43 @@ inline void bind_full_body(py::module& m)
                         ")), is_valid=" + (self.is_valid() ? "True" : "False") + ")";
              });
 
-    // Bind BodyJointsPico struct (fixed-size array of 24 BodyJointPose).
-    py::class_<BodyJointsPico>(m, "BodyJointsPico")
+    // Bind FullBodyPosePico struct (read-only from Python).
+    py::class_<FullBodyPosePico>(m, "FullBodyPosePicoT")
         .def(py::init<>())
+        .def_property_readonly("is_active", &FullBodyPosePico::is_active)
+        .def_property_readonly(
+            "timestamp", [](const FullBodyPosePico& self) -> const Timestamp& { return self.timestamp(); },
+            py::return_value_policy::reference_internal)
+        .def_property_readonly("num_joints", [](const FullBodyPosePico& self) { return self.joints()->size(); })
         .def(
-            "joints",
-            [](const BodyJointsPico& self, size_t index) -> const BodyJointPose*
+            "joint",
+            [](const FullBodyPosePico& self, size_t index) -> const BodyJointPose*
             {
                 if (index >= static_cast<size_t>(BodyJointPico_NUM_JOINTS))
                 {
-                    throw py::index_error("BodyJointsPico index out of range (must be 0-23)");
+                    throw py::index_error("Joint index out of range (must be 0-23)");
                 }
                 return (*self.joints())[index];
             },
             py::arg("index"), py::return_value_policy::reference_internal,
             "Get the BodyJointPose at the specified index (0 to NUM_JOINTS-1).")
-        .def("__len__", [](const BodyJointsPico&) { return static_cast<size_t>(BodyJointPico_NUM_JOINTS); })
-        .def(
-            "__getitem__",
-            [](const BodyJointsPico& self, size_t index) -> const BodyJointPose*
-            {
-                if (index >= static_cast<size_t>(BodyJointPico_NUM_JOINTS))
-                {
-                    throw py::index_error("BodyJointsPico index out of range (must be 0-" +
-                                          std::to_string(BodyJointPico_NUM_JOINTS - 1) + ")");
-                }
-                return (*self.joints())[index];
-            },
-            py::return_value_policy::reference_internal)
-        .def("__repr__", [](const BodyJointsPico&) { return "BodyJointsPico(joints=[...24 BodyJointPose entries...])"; });
-
-    // Bind FullBodyPosePicoT class (FlatBuffers object API for tables, read-only from Python).
-    py::class_<FullBodyPosePicoT, std::unique_ptr<FullBodyPosePicoT>>(m, "FullBodyPosePicoT")
-        .def(py::init<>())
-        .def_property_readonly(
-            "joints", [](const FullBodyPosePicoT& self) -> const BodyJointsPico* { return self.joints.get(); },
-            py::return_value_policy::reference_internal)
-        .def_readonly("is_active", &FullBodyPosePicoT::is_active)
-        .def_property_readonly(
-            "timestamp", [](const FullBodyPosePicoT& self) -> const Timestamp* { return self.timestamp.get(); },
-            py::return_value_policy::reference_internal)
-        .def("__repr__",
-             [](const FullBodyPosePicoT& self)
+        .def("joints",
+             [](const FullBodyPosePico& self) -> py::list
              {
-                 std::string joints_str = "None";
-                 if (self.joints)
+                 py::list result;
+                 for (size_t i = 0; i < self.joints()->size(); ++i)
                  {
-                     joints_str = "BodyJointsPico(joints=[...24 entries...])";
+                     result.append(py::cast(*(*self.joints())[i]));
                  }
-                 std::string timestamp_str = "None";
-                 if (self.timestamp)
-                 {
-                     timestamp_str = "Timestamp(device=" + std::to_string(self.timestamp->device_time()) +
-                                     ", common=" + std::to_string(self.timestamp->common_time()) + ")";
-                 }
-                 return "FullBodyPosePicoT(joints=" + joints_str +
-                        ", is_active=" + (self.is_active ? "True" : "False") + ", timestamp=" + timestamp_str + ")";
+                 return result;
+             })
+        .def("__repr__",
+             [](const FullBodyPosePico& self)
+             {
+                 return "FullBodyPosePicoT(" + std::to_string(self.joints()->size()) + " joints" +
+                        ", is_active=" + (self.is_active() ? "True" : "False") +
+                        ", timestamp=Timestamp(device=" + std::to_string(self.timestamp().device_time()) +
+                        ", common=" + std::to_string(self.timestamp().common_time()) + "))";
              });
 }
 

@@ -136,18 +136,19 @@ void Generic3AxisPedalPlugin::close_device()
 
 void Generic3AxisPedalPlugin::push_current_state()
 {
-    core::Generic3AxisPedalOutputT out;
-    out.is_valid = (device_fd_ >= 0);
-    out.left_pedal = static_cast<float>(axes_[0]);
-    out.right_pedal = static_cast<float>(axes_[1]);
-    out.rudder = static_cast<float>(axes_[2]);
+    core::Generic3AxisPedalOutput out;
+    out.mutate_is_active(device_fd_ >= 0);
+    out.mutate_left_pedal(static_cast<float>(axes_[0]));
+    out.mutate_right_pedal(static_cast<float>(axes_[1]));
+    out.mutate_rudder(static_cast<float>(axes_[2]));
     auto now = std::chrono::steady_clock::now();
     auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
-    out.timestamp = std::make_shared<core::Timestamp>(ns, ns);
+    out.mutable_timestamp() = core::Timestamp(ns, ns);
 
     flatbuffers::FlatBufferBuilder builder(kMaxFlatbufferSize);
-    auto offset = core::Generic3AxisPedalOutput::Pack(builder, &out);
-    builder.Finish(offset);
+    core::Generic3AxisPedalOutputRecordBuilder record_builder(builder);
+    record_builder.add_data(&out);
+    builder.Finish(record_builder.Finish());
     pusher_.push_buffer(builder.GetBufferPointer(), builder.GetSize());
 }
 

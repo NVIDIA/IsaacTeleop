@@ -28,30 +28,28 @@ public:
         // Try to read new data from tensor stream
         if (m_schema_reader.read_buffer(m_buffer))
         {
-            auto fb = flatbuffers::GetRoot<Generic3AxisPedalOutput>(m_buffer.data());
-            if (fb)
+            auto record = flatbuffers::GetRoot<Generic3AxisPedalOutputRecord>(m_buffer.data());
+            if (record && record->data())
             {
-                fb->UnPackTo(&m_data);
+                m_data = *record->data();
                 return true;
             }
         }
         // Return true even if no new data - we're still running, but invalid data.
-        m_data.is_valid = false;
+        m_data.mutate_is_active(false);
         return true;
     }
 
     Timestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t /*channel_index*/ = 0) const override
     {
-        auto data_offset = Generic3AxisPedalOutput::Pack(builder, &m_data);
-
         Generic3AxisPedalOutputRecordBuilder record_builder(builder);
-        record_builder.add_data(data_offset);
+        record_builder.add_data(&m_data);
         builder.Finish(record_builder.Finish());
 
-        return m_data.timestamp ? *m_data.timestamp : Timestamp{};
+        return m_data.timestamp();
     }
 
-    const Generic3AxisPedalOutputT& get_data() const
+    const Generic3AxisPedalOutput& get_data() const
     {
         return m_data;
     }
@@ -59,7 +57,7 @@ public:
 private:
     SchemaTracker m_schema_reader;
     std::vector<uint8_t> m_buffer;
-    Generic3AxisPedalOutputT m_data;
+    Generic3AxisPedalOutput m_data;
 };
 
 // ============================================================================
@@ -100,7 +98,7 @@ const SchemaTrackerConfig& Generic3AxisPedalTracker::get_config() const
     return m_config;
 }
 
-const Generic3AxisPedalOutputT& Generic3AxisPedalTracker::get_data(const DeviceIOSession& session) const
+const Generic3AxisPedalOutput& Generic3AxisPedalTracker::get_data(const DeviceIOSession& session) const
 {
     return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_data();
 }

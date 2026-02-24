@@ -52,7 +52,7 @@ public:
     /*!
      * @brief Get the current frame metadata.
      */
-    const FrameMetadataT& get_data(const DeviceIOSession& session) const;
+    const FrameMetadata& get_data(const DeviceIOSession& session) const;
 
 protected:
     const SchemaTrackerConfig& get_config() const;

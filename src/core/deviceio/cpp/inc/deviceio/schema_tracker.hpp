@@ -71,7 +71,7 @@ struct SchemaTrackerConfig
  *             LocomotionBinarySchema::size());
  *     }
  *
- *     const LocomotionCommandT& get_data(const DeviceIOSession& session) const {
+ *     const LocomotionCommand& get_data(const DeviceIOSession& session) const {
  *         return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_data();
  *     }
  *
@@ -89,9 +89,9 @@ struct SchemaTrackerConfig
  *
  *         bool update(XrTime time) override {
  *             if (m_schema_reader.read_buffer(buffer_)) {
- *                 auto fb = flatbuffers::GetRoot<LocomotionCommand>(buffer_.data());
- *                 if (fb) {
- *                     fb->UnPackTo(&data_);
+ *                 auto record = flatbuffers::GetRoot<LocomotionCommandRecord>(buffer_.data());
+ *                 if (record && record->data()) {
+ *                     data_ = *record->data();
  *                     return true;
  *                 }
  *             }
@@ -101,19 +101,18 @@ struct SchemaTrackerConfig
  *         Timestamp serialize(flatbuffers::FlatBufferBuilder& builder,
  *                            size_t channel_index = 0) const override
  *         {
- *             auto data_offset = LocomotionCommand::Pack(builder, &data_);
  *             LocomotionCommandRecordBuilder record_builder(builder);
- *             record_builder.add_data(data_offset);
+ *             record_builder.add_data(&data_);
  *             builder.Finish(record_builder.Finish());
- *             return data_.timestamp ? *data_.timestamp : Timestamp{};
+ *             return data_.timestamp();
  *         }
  *
- *         const LocomotionCommandT& get_data() const { return data_; }
+ *         const LocomotionCommand& get_data() const { return data_; }
  *
  *     private:
  *         SchemaTracker m_schema_reader;
  *         std::vector<uint8_t> buffer_;
- *         LocomotionCommandT data_;
+ *         LocomotionCommand data_;
  *     };
  * };
  * @endcode

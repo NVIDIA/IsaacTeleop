@@ -42,7 +42,7 @@ public:
     }
 
     // Query method - public API for getting body pose data
-    const FullBodyPosePicoT& get_body_pose(const DeviceIOSession& session) const;
+    const FullBodyPosePico& get_body_pose(const DeviceIOSession& session) const;
 
 private:
     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;

@@ -38,7 +38,7 @@ bool HeadTracker::Impl::update(XrTime time)
 
     if (XR_FAILED(result))
     {
-        head_.is_valid = false;
+        head_.mutate_is_valid(false);
         return false;
     }
 
@@ -46,46 +46,40 @@ bool HeadTracker::Impl::update(XrTime time)
     bool position_valid = (location.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0;
     bool orientation_valid = (location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0;
 
-    head_.is_valid = position_valid && orientation_valid;
+    head_.mutate_is_valid(position_valid && orientation_valid);
 
     // Update timestamp (device time and common time)
-    head_.timestamp = std::make_shared<Timestamp>(time, time);
+    head_.mutable_timestamp() = Timestamp(time, time);
 
-    if (head_.is_valid)
+    if (head_.is_valid())
     {
         // Create pose from position and orientation using FlatBuffers structs
         Point position(location.pose.position.x, location.pose.position.y, location.pose.position.z);
         Quaternion orientation(location.pose.orientation.x, location.pose.orientation.y, location.pose.orientation.z,
                                location.pose.orientation.w);
-        head_.pose = std::make_shared<Pose>(position, orientation);
+        head_.mutable_pose() = Pose(position, orientation);
     }
     else
     {
-        // Invalid - reset pose
-        head_.pose.reset();
+        // Invalid - reset pose to default
+        head_.mutable_pose() = Pose();
     }
 
     return true;
 }
 
-const HeadPoseT& HeadTracker::Impl::get_head() const
+const HeadPose& HeadTracker::Impl::get_head() const
 {
     return head_;
 }
 
 Timestamp HeadTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, size_t /*channel_index*/) const
 {
-    auto data_offset = HeadPose::Pack(builder, &head_);
-
     HeadPoseRecordBuilder record_builder(builder);
-    record_builder.add_data(data_offset);
+    record_builder.add_data(&head_);
     builder.Finish(record_builder.Finish());
 
-    if (head_.timestamp)
-    {
-        return *head_.timestamp;
-    }
-    return Timestamp{};
+    return head_.timestamp();
 }
 
 // ============================================================================
@@ -98,7 +92,7 @@ std::vector<std::string> HeadTracker::get_required_extensions() const
     return {};
 }
 
-const HeadPoseT& HeadTracker::get_head(const DeviceIOSession& session) const
+const HeadPose& HeadTracker::get_head(const DeviceIOSession& session) const
 {
     return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_head();
 }

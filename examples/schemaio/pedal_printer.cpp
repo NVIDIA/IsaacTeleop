@@ -27,12 +27,13 @@
 
 using namespace schemaio_example;
 
-void print_pedal_data(const core::Generic3AxisPedalOutputT& data, size_t sample_count)
+void print_pedal_data(const core::Generic3AxisPedalOutput& data, size_t sample_count)
 {
     std::cout << "Sample " << sample_count;
 
-    std::cout << std::fixed << std::setprecision(3) << " [is_valid=" << (data.is_valid ? "true" : "false")
-              << ", left=" << data.left_pedal << ", right=" << data.right_pedal << ", rudder=" << data.rudder << "]";
+    std::cout << std::fixed << std::setprecision(3) << " [is_active=" << (data.is_active() ? "true" : "false")
+              << ", left=" << data.left_pedal() << ", right=" << data.right_pedal() << ", rudder=" << data.rudder()
+              << "]";
 
     std::cout << std::endl;
 }
@@ -77,7 +78,7 @@ try
 
         // Print current data if available
         const auto& data = tracker->get_data(*session);
-        if (data.is_valid)
+        if (data.is_active())
         {
             print_pedal_data(data, received_count++);
         }

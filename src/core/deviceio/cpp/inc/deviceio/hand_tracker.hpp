@@ -42,8 +42,8 @@ public:
     }
 
     // Query methods - public API for getting hand data
-    const HandPoseT& get_left_hand(const DeviceIOSession& session) const;
-    const HandPoseT& get_right_hand(const DeviceIOSession& session) const;
+    const HandPose& get_left_hand(const DeviceIOSession& session) const;
+    const HandPose& get_right_hand(const DeviceIOSession& session) const;
 
     // Get joint name for debugging
     static std::string get_joint_name(uint32_t joint_index);
@@ -67,12 +67,12 @@ private:
 
         Timestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index = 0) const override;
 
-        const HandPoseT& get_left_hand() const;
-        const HandPoseT& get_right_hand() const;
+        const HandPose& get_left_hand() const;
+        const HandPose& get_right_hand() const;
 
     private:
         // Helper functions
-        bool update_hand(XrHandTrackerEXT tracker, XrTime time, HandPoseT& out_data);
+        bool update_hand(XrHandTrackerEXT tracker, XrTime time, HandPose& out_data);
 
         XrSpace base_space_;
 
@@ -81,8 +81,8 @@ private:
         XrHandTrackerEXT right_hand_tracker_;
 
         // Hand data
-        HandPoseT left_hand_;
-        HandPoseT right_hand_;
+        HandPose left_hand_;
+        HandPose right_hand_;
 
         // Extension function pointers
         PFN_xrCreateHandTrackerEXT pfn_create_hand_tracker_;

@@ -8,15 +8,15 @@ include "pose.fbs";
 namespace core;
 
 // Locomotion command output from input devices (foot pedal, gamepad, etc.)
-table LocomotionCommand {
+struct LocomotionCommand {
   // Dual timestamp with device and runtime clock domains.
-  timestamp: Timestamp (id: 0);
+  timestamp: Timestamp;
 
   // Computed velocity command.
-  velocity: Twist (id: 1);
+  velocity: Twist;
 
   // Computed pose command (e.g., for squat/vertical mode).
-  pose: Pose (id: 2);
+  pose: Pose;
 }
 
 // Record wrapper for a single locomotion command (used as root type for serialization).

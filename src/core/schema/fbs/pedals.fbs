@@ -10,18 +10,18 @@ namespace core;
 //
 // Validated devices:
 // - https://www.logitechg.com/en-us/shop/p/flight-simulator-rudder-pedals
-table Generic3AxisPedalOutput {
-  // Whether the output data is valid.
-  is_valid: bool (id: 0);
+struct Generic3AxisPedalOutput {
+  // Whether the pedal device is active.
+  is_active: bool;
 
   // Dual timestamp with device and runtime clock domains.
-  timestamp: Timestamp (id: 1);
+  timestamp: Timestamp;
 
-  left_pedal: float (id: 2);
+  left_pedal: float;
 
-  right_pedal: float (id: 3);
+  right_pedal: float;
 
-  rudder: float (id: 4);
+  rudder: float;
 }
 
 // Record wrapper for a single pedal output (used as root type for serialization).

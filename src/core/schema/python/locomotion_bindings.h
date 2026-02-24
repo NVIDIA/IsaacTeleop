@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Python bindings for the Locomotion FlatBuffer schema.
-// Types: Twist (struct), LocomotionCommand (table).
+// Types: Twist (struct), LocomotionCommand (struct).
 
 #pragma once
 
@@ -33,51 +33,25 @@ inline void bind_locomotion(py::module& m)
                         ", y=" + std::to_string(t.angular().y()) + ", z=" + std::to_string(t.angular().z()) + "))";
              });
 
-    // Bind LocomotionCommand table using the native type (LocomotionCommandT).
-    py::class_<LocomotionCommandT>(m, "LocomotionCommand")
+    // Bind LocomotionCommand struct.
+    py::class_<LocomotionCommand>(m, "LocomotionCommand")
         .def(py::init<>())
-        .def_property(
-            "timestamp", [](const LocomotionCommandT& self) -> const Timestamp* { return self.timestamp.get(); },
-            [](LocomotionCommandT& self, const Timestamp& ts) { self.timestamp = std::make_unique<Timestamp>(ts); })
-        .def_property(
-            "velocity", [](const LocomotionCommandT& self) -> const Twist* { return self.velocity.get(); },
-            [](LocomotionCommandT& self, const Twist& vel) { self.velocity = std::make_unique<Twist>(vel); })
-        .def_property(
-            "pose", [](const LocomotionCommandT& self) -> const Pose* { return self.pose.get(); },
-            [](LocomotionCommandT& self, const Pose& p) { self.pose = std::make_unique<Pose>(p); })
+        .def_property_readonly(
+            "timestamp", [](const LocomotionCommand& self) -> const Timestamp& { return self.timestamp(); },
+            py::return_value_policy::reference_internal)
+        .def_property_readonly(
+            "velocity", [](const LocomotionCommand& self) -> const Twist& { return self.velocity(); },
+            py::return_value_policy::reference_internal)
+        .def_property_readonly(
+            "pose", [](const LocomotionCommand& self) -> const Pose& { return self.pose(); },
+            py::return_value_policy::reference_internal)
         .def("__repr__",
-             [](const LocomotionCommandT& cmd)
+             [](const LocomotionCommand& cmd)
              {
-                 std::string result = "LocomotionCommand(";
-                 if (cmd.timestamp)
-                 {
-                     result += "timestamp=Timestamp(device_time=" + std::to_string(cmd.timestamp->device_time()) +
-                               ", common_time=" + std::to_string(cmd.timestamp->common_time()) + ")";
-                 }
-                 else
-                 {
-                     result += "timestamp=None";
-                 }
-                 result += ", velocity=";
-                 if (cmd.velocity)
-                 {
-                     result += "Twist(...)";
-                 }
-                 else
-                 {
-                     result += "None";
-                 }
-                 result += ", pose=";
-                 if (cmd.pose)
-                 {
-                     result += "Pose(...)";
-                 }
-                 else
-                 {
-                     result += "None";
-                 }
-                 result += ")";
-                 return result;
+                 return "LocomotionCommand(timestamp=Timestamp(device_time=" +
+                        std::to_string(cmd.timestamp().device_time()) +
+                        ", common_time=" + std::to_string(cmd.timestamp().common_time()) + ")" +
+                        ", velocity=Twist(...)" + ", pose=Pose(...))";
              });
 }
 
