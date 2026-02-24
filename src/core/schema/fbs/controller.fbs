@@ -40,9 +40,6 @@ table ControllerSnapshot {
 
     // Input state - all buttons and axes
     inputs: ControllerInputState (id: 2);
-
-    // Dual timestamp with device and runtime clock domains
-    timestamp: Timestamp (id: 3);
 }
 
 // Tracked wrapper for the in-memory tracker API (data is null when controller is inactive).
@@ -57,6 +54,7 @@ table ControllerSnapshotTracked {
 // public query API returns the inner data type directly.
 table ControllerSnapshotRecord {
     data: ControllerSnapshot (id: 0);
+    timestamp: DeviceDataTimestamp (id: 1);
 }
 
 root_type ControllerSnapshotRecord;

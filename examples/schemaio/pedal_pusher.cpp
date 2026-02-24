@@ -51,13 +51,16 @@ public:
      * @param data The Generic3AxisPedalOutputT native object to serialize and push.
      * @throws std::runtime_error if the push fails.
      */
-    void push(const core::Generic3AxisPedalOutputT& data)
+    void push(const core::Generic3AxisPedalOutputT& data,
+              int64_t sample_time_local_common_clock_ns,
+              int64_t sample_time_raw_device_clock_ns)
     {
         flatbuffers::FlatBufferBuilder builder(m_pusher.config().max_flatbuffer_size);
         auto offset = core::Generic3AxisPedalOutput::Pack(builder, &data);
         builder.Finish(offset);
 
-        m_pusher.push_buffer(builder.GetBufferPointer(), builder.GetSize());
+        m_pusher.push_buffer(builder.GetBufferPointer(), builder.GetSize(), sample_time_local_common_clock_ns,
+                             sample_time_raw_device_clock_ns);
     }
 
 private:
@@ -103,10 +106,13 @@ try
         pedal_output.rudder = rudder;
 
         auto now = std::chrono::steady_clock::now();
-        auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
-        pedal_output.timestamp = std::make_shared<core::Timestamp>(ns, ns);
+        auto sample_time_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
 
-        pusher->push(pedal_output);
+        // Both clock arguments use the same monotonic timestamp here for simplicity.
+        // In production, supply the device's raw clock for sample_time_raw_device_clock_ns
+        // and the synchronized system (common) clock for sample_time_local_common_clock_ns
+        // — the two may differ and should be tracked separately.
+        pusher->push(pedal_output, sample_time_ns, sample_time_ns);
         std::cout << "Pushed sample " << i << std::fixed << std::setprecision(3) << " [left=" << left_pedal
                   << ", right=" << right_pedal << ", rudder=" << rudder << "]" << std::endl;
 

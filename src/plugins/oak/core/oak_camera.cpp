@@ -174,10 +174,11 @@ void OakCamera::update()
 
         OakFrame frame;
         frame.stream = type;
-        frame.data.assign(raw.begin(), raw.end());
+        frame.h264_data.assign(raw.begin(), raw.end());
         frame.metadata.stream = type;
-        frame.metadata.timestamp = std::make_unique<core::Timestamp>(device_time_ns, common_time_ns);
-        frame.metadata.sequence_number = packet->getSequenceNum();
+        frame.metadata.sequence_number = static_cast<uint64_t>(packet->getSequenceNum());
+        frame.sample_time_local_common_clock_ns = common_time_ns;
+        frame.sample_time_raw_device_clock_ns = device_time_ns;
 
         m_sink->on_frame(frame);
         ++m_frame_counts[type];

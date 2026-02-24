@@ -46,8 +46,18 @@ struct OakConfig
 struct OakFrame
 {
     core::StreamType stream;
-    std::vector<uint8_t> data;
+
+    /// H.264 encoded frame data
+    std::vector<uint8_t> h264_data;
+
+    /// Frame metadata (sequence number) from oak.fbs
     core::FrameMetadataOakT metadata;
+
+    /// Sample time in local common clock (system monotonic, nanoseconds)
+    int64_t sample_time_local_common_clock_ns = 0;
+
+    /// Sample time in raw device clock (nanoseconds)
+    int64_t sample_time_raw_device_clock_ns = 0;
 };
 
 // ============================================================================

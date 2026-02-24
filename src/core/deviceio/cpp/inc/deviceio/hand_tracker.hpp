@@ -5,6 +5,7 @@
 
 #include "tracker.hpp"
 
+#include <oxr_utils/oxr_time.hpp>
 #include <schema/hand_bfbs_generated.h>
 #include <schema/hand_generated.h>
 
@@ -65,7 +66,7 @@ private:
         // Override from ITrackerImpl
         bool update(XrTime time) override;
 
-        Timestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const override;
+        DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index = 0) const override;
 
         const HandPoseTrackedT& get_left_hand() const;
         const HandPoseTrackedT& get_right_hand() const;
@@ -74,6 +75,7 @@ private:
         // Helper functions
         bool update_hand(XrHandTrackerEXT tracker, XrTime time, HandPoseTrackedT& tracked);
 
+        XrTimeConverter time_converter_;
         XrSpace base_space_;
 
         // Hand trackers

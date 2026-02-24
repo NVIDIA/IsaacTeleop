@@ -125,8 +125,9 @@ void ManusTracker::initialize(const std::string& app_name) noexcept(false)
         m_session = std::make_shared<core::OpenXRSession>(app_name, extensions);
         auto handles = m_session->get_handles();
 
-        // Initialize hand injector
+        // Initialize hand injector and time converter
         m_injector.emplace(handles.instance, handles.session, handles.space);
+        m_time_converter.emplace(handles);
 
         m_deviceio_session = core::DeviceIOSession::run(trackers, handles);
 
@@ -346,15 +347,9 @@ void ManusTracker::inject_hand_data()
     const auto& left_tracked = m_controller_tracker->get_left_controller(*m_deviceio_session);
     const auto& right_tracked = m_controller_tracker->get_right_controller(*m_deviceio_session);
 
-    // Need at least one active controller for a valid timestamp
-    if (!left_tracked.data && !right_tracked.data)
-    {
-        return;
-    }
-
-    // Get timestamp from controller data for injection
-    XrTime time =
-        left_tracked.data ? left_tracked.data->timestamp->device_time() : right_tracked.data->timestamp->device_time();
+    // Use the OpenXR runtime clock for injection time so it aligns with the
+    // runtime's own time domain (XrTime), rather than a raw steady_clock cast.
+    XrTime time = m_time_converter->os_monotonic_now();
 
     auto process_hand = [&](const std::vector<SkeletonNode>& nodes, bool is_left)
     {

@@ -5,6 +5,8 @@
 
 #include "inc/deviceio/deviceio_session.hpp"
 
+#include <oxr_utils/oxr_time.hpp>
+
 #include <cassert>
 #include <cstring>
 #include <iostream>
@@ -25,12 +27,13 @@ public:
 
     // Override from ITrackerImpl
     bool update(XrTime time) override;
-    Timestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const override;
+    DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index = 0) const override;
 
     // Get body pose data
     const FullBodyPosePicoTrackedT& get_body_pose() const;
 
 private:
+    XrTimeConverter time_converter_;
     XrSpace base_space_;
     XrBodyTrackerBD body_tracker_;
     FullBodyPosePicoTrackedT tracked_;
@@ -43,7 +46,8 @@ private:
 };
 
 FullBodyTrackerPicoImpl::FullBodyTrackerPicoImpl(const OpenXRSessionHandles& handles)
-    : base_space_(handles.space),
+    : time_converter_(handles),
+      base_space_(handles.space),
       body_tracker_(XR_NULL_HANDLE),
       pfn_create_body_tracker_(nullptr),
       pfn_destroy_body_tracker_(nullptr),
@@ -151,8 +155,6 @@ bool FullBodyTrackerPicoImpl::update(XrTime time)
         tracked_.data = std::make_shared<FullBodyPosePicoT>();
     }
 
-    tracked_.data->timestamp = std::make_shared<Timestamp>(time, time);
-
     if (!tracked_.data->joints)
     {
         tracked_.data->joints = std::make_shared<BodyJointsPico>();
@@ -182,19 +184,21 @@ const FullBodyPosePicoTrackedT& FullBodyTrackerPicoImpl::get_body_pose() const
     return tracked_;
 }
 
-Timestamp FullBodyTrackerPicoImpl::serialize(flatbuffers::FlatBufferBuilder& builder, size_t /*channel_index*/) const
+DeviceDataTimestamp FullBodyTrackerPicoImpl::serialize(flatbuffers::FlatBufferBuilder& builder,
+                                                       size_t /*channel_index*/) const
 {
+    int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
+    DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
+
+    FullBodyPosePicoRecordBuilder record_builder(builder);
     if (tracked_.data)
     {
         auto data_offset = FullBodyPosePico::Pack(builder, tracked_.data.get());
-        FullBodyPosePicoRecordBuilder record_builder(builder);
         record_builder.add_data(data_offset);
-        builder.Finish(record_builder.Finish());
-        return *tracked_.data->timestamp;
     }
-    FullBodyPosePicoRecordBuilder record_builder(builder);
+    record_builder.add_timestamp(&timestamp);
     builder.Finish(record_builder.Finish());
-    return Timestamp(last_update_time_, last_update_time_);
+    return timestamp;
 }
 
 // ============================================================================

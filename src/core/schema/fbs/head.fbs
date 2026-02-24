@@ -14,9 +14,6 @@ table HeadPose {
 
     // Whether the head pose data is valid
     is_valid: bool (id: 1);
-
-    // Dual timestamp with device and runtime clock domains
-    timestamp: Timestamp (id: 2);
 }
 
 // Tracked wrapper for the in-memory tracker API (data is null when head is inactive).
@@ -31,6 +28,7 @@ table HeadPoseTracked {
 // public query API returns the inner data type directly.
 table HeadPoseRecord {
     data: HeadPose (id: 0);
+    timestamp: DeviceDataTimestamp (id: 1);
 }
 
 root_type HeadPoseRecord;

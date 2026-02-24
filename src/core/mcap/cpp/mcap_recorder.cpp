@@ -7,8 +7,8 @@
 #include <deviceio/deviceio_session.hpp>
 #include <flatbuffers/flatbuffers.h>
 #include <mcap/writer.hpp>
+#include <oxr_utils/os_time.hpp>
 
-#include <chrono>
 #include <iostream>
 #include <stdexcept>
 
@@ -132,27 +132,17 @@ private:
             return false;
         }
 
-        flatbuffers::FlatBufferBuilder builder(256);
-        Timestamp timestamp = tracker_impl.serialize(builder, channel_index);
+        // Capture write time before serialize so logTime reflects when the record
+        // hit the recorder, not when the tracker last updated.
+        const mcap::Timestamp now = static_cast<mcap::Timestamp>(os_monotonic_now_ns());
 
-        // Use tracker timestamp for log time, fall back to system time if 0
-        mcap::Timestamp log_time;
-        if (timestamp.device_time() != 0)
-        {
-            // XrTime is in nanoseconds, same as MCAP Timestamp
-            log_time = static_cast<mcap::Timestamp>(timestamp.device_time());
-        }
-        else
-        {
-            log_time = static_cast<mcap::Timestamp>(
-                std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
-                    .count());
-        }
+        flatbuffers::FlatBufferBuilder builder(256);
+        tracker_impl.serialize(builder, channel_index);
 
         mcap::Message msg;
         msg.channelId = it->second[channel_index];
-        msg.logTime = log_time;
-        msg.publishTime = log_time;
+        msg.logTime = now;
+        msg.publishTime = now;
         msg.sequence = static_cast<uint32_t>(message_count_);
         msg.data = reinterpret_cast<const std::byte*>(builder.GetBufferPointer());
         msg.dataSize = builder.GetSize();

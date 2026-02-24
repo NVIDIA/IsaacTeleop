@@ -154,12 +154,10 @@ class HandsSource(IDeviceIOSource):
             radii[i] = joint.radius
             valid[i] = 1 if joint.is_valid else 0
 
-        # Update output tensor group
         group[HandInputIndex.JOINT_POSITIONS] = positions
         group[HandInputIndex.JOINT_ORIENTATIONS] = orientations
         group[HandInputIndex.JOINT_RADII] = radii
         group[HandInputIndex.JOINT_VALID] = valid
-        group[HandInputIndex.TIMESTAMP] = int(hand_data.timestamp.device_time)
 
     def transformed(self, transform_input: OutputSelector) -> RetargeterSubgraph:
         """

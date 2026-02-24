@@ -34,9 +34,9 @@ public:
      *
      * @param builder Output FlatBufferBuilder to write serialized data into.
      * @param channel_index Which channel to serialize (0 for single-channel trackers).
-     * @return Timestamp for MCAP recording (device_time and common_time).
+     * @return DeviceDataTimestamp for MCAP recording.
      */
-    virtual Timestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const = 0;
+    virtual DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index = 0) const = 0;
 };
 
 // Base interface for all trackers

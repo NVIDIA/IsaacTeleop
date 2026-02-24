@@ -9,6 +9,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <schema/full_body_generated.h>
+#include <schema/timestamp_generated.h>
 
 #include <array>
 #include <cstring>
@@ -93,23 +94,18 @@ inline void bind_full_body(py::module& m)
             {
                 auto obj = std::make_shared<FullBodyPosePicoT>();
                 obj->joints = std::make_shared<BodyJointsPico>();
-                obj->timestamp = std::make_shared<Timestamp>();
                 return obj;
             }))
         .def(py::init(
-                 [](const BodyJointsPico& joints, const Timestamp& timestamp)
+                 [](const BodyJointsPico& joints)
                  {
                      auto obj = std::make_shared<FullBodyPosePicoT>();
                      obj->joints = std::make_shared<BodyJointsPico>(joints);
-                     obj->timestamp = std::make_shared<Timestamp>(timestamp);
                      return obj;
                  }),
-             py::arg("joints"), py::arg("timestamp"))
+             py::arg("joints"))
         .def_property_readonly(
             "joints", [](const FullBodyPosePicoT& self) -> const BodyJointsPico* { return self.joints.get(); },
-            py::return_value_policy::reference_internal)
-        .def_property_readonly(
-            "timestamp", [](const FullBodyPosePicoT& self) -> const Timestamp* { return self.timestamp.get(); },
             py::return_value_policy::reference_internal)
         .def("__repr__",
              [](const FullBodyPosePicoT& self)
@@ -119,21 +115,34 @@ inline void bind_full_body(py::module& m)
                  {
                      joints_str = "BodyJointsPico(joints=[...24 entries...])";
                  }
-                 std::string timestamp_str = "None";
-                 if (self.timestamp)
-                 {
-                     timestamp_str = "Timestamp(device=" + std::to_string(self.timestamp->device_time()) +
-                                     ", common=" + std::to_string(self.timestamp->common_time()) + ")";
-                 }
-                 return "FullBodyPosePicoT(joints=" + joints_str + ", timestamp=" + timestamp_str + ")";
+                 return "FullBodyPosePicoT(joints=" + joints_str + ")";
              });
 
-    py::class_<FullBodyPosePicoTrackedT>(m, "FullBodyPosePicoTrackedT")
+    py::class_<FullBodyPosePicoRecordT, std::shared_ptr<FullBodyPosePicoRecordT>>(m, "FullBodyPosePicoRecord")
+        .def(py::init<>())
+        .def(py::init(
+                 [](const FullBodyPosePicoT& data, const DeviceDataTimestamp& timestamp)
+                 {
+                     auto obj = std::make_shared<FullBodyPosePicoRecordT>();
+                     obj->data = std::make_shared<FullBodyPosePicoT>(data);
+                     obj->timestamp = std::make_shared<core::DeviceDataTimestamp>(timestamp);
+                     return obj;
+                 }),
+             py::arg("data"), py::arg("timestamp"))
+        .def_property_readonly(
+            "data", [](const FullBodyPosePicoRecordT& self) -> std::shared_ptr<FullBodyPosePicoT> { return self.data; })
+        .def_readonly("timestamp", &FullBodyPosePicoRecordT::timestamp)
+        .def("__repr__",
+             [](const FullBodyPosePicoRecordT& self) {
+                 return "FullBodyPosePicoRecord(data=" + std::string(self.data ? "FullBodyPosePicoT(...)" : "None") + ")";
+             });
+
+    py::class_<FullBodyPosePicoTrackedT, std::shared_ptr<FullBodyPosePicoTrackedT>>(m, "FullBodyPosePicoTrackedT")
         .def(py::init<>())
         .def(py::init(
                  [](const FullBodyPosePicoT& data)
                  {
-                     auto obj = std::make_unique<FullBodyPosePicoTrackedT>();
+                     auto obj = std::make_shared<FullBodyPosePicoTrackedT>();
                      obj->data = std::make_shared<FullBodyPosePicoT>(data);
                      return obj;
                  }),

@@ -138,7 +138,3 @@ class FullBodySource(IDeviceIOSource):
         group[FullBodyInputIndex.JOINT_POSITIONS] = positions
         group[FullBodyInputIndex.JOINT_ORIENTATIONS] = orientations
         group[FullBodyInputIndex.JOINT_VALID] = valid
-        timestamp = 0
-        if body_pose.timestamp is not None:
-            timestamp = body_pose.timestamp.device_time
-        group[FullBodyInputIndex.TIMESTAMP] = timestamp

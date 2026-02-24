@@ -36,6 +36,7 @@ SyntheticHandsPlugin::SyntheticHandsPlugin(const std::string& plugin_root_id) no
     // Initialize hand injection (world space mode only - space-based injection would need
     // access to controller spaces which are internal to ControllerTracker)
     m_injector.emplace(handles.instance, handles.session, handles.space);
+    m_time_converter.emplace(handles);
 
     // Start worker thread
     m_running = true;
@@ -77,6 +78,11 @@ void SyntheticHandsPlugin::worker_thread()
         const auto& left_tracked = m_controller_tracker->get_left_controller(*m_deviceio_session);
         const auto& right_tracked = m_controller_tracker->get_right_controller(*m_deviceio_session);
 
+        // Use the OpenXR runtime clock for injection time so it aligns with the
+        // runtime's own time domain (XrTime), rather than a raw steady_clock cast.
+        XrTime time = m_time_converter->os_monotonic_now();
+
+
         // Get target curl values from trigger inputs
         float left_target = 0.0f;
         float right_target = 0.0f;
@@ -116,7 +122,7 @@ void SyntheticHandsPlugin::worker_thread()
             if (grip_valid && aim_valid)
             {
                 m_hand_gen.generate(left_joints, wrist, true, left_curl_current);
-                m_injector->push_left(left_joints, left_tracked.data->timestamp->device_time());
+                m_injector->push_left(left_joints, time);
             }
         }
 
@@ -130,7 +136,7 @@ void SyntheticHandsPlugin::worker_thread()
             if (grip_valid && aim_valid)
             {
                 m_hand_gen.generate(right_joints, wrist, false, right_curl_current);
-                m_injector->push_right(right_joints, right_tracked.data->timestamp->device_time());
+                m_injector->push_right(right_joints, time);
             }
         }
 

@@ -290,12 +290,11 @@ class TestTransformOrientationsBatch:
 
 
 class TestHeadTransform:
-    def _make_head_input(self, position, orientation, is_valid=True, timestamp=100):
+    def _make_head_input(self, position, orientation, is_valid=True):
         tg = TensorGroup(HeadPose())
         tg[HeadPoseIndex.POSITION] = np.array(position, dtype=np.float32)
         tg[HeadPoseIndex.ORIENTATION] = np.array(orientation, dtype=np.float32)
         tg[HeadPoseIndex.IS_VALID] = is_valid
-        tg[HeadPoseIndex.TIMESTAMP] = timestamp
         return tg
 
     def test_identity_transform(self):
@@ -311,7 +310,6 @@ class TestHeadTransform:
             np.from_dlpack(out[HeadPoseIndex.ORIENTATION]), [0, 0, 0, 1], decimal=5
         )
         assert out[HeadPoseIndex.IS_VALID] is True
-        assert out[HeadPoseIndex.TIMESTAMP] == 100
 
     def test_translation_transform(self):
         node = HeadTransform("head_xform")
@@ -339,14 +337,11 @@ class TestHeadTransform:
 
     def test_passthrough_fields_preserved(self):
         node = HeadTransform("head_xform")
-        head_in = self._make_head_input(
-            [0, 0, 0], [0, 0, 0, 1], is_valid=False, timestamp=42
-        )
+        head_in = self._make_head_input([0, 0, 0], [0, 0, 0, 1], is_valid=False)
         xform_in = _make_transform_input(_rotation_z_90_with_translation())
         result = _run_retargeter(node, {"head": head_in, "transform": xform_in})
         out = result["head"]
         assert out[HeadPoseIndex.IS_VALID] is False
-        assert out[HeadPoseIndex.TIMESTAMP] == 42
 
 
 # ============================================================================
@@ -491,7 +486,7 @@ class TestControllerTransform:
 
 
 class TestHandTransform:
-    def _make_hand_input(self, joint_offset=0.0, timestamp=200):
+    def _make_hand_input(self, joint_offset=0.0):
         tg = TensorGroup(HandInput())
         positions = np.zeros((NUM_HAND_JOINTS, 3), dtype=np.float32)
         positions[:, 0] = np.arange(NUM_HAND_JOINTS, dtype=np.float32) + joint_offset
@@ -504,7 +499,6 @@ class TestHandTransform:
         tg[HandInputIndex.JOINT_ORIENTATIONS] = orientations
         tg[HandInputIndex.JOINT_RADII] = radii
         tg[HandInputIndex.JOINT_VALID] = valid
-        tg[HandInputIndex.TIMESTAMP] = timestamp
         return tg
 
     def test_identity_transform(self):
@@ -551,8 +545,8 @@ class TestHandTransform:
 
     def test_passthrough_fields_preserved(self):
         node = HandTransform("hand_xform")
-        left = self._make_hand_input(timestamp=42)
-        right = self._make_hand_input(timestamp=99)
+        left = self._make_hand_input()
+        right = self._make_hand_input()
         xform = _make_transform_input(_rotation_z_90_with_translation())
 
         result = _run_retargeter(
@@ -566,14 +560,14 @@ class TestHandTransform:
 
         out_l = result["hand_left"]
         out_r = result["hand_right"]
-        assert out_l[HandInputIndex.TIMESTAMP] == 42
-        assert out_r[HandInputIndex.TIMESTAMP] == 99
 
-        # Radii and validity should be unchanged
+        # Radii and validity should be unchanged for both hands
+        expected_radii = np.ones(NUM_HAND_JOINTS, dtype=np.float32) * 0.01
         npt.assert_array_almost_equal(
-            np.from_dlpack(out_l[HandInputIndex.JOINT_RADII]),
-            np.ones(NUM_HAND_JOINTS, dtype=np.float32) * 0.01,
-            decimal=5,
+            np.from_dlpack(out_l[HandInputIndex.JOINT_RADII]), expected_radii, decimal=5
+        )
+        npt.assert_array_almost_equal(
+            np.from_dlpack(out_r[HandInputIndex.JOINT_RADII]), expected_radii, decimal=5
         )
 
     def test_rotation_transforms_positions_and_orientations(self):
@@ -624,7 +618,6 @@ class TestHeadTransformNoAliasing:
             [0.0, 0.0, 0.0, 1.0], dtype=np.float32
         )
         head_in[HeadPoseIndex.IS_VALID] = True
-        head_in[HeadPoseIndex.TIMESTAMP] = 100
         xform_in = _make_transform_input(_identity_4x4())
 
         # Save a copy of the original input values
@@ -717,14 +710,12 @@ class TestHandTransformNoAliasing:
         left[HandInputIndex.JOINT_ORIENTATIONS] = orientations
         left[HandInputIndex.JOINT_RADII] = radii
         left[HandInputIndex.JOINT_VALID] = valid
-        left[HandInputIndex.TIMESTAMP] = 200
 
         right = TensorGroup(HandInput())
         right[HandInputIndex.JOINT_POSITIONS] = positions.copy()
         right[HandInputIndex.JOINT_ORIENTATIONS] = orientations.copy()
         right[HandInputIndex.JOINT_RADII] = radii.copy()
         right[HandInputIndex.JOINT_VALID] = valid.copy()
-        right[HandInputIndex.TIMESTAMP] = 200
 
         xform = _make_transform_input(_identity_4x4())
 
@@ -855,7 +846,6 @@ class TestHandTransformOptionalPropagation:
         )
         tg[HandInputIndex.JOINT_RADII] = np.ones(NUM_HAND_JOINTS, dtype=np.float32)
         tg[HandInputIndex.JOINT_VALID] = np.ones(NUM_HAND_JOINTS, dtype=np.uint8)
-        tg[HandInputIndex.TIMESTAMP] = 100
         return tg
 
     def test_both_active(self):
@@ -923,7 +913,6 @@ class TestHeadTransformOptionalPropagation:
         tg[HeadPoseIndex.POSITION] = np.array([1, 2, 3], dtype=np.float32)
         tg[HeadPoseIndex.ORIENTATION] = np.array([0, 0, 0, 1], dtype=np.float32)
         tg[HeadPoseIndex.IS_VALID] = True
-        tg[HeadPoseIndex.TIMESTAMP] = 100
         return tg
 
     def test_output_spec_is_optional(self):

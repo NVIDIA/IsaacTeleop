@@ -4,6 +4,8 @@
 #pragma once
 
 #include <oxr_utils/oxr_session_handles.hpp>
+#include <oxr_utils/oxr_time.hpp>
+#include <schema/timestamp_generated.h>
 
 #include <XR_NVX1_tensor_data.h>
 #include <cstddef>
@@ -37,6 +39,26 @@ struct SchemaTrackerConfig
 
     //! Human-readable description for debugging and runtime display.
     std::string localized_name;
+};
+
+/*!
+ * @brief Result from reading a tensor sample, containing the data buffer and timestamps.
+ *
+ * The DeviceDataTimestamp fields are populated as follows:
+ *   - available_time_local_common_clock: system monotonic nanoseconds when the runtime
+ *     received the sample (converted from XrTime via xrConvertTimeToTimespecTimeKHR).
+ *   - sample_time_local_common_clock: system monotonic nanoseconds when the sample was
+ *     captured on the push side (converted from XrTime symmetrically with push_buffer).
+ *   - sample_time_raw_device_clock: raw device clock nanoseconds, unchanged from what
+ *     the pusher provided.
+ */
+struct SampleResult
+{
+    //! The raw FlatBuffer data read from the tensor.
+    std::vector<uint8_t> buffer;
+
+    //! Timestamps with _local_common_clock fields in system monotonic nanoseconds.
+    DeviceDataTimestamp timestamp;
 };
 
 /*!
@@ -88,32 +110,35 @@ struct SchemaTrackerConfig
  *             : m_schema_reader(handles, std::move(config)) {}
  *
  *         bool update(XrTime time) override {
- *             if (m_schema_reader.read_buffer(buffer_)) {
- *                 auto fb = flatbuffers::GetRoot<LocomotionCommand>(buffer_.data());
+ *             SampleResult result;
+ *             if (m_schema_reader.read_sample(result)) {
+ *                 auto fb = flatbuffers::GetRoot<LocomotionCommand>(result.buffer.data());
  *                 if (fb) {
  *                     fb->UnPackTo(&data_);
+ *                     last_timestamp_ = result.timestamp;
  *                     return true;
  *                 }
  *             }
  *             return false;
  *         }
  *
- *         Timestamp serialize(flatbuffers::FlatBufferBuilder& builder,
- *                            size_t channel_index) const override
+ *         DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder,
+ *                            size_t channel_index = 0) const override
  *         {
  *             auto data_offset = LocomotionCommand::Pack(builder, &data_);
  *             LocomotionCommandRecordBuilder record_builder(builder);
  *             record_builder.add_data(data_offset);
+ *             record_builder.add_timestamp(&last_timestamp_);
  *             builder.Finish(record_builder.Finish());
- *             return data_.timestamp ? *data_.timestamp : Timestamp{};
+ *             return last_timestamp_;
  *         }
  *
  *         const LocomotionCommandT& get_data() const { return data_; }
  *
  *     private:
  *         SchemaTracker m_schema_reader;
- *         std::vector<uint8_t> buffer_;
  *         LocomotionCommandT data_;
+ *         DeviceDataTimestamp last_timestamp_{};
  *     };
  * };
  * @endcode
@@ -141,21 +166,22 @@ public:
     SchemaTracker& operator=(SchemaTracker&&) = delete;
 
     /*!
-     * @brief Get required OpenXR extensions for tensor data reading.
-     * @return Vector containing the tensor data extension name.
+     * @brief Get required OpenXR extensions for tensor data reading and time conversion.
+     * @return Vector of required extension name strings.
      */
     static std::vector<std::string> get_required_extensions();
 
     /*!
-     * @brief Read the next available raw sample buffer.
+     * @brief Read the next available sample with timestamps.
      *
      * This method polls for tensor list updates, discovers the target collection
-     * if not already connected, and retrieves the next available sample.
+     * if not already connected, and retrieves the next available sample along with
+     * timestamps extracted from the tensor metadata.
      *
-     * @param buffer Output vector that will be resized and filled with sample data.
+     * @param out Output SampleResult containing buffer data and DeviceDataTimestamp.
      * @return true if data was read, false if no new data available.
      */
-    bool read_buffer(std::vector<uint8_t>& buffer);
+    bool read_sample(SampleResult& out);
 
     /*!
      * @brief Access the configuration.
@@ -167,10 +193,11 @@ private:
     void create_tensor_list();
     void poll_for_updates();
     std::optional<uint32_t> find_target_collection();
-    bool read_next_sample(std::vector<uint8_t>& buffer);
+    bool read_next_sample(SampleResult& out);
 
     OpenXRSessionHandles m_handles;
     SchemaTrackerConfig m_config;
+    XrTimeConverter m_time_converter;
 
     XrTensorListNV m_tensor_list{ XR_NULL_HANDLE };
 

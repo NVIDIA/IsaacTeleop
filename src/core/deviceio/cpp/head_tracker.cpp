@@ -19,6 +19,7 @@ namespace core
 // Constructor - throws std::runtime_error on failure
 HeadTracker::Impl::Impl(const OpenXRSessionHandles& handles)
     : core_funcs_(OpenXRCoreFunctions::load(handles.instance, handles.xrGetInstanceProcAddr)),
+      time_converter_(handles),
       base_space_(handles.space),
       view_space_(createReferenceSpace(core_funcs_,
                                        handles.session,
@@ -51,9 +52,6 @@ bool HeadTracker::Impl::update(XrTime time)
 
     tracked_.data->is_valid = position_valid && orientation_valid;
 
-    // Update timestamp (device time and common time)
-    tracked_.data->timestamp = std::make_shared<Timestamp>(time, time);
-
     if (tracked_.data->is_valid)
     {
         // Create pose from position and orientation using FlatBuffers structs
@@ -76,19 +74,20 @@ const HeadPoseTrackedT& HeadTracker::Impl::get_head() const
     return tracked_;
 }
 
-Timestamp HeadTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, size_t /*channel_index*/) const
+DeviceDataTimestamp HeadTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, size_t /*channel_index*/) const
 {
+    int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
+    DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
+
+    HeadPoseRecordBuilder record_builder(builder);
     if (tracked_.data)
     {
         auto data_offset = HeadPose::Pack(builder, tracked_.data.get());
-        HeadPoseRecordBuilder record_builder(builder);
         record_builder.add_data(data_offset);
-        builder.Finish(record_builder.Finish());
-        return *tracked_.data->timestamp;
     }
-    HeadPoseRecordBuilder record_builder(builder);
+    record_builder.add_timestamp(&timestamp);
     builder.Finish(record_builder.Finish());
-    return Timestamp(last_update_time_, last_update_time_);
+    return timestamp;
 }
 
 // ============================================================================

@@ -129,7 +129,6 @@ class HeadSource(IDeviceIOSource):
         output[HeadPoseIndex.POSITION] = position
         output[HeadPoseIndex.ORIENTATION] = orientation
         output[HeadPoseIndex.IS_VALID] = head_pose.is_valid
-        output[HeadPoseIndex.TIMESTAMP] = int(head_pose.timestamp.device_time)
 
     def transformed(self, transform_input: OutputSelector) -> RetargeterSubgraph:
         """

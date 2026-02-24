@@ -5,13 +5,14 @@
 
 FullBodyPosePicoT is a FlatBuffers table that represents full body pose data:
 - joints: BodyJointsPico struct containing 24 BodyJointPose entries (XR_BD_body_tracking)
-- timestamp: Timestamp struct with device and common time
 
 BodyJointsPico is a struct with a fixed-size array of 24 BodyJointPose entries.
 
 BodyJointPose is a struct containing:
 - pose: The Pose (position and orientation)
 - is_valid: Whether this joint data is valid
+
+Timestamps are carried by FullBodyPosePicoRecord, not FullBodyPosePicoT.
 
 Joint indices follow XrBodyJointBD enum:
   0: Pelvis, 1-2: Left/Right Hip, 3: Spine1, 4-5: Left/Right Knee,
@@ -24,13 +25,14 @@ import pytest
 
 from isaacteleop.schema import (
     FullBodyPosePicoT,
+    FullBodyPosePicoRecord,
     BodyJointsPico,
     BodyJointPose,
     BodyJointPico,
     Pose,
     Point,
     Quaternion,
-    Timestamp,
+    DeviceDataTimestamp,
 )
 
 
@@ -130,22 +132,18 @@ class TestFullBodyPosePicoTConstruction:
     """Tests for FullBodyPosePicoT construction and basic properties."""
 
     def test_default_construction(self):
-        """Test default construction creates FullBodyPosePicoT with default-initialized fields."""
+        """Test default construction creates FullBodyPosePicoT with pre-populated joints."""
         body_pose = FullBodyPosePicoT()
 
         assert body_pose is not None
         assert body_pose.joints is not None
-        assert body_pose.timestamp is not None
 
     def test_parameterized_construction(self):
-        """Test construction with joints and timestamp."""
+        """Test construction with joints."""
         joints = BodyJointsPico()
-        timestamp = Timestamp(device_time=12345, common_time=67890)
-        body_pose = FullBodyPosePicoT(joints, timestamp)
+        body_pose = FullBodyPosePicoT(joints)
 
         assert body_pose.joints is not None
-        assert body_pose.timestamp.device_time == 12345
-        assert body_pose.timestamp.common_time == 67890
 
 
 class TestFullBodyPosePicoTRepr:
@@ -164,7 +162,6 @@ class TestBodyJointPicoEnum:
 
     def test_all_joint_values_exist(self):
         """Test that all expected BodyJointPico enum values exist."""
-        # All 24 joints should be accessible.
         assert BodyJointPico.PELVIS is not None
         assert BodyJointPico.LEFT_HIP is not None
         assert BodyJointPico.RIGHT_HIP is not None
@@ -221,7 +218,6 @@ class TestBodyJointPicoEnum:
         """Test that all BodyJointPico values can be used to index BodyJointsPico."""
         body_joints = BodyJointsPico()
 
-        # Test each joint index explicitly.
         all_joints = [
             BodyJointPico.PELVIS,
             BodyJointPico.LEFT_HIP,
@@ -259,3 +255,33 @@ class TestBodyJointPicoEnum:
         assert int(BodyJointPico.PELVIS) == 0
         assert int(BodyJointPico.HEAD) == 15
         assert int(BodyJointPico.RIGHT_HAND) == 23
+
+
+class TestFullBodyPosePicoRecordTimestamp:
+    """Tests for FullBodyPosePicoRecord with DeviceDataTimestamp."""
+
+    def test_construction_with_timestamp(self):
+        """Test FullBodyPosePicoRecord carries DeviceDataTimestamp."""
+        data = FullBodyPosePicoT()
+        ts = DeviceDataTimestamp(1000000000, 2000000000, 3000000000)
+        record = FullBodyPosePicoRecord(data, ts)
+
+        assert record.timestamp.available_time_local_common_clock == 1000000000
+        assert record.timestamp.sample_time_local_common_clock == 2000000000
+        assert record.timestamp.sample_time_raw_device_clock == 3000000000
+        assert record.data is not None
+
+    def test_default_construction(self):
+        """Test default FullBodyPosePicoRecord has no data."""
+        record = FullBodyPosePicoRecord()
+        assert record.data is None
+
+    def test_timestamp_fields(self):
+        """Test all three DeviceDataTimestamp fields are accessible."""
+        data = FullBodyPosePicoT()
+        ts = DeviceDataTimestamp(111, 222, 333)
+        record = FullBodyPosePicoRecord(data, ts)
+
+        assert record.timestamp.available_time_local_common_clock == 111
+        assert record.timestamp.sample_time_local_common_clock == 222
+        assert record.timestamp.sample_time_raw_device_clock == 333

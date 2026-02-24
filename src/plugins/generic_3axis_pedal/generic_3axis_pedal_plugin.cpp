@@ -6,11 +6,11 @@
 #include <flatbuffers/flatbuffers.h>
 #include <linux/joystick.h>
 #include <oxr/oxr_session.hpp>
+#include <oxr_utils/os_time.hpp>
 #include <schema/pedals_generated.h>
 #include <sys/select.h>
 
 #include <cerrno>
-#include <chrono>
 #include <cstring>
 #include <fcntl.h>
 #include <iostream>
@@ -140,14 +140,13 @@ void Generic3AxisPedalPlugin::push_current_state()
     out.left_pedal = static_cast<float>(axes_[0]);
     out.right_pedal = static_cast<float>(axes_[1]);
     out.rudder = static_cast<float>(axes_[2]);
-    auto now = std::chrono::steady_clock::now();
-    auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
-    out.timestamp = std::make_shared<core::Timestamp>(ns, ns);
+
+    auto sample_time_ns = core::os_monotonic_now_ns();
 
     flatbuffers::FlatBufferBuilder builder(kMaxFlatbufferSize);
     auto offset = core::Generic3AxisPedalOutput::Pack(builder, &out);
     builder.Finish(offset);
-    pusher_.push_buffer(builder.GetBufferPointer(), builder.GetSize());
+    pusher_.push_buffer(builder.GetBufferPointer(), builder.GetSize(), sample_time_ns, sample_time_ns);
 }
 
 } // namespace generic_3axis_pedal

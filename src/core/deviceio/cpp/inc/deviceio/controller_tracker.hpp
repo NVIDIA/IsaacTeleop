@@ -6,6 +6,7 @@
 #include "tracker.hpp"
 
 #include <oxr_utils/oxr_funcs.hpp>
+#include <oxr_utils/oxr_time.hpp>
 #include <schema/controller_bfbs_generated.h>
 #include <schema/controller_generated.h>
 
@@ -61,13 +62,14 @@ private:
         // Override from ITrackerImpl
         bool update(XrTime time) override;
 
-        Timestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const override;
+        DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index = 0) const override;
 
         const ControllerSnapshotTrackedT& get_left_controller() const;
         const ControllerSnapshotTrackedT& get_right_controller() const;
 
     private:
         const OpenXRCoreFunctions core_funcs_;
+        XrTimeConverter time_converter_;
 
         XrSession session_;
         XrSpace base_space_;
