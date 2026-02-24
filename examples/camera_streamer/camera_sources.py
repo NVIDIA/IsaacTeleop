@@ -13,33 +13,55 @@ from typing import Any, Dict, List, Optional, Tuple, Type
 from holoscan.operators import FormatConverterOp, V4L2VideoCaptureOp
 from loguru import logger
 
-from camera_config import CameraConfig, ZED_RESOLUTION_DIMS
+from camera_config import CameraConfig
 
-# ZED/NVENC support is optional — loaded lazily.
+# ZED and NVENC support are optional — loaded lazily and independently
+# so a V4L2-only setup doesn't need ZED SDK, and an OAK-D-only setup
+# doesn't need NVENC.
 _ZedCameraOp: Optional[Type] = None
 _NvStreamEncoderOp: Optional[Type] = None
 _zed_import_error: Optional[str] = None
+_nvenc_import_error: Optional[str] = None
 
 
-def ensure_nvenc_support():
-    """Import ZED and NVENC modules. Raises ImportError if not available."""
-    global _ZedCameraOp, _NvStreamEncoderOp, _zed_import_error
+def ensure_zed_support() -> Type:
+    """Import and return ZedCameraOp. Raises ImportError if ZED SDK is unavailable."""
+    global _ZedCameraOp, _zed_import_error
 
     if _ZedCameraOp is not None:
-        return
+        return _ZedCameraOp
 
     if _zed_import_error is not None:
         raise ImportError(_zed_import_error)
 
     try:
         from operators.zed_camera.zed_camera_op import ZedCameraOp
-        from nv_stream_encoder import NvStreamEncoderOp
 
         _ZedCameraOp = ZedCameraOp
-        _NvStreamEncoderOp = NvStreamEncoderOp
+        return _ZedCameraOp
     except ImportError as e:
-        _zed_import_error = f"ZED/NVENC support not available: {e}"
+        _zed_import_error = f"ZED SDK not available: {e}"
         raise ImportError(_zed_import_error) from e
+
+
+def ensure_nvenc_support() -> Type:
+    """Import and return NvStreamEncoderOp. Raises ImportError if NVENC is unavailable."""
+    global _NvStreamEncoderOp, _nvenc_import_error
+
+    if _NvStreamEncoderOp is not None:
+        return _NvStreamEncoderOp
+
+    if _nvenc_import_error is not None:
+        raise ImportError(_nvenc_import_error)
+
+    try:
+        from nv_stream_encoder import NvStreamEncoderOp
+
+        _NvStreamEncoderOp = NvStreamEncoderOp
+        return _NvStreamEncoderOp
+    except ImportError as e:
+        _nvenc_import_error = f"NVENC support not available: {e}"
+        raise ImportError(_nvenc_import_error) from e
 
 
 @dataclass
@@ -69,21 +91,26 @@ def create_zed_source(
     verbose: bool = False,
 ) -> CameraSourceResult:
     """Create a ZED camera source (raw BGRA GPU tensors)."""
-    ensure_nvenc_support()
+    ensure_zed_support()
 
-    resolution = cam_cfg.resolution or "HD720"
-
-    left_stream = cam_cfg.streams.get("left")
-    right_stream = cam_cfg.streams.get("right")
+    if cam_cfg.stereo:
+        left_stream = cam_cfg.streams["left"]
+        right_stream = cam_cfg.streams["right"]
+        left_stream_id = left_stream.stream_id
+        right_stream_id = right_stream.stream_id
+    else:
+        mono_stream = cam_cfg.streams["mono"]
+        left_stream_id = mono_stream.stream_id
+        right_stream_id = 0
 
     zed_source = _ZedCameraOp(
         fragment,
         name=f"{cam_name}_source",
         serial_number=cam_cfg.serial_number or 0,
-        resolution=resolution,
+        resolution=cam_cfg.resolution,
         fps=cam_cfg.fps,
-        left_stream_id=left_stream.stream_id if left_stream else 0,
-        right_stream_id=right_stream.stream_id if right_stream else 1,
+        left_stream_id=left_stream_id,
+        right_stream_id=right_stream_id,
         verbose=verbose,
     )
 
@@ -95,8 +122,7 @@ def create_zed_source(
     else:
         result.frame_outputs["mono"] = (zed_source, "left_frame")
 
-    width, height = ZED_RESOLUTION_DIMS.get(resolution.upper(), (1280, 720))
-    logger.info(f"  ZED source: {cam_name} {width}x{height}@{cam_cfg.fps}fps")
+    logger.info(f"  ZED source: {cam_name} {cam_cfg.width}x{cam_cfg.height}@{cam_cfg.fps}fps")
     return result
 
 
@@ -110,6 +136,9 @@ def create_oakd_source(
 ) -> CameraSourceResult:
     """Create an OAK-D camera source.
 
+    Uses a single OakdCameraOp per physical device. In stereo mode, the
+    operator outputs both left and right streams natively.
+
     Args:
         output_format: "raw" for GPU tensors (local display), "h264" for VPU-encoded packets.
     """
@@ -117,26 +146,54 @@ def create_oakd_source(
 
     result = CameraSourceResult()
 
-    for stream_name, stream_cfg in cam_cfg.streams.items():
+    if cam_cfg.stereo:
+        left_stream = cam_cfg.streams["left"]
+        right_stream = cam_cfg.streams["right"]
+
         oakd_source = OakdCameraOp(
             fragment,
-            name=f"{cam_name}_{stream_name}_source",
-            mode="stereo" if cam_cfg.stereo else "mono",
+            name=f"{cam_name}_source",
+            mode="stereo",
             output_format=output_format,
             device_id=cam_cfg.device_id or "",
             width=cam_cfg.width,
             height=cam_cfg.height,
             fps=cam_cfg.fps,
-            bitrate=stream_cfg.bitrate_bps,
-            left_stream_id=stream_cfg.stream_id,
+            bitrate=left_stream.bitrate_bps,
+            left_stream_id=left_stream.stream_id,
+            right_stream_id=right_stream.stream_id,
             verbose=verbose,
         )
         result.operators.append(oakd_source)
 
         if output_format == "h264":
-            result.frame_outputs[stream_name] = (oakd_source, "h264_packets")
+            result.frame_outputs["left"] = (oakd_source, "h264_packets")
+            result.frame_outputs["right"] = (oakd_source, "h264_packets_right")
         else:
-            result.frame_outputs[stream_name] = (oakd_source, "left_frame")
+            result.frame_outputs["left"] = (oakd_source, "left_frame")
+            result.frame_outputs["right"] = (oakd_source, "right_frame")
+    else:
+        mono_stream = cam_cfg.streams["mono"]
+
+        oakd_source = OakdCameraOp(
+            fragment,
+            name=f"{cam_name}_source",
+            mode="mono",
+            output_format=output_format,
+            device_id=cam_cfg.device_id or "",
+            width=cam_cfg.width,
+            height=cam_cfg.height,
+            fps=cam_cfg.fps,
+            bitrate=mono_stream.bitrate_bps,
+            left_stream_id=mono_stream.stream_id,
+            verbose=verbose,
+        )
+        result.operators.append(oakd_source)
+
+        if output_format == "h264":
+            result.frame_outputs["mono"] = (oakd_source, "h264_packets")
+        else:
+            result.frame_outputs["mono"] = (oakd_source, "left_frame")
 
     logger.info(
         f"  OAK-D source: {cam_name} {cam_cfg.width}x{cam_cfg.height}@{cam_cfg.fps}fps"
@@ -154,7 +211,7 @@ def create_v4l2_source(
     verbose: bool = False,
 ) -> CameraSourceResult:
     """Create a V4L2 camera source with GPU format conversion (YUYV -> RGB -> RGBA)."""
-    device = cam_cfg.device or "/dev/video0"
+    device = cam_cfg.device
 
     v4l2_source = V4L2VideoCaptureOp(
         fragment,

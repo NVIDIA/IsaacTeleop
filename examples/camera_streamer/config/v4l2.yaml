@@ -1,0 +1,47 @@
+# Sample: Single V4L2 Camera (USB, HDMI capture, etc.)
+# Requires NVENC for H.264 encoding (Jetson Thor or x86_64 with NVIDIA GPU).
+
+# Camera source for teleop_camera_app:
+#   "rtp"   - Receive H.264 streams from teleop_camera_sender (default)
+#   "local" - Open cameras directly on this machine (no sender needed)
+source: "local"
+
+# -----------------------------------------------------------------------------
+# Cameras
+# -----------------------------------------------------------------------------
+cameras:
+  usb_cam:
+    enabled: true
+    type: v4l2
+    stereo: false
+    device: "/dev/video0"         # V4L2 device path
+    width: 1280
+    height: 720
+    fps: 30
+
+# -----------------------------------------------------------------------------
+# Display (used by receiver)
+# -----------------------------------------------------------------------------
+display:
+  mode: "monitor"                 # "monitor" or "xr"
+  cuda_device: 0
+
+  monitor:
+    width: 1280
+    height: 720
+    title: "Teleop Camera - V4L2"
+    padding: 4
+    stream_timeout: 2.0
+
+  xr:
+    planes:
+      usb_cam:
+        distance: 1.5
+        width: 1.0
+        offset_x: 0.0
+        offset_y: 0.0
+
+    lock_mode: "lazy"
+    look_away_angle: 45.0
+    reposition_delay: 0.5
+    transition_duration: 0.3

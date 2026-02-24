@@ -37,7 +37,6 @@ message(STATUS "Holoscan SDK: ${holoscan_DIR}")
 if(BUILD_XR)
   list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
   include(holohub-xr)
-
 endif()
 
 # Build C++ operators.

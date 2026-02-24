@@ -1,0 +1,105 @@
+# Sample: Multi-Camera Setup (1 stereo ZED + 2 mono OAK-D)
+
+# Camera source for teleop_camera_app:
+#   "rtp"   - Receive H.264 streams from teleop_camera_sender (default)
+#   "local" - Open cameras directly on this machine (no sender needed)
+source: "rtp"
+
+# -----------------------------------------------------------------------------
+# Streaming (used by sender, and by receiver when source is "rtp")
+# -----------------------------------------------------------------------------
+streaming:
+  host: "127.0.0.1"              # Receiver IP address
+
+# -----------------------------------------------------------------------------
+# Cameras (used by both sender and receiver)
+# -----------------------------------------------------------------------------
+cameras:
+  # Head Camera - ZED stereo (NVENC H.264)
+  head:
+    enabled: true
+    type: zed
+    stereo: true
+    serial_number: 0              # 0 = first available; use list-cameras to find yours
+    resolution: "HD720"           # HD2K, HD1080, HD720, VGA
+    fps: 30
+    streams:
+      left:
+        stream_id: 0
+        port: 5000
+        bitrate_mbps: 15
+      right:
+        stream_id: 1
+        port: 5001
+        bitrate_mbps: 15
+
+  # Left Wrist Camera - OAK-D mono (VPU H.264)
+  left_wrist:
+    enabled: true
+    type: oakd
+    stereo: false
+    device_id: ""                 # use list-cameras to find yours
+    width: 1280
+    height: 720
+    fps: 30
+    streams:
+      mono:
+        stream_id: 2
+        port: 5002
+        bitrate_mbps: 10
+
+  # Right Wrist Camera - OAK-D mono (VPU H.264)
+  right_wrist:
+    enabled: true
+    type: oakd
+    stereo: false
+    device_id: ""                 # use list-cameras to find yours
+    width: 1280
+    height: 720
+    fps: 30
+    streams:
+      mono:
+        stream_id: 3
+        port: 5003
+        bitrate_mbps: 10
+
+# -----------------------------------------------------------------------------
+# Display (used by receiver)
+# -----------------------------------------------------------------------------
+display:
+  mode: "xr"                     # "monitor" or "xr"
+  cuda_device: 0
+
+  # Monitor mode settings
+  monitor:
+    width: 1920
+    height: 1080
+    title: "Teleop Camera - Multi Camera"
+    padding: 4
+    stream_timeout: 2.0
+
+  # XR mode settings
+  xr:
+    planes:
+      head:
+        distance: 1.5
+        width: 1.0
+        offset_x: 0.0
+        offset_y: 0.0
+
+      left_wrist:
+        distance: 1.2
+        width: 0.4
+        offset_x: -1.0
+        offset_y: -0.4
+
+      right_wrist:
+        distance: 1.2
+        width: 0.4
+        offset_x: 1.0
+        offset_y: -0.4
+
+    lock_mode: "lazy"
+    look_away_angle: 45.0
+    reposition_delay: 0.5
+    transition_duration: 0.3

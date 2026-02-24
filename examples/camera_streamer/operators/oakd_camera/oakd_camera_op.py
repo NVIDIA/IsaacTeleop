@@ -181,7 +181,7 @@ class OakdCameraOp(Operator):
         self, socket_name: Optional[str] = None
     ) -> dai.CameraBoardSocket:
         """Map camera socket string to DepthAI enum."""
-        name = socket_name if socket_name else self._camera_socket
+        name = (socket_name or self._camera_socket).upper()
         socket_map = {
             "RGB": dai.CameraBoardSocket.CAM_A,
             "CAM_A": dai.CameraBoardSocket.CAM_A,
@@ -190,7 +190,12 @@ class OakdCameraOp(Operator):
             "RIGHT": dai.CameraBoardSocket.CAM_C,
             "CAM_C": dai.CameraBoardSocket.CAM_C,
         }
-        return socket_map.get(name.upper(), dai.CameraBoardSocket.CAM_A)
+        if name not in socket_map:
+            raise ValueError(
+                f"Unknown camera socket '{name}' "
+                f"(valid: {set(socket_map.keys())})"
+            )
+        return socket_map[name]
 
     def _get_encoder_profile(self) -> dai.VideoEncoderProperties.Profile:
         """Map profile string to DepthAI enum."""
@@ -199,9 +204,12 @@ class OakdCameraOp(Operator):
             "main": dai.VideoEncoderProperties.Profile.H264_MAIN,
             "high": dai.VideoEncoderProperties.Profile.H264_HIGH,
         }
-        return profile_map.get(
-            self._profile, dai.VideoEncoderProperties.Profile.H264_BASELINE
-        )
+        if self._profile not in profile_map:
+            raise ValueError(
+                f"Unknown H.264 profile '{self._profile}' "
+                f"(valid: {set(profile_map.keys())})"
+            )
+        return profile_map[self._profile]
 
     def _create_encoder(
         self, pipeline: dai.Pipeline, camera_output
@@ -241,160 +249,68 @@ class OakdCameraOp(Operator):
             logger.info(f"Auto-assigned OAK-D device: {device_info.deviceId}")
         return device_info
 
-    def _create_mono_raw_pipeline(self) -> bool:
-        """Create pipeline for mono mode with raw output."""
+    def _create_pipeline(self) -> bool:
+        """Create the DepthAI pipeline for the configured mode and output format."""
         try:
             device_info = self._get_device_info()
             self._device = dai.Device(device_info)
             pipeline = dai.Pipeline(self._device)
 
-            # Create camera node
-            cam = pipeline.create(dai.node.Camera).build(self._get_camera_socket())
-
-            # Request BGR output for raw frames
-            frame_output = cam.requestOutput(
-                (self._width, self._height),
-                type=dai.ImgFrame.Type.BGR888p,
-                fps=self._fps,
+            is_h264 = self._output_format == OakdOutputFormat.H264
+            frame_type = (
+                dai.ImgFrame.Type.NV12 if is_h264
+                else dai.ImgFrame.Type.BGR888p
             )
 
-            # Create output queue
-            self._frame_queue = frame_output.createOutputQueue(
-                maxSize=4, blocking=False
+            left_socket = (
+                self._get_camera_socket()
+                if self._mode == OakdCameraMode.MONO
+                else self._get_camera_socket("LEFT")
             )
+            cam_left = pipeline.create(dai.node.Camera).build(left_socket)
+            output_left = cam_left.requestOutput(
+                (self._width, self._height), type=frame_type, fps=self._fps,
+            )
+
+            if is_h264:
+                encoder_left = self._create_encoder(pipeline, output_left)
+                self._h264_queue = encoder_left.out.createOutputQueue(
+                    maxSize=4, blocking=False,
+                )
+            else:
+                self._frame_queue = output_left.createOutputQueue(
+                    maxSize=4, blocking=False,
+                )
+
+            if self._mode == OakdCameraMode.STEREO:
+                cam_right = pipeline.create(dai.node.Camera).build(
+                    self._get_camera_socket("RIGHT")
+                )
+                output_right = cam_right.requestOutput(
+                    (self._width, self._height), type=frame_type, fps=self._fps,
+                )
+
+                if is_h264:
+                    encoder_right = self._create_encoder(pipeline, output_right)
+                    self._h264_queue_right = encoder_right.out.createOutputQueue(
+                        maxSize=4, blocking=False,
+                    )
+                else:
+                    self._frame_queue_right = output_right.createOutputQueue(
+                        maxSize=4, blocking=False,
+                    )
 
             self._pipeline = pipeline
             return True
         except Exception as e:
-            logger.warning(f"Failed to create mono raw pipeline: {e}")
-            return False
-
-    def _create_mono_h264_pipeline(self) -> bool:
-        """Create pipeline for mono mode with H.264 output."""
-        try:
-            device_info = self._get_device_info()
-            self._device = dai.Device(device_info)
-            pipeline = dai.Pipeline(self._device)
-
-            # Create camera node
-            cam = pipeline.create(dai.node.Camera).build(self._get_camera_socket())
-
-            # Request NV12 output for encoding
-            encode_output = cam.requestOutput(
-                (self._width, self._height),
-                type=dai.ImgFrame.Type.NV12,
-                fps=self._fps,
-            )
-
-            # Create H.264 encoder
-            encoder = self._create_encoder(pipeline, encode_output)
-
-            # Create output queue
-            self._h264_queue = encoder.out.createOutputQueue(maxSize=4, blocking=False)
-
-            self._pipeline = pipeline
-            return True
-        except Exception as e:
-            logger.warning(f"Failed to create mono H.264 pipeline: {e}")
-            return False
-
-    def _create_stereo_raw_pipeline(self) -> bool:
-        """Create pipeline for stereo mode with raw output."""
-        try:
-            device_info = self._get_device_info()
-            self._device = dai.Device(device_info)
-            pipeline = dai.Pipeline(self._device)
-
-            # Create left camera node
-            cam_left = pipeline.create(dai.node.Camera).build(
-                self._get_camera_socket("LEFT")
-            )
-            frame_output_left = cam_left.requestOutput(
-                (self._width, self._height),
-                type=dai.ImgFrame.Type.BGR888p,
-                fps=self._fps,
-            )
-            self._frame_queue = frame_output_left.createOutputQueue(
-                maxSize=4, blocking=False
-            )
-
-            # Create right camera node
-            cam_right = pipeline.create(dai.node.Camera).build(
-                self._get_camera_socket("RIGHT")
-            )
-            frame_output_right = cam_right.requestOutput(
-                (self._width, self._height),
-                type=dai.ImgFrame.Type.BGR888p,
-                fps=self._fps,
-            )
-            self._frame_queue_right = frame_output_right.createOutputQueue(
-                maxSize=4, blocking=False
-            )
-
-            self._pipeline = pipeline
-            return True
-        except Exception as e:
-            logger.warning(f"Failed to create stereo raw pipeline: {e}")
-            return False
-
-    def _create_stereo_h264_pipeline(self) -> bool:
-        """Create pipeline for stereo mode with H.264 output."""
-        try:
-            device_info = self._get_device_info()
-            self._device = dai.Device(device_info)
-            pipeline = dai.Pipeline(self._device)
-
-            # Create left camera with encoder
-            cam_left = pipeline.create(dai.node.Camera).build(
-                self._get_camera_socket("LEFT")
-            )
-            encode_output_left = cam_left.requestOutput(
-                (self._width, self._height),
-                type=dai.ImgFrame.Type.NV12,
-                fps=self._fps,
-            )
-            encoder_left = self._create_encoder(pipeline, encode_output_left)
-            self._h264_queue = encoder_left.out.createOutputQueue(
-                maxSize=4, blocking=False
-            )
-
-            # Create right camera with encoder
-            cam_right = pipeline.create(dai.node.Camera).build(
-                self._get_camera_socket("RIGHT")
-            )
-            encode_output_right = cam_right.requestOutput(
-                (self._width, self._height),
-                type=dai.ImgFrame.Type.NV12,
-                fps=self._fps,
-            )
-            encoder_right = self._create_encoder(pipeline, encode_output_right)
-            self._h264_queue_right = encoder_right.out.createOutputQueue(
-                maxSize=4, blocking=False
-            )
-
-            self._pipeline = pipeline
-            return True
-        except Exception as e:
-            logger.warning(f"Failed to create stereo H.264 pipeline: {e}")
+            logger.warning(f"Failed to create OAK-D pipeline: {e}")
             return False
 
     def _open_camera(self) -> bool:
         """Open the camera and create pipeline. Returns True on success."""
         self._close_camera()
 
-        # Create appropriate pipeline based on mode and format
-        if self._mode == OakdCameraMode.MONO:
-            if self._output_format == OakdOutputFormat.RAW:
-                success = self._create_mono_raw_pipeline()
-            else:
-                success = self._create_mono_h264_pipeline()
-        else:  # STEREO
-            if self._output_format == OakdOutputFormat.RAW:
-                success = self._create_stereo_raw_pipeline()
-            else:
-                success = self._create_stereo_h264_pipeline()
-
-        if not success or not self._pipeline:
+        if not self._create_pipeline():
             return False
 
         try:
@@ -460,88 +376,57 @@ class OakdCameraOp(Operator):
 
     def compute(self, op_input, op_output, context):
         """Poll for frames/packets and emit them."""
-        # Handle disconnected state - attempt reconnection
         if self._is_disconnected or not self._pipeline:
             self._attempt_reconnect()
             return
 
-        # Process any pending tasks
         try:
             self._pipeline.processTasks()
         except Exception as e:
             self._handle_failure(f"processTasks failed: {e}")
             return
 
-        # Emit frames based on mode and format
         try:
             if self._output_format == OakdOutputFormat.RAW:
-                if self._mode == OakdCameraMode.MONO:
-                    self._emit_mono_raw_frame(op_output)
-                else:
-                    self._emit_stereo_raw_frames(op_output)
-            else:  # H264
-                if self._mode == OakdCameraMode.MONO:
-                    self._emit_mono_h264_packet(op_output)
-                else:
-                    self._emit_stereo_h264_packets(op_output)
+                emitted = self._emit_raw_frames(op_output)
+            else:
+                emitted = self._emit_h264_packets(op_output)
+
+            if emitted:
+                self._consecutive_failures = 0
+                self._frame_count += 1
+                self._log_stats()
         except Exception as e:
             self._handle_failure(f"emit failed: {e}")
 
-    def _emit_mono_raw_frame(self, op_output):
-        """Emit raw frame for mono mode."""
+    def _emit_raw_frames(self, op_output) -> bool:
+        """Emit raw frame(s). Returns True if left/main frame was emitted."""
         if not self._frame_queue or not self._frame_queue.has():
-            return
+            return False
 
         try:
             frame_msg = self._frame_queue.get()
         except Exception as e:
             if self._verbose:
                 logger.warning(f"Failed to get frame: {e}")
-            return
+            return False
 
         frame_data = self._extract_raw_frame(frame_msg)
         if frame_data is None:
-            return
+            return False
 
-        timestamp_us = self._extract_timestamp_us(frame_msg)
-
-        self.metadata["timestamp_us"] = timestamp_us
+        self.metadata["timestamp_us"] = self._extract_timestamp_us(frame_msg)
         self.metadata["stream_id"] = self._left_stream_id
         self.metadata["sequence"] = self._frame_count
         op_output.emit(
             as_tensor(frame_data), "left_frame", emitter_name="holoscan::Tensor"
         )
 
-        self._consecutive_failures = 0
-        self._frame_count += 1
-        self._log_stats()
-
-    def _emit_stereo_raw_frames(self, op_output):
-        """Emit raw frames for stereo mode."""
-        # Get left frame
-        if not self._frame_queue or not self._frame_queue.has():
-            return
-
-        try:
-            frame_left = self._frame_queue.get()
-        except Exception:
-            return
-
-        left_data = self._extract_raw_frame(frame_left)
-        if left_data is None:
-            return
-
-        timestamp_us = self._extract_timestamp_us(frame_left)
-
-        self.metadata["timestamp_us"] = timestamp_us
-        self.metadata["stream_id"] = self._left_stream_id
-        self.metadata["sequence"] = self._frame_count
-        op_output.emit(
-            as_tensor(left_data), "left_frame", emitter_name="holoscan::Tensor"
-        )
-
-        # Get right frame (if available)
-        if self._frame_queue_right and self._frame_queue_right.has():
+        if (
+            self._mode == OakdCameraMode.STEREO
+            and self._frame_queue_right
+            and self._frame_queue_right.has()
+        ):
             try:
                 frame_right = self._frame_queue_right.get()
                 right_data = self._extract_raw_frame(frame_right)
@@ -560,65 +445,37 @@ class OakdCameraOp(Operator):
             except Exception:
                 pass
 
-        self._consecutive_failures = 0
-        self._frame_count += 1
-        self._log_stats()
+        return True
 
-    def _emit_mono_h264_packet(self, op_output):
-        """Emit H.264 packet for mono mode."""
+    def _emit_h264_packets(self, op_output) -> bool:
+        """Emit H.264 packet(s). Returns True if left/main packet was emitted."""
         if not self._h264_queue or not self._h264_queue.has():
-            return
+            return False
 
         try:
             encoded_msg = self._h264_queue.get()
         except Exception as e:
             if self._verbose:
                 logger.warning(f"Failed to get encoded frame: {e}")
-            return
+            return False
 
         h264_data = self._extract_h264_data(encoded_msg)
         if h264_data is None:
-            return
+            return False
 
-        timestamp_us = self._extract_timestamp_us(encoded_msg)
-
-        self.metadata["timestamp_us"] = timestamp_us
+        self.metadata["timestamp_us"] = self._extract_timestamp_us(encoded_msg)
         self.metadata["stream_id"] = self._left_stream_id
         self.metadata["sequence"] = self._frame_count
+        op_output.emit(
+            as_tensor(np.frombuffer(h264_data, dtype=np.uint8).copy()),
+            "h264_packets",
+        )
 
-        packet_array = np.frombuffer(h264_data, dtype=np.uint8).copy()
-        op_output.emit(as_tensor(packet_array), "h264_packets")
-
-        self._consecutive_failures = 0
-        self._frame_count += 1
-        self._log_stats()
-
-    def _emit_stereo_h264_packets(self, op_output):
-        """Emit H.264 packets for stereo mode."""
-        # Get left packet
-        if not self._h264_queue or not self._h264_queue.has():
-            return
-
-        try:
-            encoded_left = self._h264_queue.get()
-        except Exception:
-            return
-
-        left_data = self._extract_h264_data(encoded_left)
-        if left_data is None:
-            return
-
-        timestamp_us = self._extract_timestamp_us(encoded_left)
-
-        self.metadata["timestamp_us"] = timestamp_us
-        self.metadata["stream_id"] = self._left_stream_id
-        self.metadata["sequence"] = self._frame_count
-
-        packet_left = np.frombuffer(left_data, dtype=np.uint8).copy()
-        op_output.emit(as_tensor(packet_left), "h264_packets")
-
-        # Get right packet (if available)
-        if self._h264_queue_right and self._h264_queue_right.has():
+        if (
+            self._mode == OakdCameraMode.STEREO
+            and self._h264_queue_right
+            and self._h264_queue_right.has()
+        ):
             try:
                 encoded_right = self._h264_queue_right.get()
                 right_data = self._extract_h264_data(encoded_right)
@@ -629,15 +486,16 @@ class OakdCameraOp(Operator):
                     )
                     self.metadata["stream_id"] = self._right_stream_id
                     self.metadata["sequence"] = self._frame_count
-
-                    packet_right = np.frombuffer(right_data, dtype=np.uint8).copy()
-                    op_output.emit(as_tensor(packet_right), "h264_packets_right")
+                    op_output.emit(
+                        as_tensor(
+                            np.frombuffer(right_data, dtype=np.uint8).copy()
+                        ),
+                        "h264_packets_right",
+                    )
             except Exception:
                 pass
 
-        self._consecutive_failures = 0
-        self._frame_count += 1
-        self._log_stats()
+        return True
 
     def _extract_raw_frame(self, frame_msg) -> Optional[cp.ndarray]:
         """Extract raw frame and convert to GPU tensor (BGRA)."""

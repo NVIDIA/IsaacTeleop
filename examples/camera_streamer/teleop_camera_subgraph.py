@@ -25,7 +25,7 @@ from operators.gstreamer_h264_receiver.gstreamer_h264_receiver_op import (
     GStreamerH264ReceiverOp,
 )
 from operators.video_stream_monitor.video_stream_monitor_op import VideoStreamMonitorOp
-from camera_config import CameraConfig
+from camera_config import CameraConfig, validate_camera_configs
 
 
 # -----------------------------------------------------------------------------
@@ -131,83 +131,32 @@ class TeleopCameraSubgraphConfig:
         Returns:
             List of error messages. Empty list means configuration is valid.
         """
-        errors = []
-
-        # Collect all ports for collision detection
-        all_ports: Dict[int, str] = {}
+        errors = validate_camera_configs(self.cameras)
 
         for cam_name, cam_cfg in self.cameras.items():
-            # Check stereo cameras have required streams
-            if cam_cfg.stereo:
-                if "left" not in cam_cfg.streams:
-                    errors.append(
-                        f"Camera '{cam_name}': stereo camera missing 'left' stream"
-                    )
-                if "right" not in cam_cfg.streams:
-                    errors.append(
-                        f"Camera '{cam_name}': stereo camera missing 'right' stream"
-                    )
-            else:
-                # Mono camera should have 'mono' stream
-                if "mono" not in cam_cfg.streams:
-                    errors.append(
-                        f"Camera '{cam_name}': mono camera missing 'mono' stream"
-                    )
-
-            # Check for port collisions
             for stream_name, stream_cfg in cam_cfg.streams.items():
-                port = stream_cfg.port
-                stream_key = f"{cam_name}/{stream_name}"
-
-                if port in all_ports:
-                    errors.append(
-                        f"Port collision: port {port} used by both "
-                        f"'{all_ports[port]}' and '{stream_key}'"
-                    )
-                else:
-                    all_ports[port] = stream_key
-
-                # Validate port range
-                if not (1024 <= port <= 65535):
+                if not (1024 <= stream_cfg.port <= 65535):
                     errors.append(
                         f"Camera '{cam_name}/{stream_name}': "
-                        f"port {port} out of valid range (1024-65535)"
+                        f"port {stream_cfg.port} out of valid range (1024-65535)"
                     )
-
-                # Validate bitrate
                 if stream_cfg.bitrate_mbps <= 0:
                     errors.append(
                         f"Camera '{cam_name}/{stream_name}': "
                         f"bitrate must be positive (got {stream_cfg.bitrate_mbps})"
                     )
 
-            # Validate dimensions
             if cam_cfg.width <= 0 or cam_cfg.height <= 0:
                 errors.append(
                     f"Camera '{cam_name}': invalid dimensions "
                     f"{cam_cfg.width}x{cam_cfg.height}"
                 )
-
-            # Validate FPS
             if cam_cfg.fps <= 0:
                 errors.append(
                     f"Camera '{cam_name}': fps must be positive (got {cam_cfg.fps})"
                 )
 
-            # Validate camera type
-            if cam_cfg.camera_type not in ("zed", "oakd", "v4l2"):
-                errors.append(
-                    f"Camera '{cam_name}': unknown camera type '{cam_cfg.camera_type}'"
-                )
-
-        # Validate XR plane configuration
         if self.display_mode == DisplayMode.XR:
-            for cam_name in self.cameras:
-                if cam_name not in self.xr.planes:
-                    # Not an error, just use defaults - but log a warning
-                    pass
-
-            # Validate XR settings
             if self.xr.lock_mode not in ("lazy", "world", "head"):
                 errors.append(
                     f"Invalid XR lock_mode '{self.xr.lock_mode}' "
@@ -278,7 +227,7 @@ class TeleopCameraSubgraphConfig:
             transition_duration=xr["transition_duration"],
         )
 
-        source = data.get("source", "rtp")
+        source = data["source"]
 
         return cls(
             source=source,
@@ -438,82 +387,48 @@ class TeleopCameraSubgraph(Subgraph):
         """Create RTP receiver + decoder sources (rtp mode)."""
         for cam_name, cam_cfg in self._config.cameras.items():
             if cam_cfg.stereo:
-                for stream_name in ["left", "right"]:
-                    stream_cfg = cam_cfg.streams.get(stream_name)
-                    if stream_cfg is None:
-                        continue
-
-                    receiver = GStreamerH264ReceiverOp(
-                        self.fragment,
-                        name=self._create_name(f"{cam_name}_{stream_name}_receiver"),
-                        port=stream_cfg.port,
-                        verbose=verbose,
-                    )
-                    decoder = NvStreamDecoderOp(
-                        self.fragment,
-                        name=self._create_name(f"{cam_name}_{stream_name}_decoder"),
-                        cuda_device_ordinal=cuda_device,
-                        allocator=allocator,
-                        verbose=verbose,
-                    )
-
-                    if self._config.display_mode == DisplayMode.MONITOR:
-                        tensor_name = cam_name if stream_name == "left" else ""
-                    else:
-                        tensor_name = ""
-
-                    monitor = VideoStreamMonitorOp(
-                        self.fragment,
-                        name=self._create_name(f"{cam_name}_{stream_name}_monitor"),
-                        timeout_sec=stream_timeout,
-                        default_width=cam_cfg.width,
-                        default_height=cam_cfg.height,
-                        tensor_name=tensor_name,
-                        camera_name=f"{cam_name}/{stream_name}",
-                        verbose=verbose,
-                    )
-
-                    self.add_flow(receiver, decoder, {("packet", "packet")})
-                    self.add_flow(decoder, monitor, {("frame", "frame_in")})
-                    self.add_operator(receiver)
-                    self.add_operator(decoder)
-                    self.add_operator(monitor)
-
-                    monitored_outputs[f"{cam_name}_{stream_name}"] = (
-                        monitor,
-                        "frame_out",
-                    )
-                    logger.info(f"  {cam_name}/{stream_name}: port={stream_cfg.port}")
+                stream_items = [
+                    ("left", cam_cfg.streams["left"]),
+                    ("right", cam_cfg.streams["right"]),
+                ]
             else:
-                stream_cfg = cam_cfg.streams.get("mono")
-                if stream_cfg is None:
-                    continue
+                stream_items = [("mono", cam_cfg.streams["mono"])]
+
+            for stream_name, stream_cfg in stream_items:
+                display_key = (
+                    f"{cam_name}_{stream_name}" if cam_cfg.stereo else cam_name
+                )
 
                 receiver = GStreamerH264ReceiverOp(
                     self.fragment,
-                    name=self._create_name(f"{cam_name}_receiver"),
+                    name=self._create_name(f"{display_key}_receiver"),
                     port=stream_cfg.port,
                     verbose=verbose,
                 )
                 decoder = NvStreamDecoderOp(
                     self.fragment,
-                    name=self._create_name(f"{cam_name}_decoder"),
+                    name=self._create_name(f"{display_key}_decoder"),
                     cuda_device_ordinal=cuda_device,
                     allocator=allocator,
                     verbose=verbose,
                 )
 
-                tensor_name = (
-                    cam_name if self._config.display_mode == DisplayMode.MONITOR else ""
+                if self._config.display_mode == DisplayMode.MONITOR:
+                    tensor_name = cam_name if stream_name in ("left", "mono") else ""
+                else:
+                    tensor_name = ""
+
+                camera_label = (
+                    f"{cam_name}/{stream_name}" if cam_cfg.stereo else cam_name
                 )
                 monitor = VideoStreamMonitorOp(
                     self.fragment,
-                    name=self._create_name(f"{cam_name}_monitor"),
+                    name=self._create_name(f"{display_key}_monitor"),
                     timeout_sec=stream_timeout,
                     default_width=cam_cfg.width,
                     default_height=cam_cfg.height,
                     tensor_name=tensor_name,
-                    camera_name=cam_name,
+                    camera_name=camera_label,
                     verbose=verbose,
                 )
 
@@ -523,8 +438,8 @@ class TeleopCameraSubgraph(Subgraph):
                 self.add_operator(decoder)
                 self.add_operator(monitor)
 
-                monitored_outputs[cam_name] = (monitor, "frame_out")
-                logger.info(f"  {cam_name}: port={stream_cfg.port}")
+                monitored_outputs[display_key] = (monitor, "frame_out")
+                logger.info(f"  {camera_label}: port={stream_cfg.port}")
 
     def _compose_monitor_mode(self, monitored_outputs: Dict[str, Any], allocator):
         """Compose monitor mode pipeline using HolovizOp native tiling."""
@@ -544,28 +459,28 @@ class TeleopCameraSubgraph(Subgraph):
             logger.warning("No cameras configured for monitor mode")
             return
 
-        tile_width_norm = 1.0 / num_cameras
+        # Convert pixel padding to normalized coordinates.
+        # Padding creates gaps between tiles (not on edges).
+        pad_x = mon_cfg.padding / mon_cfg.width if num_cameras > 1 else 0.0
+        total_pad = (num_cameras - 1) * pad_x
+        tile_width_norm = (1.0 - total_pad) / num_cameras
         window_aspect = mon_cfg.width / mon_cfg.height
 
-        # Build tensor configs for HolovizOp using View objects for tiling
-        # Preserve aspect ratio within each tile
         tensors = []
         for i, (display_name, _, cam_cfg) in enumerate(camera_list):
+            tile_x = i * (tile_width_norm + pad_x)
             cam_aspect = cam_cfg.width / cam_cfg.height
             tile_aspect = tile_width_norm * window_aspect
 
-            # Calculate view dimensions that preserve camera aspect ratio
             if cam_aspect > tile_aspect:
-                # Camera is wider than tile - fit to tile width, reduce height
                 view_width = tile_width_norm
                 view_height = tile_width_norm * window_aspect / cam_aspect
-                offset_x = i * tile_width_norm
-                offset_y = (1.0 - view_height) / 2.0  # Center vertically
+                offset_x = tile_x
+                offset_y = (1.0 - view_height) / 2.0
             else:
-                # Camera is taller than tile - fit to tile height, reduce width
                 view_height = 1.0
                 view_width = cam_aspect / window_aspect
-                offset_x = i * tile_width_norm + (tile_width_norm - view_width) / 2.0
+                offset_x = tile_x + (tile_width_norm - view_width) / 2.0
                 offset_y = 0.0
 
             view = HolovizOp.InputSpec.View()
@@ -625,8 +540,6 @@ class TeleopCameraSubgraph(Subgraph):
             raise
 
         xr_session = self._xr_session
-
-        # Pass decoder outputs directly to XrPlaneRendererOp
 
         # XR frame timing
         xr_begin = xr.XrBeginFrameOp(
