@@ -20,7 +20,7 @@ namespace core
 // =============================================================================
 
 SchemaTracker::SchemaTracker(const OpenXRSessionHandles& handles, SchemaTrackerConfig config)
-    : m_handles(handles), m_config(std::move(config))
+    : m_handles(handles), m_config(std::move(config)), m_time_converter(handles)
 {
     // Validate handles
     assert(handles.instance != XR_NULL_HANDLE && "OpenXR instance handle cannot be null");
@@ -50,10 +50,15 @@ SchemaTracker::~SchemaTracker()
 
 std::vector<std::string> SchemaTracker::get_required_extensions()
 {
-    return { "XR_NVX1_tensor_data" };
+    std::vector<std::string> exts = { "XR_NVX1_tensor_data" };
+    for (const auto& ext : XrTimeConverter::get_required_extensions())
+    {
+        exts.push_back(ext);
+    }
+    return exts;
 }
 
-bool SchemaTracker::read_buffer(std::vector<uint8_t>& buffer)
+bool SchemaTracker::read_sample(SampleResult& out)
 {
     // Try to discover target collection if not found yet (or if it was lost)
     if (!m_target_collection_index)
@@ -70,7 +75,7 @@ bool SchemaTracker::read_buffer(std::vector<uint8_t>& buffer)
     }
 
     // Try to read next sample
-    return read_next_sample(buffer);
+    return read_next_sample(out);
 }
 
 const SchemaTrackerConfig& SchemaTracker::config() const
@@ -170,7 +175,7 @@ std::optional<uint32_t> SchemaTracker::find_target_collection()
     return std::nullopt;
 }
 
-bool SchemaTracker::read_next_sample(std::vector<uint8_t>& buffer)
+bool SchemaTracker::read_next_sample(SampleResult& out)
 {
     if (!m_target_collection_index.has_value())
     {
@@ -221,9 +226,29 @@ bool SchemaTracker::read_next_sample(std::vector<uint8_t>& buffer)
         m_last_sample_index = metadata.sampleIndex;
     }
 
+    // Guard against invalid runtime state: batch stride must cover at least one full sample.
+    if (dataBuffer.size() < m_sample_size)
+    {
+        std::cerr << "[SchemaTracker] read_next_sample: dataBuffer (" << dataBuffer.size()
+                  << " B) is smaller than m_sample_size (" << m_sample_size << " B); skipping copy." << std::endl;
+        return false;
+    }
+
     // Copy data to output buffer (trim to sample size, not batch stride)
-    buffer.resize(m_sample_size);
-    std::memcpy(buffer.data(), dataBuffer.data(), m_sample_size);
+    out.buffer.resize(m_sample_size);
+    std::memcpy(out.buffer.data(), dataBuffer.data(), m_sample_size);
+
+    // Convert XrTime values from tensor metadata back to monotonic nanoseconds.
+    // The pusher stored monotonic ns converted to XrTime; we invert that here so
+    // DeviceDataTimestamp always carries monotonic nanoseconds in the _local_common_clock_ fields.
+    int64_t available_ns =
+        m_time_converter.convert_xrtime_to_monotonic_ns(static_cast<XrTime>(metadata.arrivalTimestamp));
+    int64_t sample_ns = m_time_converter.convert_xrtime_to_monotonic_ns(static_cast<XrTime>(metadata.timestamp));
+
+    out.timestamp = DeviceDataTimestamp(available_ns, // available_time_local_common_clock
+                                        sample_ns, // sample_time_local_common_clock
+                                        static_cast<int64_t>(metadata.rawDeviceTimestamp) // sample_time_raw_device_clock
+    );
 
     return true;
 }

@@ -5,13 +5,17 @@
 
 Tests the following FlatBuffers types:
 - StreamType: Enum identifying the OAK camera stream
-- FrameMetadataOak: Table with stream, timestamp, and sequence_number
+- FrameMetadataOak: Table with stream and sequence_number
+- FrameMetadataOakRecord: Record wrapper carrying DeviceDataTimestamp
+
+Timestamps are carried by FrameMetadataOakRecord, not FrameMetadataOak.
 """
 
 from isaacteleop.schema import (
     StreamType,
     FrameMetadataOak,
-    Timestamp,
+    FrameMetadataOakRecord,
+    DeviceDataTimestamp,
 )
 
 
@@ -35,7 +39,6 @@ class TestFrameMetadataOakConstruction:
     def test_default_construction(self):
         metadata = FrameMetadataOak()
 
-        assert metadata.timestamp is not None
         assert metadata.stream == StreamType.Color
         assert metadata.sequence_number == 0
 
@@ -44,27 +47,6 @@ class TestFrameMetadataOakConstruction:
         repr_str = repr(metadata)
 
         assert "FrameMetadataOak" in repr_str
-
-
-class TestFrameMetadataOakTimestamp:
-    """Tests for FrameMetadataOak timestamp property."""
-
-    def test_set_timestamp(self):
-        metadata = FrameMetadataOak()
-        timestamp = Timestamp(device_time=1000000000, common_time=2000000000)
-        metadata.timestamp = timestamp
-
-        assert metadata.timestamp.device_time == 1000000000
-        assert metadata.timestamp.common_time == 2000000000
-
-    def test_large_timestamp_values(self):
-        metadata = FrameMetadataOak()
-        max_int64 = 9223372036854775807
-        timestamp = Timestamp(device_time=max_int64, common_time=max_int64 - 1000)
-        metadata.timestamp = timestamp
-
-        assert metadata.timestamp.device_time == max_int64
-        assert metadata.timestamp.common_time == max_int64 - 1000
 
 
 class TestFrameMetadataOakStream:
@@ -116,12 +98,9 @@ class TestFrameMetadataOakCombined:
     def test_full_metadata(self):
         metadata = FrameMetadataOak()
         metadata.stream = StreamType.MonoLeft
-        metadata.timestamp = Timestamp(device_time=1000, common_time=2000)
         metadata.sequence_number = 99
 
         assert metadata.stream == StreamType.MonoLeft
-        assert metadata.timestamp.device_time == 1000
-        assert metadata.timestamp.common_time == 2000
         assert metadata.sequence_number == 99
 
 
@@ -130,71 +109,42 @@ class TestFrameMetadataOakScenarios:
 
     def test_first_frame(self):
         metadata = FrameMetadataOak()
-        metadata.timestamp = Timestamp(device_time=0, common_time=1000000)
         metadata.stream = StreamType.Color
         metadata.sequence_number = 0
 
         assert metadata.stream == StreamType.Color
-        assert metadata.timestamp.device_time == 0
         assert metadata.sequence_number == 0
 
     def test_multi_stream(self):
         streams = [StreamType.Color, StreamType.MonoLeft, StreamType.MonoRight]
         for stream in streams:
             metadata = FrameMetadataOak()
-            metadata.timestamp = Timestamp(
-                device_time=1000000000, common_time=1000000100
-            )
             metadata.stream = stream
             metadata.sequence_number = 5
 
             assert metadata.stream == stream
 
     def test_streaming_with_sequence_numbers(self):
-        base_device_time = 1000000000
-        frame_interval = 33333333
-
         for i in range(5):
             metadata = FrameMetadataOak()
-            metadata.timestamp = Timestamp(
-                device_time=base_device_time + i * frame_interval,
-                common_time=base_device_time + i * frame_interval + 100,
-            )
             metadata.stream = StreamType.Color
             metadata.sequence_number = i
 
             assert metadata.stream == StreamType.Color
             assert metadata.sequence_number == i
-            assert (
-                metadata.timestamp.device_time == base_device_time + i * frame_interval
-            )
 
 
 class TestFrameMetadataOakEdgeCases:
     """Edge case tests for FrameMetadataOak table."""
 
-    def test_zero_timestamp(self):
+    def test_overwrite_sequence_number(self):
         metadata = FrameMetadataOak()
-        metadata.timestamp = Timestamp(device_time=0, common_time=0)
-        assert metadata.timestamp.device_time == 0
-        assert metadata.timestamp.common_time == 0
-
-    def test_negative_timestamp(self):
-        metadata = FrameMetadataOak()
-        metadata.timestamp = Timestamp(device_time=-1000, common_time=-2000)
-        assert metadata.timestamp.device_time == -1000
-        assert metadata.timestamp.common_time == -2000
-
-    def test_overwrite_timestamp(self):
-        metadata = FrameMetadataOak()
-        metadata.timestamp = Timestamp(device_time=100, common_time=200)
-        metadata.timestamp = Timestamp(device_time=300, common_time=400)
-        assert metadata.timestamp.device_time == 300
-        assert metadata.timestamp.common_time == 400
+        metadata.sequence_number = 10
+        metadata.sequence_number = 20
+        assert metadata.sequence_number == 20
 
     def test_repr_with_all_fields(self):
         metadata = FrameMetadataOak()
-        metadata.timestamp = Timestamp(device_time=123, common_time=456)
         metadata.stream = StreamType.MonoRight
         metadata.sequence_number = 7
         repr_str = repr(metadata)
@@ -202,9 +152,36 @@ class TestFrameMetadataOakEdgeCases:
         assert "FrameMetadataOak" in repr_str
         assert "MonoRight" in repr_str
 
-    def test_repr_without_timestamp(self):
-        metadata = FrameMetadataOak()
-        repr_str = repr(metadata)
 
-        assert "FrameMetadataOak" in repr_str
-        assert "Timestamp" in repr_str or "timestamp" in repr_str
+class TestFrameMetadataOakRecordTimestamp:
+    """Tests for FrameMetadataOakRecord with DeviceDataTimestamp."""
+
+    def test_construction_with_timestamp(self):
+        """Test FrameMetadataOakRecord carries DeviceDataTimestamp."""
+        data = FrameMetadataOak()
+        data.stream = StreamType.MonoLeft
+        data.sequence_number = 42
+        ts = DeviceDataTimestamp(1000000000, 2000000000, 3000000000)
+        record = FrameMetadataOakRecord(data, ts)
+
+        assert record.timestamp.available_time_local_common_clock == 1000000000
+        assert record.timestamp.sample_time_local_common_clock == 2000000000
+        assert record.timestamp.sample_time_raw_device_clock == 3000000000
+        assert record.data.stream == StreamType.MonoLeft
+        assert record.data.sequence_number == 42
+
+    def test_default_construction(self):
+        """Test default FrameMetadataOakRecord has no data and no timestamp."""
+        record = FrameMetadataOakRecord()
+        assert record.data is None
+        assert record.timestamp is None
+
+    def test_timestamp_fields(self):
+        """Test all three DeviceDataTimestamp fields are accessible."""
+        data = FrameMetadataOak()
+        ts = DeviceDataTimestamp(111, 222, 333)
+        record = FrameMetadataOakRecord(data, ts)
+
+        assert record.timestamp.available_time_local_common_clock == 111
+        assert record.timestamp.sample_time_local_common_clock == 222
+        assert record.timestamp.sample_time_raw_device_clock == 333

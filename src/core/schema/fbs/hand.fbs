@@ -29,9 +29,6 @@ table HandPose {
     // Vector of HandJointPose.
     // For OpenXR, this should be 26 according to XR_HAND_JOINT_COUNT_EXT
     joints: HandJoints (id: 0);
-
-    // Dual timestamp with device and runtime clock domains
-    timestamp: Timestamp (id: 1);
 }
 
 // Tracked wrapper for the in-memory tracker API (data is null when hand is inactive).
@@ -46,6 +43,7 @@ table HandPoseTracked {
 // public query API returns the inner data type directly.
 table HandPoseRecord {
     data: HandPose (id: 0);
+    timestamp: DeviceDataTimestamp (id: 1);
 }
 
 root_type HandPoseRecord;

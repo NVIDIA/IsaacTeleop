@@ -25,6 +25,7 @@ public:
     {
         std::unique_ptr<SchemaTracker> reader;
         FrameMetadataOakT data;
+        DeviceDataTimestamp last_timestamp{};
     };
 
     Impl(const OpenXRSessionHandles& handles, std::vector<SchemaTrackerConfig> configs)
@@ -41,18 +42,22 @@ public:
     {
         for (auto& stream : m_streams)
         {
-            if (stream.reader->read_buffer(m_buffer))
+            SampleResult sample;
+            if (stream.reader->read_sample(sample))
             {
-                auto fb = flatbuffers::GetRoot<FrameMetadataOak>(m_buffer.data());
+                auto fb = flatbuffers::GetRoot<FrameMetadataOak>(sample.buffer.data());
                 if (fb)
+                {
                     fb->UnPackTo(&stream.data);
+                    stream.last_timestamp = sample.timestamp;
+                }
             }
         }
 
         return true;
     }
 
-    Timestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const override
+    DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const override
     {
         if (channel_index >= m_streams.size())
         {
@@ -61,16 +66,15 @@ public:
                                      " streams)");
         }
 
-        const auto& data = m_streams[channel_index].data;
-        auto data_offset = FrameMetadataOak::Pack(builder, &data);
+        const auto& stream = m_streams[channel_index];
+        auto data_offset = FrameMetadataOak::Pack(builder, &stream.data);
 
         FrameMetadataOakRecordBuilder record_builder(builder);
         record_builder.add_data(data_offset);
+        record_builder.add_timestamp(&stream.last_timestamp);
         builder.Finish(record_builder.Finish());
 
-        if (data.timestamp)
-            return *data.timestamp;
-        return Timestamp{};
+        return stream.last_timestamp;
     }
 
     const FrameMetadataOakT& get_stream_data(size_t stream_index) const
@@ -86,7 +90,6 @@ public:
 
 private:
     std::vector<StreamState> m_streams;
-    std::vector<uint8_t> m_buffer;
 };
 
 // ============================================================================

@@ -5,7 +5,6 @@
 
 HandPoseT is a FlatBuffers table that represents hand pose data:
 - joints: HandJoints struct containing 26 HandJointPose entries (XR_HAND_JOINT_COUNT_EXT)
-- timestamp: Timestamp struct with device and common time
 
 HandJoints is a struct with a fixed-size array of 26 HandJointPose entries.
 
@@ -13,18 +12,21 @@ HandJointPose is a struct containing:
 - pose: The Pose (position and orientation)
 - is_valid: Whether this joint data is valid
 - radius: The radius of the joint (from OpenXR)
+
+Timestamps are carried by HandPoseRecord, not HandPoseT.
 """
 
 import pytest
 
 from isaacteleop.schema import (
     HandPoseT,
+    HandPoseRecord,
     HandJoints,
     HandJointPose,
     Pose,
     Point,
     Quaternion,
-    Timestamp,
+    DeviceDataTimestamp,
 )
 
 
@@ -133,22 +135,18 @@ class TestHandPoseTConstruction:
     """Tests for HandPoseT construction and basic properties."""
 
     def test_default_construction(self):
-        """Test default construction creates HandPoseT with default-initialized fields."""
+        """Test default construction creates HandPoseT with pre-populated joints."""
         hand_pose = HandPoseT()
 
         assert hand_pose is not None
         assert hand_pose.joints is not None
-        assert hand_pose.timestamp is not None
 
     def test_parameterized_construction(self):
-        """Test construction with joints and timestamp."""
+        """Test construction with joints."""
         joints = HandJoints()
-        timestamp = Timestamp(device_time=12345, common_time=67890)
-        hand_pose = HandPoseT(joints, timestamp)
+        hand_pose = HandPoseT(joints)
 
         assert hand_pose.joints is not None
-        assert hand_pose.timestamp.device_time == 12345
-        assert hand_pose.timestamp.common_time == 67890
 
 
 class TestHandPoseTRepr:
@@ -162,8 +160,39 @@ class TestHandPoseTRepr:
         assert "HandPoseT" in repr_str
 
     def test_repr_with_values(self):
-        """Test __repr__ with parameterized construction."""
-        hand_pose = HandPoseT(HandJoints(), Timestamp(100, 200))
+        """Test __repr__ with joints set."""
+        hand_pose = HandPoseT(HandJoints())
 
         repr_str = repr(hand_pose)
         assert "HandPoseT" in repr_str
+
+
+class TestHandPoseRecordTimestamp:
+    """Tests for HandPoseRecord with DeviceDataTimestamp."""
+
+    def test_construction_with_timestamp(self):
+        """Test HandPoseRecord carries DeviceDataTimestamp."""
+        data = HandPoseT(HandJoints())
+        ts = DeviceDataTimestamp(1000000000, 2000000000, 3000000000)
+        record = HandPoseRecord(data, ts)
+
+        assert record.timestamp.available_time_local_common_clock == 1000000000
+        assert record.timestamp.sample_time_local_common_clock == 2000000000
+        assert record.timestamp.sample_time_raw_device_clock == 3000000000
+        assert record.data is not None
+
+    def test_default_construction(self):
+        """Test default HandPoseRecord has no data."""
+        record = HandPoseRecord()
+        assert record.data is None
+        assert record.timestamp is None
+
+    def test_timestamp_fields(self):
+        """Test all three DeviceDataTimestamp fields are accessible."""
+        data = HandPoseT()
+        ts = DeviceDataTimestamp(111, 222, 333)
+        record = HandPoseRecord(data, ts)
+
+        assert record.timestamp.available_time_local_common_clock == 111
+        assert record.timestamp.sample_time_local_common_clock == 222
+        assert record.timestamp.sample_time_raw_device_clock == 333

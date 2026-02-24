@@ -31,25 +31,25 @@ from ._deviceio import (
 # Import OpenXRSessionHandles from oxr module to avoid double registration
 from ..oxr import OpenXRSessionHandles
 
-# Import controller and camera types from schema module (where they are now defined)
+# Import controller, camera, and timestamp types from schema module (where they are now defined)
 from ..schema import (
     ControllerInputState,
     ControllerPose,
     ControllerSnapshot,
+    DeviceDataTimestamp,
     StreamType,
     FrameMetadataOak,
     Generic3AxisPedalOutput,
-    Timestamp,
 )
 
 __all__ = [
     "ControllerInputState",
     "ControllerPose",
     "ControllerSnapshot",
+    "DeviceDataTimestamp",
     "StreamType",
     "FrameMetadataOak",
     "Generic3AxisPedalOutput",
-    "Timestamp",
     "ITracker",
     "HandTracker",
     "HeadTracker",

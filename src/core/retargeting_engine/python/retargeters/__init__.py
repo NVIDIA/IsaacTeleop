@@ -133,13 +133,13 @@ __all__ = [
     "TriHandMotionControllerRetargeter",
     "TriHandBiManualMotionControllerRetargeter",
     "TriHandMotionControllerConfig",
+    "FootPedalRootCmdRetargeter",
+    "FootPedalRootCmdRetargeterConfig",
     # Locomotion retargeters
     "LocomotionFixedRootCmdRetargeter",
     "LocomotionFixedRootCmdRetargeterConfig",
     "LocomotionRootCmdRetargeter",
     "LocomotionRootCmdRetargeterConfig",
-    "FootPedalRootCmdRetargeter",
-    "FootPedalRootCmdRetargeterConfig",
     # Manipulator retargeters
     "GripperRetargeter",
     "GripperRetargeterConfig",

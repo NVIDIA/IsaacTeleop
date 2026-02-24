@@ -116,10 +116,6 @@ class Generic3AxisPedalSource(IDeviceIOSource):
             out.set_none()
             return
 
-        ts = pedal.timestamp
-        timestamp_val = int(ts.device_time) if ts is not None else 0
-
         out[Generic3AxisPedalInputIndex.LEFT_PEDAL] = float(pedal.left_pedal)
         out[Generic3AxisPedalInputIndex.RIGHT_PEDAL] = float(pedal.right_pedal)
         out[Generic3AxisPedalInputIndex.RUDDER] = float(pedal.rudder)
-        out[Generic3AxisPedalInputIndex.TIMESTAMP] = timestamp_val

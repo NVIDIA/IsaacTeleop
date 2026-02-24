@@ -6,7 +6,6 @@
 Tests the following FlatBuffers types:
 - ControllerInputState: Struct with button and axis inputs (immutable)
 - ControllerPose: Struct with pose and validity (immutable)
-- Timestamp: Struct with device and common time timestamps (immutable)
 - ControllerSnapshot: Table representing complete controller state
 """
 
@@ -15,11 +14,12 @@ import pytest
 from isaacteleop.schema import (
     ControllerInputState,
     ControllerPose,
-    Timestamp,
     ControllerSnapshot,
+    ControllerSnapshotRecord,
     Pose,
     Point,
     Quaternion,
+    DeviceDataTimestamp,
 )
 
 
@@ -87,42 +87,6 @@ class TestControllerInputState:
         repr_str = repr(inputs)
         assert "ControllerInputState" in repr_str
         assert "primary=True" in repr_str
-
-
-class TestTimestamp:
-    """Tests for Timestamp struct (immutable)."""
-
-    def test_default_construction(self):
-        """Test default construction creates Timestamp with default values."""
-        timestamp = Timestamp()
-
-        assert timestamp is not None
-        assert timestamp.device_time == 0
-        assert timestamp.common_time == 0
-
-    def test_set_timestamp_values(self):
-        """Test constructing with timestamp values."""
-        timestamp = Timestamp(device_time=1234567890123456789, common_time=9876543210)
-
-        assert timestamp.device_time == 1234567890123456789
-        assert timestamp.common_time == 9876543210
-
-    def test_large_timestamp_values(self):
-        """Test with large int64 timestamp values."""
-        max_int64 = 9223372036854775807
-        timestamp = Timestamp(device_time=max_int64, common_time=max_int64 - 1000)
-
-        assert timestamp.device_time == max_int64
-        assert timestamp.common_time == max_int64 - 1000
-
-    def test_repr(self):
-        """Test __repr__ method."""
-        timestamp = Timestamp(device_time=1000, common_time=2000)
-
-        repr_str = repr(timestamp)
-        assert "Timestamp" in repr_str
-        assert "device_time=1000" in repr_str
-        assert "common_time=2000" in repr_str
 
 
 class TestControllerPose:
@@ -202,7 +166,6 @@ class TestControllerSnapshot:
         assert snapshot.grip_pose is not None
         assert snapshot.aim_pose is not None
         assert snapshot.inputs is not None
-        assert snapshot.timestamp is not None
 
     def test_complete_snapshot(self):
         """Test creating a complete controller snapshot with all fields."""
@@ -228,11 +191,8 @@ class TestControllerSnapshot:
             trigger_value=1.0,
         )
 
-        # Create timestamp
-        timestamp = Timestamp(device_time=1000000000, common_time=2000000000)
-
         # Create snapshot
-        snapshot = ControllerSnapshot(grip_pose, aim_pose, inputs, timestamp)
+        snapshot = ControllerSnapshot(grip_pose, aim_pose, inputs)
 
         # Verify all fields
         assert snapshot.grip_pose.is_valid is True
@@ -241,8 +201,6 @@ class TestControllerSnapshot:
         assert snapshot.aim_pose.pose.position.x == pytest.approx(0.15)
         assert snapshot.inputs.primary_click is True
         assert snapshot.inputs.trigger_value == pytest.approx(1.0)
-        assert snapshot.timestamp.device_time == 1000000000
-        assert snapshot.timestamp.common_time == 2000000000
 
     def test_repr_with_default(self):
         """Test __repr__ with default values."""
@@ -272,10 +230,7 @@ class TestControllerIntegration:
             squeeze_value=0.0,
             trigger_value=0.5,
         )
-        left_timestamp = Timestamp(device_time=1000, common_time=2000)
-        left_snapshot = ControllerSnapshot(
-            left_grip, left_aim, left_inputs, left_timestamp
-        )
+        left_snapshot = ControllerSnapshot(left_grip, left_aim, left_inputs)
 
         # Create right controller (default)
         right_snapshot = ControllerSnapshot()
@@ -355,16 +310,40 @@ class TestControllerEdgeCases:
         # Pose data is still present even if not valid
         assert controller_pose.pose.position.x == pytest.approx(1.0)
 
-    def test_zero_timestamp(self):
-        """Test with zero timestamp values."""
-        timestamp = Timestamp(device_time=0, common_time=0)
 
-        assert timestamp.device_time == 0
-        assert timestamp.common_time == 0
+class TestControllerSnapshotRecordTimestamp:
+    """Tests for ControllerSnapshotRecord with DeviceDataTimestamp."""
 
-    def test_negative_timestamp(self):
-        """Test with negative timestamp values (valid for relative times)."""
-        timestamp = Timestamp(device_time=-1000, common_time=-2000)
+    def test_construction_with_timestamp(self):
+        """Test ControllerSnapshotRecord carries DeviceDataTimestamp."""
+        grip = ControllerPose(
+            Pose(Point(1.0, 0.0, 0.0), Quaternion(0.0, 0.0, 0.0, 1.0)), True
+        )
+        aim = ControllerPose(
+            Pose(Point(0.0, 1.0, 0.0), Quaternion(0.0, 0.0, 0.0, 1.0)), True
+        )
+        inputs = ControllerInputState(True, False, False, 0.5, 0.0, 0.8, 1.0)
+        data = ControllerSnapshot(grip, aim, inputs)
+        ts = DeviceDataTimestamp(1000000000, 2000000000, 3000000000)
+        record = ControllerSnapshotRecord(data, ts)
 
-        assert timestamp.device_time == -1000
-        assert timestamp.common_time == -2000
+        assert record.timestamp.available_time_local_common_clock == 1000000000
+        assert record.timestamp.sample_time_local_common_clock == 2000000000
+        assert record.timestamp.sample_time_raw_device_clock == 3000000000
+        assert record.data is not None
+        assert record.data.inputs.primary_click is True
+
+    def test_default_construction(self):
+        """Test default ControllerSnapshotRecord has no data."""
+        record = ControllerSnapshotRecord()
+        assert record.data is None
+
+    def test_timestamp_fields(self):
+        """Test all three DeviceDataTimestamp fields are accessible."""
+        data = ControllerSnapshot()
+        ts = DeviceDataTimestamp(111, 222, 333)
+        record = ControllerSnapshotRecord(data, ts)
+
+        assert record.timestamp.available_time_local_common_clock == 111
+        assert record.timestamp.sample_time_local_common_clock == 222
+        assert record.timestamp.sample_time_raw_device_clock == 333

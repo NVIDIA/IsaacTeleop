@@ -9,31 +9,32 @@
 
 // Include generated FlatBuffer headers.
 #include <schema/controller_generated.h>
+#include <schema/timestamp_generated.h>
 
 #include <type_traits>
 
 // =============================================================================
-// Compile-time verification of FlatBuffer field IDs for ControllerSnapshotRecord table.
+// Compile-time verification of FlatBuffer field IDs.
 // These ensure schema field IDs remain stable across changes.
 // VT values are computed as: (field_id + 2) * 2.
 // =============================================================================
 #define VT(field) (field + 2) * 2
 
-// ControllerSnapshotRecord field IDs
-static_assert(core::ControllerSnapshotRecord::VT_DATA == VT(0));
-
 // ControllerSnapshot field IDs (table)
 static_assert(core::ControllerSnapshot::VT_GRIP_POSE == VT(0));
 static_assert(core::ControllerSnapshot::VT_AIM_POSE == VT(1));
 static_assert(core::ControllerSnapshot::VT_INPUTS == VT(2));
-static_assert(core::ControllerSnapshot::VT_TIMESTAMP == VT(3));
+
+// ControllerSnapshotRecord field IDs
+static_assert(core::ControllerSnapshotRecord::VT_DATA == VT(0));
+static_assert(core::ControllerSnapshotRecord::VT_TIMESTAMP == VT(1));
 
 // =============================================================================
 // Compile-time verification that helper types are structs (not tables)
 // =============================================================================
 static_assert(std::is_trivially_copyable_v<core::ControllerInputState>);
 static_assert(std::is_trivially_copyable_v<core::ControllerPose>);
-static_assert(std::is_trivially_copyable_v<core::Timestamp>);
+static_assert(std::is_trivially_copyable_v<core::DeviceDataTimestamp>);
 
 // =============================================================================
 // ControllerInputState Tests (struct)
@@ -95,22 +96,24 @@ TEST_CASE("ControllerPose can store pose data", "[controller][struct]")
 }
 
 // =============================================================================
-// Timestamp Tests (struct)
+// DeviceDataTimestamp Tests (struct)
 // =============================================================================
-TEST_CASE("Timestamp default construction", "[controller][struct]")
+TEST_CASE("DeviceDataTimestamp default construction", "[controller][struct]")
 {
-    core::Timestamp timestamp{};
+    core::DeviceDataTimestamp timestamp{};
 
-    CHECK(timestamp.device_time() == 0);
-    CHECK(timestamp.common_time() == 0);
+    CHECK(timestamp.available_time_local_common_clock() == 0);
+    CHECK(timestamp.sample_time_local_common_clock() == 0);
+    CHECK(timestamp.sample_time_raw_device_clock() == 0);
 }
 
-TEST_CASE("Timestamp can store timestamp values", "[controller][struct]")
+TEST_CASE("DeviceDataTimestamp can store timestamp values", "[controller][struct]")
 {
-    core::Timestamp timestamp(1000000000, 2000000000);
+    core::DeviceDataTimestamp timestamp(1000000000LL, 2000000000LL, 3000000000LL);
 
-    CHECK(timestamp.device_time() == 1000000000);
-    CHECK(timestamp.common_time() == 2000000000);
+    CHECK(timestamp.available_time_local_common_clock() == 1000000000LL);
+    CHECK(timestamp.sample_time_local_common_clock() == 2000000000LL);
+    CHECK(timestamp.sample_time_raw_device_clock() == 3000000000LL);
 }
 
 // =============================================================================
@@ -133,22 +136,15 @@ TEST_CASE("ControllerSnapshotT can store complete controller state", "[controlle
     // Create inputs
     core::ControllerInputState inputs(true, false, true, 0.5f, -0.5f, 0.8f, 1.0f);
 
-    // Create timestamp
-    core::Timestamp timestamp(1000000000, 2000000000);
-
-    // Create snapshot via T type
     core::ControllerSnapshotT snapshot;
     snapshot.grip_pose = std::make_shared<core::ControllerPose>(grip_pose);
     snapshot.aim_pose = std::make_shared<core::ControllerPose>(aim_pose);
     snapshot.inputs = std::make_shared<core::ControllerInputState>(inputs);
-    snapshot.timestamp = std::make_shared<core::Timestamp>(timestamp);
 
     CHECK(snapshot.grip_pose->is_valid() == true);
     CHECK(snapshot.aim_pose->is_valid() == true);
     CHECK(snapshot.inputs->primary_click() == true);
     CHECK(snapshot.inputs->trigger_value() == Catch::Approx(1.0f));
-    CHECK(snapshot.timestamp->device_time() == 1000000000);
-    CHECK(snapshot.timestamp->common_time() == 2000000000);
 }
 
 // =============================================================================
@@ -174,10 +170,8 @@ TEST_CASE("ControllerSnapshotRecord serialization and deserialization", "[contro
     core::Pose p(pos, orient);
     core::ControllerPose grip(p, true);
     core::ControllerInputState inputs(true, false, false, 0.5f, 0.0f, 0.5f, 0.5f);
-    core::Timestamp timestamp(1000, 2000);
 
-    // Build ControllerSnapshot table, then wrap in Record
-    auto snapshot_offset = core::CreateControllerSnapshot(builder, &grip, &grip, &inputs, &timestamp);
+    auto snapshot_offset = core::CreateControllerSnapshot(builder, &grip, &grip, &inputs);
     core::ControllerSnapshotRecordBuilder record_builder(builder);
     record_builder.add_data(snapshot_offset);
     builder.Finish(record_builder.Finish());
@@ -205,5 +199,59 @@ TEST_CASE("ControllerSnapshotRecord can be unpacked from buffer", "[controller][
     auto unpacked = std::make_unique<core::ControllerSnapshotRecordT>();
     table->UnPackTo(unpacked.get());
 
+    CHECK(unpacked->data != nullptr);
+}
+
+// =============================================================================
+// ControllerSnapshotRecord Tests (timestamp lives on the Record wrapper)
+// =============================================================================
+TEST_CASE("ControllerSnapshotRecord serialization with DeviceDataTimestamp", "[controller][serialize]")
+{
+    flatbuffers::FlatBufferBuilder builder;
+
+    auto record = std::make_shared<core::ControllerSnapshotRecordT>();
+    record->data = std::make_shared<core::ControllerSnapshotT>();
+
+    core::Point pos(1.0f, 2.0f, 3.0f);
+    core::Quaternion orient(0.0f, 0.0f, 0.0f, 1.0f);
+    core::Pose p(pos, orient);
+    core::ControllerPose grip(p, true);
+    core::ControllerInputState inputs(true, false, false, 0.5f, 0.0f, 0.5f, 0.5f);
+
+    record->data->grip_pose = std::make_shared<core::ControllerPose>(grip);
+    record->data->aim_pose = std::make_shared<core::ControllerPose>(grip);
+    record->data->inputs = std::make_shared<core::ControllerInputState>(inputs);
+    record->timestamp = std::make_shared<core::DeviceDataTimestamp>(1000000000LL, 2000000000LL, 3000000000LL);
+
+    auto offset = core::ControllerSnapshotRecord::Pack(builder, record.get());
+    builder.Finish(offset);
+
+    auto deserialized = flatbuffers::GetRoot<core::ControllerSnapshotRecord>(builder.GetBufferPointer());
+
+    CHECK(deserialized->timestamp()->available_time_local_common_clock() == 1000000000LL);
+    CHECK(deserialized->timestamp()->sample_time_local_common_clock() == 2000000000LL);
+    CHECK(deserialized->timestamp()->sample_time_raw_device_clock() == 3000000000LL);
+    CHECK(deserialized->data()->inputs()->primary_click() == true);
+    CHECK(deserialized->data()->grip_pose()->is_valid() == true);
+}
+
+TEST_CASE("ControllerSnapshotRecord can be unpacked with DeviceDataTimestamp", "[controller][serialize]")
+{
+    flatbuffers::FlatBufferBuilder builder;
+
+    auto original = std::make_shared<core::ControllerSnapshotRecordT>();
+    original->data = std::make_shared<core::ControllerSnapshotT>();
+    original->timestamp = std::make_shared<core::DeviceDataTimestamp>(111LL, 222LL, 333LL);
+
+    auto offset = core::ControllerSnapshotRecord::Pack(builder, original.get());
+    builder.Finish(offset);
+
+    auto fb = flatbuffers::GetRoot<core::ControllerSnapshotRecord>(builder.GetBufferPointer());
+    auto unpacked = std::make_shared<core::ControllerSnapshotRecordT>();
+    fb->UnPackTo(unpacked.get());
+
+    CHECK(unpacked->timestamp->available_time_local_common_clock() == 111LL);
+    CHECK(unpacked->timestamp->sample_time_local_common_clock() == 222LL);
+    CHECK(unpacked->timestamp->sample_time_raw_device_clock() == 333LL);
     CHECK(unpacked->data != nullptr);
 }

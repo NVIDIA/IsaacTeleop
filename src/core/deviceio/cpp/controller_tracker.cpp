@@ -135,6 +135,7 @@ XrAction create_action(const OpenXRCoreFunctions& funcs,
 // Constructor - throws std::runtime_error on failure
 ControllerTracker::Impl::Impl(const OpenXRSessionHandles& handles)
     : core_funcs_(OpenXRCoreFunctions::load(handles.instance, handles.xrGetInstanceProcAddr)),
+      time_converter_(handles),
       session_(handles.session),
       base_space_(handles.space),
 
@@ -287,7 +288,6 @@ bool ControllerTracker::Impl::update(XrTime time)
         ControllerPose grip_pose{};
         ControllerPose aim_pose{};
         ControllerInputState inputs{};
-        Timestamp timestamp{};
 
         // Update grip pose
         XrSpaceLocation grip_location{ XR_TYPE_SPACE_LOCATION };
@@ -320,7 +320,6 @@ bool ControllerTracker::Impl::update(XrTime time)
         }
 
         bool is_active = grip_pose.is_valid() || aim_pose.is_valid();
-        timestamp = Timestamp(time, time);
 
         // Update input values
         bool primary_click = get_boolean_action_state(session_, core_funcs_, primary_click_action_, hand_path);
@@ -345,7 +344,6 @@ bool ControllerTracker::Impl::update(XrTime time)
             tracked.data->grip_pose = std::make_shared<ControllerPose>(grip_pose);
             tracked.data->aim_pose = std::make_shared<ControllerPose>(aim_pose);
             tracked.data->inputs = std::make_shared<ControllerInputState>(inputs);
-            tracked.data->timestamp = std::make_shared<Timestamp>(timestamp);
         }
         else
         {
@@ -369,7 +367,7 @@ const ControllerSnapshotTrackedT& ControllerTracker::Impl::get_right_controller(
     return right_tracked_;
 }
 
-Timestamp ControllerTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const
+DeviceDataTimestamp ControllerTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const
 {
     if (channel_index > 1)
     {
@@ -378,17 +376,18 @@ Timestamp ControllerTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& bui
     }
     const auto& tracked = (channel_index == 0) ? left_tracked_ : right_tracked_;
 
+    int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
+    DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
+
+    ControllerSnapshotRecordBuilder record_builder(builder);
     if (tracked.data)
     {
         auto data_offset = ControllerSnapshot::Pack(builder, tracked.data.get());
-        ControllerSnapshotRecordBuilder record_builder(builder);
         record_builder.add_data(data_offset);
-        builder.Finish(record_builder.Finish());
-        return *tracked.data->timestamp;
     }
-    ControllerSnapshotRecordBuilder record_builder(builder);
+    record_builder.add_timestamp(&timestamp);
     builder.Finish(record_builder.Finish());
-    return Timestamp(last_update_time_, last_update_time_);
+    return timestamp;
 }
 
 // ============================================================================

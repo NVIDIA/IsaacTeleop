@@ -22,7 +22,8 @@ namespace core
 
 // Constructor - throws std::runtime_error on failure
 HandTracker::Impl::Impl(const OpenXRSessionHandles& handles)
-    : base_space_(handles.space),
+    : time_converter_(handles),
+      base_space_(handles.space),
       left_hand_tracker_(XR_NULL_HANDLE),
       right_hand_tracker_(XR_NULL_HANDLE),
       pfn_create_hand_tracker_(nullptr),
@@ -86,7 +87,7 @@ HandTracker::Impl::Impl(const OpenXRSessionHandles& handles)
     std::cout << "HandTracker initialized (left + right)" << std::endl;
 }
 
-Timestamp HandTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const
+DeviceDataTimestamp HandTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const
 {
     if (channel_index > 1)
     {
@@ -95,17 +96,18 @@ Timestamp HandTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, 
     }
     const auto& tracked = (channel_index == 0) ? left_tracked_ : right_tracked_;
 
+    int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
+    DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
+
+    HandPoseRecordBuilder record_builder(builder);
     if (tracked.data)
     {
         auto data_offset = HandPose::Pack(builder, tracked.data.get());
-        HandPoseRecordBuilder record_builder(builder);
         record_builder.add_data(data_offset);
-        builder.Finish(record_builder.Finish());
-        return *tracked.data->timestamp;
     }
-    HandPoseRecordBuilder record_builder(builder);
+    record_builder.add_timestamp(&timestamp);
     builder.Finish(record_builder.Finish());
-    return Timestamp(last_update_time_, last_update_time_);
+    return timestamp;
 }
 
 HandTracker::Impl::~Impl()
@@ -176,8 +178,6 @@ bool HandTracker::Impl::update_hand(XrHandTrackerEXT tracker, XrTime time, HandP
     {
         tracked.data = std::make_shared<HandPoseT>();
     }
-
-    tracked.data->timestamp = std::make_shared<Timestamp>(time, time);
 
     if (!tracked.data->joints)
     {

@@ -7,6 +7,7 @@
 #include <flatbuffers/flatbuffers.h>
 #include <mcap/writer.hpp>
 #include <oxr/oxr_session.hpp>
+#include <oxr_utils/os_time.hpp>
 #include <pusherio/schema_pusher.hpp>
 #include <schema/oak_bfbs_generated.h>
 
@@ -44,10 +45,11 @@ void FrameSink::on_frame(const OakFrame& frame)
 {
     auto it = m_writers.find(frame.stream);
     if (it != m_writers.end())
-        it->second->write(frame.data);
+        it->second->write(frame.h264_data);
 
     if (m_metadata_pusher)
-        m_metadata_pusher->on_frame_metadata(frame.metadata);
+        m_metadata_pusher->on_frame_metadata(
+            frame.metadata, frame.sample_time_local_common_clock_ns, frame.sample_time_raw_device_clock_ns);
 }
 
 // =============================================================================
@@ -74,7 +76,9 @@ public:
         }
     }
 
-    void on_frame_metadata(const core::FrameMetadataOakT& metadata) override
+    void on_frame_metadata(const core::FrameMetadataOakT& metadata,
+                           int64_t sample_time_local_common_clock_ns,
+                           int64_t sample_time_raw_device_clock_ns) override
     {
         auto it = m_pushers.find(metadata.stream);
         if (it == m_pushers.end())
@@ -87,7 +91,8 @@ public:
         flatbuffers::FlatBufferBuilder builder(MAX_FLATBUFFER_SIZE);
         auto offset = core::FrameMetadataOak::Pack(builder, &metadata);
         builder.Finish(offset);
-        it->second->push_buffer(builder.GetBufferPointer(), builder.GetSize());
+        it->second->push_buffer(builder.GetBufferPointer(), builder.GetSize(), sample_time_local_common_clock_ns,
+                                sample_time_raw_device_clock_ns);
     }
 
 private:
@@ -135,7 +140,9 @@ public:
         std::cout << "MCAP closed with " << m_message_count << " messages" << std::endl;
     }
 
-    void on_frame_metadata(const core::FrameMetadataOakT& metadata) override
+    void on_frame_metadata(const core::FrameMetadataOakT& metadata,
+                           int64_t sample_time_local_common_clock_ns,
+                           int64_t sample_time_raw_device_clock_ns) override
     {
         auto it = m_channel_ids.find(metadata.stream);
         if (it == m_channel_ids.end())
@@ -145,18 +152,23 @@ public:
             return;
         }
 
+        const int64_t now_ns = core::os_monotonic_now_ns();
+
         flatbuffers::FlatBufferBuilder builder(MAX_FLATBUFFER_SIZE);
         auto data_offset = core::FrameMetadataOak::Pack(builder, &metadata);
+        // available_time: when this record was written (now).
+        // sample_time_local_common_clock: when the frame was captured (common clock).
+        // sample_time_raw_device_clock: when the frame was captured (device clock).
+        core::DeviceDataTimestamp timestamp(now_ns, sample_time_local_common_clock_ns, sample_time_raw_device_clock_ns);
         core::FrameMetadataOakRecordBuilder record_builder(builder);
         record_builder.add_data(data_offset);
+        record_builder.add_timestamp(&timestamp);
         builder.Finish(record_builder.Finish());
-
-        auto now_ns = static_cast<mcap::Timestamp>(std::chrono::steady_clock::now().time_since_epoch().count());
 
         mcap::Message msg;
         msg.channelId = it->second;
-        msg.logTime = now_ns;
-        msg.publishTime = now_ns;
+        msg.logTime = static_cast<mcap::Timestamp>(now_ns);
+        msg.publishTime = static_cast<mcap::Timestamp>(now_ns);
         msg.sequence = static_cast<uint32_t>(m_message_count);
         msg.data = reinterpret_cast<const std::byte*>(builder.GetBufferPointer());
         msg.dataSize = builder.GetSize();

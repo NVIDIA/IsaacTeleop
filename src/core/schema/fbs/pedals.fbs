@@ -12,14 +12,11 @@ namespace core;
 // Validated devices:
 // - https://www.logitechg.com/en-us/shop/p/flight-simulator-rudder-pedals
 table Generic3AxisPedalOutput {
-  // Dual timestamp with device and runtime clock domains.
-  timestamp: Timestamp (id: 0);
+  left_pedal: float (id: 0);
 
-  left_pedal: float (id: 1);
+  right_pedal: float (id: 1);
 
-  right_pedal: float (id: 2);
-
-  rudder: float (id: 3);
+  rudder: float (id: 2);
 }
 
 // Tracked wrapper for the in-memory tracker API (data is null when no pedal data available).
@@ -34,6 +31,7 @@ table Generic3AxisPedalOutputTracked {
 // public query API returns the inner data type directly.
 table Generic3AxisPedalOutputRecord {
     data: Generic3AxisPedalOutput (id: 0);
+    timestamp: DeviceDataTimestamp (id: 1);
 }
 
 root_type Generic3AxisPedalOutputRecord;

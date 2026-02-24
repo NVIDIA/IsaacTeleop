@@ -9,6 +9,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <schema/hand_generated.h>
+#include <schema/timestamp_generated.h>
 
 #include <array>
 #include <cstring>
@@ -67,23 +68,18 @@ inline void bind_hand(py::module& m)
             {
                 auto obj = std::make_shared<HandPoseT>();
                 obj->joints = std::make_shared<HandJoints>();
-                obj->timestamp = std::make_shared<Timestamp>();
                 return obj;
             }))
         .def(py::init(
-                 [](const HandJoints& joints, const Timestamp& timestamp)
+                 [](const HandJoints& joints)
                  {
                      auto obj = std::make_shared<HandPoseT>();
                      obj->joints = std::make_shared<HandJoints>(joints);
-                     obj->timestamp = std::make_shared<Timestamp>(timestamp);
                      return obj;
                  }),
-             py::arg("joints"), py::arg("timestamp"))
+             py::arg("joints"))
         .def_property_readonly(
             "joints", [](const HandPoseT& self) -> const HandJoints* { return self.joints.get(); },
-            py::return_value_policy::reference_internal)
-        .def_property_readonly(
-            "timestamp", [](const HandPoseT& self) -> const Timestamp* { return self.timestamp.get(); },
             py::return_value_policy::reference_internal)
         .def("__repr__",
              [](const HandPoseT& self)
@@ -93,21 +89,32 @@ inline void bind_hand(py::module& m)
                  {
                      joints_str = "HandJoints(poses=[...26 entries...])";
                  }
-                 std::string timestamp_str = "None";
-                 if (self.timestamp)
-                 {
-                     timestamp_str = "Timestamp(device=" + std::to_string(self.timestamp->device_time()) +
-                                     ", common=" + std::to_string(self.timestamp->common_time()) + ")";
-                 }
-                 return "HandPoseT(joints=" + joints_str + ", timestamp=" + timestamp_str + ")";
+                 return "HandPoseT(joints=" + joints_str + ")";
              });
 
-    py::class_<HandPoseTrackedT>(m, "HandPoseTrackedT")
+    py::class_<HandPoseRecordT, std::shared_ptr<HandPoseRecordT>>(m, "HandPoseRecord")
+        .def(py::init<>())
+        .def(py::init(
+                 [](const HandPoseT& data, const DeviceDataTimestamp& timestamp)
+                 {
+                     auto obj = std::make_shared<HandPoseRecordT>();
+                     obj->data = std::make_shared<HandPoseT>(data);
+                     obj->timestamp = std::make_shared<core::DeviceDataTimestamp>(timestamp);
+                     return obj;
+                 }),
+             py::arg("data"), py::arg("timestamp"))
+        .def_property_readonly(
+            "data", [](const HandPoseRecordT& self) -> std::shared_ptr<HandPoseT> { return self.data; })
+        .def_readonly("timestamp", &HandPoseRecordT::timestamp)
+        .def("__repr__", [](const HandPoseRecordT& self)
+             { return "HandPoseRecord(data=" + std::string(self.data ? "HandPoseT(...)" : "None") + ")"; });
+
+    py::class_<HandPoseTrackedT, std::shared_ptr<HandPoseTrackedT>>(m, "HandPoseTrackedT")
         .def(py::init<>())
         .def(py::init(
                  [](const HandPoseT& data)
                  {
-                     auto obj = std::make_unique<HandPoseTrackedT>();
+                     auto obj = std::make_shared<HandPoseTrackedT>();
                      obj->data = std::make_shared<HandPoseT>(data);
                      return obj;
                  }),

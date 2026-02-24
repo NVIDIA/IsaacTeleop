@@ -32,7 +32,6 @@ from isaacteleop.schema import (
     ControllerSnapshotTrackedT,
     HeadPoseT,
     HeadPoseTrackedT,
-    Timestamp,
 )
 
 
@@ -66,13 +65,8 @@ def create_controller_snapshot(grip_pos, aim_pos, trigger_val):
         trigger_value=trigger_val,
     )
 
-    # Create timestamp
-    timestamp = Timestamp(123, 456)
-
     # Create snapshot
-    return ControllerSnapshot(
-        grip_controller_pose, aim_controller_pose, inputs, timestamp
-    )
+    return ControllerSnapshot(grip_controller_pose, aim_controller_pose, inputs)
 
 
 # ============================================================================
@@ -228,7 +222,6 @@ class TestHeadSource:
         head_data = HeadPoseT(
             Pose(Point(1.0, 2.0, 3.0), Quaternion(0.0, 0.0, 0.0, 1.0)),
             True,
-            Timestamp(12345, 0),
         )
 
         inputs = {"deviceio_head": [HeadPoseTrackedT(head_data)]}
@@ -246,7 +239,6 @@ class TestHeadSource:
             head[HeadPoseIndex.ORIENTATION], [0.0, 0.0, 0.0, 1.0]
         )
         assert head[HeadPoseIndex.IS_VALID] is True
-        assert head[HeadPoseIndex.TIMESTAMP] == 12345
 
     def test_head_source_compute_inactive(self):
         """Test that inactive head (TrackedT.data is None) produces absent output."""
@@ -405,7 +397,6 @@ class TestHeadSourceOptional:
         head_data = HeadPoseT(
             Pose(Point(0.5, 1.5, 0.0), Quaternion(0.0, 0.707, 0.0, 0.707)),
             True,
-            Timestamp(99999, 0),
         )
 
         inputs = {"deviceio_head": [HeadPoseTrackedT(head_data)]}

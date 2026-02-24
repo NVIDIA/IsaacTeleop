@@ -25,9 +25,10 @@ public:
 
     bool update(XrTime /* time */) override
     {
-        if (m_schema_reader.read_buffer(m_buffer))
+        SampleResult sample;
+        if (m_schema_reader.read_sample(sample))
         {
-            auto fb = flatbuffers::GetRoot<Generic3AxisPedalOutput>(m_buffer.data());
+            auto fb = flatbuffers::GetRoot<Generic3AxisPedalOutput>(sample.buffer.data());
             if (fb)
             {
                 if (!m_tracked.data)
@@ -35,6 +36,7 @@ public:
                     m_tracked.data = std::make_shared<Generic3AxisPedalOutputT>();
                 }
                 fb->UnPackTo(m_tracked.data.get());
+                m_last_timestamp = sample.timestamp;
                 return true;
             }
         }
@@ -42,19 +44,17 @@ public:
         return true;
     }
 
-    Timestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t /*channel_index*/) const override
+    DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t /*channel_index*/ = 0) const override
     {
+        Generic3AxisPedalOutputRecordBuilder record_builder(builder);
         if (m_tracked.data)
         {
             auto data_offset = Generic3AxisPedalOutput::Pack(builder, m_tracked.data.get());
-            Generic3AxisPedalOutputRecordBuilder record_builder(builder);
             record_builder.add_data(data_offset);
-            builder.Finish(record_builder.Finish());
-            return *m_tracked.data->timestamp;
         }
-        Generic3AxisPedalOutputRecordBuilder record_builder(builder);
+        record_builder.add_timestamp(&m_last_timestamp);
         builder.Finish(record_builder.Finish());
-        return Timestamp{};
+        return m_last_timestamp;
     }
 
     const Generic3AxisPedalOutputTrackedT& get_data() const
@@ -64,8 +64,8 @@ public:
 
 private:
     SchemaTracker m_schema_reader;
-    std::vector<uint8_t> m_buffer;
     Generic3AxisPedalOutputTrackedT m_tracked;
+    DeviceDataTimestamp m_last_timestamp{};
 };
 
 // ============================================================================

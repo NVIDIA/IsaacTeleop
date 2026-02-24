@@ -26,22 +26,6 @@
 
 static constexpr size_t MAX_FLATBUFFER_SIZE = 128;
 
-void print_oak_metadata(const core::FrameMetadataTrackerOak& tracker,
-                        const core::DeviceIOSession& session,
-                        size_t sample_count)
-{
-    std::cout << "Sample " << sample_count << ": ";
-    for (size_t i = 0; i < tracker.get_stream_count(); ++i)
-    {
-        const auto& md = tracker.get_stream_data(session, i);
-        if (i > 0)
-            std::cout << " | ";
-        std::cout << core::EnumNameStreamType(md.stream) << " seq=" << md.sequence_number;
-        if (md.timestamp)
-            std::cout << " dt=" << md.timestamp->device_time();
-    }
-    std::cout << std::endl;
-}
 
 void print_usage(const char* program_name)
 {
@@ -101,7 +85,13 @@ try
     std::cout << "[Step 4] Reading samples (press Ctrl+C to stop)..." << std::endl;
 
     size_t received_count = 0;
-    int64_t last_device_time = -1;
+
+    // Seed per-stream baseline so the first real advancement (not initial state) triggers a print.
+    size_t stream_count = tracker->get_stream_count();
+    std::vector<uint64_t> last_sequences(stream_count);
+    for (size_t i = 0; i < stream_count; ++i)
+        last_sequences[i] = tracker->get_stream_data(*session, i).sequence_number;
+
     auto last_status_time = std::chrono::steady_clock::now();
     constexpr auto status_interval = std::chrono::seconds(5);
 
@@ -113,18 +103,28 @@ try
             break;
         }
 
-        // Detect new data by checking if any stream has a newer device_time
-        int64_t max_dt = -1;
-        for (size_t i = 0; i < tracker->get_stream_count(); ++i)
+        // Refresh stream count and extend per-stream tracking if streams were added.
+        stream_count = tracker->get_stream_count();
+        if (last_sequences.size() != stream_count)
+        {
+            size_t old_count = last_sequences.size();
+            last_sequences.resize(stream_count);
+            // Seed newly added streams with their current sequence so they don't
+            // trigger a spurious print on the next iteration.
+            for (size_t i = old_count; i < stream_count; ++i)
+                last_sequences[i] = tracker->get_stream_data(*session, i).sequence_number;
+        }
+
+        // Print one line per stream that has a new sample.
+        for (size_t i = 0; i < stream_count; ++i)
         {
             const auto& md = tracker->get_stream_data(*session, i);
-            if (md.timestamp)
-                max_dt = std::max(max_dt, md.timestamp->device_time());
-        }
-        if (max_dt > last_device_time)
-        {
-            print_oak_metadata(*tracker, *session, ++received_count);
-            last_device_time = max_dt;
+            if (md.sequence_number != last_sequences[i])
+            {
+                last_sequences[i] = md.sequence_number;
+                std::cout << "Sample " << ++received_count << ": " << core::EnumNameStreamType(md.stream)
+                          << " seq=" << md.sequence_number << std::endl;
+            }
         }
 
         auto now = std::chrono::steady_clock::now();
