@@ -23,3 +23,7 @@ include isaacteleop/retargeting_engine/retargeters/G1/*.py
 include isaacteleop/retargeting_engine/utilities/*.py
 include isaacteleop/retargeting_engine_ui/*.py
 include isaacteleop/teleop_session_manager/*.py
+include isaacteleop/cloudxr/*.py
+include isaacteleop/cloudxr/native/*.so
+include isaacteleop/cloudxr/native/*.so.*
+include isaacteleop/cloudxr/native/openxr_cloudxr.json

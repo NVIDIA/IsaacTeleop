@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 cmake_minimum_required(VERSION 3.20)
@@ -35,6 +35,9 @@ add_subdirectory(retargeting_engine_ui)
 
 # Build TeleopSessionManager (pure Python module)
 add_subdirectory(teleop_session_manager)
+
+# CloudXR runtime helper (pure Python, docker-less)
+add_subdirectory(cloudxr)
 
 # Python wheel packaging (combines both modules)
 if(BUILD_PYTHON_BINDINGS)

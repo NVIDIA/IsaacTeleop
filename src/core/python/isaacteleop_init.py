@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """Isaac Teleop - Teleoperation Core Library
@@ -14,6 +14,7 @@ from . import oxr
 from . import plugin_manager
 from . import schema
 from . import teleop_session_manager
+from . import cloudxr
 
 __all__ = [
     "deviceio",
@@ -21,5 +22,6 @@ __all__ = [
     "plugin_manager",
     "schema",
     "teleop_session_manager",
+    "cloudxr",
     "__version__",
 ]
