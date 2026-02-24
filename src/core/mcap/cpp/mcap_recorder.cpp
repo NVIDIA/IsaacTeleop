@@ -7,7 +7,6 @@
 #include <deviceio/deviceio_session.hpp>
 #include <flatbuffers/flatbuffers.h>
 #include <mcap/writer.hpp>
-#include <oxr_utils/os_time.hpp>
 
 #include <iostream>
 #include <stdexcept>
@@ -132,30 +131,38 @@ private:
             return false;
         }
 
-        // Capture write time before serialize so logTime reflects when the record
-        // hit the recorder, not when the tracker last updated.
-        const mcap::Timestamp now = static_cast<mcap::Timestamp>(os_monotonic_now_ns());
+        bool success = true;
+        mcap::ChannelId mcap_channel_id = it->second[channel_index];
 
-        flatbuffers::FlatBufferBuilder builder(256);
-        tracker_impl.serialize(builder, channel_index);
+        tracker_impl.serialize_all(channel_index,
+                                   [&](const DeviceDataTimestamp& timestamp, const uint8_t* data, size_t size)
+                                   {
+                                       // Both logTime and publishTime are set to available_time_local_common_clock
+                                       // (when the recording system received the sample). Trackers always populate
+                                       // this field before invoking the callback.
+                                       const mcap::Timestamp log_time =
+                                           static_cast<mcap::Timestamp>(timestamp.available_time_local_common_clock());
 
-        mcap::Message msg;
-        msg.channelId = it->second[channel_index];
-        msg.logTime = now;
-        msg.publishTime = now;
-        msg.sequence = static_cast<uint32_t>(message_count_);
-        msg.data = reinterpret_cast<const std::byte*>(builder.GetBufferPointer());
-        msg.dataSize = builder.GetSize();
+                                       mcap::Message msg;
+                                       msg.channelId = mcap_channel_id;
+                                       msg.logTime = log_time;
+                                       msg.publishTime = log_time;
+                                       msg.sequence = static_cast<uint32_t>(message_count_);
+                                       msg.data = reinterpret_cast<const std::byte*>(data);
+                                       msg.dataSize = size;
 
-        auto status = writer_.write(msg);
-        if (!status.ok())
-        {
-            std::cerr << "McapRecorder: Failed to write message: " << status.message << std::endl;
-            return false;
-        }
+                                       auto status = writer_.write(msg);
+                                       if (!status.ok())
+                                       {
+                                           std::cerr << "McapRecorder: Failed to write message: " << status.message
+                                                     << std::endl;
+                                           success = false;
+                                       }
 
-        ++message_count_;
-        return true;
+                                       ++message_count_;
+                                   });
+
+        return success;
     }
 
     std::string filename_;

@@ -3,10 +3,10 @@
 
 #pragma once
 
-#include <flatbuffers/flatbuffer_builder.h>
 #include <openxr/openxr.h>
 #include <schema/timestamp_generated.h>
 
+#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -30,13 +30,36 @@ public:
     virtual bool update(XrTime time) = 0;
 
     /**
-     * @brief Serialize the tracker data to a FlatBuffer.
+     * @brief Callback type for serialize_all.
      *
-     * @param builder Output FlatBufferBuilder to write serialized data into.
-     * @param channel_index Which channel to serialize (0 for single-channel trackers).
-     * @return DeviceDataTimestamp for MCAP recording.
+     * Receives (timestamp, data_ptr, data_size) for each serialized record.
+     *
+     * @warning The data_ptr and data_size are only valid for the duration of the
+     *          callback invocation. The buffer is owned by a FlatBufferBuilder
+     *          local to the tracker's serialize_all implementation and will be
+     *          destroyed on return. If you need the bytes after the callback
+     *          returns, copy them into your own storage before returning.
      */
-    virtual DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index = 0) const = 0;
+    using RecordCallback = std::function<void(const DeviceDataTimestamp&, const uint8_t*, size_t)>;
+
+    /**
+     * @brief Serialize all records accumulated since the last update() call.
+     *
+     * Each call to update() clears the previous batch and accumulates a fresh
+     * set of records (one for OpenXR-direct trackers; potentially many for
+     * SchemaTracker-based tensor-device trackers). serialize_all emits every
+     * record in that batch via the callback.
+     *
+     * For read access without MCAP recording, use the tracker's typed get_*()
+     * accessors, which always reflect the last record in the current batch.
+     *
+     * @note The buffer pointer passed to the callback is only valid for the
+     *       duration of that callback call. Copy if you need it beyond return.
+     *
+     * @param channel_index Which record channel to serialize (0-based).
+     * @param callback Invoked once per record with (timestamp, data_ptr, data_size).
+     */
+    virtual void serialize_all(size_t channel_index, const RecordCallback& callback) const = 0;
 };
 
 // Base interface for all trackers
@@ -68,8 +91,8 @@ public:
      * @brief Get the channel names for MCAP recording.
      *
      * Every tracker must return at least one non-empty channel name. The returned
-     * vector size determines how many times serialize() is called per update, with
-     * the vector index used as the channel_index argument.
+     * vector size determines how many times serialize_all() is called per update,
+     * with the vector index used as the channel_index argument.
      *
      * Single-channel trackers return one name (e.g. {"head"}).
      * Multi-channel trackers return multiple (e.g. {"left_hand", "right_hand"}).

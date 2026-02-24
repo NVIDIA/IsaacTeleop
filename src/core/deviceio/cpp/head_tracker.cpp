@@ -74,8 +74,16 @@ const HeadPoseTrackedT& HeadTracker::Impl::get_head() const
     return tracked_;
 }
 
-DeviceDataTimestamp HeadTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, size_t /*channel_index*/) const
+void HeadTracker::Impl::serialize_all(size_t channel_index, const RecordCallback& callback) const
 {
+    if (channel_index != 0)
+    {
+        throw std::runtime_error("HeadTracker::serialize_all: invalid channel_index " + std::to_string(channel_index) +
+                                 " (only channel 0 exists)");
+    }
+
+    flatbuffers::FlatBufferBuilder builder(256);
+
     int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
     DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
 
@@ -87,7 +95,8 @@ DeviceDataTimestamp HeadTracker::Impl::serialize(flatbuffers::FlatBufferBuilder&
     }
     record_builder.add_timestamp(&timestamp);
     builder.Finish(record_builder.Finish());
-    return timestamp;
+
+    callback(timestamp, builder.GetBufferPointer(), builder.GetSize());
 }
 
 // ============================================================================

@@ -27,7 +27,7 @@ public:
 
     // Override from ITrackerImpl
     bool update(XrTime time) override;
-    DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index = 0) const override;
+    void serialize_all(size_t channel_index, const RecordCallback& callback) const override;
 
     // Get body pose data
     const FullBodyPosePicoTrackedT& get_body_pose() const;
@@ -184,9 +184,10 @@ const FullBodyPosePicoTrackedT& FullBodyTrackerPicoImpl::get_body_pose() const
     return tracked_;
 }
 
-DeviceDataTimestamp FullBodyTrackerPicoImpl::serialize(flatbuffers::FlatBufferBuilder& builder,
-                                                       size_t /*channel_index*/) const
+void FullBodyTrackerPicoImpl::serialize_all(size_t /*channel_index*/, const RecordCallback& callback) const
 {
+    flatbuffers::FlatBufferBuilder builder(256);
+
     int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
     DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
 
@@ -198,7 +199,8 @@ DeviceDataTimestamp FullBodyTrackerPicoImpl::serialize(flatbuffers::FlatBufferBu
     }
     record_builder.add_timestamp(&timestamp);
     builder.Finish(record_builder.Finish());
-    return timestamp;
+
+    callback(timestamp, builder.GetBufferPointer(), builder.GetSize());
 }
 
 // ============================================================================

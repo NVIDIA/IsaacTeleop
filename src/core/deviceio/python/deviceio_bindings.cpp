@@ -69,10 +69,10 @@ PYBIND11_MODULE(_deviceio, m)
         .def(
             "get_stream_data",
             [](core::FrameMetadataTrackerOak& self, PyDeviceIOSession& session,
-               size_t stream_index) -> const core::FrameMetadataOakT&
+               size_t stream_index) -> const core::FrameMetadataOakTrackedT&
             { return self.get_stream_data(session.native(), stream_index); },
             py::arg("session"), py::arg("stream_index"), py::return_value_policy::reference_internal,
-            "Get FrameMetadataOak for a specific stream by index")
+            "Get FrameMetadataOakTrackedT for a specific stream by index; .data is None until first frame arrives")
         .def_property_readonly("stream_count", &core::FrameMetadataTrackerOak::get_stream_count,
                                "Number of streams this tracker is configured for");
 

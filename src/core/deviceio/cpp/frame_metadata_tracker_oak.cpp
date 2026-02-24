@@ -6,6 +6,7 @@
 #include "inc/deviceio/deviceio_session.hpp"
 
 #include <flatbuffers/flatbuffers.h>
+#include <oxr_utils/oxr_time.hpp>
 #include <schema/oak_bfbs_generated.h>
 
 #include <stdexcept>
@@ -21,14 +22,20 @@ namespace core
 class FrameMetadataTrackerOak::Impl : public ITrackerImpl
 {
 public:
+    struct PendingRecord
+    {
+        FrameMetadataOakT data;
+        DeviceDataTimestamp timestamp;
+    };
+
     struct StreamState
     {
         std::unique_ptr<SchemaTracker> reader;
-        FrameMetadataOakT data;
-        DeviceDataTimestamp last_timestamp{};
+        FrameMetadataOakTrackedT tracked;
+        std::vector<PendingRecord> pending_records;
     };
 
-    Impl(const OpenXRSessionHandles& handles, std::vector<SchemaTrackerConfig> configs)
+    Impl(const OpenXRSessionHandles& handles, std::vector<SchemaTrackerConfig> configs) : m_time_converter_(handles)
     {
         for (auto& config : configs)
         {
@@ -38,46 +45,87 @@ public:
         }
     }
 
-    bool update(XrTime /* time */) override
+    bool update(XrTime time) override
     {
+        m_last_update_time_ = time;
         for (auto& stream : m_streams)
         {
-            SampleResult sample;
-            if (stream.reader->read_sample(sample))
+            stream.pending_records.clear();
+
+            std::vector<SchemaTracker::SampleResult> raw_samples;
+            stream.reader->read_all_samples(raw_samples);
+
+            for (auto& sample : raw_samples)
             {
                 auto fb = flatbuffers::GetRoot<FrameMetadataOak>(sample.buffer.data());
-                if (fb)
+                if (!fb)
                 {
-                    fb->UnPackTo(&stream.data);
-                    stream.last_timestamp = sample.timestamp;
+                    continue;
                 }
+
+                FrameMetadataOakT parsed;
+                fb->UnPackTo(&parsed);
+                stream.pending_records.push_back({ std::move(parsed), sample.timestamp });
             }
+
+            if (!stream.pending_records.empty())
+            {
+                if (!stream.tracked.data)
+                {
+                    stream.tracked.data = std::make_shared<FrameMetadataOakT>();
+                }
+                *stream.tracked.data = stream.pending_records.back().data;
+            }
+            // When no samples arrive, stream.tracked retains the last seen value.
         }
 
         return true;
     }
 
-    DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const override
+    void serialize_all(size_t channel_index, const RecordCallback& callback) const override
     {
         if (channel_index >= m_streams.size())
         {
-            throw std::runtime_error("FrameMetadataTrackerOak::serialize: invalid channel_index " +
+            throw std::runtime_error("FrameMetadataTrackerOak::serialize_all: invalid channel_index " +
                                      std::to_string(channel_index) + " (have " + std::to_string(m_streams.size()) +
                                      " streams)");
         }
 
-        const auto& stream = m_streams[channel_index];
-        auto data_offset = FrameMetadataOak::Pack(builder, &stream.data);
+        // The FlatBufferBuilder is stack-allocated per record. The data pointer
+        // passed to the callback is only valid for the duration of that callback
+        // invocation — the caller must not retain it after returning.
+        //
+        // The DeviceDataTimestamp passed to the callback is the update-tick time
+        // (used by the MCAP recorder for logTime/publishTime). The timestamps
+        // embedded inside the Record payload are the tensor transport timestamps.
+        int64_t update_ns = m_time_converter_.convert_xrtime_to_monotonic_ns(m_last_update_time_);
+        DeviceDataTimestamp update_timestamp(update_ns, 0, 0);
 
-        FrameMetadataOakRecordBuilder record_builder(builder);
-        record_builder.add_data(data_offset);
-        record_builder.add_timestamp(&stream.last_timestamp);
-        builder.Finish(record_builder.Finish());
+        const auto& pending = m_streams[channel_index].pending_records;
+        if (pending.empty())
+        {
+            // No device data this tick: emit one empty record as a heartbeat.
+            flatbuffers::FlatBufferBuilder builder(64);
+            FrameMetadataOakRecordBuilder record_builder(builder);
+            record_builder.add_timestamp(&update_timestamp);
+            builder.Finish(record_builder.Finish());
+            callback(update_timestamp, builder.GetBufferPointer(), builder.GetSize());
+            return;
+        }
 
-        return stream.last_timestamp;
+        for (const auto& record : pending)
+        {
+            flatbuffers::FlatBufferBuilder builder(256);
+            auto data_offset = FrameMetadataOak::Pack(builder, &record.data);
+            FrameMetadataOakRecordBuilder record_builder(builder);
+            record_builder.add_data(data_offset);
+            record_builder.add_timestamp(&record.timestamp);
+            builder.Finish(record_builder.Finish());
+            callback(update_timestamp, builder.GetBufferPointer(), builder.GetSize());
+        }
     }
 
-    const FrameMetadataOakT& get_stream_data(size_t stream_index) const
+    const FrameMetadataOakTrackedT& get_stream_data(size_t stream_index) const
     {
         if (stream_index >= m_streams.size())
         {
@@ -85,10 +133,12 @@ public:
                                      std::to_string(stream_index) + " (have " + std::to_string(m_streams.size()) +
                                      " streams)");
         }
-        return m_streams[stream_index].data;
+        return m_streams[stream_index].tracked;
     }
 
 private:
+    XrTimeConverter m_time_converter_;
+    XrTime m_last_update_time_ = 0;
     std::vector<StreamState> m_streams;
 };
 
@@ -137,7 +187,8 @@ std::string_view FrameMetadataTrackerOak::get_schema_text() const
                             FrameMetadataOakRecordBinarySchema::size());
 }
 
-const FrameMetadataOakT& FrameMetadataTrackerOak::get_stream_data(const DeviceIOSession& session, size_t stream_index) const
+const FrameMetadataOakTrackedT& FrameMetadataTrackerOak::get_stream_data(const DeviceIOSession& session,
+                                                                         size_t stream_index) const
 {
     return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_stream_data(stream_index);
 }
