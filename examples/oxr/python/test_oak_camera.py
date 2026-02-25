@@ -9,7 +9,7 @@ Supports three metadata modes (--mode):
   no-metadata    Video-only, no metadata tracking.
   schema-pusher  Metadata pushed via OpenXR tensor extensions, read by
                  FrameMetadataTrackerOak on the host, recorded to MCAP by the host.
-  plugin-mcap    Plugin writes per-stream FrameMetadataOak directly to an MCAP file.
+  plugin-mcap    Plugin writes per-stream FrameMetadataOak directly to a local MCAP file.
 
 Note: Plugin crashes will raise pm.PluginCrashException
       By default, video is saved to the plugin's working directory under ./recordings/
@@ -67,7 +67,7 @@ def _run_schema_pusher(
         print("  ✓ OpenXR session created")
 
         # Create DeviceIOSession with all trackers
-        with deviceio.DeviceIOSession.run(trackers, handles) as session:
+        with deviceio.DeviceIOSession.run([tracker], handles) as session:
             print("  ✓ DeviceIO session initialized")
 
             # Create MCAP recorder with per-stream FrameMetadataOak channels
@@ -80,9 +80,7 @@ def _run_schema_pusher(
                 print()
 
                 # 6. Main tracking loop
-                print(
-                    f"[Step 6] Recording video and metadata ({duration} seconds)..."
-                )
+                print(f"[Step 6] Recording video and metadata ({duration} seconds)...")
                 print("-" * 80)
                 start_time = time.time()
                 frame_count = 0
@@ -106,21 +104,15 @@ def _run_schema_pusher(
                             and md.timestamp.device_time
                             != last_device_times.get(name, -1)
                         ):
-                            metadata_samples[name] = (
-                                metadata_samples.get(name, 0) + 1
-                            )
+                            metadata_samples[name] = metadata_samples.get(name, 0) + 1
                             last_device_times[name] = md.timestamp.device_time
 
                     if int(elapsed) > last_print_time:
                         last_print_time = int(elapsed)
                         parts = []
                         for name in stream_names:
-                            parts.append(
-                                f"{name}={metadata_samples.get(name, 0)}"
-                            )
-                        print(
-                            f"  [{last_print_time:3d}s] samples: {', '.join(parts)}"
-                        )
+                            parts.append(f"{name}={metadata_samples.get(name, 0)}")
+                        print(f"  [{last_print_time:3d}s] samples: {', '.join(parts)}")
                     time.sleep(0.016)
 
                 print("-" * 80)
