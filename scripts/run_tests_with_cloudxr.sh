@@ -14,7 +14,7 @@
 #   --python-version  Python version for test container (e.g. 3.10)
 #   --help            Show this help message
 
-set -e
+set -euo pipefail
 
 #==============================================================================
 # Configuration - Edit these lists to add/remove tests
@@ -125,23 +125,6 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# Cleanup function - ensures containers are stopped
-cleanup() {
-    log_info "Cleaning up containers..."
-    docker compose \
-        -p "$COMPOSE_PROJECT" \
-        --env-file "$ENV_DEFAULT" \
-        ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
-        ${ENV_TEST:+--env-file "$ENV_TEST"} \
-        -f "$COMPOSE_BASE" \
-        -f "$COMPOSE_TEST" \
-        down -v --remove-orphans 2>/dev/null || true
-    log_success "Cleanup complete"
-}
-
-# Set up trap to ensure cleanup on exit
-trap cleanup EXIT
-
 # Print banner
 echo ""
 echo -e "${BLUE}=========================================="
@@ -172,8 +155,25 @@ fi
 # Set up environment
 log_info "Setting up environment..."
 
-# Source shared CloudXR environment setup
+# Source shared CloudXR environment setup, which defines ENV_DEFAULT and ENV_LOCAL
 source scripts/setup_cloudxr_env.sh
+
+# Cleanup function - ensures containers are stopped
+cleanup_containers() {
+    log_info "Cleaning up containers..."
+    docker compose \
+        -p "$COMPOSE_PROJECT" \
+        --env-file "$ENV_DEFAULT" \
+        ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
+        ${ENV_TEST:+--env-file "$ENV_TEST"} \
+        -f "$COMPOSE_BASE" \
+        -f "$COMPOSE_TEST" \
+        down -v --remove-orphans 2>/dev/null || true
+    log_success "Cleanup complete"
+}
+
+# Set up trap to ensure cleanup on exit
+trap cleanup_containers EXIT
 
 log_info "CXR_PYTHON_GPU_TESTS:"
 for test in "${CXR_PYTHON_GPU_TESTS[@]}"; do

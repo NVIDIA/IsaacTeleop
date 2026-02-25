@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-set -e
+set -euo pipefail
 
 # Make sure to run this script from the root of the repository.
 GIT_ROOT=$(git rev-parse --show-toplevel)
