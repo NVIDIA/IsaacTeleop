@@ -60,6 +60,7 @@ RUN --mount=type=cache,target=/opt/isaacteleop/build,id=isaacteleop-teleop-ros2-
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=/opt/isaacteleop/install \
         -DBUILD_EXAMPLES=OFF \
+        -DBUILD_EXAMPLE_TELEOP_ROS2=ON \
         -DBUILD_TESTING=OFF \
         -DBUILD_PLUGINS=ON \
         -DBUILD_PLUGIN_OAK_CAMERA=OFF \
