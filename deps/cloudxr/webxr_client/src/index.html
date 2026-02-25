@@ -22,8 +22,8 @@ limitations under the License.
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="robots" content="noindex, nofollow">
-    <meta name="description" content="NVIDIA CloudXR.js Isaac Lab Teleop Client">
-    <title>NVIDIA CloudXR.js Isaac Lab Teleop application</title>
+    <meta name="description" content="NVIDIA Isaac Teleop Web Client">
+    <title>NVIDIA Isaac Teleop Web Client</title>
     <link rel="icon" type="image/x-icon" href="favicon.ico">
     <style>
         :root {
@@ -347,6 +347,10 @@ limitations under the License.
             margin-bottom: 16px;
         }
 
+        .config-text.resolution-validation-error {
+            color: #c00;
+        }
+
         .profile-warning {
             display: none;
             background: #fff3cd;
@@ -468,7 +472,7 @@ limitations under the License.
     <div id="2d-ui">
         <div class="top-banner"></div>
         <header>
-            <h1>NVIDIA CloudXR.js Isaac Lab Teleop Client</h1>
+            <h1>NVIDIA Isaac Teleop Web Client</h1>
         </header>
 
         <main>
@@ -624,11 +628,13 @@ limitations under the License.
                     <label for="perEyeWidth" class="input-label">Per-Eye Width (default: 2048)</label>
                     <input id="perEyeWidth" class="ui-input config-input" type="number"
                         placeholder="Per-eye width in pixels" spellcheck="false" value="2048">
+                    <div id="resolutionWidthValidationMessage" class="config-text" aria-live="polite"></div>
                     <label for="perEyeHeight" class="input-label">Per-Eye Height (default: 1792)</label>
                     <input id="perEyeHeight" class="ui-input config-input" type="number"
                         placeholder="Per-eye height in pixels" spellcheck="false" value="1792">
+                    <div id="resolutionHeightValidationMessage" class="config-text" aria-live="polite"></div>
                     <div class="config-text">
-                        Configure the per-eye resolution. Width and height must be multiples of 16.
+                        Configure the per-eye resolution. Width must be a multiple of 16 (min 128); height must be a multiple of 64 (min 128).
                     </div>
                 </div>
 
