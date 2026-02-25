@@ -13,6 +13,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, List, Optional
 
+from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
+    GraphExecutable,
+)
+
 if TYPE_CHECKING:
     from teleopcore.oxr import OpenXRSessionHandles
 
@@ -98,7 +102,7 @@ class TeleopSessionConfig:
     """
 
     app_name: str
-    pipeline: Any
+    pipeline: GraphExecutable
     trackers: List[Any] = field(default_factory=list)
     plugins: List[PluginConfig] = field(default_factory=list)
     verbose: bool = True

@@ -193,13 +193,14 @@ class DexHandRetargeter(BaseRetargeter):
             )
         }
 
-    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
+    def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         """
         Execute the hand retargeting transformation.
 
         Args:
             inputs: Dict with hand tracking data
             outputs: Dict with "hand_joints" TensorGroup for robot joint angles
+            context: ComputeContext (unused by this retargeter).
         """
         output_group = outputs["hand_joints"]
 
@@ -497,13 +498,14 @@ class DexBiManualRetargeter(BaseRetargeter):
             )
         }
 
-    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
+    def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         """
         Execute bimanual joint reordering.
 
         Args:
             inputs: Dict with "left_hand_joints" and "right_hand_joints"
             outputs: Dict with "hand_joints" combined output
+            context: ComputeContext (unused by this retargeter).
         """
         left_input = inputs["left_hand_joints"]
         right_input = inputs["right_hand_joints"]

@@ -45,8 +45,7 @@ class SourceRetargeter(BaseRetargeter):
             "value": TensorGroupType("output_value", [FloatType("v")]),
         }
 
-    def compute(self, inputs, outputs):
-        # Always output 10.0
+    def _compute_fn(self, inputs, outputs, context):
         outputs["value"][0] = 10.0
 
 
@@ -67,7 +66,7 @@ class AddRetargeter(BaseRetargeter):
             "sum": TensorGroupType("output_sum", [FloatType("result")]),
         }
 
-    def compute(self, inputs, outputs):
+    def _compute_fn(self, inputs, outputs, context):
         a = inputs["a"][0]
         b = inputs["b"][0]
         outputs["sum"][0] = a + b
@@ -89,7 +88,7 @@ class DoubleRetargeter(BaseRetargeter):
             "result": TensorGroupType("output_result", [FloatType("doubled")]),
         }
 
-    def compute(self, inputs, outputs):
+    def _compute_fn(self, inputs, outputs, context):
         x = inputs["x"][0]
         outputs["result"][0] = x * 2.0
 
@@ -110,7 +109,7 @@ class TripleRetargeter(BaseRetargeter):
             "result": TensorGroupType("output_result", [FloatType("tripled")]),
         }
 
-    def compute(self, inputs, outputs):
+    def _compute_fn(self, inputs, outputs, context):
         x = inputs["x"][0]
         outputs["result"][0] = x * 3.0
 
@@ -132,14 +131,14 @@ class MultiOutputRetargeter(BaseRetargeter):
             "tripled": TensorGroupType("output_tripled", [FloatType("x3")]),
         }
 
-    def compute(self, inputs, outputs):
+    def _compute_fn(self, inputs, outputs, context):
         x = inputs["x"][0]
         outputs["doubled"][0] = x * 2.0
         outputs["tripled"][0] = x * 3.0
 
 
 class CountingRetargeter(BaseRetargeter):
-    """Retargeter that counts how many times compute() is called."""
+    """Retargeter that counts how many times _compute_fn() is called."""
 
     def __init__(self, name: str) -> None:
         super().__init__(name)
@@ -155,7 +154,7 @@ class CountingRetargeter(BaseRetargeter):
             "result": TensorGroupType("output_result", [FloatType("value")]),
         }
 
-    def compute(self, inputs, outputs):
+    def _compute_fn(self, inputs, outputs, context):
         self.compute_count += 1
         x = inputs["x"][0]
         outputs["result"][0] = x + 1.0
@@ -267,7 +266,7 @@ class TestConnectionValidation:
                     "value": TensorGroupType("output_value", [IntType("v")]),
                 }
 
-            def compute(self, inputs, outputs):
+            def _compute_fn(self, inputs, outputs, context):
                 outputs["value"][0] = 10
 
         int_source = IntSourceRetargeter("int_source")
@@ -807,7 +806,7 @@ class AddWithOptionalRetargeter(BaseRetargeter):
             "sum": TensorGroupType("output_sum", [FloatType("result")]),
         }
 
-    def compute(self, inputs, outputs):
+    def _compute_fn(self, inputs, outputs, context):
         a = inputs["a"][0]
         b_group = inputs["b"]
         if b_group.is_none:
@@ -833,7 +832,7 @@ class OptionalSourceRetargeter(BaseRetargeter):
             "value": OptionalType(TensorGroupType("output_value", [FloatType("v")])),
         }
 
-    def compute(self, inputs, outputs):
+    def _compute_fn(self, inputs, outputs, context):
         if self.active:
             outputs["value"][0] = 42.0
         else:

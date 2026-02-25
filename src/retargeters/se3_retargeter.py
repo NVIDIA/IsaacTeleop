@@ -204,7 +204,7 @@ class Se3AbsRetargeter(BaseRetargeter):
             )
         }
 
-    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
+    def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         ee_pose = outputs["ee_pose"]
         device_name = self._config.input_device
         inp = inputs[device_name]
@@ -332,7 +332,7 @@ class Se3RelRetargeter(BaseRetargeter):
             )
         }
 
-    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
+    def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         ee_delta = outputs["ee_delta"]
         device_name = self._config.input_device
         inp = inputs[device_name]

@@ -16,6 +16,8 @@ from typing import Optional, Dict, Any, List
 from isaacteleop.retargeting_engine.deviceio_source_nodes import IDeviceIOSource
 from isaacteleop.retargeting_engine.interface import BaseRetargeter
 from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
+    ComputeContext,
+    GraphExecutable,
     RetargeterIO,
     RetargeterIOType,
 )
@@ -96,7 +98,7 @@ class TeleopSession:
             config: Complete configuration including pipeline (trackers auto-discovered)
         """
         self.config = config
-        self.pipeline = config.pipeline
+        self.pipeline: GraphExecutable = config.pipeline
 
         # Core components (will be created in __enter__)
         self._oxr_session: Optional[oxr.OpenXRSession] = None
@@ -117,7 +119,6 @@ class TeleopSession:
         self.frame_count: int = 0
         self.start_time: float = 0.0
         self._setup_complete: bool = False
-
         # Discover sources and external leaves from pipeline
         self._discover_sources()
 
@@ -176,7 +177,11 @@ class TeleopSession:
         """
         return len(self._external_leaves) > 0
 
-    def step(self, external_inputs: Optional[Dict[str, RetargeterIO]] = None):
+    def step(
+        self,
+        external_inputs: Optional[Dict[str, RetargeterIO]] = None,
+        context: Optional[ComputeContext] = None,
+    ):
         """Execute a single step of the teleop session.
 
         Updates DeviceIO session, polls tracker data, merges any caller-provided
@@ -190,9 +195,14 @@ class TeleopSession:
                 to an external leaf node or a DeviceIO source name are silently ignored.
                 Keys that collide with a DeviceIO source name are invalid and cause
                 validation to raise.
+            context: Optional ComputeContext carrying GraphTime and any future per-step
+                metadata. When omitted, a context is auto-generated from the monotonic clock.
 
         Returns:
-            Dict[str, TensorGroup] - Output from the retargeting pipeline
+            Dict[str, TensorGroup] - Output from the retargeting pipeline. The
+            returned reference points into the session's internal output buffers and
+            will be overwritten on the next call to step(). Consumers that need to
+            retain the result across steps must copy it themselves.
 
         Raises:
             ValueError: If external leaves exist but external_inputs is missing or
@@ -216,8 +226,7 @@ class TeleopSession:
         if external_inputs:
             pipeline_inputs.update(external_inputs)
 
-        # Execute retargeting pipeline with all inputs
-        result = self.pipeline(pipeline_inputs)
+        result = self.pipeline.execute_pipeline(pipeline_inputs, context)
 
         self.frame_count += 1
         return result

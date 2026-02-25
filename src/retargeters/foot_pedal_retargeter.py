@@ -15,7 +15,10 @@ from isaacteleop.retargeting_engine.interface import (
     BaseRetargeter,
     RetargeterIOType,
 )
-from isaacteleop.retargeting_engine.interface.retargeter_core_types import RetargeterIO
+from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
+    RetargeterIO,
+    ComputeContext,
+)
 from isaacteleop.retargeting_engine.interface.tensor_group_type import (
     TensorGroupType,
     OptionalType,
@@ -101,7 +104,9 @@ class FootPedalRootCmdRetargeter(BaseRetargeter):
             )
         }
 
-    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
+    def _compute_fn(
+        self, inputs: RetargeterIO, outputs: RetargeterIO, context: ComputeContext
+    ) -> None:
         """Computes root command from pedal input."""
         root_cmd = outputs["root_command"]
 

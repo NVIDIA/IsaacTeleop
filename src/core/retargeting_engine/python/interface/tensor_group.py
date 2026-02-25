@@ -14,9 +14,10 @@ handling.  New instances start in the absent state; writing any value via
 the required (non-optional) variant.
 """
 
+import copy as _copy
 from typing import List, Any
 from .tensor_group_type import TensorGroupType
-from .tensor import Tensor
+from .tensor import Tensor, UNSET_VALUE
 
 
 class OptionalTensorGroup:
@@ -124,6 +125,22 @@ class OptionalTensorGroup:
         if self._is_none:
             return f"OptionalTensorGroup({self._group_type.name}, absent)"
         return f"OptionalTensorGroup({self._group_type.name}, {len(self)} tensors)"
+
+    def create_snapshot(self) -> "OptionalTensorGroup":
+        """
+        Return a new independent copy of this group.
+
+        Each tensor value is deep-copied (``copy.deepcopy``), producing a
+        fully independent snapshot regardless of the value type.  The
+        returned instance has the same concrete type as ``self``
+        (``TensorGroup`` or ``OptionalTensorGroup``).
+        """
+        new_group = type(self)(self._group_type)
+        if not self.is_none:
+            for i, tensor in enumerate(self._tensors):
+                if tensor._value is not UNSET_VALUE:
+                    new_group[i] = _copy.deepcopy(tensor._value)
+        return new_group
 
 
 class TensorGroup(OptionalTensorGroup):
