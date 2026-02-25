@@ -65,11 +65,14 @@ PYBIND11_MODULE(_deviceio, m)
              py::arg("max_flatbuffer_size") = core::FrameMetadataTrackerOak::DEFAULT_MAX_FLATBUFFER_SIZE,
              "Construct a multi-stream FrameMetadataTrackerOak")
         .def(
-            "get_data",
-            [](core::FrameMetadataTrackerOak& self, PyDeviceIOSession& session) -> const core::CameraMetadataOakT&
-            { return self.get_data(session.native()); },
-            py::arg("session"), py::return_value_policy::reference_internal,
-            "Get composed CameraMetadataOak containing all tracked streams");
+            "get_stream_data",
+            [](core::FrameMetadataTrackerOak& self, PyDeviceIOSession& session,
+               size_t stream_index) -> const core::FrameMetadataOakT&
+            { return self.get_stream_data(session.native(), stream_index); },
+            py::arg("session"), py::arg("stream_index"), py::return_value_policy::reference_internal,
+            "Get FrameMetadataOak for a specific stream by index")
+        .def_property_readonly("stream_count", &core::FrameMetadataTrackerOak::get_stream_count,
+                               "Number of streams this tracker is configured for");
 
     // Generic3AxisPedalTracker class
     py::class_<core::Generic3AxisPedalTracker, core::ITracker, std::shared_ptr<core::Generic3AxisPedalTracker>>(

@@ -31,7 +31,6 @@ from ._schema import (
     # Camera-related types.
     StreamType,
     FrameMetadataOak,
-    CameraMetadataOak,
     # Full body-related types.
     BodyJointPico,
     BodyJointPose,
@@ -64,7 +63,6 @@ __all__ = [
     # Camera types.
     "StreamType",
     "FrameMetadataOak",
-    "CameraMetadataOak",
     # Full body types.
     "BodyJointPose",
     "BodyJointsPico",

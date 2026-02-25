@@ -9,6 +9,7 @@ namespace core;
 enum StreamType : byte { Color = 0, MonoLeft = 1, MonoRight = 2 }
 
 // Per-frame metadata pushed by the OAK camera plugin (one per stream).
+// Each stream is recorded as a separate MCAP channel using this as the root type.
 table FrameMetadataOak {
   // Which camera sensor this metadata belongs to.
   stream: StreamType (id: 0);
@@ -20,9 +21,4 @@ table FrameMetadataOak {
   sequence_number: uint64 (id: 2);
 }
 
-// Composed metadata from all active OAK camera streams.
-table CameraMetadataOak {
-  streams: [FrameMetadataOak] (id: 0);
-}
-
-root_type CameraMetadataOak;
+root_type FrameMetadataOak;
