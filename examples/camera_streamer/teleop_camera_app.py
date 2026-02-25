@@ -15,7 +15,7 @@ import argparse
 import os
 import sys
 
-from holoscan.core import Application
+from holoscan.core import Application, MetadataPolicy
 from holoscan.schedulers import EventBasedScheduler
 from loguru import logger
 
@@ -43,6 +43,7 @@ class TeleopCameraApp(Application):
         self._config = config
         self._scheduler_threads = scheduler_threads
         super().__init__(*args, **kwargs)
+        self.metadata_policy = MetadataPolicy.UPDATE
 
     def compose(self):
         """Compose the application using the camera subgraph."""

@@ -6,7 +6,7 @@ Uses ZED SDK to capture RGB frames and outputs them as GPU tensors.
 Supports USB and GMSL cameras, both mono (ZED X One) and stereo (ZED 2, ZED X Mini).
 
 Metadata emitted with each frame:
-    - timestamp_us: Device capture timestamp in microseconds (int64)
+    - frame_timestamp_us: Device capture timestamp in microseconds (int64)
     - stream_id: Unique stream identifier for pairing (int)
     - sequence: Frame sequence number for drop detection (int)
 """
@@ -256,7 +256,7 @@ class ZedCameraOp(Operator):
             return
 
         # Emit left frame
-        self.metadata["timestamp_us"] = timestamp_us
+        self.metadata["frame_timestamp_us"] = timestamp_us
         self.metadata["stream_id"] = self._left_stream_id
         self.metadata["sequence"] = self._frame_count
         op_output.emit(
@@ -278,7 +278,7 @@ class ZedCameraOp(Operator):
                 return
 
             self.metadata.clear()
-            self.metadata["timestamp_us"] = timestamp_us
+            self.metadata["frame_timestamp_us"] = timestamp_us
             self.metadata["stream_id"] = self._right_stream_id
             self.metadata["sequence"] = self._frame_count
             op_output.emit(

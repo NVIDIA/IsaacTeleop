@@ -18,6 +18,11 @@ CONTAINER_NAME="isaac-teleop-camera"
 DEFAULT_CONFIG="config/multi_camera.yaml"
 DEFAULT_RECEIVER_HOST="127.0.0.1"
 
+# CloudXR runtime paths (set by setup_cloudxr_env.sh or defaults)
+CXR_HOST_VOLUME_PATH="${CXR_HOST_VOLUME_PATH:-$HOME/.cloudxr}"
+XR_RUNTIME_JSON="${XR_RUNTIME_JSON:-$CXR_HOST_VOLUME_PATH/openxr_cloudxr.json}"
+NV_CXR_RUNTIME_DIR="${NV_CXR_RUNTIME_DIR:-$CXR_HOST_VOLUME_PATH/run}"
+
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
@@ -217,11 +222,12 @@ cmd_run_container() {
         --network=host \
         --ulimit stack=33554432 \
         -e DISPLAY="${DISPLAY:-:0}" \
-        -e XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}" \
+        -e XR_RUNTIME_JSON="$XR_RUNTIME_JSON" \
+        -e NV_CXR_RUNTIME_DIR="$NV_CXR_RUNTIME_DIR" \
         -v /tmp/.X11-unix:/tmp/.X11-unix \
-        -v "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}:${XDG_RUNTIME_DIR:-/run/user/$(id -u)}" \
         -v /dev:/dev \
         -v /run/udev:/run/udev:rw \
+        -v "$CXR_HOST_VOLUME_PATH:$CXR_HOST_VOLUME_PATH:ro" \
         -v "$SCRIPT_DIR:/camera_streamer" \
         "$TAG" \
         /bin/bash
@@ -271,8 +277,11 @@ cmd_deploy() {
         --privileged \
         --network=host \
         --ulimit stack=33554432 \
+        -e XR_RUNTIME_JSON="$XR_RUNTIME_JSON" \
+        -e NV_CXR_RUNTIME_DIR="$NV_CXR_RUNTIME_DIR" \
         -v /dev:/dev \
         -v /run/udev:/run/udev:rw \
+        -v "$CXR_HOST_VOLUME_PATH:$CXR_HOST_VOLUME_PATH:ro" \
         -v "$HOST_CONFIG:/config/$CONFIG_BASENAME:ro" \
         "$TAG" \
         python3 /camera_streamer/teleop_camera_sender.py \
