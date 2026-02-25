@@ -20,6 +20,7 @@ jobs:
     # Pin to 22.04 so the wheel is built with GCC 11's libstdc++. The resulting wheel
     # then runs on both Ubuntu 22.04 and 24.04 (24.04's libstdc++ is backward compatible).
     runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-22.04-arm' || 'ubuntu-22.04' }}
+    environment: dev
 
     strategy:
       matrix:
@@ -40,6 +41,12 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache
+
+    - name: Setup CloudXR SDK
+      id: cloudxr-sdk
+      uses: ./.github/actions/setup-cloudxr-sdk
+      with:
+        ngc-cli-api-key: ${{ secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY }}
 
     # Hunter cache - caches depthai dependencies (OpenSSL, CURL, etc.)
     - name: Cache Hunter packages
@@ -127,55 +134,11 @@ jobs:
         mkdir -p install
         tar -xvf isaacteleop-install.tar -C install
 
-    - name: Parse CloudXR SDK versions from .env.default
-      id: cloudxr
-      run: |
-        set -euo pipefail
-
-        # Extract CloudXR SDK versions from .env.default.
-        CXR_RUNTIME_SDK_VERSION=$(grep -E '^CXR_RUNTIME_SDK_VERSION=.+' deps/cloudxr/.env.default | cut -d= -f2)
-        CXR_WEB_SDK_VERSION=$(grep -E '^CXR_WEB_SDK_VERSION=.+' deps/cloudxr/.env.default | cut -d= -f2)
-
-        echo "runtime_version=${CXR_RUNTIME_SDK_VERSION}" >> $GITHUB_OUTPUT
-        echo "web_version=${CXR_WEB_SDK_VERSION}" >> $GITHUB_OUTPUT
-        echo "CloudXR Runtime SDK version: ${CXR_RUNTIME_SDK_VERSION}"
-        echo "CloudXR Web SDK version: ${CXR_WEB_SDK_VERSION}"
-
-    - name: Install NGC CLI
-      run: |
-        set -euo pipefail
-
-        NGC_CLI_VERSION=4.13.0
-        case "$(uname -m)" in
-          x86_64)        NGC_CLI_ZIP="ngccli_linux.zip" ;;
-          aarch64|arm64) NGC_CLI_ZIP="ngccli_arm64.zip" ;;
-          *) echo "Unsupported architecture: $(uname -m)"; exit 1 ;;
-        esac
-
-        curl --fail --show-error --location \
-          --retry 3 --retry-delay 2 --connect-timeout 15 --max-time 180 \
-          "https://api.ngc.nvidia.com/v2/resources/nvidia/ngc-apps/ngc_cli/versions/${NGC_CLI_VERSION}/files/${NGC_CLI_ZIP}" \
-          -o ngccli.zip
-        mkdir -p ~/.local/bin
-        unzip -o ngccli.zip -d ~/.local/bin/
-        chmod u+x ~/.local/bin/ngc-cli/ngc
-        echo "$HOME/.local/bin/ngc-cli" >> "$GITHUB_PATH"
-        ~/.local/bin/ngc-cli/ngc --version
-        rm ngccli.zip
-
-    - name: Download CloudXR Runtime SDK
-      env:
-        CXR_RUNTIME_SDK_VERSION: ${{ steps.cloudxr.outputs.runtime_version }}
-        NGC_CLI_API_KEY: ${{ secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY }}
-      run: |
-        ./scripts/download_cloudxr_runtime_sdk.sh
-
-    - name: Download CloudXR Web SDK
-      env:
-        CXR_WEB_SDK_VERSION: ${{ steps.cloudxr.outputs.web_version }}
-        NGC_CLI_API_KEY: ${{ secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY }}
-      run: |
-        ./scripts/download_cloudxr_sdk.sh
+    - name: Setup CloudXR SDK
+      id: cloudxr-sdk
+      uses: ./.github/actions/setup-cloudxr-sdk
+      with:
+        ngc-cli-api-key: ${{ secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY }}
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3

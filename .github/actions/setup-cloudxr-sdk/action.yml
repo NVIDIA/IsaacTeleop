@@ -1,0 +1,75 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: Setup CloudXR SDK
+description: Parse CloudXR versions from .env.default, install NGC CLI, and download CloudXR Runtime SDK.
+
+inputs:
+  ngc-cli-api-key:
+    description: NGC CLI API key for downloading CloudXR SDK from NGC.
+    required: true
+
+outputs:
+  runtime_version:
+    description: CloudXR Runtime SDK version from .env.default.
+    value: ${{ steps.parse.outputs.runtime_version }}
+  web_version:
+    description: CloudXR Web SDK version from .env.default.
+    value: ${{ steps.parse.outputs.web_version }}
+
+runs:
+  using: composite
+  steps:
+    - name: Parse CloudXR SDK versions from .env.default
+      id: parse
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        # Extract CloudXR SDK versions from .env.default.
+        CXR_RUNTIME_SDK_VERSION=$(grep -E '^CXR_RUNTIME_SDK_VERSION=.+' deps/cloudxr/.env.default | cut -d= -f2)
+        CXR_WEB_SDK_VERSION=$(grep -E '^CXR_WEB_SDK_VERSION=.+' deps/cloudxr/.env.default | cut -d= -f2)
+
+        echo "runtime_version=${CXR_RUNTIME_SDK_VERSION}" >> $GITHUB_OUTPUT
+        echo "web_version=${CXR_WEB_SDK_VERSION}" >> $GITHUB_OUTPUT
+        echo "CloudXR Runtime SDK version: ${CXR_RUNTIME_SDK_VERSION}"
+        echo "CloudXR Web SDK version: ${CXR_WEB_SDK_VERSION}"
+
+    - name: Install NGC CLI
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        NGC_CLI_VERSION=4.13.0
+        case "$(uname -m)" in
+          x86_64)        NGC_CLI_ZIP="ngccli_linux.zip" ;;
+          aarch64|arm64) NGC_CLI_ZIP="ngccli_arm64.zip" ;;
+          *) echo "Unsupported architecture: $(uname -m)"; exit 1 ;;
+        esac
+
+        curl --fail --show-error --location \
+          --retry 3 --retry-delay 2 --connect-timeout 15 --max-time 180 \
+          "https://api.ngc.nvidia.com/v2/resources/nvidia/ngc-apps/ngc_cli/versions/${NGC_CLI_VERSION}/files/${NGC_CLI_ZIP}" \
+          -o ngccli.zip
+        mkdir -p ~/.local/bin
+        unzip -o ngccli.zip -d ~/.local/bin/
+        chmod u+x ~/.local/bin/ngc-cli/ngc
+        echo "$HOME/.local/bin/ngc-cli" >> "$GITHUB_PATH"
+        ~/.local/bin/ngc-cli/ngc --version
+        rm ngccli.zip
+
+    - name: Download CloudXR Runtime SDK
+      shell: bash
+      env:
+        CXR_RUNTIME_SDK_VERSION: ${{ steps.cloudxr.outputs.runtime_version }}
+        NGC_CLI_API_KEY: ${{ secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY }}
+      run: |
+        ./scripts/download_cloudxr_runtime_sdk.sh
+
+    - name: Download CloudXR Web SDK
+      shell: bash
+      env:
+        CXR_WEB_SDK_VERSION: ${{ steps.cloudxr.outputs.web_version }}
+        NGC_CLI_API_KEY: ${{ secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY }}
+      run: |
+        ./scripts/download_cloudxr_sdk.sh
