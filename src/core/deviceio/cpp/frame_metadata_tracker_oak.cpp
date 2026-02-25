@@ -8,6 +8,7 @@
 #include <flatbuffers/flatbuffers.h>
 #include <schema/oak_bfbs_generated.h>
 
+#include <stdexcept>
 #include <vector>
 
 namespace core
@@ -48,36 +49,41 @@ public:
             }
         }
 
-        m_data.streams.clear();
-        for (const auto& s : m_streams)
-            m_data.streams.push_back(std::make_unique<FrameMetadataOakT>(s.data));
-
         return true;
     }
 
-    Timestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t /*channel_index*/) const override
+    Timestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const override
     {
-        auto offset = CameraMetadataOak::Pack(builder, &m_data);
+        if (channel_index >= m_streams.size())
+        {
+            throw std::runtime_error("FrameMetadataTrackerOak::serialize: invalid channel_index " +
+                                     std::to_string(channel_index) + " (have " + std::to_string(m_streams.size()) +
+                                     " streams)");
+        }
+
+        const auto& data = m_streams[channel_index].data;
+        auto offset = FrameMetadataOak::Pack(builder, &data);
         builder.Finish(offset);
 
-        Timestamp latest{};
-        for (const auto& entry : m_data.streams)
-        {
-            if (entry->timestamp && entry->timestamp->device_time() > latest.device_time())
-                latest = *entry->timestamp;
-        }
-        return latest;
+        if (data.timestamp)
+            return *data.timestamp;
+        return Timestamp{};
     }
 
-    const CameraMetadataOakT& get_data() const
+    const FrameMetadataOakT& get_stream_data(size_t stream_index) const
     {
-        return m_data;
+        if (stream_index >= m_streams.size())
+        {
+            throw std::runtime_error("FrameMetadataTrackerOak::get_stream_data: invalid stream_index " +
+                                     std::to_string(stream_index) + " (have " + std::to_string(m_streams.size()) +
+                                     " streams)");
+        }
+        return m_streams[stream_index].data;
     }
 
 private:
     std::vector<StreamState> m_streams;
     std::vector<uint8_t> m_buffer;
-    CameraMetadataOakT m_data;
 };
 
 // ============================================================================
@@ -88,12 +94,19 @@ FrameMetadataTrackerOak::FrameMetadataTrackerOak(const std::string& collection_p
                                                  const std::vector<StreamType>& streams,
                                                  size_t max_flatbuffer_size)
 {
+    if (streams.empty())
+    {
+        throw std::runtime_error("FrameMetadataTrackerOak: at least one stream is required");
+    }
+
     for (auto type : streams)
     {
-        m_configs.push_back({ .collection_id = collection_prefix + "/" + EnumNameStreamType(type),
+        const char* name = EnumNameStreamType(type);
+        m_configs.push_back({ .collection_id = collection_prefix + "/" + name,
                               .max_flatbuffer_size = max_flatbuffer_size,
                               .tensor_identifier = "frame_metadata",
-                              .localized_name = std::string("FrameMetadataTracker_") + EnumNameStreamType(type) });
+                              .localized_name = std::string("FrameMetadataTracker_") + name });
+        m_channel_names.emplace_back(name);
     }
 }
 
@@ -109,18 +122,18 @@ std::string_view FrameMetadataTrackerOak::get_name() const
 
 std::string_view FrameMetadataTrackerOak::get_schema_name() const
 {
-    return "core.CameraMetadataOak";
+    return "core.FrameMetadataOak";
 }
 
 std::string_view FrameMetadataTrackerOak::get_schema_text() const
 {
     return std::string_view(
-        reinterpret_cast<const char*>(CameraMetadataOakBinarySchema::data()), CameraMetadataOakBinarySchema::size());
+        reinterpret_cast<const char*>(FrameMetadataOakBinarySchema::data()), FrameMetadataOakBinarySchema::size());
 }
 
-const CameraMetadataOakT& FrameMetadataTrackerOak::get_data(const DeviceIOSession& session) const
+const FrameMetadataOakT& FrameMetadataTrackerOak::get_stream_data(const DeviceIOSession& session, size_t stream_index) const
 {
-    return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_data();
+    return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_stream_data(stream_index);
 }
 
 std::shared_ptr<ITrackerImpl> FrameMetadataTrackerOak::create_tracker(const OpenXRSessionHandles& handles) const

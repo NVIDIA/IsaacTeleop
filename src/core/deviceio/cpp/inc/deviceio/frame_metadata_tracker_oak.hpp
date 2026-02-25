@@ -16,10 +16,10 @@ namespace core
 {
 
 /*!
- * @brief Composite tracker for reading OAK FrameMetadataOak from multiple streams.
+ * @brief Multi-channel tracker for reading OAK FrameMetadataOak from multiple streams.
  *
- * Maintains one SchemaTracker per stream and composes them into a single
- * CameraMetadataOak message for serialization / MCAP recording.
+ * Maintains one SchemaTracker per stream and records each as a separate MCAP
+ * channel using FrameMetadataOak as the root type.
  *
  * Usage:
  * @code
@@ -27,9 +27,8 @@ namespace core
  *     "oak_camera", {StreamType_Color, StreamType_MonoLeft});
  * // ... create DeviceIOSession with tracker ...
  * session->update();
- * const auto& data = tracker->get_data(*session);
- * for (const auto& md : data.streams)
- *     std::cout << EnumNameStreamType(md->stream) << std::endl;
+ * const auto& color = tracker->get_stream_data(*session, 0);
+ * std::cout << EnumNameStreamType(color.stream) << " seq=" << color.sequence_number << std::endl;
  * @endcode
  */
 class FrameMetadataTrackerOak : public ITracker
@@ -57,18 +56,28 @@ public:
 
     std::vector<std::string> get_record_channels() const override
     {
-        return { "frame_metadata" };
+        return m_channel_names;
     }
 
     /*!
-     * @brief Get the composed OAK metadata containing all tracked streams.
+     * @brief Get per-stream frame metadata.
+     * @param session Active DeviceIOSession.
+     * @param stream_index Index into the streams vector passed at construction.
+     * @return Reference to the FrameMetadataOakT for that stream.
      */
-    const CameraMetadataOakT& get_data(const DeviceIOSession& session) const;
+    const FrameMetadataOakT& get_stream_data(const DeviceIOSession& session, size_t stream_index) const;
+
+    //! Number of streams this tracker is configured for.
+    size_t get_stream_count() const
+    {
+        return m_channel_names.size();
+    }
 
 private:
     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
 
     std::vector<SchemaTrackerConfig> m_configs;
+    std::vector<std::string> m_channel_names;
     class Impl;
 };
 

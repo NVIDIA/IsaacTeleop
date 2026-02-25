@@ -5,8 +5,8 @@
  * @file frame_metadata_printer.cpp
  * @brief Standalone application that reads and prints camera frame metadata from the OpenXR runtime.
  *
- * This application demonstrates using FrameMetadataTrackerOak to read composed
- * CameraMetadataOak (containing per-stream FrameMetadataOak) pushed by a camera plugin.
+ * This application demonstrates using FrameMetadataTrackerOak to read per-stream
+ * FrameMetadataOak pushed by a camera plugin, with each stream on its own MCAP channel.
  *
  * Usage:
  *   ./frame_metadata_printer --collection-prefix=<prefix>
@@ -26,12 +26,14 @@
 
 static constexpr size_t MAX_FLATBUFFER_SIZE = 128;
 
-void print_oak_metadata(const core::CameraMetadataOakT& data, size_t sample_count)
+void print_oak_metadata(const core::FrameMetadataTrackerOak& tracker,
+                        const core::DeviceIOSession& session,
+                        size_t sample_count)
 {
     std::cout << "Sample " << sample_count << ": ";
-    for (size_t i = 0; i < data.streams.size(); ++i)
+    for (size_t i = 0; i < tracker.get_stream_count(); ++i)
     {
-        const auto& md = *data.streams[i];
+        const auto& md = tracker.get_stream_data(session, i);
         if (i > 0)
             std::cout << " | ";
         std::cout << core::EnumNameStreamType(md.stream) << " seq=" << md.sequence_number;
@@ -48,7 +50,7 @@ void print_usage(const char* program_name)
               << "  --collection-prefix=PREFIX  Tensor collection prefix (default: oak_camera)\n"
               << "  --help                      Show this help message\n"
               << "\nDescription:\n"
-              << "  Reads and prints CameraMetadataOak samples (all streams) pushed by a camera plugin.\n"
+              << "  Reads and prints per-stream FrameMetadataOak samples pushed by a camera plugin.\n"
               << "  The collection-prefix must match the value used by the camera plugin.\n";
 }
 
@@ -111,18 +113,17 @@ try
             break;
         }
 
-        const auto& data = tracker->get_data(*session);
-
         // Detect new data by checking if any stream has a newer device_time
         int64_t max_dt = -1;
-        for (const auto& md : data.streams)
+        for (size_t i = 0; i < tracker->get_stream_count(); ++i)
         {
-            if (md->timestamp)
-                max_dt = std::max(max_dt, md->timestamp->device_time());
+            const auto& md = tracker->get_stream_data(*session, i);
+            if (md.timestamp)
+                max_dt = std::max(max_dt, md.timestamp->device_time());
         }
         if (max_dt > last_device_time)
         {
-            print_oak_metadata(data, ++received_count);
+            print_oak_metadata(*tracker, *session, ++received_count);
             last_device_time = max_dt;
         }
 

@@ -139,7 +139,7 @@ def run_test(duration: float = 10.0, metadata_track: bool = True):
                 with deviceio.DeviceIOSession.run(trackers, handles) as session:
                     print("  ✓ DeviceIO session initialized")
 
-                    # Create MCAP recorder with single CameraMetadataOak channel
+                    # Create MCAP recorder with per-stream FrameMetadataOak channels
                     mcap_entries = [(tracker, "oak_metadata")]
                     with mcap.McapRecorder.create(
                         mcap_filename,
@@ -168,9 +168,8 @@ def run_test(duration: float = 10.0, metadata_track: bool = True):
                             frame_count += 1
 
                             elapsed = time.time() - start_time
-                            oak_data = tracker.get_data(session)
-                            for md in oak_data.streams:
-                                name = md.stream.name
+                            for idx, name in enumerate(stream_names):
+                                md = tracker.get_stream_data(session, idx)
                                 if (
                                     md.timestamp
                                     and md.timestamp.device_time
