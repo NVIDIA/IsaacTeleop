@@ -61,15 +61,15 @@ runs:
     - name: Download CloudXR Runtime SDK
       shell: bash
       env:
-        CXR_RUNTIME_SDK_VERSION: ${{ steps.cloudxr.outputs.runtime_version }}
-        NGC_CLI_API_KEY: ${{ secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY }}
+        CXR_RUNTIME_SDK_VERSION: ${{ steps.parse.outputs.runtime_version }}
+        NGC_CLI_API_KEY: ${{ inputs.ngc-cli-api-key }}
       run: |
         ./scripts/download_cloudxr_runtime_sdk.sh
 
     - name: Download CloudXR Web SDK
       shell: bash
       env:
-        CXR_WEB_SDK_VERSION: ${{ steps.cloudxr.outputs.web_version }}
-        NGC_CLI_API_KEY: ${{ secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY }}
+        CXR_WEB_SDK_VERSION: ${{ steps.parse.outputs.web_version }}
+        NGC_CLI_API_KEY: ${{ inputs.ngc-cli-api-key }}
       run: |
         ./scripts/download_cloudxr_sdk.sh
