@@ -17,6 +17,9 @@ isaac_teleop_read_version("${CMAKE_CURRENT_SOURCE_DIR}/VERSION" ISAAC_TELEOP_VER
 if(NOT DEFINED CMAKE_INSTALL_PREFIX OR CMAKE_INSTALL_PREFIX STREQUAL "" OR CMAKE_INSTALL_PREFIX MATCHES "^/usr/local")
     set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/install" CACHE PATH "Install prefix" FORCE)
 endif()
+
+# OAK camera plugin uses Hunter/DepthAI; optional so builds like teleop_ros2 can skip it.
+option(BUILD_PLUGIN_OAK_CAMERA "Build OAK camera plugin (uses Hunter/DepthAI)" OFF)
 # ==============================================================================
 
 # HunterGate Setup (must be before project())
@@ -116,6 +119,7 @@ if(BUILD_EXAMPLES)
     add_subdirectory(examples/oxr)
     add_subdirectory(examples/retargeting)
     add_subdirectory(examples/teleop_session_manager)
+    add_subdirectory(examples/teleop_ros2)
     add_subdirectory(examples/schemaio)
     add_subdirectory(examples/native_openxr)
 endif()
@@ -128,7 +132,9 @@ if(BUILD_PLUGINS)
     add_subdirectory(src/plugins/controller_synthetic_hands)
     add_subdirectory(src/plugins/generic_3axis_pedal)
     add_subdirectory(src/plugins/manus)
-    add_subdirectory(src/plugins/oak)
+    if(BUILD_PLUGIN_OAK_CAMERA)
+        add_subdirectory(src/plugins/oak)
+    endif()
 endif()
 
 # Formatting enforcement (runs on Linux by default)

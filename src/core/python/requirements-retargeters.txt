@@ -2,3 +2,5 @@ dex-retargeting>=0.4.6,<0.6.0
 scipy>=1.15.0
 pyyaml>=6.0.3
 torch>=2.7.0
+# nlopt: no aarch64 wheel/sdist on PyPI for >=2.7; pin to last version with sdist
+nlopt==2.6.2
