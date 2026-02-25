@@ -100,6 +100,7 @@ class OakdCameraOp(Operator):
         fps: int,
         mode: str = "mono",
         output_format: str = "raw",
+        color_format: str = "bgra",
         device_id: str = "",
         camera_socket: str = "RGB",
         left_stream_id: int = 0,
@@ -127,6 +128,7 @@ class OakdCameraOp(Operator):
             )
 
         self._device_id = device_id
+        self._color_format = color_format.lower()
         self._width = width
         self._height = height
         self._fps = fps
@@ -498,22 +500,22 @@ class OakdCameraOp(Operator):
         return True
 
     def _extract_raw_frame(self, frame_msg) -> Optional[cp.ndarray]:
-        """Extract raw frame and convert to GPU tensor (BGRA)."""
+        """Extract raw frame and convert to GPU tensor."""
         try:
             if isinstance(frame_msg, dai.ImgFrame):
-                # Get frame data as numpy array
                 frame = frame_msg.getCvFrame()
                 if frame is None:
                     return None
 
-                # Convert BGR to BGRA for consistency with ZED
                 if len(frame.shape) == 3 and frame.shape[2] == 3:
-                    frame = np.concatenate(
-                        [frame, np.full((*frame.shape[:2], 1), 255, dtype=np.uint8)],
-                        axis=2,
-                    )
+                    if self._color_format == "rgb":
+                        frame = frame[:, :, ::-1]
+                    else:
+                        frame = np.concatenate(
+                            [frame, np.full((*frame.shape[:2], 1), 255, dtype=np.uint8)],
+                            axis=2,
+                        )
 
-                # Copy to GPU
                 return cp.asarray(frame)
         except Exception as e:
             if self._verbose:

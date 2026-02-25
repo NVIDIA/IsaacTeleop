@@ -87,6 +87,7 @@ class ZedCameraOp(Operator):
         serial_number: int = 0,
         bus_type: str = "usb",
         stereo: bool = True,
+        color_format: str = "bgra",
         left_stream_id: int = 0,
         right_stream_id: int = 1,
         verbose: bool = False,
@@ -95,6 +96,7 @@ class ZedCameraOp(Operator):
         self._serial_number = serial_number
         self._bus_type = bus_type.lower()
         self._stereo = stereo
+        self._color_format = color_format.lower()
         self._resolution = resolution.upper()
         self._fps = fps
         self._left_stream_id = left_stream_id
@@ -368,16 +370,18 @@ class ZedCameraOp(Operator):
             memptr = cp.cuda.MemoryPointer(mem, 0)
 
             if step == row_bytes:
-                # No padding - direct view and copy
                 arr = cp.ndarray(
                     (height, width, channels), dtype=cp.uint8, memptr=memptr
                 )
-                return arr.copy()
+                arr = arr.copy()
+            else:
+                arr = cp.ndarray((height, step), dtype=cp.uint8, memptr=memptr)
+                arr = arr[:, :row_bytes].reshape(height, width, channels)
+                arr = cp.ascontiguousarray(arr)
 
-            # Has row padding - view as raw bytes, slice out padding, reshape, copy
-            arr = cp.ndarray((height, step), dtype=cp.uint8, memptr=memptr)
-            arr = arr[:, :row_bytes].reshape(height, width, channels)
-            return cp.ascontiguousarray(arr)
+            if self._color_format == "rgb" and channels == 4:
+                arr = cp.ascontiguousarray(arr[:, :, [2, 1, 0]])
+            return arr
 
         except Exception as e:
             if self._verbose:
@@ -392,6 +396,8 @@ class ZedCameraOp(Operator):
             cpu_data = zed_mat.get_data()
             if cpu_data is None:
                 return None
+            if self._color_format == "rgb" and cpu_data.ndim == 3 and cpu_data.shape[2] == 4:
+                cpu_data = cpu_data[:, :, [2, 1, 0]]
             return cp.asarray(np.ascontiguousarray(cpu_data))
         except Exception as e:
             if self._verbose:

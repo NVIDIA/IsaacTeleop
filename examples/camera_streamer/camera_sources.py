@@ -88,9 +88,10 @@ def create_zed_source(
     cam_name: str,
     cam_cfg: CameraConfig,
     *,
+    color_format: str = "bgra",
     verbose: bool = False,
 ) -> CameraSourceResult:
-    """Create a ZED camera source (raw BGRA GPU tensors)."""
+    """Create a ZED camera source."""
     ensure_zed_support()
 
     if cam_cfg.stereo:
@@ -109,6 +110,7 @@ def create_zed_source(
         serial_number=cam_cfg.serial_number or 0,
         resolution=cam_cfg.resolution,
         fps=cam_cfg.fps,
+        color_format=color_format,
         left_stream_id=left_stream_id,
         right_stream_id=right_stream_id,
         verbose=verbose,
@@ -132,6 +134,7 @@ def create_oakd_source(
     cam_cfg: CameraConfig,
     *,
     output_format: str = "raw",
+    color_format: str = "bgra",
     verbose: bool = False,
 ) -> CameraSourceResult:
     """Create an OAK-D camera source.
@@ -155,6 +158,7 @@ def create_oakd_source(
             name=f"{cam_name}_source",
             mode="stereo",
             output_format=output_format,
+            color_format=color_format,
             device_id=cam_cfg.device_id or "",
             width=cam_cfg.width,
             height=cam_cfg.height,
@@ -180,6 +184,7 @@ def create_oakd_source(
             name=f"{cam_name}_source",
             mode="mono",
             output_format=output_format,
+            color_format=color_format,
             device_id=cam_cfg.device_id or "",
             width=cam_cfg.width,
             height=cam_cfg.height,
@@ -208,9 +213,10 @@ def create_v4l2_source(
     cam_cfg: CameraConfig,
     allocator: Any,
     *,
+    color_format: str = "bgra",
     verbose: bool = False,
 ) -> CameraSourceResult:
-    """Create a V4L2 camera source with GPU format conversion (YUYV -> RGB -> RGBA)."""
+    """Create a V4L2 camera source with GPU format conversion."""
     device = cam_cfg.device
 
     v4l2_source = V4L2VideoCaptureOp(
@@ -220,34 +226,49 @@ def create_v4l2_source(
         device=device,
         width=cam_cfg.width,
         height=cam_cfg.height,
+        frame_rate=cam_cfg.fps,
         pass_through=True,
     )
 
+    yuyv_to_rgb_kwargs = dict(
+        in_dtype="yuyv",
+        out_dtype="rgb888",
+    )
+    if color_format == "rgb":
+        yuyv_to_rgb_kwargs["out_tensor_name"] = cam_name
     yuyv_to_rgb = FormatConverterOp(
         fragment,
         name=f"{cam_name}_yuyv_to_rgb",
         pool=allocator,
-        in_dtype="yuyv",
-        out_dtype="rgb888",
-    )
-    rgb_to_rgba = FormatConverterOp(
-        fragment,
-        name=f"{cam_name}_rgb_to_rgba",
-        pool=allocator,
-        in_dtype="rgb888",
-        out_dtype="rgba8888",
-        out_channel_order=[2, 1, 0, 3],
-        out_tensor_name=cam_name,
+        **yuyv_to_rgb_kwargs,
     )
 
-    result = CameraSourceResult(
-        operators=[v4l2_source, yuyv_to_rgb, rgb_to_rgba],
-        flows=[
-            (v4l2_source, yuyv_to_rgb, {("signal", "source_video")}),
-            (yuyv_to_rgb, rgb_to_rgba, {("tensor", "source_video")}),
-        ],
-        frame_outputs={"mono": (rgb_to_rgba, "tensor")},
-    )
+    if color_format == "rgb":
+        result = CameraSourceResult(
+            operators=[v4l2_source, yuyv_to_rgb],
+            flows=[
+                (v4l2_source, yuyv_to_rgb, {("signal", "source_video")}),
+            ],
+            frame_outputs={"mono": (yuyv_to_rgb, "tensor")},
+        )
+    else:
+        rgb_to_bgra = FormatConverterOp(
+            fragment,
+            name=f"{cam_name}_rgb_to_bgra",
+            pool=allocator,
+            in_dtype="rgb888",
+            out_dtype="rgba8888",
+            out_channel_order=[2, 1, 0, 3],
+            out_tensor_name=cam_name,
+        )
+        result = CameraSourceResult(
+            operators=[v4l2_source, yuyv_to_rgb, rgb_to_bgra],
+            flows=[
+                (v4l2_source, yuyv_to_rgb, {("signal", "source_video")}),
+                (yuyv_to_rgb, rgb_to_bgra, {("tensor", "source_video")}),
+            ],
+            frame_outputs={"mono": (rgb_to_bgra, "tensor")},
+        )
 
     logger.info(
         f"  V4L2 source: {cam_name} {device} {cam_cfg.width}x{cam_cfg.height}@{cam_cfg.fps}fps"
@@ -262,6 +283,7 @@ def create_camera_source(
     allocator: Any,
     *,
     output_format: str = "raw",
+    color_format: str = "bgra",
     verbose: bool = False,
 ) -> CameraSourceResult:
     """Create camera source for any supported camera type.
@@ -269,16 +291,21 @@ def create_camera_source(
     Args:
         output_format: "raw" for GPU tensors, "h264" for encoded packets.
             Only OAK-D supports "h264" output; ZED and V4L2 always output raw.
+        color_format: "rgb" for display pipelines, "bgra" for NVENC encoding.
     """
     if cam_cfg.camera_type == "zed":
-        return create_zed_source(fragment, cam_name, cam_cfg, verbose=verbose)
+        return create_zed_source(
+            fragment, cam_name, cam_cfg, color_format=color_format, verbose=verbose
+        )
     elif cam_cfg.camera_type == "oakd":
         return create_oakd_source(
-            fragment, cam_name, cam_cfg, output_format=output_format, verbose=verbose
+            fragment, cam_name, cam_cfg,
+            output_format=output_format, color_format=color_format, verbose=verbose,
         )
     elif cam_cfg.camera_type == "v4l2":
         return create_v4l2_source(
-            fragment, cam_name, cam_cfg, allocator, verbose=verbose
+            fragment, cam_name, cam_cfg, allocator,
+            color_format=color_format, verbose=verbose,
         )
     else:
         raise ValueError(f"Unknown camera type: {cam_cfg.camera_type}")

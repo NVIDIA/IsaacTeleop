@@ -1,4 +1,4 @@
-# Sample: Single V4L2 Camera (USB, HDMI capture, etc.)
+# Sample: ZED Mini Stereo Camera
 # Requires NVENC for H.264 encoding (Jetson Thor or x86_64 with NVIDIA GPU).
 
 # Camera source for teleop_camera_app:
@@ -7,17 +7,31 @@
 source: "local"
 
 # -----------------------------------------------------------------------------
+# Streaming (used by teleop_camera_sender when source is "rtp")
+# -----------------------------------------------------------------------------
+streaming:
+  host: "127.0.0.1"               # receiver IP address (override with --host)
+
+# -----------------------------------------------------------------------------
 # Cameras
 # -----------------------------------------------------------------------------
 cameras:
-  usb_cam:
+  zed_mini:
     enabled: true
-    type: v4l2
-    stereo: false
-    device: "/dev/video0"         # V4L2 device path
-    width: 2560
-    height: 720
-    fps: 30
+    type: zed
+    stereo: true
+    serial_number: 0              # 0 = first available; use list-cameras to find yours
+    resolution: "HD720"           # HD2K, HD1080, HD720, VGA
+    fps: 60
+    streams:
+      left:
+        stream_id: 0
+        port: 5000
+        bitrate_mbps: 15
+      right:
+        stream_id: 1
+        port: 5001
+        bitrate_mbps: 15
 
 # -----------------------------------------------------------------------------
 # Display (used by receiver)
@@ -27,17 +41,17 @@ display:
   cuda_device: 0
 
   monitor:
-    width: 2560
+    width: 1280
     height: 720
-    title: "Teleop Camera - V4L2"
+    title: "Teleop Camera - ZED Mini"
     padding: 4
     stream_timeout: 2.0
 
   xr:
     planes:
-      usb_cam:
+      zed_mini:
         distance: 1.5
-        width: 1.0
+        width: 1.2
         offset_x: 0.0
         offset_y: 0.0
 

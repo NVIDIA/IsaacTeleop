@@ -53,11 +53,16 @@ ensure_image() {
     fi
 }
 
+is_inside_container() {
+    [[ -f /.dockerenv ]] || grep -qsm1 'docker\|containerd' /proc/1/cgroup 2>/dev/null
+}
+
 show_help() {
     echo -e "${_BOLD}Usage:${_RESET} camera_streamer.sh <command> [options]
 
 ${_BOLD}COMMANDS${_RESET}
     build [--sender-only]   Build Docker image (encoder + decoder + XR by default)
+                            Inside a container: rebuilds C++ operators only
     run-container           Interactive shell (dev mode, mounts host source)
     deploy                  Persistent container with auto-restart (production)
     list-cameras            List connected OAK-D and ZED cameras
@@ -110,6 +115,38 @@ cmd_build() {
         log_info "Building all operators (encoder + decoder + XR)"
     fi
 
+    if is_inside_container; then
+        cmd_build_inplace "$BUILD_ENCODER" "$BUILD_DECODER"
+    else
+        cmd_build_docker "$BUILD_ENCODER" "$BUILD_DECODER"
+    fi
+}
+
+cmd_build_inplace() {
+    local BUILD_ENCODER="$1"
+    local BUILD_DECODER="$2"
+
+    log_step "Rebuilding C++ operators (in-container)"
+
+    local BUILD_DIR="$SCRIPT_DIR/build"
+    mkdir -p "$BUILD_DIR"
+    cd "$BUILD_DIR"
+
+    cmake "$SCRIPT_DIR" -GNinja -Wno-dev \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+        -DBUILD_ENCODER="$BUILD_ENCODER" \
+        -DBUILD_DECODER="$BUILD_DECODER" \
+        -DPYTHON_LIB_OUTPUT_DIR="$BUILD_DIR/python"
+    ninja
+
+    log_ok "Build complete: ${_DIM}$BUILD_DIR/python${_RESET}"
+}
+
+cmd_build_docker() {
+    local BUILD_ENCODER="$1"
+    local BUILD_DECODER="$2"
+
     local TAG BASE_TAG BUILD_CONTAINER
     TAG="$(image_tag)"
     BASE_TAG="${IMAGE_NAME}:base"
@@ -130,6 +167,7 @@ cmd_build() {
     log_info "Build cache: ${_DIM}$HOST_BUILD_DIR${_RESET}"
     docker rm "$BUILD_CONTAINER" 2>/dev/null || true
     docker run --runtime nvidia --name "$BUILD_CONTAINER" \
+        --user "$(id -u):$(id -g)" \
         -v "$HOST_BUILD_DIR:/camera_streamer/build" \
         "$BASE_TAG" \
         bash -c "

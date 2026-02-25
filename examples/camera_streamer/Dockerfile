@@ -8,8 +8,8 @@
 # Multi-camera streaming on Jetson (arm64) and x86_64.
 #
 # Platform selection:
-#   arm64 (Jetson Thor):  holoscan v3.10.0 + CUDA 13
-#   x86_64 (Ubuntu):      holoscan v3.10.0 + CUDA 12 dGPU
+#   arm64 (Jetson Thor):  holoscan v3.11.0 + CUDA 13
+#   x86_64 (Ubuntu):      holoscan v3.11.0 + CUDA 12 dGPU
 #
 # Build:
 #   docker build -t camera-sender .
