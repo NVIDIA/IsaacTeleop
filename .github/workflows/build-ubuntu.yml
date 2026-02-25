@@ -112,8 +112,8 @@ jobs:
 
     strategy:
       matrix:
-        python_version: ['3.10', '3.11', '3.12']
-        arch: ['x64', 'arm64']
+        python_version: ['3.10'] # fixme: revert before merging
+        arch: ['arm64']          # fixme: revert before merging
 
     steps:
     - name: Checkout code
@@ -190,6 +190,11 @@ jobs:
           exit 1
         fi
 
+        if [[ "${ARTIFACTORY_URL}" != https://* ]]; then
+          echo "ARTIFACTORY_URL must use https://"
+          exit 1
+        fi
+
         shopt -s nullglob
         wheels=(wheels/*.whl)
         if (( ${#wheels[@]} == 0 )); then
@@ -210,3 +215,98 @@ jobs:
           -u "${ARTIFACTORY_USERNAME}" \
           -p "${ARTIFACTORY_API_KEY}" \
           "${wheels[@]}"
+
+  kitmaker:
+    runs-on: [self-hosted, linux]
+    needs:
+      - publish-wheel
+    environment: release
+    if: ${{ needs.publish-wheel.result == 'success' }}
+
+    steps:
+    - name: Download wheel artifacts
+      uses: actions/download-artifact@v7
+      with:
+        pattern: isaacteleop-wheels-*
+        merge-multiple: true
+        path: wheels
+
+    - name: Submit wheel release to Kitmaker
+      env:
+        KITMAKER_PROJECT_ID: ${{ secrets.KITMAKER_PROJECT_ID }}
+        KITMAKER_TOKEN: ${{ secrets.KITMAKER_TOKEN }}
+        KITMAKER_PIC_EMAIL: ${{ secrets.KITMAKER_PIC_EMAIL }}
+        ARTIFACTORY_DOMAIN: ${{ secrets.ARTIFACTORY_DOMAIN }}
+        ARTIFACTORY_REPO: ${{ secrets.ARTIFACTORY_REPO }}
+        ARTIFACTORY_TOKEN: ${{ secrets.ARTIFACTORY_TOKEN }}
+        ARTIFACTORY_USER: ${{ secrets.ARTIFACTORY_USER }}
+      run: |
+        set -euo pipefail
+
+        if [[ -z "${KITMAKER_TOKEN}" || -z "${KITMAKER_PIC_EMAIL}" ]]; then
+          echo "Missing one or more required secrets: KITMAKER_TOKEN, KITMAKER_PIC_EMAIL"
+          exit 1
+        fi
+
+        if [[ -z "${ARTIFACTORY_DOMAIN}" || -z "${ARTIFACTORY_REPO}" || -z "${ARTIFACTORY_TOKEN}" ]]; then
+          echo "Missing one or more required secrets: ARTIFACTORY_DOMAIN, ARTIFACTORY_REPO, ARTIFACTORY_TOKEN"
+          exit 1
+        fi
+
+        if [[ "${ARTIFACTORY_DOMAIN}" == http://* || "${ARTIFACTORY_DOMAIN}" == https://* ]]; then
+          echo "ARTIFACTORY_DOMAIN must be hostname only (no scheme), e.g. artifactory.example.com"
+          exit 1
+        fi
+
+        if [[ "${ARTIFACTORY_DOMAIN}" == */* ]]; then
+          echo "ARTIFACTORY_DOMAIN must not contain '/'"
+          exit 1
+        fi
+
+        shopt -s nullglob
+        wheels=(wheels/*.whl)
+        if (( ${#wheels[@]} == 0 )); then
+          echo "No wheels found under wheels/*.whl"
+          ls -la wheels || true
+          exit 1
+        fi
+
+        api_url="https://kitmaker-portal.nvidia.com/api/v0/projects/${KITMAKER_PROJECT_ID}/releases"
+        wheel_url_base="https://${ARTIFACTORY_USER}:${ARTIFACTORY_TOKEN}@${ARTIFACTORY_DOMAIN}/artifactory/${ARTIFACTORY_REPO}/isaacteleop"
+
+        for wheel_path in "${wheels[@]}"; do
+          wheel_name="$(basename "${wheel_path}")"
+          if [[ "${wheel_name}" =~ ^isaacteleop-([^-]+)- ]]; then
+            wheel_version="${BASH_REMATCH[1]}"
+          else
+            echo "Unable to parse version from wheel filename: ${wheel_name}"
+            exit 1
+          fi
+
+          wheel_url="${wheel_url_base}/${wheel_version}/${wheel_name}"
+
+          payload=$(cat <<EOF
+        {
+          "project_name": "isaacteleop",
+          "payload": [
+            {
+              "pic": "${KITMAKER_PIC_EMAIL}",
+              "job_type": "wheel-release-job",
+              "publish_to": "both_devzone_pypi",
+              "url": "${wheel_url}",
+              "size": "small",
+              "upload": false
+            }
+          ]
+        }
+        EOF
+          )
+
+          echo "Posting wheel to Kitmaker: ${wheel_name}"
+          curl --fail-with-body --show-error --silent --location --include \
+            -X POST "${api_url}" \
+            -H "Authorization: Bearer ${KITMAKER_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "${payload}"
+          echo
+        done
