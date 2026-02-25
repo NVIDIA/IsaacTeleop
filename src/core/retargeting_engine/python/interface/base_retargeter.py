@@ -1,10 +1,16 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
 Retargeting module interfaces and base classes.
 
 Defines the common API for retargeting modules with flat (unkeyed) outputs.
+
+API layers:
+    _compute_fn(inputs, outputs, context)          -- abstract, what subclasses implement
+    compute(inputs, outputs, context=None)         -- external API, fills outputs in-place
+    __call__(inputs, context=None)                 -- convenience API, allocates and returns outputs
+    execute_pipeline({name: inputs}, context=None) -- GraphExecutable pipeline API (single-node graph)
 """
 
 from abc import abstractmethod
@@ -14,10 +20,12 @@ from .tensor_group_type import TensorGroupType, OptionalTensorGroupType
 from .retargeter_core_types import (
     OutputSelector,
     RetargeterIO,
-    ExecutionContext,
+    ExecutionCache,
     GraphExecutable,
     BaseExecutable,
     RetargeterIOType,
+    ComputeContext,
+    _default_compute_context,
 )
 from .retargeter_subgraph import RetargeterSubgraph
 from .parameter_state import ParameterState
@@ -37,20 +45,27 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
     A base retargeter defines:
     - Input tensor collections: Dict[str, TensorGroupType] (unkeyed - by input name)
     - Output tensor collections: Dict[str, TensorGroupType] (unkeyed - by output name)
-    - Compute logic that transforms inputs to outputs
+    - Compute logic that transforms inputs to outputs via _compute_fn()
     - Optional tunable parameters for real-time adjustment via GUI
 
     Base retargeters can be composed using connect() to create ConnectedModules.
 
+    Subclasses implement _compute_fn(inputs, outputs, context) where *context*
+    carries the current GraphTime and is extensible for future metadata.
+
+    External callers use one of:
+        compute(inputs, outputs, context=None)  -- fills outputs in-place
+        __call__(inputs, context=None)          -- allocates fresh outputs each call
+        execute_pipeline(inputs, context=None)  -- pipeline API
+
     Tunability:
     Subclasses can create a ParameterState with tunable parameters and pass it
     to super().__init__(). The base class will automatically sync parameter values
-    to member variables before each compute() call.
+    to member variables before each _compute_fn() call.
 
     Example:
         class MyRetargeter(BaseRetargeter):
             def __init__(self, name: str, config_file: Optional[str] = None):
-                # Create ParameterState with parameters and sync functions
                 param_state = ParameterState(name, config_file=config_file)
                 param_state.register_parameter(
                     FloatParameter("smoothing", "Smoothing factor", default_value=0.5),
@@ -59,11 +74,9 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
 
                 super().__init__(name, parameter_state=param_state)
 
-                # Member var initialized by sync_fn during register_parameter
-                # self.smoothing is now 0.5 (or loaded value from config)
-
-            def compute(self, inputs, outputs):
+            def _compute_fn(self, inputs, outputs, context):
                 # self.smoothing is synced from ParameterState before this runs
+                # context.graph_time is available for time-dependent logic
                 outputs["result"][0] = inputs["x"][0] * self.smoothing
     """
 
@@ -87,44 +100,14 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
         """Get the name of this retargeter."""
         return self._name
 
-    def _sync_parameters_from_state(self) -> None:
-        """
-        Sync parameter values from ParameterState (main thread only).
-
-        Called automatically before compute() to apply parameter sync functions.
-        """
-        if self._parameter_state is None:
-            return
-
-        # Let ParameterState apply all sync functions
-        self._parameter_state.sync_all()
-
-    def _execute_compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
-        """
-        Execute compute with parameter synchronization.
-
-        This wrapper:
-        1. Syncs parameters from ParameterState to member vars (before compute)
-        2. Calls user's compute() implementation
-
-        Only called when cache miss occurs, ensuring sync happens once per computation.
-
-        Args:
-            inputs: Input tensor groups
-            outputs: Output tensor groups to populate
-        """
-        # Sync parameters from state to member vars (main thread only)
-        self._sync_parameters_from_state()
-
-        # Call user's compute implementation
-        self.compute(inputs, outputs)
+    # ========================================================================
+    # Subclass contract — subclasses must implement these
+    # ========================================================================
 
     @abstractmethod
     def input_spec(self) -> RetargeterIOType:
         """
         Define input tensor collections.
-
-        Returns a dictionary mapping input names to TensorGroupType.
 
         Returns:
             Dict[str, TensorGroupType] - Input specification
@@ -136,45 +119,68 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
         """
         Define output tensor collections.
 
-        Returns a dictionary mapping output names to TensorGroupType.
-
         Returns:
             Dict[str, TensorGroupType] - Output specification
         """
         pass
 
     @abstractmethod
-    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
+    def _compute_fn(
+        self, inputs: RetargeterIO, outputs: RetargeterIO, context: ComputeContext
+    ) -> None:
         """
         Execute retargeting computation.
 
-        This is the core method that transforms inputs to outputs.
+        This is the core method that subclasses implement. It is called by the
+        framework after parameter sync. ``context`` is the same shared object
+        for every node in a graph step. Time information is available via
+        ``context.graph_time``.
+
+        ``outputs`` arrives pre-populated with one ``TensorGroup`` per key from
+        ``output_spec()``.  Implementations may either write into the existing
+        groups in-place (``outputs["key"][i] = value``) or replace a group
+        entirely (``outputs["key"] = new_group``).  Both are valid — the
+        framework makes no guarantee about whether the incoming groups are
+        freshly allocated or reused from a prior step.
+
+        .. warning::
+            Do **not** read from ``outputs`` to carry state across steps — the
+            groups contain ``UNSET_VALUE`` on the first call and reading any
+            tensor will raise ``ValueError``.  Use instance variables
+            (``self._foo``) for cross-step state.
 
         Args:
             inputs: Input tensor groups (Dict[str, TensorGroup])
             outputs: Output tensor groups to populate (Dict[str, TensorGroup])
+            context: Compute context containing graph time and future metadata
         """
         pass
 
-    def output_types(self) -> RetargeterIOType:
+    # ========================================================================
+    # Public convenience API — not part of any abstract contract
+    # ========================================================================
+
+    def __call__(
+        self,
+        inputs: RetargeterIO,
+        context: Optional[ComputeContext] = None,
+    ) -> RetargeterIO:
         """
-        Return the output type specification for this retargeter.
+        Convenience API: allocate fresh outputs and return them.
+
+        Args:
+            inputs: Input tensor groups.
+            context: ComputeContext for this step. Auto-generated from the monotonic
+                     clock when not provided.
 
         Returns:
-            Dict[str, TensorGroupType] - Output type specification
+            Dict[str, TensorGroup] — freshly allocated, independently owned outputs.
         """
-        return self._outputs
-
-    def get_leaf_nodes(self) -> List[BaseExecutable]:
-        """
-        Get all leaf nodes (sources) in this graph.
-
-        For a BaseRetargeter, it is a leaf node itself.
-
-        Returns:
-            List[BaseExecutable] - List containing this instance
-        """
-        return [self]
+        if context is None:
+            context = _default_compute_context()
+        outputs = self._allocate_outputs()
+        self.compute(inputs, outputs, context)
+        return outputs
 
     def connect(
         self, input_connections: Dict[str, OutputSelector]
@@ -231,6 +237,130 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
             output_types=self._outputs,
         )
 
+    # ========================================================================
+    # GraphExecutable implementation
+    # ========================================================================
+
+    def execute_pipeline(
+        self,
+        inputs: Dict[str, RetargeterIO],
+        context: Optional[ComputeContext] = None,
+    ) -> RetargeterIO:
+        """
+        Implements ``GraphExecutable.execute_pipeline``.
+
+        Satisfies the ``GraphExecutable.execute_pipeline`` contract so a standalone
+        ``BaseRetargeter`` can be used wherever a pipeline is expected. The caller
+        must supply inputs keyed by this node's name: ``{self.name: {...}}``.
+
+        Args:
+            inputs: Dict mapping this node's name to its flat input tensor groups.
+            context: ComputeContext for this step. Auto-generated from the monotonic
+                     clock when not provided.
+
+        Returns:
+            Dict[str, TensorGroup] — freshly allocated populated output groups.
+        """
+        if context is None:
+            context = _default_compute_context()
+        node_inputs = inputs.get(self.name, {})
+        outputs = self._allocate_outputs()
+        self.compute(node_inputs, outputs, context)
+        return outputs
+
+    def output_types(self) -> RetargeterIOType:
+        """
+        Implements ``GraphExecutable.output_types``.
+
+        Returns:
+            Dict[str, TensorGroupType] - Output type specification
+        """
+        return self._outputs
+
+    def get_leaf_nodes(self) -> List[BaseExecutable]:
+        """
+        Implements ``GraphExecutable.get_leaf_nodes``.
+
+        A ``BaseRetargeter`` is always a leaf node — it has no upstream dependencies.
+
+        Returns:
+            List containing only ``self``.
+        """
+        return [self]
+
+    def _compute_with_cache(self, cache: ExecutionCache) -> RetargeterIO:
+        """
+        Implements ``GraphExecutable._compute_with_cache``.
+
+        Retrieves this node's leaf inputs from ``cache`` by name, delegates to
+        ``compute`` with the cache's shared context, then stores
+        the result for DAG deduplication.
+
+        Args:
+            cache: The per-step execution cache carrying leaf inputs and context.
+        """
+        cached = cache.get_cached(id(self))
+        if cached is not None:
+            return cached
+
+        if len(self._inputs) > 0:
+            inputs = cache.get_leaf_input(self.name)
+            if inputs is None:
+                has_required = any(not t.is_optional for t in self._inputs.values())
+                if has_required:
+                    raise ValueError(f"Input '{self.name}' not found in cache")
+                inputs = {}
+        else:
+            inputs = {}
+
+        outputs = self._allocate_outputs()
+        self.compute(inputs, outputs, cache.context)
+        cache.cache(id(self), outputs)
+        return outputs
+
+    # ========================================================================
+    # BaseExecutable implementation
+    # ========================================================================
+
+    def compute(
+        self,
+        inputs: RetargeterIO,
+        outputs: RetargeterIO,
+        context: Optional[ComputeContext] = None,
+    ) -> None:
+        """
+        Implements ``BaseExecutable.compute``.
+
+        Fills optional inputs, validates, syncs parameters, then calls
+        ``_compute_fn``. Fills ``outputs`` in-place; does not return anything.
+
+        Args:
+            inputs: Input tensor groups (raw; optional entries filled here).
+            outputs: Pre-allocated output tensor groups to fill in-place.
+            context: The shared ComputeContext for this compute step.
+                     Auto-generated from the monotonic clock when not provided.
+        """
+        if context is None:
+            context = _default_compute_context()
+        inputs = self._fill_optional_inputs(inputs)
+        self._validate_inputs(inputs)
+        self._execute_compute(inputs, outputs, context)
+
+    def _allocate_outputs(self) -> RetargeterIO:
+        """
+        Implements ``BaseExecutable._allocate_outputs``.
+
+        Allocates a fresh output tensor group dict matching this node's output spec.
+        """
+        return {
+            name: _make_output_group(group_type)
+            for name, group_type in self._outputs.items()
+        }
+
+    # ========================================================================
+    # Internal helpers
+    # ========================================================================
+
     def _fill_optional_inputs(self, inputs: RetargeterIO) -> RetargeterIO:
         """Return a new dict with absent OptionalTensorGroups for missing optional inputs.
 
@@ -281,74 +411,21 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
             inner_expected = expected_type.inner_type
             inner_expected.check_compatibility(input_group.group_type)
 
-    # implements GraphExecutable interface.
-    def _compute_in_graph(self, context: ExecutionContext) -> RetargeterIO:
-        """
-        Compute the retargeter in a graph context.
+    def _execute_compute(
+        self, inputs: RetargeterIO, outputs: RetargeterIO, context: ComputeContext
+    ) -> None:
+        """Sync parameters then dispatch to ``_compute_fn``."""
+        self._sync_parameters_from_state()
+        self._compute_fn(inputs, outputs, context)
 
-        Args:
-            context: The execution context
-        """
-        # Check cache first
-        cached = context.get_cached(id(self))
-        if cached is not None:
-            return cached
-
-        # Get inputs from context (if any are needed)
-        if len(self._inputs) > 0:  # Only look for inputs if this module has any
-            inputs = context.get_leaf_input(self.name)
-            if inputs is None:
-                raise ValueError(f"Input '{self.name}' not found in context")
-
-            inputs = self._fill_optional_inputs(inputs)
-        else:
-            # Source modules with no inputs use empty dict
-            inputs = {}
-
-        # Create output tensor groups.
-        outputs: RetargeterIO = {
-            name: _make_output_group(group_type)
-            for name, group_type in self._outputs.items()
-        }
-
-        # Execute compute with parameter sync (only on cache miss)
-        self._validate_inputs(inputs)
-        self._execute_compute(inputs, outputs)
-        context.cache(id(self), outputs)
-        return outputs
-
-    # implements BaseExecutable interface.
-    def _compute_without_context(self, inputs: RetargeterIO) -> RetargeterIO:
-        """
-        Execute the retargeter as a callable (for running outside of a graph context).
-
-        Args:
-            inputs: Input tensor groups (Optional entries use OptionalTensorGroup)
-
-        Returns:
-            Dict[str, TensorGroup] - Output tensor groups
-        """
-        inputs = self._fill_optional_inputs(inputs)
-
-        self._validate_inputs(inputs)
-
-        # Create output tensor groups.
-        outputs: RetargeterIO = {
-            name: _make_output_group(group_type)
-            for name, group_type in self._outputs.items()
-        }
-
-        # Execute compute with parameter sync
-        self._execute_compute(inputs, outputs)
-
-        return outputs
-
-    # For end-user convenience to invoke the retargeter as a callable.
-    def __call__(self, inputs: RetargeterIO) -> RetargeterIO:
-        return self._compute_without_context(inputs)
+    def _sync_parameters_from_state(self) -> None:
+        """Flush ``ParameterState`` values to member variables before ``_compute_fn`` runs."""
+        if self._parameter_state is None:
+            return
+        self._parameter_state.sync_all()
 
     # ========================================================================
-    # Tunable Parameters API
+    # Tunable parameters API
     # ========================================================================
 
     def get_parameter_state(self) -> Optional["ParameterState"]:
@@ -357,10 +434,5 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
 
         Returns:
             ParameterState instance, or None if retargeter has no tunable parameters
-
-        Example:
-            state = retargeter.get_parameter_state()
-            state.save_to_file("config.json")
-            state.reset_to_defaults()
         """
         return self._parameter_state

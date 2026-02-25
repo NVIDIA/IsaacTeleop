@@ -77,7 +77,7 @@ class HeadTransform(BaseRetargeter):
         """Declare transformed head pose output (Optional)."""
         return {"head": OptionalType(HeadPose())}
 
-    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
+    def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         """
         Apply the 4x4 transform to head position and orientation.
 
@@ -91,6 +91,7 @@ class HeadTransform(BaseRetargeter):
         Args:
             inputs: Dict with "head" and "transform" TensorGroups.
             outputs: Dict with "head" OptionalTensorGroup to populate.
+            context: ComputeContext (unused by this transform node).
         """
         if inputs["head"].is_none:
             outputs["head"].set_none()

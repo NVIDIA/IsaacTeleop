@@ -65,7 +65,7 @@ class LocomotionFixedRootCmdRetargeter(BaseRetargeter):
             )
         }
 
-    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
+    def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         """Sets the fixed command."""
         output_group = outputs["root_command"]
         # [vel_x, vel_y, rot_vel_z, hip_height]
@@ -118,7 +118,7 @@ class LocomotionRootCmdRetargeter(BaseRetargeter):
             )
         }
 
-    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
+    def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         """Computes root command from controller inputs."""
         left_thumbstick_x = 0.0
         left_thumbstick_y = 0.0

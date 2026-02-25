@@ -16,7 +16,7 @@ import sys
 import time
 import numpy as np
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Optional
 
 from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     HandsSource,
@@ -28,6 +28,10 @@ from isaacteleop.teleop_session_manager import (
     PluginConfig,
 )
 from isaacteleop.retargeting_engine.interface import BaseRetargeter
+from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
+    ComputeContext,
+    RetargeterIO,
+)
 from isaacteleop.retargeting_engine.tensor_types import (
     HandInput,
     HandInputIndex,
@@ -38,7 +42,6 @@ from isaacteleop.retargeting_engine.interface.tensor_group_type import (
     TensorGroupType,
     OptionalType,
 )
-from isaacteleop.retargeting_engine.interface.tensor_group import TensorGroup
 from isaacteleop.retargeting_engine.tensor_types import FloatType
 
 
@@ -103,10 +106,13 @@ class VelocityTracker(BaseRetargeter):
             return 0.0
         return float(np.linalg.norm(current - previous) / dt)
 
-    def compute(
-        self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]
+    def _compute_fn(
+        self,
+        inputs: RetargeterIO,
+        outputs: RetargeterIO,
+        context: ComputeContext,
     ) -> None:
-        current_time = time.time()
+        current_time = context.graph_time.real_time_ns / 1e9
         dt = (current_time - self._prev_time) if self._prev_time is not None else 0.0
 
         # Hand left

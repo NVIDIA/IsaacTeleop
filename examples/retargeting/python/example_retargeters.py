@@ -20,6 +20,10 @@ from isaacteleop.retargeting_engine.interface import (
     TensorGroupType,
     VectorParameter,
 )
+from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
+    ComputeContext,
+    RetargeterIO,
+)
 from isaacteleop.retargeting_engine.tensor_types import FloatType
 
 
@@ -78,7 +82,9 @@ class GainOffsetRetargeter(BaseRetargeter):
         """Define output specification."""
         return self._output_types
 
-    def compute(self, inputs: dict, outputs: dict) -> None:
+    def _compute_fn(
+        self, inputs: RetargeterIO, outputs: RetargeterIO, context: ComputeContext
+    ) -> None:
         """Apply gain and offset transformation."""
         input_val = inputs["value"][0]
         outputs["value"][0] = (input_val * self.gain) + self.offset
@@ -154,7 +160,9 @@ class SimpleTunableRetargeter(BaseRetargeter):
         """Define output specification."""
         return {"result": TensorGroupType("result", [FloatType("processed_value")])}
 
-    def compute(self, inputs, outputs):
+    def _compute_fn(
+        self, inputs: RetargeterIO, outputs: RetargeterIO, context: ComputeContext
+    ) -> None:
         """Apply processing based on parameters."""
         input_val = float(inputs["input_value"][0])
 

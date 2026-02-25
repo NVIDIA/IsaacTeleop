@@ -16,7 +16,10 @@ from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     HandsSource,
     HeadSource,
 )
-from isaacteleop.retargeting_engine.interface.tensor_group import OptionalTensorGroup
+from isaacteleop.retargeting_engine.interface.tensor_group import (
+    OptionalTensorGroup,
+    TensorGroup,
+)
 from isaacteleop.retargeting_engine.interface.base_retargeter import _make_output_group
 from isaacteleop.retargeting_engine.tensor_types import (
     ControllerInputIndex,
@@ -69,6 +72,29 @@ def create_controller_snapshot(grip_pos, aim_pos, trigger_val):
     return ControllerSnapshot(grip_controller_pose, aim_controller_pose, inputs)
 
 
+def _make_inputs(source, raw: dict) -> dict:
+    """Wrap raw DeviceIO objects in TensorGroups using the source's input_spec.
+
+    Mirrors what poll_tracker / TeleopSession does in production so that
+    compute(inputs, outputs) receives properly typed inputs.
+
+    Args:
+        source: A BaseRetargeter whose input_spec() defines the expected types.
+        raw: Dict mapping input name → list of raw objects (one per tensor slot).
+
+    Returns:
+        Dict mapping input name → TensorGroup with the raw objects stored inside.
+    """
+    input_spec = source.input_spec()
+    result = {}
+    for name, objects in raw.items():
+        tg = TensorGroup(input_spec[name])
+        for i, obj in enumerate(objects):
+            tg[i] = obj
+        result[name] = tg
+    return result
+
+
 # ============================================================================
 # Controllers Source Tests
 # ============================================================================
@@ -103,11 +129,7 @@ class TestControllersSource:
         assert len(output_spec) == 2
 
     def test_controllers_source_compute(self):
-        """Test that ControllersSource converts DeviceIO data correctly.
-
-        Note: This test directly calls compute() which bypasses input validation.
-        In production, TeleopSession wraps schema objects appropriately.
-        """
+        """Test that ControllersSource converts DeviceIO data correctly."""
         source = ControllersSource(name="controllers")
 
         # Create raw DeviceIO flatbuffer inputs wrapped in TrackedT types
@@ -119,16 +141,20 @@ class TestControllersSource:
         )
 
         # Prepare input dict with TrackedT wrappers (active controllers)
-        inputs = {
-            "deviceio_controller_left": [ControllerSnapshotTrackedT(left_snapshot)],
-            "deviceio_controller_right": [ControllerSnapshotTrackedT(right_snapshot)],
-        }
+        inputs = _make_inputs(
+            source,
+            {
+                "deviceio_controller_left": [ControllerSnapshotTrackedT(left_snapshot)],
+                "deviceio_controller_right": [
+                    ControllerSnapshotTrackedT(right_snapshot)
+                ],
+            },
+        )
 
         # Create output structure
         output_spec = source.output_spec()
         outputs = {name: _make_output_group(gt) for name, gt in output_spec.items()}
 
-        # Call compute directly
         source.compute(inputs, outputs)
 
         # Verify left controller data
@@ -224,7 +250,7 @@ class TestHeadSource:
             True,
         )
 
-        inputs = {"deviceio_head": [HeadPoseTrackedT(head_data)]}
+        inputs = _make_inputs(source, {"deviceio_head": [HeadPoseTrackedT(head_data)]})
         outputs = {
             name: _make_output_group(gt) for name, gt in source.output_spec().items()
         }
@@ -244,7 +270,7 @@ class TestHeadSource:
         """Test that inactive head (TrackedT.data is None) produces absent output."""
         source = HeadSource(name="head")
 
-        inputs = {"deviceio_head": [HeadPoseTrackedT()]}
+        inputs = _make_inputs(source, {"deviceio_head": [HeadPoseTrackedT()]})
         outputs = {
             name: _make_output_group(gt) for name, gt in source.output_spec().items()
         }
@@ -280,10 +306,15 @@ class TestControllersSourceOptional:
             grip_pos=(7, 8, 9), aim_pos=(10, 11, 12), trigger_val=0.9
         )
 
-        inputs = {
-            "deviceio_controller_left": [ControllerSnapshotTrackedT(left_snapshot)],
-            "deviceio_controller_right": [ControllerSnapshotTrackedT(right_snapshot)],
-        }
+        inputs = _make_inputs(
+            source,
+            {
+                "deviceio_controller_left": [ControllerSnapshotTrackedT(left_snapshot)],
+                "deviceio_controller_right": [
+                    ControllerSnapshotTrackedT(right_snapshot)
+                ],
+            },
+        )
         outputs = {
             name: _make_output_group(gt) for name, gt in source.output_spec().items()
         }
@@ -306,10 +337,15 @@ class TestControllersSourceOptional:
             grip_pos=(0, 0, 0), aim_pos=(0, 0, 0), trigger_val=0.0
         )
 
-        inputs = {
-            "deviceio_controller_left": [ControllerSnapshotTrackedT()],
-            "deviceio_controller_right": [ControllerSnapshotTrackedT(right_snapshot)],
-        }
+        inputs = _make_inputs(
+            source,
+            {
+                "deviceio_controller_left": [ControllerSnapshotTrackedT()],
+                "deviceio_controller_right": [
+                    ControllerSnapshotTrackedT(right_snapshot)
+                ],
+            },
+        )
         outputs = {
             name: _make_output_group(gt) for name, gt in source.output_spec().items()
         }
@@ -322,10 +358,13 @@ class TestControllersSourceOptional:
         """Accessing fields of an absent controller raises ValueError."""
         source = ControllersSource(name="controllers")
 
-        inputs = {
-            "deviceio_controller_left": [ControllerSnapshotTrackedT()],
-            "deviceio_controller_right": [ControllerSnapshotTrackedT()],
-        }
+        inputs = _make_inputs(
+            source,
+            {
+                "deviceio_controller_left": [ControllerSnapshotTrackedT()],
+                "deviceio_controller_right": [ControllerSnapshotTrackedT()],
+            },
+        )
         outputs = {
             name: _make_output_group(gt) for name, gt in source.output_spec().items()
         }
@@ -399,7 +438,7 @@ class TestHeadSourceOptional:
             True,
         )
 
-        inputs = {"deviceio_head": [HeadPoseTrackedT(head_data)]}
+        inputs = _make_inputs(source, {"deviceio_head": [HeadPoseTrackedT(head_data)]})
         outputs = {
             name: _make_output_group(gt) for name, gt in source.output_spec().items()
         }
@@ -414,7 +453,7 @@ class TestHeadSourceOptional:
         """Inactive head (TrackedT.data is None) produces absent OptionalTensorGroup."""
         source = HeadSource(name="head")
 
-        inputs = {"deviceio_head": [HeadPoseTrackedT()]}
+        inputs = _make_inputs(source, {"deviceio_head": [HeadPoseTrackedT()]})
         outputs = {
             name: _make_output_group(gt) for name, gt in source.output_spec().items()
         }
@@ -426,7 +465,7 @@ class TestHeadSourceOptional:
         """Accessing fields of an absent head output raises ValueError."""
         source = HeadSource(name="head")
 
-        inputs = {"deviceio_head": [HeadPoseTrackedT()]}
+        inputs = _make_inputs(source, {"deviceio_head": [HeadPoseTrackedT()]})
         outputs = {
             name: _make_output_group(gt) for name, gt in source.output_spec().items()
         }

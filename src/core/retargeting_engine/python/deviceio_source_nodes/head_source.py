@@ -89,7 +89,7 @@ class HeadSource(IDeviceIOSource):
         """Declare standard head pose output (Optional — may be absent)."""
         return {"head": OptionalType(HeadPose())}
 
-    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
+    def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         """
         Convert DeviceIO HeadPoseTrackedT to standard HeadPose tensor.
 
@@ -98,6 +98,7 @@ class HeadSource(IDeviceIOSource):
         Args:
             inputs: Dict with "deviceio_head" containing HeadPoseTrackedT wrapper
             outputs: Dict with "head" OptionalTensorGroup
+            context: ComputeContext (unused by this converter node).
         """
         tracked: "HeadPoseTrackedT" = inputs["deviceio_head"][0]
         head_pose: "HeadPoseT | None" = tracked.data

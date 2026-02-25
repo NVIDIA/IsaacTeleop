@@ -77,13 +77,14 @@ class ValueInput(BaseRetargeter):
         """Single output of the same type."""
         return {self.VALUE: self._tensor_type}
 
-    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
+    def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         """
         Copy all tensor values from input to output.
 
         Args:
             inputs: Dict with "value" TensorGroup (fed externally).
             outputs: Dict with "value" TensorGroup to populate.
+            context: ComputeContext (unused by this passthrough node).
         """
         inp: OptionalTensorGroup = inputs[self.VALUE]
         out: OptionalTensorGroup = outputs[self.VALUE]

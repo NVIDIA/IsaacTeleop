@@ -451,5 +451,158 @@ class TestTensorGroupIntegration:
         assert group2[0] == 10.0
 
 
+# ============================================================================
+# TensorGroup.create_snapshot() / OptionalTensorGroup.create_snapshot() Tests
+# ============================================================================
+
+
+class TestTensorGroupCopy:
+    """Tests for TensorGroup.create_snapshot() — independent snapshot of scalar values."""
+
+    def _float_group(self, value: float = 1.0) -> TensorGroup:
+        gt = TensorGroupType("g", [FloatType("v")])
+        tg = TensorGroup(gt)
+        tg[0] = value
+        return tg
+
+    def test_copy_returns_new_object(self):
+        tg = self._float_group(3.0)
+        cp = tg.create_snapshot()
+        assert cp is not tg
+
+    def test_copy_preserves_value(self):
+        tg = self._float_group(7.5)
+        cp = tg.create_snapshot()
+        assert cp[0] == 7.5
+
+    def test_copy_scalar_independence(self):
+        """Mutating the copy must not affect the original."""
+        tg = self._float_group(1.0)
+        cp = tg.create_snapshot()
+        cp[0] = 99.0
+        assert tg[0] == 1.0
+
+    def test_copy_returns_tensor_group_type(self):
+        """create_snapshot() on a TensorGroup must return a TensorGroup, not base class."""
+        tg = self._float_group(1.0)
+        cp = tg.create_snapshot()
+        assert type(cp) is TensorGroup
+        assert cp.is_none is False
+
+    def test_copy_multi_tensor(self):
+        gt = TensorGroupType("pos", [FloatType("x"), FloatType("y"), FloatType("z")])
+        tg = TensorGroup(gt)
+        tg[0] = 1.0
+        tg[1] = 2.0
+        tg[2] = 3.0
+
+        cp = tg.create_snapshot()
+        assert cp[0] == 1.0
+        assert cp[1] == 2.0
+        assert cp[2] == 3.0
+
+        cp[0] = 99.0
+        assert tg[0] == 1.0
+
+    def test_copy_after_get_tensor_value_mutation(self):
+        """create_snapshot() must capture values set via get_tensor().value, not just __setitem__."""
+        gt = TensorGroupType("g", [FloatType("v")])
+        tg = TensorGroup(gt)
+        tg[0] = 1.0
+
+        # Mutate through the Tensor object directly, bypassing __setitem__
+        tg.get_tensor(0).value = 99.0
+
+        cp = tg.create_snapshot()
+        # Copy must see the mutated value
+        assert cp[0] == 99.0
+        # Mutating the copy must not affect the original
+        cp[0] = 0.0
+        assert tg[0] == 99.0
+
+    def test_copy_via_get_tensor_before_setitem(self):
+        """create_snapshot() works even when the only write was through get_tensor().value."""
+        gt = TensorGroupType("g", [FloatType("v")])
+        tg = TensorGroup(gt)
+
+        # Set via get_tensor().value only — __setitem__ never called, so
+        # _is_none starts True; is_none property returns False for TensorGroup.
+        tg.get_tensor(0).value = 42.0
+
+        cp = tg.create_snapshot()
+        assert cp[0] == 42.0
+
+    """Tests for TensorGroup.create_snapshot() with numpy array tensors."""
+
+    def _array_group(self) -> TensorGroup:
+        from isaacteleop.retargeting_engine.tensor_types import NDArrayType, DLDataType
+
+        gt = TensorGroupType(
+            "arr", [NDArrayType("v", shape=(3,), dtype=DLDataType.FLOAT, dtype_bits=32)]
+        )
+        tg = TensorGroup(gt)
+        tg[0] = np.array([1.0, 2.0, 3.0], dtype=np.float32)
+        return tg
+
+    def test_copy_array_independence(self):
+        """Mutating the copy's array must not affect the original."""
+        tg = self._array_group()
+        cp = tg.create_snapshot()
+
+        cp[0][0] = 999.0
+        assert tg[0][0] == 1.0
+
+    def test_copy_array_values_equal(self):
+        tg = self._array_group()
+        cp = tg.create_snapshot()
+        assert np.array_equal(cp[0], tg[0])
+
+    def test_copy_array_is_different_buffer(self):
+        """The copied array must not share memory with the original."""
+        tg = self._array_group()
+        cp = tg.create_snapshot()
+        assert not np.shares_memory(cp[0], tg[0])
+
+
+class TestOptionalTensorGroupCopy:
+    """Tests for OptionalTensorGroup.create_snapshot()."""
+
+    def _make_opt_type(self):
+        from isaacteleop.retargeting_engine.interface.tensor_group_type import (
+            OptionalTensorGroupType,
+        )
+
+        return OptionalTensorGroupType(TensorGroupType("opt", [FloatType("v")]))
+
+    def test_copy_absent_group_is_also_absent(self):
+        from isaacteleop.retargeting_engine.interface import OptionalTensorGroup
+
+        tg = OptionalTensorGroup(self._make_opt_type())
+        assert tg.is_none
+
+        cp = tg.create_snapshot()
+        assert cp.is_none
+        assert cp is not tg
+
+    def test_copy_present_group_has_correct_value(self):
+        from isaacteleop.retargeting_engine.interface import OptionalTensorGroup
+
+        tg = OptionalTensorGroup(self._make_opt_type())
+        tg[0] = 5.0
+
+        cp = tg.create_snapshot()
+        assert not cp.is_none
+        assert cp[0] == 5.0
+
+    def test_copy_returns_optional_tensor_group_type(self):
+        from isaacteleop.retargeting_engine.interface import OptionalTensorGroup
+
+        tg = OptionalTensorGroup(self._make_opt_type())
+        tg[0] = 1.0
+
+        cp = tg.create_snapshot()
+        assert type(cp) is OptionalTensorGroup
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -132,7 +132,7 @@ class TensorReorderer(BaseRetargeter):
             )
         }
 
-    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
+    def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         """
         Gather values and pack them into a single numpy array.
         """
@@ -166,9 +166,11 @@ class TensorReorderer(BaseRetargeter):
                 try:
                     val = source[src_idx]
                     flat_action[dst_idx] = float(val)
-                except (IndexError, TypeError):
-                    # Fallback or error logging
-                    pass
+                except (IndexError, TypeError) as e:
+                    raise ValueError(
+                        f"Mapping error in {self.name}: "
+                        f"input '{input_name}'[{src_idx}] -> output[{dst_idx}]: {e}"
+                    ) from e
 
         # Set the single output tensor
         outputs["output"][0] = flat_action

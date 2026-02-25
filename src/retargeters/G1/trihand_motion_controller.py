@@ -115,13 +115,14 @@ class TriHandMotionControllerRetargeter(BaseRetargeter):
             )
         }
 
-    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
+    def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         """
         Execute the motion controller to hand joint mapping.
 
         Args:
             inputs: Dict with motion controller data
             outputs: Dict with "hand_joints" TensorGroup for robot joint angles
+            context: ComputeContext (unused by this retargeter).
         """
         output_group = outputs["hand_joints"]
 
@@ -276,13 +277,14 @@ class TriHandBiManualMotionControllerRetargeter(BaseRetargeter):
             )
         }
 
-    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
+    def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         """
         Execute bimanual motion controller retargeting.
 
         Args:
             inputs: Dict with "controller_left" and "controller_right" data
             outputs: Dict with "hand_joints" combined output
+            context: ComputeContext, propagated to child controllers.
         """
         # Create temporary output groups for individual controllers
         left_outputs: RetargeterIO = {
@@ -296,12 +298,12 @@ class TriHandBiManualMotionControllerRetargeter(BaseRetargeter):
             )
         }
 
-        # Run individual controllers
+        # Run individual controllers, propagating context
         left_inputs = {"controller_left": inputs["controller_left"]}
         right_inputs = {"controller_right": inputs["controller_right"]}
 
-        self._left_controller.compute(left_inputs, left_outputs)
-        self._right_controller.compute(right_inputs, right_outputs)
+        self._left_controller.compute(left_inputs, left_outputs, context=context)
+        self._right_controller.compute(right_inputs, right_outputs, context=context)
 
         # Combine outputs
         combined_output = outputs["hand_joints"]
