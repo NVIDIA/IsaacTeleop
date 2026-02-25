@@ -22,7 +22,7 @@ cameras:
     stereo: true
     serial_number: 0              # 0 = first available; use list-cameras to find yours
     resolution: "HD720"           # HD2K, HD1080, HD720, VGA
-    fps: 60
+    fps: 30
     streams:
       left:
         stream_id: 0
@@ -37,7 +37,7 @@ cameras:
 # Display (used by receiver)
 # -----------------------------------------------------------------------------
 display:
-  mode: "monitor"                 # "monitor" or "xr"
+  mode: "xr"                 # "monitor" or "xr"
   cuda_device: 0
 
   monitor:

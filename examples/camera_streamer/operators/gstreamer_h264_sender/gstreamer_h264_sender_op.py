@@ -9,7 +9,7 @@ Stream identification and synchronization:
     - Each stream sends to a unique port (configured in YAML)
     - Receiver identifies streams by port
     - RTP timestamps (90kHz) used for stereo frame pairing
-    - Holoscan metadata (timestamp_us, stream_id, sequence) flows within
+    - Holoscan metadata (frame_timestamp_us, stream_id, sequence) flows within
       the Holoscan graph but is NOT sent over network
 """
 

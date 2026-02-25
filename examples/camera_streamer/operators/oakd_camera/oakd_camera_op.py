@@ -11,7 +11,7 @@ Supports:
 - Stereo mode: Dual camera streams (LEFT + RIGHT)
 
 Metadata emitted with each frame/packet:
-    - timestamp_us: Device capture timestamp in microseconds (int64)
+    - frame_timestamp_us: Device capture timestamp in microseconds (int64)
     - stream_id: Unique stream identifier for pairing (int)
     - sequence: Frame sequence number for drop detection (int)
 """
@@ -417,7 +417,7 @@ class OakdCameraOp(Operator):
         if frame_data is None:
             return False
 
-        self.metadata["timestamp_us"] = self._extract_timestamp_us(frame_msg)
+        self.metadata["frame_timestamp_us"] = self._extract_timestamp_us(frame_msg)
         self.metadata["stream_id"] = self._left_stream_id
         self.metadata["sequence"] = self._frame_count
         op_output.emit(
@@ -434,7 +434,7 @@ class OakdCameraOp(Operator):
                 right_data = self._extract_raw_frame(frame_right)
                 if right_data is not None:
                     self.metadata.clear()
-                    self.metadata["timestamp_us"] = self._extract_timestamp_us(
+                    self.metadata["frame_timestamp_us"] = self._extract_timestamp_us(
                         frame_right
                     )
                     self.metadata["stream_id"] = self._right_stream_id
@@ -465,7 +465,7 @@ class OakdCameraOp(Operator):
         if h264_data is None:
             return False
 
-        self.metadata["timestamp_us"] = self._extract_timestamp_us(encoded_msg)
+        self.metadata["frame_timestamp_us"] = self._extract_timestamp_us(encoded_msg)
         self.metadata["stream_id"] = self._left_stream_id
         self.metadata["sequence"] = self._frame_count
         op_output.emit(
@@ -483,7 +483,7 @@ class OakdCameraOp(Operator):
                 right_data = self._extract_h264_data(encoded_right)
                 if right_data is not None:
                     self.metadata.clear()
-                    self.metadata["timestamp_us"] = self._extract_timestamp_us(
+                    self.metadata["frame_timestamp_us"] = self._extract_timestamp_us(
                         encoded_right
                     )
                     self.metadata["stream_id"] = self._right_stream_id

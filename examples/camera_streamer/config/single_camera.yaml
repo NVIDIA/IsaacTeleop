@@ -34,7 +34,7 @@ cameras:
 # Display (used by receiver)
 # -----------------------------------------------------------------------------
 display:
-  mode: "monitor"                   # "monitor" or "xr"
+  mode: "xr"                   # "monitor" or "xr"
   cuda_device: 0
 
   monitor:
