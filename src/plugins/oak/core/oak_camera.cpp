@@ -27,7 +27,8 @@ static bool has_stream(const std::vector<StreamConfig>& streams, core::StreamTyp
 // OakCamera
 // =============================================================================
 
-OakCamera::OakCamera(const OakConfig& config, const std::vector<StreamConfig>& streams, FrameSink& sink) : m_sink(sink)
+OakCamera::OakCamera(const OakConfig& config, const std::vector<StreamConfig>& streams, std::unique_ptr<FrameSink> sink)
+    : m_sink(std::move(sink))
 {
     std::cout << "OAK Camera: " << config.fps << " fps, " << (config.bitrate / 1'000'000.0) << " Mbps" << std::endl;
 
@@ -154,10 +155,8 @@ void OakCamera::create_pipeline(const OakConfig& config,
 // update() -- poll all queues and dispatch to FrameSink
 // =============================================================================
 
-size_t OakCamera::update()
+void OakCamera::update()
 {
-    size_t count = 0;
-
     for (auto& [type, queue] : m_queues)
     {
         auto packet = queue->tryGet<dai::ImgFrame>();
@@ -180,11 +179,21 @@ size_t OakCamera::update()
         frame.metadata.timestamp = std::make_unique<core::Timestamp>(device_time_ns, common_time_ns);
         frame.metadata.sequence_number = packet->getSequenceNum();
 
-        m_sink.on_frame(frame);
-        ++count;
+        m_sink->on_frame(frame);
+        ++m_frame_counts[type];
     }
+}
 
-    return count;
+// =============================================================================
+// print_stats()
+// =============================================================================
+
+void OakCamera::print_stats() const
+{
+    for (const auto& [type, count] : m_frame_counts)
+    {
+        std::cout << "  " << core::EnumNameStreamType(type) << ": " << count << " frames" << std::endl;
+    }
 }
 
 } // namespace oak
