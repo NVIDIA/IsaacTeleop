@@ -30,6 +30,15 @@ public:
     virtual bool update(XrTime time) = 0;
 
     /**
+     * Discard OpenXR handle ownership so destructors do not call xrDestroy*.
+     * Used when the runtime was invalidated externally (e.g. Kit Stop XR).
+     * After this, the impl must not call any OpenXR destroy in its destructor.
+     */
+    virtual void discard_oxr_resources()
+    {
+    }
+
+    /**
      * @brief Serialize the tracker data to a FlatBuffer.
      *
      * @param builder Output FlatBufferBuilder to write serialized data into.

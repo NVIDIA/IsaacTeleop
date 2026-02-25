@@ -100,6 +100,8 @@ PYBIND11_MODULE(_deviceio, m)
     // PyDeviceIOSession& directly, calling .native() internally in C++ code.
     py::class_<PyDeviceIOSession>(m, "DeviceIOSession")
         .def("update", &PyDeviceIOSession::update, "Update session and all trackers")
+        .def("_discard_oxr_handles", &PyDeviceIOSession::discard_oxr_resources,
+             "Discard XR handle ownership so destructors do not call xrDestroy* (internal: call when runtime was invalidated externally, e.g. Stop XR).")
         .def("__enter__", &PyDeviceIOSession::enter)
         .def("__exit__", &PyDeviceIOSession::exit)
         .def_static("get_required_extensions", &core::DeviceIOSession::get_required_extensions, py::arg("trackers"),

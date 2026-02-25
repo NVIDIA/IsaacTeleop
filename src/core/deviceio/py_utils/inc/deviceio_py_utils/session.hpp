@@ -36,6 +36,15 @@ public:
         impl_.reset(); // Destroys the underlying C++ object!
     }
 
+    /** Discard XR handle ownership for all trackers (call when runtime was invalidated externally, e.g. Stop XR). */
+    void discard_oxr_resources()
+    {
+        if (impl_)
+        {
+            impl_->discard_oxr_resources();
+        }
+    }
+
     PyDeviceIOSession& enter()
     {
         return *this;

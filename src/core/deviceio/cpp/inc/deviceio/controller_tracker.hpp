@@ -60,6 +60,7 @@ private:
 
         // Override from ITrackerImpl
         bool update(XrTime time) override;
+        void discard_oxr_resources() override;
 
         Timestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const override;
 

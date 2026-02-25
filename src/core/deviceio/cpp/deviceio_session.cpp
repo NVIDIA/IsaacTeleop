@@ -94,4 +94,16 @@ bool DeviceIOSession::update()
     return true;
 }
 
+void DeviceIOSession::discard_oxr_resources()
+{
+    for (auto& kv : tracker_impls_)
+    {
+        if (kv.second)
+        {
+            kv.second->discard_oxr_resources();
+        }
+    }
+    tracker_impls_.clear();
+}
+
 } // namespace core

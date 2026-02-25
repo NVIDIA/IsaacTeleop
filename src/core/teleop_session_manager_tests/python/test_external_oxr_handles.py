@@ -20,6 +20,8 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 
 from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
@@ -197,6 +199,61 @@ class TestTeleopSessionExternalHandles:
                 assert session.deviceio_session is not None
             finally:
                 session.__exit__(None, None, None)
+
+    def test_close_keeps_external_handles_untouched(self):
+        """close() should not destroy or mutate caller-owned external handles."""
+        external_handles = _make_stub_handles()
+        config = TeleopSessionConfig(
+            app_name="test",
+            pipeline=_make_empty_pipeline(),
+            oxr_handles=external_handles,
+        )
+
+        with _mock_deviceio_and_oxr() as mocks:
+            session = TeleopSession(config)
+            session.__enter__()
+            session.close()
+
+            mocks.oxr_cls.assert_not_called()
+            mocks.mock_dio_session.__exit__.assert_called_once()
+
+            assert external_handles.instance == 0xABCD
+            assert external_handles.session == 0x1234
+            assert external_handles.space == 0x5678
+            assert external_handles.proc_addr == 0x9ABC
+
+    def test_close_is_idempotent(self):
+        """close() can be called multiple times safely."""
+        config = TeleopSessionConfig(
+            app_name="test",
+            pipeline=_make_empty_pipeline(),
+            oxr_handles=_make_stub_handles(),
+        )
+
+        with _mock_deviceio_and_oxr() as mocks:
+            session = TeleopSession(config)
+            session.__enter__()
+            session.close()
+            session.close()
+            mocks.mock_dio_session.__exit__.assert_called_once()
+
+    def test_close_with_discard_oxr_handles_skips_native_cleanup_and_blocks_step(self):
+        """close(discard_oxr_handles=True) skips native teardown and prevents step()."""
+        config = TeleopSessionConfig(
+            app_name="test",
+            pipeline=_make_empty_pipeline(),
+            oxr_handles=_make_stub_handles(),
+        )
+
+        with _mock_deviceio_and_oxr() as mocks:
+            session = TeleopSession(config)
+            session.__enter__()
+
+            session.close(discard_oxr_handles=True)
+
+            mocks.mock_dio_session.__exit__.assert_not_called()
+            with pytest.raises(RuntimeError, match="TeleopSession is closed"):
+                session.step()
 
 
 # ============================================================================

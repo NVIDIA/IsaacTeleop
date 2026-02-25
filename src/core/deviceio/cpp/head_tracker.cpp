@@ -29,6 +29,12 @@ HeadTracker::Impl::Impl(const OpenXRSessionHandles& handles)
 {
 }
 
+void HeadTracker::Impl::discard_oxr_resources()
+{
+    // Discard handle ownership so destructor does not call xrDestroySpace (runtime already torn down externally).
+    (void)view_space_.release();
+}
+
 // Override from ITrackerImpl
 bool HeadTracker::Impl::update(XrTime time)
 {

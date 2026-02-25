@@ -109,6 +109,12 @@ Timestamp HandTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, 
     return Timestamp{};
 }
 
+void HandTracker::Impl::discard_oxr_resources()
+{
+    left_hand_tracker_ = XR_NULL_HANDLE;
+    right_hand_tracker_ = XR_NULL_HANDLE;
+}
+
 HandTracker::Impl::~Impl()
 {
     // pfn_destroy_hand_tracker_ should never be null (verified in constructor)

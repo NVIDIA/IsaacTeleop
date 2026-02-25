@@ -344,6 +344,16 @@ bool ControllerTracker::Impl::update(XrTime time)
     return left_controller_.is_active() || right_controller_.is_active();
 }
 
+void ControllerTracker::Impl::discard_oxr_resources()
+{
+    // Discard handle ownership so destructor does not call xrDestroy* (runtime already torn down externally).
+    (void)left_grip_space_.release();
+    (void)right_grip_space_.release();
+    (void)left_aim_space_.release();
+    (void)right_aim_space_.release();
+    (void)action_set_.release();
+}
+
 const ControllerSnapshot& ControllerTracker::Impl::get_left_controller() const
 {
     return left_controller_;

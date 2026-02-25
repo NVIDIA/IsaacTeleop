@@ -32,6 +32,12 @@ public:
     // Update session and all trackers
     bool update();
 
+    /**
+     * Discard OpenXR handle ownership for all trackers so destructors do not call xrDestroy*.
+     * Call when the runtime was invalidated externally (e.g. Kit Stop XR).
+     */
+    void discard_oxr_resources();
+
     const ITrackerImpl& get_tracker_impl(const ITracker& tracker) const
     {
         auto it = tracker_impls_.find(&tracker);

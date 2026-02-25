@@ -117,6 +117,7 @@ class TeleopSession:
         self.frame_count: int = 0
         self.start_time: float = 0.0
         self._setup_complete: bool = False
+        self._is_closed: bool = False
 
         # Discover sources and external leaves from pipeline
         self._discover_sources()
@@ -199,6 +200,12 @@ class TeleopSession:
                 incomplete, or if external_inputs contains keys that collide with
                 DeviceIO source names.
         """
+        if self._is_closed:
+            raise RuntimeError("TeleopSession is closed. Create a new session before calling step().")
+
+        if not self._setup_complete:
+            raise RuntimeError("TeleopSession is not active. Use it within a context manager first.")
+
         # Validate external inputs
         self._validate_external_inputs(external_inputs)
 
@@ -381,15 +388,40 @@ class TeleopSession:
         self.frame_count = 0
         self.start_time = time.time()
 
+        self._is_closed = False
         self._setup_complete = True
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def close(self, discard_oxr_handles: bool = False) -> None:
+        """Close session resources.
+
+        Use ``discard_oxr_handles=True`` when the OpenXR runtime was already
+        torn down externally (e.g. Kit Stop XR). That path discards tracker
+        XR handle ownership and clears state without calling xrDestroy*.
+        """
+        if self._is_closed or not self._setup_complete:
+            return
+
+        if self.config.oxr_handles is not None and discard_oxr_handles:
+            if self.deviceio_session is not None:
+                self.deviceio_session._discard_oxr_handles()
+            self._clear_state()
+            return
+
+        self._exit_stack.__exit__(None, None, None)
+        self._clear_state()
+
+    def _clear_state(self) -> None:
+        """Clear session references and mark closed."""
+        self.deviceio_session = None
+        self._oxr_session = None
+        self._is_closed = True
+        self._setup_complete = False
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
         """Exit the context - cleanup resources."""
         if not self._setup_complete:
             return False
-
-        # ExitStack automatically cleans up all managed contexts in reverse order
-        self._exit_stack.__exit__(exc_type, exc_val, exc_tb)
-
-        return exc_type is None  # Suppress exception only if we didn't have one
+        suppressed = self._exit_stack.__exit__(exc_type, exc_val, exc_tb)
+        self._clear_state()
+        return suppressed

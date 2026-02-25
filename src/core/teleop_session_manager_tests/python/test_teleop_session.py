@@ -735,7 +735,7 @@ class TestSessionLifecycle:
                 assert before <= s.start_time <= after
 
     def test_exit_cleans_up(self):
-        """__exit__ should clean up via ExitStack."""
+        """__exit__ should clean up via ExitStack and clear state."""
         pipeline = MockPipeline(leaf_nodes=[])
 
         config = make_config(pipeline)
@@ -744,9 +744,9 @@ class TestSessionLifecycle:
             with session as s:
                 assert s._setup_complete is True
 
-        # After exit, setup_complete is still True (not reset)
-        # but the exit stack has been unwound
-        assert session._setup_complete is True
+        # After exit, _clear_state() has run: setup is no longer complete
+        assert session._setup_complete is False
+        assert session._is_closed is True
 
     def test_context_manager_protocol(self):
         """TeleopSession works correctly as a context manager."""
