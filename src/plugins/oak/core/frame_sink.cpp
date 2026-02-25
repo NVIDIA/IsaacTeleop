@@ -113,13 +113,13 @@ public:
             throw std::runtime_error("McapMetadataPusher: Failed to open " + mcap_filename + ": " + status.message);
 
         mcap::Schema schema("core.FrameMetadataOak", "flatbuffer",
-                            std::string(reinterpret_cast<const char*>(core::CameraMetadataOakBinarySchema::data()),
-                                        core::CameraMetadataOakBinarySchema::size()));
+                            std::string(reinterpret_cast<const char*>(core::FrameMetadataOakBinarySchema::data()),
+                                        core::FrameMetadataOakBinarySchema::size()));
         m_writer.addSchema(schema);
 
         for (const auto& config : streams)
         {
-            std::string channel_name = std::string("FrameMetadataOak/") + core::EnumNameStreamType(config.camera);
+            std::string channel_name = std::string("oak_metadata/") + core::EnumNameStreamType(config.camera);
             mcap::Channel channel(channel_name, "flatbuffer", schema.id);
             m_writer.addChannel(channel);
             m_channel_ids[config.camera] = channel.id;
