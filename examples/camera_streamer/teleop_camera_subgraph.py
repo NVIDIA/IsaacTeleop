@@ -135,16 +135,17 @@ class TeleopCameraSubgraphConfig:
 
         for cam_name, cam_cfg in self.cameras.items():
             for stream_name, stream_cfg in cam_cfg.streams.items():
-                if not (1024 <= stream_cfg.port <= 65535):
-                    errors.append(
-                        f"Camera '{cam_name}/{stream_name}': "
-                        f"port {stream_cfg.port} out of valid range (1024-65535)"
-                    )
-                if stream_cfg.bitrate_mbps <= 0:
-                    errors.append(
-                        f"Camera '{cam_name}/{stream_name}': "
-                        f"bitrate must be positive (got {stream_cfg.bitrate_mbps})"
-                    )
+                if self.source == "rtp":
+                    if not (1024 <= stream_cfg.port <= 65535):
+                        errors.append(
+                            f"Camera '{cam_name}/{stream_name}': "
+                            f"port {stream_cfg.port} out of valid range (1024-65535)"
+                        )
+                    if stream_cfg.bitrate_mbps <= 0:
+                        errors.append(
+                            f"Camera '{cam_name}/{stream_name}': "
+                            f"bitrate must be positive (got {stream_cfg.bitrate_mbps})"
+                        )
 
             if cam_cfg.width <= 0 or cam_cfg.height <= 0:
                 errors.append(
@@ -228,6 +229,10 @@ class TeleopCameraSubgraphConfig:
         )
 
         source = data["source"]
+        if source not in ("rtp", "local"):
+            raise ValueError(
+                f"Invalid source: \"{source}\". Must be \"rtp\" or \"local\"."
+            )
 
         return cls(
             source=source,
@@ -341,6 +346,7 @@ class TeleopCameraSubgraph(Subgraph):
                 cam_cfg,
                 allocator,
                 output_format="raw",
+                color_format="rgb",
                 verbose=verbose,
             )
 

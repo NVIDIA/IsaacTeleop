@@ -52,14 +52,24 @@ class TeleopCameraSenderConfig:
         with open(yaml_path, "r") as f:
             data = yaml.safe_load(f)
 
-        # Parse cameras
+        source = data.get("source", "rtp")
+        if source not in ("rtp", "local"):
+            raise ValueError(
+                f"Invalid source: \"{source}\". Must be \"rtp\" or \"local\"."
+            )
+        if source != "rtp":
+            raise ValueError(
+                "source is \"local\" — the sender is only used with source: \"rtp\"."
+            )
+
         cameras = {}
         for name, cam_data in data["cameras"].items():
             if cam_data.get("enabled", True):
                 cameras[name] = CameraConfig.from_dict(name, cam_data)
 
+        streaming = data.get("streaming", {})
         return cls(
-            host=data["streaming"]["host"],
+            host=streaming.get("host", ""),
             cameras=cameras,
         )
 
@@ -74,6 +84,12 @@ class TeleopCameraSenderConfig:
     def validate(self) -> List[str]:
         """Validate configuration and return list of errors."""
         errors = validate_camera_configs(self.cameras)
+
+        if not self.host:
+            errors.append(
+                "No receiver host specified. Set 'streaming.host' in the config "
+                "or pass --host on the command line."
+            )
 
         for cam_name, cam_cfg in self.cameras.items():
             if cam_cfg.camera_type == "v4l2":
@@ -259,7 +275,11 @@ def main():
         sys.exit(1)
 
     logger.info(f"Loading config from: {args.config}")
-    config = TeleopCameraSenderConfig.from_yaml(args.config)
+    try:
+        config = TeleopCameraSenderConfig.from_yaml(args.config)
+    except Exception as e:
+        logger.error(f"Failed to load config '{args.config}': {e}")
+        sys.exit(1)
 
     # Apply command-line overrides
     if args.host:

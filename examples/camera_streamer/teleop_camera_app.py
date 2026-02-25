@@ -123,8 +123,8 @@ def main():
 
     try:
         config = TeleopCameraSubgraphConfig.from_yaml(args.config)
-    except FileNotFoundError as e:
-        logger.error(str(e))
+    except Exception as e:
+        logger.error(f"Failed to load config '{args.config}': {e}")
         sys.exit(1)
 
     # Apply command-line overrides
