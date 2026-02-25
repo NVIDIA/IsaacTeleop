@@ -12,10 +12,12 @@
 #
 # Usage:
 #   install_python_example(DESTINATION examples/oxr/python)
+#   install_python_example(DESTINATION examples/teleop_ros2/python
+#       EXTRA_UV_EXTRA_BUILD_DEPS "nlopt = [\"numpy\"]")
 # ==============================================================================
 
 macro(install_python_example)
-    cmake_parse_arguments(_IPE "" "DESTINATION" "" ${ARGN})
+    cmake_parse_arguments(_IPE "" "DESTINATION;EXTRA_UV_EXTRA_BUILD_DEPS" "" ${ARGN})
     if(NOT _IPE_DESTINATION)
         message(FATAL_ERROR "install_python_example: DESTINATION is required")
     endif()
@@ -23,13 +25,19 @@ macro(install_python_example)
     # Read the bare pyproject.toml and append uv configuration for the
     # installed environment.
     file(READ "${CMAKE_CURRENT_SOURCE_DIR}/python/pyproject.toml" _PYPROJECT_BASE)
-    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/pyproject.toml"
-"${_PYPROJECT_BASE}
-[tool.uv]
+    set(_TOOL_UV_BLOCK "[tool.uv]
 find-links = [\"../../../wheels\"]
 python-preference = \"only-managed\"
 environments = [\"python_version == '${ISAAC_TELEOP_PYTHON_VERSION}'\"]
 ")
+    if(_IPE_EXTRA_UV_EXTRA_BUILD_DEPS)
+        string(APPEND _TOOL_UV_BLOCK "
+[tool.uv.extra-build-dependencies]
+${_IPE_EXTRA_UV_EXTRA_BUILD_DEPS}
+")
+    endif()
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/pyproject.toml"
+        "${_PYPROJECT_BASE}\n${_TOOL_UV_BLOCK}")
 
     # Install generated pyproject.toml (with [tool.uv] appended)
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/pyproject.toml"

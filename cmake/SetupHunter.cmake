@@ -8,7 +8,8 @@
 # is added via FetchContent, it reuses our Hunter configuration.
 
 option(BUILD_PLUGINS "Build plugins" ON)
-if(BUILD_PLUGINS)
+# Hunter/DepthAI are only needed for the OAK camera plugin.
+if(BUILD_PLUGINS AND BUILD_PLUGIN_OAK_CAMERA)
     # Set variables needed by Hunter config for DepthAI dependencies
     option(DEPTHAI_ENABLE_LIBUSB "Enable libusb for DepthAI" ON)
     if(WIN32)
