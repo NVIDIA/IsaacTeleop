@@ -62,15 +62,31 @@ is_inside_container() {
     [[ -f /.dockerenv ]] || grep -qsm1 'docker\|containerd' /proc/1/cgroup 2>/dev/null
 }
 
+# Common docker run arguments shared by shell, run, and deploy-sender.
+common_docker_args() {
+    echo \
+        --runtime nvidia \
+        --privileged \
+        --network=host \
+        --ulimit stack=33554432 \
+        -e XR_RUNTIME_JSON="$XR_RUNTIME_JSON" \
+        -e NV_CXR_RUNTIME_DIR="$NV_CXR_RUNTIME_DIR" \
+        -v /dev:/dev \
+        -v /run/udev:/run/udev:rw \
+        -v "$CXR_HOST_VOLUME_PATH:$CXR_HOST_VOLUME_PATH:ro"
+}
+
 show_help() {
     echo -e "${_BOLD}Usage:${_RESET} camera_streamer.sh <command> [options]
 
 ${_BOLD}COMMANDS${_RESET}
     build [--sender-only]   Build Docker image (encoder + decoder + XR by default)
                             Inside a container: rebuilds C++ operators only
-    run-container           Interactive shell (dev mode, mounts host source)
-    deploy                  Persistent container with auto-restart (production)
+    shell                   Interactive dev shell (host source mounted)
+    run [-- ARGS...]        Run teleop_camera_app.py with the given arguments
+    deploy-sender           Deploy the RTP sender as a persistent container
     list-cameras            List connected OAK-D and ZED cameras
+    status                  Show whether the container is running
     logs                    Follow container logs
     stop                    Stop the container
     restart                 Restart the container
@@ -82,18 +98,24 @@ ${_BOLD}OPTIONS${_RESET}
     --config PATH           Camera config YAML          (default: $DEFAULT_CONFIG)
 
 ${_BOLD}MODES${_RESET}
-    ${_CYAN}run-container${_RESET}  Dev mode. Mounts host camera_streamer/ into the container
-                   so Python/config edits are reflected immediately. Built C++
-                   libs are at build/python/ on the host.
+    ${_CYAN}shell${_RESET}           Dev shell. Mounts host camera_streamer/ into the container
+                     so Python/config edits are reflected immediately. Built C++
+                     libs are at build/python/ on the host.
 
-    ${_CYAN}deploy${_RESET}         Production mode. Uses the baked-in image with --restart
-                   unless-stopped. Config file is bind-mounted so you can edit
-                   it and restart without rebuilding.
+    ${_CYAN}run${_RESET}             Runs teleop_camera_app.py inside a container with host
+                     source mounted. All arguments after -- are forwarded.
+
+    ${_CYAN}deploy-sender${_RESET}   Production mode. Runs teleop_camera_sender.py with
+                     --restart unless-stopped. Config file is bind-mounted so
+                     you can edit it and restart without rebuilding.
 
 ${_BOLD}EXAMPLES${_RESET}
     ./camera_streamer.sh build
-    ./camera_streamer.sh run-container
-    ./camera_streamer.sh deploy --receiver-host 192.168.1.100
+    ./camera_streamer.sh shell
+    ./camera_streamer.sh run -- --source local --mode monitor
+    ./camera_streamer.sh run -- --source rtp --mode xr
+    ./camera_streamer.sh deploy-sender --receiver-host 192.168.1.100
+    ./camera_streamer.sh status
     ./camera_streamer.sh logs
     ./camera_streamer.sh restart"
 }
@@ -199,16 +221,16 @@ cmd_build_docker() {
 }
 
 # ---------------------------------------------------------------------------
-# run-container (dev mode)
+# shell (interactive dev shell)
 # ---------------------------------------------------------------------------
 
-cmd_run_container() {
-    if docker ps -q --filter "name=$CONTAINER_NAME" | grep -q .; then
+cmd_shell() {
+    if docker ps -q --filter "name=$CONTAINER_NAME" --filter "status=running" | grep -q .; then
         log_info "Attaching to running container ${_BOLD}$CONTAINER_NAME${_RESET}"
         exec docker exec -it "$CONTAINER_NAME" /bin/bash
     fi
 
-    log_info "Starting dev container ${_BOLD}$CONTAINER_NAME${_RESET}"
+    log_info "Starting dev shell ${_BOLD}$CONTAINER_NAME${_RESET}"
     log_info "Host source mounted at /camera_streamer"
 
     ensure_image
@@ -217,27 +239,42 @@ cmd_run_container() {
 
     exec docker run --rm -it \
         --name "$CONTAINER_NAME" \
-        --runtime nvidia \
-        --privileged \
-        --network=host \
-        --ulimit stack=33554432 \
+        $(common_docker_args) \
         -e DISPLAY="${DISPLAY:-:0}" \
-        -e XR_RUNTIME_JSON="$XR_RUNTIME_JSON" \
-        -e NV_CXR_RUNTIME_DIR="$NV_CXR_RUNTIME_DIR" \
         -v /tmp/.X11-unix:/tmp/.X11-unix \
-        -v /dev:/dev \
-        -v /run/udev:/run/udev:rw \
-        -v "$CXR_HOST_VOLUME_PATH:$CXR_HOST_VOLUME_PATH:ro" \
         -v "$SCRIPT_DIR:/camera_streamer" \
         "$TAG" \
         /bin/bash
 }
 
 # ---------------------------------------------------------------------------
-# deploy (production mode)
+# run (run teleop_camera_app.py with forwarded args)
 # ---------------------------------------------------------------------------
 
-cmd_deploy() {
+cmd_run() {
+    ensure_image
+    local TAG
+    TAG="$(image_tag)"
+
+    log_info "Running teleop_camera_app.py $*"
+
+    docker run --rm -it \
+        --name "${CONTAINER_NAME}-run" \
+        $(common_docker_args) \
+        -e DISPLAY="${DISPLAY:-:0}" \
+        -v /tmp/.X11-unix:/tmp/.X11-unix \
+        -v "$SCRIPT_DIR:/camera_streamer" \
+        "$TAG" \
+        python3 /camera_streamer/teleop_camera_app.py "$@"
+}
+
+# ---------------------------------------------------------------------------
+# deploy-sender (production mode)
+# ---------------------------------------------------------------------------
+
+SENDER_CONTAINER_NAME="${CONTAINER_NAME}-sender"
+
+cmd_deploy_sender() {
     local RECEIVER_HOST="$DEFAULT_RECEIVER_HOST"
     local CONFIG="$DEFAULT_CONFIG"
 
@@ -262,26 +299,18 @@ cmd_deploy() {
     local CONFIG_BASENAME
     CONFIG_BASENAME="$(basename "$CONFIG")"
 
-    log_info "Deploying ${_BOLD}$CONTAINER_NAME${_RESET}"
+    log_info "Deploying sender ${_BOLD}$SENDER_CONTAINER_NAME${_RESET}"
     log_info "  Image:    $TAG"
     log_info "  Receiver: $RECEIVER_HOST"
     log_info "  Config:   ${_DIM}$HOST_CONFIG${_RESET} (mounted)"
 
-    docker stop "$CONTAINER_NAME" 2>/dev/null || true
-    docker rm "$CONTAINER_NAME" 2>/dev/null || true
+    docker stop "$SENDER_CONTAINER_NAME" 2>/dev/null || true
+    docker rm "$SENDER_CONTAINER_NAME" 2>/dev/null || true
 
     docker run -d \
-        --name "$CONTAINER_NAME" \
+        --name "$SENDER_CONTAINER_NAME" \
         --restart unless-stopped \
-        --runtime nvidia \
-        --privileged \
-        --network=host \
-        --ulimit stack=33554432 \
-        -e XR_RUNTIME_JSON="$XR_RUNTIME_JSON" \
-        -e NV_CXR_RUNTIME_DIR="$NV_CXR_RUNTIME_DIR" \
-        -v /dev:/dev \
-        -v /run/udev:/run/udev:rw \
-        -v "$CXR_HOST_VOLUME_PATH:$CXR_HOST_VOLUME_PATH:ro" \
+        $(common_docker_args) \
         -v "$HOST_CONFIG:/config/$CONFIG_BASENAME:ro" \
         "$TAG" \
         python3 /camera_streamer/teleop_camera_sender.py \
@@ -289,7 +318,7 @@ cmd_deploy() {
             --host "$RECEIVER_HOST"
 
     echo ""
-    docker ps --filter "name=$CONTAINER_NAME" --format "table {{.Names}}\t{{.Status}}"
+    docker ps --filter "name=$SENDER_CONTAINER_NAME" --format "table {{.Names}}\t{{.Status}}"
     log_ok "Deployed. Edit config and run: ${_BOLD}$0 restart${_RESET}"
 }
 
@@ -298,50 +327,84 @@ cmd_deploy() {
 # ---------------------------------------------------------------------------
 
 cmd_list_cameras() {
+    # Prefer exec into an already-running container to avoid disruption.
+    local running
+    running="$(docker ps -q --filter "name=$CONTAINER_NAME" --filter "status=running" | head -1)"
+    if [[ -n "$running" ]]; then
+        log_info "Listing cameras via running container"
+        docker exec "$running" python3 /camera_streamer/list_cameras.py
+        return
+    fi
+
     ensure_image
     local TAG
     TAG="$(image_tag)"
-
-    local WAS_RUNNING=false
-    if docker ps -q --filter "name=$CONTAINER_NAME" | grep -q .; then
-        WAS_RUNNING=true
-        docker stop "$CONTAINER_NAME" >/dev/null
-        log_warn "Paused sender for camera scan"
-    fi
 
     docker run --rm --runtime nvidia --privileged \
         -v /dev:/dev \
         "$TAG" \
         python3 /camera_streamer/list_cameras.py
-
-    if [[ "$WAS_RUNNING" == true ]]; then
-        docker start "$CONTAINER_NAME" >/dev/null
-        log_ok "Restarted sender"
-    fi
 }
 
 # ---------------------------------------------------------------------------
 # Container management
 # ---------------------------------------------------------------------------
 
+# Find the first running container whose name starts with $CONTAINER_NAME
+# (covers both the dev container and the sender container).
+_find_container() {
+    docker ps -a --filter "name=$CONTAINER_NAME" --format "{{.Names}}" | head -1
+}
+
+cmd_status() {
+    local containers
+    containers="$(docker ps -a --filter "name=$CONTAINER_NAME" \
+        --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}")"
+    if [[ -z "$containers" ]]; then
+        log_info "No camera streamer containers running"
+    else
+        echo "$containers"
+    fi
+}
+
 cmd_logs() {
-    log_info "Following logs for ${_BOLD}$CONTAINER_NAME${_RESET} (Ctrl+C to stop)"
-    docker logs -f "$CONTAINER_NAME"
+    local name
+    name="$(_find_container)"
+    if [[ -z "$name" ]]; then
+        log_error "No camera streamer container found"
+        exit 1
+    fi
+    log_info "Following logs for ${_BOLD}$name${_RESET} (Ctrl+C to stop)"
+    docker logs -f "$name"
 }
 
 cmd_stop() {
-    docker stop "$CONTAINER_NAME"
-    log_ok "Container stopped"
+    local name
+    name="$(_find_container)"
+    if [[ -z "$name" ]]; then
+        log_error "No camera streamer container found"
+        exit 1
+    fi
+    docker stop "$name"
+    log_ok "Container ${_BOLD}$name${_RESET} stopped"
 }
 
 cmd_restart() {
-    docker restart "$CONTAINER_NAME"
-    log_ok "Container restarted"
+    local name
+    name="$(_find_container)"
+    if [[ -z "$name" ]]; then
+        log_error "No camera streamer container found"
+        exit 1
+    fi
+    docker restart "$name"
+    log_ok "Container ${_BOLD}$name${_RESET} restarted"
 }
 
 cmd_clean() {
     log_info "Removing $IMAGE_NAME images..."
     docker rmi "$(image_tag)" 2>/dev/null || true
+    docker rmi "${IMAGE_NAME}:base" 2>/dev/null || true
+    docker rm "${CONTAINER_NAME}-build" 2>/dev/null || true
     log_ok "Cleaned"
 }
 
@@ -354,9 +417,11 @@ CMD="$1"; shift
 
 case "$CMD" in
     build)          cmd_build "$@" ;;
-    run-container)  cmd_run_container ;;
-    deploy)         cmd_deploy "$@" ;;
+    shell)          cmd_shell ;;
+    run)            cmd_run "$@" ;;
+    deploy-sender)  cmd_deploy_sender "$@" ;;
     list-cameras)   cmd_list_cameras ;;
+    status)         cmd_status ;;
     logs)           cmd_logs ;;
     stop)           cmd_stop ;;
     restart)        cmd_restart ;;
