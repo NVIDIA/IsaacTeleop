@@ -59,6 +59,7 @@ endif()
 # Note: BUILD_PLUGINS is defined in cmake/SetupHunter.cmake before project()
 # Note: BUILD_PYTHON_BINDINGS is defined in cmake/SetupPython.cmake
 option(BUILD_EXAMPLES "Build examples" ON)
+option(BUILD_EXAMPLE_TELEOP_ROS2 "Build only the teleop_ros2 example (e.g. for Docker)" OFF)
 option(BUILD_TESTING "Build unit tests" ON)
 option(ENABLE_EXPERIMENTAL_WINDOWS_BUILD "Enable experimental Windows build support (source code only)" OFF)
 
@@ -122,6 +123,8 @@ if(BUILD_EXAMPLES)
     add_subdirectory(examples/teleop_ros2)
     add_subdirectory(examples/schemaio)
     add_subdirectory(examples/native_openxr)
+elseif(BUILD_EXAMPLE_TELEOP_ROS2)
+    add_subdirectory(examples/teleop_ros2)
 endif()
 
 # Build plugins if requested
