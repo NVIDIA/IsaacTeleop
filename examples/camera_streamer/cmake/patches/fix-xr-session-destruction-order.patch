@@ -4,7 +4,7 @@ index 702e42884..137615a51 100644
 +++ b/operators/xr/xr_session.cpp
 @@ -226,7 +226,24 @@ void XrSession::initialize() {
  }
- 
+
  XrSession::~XrSession() {
 -  session_->requestExitSession();
 +  // Request session exit before destruction for proper OpenXR cleanup.
@@ -26,5 +26,5 @@ index 702e42884..137615a51 100644
 +
 +  // Vulkan resources will be destroyed automatically by C++ after this.
  }
- 
+
  xr::SpaceLocation XrSession::locate_view_space() const noexcept(false) {

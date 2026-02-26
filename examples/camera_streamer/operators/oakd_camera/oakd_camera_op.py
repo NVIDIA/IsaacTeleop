@@ -194,8 +194,7 @@ class OakdCameraOp(Operator):
         }
         if name not in socket_map:
             raise ValueError(
-                f"Unknown camera socket '{name}' "
-                f"(valid: {set(socket_map.keys())})"
+                f"Unknown camera socket '{name}' (valid: {set(socket_map.keys())})"
             )
         return socket_map[name]
 
@@ -260,8 +259,7 @@ class OakdCameraOp(Operator):
 
             is_h264 = self._output_format == OakdOutputFormat.H264
             frame_type = (
-                dai.ImgFrame.Type.NV12 if is_h264
-                else dai.ImgFrame.Type.BGR888p
+                dai.ImgFrame.Type.NV12 if is_h264 else dai.ImgFrame.Type.BGR888p
             )
 
             left_socket = (
@@ -271,17 +269,21 @@ class OakdCameraOp(Operator):
             )
             cam_left = pipeline.create(dai.node.Camera).build(left_socket)
             output_left = cam_left.requestOutput(
-                (self._width, self._height), type=frame_type, fps=self._fps,
+                (self._width, self._height),
+                type=frame_type,
+                fps=self._fps,
             )
 
             if is_h264:
                 encoder_left = self._create_encoder(pipeline, output_left)
                 self._h264_queue = encoder_left.out.createOutputQueue(
-                    maxSize=4, blocking=False,
+                    maxSize=4,
+                    blocking=False,
                 )
             else:
                 self._frame_queue = output_left.createOutputQueue(
-                    maxSize=4, blocking=False,
+                    maxSize=4,
+                    blocking=False,
                 )
 
             if self._mode == OakdCameraMode.STEREO:
@@ -289,17 +291,21 @@ class OakdCameraOp(Operator):
                     self._get_camera_socket("RIGHT")
                 )
                 output_right = cam_right.requestOutput(
-                    (self._width, self._height), type=frame_type, fps=self._fps,
+                    (self._width, self._height),
+                    type=frame_type,
+                    fps=self._fps,
                 )
 
                 if is_h264:
                     encoder_right = self._create_encoder(pipeline, output_right)
                     self._h264_queue_right = encoder_right.out.createOutputQueue(
-                        maxSize=4, blocking=False,
+                        maxSize=4,
+                        blocking=False,
                     )
                 else:
                     self._frame_queue_right = output_right.createOutputQueue(
-                        maxSize=4, blocking=False,
+                        maxSize=4,
+                        blocking=False,
                     )
 
             self._pipeline = pipeline
@@ -489,9 +495,7 @@ class OakdCameraOp(Operator):
                     self.metadata["stream_id"] = self._right_stream_id
                     self.metadata["sequence"] = self._frame_count
                     op_output.emit(
-                        as_tensor(
-                            np.frombuffer(right_data, dtype=np.uint8).copy()
-                        ),
+                        as_tensor(np.frombuffer(right_data, dtype=np.uint8).copy()),
                         "h264_packets_right",
                     )
             except Exception:
@@ -512,7 +516,10 @@ class OakdCameraOp(Operator):
                         frame = frame[:, :, ::-1]
                     else:
                         frame = np.concatenate(
-                            [frame, np.full((*frame.shape[:2], 1), 255, dtype=np.uint8)],
+                            [
+                                frame,
+                                np.full((*frame.shape[:2], 1), 255, dtype=np.uint8),
+                            ],
                             axis=2,
                         )
 

@@ -68,8 +68,17 @@ class CameraConfig:
     device: Optional[str] = None
 
     _KNOWN_KEYS = {
-        "type", "stereo", "width", "height", "fps", "streams", "enabled",
-        "serial_number", "resolution", "device_id", "device",
+        "type",
+        "stereo",
+        "width",
+        "height",
+        "fps",
+        "streams",
+        "enabled",
+        "serial_number",
+        "resolution",
+        "device_id",
+        "device",
     }
 
     def __post_init__(self):
@@ -84,9 +93,7 @@ class CameraConfig:
         """Create CameraConfig from dict (YAML parsing)."""
         unknown = set(data.keys()) - cls._KNOWN_KEYS
         if unknown:
-            warnings.warn(
-                f"Camera '{name}': unknown config keys ignored: {unknown}"
-            )
+            warnings.warn(f"Camera '{name}': unknown config keys ignored: {unknown}")
 
         streams = {}
         raw_streams = data.get("streams") or {}
@@ -156,9 +163,7 @@ def validate_camera_configs(cameras: Dict[str, CameraConfig]) -> List[str]:
                 )
         else:
             if "mono" not in cam_cfg.streams:
-                errors.append(
-                    f"Camera '{cam_name}': mono camera missing 'mono' stream"
-                )
+                errors.append(f"Camera '{cam_name}': mono camera missing 'mono' stream")
 
         for stream_name, stream_cfg in cam_cfg.streams.items():
             port = stream_cfg.port

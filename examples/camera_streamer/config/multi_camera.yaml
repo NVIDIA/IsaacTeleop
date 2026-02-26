@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 # Sample: Multi-Camera Setup (1 stereo ZED + 2 mono OAK-D)
 
 # Camera source for teleop_camera_app:

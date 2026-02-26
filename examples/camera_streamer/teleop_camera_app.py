@@ -88,9 +88,7 @@ def main():
     parser.add_argument(
         "--config",
         type=str,
-        default=os.path.join(
-            os.path.dirname(__file__), "config/multi_camera.yaml"
-        ),
+        default=os.path.join(os.path.dirname(__file__), "config/multi_camera.yaml"),
         help="Path to camera configuration file",
     )
     parser.add_argument(
