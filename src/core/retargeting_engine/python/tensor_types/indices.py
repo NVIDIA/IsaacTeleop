@@ -16,6 +16,7 @@ from typing import Any
 from enum import IntEnum
 from .standard_types import (
     HandInput,
+    HeadPose,
     ControllerInput,
     Generic3AxisPedalInput,
     FullBodyInput,
@@ -35,6 +36,7 @@ def _create_index_enum(name: str, group_type, prefix: str = "") -> IntEnum:
 
 # Generate indices dynamically
 HandInputIndex: Any = _create_index_enum("HandInputIndex", HandInput(), "hand_")
+HeadPoseIndex: Any = _create_index_enum("HeadPoseIndex", HeadPose(), "head_")
 ControllerInputIndex: Any = _create_index_enum(
     "ControllerInputIndex", ControllerInput(), "controller_"
 )

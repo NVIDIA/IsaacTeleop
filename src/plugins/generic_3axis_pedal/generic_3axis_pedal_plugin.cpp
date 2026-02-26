@@ -137,7 +137,7 @@ void Generic3AxisPedalPlugin::close_device()
 void Generic3AxisPedalPlugin::push_current_state()
 {
     core::Generic3AxisPedalOutputT out;
-    out.is_valid = (device_fd_ >= 0);
+    out.is_active = (device_fd_ >= 0);
     out.left_pedal = static_cast<float>(axes_[0]);
     out.right_pedal = static_cast<float>(axes_[1]);
     out.rudder = static_cast<float>(axes_[2]);

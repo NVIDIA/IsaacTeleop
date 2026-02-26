@@ -12,6 +12,7 @@ from .interface import IDeviceIOSource
 from ..interface.retargeter_core_types import RetargeterIO, RetargeterIOType
 from ..interface.tensor_group import TensorGroup
 from ..tensor_types import Generic3AxisPedalInput, Generic3AxisPedalInputIndex
+from ..interface.tensor_group_type import OptionalType
 from .deviceio_tensor_types import DeviceIOGeneric3AxisPedalOutput
 
 if TYPE_CHECKING:
@@ -29,8 +30,8 @@ class Generic3AxisPedalSource(IDeviceIOSource):
     Inputs:
         - "deviceio_pedals": Raw Generic3AxisPedalOutput flatbuffer from Generic3AxisPedalTracker
 
-    Outputs:
-        - "pedals": Standard Generic3AxisPedalInput tensor (left_pedal, right_pedal, rudder, is_valid, timestamp)
+    Outputs (Optional — absent when pedal data is inactive):
+        - "pedals": OptionalTensorGroup (check ``.is_none`` before access)
 
     Usage:
         # In TeleopSession, pedal tracker is discovered from pipeline; data is polled via poll_tracker.
@@ -87,20 +88,26 @@ class Generic3AxisPedalSource(IDeviceIOSource):
         }
 
     def output_spec(self) -> RetargeterIOType:
-        """Declare standard pedal input output."""
+        """Declare standard pedal input output (Optional — may be absent)."""
         return {
-            "pedals": Generic3AxisPedalInput(),
+            "pedals": OptionalType(Generic3AxisPedalInput()),
         }
 
     def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
         """
         Convert DeviceIO Generic3AxisPedalOutput to standard Generic3AxisPedalInput tensor.
 
+        Calls ``set_none()`` on the output when pedal data is inactive.
+
         Args:
             inputs: Dict with "deviceio_pedals" containing Generic3AxisPedalOutput at index 0
-            outputs: Dict with "pedals" TensorGroup to fill (left_pedal, right_pedal, rudder, is_valid, timestamp)
+            outputs: Dict with "pedals" OptionalTensorGroup
         """
         pedal: "Generic3AxisPedalOutput" = inputs["deviceio_pedals"][0]
+
+        if not pedal.is_active:
+            outputs["pedals"].set_none()
+            return
 
         ts = pedal.timestamp
         timestamp_val = int(ts.device_time) if ts is not None else 0
@@ -109,5 +116,4 @@ class Generic3AxisPedalSource(IDeviceIOSource):
         out[Generic3AxisPedalInputIndex.LEFT_PEDAL] = float(pedal.left_pedal)
         out[Generic3AxisPedalInputIndex.RIGHT_PEDAL] = float(pedal.right_pedal)
         out[Generic3AxisPedalInputIndex.RUDDER] = float(pedal.rudder)
-        out[Generic3AxisPedalInputIndex.IS_VALID] = pedal.is_valid
         out[Generic3AxisPedalInputIndex.TIMESTAMP] = timestamp_val

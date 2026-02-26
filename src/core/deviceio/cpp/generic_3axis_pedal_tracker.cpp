@@ -35,8 +35,8 @@ public:
                 return true;
             }
         }
-        // Return true even if no new data - we're still running, but invalid data.
-        m_data.is_valid = false;
+        // Return true even if no new data - we're still running, but inactive.
+        m_data.is_active = false;
         return true;
     }
 

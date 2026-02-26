@@ -19,6 +19,9 @@ from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     HeadSource,
 )
 from isaacteleop.retargeting_engine.interface import TensorGroup
+from isaacteleop.retargeting_engine.interface.tensor_group import OptionalTensorGroup
+from isaacteleop.retargeting_engine.interface.base_retargeter import _make_output_group
+from isaacteleop.retargeting_engine.tensor_types import ControllerInputIndex
 from isaacteleop.schema import (
     Point,
     Quaternion,
@@ -35,7 +38,7 @@ from isaacteleop.schema import (
 # ============================================================================
 
 
-def create_controller_snapshot(grip_pos, aim_pos, trigger_val):
+def create_controller_snapshot(grip_pos, aim_pos, trigger_val, is_active=True):
     """Create a ControllerSnapshot using actual FlatBuffer types."""
     # Create grip pose
     grip_position = Point(grip_pos[0], grip_pos[1], grip_pos[2])
@@ -65,7 +68,7 @@ def create_controller_snapshot(grip_pos, aim_pos, trigger_val):
 
     # Create snapshot
     return ControllerSnapshot(
-        grip_controller_pose, aim_controller_pose, inputs, True, timestamp
+        grip_controller_pose, aim_controller_pose, inputs, is_active, timestamp
     )
 
 
@@ -136,25 +139,21 @@ class TestControllersSource:
 
         # Verify left controller data
         left = outputs["controller_left"]
-        left_grip_pos = left[0]  # grip_position
+        left_grip_pos = left[ControllerInputIndex.GRIP_POSITION]
         assert isinstance(left_grip_pos, np.ndarray)
         assert left_grip_pos.shape == (3,)
         np.testing.assert_array_almost_equal(left_grip_pos, [0.1, 0.2, 0.3])
 
         # Verify right controller data
         right = outputs["controller_right"]
-        right_grip_pos = right[0]  # grip_position
+        right_grip_pos = right[ControllerInputIndex.GRIP_POSITION]
         assert isinstance(right_grip_pos, np.ndarray)
         assert right_grip_pos.shape == (3,)
         np.testing.assert_array_almost_equal(right_grip_pos, [0.4, 0.5, 0.6])
 
         # Verify scalar fields (trigger values)
-        assert left[10] == pytest.approx(0.5)  # trigger_value for left
-        assert right[10] == pytest.approx(0.8)  # trigger_value for right
-
-        # Verify is_active
-        assert left[11] is True
-        assert right[11] is True
+        assert left[ControllerInputIndex.TRIGGER_VALUE] == pytest.approx(0.5)
+        assert right[ControllerInputIndex.TRIGGER_VALUE] == pytest.approx(0.8)
 
 
 # ============================================================================
@@ -221,3 +220,161 @@ class TestHeadSource:
         output_spec = source.output_spec()
         assert "head" in output_spec
         assert len(output_spec) == 1
+
+
+# ============================================================================
+# Optional Behavior Tests
+# ============================================================================
+
+
+class TestControllersSourceOptional:
+    """Test that ControllersSource outputs are Optional and handle inactive controllers."""
+
+    def test_output_spec_is_optional(self):
+        """Controller outputs must be declared as Optional."""
+        source = ControllersSource(name="controllers")
+        output_spec = source.output_spec()
+
+        assert output_spec["controller_left"].is_optional
+        assert output_spec["controller_right"].is_optional
+
+    def test_active_controller_produces_data(self):
+        """Active controllers produce non-absent OptionalTensorGroups."""
+        source = ControllersSource(name="controllers")
+
+        left_snapshot = create_controller_snapshot(
+            grip_pos=(1, 2, 3), aim_pos=(4, 5, 6), trigger_val=0.5, is_active=True
+        )
+        right_snapshot = create_controller_snapshot(
+            grip_pos=(7, 8, 9), aim_pos=(10, 11, 12), trigger_val=0.9, is_active=True
+        )
+
+        inputs = {
+            "deviceio_controller_left": [left_snapshot],
+            "deviceio_controller_right": [right_snapshot],
+        }
+        outputs = {
+            name: _make_output_group(gt) for name, gt in source.output_spec().items()
+        }
+        source.compute(inputs, outputs)
+
+        assert not outputs["controller_left"].is_none
+        assert not outputs["controller_right"].is_none
+        np.testing.assert_array_almost_equal(
+            outputs["controller_left"][ControllerInputIndex.GRIP_POSITION], [1, 2, 3]
+        )
+        assert outputs["controller_right"][
+            ControllerInputIndex.TRIGGER_VALUE
+        ] == pytest.approx(0.9)
+
+    def test_inactive_controller_sets_none(self):
+        """Inactive controllers produce absent OptionalTensorGroups."""
+        source = ControllersSource(name="controllers")
+
+        left_snapshot = create_controller_snapshot(
+            grip_pos=(0, 0, 0), aim_pos=(0, 0, 0), trigger_val=0.0, is_active=False
+        )
+        right_snapshot = create_controller_snapshot(
+            grip_pos=(0, 0, 0), aim_pos=(0, 0, 0), trigger_val=0.0, is_active=True
+        )
+
+        inputs = {
+            "deviceio_controller_left": [left_snapshot],
+            "deviceio_controller_right": [right_snapshot],
+        }
+        outputs = {
+            name: _make_output_group(gt) for name, gt in source.output_spec().items()
+        }
+        source.compute(inputs, outputs)
+
+        assert outputs["controller_left"].is_none
+        assert not outputs["controller_right"].is_none
+
+    def test_absent_controller_raises_on_access(self):
+        """Accessing fields of an absent controller raises ValueError."""
+        source = ControllersSource(name="controllers")
+
+        left_snapshot = create_controller_snapshot(
+            grip_pos=(0, 0, 0), aim_pos=(0, 0, 0), trigger_val=0.0, is_active=False
+        )
+        right_snapshot = create_controller_snapshot(
+            grip_pos=(0, 0, 0), aim_pos=(0, 0, 0), trigger_val=0.0, is_active=False
+        )
+
+        inputs = {
+            "deviceio_controller_left": [left_snapshot],
+            "deviceio_controller_right": [right_snapshot],
+        }
+        outputs = {
+            name: _make_output_group(gt) for name, gt in source.output_spec().items()
+        }
+        source.compute(inputs, outputs)
+
+        with pytest.raises(ValueError, match="absent"):
+            _ = outputs["controller_left"][ControllerInputIndex.GRIP_POSITION]
+
+        assert outputs["controller_right"].is_none
+        outputs["controller_right"][ControllerInputIndex.TRIGGER_VALUE] = 1.0
+        assert not outputs["controller_right"].is_none
+
+    def test_output_groups_are_optional_tensor_groups(self):
+        """Output groups must be OptionalTensorGroup instances."""
+        source = ControllersSource(name="controllers")
+        outputs = {
+            name: _make_output_group(gt) for name, gt in source.output_spec().items()
+        }
+
+        assert isinstance(outputs["controller_left"], OptionalTensorGroup)
+        assert isinstance(outputs["controller_right"], OptionalTensorGroup)
+
+
+class TestHandsSourceOptional:
+    """Test that HandsSource outputs are Optional and handle inactive hands."""
+
+    def test_output_spec_is_optional(self):
+        """Hand outputs must be declared as Optional."""
+        source = HandsSource(name="hands")
+        output_spec = source.output_spec()
+
+        assert output_spec["hand_left"].is_optional
+        assert output_spec["hand_right"].is_optional
+
+    def test_output_groups_are_optional_tensor_groups(self):
+        """Output groups must be OptionalTensorGroup instances."""
+        source = HandsSource(name="hands")
+        outputs = {
+            name: _make_output_group(gt) for name, gt in source.output_spec().items()
+        }
+
+        assert isinstance(outputs["hand_left"], OptionalTensorGroup)
+        assert isinstance(outputs["hand_right"], OptionalTensorGroup)
+
+
+class TestHeadSourceNotOptional:
+    """Test that HeadSource output is NOT Optional (uses is_valid flag instead)."""
+
+    def test_output_spec_is_not_optional(self):
+        """Head output must NOT be Optional."""
+        source = HeadSource(name="head")
+        output_spec = source.output_spec()
+
+        assert not output_spec["head"].is_optional
+
+    def test_output_group_is_regular_tensor_group(self):
+        """Head output must be exactly TensorGroup (required, not optional)."""
+        source = HeadSource(name="head")
+        outputs = {
+            name: _make_output_group(gt) for name, gt in source.output_spec().items()
+        }
+
+        assert type(outputs["head"]) is TensorGroup
+
+    def test_set_none_raises_on_head_output(self):
+        """Calling set_none on a head output must raise TypeError."""
+        source = HeadSource(name="head")
+        outputs = {
+            name: _make_output_group(gt) for name, gt in source.output_spec().items()
+        }
+
+        with pytest.raises(TypeError, match="required"):
+            outputs["head"].set_none()

@@ -21,7 +21,7 @@ inline void bind_pedals(py::module& m)
     // Bind Generic3AxisPedalOutput table using the native type (Generic3AxisPedalOutputT).
     py::class_<Generic3AxisPedalOutputT>(m, "Generic3AxisPedalOutput")
         .def(py::init<>())
-        .def_readwrite("is_valid", &Generic3AxisPedalOutputT::is_valid)
+        .def_readwrite("is_active", &Generic3AxisPedalOutputT::is_active)
         .def_property(
             "timestamp", [](const Generic3AxisPedalOutputT& self) -> const Timestamp* { return self.timestamp.get(); },
             [](Generic3AxisPedalOutputT& self, const Timestamp& ts) { self.timestamp = std::make_unique<Timestamp>(ts); })
@@ -38,7 +38,7 @@ inline void bind_pedals(py::module& m)
              [](const Generic3AxisPedalOutputT& output)
              {
                  std::string result =
-                     "Generic3AxisPedalOutput(is_valid=" + std::string(output.is_valid ? "True" : "False");
+                     "Generic3AxisPedalOutput(is_active=" + std::string(output.is_active ? "True" : "False");
                  if (output.timestamp)
                  {
                      result += ", timestamp=Timestamp(device_time=" + std::to_string(output.timestamp->device_time()) +

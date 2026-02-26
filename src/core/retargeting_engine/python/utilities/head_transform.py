@@ -17,7 +17,7 @@ import numpy as np
 
 from ..interface.base_retargeter import BaseRetargeter
 from ..interface.retargeter_core_types import RetargeterIO, RetargeterIOType
-from ..tensor_types import HeadPose, TransformMatrix
+from ..tensor_types import HeadPose, HeadPoseIndex, TransformMatrix
 from .transform_utils import (
     decompose_transform,
     transform_position,
@@ -55,12 +55,6 @@ class HeadTransform(BaseRetargeter):
             "transform": transform_input.output("value"),
         })
     """
-
-    # Input/output tensor indices for HeadPose
-    _POSITION = 0
-    _ORIENTATION = 1
-    _IS_VALID = 2
-    _TIMESTAMP = 3
 
     def __init__(self, name: str) -> None:
         """
@@ -105,5 +99,7 @@ class HeadTransform(BaseRetargeter):
             out[i] = copy.deepcopy(inp[i])
 
         # Transform pose fields in-place on the output buffers
-        transform_position(np.from_dlpack(out[self._POSITION]), rotation, translation)
-        transform_orientation(np.from_dlpack(out[self._ORIENTATION]), rotation)
+        transform_position(
+            np.from_dlpack(out[HeadPoseIndex.POSITION]), rotation, translation
+        )
+        transform_orientation(np.from_dlpack(out[HeadPoseIndex.ORIENTATION]), rotation)
