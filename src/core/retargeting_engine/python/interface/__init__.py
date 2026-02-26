@@ -16,8 +16,8 @@ from .retargeter_core_types import (
 )
 from .retargeter_subgraph import RetargeterSubgraph
 from .tensor import UNSET_VALUE, Tensor
-from .tensor_group import TensorGroup
-from .tensor_group_type import TensorGroupType
+from .tensor_group import TensorGroup, OptionalTensorGroup
+from .tensor_group_type import TensorGroupType, OptionalType, OptionalTensorGroupType
 from .tensor_type import TensorType
 from .tunable_parameter import (
     BoolParameter,
@@ -30,8 +30,11 @@ from .tunable_parameter import (
 __all__ = [
     "TensorType",
     "TensorGroupType",
+    "OptionalTensorGroupType",
+    "OptionalType",
     "Tensor",
     "TensorGroup",
+    "OptionalTensorGroup",
     "UNSET_VALUE",
     "BaseRetargeter",
     "ValueInput",

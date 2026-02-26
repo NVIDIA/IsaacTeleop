@@ -17,7 +17,7 @@ from ..interface.retargeter_core_types import (
 )
 from ..interface.tensor_group import TensorGroup
 from ..interface.retargeter_subgraph import RetargeterSubgraph
-from ..tensor_types import HeadPose
+from ..tensor_types import HeadPose, HeadPoseIndex
 from .deviceio_tensor_types import DeviceIOHeadPose
 
 if TYPE_CHECKING:
@@ -73,7 +73,7 @@ class HeadSource(IDeviceIOSource):
         """
         head_data = self._head_tracker.get_head(deviceio_session)
         source_inputs = self.input_spec()
-        result = {}
+        result: RetargeterIO = {}
         for input_name, group_type in source_inputs.items():
             tg = TensorGroup(group_type)
             tg[0] = head_data
@@ -96,10 +96,8 @@ class HeadSource(IDeviceIOSource):
             inputs: Dict with "deviceio_head" containing HeadPoseT flatbuffer object
             outputs: Dict with "head" TensorGroup
         """
-        # Extract the raw DeviceIO object
         head_pose: "HeadPoseT" = inputs["deviceio_head"][0]
 
-        # Convert to numpy arrays
         position = np.array(
             [
                 head_pose.pose.position.x,
@@ -119,12 +117,11 @@ class HeadSource(IDeviceIOSource):
             dtype=np.float32,
         )
 
-        # Update output tensor group
         output = outputs["head"]
-        output[0] = position
-        output[1] = orientation
-        output[2] = head_pose.is_valid
-        output[3] = int(head_pose.timestamp.device_time)
+        output[HeadPoseIndex.POSITION] = position
+        output[HeadPoseIndex.ORIENTATION] = orientation
+        output[HeadPoseIndex.IS_VALID] = head_pose.is_valid
+        output[HeadPoseIndex.TIMESTAMP] = int(head_pose.timestamp.device_time)
 
     def transformed(self, transform_input: OutputSelector) -> RetargeterSubgraph:
         """

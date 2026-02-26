@@ -18,6 +18,7 @@ from .standard_types import (
 )
 from .indices import (
     HandInputIndex,
+    HeadPoseIndex,
     ControllerInputIndex,
     Generic3AxisPedalInputIndex,
     FullBodyInputIndex,
@@ -44,6 +45,7 @@ __all__ = [
     "RobotHandJoints",
     # Indices
     "HandInputIndex",
+    "HeadPoseIndex",
     "ControllerInputIndex",
     "Generic3AxisPedalInputIndex",
     "FullBodyInputIndex",

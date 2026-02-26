@@ -24,11 +24,10 @@ from ..interface import (
     ParameterState,
     VectorParameter,
 )
+from ..interface.retargeter_core_types import RetargeterIO
 from ..interface.tensor_group_type import (
     TensorGroupType,
-)
-from ..interface.tensor_group import (
-    TensorGroup,
+    OptionalType,
 )
 from ..tensor_types import (
     HandInput,
@@ -179,11 +178,11 @@ class DexHandRetargeter(BaseRetargeter):
         ]
 
     def input_spec(self) -> RetargeterIOType:
-        """Define input collections for hand tracking."""
+        """Define input collections for hand tracking (Optional)."""
         if self._hand_side == "left":
-            return {"hand_left": HandInput()}
+            return {"hand_left": OptionalType(HandInput())}
         else:
-            return {"hand_right": HandInput()}
+            return {"hand_right": OptionalType(HandInput())}
 
     def output_spec(self) -> RetargeterIOType:
         """Define output collections for robot hand joint angles."""
@@ -194,9 +193,7 @@ class DexHandRetargeter(BaseRetargeter):
             )
         }
 
-    def compute(
-        self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]
-    ) -> None:
+    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
         """
         Execute the hand retargeting transformation.
 
@@ -204,16 +201,12 @@ class DexHandRetargeter(BaseRetargeter):
             inputs: Dict with hand tracking data
             outputs: Dict with "hand_joints" TensorGroup for robot joint angles
         """
-        # Get input hand data
+        output_group = outputs["hand_joints"]
+
         hand_input_key = f"hand_{self._hand_side}"
         hand_group = inputs[hand_input_key]
 
-        # Check if hand tracking is active
-        is_active = hand_group[HandInputIndex.IS_ACTIVE]  # is_active field
-
-        if not is_active:
-            # Output zeros if hand tracking is not active
-            output_group = outputs["hand_joints"]
+        if hand_group.is_none:
             for i in range(len(self._hand_joint_names)):
                 output_group[i] = 0.0
             return
@@ -273,7 +266,6 @@ class DexHandRetargeter(BaseRetargeter):
         q = self._compute_hand(poses)
 
         # Map to output vector based on configured joint names
-        output_group = outputs["hand_joints"]
         for i, name in enumerate(self._dof_names):
             if name in self._hand_joint_names:
                 idx = self._hand_joint_names.index(name)
@@ -505,9 +497,7 @@ class DexBiManualRetargeter(BaseRetargeter):
             )
         }
 
-    def compute(
-        self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]
-    ) -> None:
+    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
         """
         Execute bimanual joint reordering.
 

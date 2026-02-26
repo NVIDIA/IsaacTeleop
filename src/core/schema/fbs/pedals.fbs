@@ -11,8 +11,8 @@ namespace core;
 // Validated devices:
 // - https://www.logitechg.com/en-us/shop/p/flight-simulator-rudder-pedals
 table Generic3AxisPedalOutput {
-  // Whether the output data is valid.
-  is_valid: bool (id: 0);
+  // Whether the pedal device is active (connected and producing data).
+  is_active: bool (id: 0);
 
   // Dual timestamp with device and runtime clock domains.
   timestamp: Timestamp (id: 1);

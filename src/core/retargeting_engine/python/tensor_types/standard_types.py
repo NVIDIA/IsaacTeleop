@@ -37,7 +37,6 @@ def HandInput() -> TensorGroupType:
         - joint_orientations: (26, 4) float32 array - XYZW quaternions for each joint
         - joint_radii: (26,) float32 array - Radius of each joint
         - joint_valid: (26,) bool array - Validity flag for each joint
-        - is_active: bool - Whether hand tracking is active
         - timestamp: int - Timestamp in XrTime format (int64)
 
     Returns:
@@ -46,11 +45,12 @@ def HandInput() -> TensorGroupType:
     Schema reference: IsaacTeleop/src/core/schema/fbs/hand.fbs
 
     Example:
-        # Left and right hands use the same type, distinguished by dict key
+        # Left and right hands use the same type, distinguished by dict key.
+        # Wrap in OptionalType because HandsSource outputs are optional.
         def input_spec(self) -> RetargeterIO:
             return {
-                "hand_left": HandInput(),    # key indicates left hand
-                "hand_right": HandInput(),   # key indicates right hand
+                "hand_left": OptionalType(HandInput()),
+                "hand_right": OptionalType(HandInput()),
             }
     """
     return TensorGroupType(
@@ -80,7 +80,6 @@ def HandInput() -> TensorGroupType:
                 dtype=DLDataType.UINT,
                 dtype_bits=8,  # bool represented as uint8
             ),
-            BoolType("hand_is_active"),
             IntType("hand_timestamp"),
         ],
     )
@@ -141,8 +140,10 @@ def ControllerInput() -> TensorGroupType:
     Fields:
         - grip_position: (3,) float32 array - XYZ position of grip pose
         - grip_orientation: (4,) float32 array - XYZW quaternion of grip pose
+        - grip_is_valid: bool - Whether grip pose data is valid
         - aim_position: (3,) float32 array - XYZ position of aim pose
         - aim_orientation: (4,) float32 array - XYZW quaternion of aim pose
+        - aim_is_valid: bool - Whether aim pose data is valid
         - primary_click: float - Primary button (e.g., A/X button) [0.0-1.0]
         - secondary_click: float - Secondary button (e.g., B/Y button) [0.0-1.0]
         - thumbstick_x: float - Thumbstick X axis [-1.0 to 1.0]
@@ -150,17 +151,17 @@ def ControllerInput() -> TensorGroupType:
         - thumbstick_click: float - Thumbstick button press [0.0-1.0]
         - squeeze_value: float - Grip/squeeze trigger [0.0-1.0]
         - trigger_value: float - Index finger trigger [0.0-1.0]
-        - is_active: bool - Whether controller is tracked/active
 
     Returns:
         TensorGroupType for controller data
 
     Example:
-        # Left and right controllers use the same type, distinguished by dict key
+        # Left and right controllers use the same type, distinguished by dict key.
+        # Wrap in OptionalType because ControllersSource outputs are optional.
         def input_spec(self) -> RetargeterIO:
             return {
-                "controller_left": ControllerInput(),    # key indicates left controller
-                "controller_right": ControllerInput(),   # key indicates right controller
+                "controller_left": OptionalType(ControllerInput()),
+                "controller_right": OptionalType(ControllerInput()),
             }
     """
     return TensorGroupType(
@@ -178,6 +179,7 @@ def ControllerInput() -> TensorGroupType:
                 dtype=DLDataType.FLOAT,
                 dtype_bits=32,
             ),
+            BoolType("controller_grip_is_valid"),
             NDArrayType(
                 "controller_aim_position",
                 shape=(3,),
@@ -190,6 +192,7 @@ def ControllerInput() -> TensorGroupType:
                 dtype=DLDataType.FLOAT,
                 dtype_bits=32,
             ),
+            BoolType("controller_aim_is_valid"),
             FloatType("controller_primary_click"),
             FloatType("controller_secondary_click"),
             FloatType("controller_thumbstick_x"),
@@ -197,7 +200,6 @@ def ControllerInput() -> TensorGroupType:
             FloatType("controller_thumbstick_click"),
             FloatType("controller_squeeze_value"),
             FloatType("controller_trigger_value"),
-            BoolType("controller_is_active"),
         ],
     )
 
@@ -218,7 +220,6 @@ def FullBodyInput() -> TensorGroupType:
         - joint_positions: (24, 3) float32 array - XYZ positions for each joint
         - joint_orientations: (24, 4) float32 array - XYZW quaternions for each joint
         - joint_valid: (24,) uint8 array - Validity flag for each joint
-        - is_active: bool - Whether body tracking is active
         - timestamp: int - Timestamp in XrTime format (int64)
 
     Returns:
@@ -247,7 +248,6 @@ def FullBodyInput() -> TensorGroupType:
                 dtype=DLDataType.UINT,
                 dtype_bits=8,
             ),
-            BoolType("body_is_active"),
             IntType("body_timestamp"),
         ],
     )
@@ -316,7 +316,6 @@ def Generic3AxisPedalInput() -> TensorGroupType:
         - left_pedal: float - Left pedal axis [-1.0 to 1.0]
         - right_pedal: float - Right pedal axis [-1.0 to 1.0]
         - rudder: float - Rudder axis [-1.0 to 1.0]
-        - is_valid: bool - Whether pedal data is valid
         - timestamp: int - Timestamp (e.g., XrTime or device clock)
 
     Returns:
@@ -330,7 +329,6 @@ def Generic3AxisPedalInput() -> TensorGroupType:
             FloatType("pedal_left_pedal"),
             FloatType("pedal_right_pedal"),
             FloatType("pedal_rudder"),
-            BoolType("pedal_is_valid"),
             IntType("pedal_timestamp"),
         ],
     )

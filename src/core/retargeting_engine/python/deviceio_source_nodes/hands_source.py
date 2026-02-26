@@ -16,8 +16,9 @@ from ..interface.retargeter_core_types import (
     RetargeterIOType,
 )
 from ..interface.retargeter_subgraph import RetargeterSubgraph
-from ..interface.tensor_group import TensorGroup
-from ..tensor_types import HandInput, NUM_HAND_JOINTS
+from ..interface.tensor_group import OptionalTensorGroup, TensorGroup
+from ..tensor_types import HandInput, HandInputIndex, NUM_HAND_JOINTS
+from ..interface.tensor_group_type import OptionalType
 from .deviceio_tensor_types import DeviceIOHandPose
 
 if TYPE_CHECKING:
@@ -33,9 +34,9 @@ class HandsSource(IDeviceIOSource):
         - "deviceio_hand_left": Raw HandPoseT flatbuffer for left hand
         - "deviceio_hand_right": Raw HandPoseT flatbuffer for right hand
 
-    Outputs:
-        - "hand_left": Standard HandInput tensor
-        - "hand_right": Standard HandInput tensor
+    Outputs (Optional — absent when tracking is inactive):
+        - "hand_left": OptionalTensorGroup (check ``.is_none`` before access)
+        - "hand_right": OptionalTensorGroup (check ``.is_none`` before access)
 
     Usage:
         # In TeleopSession, manually poll tracker and pass data
@@ -84,7 +85,7 @@ class HandsSource(IDeviceIOSource):
         left_hand = self._hand_tracker.get_left_hand(deviceio_session)
         right_hand = self._hand_tracker.get_right_hand(deviceio_session)
         source_inputs = self.input_spec()
-        result = {}
+        result: RetargeterIO = {}
         for input_name, group_type in source_inputs.items():
             tg = TensorGroup(group_type)
             if "left" in input_name:
@@ -102,28 +103,38 @@ class HandsSource(IDeviceIOSource):
         }
 
     def output_spec(self) -> RetargeterIOType:
-        """Declare standard hand input outputs."""
-        return {"hand_left": HandInput(), "hand_right": HandInput()}
+        """Declare standard hand input outputs (Optional — may be absent)."""
+        return {
+            "hand_left": OptionalType(HandInput()),
+            "hand_right": OptionalType(HandInput()),
+        }
 
     def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
         """
         Convert DeviceIO HandPoseT to standard HandInput tensors.
 
+        Calls ``set_none()`` on the output when the corresponding hand is inactive.
+
         Args:
             inputs: Dict with "deviceio_hand_left" and "deviceio_hand_right" flatbuffer objects
-            outputs: Dict with "hand_left" and "hand_right" TensorGroups
+            outputs: Dict with "hand_left" and "hand_right" OptionalTensorGroups
         """
-        # Extract raw DeviceIO objects
         left_data: "HandPoseT" = inputs["deviceio_hand_left"][0]
         right_data: "HandPoseT" = inputs["deviceio_hand_right"][0]
 
-        # Convert left hand
-        self._update_hand_data(outputs["hand_left"], left_data)
+        if left_data.is_active:
+            self._update_hand_data(outputs["hand_left"], left_data)
+        else:
+            outputs["hand_left"].set_none()
 
-        # Convert right hand
-        self._update_hand_data(outputs["hand_right"], right_data)
+        if right_data.is_active:
+            self._update_hand_data(outputs["hand_right"], right_data)
+        else:
+            outputs["hand_right"].set_none()
 
-    def _update_hand_data(self, group: TensorGroup, hand_data: "HandPoseT") -> None:
+    def _update_hand_data(
+        self, group: OptionalTensorGroup, hand_data: "HandPoseT"
+    ) -> None:
         """Helper to convert hand data for a single hand."""
         # Pre-allocate arrays
         positions = np.zeros((NUM_HAND_JOINTS, 3), dtype=np.float32)
@@ -150,12 +161,11 @@ class HandsSource(IDeviceIOSource):
             valid[i] = 1 if joint.is_valid else 0
 
         # Update output tensor group
-        group[0] = positions
-        group[1] = orientations
-        group[2] = radii
-        group[3] = valid
-        group[4] = hand_data.is_active
-        group[5] = int(hand_data.timestamp.device_time)
+        group[HandInputIndex.JOINT_POSITIONS] = positions
+        group[HandInputIndex.JOINT_ORIENTATIONS] = orientations
+        group[HandInputIndex.JOINT_RADII] = radii
+        group[HandInputIndex.JOINT_VALID] = valid
+        group[HandInputIndex.TIMESTAMP] = int(hand_data.timestamp.device_time)
 
     def transformed(self, transform_input: OutputSelector) -> RetargeterSubgraph:
         """

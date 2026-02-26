@@ -13,9 +13,9 @@ import numpy as np
 from ..interface import (
     BaseRetargeter,
     RetargeterIOType,
-    TensorGroup,
     TensorGroupType,
 )
+from ..interface.retargeter_core_types import RetargeterIO
 from ..tensor_types import FloatType, NDArrayType, DLDataType
 
 
@@ -83,13 +83,17 @@ class TensorReorderer(BaseRetargeter):
                 pass
 
     def input_spec(self) -> RetargeterIOType:
-        """Define input collections based on config."""
+        """Define input collections based on config.
+
+        All inputs are required (non-optional). TensorReorderer needs every
+        input to be present in order to produce a correct flattened action vector.
+        """
         inputs = {}
         for input_name, element_names in self._input_config.items():
             input_type = self._input_types.get(input_name, "scalar")
 
             if input_type == "array":
-                inputs[input_name] = TensorGroupType(
+                tgt = TensorGroupType(
                     input_name,
                     [
                         NDArrayType(
@@ -101,9 +105,11 @@ class TensorReorderer(BaseRetargeter):
                     ],
                 )
             else:
-                inputs[input_name] = TensorGroupType(
+                tgt = TensorGroupType(
                     input_name, [FloatType(name) for name in element_names]
                 )
+
+            inputs[input_name] = tgt
         return inputs
 
     def output_spec(self) -> RetargeterIOType:
@@ -122,9 +128,7 @@ class TensorReorderer(BaseRetargeter):
             )
         }
 
-    def compute(
-        self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]
-    ) -> None:
+    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
         """
         Gather values and pack them into a single numpy array.
         """

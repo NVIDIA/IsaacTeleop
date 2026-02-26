@@ -9,14 +9,13 @@ Provides retargeters for generating locomotion commands from VR controller input
 
 import numpy as np
 from dataclasses import dataclass
-from typing import Dict
 
 from ..interface import (
     BaseRetargeter,
     RetargeterIOType,
 )
-from ..interface.tensor_group_type import TensorGroupType
-from ..interface.tensor_group import TensorGroup
+from ..interface.retargeter_core_types import RetargeterIO
+from ..interface.tensor_group_type import TensorGroupType, OptionalType
 from ..tensor_types import (
     ControllerInput,
     NDArrayType,
@@ -63,9 +62,7 @@ class LocomotionFixedRootCmdRetargeter(BaseRetargeter):
             )
         }
 
-    def compute(
-        self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]
-    ) -> None:
+    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
         """Sets the fixed command."""
         output_group = outputs["root_command"]
         # [vel_x, vel_y, rot_vel_z, hip_height]
@@ -99,10 +96,10 @@ class LocomotionRootCmdRetargeter(BaseRetargeter):
         self._hip_height = config.initial_hip_height
 
     def input_spec(self) -> RetargeterIOType:
-        """Requires left and right controller inputs."""
+        """Requires left and right controller inputs (Optional)."""
         return {
-            "controller_left": ControllerInput(),
-            "controller_right": ControllerInput(),
+            "controller_left": OptionalType(ControllerInput()),
+            "controller_right": OptionalType(ControllerInput()),
         }
 
     def output_spec(self) -> RetargeterIOType:
@@ -118,36 +115,30 @@ class LocomotionRootCmdRetargeter(BaseRetargeter):
             )
         }
 
-    def compute(
-        self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]
-    ) -> None:
+    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
         """Computes root command from controller inputs."""
         left_thumbstick_x = 0.0
         left_thumbstick_y = 0.0
         right_thumbstick_x = 0.0
         right_thumbstick_y = 0.0
 
-        # Process Left Controller
-        if "controller_left" in inputs:
-            left_controller = inputs["controller_left"]
-            if left_controller[ControllerInputIndex.IS_ACTIVE]:
-                left_thumbstick_x = float(
-                    left_controller[ControllerInputIndex.THUMBSTICK_X]
-                )
-                left_thumbstick_y = float(
-                    left_controller[ControllerInputIndex.THUMBSTICK_Y]
-                )
+        left_controller = inputs["controller_left"]
+        if not left_controller.is_none:
+            left_thumbstick_x = float(
+                left_controller[ControllerInputIndex.THUMBSTICK_X]
+            )
+            left_thumbstick_y = float(
+                left_controller[ControllerInputIndex.THUMBSTICK_Y]
+            )
 
-        # Process Right Controller
-        if "controller_right" in inputs:
-            right_controller = inputs["controller_right"]
-            if right_controller[ControllerInputIndex.IS_ACTIVE]:
-                right_thumbstick_x = float(
-                    right_controller[ControllerInputIndex.THUMBSTICK_X]
-                )
-                right_thumbstick_y = float(
-                    right_controller[ControllerInputIndex.THUMBSTICK_Y]
-                )
+        right_controller = inputs["controller_right"]
+        if not right_controller.is_none:
+            right_thumbstick_x = float(
+                right_controller[ControllerInputIndex.THUMBSTICK_X]
+            )
+            right_thumbstick_y = float(
+                right_controller[ControllerInputIndex.THUMBSTICK_Y]
+            )
 
         # Scale inputs
         # Note: In IsaacLab implementation:

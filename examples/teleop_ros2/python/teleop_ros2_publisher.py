@@ -18,7 +18,7 @@ import argparse
 import os
 import time
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import msgpack
 import msgpack_numpy as mnp
@@ -33,7 +33,7 @@ from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     FullBodySource,
     HandsSource,
 )
-from isaacteleop.retargeting_engine.interface import OutputCombiner
+from isaacteleop.retargeting_engine.interface import OptionalTensorGroup, OutputCombiner
 from isaacteleop.retargeting_engine.retargeters import (
     LocomotionRootCmdRetargeter,
     LocomotionRootCmdRetargeterConfig,
@@ -63,21 +63,20 @@ def _find_plugins_dirs(start: Path) -> List[Path]:
 
 
 def _build_controller_payload(
-    left_ctrl: Optional[np.ndarray],
-    right_ctrl: Optional[np.ndarray],
+    left_ctrl: OptionalTensorGroup, right_ctrl: OptionalTensorGroup
 ) -> Dict:
     def _as_list(ctrl, index):
-        if ctrl is None:
+        if ctrl.is_none:
             return [0.0, 0.0, 0.0]
         return [float(x) for x in ctrl[index]]
 
     def _as_quat(ctrl, index):
-        if ctrl is None:
+        if ctrl.is_none:
             return [1.0, 0.0, 0.0, 0.0]
         return [float(x) for x in ctrl[index]]
 
     def _as_float(ctrl, index):
-        if ctrl is None:
+        if ctrl.is_none:
             return 0.0
         return float(ctrl[index])
 
@@ -131,22 +130,21 @@ def _build_controller_payload(
         "right_thumbstick_click": _as_float(
             right_ctrl, ControllerInputIndex.THUMBSTICK_CLICK
         ),
-        "left_is_active": bool(_as_float(left_ctrl, ControllerInputIndex.IS_ACTIVE)),
-        "right_is_active": bool(_as_float(right_ctrl, ControllerInputIndex.IS_ACTIVE)),
+        "left_is_active": not left_ctrl.is_none,
+        "right_is_active": not right_ctrl.is_none,
     }
 
 
 _BODY_JOINT_NAMES = [e.name for e in BodyJointPicoIndex]
 
 
-def _build_full_body_payload(full_body: np.ndarray) -> Dict:
+def _build_full_body_payload(full_body: OptionalTensorGroup) -> Dict:
     positions = np.asarray(full_body[FullBodyInputIndex.JOINT_POSITIONS])
     orientations = np.asarray(full_body[FullBodyInputIndex.JOINT_ORIENTATIONS])
     valid = np.asarray(full_body[FullBodyInputIndex.JOINT_VALID])
 
     return {
         "timestamp": time.time_ns(),
-        "is_active": bool(full_body[FullBodyInputIndex.IS_ACTIVE]),
         "joint_names": _BODY_JOINT_NAMES,
         "joint_positions": [[float(v) for v in pos] for pos in positions],
         "joint_orientations": [[float(v) for v in ori] for ori in orientations],
@@ -260,10 +258,10 @@ def main() -> int:
                     hand_msg.header.stamp = now
                     hand_msg.header.frame_id = args.frame_id
 
-                    left_hand = result.get("hand_left")
-                    right_hand = result.get("hand_right")
+                    left_hand = result["hand_left"]
+                    right_hand = result["hand_right"]
 
-                    if right_hand is not None and right_hand[HandInputIndex.IS_ACTIVE]:
+                    if not right_hand.is_none:
                         right_positions = np.asarray(
                             right_hand[HandInputIndex.JOINT_POSITIONS]
                         )
@@ -276,7 +274,7 @@ def main() -> int:
                                 right_orientations[HandJointIndex.WRIST],
                             )
                         )
-                    if left_hand is not None and left_hand[HandInputIndex.IS_ACTIVE]:
+                    if not left_hand.is_none:
                         left_positions = np.asarray(
                             left_hand[HandInputIndex.JOINT_POSITIONS]
                         )
@@ -290,11 +288,11 @@ def main() -> int:
                             )
                         )
 
-                    if right_hand is not None and right_hand[HandInputIndex.IS_ACTIVE]:
+                    if not right_hand.is_none:
                         _append_hand_poses(
                             hand_msg.poses, right_positions, right_orientations
                         )
-                    if left_hand is not None and left_hand[HandInputIndex.IS_ACTIVE]:
+                    if not left_hand.is_none:
                         _append_hand_poses(
                             hand_msg.poses, left_positions, left_orientations
                         )
@@ -302,34 +300,27 @@ def main() -> int:
                     if hand_msg.poses:
                         pub_hand.publish(hand_msg)
 
-                    root_command = result.get("root_command")
-                    if root_command is not None:
-                        cmd = np.asarray(root_command[0])
-                        twist_msg = TwistStamped()
-                        twist_msg.header.stamp = now
-                        twist_msg.header.frame_id = args.frame_id
-                        twist_msg.twist.linear.x = float(cmd[0])
-                        twist_msg.twist.linear.y = float(cmd[1])
-                        twist_msg.twist.linear.z = 0.0
-                        twist_msg.twist.angular.z = float(cmd[2])
-                        pub_twist.publish(twist_msg)
+                    root_command = result["root_command"]
+                    cmd = np.asarray(root_command[0])
+                    twist_msg = TwistStamped()
+                    twist_msg.header.stamp = now
+                    twist_msg.header.frame_id = args.frame_id
+                    twist_msg.twist.linear.x = float(cmd[0])
+                    twist_msg.twist.linear.y = float(cmd[1])
+                    twist_msg.twist.linear.z = 0.0
+                    twist_msg.twist.angular.z = float(cmd[2])
+                    pub_twist.publish(twist_msg)
 
-                        pose_msg = PoseStamped()
-                        pose_msg.header.stamp = now
-                        pose_msg.header.frame_id = args.frame_id
-                        pose_msg.pose.position.z = float(cmd[3])
-                        pose_msg.pose.orientation.w = 1.0
-                        pub_pose.publish(pose_msg)
+                    pose_msg = PoseStamped()
+                    pose_msg.header.stamp = now
+                    pose_msg.header.frame_id = args.frame_id
+                    pose_msg.pose.position.z = float(cmd[3])
+                    pose_msg.pose.orientation.w = 1.0
+                    pub_pose.publish(pose_msg)
 
-                    left_ctrl = result.get("controller_left")
-                    right_ctrl = result.get("controller_right")
-                    left_active = left_ctrl is not None and bool(
-                        left_ctrl[ControllerInputIndex.IS_ACTIVE]
-                    )
-                    right_active = right_ctrl is not None and bool(
-                        right_ctrl[ControllerInputIndex.IS_ACTIVE]
-                    )
-                    if left_active or right_active:
+                    left_ctrl = result["controller_left"]
+                    right_ctrl = result["controller_right"]
+                    if not left_ctrl.is_none or not right_ctrl.is_none:
                         controller_payload = _build_controller_payload(
                             left_ctrl, right_ctrl
                         )
@@ -339,10 +330,8 @@ def main() -> int:
                         controller_msg.data = payload
                         pub_controller.publish(controller_msg)
 
-                    full_body_data = result.get("full_body")
-                    if full_body_data is not None and bool(
-                        full_body_data[FullBodyInputIndex.IS_ACTIVE]
-                    ):
+                    full_body_data = result["full_body"]
+                    if not full_body_data.is_none:
                         body_payload = _build_full_body_payload(full_body_data)
                         payload = msgpack.packb(body_payload, default=mnp.encode)
                         payload = tuple(bytes([a]) for a in payload)

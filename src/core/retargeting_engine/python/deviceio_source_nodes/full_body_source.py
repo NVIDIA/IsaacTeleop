@@ -15,7 +15,8 @@ from ..interface.retargeter_core_types import (
     RetargeterIOType,
 )
 from ..interface.tensor_group import TensorGroup
-from ..tensor_types import FullBodyInput
+from ..tensor_types import FullBodyInput, FullBodyInputIndex
+from ..interface.tensor_group_type import OptionalType
 from ..tensor_types.standard_types import NUM_BODY_JOINTS_PICO
 from .deviceio_tensor_types import DeviceIOFullBodyPosePico
 
@@ -31,8 +32,8 @@ class FullBodySource(IDeviceIOSource):
     Inputs:
         - "deviceio_full_body": Raw FullBodyPosePicoT flatbuffer
 
-    Outputs:
-        - "full_body": Standard FullBodyInput tensor (positions, orientations, validity)
+    Outputs (Optional — absent when body tracking is inactive):
+        - "full_body": OptionalTensorGroup (check ``.is_none`` before access)
 
     Usage:
         body_pose = body_tracker.get_body_pose(session)
@@ -76,7 +77,7 @@ class FullBodySource(IDeviceIOSource):
         """
         body_pose = self._body_tracker.get_body_pose(deviceio_session)
         source_inputs = self.input_spec()
-        result = {}
+        result: RetargeterIO = {}
         for input_name, group_type in source_inputs.items():
             tg = TensorGroup(group_type)
             tg[0] = body_pose
@@ -90,20 +91,27 @@ class FullBodySource(IDeviceIOSource):
         }
 
     def output_spec(self) -> RetargeterIOType:
-        """Declare standard full body output."""
+        """Declare standard full body output (Optional — may be absent)."""
         return {
-            "full_body": FullBodyInput(),
+            "full_body": OptionalType(FullBodyInput()),
         }
 
     def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
         """
         Convert DeviceIO FullBodyPosePicoT to standard FullBodyInput tensors.
 
+        Calls ``set_none()`` on the output when body tracking is inactive.
+
         Args:
             inputs: Dict with "deviceio_full_body" flatbuffer object
-            outputs: Dict with "full_body" TensorGroup
+            outputs: Dict with "full_body" OptionalTensorGroup
         """
         body_pose: "FullBodyPosePicoT" = inputs["deviceio_full_body"][0]
+
+        if not body_pose.is_active:
+            outputs["full_body"].set_none()
+            return
+
         group = outputs["full_body"]
 
         positions = np.zeros((NUM_BODY_JOINTS_PICO, 3), dtype=np.float32)
@@ -126,11 +134,10 @@ class FullBodySource(IDeviceIOSource):
                 ]
                 valid[i] = 1 if joint.is_valid else 0
 
-        group[0] = positions
-        group[1] = orientations
-        group[2] = valid
-        group[3] = body_pose.is_active
+        group[FullBodyInputIndex.JOINT_POSITIONS] = positions
+        group[FullBodyInputIndex.JOINT_ORIENTATIONS] = orientations
+        group[FullBodyInputIndex.JOINT_VALID] = valid
         timestamp = 0
         if body_pose.timestamp is not None:
             timestamp = body_pose.timestamp.device_time
-        group[4] = timestamp
+        group[FullBodyInputIndex.TIMESTAMP] = timestamp

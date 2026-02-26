@@ -352,7 +352,7 @@ class TestRetargeterInputValidation:
         input_a[0] = 3.0
 
         # Should raise due to missing input
-        with pytest.raises(ValueError, match="Expected inputs"):
+        with pytest.raises(ValueError, match="Required input"):
             retargeter({"a": input_a})
 
     def test_extra_input_raises(self):
@@ -366,7 +366,7 @@ class TestRetargeterInputValidation:
         input_y[0] = 10.0
 
         # Should raise due to extra input
-        with pytest.raises(ValueError, match="Expected inputs"):
+        with pytest.raises(ValueError, match="Unexpected inputs"):
             retargeter({"x": input_x, "y": input_y})
 
     def test_wrong_input_type_raises(self):
