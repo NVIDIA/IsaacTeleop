@@ -7,6 +7,7 @@
 #include <iostream>
 #include <set>
 #include <stdexcept>
+#include <unordered_set>
 
 namespace core
 {
@@ -70,24 +71,31 @@ bool DeviceIOSession::update()
 {
     XrTime current_time = time_converter_.get_current_time();
 
-    // Update all tracker implementations directly
-    for (auto& impl : tracker_impls_)
+    // Multiple ITracker instances may share the same ITrackerImpl (e.g. two
+    // ControllerTrackers on the same XrSession).  Deduplicate so that each
+    // unique impl is updated exactly once per frame.
+    std::unordered_set<ITrackerImpl*> updated;
+
+    for (auto& [tracker, impl] : tracker_impls_)
     {
-        if (!impl.second->update(current_time))
+        if (!updated.insert(impl.get()).second)
         {
-            // Rate-limit warnings to avoid log spam (log first failure, then every 1000th)
-            auto& count = tracker_update_failure_counts_[impl.first];
+            continue; // already updated this impl
+        }
+
+        if (!impl->update(current_time))
+        {
+            auto& count = tracker_update_failure_counts_[tracker];
             count++;
             if (count == 1 || count % 1000 == 0)
             {
-                std::cerr << "Warning: tracker '" << impl.first->get_name() << "' update failed (count: " << count
-                          << ")" << std::endl;
+                std::cerr << "Warning: tracker '" << tracker->get_name() << "' update failed (count: " << count << ")"
+                          << std::endl;
             }
         }
         else
         {
-            // Reset count on success
-            tracker_update_failure_counts_[impl.first] = 0;
+            tracker_update_failure_counts_[tracker] = 0;
         }
     }
 
