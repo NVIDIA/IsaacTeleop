@@ -5,7 +5,7 @@
 name = "teleop-ros2-example"
 version = "0.1.0"
 description = "Isaac Teleop ROS2 Example"
-requires-python = ">=3.10,<3.11"
+requires-python = ">=3.10,<3.13"
 dependencies = [
     "isaacteleop[retargeters]",
     "msgpack",
