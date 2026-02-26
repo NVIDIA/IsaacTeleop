@@ -20,7 +20,7 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
-    "@nvidia/cloudxr": "file:../sdk.tgz",
+    "@nvidia/cloudxr": "dev",
     "@preact/signals-react": "^2.2.0",
     "@react-three/drei": "^10.6.1",
     "@react-three/fiber": "^9.3.0",
@@ -45,7 +45,7 @@
     "style-loader": "^3.3.3",
     "ts-loader": "^9.5.1",
     "typescript": "^5.8.2",
-    "webpack-cli": "^6.0.1",
-    "webpack-dev-server": "^5.2.1"
+    "webpack-dev-server": "^5.2.1",
+    "webpack-cli": "^6.0.1"
   }
 }
