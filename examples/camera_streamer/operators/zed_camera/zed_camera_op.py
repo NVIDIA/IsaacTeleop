@@ -30,8 +30,9 @@ ZED_RESOLUTION_DIMS = {
     "VGA": (672, 376),
 }
 
-assert set(ZED_RESOLUTION_DIMS.keys()) == {"HD2K", "HD1080", "HD720", "VGA"}, \
+assert set(ZED_RESOLUTION_DIMS.keys()) == {"HD2K", "HD1080", "HD720", "VGA"}, (
     "ZED_RESOLUTION_DIMS keys drifted — update ZedCameraOp.RESOLUTION_MAP too"
+)
 
 STATS_INTERVAL_SEC = 30.0
 
@@ -396,7 +397,11 @@ class ZedCameraOp(Operator):
             cpu_data = zed_mat.get_data()
             if cpu_data is None:
                 return None
-            if self._color_format == "rgb" and cpu_data.ndim == 3 and cpu_data.shape[2] == 4:
+            if (
+                self._color_format == "rgb"
+                and cpu_data.ndim == 3
+                and cpu_data.shape[2] == 4
+            ):
                 cpu_data = cpu_data[:, :, [2, 1, 0]]
             return cp.asarray(np.ascontiguousarray(cpu_data))
         except Exception as e:

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 # Sample: ZED Mini Stereo Camera
 # Requires NVENC for H.264 encoding (Jetson Thor or x86_64 with NVIDIA GPU).
 

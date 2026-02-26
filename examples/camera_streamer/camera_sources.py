@@ -124,7 +124,9 @@ def create_zed_source(
     else:
         result.frame_outputs["mono"] = (zed_source, "left_frame")
 
-    logger.info(f"  ZED source: {cam_name} {cam_cfg.width}x{cam_cfg.height}@{cam_cfg.fps}fps")
+    logger.info(
+        f"  ZED source: {cam_name} {cam_cfg.width}x{cam_cfg.height}@{cam_cfg.fps}fps"
+    )
     return result
 
 
@@ -299,13 +301,21 @@ def create_camera_source(
         )
     elif cam_cfg.camera_type == "oakd":
         return create_oakd_source(
-            fragment, cam_name, cam_cfg,
-            output_format=output_format, color_format=color_format, verbose=verbose,
+            fragment,
+            cam_name,
+            cam_cfg,
+            output_format=output_format,
+            color_format=color_format,
+            verbose=verbose,
         )
     elif cam_cfg.camera_type == "v4l2":
         return create_v4l2_source(
-            fragment, cam_name, cam_cfg, allocator,
-            color_format=color_format, verbose=verbose,
+            fragment,
+            cam_name,
+            cam_cfg,
+            allocator,
+            color_format=color_format,
+            verbose=verbose,
         )
     else:
         raise ValueError(f"Unknown camera type: {cam_cfg.camera_type}")

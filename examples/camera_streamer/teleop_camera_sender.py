@@ -54,12 +54,10 @@ class TeleopCameraSenderConfig:
 
         source = data.get("source", "rtp")
         if source not in ("rtp", "local"):
-            raise ValueError(
-                f"Invalid source: \"{source}\". Must be \"rtp\" or \"local\"."
-            )
+            raise ValueError(f'Invalid source: "{source}". Must be "rtp" or "local".')
         if source != "rtp":
             raise ValueError(
-                "source is \"local\" — the sender is only used with source: \"rtp\"."
+                'source is "local" — the sender is only used with source: "rtp".'
             )
 
         cameras = {}
@@ -159,7 +157,9 @@ class TeleopCameraSenderApp(Application):
 
         # ZED and V4L2 cameras output raw frames — need NVENC for H.264 encoding.
         NvStreamEncoderOp = None
-        if self._config.get_cameras_by_type("zed") or self._config.get_cameras_by_type("v4l2"):
+        if self._config.get_cameras_by_type("zed") or self._config.get_cameras_by_type(
+            "v4l2"
+        ):
             NvStreamEncoderOp = ensure_nvenc_support()
 
         for cam_name, cam_cfg in self._config.cameras.items():
@@ -244,9 +244,7 @@ def main():
     parser.add_argument(
         "--config",
         type=str,
-        default=os.path.join(
-            os.path.dirname(__file__), "config/multi_camera.yaml"
-        ),
+        default=os.path.join(os.path.dirname(__file__), "config/multi_camera.yaml"),
         help="Path to camera configuration file",
     )
     parser.add_argument(
@@ -322,6 +320,7 @@ def main():
         logger.info("Shutdown complete")
         # Required to avoid GIL crash.
         os._exit(0)
+
 
 if __name__ == "__main__":
     main()

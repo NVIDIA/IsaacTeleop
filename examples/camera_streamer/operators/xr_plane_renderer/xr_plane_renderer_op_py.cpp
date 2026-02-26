@@ -174,7 +174,7 @@ name : str
 Example
 -------
 >>> from xr_plane_renderer import XrPlaneRendererOp, XrPlaneConfig
->>> 
+>>>
 >>> op = XrPlaneRendererOp(
 ...     fragment,
 ...     xr_session=session,

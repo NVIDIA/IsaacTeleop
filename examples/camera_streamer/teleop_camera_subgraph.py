@@ -230,9 +230,7 @@ class TeleopCameraSubgraphConfig:
 
         source = data["source"]
         if source not in ("rtp", "local"):
-            raise ValueError(
-                f"Invalid source: \"{source}\". Must be \"rtp\" or \"local\"."
-            )
+            raise ValueError(f'Invalid source: "{source}". Must be "rtp" or "local".')
 
         return cls(
             source=source,
