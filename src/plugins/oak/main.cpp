@@ -7,7 +7,6 @@
 #include <atomic>
 #include <chrono>
 #include <csignal>
-#include <iomanip>
 #include <iostream>
 #include <map>
 #include <sstream>
@@ -103,8 +102,9 @@ void print_usage(const char* program_name)
         << "  --bitrate=N         H.264 bitrate in bps (default: 8000000)\n"
         << "  --quality=N         H.264 quality 1-100 (default: 80)\n"
         << "  --device-id=ID      OAK device MxId (default: first available)\n"
-        << "\nMetadata:\n"
-        << "  --collection_prefix=PREFIX  Tensor collection PREFIX for metadata (default: none)\n"
+        << "\nMetadata (mutually exclusive):\n"
+        << "  --collection-prefix=PREFIX  Push metadata via OpenXR tensor extensions\n"
+        << "  --mcap-filename=PATH        Record metadata to an MCAP file\n"
         << "\nGeneral:\n"
         << "  --help              Show this help message\n"
         << "\nExamples:\n"
@@ -123,6 +123,7 @@ try
     OakConfig camera_config;
     std::map<core::StreamType, StreamConfig> stream_map;
     std::string collection_prefix;
+    std::string mcap_filename;
 
     for (int i = 1; i < argc; ++i)
     {
@@ -158,6 +159,10 @@ try
         {
             collection_prefix = arg.substr(20);
         }
+        else if (arg.find("--mcap-filename=") == 0)
+        {
+            mcap_filename = arg.substr(16);
+        }
         else if (arg.find("--plugin-root-id=") == 0)
         {
             // plugin-root-id is a default argument, so we don't need to store it
@@ -181,8 +186,6 @@ try
     stream_configs.reserve(stream_map.size());
     for (auto& [_, cfg] : stream_map)
     {
-        if (!collection_prefix.empty())
-            cfg.collection_id = collection_prefix + "/" + core::EnumNameStreamType(cfg.camera);
         stream_configs.push_back(std::move(cfg));
     }
 
@@ -193,42 +196,29 @@ try
     std::cout << "OAK Camera Plugin Starting" << std::endl;
     std::cout << "============================================================" << std::endl;
 
-    FrameSink sink;
-    for (const auto& s : stream_configs)
-        sink.add_stream(s);
-
-    OakCamera camera(camera_config, stream_configs, sink);
-
-    uint64_t frame_count = 0;
-    auto start_time = std::chrono::steady_clock::now();
+    OakCamera camera(camera_config, stream_configs, create_frame_sink(stream_configs, collection_prefix, mcap_filename));
 
     std::cout << "------------------------------------------------------------" << std::endl;
     std::cout << "Running capture loop. Press Ctrl+C to stop." << std::endl;
 
-    constexpr auto status_interval = std::chrono::seconds(10);
-    auto last_status_time = std::chrono::steady_clock::now();
+    constexpr auto stats_interval = std::chrono::seconds(5);
+    auto last_stats_time = std::chrono::steady_clock::now();
 
     while (!g_stop_requested.load(std::memory_order_relaxed))
     {
-        frame_count += camera.update();
+        camera.update();
 
         auto now = std::chrono::steady_clock::now();
-        if (now - last_status_time >= status_interval)
+        if (now - last_stats_time >= stats_interval)
         {
-            std::cout << "Frames: " << frame_count << std::endl;
-            last_status_time = now;
+            camera.print_stats();
+            last_stats_time = now;
         }
     }
 
     std::cout << "------------------------------------------------------------" << std::endl;
     std::cout << "Shutting down OAK Camera Plugin..." << std::endl;
-
-    auto duration = std::chrono::steady_clock::now() - start_time;
-    auto seconds = std::chrono::duration_cast<std::chrono::seconds>(duration).count();
-    double fps = seconds > 0 ? static_cast<double>(frame_count) / seconds : 0.0;
-
-    std::cout << "Session stats: " << frame_count << " frames in " << seconds << "s (" << std::fixed
-              << std::setprecision(1) << fps << " fps)" << std::endl;
+    camera.print_stats();
     std::cout << "Plugin stopped" << std::endl;
     std::cout << "============================================================" << std::endl;
 

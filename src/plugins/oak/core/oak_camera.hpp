@@ -28,7 +28,6 @@ struct StreamConfig
 {
     core::StreamType camera;
     std::string output_path;
-    std::string collection_id = "";
 };
 
 // ============================================================================
@@ -65,18 +64,18 @@ struct OakFrame
 class OakCamera
 {
 public:
-    OakCamera(const OakConfig& config, const std::vector<StreamConfig>& streams, FrameSink& sink);
+    OakCamera(const OakConfig& config, const std::vector<StreamConfig>& streams, std::unique_ptr<FrameSink> sink);
 
     OakCamera(const OakCamera&) = delete;
     OakCamera& operator=(const OakCamera&) = delete;
     OakCamera(OakCamera&&) = delete;
     OakCamera& operator=(OakCamera&&) = delete;
 
-    /**
-     * @brief Poll all active queues and dispatch ready frames to FrameSink.
-     * @return Number of frames processed this call.
-     */
-    size_t update();
+    /** @brief Poll all active queues and dispatch ready frames to FrameSink. */
+    void update();
+
+    /** @brief Print per-stream frame counts to stdout. */
+    void print_stats() const;
 
 private:
     dai::DeviceInfo find_device(const std::string& device_id);
@@ -87,7 +86,8 @@ private:
     std::shared_ptr<dai::Pipeline> m_pipeline;
     std::shared_ptr<dai::Device> m_device;
     std::map<core::StreamType, std::shared_ptr<dai::DataOutputQueue>> m_queues;
-    FrameSink& m_sink;
+    std::unique_ptr<FrameSink> m_sink;
+    std::map<core::StreamType, uint64_t> m_frame_counts;
 };
 
 } // namespace oak
