@@ -10,6 +10,7 @@
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <unordered_map>
 
 namespace core
 {
@@ -393,7 +394,30 @@ const ControllerSnapshot& ControllerTracker::get_right_controller(const DeviceIO
 
 std::shared_ptr<ITrackerImpl> ControllerTracker::create_tracker(const OpenXRSessionHandles& handles) const
 {
-    return std::make_shared<Impl>(handles);
+    // Multiple ControllerTracker instances sharing the same XrSession must reuse
+    // a single Impl because OpenXR forbids duplicate action-set names /
+    // interaction-profile bindings per session.
+    static std::unordered_map<XrSession, std::weak_ptr<ITrackerImpl>> shared_impls;
+
+    // Prune expired entries while we're here
+    for (auto it = shared_impls.begin(); it != shared_impls.end();)
+    {
+        if (it->second.expired())
+            it = shared_impls.erase(it);
+        else
+            ++it;
+    }
+
+    auto& weak = shared_impls[handles.session];
+    if (auto existing = weak.lock())
+    {
+        std::cout << "ControllerTracker: Reusing existing impl for this XrSession" << std::endl;
+        return existing;
+    }
+
+    auto impl = std::make_shared<Impl>(handles);
+    weak = impl;
+    return impl;
 }
 
 } // namespace core

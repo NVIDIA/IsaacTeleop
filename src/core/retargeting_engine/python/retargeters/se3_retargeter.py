@@ -29,12 +29,7 @@ from ..tensor_types import (
     HandJointIndex,
 )
 
-try:
-    from scipy.spatial.transform import Rotation, Slerp
-
-    SCIPY_AVAILABLE = True
-except ImportError:
-    SCIPY_AVAILABLE = False
+from scipy.spatial.transform import Rotation, Slerp
 
 
 @dataclass
@@ -77,8 +72,6 @@ class Se3AbsRetargeter(BaseRetargeter):
 
     def __init__(self, config: Se3RetargeterConfig, name: str) -> None:
         self._config = config
-        if not SCIPY_AVAILABLE:
-            raise ImportError("scipy is required for Se3AbsRetargeter")
 
         # Build position offset from individual x/y/z components
         self._target_offset_pos = np.array(
@@ -320,8 +313,6 @@ class Se3RelRetargeter(BaseRetargeter):
     def __init__(self, config: Se3RetargeterConfig, name: str) -> None:
         self._config = config
         super().__init__(name=name)
-        if not SCIPY_AVAILABLE:
-            raise ImportError("scipy is required for Se3RelRetargeter")
 
         self._smoothed_delta_pos: np.ndarray = np.zeros(3)
         self._smoothed_delta_rot: np.ndarray = np.zeros(3)
