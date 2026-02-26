@@ -8,15 +8,18 @@ from .head_source import HeadSource
 from .hands_source import HandsSource
 from .controllers_source import ControllersSource
 from .pedals_source import Generic3AxisPedalSource
+from .full_body_source import FullBodySource
 from .deviceio_tensor_types import (
     HeadPoseTType,
     HandPoseTType,
     ControllerSnapshotType,
     Generic3AxisPedalOutputType,
+    FullBodyPosePicoTType,
     DeviceIOHeadPose,
     DeviceIOHandPose,
     DeviceIOControllerSnapshot,
     DeviceIOGeneric3AxisPedalOutput,
+    DeviceIOFullBodyPosePico,
 )
 
 __all__ = [
@@ -25,12 +28,15 @@ __all__ = [
     "HandsSource",
     "ControllersSource",
     "Generic3AxisPedalSource",
+    "FullBodySource",
     "HeadPoseTType",
     "HandPoseTType",
     "ControllerSnapshotType",
     "Generic3AxisPedalOutputType",
+    "FullBodyPosePicoTType",
     "DeviceIOHeadPose",
     "DeviceIOHandPose",
     "DeviceIOControllerSnapshot",
     "DeviceIOGeneric3AxisPedalOutput",
+    "DeviceIOFullBodyPosePico",
 ]

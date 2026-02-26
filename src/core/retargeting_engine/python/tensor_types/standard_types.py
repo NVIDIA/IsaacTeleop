@@ -15,6 +15,7 @@ from .ndarray_types import NDArrayType, DLDataType
 
 # Constants
 NUM_HAND_JOINTS = 26  # XR_HAND_JOINT_COUNT_EXT from OpenXR
+NUM_BODY_JOINTS_PICO = 24  # XR_BODY_JOINT_COUNT_BD from XR_BD_body_tracking
 
 # ============================================================================
 # Hand Tracking Types
@@ -197,6 +198,57 @@ def ControllerInput() -> TensorGroupType:
             FloatType("controller_squeeze_value"),
             FloatType("controller_trigger_value"),
             BoolType("controller_is_active"),
+        ],
+    )
+
+
+# ============================================================================
+# Full Body Tracking Types
+# ============================================================================
+
+
+def FullBodyInput() -> TensorGroupType:
+    """
+    Standard TensorGroupType for full body tracking data.
+
+    Matches the FullBodyPosePico schema from full_body.fbs with 24 joints
+    (XR_BD_body_tracking extension for PICO devices).
+
+    Fields:
+        - joint_positions: (24, 3) float32 array - XYZ positions for each joint
+        - joint_orientations: (24, 4) float32 array - XYZW quaternions for each joint
+        - joint_valid: (24,) uint8 array - Validity flag for each joint
+        - is_active: bool - Whether body tracking is active
+        - timestamp: int - Timestamp in XrTime format (int64)
+
+    Returns:
+        TensorGroupType for full body tracking data
+
+    Schema reference: IsaacTeleop/src/core/schema/fbs/full_body.fbs
+    """
+    return TensorGroupType(
+        "body",
+        [
+            NDArrayType(
+                "body_joint_positions",
+                shape=(NUM_BODY_JOINTS_PICO, 3),
+                dtype=DLDataType.FLOAT,
+                dtype_bits=32,
+            ),
+            NDArrayType(
+                "body_joint_orientations",
+                shape=(NUM_BODY_JOINTS_PICO, 4),
+                dtype=DLDataType.FLOAT,
+                dtype_bits=32,
+            ),
+            NDArrayType(
+                "body_joint_valid",
+                shape=(NUM_BODY_JOINTS_PICO,),
+                dtype=DLDataType.UINT,
+                dtype_bits=8,
+            ),
+            BoolType("body_is_active"),
+            IntType("body_timestamp"),
         ],
     )
 

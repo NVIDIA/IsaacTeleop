@@ -5,7 +5,8 @@
 Dynamically generated indices for standard TensorGroupTypes.
 
 This module provides IntEnum classes for indexing into standard tensor groups
-(HandInput, ControllerInput, Generic3AxisPedalInput) and standard joint arrays (HandJointIndex).
+(HandInput, ControllerInput, Generic3AxisPedalInput, FullBodyInput) and standard joint arrays
+(HandJointIndex, BodyJointPicoIndex).
 
 The indices for TensorGroupTypes are generated automatically from the type definitions
 to ensure they always match the schema.
@@ -13,7 +14,12 @@ to ensure they always match the schema.
 
 from typing import Any
 from enum import IntEnum
-from .standard_types import HandInput, ControllerInput, Generic3AxisPedalInput
+from .standard_types import (
+    HandInput,
+    ControllerInput,
+    Generic3AxisPedalInput,
+    FullBodyInput,
+)
 
 
 def _create_index_enum(name: str, group_type, prefix: str = "") -> IntEnum:
@@ -34,6 +40,9 @@ ControllerInputIndex: Any = _create_index_enum(
 )
 Generic3AxisPedalInputIndex: Any = _create_index_enum(
     "Generic3AxisPedalInputIndex", Generic3AxisPedalInput(), "pedal_"
+)
+FullBodyInputIndex: Any = _create_index_enum(
+    "FullBodyInputIndex", FullBodyInput(), "body_"
 )
 
 
@@ -66,3 +75,32 @@ class HandJointIndex(IntEnum):
     LITTLE_INTERMEDIATE = 23
     LITTLE_DISTAL = 24
     LITTLE_TIP = 25
+
+
+class BodyJointPicoIndex(IntEnum):
+    """Indices for PICO body joints (XR_BD_body_tracking, 24 joints)."""
+
+    PELVIS = 0
+    LEFT_HIP = 1
+    RIGHT_HIP = 2
+    SPINE1 = 3
+    LEFT_KNEE = 4
+    RIGHT_KNEE = 5
+    SPINE2 = 6
+    LEFT_ANKLE = 7
+    RIGHT_ANKLE = 8
+    SPINE3 = 9
+    LEFT_FOOT = 10
+    RIGHT_FOOT = 11
+    NECK = 12
+    LEFT_COLLAR = 13
+    RIGHT_COLLAR = 14
+    HEAD = 15
+    LEFT_SHOULDER = 16
+    RIGHT_SHOULDER = 17
+    LEFT_ELBOW = 18
+    RIGHT_ELBOW = 19
+    LEFT_WRIST = 20
+    RIGHT_WRIST = 21
+    LEFT_HAND = 22
+    RIGHT_HAND = 23

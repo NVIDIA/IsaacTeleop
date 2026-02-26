@@ -41,8 +41,9 @@ Incremental rebuilds use Docker BuildKit cache. Ensure BuildKit is enabled (defa
 Use host networking (recommended for ROS 2 DDS):
 ```bash
 source scripts/setup_cloudxr_env.sh
-docker run --rm --net=host \
+docker run --rm --net=host --ipc=host \
   -e XR_RUNTIME_JSON -e NV_CXR_RUNTIME_DIR \
+  -e ROS_LOCALHOST_ONLY=1 \
   -v $CXR_HOST_VOLUME_PATH:$CXR_HOST_VOLUME_PATH:ro \
   --name teleop_ros2_ref \
   teleop_ros2_ref
@@ -57,6 +58,7 @@ ros2 topic echo /xr_teleop/hand geometry_msgs/msg/PoseArray
 ros2 topic echo /xr_teleop/root_twist geometry_msgs/msg/TwistStamped
 ros2 topic echo /xr_teleop/root_pose geometry_msgs/msg/PoseStamped
 ros2 topic echo /xr_teleop/controller_data std_msgs/msg/ByteMultiArray
+ros2 topic echo /xr_teleop/full_body std_msgs/msg/ByteMultiArray
 ```
 
 ## Controller Data Decoding

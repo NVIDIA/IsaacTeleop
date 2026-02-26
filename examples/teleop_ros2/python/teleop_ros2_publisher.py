@@ -11,6 +11,7 @@ Publishes teleoperation data over ROS2 topics using isaacteleop TeleopSession:
   - xr_teleop/root_twist (TwistStamped): root velocity command
   - xr_teleop/root_pose (PoseStamped): root pose command (height only)
   - xr_teleop/controller_data (ByteMultiArray): msgpack-encoded controller data
+  - xr_teleop/full_body (ByteMultiArray): msgpack-encoded full body tracking data
 """
 
 import argparse
@@ -29,6 +30,7 @@ from std_msgs.msg import ByteMultiArray
 
 from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     ControllersSource,
+    FullBodySource,
     HandsSource,
 )
 from isaacteleop.retargeting_engine.interface import OutputCombiner
@@ -37,7 +39,9 @@ from isaacteleop.retargeting_engine.retargeters import (
     LocomotionRootCmdRetargeterConfig,
 )
 from isaacteleop.retargeting_engine.tensor_types.indices import (
+    BodyJointPicoIndex,
     ControllerInputIndex,
+    FullBodyInputIndex,
     HandInputIndex,
     HandJointIndex,
 )
@@ -132,6 +136,24 @@ def _build_controller_payload(
     }
 
 
+_BODY_JOINT_NAMES = [e.name for e in BodyJointPicoIndex]
+
+
+def _build_full_body_payload(full_body: np.ndarray) -> Dict:
+    positions = np.asarray(full_body[FullBodyInputIndex.JOINT_POSITIONS])
+    orientations = np.asarray(full_body[FullBodyInputIndex.JOINT_ORIENTATIONS])
+    valid = np.asarray(full_body[FullBodyInputIndex.JOINT_VALID])
+
+    return {
+        "timestamp": time.time_ns(),
+        "is_active": bool(full_body[FullBodyInputIndex.IS_ACTIVE]),
+        "joint_names": _BODY_JOINT_NAMES,
+        "joint_positions": [[float(v) for v in pos] for pos in positions],
+        "joint_orientations": [[float(v) for v in ori] for ori in orientations],
+        "joint_valid": [bool(v) for v in valid],
+    }
+
+
 def _to_pose(position, orientation=None) -> Pose:
     pose = Pose()
     pose.position.x = float(position[0])
@@ -166,6 +188,7 @@ def main() -> int:
     parser.add_argument("--twist-topic", default="xr_teleop/root_twist")
     parser.add_argument("--pose-topic", default="xr_teleop/root_pose")
     parser.add_argument("--controller-topic", default="xr_teleop/controller_data")
+    parser.add_argument("--full-body-topic", default="xr_teleop/full_body")
     parser.add_argument("--frame-id", default="world")
     parser.add_argument("--rate-hz", type=float, default=60.0)
     parser.add_argument("--use-mock-operators", action="store_true")
@@ -179,9 +202,11 @@ def main() -> int:
     pub_twist = node.create_publisher(TwistStamped, args.twist_topic, 10)
     pub_pose = node.create_publisher(PoseStamped, args.pose_topic, 10)
     pub_controller = node.create_publisher(ByteMultiArray, args.controller_topic, 10)
+    pub_full_body = node.create_publisher(ByteMultiArray, args.full_body_topic, 10)
 
     hands = HandsSource(name="hands")
     controllers = ControllersSource(name="controllers")
+    full_body = FullBodySource(name="full_body")
     locomotion = LocomotionRootCmdRetargeter(
         LocomotionRootCmdRetargeterConfig(), name="locomotion"
     )
@@ -199,6 +224,7 @@ def main() -> int:
             "controller_left": controllers.output(ControllersSource.LEFT),
             "controller_right": controllers.output(ControllersSource.RIGHT),
             "root_command": locomotion_connected.output("root_command"),
+            "full_body": full_body.output(FullBodySource.FULL_BODY),
         }
     )
 
@@ -223,85 +249,113 @@ def main() -> int:
         plugins=plugins,
     )
 
-    with TeleopSession(config) as session:
-        while rclpy.ok():
-            result = session.step()
+    while rclpy.ok():
+        try:
+            with TeleopSession(config) as session:
+                while rclpy.ok():
+                    result = session.step()
 
-            now = node.get_clock().now().to_msg()
-            hand_msg = PoseArray()
-            hand_msg.header.stamp = now
-            hand_msg.header.frame_id = args.frame_id
+                    now = node.get_clock().now().to_msg()
+                    hand_msg = PoseArray()
+                    hand_msg.header.stamp = now
+                    hand_msg.header.frame_id = args.frame_id
 
-            left_hand = result.get("hand_left")
-            right_hand = result.get("hand_right")
+                    left_hand = result.get("hand_left")
+                    right_hand = result.get("hand_right")
 
-            if right_hand is not None and right_hand[HandInputIndex.IS_ACTIVE]:
-                right_positions = np.asarray(right_hand[HandInputIndex.JOINT_POSITIONS])
-                right_orientations = np.asarray(
-                    right_hand[HandInputIndex.JOINT_ORIENTATIONS]
-                )
-                hand_msg.poses.append(
-                    _to_pose(
-                        right_positions[HandJointIndex.WRIST],
-                        right_orientations[HandJointIndex.WRIST],
+                    if right_hand is not None and right_hand[HandInputIndex.IS_ACTIVE]:
+                        right_positions = np.asarray(
+                            right_hand[HandInputIndex.JOINT_POSITIONS]
+                        )
+                        right_orientations = np.asarray(
+                            right_hand[HandInputIndex.JOINT_ORIENTATIONS]
+                        )
+                        hand_msg.poses.append(
+                            _to_pose(
+                                right_positions[HandJointIndex.WRIST],
+                                right_orientations[HandJointIndex.WRIST],
+                            )
+                        )
+                    if left_hand is not None and left_hand[HandInputIndex.IS_ACTIVE]:
+                        left_positions = np.asarray(
+                            left_hand[HandInputIndex.JOINT_POSITIONS]
+                        )
+                        left_orientations = np.asarray(
+                            left_hand[HandInputIndex.JOINT_ORIENTATIONS]
+                        )
+                        hand_msg.poses.append(
+                            _to_pose(
+                                left_positions[HandJointIndex.WRIST],
+                                left_orientations[HandJointIndex.WRIST],
+                            )
+                        )
+
+                    if right_hand is not None and right_hand[HandInputIndex.IS_ACTIVE]:
+                        _append_hand_poses(
+                            hand_msg.poses, right_positions, right_orientations
+                        )
+                    if left_hand is not None and left_hand[HandInputIndex.IS_ACTIVE]:
+                        _append_hand_poses(
+                            hand_msg.poses, left_positions, left_orientations
+                        )
+
+                    if hand_msg.poses:
+                        pub_hand.publish(hand_msg)
+
+                    root_command = result.get("root_command")
+                    if root_command is not None:
+                        cmd = np.asarray(root_command[0])
+                        twist_msg = TwistStamped()
+                        twist_msg.header.stamp = now
+                        twist_msg.header.frame_id = args.frame_id
+                        twist_msg.twist.linear.x = float(cmd[0])
+                        twist_msg.twist.linear.y = float(cmd[1])
+                        twist_msg.twist.linear.z = 0.0
+                        twist_msg.twist.angular.z = float(cmd[2])
+                        pub_twist.publish(twist_msg)
+
+                        pose_msg = PoseStamped()
+                        pose_msg.header.stamp = now
+                        pose_msg.header.frame_id = args.frame_id
+                        pose_msg.pose.position.z = float(cmd[3])
+                        pose_msg.pose.orientation.w = 1.0
+                        pub_pose.publish(pose_msg)
+
+                    left_ctrl = result.get("controller_left")
+                    right_ctrl = result.get("controller_right")
+                    left_active = left_ctrl is not None and bool(
+                        left_ctrl[ControllerInputIndex.IS_ACTIVE]
                     )
-                )
-            if left_hand is not None and left_hand[HandInputIndex.IS_ACTIVE]:
-                left_positions = np.asarray(left_hand[HandInputIndex.JOINT_POSITIONS])
-                left_orientations = np.asarray(
-                    left_hand[HandInputIndex.JOINT_ORIENTATIONS]
-                )
-                hand_msg.poses.append(
-                    _to_pose(
-                        left_positions[HandJointIndex.WRIST],
-                        left_orientations[HandJointIndex.WRIST],
+                    right_active = right_ctrl is not None and bool(
+                        right_ctrl[ControllerInputIndex.IS_ACTIVE]
                     )
-                )
+                    if left_active or right_active:
+                        controller_payload = _build_controller_payload(
+                            left_ctrl, right_ctrl
+                        )
+                        payload = msgpack.packb(controller_payload, default=mnp.encode)
+                        payload = tuple(bytes([a]) for a in payload)
+                        controller_msg = ByteMultiArray()
+                        controller_msg.data = payload
+                        pub_controller.publish(controller_msg)
 
-            if right_hand is not None and right_hand[HandInputIndex.IS_ACTIVE]:
-                _append_hand_poses(hand_msg.poses, right_positions, right_orientations)
-            if left_hand is not None and left_hand[HandInputIndex.IS_ACTIVE]:
-                _append_hand_poses(hand_msg.poses, left_positions, left_orientations)
+                    full_body_data = result.get("full_body")
+                    if full_body_data is not None and bool(
+                        full_body_data[FullBodyInputIndex.IS_ACTIVE]
+                    ):
+                        body_payload = _build_full_body_payload(full_body_data)
+                        payload = msgpack.packb(body_payload, default=mnp.encode)
+                        payload = tuple(bytes([a]) for a in payload)
+                        body_msg = ByteMultiArray()
+                        body_msg.data = payload
+                        pub_full_body.publish(body_msg)
 
-            if hand_msg.poses:
-                pub_hand.publish(hand_msg)
-
-            root_command = result.get("root_command")
-            if root_command is not None:
-                cmd = np.asarray(root_command[0])
-                twist_msg = TwistStamped()
-                twist_msg.header.stamp = now
-                twist_msg.header.frame_id = args.frame_id
-                twist_msg.twist.linear.x = float(cmd[0])
-                twist_msg.twist.linear.y = float(cmd[1])
-                twist_msg.twist.linear.z = 0.0
-                twist_msg.twist.angular.z = float(cmd[2])
-                pub_twist.publish(twist_msg)
-
-                pose_msg = PoseStamped()
-                pose_msg.header.stamp = now
-                pose_msg.header.frame_id = args.frame_id
-                pose_msg.pose.position.z = float(cmd[3])
-                pose_msg.pose.orientation.w = 1.0
-                pub_pose.publish(pose_msg)
-
-            left_ctrl = result.get("controller_left")
-            right_ctrl = result.get("controller_right")
-            left_active = left_ctrl is not None and bool(
-                left_ctrl[ControllerInputIndex.IS_ACTIVE]
-            )
-            right_active = right_ctrl is not None and bool(
-                right_ctrl[ControllerInputIndex.IS_ACTIVE]
-            )
-            if left_active or right_active:
-                controller_payload = _build_controller_payload(left_ctrl, right_ctrl)
-                payload = msgpack.packb(controller_payload, default=mnp.encode)
-                payload = tuple(bytes([a]) for a in payload)
-                controller_msg = ByteMultiArray()
-                controller_msg.data = payload
-                pub_controller.publish(controller_msg)
-
-            time.sleep(sleep_period_s)
+                    time.sleep(sleep_period_s)
+        except RuntimeError as e:
+            if "Failed to get OpenXR system" not in str(e):
+                raise
+            node.get_logger().warn(f"No XR client connected ({e}), retrying in 2s...")
+            time.sleep(2.0)
 
     node.destroy_node()
     rclpy.shutdown()
