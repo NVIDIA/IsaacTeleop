@@ -3,7 +3,7 @@
 #
 # Build docs and deploy to GitHub Pages.
 # - Push to main (canonical repo): deploy to site root.
-# - Pull requests: deploy to preview/pr-<N>/ and comment with preview URL.
+# - Pull requests: deploy to preview/pr-<N>/ and write preview URL to workflow summary.
 
 name: Build & deploy docs
 
@@ -77,8 +77,7 @@ jobs:
     needs: [check-repo, build-docs]
     if: needs.check-repo.outputs.is-canonical-repo == 'true' && (needs.check-repo.outputs.is-deploy-branch == 'true' || github.event_name == 'pull_request')
     permissions:
-      contents: write       # push to gh-pages
-      pull-requests: write  # comment with preview URL (PR only)
+      contents: write  # push to gh-pages
     steps:
       - name: Download docs artifact
         uses: actions/download-artifact@v7
@@ -103,15 +102,16 @@ jobs:
           destination_dir: preview/pr-${{ github.event.pull_request.number }}
           keep_files: true
 
-      - name: Comment PR with preview URL
+      - name: Add preview URL to workflow summary
         if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const base = `https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/preview/pr-${{ github.event.pull_request.number }}/`;
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `## Docs preview\n\nBuilt docs for this PR are available at:\n\n**${base}**\n\n(It may take a minute to appear after the workflow completes.)`
-            });
+        run: |
+          base="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/preview/pr-${{ github.event.pull_request.number }}/"
+          {
+            echo "## Docs preview"
+            echo
+            echo "Built docs for this PR are available at:"
+            echo
+            echo "**${base}**"
+            echo
+            echo "(It may take a minute to appear after the workflow completes.)"
+          } >> "$GITHUB_STEP_SUMMARY"
