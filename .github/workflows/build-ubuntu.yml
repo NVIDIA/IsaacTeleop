@@ -9,6 +9,12 @@ on:
     tags: [ 'v*' ]
   pull_request:
 
+# For PRs, we want to cancel in-progress runs to save resources.
+# For pushes to main or releases, we want to allow all runs to complete.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build-ubuntu:
     # Pin to 22.04 so the wheel is built with GCC 11's libstdc++. The resulting wheel
