@@ -112,9 +112,9 @@ public:
         if (!status.ok())
             throw std::runtime_error("McapMetadataPusher: Failed to open " + mcap_filename + ": " + status.message);
 
-        mcap::Schema schema("core.FrameMetadataOak", "flatbuffer",
-                            std::string(reinterpret_cast<const char*>(core::FrameMetadataOakBinarySchema::data()),
-                                        core::FrameMetadataOakBinarySchema::size()));
+        mcap::Schema schema("core.FrameMetadataOakRecord", "flatbuffer",
+                            std::string(reinterpret_cast<const char*>(core::FrameMetadataOakRecordBinarySchema::data()),
+                                        core::FrameMetadataOakRecordBinarySchema::size()));
         m_writer.addSchema(schema);
 
         for (const auto& config : streams)
@@ -146,8 +146,10 @@ public:
         }
 
         flatbuffers::FlatBufferBuilder builder(MAX_FLATBUFFER_SIZE);
-        auto offset = core::FrameMetadataOak::Pack(builder, &metadata);
-        builder.Finish(offset);
+        auto data_offset = core::FrameMetadataOak::Pack(builder, &metadata);
+        core::FrameMetadataOakRecordBuilder record_builder(builder);
+        record_builder.add_data(data_offset);
+        builder.Finish(record_builder.Finish());
 
         auto now_ns = static_cast<mcap::Timestamp>(std::chrono::steady_clock::now().time_since_epoch().count());
 
