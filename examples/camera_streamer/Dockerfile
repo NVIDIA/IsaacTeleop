@@ -32,6 +32,9 @@ FROM ${BASE_IMG_AMD64} AS base-amd64
 ARG TARGETARCH
 FROM base-${TARGETARCH} AS base
 
+# Runs as root: the container requires privileged access to USB cameras (ZED,
+# OAK-D, V4L2), the NVIDIA GPU, and udev for device hotplug. The entrypoint
+# starts systemd-udevd and runs udevadm trigger/settle, all of which need root.
 USER root
 ENV DEBIAN_FRONTEND=noninteractive
 

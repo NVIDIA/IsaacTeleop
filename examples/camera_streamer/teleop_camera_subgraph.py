@@ -325,7 +325,7 @@ class TeleopCameraSubgraph(Subgraph):
         if self._config.display_mode == DisplayMode.MONITOR:
             self._compose_monitor_mode(monitored_outputs, allocator)
         else:
-            self._compose_xr_mode(monitored_outputs, allocator)
+            self._compose_xr_mode(monitored_outputs)
 
         logger.info(f"Teleop camera subgraph: mode={self._config.display_mode.value}")
 
@@ -512,7 +512,7 @@ class TeleopCameraSubgraph(Subgraph):
             tensors=tensors,
         )
 
-        for display_name, monitor_key, _ in camera_list:
+        for _, monitor_key, _ in camera_list:
             if monitor_key in monitored_outputs:
                 monitor, port = monitored_outputs[monitor_key]
                 self.add_flow(monitor, visualizer, {(port, "receivers")})
@@ -524,7 +524,7 @@ class TeleopCameraSubgraph(Subgraph):
             f"{mon_cfg.width}x{mon_cfg.height}"
         )
 
-    def _compose_xr_mode(self, monitored_outputs: Dict[str, Any], allocator):
+    def _compose_xr_mode(self, monitored_outputs: Dict[str, Any]):
         """Compose XR mode pipeline with 3D plane rendering using XrPlaneRendererOp.
 
         Uses a single XrPlaneRendererOp to render all planes with one Vulkan context.

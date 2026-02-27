@@ -272,19 +272,18 @@ class ZedCameraOp(Operator):
             if err_right != sl.ERROR_CODE.SUCCESS:
                 if self._verbose:
                     logger.warning(f"Failed to retrieve right image: {err_right}")
-                return
-
-            right_gpu = self._zed_gpu_to_contiguous(self._right_image, "right")
-            if right_gpu is None:
-                return
-
-            self.metadata.clear()
-            self.metadata["frame_timestamp_us"] = timestamp_us
-            self.metadata["stream_id"] = self._right_stream_id
-            self.metadata["sequence"] = self._frame_count
-            op_output.emit(
-                as_tensor(right_gpu), "right_frame", emitter_name="holoscan::Tensor"
-            )
+            else:
+                right_gpu = self._zed_gpu_to_contiguous(self._right_image, "right")
+                if right_gpu is not None:
+                    self.metadata.clear()
+                    self.metadata["frame_timestamp_us"] = timestamp_us
+                    self.metadata["stream_id"] = self._right_stream_id
+                    self.metadata["sequence"] = self._frame_count
+                    op_output.emit(
+                        as_tensor(right_gpu),
+                        "right_frame",
+                        emitter_name="holoscan::Tensor",
+                    )
 
         self._frame_count += 1
         self._log_stats()

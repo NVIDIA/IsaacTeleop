@@ -105,6 +105,7 @@ void XrPlaneRendererOp::initialize()
     for (size_t i = 0; i < plane_configs_.size(); i++)
     {
         planes_[i].config = plane_configs_[i];
+        planes_[i].input_index = i;
     }
 
     // Sort planes by distance (farthest first) for proper depth rendering
@@ -194,8 +195,8 @@ void XrPlaneRendererOp::compute(holoscan::InputContext& input,
     for (size_t i = 0; i < planes_.size(); i++)
     {
         auto& plane = planes_[i];
-        std::string input_left = "camera_frame_" + std::to_string(i);
-        std::string input_right = "camera_frame_" + std::to_string(i) + "_right";
+        std::string input_left = "camera_frame_" + std::to_string(plane.input_index);
+        std::string input_right = "camera_frame_" + std::to_string(plane.input_index) + "_right";
 
         // Update left/mono frame
         if (!input.empty(input_left.c_str()))
@@ -277,7 +278,7 @@ void XrPlaneRendererOp::compute(holoscan::InputContext& input,
     holoscan::viz::SetCurrent(holoviz_instance_);
     holoscan::viz::SetCudaStream(current_cuda_stream_);
 
-    // Render all planes within a singlerender pass
+    // Render all planes within a single render pass
     render_planes(composition_layer, head_pos);
 
     // Read back the framebuffer

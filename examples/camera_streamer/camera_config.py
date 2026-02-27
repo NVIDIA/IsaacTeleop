@@ -93,7 +93,10 @@ class CameraConfig:
         """Create CameraConfig from dict (YAML parsing)."""
         unknown = set(data.keys()) - cls._KNOWN_KEYS
         if unknown:
-            warnings.warn(f"Camera '{name}': unknown config keys ignored: {unknown}")
+            warnings.warn(
+                f"Camera '{name}': unknown config keys ignored: {unknown}",
+                stacklevel=2,
+            )
 
         streams = {}
         raw_streams = data.get("streams") or {}
@@ -167,6 +170,8 @@ def validate_camera_configs(cameras: Dict[str, CameraConfig]) -> List[str]:
 
         for stream_name, stream_cfg in cam_cfg.streams.items():
             port = stream_cfg.port
+            if port == 0:
+                continue
             stream_key = f"{cam_name}/{stream_name}"
 
             if port in all_ports:

@@ -77,7 +77,12 @@ class GStreamerH264ReceiverOp(Operator):
         if not self._pipeline or not self._appsink:
             raise RuntimeError("Failed to create GStreamer pipeline")
 
-        self._pipeline.set_state(Gst.State.PLAYING)
+        rc = self._pipeline.set_state(Gst.State.PLAYING)
+        if rc == Gst.StateChangeReturn.FAILURE:
+            self._pipeline.set_state(Gst.State.NULL)
+            raise RuntimeError(
+                f"GStreamer pipeline failed to enter PLAYING state (port {self._port})"
+            )
         self._last_log_time = time.monotonic()
 
         if self._verbose:
@@ -86,6 +91,8 @@ class GStreamerH264ReceiverOp(Operator):
     def stop(self):
         if self._pipeline:
             self._pipeline.set_state(Gst.State.NULL)
+        self._appsink = None
+        self._pipeline = None
         if self._verbose:
             logger.info(f"H264 receiver stopped (frames={self._frame_count})")
 

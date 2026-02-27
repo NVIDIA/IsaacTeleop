@@ -211,7 +211,7 @@ cmd_build_docker() {
             # Copy Python libs to a non-mounted path for the committed image.
             cp -a /camera_streamer/build/python /camera_streamer/python"
 
-    docker commit "$BUILD_CONTAINER" "$TAG"
+    docker commit --change 'USER root' "$BUILD_CONTAINER" "$TAG"
     docker rm "$BUILD_CONTAINER"
     docker rmi "$BASE_TAG" 2>/dev/null || true
 
@@ -280,8 +280,16 @@ cmd_deploy_sender() {
 
     while [[ $# -gt 0 ]]; do
         case $1 in
-            --receiver-host) RECEIVER_HOST="$2"; shift 2 ;;
-            --config)        CONFIG="$2"; shift 2 ;;
+            --receiver-host)
+                if [[ $# -lt 2 || "$2" == -* ]]; then
+                    log_error "--receiver-host requires a value"; exit 1
+                fi
+                RECEIVER_HOST="$2"; shift 2 ;;
+            --config)
+                if [[ $# -lt 2 || "$2" == -* ]]; then
+                    log_error "--config requires a value"; exit 1
+                fi
+                CONFIG="$2"; shift 2 ;;
             *) log_error "Unknown option: $1"; exit 1 ;;
         esac
     done

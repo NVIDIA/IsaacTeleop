@@ -203,6 +203,8 @@ void NvStreamDecoderOp::compute(holoscan::InputContext& op_input,
     if (status != NPP_SUCCESS)
     {
         HOLOSCAN_LOG_ERROR("NPP NV12->RGB failed: {}", static_cast<int>(status));
+        decoder_->UnlockFrame(&pFrame);
+        return;
     }
 
     decoder_->UnlockFrame(&pFrame);

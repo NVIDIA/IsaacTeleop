@@ -147,6 +147,13 @@ def create_oakd_source(
     Args:
         output_format: "raw" for GPU tensors (local display), "h264" for VPU-encoded packets.
     """
+    _SUPPORTED_OAKD_FORMATS = ("raw", "h264")
+    if output_format not in _SUPPORTED_OAKD_FORMATS:
+        raise ValueError(
+            f"OAK-D camera '{cam_name}': unsupported output_format '{output_format}' "
+            f"(supported: {_SUPPORTED_OAKD_FORMATS})"
+        )
+
     from operators.oakd_camera.oakd_camera_op import OakdCameraOp
 
     result = CameraSourceResult()
@@ -219,6 +226,13 @@ def create_v4l2_source(
     verbose: bool = False,
 ) -> CameraSourceResult:
     """Create a V4L2 camera source with GPU format conversion."""
+    _SUPPORTED_V4L2_FORMATS = ("rgb", "bgra")
+    if color_format not in _SUPPORTED_V4L2_FORMATS:
+        raise ValueError(
+            f"V4L2 camera '{cam_name}': unsupported color_format '{color_format}' "
+            f"(supported: {_SUPPORTED_V4L2_FORMATS})"
+        )
+
     device = cam_cfg.device
 
     v4l2_source = V4L2VideoCaptureOp(

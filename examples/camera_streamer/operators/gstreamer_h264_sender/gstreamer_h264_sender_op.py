@@ -125,6 +125,7 @@ class GStreamerH264SenderOp(Operator):
         """Stop GStreamer pipeline and log final stats."""
         if self._pipeline:
             self._pipeline.set_state(Gst.State.NULL)
+            self._appsrc = None
             self._pipeline = None
 
         if self._verbose:

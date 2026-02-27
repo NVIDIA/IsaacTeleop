@@ -68,7 +68,7 @@ private:
 
     // CUDA
     CUcontext cu_context_ = nullptr;
-    CUdevice cu_device_;
+    CUdevice cu_device_ = -1;
     NppStreamContext npp_ctx_{};
 
     // Decoder

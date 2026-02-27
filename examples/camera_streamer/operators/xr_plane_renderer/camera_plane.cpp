@@ -132,7 +132,9 @@ void CameraPlane::start_transition(const glm::vec3& head_pos, const glm::vec3& f
 void CameraPlane::update_transition(TimePoint now)
 {
     float elapsed = seconds_since(transition_start_time_, now);
-    float t = glm::min(elapsed / config_.transition_duration, 1.f);
+    float t = (config_.transition_duration > 0.f)
+              ? glm::min(elapsed / config_.transition_duration, 1.f)
+              : 1.f;
     float smooth_t = glm::smoothstep(0.f, 1.f, t);
 
     position_ = glm::mix(transition_start_position_, target_position_, smooth_t);
@@ -169,7 +171,12 @@ float CameraPlane::compute_yaw_to_face(const glm::vec3& target, const glm::vec3&
 
 float CameraPlane::angle_between(const glm::vec3& a, const glm::vec3& b)
 {
-    float d = glm::dot(glm::normalize(a), glm::normalize(b));
+    float la = glm::length(a);
+    float lb = glm::length(b);
+    if (la < 1e-6f || lb < 1e-6f) {
+        return 0.f;
+    }
+    float d = glm::dot(a / la, b / lb);
     d = glm::clamp(d, -1.f, 1.f);
     return glm::degrees(glm::acos(d));
 }

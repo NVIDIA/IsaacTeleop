@@ -451,7 +451,7 @@ class OakdCameraOp(Operator):
                         emitter_name="holoscan::Tensor",
                     )
             except Exception:
-                pass
+                logger.warning("Right-eye raw frame failed", exc_info=True)
 
         return True
 
@@ -499,7 +499,7 @@ class OakdCameraOp(Operator):
                         "h264_packets_right",
                     )
             except Exception:
-                pass
+                logger.warning("Right-eye H.264 packet failed", exc_info=True)
 
         return True
 

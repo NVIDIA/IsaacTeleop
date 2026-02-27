@@ -9,14 +9,14 @@ A [Holoscan](https://docs.nvidia.com/holoscan/sdk-user-guide/)-based multi-camer
 
 The application is configured along two independent axes, **source** and **display**, that can be freely combined:
 
-### Source — how camera frames enter the pipeline
+## Source — how camera frames enter the pipeline
 
 | Mode | Description | Use case |
 |---|---|---|
-| **Local** | The entire stack runs on the robot itself (Jetson/ARM). | Lowest latency. Direct Robot to XR device connection. |
+| **Local** | The entire stack runs on the robot itself (Jetson/ARM). | Lowest latency. Direct robot-to-HMD connection. |
 | **RTP** | A lightweight sender on the robot encodes each stream to H.264 and ships it over UDP. A receiver on the workstation decodes and displays. | Robot-to-workstation streaming over the network. |
 
-### Display — where the operator sees the video
+## Display — where the operator sees the video
 
 | Mode | Description | Use case |
 |---|---|---|
@@ -25,7 +25,7 @@ The application is configured along two independent axes, **source** and **displ
 
 The two axes are orthogonal: you can receive cameras over RTP and display in XR, or run the full stack locally on the robot and stream straight to a headset. In XR mode the camera pipeline shares a single CloudXR connection with Isaac Teleop's device tracking, so the operator's input and the robot's camera feeds travel over the same session.
 
-### Features
+## Features
 
 - **Shared CloudXR runtime**: in XR mode, camera streaming runs inside the same CloudXR session as Isaac Teleop's device. One connection carries both operator input and robot video.
 - **Multi-camera, mono & stereo**: configure any number of cameras, each with independent resolution, frame rate, and bitrate.

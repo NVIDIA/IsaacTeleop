@@ -128,7 +128,13 @@ bool NvStreamEncoderOp::init_encoder()
             &initializeParams, guidCodec, guidPreset, NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY);
 
         // Override key settings for streaming
-        initializeParams.frameRateNum = fps_.get();
+        int fps = fps_.get();
+        if (fps <= 0)
+        {
+            throw std::runtime_error(
+                fmt::format("NvStreamEncoderOp: invalid fps={}, must be > 0", fps));
+        }
+        initializeParams.frameRateNum = fps;
         initializeParams.frameRateDen = 1;
 
         // CBR for streaming
@@ -137,7 +143,7 @@ bool NvStreamEncoderOp::init_encoder()
         encodeConfig.rcParams.maxBitRate = bitrate_.get() * 1.2; // 20% overhead
 
         // VBV buffer size: 1 frame worth of data for minimum latency
-        encodeConfig.rcParams.vbvBufferSize = bitrate_.get() / fps_.get();
+        encodeConfig.rcParams.vbvBufferSize = bitrate_.get() / fps;
         encodeConfig.rcParams.vbvInitialDelay = encodeConfig.rcParams.vbvBufferSize;
 
         // No B-frames for lowest latency
@@ -239,9 +245,10 @@ void NvStreamEncoderOp::compute(holoscan::InputContext& op_input,
 
     cuda_check(cuCtxPushCurrent(cu_context_), "cuCtxPushCurrent");
 
+    std::vector<NvEncOutputFrame> vPacket;
+    bool encode_ok = false;
     try
     {
-        // Get encoder input frame
         const NvEncInputFrame* encoderInputFrame = encoder_->GetNextInputFrame();
         if (!encoderInputFrame)
         {
@@ -250,58 +257,54 @@ void NvStreamEncoderOp::compute(holoscan::InputContext& op_input,
             return;
         }
 
-        // Copy BGRA data directly to encoder input buffer
         NvEncoderCuda::CopyToDeviceFrame(
             cu_context_, const_cast<void*>(static_cast<const void*>(data_ptr)),
-            0, // srcPitch = 0 means use width * 4
+            0,
             reinterpret_cast<CUdeviceptr>(encoderInputFrame->inputPtr), static_cast<int>(encoderInputFrame->pitch),
             encoder_->GetEncodeWidth(), encoder_->GetEncodeHeight(), CU_MEMORYTYPE_DEVICE,
             encoderInputFrame->bufferFormat, encoderInputFrame->chromaOffsets, encoderInputFrame->numChromaPlanes);
 
-        std::vector<NvEncOutputFrame> vPacket;
         encoder_->EncodeFrame(vPacket);
-
-        cuda_check(cuCtxPopCurrent(nullptr), "cuCtxPopCurrent");
-
-        // Output encoded packets as std::vector<uint8_t>
-        if (!vPacket.empty() && !vPacket[0].frame.empty())
-        {
-            // Copy to output vector
-            std::vector<uint8_t> output_data(vPacket[0].frame.begin(), vPacket[0].frame.end());
-
-            if (verbose_.get() && frame_count_ == 0)
-            {
-                HOLOSCAN_LOG_INFO("NvStreamEncoderOp[{}]: First encoded frame, {} bytes", name(), output_data.size());
-            }
-
-            op_output.emit(output_data, "packet");
-        }
-
-        frame_count_++;
-
-        if (verbose_.get())
-        {
-            double now = get_time();
-            if (now - last_log_time_ >= STATS_INTERVAL_SEC)
-            {
-                double fps = (frame_count_ - last_log_count_) / (now - last_log_time_);
-                HOLOSCAN_LOG_INFO("NvStreamEncoderOp | fps={:.1f} | total={}", fps, frame_count_);
-                last_log_time_ = now;
-                last_log_count_ = frame_count_;
-            }
-        }
+        encode_ok = true;
     }
     catch (const NVENCException& e)
     {
         HOLOSCAN_LOG_ERROR("NVENC encode failed: {}", e.what());
-        cuCtxPopCurrent(nullptr);
-        return;
     }
     catch (const std::exception& e)
     {
         HOLOSCAN_LOG_ERROR("Encode error: {}", e.what());
-        cuCtxPopCurrent(nullptr);
+    }
+
+    cuda_check(cuCtxPopCurrent(nullptr), "cuCtxPopCurrent");
+
+    if (!encode_ok)
         return;
+
+    if (!vPacket.empty() && !vPacket[0].frame.empty())
+    {
+        std::vector<uint8_t> output_data(vPacket[0].frame.begin(), vPacket[0].frame.end());
+
+        if (verbose_.get() && frame_count_ == 0)
+        {
+            HOLOSCAN_LOG_INFO("NvStreamEncoderOp[{}]: First encoded frame, {} bytes", name(), output_data.size());
+        }
+
+        op_output.emit(output_data, "packet");
+    }
+
+    frame_count_++;
+
+    if (verbose_.get())
+    {
+        double now = get_time();
+        if (now - last_log_time_ >= STATS_INTERVAL_SEC)
+        {
+            double fps = (frame_count_ - last_log_count_) / (now - last_log_time_);
+            HOLOSCAN_LOG_INFO("NvStreamEncoderOp | fps={:.1f} | total={}", fps, frame_count_);
+            last_log_time_ = now;
+            last_log_count_ = frame_count_;
+        }
     }
 }
 

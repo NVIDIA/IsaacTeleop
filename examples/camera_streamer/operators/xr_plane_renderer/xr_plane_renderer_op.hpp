@@ -87,6 +87,7 @@ private:
     struct PlaneState
     {
         XrPlaneConfig config;
+        size_t input_index = 0;
         std::unique_ptr<CameraPlane> tracker;
 
         // Camera frame data - left/mono
