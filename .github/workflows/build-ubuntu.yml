@@ -308,6 +308,9 @@ jobs:
           echo "EOF"
         } >> "$GITHUB_OUTPUT"
 
+        echo "Pause for 30 seconds to ensure GitHub has finalized asset availability at URLs"
+        sleep 30
+
   kitmaker:
     runs-on: [self-hosted, linux]
     needs:
