@@ -62,6 +62,19 @@ is_inside_container() {
     [[ -f /.dockerenv ]] || grep -qsm1 'docker\|containerd' /proc/1/cgroup 2>/dev/null
 }
 
+# Grant the local container access to the host X server (idempotent).
+# Only runs on the host (skipped inside containers) and only when xhost
+# is available and DISPLAY is set.
+ensure_x11_access() {
+    if is_inside_container; then return; fi
+    if [[ -z "${DISPLAY:-}" ]]; then return; fi
+    if ! command -v xhost >/dev/null 2>&1; then return; fi
+    if ! xhost 2>/dev/null | grep -q 'LOCAL:'; then
+        log_info "Granting container X11 access (xhost +local:docker)"
+        xhost +local:docker >/dev/null 2>&1 || true
+    fi
+}
+
 # Common docker run arguments shared by shell, run, and deploy-sender.
 common_docker_args() {
     echo \
@@ -230,6 +243,7 @@ cmd_shell() {
         exec docker exec -it "$CONTAINER_NAME" /bin/bash
     fi
 
+    ensure_x11_access
     log_info "Starting dev shell ${_BOLD}$CONTAINER_NAME${_RESET}"
     log_info "Host source mounted at /camera_streamer"
 
@@ -252,6 +266,7 @@ cmd_shell() {
 # ---------------------------------------------------------------------------
 
 cmd_run() {
+    ensure_x11_access
     ensure_image
     local TAG
     TAG="$(image_tag)"
