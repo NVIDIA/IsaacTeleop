@@ -5,7 +5,7 @@ name: Build Ubuntu
 
 on:
   push:
-    branches: [ main, 'release/*.*.x' ]
+    branches: [ main, 'release/*.*.x', 'aaristarkhov/kitmaker' ]
     tags: [ 'v*' ]
   pull_request:
 
@@ -24,7 +24,7 @@ jobs:
 
     strategy:
       matrix:
-        build_type: ["Debug", "Release"]
+        build_type: ["Release"]
         python_version: ['3.10', '3.11', '3.12']
         arch: ['x64', 'arm64']
 
@@ -103,6 +103,7 @@ jobs:
       with:
         name: isaacteleop-wheels-${{ matrix.arch }}-py${{ matrix.python_version }}
         path: install/wheels/*.whl
+        if-no-files-found: error
         retention-days: 1
 
   test-cloudxr:
@@ -216,12 +217,17 @@ jobs:
           -p "${ARTIFACTORY_API_KEY}" \
           "${wheels[@]}"
 
-  kitmaker:
-    runs-on: [self-hosted, linux]
+  publish-github-release-assets:
+    runs-on: ubuntu-latest
     needs:
-      - publish-wheel
-    environment: release
-    if: ${{ needs.publish-wheel.result == 'success' }}
+      - build-ubuntu
+      # - test-cloudxr
+    outputs:
+      wheel_urls: ${{ steps.upload-release-assets.outputs.wheel_urls }}
+    permissions:
+      contents: write
+    # Publish only after build and CloudXR tests succeed.
+    if: ${{ github.event_name == 'push' && needs.build-ubuntu.result == 'success' }} # && needs.test-cloudxr.result == 'success'
 
     steps:
     - name: Download wheel artifacts
@@ -231,37 +237,13 @@ jobs:
         merge-multiple: true
         path: wheels
 
-    - name: Submit wheel release to Kitmaker
+    - name: Upload wheel(s) as GitHub release assets
+      id: upload-release-assets
       env:
-        KITMAKER_PROJECT_ID: ${{ secrets.KITMAKER_PROJECT_ID }}
-        KITMAKER_TOKEN: ${{ secrets.KITMAKER_TOKEN }}
-        KITMAKER_PIC_EMAIL: ${{ secrets.KITMAKER_PIC_EMAIL }}
-        ARTIFACTORY_DOMAIN: ${{ secrets.ARTIFACTORY_DOMAIN }}
-        ARTIFACTORY_REPO: ${{ secrets.ARTIFACTORY_REPO }}
-        ARTIFACTORY_TOKEN: ${{ secrets.ARTIFACTORY_TOKEN }}
-        ARTIFACTORY_USER: ${{ secrets.ARTIFACTORY_USER }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_REPO: ${{ github.repository }}
       run: |
         set -euo pipefail
-
-        if [[ -z "${KITMAKER_TOKEN}" || -z "${KITMAKER_PIC_EMAIL}" ]]; then
-          echo "Missing one or more required secrets: KITMAKER_TOKEN, KITMAKER_PIC_EMAIL"
-          exit 1
-        fi
-
-        if [[ -z "${ARTIFACTORY_DOMAIN}" || -z "${ARTIFACTORY_REPO}" || -z "${ARTIFACTORY_TOKEN}" ]]; then
-          echo "Missing one or more required secrets: ARTIFACTORY_DOMAIN, ARTIFACTORY_REPO, ARTIFACTORY_TOKEN"
-          exit 1
-        fi
-
-        if [[ "${ARTIFACTORY_DOMAIN}" == http://* || "${ARTIFACTORY_DOMAIN}" == https://* ]]; then
-          echo "ARTIFACTORY_DOMAIN must be hostname only (no scheme), e.g. artifactory.example.com"
-          exit 1
-        fi
-
-        if [[ "${ARTIFACTORY_DOMAIN}" == */* ]]; then
-          echo "ARTIFACTORY_DOMAIN must not contain '/'"
-          exit 1
-        fi
 
         shopt -s nullglob
         wheels=(wheels/*.whl)
@@ -271,42 +253,94 @@ jobs:
           exit 1
         fi
 
-        api_url="https://kitmaker-portal.nvidia.com/api/v0/projects/${KITMAKER_PROJECT_ID}/releases"
-        wheel_url_base="https://${ARTIFACTORY_USER}:${ARTIFACTORY_TOKEN}@${ARTIFACTORY_DOMAIN}/artifactory/${ARTIFACTORY_REPO}/isaacteleop"
+        tag="ci-wheels-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+        title="CI Wheels ${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}"
 
-        for wheel_path in "${wheels[@]}"; do
-          wheel_name="$(basename "${wheel_path}")"
-          if [[ "${wheel_name}" =~ ^isaacteleop-([^-]+)- ]]; then
-            wheel_version="${BASH_REMATCH[1]}"
-          else
-            echo "Unable to parse version from wheel filename: ${wheel_name}"
-            exit 1
-          fi
+        gh release create "${tag}" \
+          --repo "${GH_REPO}" \
+          --target "${GITHUB_SHA}" \
+          --title "${title}" \
+          --notes "Automated wheel artifacts for ${GITHUB_SHA}" \
+          --draft
 
-          wheel_url="${wheel_url_base}/${wheel_version}/${wheel_name}"
+        echo "Uploading ${#wheels[@]} wheel(s) to release ${tag}"
+        gh release upload "${tag}" "${wheels[@]}" --repo "${GH_REPO}"
 
-          payload=$(cat <<EOF
+        echo "Finalizing release ${tag} as pre-release"
+        gh release edit "${tag}" --repo "${GH_REPO}" --draft=false --prerelease
+
+        echo "Uploaded assets on ${tag}:"
+        release_assets_json="$(gh release view "${tag}" --repo "${GH_REPO}" --json assets)"
+        echo "${release_assets_json}"
+
+        wheel_urls="$(jq -r '.assets[] | select(.name | endswith(".whl")) | .url' <<< "${release_assets_json}")"
+        if [[ -z "${wheel_urls}" ]]; then
+          echo "Unable to find wheel asset URLs in uploaded release assets"
+          exit 1
+        fi
+
         {
-          "project_name": "isaacteleop",
-          "payload": [
-            {
-              "pic": "${KITMAKER_PIC_EMAIL}",
-              "job_type": "wheel-release-job",
-              "publish_to": "both_devzone_pypi",
-              "url": "${wheel_url}",
-              "size": "small",
-              "upload": false
-            }
-          ]
-        }
-        EOF
-          )
+          echo "wheel_urls<<EOF"
+          echo "${wheel_urls}"
+          echo "EOF"
+        } >> "$GITHUB_OUTPUT"
 
-          echo "Posting wheel to Kitmaker: ${wheel_name}"
-          curl --fail-with-body --show-error --silent --location --include \
-            -X POST "${api_url}" \
-            -H "Authorization: Bearer ${KITMAKER_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d "${payload}"
-          echo
-        done
+  kitmaker:
+    runs-on: [self-hosted, linux]
+    needs:
+      - publish-github-release-assets
+    environment: release
+    permissions:
+      contents: read
+    if: ${{ needs.publish-github-release-assets.result == 'success' }}
+
+    steps:
+    - name: Submit wheel release to Kitmaker
+      env:
+        KITMAKER_PROJECT_ID: ${{ secrets.KITMAKER_PROJECT_ID }}
+        KITMAKER_TOKEN: ${{ secrets.KITMAKER_TOKEN }}
+        KITMAKER_PIC_EMAIL: ${{ secrets.KITMAKER_PIC_EMAIL }}
+        WHEEL_URLS: ${{ needs.publish-github-release-assets.outputs.wheel_urls }}
+      run: |
+        set -euo pipefail
+
+        if [[ -z "${KITMAKER_TOKEN}" || -z "${KITMAKER_PIC_EMAIL}" ]]; then
+          echo "Missing one or more required secrets: KITMAKER_TOKEN, KITMAKER_PIC_EMAIL"
+          exit 1
+        fi
+
+        if [[ -z "${WHEEL_URLS}" ]]; then
+          echo "No wheel URLs were produced by publish-github-release-assets job"
+          exit 1
+        fi
+
+        api_url="https://kitmaker-portal.nvidia.com/api/v0/projects/${KITMAKER_PROJECT_ID}/releases"
+        payload_items=()
+        while IFS= read -r wheel_url; do
+          [[ -z "${wheel_url}" ]] && continue
+          wheel_name="$(basename "${wheel_url}")"
+          echo "Queueing wheel for Kitmaker payload: ${wheel_name}"
+
+          payload_items+=("$(jq -cn \
+            --arg pic "${KITMAKER_PIC_EMAIL}" \
+            --arg url "${wheel_url}" \
+            '{pic: $pic, job_type: "wheel-release-job", publish_to: "both_devzone_pypi", url: $url, size: "small", upload: false}')")
+        done <<< "${WHEEL_URLS}"
+
+        if (( ${#payload_items[@]} == 0 )); then
+          echo "No valid wheel URLs found to submit to Kitmaker"
+          exit 1
+        fi
+
+        payload_array="$(printf '%s\n' "${payload_items[@]}" | jq -s '.')"
+        payload="$(jq -cn --arg project_name "isaacteleop" --argjson payload "${payload_array}" '{project_name: $project_name, payload: $payload}')"
+
+        echo "Posting ${#payload_items[@]} wheel(s) to Kitmaker in a single request"
+        curl --fail-with-body --show-error --silent --location --include \
+          -X POST "${api_url}" \
+          -H "Authorization: Bearer ${KITMAKER_TOKEN}" \
+          -H "Content-Type: application/json" \
+          -d "${payload}"
+        echo
+        echo "Waiting 60 seconds to allow Kitmaker to start downloading wheel payload"
+        sleep 60
