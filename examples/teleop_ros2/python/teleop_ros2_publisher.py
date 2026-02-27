@@ -14,6 +14,7 @@ Publishes teleoperation data over ROS2 topics using isaacteleop TeleopSession:
   - xr_teleop/full_body (ByteMultiArray): msgpack-encoded full body tracking data
 """
 
+import math
 import os
 import time
 from pathlib import Path
@@ -192,7 +193,7 @@ class TeleopRos2PublisherNode(Node):
         self.declare_parameter("full_body_topic", "xr_teleop/full_body")
         self.declare_parameter("frame_id", "world")
         self.declare_parameter("rate_hz", 60.0)
-        self.declare_parameter("use_mock_operators", False)
+        self.declare_parameter("use_mock_operators", value=False)
 
         self._hand_topic = (
             self.get_parameter("hand_topic").get_parameter_value().string_value
@@ -213,7 +214,9 @@ class TeleopRos2PublisherNode(Node):
             self.get_parameter("frame_id").get_parameter_value().string_value
         )
         rate_hz = self.get_parameter("rate_hz").get_parameter_value().double_value
-        self._sleep_period_s = 1.0 / max(rate_hz, 1e-3)
+        if rate_hz <= 0 or not math.isfinite(rate_hz):
+            raise ValueError("Parameter 'rate_hz' must be > 0")
+        self._sleep_period_s = 1.0 / rate_hz
         self._use_mock_operators = (
             self.get_parameter("use_mock_operators").get_parameter_value().bool_value
         )
@@ -257,9 +260,7 @@ class TeleopRos2PublisherNode(Node):
             plugin_paths = []
             env_paths = os.environ.get("ISAAC_TELEOP_PLUGIN_PATH")
             if env_paths:
-                plugin_paths.extend(
-                    [Path(p) for p in env_paths.split(os.pathsep) if p]
-                )
+                plugin_paths.extend([Path(p) for p in env_paths.split(os.pathsep) if p])
             plugin_paths.extend(_find_plugins_dirs(Path(__file__).resolve()))
             plugins.append(
                 PluginConfig(
@@ -384,11 +385,13 @@ class TeleopRos2PublisherNode(Node):
 
 def main() -> int:
     rclpy.init()
-    node = TeleopRos2PublisherNode()
+    node = None
     try:
+        node = TeleopRos2PublisherNode()
         return node.run()
     finally:
-        node.destroy_node()
+        if node is not None:
+            node.destroy_node()
         rclpy.shutdown()
 
 
