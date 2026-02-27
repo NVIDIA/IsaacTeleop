@@ -123,6 +123,7 @@ RUN echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="03e7", MODE="0666"' \
 WORKDIR /camera_streamer
 
 COPY . /camera_streamer/
+RUN chmod a+w /camera_streamer
 
 ############################################################
 # Environment
