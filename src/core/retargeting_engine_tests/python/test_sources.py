@@ -350,31 +350,39 @@ class TestHandsSourceOptional:
         assert isinstance(outputs["hand_right"], OptionalTensorGroup)
 
 
-class TestHeadSourceNotOptional:
-    """Test that HeadSource output is NOT Optional (uses is_valid flag instead)."""
+class TestHeadSourceOptional:
+    """Test that HeadSource outputs are Optional.
 
-    def test_output_spec_is_not_optional(self):
-        """Head output must NOT be Optional."""
+    HeadSource always populates the output (is_valid is a data field, not an
+    absence signal).  The Optional wrapper allows downstream nodes to accept
+    an absent head when no head tracker is connected to the pipeline.
+    """
+
+    def test_output_spec_is_optional(self):
+        """Head output must be declared as Optional."""
         source = HeadSource(name="head")
         output_spec = source.output_spec()
 
-        assert not output_spec["head"].is_optional
+        assert output_spec["head"].is_optional
 
-    def test_output_group_is_regular_tensor_group(self):
-        """Head output must be exactly TensorGroup (required, not optional)."""
+    def test_output_groups_are_optional_tensor_groups(self):
+        """Output groups must be OptionalTensorGroup instances."""
         source = HeadSource(name="head")
         outputs = {
             name: _make_output_group(gt) for name, gt in source.output_spec().items()
         }
 
-        assert type(outputs["head"]) is TensorGroup
+        assert isinstance(outputs["head"], OptionalTensorGroup)
 
-    def test_set_none_raises_on_head_output(self):
-        """Calling set_none on a head output must raise TypeError."""
+    def test_absent_head_raises_on_access(self):
+        """Accessing fields of an absent head output raises ValueError."""
         source = HeadSource(name="head")
         outputs = {
             name: _make_output_group(gt) for name, gt in source.output_spec().items()
         }
 
-        with pytest.raises(TypeError, match="required"):
-            outputs["head"].set_none()
+        outputs["head"].set_none()
+        assert outputs["head"].is_none
+
+        with pytest.raises(ValueError, match="absent"):
+            _ = outputs["head"][0]

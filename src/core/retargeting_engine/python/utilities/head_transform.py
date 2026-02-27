@@ -17,6 +17,7 @@ import numpy as np
 
 from ..interface.base_retargeter import BaseRetargeter
 from ..interface.retargeter_core_types import RetargeterIO, RetargeterIOType
+from ..interface.tensor_group_type import OptionalType
 from ..tensor_types import HeadPose, HeadPoseIndex, TransformMatrix
 from .transform_utils import (
     decompose_transform,
@@ -40,11 +41,11 @@ class HeadTransform(BaseRetargeter):
     sourced from a TransformSource node in the graph.
 
     Inputs:
-        - "head": HeadPose tensor (position, orientation, is_valid, timestamp)
+        - "head": OptionalType(HeadPose) tensor (position, orientation, is_valid, timestamp)
         - "transform": TransformMatrix tensor containing the (4, 4) matrix
 
     Outputs:
-        - "head": HeadPose tensor with transformed position and orientation
+        - "head": OptionalType(HeadPose) tensor with transformed position and orientation
 
     Example:
         transform_input = ValueInput("xform_input", TransformMatrix())
@@ -66,19 +67,22 @@ class HeadTransform(BaseRetargeter):
         super().__init__(name)
 
     def input_spec(self) -> RetargeterIOType:
-        """Declare head pose and transform matrix inputs."""
+        """Declare head pose (Optional) and transform matrix inputs."""
         return {
-            "head": HeadPose(),
+            "head": OptionalType(HeadPose()),
             "transform": TransformMatrix(),
         }
 
     def output_spec(self) -> RetargeterIOType:
-        """Declare transformed head pose output."""
-        return {"head": HeadPose()}
+        """Declare transformed head pose output (Optional)."""
+        return {"head": OptionalType(HeadPose())}
 
     def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
         """
         Apply the 4x4 transform to head position and orientation.
+
+        If the input head is ``None`` (Optional absent), the output is set
+        to ``None`` as well (propagated).
 
         Position is transformed as: p' = R @ p + t
         Orientation is transformed as: q' = R_quat * q
@@ -86,8 +90,12 @@ class HeadTransform(BaseRetargeter):
 
         Args:
             inputs: Dict with "head" and "transform" TensorGroups.
-            outputs: Dict with "head" TensorGroup to populate.
+            outputs: Dict with "head" OptionalTensorGroup to populate.
         """
+        if inputs["head"].is_none:
+            outputs["head"].set_none()
+            return
+
         matrix = np.from_dlpack(inputs["transform"][_MATRIX_INDEX])
         rotation, translation = decompose_transform(matrix)
 

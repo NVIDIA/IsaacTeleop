@@ -915,29 +915,51 @@ class TestHandTransformOptionalPropagation:
             _ = result["hand_left"][HandInputIndex.JOINT_POSITIONS]
 
 
-class TestHeadTransformNotOptional:
-    """Verify HeadTransform is not Optional — it always produces output."""
+class TestHeadTransformOptionalPropagation:
+    """Verify HeadTransform propagates absent inputs to absent outputs."""
 
-    def test_output_spec_is_not_optional(self):
+    def _make_active_head(self):
+        tg = TensorGroup(HeadPose())
+        tg[HeadPoseIndex.POSITION] = np.array([1, 2, 3], dtype=np.float32)
+        tg[HeadPoseIndex.ORIENTATION] = np.array([0, 0, 0, 1], dtype=np.float32)
+        tg[HeadPoseIndex.IS_VALID] = True
+        tg[HeadPoseIndex.TIMESTAMP] = 100
+        return tg
+
+    def test_output_spec_is_optional(self):
         node = HeadTransform("xform")
         for gt in node.output_spec().values():
-            assert not gt.is_optional
+            assert gt.is_optional
 
-    def test_input_spec_is_not_optional(self):
+    def test_input_spec_head_is_optional(self):
         node = HeadTransform("xform")
-        for name, gt in node.input_spec().items():
-            assert not gt.is_optional, f"Input '{name}' should not be optional"
+        assert node.input_spec()["head"].is_optional
+        assert not node.input_spec()["transform"].is_optional
 
-    def test_output_is_always_present(self):
+    def test_active_head(self):
         node = HeadTransform("xform")
-        head_in = TensorGroup(HeadPose())
-        head_in[HeadPoseIndex.POSITION] = np.array([1, 2, 3], dtype=np.float32)
-        head_in[HeadPoseIndex.ORIENTATION] = np.array([0, 0, 0, 1], dtype=np.float32)
-        head_in[HeadPoseIndex.IS_VALID] = False
-        head_in[HeadPoseIndex.TIMESTAMP] = 42
+        head = self._make_active_head()
         xform = _make_transform_input(_identity_4x4())
 
-        result = _run_retargeter(node, {"head": head_in, "transform": xform})
+        result = _run_retargeter(node, {"head": head, "transform": xform})
 
-        assert type(result["head"]) is TensorGroup
-        assert result["head"][HeadPoseIndex.IS_VALID] is False
+        assert not result["head"].is_none
+
+    def test_absent_head_propagates(self):
+        node = HeadTransform("xform")
+        head = OptionalTensorGroup(HeadPose())
+        xform = _make_transform_input(_identity_4x4())
+
+        result = _run_retargeter(node, {"head": head, "transform": xform})
+
+        assert result["head"].is_none
+
+    def test_absent_output_raises_on_read(self):
+        node = HeadTransform("xform")
+        head = OptionalTensorGroup(HeadPose())
+        xform = _make_transform_input(_identity_4x4())
+
+        result = _run_retargeter(node, {"head": head, "transform": xform})
+
+        with pytest.raises(ValueError, match="absent"):
+            _ = result["head"][HeadPoseIndex.POSITION]
