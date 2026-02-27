@@ -58,6 +58,21 @@ docker run --rm --net=host --ipc=host \
   teleop_ros2_ref
 ```
 
+### Overriding parameters
+
+It's possible to set ROS 2 parameters from the command line when running the container. Append `--ros-args -p param_name:=value` after the image name:
+
+```bash
+docker run --rm --net=host --ipc=host \
+  -e XR_RUNTIME_JSON -e NV_CXR_RUNTIME_DIR \
+  -e ROS_LOCALHOST_ONLY=1 \
+  -v $CXR_HOST_VOLUME_PATH:$CXR_HOST_VOLUME_PATH:ro \
+  --name teleop_ros2_ref \
+  teleop_ros2_ref --ros-args -p frame_id:=odom -p rate_hz:=30.0
+```
+
+Available parameters: `hand_topic`, `twist_topic`, `pose_topic`, `controller_topic`, `full_body_topic`, `frame_id`, `rate_hz`, `use_mock_operators`. Use `ros2 param list /teleop_ros2_publisher` and `ros2 param describe /teleop_ros2_publisher <param>` (with the node running) for the full set.
+
 ## Echo Topics
 
 ```bash
