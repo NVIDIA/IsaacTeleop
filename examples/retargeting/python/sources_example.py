@@ -215,17 +215,20 @@ def main():
                             f"      Wrist: [{wrist_pos[0]:6.3f}, {wrist_pos[1]:6.3f}, {wrist_pos[2]:6.3f}]"
                         )
 
-                    # Extract head data
+                    # Extract head data (Optional — absent when no tracker)
                     head = all_data["head"]
-                    head_valid = head[HeadPoseIndex.IS_VALID]
 
                     print("  Head:")
-                    print(f"    Status: {'VALID' if head_valid else 'INVALID'}")
-                    if head_valid:
-                        head_position = head[HeadPoseIndex.POSITION]
-                        print(
-                            f"    Position: [{head_position[0]:6.3f}, {head_position[1]:6.3f}, {head_position[2]:6.3f}]"
-                        )
+                    if head.is_none:
+                        print("    Status: ABSENT (no tracker)")
+                    else:
+                        head_valid = head[HeadPoseIndex.IS_VALID]
+                        print(f"    Status: {'VALID' if head_valid else 'INVALID'}")
+                        if head_valid:
+                            head_position = head[HeadPoseIndex.POSITION]
+                            print(
+                                f"    Position: [{head_position[0]:6.3f}, {head_position[1]:6.3f}, {head_position[2]:6.3f}]"
+                            )
 
                     # Extract controller data
                     left_controller = all_data[ControllersSource.LEFT]

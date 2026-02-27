@@ -16,6 +16,7 @@ from ..interface.retargeter_core_types import (
     RetargeterIOType,
 )
 from ..interface.tensor_group import TensorGroup
+from ..interface.tensor_group_type import OptionalType
 from ..interface.retargeter_subgraph import RetargeterSubgraph
 from ..tensor_types import HeadPose, HeadPoseIndex
 from .deviceio_tensor_types import DeviceIOHeadPose
@@ -32,8 +33,8 @@ class HeadSource(IDeviceIOSource):
     Inputs:
         - "deviceio_head": Raw HeadPoseT flatbuffer object from DeviceIO
 
-    Outputs:
-        - "head": Standard HeadPose tensor (position, orientation, is_valid, timestamp)
+    Outputs (Optional — absent when head tracking is invalid):
+        - "head": OptionalTensorGroup (check ``.is_none`` before access)
 
     Usage:
         # In TeleopSession, manually poll tracker and pass data
@@ -85,16 +86,21 @@ class HeadSource(IDeviceIOSource):
         return {"deviceio_head": DeviceIOHeadPose()}
 
     def output_spec(self) -> RetargeterIOType:
-        """Declare standard head pose output."""
-        return {"head": HeadPose()}
+        """Declare standard head pose output (Optional — may be absent)."""
+        return {"head": OptionalType(HeadPose())}
 
     def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
         """
         Convert DeviceIO HeadPoseT to standard HeadPose tensor.
 
+        The ``is_valid`` flag is passed through as data — consumers decide
+        how to handle invalid poses.  The output is always present; the
+        Optional wrapper exists so downstream nodes can accept an absent
+        head when no head tracker is connected.
+
         Args:
             inputs: Dict with "deviceio_head" containing HeadPoseT flatbuffer object
-            outputs: Dict with "head" TensorGroup
+            outputs: Dict with "head" OptionalTensorGroup
         """
         head_pose: "HeadPoseT" = inputs["deviceio_head"][0]
 
