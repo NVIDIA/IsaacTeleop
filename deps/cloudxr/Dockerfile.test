@@ -28,10 +28,22 @@ COPY install/ /app/install/
 COPY examples/oxr/python/ /app/tests/
 
 # Install Python dependencies using uv
+# When PIP_INDEX_URL is set (e.g. Artifactory), install from that index; otherwise use local wheels
+# ISAACTELEOP_VERSION pins the package version when installing from Artifactory (e.g. 1.2.3).
+ARG PIP_INDEX_URL=
+ARG ISAACTELEOP_VERSION=
 WORKDIR /app/tests
 RUN uv venv --python $PYTHON_VERSION /app/venv && \
     . /app/venv/bin/activate && \
-    uv pip install --find-links=/app/install/wheels isaacteleop numpy
+    if [ -n "$PIP_INDEX_URL" ]; then \
+        if [ -n "$ISAACTELEOP_VERSION" ]; then \
+            uv pip install --index-url "$PIP_INDEX_URL" "isaacteleop==$ISAACTELEOP_VERSION" numpy; \
+        else \
+            uv pip install --index-url "$PIP_INDEX_URL" isaacteleop numpy; \
+        fi; \
+    else \
+        uv pip install --find-links=/app/install/wheels isaacteleop numpy; \
+    fi
 
 # Set environment variables
 ENV PATH="/app/venv/bin:$PATH"

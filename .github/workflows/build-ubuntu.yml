@@ -248,3 +248,95 @@ jobs:
           -u "${ARTIFACTORY_USERNAME}" \
           -p "${ARTIFACTORY_API_KEY}" \
           "${wheels[@]}"
+
+  test-cloudxr-artifactory:
+    runs-on: [self-hosted, linux, gpu]
+    needs:
+      - build-ubuntu
+      - publish-wheel
+    environment: dev
+    # Run CloudXR tests using the wheel published to Artifactory (same tests as test-cloudxr).
+    if: ${{ needs.build-ubuntu.result == 'success' && needs.publish-wheel.result == 'success' }}
+
+    strategy:
+      matrix:
+        python_version: ['3.10', '3.11', '3.12']
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    - name: Download install artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: isaacteleop-install-release-py${{ matrix.python_version }}
+
+    - name: Extract tarball to preserve permissions
+      run: |
+        mkdir -p install
+        tar -xvf isaacteleop-install.tar -C install
+
+    - name: Parse CloudXR tag from .env.default
+      id: cloudxr
+      run: |
+        # Extract the tag from CXR_RUNTIME_IMAGE in .env.default
+        CLOUDXR_TAG=$(grep '^CXR_RUNTIME_IMAGE=' deps/cloudxr/.env.default | sed 's/.*cloudxr-runtime://')
+        echo "tag=${CLOUDXR_TAG}" >> $GITHUB_OUTPUT
+        echo "CloudXR tag: ${CLOUDXR_TAG}"
+
+    - name: Login to NVIDIA Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: nvcr.io
+        username: $oauthtoken
+        password: ${{ secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY }}
+
+    - name: Pull CloudXR Runtime
+      run: |
+        ./scripts/cloudxr_image_ops.sh --pull ${{ steps.cloudxr.outputs.tag }}
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Get isaacteleop version from wheel
+      id: version
+      run: |
+        WHEEL=$(ls install/wheels/isaacteleop-*.whl 2>/dev/null | head -1)
+        if [ -n "$WHEEL" ]; then
+          # Extract version from wheel filename (e.g. isaacteleop-0.1.2-cp310-... -> 0.1.2)
+          VERSION=$(basename "$WHEEL" .whl | sed 's/^isaacteleop-//' | sed 's/-cp.*//')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Isaac Teleop version: $VERSION"
+        else
+          echo "No wheel found, version will not be pinned"
+        fi
+
+    - name: Run Tests with CloudXR (Artifactory wheel)
+      env:
+        CI: true
+        ACCEPT_CLOUDXR_EULA: Y
+        ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
+        ARTIFACTORY_REPO: ${{ secrets.ARTIFACTORY_REPO }}
+        ARTIFACTORY_USERNAME: ${{ secrets.ARTIFACTORY_USERNAME }}
+        ARTIFACTORY_API_KEY: ${{ secrets.ARTIFACTORY_API_KEY }}
+      run: |
+        # Create .env file with EULA acceptance
+        echo "ACCEPT_CLOUDXR_EULA=Y" > deps/cloudxr/.env
+
+        # Build Artifactory PyPI index URL (credentials embedded for pip install in container)
+        ARTIFACTORY_INDEX_URL="https://${ARTIFACTORY_USERNAME}:${ARTIFACTORY_API_KEY}@${ARTIFACTORY_URL#https://}"
+        ARTIFACTORY_INDEX_URL="${ARTIFACTORY_INDEX_URL%/}/api/pypi/${ARTIFACTORY_REPO}/simple"
+
+        VERSION_ARGS=""
+        if [ -n "${{ steps.version.outputs.version }}" ]; then
+          VERSION_ARGS="--isaacteleop-version ${{ steps.version.outputs.version }}"
+        fi
+
+        ./scripts/run_tests_with_cloudxr.sh --python-version ${{ matrix.python_version }} \
+          --install-from-artifactory --artifactory-index-url "$ARTIFACTORY_INDEX_URL" \
+          $VERSION_ARGS
