@@ -2,10 +2,16 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+# Build for Jazzy: --build-arg ROS_DISTRO=jazzy --build-arg PYTHON_VERSION=3.12
+ARG ROS_DISTRO=humble
+ARG PYTHON_VERSION=3.10
+
 # -----------------------------------------------------------------------------
-# Base: common runtime deps + uv + Python 3.10 (shared by builder and runtime)
+# Base: common runtime deps + uv + Python (shared by builder and runtime)
 # -----------------------------------------------------------------------------
-FROM ros:humble-ros-base AS base
+FROM ros:${ROS_DISTRO}-ros-base AS base
+ARG ROS_DISTRO
+ARG PYTHON_VERSION
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -24,7 +30,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libnss3 \
     libuuid1 \
     libexpat1 \
-    libmpdec3 \
     libusb-1.0-0-dev \
     libudev-dev \
     libvulkan1 \
@@ -42,15 +47,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     swig \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install --no-cache-dir uv
+# Install uv via standalone script (avoids PEP 668 "externally managed" pip on Ubuntu 24.04 / Jazzy)
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && ln -s /root/.local/bin/uv /usr/local/bin/uv
 
-RUN uv python install 3.10 --quiet \
-    && uv python find 3.10
+RUN uv python install ${PYTHON_VERSION} --quiet \
+    && uv python find ${PYTHON_VERSION}
 
 # -----------------------------------------------------------------------------
 # Stage 1: build and install
 # -----------------------------------------------------------------------------
 FROM base AS builder
+ARG ROS_DISTRO
+ARG PYTHON_VERSION
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -63,7 +72,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /opt/isaacteleop
 COPY . /opt/isaacteleop
 
-RUN --mount=type=cache,target=/opt/isaacteleop/build,id=isaacteleop-teleop-ros2-build \
+RUN --mount=type=cache,target=/opt/isaacteleop/build,id=isaacteleop-teleop-ros2-build-${ROS_DISTRO} \
     cmake -B build -S . \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=/opt/isaacteleop/install \
@@ -72,12 +81,13 @@ RUN --mount=type=cache,target=/opt/isaacteleop/build,id=isaacteleop-teleop-ros2-
         -DBUILD_TESTING=OFF \
         -DBUILD_PLUGINS=ON \
         -DBUILD_PLUGIN_OAK_CAMERA=OFF \
-        -DISAAC_TELEOP_PYTHON_VERSION=3.10 \
+        -DENABLE_CLANG_FORMAT_CHECK=OFF \
+        -DISAAC_TELEOP_PYTHON_VERSION=${PYTHON_VERSION} \
     && cmake --build build --config Release -j$(nproc) \
     && cmake --install build --config Release
 
-COPY --chmod=644 <<'EOF' /usr/local/bin/teleop-env-setup
-source /opt/ros/humble/setup.bash
+COPY --chmod=644 <<EOF /usr/local/bin/teleop-env-setup
+source /opt/ros/${ROS_DISTRO}/setup.bash
 EOF
 
 COPY --chmod=755 <<'EOF' /usr/local/bin/teleop-entrypoint

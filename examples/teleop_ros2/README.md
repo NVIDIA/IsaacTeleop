@@ -29,10 +29,19 @@ Before running this ROS 2 reference publisher, start the CloudXR runtime (see th
 
 ### Build the container
 
-From the repo root:
+From the repo root.
+
+**Humble (default):**
 ```bash
 docker build -f examples/teleop_ros2/Dockerfile -t teleop_ros2_ref .
 ```
+
+**Jazzy:**
+```bash
+docker build -f examples/teleop_ros2/Dockerfile --build-arg ROS_DISTRO=jazzy --build-arg PYTHON_VERSION=3.12 -t teleop_ros2_ref:jazzy .
+```
+
+You can tag by distro (e.g. `teleop_ros2_ref:humble`, `teleop_ros2_ref:jazzy`) to build and run both side by side.
 
 Incremental rebuilds use Docker BuildKit cache. Ensure BuildKit is enabled (default in Docker 23+), or run with `DOCKER_BUILDKIT=1 docker build ...`.
 

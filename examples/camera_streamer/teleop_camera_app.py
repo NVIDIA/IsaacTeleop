@@ -12,8 +12,10 @@ Supports camera sources:
 """
 
 import argparse
+import gc
 import os
 import sys
+import time
 
 from holoscan.core import Application, MetadataPolicy
 from holoscan.schedulers import EventBasedScheduler
@@ -156,20 +158,29 @@ def main():
     logger.info("=" * 60)
     logger.info("Press Ctrl+C to stop")
 
-    # Run application
-    app = TeleopCameraApp(config)
+    # Run application, retrying until an XR headset connects.
+    _XR_RETRY_ERRORS = ("ErrorFormFactorUnavailable", "ErrorLimitReached")
+    while True:
+        app = TeleopCameraApp(config)
+        try:
+            app.run()
+            break
+        except KeyboardInterrupt:
+            logger.info("Interrupted by user")
+            break
+        except Exception as e:
+            msg = str(e)
+            if not any(err in msg for err in _XR_RETRY_ERRORS):
+                logger.error(f"Error: {e}")
+                raise
+            logger.warning(f"No XR headset connected, retrying in 2s... ({msg})")
+            del app
+            gc.collect()
+            time.sleep(2.0)
 
-    try:
-        app.run()
-    except KeyboardInterrupt:
-        logger.info("Interrupted by user")
-    except Exception as e:
-        logger.error(f"Error: {e}")
-        raise
-    finally:
-        logger.info("Shutdown complete")
-        # Required to avoid GIL crash.
-        os._exit(0)
+    logger.info("Shutdown complete")
+    # Required to avoid GIL crash.
+    os._exit(0)
 
 
 if __name__ == "__main__":

@@ -105,6 +105,44 @@ jobs:
         path: install/wheels/*.whl
         retention-days: 1
 
+  teleop-ros2-docker:
+    runs-on: ubuntu-22.04
+    environment: dev
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ros_distro: humble
+            python_version: "3.10"
+          - ros_distro: jazzy
+            python_version: "3.12"
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup CloudXR SDK
+      uses: ./.github/actions/setup-cloudxr-sdk
+      with:
+        ngc-cli-api-key: ${{ secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY }}
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build teleop_ros2 image
+      run: |
+        docker build -f examples/teleop_ros2/Dockerfile \
+          --build-arg ROS_DISTRO=${{ matrix.ros_distro }} \
+          --build-arg PYTHON_VERSION=${{ matrix.python_version }} \
+          -t teleop_ros2_ref:${{ matrix.ros_distro }} .
+
+    - name: Smoke test (ROS 2 + rclpy)
+      run: |
+        docker run --rm --entrypoint bash teleop_ros2_ref:${{ matrix.ros_distro }} -c \
+          "source /usr/local/bin/teleop-env-setup && ros2 --help > /dev/null && python3 -c \"import rclpy; rclpy.init(); rclpy.shutdown(); print('rclpy OK')\""
+
   test-cloudxr:
     runs-on: [self-hosted, linux, gpu, "${{ matrix.arch }}"]
     needs: build-ubuntu
