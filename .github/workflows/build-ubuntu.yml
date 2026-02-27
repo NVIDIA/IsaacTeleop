@@ -40,7 +40,7 @@ jobs:
     - name: Install Apt dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache
+        sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache patchelf
 
     - name: Setup CloudXR SDK
       id: cloudxr-sdk
@@ -85,6 +85,29 @@ jobs:
     - name: Install (Release only)
       if: matrix.build_type == 'Release'
       run: cmake --install build
+
+    - name: Repair wheel tags with auditwheel (Release only)
+      if: matrix.build_type == 'Release'
+      run: |
+        set -euo pipefail
+
+        shopt -s nullglob
+        wheels=(install/wheels/*.whl)
+        if (( ${#wheels[@]} == 0 )); then
+          echo "No wheels found under install/wheels/*.whl"
+          ls -la install/wheels || true
+          exit 1
+        fi
+
+        mkdir -p install/wheels-repaired
+        for wheel in "${wheels[@]}"; do
+          echo "Repairing ${wheel}"
+          uv run --python ${{ matrix.python_version }} --with auditwheel \
+            auditwheel repair --exclude libcuda.so.1 --exclude libvulkan.so.1 --wheel-dir install/wheels-repaired "${wheel}"
+        done
+
+        rm -f install/wheels/*.whl
+        mv install/wheels-repaired/*.whl install/wheels/
 
     - name: Create tarball to preserve permissions
       if: matrix.build_type == 'Release'
