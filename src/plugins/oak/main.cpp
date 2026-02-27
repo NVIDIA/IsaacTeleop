@@ -3,6 +3,7 @@
 
 #include "core/frame_sink.hpp"
 #include "core/oak_camera.hpp"
+#include "core/preview_stream.hpp"
 
 #include <atomic>
 #include <chrono>
@@ -105,6 +106,8 @@ void print_usage(const char* program_name)
         << "\nMetadata (mutually exclusive):\n"
         << "  --collection-prefix=PREFIX  Push metadata via OpenXR tensor extensions\n"
         << "  --mcap-filename=PATH        Record metadata to an MCAP file\n"
+        << "\nPreview:\n"
+        << "  --preview           Show live color camera preview via OpenCV window\n"
         << "\nGeneral:\n"
         << "  --help              Show this help message\n"
         << "\nExamples:\n"
@@ -154,6 +157,10 @@ try
         else if (arg.find("--device-id=") == 0)
         {
             camera_config.device_id = arg.substr(12);
+        }
+        else if (arg == "--preview")
+        {
+            camera_config.preview = true;
         }
         else if (arg.find("--collection-prefix=") == 0)
         {

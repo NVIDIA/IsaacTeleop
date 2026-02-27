@@ -18,6 +18,7 @@ message(STATUS "Configuring DepthAI...")
 set(DEPTHAI_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(DEPTHAI_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(DEPTHAI_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(DEPTHAI_OPENCV_SUPPORT OFF CACHE BOOL "" FORCE)
 
 FetchContent_Declare(
     depthai
@@ -29,6 +30,22 @@ FetchContent_MakeAvailable(depthai)
 message(STATUS "Building OAK camera plugin with DepthAI ${depthai_VERSION}")
 
 # ==============================================================================
+# SDL2 (for live preview window, bundled via FetchContent)
+# ==============================================================================
+set(SDL2_VERSION "2.30.11")
+
+set(SDL_TEST OFF CACHE BOOL "" FORCE)
+set(SDL_SHARED ON CACHE BOOL "" FORCE)
+set(SDL_STATIC OFF CACHE BOOL "" FORCE)
+
+FetchContent_Declare(
+    sdl2
+    URL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz"
+)
+FetchContent_MakeAvailable(sdl2)
+message(STATUS "SDL2 ${SDL2_VERSION} — live preview support enabled")
+
+# ==============================================================================
 # Build OAK Plugin
 # ==============================================================================
 add_executable(camera_plugin_oak
@@ -36,6 +53,7 @@ add_executable(camera_plugin_oak
     core/oak_camera.cpp
     core/rawdata_writer.cpp
     core/frame_sink.cpp
+    core/preview_stream.cpp
 )
 
 target_link_libraries(camera_plugin_oak
@@ -45,7 +63,11 @@ target_link_libraries(camera_plugin_oak
         mcap::mcap
         oxr::oxr_core
         pusherio::pusherio
+        SDL2::SDL2
 )
+
+# Bundle SDL2 shared library alongside the binary
+install(TARGETS SDL2 LIBRARY DESTINATION plugins/oak_camera)
 
 # Set RPATH to find bundled libraries in same directory
 set_target_properties(camera_plugin_oak PROPERTIES
