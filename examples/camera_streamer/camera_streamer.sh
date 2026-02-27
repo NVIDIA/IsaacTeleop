@@ -266,6 +266,9 @@ cmd_shell() {
 # ---------------------------------------------------------------------------
 
 cmd_run() {
+    # Strip leading "--" separator (allows: run -- --source local ...)
+    [[ "${1:-}" == "--" ]] && shift
+
     ensure_x11_access
     ensure_image
     local TAG

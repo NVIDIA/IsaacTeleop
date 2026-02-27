@@ -10,7 +10,7 @@ teleop_camera_sender (RTP streaming) and teleop_camera_subgraph (local display).
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Type
 
-from holoscan.operators import FormatConverterOp, V4L2VideoCaptureOp
+from holoscan.operators import FormatConverterOp, V4L2VideoCaptureOp, VideoStreamReplayerOp
 from loguru import logger
 
 from camera_config import CameraConfig
@@ -292,6 +292,53 @@ def create_v4l2_source(
     return result
 
 
+def create_video_file_source(
+    fragment: Any,
+    cam_name: str,
+    cam_cfg: CameraConfig,
+    allocator: Any,
+    *,
+    verbose: bool = False,
+) -> CameraSourceResult:
+    """Create a video file source using Holoscan VideoStreamReplayerOp.
+
+    Replays pre-converted video data in a loop. Use convert_video_to_replayer.py
+    to convert an MP4/AVI file to the required .gxf_entities/.gxf_index format.
+    """
+    if not cam_cfg.video_dir or not cam_cfg.video_basename:
+        raise ValueError(
+            f"Camera '{cam_name}': video_file type requires 'video_dir' and "
+            f"'video_basename' to be set"
+        )
+
+    replayer = VideoStreamReplayerOp(
+        fragment,
+        name=f"{cam_name}_source",
+        directory=cam_cfg.video_dir,
+        basename=cam_cfg.video_basename,
+        repeat=True,
+        realtime=True,
+        frame_rate=float(cam_cfg.fps),
+        allocator=allocator,
+    )
+
+    result = CameraSourceResult(
+        operators=[replayer],
+        frame_outputs={"mono": (replayer, "output")},
+    )
+
+    if cam_cfg.stereo:
+        result.frame_outputs["left"] = result.frame_outputs.pop("mono")
+        result.frame_outputs["right"] = (replayer, "output")
+
+    logger.info(
+        f"  Video file source: {cam_name} "
+        f"{cam_cfg.video_dir}/{cam_cfg.video_basename} "
+        f"({cam_cfg.width}x{cam_cfg.height}@{cam_cfg.fps}fps, loop)"
+    )
+    return result
+
+
 def create_camera_source(
     fragment: Any,
     cam_name: str,
@@ -330,6 +377,10 @@ def create_camera_source(
             allocator,
             color_format=color_format,
             verbose=verbose,
+        )
+    elif cam_cfg.camera_type == "video_file":
+        return create_video_file_source(
+            fragment, cam_name, cam_cfg, allocator, verbose=verbose
         )
     else:
         raise ValueError(f"Unknown camera type: {cam_cfg.camera_type}")

@@ -10,7 +10,7 @@ import warnings
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
-VALID_CAMERA_TYPES = {"zed", "oakd", "v4l2"}
+VALID_CAMERA_TYPES = {"zed", "oakd", "v4l2", "video_file"}
 
 
 @dataclass
@@ -67,6 +67,10 @@ class CameraConfig:
     # V4L2-specific (optional)
     device: Optional[str] = None
 
+    # video_file-specific (optional)
+    video_dir: Optional[str] = None
+    video_basename: Optional[str] = None
+
     _KNOWN_KEYS = {
         "type",
         "stereo",
@@ -79,6 +83,8 @@ class CameraConfig:
         "resolution",
         "device_id",
         "device",
+        "video_dir",
+        "video_basename",
     }
 
     def __post_init__(self):
@@ -143,6 +149,8 @@ class CameraConfig:
             resolution=resolution,
             device_id=data.get("device_id"),
             device=data.get("device"),
+            video_dir=data.get("video_dir"),
+            video_basename=data.get("video_basename"),
         )
 
 
