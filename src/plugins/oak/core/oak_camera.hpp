@@ -17,8 +17,9 @@ namespace plugins
 namespace oak
 {
 
-// Forward declaration -- FrameSink is defined in frame_sink.hpp.
+// Forward declarations
 class FrameSink;
+class PreviewStream;
 
 // ============================================================================
 // Stream configuration
@@ -41,6 +42,7 @@ struct OakConfig
     int bitrate = 8'000'000;
     int quality = 80;
     int keyframe_frequency = 30;
+    bool preview = false;
 };
 
 struct OakFrame
@@ -65,6 +67,7 @@ class OakCamera
 {
 public:
     OakCamera(const OakConfig& config, const std::vector<StreamConfig>& streams, std::unique_ptr<FrameSink> sink);
+    ~OakCamera();
 
     OakCamera(const OakCamera&) = delete;
     OakCamera& operator=(const OakCamera&) = delete;
@@ -79,15 +82,17 @@ public:
 
 private:
     dai::DeviceInfo find_device(const std::string& device_id);
-    void create_pipeline(const OakConfig& config,
-                         const std::vector<StreamConfig>& streams,
-                         const std::unordered_map<dai::CameraBoardSocket, std::string>& sensors);
+    dai::Pipeline create_pipeline(const OakConfig& config,
+                                  const std::vector<StreamConfig>& streams,
+                                  dai::ColorCameraProperties::SensorResolution color_resolution);
 
-    std::shared_ptr<dai::Pipeline> m_pipeline;
     std::shared_ptr<dai::Device> m_device;
     std::map<core::StreamType, std::shared_ptr<dai::DataOutputQueue>> m_queues;
+
     std::unique_ptr<FrameSink> m_sink;
     std::map<core::StreamType, uint64_t> m_frame_counts;
+
+    std::unique_ptr<PreviewStream> m_preview;
 };
 
 } // namespace oak

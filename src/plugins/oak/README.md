@@ -22,7 +22,7 @@ DepthAI is fetched and built automatically via FetchContent. The first build tak
 cd IsaacTeleop
 
 # Configure and build
-cmake -B build
+cmake -B build -DBUILD_PLUGIN_OAK_CAMERA=ON
 cmake --build build --target camera_plugin_oak --parallel
 ```
 
