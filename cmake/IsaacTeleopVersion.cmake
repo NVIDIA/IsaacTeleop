@@ -135,7 +135,7 @@ function(isaac_teleop_read_version version_file out_cmake_version_var out_pyproj
 		if(_isaac_teleop_label STREQUAL "")
 			set(_isaac_teleop_label "unknown")
 		endif()
-		set(_isaac_teleop_pyproject_version "${_isaac_teleop_version_major}.${_isaac_teleop_version_minor}.${_isaac_teleop_version_patch}.dev0+${_isaac_teleop_label}")
+		set(_isaac_teleop_pyproject_version "${_isaac_teleop_version_major}.${_isaac_teleop_version_minor}.${_isaac_teleop_version_patch}.dev0") # +${_isaac_teleop_label}
 		set(_isaac_teleop_build_kind "dev")
 	else()
 		set(_isaac_teleop_pyproject_version "${_isaac_teleop_version_major}.${_isaac_teleop_version_minor}+local")
