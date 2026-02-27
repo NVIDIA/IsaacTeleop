@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 name: Build Ubuntu
@@ -71,7 +71,7 @@ jobs:
         ccache --show-config
 
     - name: Configure CMake
-      run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DISAAC_TELEOP_PYTHON_VERSION=${{ matrix.python_version }} -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+      run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DISAAC_TELEOP_PYTHON_VERSION=${{ matrix.python_version }} -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_PLUGIN_OAK_CAMERA=ON
 
     - name: Build
       run: cmake --build build --parallel 4
