@@ -3,6 +3,7 @@
 
 #include "core/frame_sink.hpp"
 #include "core/oak_camera.hpp"
+#include "core/preview_stream.hpp"
 
 #include <atomic>
 #include <chrono>
