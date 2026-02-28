@@ -1,0 +1,59 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Mock camera source using the Holoscan SDK racerx sample video.
+# No physical camera or NVENC required — ideal for testing pipelines.
+#
+# Setup:
+#   ./test/setup_test_data.sh
+#
+# Run:
+#   ./camera_streamer.sh run -- --source local --config test/video_file.yaml --mode monitor
+
+source: "local"
+
+# -----------------------------------------------------------------------------
+# Cameras
+# -----------------------------------------------------------------------------
+cameras:
+  mock_cam:
+    enabled: true
+    type: video_file
+    stereo: false
+    width: 960
+    height: 540
+    fps: 30
+    video_dir: "test/data"
+    video_basename: "racerx"
+    streams:
+      mono:
+        stream_id: 0
+        port: 5000
+        bitrate_mbps: 10
+
+# -----------------------------------------------------------------------------
+# Display
+# -----------------------------------------------------------------------------
+display:
+  mode: "monitor"
+  cuda_device: 0
+
+  monitor:
+    width: 960
+    height: 540
+    title: "Teleop Camera - Mock (racerx)"
+    padding: 4
+    stream_timeout: 2.0
+
+  xr:
+    planes:
+      mock_cam:
+        distance: 1.5
+        width: 1.0
+        offset_x: 0.0
+        offset_y: 0.0
+
+    lock_mode: "lazy"
+    look_away_angle: 45.0
+    reposition_delay: 0.5
+    transition_duration: 0.3
