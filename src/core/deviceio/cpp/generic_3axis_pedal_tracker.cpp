@@ -6,6 +6,7 @@
 #include "inc/deviceio/deviceio_session.hpp"
 
 #include <flatbuffers/flatbuffers.h>
+#include <oxr_utils/oxr_time.hpp>
 
 #include <vector>
 
@@ -19,42 +20,79 @@ namespace core
 class Generic3AxisPedalTracker::Impl : public ITrackerImpl
 {
 public:
-    Impl(const OpenXRSessionHandles& handles, SchemaTrackerConfig config) : m_schema_reader(handles, std::move(config))
+    Impl(const OpenXRSessionHandles& handles, SchemaTrackerConfig config)
+        : m_schema_reader(handles, std::move(config)), m_time_converter_(handles)
     {
     }
 
-    bool update(XrTime /* time */) override
+    bool update(XrTime time) override
     {
-        SampleResult sample;
-        if (m_schema_reader.read_sample(sample))
+        m_last_update_time_ = time;
+        m_pending_records.clear();
+
+        std::vector<SchemaTracker::SampleResult> raw_samples;
+        m_schema_reader.read_all_samples(raw_samples);
+
+        for (auto& sample : raw_samples)
         {
             auto fb = flatbuffers::GetRoot<Generic3AxisPedalOutput>(sample.buffer.data());
-            if (fb)
+            if (!fb)
             {
-                if (!m_tracked.data)
-                {
-                    m_tracked.data = std::make_shared<Generic3AxisPedalOutputT>();
-                }
-                fb->UnPackTo(m_tracked.data.get());
-                m_last_timestamp = sample.timestamp;
-                return true;
+                continue;
             }
+
+            Generic3AxisPedalOutputT parsed;
+            fb->UnPackTo(&parsed);
+            m_pending_records.push_back({ std::move(parsed), sample.timestamp });
         }
-        m_tracked.data.reset();
+
+        if (!m_pending_records.empty())
+        {
+            if (!m_tracked.data)
+            {
+                m_tracked.data = std::make_shared<Generic3AxisPedalOutputT>();
+            }
+            *m_tracked.data = m_pending_records.back().data;
+        }
+        // When no samples arrive, m_tracked retains the last seen value so
+        // get_data() always reflects the most recently received state.
+
         return true;
     }
 
-    DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t /*channel_index*/ = 0) const override
+    void serialize_all(size_t /* channel_index */, const RecordCallback& callback) const override
     {
-        Generic3AxisPedalOutputRecordBuilder record_builder(builder);
-        if (m_tracked.data)
+        // The FlatBufferBuilder is stack-allocated per record. The data pointer
+        // passed to the callback is only valid for the duration of that callback
+        // invocation — the caller must not retain it after returning.
+        //
+        // The DeviceDataTimestamp passed to the callback is the update-tick time
+        // (used by the MCAP recorder for logTime/publishTime). The timestamps
+        // embedded inside the Record payload are the tensor transport timestamps.
+        int64_t update_ns = m_time_converter_.convert_xrtime_to_monotonic_ns(m_last_update_time_);
+        DeviceDataTimestamp update_timestamp(update_ns, 0, 0);
+
+        if (m_pending_records.empty())
         {
-            auto data_offset = Generic3AxisPedalOutput::Pack(builder, m_tracked.data.get());
-            record_builder.add_data(data_offset);
+            // No device data this tick: emit one empty record as a heartbeat.
+            flatbuffers::FlatBufferBuilder builder(64);
+            Generic3AxisPedalOutputRecordBuilder record_builder(builder);
+            record_builder.add_timestamp(&update_timestamp);
+            builder.Finish(record_builder.Finish());
+            callback(update_timestamp, builder.GetBufferPointer(), builder.GetSize());
+            return;
         }
-        record_builder.add_timestamp(&m_last_timestamp);
-        builder.Finish(record_builder.Finish());
-        return m_last_timestamp;
+
+        for (const auto& record : m_pending_records)
+        {
+            flatbuffers::FlatBufferBuilder builder(256);
+            auto data_offset = Generic3AxisPedalOutput::Pack(builder, &record.data);
+            Generic3AxisPedalOutputRecordBuilder record_builder(builder);
+            record_builder.add_data(data_offset);
+            record_builder.add_timestamp(&record.timestamp);
+            builder.Finish(record_builder.Finish());
+            callback(update_timestamp, builder.GetBufferPointer(), builder.GetSize());
+        }
     }
 
     const Generic3AxisPedalOutputTrackedT& get_data() const
@@ -63,9 +101,17 @@ public:
     }
 
 private:
+    struct PendingRecord
+    {
+        Generic3AxisPedalOutputT data;
+        DeviceDataTimestamp timestamp;
+    };
+
     SchemaTracker m_schema_reader;
+    XrTimeConverter m_time_converter_;
+    XrTime m_last_update_time_ = 0;
     Generic3AxisPedalOutputTrackedT m_tracked;
-    DeviceDataTimestamp m_last_timestamp{};
+    std::vector<PendingRecord> m_pending_records;
 };
 
 // ============================================================================

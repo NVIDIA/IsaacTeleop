@@ -367,15 +367,16 @@ const ControllerSnapshotTrackedT& ControllerTracker::Impl::get_right_controller(
     return right_tracked_;
 }
 
-DeviceDataTimestamp ControllerTracker::Impl::serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const
+void ControllerTracker::Impl::serialize_all(size_t channel_index, const RecordCallback& callback) const
 {
     if (channel_index > 1)
     {
-        throw std::runtime_error("ControllerTracker::serialize: invalid channel_index " +
+        throw std::runtime_error("ControllerTracker::serialize_all: invalid channel_index " +
                                  std::to_string(channel_index) + " (must be 0 or 1)");
     }
-    const auto& tracked = (channel_index == 0) ? left_tracked_ : right_tracked_;
+    flatbuffers::FlatBufferBuilder builder(256);
 
+    const auto& tracked = (channel_index == 0) ? left_tracked_ : right_tracked_;
     int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
     DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
 
@@ -387,7 +388,8 @@ DeviceDataTimestamp ControllerTracker::Impl::serialize(flatbuffers::FlatBufferBu
     }
     record_builder.add_timestamp(&timestamp);
     builder.Finish(record_builder.Finish());
-    return timestamp;
+
+    callback(timestamp, builder.GetBufferPointer(), builder.GetSize());
 }
 
 // ============================================================================

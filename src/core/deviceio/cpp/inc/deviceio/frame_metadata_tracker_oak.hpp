@@ -28,7 +28,8 @@ namespace core
  * // ... create DeviceIOSession with tracker ...
  * session->update();
  * const auto& color = tracker->get_stream_data(*session, 0);
- * std::cout << EnumNameStreamType(color.stream) << " seq=" << color.sequence_number << std::endl;
+ * if (color.data)
+ *     std::cout << EnumNameStreamType(color.data->stream) << " seq=" << color.data->sequence_number << std::endl;
  * @endcode
  */
 class FrameMetadataTrackerOak : public ITracker
@@ -63,9 +64,10 @@ public:
      * @brief Get per-stream frame metadata.
      * @param session Active DeviceIOSession.
      * @param stream_index Index into the streams vector passed at construction.
-     * @return Reference to the FrameMetadataOakT for that stream.
+     * @return Reference to the FrameMetadataOakTrackedT for that stream.
+     *         The inner @c data pointer is null until the first frame arrives.
      */
-    const FrameMetadataOakT& get_stream_data(const DeviceIOSession& session, size_t stream_index) const;
+    const FrameMetadataOakTrackedT& get_stream_data(const DeviceIOSession& session, size_t stream_index) const;
 
     //! Number of streams this tracker is configured for.
     size_t get_stream_count() const

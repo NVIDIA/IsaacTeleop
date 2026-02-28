@@ -14,6 +14,7 @@
 #include <fstream>
 #include <memory>
 #include <string_view>
+#include <vector>
 
 namespace fs = std::filesystem;
 
@@ -37,15 +38,15 @@ public:
         return true;
     }
 
-    core::DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t /*channel_index*/ = 0) const override
+    void serialize_all(size_t /*channel_index*/, const RecordCallback& callback) const override
     {
-        // Create minimal valid FlatBuffer data (just some bytes for testing)
-        // In a real scenario, this would be actual FlatBuffer serialization
+        flatbuffers::FlatBufferBuilder builder(64);
         std::vector<uint8_t> data = { 0x01, 0x02, 0x03, 0x04 };
         auto vec = builder.CreateVector(data);
         builder.Finish(vec);
         serialize_count_++;
-        return core::DeviceDataTimestamp(timestamp_, timestamp_, timestamp_);
+        core::DeviceDataTimestamp ts(timestamp_, timestamp_, timestamp_);
+        callback(ts, builder.GetBufferPointer(), builder.GetSize());
     }
 
     // Test helpers
@@ -416,3 +417,128 @@ TEST_CASE("McapRecorder rejects tracker with empty channel name", "[mcap_recorde
 // The record(session) function requires a DeviceIOSession, which in turn
 // requires OpenXR handles. Full integration testing of the recording
 // functionality should be done with actual hardware or a mock OpenXR runtime.
+
+// =============================================================================
+// No-drops: mock that queues N independent records and overrides serialize_all
+// =============================================================================
+namespace
+{
+
+// Queues independent samples and overrides serialize_all to emit each as a
+// separate callback, mirroring what SchemaTracker-based impls do.
+class MockMultiSampleTrackerImpl : public core::ITrackerImpl
+{
+public:
+    void add_pending(int64_t sample_time_ns)
+    {
+        pending_.push_back(sample_time_ns);
+    }
+
+    size_t pending_count() const
+    {
+        return pending_.size();
+    }
+
+    bool update(XrTime) override
+    {
+        return true;
+    }
+
+    void serialize_all(size_t, const RecordCallback& callback) const override
+    {
+        for (int64_t ts : pending_)
+        {
+            flatbuffers::FlatBufferBuilder builder(64);
+            auto vec = builder.CreateVector(std::vector<uint8_t>{ 0xAA });
+            builder.Finish(vec);
+            core::DeviceDataTimestamp stamp(ts, ts, ts);
+            callback(stamp, builder.GetBufferPointer(), builder.GetSize());
+        }
+    }
+
+private:
+    std::vector<int64_t> pending_;
+};
+
+} // anonymous namespace
+
+// =============================================================================
+// No-drops: serialize_all contract tests (no MCAP I/O or OpenXR required)
+// =============================================================================
+
+TEST_CASE("MockTrackerImpl serialize_all invokes callback exactly once per update", "[no_drops]")
+{
+    // MockTrackerImpl::serialize_all emits one record per call (single-state tracker).
+    MockTrackerImpl impl;
+    impl.update(1'000'000'000LL);
+
+    int count = 0;
+    impl.serialize_all(0, [&](const core::DeviceDataTimestamp&, const uint8_t*, size_t) { ++count; });
+
+    CHECK(count == 1);
+}
+
+TEST_CASE("serialize_all emits every pending record without dropping any", "[no_drops]")
+{
+    constexpr int N = 7;
+    MockMultiSampleTrackerImpl impl;
+    for (int i = 0; i < N; ++i)
+    {
+        impl.add_pending(static_cast<int64_t>(i + 1) * 1'000'000'000LL);
+    }
+
+    int callback_count = 0;
+    std::vector<int64_t> seen_timestamps;
+
+    impl.serialize_all(0,
+                       [&](const core::DeviceDataTimestamp& ts, const uint8_t*, size_t)
+                       {
+                           ++callback_count;
+                           seen_timestamps.push_back(ts.sample_time_local_common_clock());
+                       });
+
+    // All N records must reach the recorder — none dropped.
+    REQUIRE(callback_count == N);
+    for (int i = 0; i < N; ++i)
+    {
+        // Each record carries its own distinct monotonic timestamp.
+        CHECK(seen_timestamps[i] == static_cast<int64_t>(i + 1) * 1'000'000'000LL);
+    }
+}
+
+TEST_CASE("MockMultiSampleTrackerImpl serialize_all with zero pending records invokes no callbacks", "[no_drops]")
+{
+    // This mock does not emit a heartbeat when pending_ is empty. Production tensor
+    // trackers (e.g. Generic3AxisPedalTracker, FrameMetadataTrackerOak) DO emit
+    // one empty heartbeat record per update tick — that contract is enforced in
+    // their own unit tests. This test only verifies the mock's simpler contract.
+    MockMultiSampleTrackerImpl impl;
+
+    int count = 0;
+    impl.serialize_all(0, [&](const core::DeviceDataTimestamp&, const uint8_t*, size_t) { ++count; });
+
+    CHECK(count == 0);
+}
+
+TEST_CASE("serialize_all pending count matches callback invocations across burst ticks", "[no_drops]")
+{
+    MockMultiSampleTrackerImpl impl;
+
+    // Simulate three update ticks with different burst sizes.
+    const std::vector<int> burst_sizes = { 3, 1, 5 };
+    int64_t ts = 1'000'000'000LL;
+    for (int burst : burst_sizes)
+    {
+        for (int j = 0; j < burst; ++j)
+        {
+            impl.add_pending(ts);
+            ts += 1'000'000'000LL;
+        }
+    }
+
+    const int total = static_cast<int>(impl.pending_count());
+    int count = 0;
+    impl.serialize_all(0, [&](const core::DeviceDataTimestamp&, const uint8_t*, size_t) { ++count; });
+
+    CHECK(count == total);
+}
