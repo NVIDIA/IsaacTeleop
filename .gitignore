@@ -48,5 +48,8 @@ cmake/Hunter/config-depthai.cmake
 dist/
 *.egg
 
+# Generated SSL certificates
+deps/cloudxr/certs/
+
 # build output
 build/

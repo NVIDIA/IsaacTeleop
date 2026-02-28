@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -182,6 +182,35 @@ The `./scripts/run_cloudxr.sh` script will automatically:
 
 > **Note:** The first run may take a few minutes to download the SDK and build containers.
 > Subsequent runs will be faster as these are cached.
+
+#### Alternative: run CloudXR via local wheel
+
+If you prefer a non-Docker runtime/proxy flow, you can launch CloudXR and the WSS
+proxy together with:
+
+```bash
+./scripts/run_cloudxr_via_wheel.sh
+```
+
+This script runs the Python CloudXR runtime (`python -m isaacteleop.cloudxr`) and
+the Python WSS proxy (`deps/cloudxr/wss_proxy.py`). If `isaacteleop.cloudxr` is not
+importable in the current Python environment, it tries to bootstrap `isaacteleop`
+from local wheels in `install/wheels` (or `build/wheels`).
+
+If no local wheel is found, build one first:
+
+```bash
+cmake -B build
+cmake --build build --parallel
+cmake --install build
+```
+
+After the script starts, open a CloudXR.js client page.
+
+For convenience, you can use the hosted NVIDIA Isaac Teleop Web Client:
+`https://nvidia.github.io/IsaacTeleop/client/`
+
+In that page, set **Server IP** to your server IP (for example, `192.168.1.2`).
 
 7. **White list ports for Firewall**
 
