@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -78,7 +78,7 @@ live retargeter tuning.
 
 ### Minimum (for robot teleop & data collection)
 
-- **CPU**: X86 (ARM support coming soon)
+- **CPU**: X86 or ARM (Jetson Thor)
 - **GPU**: NVIDIA GPU required
 
 ### Running simulation with Isaac Sim and Isaac Lab
@@ -89,7 +89,7 @@ live retargeter tuning.
 ## Prerequisites
 
 - **OS**: Ubuntu 22.04 or 24.04
-- **Python**: 3.11 or newer (version configured in root `CMakeLists.txt`)
+- **Python**: 3.10 or newer (version configured in root `CMakeLists.txt`)
 - **CUDA**: 12.8 (Recommended)
 - **NVIDIA Driver**: 580.95.05 (Recommended)
 
