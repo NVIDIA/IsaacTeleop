@@ -5,11 +5,14 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
 import os
+from datetime import datetime, timezone
 
 # -- Project information -----------------------------------------------------
 
 project = "Isaac Teleop"
-copyright = "2025-2026, NVIDIA CORPORATION & AFFILIATES."
+build_time = datetime.now(timezone.utc)
+copyright = f"2025-{build_time.year}, NVIDIA CORPORATION & AFFILIATES"
+copyright += f", last updated on {build_time.strftime('%B %d, %Y')}"
 author = "NVIDIA"
 
 _version_file = os.path.join(os.path.dirname(__file__), "..", "VERSION")
@@ -38,15 +41,51 @@ smv_tag_whitelist = os.getenv("SMV_TAG_WHITELIST", r"^v[1-9]\d*\.\d+\.\d+$")
 # -- Options for HTML output ---------------------------------------------------
 
 html_title = "Isaac Teleop Documentation"
-html_theme = "sphinx_book_theme"
+html_theme = "nvidia_sphinx_theme"
+html_favicon = "source/_static/favicon.ico"
 html_show_copyright = True
 html_show_sphinx = False
+html_static_path = ["source/_static/css"]
+html_css_files = ["custom.css"]
 
 html_theme_options = {
-    "path_to_docs": "docs/",
-    "repository_url": "https://github.com/NVIDIA/IsaacTeleop",
-    "use_repository_button": True,
-    "use_issues_button": True,
+    "collapse_navigation": True,
     "use_edit_page_button": True,
     "show_toc_level": 1,
+    "search_bar_text": "Search...",
+    "icon_links": [
+        {
+            "name": "GitHub",
+            "url": "https://github.com/NVIDIA/IsaacTeleop",
+            "icon": "fa-brands fa-square-github",
+            "type": "fontawesome",
+        },
+        {
+            "name": "CloudXR",
+            "url": "https://docs.nvidia.com/cloudxr-sdk",
+            "icon": "https://img.shields.io/badge/CloudXR-6.1-green.svg",
+            "type": "url",
+        },
+        {
+            "name": "Isaac Lab",
+            "url": "https://isaac-sim.github.io/IsaacLab/",
+            "icon": "https://img.shields.io/badge/IsaacLab-3.0-silver.svg",
+            "type": "url",
+        },
+    ],
+    "navbar_end": ["theme-switcher"],
+    "navbar_persistent": ["search-button"],
+}
+
+# Primary sidebar (left): icon links row, search, then TOC (like Isaac Lab)
+html_sidebars = {
+    "**": ["icon-links", "search-field", "sidebar-nav-bs"],
+}
+
+# Edit page button: link to GitHub so users can suggest edits (PyData theme uses html_context)
+html_context = {
+    "github_user": "NVIDIA",
+    "github_repo": "IsaacTeleop",
+    "github_version": "main",
+    "doc_path": "docs/source",
 }
