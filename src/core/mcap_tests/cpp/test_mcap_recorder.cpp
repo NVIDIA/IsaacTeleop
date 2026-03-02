@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 // Unit tests for McapRecorder
@@ -9,11 +9,21 @@
 #include <mcap/recorder.hpp>
 #include <schema/timestamp_generated.h>
 
+#include <atomic>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <memory>
 #include <string_view>
+
+#ifdef _WIN32
+#    include <process.h>
+#    define GET_PID() _getpid()
+#else
+#    include <unistd.h>
+#    define GET_PID() ::getpid()
+#endif
 
 namespace fs = std::filesystem;
 
@@ -216,12 +226,17 @@ private:
     std::shared_ptr<MockTrackerImpl> impl_;
 };
 
-// Helper to create a temporary file path
+// Helper to create a temporary file path unique across parallel CTest processes.
+// Each CTest invocation runs in a separate process (due to catch_discover_tests),
+// so std::rand() with the default seed would produce identical filenames.
 std::string get_temp_mcap_path()
 {
+    static std::atomic<int> counter{ 0 };
     auto temp_dir = fs::temp_directory_path();
-    auto filename = "test_mcap_" + std::to_string(std::rand()) + ".mcap";
-    return (temp_dir / filename).string();
+    auto filename = "test_mcap_" + std::to_string(GET_PID()) + "_" + std::to_string(counter++) + ".mcap";
+    auto path = (temp_dir / filename).string();
+    std::cout << "Test temp file: " << path << std::endl;
+    return path;
 }
 
 // RAII cleanup helper
