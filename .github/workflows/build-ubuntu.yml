@@ -107,7 +107,7 @@ jobs:
         mkdir -p install/wheels-repaired
         for wheel in "${wheels[@]}"; do
           echo "Repairing ${wheel}"
-          uv run --python ${{ matrix.python_version }} --with auditwheel \
+          uv run --python ${{ matrix.python_version }} --with "auditwheel==6.6.0" \
             auditwheel repair --exclude libcuda.so.1 --exclude libvulkan.so.1 --wheel-dir install/wheels-repaired "${wheel}"
         done
 
