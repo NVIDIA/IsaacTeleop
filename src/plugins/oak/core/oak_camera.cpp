@@ -54,7 +54,7 @@ OakCamera::OakCamera(const OakConfig& config, const std::vector<StreamConfig>& s
     auto pipeline = create_pipeline(config, streams, color_resolution);
 
     if (config.preview)
-        m_preview = PreviewStream::try_create(kPreviewStreamName, pipeline, color_resolution);
+        m_preview = PreviewStream::create(kPreviewStreamName, pipeline, color_resolution);
 
     m_device->startPipeline(pipeline);
 

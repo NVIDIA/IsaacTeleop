@@ -3,7 +3,6 @@
 
 #include "core/frame_sink.hpp"
 #include "core/oak_camera.hpp"
-#include "core/preview_stream.hpp"
 
 #include <atomic>
 #include <chrono>
@@ -107,13 +106,13 @@ void print_usage(const char* program_name)
         << "  --collection-prefix=PREFIX  Push metadata via OpenXR tensor extensions\n"
         << "  --mcap-filename=PATH        Record metadata to an MCAP file\n"
         << "\nPreview:\n"
-        << "  --preview           Show live color camera preview via OpenCV window\n"
+        << "  --preview           Show live color camera preview via SDL2 window\n"
         << "\nGeneral:\n"
         << "  --help              Show this help message\n"
         << "\nExamples:\n"
         << "  " << program_name << " --add-stream camera=Color,output=./color.h264\n"
         << "  " << program_name
-        << " --add-stream=camera=Color,output=./color.h264 --add-stream=camera=LeftMono,output=./left.h264 --add-stream=camera=RightMono,output=./right.h264\n";
+        << " --add-stream=camera=Color,output=./color.h264 --add-stream=camera=MonoLeft,output=./left.h264 --add-stream=camera=MonoRight,output=./right.h264\n";
 }
 
 // =============================================================================

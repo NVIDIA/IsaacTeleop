@@ -5,6 +5,7 @@
 
 #include <SDL.h>
 #include <iostream>
+#include <stdexcept>
 
 namespace plugins
 {
@@ -29,15 +30,15 @@ struct PreviewStream::Impl
             SDL_DestroyRenderer(renderer);
         if (window)
             SDL_DestroyWindow(window);
-        SDL_Quit();
+        SDL_QuitSubSystem(SDL_INIT_VIDEO);
     }
 };
 
 PreviewStream::~PreviewStream() = default;
 
-std::unique_ptr<PreviewStream> PreviewStream::try_create(const std::string& name,
-                                                         dai::Pipeline& pipeline,
-                                                         dai::ColorCameraProperties::SensorResolution resolution)
+std::unique_ptr<PreviewStream> PreviewStream::create(const std::string& name,
+                                                     dai::Pipeline& pipeline,
+                                                     dai::ColorCameraProperties::SensorResolution resolution)
 {
     // Find existing ColorCamera on CAM_A, or create one
     std::shared_ptr<dai::node::ColorCamera> camRgb;
@@ -71,10 +72,7 @@ std::unique_ptr<PreviewStream> PreviewStream::try_create(const std::string& name
     camRgb->preview.link(xout->input);
 
     if (SDL_Init(SDL_INIT_VIDEO) != 0)
-    {
-        std::cerr << "Preview: SDL_Init failed: " << SDL_GetError() << std::endl;
-        return nullptr;
-    }
+        throw std::runtime_error(std::string("Preview: SDL_Init failed: ") + SDL_GetError());
 
     auto impl = std::make_unique<Impl>();
 
@@ -82,20 +80,14 @@ std::unique_ptr<PreviewStream> PreviewStream::try_create(const std::string& name
         name.c_str(), SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, preview_w, preview_h, SDL_WINDOW_SHOWN);
 
     if (!impl->window)
-    {
-        std::cerr << "Preview: SDL_CreateWindow failed: " << SDL_GetError() << std::endl;
-        return nullptr;
-    }
+        throw std::runtime_error(std::string("Preview: SDL_CreateWindow failed: ") + SDL_GetError());
 
     impl->renderer = SDL_CreateRenderer(impl->window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (!impl->renderer)
         impl->renderer = SDL_CreateRenderer(impl->window, -1, 0);
 
     if (!impl->renderer)
-    {
-        std::cerr << "Preview: SDL_CreateRenderer failed: " << SDL_GetError() << std::endl;
-        return nullptr;
-    }
+        throw std::runtime_error(std::string("Preview: SDL_CreateRenderer failed: ") + SDL_GetError());
 
     auto stream = std::unique_ptr<PreviewStream>(new PreviewStream());
     stream->m_impl = std::move(impl);
@@ -111,6 +103,9 @@ void PreviewStream::setOutputQueue(std::shared_ptr<dai::DataOutputQueue> queue)
 
 void PreviewStream::update()
 {
+    if (!m_impl->queue)
+        throw std::runtime_error("Preview: Output queue not set");
+
     auto frame = m_impl->queue->tryGet<dai::ImgFrame>();
     if (!frame)
         return;
@@ -141,15 +136,6 @@ void PreviewStream::update()
     SDL_RenderClear(m_impl->renderer);
     SDL_RenderCopy(m_impl->renderer, m_impl->texture, nullptr, nullptr);
     SDL_RenderPresent(m_impl->renderer);
-
-    SDL_Event event;
-    while (SDL_PollEvent(&event))
-    {
-        if (event.type == SDL_QUIT)
-            return;
-        if (event.type == SDL_KEYDOWN && (event.key.keysym.sym == SDLK_ESCAPE || event.key.keysym.sym == SDLK_q))
-            return;
-    }
 }
 
 } // namespace oak
