@@ -10,7 +10,11 @@ teleop_camera_sender (RTP streaming) and teleop_camera_subgraph (local display).
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Type
 
-from holoscan.operators import FormatConverterOp, V4L2VideoCaptureOp, VideoStreamReplayerOp
+from holoscan.operators import (
+    FormatConverterOp,
+    V4L2VideoCaptureOp,
+    VideoStreamReplayerOp,
+)
 from loguru import logger
 
 from camera_config import CameraConfig
@@ -302,8 +306,7 @@ def create_video_file_source(
 ) -> CameraSourceResult:
     """Create a video file source using Holoscan VideoStreamReplayerOp.
 
-    Replays pre-converted video data in a loop. Use convert_video_to_replayer.py
-    to convert an MP4/AVI file to the required .gxf_entities/.gxf_index format.
+    Replays pre-converted video data in a loop.
     """
     if not cam_cfg.video_dir or not cam_cfg.video_basename:
         raise ValueError(
@@ -326,10 +329,6 @@ def create_video_file_source(
         operators=[replayer],
         frame_outputs={"mono": (replayer, "output")},
     )
-
-    if cam_cfg.stereo:
-        result.frame_outputs["left"] = result.frame_outputs.pop("mono")
-        result.frame_outputs["right"] = (replayer, "output")
 
     logger.info(
         f"  Video file source: {cam_name} "

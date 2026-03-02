@@ -96,6 +96,9 @@ RUN set -e; \
     && /tmp/ZED_SDK_Linux.run -- silent skip_drivers skip_cuda skip_od_module \
     && rm -f /tmp/ZED_SDK_Linux.run \
     && python3 /usr/local/zed/get_python_api.py \
+    # ZED SDK's get_python_api.py pulls pyzed which needs numpy, but the
+    # version it installs can conflict with Holoscan/CuPy. Pin to 1.26.0
+    # (last 1.x release) for ABI compatibility with both.
     && pip3 install --no-cache-dir --no-deps "numpy==1.26.0" \
     && echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="2b03", MODE="0666"' \
        > /etc/udev/rules.d/99-zed.rules \
@@ -107,13 +110,11 @@ RUN set -e; \
 # Python Dependencies
 ############################################################
 
-ARG TARGETARCH
-RUN set -e; \
-    case "${TARGETARCH}" in \
-      arm64) CUPY_PKG="cupy-cuda13x" ;; \
-      amd64) CUPY_PKG="cupy-cuda12x" ;; \
-    esac; \
-    pip3 install --no-cache-dir pyyaml loguru "${CUPY_PKG}" depthai opencv-python-headless
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && ln -s /root/.local/bin/uv /usr/local/bin/uv
+
+COPY pyproject.toml /camera_streamer/pyproject.toml
+RUN uv pip install --system --no-cache-dir -e /camera_streamer
 
 # udev rules for OAK-D cameras.
 RUN echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="03e7", MODE="0666"' \

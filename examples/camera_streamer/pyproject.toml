@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[project]
+name = "teleop-camera-streamer"
+version = "0.1.0"
+description = "Isaac Teleop multi-camera streaming (Holoscan-based)"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "pyyaml",
+    "loguru",
+    "depthai",
+    "opencv-python-headless",
+    "cupy-cuda12x; platform_machine == 'x86_64'",
+    "cupy-cuda13x; platform_machine == 'aarch64'",
+]

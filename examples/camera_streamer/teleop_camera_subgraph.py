@@ -309,28 +309,37 @@ class TeleopCameraSubgraph(Subgraph):
 
         # Track all monitored frame outputs (after VideoStreamMonitorOp)
         monitored_outputs: Dict[str, Any] = {}
+        # Tensor name each source produces (for HolovizOp matching).
+        # Sources going through VideoStreamMonitorOp get renamed to cam_name;
+        # sources that skip the monitor keep their native name.
+        tensor_names: Dict[str, str] = {}
 
         if self._config.source == "local":
             self._compose_local_sources(
-                allocator, verbose, stream_timeout, monitored_outputs
+                allocator, verbose, stream_timeout, monitored_outputs, tensor_names
             )
         else:
             self._compose_rtp_sources(
-                allocator, verbose, cuda_device, stream_timeout, monitored_outputs
+                allocator,
+                verbose,
+                cuda_device,
+                stream_timeout,
+                monitored_outputs,
+                tensor_names,
             )
 
         # -------------------------
         # Display mode specific pipeline
         # -------------------------
         if self._config.display_mode == DisplayMode.MONITOR:
-            self._compose_monitor_mode(monitored_outputs, allocator)
+            self._compose_monitor_mode(monitored_outputs, tensor_names, allocator)
         else:
             self._compose_xr_mode(monitored_outputs)
 
         logger.info(f"Teleop camera subgraph: mode={self._config.display_mode.value}")
 
     def _compose_local_sources(
-        self, allocator, verbose, stream_timeout, monitored_outputs
+        self, allocator, verbose, stream_timeout, monitored_outputs, tensor_names
     ):
         """Create direct camera sources (local mode)."""
         from camera_sources import create_camera_source
@@ -358,10 +367,15 @@ class TeleopCameraSubgraph(Subgraph):
                     f"{cam_name}_{stream_name}" if cam_cfg.stereo else cam_name
                 )
 
-                # Skip Python VideoStreamMonitorOp for V4L2 in local mode
-                # to avoid GIL thread-state crash with V4L2's capture thread.
-                if cam_cfg.camera_type == "v4l2":
+                # Skip Python VideoStreamMonitorOp for V4L2 and video_file
+                # in local mode to avoid GXF entity lifetime crashes.
+                if cam_cfg.camera_type in ("v4l2", "video_file"):
                     monitored_outputs[display_key] = (src_op, src_port)
+                    # V4L2's FormatConverterOp already names tensors;
+                    # video_file replayer outputs unnamed ("") tensors.
+                    tensor_names[display_key] = (
+                        cam_name if cam_cfg.camera_type == "v4l2" else ""
+                    )
                 else:
                     if self._config.display_mode == DisplayMode.MONITOR:
                         tensor_name = (
@@ -384,9 +398,16 @@ class TeleopCameraSubgraph(Subgraph):
                     self.add_flow(src_op, monitor, {(src_port, "frame_in")})
                     self.add_operator(monitor)
                     monitored_outputs[display_key] = (monitor, "frame_out")
+                    tensor_names[display_key] = tensor_name
 
     def _compose_rtp_sources(
-        self, allocator, verbose, cuda_device, stream_timeout, monitored_outputs
+        self,
+        allocator,
+        verbose,
+        cuda_device,
+        stream_timeout,
+        monitored_outputs,
+        tensor_names,
     ):
         """Create RTP receiver + decoder sources (rtp mode)."""
         for cam_name, cam_cfg in self._config.cameras.items():
@@ -443,9 +464,15 @@ class TeleopCameraSubgraph(Subgraph):
                 self.add_operator(monitor)
 
                 monitored_outputs[display_key] = (monitor, "frame_out")
+                tensor_names[display_key] = tensor_name
                 logger.info(f"  {camera_label}: port={stream_cfg.port}")
 
-    def _compose_monitor_mode(self, monitored_outputs: Dict[str, Any], allocator):
+    def _compose_monitor_mode(
+        self,
+        monitored_outputs: Dict[str, Any],
+        tensor_names: Dict[str, str],
+        allocator,
+    ):
         """Compose monitor mode pipeline using HolovizOp native tiling."""
         mon_cfg = self._config.monitor
 
@@ -471,7 +498,7 @@ class TeleopCameraSubgraph(Subgraph):
         window_aspect = mon_cfg.width / mon_cfg.height
 
         tensors = []
-        for i, (display_name, _, cam_cfg) in enumerate(camera_list):
+        for i, (display_name, monitor_key, cam_cfg) in enumerate(camera_list):
             tile_x = i * (tile_width_norm + pad_x)
             cam_aspect = cam_cfg.width / cam_cfg.height
             tile_aspect = tile_width_norm * window_aspect
@@ -494,7 +521,7 @@ class TeleopCameraSubgraph(Subgraph):
             view.height = view_height
             tensors.append(
                 {
-                    "name": display_name,
+                    "name": tensor_names.get(monitor_key, display_name),
                     "type": "color",
                     "opacity": 1.0,
                     "priority": i,
