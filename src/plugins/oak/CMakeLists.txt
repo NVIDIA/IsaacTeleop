@@ -32,7 +32,7 @@ message(STATUS "Building OAK camera plugin with DepthAI ${depthai_VERSION}")
 # ==============================================================================
 # SDL2 (for live preview window, bundled via FetchContent)
 # ==============================================================================
-set(SDL2_VERSION "2.30.11")
+set(SDL2_VERSION "2.32.10")
 
 set(SDL_TEST OFF CACHE BOOL "" FORCE)
 set(SDL_SHARED ON CACHE BOOL "" FORCE)
