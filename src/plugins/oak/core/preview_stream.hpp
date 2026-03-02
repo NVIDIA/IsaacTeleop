@@ -33,11 +33,11 @@ public:
      * Searches the pipeline for an existing ColorCamera on CAM_A. If none is
      * found, creates and configures one. Then attaches preview output nodes.
      *
-     * @return A valid PreviewStream, or nullptr if the SDL window could not be created.
+     * @throws std::runtime_error if SDL initialisation or window creation fails.
      */
-    static std::unique_ptr<PreviewStream> try_create(const std::string& name,
-                                                     dai::Pipeline& pipeline,
-                                                     dai::ColorCameraProperties::SensorResolution resolution);
+    static std::unique_ptr<PreviewStream> create(const std::string& name,
+                                                 dai::Pipeline& pipeline,
+                                                 dai::ColorCameraProperties::SensorResolution resolution);
 
     /** @brief Set the output queue to poll frames from. Call after Device::startPipeline. */
     void setOutputQueue(std::shared_ptr<dai::DataOutputQueue> queue);
