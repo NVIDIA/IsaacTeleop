@@ -42,6 +42,11 @@ cmake --build build --target camera_plugin_oak --parallel
 ./build/src/plugins/oak/camera_plugin_oak \
   --add-stream=camera=Color,output=./color.h264 --preview
 
+# Record metadata to MCAP
+./build/src/plugins/oak/camera_plugin_oak \
+  --add-stream=camera=Color,output=./color.h264 \
+  --mcap-filename=./metadata.mcap
+
 # Show help
 ./build/src/plugins/oak/camera_plugin_oak --help
 ```
