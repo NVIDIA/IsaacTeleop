@@ -113,6 +113,7 @@ jobs:
 
         rm -f install/wheels/*.whl
         mv install/wheels-repaired/*.whl install/wheels/
+        rmdir install/wheels-repaired || true
 
     - name: Create tarball to preserve permissions
       if: matrix.build_type == 'Release'
