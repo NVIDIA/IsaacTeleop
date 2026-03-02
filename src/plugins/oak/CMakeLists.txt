@@ -35,8 +35,8 @@ message(STATUS "Building OAK camera plugin with DepthAI ${depthai_VERSION}")
 set(SDL2_VERSION "2.32.10")
 
 set(SDL_TEST OFF CACHE BOOL "" FORCE)
-set(SDL_SHARED ON CACHE BOOL "" FORCE)
-set(SDL_STATIC OFF CACHE BOOL "" FORCE)
+set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+set(SDL_STATIC ON CACHE BOOL "" FORCE)
 
 FetchContent_Declare(
     sdl2
@@ -63,13 +63,10 @@ target_link_libraries(camera_plugin_oak
         mcap::mcap
         oxr::oxr_core
         pusherio::pusherio
-        SDL2::SDL2
+        SDL2::SDL2-static
 )
 
-# Bundle SDL2 shared library alongside the binary
-install(TARGETS SDL2 LIBRARY DESTINATION plugins/oak_camera)
-
-# Set RPATH to find bundled libraries in same directory
+# Set RPATH so the binary finds bundled shared libraries (e.g. libusb) in its own directory
 set_target_properties(camera_plugin_oak PROPERTIES
     INSTALL_RPATH "$ORIGIN"
 )
