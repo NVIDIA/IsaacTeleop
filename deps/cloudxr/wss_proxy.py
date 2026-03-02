@@ -9,6 +9,7 @@ import http.client
 import logging
 import os
 import signal
+import shutil
 import socket
 import ssl
 import subprocess
@@ -38,16 +39,24 @@ PEM_FILE = CERT_DIR / "server.pem"
 
 def ensure_certificate() -> None:
     """Generate a self-signed certificate if one does not already exist."""
-    if PEM_FILE.exists():
-        log.info("Using existing SSL certificate from %s", PEM_FILE)
+    if CERT_FILE.exists() and KEY_FILE.exists():
+        if not PEM_FILE.exists():
+            PEM_FILE.write_bytes(CERT_FILE.read_bytes() + KEY_FILE.read_bytes())
+            PEM_FILE.chmod(0o600)
+        log.info("Using existing SSL certificate from %s", CERT_FILE)
         return
 
     log.info("Generating self-signed SSL certificate …")
     CERT_DIR.mkdir(parents=True, exist_ok=True)
+    openssl_bin = shutil.which("openssl")
+    if not openssl_bin:
+        raise RuntimeError(
+            "OpenSSL executable not found on PATH; cannot generate TLS certificates."
+        )
 
     subprocess.run(
         [
-            "openssl",
+            openssl_bin,
             "req",
             "-x509",
             "-newkey",

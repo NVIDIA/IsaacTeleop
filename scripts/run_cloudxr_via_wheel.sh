@@ -57,10 +57,8 @@ if ! python -c "import isaacteleop.cloudxr" >/dev/null 2>&1; then
     echo "Bootstrapping isaacteleop from local wheel: $WHEEL"
     uv pip install \
         --python "$(command -v python)" \
-        --find-links "$(dirname "$WHEEL")" \
         --reinstall \
-        --prerelease=allow \
-        isaacteleop
+        "$WHEEL"
 fi
 
 python -m isaacteleop.cloudxr
