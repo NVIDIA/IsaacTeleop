@@ -9,16 +9,16 @@ Retargets hand/controller tracking data to end-effector commands using absolute 
 
 import numpy as np
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Optional
 
 from ..interface import (
     BaseRetargeter,
     ParameterState,
     RetargeterIOType,
 )
+from ..interface.retargeter_core_types import RetargeterIO
 from ..interface.tunable_parameter import BoolParameter, VectorParameter
-from ..interface.tensor_group_type import TensorGroupType
-from ..interface.tensor_group import TensorGroup
+from ..interface.tensor_group_type import TensorGroupType, OptionalType
 from ..tensor_types import (
     HandInput,
     ControllerInput,
@@ -180,9 +180,9 @@ class Se3AbsRetargeter(BaseRetargeter):
 
     def input_spec(self) -> RetargeterIOType:
         if "hand" in self._config.input_device:
-            return {self._config.input_device: HandInput()}
+            return {self._config.input_device: OptionalType(HandInput())}
         elif "controller" in self._config.input_device:
-            return {self._config.input_device: ControllerInput()}
+            return {self._config.input_device: OptionalType(ControllerInput())}
         else:
             raise ValueError(f"Unknown input device: {self._config.input_device}")
 
@@ -198,69 +198,49 @@ class Se3AbsRetargeter(BaseRetargeter):
             )
         }
 
-    def compute(
-        self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]
-    ) -> None:
+    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
+        ee_pose = outputs["ee_pose"]
         device_name = self._config.input_device
-        if device_name not in inputs:
-            outputs["ee_pose"][0] = self._last_pose
-            return
-
         inp = inputs[device_name]
+        if inp.is_none:
+            ee_pose[0] = self._last_pose
+            return
 
         wrist = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])  # x,y,z, qx,qy,qz,qw
 
         thumb_tip = None
         index_tip = None
-        active = False
 
         if "hand" in device_name:
-            # Hand Input
-            # Check active
-            if inp[HandInputIndex.IS_ACTIVE]:  # is_active
-                active = True
-                joint_positions = np.from_dlpack(inp[HandInputIndex.JOINT_POSITIONS])
-                joint_orientations = np.from_dlpack(
-                    inp[HandInputIndex.JOINT_ORIENTATIONS]
+            joint_positions = np.from_dlpack(inp[HandInputIndex.JOINT_POSITIONS])
+            joint_orientations = np.from_dlpack(inp[HandInputIndex.JOINT_ORIENTATIONS])
+            joint_valid = np.from_dlpack(inp[HandInputIndex.JOINT_VALID])
+
+            if joint_valid[HandJointIndex.WRIST]:
+                wrist_pos = joint_positions[HandJointIndex.WRIST]
+                wrist_ori = joint_orientations[HandJointIndex.WRIST]  # XYZW
+                wrist = np.concatenate([wrist_pos, wrist_ori])
+
+            if joint_valid[HandJointIndex.THUMB_TIP]:
+                thumb_tip = np.concatenate(
+                    [
+                        joint_positions[HandJointIndex.THUMB_TIP],
+                        joint_orientations[HandJointIndex.THUMB_TIP],
+                    ]
                 )
-                joint_valid = np.from_dlpack(inp[HandInputIndex.JOINT_VALID])
-
-                # Wrist = 1
-                if joint_valid[HandJointIndex.WRIST]:
-                    wrist_pos = joint_positions[HandJointIndex.WRIST]
-                    wrist_ori = joint_orientations[HandJointIndex.WRIST]  # XYZW
-                    wrist = np.concatenate([wrist_pos, wrist_ori])
-
-                if joint_valid[HandJointIndex.THUMB_TIP]:
-                    thumb_tip = np.concatenate(
-                        [
-                            joint_positions[HandJointIndex.THUMB_TIP],
-                            joint_orientations[HandJointIndex.THUMB_TIP],
-                        ]
-                    )
-                if joint_valid[HandJointIndex.INDEX_TIP]:
-                    index_tip = np.concatenate(
-                        [
-                            joint_positions[HandJointIndex.INDEX_TIP],
-                            joint_orientations[HandJointIndex.INDEX_TIP],
-                        ]
-                    )
-
+            if joint_valid[HandJointIndex.INDEX_TIP]:
+                index_tip = np.concatenate(
+                    [
+                        joint_positions[HandJointIndex.INDEX_TIP],
+                        joint_orientations[HandJointIndex.INDEX_TIP],
+                    ]
+                )
         else:
-            # Controller Input
-            # Check active
-            if inp[ControllerInputIndex.IS_ACTIVE]:  # is_active
-                active = True
-                # Grip Pose
-                grip_pos = np.from_dlpack(inp[ControllerInputIndex.GRIP_POSITION])
-                grip_ori = np.from_dlpack(
-                    inp[ControllerInputIndex.GRIP_ORIENTATION]
-                )  # XYZW
-                wrist = np.concatenate([grip_pos, grip_ori])
-
-        if not active:
-            outputs["ee_pose"][0] = self._last_pose
-            return
+            grip_pos = np.from_dlpack(inp[ControllerInputIndex.GRIP_POSITION])
+            grip_ori = np.from_dlpack(
+                inp[ControllerInputIndex.GRIP_ORIENTATION]
+            )  # XYZW
+            wrist = np.concatenate([grip_pos, grip_ori])
 
         # Logic from IsaacLab
 
@@ -300,7 +280,7 @@ class Se3AbsRetargeter(BaseRetargeter):
 
         final_pose = np.concatenate([position, rotation]).astype(np.float32)
         self._last_pose = final_pose
-        outputs["ee_pose"][0] = final_pose
+        ee_pose[0] = final_pose
 
 
 class Se3RelRetargeter(BaseRetargeter):
@@ -328,9 +308,9 @@ class Se3RelRetargeter(BaseRetargeter):
 
     def input_spec(self) -> RetargeterIOType:
         if "hand" in self._config.input_device:
-            return {self._config.input_device: HandInput()}
+            return {self._config.input_device: OptionalType(HandInput())}
         elif "controller" in self._config.input_device:
-            return {self._config.input_device: ControllerInput()}
+            return {self._config.input_device: OptionalType(ControllerInput())}
         else:
             raise ValueError(f"Unknown input device: {self._config.input_device}")
 
@@ -346,64 +326,51 @@ class Se3RelRetargeter(BaseRetargeter):
             )
         }
 
-    def compute(
-        self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]
-    ) -> None:
+    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
+        ee_delta = outputs["ee_delta"]
         device_name = self._config.input_device
-        if device_name not in inputs:
-            return
-
         inp = inputs[device_name]
+        if inp.is_none:
+            ee_delta[0] = np.zeros(6, dtype=np.float32)
+            return
 
         wrist = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
         thumb_tip = None
         index_tip = None
 
-        active = False
-
         if "hand" in device_name:
-            if inp[HandInputIndex.IS_ACTIVE]:  # is_active
-                active = True
-                joint_positions = np.from_dlpack(inp[HandInputIndex.JOINT_POSITIONS])
-                joint_orientations = np.from_dlpack(
-                    inp[HandInputIndex.JOINT_ORIENTATIONS]
-                )
+            joint_positions = np.from_dlpack(inp[HandInputIndex.JOINT_POSITIONS])
+            joint_orientations = np.from_dlpack(inp[HandInputIndex.JOINT_ORIENTATIONS])
 
-                wrist = np.concatenate(
-                    [
-                        joint_positions[HandJointIndex.WRIST],
-                        joint_orientations[HandJointIndex.WRIST],
-                    ]
-                )
-                thumb_tip = np.concatenate(
-                    [
-                        joint_positions[HandJointIndex.THUMB_TIP],
-                        joint_orientations[HandJointIndex.THUMB_TIP],
-                    ]
-                )
-                index_tip = np.concatenate(
-                    [
-                        joint_positions[HandJointIndex.INDEX_TIP],
-                        joint_orientations[HandJointIndex.INDEX_TIP],
-                    ]
-                )
+            wrist = np.concatenate(
+                [
+                    joint_positions[HandJointIndex.WRIST],
+                    joint_orientations[HandJointIndex.WRIST],
+                ]
+            )
+            thumb_tip = np.concatenate(
+                [
+                    joint_positions[HandJointIndex.THUMB_TIP],
+                    joint_orientations[HandJointIndex.THUMB_TIP],
+                ]
+            )
+            index_tip = np.concatenate(
+                [
+                    joint_positions[HandJointIndex.INDEX_TIP],
+                    joint_orientations[HandJointIndex.INDEX_TIP],
+                ]
+            )
         else:
-            if inp[ControllerInputIndex.IS_ACTIVE]:  # is_active
-                active = True
-                grip_pos = np.from_dlpack(inp[ControllerInputIndex.GRIP_POSITION])
-                grip_ori = np.from_dlpack(inp[ControllerInputIndex.GRIP_ORIENTATION])
-                wrist = np.concatenate([grip_pos, grip_ori])
-
-        if not active:
-            outputs["ee_delta"][0] = np.zeros(6, dtype=np.float32)
-            return
+            grip_pos = np.from_dlpack(inp[ControllerInputIndex.GRIP_POSITION])
+            grip_ori = np.from_dlpack(inp[ControllerInputIndex.GRIP_ORIENTATION])
+            wrist = np.concatenate([grip_pos, grip_ori])
 
         if self._first_frame:
             self._previous_wrist = wrist
             self._previous_thumb_tip = thumb_tip
             self._previous_index_tip = index_tip
             self._first_frame = False
-            outputs["ee_delta"][0] = np.zeros(6, dtype=np.float32)
+            ee_delta[0] = np.zeros(6, dtype=np.float32)
             return
 
         # Calculate Deltas
@@ -471,7 +438,7 @@ class Se3RelRetargeter(BaseRetargeter):
         self._previous_thumb_tip = thumb_tip
         self._previous_index_tip = index_tip
 
-        outputs["ee_delta"][0] = np.concatenate([position, rotation]).astype(np.float32)
+        ee_delta[0] = np.concatenate([position, rotation]).astype(np.float32)
 
     def _calculate_delta_pose(
         self, joint_pose: np.ndarray, previous_joint_pose: np.ndarray

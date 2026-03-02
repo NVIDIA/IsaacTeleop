@@ -12,20 +12,22 @@ Based on IsaacLab's DexMotionController, adapted for Isaac Teleop's retargeting 
 """
 
 import numpy as np
-from typing import Dict, List
+from typing import List
 from dataclasses import dataclass
 
 from ...interface import (
     BaseRetargeter,
     RetargeterIOType,
 )
+from ...interface.retargeter_core_types import RetargeterIO
 from ...interface.tensor_group import (
     TensorGroup,
 )
+from ...interface.tensor_group_type import OptionalType
 from ...tensor_types import (
     ControllerInput,
-    RobotHandJoints,
     ControllerInputIndex,
+    RobotHandJoints,
 )
 
 
@@ -99,11 +101,11 @@ class TriHandMotionControllerRetargeter(BaseRetargeter):
         super().__init__(name=name)
 
     def input_spec(self) -> RetargeterIOType:
-        """Define input collections for motion controller."""
+        """Define input collections for motion controller (Optional)."""
         if self._controller_side == "left":
-            return {"controller_left": ControllerInput()}
+            return {"controller_left": OptionalType(ControllerInput())}
         else:
-            return {"controller_right": ControllerInput()}
+            return {"controller_right": OptionalType(ControllerInput())}
 
     def output_spec(self) -> RetargeterIOType:
         """Define output collections for robot hand joint angles."""
@@ -113,9 +115,7 @@ class TriHandMotionControllerRetargeter(BaseRetargeter):
             )
         }
 
-    def compute(
-        self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]
-    ) -> None:
+    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
         """
         Execute the motion controller to hand joint mapping.
 
@@ -123,31 +123,18 @@ class TriHandMotionControllerRetargeter(BaseRetargeter):
             inputs: Dict with motion controller data
             outputs: Dict with "hand_joints" TensorGroup for robot joint angles
         """
-        # Get input controller data
+        output_group = outputs["hand_joints"]
+
         controller_input_key = f"controller_{self._controller_side}"
         controller_group = inputs[controller_input_key]
 
-        # Check if controller is active
-        is_active = controller_group[
-            ControllerInputIndex.IS_ACTIVE
-        ]  # is_active field at index 11
-
-        if not is_active:
-            # Output zeros if controller is not active
-            output_group = outputs["hand_joints"]
+        if controller_group.is_none:
             for i in range(len(self._hand_joint_names)):
                 output_group[i] = 0.0
             return
 
-        # Extract controller inputs
-        # Index mapping (from constants.py ControllerInputIndex):
-
-        trigger_value = float(
-            controller_group[ControllerInputIndex.TRIGGER_VALUE]
-        )  # trigger_value
-        squeeze_value = float(
-            controller_group[ControllerInputIndex.SQUEEZE_VALUE]
-        )  # squeeze_value
+        trigger_value = float(controller_group[ControllerInputIndex.TRIGGER_VALUE])
+        squeeze_value = float(controller_group[ControllerInputIndex.SQUEEZE_VALUE])
 
         # Map controller inputs to hand joints (7 DOFs)
         hand_joints = self._map_to_hand_joints(trigger_value, squeeze_value)
@@ -155,9 +142,6 @@ class TriHandMotionControllerRetargeter(BaseRetargeter):
         # For left hand, negate joint angles for proper mirroring
         if self._is_left:
             hand_joints = -hand_joints
-
-        # Write to output
-        output_group = outputs["hand_joints"]
 
         # If we have exactly 7 joint names, use direct mapping
         if len(self._hand_joint_names) == 7:
@@ -278,10 +262,10 @@ class TriHandBiManualMotionControllerRetargeter(BaseRetargeter):
                 self._right_indices.append(right_joints.index(name))
 
     def input_spec(self) -> RetargeterIOType:
-        """Define input collections for both controllers."""
+        """Define input collections for both controllers (Optional)."""
         return {
-            "controller_left": ControllerInput(),
-            "controller_right": ControllerInput(),
+            "controller_left": OptionalType(ControllerInput()),
+            "controller_right": OptionalType(ControllerInput()),
         }
 
     def output_spec(self) -> RetargeterIOType:
@@ -292,9 +276,7 @@ class TriHandBiManualMotionControllerRetargeter(BaseRetargeter):
             )
         }
 
-    def compute(
-        self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]
-    ) -> None:
+    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
         """
         Execute bimanual motion controller retargeting.
 
@@ -303,12 +285,12 @@ class TriHandBiManualMotionControllerRetargeter(BaseRetargeter):
             outputs: Dict with "hand_joints" combined output
         """
         # Create temporary output groups for individual controllers
-        left_outputs = {
+        left_outputs: RetargeterIO = {
             "hand_joints": TensorGroup(
                 self._left_controller.output_spec()["hand_joints"]
             )
         }
-        right_outputs = {
+        right_outputs: RetargeterIO = {
             "hand_joints": TensorGroup(
                 self._right_controller.output_spec()["hand_joints"]
             )

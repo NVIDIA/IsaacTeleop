@@ -16,7 +16,7 @@ data passed straight through.
 from .base_retargeter import BaseRetargeter
 from .retargeter_core_types import RetargeterIO, RetargeterIOType
 from .tensor_group_type import TensorGroupType
-from .tensor_group import TensorGroup
+from .tensor_group import OptionalTensorGroup
 
 
 class ValueInput(BaseRetargeter):
@@ -85,7 +85,10 @@ class ValueInput(BaseRetargeter):
             inputs: Dict with "value" TensorGroup (fed externally).
             outputs: Dict with "value" TensorGroup to populate.
         """
-        inp: TensorGroup = inputs[self.VALUE]
-        out: TensorGroup = outputs[self.VALUE]
+        inp: OptionalTensorGroup = inputs[self.VALUE]
+        out: OptionalTensorGroup = outputs[self.VALUE]
+        if inp.is_none:
+            out.set_none()
+            return
         for i in range(len(inp)):
             out[i] = inp[i]

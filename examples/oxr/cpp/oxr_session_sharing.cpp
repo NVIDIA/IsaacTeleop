@@ -89,17 +89,17 @@ try
         }
 
         // Get data from both trackers
-        const auto& left = hand_tracker->get_left_hand(*session1);
-        const auto& head = head_tracker->get_head(*session2);
+        const auto& left_tracked = hand_tracker->get_left_hand(*session1);
+        const auto& head_tracked = head_tracker->get_head(*session2);
 
         if (i % 3 == 0)
         {
             std::cout << "Frame " << i << ": "
-                      << "Hands=" << (left.is_active ? "ACTIVE" : "INACTIVE") << " | "
-                      << "Head=" << (head.is_valid ? "VALID" : "INVALID");
-            if (head.is_valid && head.pose)
+                      << "Hands=" << (left_tracked.data ? "ACTIVE" : "INACTIVE") << " | "
+                      << "Head=" << ((head_tracked.data && head_tracked.data->is_valid) ? "VALID" : "INVALID");
+            if (head_tracked.data && head_tracked.data->is_valid && head_tracked.data->pose)
             {
-                const auto& pos = head.pose->position();
+                const auto& pos = head_tracked.data->pose->position();
                 std::cout << " [" << pos.x() << ", " << pos.y() << ", " << pos.z() << "]";
             }
             std::cout << std::endl;

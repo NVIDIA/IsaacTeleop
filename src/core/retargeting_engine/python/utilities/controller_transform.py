@@ -17,7 +17,8 @@ import numpy as np
 
 from ..interface.base_retargeter import BaseRetargeter
 from ..interface.retargeter_core_types import RetargeterIO, RetargeterIOType
-from ..interface.tensor_group import TensorGroup
+from ..interface.tensor_group import OptionalTensorGroup
+from ..interface.tensor_group_type import OptionalType
 from ..tensor_types import ControllerInput, ControllerInputIndex, TransformMatrix
 from .transform_utils import (
     decompose_transform,
@@ -74,27 +75,26 @@ class ControllerTransform(BaseRetargeter):
         super().__init__(name)
 
     def input_spec(self) -> RetargeterIOType:
-        """Declare controller and transform matrix inputs."""
+        """Declare controller (Optional) and transform matrix inputs."""
         return {
-            self.LEFT: ControllerInput(),
-            self.RIGHT: ControllerInput(),
+            self.LEFT: OptionalType(ControllerInput()),
+            self.RIGHT: OptionalType(ControllerInput()),
             "transform": TransformMatrix(),
         }
 
     def output_spec(self) -> RetargeterIOType:
-        """Declare transformed controller output specs for left and right."""
+        """Declare transformed controller output specs (Optional)."""
         return {
-            self.LEFT: ControllerInput(),
-            self.RIGHT: ControllerInput(),
+            self.LEFT: OptionalType(ControllerInput()),
+            self.RIGHT: OptionalType(ControllerInput()),
         }
 
     def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
         """
         Apply the 4x4 transform to controller grip and aim poses.
 
-        Position is transformed as: p' = R @ p + t
-        Orientation is transformed as: q' = R_quat * q
-        All other fields (buttons, axes, is_active) are copied unchanged.
+        If an input controller is ``None`` (Optional absent), the corresponding
+        output is set to ``None`` as well (propagated).
 
         Args:
             inputs: Dict with "controller_left", "controller_right", and "transform" TensorGroups.
@@ -103,17 +103,18 @@ class ControllerTransform(BaseRetargeter):
         matrix = np.from_dlpack(inputs["transform"][_MATRIX_INDEX])
         rotation, translation = decompose_transform(matrix)
 
-        self._transform_controller(
-            inputs[self.LEFT], outputs[self.LEFT], rotation, translation
-        )
-        self._transform_controller(
-            inputs[self.RIGHT], outputs[self.RIGHT], rotation, translation
-        )
+        for side in (self.LEFT, self.RIGHT):
+            if inputs[side].is_none:
+                outputs[side].set_none()
+            else:
+                self._transform_controller(
+                    inputs[side], outputs[side], rotation, translation
+                )
 
     @staticmethod
     def _transform_controller(
-        inp: TensorGroup,
-        out: TensorGroup,
+        inp: OptionalTensorGroup,
+        out: OptionalTensorGroup,
         rotation: np.ndarray,
         translation: np.ndarray,
     ) -> None:

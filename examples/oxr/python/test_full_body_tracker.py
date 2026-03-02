@@ -66,15 +66,16 @@ try:
 
             # Test 6: Check initial body tracking state
             print("[Test 6] Checking body tracking state...")
-            body_pose = body_tracker.get_body_pose(session)
-            print(f"  Body tracking active: {'YES' if body_pose.is_active else 'NO'}")
+            body_tracked = body_tracker.get_body_pose(session)
+            print(
+                f"  Body tracking active: {'YES' if body_tracked.data is not None else 'NO'}"
+            )
 
-            if body_pose.joints:
-                # Count valid joints
+            if body_tracked.data is not None:
                 valid_count = sum(
                     1
                     for i in range(schema.BodyJointPico.NUM_JOINTS)
-                    if body_pose.joints[i].is_valid
+                    if body_tracked.data.joints.joints(i).is_valid
                 )
                 print(
                     f"  Valid joints: {valid_count}/{schema.BodyJointPico.NUM_JOINTS}"
@@ -99,29 +100,22 @@ try:
                 current_time = time.time()
                 if current_time - last_status_print >= 0.5:  # Print every 0.5 seconds
                     elapsed = current_time - start_time
-                    body_pose = body_tracker.get_body_pose(session)
+                    body_tracked = body_tracker.get_body_pose(session)
 
-                    # Show key joint positions
-                    status = f"Active: {'Y' if body_pose.is_active else 'N'}"
-
-                    if body_pose.joints:
-                        # Get pelvis position (root joint)
-                        pelvis = body_pose.joints[schema.BodyJointPico.PELVIS]
-                        if pelvis.is_valid:
-                            pos = pelvis.pose.position
-                            status += (
-                                f" | Pelvis: [{pos.x:+.2f}, {pos.y:+.2f}, {pos.z:+.2f}]"
-                            )
-
-                        # Get head position
-                        head = body_pose.joints[schema.BodyJointPico.HEAD]
-                        if head.is_valid:
-                            pos = head.pose.position
-                            status += (
-                                f" | Head: [{pos.x:+.2f}, {pos.y:+.2f}, {pos.z:+.2f}]"
-                            )
-
-                    print(f"  [{elapsed:5.2f}s] Frame {frame_count:4d} | {status}")
+                    if body_tracked.data is not None:
+                        pelvis_pos = body_tracked.data.joints.joints(
+                            int(schema.BodyJointPico.PELVIS)
+                        ).pose.position
+                        head_pos = body_tracked.data.joints.joints(
+                            int(schema.BodyJointPico.HEAD)
+                        ).pose.position
+                        print(
+                            f"  [{elapsed:5.2f}s] Frame {frame_count:4d}"
+                            f" | Pelvis: [{pelvis_pos.x:+.2f}, {pelvis_pos.y:+.2f}, {pelvis_pos.z:+.2f}]"
+                            f" | Head: [{head_pos.x:+.2f}, {head_pos.y:+.2f}, {head_pos.z:+.2f}]"
+                        )
+                    else:
+                        print(f"  [{elapsed:5.2f}s] Frame {frame_count:4d} | inactive")
                     last_status_print = current_time
 
                 frame_count += 1
@@ -133,25 +127,24 @@ try:
 
             # Test 8: Show final body pose
             print("[Test 8] Final body pose state...")
-            body_pose = body_tracker.get_body_pose(session)
+            body_tracked = body_tracker.get_body_pose(session)
 
-            print(f"  Body tracking active: {'YES' if body_pose.is_active else 'NO'}")
+            print(
+                f"  Body tracking active: {'YES' if body_tracked.data is not None else 'NO'}"
+            )
 
-            if body_pose.joints:
+            if body_tracked.data is not None:
                 print()
-                print("  Joint positions (valid joints only):")
+                print("  Joint positions:")
                 for i in range(schema.BodyJointPico.NUM_JOINTS):
-                    joint = body_pose.joints[i]
+                    joint = body_tracked.data.joints.joints(i)
                     name = schema.BodyJointPico(i).name
-                    if joint.is_valid:
-                        pos = joint.pose.position
-                        rot = joint.pose.orientation
-                        print(
-                            f"    [{i:2d}] {name:15s}: pos=[{pos.x:+.3f}, {pos.y:+.3f}, {pos.z:+.3f}]"
-                            f"  rot=[{rot.x:+.3f}, {rot.y:+.3f}, {rot.z:+.3f}, {rot.w:+.3f}]"
-                        )
-                    else:
-                        print(f"    [{i:2d}] {name:15s}: (invalid)")
+                    pos = joint.pose.position
+                    rot = joint.pose.orientation
+                    print(
+                        f"    [{i:2d}] {name:15s}: pos=[{pos.x:+.3f}, {pos.y:+.3f}, {pos.z:+.3f}]"
+                        f"  rot=[{rot.x:+.3f}, {rot.y:+.3f}, {rot.z:+.3f}, {rot.w:+.3f}]"
+                    )
             print()
 
             # Cleanup

@@ -37,7 +37,7 @@ public:
         return true;
     }
 
-    core::Timestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t /*channel_index*/) const override
+    core::DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t /*channel_index*/ = 0) const override
     {
         // Create minimal valid FlatBuffer data (just some bytes for testing)
         // In a real scenario, this would be actual FlatBuffer serialization
@@ -45,7 +45,7 @@ public:
         auto vec = builder.CreateVector(data);
         builder.Finish(vec);
         serialize_count_++;
-        return core::Timestamp(timestamp_, timestamp_);
+        return core::DeviceDataTimestamp(timestamp_, timestamp_, timestamp_);
     }
 
     // Test helpers

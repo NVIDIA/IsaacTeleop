@@ -7,7 +7,6 @@ pybind11_add_module(schema_py
     full_body_bindings.h
     hand_bindings.h
     head_bindings.h
-    locomotion_bindings.h
     pedals_bindings.h
     pose_bindings.h
     schema_module.cpp

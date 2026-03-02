@@ -5,8 +5,7 @@
 Hand Transform Node - Applies a 4x4 transform to hand tracking data.
 
 Transforms all hand joint positions and orientations using a homogeneous
-transformation matrix while preserving joint radii, validity, active state,
-and timestamp fields.
+transformation matrix while preserving joint radii and validity fields.
 
 The transform matrix is received as a tensor input from the graph, typically
 provided by a TransformSource node.
@@ -22,7 +21,8 @@ import numpy as np
 
 from ..interface.base_retargeter import BaseRetargeter
 from ..interface.retargeter_core_types import RetargeterIO, RetargeterIOType
-from ..interface.tensor_group import TensorGroup
+from ..interface.tensor_group import OptionalTensorGroup
+from ..interface.tensor_group_type import OptionalType
 from ..tensor_types import HandInput, HandInputIndex, TransformMatrix
 from .transform_utils import (
     decompose_transform,
@@ -41,7 +41,7 @@ class HandTransform(BaseRetargeter):
 
     Transforms all 26 joint positions (R @ p + t) and orientations (R_quat * q)
     for both left and right hands while passing through joint radii, validity
-    flags, active state, and timestamp unchanged.
+    flags unchanged.
 
     The transform matrix is provided as a tensor input, allowing it to be
     sourced from a TransformSource node in the graph.
@@ -79,27 +79,30 @@ class HandTransform(BaseRetargeter):
         super().__init__(name)
 
     def input_spec(self) -> RetargeterIOType:
-        """Declare hand and transform matrix inputs."""
+        """Declare hand (Optional) and transform matrix inputs."""
         return {
-            self.LEFT: HandInput(),
-            self.RIGHT: HandInput(),
+            self.LEFT: OptionalType(HandInput()),
+            self.RIGHT: OptionalType(HandInput()),
             "transform": TransformMatrix(),
         }
 
     def output_spec(self) -> RetargeterIOType:
-        """Declare transformed hand output specs for left and right."""
+        """Declare transformed hand output specs for left and right (Optional)."""
         return {
-            self.LEFT: HandInput(),
-            self.RIGHT: HandInput(),
+            self.LEFT: OptionalType(HandInput()),
+            self.RIGHT: OptionalType(HandInput()),
         }
 
     def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
         """
         Apply the 4x4 transform to all hand joint positions and orientations.
 
+        If an input hand is ``None`` (Optional absent), the corresponding
+        output is set to ``None`` as well (propagated).
+
         Position is transformed as: p' = R @ p + t (batch over 26 joints)
         Orientation is transformed as: q' = R_quat * q (batch over 26 joints)
-        All other fields (radii, validity, active, timestamp) are copied unchanged.
+        All other fields (radii, validity) are copied unchanged.
 
         Args:
             inputs: Dict with "hand_left", "hand_right", and "transform" TensorGroups.
@@ -108,17 +111,16 @@ class HandTransform(BaseRetargeter):
         matrix = np.from_dlpack(inputs["transform"][_MATRIX_INDEX])
         rotation, translation = decompose_transform(matrix)
 
-        self._transform_hand(
-            inputs[self.LEFT], outputs[self.LEFT], rotation, translation
-        )
-        self._transform_hand(
-            inputs[self.RIGHT], outputs[self.RIGHT], rotation, translation
-        )
+        for side in (self.LEFT, self.RIGHT):
+            if inputs[side].is_none:
+                outputs[side].set_none()
+            else:
+                self._transform_hand(inputs[side], outputs[side], rotation, translation)
 
     @staticmethod
     def _transform_hand(
-        inp: TensorGroup,
-        out: TensorGroup,
+        inp: OptionalTensorGroup,
+        out: OptionalTensorGroup,
         rotation: np.ndarray,
         translation: np.ndarray,
     ) -> None:

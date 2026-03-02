@@ -5,6 +5,7 @@
 
 #include "tracker.hpp"
 
+#include <oxr_utils/oxr_time.hpp>
 #include <schema/hand_bfbs_generated.h>
 #include <schema/hand_generated.h>
 
@@ -41,9 +42,9 @@ public:
         return { "left_hand", "right_hand" };
     }
 
-    // Query methods - public API for getting hand data
-    const HandPoseT& get_left_hand(const DeviceIOSession& session) const;
-    const HandPoseT& get_right_hand(const DeviceIOSession& session) const;
+    // Query methods - public API for getting hand data (tracked.data is null when inactive)
+    const HandPoseTrackedT& get_left_hand(const DeviceIOSession& session) const;
+    const HandPoseTrackedT& get_right_hand(const DeviceIOSession& session) const;
 
     // Get joint name for debugging
     static std::string get_joint_name(uint32_t joint_index);
@@ -65,24 +66,26 @@ private:
         // Override from ITrackerImpl
         bool update(XrTime time) override;
 
-        Timestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const override;
+        DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index = 0) const override;
 
-        const HandPoseT& get_left_hand() const;
-        const HandPoseT& get_right_hand() const;
+        const HandPoseTrackedT& get_left_hand() const;
+        const HandPoseTrackedT& get_right_hand() const;
 
     private:
         // Helper functions
-        bool update_hand(XrHandTrackerEXT tracker, XrTime time, HandPoseT& out_data);
+        bool update_hand(XrHandTrackerEXT tracker, XrTime time, HandPoseTrackedT& tracked);
 
+        XrTimeConverter time_converter_;
         XrSpace base_space_;
 
         // Hand trackers
         XrHandTrackerEXT left_hand_tracker_;
         XrHandTrackerEXT right_hand_tracker_;
 
-        // Hand data
-        HandPoseT left_hand_;
-        HandPoseT right_hand_;
+        // Hand data (tracked.data is null when inactive)
+        HandPoseTrackedT left_tracked_;
+        HandPoseTrackedT right_tracked_;
+        XrTime last_update_time_ = 0;
 
         // Extension function pointers
         PFN_xrCreateHandTrackerEXT pfn_create_hand_tracker_;

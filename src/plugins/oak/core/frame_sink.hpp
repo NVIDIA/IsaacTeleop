@@ -25,7 +25,9 @@ class IMetadataPusher
 {
 public:
     virtual ~IMetadataPusher() = default;
-    virtual void on_frame_metadata(const core::FrameMetadataOakT& metadata) = 0;
+    virtual void on_frame_metadata(const core::FrameMetadataOakT& metadata,
+                                   int64_t sample_time_local_common_clock_ns,
+                                   int64_t sample_time_raw_device_clock_ns) = 0;
 };
 
 /**

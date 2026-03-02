@@ -16,13 +16,14 @@ from ..interface.retargeter_core_types import (
     RetargeterIOType,
 )
 from ..interface.tensor_group import TensorGroup
+from ..interface.tensor_group_type import OptionalType
 from ..interface.retargeter_subgraph import RetargeterSubgraph
-from ..tensor_types import HeadPose
-from .deviceio_tensor_types import DeviceIOHeadPose
+from ..tensor_types import HeadPose, HeadPoseIndex
+from .deviceio_tensor_types import DeviceIOHeadPoseTracked
 
 if TYPE_CHECKING:
     from isaacteleop.deviceio import ITracker
-    from isaacteleop.schema import HeadPoseT
+    from isaacteleop.schema import HeadPoseT, HeadPoseTrackedT
 
 
 class HeadSource(IDeviceIOSource):
@@ -32,13 +33,13 @@ class HeadSource(IDeviceIOSource):
     Inputs:
         - "deviceio_head": Raw HeadPoseT flatbuffer object from DeviceIO
 
-    Outputs:
-        - "head": Standard HeadPose tensor (position, orientation, is_valid, timestamp)
+    Outputs (Optional — absent when head tracking is invalid):
+        - "head": OptionalTensorGroup (check ``.is_none`` before access)
 
     Usage:
-        # In TeleopSession, manually poll tracker and pass data
-        head_data = head_tracker.get_head(session)
-        result = head_source_node({"deviceio_head": head_data})
+        # In TeleopSession, manually poll tracker and pass tracked object
+        tracked = head_tracker.get_head(session)
+        result = head_source_node({"deviceio_head": tracked})
     """
 
     def __init__(self, name: str) -> None:
@@ -69,37 +70,43 @@ class HeadSource(IDeviceIOSource):
             deviceio_session: The active DeviceIO session.
 
         Returns:
-            Dict with "deviceio_head" TensorGroup containing raw HeadPoseT data.
+            Dict with "deviceio_head" TensorGroup containing HeadPoseTrackedT.
         """
-        head_data = self._head_tracker.get_head(deviceio_session)
+        tracked = self._head_tracker.get_head(deviceio_session)
         source_inputs = self.input_spec()
-        result = {}
+        result: RetargeterIO = {}
         for input_name, group_type in source_inputs.items():
             tg = TensorGroup(group_type)
-            tg[0] = head_data
+            tg[0] = tracked
             result[input_name] = tg
         return result
 
     def input_spec(self) -> RetargeterIOType:
         """Declare DeviceIO head input."""
-        return {"deviceio_head": DeviceIOHeadPose()}
+        return {"deviceio_head": DeviceIOHeadPoseTracked()}
 
     def output_spec(self) -> RetargeterIOType:
-        """Declare standard head pose output."""
-        return {"head": HeadPose()}
+        """Declare standard head pose output (Optional — may be absent)."""
+        return {"head": OptionalType(HeadPose())}
 
     def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
         """
-        Convert DeviceIO HeadPoseT to standard HeadPose tensor.
+        Convert DeviceIO HeadPoseTrackedT to standard HeadPose tensor.
+
+        Calls ``set_none()`` on the output when head tracking is inactive.
 
         Args:
-            inputs: Dict with "deviceio_head" containing HeadPoseT flatbuffer object
-            outputs: Dict with "head" TensorGroup
+            inputs: Dict with "deviceio_head" containing HeadPoseTrackedT wrapper
+            outputs: Dict with "head" OptionalTensorGroup
         """
-        # Extract the raw DeviceIO object
-        head_pose: "HeadPoseT" = inputs["deviceio_head"][0]
+        tracked: "HeadPoseTrackedT" = inputs["deviceio_head"][0]
+        head_pose: "HeadPoseT | None" = tracked.data
 
-        # Convert to numpy arrays
+        output = outputs["head"]
+        if head_pose is None:
+            output.set_none()
+            return
+
         position = np.array(
             [
                 head_pose.pose.position.x,
@@ -119,12 +126,9 @@ class HeadSource(IDeviceIOSource):
             dtype=np.float32,
         )
 
-        # Update output tensor group
-        output = outputs["head"]
-        output[0] = position
-        output[1] = orientation
-        output[2] = head_pose.is_valid
-        output[3] = int(head_pose.timestamp.device_time)
+        output[HeadPoseIndex.POSITION] = position
+        output[HeadPoseIndex.ORIENTATION] = orientation
+        output[HeadPoseIndex.IS_VALID] = head_pose.is_valid
 
     def transformed(self, transform_input: OutputSelector) -> RetargeterSubgraph:
         """

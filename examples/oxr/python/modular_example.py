@@ -15,6 +15,7 @@ import sys
 import time
 import isaacteleop.deviceio as deviceio
 import isaacteleop.oxr as oxr
+import isaacteleop.schema as schema
 
 
 def main():
@@ -70,31 +71,44 @@ def main():
                         print(f"[{elapsed:4.1f}s] Frame {frame_count}")
 
                         # Get hand data
-                        left = hand_tracker.get_left_hand(session)
-                        right = hand_tracker.get_right_hand(session)
-
-                        print(
-                            f"  Hands: Left={'ACTIVE' if left.is_active else 'INACTIVE':8s} | "
-                            f"Right={'ACTIVE' if right.is_active else 'INACTIVE':8s}"
+                        left_tracked: schema.HandPoseTrackedT = (
+                            hand_tracker.get_left_hand(session)
+                        )
+                        right_tracked: schema.HandPoseTrackedT = (
+                            hand_tracker.get_right_hand(session)
                         )
 
-                        if left.is_active:
-                            wrist = left.joints[deviceio.JOINT_WRIST]
-                            if wrist.is_valid:
-                                pos = wrist.pose.position
-                                print(
-                                    f"    Left wrist: [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]"
-                                )
-
-                        # Get head data (returns HeadPoseT from schema)
-                        head = head_tracker.get_head(session)
-                        print(f"  Head: {'VALID' if head.is_valid else 'INVALID':8s}")
-
-                        if head.is_valid and head.pose:
-                            pos = head.pose.position
+                        if left_tracked.data is not None:
+                            pos = left_tracked.data.joints.poses(
+                                deviceio.JOINT_WRIST
+                            ).pose.position
                             print(
-                                f"    Head position: [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]"
+                                f"  Left wrist:  [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]"
                             )
+                        else:
+                            print("  Left hand:   inactive")
+
+                        if right_tracked.data is not None:
+                            pos = right_tracked.data.joints.poses(
+                                deviceio.JOINT_WRIST
+                            ).pose.position
+                            print(
+                                f"  Right wrist: [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]"
+                            )
+                        else:
+                            print("  Right hand:  inactive")
+
+                        # Get head data
+                        head_tracked: schema.HeadPoseTrackedT = head_tracker.get_head(
+                            session
+                        )
+                        if head_tracked.data is not None:
+                            pos = head_tracked.data.pose.position
+                            print(
+                                f"  Head pos:    [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]"
+                            )
+                        else:
+                            print("  Head:        inactive")
 
                         print()
 

@@ -2,232 +2,170 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-DeviceIO Tensor Types - Raw flatbuffer data from DeviceIO.
+DeviceIO Tensor Types - Tracked wrapper objects from DeviceIO.
 
-These tensor types represent the raw flatbuffer schema objects returned by DeviceIO trackers
-before conversion to the standard retargeting engine format.
+These tensor types represent the TrackedT wrapper objects returned by DeviceIO trackers.
+Each TrackedT always exists (never None) and contains a `.data` property that holds
+the raw flatbuffer object (or None when the tracker is inactive).
 """
 
 from typing import Any
 from ..interface.tensor_type import TensorType
 from ..interface.tensor_group_type import TensorGroupType
 from isaacteleop.schema import (
-    HeadPoseT,
-    HandPoseT,
-    ControllerSnapshot,
-    Generic3AxisPedalOutput,
-    FullBodyPosePicoT,
+    HeadPoseTrackedT,
+    HandPoseTrackedT,
+    ControllerSnapshotTrackedT,
+    Generic3AxisPedalOutputTrackedT,
+    FullBodyPosePicoTrackedT,
 )
 
 
-class HeadPoseTType(TensorType):
-    """HeadPoseT flatbuffer schema type."""
+class HeadPoseTrackedType(TensorType):
+    """HeadPoseTrackedT wrapper type from DeviceIO HeadTracker."""
 
     def __init__(self, name: str) -> None:
-        """
-        Initialize a HeadPoseT type.
-
-        Args:
-            name: Name for this tensor
-        """
         super().__init__(name)
 
     def _check_instance_compatibility(self, other: TensorType) -> bool:
-        """HeadPoseT types are always compatible with other HeadPoseT types."""
-        assert isinstance(other, HeadPoseTType), (
-            f"Expected HeadPoseTType, got {type(other).__name__}"
-        )
+        if not isinstance(other, HeadPoseTrackedType):
+            raise TypeError(f"Expected HeadPoseTrackedType, got {type(other).__name__}")
         return True
 
     def validate_value(self, value: Any) -> None:
-        """
-        Validate if the given value is a HeadPoseT schema object.
-
-        Raises:
-            TypeError: If value is not a HeadPoseT
-        """
-        if not isinstance(value, HeadPoseT):
+        if not isinstance(value, HeadPoseTrackedT):
             raise TypeError(
-                f"Expected HeadPoseT for '{self.name}', got {type(value).__name__}"
+                f"Expected HeadPoseTrackedT for '{self.name}', got {type(value).__name__}"
             )
 
 
-class HandPoseTType(TensorType):
-    """HandPoseT flatbuffer schema type."""
+class HandPoseTrackedType(TensorType):
+    """HandPoseTrackedT wrapper type from DeviceIO HandTracker."""
 
     def __init__(self, name: str) -> None:
-        """
-        Initialize a HandPoseT type.
-
-        Args:
-            name: Name for this tensor
-        """
         super().__init__(name)
 
     def _check_instance_compatibility(self, other: TensorType) -> bool:
-        """HandPoseT types are always compatible with other HandPoseT types."""
-        assert isinstance(other, HandPoseTType), (
-            f"Expected HandPoseTType, got {type(other).__name__}"
-        )
+        if not isinstance(other, HandPoseTrackedType):
+            raise TypeError(f"Expected HandPoseTrackedType, got {type(other).__name__}")
         return True
 
     def validate_value(self, value: Any) -> None:
-        """
-        Validate if the given value is a HandPoseT schema object.
-
-        Raises:
-            TypeError: If value is not a HandPoseT
-        """
-        if not isinstance(value, HandPoseT):
+        if not isinstance(value, HandPoseTrackedT):
             raise TypeError(
-                f"Expected HandPoseT for '{self.name}', got {type(value).__name__}"
+                f"Expected HandPoseTrackedT for '{self.name}', got {type(value).__name__}"
             )
 
 
-class ControllerSnapshotType(TensorType):
-    """ControllerSnapshot flatbuffer schema type."""
+class ControllerSnapshotTrackedType(TensorType):
+    """ControllerSnapshotTrackedT wrapper type from DeviceIO ControllerTracker."""
 
     def __init__(self, name: str) -> None:
-        """
-        Initialize a ControllerSnapshot type.
-
-        Args:
-            name: Name for this tensor
-        """
         super().__init__(name)
 
     def _check_instance_compatibility(self, other: TensorType) -> bool:
-        """ControllerSnapshot types are always compatible with other ControllerSnapshot types."""
-        assert isinstance(other, ControllerSnapshotType), (
-            f"Expected ControllerSnapshotType, got {type(other).__name__}"
-        )
+        if not isinstance(other, ControllerSnapshotTrackedType):
+            raise TypeError(
+                f"Expected ControllerSnapshotTrackedType, got {type(other).__name__}"
+            )
         return True
 
     def validate_value(self, value: Any) -> None:
-        """
-        Validate if the given value is a ControllerSnapshot schema object.
-
-        Raises:
-            TypeError: If value is not a ControllerSnapshot
-        """
-        if not isinstance(value, ControllerSnapshot):
+        if not isinstance(value, ControllerSnapshotTrackedT):
             raise TypeError(
-                f"Expected ControllerSnapshot for '{self.name}', got {type(value).__name__}"
+                f"Expected ControllerSnapshotTrackedT for '{self.name}', got {type(value).__name__}"
             )
 
 
-class Generic3AxisPedalOutputType(TensorType):
-    """Generic3AxisPedalOutput flatbuffer schema type (Generic3AxisPedalOutputT from tracker)."""
+class Generic3AxisPedalOutputTrackedType(TensorType):
+    """Generic3AxisPedalOutputTrackedT wrapper type from DeviceIO Generic3AxisPedalTracker."""
 
     def __init__(self, name: str) -> None:
-        """
-        Initialize a Generic3AxisPedalOutput type.
-
-        Args:
-            name: Name for this tensor
-        """
         super().__init__(name)
 
     def _check_instance_compatibility(self, other: TensorType) -> bool:
-        """Generic3AxisPedalOutput types are always compatible with other Generic3AxisPedalOutput types."""
-        assert isinstance(other, Generic3AxisPedalOutputType), (
-            f"Expected Generic3AxisPedalOutputType, got {type(other).__name__}"
-        )
+        if not isinstance(other, Generic3AxisPedalOutputTrackedType):
+            raise TypeError(
+                f"Expected Generic3AxisPedalOutputTrackedType, got {type(other).__name__}"
+            )
         return True
 
     def validate_value(self, value: Any) -> None:
-        """
-        Validate if the given value is a Generic3AxisPedalOutput schema object.
-
-        Raises:
-            TypeError: If value is not a Generic3AxisPedalOutput
-        """
-        if not isinstance(value, Generic3AxisPedalOutput):
+        if not isinstance(value, Generic3AxisPedalOutputTrackedT):
             raise TypeError(
-                f"Expected Generic3AxisPedalOutput for '{self.name}', got {type(value).__name__}"
+                f"Expected Generic3AxisPedalOutputTrackedT for '{self.name}', got {type(value).__name__}"
             )
 
 
-class FullBodyPosePicoTType(TensorType):
-    """FullBodyPosePicoT flatbuffer schema type."""
+class FullBodyPosePicoTrackedType(TensorType):
+    """FullBodyPosePicoTrackedT wrapper type from DeviceIO FullBodyTrackerPico."""
 
     def __init__(self, name: str) -> None:
-        """
-        Initialize a FullBodyPosePicoT type.
-
-        Args:
-            name: Name for this tensor
-        """
         super().__init__(name)
 
     def _check_instance_compatibility(self, other: TensorType) -> bool:
-        """FullBodyPosePicoT types are always compatible with other FullBodyPosePicoT types."""
-        assert isinstance(other, FullBodyPosePicoTType), (
-            f"Expected FullBodyPosePicoTType, got {type(other).__name__}"
-        )
+        if not isinstance(other, FullBodyPosePicoTrackedType):
+            raise TypeError(
+                f"Expected FullBodyPosePicoTrackedType, got {type(other).__name__}"
+            )
         return True
 
     def validate_value(self, value: Any) -> None:
-        """
-        Validate if the given value is a FullBodyPosePicoT schema object.
-
-        Raises:
-            TypeError: If value is not a FullBodyPosePicoT
-        """
-        if not isinstance(value, FullBodyPosePicoT):
+        if not isinstance(value, FullBodyPosePicoTrackedT):
             raise TypeError(
-                f"Expected FullBodyPosePicoT for '{self.name}', got {type(value).__name__}"
+                f"Expected FullBodyPosePicoTrackedT for '{self.name}', got {type(value).__name__}"
             )
 
 
-def DeviceIOHeadPose() -> TensorGroupType:
-    """Raw head pose data from DeviceIO HeadTracker.
+def DeviceIOHeadPoseTracked() -> TensorGroupType:
+    """Tracked head pose from DeviceIO HeadTracker.
 
     Contains:
-        head_data: HeadPoseT flatbuffer schema object
+        head_tracked: HeadPoseTrackedT wrapper (always set; .data is None when inactive)
     """
-    return TensorGroupType("deviceio_head_pose", [HeadPoseTType("head_data")])
+    return TensorGroupType("deviceio_head_pose", [HeadPoseTrackedType("head_tracked")])
 
 
-def DeviceIOHandPose() -> TensorGroupType:
-    """Raw hand pose data from DeviceIO HandTracker.
+def DeviceIOHandPoseTracked() -> TensorGroupType:
+    """Tracked hand pose from DeviceIO HandTracker.
 
     Contains:
-        hand_data: HandPoseT flatbuffer schema object
+        hand_tracked: HandPoseTrackedT wrapper (always set; .data is None when inactive)
     """
-    return TensorGroupType("deviceio_hand_pose", [HandPoseTType("hand_data")])
+    return TensorGroupType("deviceio_hand_pose", [HandPoseTrackedType("hand_tracked")])
 
 
-def DeviceIOControllerSnapshot() -> TensorGroupType:
-    """Raw controller snapshot from DeviceIO ControllerTracker.
+def DeviceIOControllerSnapshotTracked() -> TensorGroupType:
+    """Tracked controller snapshot from DeviceIO ControllerTracker.
 
     Contains:
-        controller_data: ControllerSnapshot flatbuffer schema object
+        controller_tracked: ControllerSnapshotTrackedT wrapper (always set; .data is None when inactive)
     """
     return TensorGroupType(
-        "deviceio_controller_snapshot", [ControllerSnapshotType("controller_data")]
+        "deviceio_controller_snapshot",
+        [ControllerSnapshotTrackedType("controller_tracked")],
     )
 
 
-def DeviceIOGeneric3AxisPedalOutput() -> TensorGroupType:
-    """Raw pedal data from DeviceIO Generic3AxisPedalTracker.
+def DeviceIOGeneric3AxisPedalOutputTracked() -> TensorGroupType:
+    """Tracked pedal data from DeviceIO Generic3AxisPedalTracker.
 
     Contains:
-        pedal_data: Generic3AxisPedalOutput (Generic3AxisPedalOutputT) flatbuffer schema object
+        pedal_tracked: Generic3AxisPedalOutputTrackedT wrapper (always set; .data is None when inactive)
     """
     return TensorGroupType(
         "deviceio_generic_3axis_pedal_output",
-        [Generic3AxisPedalOutputType("pedal_data")],
+        [Generic3AxisPedalOutputTrackedType("pedal_tracked")],
     )
 
 
-def DeviceIOFullBodyPosePico() -> TensorGroupType:
-    """Raw full body pose data from DeviceIO FullBodyTrackerPico.
+def DeviceIOFullBodyPosePicoTracked() -> TensorGroupType:
+    """Tracked full body pose data from DeviceIO FullBodyTrackerPico.
 
     Contains:
-        full_body_data: FullBodyPosePicoT flatbuffer schema object
+        full_body_tracked: FullBodyPosePicoTrackedT wrapper (always set; .data is None when inactive)
     """
     return TensorGroupType(
         "deviceio_full_body_pose_pico",
-        [FullBodyPosePicoTType("full_body_data")],
+        [FullBodyPosePicoTrackedType("full_body_tracked")],
     )

@@ -3,10 +3,8 @@
 
 """Unit tests for FullBodyPosePicoT and related types in isaacteleop.schema.
 
-FullBodyPosePicoT is a FlatBuffers table (read-only from Python) that represents full body pose data:
+FullBodyPosePicoT is a FlatBuffers table that represents full body pose data:
 - joints: BodyJointsPico struct containing 24 BodyJointPose entries (XR_BD_body_tracking)
-- is_active: Whether the body tracking is active
-- timestamp: Timestamp struct with device and common time
 
 BodyJointsPico is a struct with a fixed-size array of 24 BodyJointPose entries.
 
@@ -14,25 +12,27 @@ BodyJointPose is a struct containing:
 - pose: The Pose (position and orientation)
 - is_valid: Whether this joint data is valid
 
+Timestamps are carried by FullBodyPosePicoRecord, not FullBodyPosePicoT.
+
 Joint indices follow XrBodyJointBD enum:
   0: Pelvis, 1-2: Left/Right Hip, 3: Spine1, 4-5: Left/Right Knee,
   6: Spine2, 7-8: Left/Right Ankle, 9: Spine3, 10-11: Left/Right Foot,
   12: Neck, 13-14: Left/Right Collar, 15: Head, 16-17: Left/Right Shoulder,
   18-19: Left/Right Elbow, 20-21: Left/Right Wrist, 22-23: Left/Right Hand
-
-Note: Python code should only READ this data (created by C++ trackers), not modify it.
 """
 
 import pytest
 
 from isaacteleop.schema import (
     FullBodyPosePicoT,
+    FullBodyPosePicoRecord,
     BodyJointsPico,
     BodyJointPose,
     BodyJointPico,
     Pose,
     Point,
     Quaternion,
+    DeviceDataTimestamp,
 )
 
 
@@ -101,35 +101,20 @@ class TestBodyJointPoseRepr:
 class TestBodyJointsPicoStruct:
     """Tests for BodyJointsPico struct."""
 
-    def test_length(self):
-        """Test that BodyJointsPico has exactly 24 joints."""
+    def test_joints_access(self):
+        """Test accessing all 24 joints via joints() method."""
         body_joints = BodyJointsPico()
 
-        assert len(body_joints) == 24
-
-    def test_getitem_access(self):
-        """Test accessing joints via __getitem__ (indexing)."""
-        body_joints = BodyJointsPico()
-
-        # Should be able to access all 24 joints.
         for i in range(24):
-            joint = body_joints[i]
+            joint = body_joints.joints(i)
             assert joint is not None
 
-    def test_joints_method(self):
-        """Test accessing joints via joints() method."""
-        body_joints = BodyJointsPico()
-
-        # Should be able to access via joints method.
-        joint = body_joints.joints(0)
-        assert joint is not None
-
-    def test_index_out_of_range(self):
+    def test_joints_out_of_range(self):
         """Test that accessing out of range index raises IndexError."""
         body_joints = BodyJointsPico()
 
         with pytest.raises(IndexError):
-            _ = body_joints[24]  # Should fail (0-23 are valid)
+            _ = body_joints.joints(24)
 
 
 class TestBodyJointsPicoRepr:
@@ -147,25 +132,29 @@ class TestFullBodyPosePicoTConstruction:
     """Tests for FullBodyPosePicoT construction and basic properties."""
 
     def test_default_construction(self):
-        """Test default construction creates FullBodyPosePicoT with None joints."""
+        """Test default construction creates FullBodyPosePicoT with pre-populated joints."""
         body_pose = FullBodyPosePicoT()
 
         assert body_pose is not None
-        assert body_pose.joints is None
-        assert body_pose.is_active is False
-        assert body_pose.timestamp is None
+        assert body_pose.joints is not None
+
+    def test_parameterized_construction(self):
+        """Test construction with joints."""
+        joints = BodyJointsPico()
+        body_pose = FullBodyPosePicoT(joints)
+
+        assert body_pose.joints is not None
 
 
 class TestFullBodyPosePicoTRepr:
     """Tests for FullBodyPosePicoT __repr__ method."""
 
-    def test_repr_with_no_joints(self):
-        """Test __repr__ when joints is None."""
+    def test_repr_default(self):
+        """Test __repr__ with default construction."""
         body_pose = FullBodyPosePicoT()
 
         repr_str = repr(body_pose)
         assert "FullBodyPosePicoT" in repr_str
-        assert "None" in repr_str
 
 
 class TestBodyJointPicoEnum:
@@ -173,7 +162,6 @@ class TestBodyJointPicoEnum:
 
     def test_all_joint_values_exist(self):
         """Test that all expected BodyJointPico enum values exist."""
-        # All 24 joints should be accessible.
         assert BodyJointPico.PELVIS is not None
         assert BodyJointPico.LEFT_HIP is not None
         assert BodyJointPico.RIGHT_HIP is not None
@@ -230,7 +218,6 @@ class TestBodyJointPicoEnum:
         """Test that all BodyJointPico values can be used to index BodyJointsPico."""
         body_joints = BodyJointsPico()
 
-        # Test each joint index explicitly.
         all_joints = [
             BodyJointPico.PELVIS,
             BodyJointPico.LEFT_HIP,
@@ -260,7 +247,7 @@ class TestBodyJointPicoEnum:
         assert len(all_joints) == 24
 
         for joint in all_joints:
-            joint_pose = body_joints[int(joint)]
+            joint_pose = body_joints.joints(int(joint))
             assert joint_pose is not None
 
     def test_enum_int_conversion(self):
@@ -268,3 +255,33 @@ class TestBodyJointPicoEnum:
         assert int(BodyJointPico.PELVIS) == 0
         assert int(BodyJointPico.HEAD) == 15
         assert int(BodyJointPico.RIGHT_HAND) == 23
+
+
+class TestFullBodyPosePicoRecordTimestamp:
+    """Tests for FullBodyPosePicoRecord with DeviceDataTimestamp."""
+
+    def test_construction_with_timestamp(self):
+        """Test FullBodyPosePicoRecord carries DeviceDataTimestamp."""
+        data = FullBodyPosePicoT()
+        ts = DeviceDataTimestamp(1000000000, 2000000000, 3000000000)
+        record = FullBodyPosePicoRecord(data, ts)
+
+        assert record.timestamp.available_time_local_common_clock == 1000000000
+        assert record.timestamp.sample_time_local_common_clock == 2000000000
+        assert record.timestamp.sample_time_raw_device_clock == 3000000000
+        assert record.data is not None
+
+    def test_default_construction(self):
+        """Test default FullBodyPosePicoRecord has no data."""
+        record = FullBodyPosePicoRecord()
+        assert record.data is None
+
+    def test_timestamp_fields(self):
+        """Test all three DeviceDataTimestamp fields are accessible."""
+        data = FullBodyPosePicoT()
+        ts = DeviceDataTimestamp(111, 222, 333)
+        record = FullBodyPosePicoRecord(data, ts)
+
+        assert record.timestamp.available_time_local_common_clock == 111
+        assert record.timestamp.sample_time_local_common_clock == 222
+        assert record.timestamp.sample_time_raw_device_clock == 333

@@ -69,7 +69,7 @@ std::unique_ptr<DeviceIOSession> DeviceIOSession::run(const std::vector<std::sha
 
 bool DeviceIOSession::update()
 {
-    XrTime current_time = time_converter_.get_current_time();
+    XrTime current_time = time_converter_.os_monotonic_now();
 
     // Multiple ITracker instances may share the same ITrackerImpl (e.g. two
     // ControllerTrackers on the same XrSession).  Deduplicate so that each

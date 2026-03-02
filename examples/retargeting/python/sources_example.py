@@ -30,6 +30,11 @@ from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     ControllersSource,
 )
 from isaacteleop.retargeting_engine.interface import OutputCombiner, TensorGroup
+from isaacteleop.retargeting_engine.tensor_types import (
+    HandInputIndex,
+    HeadPoseIndex,
+    ControllerInputIndex,
+)
 
 
 def main():
@@ -127,38 +132,35 @@ def main():
                     print("-" * 70)
 
                     # ====================================================
-                    # Manually poll DeviceIO trackers for raw data
+                    # Manually poll DeviceIO trackers for tracked objects
                     # ====================================================
-                    hand_left_raw = hand_tracker.get_left_hand(session)
-                    hand_right_raw = hand_tracker.get_right_hand(session)
-                    head_raw = head_tracker.get_head(session)
-                    left_controller_raw = controller_tracker.get_left_controller(
-                        session
-                    )
-                    right_controller_raw = controller_tracker.get_right_controller(
+                    hand_left_tracked = hand_tracker.get_left_hand(session)
+                    hand_right_tracked = hand_tracker.get_right_hand(session)
+                    head_tracked = head_tracker.get_head(session)
+                    left_ctrl_tracked = controller_tracker.get_left_controller(session)
+                    right_ctrl_tracked = controller_tracker.get_right_controller(
                         session
                     )
 
                     # ====================================================
-                    # Wrap raw data in TensorGroups for source inputs
+                    # Wrap tracked objects in TensorGroups for source inputs
                     # ====================================================
 
-                    # Prepare inputs for each source module
                     hands_inputs = {}
                     hands_input_spec = hands_source.input_spec()
                     for input_name, group_type in hands_input_spec.items():
                         tg = TensorGroup(group_type)
                         if "left" in input_name.lower():
-                            tg[0] = hand_left_raw
+                            tg[0] = hand_left_tracked
                         elif "right" in input_name.lower():
-                            tg[0] = hand_right_raw
+                            tg[0] = hand_right_tracked
                         hands_inputs[input_name] = tg
 
                     head_inputs = {}
                     head_input_spec = head_source.input_spec()
                     for input_name, group_type in head_input_spec.items():
                         tg = TensorGroup(group_type)
-                        tg[0] = head_raw
+                        tg[0] = head_tracked
                         head_inputs[input_name] = tg
 
                     controllers_inputs = {}
@@ -166,9 +168,9 @@ def main():
                     for input_name, group_type in controllers_input_spec.items():
                         tg = TensorGroup(group_type)
                         if "left" in input_name.lower():
-                            tg[0] = left_controller_raw
+                            tg[0] = left_ctrl_tracked
                         elif "right" in input_name.lower():
-                            tg[0] = right_controller_raw
+                            tg[0] = right_ctrl_tracked
                         controllers_inputs[input_name] = tg
 
                     # ====================================================
@@ -183,63 +185,69 @@ def main():
                     )
 
                     # Extract hand data (now in tensor format)
+                    # Source nodes emit None when tracking is inactive (Optional).
                     left_hand = all_data[HandsSource.LEFT]
-                    left_positions = left_hand[0]  # (26, 3) array of joint positions
-                    left_active = left_hand[4]  # is_active boolean
-
                     right_hand = all_data[HandsSource.RIGHT]
-                    right_positions = right_hand[0]  # (26, 3) array of joint positions
-                    right_active = right_hand[4]  # is_active boolean
 
                     print("  Hands:")
-                    print(f"    Left:  {'ACTIVE' if left_active else 'INACTIVE'}")
-                    if left_active:
+                    print(
+                        f"    Left:  {'ACTIVE' if not left_hand.is_none else 'INACTIVE'}"
+                    )
+                    if not left_hand.is_none:
+                        left_positions = left_hand[HandInputIndex.JOINT_POSITIONS]
                         wrist_idx = deviceio.JOINT_WRIST
                         wrist_pos = left_positions[wrist_idx]
                         print(
                             f"      Wrist: [{wrist_pos[0]:6.3f}, {wrist_pos[1]:6.3f}, {wrist_pos[2]:6.3f}]"
                         )
 
-                    print(f"    Right: {'ACTIVE' if right_active else 'INACTIVE'}")
-                    if right_active:
+                    print(
+                        f"    Right: {'ACTIVE' if not right_hand.is_none else 'INACTIVE'}"
+                    )
+                    if not right_hand.is_none:
+                        right_positions = right_hand[HandInputIndex.JOINT_POSITIONS]
                         wrist_idx = deviceio.JOINT_WRIST
                         wrist_pos = right_positions[wrist_idx]
                         print(
                             f"      Wrist: [{wrist_pos[0]:6.3f}, {wrist_pos[1]:6.3f}, {wrist_pos[2]:6.3f}]"
                         )
 
-                    # Extract head data
+                    # Extract head data (Optional — absent when no tracker)
                     head = all_data["head"]
-                    head_position = head[0]  # (3,) array [x, y, z]
-                    head_valid = head[2]  # is_valid boolean
 
                     print("  Head:")
-                    print(f"    Status: {'VALID' if head_valid else 'INVALID'}")
-                    if head_valid:
-                        print(
-                            f"    Position: [{head_position[0]:6.3f}, {head_position[1]:6.3f}, {head_position[2]:6.3f}]"
-                        )
+                    if head.is_none:
+                        print("    Status: ABSENT (no tracker)")
+                    else:
+                        head_valid = head[HeadPoseIndex.IS_VALID]
+                        print(f"    Status: {'VALID' if head_valid else 'INVALID'}")
+                        if head_valid:
+                            head_position = head[HeadPoseIndex.POSITION]
+                            print(
+                                f"    Position: [{head_position[0]:6.3f}, {head_position[1]:6.3f}, {head_position[2]:6.3f}]"
+                            )
 
                     # Extract controller data
                     left_controller = all_data[ControllersSource.LEFT]
-                    left_controller_active = left_controller[11]  # is_active boolean
-                    left_trigger = left_controller[10]  # trigger_value float
-
                     right_controller = all_data[ControllersSource.RIGHT]
-                    right_controller_active = right_controller[11]  # is_active boolean
-                    right_trigger = right_controller[10]  # trigger_value float
 
                     print("  Controllers:")
                     print(
-                        f"    Left:  {'ACTIVE' if left_controller_active else 'INACTIVE'}"
+                        f"    Left:  {'ACTIVE' if not left_controller.is_none else 'INACTIVE'}"
                     )
-                    if left_controller_active:
+                    if not left_controller.is_none:
+                        left_trigger = left_controller[
+                            ControllerInputIndex.TRIGGER_VALUE
+                        ]
                         print(f"      Trigger: {left_trigger:4.2f}")
 
                     print(
-                        f"    Right: {'ACTIVE' if right_controller_active else 'INACTIVE'}"
+                        f"    Right: {'ACTIVE' if not right_controller.is_none else 'INACTIVE'}"
                     )
-                    if right_controller_active:
+                    if not right_controller.is_none:
+                        right_trigger = right_controller[
+                            ControllerInputIndex.TRIGGER_VALUE
+                        ]
                         print(f"      Trigger: {right_trigger:4.2f}")
 
                     print()

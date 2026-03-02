@@ -24,12 +24,12 @@ PYBIND11_MODULE(_deviceio, m)
         .def(py::init<>())
         .def(
             "get_left_hand",
-            [](core::HandTracker& self, PyDeviceIOSession& session) -> const core::HandPoseT&
+            [](core::HandTracker& self, PyDeviceIOSession& session) -> const core::HandPoseTrackedT&
             { return self.get_left_hand(session.native()); },
             py::arg("session"), py::return_value_policy::reference_internal)
         .def(
             "get_right_hand",
-            [](core::HandTracker& self, PyDeviceIOSession& session) -> const core::HandPoseT&
+            [](core::HandTracker& self, PyDeviceIOSession& session) -> const core::HandPoseTrackedT&
             { return self.get_right_hand(session.native()); },
             py::arg("session"), py::return_value_policy::reference_internal)
         .def_static("get_joint_name", &core::HandTracker::get_joint_name);
@@ -39,7 +39,7 @@ PYBIND11_MODULE(_deviceio, m)
         .def(py::init<>())
         .def(
             "get_head",
-            [](core::HeadTracker& self, PyDeviceIOSession& session) -> const core::HeadPoseT&
+            [](core::HeadTracker& self, PyDeviceIOSession& session) -> const core::HeadPoseTrackedT&
             { return self.get_head(session.native()); },
             py::arg("session"), py::return_value_policy::reference_internal);
 
@@ -48,14 +48,16 @@ PYBIND11_MODULE(_deviceio, m)
         .def(py::init<>())
         .def(
             "get_left_controller",
-            [](core::ControllerTracker& self, PyDeviceIOSession& session) -> const core::ControllerSnapshot&
+            [](core::ControllerTracker& self, PyDeviceIOSession& session) -> const core::ControllerSnapshotTrackedT&
             { return self.get_left_controller(session.native()); },
-            py::arg("session"), py::return_value_policy::reference_internal, "Get the left controller snapshot")
+            py::arg("session"), py::return_value_policy::reference_internal,
+            "Get the left controller tracked state (data is None if inactive)")
         .def(
             "get_right_controller",
-            [](core::ControllerTracker& self, PyDeviceIOSession& session) -> const core::ControllerSnapshot&
+            [](core::ControllerTracker& self, PyDeviceIOSession& session) -> const core::ControllerSnapshotTrackedT&
             { return self.get_right_controller(session.native()); },
-            py::arg("session"), py::return_value_policy::reference_internal, "Get the right controller snapshot");
+            py::arg("session"), py::return_value_policy::reference_internal,
+            "Get the right controller tracked state (data is None if inactive)");
 
     // FrameMetadataTrackerOak class
     py::class_<core::FrameMetadataTrackerOak, core::ITracker, std::shared_ptr<core::FrameMetadataTrackerOak>>(
@@ -82,10 +84,11 @@ PYBIND11_MODULE(_deviceio, m)
              "Construct a Generic3AxisPedalTracker for the given tensor collection ID")
         .def(
             "get_pedal_data",
-            [](core::Generic3AxisPedalTracker& self, PyDeviceIOSession& session) -> const core::Generic3AxisPedalOutputT&
+            [](core::Generic3AxisPedalTracker& self,
+               PyDeviceIOSession& session) -> const core::Generic3AxisPedalOutputTrackedT&
             { return self.get_data(session.native()); },
             py::arg("session"), py::return_value_policy::reference_internal,
-            "Get the current foot pedal data (Generic3AxisPedalOutput) for this session");
+            "Get the current foot pedal tracked state (data is None when no data available)");
 
     // FullBodyTrackerPico class (PICO XR_BD_body_tracking extension)
     py::class_<core::FullBodyTrackerPico, core::ITracker, std::shared_ptr<core::FullBodyTrackerPico>>(
@@ -93,10 +96,10 @@ PYBIND11_MODULE(_deviceio, m)
         .def(py::init<>())
         .def(
             "get_body_pose",
-            [](core::FullBodyTrackerPico& self, PyDeviceIOSession& session) -> const core::FullBodyPosePicoT&
+            [](core::FullBodyTrackerPico& self, PyDeviceIOSession& session) -> const core::FullBodyPosePicoTrackedT&
             { return self.get_body_pose(session.native()); },
             py::arg("session"), py::return_value_policy::reference_internal,
-            "Get full body pose data (24 joints from pelvis to hands)");
+            "Get full body pose tracked state (data is None if inactive)");
 
     // DeviceIOSession class (bound via wrapper for context management)
     // Other C++ modules (like mcap) should include <py_deviceio/session.hpp> and accept

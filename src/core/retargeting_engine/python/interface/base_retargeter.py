@@ -9,7 +9,8 @@ Defines the common API for retargeting modules with flat (unkeyed) outputs.
 
 from abc import abstractmethod
 from typing import Dict, List, Optional
-from .tensor_group import TensorGroup
+from .tensor_group import TensorGroup, OptionalTensorGroup
+from .tensor_group_type import TensorGroupType, OptionalTensorGroupType
 from .retargeter_core_types import (
     OutputSelector,
     RetargeterIO,
@@ -20,6 +21,13 @@ from .retargeter_core_types import (
 )
 from .retargeter_subgraph import RetargeterSubgraph
 from .parameter_state import ParameterState
+
+
+def _make_output_group(group_type: TensorGroupType) -> OptionalTensorGroup:
+    """Create a TensorGroup or OptionalTensorGroup based on the spec type."""
+    if isinstance(group_type, OptionalTensorGroupType):
+        return OptionalTensorGroup(group_type)
+    return TensorGroup(group_type)
 
 
 class BaseRetargeter(BaseExecutable, GraphExecutable):
@@ -174,11 +182,16 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
         """
         Connect this retargeter's inputs to outputs from other retargeters.
 
+        Required inputs must all be present in *input_connections*.
+        Optional inputs may be omitted — they will receive an absent
+        ``OptionalTensorGroup`` at runtime (check ``.is_none`` before access).
+
         Args:
-            connections: Dict mapping this retargeter's input names to OutputSelectors
+            input_connections: Dict mapping this retargeter's input names to
+                OutputSelectors.
 
         Returns:
-            A ConnectedModule (compound retargeter)
+            A RetargeterSubgraph (compound retargeter)
 
         Example:
             processor.connect({
@@ -187,24 +200,29 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
             })
         """
 
-        # Validate that all inputs are provided
-        if set(input_connections.keys()) != set(self._inputs.keys()):
-            missing = set(self._inputs.keys()) - set(input_connections.keys())
-            extra = set(input_connections.keys()) - set(self._inputs.keys())
-            msg = []
-            if missing:
-                msg.append(f"Missing inputs: {missing}")
-            if extra:
-                msg.append(f"Extra inputs: {extra}")
-            raise ValueError(f"Input mismatch for {self.name}: {', '.join(msg)}")
+        # Check for extra inputs that don't exist in the spec
+        extra = set(input_connections.keys()) - set(self._inputs.keys())
+        if extra:
+            raise ValueError(f"Input mismatch for {self.name}: Extra inputs: {extra}")
 
-        # Validate types
+        # Check that all required inputs are provided; optional may be omitted
+        missing_required = set()
+        for input_name, input_type in self._inputs.items():
+            if input_name not in input_connections and not input_type.is_optional:
+                missing_required.add(input_name)
+
+        if missing_required:
+            raise ValueError(
+                f"Input mismatch for {self.name}: "
+                f"Missing required inputs: {missing_required}"
+            )
+
+        # Validate type compatibility for connected inputs
         for input_name, output_selector in input_connections.items():
             expected_type = self._inputs[input_name]
             actual_type = output_selector.module.output_types()[
                 output_selector.output_name
             ]
-            # Throws error if types are not compatible.
             expected_type.check_compatibility(actual_type)
 
         return RetargeterSubgraph(
@@ -213,23 +231,55 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
             output_types=self._outputs,
         )
 
+    def _fill_optional_inputs(self, inputs: RetargeterIO) -> RetargeterIO:
+        """Return a new dict with absent OptionalTensorGroups for missing optional inputs.
+
+        Required inputs that are missing raise ``ValueError``.
+        The caller's dict is never mutated.
+        """
+        filled: RetargeterIO | None = None
+        for name, input_type in self._inputs.items():
+            if name not in inputs:
+                if input_type.is_optional:
+                    if filled is None:
+                        filled = dict(inputs)
+                    filled[name] = OptionalTensorGroup(input_type.inner_type)
+                else:
+                    raise ValueError(
+                        f"Required input '{name}' missing for '{self.name}'"
+                    )
+        return filled if filled is not None else inputs
+
     def _validate_inputs(self, inputs: RetargeterIO) -> None:
         """
         Validate the inputs to the retargeter.
 
+        Absent ``OptionalTensorGroup`` entries are permitted for Optional inputs.
+        Missing keys are permitted for Optional inputs (filled with absent groups).
+
         Args:
             inputs: The inputs to the retargeter
         """
-        if set(inputs.keys()) != set(self._inputs.keys()):
+        # Check for unexpected extra keys
+        extra = set(inputs.keys()) - set(self._inputs.keys())
+        if extra:
             raise ValueError(
-                f"Expected inputs {set(self._inputs.keys())}, got {set(inputs.keys())}"
+                f"Unexpected inputs {extra} (expected {set(self._inputs.keys())})"
             )
 
-        for name, input_group in inputs.items():
-            expected_type = self._inputs[name]
-            actual_type = input_group.group_type
-            # Throws error if types are not compatible.
-            expected_type.check_compatibility(actual_type)
+        for name, expected_type in self._inputs.items():
+            if name not in inputs:
+                if not expected_type.is_optional:
+                    raise ValueError(f"Required input '{name}' is missing")
+                continue
+
+            input_group = inputs[name]
+
+            if expected_type.is_optional and input_group.is_none:
+                continue
+
+            inner_expected = expected_type.inner_type
+            inner_expected.check_compatibility(input_group.group_type)
 
     # implements GraphExecutable interface.
     def _compute_in_graph(self, context: ExecutionContext) -> RetargeterIO:
@@ -240,22 +290,25 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
             context: The execution context
         """
         # Check cache first
-        outputs = context.get_cached(id(self))
-        if outputs is not None:
-            return outputs
+        cached = context.get_cached(id(self))
+        if cached is not None:
+            return cached
 
         # Get inputs from context (if any are needed)
         if len(self._inputs) > 0:  # Only look for inputs if this module has any
             inputs = context.get_leaf_input(self.name)
             if inputs is None:
                 raise ValueError(f"Input '{self.name}' not found in context")
+
+            inputs = self._fill_optional_inputs(inputs)
         else:
             # Source modules with no inputs use empty dict
             inputs = {}
 
         # Create output tensor groups.
-        outputs = {
-            name: TensorGroup(group_type) for name, group_type in self._outputs.items()
+        outputs: RetargeterIO = {
+            name: _make_output_group(group_type)
+            for name, group_type in self._outputs.items()
         }
 
         # Execute compute with parameter sync (only on cache miss)
@@ -270,16 +323,19 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
         Execute the retargeter as a callable (for running outside of a graph context).
 
         Args:
-            **inputs: Input tensor groups as keyword arguments matching input names
+            inputs: Input tensor groups (Optional entries use OptionalTensorGroup)
 
         Returns:
             Dict[str, TensorGroup] - Output tensor groups
         """
+        inputs = self._fill_optional_inputs(inputs)
+
         self._validate_inputs(inputs)
 
         # Create output tensor groups.
-        outputs = {
-            name: TensorGroup(group_type) for name, group_type in self._outputs.items()
+        outputs: RetargeterIO = {
+            name: _make_output_group(group_type)
+            for name, group_type in self._outputs.items()
         }
 
         # Execute compute with parameter sync

@@ -6,6 +6,7 @@
 #include <deviceio/controller_tracker.hpp>
 #include <deviceio/deviceio_session.hpp>
 #include <openxr/openxr.h>
+#include <oxr_utils/oxr_time.hpp>
 #include <plugin_utils/hand_injector.hpp>
 
 #include <ManusSDK.h>
@@ -71,6 +72,7 @@ private:
     // OpenXR State
     std::shared_ptr<core::OpenXRSession> m_session;
     std::optional<plugin_utils::HandInjector> m_injector;
+    std::optional<core::XrTimeConverter> m_time_converter;
     std::shared_ptr<core::ControllerTracker> m_controller_tracker;
     std::unique_ptr<core::DeviceIOSession> m_deviceio_session;
     // Persistent root poses (initialized to identity)

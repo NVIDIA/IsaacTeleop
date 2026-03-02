@@ -47,7 +47,10 @@ SchemaPusher::~SchemaPusher()
     }
 }
 
-void SchemaPusher::push_buffer(const uint8_t* buffer, size_t size)
+void SchemaPusher::push_buffer(const uint8_t* buffer,
+                               size_t size,
+                               int64_t sample_time_local_common_clock_ns,
+                               int64_t sample_time_raw_device_clock_ns)
 {
     // Validate that the serialized size fits within our declared buffer
     if (size > m_config.max_flatbuffer_size)
@@ -62,15 +65,20 @@ void SchemaPusher::push_buffer(const uint8_t* buffer, size_t size)
     std::vector<uint8_t> padded_buffer(m_config.max_flatbuffer_size, 0);
     std::memcpy(padded_buffer.data(), buffer, size);
 
-    // Get current time for timestamps
-    XrTime xr_time = m_time_converter.get_current_time();
+    // Convert monotonic nanoseconds to XrTime for the tensor header
+    XrTime xr_time = m_time_converter.convert_monotonic_ns_to_xrtime(sample_time_local_common_clock_ns);
 
     // Prepare push data structure
     XrPushTensorCollectionDataNV tensorData{};
     tensorData.type = XR_TYPE_PUSH_TENSOR_COLLECTION_DATA_NV;
     tensorData.next = nullptr;
     tensorData.timestamp = xr_time;
-    tensorData.rawDeviceTimestamp = static_cast<uint64_t>(xr_time);
+    if (sample_time_raw_device_clock_ns < 0)
+    {
+        throw std::runtime_error("push_buffer: sample_time_raw_device_clock_ns is negative (" +
+                                 std::to_string(sample_time_raw_device_clock_ns) + ")");
+    }
+    tensorData.rawDeviceTimestamp = static_cast<uint64_t>(sample_time_raw_device_clock_ns);
     tensorData.buffer = padded_buffer.data();
     tensorData.bufferSize = static_cast<uint32_t>(m_config.max_flatbuffer_size);
 

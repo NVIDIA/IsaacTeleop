@@ -70,6 +70,11 @@ add_custom_command(
     # Create py.typed marker file (PEP 561) - also serves as build stamp
     COMMAND ${CMAKE_COMMAND} -E touch "${PY_TYPED_MARKER}"
     DEPENDS python_package "${STUBGEN_SCRIPT}" "${STUBGEN_PYPROJECT}"
+            $<TARGET_FILE:deviceio_py>
+            $<TARGET_FILE:mcap_py>
+            $<TARGET_FILE:oxr_py>
+            $<TARGET_FILE:plugin_manager_py>
+            $<TARGET_FILE:schema_py>
     WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
     COMMENT "Generating .pyi stub files for isaacteleop modules"
 )

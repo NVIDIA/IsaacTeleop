@@ -88,7 +88,8 @@ class RetargeterSubgraph(GraphExecutable):
             source_outputs = input_selector.module._compute_in_graph(context)
             inputs[input_name] = source_outputs[input_selector.output_name]
 
-        # Compute target module
+        # Compute target module (unconnected optional inputs are filled by
+        # _compute_without_context with absent OptionalTensorGroups)
         outputs = self._target_module._compute_without_context(inputs)
         context.cache(id(self), outputs)
         return outputs

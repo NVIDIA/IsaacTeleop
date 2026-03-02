@@ -67,11 +67,15 @@ struct SchemaPusherConfig
  *             .localized_name = "HeadPose Data"
  *         }) {}
  *
- *     void push(const HeadPoseT& data) {
+ *     void push(const HeadPoseT& data,
+ *              int64_t sample_time_local_common_clock_ns,
+ *              int64_t sample_time_raw_device_clock_ns) {
  *         flatbuffers::FlatBufferBuilder builder(m_pusher.config().max_flatbuffer_size);
  *         auto offset = HeadPose::Pack(builder, &data);
  *         builder.Finish(offset);
- *         m_pusher.push_buffer(builder.GetBufferPointer(), builder.GetSize());
+ *         m_pusher.push_buffer(builder.GetBufferPointer(), builder.GetSize(),
+ *                              sample_time_local_common_clock_ns,
+ *                              sample_time_raw_device_clock_ns);
  *     }
  *
  * private:
@@ -117,15 +121,31 @@ public:
     SchemaPusher& operator=(SchemaPusher&&) = delete;
 
     /*!
-     * @brief Push raw serialized FlatBuffer data.
+     * @brief Push raw serialized FlatBuffer data with timestamps.
      *
      * The buffer will be padded to max_flatbuffer_size if smaller.
      *
+     * Both timestamp parameters must be in nanoseconds. The local common clock is
+     * system monotonic time (CLOCK_MONOTONIC on Linux, QueryPerformanceCounter on
+     * Windows) — values are comparable across all sources on the same machine.
+     * This class converts the local common clock value to XrTime internally before
+     * storing; the reader side (SchemaTracker) converts it back to monotonic ns so
+     * that DeviceDataTimestamp always carries monotonic nanoseconds in both
+     * _local_common_clock fields.
+     *
+     * If the raw device clock is not available, pass the local common clock value
+     * as a best-effort substitute.
+     *
      * @param buffer Pointer to serialized FlatBuffer data.
      * @param size Size of the serialized data in bytes.
+     * @param sample_time_local_common_clock_ns Sample time in system monotonic nanoseconds.
+     * @param sample_time_raw_device_clock_ns Sample time in the source device's own clock (nanoseconds).
      * @throws std::runtime_error if the push fails.
      */
-    void push_buffer(const uint8_t* buffer, size_t size);
+    void push_buffer(const uint8_t* buffer,
+                     size_t size,
+                     int64_t sample_time_local_common_clock_ns,
+                     int64_t sample_time_raw_device_clock_ns);
 
     /*!
      * @brief Access the configuration.

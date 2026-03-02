@@ -99,23 +99,20 @@ try:
             elapsed = time.time() - start_time
 
             # Get data from both trackers
-            left = hand_tracker.get_left_hand(session1)
-            head = head_tracker.get_head(session2)
+            left_tracked = hand_tracker.get_left_hand(session1)
+            head_tracked = head_tracker.get_head(session2)
 
             print(f"[{elapsed:4.1f}s] Frame {frame_count:3d}:")
-            print(f"  Hands: {'ACTIVE' if left.is_active else 'INACTIVE':8s}")
-            print(f"  Head:  {'VALID' if head.is_valid else 'INVALID':8s}")
-
-            if left.is_active:
-                wrist = left.joints[deviceio.JOINT_WRIST]
-                if wrist.is_valid:
-                    pos = wrist.pose.position
-                    print(f"    Left wrist: [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]")
-
-            if head.is_valid and head.pose:
-                pos = head.pose.position
-                print(f"    Head pos:   [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]")
-
+            if left_tracked.data is not None:
+                pos = left_tracked.data.joints.poses(deviceio.JOINT_WRIST).pose.position
+                print(f"  Left wrist: [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]")
+            else:
+                print("  Left hand:  inactive")
+            if head_tracked.data is not None:
+                pos = head_tracked.data.pose.position
+                print(f"  Head pos:   [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]")
+            else:
+                print("  Head:       inactive")
             print()
 
         frame_count += 1

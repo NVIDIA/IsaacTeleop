@@ -9,6 +9,7 @@
 
 // Include generated FlatBuffer headers.
 #include <schema/full_body_generated.h>
+#include <schema/timestamp_generated.h>
 
 #include <memory>
 #include <type_traits>
@@ -19,9 +20,7 @@
 // VT values are computed as: (field_id + 2) * 2.
 // =============================================================================
 #define VT(field) (field + 2) * 2
-static_assert(core::FullBodyPosePico::VT_IS_ACTIVE == VT(0));
-static_assert(core::FullBodyPosePico::VT_TIMESTAMP == VT(1));
-static_assert(core::FullBodyPosePico::VT_JOINTS == VT(2));
+static_assert(core::FullBodyPosePico::VT_JOINTS == VT(0));
 
 static_assert(core::FullBodyPosePicoRecord::VT_DATA == VT(0));
 
@@ -31,8 +30,6 @@ static_assert(core::FullBodyPosePicoRecord::VT_DATA == VT(0));
 // =============================================================================
 #define TYPE(field) decltype(std::declval<core::FullBodyPosePico>().field())
 static_assert(std::is_same_v<TYPE(joints), const core::BodyJointsPico*>);
-static_assert(std::is_same_v<TYPE(is_active), bool>);
-static_assert(std::is_same_v<TYPE(timestamp), const core::Timestamp*>);
 
 // =============================================================================
 // Compile-time verification of BodyJointPose struct.
@@ -115,25 +112,12 @@ TEST_CASE("BodyJointsPico can be accessed by index", "[full_body][struct]")
 // =============================================================================
 // FullBodyPosePicoT Tests
 // =============================================================================
-TEST_CASE("FullBodyPosePicoT can handle is_active value properly", "[full_body][native]")
-{
-    // Create FullBodyPosePicoT with default values, is_active should be false.
-    auto body_pose = std::make_unique<core::FullBodyPosePicoT>();
-    CHECK(body_pose->is_active == false);
-
-    // Set is_active to true.
-    body_pose->is_active = true;
-    CHECK(body_pose->is_active == true);
-}
-
 TEST_CASE("FullBodyPosePicoT default construction", "[full_body][native]")
 {
     auto body_pose = std::make_unique<core::FullBodyPosePicoT>();
 
     // Default values.
     CHECK(body_pose->joints == nullptr);
-    CHECK(body_pose->is_active == false);
-    CHECK(body_pose->timestamp == nullptr);
 }
 
 TEST_CASE("FullBodyPosePicoT can store joints data", "[full_body][native]")
@@ -143,23 +127,7 @@ TEST_CASE("FullBodyPosePicoT can store joints data", "[full_body][native]")
     // Create and set joints.
     body_pose->joints = std::make_unique<core::BodyJointsPico>();
 
-    // Verify joints are set.
-    REQUIRE(body_pose->joints != nullptr);
     CHECK(body_pose->joints->joints()->size() == static_cast<size_t>(core::BodyJointPico_NUM_JOINTS));
-}
-
-TEST_CASE("FullBodyPosePicoT can store timestamp", "[full_body][native]")
-{
-    auto body_pose = std::make_unique<core::FullBodyPosePicoT>();
-
-    // Set timestamp (XrTime is int64_t).
-    int64_t test_device_time = 1234567890123456789LL;
-    int64_t test_common_time = 9876543210LL;
-    body_pose->timestamp = std::make_shared<core::Timestamp>(test_device_time, test_common_time);
-
-    REQUIRE(body_pose->timestamp != nullptr);
-    CHECK(body_pose->timestamp->device_time() == test_device_time);
-    CHECK(body_pose->timestamp->common_time() == test_common_time);
 }
 
 TEST_CASE("FullBodyPosePicoT joints can be mutated via flatbuffers Array", "[full_body][native]")
@@ -200,9 +168,6 @@ TEST_CASE("FullBodyPosePicoT serialization and deserialization", "[full_body][fl
 
     body_pose->joints->mutable_joints()->Mutate(0, joint_pose);
 
-    body_pose->is_active = true;
-    body_pose->timestamp = std::make_shared<core::Timestamp>(9876543210LL, 1234567890LL);
-
     // Serialize.
     auto offset = core::FullBodyPosePico::Pack(builder, body_pose.get());
     builder.Finish(offset);
@@ -212,7 +177,6 @@ TEST_CASE("FullBodyPosePicoT serialization and deserialization", "[full_body][fl
     auto deserialized = flatbuffers::GetRoot<core::FullBodyPosePico>(buffer);
 
     // Verify.
-    REQUIRE(deserialized->joints() != nullptr);
     CHECK(deserialized->joints()->joints()->size() == static_cast<size_t>(core::BodyJointPico_NUM_JOINTS));
 
     const auto* first_joint = (*deserialized->joints()->joints())[0];
@@ -220,11 +184,6 @@ TEST_CASE("FullBodyPosePicoT serialization and deserialization", "[full_body][fl
     CHECK(first_joint->pose().position().y() == Catch::Approx(2.5f));
     CHECK(first_joint->pose().position().z() == Catch::Approx(3.5f));
     CHECK(first_joint->is_valid() == true);
-
-    CHECK(deserialized->is_active() == true);
-    REQUIRE(deserialized->timestamp() != nullptr);
-    CHECK(deserialized->timestamp()->device_time() == 9876543210LL);
-    CHECK(deserialized->timestamp()->common_time() == 1234567890LL);
 }
 
 TEST_CASE("FullBodyPosePicoT can be unpacked from buffer", "[full_body][flatbuffers]")
@@ -245,9 +204,6 @@ TEST_CASE("FullBodyPosePicoT can be unpacked from buffer", "[full_body][flatbuff
         original->joints->mutable_joints()->Mutate(i, joint_pose);
     }
 
-    original->is_active = true;
-    original->timestamp = std::make_shared<core::Timestamp>(1111111111LL, 2222222222LL);
-
     auto offset = core::FullBodyPosePico::Pack(builder, original.get());
     builder.Finish(offset);
 
@@ -256,9 +212,6 @@ TEST_CASE("FullBodyPosePicoT can be unpacked from buffer", "[full_body][flatbuff
     auto body_pose_fb = flatbuffers::GetRoot<core::FullBodyPosePico>(buffer);
     auto unpacked = std::make_unique<core::FullBodyPosePicoT>();
     body_pose_fb->UnPackTo(unpacked.get());
-
-    // Verify unpacked data.
-    REQUIRE(unpacked->joints != nullptr);
 
     // Check a few joints.
     const auto* joint_5 = (*unpacked->joints->joints())[5];
@@ -270,11 +223,6 @@ TEST_CASE("FullBodyPosePicoT can be unpacked from buffer", "[full_body][flatbuff
     CHECK(joint_23->pose().position().x() == Catch::Approx(23.0f));
     CHECK(joint_23->pose().position().y() == Catch::Approx(46.0f));
     CHECK(joint_23->pose().position().z() == Catch::Approx(69.0f));
-
-    CHECK(unpacked->is_active == true);
-    REQUIRE(unpacked->timestamp != nullptr);
-    CHECK(unpacked->timestamp->device_time() == 1111111111LL);
-    CHECK(unpacked->timestamp->common_time() == 2222222222LL);
 }
 
 TEST_CASE("FullBodyPosePicoT all 24 joints can be set and verified", "[full_body][native]")
@@ -325,33 +273,21 @@ TEST_CASE("FullBodyPosePicoT joint indices correspond to body parts", "[full_bod
     const auto* left_hand = (*body_pose->joints->joints())[22];
     const auto* right_hand = (*body_pose->joints->joints())[23];
 
-    // All should be valid pointers.
-    CHECK(pelvis != nullptr);
-    CHECK(head != nullptr);
-    CHECK(left_hand != nullptr);
-    CHECK(right_hand != nullptr);
+    CHECK(pelvis->pose().position().x() == 0.0f);
+    CHECK(head->pose().position().x() == 0.0f);
+    CHECK(left_hand->pose().position().x() == 0.0f);
+    CHECK(right_hand->pose().position().x() == 0.0f);
 }
 
 // =============================================================================
 // Edge Cases
 // =============================================================================
-TEST_CASE("FullBodyPosePicoT with large timestamp values", "[full_body][edge]")
-{
-    auto body_pose = std::make_unique<core::FullBodyPosePicoT>();
-    int64_t max_int64 = 9223372036854775807LL;
-    body_pose->timestamp = std::make_shared<core::Timestamp>(max_int64, max_int64 - 1000);
-
-    CHECK(body_pose->timestamp->device_time() == max_int64);
-    CHECK(body_pose->timestamp->common_time() == max_int64 - 1000);
-}
-
 TEST_CASE("FullBodyPosePicoT buffer size is reasonable", "[full_body][serialize]")
 {
     flatbuffers::FlatBufferBuilder builder;
 
     auto body_pose = std::make_unique<core::FullBodyPosePicoT>();
     body_pose->joints = std::make_unique<core::BodyJointsPico>();
-    body_pose->timestamp = std::make_shared<core::Timestamp>(0, 0);
 
     auto offset = core::FullBodyPosePico::Pack(builder, body_pose.get());
     builder.Finish(offset);
@@ -422,4 +358,49 @@ TEST_CASE("BodyJointPico enum can index BodyJointsPico", "[full_body][enum]")
     const auto* left_hand = (*body_pose->joints->joints())[core::BodyJointPico_LEFT_HAND];
     CHECK(left_hand->pose().position().x() == Catch::Approx(-0.5f));
     CHECK(left_hand->is_valid() == true);
+}
+
+// =============================================================================
+// FullBodyPosePicoRecord Tests (timestamp lives on the Record wrapper)
+// =============================================================================
+TEST_CASE("FullBodyPosePicoRecord serialization with DeviceDataTimestamp", "[full_body][flatbuffers]")
+{
+    flatbuffers::FlatBufferBuilder builder(4096);
+
+    auto record = std::make_shared<core::FullBodyPosePicoRecordT>();
+    record->data = std::make_shared<core::FullBodyPosePicoT>();
+    record->data->joints = std::make_unique<core::BodyJointsPico>();
+    record->timestamp = std::make_shared<core::DeviceDataTimestamp>(1000000000LL, 2000000000LL, 3000000000LL);
+
+    auto offset = core::FullBodyPosePicoRecord::Pack(builder, record.get());
+    builder.Finish(offset);
+
+    auto deserialized = flatbuffers::GetRoot<core::FullBodyPosePicoRecord>(builder.GetBufferPointer());
+
+    CHECK(deserialized->timestamp()->available_time_local_common_clock() == 1000000000LL);
+    CHECK(deserialized->timestamp()->sample_time_local_common_clock() == 2000000000LL);
+    CHECK(deserialized->timestamp()->sample_time_raw_device_clock() == 3000000000LL);
+    CHECK(deserialized->data()->joints()->joints()->size() == static_cast<size_t>(core::BodyJointPico_NUM_JOINTS));
+}
+
+TEST_CASE("FullBodyPosePicoRecord can be unpacked with DeviceDataTimestamp", "[full_body][flatbuffers]")
+{
+    flatbuffers::FlatBufferBuilder builder(4096);
+
+    auto original = std::make_shared<core::FullBodyPosePicoRecordT>();
+    original->data = std::make_shared<core::FullBodyPosePicoT>();
+    original->data->joints = std::make_unique<core::BodyJointsPico>();
+    original->timestamp = std::make_shared<core::DeviceDataTimestamp>(111LL, 222LL, 333LL);
+
+    auto offset = core::FullBodyPosePicoRecord::Pack(builder, original.get());
+    builder.Finish(offset);
+
+    auto fb = flatbuffers::GetRoot<core::FullBodyPosePicoRecord>(builder.GetBufferPointer());
+    auto unpacked = std::make_shared<core::FullBodyPosePicoRecordT>();
+    fb->UnPackTo(unpacked.get());
+
+    CHECK(unpacked->timestamp->available_time_local_common_clock() == 111LL);
+    CHECK(unpacked->timestamp->sample_time_local_common_clock() == 222LL);
+    CHECK(unpacked->timestamp->sample_time_raw_device_clock() == 333LL);
+    CHECK(unpacked->data->joints->joints()->size() == static_cast<size_t>(core::BodyJointPico_NUM_JOINTS));
 }

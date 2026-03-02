@@ -6,6 +6,7 @@
 #include <deviceio/controller_tracker.hpp>
 #include <deviceio/deviceio_session.hpp>
 #include <oxr/oxr_session.hpp>
+#include <oxr_utils/oxr_time.hpp>
 #include <plugin_utils/hand_injector.hpp>
 
 #include <atomic>
@@ -38,6 +39,7 @@ private:
     std::shared_ptr<core::ControllerTracker> m_controller_tracker;
     std::unique_ptr<core::DeviceIOSession> m_deviceio_session;
     std::optional<plugin_utils::HandInjector> m_injector;
+    std::optional<core::XrTimeConverter> m_time_converter;
     HandGenerator m_hand_gen;
 
     std::thread m_thread;

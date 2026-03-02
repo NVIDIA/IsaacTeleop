@@ -56,9 +56,11 @@ from isaacteleop.retargeting_engine.interface import (
     ValueInput,
     TensorGroup,
     TensorGroupType,
+    OptionalType,
 )
 from isaacteleop.retargeting_engine.tensor_types import (
     ControllerInput,
+    ControllerInputIndex,
     TransformMatrix,
     NDArrayType,
     DLDataType,
@@ -121,11 +123,12 @@ class DeltaPositionRetargeter(BaseRetargeter):
     transforms data rather than passing it through.
 
     Inputs:
-        - "controller": ControllerInput (from ControllersSource)
+        - "controller": OptionalType(ControllerInput) (from ControllersSource)
         - "ee_state":   RobotEndEffectorState (from ValueInput)
 
     Outputs:
-        - "delta": DeltaCommand -- (controller_pos - ee_pos)
+        - "delta": OptionalType(DeltaCommand) -- (controller_pos - ee_pos),
+                   absent when controller is absent
     """
 
     def __init__(self, name: str) -> None:
@@ -133,18 +136,23 @@ class DeltaPositionRetargeter(BaseRetargeter):
 
     def input_spec(self):
         return {
-            "controller": ControllerInput(),
+            "controller": OptionalType(ControllerInput()),
             "ee_state": RobotEndEffectorState(),
         }
 
     def output_spec(self):
         return {
-            "delta": DeltaCommand(),
+            "delta": OptionalType(DeltaCommand()),
         }
 
     def compute(self, inputs, outputs):
-        # ControllerInput tensor 0 is grip_position (3,)
-        grip_pos = np.asarray(inputs["controller"][0], dtype=np.float32)
+        if inputs["controller"].is_none:
+            outputs["delta"].set_none()
+            return
+
+        grip_pos = np.asarray(
+            inputs["controller"][ControllerInputIndex.GRIP_POSITION], dtype=np.float32
+        )
         ee_pos = np.asarray(inputs["ee_state"][0], dtype=np.float32)
         outputs["delta"][0] = grip_pos - ee_pos
 
@@ -320,17 +328,22 @@ def main() -> int:
                 }
             )
 
-            # Read outputs
-            delta_l = result["delta_left"][0]
-            delta_r = result["delta_right"][0]
-
+            # Read outputs (may be absent if controller tracking is lost)
             if session.frame_count % 30 == 0:
                 elapsed = session.get_elapsed_time()
-                print(
-                    f"[{elapsed:5.1f}s] "
-                    f"delta_L=[{delta_l[0]:+.3f}, {delta_l[1]:+.3f}, {delta_l[2]:+.3f}]  "
-                    f"delta_R=[{delta_r[0]:+.3f}, {delta_r[1]:+.3f}, {delta_r[2]:+.3f}]"
-                )
+                left_str = "absent"
+                right_str = "absent"
+                if not result["delta_left"].is_none:
+                    delta_l = result["delta_left"][0]
+                    left_str = (
+                        f"[{delta_l[0]:+.3f}, {delta_l[1]:+.3f}, {delta_l[2]:+.3f}]"
+                    )
+                if not result["delta_right"].is_none:
+                    delta_r = result["delta_right"][0]
+                    right_str = (
+                        f"[{delta_r[0]:+.3f}, {delta_r[1]:+.3f}, {delta_r[2]:+.3f}]"
+                    )
+                print(f"[{elapsed:5.1f}s] delta_L={left_str}  delta_R={right_str}")
 
             # Slowly drift the simulated EE position (pretend robot is moving)
             sim_ee_position += np.array([0.0001, 0.0, 0.0], dtype=np.float32)

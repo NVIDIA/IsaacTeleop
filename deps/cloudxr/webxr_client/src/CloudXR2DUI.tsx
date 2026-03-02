@@ -44,9 +44,15 @@ import {
 import {
   CloudXRConfig,
   enableLocalStorage,
+  getResolutionFromInputs,
   setSelectValueIfAvailable,
   setupCertificateAcceptanceLink,
 } from '@helpers/utils';
+import {
+  getResolutionValidationError,
+  getResolutionValidationMessageForConnect,
+  validatePerEyeResolution,
+} from '@nvidia/cloudxr';
 
 /** Full config: CloudXR connection settings + React UI options. */
 type AppConfig = CloudXRConfig & ReactUIConfig;
@@ -77,6 +83,10 @@ export class CloudXR2DUI {
   private perEyeWidthInput!: HTMLInputElement;
   /** Input field for per-eye height configuration */
   private perEyeHeightInput!: HTMLInputElement;
+  /** Inline resolution validation under width input */
+  private resolutionWidthValidationMessage: HTMLElement | null = null;
+  /** Inline resolution validation under height input */
+  private resolutionHeightValidationMessage: HTMLElement | null = null;
   /** Dropdown to enable pose smoothing */
   private enablePoseSmoothingSelect!: HTMLSelectElement;
   /** Pose prediction factor slider */
@@ -165,7 +175,7 @@ export class CloudXR2DUI {
       this.posePredictionFactorValue.textContent = this.posePredictionFactorInput.value;
       this.updateConfiguration();
       this.updateDeviceProfileWarning(resolveDeviceProfileId(this.deviceProfileSelect.value));
-      this.setStartButtonState(false, 'CONNECT');
+      this.updateConnectButtonState();
       this.initialized = true;
     } catch (error) {
       // Continue with default values if initialization fails
@@ -189,6 +199,12 @@ export class CloudXR2DUI {
     this.codecSelect = this.getElement<HTMLSelectElement>('codec');
     this.perEyeWidthInput = this.getElement<HTMLInputElement>('perEyeWidth');
     this.perEyeHeightInput = this.getElement<HTMLInputElement>('perEyeHeight');
+    this.resolutionWidthValidationMessage = document.getElementById(
+      'resolutionWidthValidationMessage'
+    );
+    this.resolutionHeightValidationMessage = document.getElementById(
+      'resolutionHeightValidationMessage'
+    );
     this.enablePoseSmoothingSelect = this.getElement<HTMLSelectElement>('enablePoseSmoothing');
     this.posePredictionFactorInput = this.getElement<HTMLInputElement>('posePredictionFactor');
     this.posePredictionFactorValue = this.getElement<HTMLElement>('posePredictionFactorValue');
@@ -340,10 +356,16 @@ export class CloudXR2DUI {
     addListener(this.serverIpInput, 'change', updateConfig);
     addListener(this.portInput, 'input', updateConfig);
     addListener(this.portInput, 'change', updateConfig);
+    const updateResValidation = () => this.updateResolutionValidationMessage();
     addListener(this.perEyeWidthInput, 'input', onProfileLinkedChange);
     addListener(this.perEyeWidthInput, 'change', onProfileLinkedChange);
+    addListener(this.perEyeWidthInput, 'blur', updateResValidation);
+    addListener(this.perEyeWidthInput, 'keyup', updateResValidation);
     addListener(this.perEyeHeightInput, 'input', onProfileLinkedChange);
     addListener(this.perEyeHeightInput, 'change', onProfileLinkedChange);
+    addListener(this.perEyeHeightInput, 'blur', updateResValidation);
+    addListener(this.perEyeHeightInput, 'keyup', updateResValidation);
+    this.updateResolutionValidationMessage();
     addListener(this.deviceFrameRateSelect, 'change', onProfileLinkedChange);
     addListener(this.maxStreamingBitrateMbpsSelect, 'change', onProfileLinkedChange);
     addListener(this.codecSelect, 'change', onProfileLinkedChange);
@@ -390,6 +412,47 @@ export class CloudXR2DUI {
     );
   }
 
+  /** Update inline resolution validation under each input. Uses effective resolution (HTML default when blank). */
+  private updateResolutionValidationMessage(): void {
+    const { w: wNum, h: hNum } = getResolutionFromInputs(
+      this.perEyeWidthInput,
+      this.perEyeHeightInput
+    );
+    const { widthError, heightError } = validatePerEyeResolution(wNum, hNum);
+    if (this.resolutionWidthValidationMessage) {
+      const showWidth = widthError ?? '';
+      this.resolutionWidthValidationMessage.textContent = showWidth;
+      this.resolutionWidthValidationMessage.className = showWidth
+        ? 'config-text resolution-validation-error'
+        : 'config-text';
+    }
+    if (this.resolutionHeightValidationMessage) {
+      const showHeight = heightError ?? '';
+      this.resolutionHeightValidationMessage.textContent = showHeight;
+      this.resolutionHeightValidationMessage.className = showHeight
+        ? 'config-text resolution-validation-error'
+        : 'config-text';
+    }
+    this.updateConnectButtonState();
+  }
+
+  /** Disable Connect button and show error under it when resolution invalid; enable when valid. Blank fields use HTML value attribute. */
+  public updateConnectButtonState(): void {
+    const { w, h } = getResolutionFromInputs(this.perEyeWidthInput, this.perEyeHeightInput);
+    const resolutionError = getResolutionValidationError(w, h);
+    const connectMessage = getResolutionValidationMessageForConnect(w, h);
+    if (connectMessage) {
+      this.showError(connectMessage);
+    } else {
+      this.hideError();
+    }
+    // Only update button when idle (don't override "CONNECT (starting...)" or "CONNECT (XR session active)")
+    if (this.startButton && this.startButton.innerHTML === 'CONNECT') {
+      const shouldEnable = !resolutionError;
+      this.setStartButtonState(!shouldEnable, 'CONNECT');
+    }
+  }
+
   /**
    * Updates the current configuration from form values
    * Calls the configuration change callback if provided
@@ -405,14 +468,16 @@ export class CloudXR2DUI {
       defaultPort = hasProxy ? 443 : 48322; // HTTPS with proxy → 443, HTTPS without → 48322
     }
 
+    const { w: perEyeWidth, h: perEyeHeight } = getResolutionFromInputs(
+      this.perEyeWidthInput,
+      this.perEyeHeightInput
+    );
     const newConfiguration: AppConfig = {
       serverIP: this.serverIpInput.value || this.getDefaultConfiguration().serverIP,
       port: portValue || defaultPort,
       useSecureConnection: useSecure,
-      perEyeWidth:
-        parseInt(this.perEyeWidthInput.value) || this.getDefaultConfiguration().perEyeWidth,
-      perEyeHeight:
-        parseInt(this.perEyeHeightInput.value) || this.getDefaultConfiguration().perEyeHeight,
+      perEyeWidth,
+      perEyeHeight,
       deviceFrameRate:
         parseInt(this.deviceFrameRateSelect.value) ||
         this.getDefaultConfiguration().deviceFrameRate,
@@ -593,13 +658,19 @@ export class CloudXR2DUI {
 
       // Create new handler
       this.handleConnectClick = async () => {
-        // Disable button during XR session
+        const cfg = this.getConfiguration();
+        const resolutionError = getResolutionValidationError(cfg.perEyeWidth, cfg.perEyeHeight);
+        if (resolutionError) {
+          this.updateConnectButtonState();
+          return;
+        }
         this.setStartButtonState(true, 'CONNECT (starting XR session...)');
 
         try {
           await onConnect();
         } catch (error) {
           this.setStartButtonState(false, 'CONNECT');
+          this.updateConnectButtonState();
           onError(error as Error);
         }
       };

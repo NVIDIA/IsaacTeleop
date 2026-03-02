@@ -5,7 +5,7 @@
 Head Transform Node - Applies a 4x4 transform to head pose data.
 
 Transforms head position and orientation using a homogeneous transformation
-matrix while preserving validity and timestamp fields.
+matrix while preserving the validity field.
 
 The transform matrix is received as a tensor input from the graph, typically
 provided by a TransformSource node.
@@ -17,7 +17,8 @@ import numpy as np
 
 from ..interface.base_retargeter import BaseRetargeter
 from ..interface.retargeter_core_types import RetargeterIO, RetargeterIOType
-from ..tensor_types import HeadPose, TransformMatrix
+from ..interface.tensor_group_type import OptionalType
+from ..tensor_types import HeadPose, HeadPoseIndex, TransformMatrix
 from .transform_utils import (
     decompose_transform,
     transform_position,
@@ -34,17 +35,17 @@ class HeadTransform(BaseRetargeter):
     Applies a 4x4 homogeneous transform to head pose data.
 
     Transforms the head position (R @ p + t) and orientation (R_quat * q)
-    while passing through is_valid and timestamp unchanged.
+    while passing through is_valid unchanged.
 
     The transform matrix is provided as a tensor input, allowing it to be
     sourced from a TransformSource node in the graph.
 
     Inputs:
-        - "head": HeadPose tensor (position, orientation, is_valid, timestamp)
+        - "head": OptionalType(HeadPose) tensor (position, orientation, is_valid)
         - "transform": TransformMatrix tensor containing the (4, 4) matrix
 
     Outputs:
-        - "head": HeadPose tensor with transformed position and orientation
+        - "head": OptionalType(HeadPose) tensor with transformed position and orientation
 
     Example:
         transform_input = ValueInput("xform_input", TransformMatrix())
@@ -56,12 +57,6 @@ class HeadTransform(BaseRetargeter):
         })
     """
 
-    # Input/output tensor indices for HeadPose
-    _POSITION = 0
-    _ORIENTATION = 1
-    _IS_VALID = 2
-    _TIMESTAMP = 3
-
     def __init__(self, name: str) -> None:
         """
         Initialize head transform node.
@@ -72,28 +67,35 @@ class HeadTransform(BaseRetargeter):
         super().__init__(name)
 
     def input_spec(self) -> RetargeterIOType:
-        """Declare head pose and transform matrix inputs."""
+        """Declare head pose (Optional) and transform matrix inputs."""
         return {
-            "head": HeadPose(),
+            "head": OptionalType(HeadPose()),
             "transform": TransformMatrix(),
         }
 
     def output_spec(self) -> RetargeterIOType:
-        """Declare transformed head pose output."""
-        return {"head": HeadPose()}
+        """Declare transformed head pose output (Optional)."""
+        return {"head": OptionalType(HeadPose())}
 
     def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
         """
         Apply the 4x4 transform to head position and orientation.
 
+        If the input head is ``None`` (Optional absent), the output is set
+        to ``None`` as well (propagated).
+
         Position is transformed as: p' = R @ p + t
         Orientation is transformed as: q' = R_quat * q
-        All other fields (is_valid, timestamp) are copied unchanged.
+        All other fields (is_valid) are copied unchanged.
 
         Args:
             inputs: Dict with "head" and "transform" TensorGroups.
-            outputs: Dict with "head" TensorGroup to populate.
+            outputs: Dict with "head" OptionalTensorGroup to populate.
         """
+        if inputs["head"].is_none:
+            outputs["head"].set_none()
+            return
+
         matrix = np.from_dlpack(inputs["transform"][_MATRIX_INDEX])
         rotation, translation = decompose_transform(matrix)
 
@@ -105,5 +107,7 @@ class HeadTransform(BaseRetargeter):
             out[i] = copy.deepcopy(inp[i])
 
         # Transform pose fields in-place on the output buffers
-        transform_position(np.from_dlpack(out[self._POSITION]), rotation, translation)
-        transform_orientation(np.from_dlpack(out[self._ORIENTATION]), rotation)
+        transform_position(
+            np.from_dlpack(out[HeadPoseIndex.POSITION]), rotation, translation
+        )
+        transform_orientation(np.from_dlpack(out[HeadPoseIndex.ORIENTATION]), rotation)

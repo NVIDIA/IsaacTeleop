@@ -5,7 +5,7 @@
 Dynamically generated indices for standard TensorGroupTypes.
 
 This module provides IntEnum classes for indexing into standard tensor groups
-(HandInput, ControllerInput, Generic3AxisPedalInput, FullBodyInput) and standard joint arrays
+(HandInput, HeadPose, ControllerInput, Generic3AxisPedalInput, FullBodyInput) and standard joint arrays
 (HandJointIndex, BodyJointPicoIndex).
 
 The indices for TensorGroupTypes are generated automatically from the type definitions
@@ -16,6 +16,7 @@ from typing import Any
 from enum import IntEnum
 from .standard_types import (
     HandInput,
+    HeadPose,
     ControllerInput,
     Generic3AxisPedalInput,
     FullBodyInput,
@@ -35,6 +36,7 @@ def _create_index_enum(name: str, group_type, prefix: str = "") -> IntEnum:
 
 # Generate indices dynamically
 HandInputIndex: Any = _create_index_enum("HandInputIndex", HandInput(), "hand_")
+HeadPoseIndex: Any = _create_index_enum("HeadPoseIndex", HeadPose(), "head_")
 ControllerInputIndex: Any = _create_index_enum(
     "ControllerInputIndex", ControllerInput(), "controller_"
 )

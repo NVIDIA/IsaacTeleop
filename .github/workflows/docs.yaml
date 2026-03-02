@@ -1,9 +1,13 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-# Build docs and deploy to GitHub Pages.
-# - Push to main (canonical repo): deploy to site root.
-# - Pull requests: deploy to preview/pr-<N>/ and write preview URL to workflow summary.
+# Build docs and Teleop web app, then deploy to GitHub Pages.
+# - Push to main (canonical repo): deploy docs at site root, web app at /client/.
+# - Pull requests: deploy to preview/pr-<N>/ (docs at root of preview, app at preview/pr-<N>/client/).
+#
+# PR: docs always built; web client (npm) built with public SDK for all, or private SDK only for allowlisted authors.
+# Main/release (push): key used → private NGC for SDK.
+# Allowlist for CXR.js SDK on PRs: Repo Settings → Variables → ALLOWED_CLOUDXR_JS_PR_AUTHORS (comma-separated GitHub logins).
 
 name: Build & deploy docs
 
@@ -17,6 +21,8 @@ on:
     paths:
       - "docs/**"
       - ".github/workflows/docs.yaml"
+      - "deps/cloudxr/webxr_client/**"
+      - "deps/cloudxr/.env.default"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -26,9 +32,11 @@ jobs:
   check-repo:
     name: Check repo
     runs-on: ubuntu-latest
+    permissions: {}
     outputs:
       is-canonical-repo: ${{ steps.is-canonical-repo.outputs.defined }}
       is-deploy-branch: ${{ steps.is-deploy-branch.outputs.defined }}
+      use_ngc_key: ${{ steps.ngc-allowlist.outputs.use_ngc_key }}
     steps:
     - id: is-canonical-repo
       if: github.repository == 'NVIDIA/IsaacTeleop'
@@ -36,6 +44,22 @@ jobs:
     - id: is-deploy-branch
       if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')
       run: echo "defined=true" >> "$GITHUB_OUTPUT"
+    - id: ngc-allowlist
+      run: |
+        if [ "${{ github.event_name }}" != 'pull_request' ]; then
+          echo "use_ngc_key=true" >> "$GITHUB_OUTPUT"
+        elif [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
+          echo "use_ngc_key=false" >> "$GITHUB_OUTPUT"
+        else
+          ACTOR="${{ github.actor }}"
+          ALLOWED="${{ vars.ALLOWED_CLOUDXR_JS_PR_AUTHORS }}"
+          # Normalize: remove spaces so "alice, bob" matches like "alice,bob"
+          ALLOWED="${ALLOWED// /}"
+          case ",${ALLOWED}," in
+            *",${ACTOR},"*) echo "use_ngc_key=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "use_ngc_key=false" >> "$GITHUB_OUTPUT" ;;
+          esac
+        fi
 
   build-docs:
     name: Build Docs
@@ -71,10 +95,63 @@ jobs:
           name: docs-html
           path: ./docs/build
 
+  build-app:
+    name: Build Teleop Web App
+    runs-on: ubuntu-latest
+    needs: [check-repo]
+    environment: dev
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set CloudXR Web SDK version
+        id: sdk_version
+        run: |
+          version=$(grep -E '^CXR_WEB_SDK_VERSION=.+' deps/cloudxr/.env.default | cut -d= -f2)
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      # Allowlist no → public only. Allowlist yes + NGC_API_KEY → private only.
+      - name: Download CloudXR Web SDK from NGC
+        env:
+          NGC_API_KEY: ${{ needs.check-repo.outputs.use_ngc_key == 'true' && secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY || '' }}
+          SDK_VERSION: ${{ steps.sdk_version.outputs.version }}
+        run: |
+          SDK_FILE="nvidia-cloudxr-${SDK_VERSION}.tgz"
+          BASE="https://api.ngc.nvidia.com/v2"
+          if [ -z "${NGC_API_KEY:-}" ]; then
+            URL="${BASE}/resources/nvidia/cloudxr-js/versions/${SDK_VERSION}/files/${SDK_FILE}?download=true"
+            curl -fL -o "${SDK_FILE}" "$URL"
+          else
+            URL="${BASE}/org/0566138804516934/team/cloudxr-dev/resources/cloudxr-js/versions/${SDK_VERSION}/files/${SDK_FILE}"
+            curl -fL -o "${SDK_FILE}" \
+              -H "Authorization: Bearer $NGC_API_KEY" \
+              -H "Content-Type: application/json" \
+              "$URL"
+          fi
+          mkdir -p deps/cloudxr
+          mv "${SDK_FILE}" deps/cloudxr/
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install and build web client
+        working-directory: deps/cloudxr/webxr_client
+        run: |
+          npm install "../nvidia-cloudxr-${{ steps.sdk_version.outputs.version }}.tgz"
+          npm run build
+
+      - name: Upload web app artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: webapp
+          path: deps/cloudxr/webxr_client/build
+
   deploy-docs:
     name: Deploy docs
     runs-on: ubuntu-latest
-    needs: [check-repo, build-docs]
+    needs: [check-repo, build-docs, build-app]
     if: needs.check-repo.outputs.is-canonical-repo == 'true' && (needs.check-repo.outputs.is-deploy-branch == 'true' || github.event_name == 'pull_request')
     permissions:
       contents: write  # push to gh-pages
@@ -84,6 +161,22 @@ jobs:
         with:
           name: docs-html
           path: ./docs/build
+
+      - name: Download web app artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: webapp
+          path: ./webapp
+
+      - name: Place web app under subpath
+        run: |
+          if [ "${{ github.event_name }}" = 'pull_request' ]; then
+            CLIENT_DIR=./docs/build/current/client
+          else
+            CLIENT_DIR=./docs/build/client
+          fi
+          mkdir -p "$CLIENT_DIR"
+          cp -r ./webapp/. "$CLIENT_DIR/"
 
       - name: Deploy to gh-pages (main branch)
         if: github.event_name == 'push' && needs.check-repo.outputs.is-deploy-branch == 'true'
@@ -106,12 +199,15 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           base="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/preview/pr-${{ github.event.pull_request.number }}/"
+          client_url="${base}client/"
           {
             echo "## Docs preview"
             echo
             echo "Built docs for this PR are available at:"
             echo
             echo "**${base}**"
+            echo
+            echo "Teleop web app (subpath \`/client/\`): **${client_url}**"
             echo
             echo "(It may take a minute to appear after the workflow completes.)"
           } >> "$GITHUB_STEP_SUMMARY"

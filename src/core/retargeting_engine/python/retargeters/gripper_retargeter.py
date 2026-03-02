@@ -9,14 +9,13 @@ Retargeter specifically for gripper control based on hand tracking data.
 
 import numpy as np
 from dataclasses import dataclass
-from typing import Dict
 
 from ..interface import (
     BaseRetargeter,
     RetargeterIOType,
 )
-from ..interface.tensor_group_type import TensorGroupType
-from ..interface.tensor_group import TensorGroup
+from ..interface.retargeter_core_types import RetargeterIO
+from ..interface.tensor_group_type import TensorGroupType, OptionalType
 from ..tensor_types import (
     HandInput,
     ControllerInput,
@@ -58,17 +57,15 @@ class GripperRetargeter(BaseRetargeter):
         self._previous_gripper_command = False  # False = open, True = closed
 
     def input_spec(self) -> RetargeterIOType:
-        """Requires hand tracking input and controller input."""
-        spec = {}
+        """Requires hand tracking input and controller input (both Optional)."""
+        spec: RetargeterIOType = {}
 
-        # Always request hand input
         if self._config.hand_side == "left":
-            spec["hand_left"] = HandInput()
+            spec["hand_left"] = OptionalType(HandInput())
         else:
-            spec["hand_right"] = HandInput()
+            spec["hand_right"] = OptionalType(HandInput())
 
-        # Always request controller input
-        spec[f"controller_{self._config.hand_side}"] = ControllerInput()
+        spec[f"controller_{self._config.hand_side}"] = OptionalType(ControllerInput())
 
         return spec
 
@@ -80,36 +77,30 @@ class GripperRetargeter(BaseRetargeter):
             )
         }
 
-    def compute(
-        self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]
-    ) -> None:
+    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
         """Computes gripper command based on controller trigger (priority) or pinch distance (fallback)."""
 
-        # Try to use controller input first if active
+        gripper_out = outputs["gripper_command"]
+
         used_controller = False
         controller_key = f"controller_{self._config.hand_side}"
-        if controller_key in inputs:
-            controller_group = inputs[controller_key]
+        controller_group = inputs[controller_key]
 
-            # Check active
-            if controller_group[ControllerInputIndex.IS_ACTIVE]:
-                used_controller = True
-                trigger_value = controller_group[ControllerInputIndex.TRIGGER_VALUE]
+        if not controller_group.is_none:
+            used_controller = True
+            trigger_value = controller_group[ControllerInputIndex.TRIGGER_VALUE]
 
-                # Use threshold with small hysteresis if needed, but simple threshold for now
-                if trigger_value > self._config.controller_threshold:
-                    self._previous_gripper_command = True  # Close
-                else:
-                    self._previous_gripper_command = False  # Open
+            if trigger_value > self._config.controller_threshold:
+                self._previous_gripper_command = True  # Close
+            else:
+                self._previous_gripper_command = False  # Open
 
-        # Fallback to hand tracking if controller was not used
         if not used_controller:
             hand_key = f"hand_{self._config.hand_side}"
             hand_group = inputs[hand_key]
 
-            # Check active
-            if not hand_group[HandInputIndex.IS_ACTIVE]:
-                outputs["gripper_command"][0] = 1.0  # Default open
+            if hand_group.is_none:
+                gripper_out[0] = 1.0  # Default open
                 return
 
             # Get joint positions
@@ -137,4 +128,4 @@ class GripperRetargeter(BaseRetargeter):
                     self._previous_gripper_command = True  # Close
 
         # Output: -1.0 if closed, 1.0 if open (matching IsaacLab implementation)
-        outputs["gripper_command"][0] = -1.0 if self._previous_gripper_command else 1.0
+        gripper_out[0] = -1.0 if self._previous_gripper_command else 1.0

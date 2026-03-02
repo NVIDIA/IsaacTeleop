@@ -6,6 +6,7 @@
 #include "tracker.hpp"
 
 #include <oxr_utils/oxr_funcs.hpp>
+#include <oxr_utils/oxr_time.hpp>
 #include <schema/controller_bfbs_generated.h>
 #include <schema/controller_generated.h>
 
@@ -43,9 +44,9 @@ public:
         return { "left_controller", "right_controller" };
     }
 
-    // Query methods - public API for getting individual controller data
-    const ControllerSnapshot& get_left_controller(const DeviceIOSession& session) const;
-    const ControllerSnapshot& get_right_controller(const DeviceIOSession& session) const;
+    // Query methods - public API for getting controller data (tracked.data is null when inactive)
+    const ControllerSnapshotTrackedT& get_left_controller(const DeviceIOSession& session) const;
+    const ControllerSnapshotTrackedT& get_right_controller(const DeviceIOSession& session) const;
 
 private:
     static constexpr const char* TRACKER_NAME = "ControllerTracker";
@@ -61,13 +62,14 @@ private:
         // Override from ITrackerImpl
         bool update(XrTime time) override;
 
-        Timestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index) const override;
+        DeviceDataTimestamp serialize(flatbuffers::FlatBufferBuilder& builder, size_t channel_index = 0) const override;
 
-        const ControllerSnapshot& get_left_controller() const;
-        const ControllerSnapshot& get_right_controller() const;
+        const ControllerSnapshotTrackedT& get_left_controller() const;
+        const ControllerSnapshotTrackedT& get_right_controller() const;
 
     private:
         const OpenXRCoreFunctions core_funcs_;
+        XrTimeConverter time_converter_;
 
         XrSession session_;
         XrSpace base_space_;
@@ -93,9 +95,10 @@ private:
         XrSpacePtr left_aim_space_;
         XrSpacePtr right_aim_space_;
 
-        // Controller snapshots stored separately
-        ControllerSnapshot left_controller_{};
-        ControllerSnapshot right_controller_{};
+        // Controller data (tracked.data is null when inactive)
+        ControllerSnapshotTrackedT left_tracked_;
+        ControllerSnapshotTrackedT right_tracked_;
+        XrTime last_update_time_ = 0;
     };
 };
 

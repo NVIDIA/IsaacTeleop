@@ -12,8 +12,11 @@ from isaacteleop.retargeting_engine.interface import (
     BaseRetargeter,
     TensorGroupType,
     TensorGroup,
+    OptionalTensorGroup,
+    OptionalType,
     RetargeterSubgraph,
     OutputCombiner,
+    ValueInput,
 )
 from isaacteleop.retargeting_engine.tensor_types import (
     FloatType,
@@ -777,6 +780,255 @@ class TestOutputCombiner:
         # Invalid output name should raise
         with pytest.raises(ValueError, match="not found"):
             OutputCombiner({"bad": source.output("nonexistent")})
+
+
+# ============================================================================
+# Optional Input Retargeters for Testing
+# ============================================================================
+
+
+class AddWithOptionalRetargeter(BaseRetargeter):
+    """Add two float inputs where "b" is optional.
+
+    If "b" is absent, the output equals "a".
+    """
+
+    def __init__(self, name: str) -> None:
+        super().__init__(name)
+
+    def input_spec(self):
+        return {
+            "a": TensorGroupType("input_a", [FloatType("value")]),
+            "b": OptionalType(TensorGroupType("input_b", [FloatType("value")])),
+        }
+
+    def output_spec(self):
+        return {
+            "sum": TensorGroupType("output_sum", [FloatType("result")]),
+        }
+
+    def compute(self, inputs, outputs):
+        a = inputs["a"][0]
+        b_group = inputs["b"]
+        if b_group.is_none:
+            outputs["sum"][0] = a
+        else:
+            outputs["sum"][0] = a + b_group[0]
+
+
+class OptionalSourceRetargeter(BaseRetargeter):
+    """Source that outputs an optional value, controlled by an active flag."""
+
+    def __init__(self, name: str, active: bool = True) -> None:
+        self.active = active
+        super().__init__(name)
+
+    def input_spec(self):
+        return {
+            "dummy": TensorGroupType("dummy_input", [FloatType("unused")]),
+        }
+
+    def output_spec(self):
+        return {
+            "value": OptionalType(TensorGroupType("output_value", [FloatType("v")])),
+        }
+
+    def compute(self, inputs, outputs):
+        if self.active:
+            outputs["value"][0] = 42.0
+        else:
+            outputs["value"].set_none()
+
+
+# ============================================================================
+# Optional Input Graph Tests
+# ============================================================================
+
+
+class TestOptionalInputsInGraph:
+    """Test retargeters with optional inputs in graph composition."""
+
+    def test_connect_allows_omitting_optional_input(self):
+        """connect() succeeds when only required inputs are provided."""
+        source = SourceRetargeter("source")
+        add_opt = AddWithOptionalRetargeter("add_opt")
+
+        connected = add_opt.connect({"a": source.output("value")})
+
+        assert connected is not None
+        assert isinstance(connected, RetargeterSubgraph)
+
+    def test_connect_rejects_missing_required_input(self):
+        """connect() raises ValueError for missing required input."""
+        source = SourceRetargeter("source")
+        add_opt = AddWithOptionalRetargeter("add_opt")
+
+        with pytest.raises(ValueError, match="Missing required"):
+            add_opt.connect({"b": source.output("value")})
+
+    def test_graph_execution_with_unconnected_optional_input(self):
+        """Optional input left unconnected is treated as absent."""
+        source = SourceRetargeter("source")
+        add_opt = AddWithOptionalRetargeter("add_opt")
+
+        connected = add_opt.connect({"a": source.output("value")})
+
+        dummy_input = TensorGroup(TensorGroupType("dummy", [FloatType("unused")]))
+        dummy_input[0] = 0.0
+
+        outputs = connected({"source": {"dummy": dummy_input}})
+
+        # Source outputs 10.0; "b" is absent so result = a = 10.0
+        assert outputs["sum"][0] == 10.0
+
+    def test_graph_execution_with_connected_optional_input(self):
+        """Optional input connected to a source receives data normally."""
+        source_a = SourceRetargeter("source_a")
+        source_b = SourceRetargeter("source_b")
+        add_opt = AddWithOptionalRetargeter("add_opt")
+
+        connected = add_opt.connect(
+            {
+                "a": source_a.output("value"),
+                "b": source_b.output("value"),
+            }
+        )
+
+        dummy_a = TensorGroup(TensorGroupType("dummy", [FloatType("unused")]))
+        dummy_b = TensorGroup(TensorGroupType("dummy", [FloatType("unused")]))
+        dummy_a[0] = 0.0
+        dummy_b[0] = 0.0
+
+        outputs = connected(
+            {
+                "source_a": {"dummy": dummy_a},
+                "source_b": {"dummy": dummy_b},
+            }
+        )
+
+        # Both sources output 10.0, so sum = 20.0
+        assert outputs["sum"][0] == 20.0
+
+    def test_direct_call_with_missing_optional_input(self):
+        """Calling retargeter directly without optional input auto-fills absent."""
+        add_opt = AddWithOptionalRetargeter("add_opt")
+
+        input_a = TensorGroup(TensorGroupType("a", [FloatType("value")]))
+        input_a[0] = 7.0
+
+        # Only provide "a", omit "b"
+        outputs = add_opt({"a": input_a})
+
+        # "b" auto-filled as absent, result = a = 7.0
+        assert outputs["sum"][0] == 7.0
+
+    def test_direct_call_with_absent_optional_input(self):
+        """Calling retargeter with an explicit absent OptionalTensorGroup."""
+        add_opt = AddWithOptionalRetargeter("add_opt")
+
+        input_a = TensorGroup(TensorGroupType("a", [FloatType("value")]))
+        input_a[0] = 5.0
+
+        input_b = OptionalTensorGroup(TensorGroupType("b", [FloatType("value")]))
+
+        outputs = add_opt({"a": input_a, "b": input_b})
+
+        # "b" is explicitly absent, result = a = 5.0
+        assert outputs["sum"][0] == 5.0
+
+    def test_optional_output_to_optional_input_in_graph(self):
+        """Optional source output wired to optional input works both active and inactive."""
+        source_a = SourceRetargeter("source_a")
+        opt_source = OptionalSourceRetargeter("opt_source", active=True)
+        add_opt = AddWithOptionalRetargeter("add_opt")
+
+        connected = add_opt.connect(
+            {
+                "a": source_a.output("value"),
+                "b": opt_source.output("value"),
+            }
+        )
+
+        dummy_a = TensorGroup(TensorGroupType("dummy", [FloatType("unused")]))
+        dummy_opt = TensorGroup(TensorGroupType("dummy", [FloatType("unused")]))
+        dummy_a[0] = 0.0
+        dummy_opt[0] = 0.0
+
+        # Active: source_a=10.0, opt_source=42.0, sum=52.0
+        outputs = connected(
+            {
+                "source_a": {"dummy": dummy_a},
+                "opt_source": {"dummy": dummy_opt},
+            }
+        )
+        assert outputs["sum"][0] == 52.0
+
+        # Deactivate and re-execute
+        opt_source.active = False
+        outputs = connected(
+            {
+                "source_a": {"dummy": dummy_a},
+                "opt_source": {"dummy": dummy_opt},
+            }
+        )
+        # opt_source is now absent, result = a = 10.0
+        assert outputs["sum"][0] == 10.0
+
+        # Reactivate and re-execute
+        opt_source.active = True
+        outputs = connected(
+            {
+                "source_a": {"dummy": dummy_a},
+                "opt_source": {"dummy": dummy_opt},
+            }
+        )
+        assert outputs["sum"][0] == 52.0
+
+    def test_optional_output_to_required_input_rejected(self):
+        """Connecting an optional output to a required input raises ValueError."""
+        opt_source = OptionalSourceRetargeter("opt_source")
+        double = DoubleRetargeter("double")
+
+        with pytest.raises(ValueError, match="Cannot connect optional output"):
+            double.connect({"x": opt_source.output("value")})
+
+
+class TestValueInputOptional:
+    """Test ValueInput with optional types."""
+
+    def test_value_input_propagates_absent(self):
+        """ValueInput with OptionalType propagates absent when input is missing."""
+        val_type = TensorGroupType("val", [FloatType("x")])
+        vi = ValueInput("vi", OptionalType(val_type))
+
+        # Call without providing the "value" input — auto-filled as absent
+        outputs = vi({})
+
+        assert outputs["value"].is_none
+
+    def test_value_input_passes_through_present_data(self):
+        """ValueInput with OptionalType passes data through when present."""
+        val_type = TensorGroupType("val", [FloatType("x")])
+        vi = ValueInput("vi", OptionalType(val_type))
+
+        inp = OptionalTensorGroup(val_type)
+        inp[0] = 7.5
+
+        outputs = vi({"value": inp})
+
+        assert not outputs["value"].is_none
+        assert outputs["value"][0] == 7.5
+
+    def test_value_input_propagates_explicit_absent(self):
+        """ValueInput with OptionalType propagates an explicitly absent input."""
+        val_type = TensorGroupType("val", [FloatType("x")])
+        vi = ValueInput("vi", OptionalType(val_type))
+
+        inp = OptionalTensorGroup(val_type)
+
+        outputs = vi({"value": inp})
+
+        assert outputs["value"].is_none
 
 
 if __name__ == "__main__":

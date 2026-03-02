@@ -16,13 +16,14 @@ from ..interface.retargeter_core_types import (
     RetargeterIOType,
 )
 from ..interface.retargeter_subgraph import RetargeterSubgraph
-from ..interface.tensor_group import TensorGroup
-from ..tensor_types import ControllerInput
-from .deviceio_tensor_types import DeviceIOControllerSnapshot
+from ..interface.tensor_group import OptionalTensorGroup, TensorGroup
+from ..tensor_types import ControllerInput, ControllerInputIndex
+from ..interface.tensor_group_type import OptionalType
+from .deviceio_tensor_types import DeviceIOControllerSnapshotTracked
 
 if TYPE_CHECKING:
     from isaacteleop.deviceio import ITracker
-    from isaacteleop.schema import ControllerSnapshot
+    from isaacteleop.schema import ControllerSnapshot, ControllerSnapshotTrackedT
 
 
 class ControllersSource(IDeviceIOSource):
@@ -33,17 +34,17 @@ class ControllersSource(IDeviceIOSource):
         - "deviceio_controller_left": Raw ControllerSnapshot flatbuffer for left controller
         - "deviceio_controller_right": Raw ControllerSnapshot flatbuffer for right controller
 
-    Outputs:
-        - "controller_left": Standard ControllerInput tensor
-        - "controller_right": Standard ControllerInput tensor
+    Outputs (Optional — absent when tracking is inactive):
+        - "controller_left": OptionalTensorGroup (check ``.is_none`` before access)
+        - "controller_right": OptionalTensorGroup (check ``.is_none`` before access)
 
     Usage:
-        # In TeleopSession, manually poll tracker and pass data
-        left_snapshot = controller_tracker.get_left_controller(session)
-        right_snapshot = controller_tracker.get_right_controller(session)
+        # In TeleopSession, manually poll tracker and pass tracked objects
+        left_tracked = controller_tracker.get_left_controller(session)
+        right_tracked = controller_tracker.get_right_controller(session)
         result = controllers_source_node({
-            "deviceio_controller_left": left_snapshot,
-            "deviceio_controller_right": right_snapshot
+            "deviceio_controller_left": left_tracked,
+            "deviceio_controller_right": right_tracked
         })
     """
 
@@ -79,59 +80,63 @@ class ControllersSource(IDeviceIOSource):
 
         Returns:
             Dict with "deviceio_controller_left" and "deviceio_controller_right"
-            TensorGroups containing raw ControllerSnapshot data.
+            TensorGroups containing ControllerSnapshotTrackedT wrappers.
         """
-        left_controller = self._controller_tracker.get_left_controller(deviceio_session)
-        right_controller = self._controller_tracker.get_right_controller(
-            deviceio_session
-        )
+        left_tracked = self._controller_tracker.get_left_controller(deviceio_session)
+        right_tracked = self._controller_tracker.get_right_controller(deviceio_session)
         source_inputs = self.input_spec()
-        result = {}
+        result: RetargeterIO = {}
         for input_name, group_type in source_inputs.items():
             tg = TensorGroup(group_type)
             if "left" in input_name:
-                tg[0] = left_controller
+                tg[0] = left_tracked
             elif "right" in input_name:
-                tg[0] = right_controller
+                tg[0] = right_tracked
             result[input_name] = tg
         return result
 
     def input_spec(self) -> RetargeterIOType:
         """Declare DeviceIO controller inputs."""
         return {
-            "deviceio_controller_left": DeviceIOControllerSnapshot(),
-            "deviceio_controller_right": DeviceIOControllerSnapshot(),
+            "deviceio_controller_left": DeviceIOControllerSnapshotTracked(),
+            "deviceio_controller_right": DeviceIOControllerSnapshotTracked(),
         }
 
     def output_spec(self) -> RetargeterIOType:
-        """Declare standard controller input outputs."""
+        """Declare standard controller input outputs (Optional — may be absent)."""
         return {
-            "controller_left": ControllerInput(),
-            "controller_right": ControllerInput(),
+            "controller_left": OptionalType(ControllerInput()),
+            "controller_right": OptionalType(ControllerInput()),
         }
 
     def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
         """
-        Convert DeviceIO ControllerSnapshot to standard ControllerInput tensors.
+        Convert DeviceIO ControllerSnapshotTrackedT to standard ControllerInput tensors.
+
+        Calls ``set_none()`` on the output when the corresponding controller is inactive.
 
         Args:
-            inputs: Dict with "deviceio_controller_left" and "deviceio_controller_right" flatbuffer objects
-            outputs: Dict with "controller_left" and "controller_right" TensorGroups
+            inputs: Dict with "deviceio_controller_left" and "deviceio_controller_right" TrackedT wrappers
+            outputs: Dict with "controller_left" and "controller_right" OptionalTensorGroups
         """
-        # Extract raw DeviceIO objects
-        left_snapshot: "ControllerSnapshot" = inputs["deviceio_controller_left"][0]
-        right_snapshot: "ControllerSnapshot" = inputs["deviceio_controller_right"][0]
+        left_tracked: "ControllerSnapshotTrackedT" = inputs["deviceio_controller_left"][
+            0
+        ]
+        right_tracked: "ControllerSnapshotTrackedT" = inputs[
+            "deviceio_controller_right"
+        ][0]
 
-        # Convert left controller
-        self._update_controller_data(outputs["controller_left"], left_snapshot)
-
-        # Convert right controller
-        self._update_controller_data(outputs["controller_right"], right_snapshot)
+        self._update_controller_data(outputs["controller_left"], left_tracked.data)
+        self._update_controller_data(outputs["controller_right"], right_tracked.data)
 
     def _update_controller_data(
-        self, group: TensorGroup, snapshot: "ControllerSnapshot"
+        self, group: OptionalTensorGroup, snapshot: "ControllerSnapshot | None"
     ) -> None:
         """Helper to convert controller data for a single controller."""
+        if snapshot is None:
+            group.set_none()
+            return
+
         # Extract grip pose
         grip_position = np.array(
             [
@@ -173,18 +178,23 @@ class ControllersSource(IDeviceIOSource):
         )
 
         # Update output tensor group
-        group[0] = grip_position
-        group[1] = grip_orientation
-        group[2] = aim_position
-        group[3] = aim_orientation
-        group[4] = float(snapshot.inputs.primary_click)
-        group[5] = float(snapshot.inputs.secondary_click)
-        group[6] = float(snapshot.inputs.thumbstick_x)
-        group[7] = float(snapshot.inputs.thumbstick_y)
-        group[8] = float(snapshot.inputs.thumbstick_click)
-        group[9] = float(snapshot.inputs.squeeze_value)
-        group[10] = float(snapshot.inputs.trigger_value)
-        group[11] = snapshot.is_active  # BoolType, don't convert
+        group[ControllerInputIndex.GRIP_POSITION] = grip_position
+        group[ControllerInputIndex.GRIP_ORIENTATION] = grip_orientation
+        group[ControllerInputIndex.GRIP_IS_VALID] = snapshot.grip_pose.is_valid
+        group[ControllerInputIndex.AIM_POSITION] = aim_position
+        group[ControllerInputIndex.AIM_ORIENTATION] = aim_orientation
+        group[ControllerInputIndex.AIM_IS_VALID] = snapshot.aim_pose.is_valid
+        group[ControllerInputIndex.PRIMARY_CLICK] = float(snapshot.inputs.primary_click)
+        group[ControllerInputIndex.SECONDARY_CLICK] = float(
+            snapshot.inputs.secondary_click
+        )
+        group[ControllerInputIndex.THUMBSTICK_X] = float(snapshot.inputs.thumbstick_x)
+        group[ControllerInputIndex.THUMBSTICK_Y] = float(snapshot.inputs.thumbstick_y)
+        group[ControllerInputIndex.THUMBSTICK_CLICK] = float(
+            snapshot.inputs.thumbstick_click
+        )
+        group[ControllerInputIndex.SQUEEZE_VALUE] = float(snapshot.inputs.squeeze_value)
+        group[ControllerInputIndex.TRIGGER_VALUE] = float(snapshot.inputs.trigger_value)
 
     def transformed(self, transform_input: OutputSelector) -> RetargeterSubgraph:
         """

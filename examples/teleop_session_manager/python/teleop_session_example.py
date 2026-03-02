@@ -28,8 +28,16 @@ from isaacteleop.teleop_session_manager import (
     PluginConfig,
 )
 from isaacteleop.retargeting_engine.interface import BaseRetargeter
-from isaacteleop.retargeting_engine.tensor_types import HandInput, ControllerInput
-from isaacteleop.retargeting_engine.interface.tensor_group_type import TensorGroupType
+from isaacteleop.retargeting_engine.tensor_types import (
+    HandInput,
+    HandInputIndex,
+    ControllerInput,
+    ControllerInputIndex,
+)
+from isaacteleop.retargeting_engine.interface.tensor_group_type import (
+    TensorGroupType,
+    OptionalType,
+)
 from isaacteleop.retargeting_engine.interface.tensor_group import TensorGroup
 from isaacteleop.retargeting_engine.tensor_types import FloatType
 
@@ -57,10 +65,10 @@ class VelocityTracker(BaseRetargeter):
 
     def input_spec(self):
         return {
-            HandsSource.LEFT: HandInput(),
-            HandsSource.RIGHT: HandInput(),
-            ControllersSource.LEFT: ControllerInput(),
-            ControllersSource.RIGHT: ControllerInput(),
+            HandsSource.LEFT: OptionalType(HandInput()),
+            HandsSource.RIGHT: OptionalType(HandInput()),
+            ControllersSource.LEFT: OptionalType(ControllerInput()),
+            ControllersSource.RIGHT: OptionalType(ControllerInput()),
         }
 
     def output_spec(self):
@@ -79,79 +87,72 @@ class VelocityTracker(BaseRetargeter):
             ),
         }
 
+    def _extract_wrist(self, hand_input):
+        """Extract wrist position from hand joint positions."""
+        positions = hand_input[HandInputIndex.JOINT_POSITIONS]
+        return np.array([positions[0][0], positions[0][1], positions[0][2]])
+
+    def _extract_grip(self, controller_input):
+        """Extract grip position from controller input."""
+        pos = controller_input[ControllerInputIndex.GRIP_POSITION]
+        return np.array([pos[0], pos[1], pos[2]])
+
+    def _velocity(self, current, previous, dt):
+        """Compute velocity magnitude between two positions."""
+        if previous is None or dt <= 0:
+            return 0.0
+        return float(np.linalg.norm(current - previous) / dt)
+
     def compute(
         self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]
     ) -> None:
-        # Get hand wrist positions (first joint of hand_joint_positions)
-        hand_left_positions = inputs[HandsSource.LEFT][0]  # (26, 3) array
-        hand_right_positions = inputs[HandsSource.RIGHT][0]
-
-        hand_left_wrist = np.array(
-            [
-                hand_left_positions[0][0],
-                hand_left_positions[0][1],
-                hand_left_positions[0][2],
-            ]
-        )
-        hand_right_wrist = np.array(
-            [
-                hand_right_positions[0][0],
-                hand_right_positions[0][1],
-                hand_right_positions[0][2],
-            ]
-        )
-
-        # Get controller positions (first tensor in ControllerInput is position array)
-        controller_left_pos = inputs[ControllersSource.LEFT][0]  # (3,) array
-        controller_right_pos = inputs[ControllersSource.RIGHT][0]
-
-        controller_left = np.array(
-            [controller_left_pos[0], controller_left_pos[1], controller_left_pos[2]]
-        )
-        controller_right = np.array(
-            [controller_right_pos[0], controller_right_pos[1], controller_right_pos[2]]
-        )
-
         current_time = time.time()
+        dt = (current_time - self._prev_time) if self._prev_time is not None else 0.0
 
-        # Compute velocity if we have previous data
-        if self._prev_hand_left is not None and self._prev_time is not None:
-            dt = current_time - self._prev_time
-            if dt > 0:
-                hand_left_vel = float(
-                    np.linalg.norm(hand_left_wrist - self._prev_hand_left) / dt
-                )
-                hand_right_vel = float(
-                    np.linalg.norm(hand_right_wrist - self._prev_hand_right) / dt
-                )
-                controller_left_vel = float(
-                    np.linalg.norm(controller_left - self._prev_controller_left) / dt
-                )
-                controller_right_vel = float(
-                    np.linalg.norm(controller_right - self._prev_controller_right) / dt
-                )
-
-                outputs["hand_velocity_left"][0] = hand_left_vel
-                outputs["hand_velocity_right"][0] = hand_right_vel
-                outputs["controller_velocity_left"][0] = controller_left_vel
-                outputs["controller_velocity_right"][0] = controller_right_vel
-            else:
-                outputs["hand_velocity_left"][0] = 0.0
-                outputs["hand_velocity_right"][0] = 0.0
-                outputs["controller_velocity_left"][0] = 0.0
-                outputs["controller_velocity_right"][0] = 0.0
+        # Hand left
+        if not inputs[HandsSource.LEFT].is_none:
+            wrist = self._extract_wrist(inputs[HandsSource.LEFT])
+            outputs["hand_velocity_left"][0] = self._velocity(
+                wrist, self._prev_hand_left, dt
+            )
+            self._prev_hand_left = wrist
         else:
-            # First frame, no velocity yet
             outputs["hand_velocity_left"][0] = 0.0
-            outputs["hand_velocity_right"][0] = 0.0
-            outputs["controller_velocity_left"][0] = 0.0
-            outputs["controller_velocity_right"][0] = 0.0
+            self._prev_hand_left = None
 
-        # Store current positions for next frame
-        self._prev_hand_left = hand_left_wrist
-        self._prev_hand_right = hand_right_wrist
-        self._prev_controller_left = controller_left
-        self._prev_controller_right = controller_right
+        # Hand right
+        if not inputs[HandsSource.RIGHT].is_none:
+            wrist = self._extract_wrist(inputs[HandsSource.RIGHT])
+            outputs["hand_velocity_right"][0] = self._velocity(
+                wrist, self._prev_hand_right, dt
+            )
+            self._prev_hand_right = wrist
+        else:
+            outputs["hand_velocity_right"][0] = 0.0
+            self._prev_hand_right = None
+
+        # Controller left
+        if not inputs[ControllersSource.LEFT].is_none:
+            grip = self._extract_grip(inputs[ControllersSource.LEFT])
+            outputs["controller_velocity_left"][0] = self._velocity(
+                grip, self._prev_controller_left, dt
+            )
+            self._prev_controller_left = grip
+        else:
+            outputs["controller_velocity_left"][0] = 0.0
+            self._prev_controller_left = None
+
+        # Controller right
+        if not inputs[ControllersSource.RIGHT].is_none:
+            grip = self._extract_grip(inputs[ControllersSource.RIGHT])
+            outputs["controller_velocity_right"][0] = self._velocity(
+                grip, self._prev_controller_right, dt
+            )
+            self._prev_controller_right = grip
+        else:
+            outputs["controller_velocity_right"][0] = 0.0
+            self._prev_controller_right = None
+
         self._prev_time = current_time
 
 

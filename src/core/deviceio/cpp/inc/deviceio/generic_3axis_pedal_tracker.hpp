@@ -56,9 +56,9 @@ public:
     }
 
     /*!
-     * @brief Get the current foot pedal data.
+     * @brief Get the current foot pedal data (tracked.data is null when no data available).
      */
-    const Generic3AxisPedalOutputT& get_data(const DeviceIOSession& session) const;
+    const Generic3AxisPedalOutputTrackedT& get_data(const DeviceIOSession& session) const;
 
 protected:
     /*!

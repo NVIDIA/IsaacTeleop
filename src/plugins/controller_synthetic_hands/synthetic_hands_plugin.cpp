@@ -36,6 +36,7 @@ SyntheticHandsPlugin::SyntheticHandsPlugin(const std::string& plugin_root_id) no
     // Initialize hand injection (world space mode only - space-based injection would need
     // access to controller spaces which are internal to ControllerTracker)
     m_injector.emplace(handles.instance, handles.session, handles.space);
+    m_time_converter.emplace(handles);
 
     // Start worker thread
     m_running = true;
@@ -74,26 +75,22 @@ void SyntheticHandsPlugin::worker_thread()
         }
 
         // Get controller data from tracker
-        const auto& left_controller = m_controller_tracker->get_left_controller(*m_deviceio_session);
-        const auto& right_controller = m_controller_tracker->get_right_controller(*m_deviceio_session);
+        const auto& left_tracked = m_controller_tracker->get_left_controller(*m_deviceio_session);
+        const auto& right_tracked = m_controller_tracker->get_right_controller(*m_deviceio_session);
 
-        // Get timestamp from controller data
-        XrTime time = 0;
-        if (left_controller.is_active())
-        {
-            time = left_controller.timestamp().device_time();
-        }
-        else if (right_controller.is_active())
-        {
-            time = right_controller.timestamp().device_time();
-        }
+        // Use the OpenXR runtime clock for injection time so it aligns with the
+        // runtime's own time domain (XrTime), rather than a raw steady_clock cast.
+        XrTime time = m_time_converter->os_monotonic_now();
+
 
         // Get target curl values from trigger inputs
         float left_target = 0.0f;
         float right_target = 0.0f;
 
-        left_target = left_controller.inputs().trigger_value();
-        right_target = right_controller.inputs().trigger_value();
+        if (left_tracked.data)
+            left_target = left_tracked.data->inputs->trigger_value();
+        if (right_tracked.data)
+            right_target = right_tracked.data->inputs->trigger_value();
 
         // Smoothly interpolate
         float curl_delta = CURL_SPEED * FRAME_TIME;
@@ -115,12 +112,12 @@ void SyntheticHandsPlugin::worker_thread()
             m_right_curl = right_curl_current;
         }
 
-        if (m_left_enabled && left_controller.is_active())
+        if (m_left_enabled && left_tracked.data)
         {
             bool grip_valid = false;
             bool aim_valid = false;
-            oxr_utils::get_grip_pose(left_controller, grip_valid);
-            XrPosef wrist = oxr_utils::get_aim_pose(left_controller, aim_valid);
+            oxr_utils::get_grip_pose(*left_tracked.data, grip_valid);
+            XrPosef wrist = oxr_utils::get_aim_pose(*left_tracked.data, aim_valid);
 
             if (grip_valid && aim_valid)
             {
@@ -129,12 +126,12 @@ void SyntheticHandsPlugin::worker_thread()
             }
         }
 
-        if (m_right_enabled && right_controller.is_active())
+        if (m_right_enabled && right_tracked.data)
         {
             bool grip_valid = false;
             bool aim_valid = false;
-            oxr_utils::get_grip_pose(right_controller, grip_valid);
-            XrPosef wrist = oxr_utils::get_aim_pose(right_controller, aim_valid);
+            oxr_utils::get_grip_pose(*right_tracked.data, grip_valid);
+            XrPosef wrist = oxr_utils::get_aim_pose(*right_tracked.data, aim_valid);
 
             if (grip_valid && aim_valid)
             {

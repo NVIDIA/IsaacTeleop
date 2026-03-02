@@ -39,6 +39,7 @@ import CloudXRComponent from '@helpers/react/CloudXRComponent';
 import { SimpleEnvironment } from '@helpers/react/SimpleEnvironment';
 import { getControlPanelPositionVector } from '@helpers/react/utils';
 import * as CloudXR from '@nvidia/cloudxr';
+import { getResolutionValidationError } from '@nvidia/cloudxr';
 import { signal, computed } from '@preact/signals-react';
 import { Canvas } from '@react-three/fiber';
 import { setPreferredColorScheme } from '@react-three/uikit';
@@ -220,6 +221,7 @@ function App() {
 
       setCapabilitiesValid(true);
       cloudXR2DUI.setStartButtonState(false, 'CONNECT');
+      cloudXR2DUI.updateConnectButtonState();
     };
 
     checkCapabilitiesOnce();
@@ -282,10 +284,19 @@ function App() {
     ui.initialize();
     ui.setupConnectButtonHandler(
       async () => {
+        const config = ui.getConfiguration();
+        const resolutionError = getResolutionValidationError(
+          config.perEyeWidth,
+          config.perEyeHeight
+        );
+        if (resolutionError) {
+          setErrorMessage(resolutionError);
+          return;
+        }
         // Start XR session
-        if (ui.getConfiguration().immersiveMode === 'ar') {
+        if (config.immersiveMode === 'ar') {
           await store.enterAR();
-        } else if (ui.getConfiguration().immersiveMode === 'vr') {
+        } else if (config.immersiveMode === 'vr') {
           await store.enterVR();
         } else {
           setErrorMessage('Unrecognized immersive mode');
@@ -362,6 +373,7 @@ function App() {
         setIsXRMode(false);
         if (cloudXR2DUI) {
           cloudXR2DUI.setStartButtonState(false, 'CONNECT');
+          cloudXR2DUI.updateConnectButtonState();
         }
 
         if (xrState.error) {
@@ -733,7 +745,7 @@ function App() {
             <>
               <CloudXRComponent
                 config={config}
-                applicationName="Isaac Lab Teleop"
+                applicationName="Isaac Teleop Web Client"
                 onStatusChange={handleStatusChange}
                 onError={error => {
                   if (cloudXR2DUI) {

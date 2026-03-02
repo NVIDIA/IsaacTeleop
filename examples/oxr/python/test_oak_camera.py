@@ -85,8 +85,8 @@ def _run_schema_pusher(
                 start_time = time.time()
                 frame_count = 0
                 last_print_time = 0
-                last_device_times = {n: -1 for n in stream_names}
-                metadata_samples = {n: 0 for n in stream_names}
+                last_seq = dict.fromkeys(stream_names, -1)
+                metadata_samples = dict.fromkeys(stream_names, 0)
 
                 while time.time() - start_time < duration:
                     plugin.check_health()
@@ -99,13 +99,9 @@ def _run_schema_pusher(
                     elapsed = time.time() - start_time
                     for idx, name in enumerate(stream_names):
                         md = tracker.get_stream_data(session, idx)
-                        if (
-                            md.timestamp
-                            and md.timestamp.device_time
-                            != last_device_times.get(name, -1)
-                        ):
+                        if md.sequence_number != last_seq.get(name, -1):
                             metadata_samples[name] = metadata_samples.get(name, 0) + 1
-                            last_device_times[name] = md.timestamp.device_time
+                            last_seq[name] = md.sequence_number
 
                     if int(elapsed) > last_print_time:
                         last_print_time = int(elapsed)

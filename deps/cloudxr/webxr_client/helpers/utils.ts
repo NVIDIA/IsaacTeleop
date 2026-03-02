@@ -187,6 +187,30 @@ export interface CloudXRConfig {
 }
 
 /**
+ * Reads per-eye resolution from two number inputs. When a field is blank, uses that input's
+ * HTML value attribute (default from the page). Returns 0 for any non-finite parsed value.
+ */
+export function getResolutionFromInputs(
+  widthInput: HTMLInputElement,
+  heightInput: HTMLInputElement
+): { w: number; h: number } {
+  const wRaw = widthInput.value.trim();
+  const hRaw = heightInput.value.trim();
+  const w =
+    wRaw === ''
+      ? parseInt(widthInput.getAttribute('value') ?? '', 10)
+      : parseInt(widthInput.value, 10);
+  const h =
+    hRaw === ''
+      ? parseInt(heightInput.getAttribute('value') ?? '', 10)
+      : parseInt(heightInput.value, 10);
+  return {
+    w: Number.isFinite(w) ? w : 0,
+    h: Number.isFinite(h) ? h : 0,
+  };
+}
+
+/**
  * Determines connection configuration based on protocol and user inputs
  * Supports both direct WSS connections and proxy routing for HTTPS
  *

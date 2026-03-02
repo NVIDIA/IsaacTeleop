@@ -2,7 +2,7 @@
   "name": "cloudxr-isaac-lab-teleop",
   "version": "6.1.0",
   "private": true,
-  "description": "CloudXR.js Isaac Lab Teleop application",
+  "description": "NVIDIA Isaac Teleop Web Client",
   "author": "NVIDIA Corporation",
   "license": "Apache-2.0",
   "keywords": [

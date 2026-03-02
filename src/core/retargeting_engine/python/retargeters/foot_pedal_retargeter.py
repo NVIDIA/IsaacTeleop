@@ -10,14 +10,13 @@ Provides root command retargeting from generic 3-axis foot pedal input
 
 import numpy as np
 from dataclasses import dataclass
-from typing import Dict
 
 from ..interface import (
     BaseRetargeter,
     RetargeterIOType,
 )
-from ..interface.tensor_group_type import TensorGroupType
-from ..interface.tensor_group import TensorGroup
+from ..interface.retargeter_core_types import RetargeterIO
+from ..interface.tensor_group_type import TensorGroupType, OptionalType
 from ..tensor_types import (
     Generic3AxisPedalInput,
     NDArrayType,
@@ -81,9 +80,9 @@ class FootPedalRootCmdRetargeter(BaseRetargeter):
         return value
 
     def input_spec(self) -> RetargeterIOType:
-        """Requires one pedal input (Generic3AxisPedalInput)."""
+        """Requires one pedal input (Optional)."""
         return {
-            "pedals": Generic3AxisPedalInput(),
+            "pedals": OptionalType(Generic3AxisPedalInput()),
         }
 
     def output_spec(self) -> RetargeterIOType:
@@ -99,24 +98,19 @@ class FootPedalRootCmdRetargeter(BaseRetargeter):
             )
         }
 
-    def compute(
-        self, inputs: Dict[str, TensorGroup], outputs: Dict[str, TensorGroup]
-    ) -> None:
+    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
         """Computes root command from pedal input."""
+        root_cmd = outputs["root_command"]
+
         vel_x = 0.0
         vel_y = 0.0
         rot_vel_z = 0.0
         hip_height = self._config.max_squat_pos
 
-        if "pedals" not in inputs:
-            cmd = np.array([vel_x, vel_y, rot_vel_z, hip_height], dtype=np.float32)
-            outputs["root_command"][0] = cmd
-            return
-
         pedal_group = inputs["pedals"]
-        if not pedal_group[Generic3AxisPedalInputIndex.IS_VALID]:
+        if pedal_group.is_none:
             cmd = np.array([vel_x, vel_y, rot_vel_z, hip_height], dtype=np.float32)
-            outputs["root_command"][0] = cmd
+            root_cmd[0] = cmd
             return
 
         left_pedal = self._apply_deadzone(
@@ -159,4 +153,4 @@ class FootPedalRootCmdRetargeter(BaseRetargeter):
                 rot_vel_z = np.clip(rudder * max_ang, -max_ang, max_ang).item()
 
         cmd = np.array([vel_x, vel_y, rot_vel_z, hip_height], dtype=np.float32)
-        outputs["root_command"][0] = cmd
+        root_cmd[0] = cmd

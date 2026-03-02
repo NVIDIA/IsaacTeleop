@@ -48,6 +48,12 @@ public:
      * This is the main factory method. Opens the file, registers schemas/channels,
      * and returns a recorder ready for use.
      *
+     * MCAP logTime and publishTime are set to os_monotonic_now_ns() at the
+     * moment each record is written, not from the tracker's own timestamps.
+     * The tracker's DeviceDataTimestamp fields (available_time, sample times)
+     * are embedded in the FlatBuffer payload and remain available for downstream
+     * latency analysis.
+     *
      * @param filename Path to the output MCAP file.
      * @param trackers List of (tracker, base_channel_name) pairs to record.
      *                 Both base_channel_name and the tracker's channel names must be non-empty.

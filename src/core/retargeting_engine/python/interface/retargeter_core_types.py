@@ -5,11 +5,11 @@ from abc import ABC, abstractmethod
 from typing import Dict, List
 
 from .tensor_group_type import TensorGroupType
-from .tensor_group import TensorGroup
+from .tensor_group import OptionalTensorGroup
 
 
 RetargeterIOType = Dict[str, TensorGroupType]
-RetargeterIO = Dict[str, TensorGroup]
+RetargeterIO = Dict[str, OptionalTensorGroup]
 
 
 class ExecutionContext:
