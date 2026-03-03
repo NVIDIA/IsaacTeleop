@@ -55,21 +55,10 @@ html[data-theme="dark"] {
     --pst-color-accent: var(--pst-color-primary);
 }
 
-a {
-    text-decoration: none !important;
-}
-
 /* for the announcement link */
 .bd-header-announcement a,
 .bd-header-version-warning a {
     color: #7FDBFF;
-}
-
-/* Navbar search only: minimal chrome */
-.bd-header .form-control {
-    border-radius: 0 !important;
-    border: none !important;
-    outline: none !important;
 }
 
 /* Sidebar search box: one unified bar; green highlight wraps icon + input + shortcut */
