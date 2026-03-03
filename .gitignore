@@ -48,8 +48,5 @@ cmake/Hunter/config-depthai.cmake
 dist/
 *.egg
 
-# build output
-build/
-
 # SPDX report
 project.spdx

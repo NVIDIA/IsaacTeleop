@@ -141,4 +141,4 @@ If the built-in retargeters do not cover your use case, you can implement a cust
    ``IDeviceIOSource`` subclass for custom input devices.
 
 See the `Retargeting Engine README <https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/retargeting_engine/python/retargeters/README.md>`_
-and `Contributing Guide <https://github.com/NVIDIA/IsaacTeleop/blob/main/CONTRIBUTING.md>`_ for details.
+and :doc:`Contributing Guide <../getting_started/contributing>` for details.
