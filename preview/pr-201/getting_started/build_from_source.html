@@ -33,6 +33,7 @@
 
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/nvidia-sphinx-theme.css?v=933278ad" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=592b52f6" />
   
@@ -47,6 +48,8 @@
     <script src="../_static/documentation_options.js?v=7026087e"></script>
     <script src="../_static/doctools.js?v=9bcbadda"></script>
     <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
     <script src="../_static/design-tabs.js?v=f930bc37"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'getting_started/build_from_source';</script>
 
@@ -536,6 +539,11 @@ cmake<span class="w"> </span>--install<span class="w"> </span>build
 </div>
 <section id="examples">
 <h3>Examples<a class="headerlink" href="#examples" title="Link to this heading">#</a></h3>
+<p>Build with a different Python version (must match a version supported by <code class="docutils literal notranslate"><span class="pre">SetupPython.cmake</span></code>):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-B<span class="w"> </span>build<span class="w"> </span>-DISAAC_TELEOP_PYTHON_VERSION<span class="o">=</span><span class="m">3</span>.12
+cmake<span class="w"> </span>--build<span class="w"> </span>build
+</pre></div>
+</div>
 <p>Debug build:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-B<span class="w"> </span>build<span class="w"> </span>-DCMAKE_BUILD_TYPE<span class="o">=</span>Debug
 cmake<span class="w"> </span>--build<span class="w"> </span>build
@@ -549,17 +557,6 @@ cmake<span class="w"> </span>--build<span class="w"> </span>build
 <p>Build without Python bindings:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-B<span class="w"> </span>build<span class="w"> </span>-DBUILD_PYTHON_BINDINGS<span class="o">=</span>OFF
 cmake<span class="w"> </span>--build<span class="w"> </span>build
-</pre></div>
-</div>
-<p>Build with a different Python version (must match a version supported by <code class="docutils literal notranslate"><span class="pre">SetupPython.cmake</span></code>):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-B<span class="w"> </span>build<span class="w"> </span>-DISAAC_TELEOP_PYTHON_VERSION<span class="o">=</span><span class="m">3</span>.12
-cmake<span class="w"> </span>--build<span class="w"> </span>build
-</pre></div>
-</div>
-<p>Install to a custom location:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-B<span class="w"> </span>build<span class="w"> </span>-DCMAKE_INSTALL_PREFIX<span class="o">=</span>/custom/path
-cmake<span class="w"> </span>--build<span class="w"> </span>build
-cmake<span class="w"> </span>--install<span class="w"> </span>build
 </pre></div>
 </div>
 <p>Build with OAK camera plugin (pulls Hunter/DepthAI):</p>
@@ -582,25 +579,28 @@ cmake<span class="w"> </span>--build<span class="w"> </span>build
 </section>
 <section id="running-tests">
 <h2>Running tests<a class="headerlink" href="#running-tests" title="Link to this heading">#</a></h2>
-<p>When <code class="docutils literal notranslate"><span class="pre">BUILD_TESTING</span></code> is <code class="docutils literal notranslate"><span class="pre">ON</span></code>, CTest is enabled at the top level. Run all tests from the build directory:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ctest<span class="w"> </span>--test-dir<span class="w"> </span>build<span class="w"> </span>--output-on-failure<span class="w"> </span>--parallel
+<p>When <code class="docutils literal notranslate"><span class="pre">BUILD_TESTING</span></code> is <code class="docutils literal notranslate"><span class="pre">ON</span></code>, CTest is enabled at the top level. Run all tests either via the CMake <code class="docutils literal notranslate"><span class="pre">test</span></code> target or with <code class="docutils literal notranslate"><span class="pre">ctest</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>--build<span class="w"> </span>build<span class="w"> </span>--target<span class="w"> </span><span class="nb">test</span>
+
+<span class="c1"># Or with ctest (e.g. parallel, output on failure)</span>
+ctest<span class="w"> </span>--test-dir<span class="w"> </span>build<span class="w"> </span>--output-on-failure<span class="w"> </span>--parallel
 </pre></div>
 </div>
-<p>This matches the CI step in <code class="docutils literal notranslate"><span class="pre">.github/workflows/build-ubuntu.yml</span></code>.</p>
+<p>The CI uses <code class="docutils literal notranslate"><span class="pre">ctest</span></code> (see <code class="docutils literal notranslate"><span class="pre">.github/workflows/build-ubuntu.yml</span></code>).</p>
 </section>
 <section id="project-structure">
 <h2>Project structure<a class="headerlink" href="#project-structure" title="Link to this heading">#</a></h2>
 <p>The layout below reflects the actual <code class="docutils literal notranslate"><span class="pre">CMakeLists.txt</span></code> hierarchy (root <code class="docutils literal notranslate"><span class="pre">CMakeLists.txt</span></code> and <code class="docutils literal notranslate"><span class="pre">src/core/CMakeLists.txt</span></code>):</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>IsaacTeleop/
-├── CMakeLists.txt              # Top-level: version, options, deps, core, examples, plugins
+<div class="code-100col highlight-text notranslate"><div class="highlight"><pre><span></span>IsaacTeleop/
+├── CMakeLists.txt              # Top-level: deps, core, examples, plugins, etc.
 ├── cmake/
-│   ├── SetupHunter.cmake        # BUILD_PLUGINS, Hunter for OAK/DepthAI
+│   ├── SetupHunter.cmake       # BUILD_PLUGINS, Hunter for OAK/DepthAI
 │   ├── SetupPython.cmake       # BUILD_PYTHON_BINDINGS, uv-managed Python
 │   ├── ClangFormat.cmake       # clang_format_check / clang_format_fix
 │   └── ...
 ├── deps/
 │   ├── CMakeLists.txt          # Adds third_party
-│   ├── third_party/CMakeLists.txt  # FetchContent: OpenXR, yaml-cpp, pybind11, FlatBuffers, Catch2, MCAP
+│   ├── third_party/CMakeLists.txt  # FetchContent: OpenXR, yaml-cpp, pybind11, etc.
 │   └── cloudxr/                # CloudXR (CI / optional)
 ├── src/core/
 │   ├── CMakeLists.txt          # Core options, subdirs in dependency order
@@ -639,9 +639,10 @@ cmake<span class="w"> </span>--build<span class="w"> </span>build
 <section id="using-the-python-wheel">
 <h2>Using the Python wheel<a class="headerlink" href="#using-the-python-wheel" title="Link to this heading">#</a></h2>
 <p>After building, install the wheel with <code class="docutils literal notranslate"><span class="pre">uv</span></code> or <code class="docutils literal notranslate"><span class="pre">pip</span></code>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>build/wheels/isaacteleop-*.whl
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>isaacteleop<span class="w"> </span>--find-links<span class="o">=</span>./install/wheels/<span class="w"> </span>--reinstall
+
 <span class="c1"># or</span>
-pip<span class="w"> </span>install<span class="w"> </span>build/wheels/isaacteleop-*.whl
+pip<span class="w"> </span>install<span class="w"> </span>install/wheels/isaacteleop-*.whl
 </pre></div>
 </div>
 </section>
