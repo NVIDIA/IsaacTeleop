@@ -33,7 +33,9 @@
 
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="_static/styles/nvidia-sphinx-theme.css?v=933278ad" />
-    <link rel="stylesheet" type="text/css" href="_static/custom.css?v=363f00a9" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="_static/css/custom.css?v=592b52f6" />
   
   <!-- So that users can add custom icons -->
   <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
@@ -43,21 +45,24 @@
 
 
 
-    <script src="_static/documentation_options.js?v=692d9a0e"></script>
+    <script src="_static/documentation_options.js?v=7026087e"></script>
     <script src="_static/doctools.js?v=9bcbadda"></script>
     <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=f281be69"></script>
+    <script src="_static/design-tabs.js?v=f930bc37"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'index';</script>
 
     <link rel="icon" href="_static/favicon.ico"/>
 
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Getting Started" href="source/getting_started.html" />
+    <link rel="next" title="Architecture" href="overview/architecture.html" />
 
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.0.x" />
+  <meta name="docsearch:version" content="0.0.0" />
 
 
   </head>
@@ -299,11 +304,22 @@
 <nav class="bd-docs-nav bd-links"
      aria-label="Table of Contents">
   <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
-  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="source/getting_started.html">Getting Started</a></li>
-<li class="toctree-l1"><a class="reference internal" href="source/overview.html">Overview</a></li>
-<li class="toctree-l1"><a class="reference internal" href="source/contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="overview/architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="overview/ecosystem.html">Ecosystem</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="getting_started/quick_start.html">Quick Start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started/build_from_source.html">Build from Source</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started/contributing.html">Contributing</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="references/device.html">Device Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references/retargeting.html">Retargeting Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references/license.html">License</a></li>
 </ul>
 </div>
 </nav></div>
@@ -333,8 +349,12 @@
                   
   <section id="welcome-to-isaac-teleop">
 <h1>Welcome to Isaac Teleop<a class="headerlink" href="#welcome-to-isaac-teleop" title="Link to this heading">#</a></h1>
-<p><strong>Isaac Teleop</strong> is the unified framework for high-fidelity egocentric and robotics data collection.
-It streamlines device integration, standardizes human demo data collection, and fosters device and data interoperability.</p>
+<a class="reference external image-reference" href="references/license.html"><img alt="License" class="license-badge" src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" />
+</a>
+<p><strong>Isaac Teleop</strong> (<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop">GitHub repo</a>) is the unified framework for high-fidelity
+egocentric and robot data collection. It provides a standardized device interface, a flexible
+graph-based retargeting pipeline, and a streamlined data collection workflow
+that work seamlessly across simulated and real-world robots.</p>
 <p>Key features:</p>
 <ul class="simple">
 <li><p><strong>Unified stack</strong> for sim and real teleoperation (ROS2, Isaac Sim, Isaac Lab)</p></li>
@@ -342,21 +362,66 @@ It streamlines device integration, standardizes human demo data collection, and 
 <li><p><strong>Flexible retargeting</strong> to different robot embodiments</p></li>
 <li><p><strong>Plugin system</strong> for adding new devices and use cases</p></li>
 </ul>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p><strong>Just want to get running?</strong> Follow the <a class="reference internal" href="getting_started/quick_start.html"><span class="doc">Quick Start</span></a> how-to guide for
+installation and first-run steps.</p>
+</div>
 <section id="table-of-contents">
 <h2>Table of Contents<a class="headerlink" href="#table-of-contents" title="Link to this heading">#</a></h2>
 <div class="toctree-wrapper compound">
-<p aria-level="2" class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="source/getting_started.html">Getting Started</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="source/getting_started.html#installation">Installation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/getting_started.html#quick-start">Quick start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="overview/architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="overview/ecosystem.html">Ecosystem</a></li>
+</ul>
+</div>
+<div class="toctree-wrapper compound">
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="getting_started/quick_start.html">Quick Start</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/quick_start.html#installation">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/quick_start.html#id1">Quick start</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="source/overview.html">Overview</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="source/overview.html#project-structure">Project structure</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started/build_from_source.html">Build from Source</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#prerequisites">Prerequisites</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#one-time-setup">One time setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#c-formatting-enforcement-linux">C++ Formatting Enforcement (Linux)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#cmake-configure-and-build">CMake: Configure and build</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#build-options">Build options</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#running-tests">Running tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#project-structure">Project structure</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#cmake-integration">CMake integration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#using-the-python-wheel">Using the Python wheel</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#output-locations">Output locations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#troubleshooting">Troubleshooting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#reference">Reference</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="source/contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started/contributing.html">Contributing</a></li>
+</ul>
+</div>
+<div class="toctree-wrapper compound">
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="references/device.html">Device Interface</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="references/device.html#supported-devices">Supported Devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/device.html#add-a-new-device">Add a New Device</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="references/retargeting.html">Retargeting Interface</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="references/retargeting.html#source-nodes">Source Nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/retargeting.html#available-retargeters">Available Retargeters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/retargeting.html#build-a-retargeting-pipeline">Build a Retargeting Pipeline</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/retargeting.html#add-a-new-retargeter">Add a New Retargeter</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="references/license.html">License</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="references/license.html#known-exceptions">Known exceptions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/license.html#license-headers">License headers</a></li>
+</ul>
+</li>
 </ul>
 </div>
 </section>
@@ -381,11 +446,11 @@ It streamlines device integration, standardizes human demo data collection, and 
                   
 <div class="prev-next-area">
     <a class="right-next"
-       href="source/getting_started.html"
+       href="overview/architecture.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Getting Started</p>
+        <p class="prev-next-title">Architecture</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -410,7 +475,9 @@ It streamlines device integration, standardizes human demo data collection, and 
   </div>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#table-of-contents">Table of Contents</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#table-of-contents">Table of Contents</a><ul class="nav section-nav flex-column">
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#indices-and-tables">Indices and tables</a></li>
 </ul>
   </nav></div>
