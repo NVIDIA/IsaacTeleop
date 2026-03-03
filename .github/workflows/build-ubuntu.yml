@@ -416,7 +416,7 @@ jobs:
         payload="$(jq -cn --arg project_name "isaacteleop" --argjson payload "${payload_array}" '{project_name: $project_name, payload: $payload}')"
 
         echo "Posting ${#payload_items[@]} wheel(s) to Kitmaker in a single request"
-        response_json="$(curl --fail-with-body --show-error --silent --location \
+        response_json="$(curl --fail-with-body --show-error --silent --location --connect-timeout 10 --max-time 120 \
           -X POST "${api_url}" \
           -H "Authorization: Bearer ${KITMAKER_TOKEN}" \
           -H "Content-Type: application/json" \
@@ -472,7 +472,7 @@ jobs:
         for ((attempt=1; attempt<=max_attempts; attempt++)); do
           echo "Polling Kitmaker status (attempt ${attempt}/${max_attempts})"
 
-          response_json="$(curl --fail-with-body --show-error --silent --location \
+          response_json="$(curl --fail-with-body --show-error --silent --location --connect-timeout 10 --max-time 60 \
             -H "Authorization: Bearer ${KITMAKER_TOKEN}" \
             "${status_url}")"
 
