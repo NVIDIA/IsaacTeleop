@@ -184,3 +184,11 @@ html[data-theme="dark"] {
     text-align: center;
     vertical-align: middle;
 }
+
+/* Code block: smaller font to fit 100 column width on one line */
+.code-100col {
+    font-size: 0.9em;
+}
+.code-100col pre {
+    white-space: pre;
+}
