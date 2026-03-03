@@ -112,11 +112,12 @@ def __getattr__(name: str):
     module_path, attr, extra = _LAZY_IMPORTS[name]
     try:
         mod = _importlib.import_module(module_path, __package__)
-    except ImportError as exc:
-        install_hint = f"pip install isaacteleop[{extra}]" if extra else module_path
-        raise ImportError(
+    except ModuleNotFoundError as exc:
+        if extra is None:
+            raise
+        raise ModuleNotFoundError(
             f"{name} requires additional dependencies that are not installed.\n"
-            f"Install them with:  {install_hint}"
+            f"Install them with:  pip install isaacteleop[{extra}]"
         ) from exc
 
     value = getattr(mod, attr)

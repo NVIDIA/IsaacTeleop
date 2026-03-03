@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 import isaacteleop.deviceio as deviceio
 
-from isaacteleop.retargeting_engine.retargeters import (
+from isaacteleop.retargeters import (
     LocomotionRootCmdRetargeter,
     LocomotionRootCmdRetargeterConfig,
 )

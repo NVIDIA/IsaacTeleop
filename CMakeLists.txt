@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 cmake_minimum_required(VERSION 3.20...3.25)
@@ -114,6 +114,9 @@ add_subdirectory(deps/cloudxr/openxr_extensions)
 
 # Build core modules (OXR and DEVICEIO)
 add_subdirectory(src/core)
+
+# Build retargeters (pure Python, sibling of src/core)
+add_subdirectory(src/retargeters)
 
 # Build examples if requested
 if(BUILD_EXAMPLES)

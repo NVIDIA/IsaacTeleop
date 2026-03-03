@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -11,15 +11,21 @@ import numpy as np
 from dataclasses import dataclass
 from typing import Optional
 
-from ..interface import (
+from isaacteleop.retargeting_engine.interface import (
     BaseRetargeter,
     ParameterState,
     RetargeterIOType,
 )
-from ..interface.retargeter_core_types import RetargeterIO
-from ..interface.tunable_parameter import BoolParameter, VectorParameter
-from ..interface.tensor_group_type import TensorGroupType, OptionalType
-from ..tensor_types import (
+from isaacteleop.retargeting_engine.interface.retargeter_core_types import RetargeterIO
+from isaacteleop.retargeting_engine.interface.tunable_parameter import (
+    BoolParameter,
+    VectorParameter,
+)
+from isaacteleop.retargeting_engine.interface.tensor_group_type import (
+    TensorGroupType,
+    OptionalType,
+)
+from isaacteleop.retargeting_engine.tensor_types import (
     HandInput,
     ControllerInput,
     NDArrayType,
