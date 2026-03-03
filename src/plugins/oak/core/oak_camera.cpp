@@ -36,33 +36,19 @@ OakCamera::OakCamera(const OakConfig& config, const std::vector<StreamConfig>& s
     auto device_info = find_device(config.device_id);
 
     m_device = std::make_shared<dai::Device>(device_info);
-    std::cout << "Device connected: " << m_device->getMxId() << std::endl;
+    std::cout << "Device connected: " << m_device->getDeviceInfo().getDeviceId() << std::endl;
 
     auto sensors = m_device->getCameraSensorNames();
     std::cout << "Sensors found: " << sensors.size() << std::endl;
     for (const auto& [socket, name] : sensors)
         std::cout << "  Socket " << static_cast<int>(socket) << ": " << name << std::endl;
 
-    if (sensors.find(dai::CameraBoardSocket::CAM_A) == sensors.end())
-        throw std::runtime_error("Color sensor not found on CAM_A");
-    auto color_sensor_name = sensors.find(dai::CameraBoardSocket::CAM_A)->second;
-    auto color_resolution = color_sensor_name == "OV9782" ? dai::ColorCameraProperties::SensorResolution::THE_800_P :
-                                                            dai::ColorCameraProperties::SensorResolution::THE_1080_P;
-
-    static constexpr const char* kPreviewStreamName = "ColorPreview";
-
-    auto pipeline = create_pipeline(config, streams, color_resolution);
+    m_pipeline = create_pipeline(m_device, config, streams);
 
     if (config.preview)
-        m_preview = PreviewStream::create(kPreviewStreamName, pipeline, color_resolution);
+        m_preview = PreviewStream::create("ColorPreview", *m_pipeline);
 
-    m_device->startPipeline(pipeline);
-
-    for (const auto& s : streams)
-        m_queues[s.camera] = m_device->getOutputQueue(core::EnumNameStreamType(s.camera), 8, false);
-
-    if (m_preview)
-        m_preview->setOutputQueue(m_device->getOutputQueue(kPreviewStreamName, 4, false));
+    m_pipeline->start();
 
     std::cout << "OAK camera pipeline started" << std::endl;
 }
@@ -71,8 +57,7 @@ OakCamera::~OakCamera() = default;
 
 dai::DeviceInfo OakCamera::find_device(const std::string& device_id)
 {
-    auto devices = dai::Device::getAllAvailableDevices();
-
+    auto devices = dai::DeviceBootloader::getAllAvailableDevices();
     if (devices.empty())
         throw std::runtime_error("No OAK devices found. Check USB connection and udev rules.");
 
@@ -84,9 +69,9 @@ dai::DeviceInfo OakCamera::find_device(const std::string& device_id)
 
     for (const auto& device : devices)
     {
-        if (device.getMxId() == device_id)
+        if (device.getDeviceId() == device_id)
         {
-            std::cout << "Found device with ID: " << device.getMxId() << std::endl;
+            std::cout << "Found device with ID: " << device_id << std::endl;
             return device;
         }
     }
@@ -95,68 +80,58 @@ dai::DeviceInfo OakCamera::find_device(const std::string& device_id)
 }
 
 // =============================================================================
-// Pipeline construction
+// Pipeline construction (DepthAI v3.x)
 // =============================================================================
 
-dai::Pipeline OakCamera::create_pipeline(const OakConfig& config,
-                                         const std::vector<StreamConfig>& streams,
-                                         dai::ColorCameraProperties::SensorResolution color_resolution)
+std::unique_ptr<dai::Pipeline> OakCamera::create_pipeline(std::shared_ptr<dai::Device> device,
+                                                          const OakConfig& config,
+                                                          const std::vector<StreamConfig>& streams)
 {
-    dai::Pipeline pipeline;
+    auto pipeline = std::make_unique<dai::Pipeline>(device);
+
+    static constexpr std::pair<int, int> kRes1080p = { 1920, 1080 };
+    static constexpr std::pair<int, int> kRes800p = { 1280, 800 };
+    static constexpr std::pair<int, int> kRes400p = { 640, 400 };
 
     bool need_color = has_stream(streams, core::StreamType_Color);
     bool need_mono_left = has_stream(streams, core::StreamType_MonoLeft);
     bool need_mono_right = has_stream(streams, core::StreamType_MonoRight);
 
-    auto create_h264_output = [&](dai::Node::Output& source, const char* stream_name)
+    auto create_encoder = [&]() -> std::shared_ptr<dai::node::VideoEncoder>
     {
-        auto enc = pipeline.create<dai::node::VideoEncoder>();
-        enc->setDefaultProfilePreset(config.fps, dai::VideoEncoderProperties::Profile::H264_BASELINE);
+        auto enc = pipeline->create<dai::node::VideoEncoder>();
+        enc->setDefaultProfilePreset(static_cast<float>(config.fps), dai::VideoEncoderProperties::Profile::H264_BASELINE);
         enc->setBitrate(config.bitrate);
         enc->setQuality(config.quality);
         enc->setKeyframeFrequency(config.keyframe_frequency);
         enc->setNumBFrames(0);
         enc->setRateControlMode(dai::VideoEncoderProperties::RateControlMode::CBR);
+        return enc;
+    };
 
-        auto xout = pipeline.create<dai::node::XLinkOut>();
-        xout->setStreamName(stream_name);
-
-        source.link(enc->input);
-        enc->bitstream.link(xout->input);
+    auto add_stream = [&](dai::CameraBoardSocket socket, core::StreamType type, std::pair<int, int> resolution)
+    {
+        auto cam = pipeline->create<dai::node::Camera>();
+        cam->build(socket);
+        auto output = cam->requestOutput(resolution, dai::ImgFrame::Type::NV12);
+        auto enc = create_encoder();
+        output->link(enc->input);
+        m_queues[type] = enc->bitstream.createOutputQueue();
     };
 
     // ---- Color camera ----
     if (need_color)
     {
-        auto camRgb = pipeline.create<dai::node::ColorCamera>();
-        camRgb->setBoardSocket(dai::CameraBoardSocket::CAM_A);
-        camRgb->setResolution(color_resolution);
-        camRgb->setFps(config.fps);
-        camRgb->setColorOrder(dai::ColorCameraProperties::ColorOrder::BGR);
-
-        create_h264_output(camRgb->video, core::EnumNameStreamType(core::StreamType_Color));
+        auto color_sensor = device->getCameraSensorNames()[dai::CameraBoardSocket::CAM_A];
+        auto color_res = (color_sensor == "OV9782") ? kRes800p : kRes1080p;
+        add_stream(dai::CameraBoardSocket::CAM_A, core::StreamType_Color, color_res);
     }
 
     // ---- Mono cameras ----
     if (need_mono_left)
-    {
-        auto monoLeft = pipeline.create<dai::node::MonoCamera>();
-        monoLeft->setBoardSocket(dai::CameraBoardSocket::CAM_B);
-        monoLeft->setResolution(dai::MonoCameraProperties::SensorResolution::THE_400_P);
-        monoLeft->setFps(config.fps);
-
-        create_h264_output(monoLeft->out, core::EnumNameStreamType(core::StreamType_MonoLeft));
-    }
-
+        add_stream(dai::CameraBoardSocket::CAM_B, core::StreamType_MonoLeft, kRes400p);
     if (need_mono_right)
-    {
-        auto monoRight = pipeline.create<dai::node::MonoCamera>();
-        monoRight->setBoardSocket(dai::CameraBoardSocket::CAM_C);
-        monoRight->setResolution(dai::MonoCameraProperties::SensorResolution::THE_400_P);
-        monoRight->setFps(config.fps);
-
-        create_h264_output(monoRight->out, core::EnumNameStreamType(core::StreamType_MonoRight));
-    }
+        add_stream(dai::CameraBoardSocket::CAM_C, core::StreamType_MonoRight, kRes400p);
 
     return pipeline;
 }

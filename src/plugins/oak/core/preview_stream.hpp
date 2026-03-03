@@ -16,8 +16,8 @@ namespace oak
 /**
  * @brief Self-contained color preview stream.
  *
- * Owns the full lifecycle: adds preview nodes to the pipeline, opens an SDL2
- * window, connects to the device output queue, and polls/displays frames.
+ * Owns the full lifecycle: requests a preview output from an existing Camera
+ * node on CAM_A, opens an SDL2 window, and polls/displays frames.
  */
 class PreviewStream
 {
@@ -28,19 +28,16 @@ public:
     PreviewStream& operator=(const PreviewStream&) = delete;
 
     /**
-     * @brief Wire preview nodes into an existing pipeline and create the window.
+     * @brief Wire a preview output into an existing pipeline and create the window.
      *
-     * Searches the pipeline for an existing ColorCamera on CAM_A. If none is
-     * found, creates and configures one. Then attaches preview output nodes.
+     * Searches the pipeline for an existing Camera node on CAM_A. If none is
+     * found, creates and builds one. Requests a small BGR output for preview
+     * and creates the output queue internally.
      *
-     * @throws std::runtime_error if SDL initialisation or window creation fails.
+     * @throws std::runtime_error if no CAM_A node exists and creation fails,
+     *         or if SDL initialisation / window creation fails.
      */
-    static std::unique_ptr<PreviewStream> create(const std::string& name,
-                                                 dai::Pipeline& pipeline,
-                                                 dai::ColorCameraProperties::SensorResolution resolution);
-
-    /** @brief Set the output queue to poll frames from. Call after Device::startPipeline. */
-    void setOutputQueue(std::shared_ptr<dai::DataOutputQueue> queue);
+    static std::unique_ptr<PreviewStream> create(const std::string& name, dai::Pipeline& pipeline);
 
     /** @brief Poll the queue and display a frame if available. */
     void update();

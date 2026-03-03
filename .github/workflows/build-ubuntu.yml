@@ -42,7 +42,7 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache libvulkan-dev glslang-tools \
           libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxext-dev libxkbcommon-dev \
-          libwayland-dev wayland-protocols
+          libwayland-dev wayland-protocols autoconf automake libtool pkg-config libudev-dev
 
     - name: Install patchelf (Release only)
       if: ${{ matrix.build_type == 'Release' }}
@@ -79,14 +79,24 @@ jobs:
       with:
         github-token: ${{ secrets.V2D_RETARGETER_TOKEN }}
 
-    # Hunter cache - caches depthai dependencies (OpenSSL, CURL, etc.)
-    - name: Cache Hunter packages
-      uses: actions/cache@v5
+    # vcpkg - required when BUILD_PLUGIN_OAK_CAMERA=ON for DepthAI v3.x deps
+    - name: Cache vcpkg
+      uses: actions/cache@v4
       with:
-        path: ~/.hunter
-        key: hunter-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('cmake/SetupHunter.cmake') }}
+        path: |
+          ~/vcpkg
+          build/vcpkg_installed
+        key: vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('vcpkg.json') }}
         restore-keys: |
-          hunter-${{ runner.os }}-${{ runner.arch }}-
+          vcpkg-${{ runner.os }}-${{ runner.arch }}-
+
+    - name: Setup vcpkg
+      run: |
+        if [ ! -f ~/vcpkg/vcpkg ]; then
+          git clone https://github.com/microsoft/vcpkg ~/vcpkg
+          ~/vcpkg/bootstrap-vcpkg.sh -disableMetrics
+        fi
+        echo "VCPKG_ROOT=$HOME/vcpkg" >> $GITHUB_ENV
 
     - name: Cache ccache
       uses: actions/cache@v5
@@ -112,6 +122,7 @@ jobs:
           -DBUILD_VIZ=ON \
           -DENABLE_CLOUDXR_BUNDLE_CHECK=ON \
           -DBUNDLE_ROBOTIC_GROUNDING=${{ steps.setup-v2d-src.outputs.bundled || 'false' }}
+          -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake
 
     - name: Build
       run: cmake --build build --parallel 4
