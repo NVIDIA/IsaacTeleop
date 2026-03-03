@@ -451,7 +451,8 @@ jobs:
         fi
 
         status_url="${KITMAKER_API_ENDPOINT%/}/v0/status/${KITMAKER_RELEASE_UUID}"
-        max_attempts=60
+        # Limit total polling time to at most ~10 minutes (20 * 30s)
+        max_attempts=20
         sleep_seconds=30
 
         for ((attempt=1; attempt<=max_attempts; attempt++)); do
