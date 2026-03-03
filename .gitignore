@@ -50,3 +50,6 @@ dist/
 
 # build output
 build/
+
+# SPDX report
+project.spdx
