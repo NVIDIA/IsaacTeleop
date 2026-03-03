@@ -83,7 +83,6 @@ void FrameMetadataTrackerOak::Impl::serialize_all(size_t channel_index, const Re
     // (used by the MCAP recorder for logTime/publishTime). The timestamps
     // embedded inside the Record payload are the tensor transport timestamps.
     int64_t update_ns = m_time_converter_.convert_xrtime_to_monotonic_ns(m_last_update_time_);
-    DeviceDataTimestamp update_timestamp(update_ns, 0, 0);
 
     const auto& stream = m_streams[channel_index];
     if (stream.pending_records.empty())
@@ -91,11 +90,13 @@ void FrameMetadataTrackerOak::Impl::serialize_all(size_t channel_index, const Re
         if (!stream.collection_present)
         {
             // Device disappeared: emit one empty record to mark the absence in the MCAP stream.
+            // The heartbeat carries the update-tick time in both the payload and the log timestamp.
+            DeviceDataTimestamp update_timestamp(update_ns, 0, 0);
             flatbuffers::FlatBufferBuilder builder(64);
             FrameMetadataOakRecordBuilder record_builder(builder);
             record_builder.add_timestamp(&update_timestamp);
             builder.Finish(record_builder.Finish());
-            callback(update_timestamp, builder.GetBufferPointer(), builder.GetSize());
+            callback(update_ns, builder.GetBufferPointer(), builder.GetSize());
         }
         // If the collection is present but no new samples arrived this tick, emit nothing.
         return;
@@ -119,7 +120,7 @@ void FrameMetadataTrackerOak::Impl::serialize_all(size_t channel_index, const Re
         record_builder.add_data(data_offset);
         record_builder.add_timestamp(&sample.timestamp);
         builder.Finish(record_builder.Finish());
-        callback(update_timestamp, builder.GetBufferPointer(), builder.GetSize());
+        callback(update_ns, builder.GetBufferPointer(), builder.GetSize());
     }
 }
 

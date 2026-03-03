@@ -32,7 +32,14 @@ public:
     /**
      * @brief Callback type for serialize_all.
      *
-     * Receives (timestamp, data_ptr, data_size) for each serialized record.
+     * Receives (log_time_ns, data_ptr, data_size) for each serialized record.
+     *
+     * @param log_time_ns  Monotonic nanoseconds used as the MCAP logTime/publishTime
+     *                     for this record. This is the time at which the recording
+     *                     system processed the record (update-tick time), not the
+     *                     sample capture time. The full per-sample DeviceDataTimestamp
+     *                     (including sample_time and raw_device_time) is embedded
+     *                     inside the serialized FlatBuffer payload.
      *
      * @warning The data_ptr and data_size are only valid for the duration of the
      *          callback invocation. The buffer is owned by a FlatBufferBuilder
@@ -40,7 +47,7 @@ public:
      *          destroyed on return. If you need the bytes after the callback
      *          returns, copy them into your own storage before returning.
      */
-    using RecordCallback = std::function<void(const DeviceDataTimestamp&, const uint8_t*, size_t)>;
+    using RecordCallback = std::function<void(int64_t log_time_ns, const uint8_t*, size_t)>;
 
     /**
      * @brief Serialize all records accumulated since the last update() call.
@@ -50,11 +57,13 @@ public:
      * SchemaTracker-based tensor-device trackers). serialize_all emits every
      * record in that batch via the callback.
      *
-     * @note serialize_all is called exactly once per update() call, immediately
-     *       after update() returns. The implementation may rely on this invariant:
-     *       pending records are cleared at the start of the next update(), so any
-     *       records not consumed by serialize_all before the following update()
-     *       will be lost.
+     * @note For multi-channel trackers the recorder calls serialize_all once per
+     *       channel index (channel_index = 0, 1, … N-1) after each update().
+     *       All serialize_all calls for a given update() are guaranteed to
+     *       complete before the next update() is issued. Implementations may
+     *       therefore maintain a single shared pending batch and clear it at the
+     *       start of the next update(); there is no need to track per-channel
+     *       drain state.
      *
      * For read access without MCAP recording, use the tracker's typed get_*()
      * accessors, which always reflect the last record in the current batch.

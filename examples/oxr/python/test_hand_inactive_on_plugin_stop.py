@@ -72,93 +72,99 @@ def run_test():
     plugin = manager.start(plugin_name, plugin_root_id)
     print("✓ Plugin started")
 
-    with oxr.OpenXRSession("HandReader", extensions) as oxr_session:
-        handles = oxr_session.get_handles()
-        hand_tracker = deviceio.HandTracker()
+    plugin_stopped = False
+    try:
+        with oxr.OpenXRSession("HandReader", extensions) as oxr_session:
+            handles = oxr_session.get_handles()
+            hand_tracker = deviceio.HandTracker()
 
-        with deviceio.DeviceIOSession.run([hand_tracker], handles) as deviceio_session:
-            print("✓ Reader session created")
-            print()
+            with deviceio.DeviceIOSession.run(
+                [hand_tracker], handles
+            ) as deviceio_session:
+                print("✓ Reader session created")
+                print()
 
-            # ----------------------------------------------------------------
-            # Phase 1: wait for hands to become active
-            # ----------------------------------------------------------------
-            print(
-                f"[Phase 1] Waiting up to {ACTIVE_WAIT_S:.0f}s for hands to become active..."
-            )
-            deadline = time.time() + ACTIVE_WAIT_S
-            left_active = right_active = False
-
-            while time.time() < deadline:
-                try:
-                    plugin.check_health()
-                except pm.PluginCrashException as e:
-                    print(f"✗ Plugin crashed before hands became active: {e}")
-                    return False
-
-                try:
-                    left_active, right_active = poll_hands(
-                        hand_tracker, deviceio_session
-                    )
-                except UpdateFailedError as e:
-                    print(f"✗ Session update failed during Phase 1: {e}")
-                    plugin.stop()
-                    return False
-
-                if left_active and right_active:
-                    break
-                time.sleep(FRAME_SLEEP_S)
-
-            if not (left_active and right_active):
+                # ----------------------------------------------------------------
+                # Phase 1: wait for hands to become active
+                # ----------------------------------------------------------------
                 print(
-                    f"✗ Hands did not become active within {ACTIVE_WAIT_S:.0f}s "
-                    f"(left={left_active}, right={right_active})"
+                    f"[Phase 1] Waiting up to {ACTIVE_WAIT_S:.0f}s for hands to become active..."
+                )
+                deadline = time.monotonic() + ACTIVE_WAIT_S
+                left_active = right_active = False
+
+                while time.monotonic() < deadline:
+                    try:
+                        plugin.check_health()
+                    except pm.PluginCrashException as e:
+                        print(f"✗ Plugin crashed before hands became active: {e}")
+                        return False
+
+                    try:
+                        left_active, right_active = poll_hands(
+                            hand_tracker, deviceio_session
+                        )
+                    except UpdateFailedError as e:
+                        print(f"✗ Session update failed during Phase 1: {e}")
+                        return False
+
+                    if left_active and right_active:
+                        break
+                    time.sleep(FRAME_SLEEP_S)
+
+                if not (left_active and right_active):
+                    print(
+                        f"✗ Hands did not become active within {ACTIVE_WAIT_S:.0f}s "
+                        f"(left={left_active}, right={right_active})"
+                    )
+                    return False
+
+                print("✓ Both hands active")
+                print()
+
+                # ----------------------------------------------------------------
+                # Phase 2: stop the plugin and wait for hands to become inactive
+                # ----------------------------------------------------------------
+                print(
+                    "[Phase 2] Stopping plugin and waiting for hands to become inactive..."
                 )
                 plugin.stop()
-                return False
+                plugin_stopped = True
+                print("✓ Plugin stopped")
 
-            print("✓ Both hands active")
-            print()
+                deadline = time.monotonic() + INACTIVE_WAIT_S
+                left_inactive = right_inactive = False
 
-            # ----------------------------------------------------------------
-            # Phase 2: stop the plugin and wait for hands to become inactive
-            # ----------------------------------------------------------------
-            print(
-                "[Phase 2] Stopping plugin and waiting for hands to become inactive..."
-            )
-            plugin.stop()
-            print("✓ Plugin stopped")
+                while time.monotonic() < deadline:
+                    try:
+                        left_active, right_active = poll_hands(
+                            hand_tracker, deviceio_session
+                        )
+                    except UpdateFailedError as e:
+                        print(f"✗ Session update failed during Phase 2: {e}")
+                        return False
 
-            deadline = time.time() + INACTIVE_WAIT_S
-            left_inactive = right_inactive = False
+                    left_inactive = not left_active
+                    right_inactive = not right_active
+                    if left_inactive and right_inactive:
+                        break
+                    time.sleep(FRAME_SLEEP_S)
 
-            while time.time() < deadline:
-                try:
-                    left_active, right_active = poll_hands(
-                        hand_tracker, deviceio_session
-                    )
-                except UpdateFailedError as e:
-                    print(f"✗ Session update failed during Phase 2: {e}")
-                    return False
-
-                left_inactive = not left_active
-                right_inactive = not right_active
+                print()
                 if left_inactive and right_inactive:
-                    break
-                time.sleep(FRAME_SLEEP_S)
-
-            print()
-            if left_inactive and right_inactive:
-                print(
-                    "✓ PASS: both hands correctly reported as inactive after plugin stop"
-                )
-                return True
-            else:
-                print(
-                    f"✗ FAIL: hands still active after {INACTIVE_WAIT_S:.0f}s "
-                    f"(left_inactive={left_inactive}, right_inactive={right_inactive})"
-                )
-                return False
+                    print(
+                        "✓ PASS: both hands correctly reported as inactive after plugin stop"
+                    )
+                    return True
+                else:
+                    print(
+                        f"✗ FAIL: hands still active after {INACTIVE_WAIT_S:.0f}s "
+                        f"(left_inactive={left_inactive}, right_inactive={right_inactive})"
+                    )
+                    return False
+    finally:
+        if not plugin_stopped:
+            plugin.stop()
 
 
 if __name__ == "__main__":

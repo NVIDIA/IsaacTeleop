@@ -136,20 +136,24 @@ private:
 
         tracker_impl.serialize_all(
             channel_index,
-            [&](const DeviceDataTimestamp& timestamp, const uint8_t* data, size_t size)
+            [&](int64_t log_time_ns, const uint8_t* data, size_t size)
             {
-                // Both logTime and publishTime are set to available_time_local_common_clock
-                // (when the recording system received the sample). Trackers always populate
-                // this field before invoking the callback.
-                const int64_t available_ns = timestamp.available_time_local_common_clock();
-                if (available_ns <= 0)
+                if (log_time_ns <= 0)
                 {
-                    std::cerr << "McapRecorder: Skipping record with non-positive timestamp: " << available_ns
+                    std::cerr << "McapRecorder: Skipping record with non-positive timestamp: " << log_time_ns
                               << std::endl;
                     success = false;
                     return;
                 }
-                const mcap::Timestamp log_time = static_cast<mcap::Timestamp>(available_ns);
+                const mcap::Timestamp log_time = static_cast<mcap::Timestamp>(log_time_ns);
+
+                if (size > 0 && data == nullptr)
+                {
+                    std::cerr << "McapRecorder: Null data pointer with non-zero size (" << size
+                              << " bytes), skipping record" << std::endl;
+                    success = false;
+                    return;
+                }
 
                 mcap::Message msg;
                 msg.channelId = mcap_channel_id;

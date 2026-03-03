@@ -391,7 +391,7 @@ void ControllerTracker::Impl::serialize_all(size_t channel_index, const RecordCa
     record_builder.add_timestamp(&timestamp);
     builder.Finish(record_builder.Finish());
 
-    callback(timestamp, builder.GetBufferPointer(), builder.GetSize());
+    callback(monotonic_ns, builder.GetBufferPointer(), builder.GetSize());
 }
 
 // ============================================================================

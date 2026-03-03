@@ -65,8 +65,11 @@ void HandInjector::create_device(XrSession session, XrHandEXT hand, XrSpace base
     create_info.baseSpace = base_space;
     create_info.deviceTypeUuidValid = XR_FALSE;
     create_info.deviceUuidValid = XR_FALSE;
-    strcpy(create_info.localizedName, hand == XR_HAND_LEFT_EXT ? "Left Hand" : "Right Hand");
-    strcpy(create_info.serial, hand == XR_HAND_LEFT_EXT ? "LEFT" : "RIGHT");
+    strncpy(create_info.localizedName, hand == XR_HAND_LEFT_EXT ? "Left Hand" : "Right Hand",
+            sizeof(create_info.localizedName) - 1);
+    create_info.localizedName[sizeof(create_info.localizedName) - 1] = '\0';
+    strncpy(create_info.serial, hand == XR_HAND_LEFT_EXT ? "LEFT" : "RIGHT", sizeof(create_info.serial) - 1);
+    create_info.serial[sizeof(create_info.serial) - 1] = '\0';
 
     CheckXrResult(pfn_create_(session, &create_info, nullptr, &device_),
                   (std::string("xrCreatePushDeviceNV(") + (hand == XR_HAND_LEFT_EXT ? "left" : "right") + ")").c_str());
@@ -91,26 +94,25 @@ void HandInjector::cleanup()
 {
     if (pfn_destroy_ && device_ != XR_NULL_HANDLE)
     {
-        // Signal inactive before destroying so readers see is_active=false
-        // rather than stale data. Ignore errors; we're tearing down anyway.
+        // Best-effort: signal inactive before destroying so readers see is_active=false.
+        // If the clock fails we skip the push rather than sending a bogus timestamp;
+        // the subsequent device destruction still tears down the push device cleanly.
         if (pfn_push_)
         {
-            // Get a valid XrTime; fall back to 1 if conversion fails (timestamp must be > 0).
-            XrTime time = 1;
             try
             {
-                time = time_converter_.os_monotonic_now();
+                XrTime time = time_converter_.os_monotonic_now();
+                XrHandJointLocationEXT dummy{};
+                XrPushDeviceHandTrackingDataNV data{ XR_TYPE_PUSH_DEVICE_HAND_TRACKING_DATA_NV };
+                data.timestamp = time;
+                data.jointCount = 0;
+                data.jointLocations = &dummy;
+                pfn_push_(device_, &data);
             }
-            catch (...)
+            catch (const std::exception& e)
             {
+                std::cerr << "[HandInjector] cleanup: skipping inactive push, clock failed: " << e.what() << std::endl;
             }
-
-            XrHandJointLocationEXT dummy{};
-            XrPushDeviceHandTrackingDataNV data{ XR_TYPE_PUSH_DEVICE_HAND_TRACKING_DATA_NV };
-            data.timestamp = time;
-            data.jointCount = 0;
-            data.jointLocations = &dummy;
-            pfn_push_(device_, &data);
         }
         pfn_destroy_(device_);
         device_ = XR_NULL_HANDLE;

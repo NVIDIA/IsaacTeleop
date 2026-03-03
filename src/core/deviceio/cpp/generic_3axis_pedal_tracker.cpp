@@ -7,6 +7,7 @@
 
 #include <flatbuffers/flatbuffers.h>
 #include <oxr_utils/oxr_time.hpp>
+#include <schema/pedals_bfbs_generated.h>
 
 #include <vector>
 
@@ -16,6 +17,25 @@ namespace core
 // ============================================================================
 // Generic3AxisPedalTracker::Impl
 // ============================================================================
+
+class Generic3AxisPedalTracker::Impl : public ITrackerImpl
+{
+public:
+    Impl(const OpenXRSessionHandles& handles, SchemaTrackerConfig config);
+
+    bool update(XrTime time) override;
+    void serialize_all(size_t channel_index, const RecordCallback& callback) const override;
+
+    const Generic3AxisPedalOutputTrackedT& get_data() const;
+
+private:
+    SchemaTracker m_schema_reader;
+    XrTimeConverter m_time_converter_;
+    XrTime m_last_update_time_ = 0;
+    bool m_collection_present = false;
+    Generic3AxisPedalOutputTrackedT m_tracked;
+    std::vector<SchemaTracker::SampleResult> m_pending_records;
+};
 
 Generic3AxisPedalTracker::Impl::Impl(const OpenXRSessionHandles& handles, SchemaTrackerConfig config)
     : m_schema_reader(handles, std::move(config)), m_time_converter_(handles)
@@ -70,18 +90,19 @@ void Generic3AxisPedalTracker::Impl::serialize_all(size_t channel_index, const R
     // (used by the MCAP recorder for logTime/publishTime). The timestamps
     // embedded inside the Record payload are the tensor transport timestamps.
     int64_t update_ns = m_time_converter_.convert_xrtime_to_monotonic_ns(m_last_update_time_);
-    DeviceDataTimestamp update_timestamp(update_ns, 0, 0);
 
     if (m_pending_records.empty())
     {
         if (!m_collection_present)
         {
             // Device disappeared: emit one empty record to mark the absence in the MCAP stream.
+            // The heartbeat carries the update-tick time in both the payload and the log timestamp.
+            DeviceDataTimestamp update_timestamp(update_ns, 0, 0);
             flatbuffers::FlatBufferBuilder builder(64);
             Generic3AxisPedalOutputRecordBuilder record_builder(builder);
             record_builder.add_timestamp(&update_timestamp);
             builder.Finish(record_builder.Finish());
-            callback(update_timestamp, builder.GetBufferPointer(), builder.GetSize());
+            callback(update_ns, builder.GetBufferPointer(), builder.GetSize());
         }
         // If the collection is present but no new samples arrived this tick, emit nothing.
         return;
@@ -104,7 +125,7 @@ void Generic3AxisPedalTracker::Impl::serialize_all(size_t channel_index, const R
         record_builder.add_data(data_offset);
         record_builder.add_timestamp(&sample.timestamp);
         builder.Finish(record_builder.Finish());
-        callback(update_timestamp, builder.GetBufferPointer(), builder.GetSize());
+        callback(update_ns, builder.GetBufferPointer(), builder.GetSize());
     }
 }
 

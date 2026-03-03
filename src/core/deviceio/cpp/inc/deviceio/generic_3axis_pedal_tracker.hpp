@@ -6,7 +6,6 @@
 #include "schema_tracker.hpp"
 #include "tracker.hpp"
 
-#include <schema/pedals_bfbs_generated.h>
 #include <schema/pedals_generated.h>
 
 #include <memory>
@@ -71,24 +70,7 @@ private:
 
     SchemaTrackerConfig m_config;
 
-    class Impl : public ITrackerImpl
-    {
-    public:
-        Impl(const OpenXRSessionHandles& handles, SchemaTrackerConfig config);
-
-        bool update(XrTime time) override;
-        void serialize_all(size_t channel_index, const RecordCallback& callback) const override;
-
-        const Generic3AxisPedalOutputTrackedT& get_data() const;
-
-    private:
-        SchemaTracker m_schema_reader;
-        XrTimeConverter m_time_converter_;
-        XrTime m_last_update_time_ = 0;
-        bool m_collection_present = false;
-        Generic3AxisPedalOutputTrackedT m_tracked;
-        std::vector<SchemaTracker::SampleResult> m_pending_records;
-    };
+    class Impl;
 };
 
 } // namespace core

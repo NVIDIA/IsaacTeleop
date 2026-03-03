@@ -20,6 +20,7 @@
 
 #include <chrono>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
@@ -86,13 +87,19 @@ try
 
     size_t received_count = 0;
 
-    // Seed per-stream baseline so the first real advancement (not initial state) triggers a print.
+    // Per-stream last-seen sequence number. nullopt means the stream has never
+    // been observed — the first sample is always printed regardless of its value.
+    // If data is already present at startup we seed with its sequence so we don't
+    // reprint it; absent data stays nullopt so sequence 0 is never skipped.
     size_t stream_count = tracker->get_stream_count();
-    std::vector<uint64_t> last_sequences(stream_count);
+    std::vector<std::optional<uint64_t>> last_sequences(stream_count);
     for (size_t i = 0; i < stream_count; ++i)
     {
         const auto& tracked = tracker->get_stream_data(*session, i);
-        last_sequences[i] = tracked.data ? tracked.data->sequence_number : 0;
+        if (tracked.data)
+        {
+            last_sequences[i] = tracked.data->sequence_number;
+        }
     }
 
     auto last_status_time = std::chrono::steady_clock::now();
@@ -112,12 +119,15 @@ try
         {
             size_t old_count = last_sequences.size();
             last_sequences.resize(stream_count);
-            // Seed newly added streams with their current sequence so they don't
-            // trigger a spurious print on the next iteration.
+            // Newly added streams start as nullopt; seed with current sequence if
+            // data is already present so we don't reprint an existing sample.
             for (size_t i = old_count; i < stream_count; ++i)
             {
                 const auto& tracked = tracker->get_stream_data(*session, i);
-                last_sequences[i] = tracked.data ? tracked.data->sequence_number : 0;
+                if (tracked.data)
+                {
+                    last_sequences[i] = tracked.data->sequence_number;
+                }
             }
         }
 
@@ -125,7 +135,8 @@ try
         for (size_t i = 0; i < stream_count; ++i)
         {
             const auto& tracked = tracker->get_stream_data(*session, i);
-            if (!tracked.data || tracked.data->sequence_number == last_sequences[i])
+            if (!tracked.data ||
+                (last_sequences[i].has_value() && tracked.data->sequence_number == last_sequences[i].value()))
             {
                 continue;
             }

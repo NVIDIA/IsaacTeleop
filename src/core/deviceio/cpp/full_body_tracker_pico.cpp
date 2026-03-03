@@ -186,12 +186,17 @@ void FullBodyTrackerPicoImpl::serialize_all(size_t channel_index, const RecordCa
 {
     if (channel_index != 0)
     {
-        return;
+        throw std::runtime_error("FullBodyTrackerPico::serialize_all: invalid channel_index " +
+                                 std::to_string(channel_index) + " (only channel 0 exists)");
     }
 
     flatbuffers::FlatBufferBuilder builder(256);
 
     int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
+    // The XR_BD_body_tracking extension does not expose a separate per-joint capture
+    // timestamp, so both the available and sample times are set to the update-tick
+    // monotonic time. last_update_time_ (XrTime) is used as the raw device clock
+    // field as a best-available approximation; it is not a true hardware timestamp.
     DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
 
     FullBodyPosePicoRecordBuilder record_builder(builder);
@@ -203,7 +208,7 @@ void FullBodyTrackerPicoImpl::serialize_all(size_t channel_index, const RecordCa
     record_builder.add_timestamp(&timestamp);
     builder.Finish(record_builder.Finish());
 
-    callback(timestamp, builder.GetBufferPointer(), builder.GetSize());
+    callback(monotonic_ns, builder.GetBufferPointer(), builder.GetSize());
 }
 
 // ============================================================================
