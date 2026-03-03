@@ -140,7 +140,7 @@ jobs:
         working-directory: deps/cloudxr/webxr_client
         run: |
           npm install "../nvidia-cloudxr-${{ steps.sdk_version.outputs.version }}.tgz"
-          npm run build
+          USE_LOCAL_WEBXR_ASSETS=0 npm run build
 
       - name: Upload web app artifact
         uses: actions/upload-artifact@v6
