@@ -50,11 +50,6 @@ There are two levels of device integration:
 
    See the `Plugins directory <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/>`_ for examples.
 
-**Pipeline configuration only**
-   For devices already supported by Isaac Teleop (or whose data is available as hand / controller
-   tracking). Simply update your ``pipeline_builder`` to use the appropriate source nodes and
-   retargeters for the device's data format.
-
 ..
    References
 .. _`Isaac XR Teleop Sample Client`: https://github.com/isaac-sim/isaac-xr-teleop-sample-client-apple

@@ -180,6 +180,10 @@
   
 
   
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
 </div>
 
     </header>
@@ -380,31 +384,31 @@ interoperability.</p>
 </figcaption>
 </figure>
 <p>The core components of Isaac Teleop are:</p>
+<section id="unified-device-interface">
+<h2>Unified Device Interface<a class="headerlink" href="#unified-device-interface" title="Link to this heading">#</a></h2>
 <ul class="simple">
-<li><p><strong>Unified Device Interface</strong></p>
-<ul>
 <li><p>Support for major XR headsets, including Apple Vision Pro, Pico, Quest, and others</p></li>
 <li><p>Seamless integration of USB and Bluetooth peripherals (e.g., gloves, pedals, body trackers)</p></li>
 <li><p>Extensible interface enabling vendors to add custom or proprietary devices</p></li>
 <li><p>Consistent timestamping for multi-device streams, synchronized via unified device input control loop</p></li>
 </ul>
-</li>
-<li><p><strong>Retargeting Interface</strong></p>
-<ul>
+</section>
+<section id="retargeting-interface">
+<h2>Retargeting Interface<a class="headerlink" href="#retargeting-interface" title="Link to this heading">#</a></h2>
+<ul class="simple">
 <li><p>Tensor in, tensor out, GPU acceleration ready</p></li>
 <li><p>Reuse schema from the data interface</p></li>
 <li><p>Handle both a single data point, or an entire trajectory</p></li>
 </ul>
-</li>
-<li><p><strong>Data Interface</strong></p>
-<ul>
-<li><p>Standardized <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/core/schema/fbs">data schema</a>
-defined in the FlatBuffers (fbs) format.</p></li>
+</section>
+<section id="data-interface">
+<h2>Data Interface<a class="headerlink" href="#data-interface" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Standardized <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/core/schema/fbs">data schema</a> defined in the FlatBuffers (fbs) format.</p></li>
 <li><p>Data recording &amp; playback with <a class="reference external" href="https://mcap.dev/">mcap</a></p></li>
 <li><p>Dataset interoperability with <a class="reference external" href="https://github.com/huggingface/lerobot">LeRobot</a></p></li>
 </ul>
-</li>
-</ul>
+</section>
 </section>
 
 
@@ -442,9 +446,27 @@ defined in the FlatBuffers (fbs) format.</p></li>
             
             
 
-<div class="bd-sidebar-secondary"></div>
+
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
 
 
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#unified-device-interface">Unified Device Interface</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#retargeting-interface">Retargeting Interface</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#data-interface">Data Interface</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
               
             
 
