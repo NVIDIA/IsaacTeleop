@@ -131,8 +131,7 @@ bool NvStreamEncoderOp::init_encoder()
         int fps = fps_.get();
         if (fps <= 0)
         {
-            throw std::runtime_error(
-                fmt::format("NvStreamEncoderOp: invalid fps={}, must be > 0", fps));
+            throw std::runtime_error(fmt::format("NvStreamEncoderOp: invalid fps={}, must be > 0", fps));
         }
         initializeParams.frameRateNum = fps;
         initializeParams.frameRateDen = 1;
@@ -258,8 +257,7 @@ void NvStreamEncoderOp::compute(holoscan::InputContext& op_input,
         }
 
         NvEncoderCuda::CopyToDeviceFrame(
-            cu_context_, const_cast<void*>(static_cast<const void*>(data_ptr)),
-            0,
+            cu_context_, const_cast<void*>(static_cast<const void*>(data_ptr)), 0,
             reinterpret_cast<CUdeviceptr>(encoderInputFrame->inputPtr), static_cast<int>(encoderInputFrame->pitch),
             encoder_->GetEncodeWidth(), encoder_->GetEncodeHeight(), CU_MEMORYTYPE_DEVICE,
             encoderInputFrame->bufferFormat, encoderInputFrame->chromaOffsets, encoderInputFrame->numChromaPlanes);
