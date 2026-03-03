@@ -28,7 +28,6 @@
     "@react-three/uikit": "^1.0.0",
     "@react-three/uikit-default": "^1.0.0",
     "@react-three/xr": "^6.6.22",
-    "@webxr-input-profiles/assets": "1.0.19",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "three": "^0.172.0"
@@ -37,6 +36,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/three": "^0.172.0",
+    "@webxr-input-profiles/assets": "1.0.19",
     "copy-webpack-plugin": "^13.0.0",
     "cross-env": "^10.1.0",
     "css-loader": "^6.8.1",

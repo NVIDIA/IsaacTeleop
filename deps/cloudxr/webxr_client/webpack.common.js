@@ -20,9 +20,22 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const webpack = require('webpack');
 
-const webxrAssetsPackagePath = require.resolve('@webxr-input-profiles/assets/package.json');
-const webxrAssetsPackage = require(webxrAssetsPackagePath);
-const WEBXR_ASSETS_VERSION = webxrAssetsPackage.version;
+// WebXR input profile assets are used by default when @webxr-input-profiles/assets is installed.
+// Set USE_LOCAL_WEBXR_ASSETS=0 to skip bundling local assets (build needs internet at runtime to load assets).
+const useLocalWebxrAssets = process.env.USE_LOCAL_WEBXR_ASSETS !== '0';
+let webxrAssetsPackagePath = null;
+let WEBXR_ASSETS_VERSION = '';
+if (useLocalWebxrAssets) {
+  try {
+    webxrAssetsPackagePath = require.resolve('@webxr-input-profiles/assets/package.json');
+    const webxrAssetsPackage = require(webxrAssetsPackagePath);
+    WEBXR_ASSETS_VERSION = webxrAssetsPackage.version;
+  } catch {
+    console.warn(
+      'webpack: @webxr-input-profiles/assets not found; building without WebXR input profile assets (controller models will use fallback or be disabled).'
+    );
+  }
+}
 
 module.exports = {
   entry: './src/index.tsx',
@@ -84,19 +97,28 @@ module.exports = {
       'process.env.WEBXR_ASSETS_VERSION': JSON.stringify(WEBXR_ASSETS_VERSION),
     }),
 
-    // Copies static assets from public directory to build output
+    // Copies WebXR input profile assets when available; always copies public and favicon
     new CopyWebpackPlugin({
       patterns: [
-        {
-          from: path.join(path.dirname(webxrAssetsPackagePath), 'dist', 'profiles'),
-          to: `npm/@webxr-input-profiles/assets@${WEBXR_ASSETS_VERSION}/dist/profiles`,
-        },
+        ...(webxrAssetsPackagePath
+          ? [
+              'meta-quest-touch-plus',
+              'meta-quest-touch-plus-v2',
+              'oculus-touch-v2',
+              'oculus-touch-v3',
+              'pico-4u',
+              'generic-hand',
+              'generic-trigger-squeeze-thumbstick',
+            ].map(profile => ({
+              from: path.join(path.dirname(webxrAssetsPackagePath), 'dist', 'profiles', profile),
+              to: `npm/@webxr-input-profiles/assets@${WEBXR_ASSETS_VERSION}/dist/profiles/${profile}`,
+            }))
+          : []),
         {
           from: 'public',
           to: '.',
           globOptions: {
-            // Don't copy index.html since HtmlWebpackPlugin handles it
-            ignore: ['**/index.html'],
+            ignore: ['**/index.html', ...(useLocalWebxrAssets ? [] : ['**/npm/**'])],
           },
         },
         { from: './favicon.ico', to: 'favicon.ico' },

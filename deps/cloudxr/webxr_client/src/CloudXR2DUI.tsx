@@ -87,6 +87,8 @@ export class CloudXR2DUI {
   private resolutionWidthValidationMessage: HTMLElement | null = null;
   /** Inline resolution validation under height input */
   private resolutionHeightValidationMessage: HTMLElement | null = null;
+  private validationMessageBox!: HTMLElement;
+  private validationMessageText!: HTMLElement;
   /** Dropdown to enable pose smoothing */
   private enablePoseSmoothingSelect!: HTMLSelectElement;
   /** Pose prediction factor slider */
@@ -223,6 +225,8 @@ export class CloudXR2DUI {
     this.deviceProfileWarning = this.getElement<HTMLElement>('deviceProfileWarning');
     this.errorMessageBox = this.getElement<HTMLElement>('errorMessageBox');
     this.errorMessageText = this.getElement<HTMLElement>('errorMessageText');
+    this.validationMessageBox = this.getElement<HTMLElement>('validationMessageBox');
+    this.validationMessageText = this.getElement<HTMLElement>('validationMessageText');
     this.certAcceptanceLink = this.getElement<HTMLElement>('certAcceptanceLink');
     this.certLink = this.getElement<HTMLAnchorElement>('certLink');
     this.mediaAddressInput = this.getElement<HTMLInputElement>('mediaAddress');
@@ -412,7 +416,7 @@ export class CloudXR2DUI {
     );
   }
 
-  /** Update inline resolution validation under each input. Uses effective resolution (HTML default when blank). */
+  /** Update inline resolution validation under each input. */
   private updateResolutionValidationMessage(): void {
     const { w: wNum, h: hNum } = getResolutionFromInputs(
       this.perEyeWidthInput,
@@ -436,15 +440,17 @@ export class CloudXR2DUI {
     this.updateConnectButtonState();
   }
 
-  /** Disable Connect button and show error under it when resolution invalid; enable when valid. Blank fields use HTML value attribute. */
+  /** Disable Connect button and show validation error when resolution invalid; enable when valid. */
   public updateConnectButtonState(): void {
     const { w, h } = getResolutionFromInputs(this.perEyeWidthInput, this.perEyeHeightInput);
     const resolutionError = getResolutionValidationError(w, h);
     const connectMessage = getResolutionValidationMessageForConnect(w, h);
     if (connectMessage) {
-      this.showError(connectMessage);
+      this.validationMessageText.textContent = connectMessage;
+      this.validationMessageBox.className = 'validation-message-box show';
     } else {
-      this.hideError();
+      this.validationMessageText.textContent = '';
+      this.validationMessageBox.className = 'validation-message-box';
     }
     // Only update button when idle (don't override "CONNECT (starting...)" or "CONNECT (XR session active)")
     if (this.startButton && this.startButton.innerHTML === 'CONNECT') {

@@ -251,9 +251,10 @@ function App() {
         emulate: false, // Disable IWER emulation from react in favor of custom iwer loading function
         foveation: xrFoveation,
         frameBufferScaling: xrFrameBufferScaling,
-        // Configure WebXR input profiles to use local assets
-        // Use relative path from current page location
-        baseAssetPath: `${new URL('.', window.location.href).href}npm/@webxr-input-profiles/assets@${process.env.WEBXR_ASSETS_VERSION}/dist/profiles/`,
+        // Use local WebXR input profile assets only when bundled (optional build without assets)
+        ...(process.env.WEBXR_ASSETS_VERSION && {
+          baseAssetPath: `${new URL('.', window.location.href).href}npm/@webxr-input-profiles/assets@${process.env.WEBXR_ASSETS_VERSION}/dist/profiles/`,
+        }),
         hand: {
           model: false, // Disable hand models but keep pointer functionality
         },
@@ -290,7 +291,7 @@ function App() {
           config.perEyeHeight
         );
         if (resolutionError) {
-          setErrorMessage(resolutionError);
+          ui.updateConnectButtonState();
           return;
         }
         // Start XR session
