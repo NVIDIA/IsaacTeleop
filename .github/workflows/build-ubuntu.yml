@@ -220,7 +220,7 @@ jobs:
         # Run tests with CloudXR runtime
         ./scripts/run_tests_with_cloudxr.sh --python-version ${{ matrix.python_version }}
 
-  publish-wheel: # to internal Artifactory
+  publish-wheel:  # to internal Artifactory
     runs-on: [self-hosted, linux]
     needs:
       - build-ubuntu
