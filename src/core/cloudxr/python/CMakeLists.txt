@@ -4,8 +4,8 @@
 # Package output dir for cloudxr Python module (used on all platforms)
 set(CLOUDXR_PYTHON_DIR "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/cloudxr")
 
-# Look for CloudXR Runtime SDK tarball in deps/cloudxr/CloudXR-*-Linux-*-sdk.tar.gz
-# (e.g. CloudXR-6.1.0-pid6-Linux-amd64-sdk.tar.gz)
+# Look for CloudXR Runtime SDK tarball: version from deps/cloudxr/.env.default (CXR_RUNTIME_SDK_VERSION)
+# (e.g. CloudXR-6.1.0-rc2-Linux-amd64-sdk.tar.gz)
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
     set(CLOUDXR_CPU_ARCH "amd64")
 elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
@@ -14,18 +14,53 @@ else()
     message(FATAL_ERROR "Unsupported architecture: ${CMAKE_SYSTEM_PROCESSOR}")
 endif()
 
-file(GLOB CLOUDXR_SDK_CANDIDATES "${CMAKE_SOURCE_DIR}/deps/cloudxr/CloudXR-*-Linux-${CLOUDXR_CPU_ARCH}-sdk.tar.gz")
-if(CLOUDXR_SDK_CANDIDATES)
-    list(GET CLOUDXR_SDK_CANDIDATES 0 CLOUDXR_SDK_PATH)
+set(CLOUDXR_SDK_PATH "")
+set(ENV_DEFAULT_FILE "${CMAKE_SOURCE_DIR}/deps/cloudxr/.env.default")
+if(NOT EXISTS "${ENV_DEFAULT_FILE}")
+    message(FATAL_ERROR "deps/cloudxr/.env.default not found (required).")
+endif()
+file(READ "${ENV_DEFAULT_FILE}" ENV_DEFAULT_CONTENT)
+string(REGEX MATCH "CXR_RUNTIME_SDK_VERSION=([^ \t\n\r#]+)" _ "${ENV_DEFAULT_CONTENT}")
+
+if(CMAKE_MATCH_1)
+    set(CXR_RUNTIME_SDK_VERSION "${CMAKE_MATCH_1}")
+else()
+    message(FATAL_ERROR "No valid CXR_RUNTIME_SDK_VERSION found in deps/cloudxr/.env.default.")
 endif()
 
-# TODO: Make download the CloudXR SDK tarball a FetchContent dependency once Runtime SDK is publicly available.
+set(CLOUDXR_SDK_FILE "CloudXR-${CXR_RUNTIME_SDK_VERSION}-Linux-${CLOUDXR_CPU_ARCH}-sdk.tar.gz")
+set(CLOUDXR_SDK_PATH "${CMAKE_SOURCE_DIR}/deps/cloudxr/${CLOUDXR_SDK_FILE}")
+if(NOT EXISTS "${CLOUDXR_SDK_PATH}")
+    set(DOWNLOAD_SCRIPT "${CMAKE_SOURCE_DIR}/scripts/download_cloudxr_runtime_sdk.sh")
+    if(NOT EXISTS "${DOWNLOAD_SCRIPT}")
+        message(FATAL_ERROR "download_cloudxr_runtime_sdk.sh not found: ${DOWNLOAD_SCRIPT}")
+    endif()
+
+    message(STATUS "CloudXR SDK tarball not found; running ${DOWNLOAD_SCRIPT} (CXR_RUNTIME_SDK_VERSION=${CXR_RUNTIME_SDK_VERSION})")
+    execute_process(
+        COMMAND ${CMAKE_COMMAND} -E env
+            "CXR_RUNTIME_SDK_VERSION=${CXR_RUNTIME_SDK_VERSION}"
+            /bin/bash "${DOWNLOAD_SCRIPT}"
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        RESULT_VARIABLE DOWNLOAD_EXIT_CODE
+        OUTPUT_VARIABLE DOWNLOAD_OUT
+        ERROR_VARIABLE DOWNLOAD_ERR
+    )
+    if(DOWNLOAD_EXIT_CODE EQUAL 0)
+        message(STATUS "CloudXR SDK tarball downloaded successfully")
+    else()
+        message(STATUS "CloudXR SDK tarball download failed with exit code: ${DOWNLOAD_EXIT_CODE}")
+        message(STATUS "stdout:\n${DOWNLOAD_OUT}")
+        message(STATUS "stderr:\n${DOWNLOAD_ERR}")
+    endif()
+endif()
+
 set(CLOUDXR_NATIVE_AVAILABLE FALSE)
-if(NOT CLOUDXR_SDK_PATH)
+if(NOT EXISTS CLOUDXR_SDK_PATH)
     message(WARNING
-        "CloudXR SDK tarball not found. Place CloudXR-<VERSION>-Linux-<ARCH>-sdk.tar.gz in "
-        "deps/cloudxr/ (e.g. run scripts/download_cloudxr_runtime_sdk.sh), or set "
-        "CLOUDXR_SDK_PATH to the tarball path. Skipping cloudxr_native_bundle."
+        "CloudXR SDK tarball not found. Version is read from deps/cloudxr/.env.default (CXR_RUNTIME_SDK_VERSION). "
+        "Place ${CLOUDXR_SDK_FILE} in deps/cloudxr/ (e.g. run scripts/download_cloudxr_runtime_sdk.sh). "
+        "Skipping cloudxr_native_bundle."
     )
 else()
     set(CLOUDXR_NATIVE_AVAILABLE TRUE)
