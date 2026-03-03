@@ -36,15 +36,29 @@ jobs:
     - name: Install sccache
       run: choco install -y sccache
 
-    # Hunter cache - caches depthai dependencies
-    # Note: Hunter uses C:/.hunter on Windows (at drive root)
-    - name: Cache Hunter packages
+    # Put cl.exe and other build tools in PATH.
+    # Must run before vcpkg setup so our VCPKG_ROOT isn't overridden by vcvarsall.
+    - name: Setup MSVC (Developer Command Prompt)
+      uses: ilammy/msvc-dev-cmd@v1
+
+    # vcpkg - required when BUILD_PLUGIN_OAK_CAMERA=ON for DepthAI v3.x deps
+    - name: Cache vcpkg
       uses: actions/cache@v4
       with:
-        path: C:/.hunter
-        key: hunter-${{ runner.os }}-${{ hashFiles('cmake/SetupHunter.cmake') }}
+        path: |
+          C:\vcpkg
+          build\vcpkg_installed
+        key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
         restore-keys: |
-          hunter-${{ runner.os }}-
+          vcpkg-${{ runner.os }}-
+
+    - name: Setup vcpkg
+      run: |
+        if (!(Test-Path C:\vcpkg\vcpkg.exe)) {
+          git clone https://github.com/microsoft/vcpkg C:\vcpkg
+          C:\vcpkg\bootstrap-vcpkg.bat -disableMetrics
+        }
+        echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
 
     - name: Cache sccache
       uses: actions/cache@v4
@@ -57,10 +71,6 @@ jobs:
     - name: Verify sccache
       run: |
         sccache --version
-
-    # Put cl.exe and other build tools in PATH
-    - name: Setup MSVC (Developer Command Prompt)
-      uses: ilammy/msvc-dev-cmd@v1
 
     - name: Configure CMake
       # Note:
@@ -77,6 +87,7 @@ jobs:
         -DCMAKE_CXX_COMPILER="cl.exe"
         -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
         -DBUILD_PLUGIN_OAK_CAMERA=ON
+        -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake
 
     - name: Build
       run: cmake --build build --parallel

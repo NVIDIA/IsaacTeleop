@@ -20,7 +20,7 @@ struct PreviewStream::Impl
     int tex_width = 0;
     int tex_height = 0;
 
-    std::shared_ptr<dai::DataOutputQueue> queue;
+    std::shared_ptr<dai::MessageQueue> queue;
 
     ~Impl()
     {
@@ -36,15 +36,13 @@ struct PreviewStream::Impl
 
 PreviewStream::~PreviewStream() = default;
 
-std::unique_ptr<PreviewStream> PreviewStream::create(const std::string& name,
-                                                     dai::Pipeline& pipeline,
-                                                     dai::ColorCameraProperties::SensorResolution resolution)
+std::unique_ptr<PreviewStream> PreviewStream::create(const std::string& name, dai::Pipeline& pipeline)
 {
-    // Find existing ColorCamera on CAM_A, or create one
-    std::shared_ptr<dai::node::ColorCamera> camRgb;
+    // Find existing Camera on CAM_A, or create one
+    std::shared_ptr<dai::node::Camera> camRgb;
     for (auto& node : pipeline.getAllNodes())
     {
-        auto cam = std::dynamic_pointer_cast<dai::node::ColorCamera>(node);
+        auto cam = std::dynamic_pointer_cast<dai::node::Camera>(node);
         if (cam && cam->getBoardSocket() == dai::CameraBoardSocket::CAM_A)
         {
             camRgb = cam;
@@ -54,22 +52,13 @@ std::unique_ptr<PreviewStream> PreviewStream::create(const std::string& name,
 
     if (!camRgb)
     {
-        std::cout << "Creating new ColorCamera on CAM_A" << std::endl;
-        camRgb = pipeline.create<dai::node::ColorCamera>();
-        camRgb->setBoardSocket(dai::CameraBoardSocket::CAM_A);
-        camRgb->setResolution(resolution);
-        camRgb->setColorOrder(dai::ColorCameraProperties::ColorOrder::BGR);
+        camRgb = pipeline.create<dai::node::Camera>();
+        camRgb->build(dai::CameraBoardSocket::CAM_A);
     }
 
-    int preview_w = 640;
-    int preview_h = (resolution == dai::ColorCameraProperties::SensorResolution::THE_800_P) ? 400 : 360;
-
-    camRgb->setPreviewSize(preview_w, preview_h);
-    camRgb->setInterleaved(true);
-
-    auto xout = pipeline.create<dai::node::XLinkOut>();
-    xout->setStreamName(name);
-    camRgb->preview.link(xout->input);
+    constexpr int preview_w = 640;
+    constexpr int preview_h = 400;
+    auto previewOutput = camRgb->requestOutput(std::make_pair(preview_w, preview_h), dai::ImgFrame::Type::BGR888i);
 
     if (SDL_Init(SDL_INIT_VIDEO) != 0)
         throw std::runtime_error(std::string("Preview: SDL_Init failed: ") + SDL_GetError());
@@ -89,6 +78,8 @@ std::unique_ptr<PreviewStream> PreviewStream::create(const std::string& name,
     if (!impl->renderer)
         throw std::runtime_error(std::string("Preview: SDL_CreateRenderer failed: ") + SDL_GetError());
 
+    impl->queue = previewOutput->createOutputQueue();
+
     auto stream = std::unique_ptr<PreviewStream>(new PreviewStream());
     stream->m_impl = std::move(impl);
 
@@ -96,15 +87,10 @@ std::unique_ptr<PreviewStream> PreviewStream::create(const std::string& name,
     return stream;
 }
 
-void PreviewStream::setOutputQueue(std::shared_ptr<dai::DataOutputQueue> queue)
-{
-    m_impl->queue = std::move(queue);
-}
-
 void PreviewStream::update()
 {
     if (!m_impl->queue)
-        throw std::runtime_error("Preview: Output queue not set");
+        return;
 
     auto frame = m_impl->queue->tryGet<dai::ImgFrame>();
     if (!frame)

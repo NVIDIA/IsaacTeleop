@@ -1,0 +1,28 @@
+{
+    "name": "isaac-teleop",
+    "version": "1.0.0",
+    "description": "IsaacTeleop with OAK camera support via DepthAI",
+    "dependencies": [
+        "nlohmann-json",
+        "spdlog",
+        "zlib",
+        "bzip2",
+        "lz4",
+        "liblzma",
+        "eigen3",
+        "yaml-cpp",
+        "fmt",
+        "magic-enum",
+        "neargye-semver",
+        "fp16",
+        "libusb",
+        "openssl",
+        "libarchive",
+        {
+            "name": "cpp-httplib",
+            "default-features": false,
+            "features": ["brotli"]
+        }
+    ],
+    "builtin-baseline": "a9eee3b18df395dbb8be71a31bd78ea441056e42"
+}

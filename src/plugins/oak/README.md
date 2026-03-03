@@ -16,13 +16,29 @@ C++ plugin that captures H.264 video from OAK cameras and saves to raw H.264 fil
 
 ## Build
 
-DepthAI is fetched and built automatically via FetchContent. The first build takes ~10-15 minutes (mostly DepthAI and its Hunter dependencies), subsequent builds are fast.
+DepthAI v3.x is fetched and built automatically via FetchContent. Dependencies are managed
+by **vcpkg**. The first build takes ~10-15 minutes (mostly vcpkg deps + DepthAI), subsequent
+builds are fast.
+
+### Prerequisites
+
+```bash
+# Install build tools for vcpkg to build libusb (Linux)
+sudo apt install libudev-dev autoconf automake libtool pkg-config
+
+# Install vcpkg (one-time)
+git clone https://github.com/microsoft/vcpkg ~/.vcpkg
+~/.vcpkg/bootstrap-vcpkg.sh
+echo 'export VCPKG_ROOT=~/.vcpkg' >> ~/.bashrc && source ~/.bashrc
+```
+
+### Configure and Build
 
 ```bash
 cd IsaacTeleop
 
-# Configure and build
-cmake -B build -DBUILD_PLUGIN_OAK_CAMERA=ON
+cmake -B build -DBUILD_PLUGIN_OAK_CAMERA=ON \
+    -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
 cmake --build build --target camera_plugin_oak --parallel
 ```
 
@@ -83,10 +99,11 @@ Press `Ctrl+C` to stop recording.
 
 ## Dependencies
 
-All dependencies are built automatically via CMake:
+Transitive dependencies via **vcpkg**, DepthAI and SDL2 via FetchContent:
 
-- **DepthAI** - OAK camera interface
-- **SDL2** - Live preview window (used by `--preview`)
+- **DepthAI v3.x** - OAK camera interface (FetchContent)
+- **SDL2** - Live preview window (FetchContent, used by `--preview`)
+- **vcpkg** - nlohmann-json, spdlog, libusb, openssl, libarchive, etc.
 
 ## Output Format
 
