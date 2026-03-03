@@ -281,8 +281,9 @@ export ISAACLAB_PATH=$(pwd)
 
 1. Build & install Teleop Python packages
 
-Build with default settings. See [BUILD.md](BUILD.md) for advanced instructions
-for advanced build steps.
+Build with default settings. See
+[Build from Source](https://nvidia.github.io/IsaacTeleop/main/getting_started/build_from_source.html) for advanced build steps.
+
 ```bash
 cmake -B build
 cmake --build build --parallel
@@ -316,11 +317,9 @@ python ./examples/oxr/python/test_extensions.py
 ## Documentation
 
 ### Getting Started
-- [Build Instructions](BUILD.md) - CMake build options, troubleshooting
 - [Contributing Guide](CONTRIBUTING.md) - Code style, PR process, DCO
 
 ### Architecture
-- [Core Modules](src/core/README.md) - OXR, DeviceIO, Python bindings
 - [Retargeting Engine](src/core/retargeting_engine/python/retargeters/README.md) - Hand retargeters
 - [Teleop Session Manager](src/core/teleop_session_manager/README.md) - Session API
 

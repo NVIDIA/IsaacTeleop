@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -83,4 +83,4 @@ To add a new third-party dependency:
 
 3. If you need to preserve a specific version, use the full commit SHA in GIT_TAG
 
-4. Update the main `BUILD.md` with any new requirements
+4. Update the [Build from Source](../docs/source/getting_started/build_from_source.rst) doc with any new requirements
