@@ -104,7 +104,7 @@ def _forward_http(backend_host, backend_port, request):
         resp = conn.getresponse()
         body = resp.read()
         headers = Headers(
-            {k: v for k, v in resp.getheaders() if k.lower() != "transfer-encoding"}
+            (k, v) for k, v in resp.getheaders() if k.lower() != "transfer-encoding"
         )
         headers.update(CORS_HEADERS)
         return Response(resp.status, resp.reason, headers, body)

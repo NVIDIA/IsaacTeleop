@@ -18,14 +18,20 @@ PROXY_PID=""
 WHEEL=""
 
 find_local_wheel() {
+    local -a wheels=()
     local wheel_dir
     for wheel_dir in install/wheels build/wheels; do
         if ls "$wheel_dir"/isaacteleop-*.whl >/dev/null 2>&1; then
-            ls "$wheel_dir"/isaacteleop-*.whl | sort | tail -n1
-            return 0
+            while IFS= read -r wheel; do
+                wheels+=("$wheel")
+            done < <(ls "$wheel_dir"/isaacteleop-*.whl 2>/dev/null || true)
         fi
     done
-    return 1
+    if [ ${#wheels[@]} -eq 0 ]; then
+        return 1
+    fi
+    printf '%s\n' "${wheels[@]}" | sort -V | tail -n1
+    return 0
 }
 
 build_and_install_wheel() {

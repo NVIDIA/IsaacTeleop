@@ -205,16 +205,18 @@ For convenience, you can use the hosted NVIDIA Isaac Teleop Web Client:
 
 In that page, set **Server IP** to your server IP (for example, `192.168.1.2`).
 
-> **Note:** If you use `./scripts/run_cloudxr_via_wheel.sh` with the hosted
-> NVIDIA Isaac Teleop Web Client, keep **Step 7** but you can skip opening
-> ports `8080/8443`, and skip **Step 8 (WebXR Client Setup)** entirely.
-
 7. **White list ports for Firewall**
 
-Open the [required CloudXR ports](https://docs.nvidia.com/cloudxr-sdk/latest/requirement/network_setup.html#ports-and-firewalls)
-and the web server ports for the WebXR client:
+Open the [required CloudXR ports](https://docs.nvidia.com/cloudxr-sdk/latest/requirement/network_setup.html#ports-and-firewalls).
+
+If you are running the web client on this machine:
 ```bash
 sudo ufw allow 47998/udp && sudo ufw allow 49100/tcp && sudo ufw allow 48322/tcp && sudo ufw allow 8080/tcp && sudo ufw allow 8443/tcp
+```
+
+If you are not running the web client locally you only need the ports for the runtime and proxy:
+```bash
+sudo ufw allow 47998/udp && sudo ufw allow 49100/tcp && sudo ufw allow 48322/tcp
 ```
 
 8. **WebXR Client Setup**
