@@ -10,10 +10,10 @@ import logging
 import os
 import shutil
 import signal
-import socket
 import ssl
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 from .runtime import openxr_run_dir
@@ -32,23 +32,38 @@ except ImportError:
 
 log = logging.getLogger("wss-proxy")
 
-CERT_DIR = Path(openxr_run_dir()).parent / "certs"
-CERT_FILE = CERT_DIR / "server.crt"
-KEY_FILE = CERT_DIR / "server.key"
-PEM_FILE = CERT_DIR / "server.pem"
+
+@dataclass(frozen=True)
+class CertPaths:
+    cert_dir: Path
+    cert_file: Path
+    key_file: Path
+    pem_file: Path
 
 
-def ensure_certificate() -> None:
+def _cert_paths_from_dir(cert_dir: Path) -> CertPaths:
+    cert_dir = cert_dir.resolve()
+    return CertPaths(
+        cert_dir=cert_dir,
+        cert_file=cert_dir / "server.crt",
+        key_file=cert_dir / "server.key",
+        pem_file=cert_dir / "server.pem",
+    )
+
+
+def ensure_certificate(cert_paths: CertPaths) -> None:
     """Generate a self-signed certificate if one does not already exist."""
-    if CERT_FILE.exists() and KEY_FILE.exists():
-        if not PEM_FILE.exists():
-            PEM_FILE.write_bytes(CERT_FILE.read_bytes() + KEY_FILE.read_bytes())
-            PEM_FILE.chmod(0o600)
-        log.info("Using existing SSL certificate from %s", CERT_FILE)
+    if cert_paths.cert_file.exists() and cert_paths.key_file.exists():
+        if not cert_paths.pem_file.exists():
+            cert_paths.pem_file.write_bytes(
+                cert_paths.cert_file.read_bytes() + cert_paths.key_file.read_bytes()
+            )
+            cert_paths.pem_file.chmod(0o600)
+        log.info("Using existing SSL certificate from %s", cert_paths.cert_file)
         return
 
     log.info("Generating self-signed SSL certificate ...")
-    CERT_DIR.mkdir(parents=True, exist_ok=True)
+    cert_paths.cert_dir.mkdir(parents=True, exist_ok=True)
     openssl_bin = shutil.which("openssl")
     if not openssl_bin:
         raise RuntimeError(
@@ -63,9 +78,9 @@ def ensure_certificate() -> None:
             "-newkey",
             "rsa:2048",
             "-keyout",
-            str(KEY_FILE),
+            str(cert_paths.key_file),
             "-out",
-            str(CERT_FILE),
+            str(cert_paths.cert_file),
             "-days",
             "365",
             "-nodes",
@@ -75,15 +90,19 @@ def ensure_certificate() -> None:
         check=True,
     )
 
-    PEM_FILE.write_bytes(CERT_FILE.read_bytes() + KEY_FILE.read_bytes())
-    KEY_FILE.chmod(0o600)
-    PEM_FILE.chmod(0o600)
-    log.info("SSL certificate generated at %s", PEM_FILE)
+    cert_paths.pem_file.write_bytes(
+        cert_paths.cert_file.read_bytes() + cert_paths.key_file.read_bytes()
+    )
+    cert_paths.key_file.chmod(0o600)
+    cert_paths.pem_file.chmod(0o600)
+    log.info("SSL certificate generated at %s", cert_paths.pem_file)
 
 
-def build_ssl_context() -> ssl.SSLContext:
+def build_ssl_context(cert_paths: CertPaths) -> ssl.SSLContext:
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    ctx.load_cert_chain(certfile=str(CERT_FILE), keyfile=str(KEY_FILE))
+    ctx.load_cert_chain(
+        certfile=str(cert_paths.cert_file), keyfile=str(cert_paths.key_file)
+    )
     ctx.minimum_version = ssl.TLSVersion.TLSv1_2
     return ctx
 
@@ -108,7 +127,7 @@ def _forward_http(backend_host, backend_port, request):
         )
         headers.update(CORS_HEADERS)
         return Response(resp.status, resp.reason, headers, body)
-    except socket.timeout:
+    except TimeoutError:
         return Response(
             504,
             "Gateway Timeout",
@@ -210,7 +229,7 @@ async def proxy_handler(client, backend_host: str, backend_port: int):
             close_timeout=10,
         )
     except Exception:
-        log.error("Failed to connect to backend %s", backend_uri)
+        log.exception("Failed to connect to backend %s", backend_uri)
         return
 
     log.info("Proxying %s -> %s", client.remote_address, backend_uri)
@@ -241,9 +260,9 @@ def _env(name: str, default: str) -> str:
     return os.environ.get(name, default)
 
 
-async def run(args: argparse.Namespace) -> None:
-    ensure_certificate()
-    ssl_ctx = build_ssl_context()
+async def run(args: argparse.Namespace, cert_paths: CertPaths) -> None:
+    ensure_certificate(cert_paths)
+    ssl_ctx = build_ssl_context(cert_paths)
 
     def handler(ws):
         return proxy_handler(ws, args.backend_host, args.backend_port)
@@ -310,11 +329,9 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.cert_dir is not None:
-        global CERT_DIR, CERT_FILE, KEY_FILE, PEM_FILE
-        CERT_DIR = args.cert_dir.resolve()
-        CERT_FILE = CERT_DIR / "server.crt"
-        KEY_FILE = CERT_DIR / "server.key"
-        PEM_FILE = CERT_DIR / "server.pem"
+        cert_paths = _cert_paths_from_dir(args.cert_dir)
+    else:
+        cert_paths = _cert_paths_from_dir(Path(openxr_run_dir()).parent / "certs")
 
     logging.basicConfig(
         level=logging.DEBUG if args.debug else logging.INFO,
@@ -323,7 +340,7 @@ def main() -> None:
     if not args.debug:
         logging.getLogger("websockets").setLevel(logging.WARNING)
 
-    asyncio.run(run(args))
+    asyncio.run(run(args, cert_paths))
 
 
 if __name__ == "__main__":

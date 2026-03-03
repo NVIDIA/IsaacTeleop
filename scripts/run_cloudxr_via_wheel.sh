@@ -21,10 +21,10 @@ find_local_wheel() {
     local -a wheels=()
     local wheel_dir
     for wheel_dir in install/wheels build/wheels; do
-        if ls "$wheel_dir"/isaacteleop-*.whl >/dev/null 2>&1; then
-            while IFS= read -r wheel; do
+        if [ -d "$wheel_dir" ]; then
+            while IFS= read -r -d '' wheel; do
                 wheels+=("$wheel")
-            done < <(ls "$wheel_dir"/isaacteleop-*.whl 2>/dev/null || true)
+            done < <(find "$wheel_dir" -maxdepth 1 -type f -name 'isaacteleop-*.whl' -print0)
         fi
     done
     if [ ${#wheels[@]} -eq 0 ]; then
@@ -76,25 +76,36 @@ if ! python -c "import isaacteleop.cloudxr; import isaacteleop.cloudxr.wss" >/de
         "isaacteleop[cloudxr] @ $WHEEL_URI"
 
     if ! python -c "import isaacteleop.cloudxr; import isaacteleop.cloudxr.wss" >/dev/null 2>&1; then
-        build_and_install_wheel
-        WHEEL="$(find_local_wheel || true)"
-        if [ -z "$WHEEL" ]; then
-            echo "Error: Could not locate a local isaacteleop wheel after rebuild."
-            exit 1
-        fi
-        WHEEL_URI=$(python -c "import pathlib,sys; print(pathlib.Path(sys.argv[1]).resolve().as_uri())" "$WHEEL")
-        uv pip install \
-            --python "$(command -v python)" \
-            --reinstall \
-            "isaacteleop[cloudxr] @ $WHEEL_URI"
+        echo "Error: isaacteleop.cloudxr import still failing after wheel install."
+        echo "Diagnostics:"
+        python -c "import sys; print('python:', sys.executable); print('version:', sys.version)" || true
+        echo "PYTHONPATH=${PYTHONPATH:-<unset>}"
+        uv pip list --python "$(command -v python)" || true
+        python -c "import traceback; import isaacteleop.cloudxr; import isaacteleop.cloudxr.wss" 2>&1 || true
+        exit 1
     fi
 fi
 
 python -m isaacteleop.cloudxr.wss &
 PROXY_PID=$!
-sleep 2
-if ! kill -0 "$PROXY_PID" 2>/dev/null; then
-    echo "Error: WSS proxy failed to start."
+
+PROXY_PORT_VALUE="${PROXY_PORT:-48322}"
+PROXY_READY=false
+for _ in $(seq 1 20); do
+    if ! kill -0 "$PROXY_PID" 2>/dev/null; then
+        break
+    fi
+    if bash -c "exec 3<>/dev/tcp/127.0.0.1/${PROXY_PORT_VALUE}" 2>/dev/null; then
+        PROXY_READY=true
+        break
+    fi
+    sleep 0.5
+done
+if [ "$PROXY_READY" = false ]; then
+    echo "Error: WSS proxy failed to accept connections on localhost:${PROXY_PORT_VALUE}."
+    if kill -0 "$PROXY_PID" 2>/dev/null; then
+        kill "$PROXY_PID" 2>/dev/null || true
+    fi
     exit 1
 fi
 
