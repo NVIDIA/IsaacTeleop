@@ -379,6 +379,11 @@ jobs:
           exit 1
         fi
 
+        if [[ "${KITMAKER_API_ENDPOINT}" != https://* ]]; then
+          echo "KITMAKER_API_ENDPOINT must use https://"
+          exit 1
+        fi
+
         if [[ -z "${WHEEL_URLS}" ]]; then
           echo "No wheel URLs were produced by publish-github-release-assets job"
           exit 1
@@ -442,6 +447,11 @@ jobs:
 
         if [[ -z "${KITMAKER_API_ENDPOINT}" || -z "${KITMAKER_TOKEN}" ]]; then
           echo "Missing required secrets: KITMAKER_API_ENDPOINT, KITMAKER_TOKEN"
+          exit 1
+        fi
+
+        if [[ "${KITMAKER_API_ENDPOINT}" != https://* ]]; then
+          echo "KITMAKER_API_ENDPOINT must use https://"
           exit 1
         fi
 
