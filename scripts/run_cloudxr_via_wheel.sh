@@ -30,7 +30,15 @@ find_local_wheel() {
     if [ ${#wheels[@]} -eq 0 ]; then
         return 1
     fi
-    printf '%s\n' "${wheels[@]}" | sort -V | tail -n1
+    local latest_basename
+    latest_basename=$(printf '%s\n' "${wheels[@]}" | sed 's!.*/!!' | sort -V | tail -n1)
+    local wheel
+    for wheel in "${wheels[@]}"; do
+        if [ "${wheel##*/}" = "$latest_basename" ]; then
+            printf '%s\n' "$wheel"
+            return 0
+        fi
+    done
     return 0
 }
 

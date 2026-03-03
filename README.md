@@ -221,9 +221,6 @@ If you are not running the web client locally you only need the ports for the ru
 sudo ufw allow 47998/udp && sudo ufw allow 49100/tcp && sudo ufw allow 48322/tcp
 ```
 
-For the wheel-based hosted-client flow (`./scripts/run_cloudxr_via_wheel.sh` with
-the hosted NVIDIA Isaac Teleop Web Client), use the second command above.
-
 8. **WebXR Client Setup**
 
 The last step will run a couple docker containers and one of them is the WebXR server. It can be

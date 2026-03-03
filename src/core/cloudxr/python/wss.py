@@ -53,7 +53,16 @@ def _cert_paths_from_dir(cert_dir: Path) -> CertPaths:
 
 def ensure_certificate(cert_paths: CertPaths) -> None:
     """Generate a self-signed certificate if one does not already exist."""
-    if cert_paths.cert_file.exists() and cert_paths.key_file.exists():
+    cert_exists = cert_paths.cert_file.exists()
+    key_exists = cert_paths.key_file.exists()
+    if cert_exists != key_exists:
+        missing_file = cert_paths.key_file if cert_exists else cert_paths.cert_file
+        raise RuntimeError(
+            f"Found partial TLS cert pair in {cert_paths.cert_dir}; missing {missing_file.name}. "
+            "Restore both files or remove both and retry."
+        )
+
+    if cert_exists and key_exists:
         if not cert_paths.pem_file.exists():
             cert_paths.pem_file.write_bytes(
                 cert_paths.cert_file.read_bytes() + cert_paths.key_file.read_bytes()
@@ -116,10 +125,29 @@ CORS_HEADERS = {
 
 
 def _forward_http(backend_host, backend_port, request):
-    """Forward a plain HTTP GET to the backend and return its response."""
+    """Forward plain HTTP requests to the backend and return its response."""
     conn = http.client.HTTPConnection(backend_host, backend_port, timeout=5)
     try:
-        conn.request("GET", request.path or "/")
+        method = getattr(request, "method", "GET")
+        body = getattr(request, "body", None)
+
+        hop_by_hop_headers = {
+            "host",
+            "connection",
+            "upgrade",
+            "proxy-connection",
+            "transfer-encoding",
+            "content-length",
+            "keep-alive",
+            "te",
+            "trailer",
+        }
+        request_headers = {}
+        for k, v in request.headers.raw_items():
+            if k.lower() not in hop_by_hop_headers:
+                request_headers[k] = v
+
+        conn.request(method, request.path or "/", body=body, headers=request_headers)
         resp = conn.getresponse()
         body = resp.read()
         headers = Headers(
