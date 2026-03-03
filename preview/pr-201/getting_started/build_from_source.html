@@ -388,7 +388,7 @@ examples. The instructions align with the project’s CMake configuration and th
 </ul>
 </section>
 <section id="one-time-setup">
-<h2>One time setup<a class="headerlink" href="#one-time-setup" title="Link to this heading">#</a></h2>
+<span id="id1"></span><h2>One time setup<a class="headerlink" href="#one-time-setup" title="Link to this heading">#</a></h2>
 <p>Install build tools and dependencies, such as CMake, clang-format. See <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/.github/workflows/build-ubuntu.yml">build-ubuntu.yml</a> in the GitHub repository for
 the list of dependencies. On <strong>Ubuntu</strong>, install build tools and clang-format:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt-get<span class="w"> </span>update
@@ -446,8 +446,8 @@ cmake<span class="w"> </span>--install<span class="w"> </span>build
 <p>CMake options (defined in root <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/CMakeLists.txt">CMakeLists.txt</a>,
 <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/cmake/SetupPython.cmake">SetupPython.cmake</a>, and
 <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/cmake/SetupHunter.cmake">SetupHunter.cmake</a>):</p>
-<div class="pst-scrollable-table-container"><table class="table" id="id1">
-<caption><span class="caption-text">Common CMake Options</span><a class="headerlink" href="#id1" title="Link to this table">#</a></caption>
+<div class="pst-scrollable-table-container"><table class="table" id="id2">
+<caption><span class="caption-text">Common CMake Options</span><a class="headerlink" href="#id2" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 20.0%" />
 <col style="width: 36.0%" />
@@ -471,8 +471,8 @@ cmake<span class="w"> </span>--install<span class="w"> </span>build
 </tbody>
 </table>
 </div>
-<div class="pst-scrollable-table-container"><table class="table" id="id2">
-<caption><span class="caption-text">Common Isaac Teleop Options</span><a class="headerlink" href="#id2" title="Link to this table">#</a></caption>
+<div class="pst-scrollable-table-container"><table class="table" id="id3">
+<caption><span class="caption-text">Common Isaac Teleop Options</span><a class="headerlink" href="#id3" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 24.0%" />
 <col style="width: 36.0%" />
@@ -508,8 +508,8 @@ cmake<span class="w"> </span>--install<span class="w"> </span>build
 </tbody>
 </table>
 </div>
-<div class="pst-scrollable-table-container"><table class="table" id="id3">
-<caption><span class="caption-text">Plugin Specific Options</span><a class="headerlink" href="#id3" title="Link to this table">#</a></caption>
+<div class="pst-scrollable-table-container"><table class="table" id="id4">
+<caption><span class="caption-text">Plugin Specific Options</span><a class="headerlink" href="#id4" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 26.0%" />
 <col style="width: 34.0%" />
@@ -683,11 +683,15 @@ cmake<span class="w"> </span>-B<span class="w"> </span>build
 </section>
 <section id="examples-or-tests-can-t-find-the-library">
 <h3>Examples or tests can’t find the library<a class="headerlink" href="#examples-or-tests-can-t-find-the-library" title="Link to this heading">#</a></h3>
-<p>When building from the top-level, examples and tests use the build tree. Ensure you run <code class="docutils literal notranslate"><span class="pre">cmake</span> <span class="pre">--build</span> <span class="pre">build</span></code> from the project root and run executables from the build directory (or use <code class="docutils literal notranslate"><span class="pre">cmake</span> <span class="pre">--install</span> <span class="pre">build</span></code> and run from <code class="docutils literal notranslate"><span class="pre">install/</span></code>).</p>
+<p>When building from the top-level, examples and tests use the build tree. Ensure you run
+<code class="docutils literal notranslate"><span class="pre">cmake</span> <span class="pre">--build</span> <span class="pre">build</span></code> from the project root and run executables from the build directory (or use
+<code class="docutils literal notranslate"><span class="pre">cmake</span> <span class="pre">--install</span> <span class="pre">build</span></code> and run from <code class="docutils literal notranslate"><span class="pre">install/</span></code>).</p>
 </section>
 <section id="uv-or-python-version">
 <h3>uv or Python version<a class="headerlink" href="#uv-or-python-version" title="Link to this heading">#</a></h3>
-<p><code class="docutils literal notranslate"><span class="pre">cmake/SetupPython.cmake</span></code> requires <strong>uv</strong> and uses <code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_PYTHON_VERSION</span></code>. Install uv as in <strong>Initial setup</strong> and pass <code class="docutils literal notranslate"><span class="pre">-DISAAC_TELEOP_PYTHON_VERSION=3.10</span></code> (or 3.11, 3.12) if you need a specific version.</p>
+<p><code class="docutils literal notranslate"><span class="pre">cmake/SetupPython.cmake</span></code> requires <strong>uv</strong> and uses <code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_PYTHON_VERSION</span></code>. Install uv as
+in <a class="reference internal" href="#one-time-setup"><span class="std std-ref">One time setup</span></a> and pass <code class="docutils literal notranslate"><span class="pre">-DISAAC_TELEOP_PYTHON_VERSION=3.10</span></code> (or 3.11,
+3.12) if you need a specific version.</p>
 </section>
 </section>
 <section id="reference">

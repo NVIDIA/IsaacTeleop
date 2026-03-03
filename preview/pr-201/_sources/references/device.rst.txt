@@ -40,8 +40,6 @@ input modes, which determine which retargeters and control schemes are available
 Add a New Device
 ----------------
 
-There are two levels of device integration:
-
 **Isaac Teleop plugin (C++ level)**
    For new hardware that requires a custom driver or SDK. Plugins push data via OpenXR tensor
    collections. Existing plugins include Manus gloves, OAK-D camera, controller synthetic hands,

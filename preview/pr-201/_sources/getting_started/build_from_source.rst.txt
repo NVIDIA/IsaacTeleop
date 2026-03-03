@@ -17,6 +17,8 @@ Prerequisites
 - **uv** for Python dependency management and managed Python
 - **Internet connection** for downloading dependencies via CMake FetchContent
 
+.. _one-time-setup:
+
 One time setup
 --------------
 
@@ -314,12 +316,16 @@ OpenXR is fetched automatically; it is not a system package. If configuration fa
 Examples or tests can't find the library
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-When building from the top-level, examples and tests use the build tree. Ensure you run ``cmake --build build`` from the project root and run executables from the build directory (or use ``cmake --install build`` and run from ``install/``).
+When building from the top-level, examples and tests use the build tree. Ensure you run
+``cmake --build build`` from the project root and run executables from the build directory (or use
+``cmake --install build`` and run from ``install/``).
 
 uv or Python version
 ~~~~~~~~~~~~~~~~~~~~
 
-``cmake/SetupPython.cmake`` requires **uv** and uses ``ISAAC_TELEOP_PYTHON_VERSION``. Install uv as in **Initial setup** and pass ``-DISAAC_TELEOP_PYTHON_VERSION=3.10`` (or 3.11, 3.12) if you need a specific version.
+``cmake/SetupPython.cmake`` requires **uv** and uses ``ISAAC_TELEOP_PYTHON_VERSION``. Install uv as
+in :ref:`One time setup <one-time-setup>` and pass ``-DISAAC_TELEOP_PYTHON_VERSION=3.10`` (or 3.11,
+3.12) if you need a specific version.
 
 Reference
 ---------
