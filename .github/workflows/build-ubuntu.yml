@@ -374,8 +374,8 @@ jobs:
       run: |
         set -euo pipefail
 
-        if [[ -z "${KITMAKER_API_ENDPOINT}" || -z "${KITMAKER_TOKEN}" || -z "${KITMAKER_PIC_EMAIL}" ]]; then
-          echo "Missing one or more required secrets: KITMAKER_API_ENDPOINT, KITMAKER_TOKEN, KITMAKER_PIC_EMAIL"
+        if [[ -z "${KITMAKER_API_ENDPOINT}" || -z "${KITMAKER_PROJECT_ID}" || -z "${KITMAKER_TOKEN}" || -z "${KITMAKER_PIC_EMAIL}" ]]; then
+          echo "Missing one or more required secrets: KITMAKER_API_ENDPOINT, KITMAKER_PROJECT_ID, KITMAKER_TOKEN, KITMAKER_PIC_EMAIL"
           exit 1
         fi
 
