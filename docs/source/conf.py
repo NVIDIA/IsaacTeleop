@@ -28,6 +28,7 @@ else:
 
 extensions = [
     "sphinx.ext.githubpages",
+    "sphinx_copybutton",
     "sphinx_multiversion",
     "sphinx_design",
 ]
