@@ -1,0 +1,61 @@
+.. SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+.. SPDX-License-Identifier: Apache-2.0
+
+Welcome to Isaac Teleop
+=======================
+
+.. image:: https://img.shields.io/badge/License-Apache%202.0-blue.svg
+   :target: references/license.html
+   :alt: License
+   :class: license-badge
+
+**Isaac Teleop** (`GitHub repo <https://github.com/NVIDIA/IsaacTeleop>`_) is the unified framework for high-fidelity
+egocentric and robot data collection. It provides a standardized device interface, a flexible
+graph-based retargeting pipeline, and a streamlined data collection workflow
+that work seamlessly across simulated and real-world robots.
+
+Key features:
+
+- **Unified stack** for sim and real teleoperation (ROS2, Isaac Sim, Isaac Lab)
+- **Standardized device interface** for XR headsets, gloves, foot pedals, body trackers
+- **Flexible retargeting** to different robot embodiments
+- **Plugin system** for adding new devices and use cases
+
+.. tip::
+
+   **Just want to get running?** Follow the :doc:`getting_started/quick_start` how-to guide for
+   installation and first-run steps.
+
+Table of Contents
+-----------------
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Overview
+   :titlesonly:
+
+   overview/architecture
+   overview/ecosystem
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Getting Started
+
+   getting_started/quick_start
+   getting_started/build_from_source
+   getting_started/contributing
+
+.. toctree::
+   :maxdepth: 2
+   :caption: References
+
+   references/device
+   references/retargeting
+   references/license
+
+Indices and tables
+------------------
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`
