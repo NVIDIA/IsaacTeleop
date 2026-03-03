@@ -329,6 +329,9 @@ jobs:
           --notes "Automated wheel artifacts for ${GITHUB_SHA}" \
           --draft
 
+        # Persist tag output immediately so cleanup can still run even if later steps fail.
+        echo "release_tag=${tag}" >> "$GITHUB_OUTPUT"
+
         echo "Uploading ${#wheels[@]} wheel(s) to release ${tag}"
         gh release upload "${tag}" "${wheels[@]}" --repo "${GH_REPO}"
 
@@ -350,8 +353,6 @@ jobs:
           echo "${wheel_urls}"
           echo "EOF"
         } >> "$GITHUB_OUTPUT"
-
-        echo "release_tag=${tag}" >> "$GITHUB_OUTPUT"
 
   kitmaker:
     runs-on: [self-hosted, linux]
