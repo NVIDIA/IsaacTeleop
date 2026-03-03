@@ -192,3 +192,8 @@ html[data-theme="dark"] {
 .code-100col pre {
     white-space: pre;
 }
+
+/* Extra space after license badge on index */
+img.license-badge {
+    margin-bottom: 1rem;
+}

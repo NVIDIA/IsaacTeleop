@@ -1,15 +1,8 @@
 .. SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-Overview
-========
-
-Isaac Teleop provides:
-
-- **Teleop session manager** — manage teleop sessions and data pipelines
-- **Retargeting engine** — map device outputs to robot embodiments (e.g. Unitree G1, dex hands)
-- **Device I/O and schema** — standardized interfaces for controllers, hands, head, locomotion
-- **Plugins** — extend support for new devices (e.g. Manus, OAK)
+Build from Source
+=================
 
 Project structure
 -----------------

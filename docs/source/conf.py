@@ -29,6 +29,7 @@ else:
 extensions = [
     "sphinx.ext.githubpages",
     "sphinx_multiversion",
+    "sphinx_design",
 ]
 
 exclude_patterns = ["build", "Thumbs.db", ".DS_Store"]
@@ -42,11 +43,11 @@ smv_tag_whitelist = os.getenv("SMV_TAG_WHITELIST", r"^v[1-9]\d*\.\d+\.\d+$")
 
 html_title = "Isaac Teleop Documentation"
 html_theme = "nvidia_sphinx_theme"
-html_favicon = "source/_static/favicon.ico"
+html_favicon = "_static/favicon.ico"
 html_show_copyright = True
 html_show_sphinx = False
-html_static_path = ["source/_static/css"]
-html_css_files = ["custom.css"]
+html_static_path = ["_static"]
+html_css_files = ["css/custom.css"]
 
 html_theme_options = {
     "collapse_navigation": True,

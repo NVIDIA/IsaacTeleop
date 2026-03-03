@@ -1,8 +1,8 @@
 .. SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-Getting Started
-===============
+Quick Start
+===========
 
 This section will cover installation and a minimal workflow to run Isaac Teleop.
 
@@ -21,3 +21,5 @@ Quick start
 After building, you can run the examples under ``examples/`` (e.g. retargeting, teleop session manager) as described in the README.
 
 More documentation content can be added here as the project grows.
+
+.. _connect-quest-pico:
