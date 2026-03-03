@@ -8,33 +8,34 @@ import asyncio
 import http.client
 import logging
 import os
-import signal
 import shutil
+import signal
 import socket
 import ssl
 import subprocess
 import sys
 from pathlib import Path
 
+from .runtime import openxr_run_dir
+
 try:
     import websockets
-    from websockets.asyncio.server import serve as ws_serve
     from websockets.asyncio.client import connect as ws_connect
+    from websockets.asyncio.server import serve as ws_serve
     from websockets.datastructures import Headers
     from websockets.http11 import Response
 except ImportError:
-    sys.exit("Missing dependency: websockets >= 14\nRun with:  uv run wss_proxy.py")
+    sys.exit(
+        "Missing dependency: websockets >= 14\n"
+        "Install with: uv pip install --find-links=install/wheels 'isaacteleop[cloudxr]'"
+    )
 
 log = logging.getLogger("wss-proxy")
 
-CERT_DIR = Path(__file__).resolve().parent / "certs"
+CERT_DIR = Path(openxr_run_dir()).parent / "certs"
 CERT_FILE = CERT_DIR / "server.crt"
 KEY_FILE = CERT_DIR / "server.key"
 PEM_FILE = CERT_DIR / "server.pem"
-
-# ---------------------------------------------------------------------------
-# Certificate generation
-# ---------------------------------------------------------------------------
 
 
 def ensure_certificate() -> None:
@@ -46,7 +47,7 @@ def ensure_certificate() -> None:
         log.info("Using existing SSL certificate from %s", CERT_FILE)
         return
 
-    log.info("Generating self-signed SSL certificate …")
+    log.info("Generating self-signed SSL certificate ...")
     CERT_DIR.mkdir(parents=True, exist_ok=True)
     openssl_bin = shutil.which("openssl")
     if not openssl_bin:
@@ -96,11 +97,7 @@ CORS_HEADERS = {
 
 
 def _forward_http(backend_host, backend_port, request):
-    """Forward a plain HTTP GET to the backend and return its response.
-
-    Only GET is supported — the websockets library only exposes GET requests
-    (HTTP/1.1 upgrade path), and CORS preflight is handled separately.
-    """
+    """Forward a plain HTTP GET to the backend and return its response."""
     conn = http.client.HTTPConnection(backend_host, backend_port, timeout=5)
     try:
         conn.request("GET", request.path or "/")
@@ -131,8 +128,6 @@ def _forward_http(backend_host, backend_port, request):
 
 
 def _make_http_handler(backend_host, backend_port):
-    """Create a process_request callback that forwards non-WebSocket requests."""
-
     async def handle_http_request(connection, request):
         if request.headers.get("Upgrade", "").lower() == "websocket":
             return None
@@ -151,16 +146,9 @@ def _make_http_handler(backend_host, backend_port):
 
 
 def add_cors_headers(connection, request, response):
-    """Attach CORS headers to every WebSocket handshake response."""
     response.headers.update(CORS_HEADERS)
 
 
-# ---------------------------------------------------------------------------
-# WebSocket proxy handler
-# ---------------------------------------------------------------------------
-
-# Hop-by-hop and WebSocket handshake headers that the library manages itself.
-# Everything else is forwarded as-is.
 _SKIP_HEADERS = {
     "host",
     "upgrade",
@@ -174,7 +162,6 @@ _SKIP_HEADERS = {
 
 
 async def _pipe(src, dst, label: str):
-    """Forward messages from *src* to *dst* until the connection closes."""
     try:
         async for msg in src:
             if isinstance(msg, str):
@@ -209,7 +196,6 @@ async def proxy_handler(client, backend_host: str, backend_port: int):
         if k.lower() not in _SKIP_HEADERS
     }
 
-    # Forward subprotocols so the backend can negotiate them properly.
     subprotocols = client.request.headers.get_all("Sec-WebSocket-Protocol")
 
     try:
@@ -251,13 +237,7 @@ async def proxy_handler(client, backend_host: str, backend_port: int):
         log.info("Connection closed: %s", path)
 
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
-
-
 def _env(name: str, default: str) -> str:
-    """Read from env, falling back to *default*."""
     return os.environ.get(name, default)
 
 
@@ -294,7 +274,7 @@ async def run(args: argparse.Namespace) -> None:
     ):
         log.info("WSS proxy listening on port %d", args.proxy_port)
         await stop
-        log.info("Shutting down …")
+        log.info("Shutting down ...")
 
 
 def main() -> None:
@@ -320,7 +300,7 @@ def main() -> None:
         "--cert-dir",
         type=Path,
         default=None,
-        help="Directory containing server.crt and server.key (default: ./certs next to this script)",
+        help="Directory containing server.crt and server.key (default: ~/.cloudxr/certs)",
     )
     parser.add_argument(
         "--debug",

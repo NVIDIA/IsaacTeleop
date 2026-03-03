@@ -17,6 +17,26 @@ source scripts/setup_cloudxr_env.sh
 PROXY_PID=""
 WHEEL=""
 
+find_local_wheel() {
+    local wheel_dir
+    for wheel_dir in install/wheels build/wheels; do
+        if ls "$wheel_dir"/isaacteleop-*.whl >/dev/null 2>&1; then
+            ls "$wheel_dir"/isaacteleop-*.whl | sort | tail -n1
+            return 0
+        fi
+    done
+    return 1
+}
+
+build_and_install_wheel() {
+    echo "Building and installing local isaacteleop wheel..."
+    if [ ! -f build/CMakeCache.txt ]; then
+        cmake -B build
+    fi
+    cmake --build build --parallel
+    cmake --install build
+}
+
 cleanup() {
     if [ -n "$PROXY_PID" ] && kill -0 "$PROXY_PID" 2>/dev/null; then
         echo "Stopping WSS proxy (PID $PROXY_PID)..."
@@ -27,13 +47,44 @@ cleanup() {
 
 trap cleanup EXIT INT TERM
 
-if ! command -v uv &>/dev/null; then
-    echo "Error: uv is not on PATH. See the README for installation instructions."
-    exit 1
+echo "Starting WSS proxy..."
+if ! python -c "import isaacteleop.cloudxr; import isaacteleop.cloudxr.wss" >/dev/null 2>&1; then
+    if ! command -v uv &>/dev/null; then
+        echo "Error: uv is not on PATH. See the README for installation instructions."
+        exit 1
+    fi
+    WHEEL="$(find_local_wheel || true)"
+    if [ -z "$WHEEL" ]; then
+        build_and_install_wheel
+        WHEEL="$(find_local_wheel || true)"
+    fi
+    if [ -z "$WHEEL" ]; then
+        echo "Error: Could not locate a local isaacteleop wheel after build/install."
+        exit 1
+    fi
+    echo "Bootstrapping isaacteleop from local wheel: $WHEEL"
+    WHEEL_URI=$(python -c "import pathlib,sys; print(pathlib.Path(sys.argv[1]).resolve().as_uri())" "$WHEEL")
+    uv pip install \
+        --python "$(command -v python)" \
+        --reinstall \
+        "isaacteleop[cloudxr] @ $WHEEL_URI"
+
+    if ! python -c "import isaacteleop.cloudxr; import isaacteleop.cloudxr.wss" >/dev/null 2>&1; then
+        build_and_install_wheel
+        WHEEL="$(find_local_wheel || true)"
+        if [ -z "$WHEEL" ]; then
+            echo "Error: Could not locate a local isaacteleop wheel after rebuild."
+            exit 1
+        fi
+        WHEEL_URI=$(python -c "import pathlib,sys; print(pathlib.Path(sys.argv[1]).resolve().as_uri())" "$WHEEL")
+        uv pip install \
+            --python "$(command -v python)" \
+            --reinstall \
+            "isaacteleop[cloudxr] @ $WHEEL_URI"
+    fi
 fi
 
-echo "Starting WSS proxy..."
-uv run --directory deps/cloudxr wss_proxy.py &
+python -m isaacteleop.cloudxr.wss &
 PROXY_PID=$!
 sleep 2
 if ! kill -0 "$PROXY_PID" 2>/dev/null; then
@@ -42,23 +93,4 @@ if ! kill -0 "$PROXY_PID" 2>/dev/null; then
 fi
 
 echo "Starting CloudXR runtime..."
-if ! python -c "import isaacteleop.cloudxr" >/dev/null 2>&1; then
-    for wheel_dir in install/wheels build/wheels; do
-        if ls "$wheel_dir"/isaacteleop-*.whl >/dev/null 2>&1; then
-            WHEEL=$(ls "$wheel_dir"/isaacteleop-*.whl | sort | tail -n1)
-            break
-        fi
-    done
-    if [ -z "$WHEEL" ]; then
-        echo "Error: isaacteleop.cloudxr is not importable and no local wheel was found."
-        echo "Build/install first: cmake --build build && cmake --install build"
-        exit 1
-    fi
-    echo "Bootstrapping isaacteleop from local wheel: $WHEEL"
-    uv pip install \
-        --python "$(command -v python)" \
-        --reinstall \
-        "$WHEEL"
-fi
-
 python -m isaacteleop.cloudxr

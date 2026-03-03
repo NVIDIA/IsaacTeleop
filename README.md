@@ -193,17 +193,10 @@ proxy together with:
 ```
 
 This script runs the Python CloudXR runtime (`python -m isaacteleop.cloudxr`) and
-the Python WSS proxy (`deps/cloudxr/wss_proxy.py`). If `isaacteleop.cloudxr` is not
-importable in the current Python environment, it tries to bootstrap `isaacteleop`
-from local wheels in `install/wheels` (or `build/wheels`).
-
-If no local wheel is found, build one first:
-
-```bash
-cmake -B build
-cmake --build build --parallel
-cmake --install build
-```
+the Python WSS proxy (`python -m isaacteleop.cloudxr.wss`). If those modules are
+not importable in the current Python environment, it tries to bootstrap
+`isaacteleop[cloudxr]` from local wheels in `install/wheels` (or `build/wheels`).
+If no local wheel is found, the script will build and install one automatically.
 
 After the script starts, open a CloudXR.js client page.
 
