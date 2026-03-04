@@ -49,7 +49,7 @@ Table of Contents
    :maxdepth: 2
    :caption: References
 
-   references/device
+   device/index
    references/retargeting
    references/license
 
