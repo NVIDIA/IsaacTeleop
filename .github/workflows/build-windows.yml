@@ -12,8 +12,8 @@ on:
     branches: [ main ]
   pull_request:
 
-# For PRs, we want to cancel in-progress runs to save resources.
-# For pushes to main, we want to allow all runs to complete.
+# Per workflow+ref: max 1 running + 1 pending (new pending replaces old).
+# PRs cancel in-progress runs; pushes to main do not.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
