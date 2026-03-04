@@ -92,6 +92,42 @@ html_context = {
     "doc_path": "docs/source",
 }
 
+# Base URL for linking to repository source (used by code-file and code-dir roles).
+_GH_BASE = "https://github.com/NVIDIA/IsaacTeleop"
+_GH_BRANCH = html_context["github_version"]
+
+
+def _parse_code_role(text):
+    """Parse role text as 'path' or 'label <path>'. Returns (label, path)."""
+    text = text.strip()
+    if " <" in text and text.endswith(">"):
+        label, path = text.rsplit(" <", 1)
+        return label.strip(), path[:-1].strip()
+    return text, text
+
+
+def _code_file_role(name, rawtext, text, lineno, inliner, options=None, content=None):
+    """Role for linking to a file in the GitHub repo: :code-file:`path` or :code-file:`label <path>`."""
+    from docutils import nodes
+    from docutils.utils import unescape
+
+    label, path = _parse_code_role(unescape(text))
+    url = f"{_GH_BASE}/blob/{_GH_BRANCH}/{path}"
+    node = nodes.reference(rawtext, label, refuri=url)
+    return [node], []
+
+
+def _code_dir_role(name, rawtext, text, lineno, inliner, options=None, content=None):
+    """Role for linking to a directory in the GitHub repo: :code-dir:`path` or :code-dir:`label <path>`."""
+    from docutils import nodes
+    from docutils.utils import unescape
+
+    label, path = _parse_code_role(unescape(text))
+    path = path.rstrip("/")
+    url = f"{_GH_BASE}/tree/{_GH_BRANCH}/{path}"
+    node = nodes.reference(rawtext, label if label != path else path, refuri=url)
+    return [node], []
+
 
 def _external_links_new_tab(app, doctree, docname):
     """Mark external links to open in a new tab."""
@@ -104,6 +140,8 @@ def _external_links_new_tab(app, doctree, docname):
 
 
 def setup(app):
+    app.add_role("code-file", _code_file_role)
+    app.add_role("code-dir", _code_dir_role)
     app.add_config_value("html_external_links_new_tab", True, "html")
     # Add rel="noopener noreferrer" when target="_blank" so external links are safe
     from sphinx.writers.html5 import HTML5Translator

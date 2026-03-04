@@ -55,6 +55,15 @@ html[data-theme="dark"] {
     --pst-color-accent: var(--pst-color-primary);
 }
 
+/* remove underline from links */
+a {
+    text-decoration: none !important;
+}
+a:hover,
+a:focus {
+    text-decoration: underline !important;
+}
+
 /* for the announcement link */
 .bd-header-announcement a,
 .bd-header-version-warning a {
