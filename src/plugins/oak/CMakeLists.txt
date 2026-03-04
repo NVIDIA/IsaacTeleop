@@ -22,7 +22,7 @@ set(DEPTHAI_OPENCV_SUPPORT OFF CACHE BOOL "" FORCE)
 
 FetchContent_Declare(
     depthai
-    URL https://github.com/luxonis/depthai-core/releases/download/v2.29.0/depthai-core-v2.29.0.tar.gz
+    URL https://github.com/luxonis/depthai-core/releases/download/v2.31.0/depthai-core-v2.31.0.tar.gz
 )
 
 FetchContent_MakeAvailable(depthai)
