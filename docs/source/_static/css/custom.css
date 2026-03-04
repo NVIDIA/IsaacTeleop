@@ -55,6 +55,16 @@ html[data-theme="dark"] {
     --pst-color-accent: var(--pst-color-primary);
 }
 
+/* Inline code (e.g. ``literal`` in RST): no outline/background, keep monospace + green */
+code.literal,
+code.docutils.literal {
+    background: none !important;
+    border: none !important;
+    padding: 0 !important;
+    font-family: var(--pst-font-family-monospace), monospace;
+    font-weight: bold !important;
+}
+
 /* remove underline from links */
 a {
     text-decoration: none !important;
