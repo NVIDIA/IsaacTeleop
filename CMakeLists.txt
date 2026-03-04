@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 cmake_minimum_required(VERSION 3.20...3.25)
@@ -10,21 +10,11 @@ include(cmake/IsaacTeleopVersion.cmake)
 isaac_teleop_read_version("${CMAKE_CURRENT_SOURCE_DIR}/VERSION" ISAAC_TELEOP_VERSION ISAAC_TELEOP_PYPROJECT_VERSION)
 
 # ==============================================================================
-# Install Prefix Setup (must be before HunterGate)
+# Install Prefix Setup
 # ==============================================================================
-# Set default install prefix early, before HunterGate which may affect
-# CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT
 if(NOT DEFINED CMAKE_INSTALL_PREFIX OR CMAKE_INSTALL_PREFIX STREQUAL "" OR CMAKE_INSTALL_PREFIX MATCHES "^/usr/local")
     set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/install" CACHE PATH "Install prefix" FORCE)
 endif()
-
-# OAK camera plugin uses Hunter/DepthAI; optional so builds like teleop_ros2 can skip it.
-option(BUILD_PLUGIN_OAK_CAMERA "Build OAK camera plugin (uses Hunter/DepthAI)" OFF)
-# ==============================================================================
-
-# HunterGate Setup (must be before project())
-# Defines BUILD_PLUGINS option and initializes Hunter for DepthAI dependencies
-include(cmake/SetupHunter.cmake)
 
 project(IsaacTeleop VERSION ${ISAAC_TELEOP_VERSION} LANGUAGES CXX)
 
@@ -51,13 +41,9 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
 
-# Note: CMAKE_INSTALL_PREFIX is set early (before HunterGate) to avoid issues
-# with CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT being affected by Hunter's
-# internal project() call.
-
 # Options
-# Note: BUILD_PLUGINS is defined in cmake/SetupHunter.cmake before project()
-# Note: BUILD_PYTHON_BINDINGS is defined in cmake/SetupPython.cmake
+option(BUILD_PLUGINS "Build plugins" ON)
+option(BUILD_PLUGIN_OAK_CAMERA "Build OAK camera plugin (requires vcpkg for DepthAI v3.x)" OFF)
 option(BUILD_EXAMPLES "Build examples" ON)
 option(BUILD_EXAMPLE_TELEOP_ROS2 "Build only the teleop_ros2 example (e.g. for Docker)" OFF)
 option(BUILD_TESTING "Build unit tests" ON)

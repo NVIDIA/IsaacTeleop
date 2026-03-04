@@ -16,24 +16,52 @@ C++ plugin that captures H.264 video from OAK cameras and saves to raw H.264 fil
 
 ## Build
 
-DepthAI is fetched and built automatically via FetchContent. The first build takes ~10-15 minutes (mostly DepthAI and its Hunter dependencies), subsequent builds are fast.
+DepthAI v3.x is fetched and built automatically via FetchContent. Dependencies are managed
+by **vcpkg**. The first build takes ~10-15 minutes (mostly vcpkg deps + DepthAI), subsequent
+builds are fast.
+
+### Prerequisites
+
+```bash
+# Install build tools for vcpkg to build libusb (Linux)
+sudo apt install libudev-dev autoconf automake libtool pkg-config
+
+# Install vcpkg (one-time)
+git clone https://github.com/microsoft/vcpkg ~/.vcpkg
+~/.vcpkg/bootstrap-vcpkg.sh
+echo 'export VCPKG_ROOT=~/.vcpkg' >> ~/.bashrc && source ~/.bashrc
+```
+
+### Configure and Build
 
 ```bash
 cd IsaacTeleop
 
-# Configure and build
-cmake -B build
+cmake -B build -DBUILD_PLUGIN_OAK_CAMERA=ON \
+    -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
 cmake --build build --target camera_plugin_oak --parallel
 ```
 
 ## Usage
 
 ```bash
-# Record to a file (--output is required)
-./build/src/plugins/oak/camera_plugin_oak --output=./recordings/session.h264
+# Record a single color stream
+./build/src/plugins/oak/camera_plugin_oak --add-stream=camera=Color,output=./color.h264
 
-# Custom path and camera settings
-./build/src/plugins/oak/camera_plugin_oak --output=/tmp/session.h264 --width=1920 --height=1080 --fps=30 --bitrate=15000000
+# Record multiple streams
+./build/src/plugins/oak/camera_plugin_oak \
+  --add-stream=camera=Color,output=./color.h264 \
+  --add-stream=camera=MonoLeft,output=./left.h264 \
+  --add-stream=camera=MonoRight,output=./right.h264
+
+# Record with a live preview window
+./build/src/plugins/oak/camera_plugin_oak \
+  --add-stream=camera=Color,output=./color.h264 --preview
+
+# Record metadata to MCAP
+./build/src/plugins/oak/camera_plugin_oak \
+  --add-stream=camera=Color,output=./color.h264 \
+  --mcap-filename=./metadata.mcap
 
 # Show help
 ./build/src/plugins/oak/camera_plugin_oak --help
@@ -45,13 +73,14 @@ Press `Ctrl+C` to stop recording.
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--width` | 1920 | Frame width |
-| `--height` | 1080 | Frame height |
-| `--fps` | 30 | Frame rate |
-| `--bitrate` | 8000000 | H.264 bitrate (bps) |
-| `--quality` | 80 | H.264 quality (1-100) |
-| `--output` | (required) | Full path for recording file |
-| `--collection-prefix` | oak_camera | Tensor collection prefix for metadata (per-stream IDs: `prefix/StreamName`) |
+| `--add-stream=camera=<name>,output=<path>` | (at least one required) | Add a capture stream. `camera` is one of `Color`, `MonoLeft`, `MonoRight`. Repeatable. |
+| `--fps=N` | 30 | Frame rate for all streams |
+| `--bitrate=N` | 8000000 | H.264 bitrate (bps) |
+| `--quality=N` | 80 | H.264 quality (1-100) |
+| `--device-id=ID` | first available | OAK device MxId |
+| `--preview` | off | Open a live SDL2 window showing the color camera feed |
+| `--collection-prefix=PREFIX` | | Push per-frame metadata via OpenXR tensor extensions |
+| `--mcap-filename=PATH` | | Record per-frame metadata to an MCAP file |
 
 ## Architecture
 
@@ -70,15 +99,11 @@ Press `Ctrl+C` to stop recording.
 
 ## Dependencies
 
-**System dependencies** (install before building):
+Transitive dependencies via **vcpkg**, DepthAI and SDL2 via FetchContent:
 
-```bash
-sudo apt install libusb-1.0-0-dev
-```
-
-**Automatically built via CMake:**
-
-- **DepthAI** - OAK camera interface
+- **DepthAI v3.x** - OAK camera interface (FetchContent)
+- **SDL2** - Live preview window (FetchContent, used by `--preview`)
+- **vcpkg** - nlohmann-json, spdlog, libusb, openssl, libarchive, etc.
 
 ## Output Format
 
