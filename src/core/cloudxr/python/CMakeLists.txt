@@ -52,16 +52,19 @@ if(NOT EXISTS "${CLOUDXR_SDK_PATH}")
         message(STATUS "CloudXR SDK tarball download failed with exit code: ${DOWNLOAD_EXIT_CODE}")
         message(STATUS "stdout:\n${DOWNLOAD_OUT}")
         message(STATUS "stderr:\n${DOWNLOAD_ERR}")
+        set(CLOUDXR_SDK_PATH "")
     endif()
 endif()
 
 set(CLOUDXR_NATIVE_AVAILABLE FALSE)
-if(NOT EXISTS CLOUDXR_SDK_PATH)
-    message(WARNING
-        "CloudXR SDK tarball not found. Version is read from deps/cloudxr/.env.default (CXR_RUNTIME_SDK_VERSION). "
-        "Place ${CLOUDXR_SDK_FILE} in deps/cloudxr/ (e.g. run scripts/download_cloudxr_runtime_sdk.sh). "
-        "Skipping cloudxr_native_bundle."
-    )
+if(NOT EXISTS "${CLOUDXR_SDK_PATH}")
+    set(error_message "CloudXR SDK tarball is required. Place ${CLOUDXR_SDK_FILE} in "
+                      "deps/cloudxr/ or run scripts/download_cloudxr_runtime_sdk.sh.")
+    if(ENABLE_CLOUDXR_BUNDLE_CHECK)
+        message(FATAL_ERROR "${error_message}")
+    else()
+        message(WARNING "${error_message} Skipping cloudxr_native_bundle.")
+    endif()
 else()
     set(CLOUDXR_NATIVE_AVAILABLE TRUE)
     set(CLOUDXR_NATIVE_DIR "${CLOUDXR_PYTHON_DIR}/native")
