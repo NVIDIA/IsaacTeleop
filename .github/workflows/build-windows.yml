@@ -3,14 +3,20 @@
 
 name: Build Windows (Experimental)
 
+# WARNING: This workflow is for experimental Windows builds only!
+# Windows support is NOT officially supported - this only tests source compilation.
+# There is NO guarantee of runtime functionality on Windows.
+
 on:
   push:
     branches: [ main ]
   pull_request:
 
-# WARNING: This workflow is for experimental Windows builds only!
-# Windows support is NOT officially supported - this only tests source compilation.
-# There is NO guarantee of runtime functionality on Windows.
+# For PRs, we want to cancel in-progress runs to save resources.
+# For pushes to main, we want to allow all runs to complete.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build-windows:
