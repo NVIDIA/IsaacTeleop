@@ -18,18 +18,18 @@ import logging
 from typing import Dict, Optional, List
 from dataclasses import dataclass
 
-from ..interface import (
+from isaacteleop.retargeting_engine.interface import (
     BaseRetargeter,
     RetargeterIOType,
     ParameterState,
     VectorParameter,
 )
-from ..interface.retargeter_core_types import RetargeterIO
-from ..interface.tensor_group_type import (
+from isaacteleop.retargeting_engine.interface.retargeter_core_types import RetargeterIO
+from isaacteleop.retargeting_engine.interface.tensor_group_type import (
     TensorGroupType,
     OptionalType,
 )
-from ..tensor_types import (
+from isaacteleop.retargeting_engine.tensor_types import (
     HandInput,
     FloatType,
     HandInputIndex,

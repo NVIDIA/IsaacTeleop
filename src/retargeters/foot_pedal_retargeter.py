@@ -11,13 +11,16 @@ Provides root command retargeting from generic 3-axis foot pedal input
 import numpy as np
 from dataclasses import dataclass
 
-from ..interface import (
+from isaacteleop.retargeting_engine.interface import (
     BaseRetargeter,
     RetargeterIOType,
 )
-from ..interface.retargeter_core_types import RetargeterIO
-from ..interface.tensor_group_type import TensorGroupType, OptionalType
-from ..tensor_types import (
+from isaacteleop.retargeting_engine.interface.retargeter_core_types import RetargeterIO
+from isaacteleop.retargeting_engine.interface.tensor_group_type import (
+    TensorGroupType,
+    OptionalType,
+)
+from isaacteleop.retargeting_engine.tensor_types import (
     Generic3AxisPedalInput,
     NDArrayType,
     DLDataType,

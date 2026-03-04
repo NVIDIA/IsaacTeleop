@@ -16,7 +16,7 @@ import time
 from pathlib import Path
 
 from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
-from isaacteleop.retargeting_engine.retargeters import (
+from isaacteleop.retargeters import (
     TriHandMotionControllerRetargeter,
     TriHandMotionControllerConfig,
 )

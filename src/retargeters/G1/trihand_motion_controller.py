@@ -15,16 +15,16 @@ import numpy as np
 from typing import List
 from dataclasses import dataclass
 
-from ...interface import (
+from isaacteleop.retargeting_engine.interface import (
     BaseRetargeter,
     RetargeterIOType,
 )
-from ...interface.retargeter_core_types import RetargeterIO
-from ...interface.tensor_group import (
+from isaacteleop.retargeting_engine.interface.retargeter_core_types import RetargeterIO
+from isaacteleop.retargeting_engine.interface.tensor_group import (
     TensorGroup,
 )
-from ...interface.tensor_group_type import OptionalType
-from ...tensor_types import (
+from isaacteleop.retargeting_engine.interface.tensor_group_type import OptionalType
+from isaacteleop.retargeting_engine.tensor_types import (
     ControllerInput,
     ControllerInputIndex,
     RobotHandJoints,

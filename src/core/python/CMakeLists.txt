@@ -36,7 +36,7 @@ add_custom_target(python_package ALL
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-cloudxr.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-retargeters.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-retargeters-lite.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
-    DEPENDS deviceio_py mcap_py oxr_py plugin_manager_py schema_py retargeting_engine_python retargeting_engine_ui_python teleop_session_manager_python cloudxr_python
+    DEPENDS deviceio_py mcap_py oxr_py plugin_manager_py schema_py retargeting_engine_python retargeters_python retargeting_engine_ui_python teleop_session_manager_python cloudxr_python
     COMMENT "Preparing Python package structure"
 )
 

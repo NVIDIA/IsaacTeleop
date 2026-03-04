@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -10,13 +10,17 @@ A generic retargeter that reorders inputs and flattens them into a single NDArra
 from typing import Dict, List, Tuple, Optional
 import numpy as np
 
-from ..interface import (
+from isaacteleop.retargeting_engine.interface import (
     BaseRetargeter,
     RetargeterIOType,
     TensorGroupType,
 )
-from ..interface.retargeter_core_types import RetargeterIO
-from ..tensor_types import FloatType, NDArrayType, DLDataType
+from isaacteleop.retargeting_engine.interface.retargeter_core_types import RetargeterIO
+from isaacteleop.retargeting_engine.tensor_types import (
+    FloatType,
+    NDArrayType,
+    DLDataType,
+)
 
 
 class TensorReorderer(BaseRetargeter):

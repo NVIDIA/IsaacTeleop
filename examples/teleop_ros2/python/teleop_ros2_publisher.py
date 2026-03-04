@@ -34,7 +34,7 @@ from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     HandsSource,
 )
 from isaacteleop.retargeting_engine.interface import OptionalTensorGroup, OutputCombiner
-from isaacteleop.retargeting_engine.retargeters import (
+from isaacteleop.retargeters import (
     LocomotionRootCmdRetargeter,
     LocomotionRootCmdRetargeterConfig,
 )

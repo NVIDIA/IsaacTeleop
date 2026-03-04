@@ -120,6 +120,9 @@ add_subdirectory(deps/cloudxr/openxr_extensions)
 # Build core modules (OXR and DEVICEIO)
 add_subdirectory(src/core)
 
+# Build retargeters (pure Python, sibling of src/core)
+add_subdirectory(src/retargeters)
+
 # Build examples if requested
 if(BUILD_EXAMPLES)
     add_subdirectory(examples/oxr)
