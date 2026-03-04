@@ -1,0 +1,61 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Sample: Single OAK-D Camera (direct, no RTP sender needed)
+# Uses VPU on the OAK-D device — no NVENC required.
+
+# Camera source for teleop_camera_app:
+#   "rtp"   - Receive H.264 streams from teleop_camera_sender (default)
+#   "local" - Open cameras directly on this machine (no sender needed)
+source: "local"
+
+# -----------------------------------------------------------------------------
+# Streaming (used by teleop_camera_sender when source is "rtp")
+# -----------------------------------------------------------------------------
+streaming:
+  host: "127.0.0.1"               # receiver IP address (override with --host)
+
+# -----------------------------------------------------------------------------
+# Cameras
+# -----------------------------------------------------------------------------
+cameras:
+  oakd_cam:
+    enabled: true
+    type: oakd
+    stereo: false
+    device_id: ""                   # empty = first available; use list-cameras to find yours
+    width: 1280
+    height: 720
+    fps: 30
+    streams:
+      mono:
+        stream_id: 0
+        port: 5000
+        bitrate_mbps: 10
+
+# -----------------------------------------------------------------------------
+# Display (used by receiver)
+# -----------------------------------------------------------------------------
+display:
+  mode: "xr"                   # "monitor" or "xr"
+  cuda_device: 0
+
+  monitor:
+    width: 1280
+    height: 720
+    title: "Teleop Camera - OAK-D"
+    padding: 4
+    stream_timeout: 2.0
+
+  xr:
+    planes:
+      oakd_cam:
+        distance: 1.5
+        width: 1.0
+        offset_x: 0.0
+        offset_y: 0.0
+
+    lock_mode: "lazy"
+    look_away_angle: 45.0
+    reposition_delay: 0.5
+    transition_duration: 0.3

@@ -1,0 +1,13 @@
+diff --git a/operators/xr/xr_session.cpp b/operators/xr/xr_session.cpp
+index 702e42884..908a73c9f 100644
+--- a/operators/xr/xr_session.cpp
++++ b/operators/xr/xr_session.cpp
+@@ -87,7 +87,7 @@ void XrSession::initialize() {
+        application_version_.get(),
+        kEngineName,
+        kEngineVersion,
+-       xr::Version::current()},
++       xr::Version(XR_MAKE_VERSION(1, 0, 0))},
+       static_cast<uint32_t>(xr_api_layers.size()),
+       xr_api_layers.data(),
+       static_cast<uint32_t>(out_ext.size()),
