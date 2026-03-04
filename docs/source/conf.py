@@ -91,3 +91,33 @@ html_context = {
     "github_version": "main",
     "doc_path": "docs/source",
 }
+
+
+def _external_links_new_tab(app, doctree, docname):
+    """Mark external links to open in a new tab."""
+    from docutils import nodes
+
+    for node in doctree.traverse(nodes.reference):
+        refuri = node.get("refuri", "")
+        if refuri.startswith(("http://", "https://")):
+            node["target"] = "_blank"
+
+
+def setup(app):
+    app.add_config_value("html_external_links_new_tab", True, "html")
+    # Add rel="noopener noreferrer" when target="_blank" so external links are safe
+    from sphinx.writers.html5 import HTML5Translator
+
+    _base_visit_reference = HTML5Translator.visit_reference
+
+    def visit_reference(self, node):
+        if (
+            getattr(self.config, "html_external_links_new_tab", True)
+            and node.get("target") == "_blank"
+            and "rel" not in node
+        ):
+            node["rel"] = "noopener noreferrer"
+        return _base_visit_reference(self, node)
+
+    HTML5Translator.visit_reference = visit_reference
+    app.connect("doctree-resolved", _external_links_new_tab)
