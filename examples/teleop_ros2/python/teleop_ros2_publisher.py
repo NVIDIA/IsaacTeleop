@@ -24,9 +24,10 @@ import msgpack
 import msgpack_numpy as mnp
 import numpy as np
 import rclpy
-from geometry_msgs.msg import Pose, PoseArray, PoseStamped, TwistStamped
+from geometry_msgs.msg import Pose, PoseArray, PoseStamped, TransformStamped, TwistStamped
 from rclpy.node import Node
 from std_msgs.msg import ByteMultiArray
+from tf2_ros import TransformBroadcaster
 
 from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     ControllersSource,
@@ -167,6 +168,27 @@ def _to_pose(position, orientation=None) -> Pose:
     return pose
 
 
+def _make_transform(
+    stamp,
+    parent_frame: str,
+    child_frame: str,
+    position,
+    orientation,
+) -> TransformStamped:
+    tf = TransformStamped()
+    tf.header.stamp = stamp
+    tf.header.frame_id = parent_frame
+    tf.child_frame_id = child_frame
+    tf.transform.translation.x = float(position[0])
+    tf.transform.translation.y = float(position[1])
+    tf.transform.translation.z = float(position[2])
+    tf.transform.rotation.x = float(orientation[0])
+    tf.transform.rotation.y = float(orientation[1])
+    tf.transform.rotation.z = float(orientation[2])
+    tf.transform.rotation.w = float(orientation[3])
+    return tf
+
+
 def _append_hand_poses(
     poses: List[Pose],
     joint_positions: np.ndarray,
@@ -194,6 +216,9 @@ class TeleopRos2PublisherNode(Node):
         self.declare_parameter("frame_id", "world")
         self.declare_parameter("rate_hz", 60.0)
         self.declare_parameter("use_mock_operators", value=False)
+        self.declare_parameter("world_frame", "world")
+        self.declare_parameter("right_wrist_frame", "right_wrist")
+        self.declare_parameter("left_wrist_frame", "left_wrist")
 
         self._hand_topic = (
             self.get_parameter("hand_topic").get_parameter_value().string_value
@@ -220,6 +245,17 @@ class TeleopRos2PublisherNode(Node):
         self._use_mock_operators = (
             self.get_parameter("use_mock_operators").get_parameter_value().bool_value
         )
+        self._world_frame = (
+            self.get_parameter("world_frame").get_parameter_value().string_value
+        )
+        self._right_wrist_frame = (
+            self.get_parameter("right_wrist_frame").get_parameter_value().string_value
+        )
+        self._left_wrist_frame = (
+            self.get_parameter("left_wrist_frame").get_parameter_value().string_value
+        )
+
+        self._tf_broadcaster = TransformBroadcaster(self)
 
         self._pub_hand = self.create_publisher(PoseArray, self._hand_topic, 10)
         self._pub_twist = self.create_publisher(TwistStamped, self._twist_topic, 10)
@@ -329,6 +365,27 @@ class TeleopRos2PublisherNode(Node):
 
                         if hand_msg.poses:
                             self._pub_hand.publish(hand_msg)
+
+                        if not right_hand.is_none:
+                            self._tf_broadcaster.sendTransform(
+                                _make_transform(
+                                    now,
+                                    self._world_frame,
+                                    self._right_wrist_frame,
+                                    right_positions[HandJointIndex.WRIST],
+                                    right_orientations[HandJointIndex.WRIST],
+                                )
+                            )
+                        if not left_hand.is_none:
+                            self._tf_broadcaster.sendTransform(
+                                _make_transform(
+                                    now,
+                                    self._world_frame,
+                                    self._left_wrist_frame,
+                                    left_positions[HandJointIndex.WRIST],
+                                    left_orientations[HandJointIndex.WRIST],
+                                )
+                            )
 
                         root_command = result["root_command"]
                         cmd = np.asarray(root_command[0])
