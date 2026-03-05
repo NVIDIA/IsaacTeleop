@@ -9,10 +9,10 @@ Reference ROS 2 publisher for Isaac Teleop data.
 
 ## Prerequisite: Start CloudXR Runtime
 
-Before running this ROS 2 reference publisher, start the CloudXR runtime (see the `README.md` setup flow, step "Run CloudXR"):
+Before running this ROS 2 reference publisher, start the CloudXR runtime via Docker (see the `README.md` setup flow, step "Run CloudXR"):
 
 ```bash
-./scripts/run_cloudxr.sh
+./scripts/run_cloudxr_via_docker.sh
 ```
 
 ## Published Topics
