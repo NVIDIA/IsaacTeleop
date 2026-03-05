@@ -11,6 +11,14 @@ Reference ROS 2 publisher for Isaac Teleop data.
 
 Before running this ROS 2 reference publisher, start the CloudXR runtime via Docker (see the `README.md` setup flow, step "Run CloudXR"):
 
+1. To use optical hand tracking from the XR device, create a CloudXR environment file `deps/cloudxr/.env` (if missing) with:
+
+```bash
+NV_CXR_ENABLE_PUSH_DEVICES=0
+```
+
+2. Start CloudXR:
+
 ```bash
 ./scripts/run_cloudxr_via_docker.sh
 ```
