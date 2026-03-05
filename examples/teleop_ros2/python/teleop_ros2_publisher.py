@@ -34,6 +34,7 @@ import math
 import time
 from typing import Dict, List, Sequence, Union
 
+from builtin_interfaces.msg import Time
 import msgpack
 import msgpack_numpy as mnp
 import numpy as np
