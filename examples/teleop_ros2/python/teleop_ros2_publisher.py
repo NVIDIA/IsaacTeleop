@@ -10,7 +10,8 @@ Publishes teleoperation data over ROS2 topics using isaacteleop TeleopSession.
 The `mode` parameter selects the teleoperation scenario and which topics are
 published:
 
-  - controller_teleop (default): ee_poses (from controller aim pose), root_twist, root_pose
+  - controller_teleop (default): ee_poses (from controller aim pose), root_twist, root_pose,
+                       and TF transforms for left/right wrists
   - hand_teleop: ee_poses (from hand tracking wrist), hand (finger joints only),
                  root_twist, root_pose, and TF transforms for left/right wrists
   - controller_raw: controller_data only
@@ -24,7 +25,7 @@ Topic names (configurable via parameters):
   - xr_teleop/controller_data (ByteMultiArray): msgpack-encoded controller data
   - xr_teleop/full_body (ByteMultiArray): msgpack-encoded full body tracking data
 
-TF frames published in hand_teleop mode (configurable via parameters):
+TF frames published in hand_teleop and controller_teleop modes (configurable via parameters):
   - world_frame -> right_wrist_frame
   - world_frame -> left_wrist_frame
 """
@@ -37,7 +38,13 @@ import msgpack
 import msgpack_numpy as mnp
 import numpy as np
 import rclpy
-from geometry_msgs.msg import Pose, PoseArray, PoseStamped, TransformStamped, TwistStamped
+from geometry_msgs.msg import (
+    Pose,
+    PoseArray,
+    PoseStamped,
+    TransformStamped,
+    TwistStamped,
+)
 from rcl_interfaces.msg import ParameterDescriptor
 from rclpy.node import Node
 from std_msgs.msg import ByteMultiArray
@@ -257,6 +264,27 @@ def _build_wrist_tfs(
     return tfs
 
 
+def _build_wrist_tfs_from_controllers(
+    left_ctrl: OptionalTensorGroup,
+    right_ctrl: OptionalTensorGroup,
+    now,
+    world_frame: str,
+    right_wrist_frame: str,
+    left_wrist_frame: str,
+) -> List[TransformStamped]:
+    """Build TransformStamped messages for the right and left wrist frames using controller aim poses."""
+    tfs = []
+    if not right_ctrl.is_none:
+        pos = [float(x) for x in right_ctrl[ControllerInputIndex.AIM_POSITION]]
+        ori = [float(x) for x in right_ctrl[ControllerInputIndex.AIM_ORIENTATION]]
+        tfs.append(_make_transform(now, world_frame, right_wrist_frame, pos, ori))
+    if not left_ctrl.is_none:
+        pos = [float(x) for x in left_ctrl[ControllerInputIndex.AIM_POSITION]]
+        ori = [float(x) for x in left_ctrl[ControllerInputIndex.AIM_ORIENTATION]]
+        tfs.append(_make_transform(now, world_frame, left_wrist_frame, pos, ori))
+    return tfs
+
+
 def _build_controller_payload(
     left_ctrl: OptionalTensorGroup, right_ctrl: OptionalTensorGroup
 ) -> Dict:
@@ -364,8 +392,7 @@ class TeleopRos2PublisherNode(Node):
             "world",
             ParameterDescriptor(
                 description=(
-                    "Parent frame for wrist TF transforms (hand_teleop mode only). "
-                    "Defaults to 'world'."
+                    "Parent frame for wrist TF transforms. Defaults to 'world'."
                 )
             ),
         )
@@ -510,6 +537,16 @@ class TeleopRos2PublisherNode(Node):
                             )
                             if ee_msg.poses:
                                 self._pub_ee_pose.publish(ee_msg)
+                            wrist_tfs = _build_wrist_tfs_from_controllers(
+                                left_ctrl,
+                                right_ctrl,
+                                now,
+                                self._world_frame,
+                                self._right_wrist_frame,
+                                self._left_wrist_frame,
+                            )
+                            if wrist_tfs:
+                                self._tf_broadcaster.sendTransform(wrist_tfs)
 
                         if self._mode in ("hand_teleop", "controller_teleop"):
                             root_command = result.get("root_command")
