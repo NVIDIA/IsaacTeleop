@@ -12,6 +12,7 @@ Publishes teleoperation data over ROS2 topics using isaacteleop TeleopSession:
   - xr_teleop/root_pose (PoseStamped): root pose command (height only)
   - xr_teleop/controller_data (ByteMultiArray): msgpack-encoded controller data
   - xr_teleop/full_body (ByteMultiArray): msgpack-encoded full body tracking data
+  - xr_teleop/finger_joints (JointState): retargeted TriHand finger joint angles
 """
 
 import math
@@ -34,6 +35,7 @@ from geometry_msgs.msg import (
 )
 from rcl_interfaces.msg import ParameterDescriptor
 from rclpy.node import Node
+from sensor_msgs.msg import JointState
 from std_msgs.msg import ByteMultiArray
 from tf2_ros import TransformBroadcaster
 
@@ -46,6 +48,8 @@ from isaacteleop.retargeting_engine.interface import OptionalTensorGroup, Output
 from isaacteleop.retargeters import (
     LocomotionRootCmdRetargeter,
     LocomotionRootCmdRetargeterConfig,
+    TriHandMotionControllerRetargeter,
+    TriHandMotionControllerConfig,
 )
 from isaacteleop.retargeting_engine.tensor_types.indices import (
     BodyJointPicoIndex,
@@ -146,6 +150,19 @@ def _build_controller_payload(
 
 _BODY_JOINT_NAMES = [e.name for e in BodyJointPicoIndex]
 
+_TRIHAND_JOINT_NAMES = [
+    "thumb_rotation",
+    "thumb_proximal",
+    "thumb_distal",
+    "index_proximal",
+    "index_distal",
+    "middle_proximal",
+    "middle_distal",
+]
+_FINGER_JOINT_NAMES = [f"left_{n}" for n in _TRIHAND_JOINT_NAMES] + [
+    f"right_{n}" for n in _TRIHAND_JOINT_NAMES
+]
+
 
 def _build_full_body_payload(full_body: OptionalTensorGroup) -> Dict:
     positions = np.asarray(full_body[FullBodyInputIndex.JOINT_POSITIONS])
@@ -221,6 +238,7 @@ class TeleopRos2PublisherNode(Node):
         self.declare_parameter("pose_topic", "xr_teleop/root_pose")
         self.declare_parameter("controller_topic", "xr_teleop/controller_data")
         self.declare_parameter("full_body_topic", "xr_teleop/full_body")
+        self.declare_parameter("finger_joints_topic", "xr_teleop/finger_joints")
         self.declare_parameter("rate_hz", 60.0)
         self.declare_parameter("use_mock_operators", value=False)
         self.declare_parameter(
@@ -256,6 +274,9 @@ class TeleopRos2PublisherNode(Node):
         self._full_body_topic = (
             self.get_parameter("full_body_topic").get_parameter_value().string_value
         )
+        self._finger_joints_topic = (
+            self.get_parameter("finger_joints_topic").get_parameter_value().string_value
+        )
         rate_hz = self.get_parameter("rate_hz").get_parameter_value().double_value
         if rate_hz <= 0 or not math.isfinite(rate_hz):
             raise ValueError("Parameter 'rate_hz' must be > 0")
@@ -284,6 +305,9 @@ class TeleopRos2PublisherNode(Node):
         self._pub_full_body = self.create_publisher(
             ByteMultiArray, self._full_body_topic, 10
         )
+        self._pub_finger_joints = self.create_publisher(
+            JointState, self._finger_joints_topic, 10
+        )
 
         hands = HandsSource(name="hands")
         controllers = ControllersSource(name="controllers")
@@ -298,6 +322,25 @@ class TeleopRos2PublisherNode(Node):
             }
         )
 
+        left_hand_retargeter = TriHandMotionControllerRetargeter(
+            TriHandMotionControllerConfig(
+                hand_joint_names=_TRIHAND_JOINT_NAMES, controller_side="left"
+            ),
+            name="trihand_left",
+        )
+        right_hand_retargeter = TriHandMotionControllerRetargeter(
+            TriHandMotionControllerConfig(
+                hand_joint_names=_TRIHAND_JOINT_NAMES, controller_side="right"
+            ),
+            name="trihand_right",
+        )
+        left_hand_connected = left_hand_retargeter.connect(
+            {ControllersSource.LEFT: controllers.output(ControllersSource.LEFT)}
+        )
+        right_hand_connected = right_hand_retargeter.connect(
+            {ControllersSource.RIGHT: controllers.output(ControllersSource.RIGHT)}
+        )
+
         pipeline = OutputCombiner(
             {
                 "hand_left": hands.output(HandsSource.LEFT),
@@ -306,6 +349,8 @@ class TeleopRos2PublisherNode(Node):
                 "controller_right": controllers.output(ControllersSource.RIGHT),
                 "root_command": locomotion_connected.output("root_command"),
                 "full_body": full_body.output(FullBodySource.FULL_BODY),
+                "finger_joints_left": left_hand_connected.output("hand_joints"),
+                "finger_joints_right": right_hand_connected.output("hand_joints"),
             }
         )
 
@@ -436,6 +481,20 @@ class TeleopRos2PublisherNode(Node):
                             controller_msg = ByteMultiArray()
                             controller_msg.data = payload
                             self._pub_controller.publish(controller_msg)
+
+                        finger_joints_msg = JointState()
+                        finger_joints_msg.header.stamp = now
+                        finger_joints_msg.header.frame_id = self._world_frame
+                        finger_joints_msg.name = _FINGER_JOINT_NAMES
+                        left_joints = result["finger_joints_left"]
+                        right_joints = result["finger_joints_right"]
+                        finger_joints_msg.position = np.concatenate(
+                            [
+                                np.asarray(left_joints, dtype=np.float32),
+                                np.asarray(right_joints, dtype=np.float32),
+                            ]
+                        ).tolist()
+                        self._pub_finger_joints.publish(finger_joints_msg)
 
                         full_body_data = result["full_body"]
                         if not full_body_data.is_none:
