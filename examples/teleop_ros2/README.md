@@ -17,7 +17,7 @@ Before running this ROS 2 reference publisher, start the CloudXR runtime via Doc
 NV_CXR_ENABLE_PUSH_DEVICES=0
 ```
 
-2. Start CloudXR:
+1. Start CloudXR:
 
 ```bash
 ./scripts/run_cloudxr_via_docker.sh
