@@ -24,7 +24,14 @@ import msgpack
 import msgpack_numpy as mnp
 import numpy as np
 import rclpy
-from geometry_msgs.msg import Pose, PoseArray, PoseStamped, TransformStamped, TwistStamped
+from geometry_msgs.msg import (
+    Pose,
+    PoseArray,
+    PoseStamped,
+    TransformStamped,
+    TwistStamped,
+)
+from rcl_interfaces.msg import ParameterDescriptor
 from rclpy.node import Node
 from std_msgs.msg import ByteMultiArray
 from tf2_ros import TransformBroadcaster
@@ -216,9 +223,23 @@ class TeleopRos2PublisherNode(Node):
         self.declare_parameter("frame_id", "world")
         self.declare_parameter("rate_hz", 60.0)
         self.declare_parameter("use_mock_operators", value=False)
-        self.declare_parameter("world_frame", "world")
-        self.declare_parameter("right_wrist_frame", "right_wrist")
-        self.declare_parameter("left_wrist_frame", "left_wrist")
+        self.declare_parameter(
+            "world_frame",
+            "world",
+            ParameterDescriptor(
+                description="Frame name of the world frame. The left and right wrist transforms will be defined relative to this."
+            ),
+        )
+        self.declare_parameter(
+            "right_wrist_frame",
+            "right_wrist",
+            ParameterDescriptor(description="Frame name of the right wrist."),
+        )
+        self.declare_parameter(
+            "left_wrist_frame",
+            "left_wrist",
+            ParameterDescriptor(description="Frame name of the left wrist."),
+        )
 
         self._hand_topic = (
             self.get_parameter("hand_topic").get_parameter_value().string_value
