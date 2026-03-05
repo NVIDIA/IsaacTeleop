@@ -166,6 +166,11 @@ class TeleopCameraSubgraphConfig:
                     f"Invalid XR lock_mode '{self.xr.lock_mode}' "
                     f"(must be 'lazy', 'world', or 'head')"
                 )
+            if self.xr.reposition_distance < 0:
+                errors.append(
+                    f"XR reposition_distance must be >= 0 "
+                    f"(got {self.xr.reposition_distance})"
+                )
 
         return errors
 
