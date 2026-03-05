@@ -178,13 +178,13 @@ else
     echo "CMake already configured, skipping configuration..."
 fi
 
-# Build
+# Build only the manus plugin (and its dependencies)
 echo "Building..."
-cmake --build build -j$(nproc)
+cmake --build build --target manus_hand_plugin -j$(nproc)
 
-# Install
+# Install only the manus component
 echo "Installing..."
-cmake --install build
+cmake --install build --component manus
 
 echo ""
 echo "=== Installation Complete ==="

@@ -67,8 +67,8 @@ src/plugins/manus/
 ```bash
 cd ../../..  # Navigate to TeleopCore root
 cmake -S . -B build
-cmake --build build -j
-cmake --install build
+cmake --build build --target manus_hand_plugin -j
+cmake --install build --component manus
 ```
 
 ## Running the Plugin
@@ -80,6 +80,13 @@ Before running the plugin, ensure CloudXR environment is configured:
 cd /path/to/TeleopCore
 source scripts/setup_cloudxr_env.sh
 ./scripts/run_cloudxr.sh  # Start CloudXR runtime if not already running
+```
+
+The following environment variables must be set before running either the CLI tool or the plugin (adjust paths if your CloudXR installation differs from the defaults):
+
+```bash
+export NV_CXR_RUNTIME_DIR=~/.cloudxr/run
+export XR_RUNTIME_JSON=~/.cloudxr/share/openxr/1/openxr_cloudxr.json
 ```
 
 ### 2. Verify with CLI Tool
@@ -96,6 +103,14 @@ The plugin is installed to the `install` directory:
 ```bash
 ./install/plugins/manus/manus_hand_plugin
 ```
+
+## Controller positioning vs Optical hand tracking positioning
+To position the MANUS gloves in 3D space two avenues are available:
+
+- Use the MANUS Quest 3 controller adapters to attach the Quest 3 controllers to the MANUS Universal Mount on the back of the glove.
+- Use the HMD's optical hand tracking to position the hands. 
+
+The system will switch dynamically based on the available tracking source. When using controllers it's advised to turn of hand tracking entirely or turn off automatic switching.
 
 ## Troubleshooting
 
