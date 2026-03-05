@@ -290,6 +290,8 @@ class TeleopRos2PublisherNode(Node):
 
                         left_hand = result["hand_left"]
                         right_hand = result["hand_right"]
+                        left_ctrl = result["controller_left"]
+                        right_ctrl = result["controller_right"]
 
                         if not right_hand.is_none:
                             right_positions = np.asarray(
@@ -304,6 +306,17 @@ class TeleopRos2PublisherNode(Node):
                                     right_orientations[HandJointIndex.WRIST],
                                 )
                             )
+                        elif not right_ctrl.is_none:
+                            hand_msg.poses.append(
+                                _to_pose(
+                                    np.asarray(
+                                        right_ctrl[ControllerInputIndex.AIM_POSITION]
+                                    ),
+                                    np.asarray(
+                                        right_ctrl[ControllerInputIndex.AIM_ORIENTATION]
+                                    ),
+                                )
+                            )
                         if not left_hand.is_none:
                             left_positions = np.asarray(
                                 left_hand[HandInputIndex.JOINT_POSITIONS]
@@ -315,6 +328,17 @@ class TeleopRos2PublisherNode(Node):
                                 _to_pose(
                                     left_positions[HandJointIndex.WRIST],
                                     left_orientations[HandJointIndex.WRIST],
+                                )
+                            )
+                        elif not left_ctrl.is_none:
+                            hand_msg.poses.append(
+                                _to_pose(
+                                    np.asarray(
+                                        left_ctrl[ControllerInputIndex.AIM_POSITION]
+                                    ),
+                                    np.asarray(
+                                        left_ctrl[ControllerInputIndex.AIM_ORIENTATION]
+                                    ),
                                 )
                             )
 
@@ -348,8 +372,6 @@ class TeleopRos2PublisherNode(Node):
                         pose_msg.pose.orientation.w = 1.0
                         self._pub_pose.publish(pose_msg)
 
-                        left_ctrl = result["controller_left"]
-                        right_ctrl = result["controller_right"]
                         if not left_ctrl.is_none or not right_ctrl.is_none:
                             controller_payload = _build_controller_payload(
                                 left_ctrl, right_ctrl
