@@ -91,6 +91,8 @@ lock_mode : str
     Plane locking mode: "lazy", "world", or "head" (default: "lazy").
 look_away_angle : float
     Angle threshold for looking away in degrees (default: 45.0).
+reposition_distance : float
+    Distance threshold for positional drift in meters (default: 0.5). Set to 0 to disable.
 reposition_delay : float
     Delay before repositioning in seconds (default: 0.5).
 transition_duration : float
@@ -101,8 +103,8 @@ is_stereo : bool
         .def(py::init<>())
         .def(py::init(
                  [](const std::string& name, float distance, float width, float offset_x, float offset_y,
-                    const std::string& lock_mode, float look_away_angle, float reposition_delay,
-                    float transition_duration, bool is_stereo)
+                    const std::string& lock_mode, float look_away_angle, float reposition_distance,
+                    float reposition_delay, float transition_duration, bool is_stereo)
                  {
                      XrPlaneConfig config;
                      config.name = name;
@@ -112,14 +114,15 @@ is_stereo : bool
                      config.offset_y = offset_y;
                      config.lock_mode = lock_mode;
                      config.look_away_angle = look_away_angle;
+                     config.reposition_distance = reposition_distance;
                      config.reposition_delay = reposition_delay;
                      config.transition_duration = transition_duration;
                      config.is_stereo = is_stereo;
                      return config;
                  }),
              "name"_a, "distance"_a = 1.0f, "width"_a = 1.0f, "offset_x"_a = 0.0f, "offset_y"_a = 0.0f,
-             "lock_mode"_a = "lazy", "look_away_angle"_a = 45.0f, "reposition_delay"_a = 0.5f,
-             "transition_duration"_a = 0.3f, "is_stereo"_a = false)
+             "lock_mode"_a = "lazy", "look_away_angle"_a = 45.0f, "reposition_distance"_a = 0.5f,
+             "reposition_delay"_a = 0.5f, "transition_duration"_a = 0.3f, "is_stereo"_a = false)
         .def_readwrite("name", &XrPlaneConfig::name)
         .def_readwrite("distance", &XrPlaneConfig::distance)
         .def_readwrite("width", &XrPlaneConfig::width)
@@ -127,6 +130,7 @@ is_stereo : bool
         .def_readwrite("offset_y", &XrPlaneConfig::offset_y)
         .def_readwrite("lock_mode", &XrPlaneConfig::lock_mode)
         .def_readwrite("look_away_angle", &XrPlaneConfig::look_away_angle)
+        .def_readwrite("reposition_distance", &XrPlaneConfig::reposition_distance)
         .def_readwrite("reposition_delay", &XrPlaneConfig::reposition_delay)
         .def_readwrite("transition_duration", &XrPlaneConfig::transition_duration)
         .def_readwrite("is_stereo", &XrPlaneConfig::is_stereo)

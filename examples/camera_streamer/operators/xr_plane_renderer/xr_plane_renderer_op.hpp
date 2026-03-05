@@ -38,6 +38,7 @@ struct XrPlaneConfig
     float offset_y = 0.0f; // Vertical offset (+ = up)
     std::string lock_mode = "lazy"; // "lazy", "world", or "head"
     float look_away_angle = 45.0f;
+    float reposition_distance = 0.5f;
     float reposition_delay = 0.5f;
     float transition_duration = 0.3f;
     bool is_stereo = false; // True for stereo cameras (left/right)

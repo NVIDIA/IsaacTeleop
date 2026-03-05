@@ -83,6 +83,9 @@ class XrConfig:
     look_away_angle: float
     """Angle threshold for lazy mode repositioning (degrees)."""
 
+    reposition_distance: float
+    """Distance threshold for positional drift repositioning (meters). Set to 0 to disable."""
+
     reposition_delay: float
     """Delay before repositioning in lazy mode (seconds)."""
 
@@ -163,6 +166,11 @@ class TeleopCameraSubgraphConfig:
                     f"Invalid XR lock_mode '{self.xr.lock_mode}' "
                     f"(must be 'lazy', 'world', or 'head')"
                 )
+            if self.xr.reposition_distance < 0:
+                errors.append(
+                    f"XR reposition_distance must be >= 0 "
+                    f"(got {self.xr.reposition_distance})"
+                )
 
         return errors
 
@@ -224,6 +232,7 @@ class TeleopCameraSubgraphConfig:
             planes=xr_planes,
             lock_mode=xr["lock_mode"],
             look_away_angle=xr["look_away_angle"],
+            reposition_distance=xr["reposition_distance"],
             reposition_delay=xr["reposition_delay"],
             transition_duration=xr["transition_duration"],
         )
@@ -606,6 +615,7 @@ class TeleopCameraSubgraph(Subgraph):
                 offset_y=plane_cfg.offset_y,
                 lock_mode=xr_cfg.lock_mode,
                 look_away_angle=xr_cfg.look_away_angle,
+                reposition_distance=xr_cfg.reposition_distance,
                 reposition_delay=xr_cfg.reposition_delay,
                 transition_duration=xr_cfg.transition_duration,
                 is_stereo=False,  # No stereo support for now
