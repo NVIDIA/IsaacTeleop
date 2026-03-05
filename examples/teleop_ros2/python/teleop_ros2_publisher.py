@@ -340,6 +340,17 @@ class TeleopRos2PublisherNode(Node):
                                     right_orientations[HandJointIndex.WRIST],
                                 )
                             )
+
+                            self._tf_broadcaster.sendTransform(
+                                _make_transform(
+                                    now,
+                                    self._world_frame,
+                                    self._right_wrist_frame,
+                                    right_positions[HandJointIndex.WRIST],
+                                    right_orientations[HandJointIndex.WRIST],
+                                )
+                            )
+
                         if not left_hand.is_none:
                             left_positions = np.asarray(
                                 left_hand[HandInputIndex.JOINT_POSITIONS]
@@ -349,6 +360,16 @@ class TeleopRos2PublisherNode(Node):
                             )
                             hand_msg.poses.append(
                                 _to_pose(
+                                    left_positions[HandJointIndex.WRIST],
+                                    left_orientations[HandJointIndex.WRIST],
+                                )
+                            )
+
+                            self._tf_broadcaster.sendTransform(
+                                _make_transform(
+                                    now,
+                                    self._world_frame,
+                                    self._left_wrist_frame,
                                     left_positions[HandJointIndex.WRIST],
                                     left_orientations[HandJointIndex.WRIST],
                                 )
@@ -365,27 +386,6 @@ class TeleopRos2PublisherNode(Node):
 
                         if hand_msg.poses:
                             self._pub_hand.publish(hand_msg)
-
-                        if not right_hand.is_none:
-                            self._tf_broadcaster.sendTransform(
-                                _make_transform(
-                                    now,
-                                    self._world_frame,
-                                    self._right_wrist_frame,
-                                    right_positions[HandJointIndex.WRIST],
-                                    right_orientations[HandJointIndex.WRIST],
-                                )
-                            )
-                        if not left_hand.is_none:
-                            self._tf_broadcaster.sendTransform(
-                                _make_transform(
-                                    now,
-                                    self._world_frame,
-                                    self._left_wrist_frame,
-                                    left_positions[HandJointIndex.WRIST],
-                                    left_orientations[HandJointIndex.WRIST],
-                                )
-                            )
 
                         root_command = result["root_command"]
                         cmd = np.asarray(root_command[0])
