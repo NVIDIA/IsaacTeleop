@@ -159,6 +159,13 @@ def main():
     logger.info("Press Ctrl+C to stop")
 
     # Run application, retrying until an XR headset connects.
+    # Holoscan's C++ operator graph creates shared_ptr cycles
+    # (app -> operators -> XrSession, operators -> app via fragment_) that
+    # prevent Python GC from triggering the XrSession destructor.  Since
+    # xrDestroyInstance never runs, the next in-process retry hits
+    # ErrorLimitReached ("simultaneous XrInstances").  We handle this by
+    # re-exec'ing the process so the OS reclaims everything cleanly -- the
+    # same reason os._exit(0) is used for normal shutdown below.
     _XR_RETRY_ERRORS = ("ErrorFormFactorUnavailable", "ErrorLimitReached")
     while True:
         app = TeleopCameraApp(config)
@@ -175,8 +182,11 @@ def main():
                 raise
             logger.warning(f"No XR headset connected, retrying in 2s... ({msg})")
             del app
-            gc.collect()
             time.sleep(2.0)
+            # Re-exec for a clean process — in-process GC cannot break the
+            # C++ shared_ptr cycles holding the OpenXR instance alive.
+            logger.info("Re-executing for clean XR state...")
+            os.execv(sys.executable, [sys.executable] + sys.argv)
 
     logger.info("Shutdown complete")
     # Required to avoid GIL crash.
