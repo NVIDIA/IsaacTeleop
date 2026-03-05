@@ -71,7 +71,7 @@ docker run --rm --net=host --ipc=host \
   teleop_ros2_ref --ros-args -p world_frame:=odom -p rate_hz:=30.0
 ```
 
-Available parameters: `hand_topic`, `twist_topic`, `pose_topic`, `controller_topic`, `full_body_topic`, `world_frame`, `rate_hz`, `use_mock_operators`. Use `ros2 param list /teleop_ros2_publisher` and `ros2 param describe /teleop_ros2_publisher <param>` (with the node running) for the full set.
+Available parameters: `hand_topic`, `twist_topic`, `pose_topic`, `controller_topic`, `full_body_topic`, `world_frame`, `right_wrist_frame`, `left_wrist_frame`, `rate_hz`, `use_mock_operators`. Use `ros2 param list /teleop_ros2_publisher` and `ros2 param describe /teleop_ros2_publisher <param>` (with the node running) for the full set.
 
 ## Echo Topics
 
