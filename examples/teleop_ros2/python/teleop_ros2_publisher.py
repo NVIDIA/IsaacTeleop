@@ -220,7 +220,6 @@ class TeleopRos2PublisherNode(Node):
         self.declare_parameter("pose_topic", "xr_teleop/root_pose")
         self.declare_parameter("controller_topic", "xr_teleop/controller_data")
         self.declare_parameter("full_body_topic", "xr_teleop/full_body")
-        self.declare_parameter("frame_id", "world")
         self.declare_parameter("rate_hz", 60.0)
         self.declare_parameter("use_mock_operators", value=False)
         self.declare_parameter(
@@ -255,9 +254,6 @@ class TeleopRos2PublisherNode(Node):
         )
         self._full_body_topic = (
             self.get_parameter("full_body_topic").get_parameter_value().string_value
-        )
-        self._frame_id = (
-            self.get_parameter("frame_id").get_parameter_value().string_value
         )
         rate_hz = self.get_parameter("rate_hz").get_parameter_value().double_value
         if rate_hz <= 0 or not math.isfinite(rate_hz):
@@ -343,7 +339,7 @@ class TeleopRos2PublisherNode(Node):
                         now = self.get_clock().now().to_msg()
                         hand_msg = PoseArray()
                         hand_msg.header.stamp = now
-                        hand_msg.header.frame_id = self._frame_id
+                        hand_msg.header.frame_id = self._world_frame
 
                         left_hand = result["hand_left"]
                         right_hand = result["hand_right"]
@@ -412,7 +408,7 @@ class TeleopRos2PublisherNode(Node):
                         cmd = np.asarray(root_command[0])
                         twist_msg = TwistStamped()
                         twist_msg.header.stamp = now
-                        twist_msg.header.frame_id = self._frame_id
+                        twist_msg.header.frame_id = self._world_frame
                         twist_msg.twist.linear.x = float(cmd[0])
                         twist_msg.twist.linear.y = float(cmd[1])
                         twist_msg.twist.linear.z = 0.0
@@ -421,7 +417,7 @@ class TeleopRos2PublisherNode(Node):
 
                         pose_msg = PoseStamped()
                         pose_msg.header.stamp = now
-                        pose_msg.header.frame_id = self._frame_id
+                        pose_msg.header.frame_id = self._world_frame
                         pose_msg.pose.position.z = float(cmd[3])
                         pose_msg.pose.orientation.w = 1.0
                         self._pub_pose.publish(pose_msg)

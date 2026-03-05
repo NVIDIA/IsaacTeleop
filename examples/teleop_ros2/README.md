@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -68,10 +68,10 @@ docker run --rm --net=host --ipc=host \
   -e ROS_LOCALHOST_ONLY=1 \
   -v $CXR_HOST_VOLUME_PATH:$CXR_HOST_VOLUME_PATH:ro \
   --name teleop_ros2_ref \
-  teleop_ros2_ref --ros-args -p frame_id:=odom -p rate_hz:=30.0
+  teleop_ros2_ref --ros-args -p world_frame:=odom -p rate_hz:=30.0
 ```
 
-Available parameters: `hand_topic`, `twist_topic`, `pose_topic`, `controller_topic`, `full_body_topic`, `frame_id`, `rate_hz`, `use_mock_operators`. Use `ros2 param list /teleop_ros2_publisher` and `ros2 param describe /teleop_ros2_publisher <param>` (with the node running) for the full set.
+Available parameters: `hand_topic`, `twist_topic`, `pose_topic`, `controller_topic`, `full_body_topic`, `world_frame`, `rate_hz`, `use_mock_operators`. Use `ros2 param list /teleop_ros2_publisher` and `ros2 param describe /teleop_ros2_publisher <param>` (with the node running) for the full set.
 
 ## Echo Topics
 
