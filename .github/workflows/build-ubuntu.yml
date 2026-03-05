@@ -34,7 +34,7 @@ jobs:
         fetch-depth: 0 # Full history for accurate git describe
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v7
+      uses: ./.github/actions/setup-uv
 
     - name: Install Apt dependencies
       run: |
@@ -195,7 +195,7 @@ jobs:
         submodules: recursive
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v7
+      uses: ./.github/actions/setup-uv
 
     - name: Download install artifacts
       uses: actions/download-artifact@v7
