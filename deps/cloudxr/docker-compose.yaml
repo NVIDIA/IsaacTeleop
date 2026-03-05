@@ -24,8 +24,13 @@ services:
       - NV_CXR_ENABLE_TENSOR_DATA=${NV_CXR_ENABLE_TENSOR_DATA}
       - NV_DEVICE_PROFILE=${NV_DEVICE_PROFILE:-auto-webrtc}
       - NV_GPU_INDEX=${NV_GPU_INDEX:-0}
+      - NV_CXR_DOWNSAMPLE_AMOUNT=2
+      - NV_CXR_RUNTIME_FOVEATION=true
     volumes:
       - openxr-volume:/openxr/
+      - ./runtime/server_side_nvscClientConfig.txt:/opt/cloudxr/server_side_nvscClientConfig.txt:ro
+      - ./runtime/server_side_nvscClientConfig.txt:/usr/bin/server_side_nvscClientConfig.txt:ro
+      - ./runtime/server_side_nvscClientConfig.txt:/openxr/run/server_side_nvscClientConfig.txt:ro
     runtime: nvidia
 
   # WebSocket SSL Proxy Service
