@@ -246,7 +246,7 @@ export class CloudXR2DUI {
       perEyeHeight: 1792,
       deviceFrameRate: 90,
       maxStreamingBitrateMbps: 150,
-      codec: 'av1',
+      codec: 'h265',
       immersiveMode: 'ar',
       deviceProfileId: 'custom',
       app: 'generic',
