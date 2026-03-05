@@ -17,16 +17,25 @@ RUN apt-get update && apt-get install -y \
 RUN mkdir -p /usr/local/etc/haproxy/certs \
     && chown -R haproxy:haproxy /usr/local/etc/haproxy
 
-# Create simple certificate generation script
+# Create certificate generation script (only generates if missing)
 COPY <<EOF /usr/local/bin/generate-cert.sh
 #!/bin/bash
-cd /usr/local/etc/haproxy/certs
-openssl req -x509 -newkey rsa:2048 -keyout server.key -out server.crt -days 365 -nodes -subj "/CN=localhost" -quiet
-# Combine certificate and key into a single file for HAProxy
+CERT_DIR=/usr/local/etc/haproxy/certs
+
+if [ -f "\${CERT_DIR}/server.pem" ] && openssl x509 -in "\${CERT_DIR}/server.pem" -noout 2>/dev/null; then
+    echo "Existing SSL certificate found and valid, reusing it."
+    exit 0
+fi
+
+echo "Generating a new self-signed certificate..."
+rm -f "\${CERT_DIR}/server.key" "\${CERT_DIR}/server.crt" "\${CERT_DIR}/server.pem"
+cd "\${CERT_DIR}"
+openssl req -x509 -newkey rsa:2048 -keyout server.key -out server.crt -days 36500 -nodes -subj "/CN=localhost" -quiet
 cat server.crt server.key > server.pem
 chown haproxy:haproxy server.key server.crt server.pem
 chmod 600 server.key server.pem
 chmod 644 server.crt
+echo "SSL certificate generated (valid for ~100 years)."
 EOF
 
 RUN chmod +x /usr/local/bin/generate-cert.sh
@@ -142,10 +151,9 @@ echo "  Health Check Interval: \${HEALTH_CHECK_INTERVAL}"
 echo "  Health Check Rise: \${HEALTH_CHECK_RISE}"
 echo "  Health Check Fall: \${HEALTH_CHECK_FALL}"
 
-# Generate self-signed SSL certificate
+# Generate self-signed SSL certificate (skips if one already exists on the volume)
 /usr/local/bin/generate-cert.sh
 export PROXY_SSL_BIND_OPTIONS="ssl crt /usr/local/etc/haproxy/certs/server.pem"
-echo "SSL enabled - self-signed certificate generated"
 
 # Process the template and create the final config
 envsubst < /usr/local/etc/haproxy/haproxy.cfg.template > /usr/local/etc/haproxy/haproxy.cfg

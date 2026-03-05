@@ -53,6 +53,8 @@ services:
       - HEALTH_CHECK_INTERVAL=1s
       - HEALTH_CHECK_RISE=2
       - HEALTH_CHECK_FALL=3
+    volumes:
+      - wss-proxy-certs:/usr/local/etc/haproxy/certs
     restart: unless-stopped
 
   # Web App Service (serves CloudXR.js web client; webxr_client mounted for live reload)
@@ -70,6 +72,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  wss-proxy-certs:
   openxr-volume:
     driver: local
     driver_opts:
