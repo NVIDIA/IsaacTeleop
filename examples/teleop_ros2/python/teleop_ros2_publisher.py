@@ -20,6 +20,7 @@ import time
 from pathlib import Path
 from typing import Dict, List
 
+from builtin_interfaces.msg import Time
 import msgpack
 import msgpack_numpy as mnp
 import numpy as np
@@ -176,11 +177,11 @@ def _to_pose(position, orientation=None) -> Pose:
 
 
 def _make_transform(
-    stamp,
+    stamp: Time,
     parent_frame: str,
     child_frame: str,
-    position,
-    orientation,
+    position: np.ndarray,
+    orientation: np.ndarray,
 ) -> TransformStamped:
     tf = TransformStamped()
     tf.header.stamp = stamp
