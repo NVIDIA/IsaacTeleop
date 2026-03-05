@@ -20,6 +20,15 @@ from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
     GraphExecutable,
     RetargeterIO,
     RetargeterIOType,
+    _default_compute_context,
+)
+from isaacteleop.retargeting_engine.interface.teleop_events import (
+    TeleopCalibrationEvent,
+    TeleopResetEvent,
+    TeleopRunEvent,
+    calibration_event_channel,
+    reset_event_channel,
+    run_event_channel,
 )
 
 import isaacteleop.deviceio as deviceio
@@ -119,6 +128,11 @@ class TeleopSession:
         self.frame_count: int = 0
         self.start_time: float = 0.0
         self._setup_complete: bool = False
+        # Teleop control pipeline state
+        self._last_run_event: Optional[TeleopRunEvent] = None
+        self._last_calibration_event: Optional[TeleopCalibrationEvent] = None
+        self._last_reset_event: Optional[TeleopResetEvent] = None
+        self._first_step_done: bool = False
         # Discover sources and external leaves from pipeline
         self._discover_sources()
 
@@ -130,14 +144,25 @@ class TeleopSession:
     def _discover_sources(self) -> None:
         """Discover DeviceIO source modules and external leaf nodes from the pipeline.
 
-        Traverses the pipeline to find all leaf nodes, partitioning them into:
+        Traverses the pipeline (and teleop_control_pipeline if provided) to find
+        all leaf nodes, partitioning them into:
         - IDeviceIOSource instances (auto-polled from hardware trackers)
         - External leaves (non-DeviceIO leaves with non-empty input_spec() that
           require caller-provided inputs in step()). Leaves with empty input_spec()
           (e.g. fixed-command retargeters) are not treated as external and do not
           require external_inputs.
         """
+        # Collect leaf nodes from main pipeline
         leaf_nodes = self.pipeline.get_leaf_nodes()
+
+        # Also collect from control pipeline if present
+        if self.config.teleop_control_pipeline is not None:
+            ctrl_leaves = self.config.teleop_control_pipeline.get_leaf_nodes()
+            seen_ids = {id(n) for n in leaf_nodes}
+            for node in ctrl_leaves:
+                if id(node) not in seen_ids:
+                    leaf_nodes.append(node)
+                    seen_ids.add(id(node))
 
         self._sources = []
         self._external_leaves = []
@@ -177,6 +202,21 @@ class TeleopSession:
         """
         return len(self._external_leaves) > 0
 
+    @property
+    def last_run_event(self) -> Optional[TeleopRunEvent]:
+        """The single TeleopRunEvent that fired on the last step(), or None."""
+        return self._last_run_event
+
+    @property
+    def last_calibration_event(self) -> Optional[TeleopCalibrationEvent]:
+        """The single TeleopCalibrationEvent that fired on the last step(), or None."""
+        return self._last_calibration_event
+
+    @property
+    def last_reset_event(self) -> Optional[TeleopResetEvent]:
+        """The single TeleopResetEvent that fired on the last step(), or None."""
+        return self._last_reset_event
+
     def step(
         self,
         external_inputs: Optional[Dict[str, RetargeterIO]] = None,
@@ -186,6 +226,13 @@ class TeleopSession:
 
         Updates DeviceIO session, polls tracker data, merges any caller-provided
         external inputs, and executes the retargeting pipeline.
+
+        If a teleop_control_pipeline was configured, it is executed first and its
+        three event channel outputs are injected into ComputeContext so all retargeters
+        receive them. The event TensorGroups are also merged into the result dict.
+
+        If no teleop_control_pipeline was configured, a START run event is
+        automatically fired on the first call and empty frozensets on subsequent calls.
 
         Args:
             external_inputs: Optional dict mapping external leaf node names to their
@@ -199,8 +246,10 @@ class TeleopSession:
                 metadata. When omitted, a context is auto-generated from the monotonic clock.
 
         Returns:
-            Dict[str, TensorGroup] - Output from the retargeting pipeline. The
-            returned reference points into the session's internal output buffers and
+            Dict[str, TensorGroup] - Output from the retargeting pipeline. When a
+            teleop_control_pipeline is configured, the result also contains
+            "run_events", "calibration_events", and "reset_events" TensorGroups.
+            The returned reference points into the session's internal output buffers and
             will be overwritten on the next call to step(). Consumers that need to
             retain the result across steps must copy it themselves.
 
@@ -229,10 +278,83 @@ class TeleopSession:
         if external_inputs:
             pipeline_inputs.update(external_inputs)
 
-        result = self.pipeline.execute_pipeline(pipeline_inputs, context)
+        # ------------------------------------------------------------------ #
+        # Build ComputeContext with teleop events                              #
+        # ------------------------------------------------------------------ #
+        ctrl_result: Optional[Dict] = None
+
+        if self.config.teleop_control_pipeline is not None:
+            # Execute the control pipeline to get events for this frame
+            ctrl_result = self.config.teleop_control_pipeline.execute_pipeline(
+                pipeline_inputs, context
+            )
+            run_event, calibration_event, reset_event = self._extract_events(ctrl_result)
+        elif not self._first_step_done:
+            # Auto-fire START on the first step when no control pipeline is configured
+            run_event = TeleopRunEvent.START
+            calibration_event = None
+            reset_event = None
+        else:
+            run_event = None
+            calibration_event = None
+            reset_event = None
+
+        self._last_run_event = run_event
+        self._last_calibration_event = calibration_event
+        self._last_reset_event = reset_event
+        self._first_step_done = True
+
+        # Build context with graph time + events
+        if context is None:
+            base_context = _default_compute_context()
+            graph_time = base_context.graph_time
+        else:
+            graph_time = context.graph_time
+
+        step_context = ComputeContext(
+            graph_time=graph_time,
+            run_event=run_event,
+            calibration_event=calibration_event,
+            reset_event=reset_event,
+        )
+
+        # Execute retargeting pipeline with all inputs.
+        result = self.pipeline.execute_pipeline(pipeline_inputs, step_context)
+
+        # Merge event TensorGroups into result when control pipeline is active
+        if ctrl_result is not None:
+            result["run_events"] = ctrl_result["run_events"]
+            result["calibration_events"] = ctrl_result["calibration_events"]
+            result["reset_events"] = ctrl_result["reset_events"]
 
         self.frame_count += 1
         return result
+
+    def _extract_events(self, ctrl_result: Dict) -> tuple:
+        """Extract the single fired event per channel from control pipeline output TensorGroups.
+
+        Each channel fires at most one event per frame (guaranteed by TeleopEventRetargeter's
+        priority/elif logic). Returns Optional values — None when nothing fired.
+
+        Args:
+            ctrl_result: Output dict from teleop_control_pipeline.execute_pipeline().
+
+        Returns:
+            Tuple of (run_event, calibration_event, reset_event), each Optional.
+        """
+        run_event = next(
+            (event for idx, event in enumerate(TeleopRunEvent) if ctrl_result["run_events"][idx]),
+            None,
+        )
+        calibration_event = next(
+            (event for idx, event in enumerate(TeleopCalibrationEvent) if ctrl_result["calibration_events"][idx]),
+            None,
+        )
+        reset_event = next(
+            (event for idx, event in enumerate(TeleopResetEvent) if ctrl_result["reset_events"][idx]),
+            None,
+        )
+        return run_event, calibration_event, reset_event
 
     def _validate_external_inputs(
         self, external_inputs: Optional[Dict[str, RetargeterIO]]

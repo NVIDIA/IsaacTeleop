@@ -3,11 +3,14 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TYPE_CHECKING
 import time
 
 from .tensor_group_type import TensorGroupType
 from .tensor_group import OptionalTensorGroup
+
+if TYPE_CHECKING:
+    from .teleop_events import TeleopRunEvent, TeleopCalibrationEvent, TeleopResetEvent
 
 
 RetargeterIOType = Dict[str, TensorGroupType]
@@ -24,9 +27,28 @@ class GraphTime:
 
 @dataclass
 class ComputeContext:
-    """Context passed to _compute_fn. Extensible for future per-step metadata."""
+    """Context passed to _compute_fn on every retargeter compute step.
+
+    Each channel carries at most one event that fired this frame — None when
+    nothing fired. The TeleopEventRetargeter guarantees mutual exclusion within
+    each channel (only one event can fire per frame per channel), so a single
+    Optional value is the right representation.
+
+    Retargeters react to events with a simple equality check::
+
+        if context.run_event == TeleopRunEvent.PAUSE:
+            ...
+        if context.reset_event is not None:
+            self._reset_state()
+
+    All event fields default to None when no teleop control pipeline is
+    configured or when no event fired this frame.
+    """
 
     graph_time: GraphTime
+    run_event: "Optional[TeleopRunEvent]" = None
+    calibration_event: "Optional[TeleopCalibrationEvent]" = None
+    reset_event: "Optional[TeleopResetEvent]" = None
 
 
 def _default_compute_context() -> "ComputeContext":

@@ -298,6 +298,21 @@ def RobotHandJoints(name: str, joint_names: list[str]) -> TensorGroupType:
 # ============================================================================
 
 
+def BoolValue() -> TensorGroupType:
+    """Single-slot bool wire type.
+
+    Used to connect button selectors and other bool-producing nodes to
+    TeleopEventRetargeter inputs, or any other node that accepts a single bool.
+
+    Fields:
+        - value: bool - The boolean value
+
+    Returns:
+        TensorGroupType for a single bool value
+    """
+    return TensorGroupType("bool_value", [BoolType("value")])
+
+
 def Generic3AxisPedalInput() -> TensorGroupType:
     """
     Standard TensorGroupType for generic 3-axis foot pedal data.

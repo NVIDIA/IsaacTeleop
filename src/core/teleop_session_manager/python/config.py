@@ -64,6 +64,13 @@ class TeleopSessionConfig:
             instead of creating its own OpenXR session via OpenXRSession.create().
             Construct with ``OpenXRSessionHandles(instance, session, space, proc_addr)``
             where each argument is a ``uint64`` handle value.
+        teleop_control_pipeline: Optional event pipeline for teleop lifecycle control.
+            When provided, TeleopSession executes it each step before the main pipeline,
+            reads the three event channel outputs, and injects them into ComputeContext.
+            The run_events, calibration_events, and reset_events TensorGroups are also
+            merged into the step() result dict.
+            When None (default), a START run event is automatically fired on the first
+            step() call so existing pipelines work without change.
 
     Example (auto-discovery):
         # Source creates its own tracker automatically!
@@ -107,3 +114,4 @@ class TeleopSessionConfig:
     plugins: List[PluginConfig] = field(default_factory=list)
     verbose: bool = True
     oxr_handles: Optional[OpenXRSessionHandles] = None
+    teleop_control_pipeline: Optional[GraphExecutable] = None

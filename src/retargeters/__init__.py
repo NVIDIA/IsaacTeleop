@@ -102,6 +102,19 @@ _LAZY_IMPORTS: dict[str, tuple[str, str, str | None]] = {
     ),
     # .tensor_reorderer
     "TensorReorderer": (".tensor_reorderer", "TensorReorderer", None),
+    # .controller_button_selector
+    "ControllerButtonSelector": (
+        ".controller_button_selector",
+        "ControllerButtonSelector",
+        None,
+    ),
+    "ControllerButtonSelectorConfig": (
+        ".controller_button_selector",
+        "ControllerButtonSelectorConfig",
+        None,
+    ),
+    # .pose_clutch_retargeter
+    "PoseClutchRetargeter": (".pose_clutch_retargeter", "PoseClutchRetargeter", None),
 }
 
 
@@ -149,4 +162,9 @@ __all__ = [
     "Se3RetargeterConfig",
     # Utility retargeters
     "TensorReorderer",
+    # Button/event selectors
+    "ControllerButtonSelector",
+    "ControllerButtonSelectorConfig",
+    # Clutch
+    "PoseClutchRetargeter",
 ]
