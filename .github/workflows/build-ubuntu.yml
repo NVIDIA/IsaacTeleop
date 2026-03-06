@@ -57,9 +57,9 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/.hunter
-        key: hunter-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('cmake/SetupHunter.cmake') }}
+        key: hunter-${{ runner.os }}-${{ runner.arch }}-${{ matrix.build_type }}-${{ hashFiles('cmake/SetupHunter.cmake') }}
         restore-keys: |
-          hunter-${{ runner.os }}-${{ runner.arch }}-
+          hunter-${{ runner.os }}-${{ runner.arch }}-${{ matrix.build_type }}-
 
     - name: Cache ccache
       uses: actions/cache@v4

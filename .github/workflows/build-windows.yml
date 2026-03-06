@@ -48,9 +48,9 @@ jobs:
       uses: actions/cache@v4
       with:
         path: C:/.hunter
-        key: hunter-${{ runner.os }}-${{ hashFiles('cmake/SetupHunter.cmake') }}
+        key: hunter-${{ runner.os }}-${{ matrix.build_type }}-${{ hashFiles('cmake/SetupHunter.cmake') }}
         restore-keys: |
-          hunter-${{ runner.os }}-
+          hunter-${{ runner.os }}-${{ matrix.build_type }}-
 
     - name: Cache sccache
       uses: actions/cache@v4
