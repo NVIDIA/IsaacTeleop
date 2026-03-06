@@ -275,8 +275,8 @@ class TeleopRos2PublisherNode(Node):
         super().__init__("teleop_ros2_publisher")
 
         self.declare_parameter("hand_topic", "xr_teleop/hand")
-        self.declare_parameter("twist_topic", "xr_teleop/root_twist")
-        self.declare_parameter("pose_topic", "xr_teleop/root_pose")
+        self.declare_parameter("root_twist_topic", "xr_teleop/root_twist")
+        self.declare_parameter("root_pose_topic", "xr_teleop/root_pose")
         self.declare_parameter("controller_topic", "xr_teleop/controller_data")
         self.declare_parameter("full_body_topic", "xr_teleop/full_body")
         self.declare_parameter("frame_id", "world")
@@ -287,11 +287,11 @@ class TeleopRos2PublisherNode(Node):
         self._hand_topic = (
             self.get_parameter("hand_topic").get_parameter_value().string_value
         )
-        self._twist_topic = (
-            self.get_parameter("twist_topic").get_parameter_value().string_value
+        self._root_twist_topic = (
+            self.get_parameter("root_twist_topic").get_parameter_value().string_value
         )
-        self._pose_topic = (
-            self.get_parameter("pose_topic").get_parameter_value().string_value
+        self._root_pose_topic = (
+            self.get_parameter("root_pose_topic").get_parameter_value().string_value
         )
         self._controller_topic = (
             self.get_parameter("controller_topic").get_parameter_value().string_value
@@ -318,9 +318,9 @@ class TeleopRos2PublisherNode(Node):
 
         self._pub_hand = self.create_publisher(PoseArray, self._hand_topic, 10)
         self._pub_root_twist = self.create_publisher(
-            TwistStamped, self._twist_topic, 10
+            TwistStamped, self._root_twist_topic, 10
         )
-        self._pub_root_pose = self.create_publisher(PoseStamped, self._pose_topic, 10)
+        self._pub_root_pose = self.create_publisher(PoseStamped, self._root_pose_topic, 10)
         self._pub_controller = self.create_publisher(
             ByteMultiArray, self._controller_topic, 10
         )
