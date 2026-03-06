@@ -12,6 +12,7 @@ Publishes teleoperation data over ROS2 topics using isaacteleop TeleopSession:
   - xr_teleop/root_pose (PoseStamped): root pose command (height only)
   - xr_teleop/controller_data (ByteMultiArray): msgpack-encoded controller data
   - xr_teleop/full_body (ByteMultiArray): msgpack-encoded full body tracking data
+  - xr_teleop/finger_joints (JointState): retargeted TriHand finger joint angles
 """
 
 import math
@@ -20,13 +21,23 @@ import time
 from pathlib import Path
 from typing import Dict, List
 
+from builtin_interfaces.msg import Time
 import msgpack
 import msgpack_numpy as mnp
 import numpy as np
 import rclpy
-from geometry_msgs.msg import Pose, PoseArray, PoseStamped, TwistStamped
+from geometry_msgs.msg import (
+    Pose,
+    PoseArray,
+    PoseStamped,
+    TransformStamped,
+    TwistStamped,
+)
+from rcl_interfaces.msg import ParameterDescriptor
 from rclpy.node import Node
+from sensor_msgs.msg import JointState
 from std_msgs.msg import ByteMultiArray
+from tf2_ros import TransformBroadcaster
 
 from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     ControllersSource,
@@ -37,6 +48,8 @@ from isaacteleop.retargeting_engine.interface import OptionalTensorGroup, Output
 from isaacteleop.retargeters import (
     LocomotionRootCmdRetargeter,
     LocomotionRootCmdRetargeterConfig,
+    TriHandMotionControllerRetargeter,
+    TriHandMotionControllerConfig,
 )
 from isaacteleop.retargeting_engine.tensor_types.indices import (
     BodyJointPicoIndex,
@@ -137,6 +150,19 @@ def _build_controller_payload(
 
 _BODY_JOINT_NAMES = [e.name for e in BodyJointPicoIndex]
 
+_TRIHAND_JOINT_NAMES = [
+    "thumb_rotation",
+    "thumb_proximal",
+    "thumb_distal",
+    "index_proximal",
+    "index_distal",
+    "middle_proximal",
+    "middle_distal",
+]
+_FINGER_JOINT_NAMES = [f"left_{n}" for n in _TRIHAND_JOINT_NAMES] + [
+    f"right_{n}" for n in _TRIHAND_JOINT_NAMES
+]
+
 
 def _build_full_body_payload(full_body: OptionalTensorGroup) -> Dict:
     positions = np.asarray(full_body[FullBodyInputIndex.JOINT_POSITIONS])
@@ -167,6 +193,27 @@ def _to_pose(position, orientation=None) -> Pose:
     return pose
 
 
+def _make_transform(
+    stamp: Time,
+    parent_frame: str,
+    child_frame: str,
+    position: np.ndarray,
+    orientation: np.ndarray,
+) -> TransformStamped:
+    tf = TransformStamped()
+    tf.header.stamp = stamp
+    tf.header.frame_id = parent_frame
+    tf.child_frame_id = child_frame
+    tf.transform.translation.x = float(position[0])
+    tf.transform.translation.y = float(position[1])
+    tf.transform.translation.z = float(position[2])
+    tf.transform.rotation.x = float(orientation[0])
+    tf.transform.rotation.y = float(orientation[1])
+    tf.transform.rotation.z = float(orientation[2])
+    tf.transform.rotation.w = float(orientation[3])
+    return tf
+
+
 def _append_hand_poses(
     poses: List[Pose],
     joint_positions: np.ndarray,
@@ -191,9 +238,26 @@ class TeleopRos2PublisherNode(Node):
         self.declare_parameter("pose_topic", "xr_teleop/root_pose")
         self.declare_parameter("controller_topic", "xr_teleop/controller_data")
         self.declare_parameter("full_body_topic", "xr_teleop/full_body")
-        self.declare_parameter("frame_id", "world")
+        self.declare_parameter("finger_joints_topic", "xr_teleop/finger_joints")
         self.declare_parameter("rate_hz", 60.0)
         self.declare_parameter("use_mock_operators", value=False)
+        self.declare_parameter(
+            "world_frame",
+            "world",
+            ParameterDescriptor(
+                description="Frame name of the world frame. The left and right wrist transforms will be defined relative to this."
+            ),
+        )
+        self.declare_parameter(
+            "right_wrist_frame",
+            "right_wrist",
+            ParameterDescriptor(description="Frame name of the right wrist."),
+        )
+        self.declare_parameter(
+            "left_wrist_frame",
+            "left_wrist",
+            ParameterDescriptor(description="Frame name of the left wrist."),
+        )
 
         self._hand_topic = (
             self.get_parameter("hand_topic").get_parameter_value().string_value
@@ -210,8 +274,8 @@ class TeleopRos2PublisherNode(Node):
         self._full_body_topic = (
             self.get_parameter("full_body_topic").get_parameter_value().string_value
         )
-        self._frame_id = (
-            self.get_parameter("frame_id").get_parameter_value().string_value
+        self._finger_joints_topic = (
+            self.get_parameter("finger_joints_topic").get_parameter_value().string_value
         )
         rate_hz = self.get_parameter("rate_hz").get_parameter_value().double_value
         if rate_hz <= 0 or not math.isfinite(rate_hz):
@@ -220,6 +284,17 @@ class TeleopRos2PublisherNode(Node):
         self._use_mock_operators = (
             self.get_parameter("use_mock_operators").get_parameter_value().bool_value
         )
+        self._world_frame = (
+            self.get_parameter("world_frame").get_parameter_value().string_value
+        )
+        self._right_wrist_frame = (
+            self.get_parameter("right_wrist_frame").get_parameter_value().string_value
+        )
+        self._left_wrist_frame = (
+            self.get_parameter("left_wrist_frame").get_parameter_value().string_value
+        )
+
+        self._tf_broadcaster = TransformBroadcaster(self)
 
         self._pub_hand = self.create_publisher(PoseArray, self._hand_topic, 10)
         self._pub_twist = self.create_publisher(TwistStamped, self._twist_topic, 10)
@@ -229,6 +304,9 @@ class TeleopRos2PublisherNode(Node):
         )
         self._pub_full_body = self.create_publisher(
             ByteMultiArray, self._full_body_topic, 10
+        )
+        self._pub_finger_joints = self.create_publisher(
+            JointState, self._finger_joints_topic, 10
         )
 
         hands = HandsSource(name="hands")
@@ -244,6 +322,25 @@ class TeleopRos2PublisherNode(Node):
             }
         )
 
+        left_hand_retargeter = TriHandMotionControllerRetargeter(
+            TriHandMotionControllerConfig(
+                hand_joint_names=_TRIHAND_JOINT_NAMES, controller_side="left"
+            ),
+            name="trihand_left",
+        )
+        right_hand_retargeter = TriHandMotionControllerRetargeter(
+            TriHandMotionControllerConfig(
+                hand_joint_names=_TRIHAND_JOINT_NAMES, controller_side="right"
+            ),
+            name="trihand_right",
+        )
+        left_hand_connected = left_hand_retargeter.connect(
+            {ControllersSource.LEFT: controllers.output(ControllersSource.LEFT)}
+        )
+        right_hand_connected = right_hand_retargeter.connect(
+            {ControllersSource.RIGHT: controllers.output(ControllersSource.RIGHT)}
+        )
+
         pipeline = OutputCombiner(
             {
                 "hand_left": hands.output(HandsSource.LEFT),
@@ -252,6 +349,8 @@ class TeleopRos2PublisherNode(Node):
                 "controller_right": controllers.output(ControllersSource.RIGHT),
                 "root_command": locomotion_connected.output("root_command"),
                 "full_body": full_body.output(FullBodySource.FULL_BODY),
+                "finger_joints_left": left_hand_connected.output("hand_joints"),
+                "finger_joints_right": right_hand_connected.output("hand_joints"),
             }
         )
 
@@ -286,7 +385,7 @@ class TeleopRos2PublisherNode(Node):
                         now = self.get_clock().now().to_msg()
                         hand_msg = PoseArray()
                         hand_msg.header.stamp = now
-                        hand_msg.header.frame_id = self._frame_id
+                        hand_msg.header.frame_id = self._world_frame
 
                         left_hand = result["hand_left"]
                         right_hand = result["hand_right"]
@@ -304,6 +403,17 @@ class TeleopRos2PublisherNode(Node):
                                     right_orientations[HandJointIndex.WRIST],
                                 )
                             )
+
+                            self._tf_broadcaster.sendTransform(
+                                _make_transform(
+                                    now,
+                                    self._world_frame,
+                                    self._right_wrist_frame,
+                                    right_positions[HandJointIndex.WRIST],
+                                    right_orientations[HandJointIndex.WRIST],
+                                )
+                            )
+
                         if not left_hand.is_none:
                             left_positions = np.asarray(
                                 left_hand[HandInputIndex.JOINT_POSITIONS]
@@ -313,6 +423,16 @@ class TeleopRos2PublisherNode(Node):
                             )
                             hand_msg.poses.append(
                                 _to_pose(
+                                    left_positions[HandJointIndex.WRIST],
+                                    left_orientations[HandJointIndex.WRIST],
+                                )
+                            )
+
+                            self._tf_broadcaster.sendTransform(
+                                _make_transform(
+                                    now,
+                                    self._world_frame,
+                                    self._left_wrist_frame,
                                     left_positions[HandJointIndex.WRIST],
                                     left_orientations[HandJointIndex.WRIST],
                                 )
@@ -334,7 +454,7 @@ class TeleopRos2PublisherNode(Node):
                         cmd = np.asarray(root_command[0])
                         twist_msg = TwistStamped()
                         twist_msg.header.stamp = now
-                        twist_msg.header.frame_id = self._frame_id
+                        twist_msg.header.frame_id = self._world_frame
                         twist_msg.twist.linear.x = float(cmd[0])
                         twist_msg.twist.linear.y = float(cmd[1])
                         twist_msg.twist.linear.z = 0.0
@@ -343,7 +463,7 @@ class TeleopRos2PublisherNode(Node):
 
                         pose_msg = PoseStamped()
                         pose_msg.header.stamp = now
-                        pose_msg.header.frame_id = self._frame_id
+                        pose_msg.header.frame_id = self._world_frame
                         pose_msg.pose.position.z = float(cmd[3])
                         pose_msg.pose.orientation.w = 1.0
                         self._pub_pose.publish(pose_msg)
@@ -361,6 +481,20 @@ class TeleopRos2PublisherNode(Node):
                             controller_msg = ByteMultiArray()
                             controller_msg.data = payload
                             self._pub_controller.publish(controller_msg)
+
+                        finger_joints_msg = JointState()
+                        finger_joints_msg.header.stamp = now
+                        finger_joints_msg.header.frame_id = self._world_frame
+                        finger_joints_msg.name = _FINGER_JOINT_NAMES
+                        left_joints = result["finger_joints_left"]
+                        right_joints = result["finger_joints_right"]
+                        finger_joints_msg.position = np.concatenate(
+                            [
+                                np.asarray(left_joints, dtype=np.float32),
+                                np.asarray(right_joints, dtype=np.float32),
+                            ]
+                        ).tolist()
+                        self._pub_finger_joints.publish(finger_joints_msg)
 
                         full_body_data = result["full_body"]
                         if not full_body_data.is_none:
