@@ -26,9 +26,10 @@ NV_CXR_ENABLE_PUSH_DEVICES=0
 ## Published Topics
 
 - `xr_teleop/hand` (`geometry_msgs/PoseArray`)
-  - `poses[0]`: Right hand wrist pose (if active)
-  - `poses[1]`: Left hand wrist pose (if active)
-  - `poses[2+]`: Finger joint poses (all joints except palm/wrist, right then left)
+  - `poses`: Finger joint poses (all joints except palm/wrist, right then left)
+- `xr_teleop/ee_poses` (`geometry_msgs/PoseArray`)
+  - `poses[0]`: Right hand/controller EE pose (if active)
+  - `poses[1]`: Left hand/controller EE pose (if active)
 - `xr_teleop/root_twist` (`geometry_msgs/TwistStamped`)
 - `xr_teleop/root_pose` (`geometry_msgs/PoseStamped`)
 - `xr_teleop/controller_data` (`std_msgs/ByteMultiArray`, msgpack-encoded dictionary)
@@ -79,7 +80,7 @@ docker run --rm --net=host --ipc=host \
   teleop_ros2_ref --ros-args -p frame_id:=odom -p rate_hz:=30.0
 ```
 
-Available parameters: `hand_topic`, `root_twist_topic`, `root_pose_topic`, `controller_topic`, `full_body_topic`, `frame_id`, `rate_hz`, `use_mock_operators`, `mode`. Use `ros2 param list /teleop_ros2_publisher` and `ros2 param describe /teleop_ros2_publisher <param>` (with the node running) for the full set.
+Available parameters: `hand_topic`, `ee_pose_topic`, `root_twist_topic`, `root_pose_topic`, `controller_topic`, `full_body_topic`, `frame_id`, `rate_hz`, `use_mock_operators`, `mode`. Use `ros2 param list /teleop_ros2_publisher` and `ros2 param describe /teleop_ros2_publisher <param>` (with the node running) for the full set.
 
 ### Mode
 
@@ -87,8 +88,8 @@ The `mode` parameter selects the teleoperation scenario and which topics are pub
 
 | Mode | Topics published |
 |------|------------------|
-| `controller_teleop` (default) | `hand` (from controller aim pose), `root_twist`, `root_pose` |
-| `hand_teleop` | `hand` (from hand tracking), `root_twist`, `root_pose` |
+| `controller_teleop` (default) | `ee_poses` (from controller aim pose), `root_twist`, `root_pose` |
+| `hand_teleop` | `ee_poses` (from hand tracking wrist), `hand` (finger joints only), `root_twist`, `root_pose` |
 | `controller_raw` | `controller_data` only |
 | `full_body` | `full_body` only |
 
