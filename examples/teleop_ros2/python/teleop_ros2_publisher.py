@@ -33,7 +33,9 @@ TF frames published in hand_teleop and controller_teleop modes (configurable via
 """
 
 import math
+import os
 import time
+from pathlib import Path
 from typing import Dict, List, Sequence, Union
 
 import msgpack
@@ -96,6 +98,15 @@ def _append_hand_poses(
         poses.append(
             _to_pose(joint_positions[joint_idx], joint_orientations[joint_idx])
         )
+
+
+def _find_plugins_dirs(start: Path) -> List[Path]:
+    candidates: List[Path] = []
+    for parent in [start, *start.parents]:
+        plugin_dir = parent / "plugins"
+        if plugin_dir.is_dir() and plugin_dir not in candidates:
+            candidates.append(plugin_dir)
+    return candidates
 
 
 def _to_pose(position, orientation=None) -> Pose:
@@ -407,11 +418,15 @@ class TeleopRos2PublisherNode(Node):
             "left_wrist",
             ParameterDescriptor(description="TF child frame name for the left wrist."),
         )
+        self.declare_parameter("use_mock_operators", value=False)
 
         rate_hz = self.get_parameter("rate_hz").get_parameter_value().double_value
         if rate_hz <= 0 or not math.isfinite(rate_hz):
             raise ValueError("Parameter 'rate_hz' must be > 0")
         self._sleep_period_s = 1.0 / rate_hz
+        self._use_mock_operators = (
+            self.get_parameter("use_mock_operators").get_parameter_value().bool_value
+        )
         mode = self.get_parameter("mode").get_parameter_value().string_value
         if mode not in _TELEOP_MODES:
             raise ValueError(
@@ -512,6 +527,19 @@ class TeleopRos2PublisherNode(Node):
         )
 
         plugins: List[PluginConfig] = []
+        if self._use_mock_operators:
+            plugin_paths = []
+            env_paths = os.environ.get("ISAAC_TELEOP_PLUGIN_PATH")
+            if env_paths:
+                plugin_paths.extend([Path(p) for p in env_paths.split(os.pathsep) if p])
+            plugin_paths.extend(_find_plugins_dirs(Path(__file__).resolve()))
+            plugins.append(
+                PluginConfig(
+                    plugin_name="controller_synthetic_hands",
+                    plugin_root_id="synthetic_hands",
+                    search_paths=plugin_paths,
+                )
+            )
 
         self._config = TeleopSessionConfig(
             app_name="TeleopRos2Publisher",
