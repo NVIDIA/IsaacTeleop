@@ -191,6 +191,56 @@ def _append_hand_poses(
         )
 
 
+def _build_hand_msg_from_hands(
+    left_hand: OptionalTensorGroup,
+    right_hand: OptionalTensorGroup,
+    now,
+    frame_id: str,
+) -> PoseArray:
+    """Build a PoseArray with right then left hand joints."""
+    msg = PoseArray()
+    msg.header.stamp = now
+    msg.header.frame_id = frame_id
+
+    if not right_hand.is_none:
+        right_positions = np.asarray(right_hand[HandInputIndex.JOINT_POSITIONS])
+        right_orientations = np.asarray(right_hand[HandInputIndex.JOINT_ORIENTATIONS])
+        msg.poses.append(
+            _to_pose(
+                right_positions[HandJointIndex.WRIST],
+                right_orientations[HandJointIndex.WRIST],
+            )
+        )
+    else:
+        msg.poses.append(_to_pose([0.0, 0.0, 0.0]))
+
+    if not left_hand.is_none:
+        left_positions = np.asarray(left_hand[HandInputIndex.JOINT_POSITIONS])
+        left_orientations = np.asarray(left_hand[HandInputIndex.JOINT_ORIENTATIONS])
+        msg.poses.append(
+            _to_pose(
+                left_positions[HandJointIndex.WRIST],
+                left_orientations[HandJointIndex.WRIST],
+            )
+        )
+    else:
+        msg.poses.append(_to_pose([0.0, 0.0, 0.0]))
+
+    if not right_hand.is_none:
+        _append_hand_poses(msg.poses, right_positions, right_orientations)
+    else:
+        for _ in range(HandJointIndex.THUMB_METACARPAL, HandJointIndex.LITTLE_TIP + 1):
+            msg.poses.append(_to_pose([0.0, 0.0, 0.0]))
+
+    if not left_hand.is_none:
+        _append_hand_poses(msg.poses, left_positions, left_orientations)
+    else:
+        for _ in range(HandJointIndex.THUMB_METACARPAL, HandJointIndex.LITTLE_TIP + 1):
+            msg.poses.append(_to_pose([0.0, 0.0, 0.0]))
+
+    return msg
+
+
 def _build_hand_msg_from_controllers(
     left_ctrl: OptionalTensorGroup,
     right_ctrl: OptionalTensorGroup,
@@ -336,69 +386,11 @@ class TeleopRos2PublisherNode(Node):
 
                         hand_msg = None
                         if self._mode == "hand_teleop":
-                            hand_msg = PoseArray()
-                            hand_msg.header.stamp = now
-                            hand_msg.header.frame_id = self._frame_id
                             left_hand = result["hand_left"]
                             right_hand = result["hand_right"]
-
-                            if not right_hand.is_none:
-                                right_positions = np.asarray(
-                                    right_hand[HandInputIndex.JOINT_POSITIONS]
-                                )
-                                right_orientations = np.asarray(
-                                    right_hand[HandInputIndex.JOINT_ORIENTATIONS]
-                                )
-                                hand_msg.poses.append(
-                                    _to_pose(
-                                        right_positions[HandJointIndex.WRIST],
-                                        right_orientations[HandJointIndex.WRIST],
-                                    )
-                                )
-                            else:
-                                hand_msg.poses.append(_to_pose([0.0, 0.0, 0.0]))
-
-                            if not left_hand.is_none:
-                                left_positions = np.asarray(
-                                    left_hand[HandInputIndex.JOINT_POSITIONS]
-                                )
-                                left_orientations = np.asarray(
-                                    left_hand[HandInputIndex.JOINT_ORIENTATIONS]
-                                )
-                                hand_msg.poses.append(
-                                    _to_pose(
-                                        left_positions[HandJointIndex.WRIST],
-                                        left_orientations[HandJointIndex.WRIST],
-                                    )
-                                )
-                            else:
-                                hand_msg.poses.append(_to_pose([0.0, 0.0, 0.0]))
-
-                            if not right_hand.is_none:
-                                _append_hand_poses(
-                                    hand_msg.poses,
-                                    right_positions,
-                                    right_orientations,
-                                )
-                            else:
-                                for _ in range(
-                                    HandJointIndex.THUMB_METACARPAL,
-                                    HandJointIndex.LITTLE_TIP + 1,
-                                ):
-                                    hand_msg.poses.append(_to_pose([0.0, 0.0, 0.0]))
-
-                            if not left_hand.is_none:
-                                _append_hand_poses(
-                                    hand_msg.poses,
-                                    left_positions,
-                                    left_orientations,
-                                )
-                            else:
-                                for _ in range(
-                                    HandJointIndex.THUMB_METACARPAL,
-                                    HandJointIndex.LITTLE_TIP + 1,
-                                ):
-                                    hand_msg.poses.append(_to_pose([0.0, 0.0, 0.0]))
+                            hand_msg = _build_hand_msg_from_hands(
+                                left_hand, right_hand, now, self._frame_id
+                            )
                         elif self._mode == "controller_teleop":
                             hand_msg = _build_hand_msg_from_controllers(
                                 left_ctrl, right_ctrl, now, self._frame_id
