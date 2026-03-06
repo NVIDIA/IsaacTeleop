@@ -101,6 +101,7 @@ Example: `--ros-args -p mode:=controller_raw`
 docker exec -it teleop_ros2_ref /bin/bash
 
 ros2 topic echo /xr_teleop/hand geometry_msgs/msg/PoseArray
+ros2 topic echo /xr_teleop/ee_poses geometry_msgs/msg/PoseArray
 ros2 topic echo /xr_teleop/root_twist geometry_msgs/msg/TwistStamped
 ros2 topic echo /xr_teleop/root_pose geometry_msgs/msg/PoseStamped
 ros2 topic echo /xr_teleop/controller_data std_msgs/msg/ByteMultiArray

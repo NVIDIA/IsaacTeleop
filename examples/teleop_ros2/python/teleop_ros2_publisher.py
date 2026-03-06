@@ -406,23 +406,24 @@ class TeleopRos2PublisherNode(Node):
                                 self._pub_ee_pose.publish(ee_msg)
 
                         if self._mode in ("hand_teleop", "controller_teleop"):
-                            root_command = result["root_command"]
-                            cmd = np.asarray(root_command[0])
-                            twist_msg = TwistStamped()
-                            twist_msg.header.stamp = now
-                            twist_msg.header.frame_id = self._frame_id
-                            twist_msg.twist.linear.x = float(cmd[0])
-                            twist_msg.twist.linear.y = float(cmd[1])
-                            twist_msg.twist.linear.z = 0.0
-                            twist_msg.twist.angular.z = float(cmd[2])
-                            self._pub_root_twist.publish(twist_msg)
+                            root_command = result.get("root_command")
+                            if not root_command.is_none:
+                                cmd = np.asarray(root_command[0])
+                                twist_msg = TwistStamped()
+                                twist_msg.header.stamp = now
+                                twist_msg.header.frame_id = self._frame_id
+                                twist_msg.twist.linear.x = float(cmd[0])
+                                twist_msg.twist.linear.y = float(cmd[1])
+                                twist_msg.twist.linear.z = 0.0
+                                twist_msg.twist.angular.z = float(cmd[2])
+                                self._pub_root_twist.publish(twist_msg)
 
-                            pose_msg = PoseStamped()
-                            pose_msg.header.stamp = now
-                            pose_msg.header.frame_id = self._frame_id
-                            pose_msg.pose.position.z = float(cmd[3])
-                            pose_msg.pose.orientation.w = 1.0
-                            self._pub_root_pose.publish(pose_msg)
+                                pose_msg = PoseStamped()
+                                pose_msg.header.stamp = now
+                                pose_msg.header.frame_id = self._frame_id
+                                pose_msg.pose.position.z = float(cmd[3])
+                                pose_msg.pose.orientation.w = 1.0
+                                self._pub_root_pose.publish(pose_msg)
 
                         if self._mode == "controller_raw":
                             if not left_ctrl.is_none or not right_ctrl.is_none:
