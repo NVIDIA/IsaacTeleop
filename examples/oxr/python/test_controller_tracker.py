@@ -73,10 +73,10 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
             print("  Right: inactive")
         print()
 
-        # Test 6: Available inputs
         print("[Test 6] Available controller inputs:")
         print("  Buttons: primary_click, secondary_click, thumbstick_click")
-        print("  Axes: thumbstick_x, thumbstick_y, squeeze_value, trigger_value")
+        print("  Joystick (thumbstick): thumbstick_x, thumbstick_y [-1.0 to 1.0]")
+        print("  Axes: squeeze_value, trigger_value")
         print()
 
         # Test 7: Run tracking loop
@@ -104,23 +104,40 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
                     print(f"  [{elapsed:5.2f}s] Frame {frame_count:4d}")
 
                     left_data = left_tracked.data
+                    right_data = right_tracked.data
+
+                    # Joystick (thumbstick) data
+                    if left_data is not None:
+                        li = left_data.inputs
+                        print(
+                            f"    Joystick L: x={li.thumbstick_x:+.2f} y={li.thumbstick_y:+.2f}"
+                            f"  (click={bool(li.thumbstick_click)})"
+                        )
+                    else:
+                        print("    Joystick L: inactive")
+                    if right_data is not None:
+                        ri = right_data.inputs
+                        print(
+                            f"    Joystick R: x={ri.thumbstick_x:+.2f} y={ri.thumbstick_y:+.2f}"
+                            f"  (click={bool(ri.thumbstick_click)})"
+                        )
+                    else:
+                        print("    Joystick R: inactive")
+
+                    # Other inputs
                     if left_data is not None:
                         li = left_data.inputs
                         print(
                             f"    L: Trig={li.trigger_value:.2f} Sq={li.squeeze_value:.2f}"
-                            f" Stick=({li.thumbstick_x:+.2f},{li.thumbstick_y:+.2f})"
-                            f" Btn=[{int(li.primary_click)}{int(li.secondary_click)}{int(li.thumbstick_click)}]"
+                            f" Btn=[{int(li.primary_click)}{int(li.secondary_click)}]"
                         )
                     else:
                         print("    L: INACTIVE")
-
-                    right_data = right_tracked.data
                     if right_data is not None:
                         ri = right_data.inputs
                         print(
                             f"    R: Trig={ri.trigger_value:.2f} Sq={ri.squeeze_value:.2f}"
-                            f" Stick=({ri.thumbstick_x:+.2f},{ri.thumbstick_y:+.2f})"
-                            f" Btn=[{int(ri.primary_click)}{int(ri.secondary_click)}{int(ri.thumbstick_click)}]"
+                            f" Btn=[{int(ri.primary_click)}{int(ri.secondary_click)}]"
                         )
                     else:
                         print("    R: INACTIVE")
@@ -150,7 +167,10 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
                 print(f"    Trigger: {inputs.trigger_value:.2f}")
                 print(f"    Squeeze: {inputs.squeeze_value:.2f}")
                 print(
-                    f"    Thumbstick: ({inputs.thumbstick_x:+.2f}, {inputs.thumbstick_y:+.2f})"
+                    f"    Joystick (thumbstick): x={inputs.thumbstick_x:+.2f} y={inputs.thumbstick_y:+.2f}"
+                )
+                print(
+                    f"    Thumbstick click: {'pressed' if inputs.thumbstick_click else 'released'}"
                 )
                 print(
                     f"    Primary: {'PRESSED' if inputs.primary_click else 'released'}"
