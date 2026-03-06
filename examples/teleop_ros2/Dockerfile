@@ -101,6 +101,16 @@ EOF
 # Stage 2: runtime image (install tree only)
 # -----------------------------------------------------------------------------
 FROM base
+ARG PYTHON_VERSION
+
+WORKDIR /opt/isaacteleop/install/examples/teleop_ros2/python
+
+# Pre-install heavy Python dependencies so they are cached independently of C++ builds.
+# Copy requirements from the context, avoiding any files from the 'builder' stage.
+COPY src/core/python/requirements.txt src/core/python/requirements-retargeters.txt /tmp/
+RUN uv venv --python=${PYTHON_VERSION} && \
+    uv pip install -r /tmp/requirements.txt -r /tmp/requirements-retargeters.txt msgpack msgpack-numpy && \
+    rm /tmp/requirements.txt /tmp/requirements-retargeters.txt
 
 COPY --from=builder /opt/isaacteleop/install /opt/isaacteleop/install
 COPY --from=builder /usr/local/bin/teleop-env-setup /usr/local/bin/teleop-env-setup
@@ -110,8 +120,6 @@ ENV ISAAC_TELEOP_PLUGIN_PATH=/opt/isaacteleop/install/plugins
 ENV BASH_ENV=/usr/local/bin/teleop-env-setup
 
 RUN echo "source /usr/local/bin/teleop-env-setup" >> /etc/bash.bashrc
-
-WORKDIR /opt/isaacteleop/install/examples/teleop_ros2/python
 
 # Pre-install Python dependencies so uv run doesn't download at every launch.
 RUN uv sync --no-dev
