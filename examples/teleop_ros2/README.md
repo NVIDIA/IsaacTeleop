@@ -79,7 +79,20 @@ docker run --rm --net=host --ipc=host \
   teleop_ros2_ref --ros-args -p frame_id:=odom -p rate_hz:=30.0
 ```
 
-Available parameters: `hand_topic`, `twist_topic`, `pose_topic`, `controller_topic`, `full_body_topic`, `frame_id`, `rate_hz`, `use_mock_operators`. Use `ros2 param list /teleop_ros2_publisher` and `ros2 param describe /teleop_ros2_publisher <param>` (with the node running) for the full set.
+Available parameters: `hand_topic`, `twist_topic`, `pose_topic`, `controller_topic`, `full_body_topic`, `frame_id`, `rate_hz`, `use_mock_operators`, `mode`. Use `ros2 param list /teleop_ros2_publisher` and `ros2 param describe /teleop_ros2_publisher <param>` (with the node running) for the full set.
+
+### Mode
+
+The `mode` parameter selects the teleoperation scenario and which topics are published:
+
+| Mode | Topics published |
+|------|------------------|
+| `controller_teleop` (default) | `hand` (from controller aim pose), `root_twist`, `root_pose` |
+| `hand_teleop` | `hand` (from hand tracking), `root_twist`, `root_pose` |
+| `controller_raw` | `controller_data` only |
+| `full_body` | `full_body` only |
+
+Example: `--ros-args -p mode:=controller_raw`
 
 ## Echo Topics
 
