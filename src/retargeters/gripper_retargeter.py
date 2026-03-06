@@ -80,7 +80,7 @@ class GripperRetargeter(BaseRetargeter):
             )
         }
 
-    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
+    def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         """Computes gripper command based on controller trigger (priority) or pinch distance (fallback)."""
 
         gripper_out = outputs["gripper_command"]

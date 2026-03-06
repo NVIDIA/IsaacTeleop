@@ -96,7 +96,7 @@ class FullBodySource(IDeviceIOSource):
             "full_body": OptionalType(FullBodyInput()),
         }
 
-    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
+    def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         """
         Convert DeviceIO FullBodyPosePicoT to standard FullBodyInput tensors.
 
@@ -105,6 +105,7 @@ class FullBodySource(IDeviceIOSource):
         Args:
             inputs: Dict with "deviceio_full_body" containing FullBodyPosePicoTrackedT wrapper
             outputs: Dict with "full_body" OptionalTensorGroup
+            context: Shared ComputeContext for the current step (carries GraphTime).
         """
         tracked: "FullBodyPosePicoTrackedT" = inputs["deviceio_full_body"][0]
         body_pose: "FullBodyPosePicoT | None" = tracked.data

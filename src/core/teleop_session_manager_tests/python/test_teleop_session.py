@@ -125,7 +125,7 @@ class MockDeviceIOSource(IDeviceIOSource):
             "output_0": TensorGroupType("type_output", [FloatType("value")]),
         }
 
-    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
+    def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         outputs["output_0"][0] = 0.0
 
 
@@ -211,7 +211,7 @@ class MockExternalRetargeter(BaseRetargeter):
             "result": TensorGroupType("type_result", [FloatType("value")]),
         }
 
-    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
+    def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         outputs["result"][0] = inputs["external_data"][0]
 
 
@@ -238,7 +238,7 @@ class MockEmptyInputRetargeter(BaseRetargeter):
             "value": TensorGroupType("type_value", [FloatType("value")]),
         }
 
-    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
+    def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         outputs["value"][0] = 1.0
 
 
@@ -258,16 +258,12 @@ class MockPipeline:
     def get_leaf_nodes(self):
         return self._leaf_nodes
 
-    def compute(self, inputs):
+    def execute_pipeline(self, inputs, context=None):
         self.last_inputs = inputs
         return self._call_result
 
-    def compute_at(self, graph_time, inputs):
-        self.last_inputs = inputs
-        return self._call_result
-
-    def __call__(self, inputs):
-        return self.compute(inputs)
+    def __call__(self, inputs, context=None):
+        return self.execute_pipeline(inputs, context)
 
 
 # ============================================================================

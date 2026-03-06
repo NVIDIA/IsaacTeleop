@@ -89,7 +89,7 @@ class ControllerTransform(BaseRetargeter):
             self.RIGHT: OptionalType(ControllerInput()),
         }
 
-    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
+    def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         """
         Apply the 4x4 transform to controller grip and aim poses.
 
@@ -99,6 +99,7 @@ class ControllerTransform(BaseRetargeter):
         Args:
             inputs: Dict with "controller_left", "controller_right", and "transform" TensorGroups.
             outputs: Dict with "controller_left" and "controller_right" TensorGroups.
+            context: ComputeContext (unused by this transform node).
         """
         matrix = np.from_dlpack(inputs["transform"][_MATRIX_INDEX])
         rotation, translation = decompose_transform(matrix)

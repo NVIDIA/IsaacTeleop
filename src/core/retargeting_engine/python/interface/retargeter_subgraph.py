@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -8,14 +8,16 @@ A subgraph wraps a target retargeter module with its input connections,
 enabling composition of retargeters into larger computational graphs.
 """
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 from .retargeter_core_types import (
     GraphExecutable,
     BaseExecutable,
     RetargeterIOType,
-    ExecutionContext,
+    ExecutionCache,
     OutputSelector,
     RetargeterIO,
+    ComputeContext,
+    _default_compute_context,
 )
 
 
@@ -61,53 +63,74 @@ class RetargeterSubgraph(GraphExecutable):
         """
         return self._output_types
 
-    def _compute_in_graph(self, context: ExecutionContext) -> RetargeterIO:
+    def _compute_with_cache(self, cache: ExecutionCache) -> RetargeterIO:
         """
-        Compute the subgraph within a graph execution context.
+        Compute the subgraph within an ExecutionCache.
 
-        This method:
-        1. Checks for cached results to avoid redundant computation
-        2. Resolves inputs by executing connected source modules
-        3. Executes the target module with resolved inputs
-        4. Caches the results for future use
+        1. Returns cached result immediately on a cache hit.
+        2. Recursively resolves inputs by executing connected source modules
+           (each of which also goes through the cache for deduplication).
+        3. Allocates outputs via ``_target_module._allocate_outputs()``, then
+           executes via ``compute``, forwarding ``cache.context``
+           so the target node receives the same shared ``ComputeContext``.
+        4. Stores the result in the cache and returns it.
 
         Args:
-            context: The execution context containing leaf inputs and cache
+            cache: The per-step execution cache carrying leaf inputs and context.
 
         Returns:
             Dict[str, TensorGroup] - The computed output tensor groups
         """
-        # Check the execution context for cached results.
-        cached_outputs = context.get_cached(id(self))
+        cached_outputs = cache.get_cached(id(self))
         if cached_outputs is not None:
             return cached_outputs
 
-        # Resolve inputs from connected modules
+        # Resolve inputs from connected upstream modules
         inputs = {}
         for input_name, input_selector in self._input_connections.items():
-            source_outputs = input_selector.module._compute_in_graph(context)
+            source_outputs = input_selector.module._compute_with_cache(cache)
             inputs[input_name] = source_outputs[input_selector.output_name]
 
-        # Compute target module (unconnected optional inputs are filled by
-        # _compute_without_context with absent OptionalTensorGroups)
-        outputs = self._target_module._compute_without_context(inputs)
-        context.cache(id(self), outputs)
+        # Execute target module with the shared context from the cache.
+        # Key output buffers by id(self) so two subgraphs wrapping the same
+        # target module never share the same output buffer.
+        # target node receives the same shared ``ComputeContext``.
+        # _compute_with_cache handles optional-input filling and validation.
+        outputs = self._target_module._allocate_outputs()
+        self._target_module.compute(inputs, outputs, cache.context)
+        cache.cache(id(self), outputs)
         return outputs
 
-    def __call__(self, inputs: Dict[str, RetargeterIO]) -> RetargeterIO:
-        """
-        Execute the subgraph as a callable.
+    # ========================================================================
+    # External API
+    # ========================================================================
 
-        This creates a new execution context with the provided leaf inputs
-        and executes the subgraph.
+    def execute_pipeline(
+        self,
+        inputs: Dict[str, RetargeterIO],
+        context: Optional[ComputeContext] = None,
+    ) -> RetargeterIO:
+        """
+        Execute the subgraph and return its outputs.
 
         Args:
-            inputs: Dict mapping leaf module names to their input tensor groups
+            inputs: Dict mapping leaf module names to their input tensor groups.
+            context: ComputeContext for this step. Auto-generated from the monotonic
+                     clock when not provided.
 
         Returns:
             Dict[str, TensorGroup] - The computed output tensor groups
         """
-        return self._compute_in_graph(ExecutionContext(inputs))
+        if context is None:
+            context = _default_compute_context()
+        return self._compute_with_cache(ExecutionCache(inputs, context))
+
+    def __call__(
+        self,
+        inputs: Dict[str, RetargeterIO],
+        context: Optional[ComputeContext] = None,
+    ) -> RetargeterIO:
+        return self.execute_pipeline(inputs, context)
 
     def get_leaf_nodes(self) -> List[BaseExecutable]:
         """
