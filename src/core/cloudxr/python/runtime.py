@@ -1,17 +1,23 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
+import asyncio
 import ctypes
+import multiprocessing
 import os
 import shutil
 import signal
 import sys
 import threading
 
+from .util import ensure_logs_dir, openxr_run_dir
+
 
 _EULA_URL = (
     "https://github.com/NVIDIA/IsaacTeleop/blob/main/deps/cloudxr/CLOUDXR_LICENSE"
 )
 _EULA_MARKER = "eula_accepted"
+_RUNTIME_JOIN_TIMEOUT = 10
+_RUNTIME_STARTUP_TIMEOUT_SEC = 10
 
 
 def _eula_marker_path() -> str | None:
@@ -51,6 +57,11 @@ def _require_eula() -> None:
     sys.exit(1)
 
 
+def check_eula() -> None:
+    """Require CloudXR EULA to be accepted; exits the process if not. Call from main process before spawning runtime."""
+    _require_eula()
+
+
 def _sdk_path() -> str | None:
     """Return the path to the bundled CloudXR native libs (wheel package data), or None."""
     this_dir = os.path.dirname(os.path.abspath(__file__))
@@ -58,6 +69,37 @@ def _sdk_path() -> str | None:
     if os.path.isfile(os.path.join(native_dir, "libcloudxr.so")):
         return native_dir
     return None
+
+
+async def wait_for_runtime_ready(
+    process: multiprocessing.Process,
+    timeout_sec: float = _RUNTIME_STARTUP_TIMEOUT_SEC,
+) -> bool:
+    """Return True when runtime is ready (lock file runtime_started + PID alive if cloudxr.pid exists). Return False on timeout. Raise RuntimeStartupFailure if process exits with non-zero."""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout_sec
+
+    lock_file = os.path.join(openxr_run_dir(), "runtime_started")
+
+    while loop.time() < deadline:
+        if not process.is_alive():
+            return False
+
+        if os.path.isfile(lock_file):
+            return True
+        await asyncio.sleep(1)
+
+    # Runtime startup timeout reached, assume the runtime is not ready
+    return False
+
+
+def terminate_or_kill_runtime(process: multiprocessing.Process) -> None:
+    """Terminate or kill the runtime process."""
+    if process.is_alive():
+        process.terminate()
+    process.join(timeout=_RUNTIME_JOIN_TIMEOUT)
+    if process.is_alive():
+        process.kill()
 
 
 def _setup_openxr_dir(sdk_path: str, run_dir: str) -> str:
@@ -83,18 +125,13 @@ def _setup_openxr_dir(sdk_path: str, run_dir: str) -> str:
     return openxr_dir
 
 
-def openxr_run_dir() -> str:
-    if os.environ.get("HOME"):
-        return os.path.abspath(os.path.join(os.environ["HOME"], ".cloudxr", "run"))
-    raise RuntimeError("Failed to determine openxr run dir")
-
-
 def run() -> None:
     """Run the CloudXR runtime service until SIGINT/SIGTERM. Blocks until shutdown."""
     _require_eula()
     sdk_path = _sdk_path()
     run_dir = openxr_run_dir()
     openxr_dir = _setup_openxr_dir(sdk_path, run_dir)
+    logs_dir_path = ensure_logs_dir()
 
     json_path = os.path.join(openxr_dir, "openxr_cloudxr.json")
     os.environ["XR_RUNTIME_JSON"] = json_path
@@ -103,7 +140,10 @@ def run() -> None:
     os.environ["NV_CXR_ENABLE_PUSH_DEVICES"] = "true"
     os.environ["NV_CXR_ENABLE_TENSOR_DATA"] = "true"
     os.environ["XRT_NO_STDIN"] = "true"
-    os.environ["NV_CXR_FILE_LOGGING"] = "false"
+
+    # CloudXR Runtime writes cxr_server.<timestamp>.log under NV_CXR_OUTPUT_DIR when
+    os.environ["NV_CXR_FILE_LOGGING"] = "true"
+    os.environ["NV_CXR_OUTPUT_DIR"] = str(logs_dir_path)
     os.environ["NV_DEVICE_PROFILE"] = "Quest3"
 
     prev_ld = os.environ.get("LD_LIBRARY_PATH", "")
@@ -119,7 +159,6 @@ def run() -> None:
         if not state["service_created"]:
             return
         state["interrupted"] = sig == signal.SIGINT
-        print("Stopping CloudXR runtime...")
         lib.nv_cxr_service_stop(svc)
 
     signal.signal(signal.SIGINT, stop)
