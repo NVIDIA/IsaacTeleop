@@ -3,14 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 """CloudXR WSS Proxy — terminates TLS and forwards WebSocket traffic to a CloudXR Runtime backend."""
 
-import argparse
 import asyncio
 import errno
 import http.client
 import logging
-import os
 import shutil
-import signal
 import ssl
 import subprocess
 import sys
@@ -39,16 +36,14 @@ class CertPaths:
     cert_dir: Path
     cert_file: Path
     key_file: Path
-    pem_file: Path
 
 
-def _cert_paths_from_dir(cert_dir: Path) -> CertPaths:
+def cert_paths_from_dir(cert_dir: Path) -> CertPaths:
     cert_dir = cert_dir.resolve()
     return CertPaths(
         cert_dir=cert_dir,
         cert_file=cert_dir / "server.crt",
         key_file=cert_dir / "server.key",
-        pem_file=cert_dir / "server.pem",
     )
 
 
@@ -64,11 +59,6 @@ def ensure_certificate(cert_paths: CertPaths) -> None:
         )
 
     if cert_exists and key_exists:
-        if not cert_paths.pem_file.exists():
-            cert_paths.pem_file.write_bytes(
-                cert_paths.cert_file.read_bytes() + cert_paths.key_file.read_bytes()
-            )
-            cert_paths.pem_file.chmod(0o600)
         log.info("Using existing SSL certificate from %s", cert_paths.cert_file)
         return
 
@@ -98,14 +88,11 @@ def ensure_certificate(cert_paths: CertPaths) -> None:
             "/CN=localhost",
         ],
         check=True,
+        capture_output=True,
     )
 
-    cert_paths.pem_file.write_bytes(
-        cert_paths.cert_file.read_bytes() + cert_paths.key_file.read_bytes()
-    )
     cert_paths.key_file.chmod(0o600)
-    cert_paths.pem_file.chmod(0o600)
-    log.info("SSL certificate generated at %s", cert_paths.pem_file)
+    log.info("SSL certificate generated at %s", cert_paths.cert_file)
 
 
 def build_ssl_context(cert_paths: CertPaths) -> ssl.SSLContext:
@@ -285,41 +272,43 @@ async def proxy_handler(client, backend_host: str, backend_port: int):
         log.info("Connection closed: %s", path)
 
 
-def _env(name: str, default: str) -> str:
-    return os.environ.get(name, default)
+def default_cert_paths() -> CertPaths:
+    """Return cert paths under the default location (~/.cloudxr/certs)."""
+    return cert_paths_from_dir(Path(openxr_run_dir()).parent / "certs")
 
 
 async def run(
-    args: argparse.Namespace,
-    cert_paths: CertPaths,
-    stop_future: asyncio.Future | None = None,
+    log_file_path: str | Path,
+    stop_future: asyncio.Future,
+    backend_host: str = "localhost",
+    backend_port: int = 49100,
+    proxy_port: int = 48322,
 ) -> None:
-    ensure_certificate(cert_paths)
-    ssl_ctx = build_ssl_context(cert_paths)
-
-    def handler(ws):
-        return proxy_handler(ws, args.backend_host, args.backend_port)
-
-    http_handler = _make_http_handler(args.backend_host, args.backend_port)
-
-    loop = asyncio.get_running_loop()
-    if stop_future is not None:
-        stop = stop_future
-    else:
-        stop = loop.create_future()
-
-        def _stop():
-            if not stop.done():
-                stop.set_result(None)
-
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, _stop)
+    logger = log
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+    file_handler = logging.FileHandler(log_file_path, mode="a", encoding="utf-8")
+    file_handler.setFormatter(
+        logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    )
+    logger.addHandler(file_handler)
 
     try:
+        logging.getLogger("websockets").setLevel(logging.WARNING)
+        cert_paths = default_cert_paths()
+
+        ensure_certificate(cert_paths)
+        ssl_ctx = build_ssl_context(cert_paths)
+
+        def handler(ws):
+            return proxy_handler(ws, backend_host, backend_port)
+
+        http_handler = _make_http_handler(backend_host, backend_port)
+
         async with ws_serve(
             handler,
             host="",
-            port=args.proxy_port,
+            port=proxy_port,
             ssl=ssl_ctx,
             process_request=http_handler,
             process_response=add_cors_headers,
@@ -329,76 +318,16 @@ async def run(
             ping_timeout=None,
             close_timeout=10,
         ):
-            log.info("WSS proxy listening on port %d", args.proxy_port)
-            await stop
+            log.info("WSS proxy listening on port %d", proxy_port)
+            await stop_future
             log.info("Shutting down ...")
     except OSError as e:
         if e.errno == errno.EADDRINUSE:
             raise RuntimeError(
-                f"WSS proxy port {args.proxy_port} is already in use. "
-                f"Set PROXY_PORT to a different port or stop the process using {args.proxy_port}."
+                f"WSS proxy port {proxy_port} is already in use. "
+                f"Set PROXY_PORT to a different port or stop the process using {proxy_port}."
             ) from e
         raise
-
-
-def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="CloudXR WSS Proxy")
-    parser.add_argument(
-        "--backend-host",
-        default=_env("BACKEND_HOST", "localhost"),
-        help="CloudXR Runtime host (env: BACKEND_HOST, default: localhost)",
-    )
-    parser.add_argument(
-        "--backend-port",
-        type=int,
-        default=_env("BACKEND_PORT", "49100"),
-        help="CloudXR Runtime port (env: BACKEND_PORT, default: 49100)",
-    )
-    parser.add_argument(
-        "--proxy-port",
-        type=int,
-        default=_env("PROXY_PORT", "48322"),
-        help="Port for this WSS proxy to listen on (env: PROXY_PORT, default: 48322)",
-    )
-    parser.add_argument(
-        "--cert-dir",
-        type=Path,
-        default=None,
-        help="Directory containing server.crt and server.key (default: ~/.cloudxr/certs)",
-    )
-    parser.add_argument(
-        "--debug",
-        action="store_true",
-        help="Enable debug logging (shows every proxied message)",
-    )
-    return parser
-
-
-def parse_args(
-    argv: list[str] | None = None,
-    log_file_path: str | Path | None = None,
-) -> tuple[argparse.Namespace, CertPaths]:
-    """Parse WSS proxy arguments and return (args, cert_paths). Configures logging to stderr or log_file_path."""
-    args = _build_parser().parse_args(argv)
-
-    if args.cert_dir is not None:
-        cert_paths = _cert_paths_from_dir(args.cert_dir)
-    else:
-        cert_paths = _cert_paths_from_dir(Path(openxr_run_dir()).parent / "certs")
-
-    level = logging.DEBUG if args.debug else logging.INFO
-    fmt = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-    root = logging.getLogger()
-    if log_file_path is not None:
-        root.setLevel(level)
-        for h in root.handlers[:]:
-            root.removeHandler(h)
-        file_handler = logging.FileHandler(log_file_path, mode="a", encoding="utf-8")
-        file_handler.setFormatter(logging.Formatter(fmt))
-        root.addHandler(file_handler)
-    else:
-        logging.basicConfig(level=level, format=fmt)
-    if not args.debug:
-        logging.getLogger("websockets").setLevel(logging.WARNING)
-
-    return args, cert_paths
+    finally:
+        logger.removeHandler(file_handler)
+        file_handler.close()

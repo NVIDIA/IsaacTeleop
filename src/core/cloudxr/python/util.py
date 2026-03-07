@@ -18,10 +18,7 @@ def _cloudxr_root_path() -> str:
         return os.path.abspath(os.path.expanduser(raw))
 
     if os.environ.get("HOME"):
-        raw = os.path.abspath(os.path.join(os.environ["HOME"], ".cloudxr"))
-        print(f"CXR_HOST_VOLUME_PATH not set, using default {raw}")
-        os.environ["CXR_HOST_VOLUME_PATH"] = raw
-        return raw
+        return os.path.abspath(os.path.join(os.environ["HOME"], ".cloudxr"))
 
     raise RuntimeError(
         "Failed to determine CloudXR volume path (set CXR_HOST_VOLUME_PATH or HOME)"
