@@ -33,7 +33,7 @@ NV_CXR_ENABLE_PUSH_DEVICES=0
 - `xr_teleop/root_twist` (`geometry_msgs/TwistStamped`)
 - `xr_teleop/root_pose` (`geometry_msgs/PoseStamped`)
 - `xr_teleop/controller_data` (`std_msgs/ByteMultiArray`, msgpack-encoded dictionary)
-- `/tf` (`geometry_msgs/TransformStamped`)
+- `/tf` (`tf2_msgs/TFMessage`)
   - `world_frame` → `right_wrist_frame`: Right wrist transform (published in `controller_teleop` and `hand_teleop` modes)
   - `world_frame` → `left_wrist_frame`: Left wrist transform (published in `controller_teleop` and `hand_teleop` modes)
 
