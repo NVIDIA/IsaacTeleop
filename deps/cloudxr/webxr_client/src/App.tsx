@@ -264,6 +264,16 @@ function App() {
         // Request optional WebXR features - use property names, not optionalFeatures array!
         handTracking: true,
         bodyTracking: true,
+        // Explicitly disable environment/scene feature requests to avoid extra headset prompts.
+        anchors: false,
+        layers: false,
+        meshDetection: false,
+        planeDetection: false,
+        depthSensing: false,
+        domOverlay: false,
+        hitTest: false,
+        // Explicitly enable session offer flows; keep session entry on explicit button action.
+        offerSession: true,
       }),
     // hideControllerModel omitted: changing it must not recreate the store or the session would be lost
     [xrFoveation, xrFrameBufferScaling]
