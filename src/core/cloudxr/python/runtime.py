@@ -15,31 +15,14 @@ from .util import ensure_logs_dir, openxr_run_dir
 _EULA_URL = (
     "https://github.com/NVIDIA/IsaacTeleop/blob/main/deps/cloudxr/CLOUDXR_LICENSE"
 )
-_EULA_MARKER = "eula_accepted"
 _RUNTIME_JOIN_TIMEOUT = 10
 _RUNTIME_STARTUP_TIMEOUT_SEC = 10
 
 
-def _eula_marker_path() -> str | None:
-    """Path to persisted EULA marker file (~/.cloudxr/run/eula_accepted), or None if HOME unset."""
-    return os.path.join(openxr_run_dir(), _EULA_MARKER)
-
-
-def _eula_read_persisted() -> bool:
-    path = _eula_marker_path()
-    return path is not None and os.path.isfile(path)
-
-
-def _eula_write_persisted() -> None:
-    path = _eula_marker_path()
-    run_dir = os.path.dirname(path)
-    os.makedirs(run_dir, mode=0o700, exist_ok=True)
-    with open(path, "w") as f:
-        f.write("accepted\n")
-
-
-def _require_eula() -> None:
-    if _eula_read_persisted():
+def check_eula() -> None:
+    """Require CloudXR EULA to be accepted; exits the process if not. Call from main process before spawning runtime."""
+    marker = os.path.join(openxr_run_dir(), "eula_accepted")
+    if os.path.isfile(marker):
         return
 
     print(
@@ -50,16 +33,14 @@ def _require_eula() -> None:
         reply = input("\nAccept NVIDIA CloudXR EULA? [y/N]: ").strip().lower()
     except EOFError:
         reply = ""
-    if reply in ("y", "yes"):
-        _eula_write_persisted()
-        return
-    print("EULA not accepted. Exiting.", file=sys.stderr)
-    sys.exit(1)
+    if reply not in ("y", "yes"):
+        print("EULA not accepted. Exiting.", file=sys.stderr)
+        sys.exit(1)
 
-
-def check_eula() -> None:
-    """Require CloudXR EULA to be accepted; exits the process if not. Call from main process before spawning runtime."""
-    _require_eula()
+    run_dir = os.path.dirname(marker)
+    os.makedirs(run_dir, mode=0o700, exist_ok=True)
+    with open(marker, "w") as f:
+        f.write("accepted\n")
 
 
 def _sdk_path() -> str | None:
@@ -75,7 +56,10 @@ async def wait_for_runtime_ready(
     process: multiprocessing.Process,
     timeout_sec: float = _RUNTIME_STARTUP_TIMEOUT_SEC,
 ) -> bool:
-    """Return True when runtime is ready (lock file runtime_started + PID alive if cloudxr.pid exists). Return False on timeout. Raise RuntimeStartupFailure if process exits with non-zero."""
+    """
+    Return True when runtime is ready (lock file runtime_started). Return False on timeout or if
+    the process exits early.
+    """
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout_sec
 
@@ -87,6 +71,7 @@ async def wait_for_runtime_ready(
 
         if os.path.isfile(lock_file):
             return True
+
         await asyncio.sleep(1)
 
     # Runtime startup timeout reached, assume the runtime is not ready
@@ -97,9 +82,12 @@ def terminate_or_kill_runtime(process: multiprocessing.Process) -> None:
     """Terminate or kill the runtime process."""
     if process.is_alive():
         process.terminate()
-    process.join(timeout=_RUNTIME_JOIN_TIMEOUT)
+        process.join(timeout=_RUNTIME_JOIN_TIMEOUT)
     if process.is_alive():
         process.kill()
+        process.join(timeout=_RUNTIME_JOIN_TIMEOUT)
+    if process.is_alive():
+        raise RuntimeError("Failed to terminate or kill runtime process")
 
 
 def _setup_openxr_dir(sdk_path: str, run_dir: str) -> str:
@@ -127,15 +115,25 @@ def _setup_openxr_dir(sdk_path: str, run_dir: str) -> str:
 
 def run() -> None:
     """Run the CloudXR runtime service until SIGINT/SIGTERM. Blocks until shutdown."""
-    _require_eula()
     sdk_path = _sdk_path()
     run_dir = openxr_run_dir()
     openxr_dir = _setup_openxr_dir(sdk_path, run_dir)
     logs_dir_path = ensure_logs_dir()
 
-    json_path = os.path.join(openxr_dir, "openxr_cloudxr.json")
-    os.environ["XR_RUNTIME_JSON"] = json_path
-    os.environ["NV_CXR_RUNTIME_DIR"] = run_dir
+    expected_json = os.path.join(openxr_dir, "openxr_cloudxr.json")
+    for var, expected in (
+        ("XR_RUNTIME_JSON", expected_json),
+        ("NV_CXR_RUNTIME_DIR", run_dir),
+    ):
+        actual = os.environ.get(var)
+        if actual is None:
+            raise RuntimeError(
+                f"{var} is not set. Source setup_cloudxr_env.sh before running."
+            )
+        if os.path.abspath(actual) != os.path.abspath(expected):
+            raise RuntimeError(
+                f"{var} mismatch: environment has {actual!r}, expected {expected!r}"
+            )
 
     os.environ["NV_CXR_ENABLE_PUSH_DEVICES"] = "true"
     os.environ["NV_CXR_ENABLE_TENSOR_DATA"] = "true"
