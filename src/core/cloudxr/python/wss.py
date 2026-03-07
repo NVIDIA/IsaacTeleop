@@ -5,6 +5,7 @@
 
 import argparse
 import asyncio
+import errno
 import http.client
 import logging
 import os
@@ -16,7 +17,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from .runtime import openxr_run_dir
+from .util import openxr_run_dir
 
 try:
     import websockets
@@ -288,7 +289,11 @@ def _env(name: str, default: str) -> str:
     return os.environ.get(name, default)
 
 
-async def run(args: argparse.Namespace, cert_paths: CertPaths) -> None:
+async def run(
+    args: argparse.Namespace,
+    cert_paths: CertPaths,
+    stop_future: asyncio.Future | None = None,
+) -> None:
     ensure_certificate(cert_paths)
     ssl_ctx = build_ssl_context(cert_paths)
 
@@ -297,34 +302,46 @@ async def run(args: argparse.Namespace, cert_paths: CertPaths) -> None:
 
     http_handler = _make_http_handler(args.backend_host, args.backend_port)
 
-    stop = asyncio.get_running_loop().create_future()
+    loop = asyncio.get_running_loop()
+    if stop_future is not None:
+        stop = stop_future
+    else:
+        stop = loop.create_future()
 
-    def _stop():
-        if not stop.done():
-            stop.set_result(None)
+        def _stop():
+            if not stop.done():
+                stop.set_result(None)
 
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        asyncio.get_running_loop().add_signal_handler(sig, _stop)
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            loop.add_signal_handler(sig, _stop)
 
-    async with ws_serve(
-        handler,
-        host="",
-        port=args.proxy_port,
-        ssl=ssl_ctx,
-        process_request=http_handler,
-        process_response=add_cors_headers,
-        compression=None,
-        max_size=None,
-        ping_interval=None,
-        ping_timeout=None,
-        close_timeout=10,
-    ):
-        log.info("WSS proxy listening on port %d", args.proxy_port)
-        await stop
-        log.info("Shutting down ...")
+    try:
+        async with ws_serve(
+            handler,
+            host="",
+            port=args.proxy_port,
+            ssl=ssl_ctx,
+            process_request=http_handler,
+            process_response=add_cors_headers,
+            compression=None,
+            max_size=None,
+            ping_interval=None,
+            ping_timeout=None,
+            close_timeout=10,
+        ):
+            log.info("WSS proxy listening on port %d", args.proxy_port)
+            await stop
+            log.info("Shutting down ...")
+    except OSError as e:
+        if e.errno == errno.EADDRINUSE:
+            raise RuntimeError(
+                f"WSS proxy port {args.proxy_port} is already in use. "
+                f"Set PROXY_PORT to a different port or stop the process using {args.proxy_port}."
+            ) from e
+        raise
 
 
-def main() -> None:
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="CloudXR WSS Proxy")
     parser.add_argument(
         "--backend-host",
@@ -354,22 +371,34 @@ def main() -> None:
         action="store_true",
         help="Enable debug logging (shows every proxied message)",
     )
-    args = parser.parse_args()
+    return parser
+
+
+def parse_args(
+    argv: list[str] | None = None,
+    log_file_path: str | Path | None = None,
+) -> tuple[argparse.Namespace, CertPaths]:
+    """Parse WSS proxy arguments and return (args, cert_paths). Configures logging to stderr or log_file_path."""
+    args = _build_parser().parse_args(argv)
 
     if args.cert_dir is not None:
         cert_paths = _cert_paths_from_dir(args.cert_dir)
     else:
         cert_paths = _cert_paths_from_dir(Path(openxr_run_dir()).parent / "certs")
 
-    logging.basicConfig(
-        level=logging.DEBUG if args.debug else logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    )
+    level = logging.DEBUG if args.debug else logging.INFO
+    fmt = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    root = logging.getLogger()
+    if log_file_path is not None:
+        root.setLevel(level)
+        for h in root.handlers[:]:
+            root.removeHandler(h)
+        file_handler = logging.FileHandler(log_file_path, mode="a", encoding="utf-8")
+        file_handler.setFormatter(logging.Formatter(fmt))
+        root.addHandler(file_handler)
+    else:
+        logging.basicConfig(level=level, format=fmt)
     if not args.debug:
         logging.getLogger("websockets").setLevel(logging.WARNING)
 
-    asyncio.run(run(args, cert_paths))
-
-
-if __name__ == "__main__":
-    main()
+    return args, cert_paths
