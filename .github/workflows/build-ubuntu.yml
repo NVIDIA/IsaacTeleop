@@ -174,10 +174,14 @@ jobs:
           --build-arg PYTHON_VERSION=${{ matrix.python_version }} \
           -t teleop_ros2_ref:${{ matrix.ros_distro }} .
 
-    - name: Smoke test (ROS 2 + rclpy)
+    - name: Verify application modes
       run: |
-        docker run --rm --entrypoint bash teleop_ros2_ref:${{ matrix.ros_distro }} -c \
-          "source /usr/local/bin/teleop-env-setup && ros2 --help > /dev/null && python3 -c \"import rclpy; rclpy.init(); rclpy.shutdown(); print('rclpy OK')\""
+        touch /tmp/dummy.json
+        for mode in controller_teleop hand_teleop controller_raw full_body; do
+          echo "Testing mode: $mode"
+          docker run --rm -v /tmp/dummy.json:/tmp/dummy.json -e NV_CXR_RUNTIME_DIR=/tmp -e XR_RUNTIME_JSON=/tmp/dummy.json --entrypoint bash teleop_ros2_ref:${{ matrix.ros_distro }} -c \
+            "source /usr/local/bin/teleop-env-setup && timeout 5 uv run teleop_ros2_publisher.py --ros-args -p mode:=$mode -p use_mock_operators:=true; rc=\$?; [ \$rc -eq 124 ]"
+        done
 
   test-cloudxr:
     runs-on: [self-hosted, linux, gpu, "${{ matrix.arch }}"]
