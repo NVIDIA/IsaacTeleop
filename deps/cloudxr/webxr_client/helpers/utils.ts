@@ -321,6 +321,17 @@ export function getConnectionConfig(
 }
 
 /**
+ * Returns true when the hostname looks like a local/dev environment rather than
+ * a cloud-hosted domain. Used to decide whether the cert acceptance link should
+ * be shown automatically when no server IP is provided.
+ */
+export function isLocalServer(hostname: string): boolean {
+  const isIPv4 = /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname);
+  const isIPv6 = hostname.includes(':');
+  return hostname === 'localhost' || isIPv4 || isIPv6;
+}
+
+/**
  * Sets up certificate acceptance link for self-signed certificates in HTTPS mode
  * Shows a link to accept certificates when using direct WSS connection (no proxy)
  *
@@ -351,13 +362,14 @@ export function setupCertificateAcceptanceLink(
     const defaultPort = hasProxy ? 443 : 48322;
     const port = portValue || defaultPort;
 
-    // Show link only in HTTPS mode without proxy
-    if (isHttps && !hasProxy) {
-      let serverIp = serverIpInput.value.trim();
-      if (!serverIp) {
-        serverIp = new URL(location.href).hostname;
-      }
-      const url = `https://${serverIp}:${port}/`;
+    const serverIp = serverIpInput.value.trim();
+    const serverIpPopulated = serverIp.length > 0;
+
+    // Only show when we have a reasonable cert URL: either the user filled in
+    // a server IP, or the page itself is on a local/dev host.
+    if (isHttps && !hasProxy && (serverIpPopulated || isLocalServer(location.hostname))) {
+      const effectiveIp = serverIpPopulated ? serverIp : new URL(location.href).hostname;
+      const url = `https://${effectiveIp}:${port}/`;
       certAcceptanceLink.style.display = 'block';
       certLink.href = url;
       certLink.textContent = `Click ${url} to accept cert`;
