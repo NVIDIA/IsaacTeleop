@@ -7,8 +7,11 @@ Isaac Teleop uses a graph-based retargeting pipeline. Data flows from **source n
 Source Nodes
 ------------
 
+* ``HeadSource`` -- provides head pose.
 * ``HandsSource`` -- provides hand tracking data (left/right, 26 joints each).
 * ``ControllersSource`` -- provides motion controller data (grip pose, trigger, thumbstick, etc.).
+* ``Generic3AxisPedalSource`` -- provides 3-axis foot pedal data (left/right pedals, rudder).
+* ``FullBodySource`` -- provides full-body pose (e.g. Pico tracking).
 
 Available Retargeters
 ---------------------
@@ -16,34 +19,198 @@ Available Retargeters
 .. dropdown:: Se3AbsRetargeter / Se3RelRetargeter
 
    Maps hand or controller tracking to end-effector pose. ``Se3AbsRetargeter`` outputs a 7D
-   absolute pose (position + quaternion). ``Se3RelRetargeter`` outputs a 6D delta.
-   Configurable rotation offsets (roll, pitch, yaw in degrees).
+   absolute pose (position + quaternion). ``Se3RelRetargeter`` outputs a 6D delta (position
+   delta + rotation vector). Both use ``Se3RetargeterConfig`` with:
+
+   * ``input_device``: ``"hand_left"``, ``"hand_right"``, ``"controller_left"``, or
+     ``"controller_right"`` (default ``"hand_right"``).
+   * Rotation offsets: ``target_offset_roll``, ``target_offset_pitch``, ``target_offset_yaw``
+     (degrees, intrinsic XYZ Euler).
+   * Position offsets: ``target_offset_x``, ``target_offset_y``, ``target_offset_z`` (meters).
+   * Options: ``zero_out_xy_rotation``, ``use_wrist_rotation``, ``use_wrist_position``.
+   * ``Se3RelRetargeter`` also uses ``delta_pos_scale_factor``, ``delta_rot_scale_factor``,
+     ``alpha_pos``, ``alpha_rot``.
+
+   ``Se3AbsRetargeter`` supports live-tunable parameters via ``ParameterState`` (rotation and
+   position offsets, and the above options).
 
 .. dropdown:: GripperRetargeter
 
    Outputs a single float (-1.0 closed, 1.0 open). Uses controller trigger (priority) or
-   thumb-index pinch distance from hand tracking.
+   thumb-index pinch distance from hand tracking. ``GripperRetargeterConfig`` includes
+   ``hand_side`` (``"left"`` or ``"right"``), ``gripper_close_meters``, ``gripper_open_meters``,
+   and ``controller_threshold`` for trigger-based closing.
 
 .. dropdown:: DexHandRetargeter / DexBiManualRetargeter
 
-   Retargets full hand tracking (26 joints) to robot-specific hand joint angles using the
-   ``dex-retargeting`` library. Requires a robot hand URDF and a YAML configuration file.
+   Accurate hand tracking retargeter using the ``dex-retargeting`` library. It maps full hand
+   tracking (26 joints) to robot-specific hand joint angles.
+
+   **Features:**
+
+   * Optimization-based retargeting for accurate joint angle estimation
+   * Custom robot hands via URDF and YAML configuration
+   * OpenXR hand tracking data (26 joints) → robot-specific joint angles
+   * Configurable coordinate frame transformations
+
+   **Requirements:**
+
+   * ``dex-retargeting``: ``pip install dex-retargeting``
+   * ``scipy``: ``pip install scipy``
+   * Robot hand URDF file
+   * dex_retargeting YAML configuration file
 
    .. warning::
 
       The links used for retargeting must be defined at the actual fingertips, not in the middle
       of the fingers, to ensure accurate optimization.
 
+   **Configuration (DexHandRetargeter):**
+
+   .. code-block:: python
+
+      from isaacteleop.retargeters import (
+          DexHandRetargeter,
+          DexHandRetargeterConfig,
+      )
+
+      config = DexHandRetargeterConfig(
+          hand_joint_names=[
+              "thumb_proximal_yaw_joint",
+              "thumb_proximal_pitch_joint",
+              "index_proximal_joint",
+              "middle_proximal_joint",
+              "ring_proximal_joint",
+              "pinky_proximal_joint",
+          ],
+          hand_retargeting_config="/path/to/hand_config.yml",
+          hand_urdf="/path/to/robot_hand.urdf",
+          handtracking_to_baselink_frame_transform=(0, 0, 1, 1, 0, 0, 0, 1, 0),  # 3x3 matrix flattened
+          hand_side="left",  # or "right"
+      )
+
+      retargeter = DexHandRetargeter(config, name="dex_hand_left")
+
+   **YAML configuration example:**
+
+   A typical dex_retargeting config includes finger tip link names, low-pass filter, scaling,
+   target joint names, type (e.g. ``DexPilot``), ``urdf_path``, and ``wrist_link_name``:
+
+   .. code-block:: yaml
+
+      retargeting:
+        finger_tip_link_names:
+        - thumb_tip
+        - index_tip
+        - middle_tip
+        - ring_tip
+        - pinky_tip
+        low_pass_alpha: 0.2
+        scaling_factor: 1.2
+        target_joint_names:
+        - thumb_proximal_yaw_joint
+        - thumb_proximal_pitch_joint
+        - index_proximal_joint
+        - middle_proximal_joint
+        - ring_proximal_joint
+        - pinky_proximal_joint
+        type: DexPilot
+        urdf_path: /path/to/robot_hand.urdf
+        wrist_link_name: hand_base_link
+
+   **DexBiManualRetargeter:** Bimanual wrapper around two ``DexHandRetargeter`` instances. Create
+   ``DexHandRetargeterConfig`` for left and right hands, then instantiate with
+   ``left_config``, ``right_config``, and ``target_joint_names`` (combined left + right joint
+   names). See the `retargeters README
+   <https://github.com/NVIDIA/IsaacTeleop/blob/main/src/retargeters/README.md>`_
+   for a full code example.
+
+   **Coordinate frame:** The ``handtracking_to_baselink_frame_transform`` parameter is a 3x3
+   rotation matrix flattened to 9 elements. Applied as
+   ``target_pos = joint_pos @ wrist_rotation @ transform_matrix``. Config default is **Identity**
+   ``(1, 0, 0, 0, 1, 0, 0, 0, 1)``. Common value for **G1/Inspire**: ``(0, 0, 1, 1, 0, 0, 0, 1, 0)``
+   (OpenXR Z→X, X→Y, Y→Z).
+
 .. dropdown:: TriHandMotionControllerRetargeter
 
-   Maps VR controller buttons (trigger, squeeze) to G1 TriHand joints (7 DOF per hand). Simple
-   mapping: trigger controls the index finger, squeeze controls the middle finger, and both
-   together control the thumb.
+   Simple VR controller-based hand control. Maps trigger and squeeze inputs to G1 TriHand finger
+   joint angles (7 DOF per hand). No external dependencies.
+
+   **Mapping:** trigger → index finger, squeeze → middle finger, both → thumb. Good for quick
+   prototyping and testing.
+
+   **Configuration:**
+
+   .. code-block:: python
+
+      from isaacteleop.retargeters import (
+          TriHandMotionControllerRetargeter,
+          TriHandMotionControllerConfig,
+      )
+
+      config = TriHandMotionControllerConfig(
+          hand_joint_names=[
+              "thumb_rotation",
+              "thumb_proximal",
+              "thumb_distal",
+              "index_proximal",
+              "index_distal",
+              "middle_proximal",
+              "middle_distal",
+          ],
+          controller_side="left",  # or "right"
+      )
+
+      controller = TriHandMotionControllerRetargeter(config, name="trihand_motion_left")
+
+   **Output DOF mapping (7 DOF):**
+
+   ====== ====================== ==========================================
+   Index  Joint                  Control
+   ====== ====================== ==========================================
+   0      Thumb rotation         (trigger - squeeze) * 0.5 (sign per hand)
+   1      Thumb proximal         -max(trigger, squeeze) * 0.4
+   2      Thumb distal           -max(trigger, squeeze) * 0.7
+   3      Index proximal         trigger
+   4      Index distal           trigger
+   5      Middle proximal        squeeze
+   6      Middle distal          squeeze
+   ====== ====================== ==========================================
+
+.. dropdown:: TriHandBiManualMotionControllerRetargeter
+
+   Bimanual wrapper around two ``TriHandMotionControllerRetargeter`` instances for controlling
+   both hands with left and right VR controllers.
+
+   .. tip::
+
+      For a complete hand retargeting example (e.g. ``HandsSource`` + ``DexHandRetargeter`` or
+      ``TriHandMotionControllerRetargeter``, connect and compute), see
+      ``g1_trihand_retargeting_example.py`` and ``dex_bimanual_example.py`` in the
+      ``examples/teleop/python`` directory, or the `retargeters README
+      <https://github.com/NVIDIA/IsaacTeleop/blob/main/src/retargeters/README.md>`_.
 
 .. dropdown:: LocomotionRootCmdRetargeter
 
    Maps controller thumbsticks to a 4D locomotion command:
-   ``[vel_x, vel_y, rot_vel_z, hip_height]``.
+   ``[vel_x, vel_y, rot_vel_z, hip_height]``. Left thumbstick: linear velocity (X, Y). Right
+   thumbstick X: angular velocity (Z). Right thumbstick Y: hip height adjustment.
+   ``LocomotionRootCmdRetargeterConfig`` includes ``initial_hip_height``, ``movement_scale``,
+   ``rotation_scale``, and ``dt`` (time step for height integration).
+
+.. dropdown:: LocomotionFixedRootCmdRetargeter
+
+   Outputs a fixed 4D root command ``[0, 0, 0, hip_height]`` (no velocity). Use when standing
+   still or when controllers are not available but the pipeline expects locomotion commands.
+   ``LocomotionFixedRootCmdRetargeterConfig`` has ``hip_height`` only; no inputs required.
+
+.. dropdown:: FootPedalRootCmdRetargeter
+
+   Maps 3-axis foot pedal input to the same 4D root command ``[vel_x, vel_y, rot_vel_z, hip_height]``.
+   Uses ``Generic3AxisPedalSource``. Two modes (``FootPedalRootCmdRetargeterConfig.mode``):
+   ``"horizontal"`` (right/left pedals = forward/back, rudder = yaw or strafe when pedal pressed)
+   and ``"vertical"`` (left pedal drives hip height, rudder = yaw). Config includes velocity
+   limits, squat range, deadzone and rudder thresholds.
 
 .. dropdown:: TensorReorderer
 
@@ -65,7 +232,7 @@ manipulator (from ``stack_ik_abs_env_cfg.py``):
 
    from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource, HandsSource
    from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
-   from isaacteleop.retargeting_engine.retargeters import (
+   from isaacteleop.retargeters import (
        GripperRetargeter, GripperRetargeterConfig,
        Se3AbsRetargeter, Se3RetargeterConfig,
        TensorReorderer,
@@ -140,5 +307,5 @@ If the built-in retargeters do not cover your use case, you can implement a cust
 #. Connect to existing source nodes (``HandsSource``, ``ControllersSource``) or create a new
    ``IDeviceIOSource`` subclass for custom input devices.
 
-See the `Retargeting Engine README <https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/retargeting_engine/python/retargeters/README.md>`_
+See the `retargeters README <https://github.com/NVIDIA/IsaacTeleop/blob/main/src/retargeters/README.md>`_
 and :doc:`Contributing Guide <../getting_started/contributing>` for details.
