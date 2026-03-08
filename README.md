@@ -319,10 +319,6 @@ python ./examples/oxr/python/test_extensions.py
 ### Getting Started
 - [Contributing Guide](CONTRIBUTING.md) - Code style, PR process, DCO
 
-### Architecture
-- [Retargeting Engine](src/core/retargeting_engine/python/retargeters/README.md) - Hand retargeters
-- [Teleop Session Manager](src/core/teleop_session_manager/README.md) - Session API
-
 ### Plugins
 - [Manus Gloves](src/plugins/manus/README.md) - Manus SDK integration
 - [OAK-D Camera](src/plugins/oakd/README.md) - DepthAI camera plugin

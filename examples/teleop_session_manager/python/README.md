@@ -36,5 +36,5 @@ uv run teleop_session_example.py
 
 ## See Also
 
-- **Module docs:** `src/core/teleop_session_manager/README.md`
+- **Module docs:** `docs/source/references/teleop_session.rst`
 - **Retargeting engine:** `src/core/retargeting_engine/`
