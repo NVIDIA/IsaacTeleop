@@ -17,4 +17,5 @@ See the `Plugins directory <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/
    :maxdepth: 2
    :caption: Device
 
+   trackers
    add_device
