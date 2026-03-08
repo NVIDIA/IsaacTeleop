@@ -143,32 +143,28 @@ class LocomotionRootCmdRetargeter(BaseRetargeter):
                 right_controller[ControllerInputIndex.THUMBSTICK_Y]
             )
 
-        # Scale inputs
-        # Note: In IsaacLab implementation:
-        # left_thumbstick_y is forward/backward -> maps to X velocity (negated because up on stick is +1, robot forward is +X)
+        # Scale inputs (OpenXR convention: thumbstick Y up=+1 down=-1, X right=+1 left=-1)
+        # left_thumbstick_y is forward/backward -> maps to X velocity (no negation: up on stick is +1, robot forward is +X)
         # left_thumbstick_x is left/right -> maps to Y velocity (negated because right on stick is +1, robot left is +Y)
-        # Wait, IsaacLab says:
-        # "left_thumbstick_y is forward/backward, so it maps to X velocity (negated because up is +1)"
-        # "left_thumbstick_x is left/right, so it maps to Y velocity (negated because right is +1)"
 
         # Scaling
         scaled_left_x = left_thumbstick_x * self._config.movement_scale
         scaled_left_y = left_thumbstick_y * self._config.movement_scale
 
         # Update hip height
-        # Right stick Y controls height change
+        # Right stick Y controls height change (OpenXR up=+1 = raise, so add)
         dt = self._config.dt
-        self._hip_height -= right_thumbstick_y * dt * self._config.rotation_scale
+        self._hip_height += right_thumbstick_y * dt * self._config.rotation_scale
         self._hip_height = max(0.4, min(1.0, self._hip_height))
 
         # Construct command
         # [vel_x, vel_y, rot_vel_z, hip_height]
-        # vel_x = -left_stick_y
+        # vel_x = +left_stick_y
         # vel_y = -left_stick_x
         # rot_vel_z = -right_stick_x
 
         cmd = np.array(
-            [-scaled_left_y, -scaled_left_x, -right_thumbstick_x, self._hip_height],
+            [scaled_left_y, -scaled_left_x, -right_thumbstick_x, self._hip_height],
             dtype=np.float32,
         )
 
