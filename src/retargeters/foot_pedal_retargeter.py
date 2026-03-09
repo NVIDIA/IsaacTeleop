@@ -5,7 +5,7 @@
 Foot Pedal Retargeter Module.
 
 Provides root command retargeting from generic 3-axis foot pedal input
-(forward/backward pedals + rudder), mirroring Isaac OS LowerBodyController logic.
+(forward/backward pedals + rudder).
 """
 
 import numpy as np
@@ -42,10 +42,7 @@ DEFAULT_STRAFE_PEDAL_PRESSED_THRESHOLD = 0.1
 
 @dataclass
 class FootPedalRootCmdRetargeterConfig:
-    """Configuration for foot pedal root command retargeter.
-
-    Mirrors Isaac OS LowerBodyController parameters. No gamepad mode.
-    """
+    """Configuration for foot pedal root command retargeter."""
 
     max_linear_vel_mps: float = DEFAULT_MAX_LINEAR_VEL_MPS
     max_angular_vel_radps: float = DEFAULT_MAX_ANGULAR_VEL_RADPS

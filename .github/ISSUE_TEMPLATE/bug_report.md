@@ -28,7 +28,7 @@ If applicable, add screenshots to help explain your problem.
 **Platforms**
  - Isaac Teleop Version: [e.g. 1.0.23]
  - OS: [e.g. Ubuntu X86, ARM64]
- - Integrations: [e.g. Isaac Lab, Isaac Sim, ROS2, Isaac OS]
+ - Integrations: [e.g. Isaac Lab, Isaac Sim, ROS2]
  - XR Device: [e.g. Quest 3, Pico 4 Ultra]
  - Additional Devices [e.g. Manus]
 
