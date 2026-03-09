@@ -52,6 +52,7 @@ Table of Contents
 
    device/index
    references/retargeting
+   references/requirements
    references/license
 
 Indices and tables
