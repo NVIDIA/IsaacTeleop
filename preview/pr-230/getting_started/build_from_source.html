@@ -406,6 +406,43 @@ sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w
 such as <a class="reference external" href="https://pip.pypa.io/" rel="noopener noreferrer" target="_blank">pip</a> or <a class="reference external" href="https://conda.io/" rel="noopener noreferrer" target="_blank">conda</a>.</p>
 </div>
 </section>
+<section id="clone-the-repository">
+<h2>Clone the repository<a class="headerlink" href="#clone-the-repository" title="Link to this heading">#</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/NVIDIA/IsaacTeleop.git
+<span class="nb">cd</span><span class="w"> </span>IsaacTeleop
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Dependencies (OpenXR SDK, pybind11, yaml-cpp) are automatically downloaded
+during CMake configuration using FetchContent. No manual dependency installation or
+git submodule initialization is required.</p>
+</div>
+</section>
+<section id="pre-download-cloudxr-sdk-optional">
+<h2>Pre-download CloudXR SDK (Optional)<a class="headerlink" href="#pre-download-cloudxr-sdk-optional" title="Link to this heading">#</a></h2>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If you are using the default flow, skip this step. The
+<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/cloudxr/python/CMakeLists.txt" rel="noopener noreferrer" target="_blank">CMakeLists.txt</a>
+will automatically download the CloudXR SDK by calling the
+<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/scripts/download_cloudxr_runtime_sdk.sh" rel="noopener noreferrer" target="_blank">download_cloudxr_runtime_sdk.sh</a>
+script.</p>
+</div>
+<p>Sometimes NVIDIA might share early access CloudXR SDKs with you. In that case, you may get one of
+the two tarballs:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">CloudXR-&lt;version-for-runtime-sdk&gt;-Linux-&lt;arch&gt;-sdk.tar.gz</span></code> (CloudXR Runtime SDK)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">nvidia-cloudxr-&lt;version-for-web-sdk&gt;.tgz</span></code> (CloudXR Web SDK)</p></li>
+</ul>
+<p>You can place them in the <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/deps/cloudxr/" rel="noopener noreferrer" target="_blank">deps/cloudxr/</a> directory and update the <code class="docutils literal notranslate"><span class="pre">deps/cloudxr/.env</span></code>
+file to locally override the default version defined in <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/deps/cloudxr/.env.default" rel="noopener noreferrer" target="_blank">deps/cloudxr/.env.default</a>,
+like this:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">CXR_RUNTIME_SDK_VERSION</span><span class="o">=</span>&lt;version-for-runtime-sdk&gt;
+<span class="nv">CXR_WEB_SDK_VERSION</span><span class="o">=</span>&lt;version-for-web-sdk&gt;
+</pre></div>
+</div>
+</section>
 <section id="c-formatting-enforcement-linux">
 <h2>C++ Formatting Enforcement (Linux)<a class="headerlink" href="#c-formatting-enforcement-linux" title="Link to this heading">#</a></h2>
 <p>On Linux, <strong>clang-format</strong> is enforced by default; the build fails if formatting changes would be applied. The project
@@ -758,6 +795,8 @@ in <a class="reference internal" href="#one-time-setup"><span class="std std-ref
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#one-time-setup">One time setup</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#clone-the-repository">Clone the repository</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#pre-download-cloudxr-sdk-optional">Pre-download CloudXR SDK (Optional)</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#c-formatting-enforcement-linux">C++ Formatting Enforcement (Linux)</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cmake-configure-and-build">CMake: Configure and build</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#build-options">Build options</a><ul class="nav section-nav flex-column">

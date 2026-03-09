@@ -85,7 +85,28 @@ You should see output similar to:
    session. Open a **new terminal** for the remaining steps.
 
 
-4. Connect an XR headset
+4. Whitelist ports for Firewall
+-------------------------------
+
+CloudXR requires certain network ports to be open. Depending on your firewall configuration, you
+might need to whitelist them manually. For **Quest and Pico headsets** (WebXR Client), at the
+minimum, you need to whitelist the ports for the CloudXR runtime and wss proxy:
+
+.. code-block:: bash
+
+   sudo ufw allow 47998/udp && sudo ufw allow 49100/tcp && sudo ufw allow 48322/tcp
+
+If you are running the WebXR client from source, you need to whitelist the additional ports for the
+web server:
+
+.. code-block:: bash
+
+   sudo ufw allow 8080/tcp && sudo ufw allow 8443/tcp
+
+Please see the `CloudXR network setup`_ for more details for other network configurations (such as
+running the CloudXR runtime and wss proxy in containerized environment; or using Vision Pro cilent).
+
+5. Connect an XR headset
 ------------------------
 
 .. _connect-quest-pico:
@@ -138,7 +159,7 @@ and install the sample client on your Apple Vision Pro.
    You will need v3.0.0 or newer of the `Isaac XR Teleop Sample Client for Apple Vision Pro`_
    to connect to Isaac Teleop.
 
-5. Load CloudXR environment variables
+6. Load CloudXR environment variables
 --------------------------------------
 
 Source the setup script so that the OpenXR runtime points to CloudXR:
@@ -157,7 +178,7 @@ You should see:
    XR_RUNTIME_JSON: /home/<user>/.cloudxr/share/openxr/1/openxr_cloudxr.json
    NV_CXR_RUNTIME_DIR: /home/<user>/.cloudxr/run
 
-6. Run a teleop example
+7. Run a teleop example
 -----------------------
 
 Run the simplified gripper retargeting example. This demonstrates the full
@@ -208,3 +229,4 @@ Next steps
 .. _`CloudXR.js documentation`: https://docs.nvidia.com/cloudxr-sdk/latest/usr_guide/cloudxr_js/index.html
 .. _`Isaac XR Teleop Sample Client for Apple Vision Pro`: https://github.com/isaac-sim/isaac-xr-teleop-sample-client-apple
 .. _`CloudXR teleoperation in Isaac Lab`: https://isaac-sim.github.io/IsaacLab/main/source/how-to/cloudxr_teleoperation.html
+.. _`CloudXR network setup`: https://docs.nvidia.com/cloudxr-sdk/latest/requirement/network_setup.html#ports-and-firewalls

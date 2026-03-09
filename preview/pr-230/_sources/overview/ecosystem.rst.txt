@@ -21,7 +21,7 @@ input modes, which determine which retargeters and control schemes are available
    * - Apple Vision Pro
      - Hand tracking (26 joints), spatial controllers
      - `Isaac XR Teleop Sample Client`_ (visionOS app)
-     - Build from source; see :doc:`../getting_started/build_from_source`
+     - Build from source; see :ref:`Connect Apple Vision Pro <connect-apple-vision-pro>`
    * - Meta Quest 3
      - Motion controllers (triggers, thumbsticks, squeeze), hand tracking
      - `Isaac Teleop Web Client`_ (browser)

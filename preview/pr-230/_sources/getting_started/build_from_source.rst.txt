@@ -40,6 +40,45 @@ Our build system uses `uv`_ for Python version and dependency management. Instal
    While the build system uses `uv`_, the final Python packages can be installed via any Python package manager
    such as `pip <https://pip.pypa.io/>`_ or `conda <https://conda.io/>`_.
 
+Clone the repository
+--------------------
+
+.. code-block:: bash
+
+   git clone https://github.com/NVIDIA/IsaacTeleop.git
+   cd IsaacTeleop
+
+.. note::
+   Dependencies (OpenXR SDK, pybind11, yaml-cpp) are automatically downloaded
+   during CMake configuration using FetchContent. No manual dependency installation or
+   git submodule initialization is required.
+
+Pre-download CloudXR SDK (Optional)
+-----------------------------------
+
+.. note::
+
+   If you are using the default flow, skip this step. The
+   :code-file:`CMakeLists.txt <src/core/cloudxr/python/CMakeLists.txt>`
+   will automatically download the CloudXR SDK by calling the
+   :code-file:`download_cloudxr_runtime_sdk.sh <scripts/download_cloudxr_runtime_sdk.sh>`
+   script.
+
+Sometimes NVIDIA might share early access CloudXR SDKs with you. In that case, you may get one of
+the two tarballs:
+
+- ``CloudXR-<version-for-runtime-sdk>-Linux-<arch>-sdk.tar.gz`` (CloudXR Runtime SDK)
+- ``nvidia-cloudxr-<version-for-web-sdk>.tgz`` (CloudXR Web SDK)
+
+You can place them in the :code-file:`deps/cloudxr/` directory and update the ``deps/cloudxr/.env``
+file to locally override the default version defined in :code-file:`deps/cloudxr/.env.default`,
+like this:
+
+.. code-block:: bash
+
+   CXR_RUNTIME_SDK_VERSION=<version-for-runtime-sdk>
+   CXR_WEB_SDK_VERSION=<version-for-web-sdk>
+
 C++ Formatting Enforcement (Linux)
 ----------------------------------
 
