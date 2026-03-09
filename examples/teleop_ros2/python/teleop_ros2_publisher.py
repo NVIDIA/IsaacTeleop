@@ -11,8 +11,9 @@ The `mode` parameter selects the teleoperation scenario and which topics are
 published:
 
   - controller_teleop (default): ee_poses (from controller aim pose), root_twist, root_pose,
-                       and TF transforms for left/right wrists
-  - hand_teleop: ee_poses (from hand tracking wrist), hand (finger joints only),
+                       finger_joints (retargeted TriHand angles), and TF transforms for
+                       left/right wrists
+  - hand_teleop: ee_poses (from hand tracking wrist), hand (raw finger poses),
                  root_twist, root_pose, and TF transforms for left/right wrists
   - controller_raw: controller_data only
   - full_body: full_body only
@@ -24,7 +25,7 @@ Topic names (configurable via parameters):
   - xr_teleop/root_pose (PoseStamped): root pose command (height only)
   - xr_teleop/controller_data (ByteMultiArray): msgpack-encoded controller data
   - xr_teleop/full_body (ByteMultiArray): msgpack-encoded full body tracking data
-  - xr_teleop/finger_joints (JointState): retargeted TriHand finger joint angles
+  - xr_teleop/finger_joints (JointState): retargeted TriHand finger joint angles (controller_teleop only)
 
 TF frames published in hand_teleop and controller_teleop modes (configurable via parameters):
   - world_frame -> right_wrist_frame
@@ -35,7 +36,6 @@ import math
 import time
 from typing import Dict, List, Sequence, Union
 
-from builtin_interfaces.msg import Time
 import msgpack
 import msgpack_numpy as mnp
 import numpy as np
@@ -365,7 +365,6 @@ _FINGER_JOINT_NAMES = [f"left_{n}" for n in _TRIHAND_JOINT_NAMES] + [
 ]
 
 
-
 def _build_full_body_payload(full_body: OptionalTensorGroup) -> Dict:
     positions = np.asarray(full_body[FullBodyInputIndex.JOINT_POSITIONS])
     orientations = np.asarray(full_body[FullBodyInputIndex.JOINT_ORIENTATIONS])
@@ -621,6 +620,7 @@ class TeleopRos2PublisherNode(Node):
                                 pose_msg.pose.orientation.w = 1.0
                                 self._pub_root_pose.publish(pose_msg)
 
+                        if self._mode == "controller_teleop":
                             finger_joints_msg = JointState()
                             finger_joints_msg.header.stamp = now
                             finger_joints_msg.header.frame_id = self._world_frame
