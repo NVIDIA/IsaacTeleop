@@ -34,5 +34,6 @@ fi
 $COMPOSE_CMD \
     --env-file "$ENV_DEFAULT" \
     --env-file "$ENV_LOCAL" \
+    -f deps/cloudxr/docker-compose.runtime.yaml \
     -f deps/cloudxr/docker-compose.yaml \
     up --build

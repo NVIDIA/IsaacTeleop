@@ -54,8 +54,8 @@ FORCE_BUILD=false
 EXIT_CODE=0
 PYTHON_VERSION="${PYTHON_VERSION:-3.11}"
 
-# Compose files and project name
-COMPOSE_BASE="deps/cloudxr/docker-compose.yaml"
+# Compose files: shared runtime base + test overrides
+COMPOSE_RUNTIME="deps/cloudxr/docker-compose.runtime.yaml"
 COMPOSE_TEST="deps/cloudxr/docker-compose.test.yaml"
 
 # Use a different project name to isolate volumes from run_cloudxr.sh
@@ -167,7 +167,7 @@ cleanup_containers() {
         --env-file "$ENV_DEFAULT" \
         ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
         ${ENV_TEST:+--env-file "$ENV_TEST"} \
-        -f "$COMPOSE_BASE" \
+        -f "$COMPOSE_RUNTIME" \
         -f "$COMPOSE_TEST" \
         down -v --remove-orphans 2>/dev/null || true
     log_success "Cleanup complete"
@@ -265,7 +265,7 @@ docker compose \
     --env-file "$ENV_DEFAULT" \
     ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
     ${ENV_TEST:+--env-file "$ENV_TEST"} \
-    -f "$COMPOSE_BASE" \
+    -f "$COMPOSE_RUNTIME" \
     -f "$COMPOSE_TEST" \
     up --build -d cloudxr-runtime
 
@@ -280,7 +280,7 @@ while [ $WAITED -lt $MAX_WAIT ]; do
         --env-file "$ENV_DEFAULT" \
         ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
         ${ENV_TEST:+--env-file "$ENV_TEST"} \
-        -f "$COMPOSE_BASE" \
+        -f "$COMPOSE_RUNTIME" \
         -f "$COMPOSE_TEST" \
         ps cloudxr-runtime 2>/dev/null | grep -q "healthy"; then
         log_success "CloudXR runtime is healthy"
@@ -301,7 +301,7 @@ if [ $WAITED -ge $MAX_WAIT ]; then
         --env-file "$ENV_DEFAULT" \
         ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
         ${ENV_TEST:+--env-file "$ENV_TEST"} \
-        -f "$COMPOSE_BASE" \
+        -f "$COMPOSE_RUNTIME" \
         -f "$COMPOSE_TEST" \
         logs cloudxr-runtime
     exit 1
@@ -316,7 +316,7 @@ if docker compose \
     --env-file "$ENV_DEFAULT" \
     ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
     ${ENV_TEST:+--env-file "$ENV_TEST"} \
-    -f "$COMPOSE_BASE" \
+    -f "$COMPOSE_RUNTIME" \
     -f "$COMPOSE_TEST" \
     run --rm isaacteleop-tests; then
     log_success "All tests passed!"
@@ -335,7 +335,7 @@ if [ "${CI:-false}" = "true" ]; then
         --env-file "$ENV_DEFAULT" \
         ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
         ${ENV_TEST:+--env-file "$ENV_TEST"} \
-        -f "$COMPOSE_BASE" \
+        -f "$COMPOSE_RUNTIME" \
         -f "$COMPOSE_TEST" \
         logs
     echo "::endgroup::"

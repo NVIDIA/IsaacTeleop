@@ -1,15 +1,15 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Test docker-compose file for running Isaac Teleop tests with CloudXR
-# Extends the base CloudXR compose and adds test runner service
+# Test docker-compose override for running Isaac Teleop tests with CloudXR.
+# Used together with docker-compose.runtime.yaml.
 #
 # Note: Run with a different project name to isolate volumes from dev environment:
-#   docker compose -p isaacteleop-test -f docker-compose.yaml -f docker-compose.test.yaml up
+#   docker compose -p isaacteleop-test -f docker-compose.runtime.yaml -f docker-compose.test.yaml up
 #
 # This creates volumes like "isaacteleop-test_openxr-volume" instead of "cloudxr_openxr-volume"
 #
-# NOTE: Must be used with -f docker-compose.yaml -f docker-compose.test.yaml
+# NOTE: Must be used with -f docker-compose.runtime.yaml -f docker-compose.test.yaml
 # (Docker Compose's include: directive doesn't allow service overrides)
 
 services:
@@ -20,7 +20,6 @@ services:
     runtime: runc
     environment:
       - ACCEPT_EULA=Y
-      - NV_CXR_ENABLE_PUSH_DEVICES=${NV_CXR_ENABLE_PUSH_DEVICES}
       - NV_DEVICE_PROFILE=Quest3
       - VK_LOADER_DEBUG=all
     deploy:
