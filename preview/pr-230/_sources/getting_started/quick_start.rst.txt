@@ -84,6 +84,20 @@ You should see output similar to:
    Keep this terminal open — CloudXR must stay running for the duration of the
    session. Open a **new terminal** for the remaining steps.
 
+CloudXR Configurations (Optional)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+You can override CloudXR configurations by creating a ``.env`` and place it next
+to :code-file:`deps/cloudxr/.env.default`. The folder structure should look like:
+
+.. code-block:: bash
+
+   $ tree -a deps/cloudxr/
+   deps/cloudxr/
+   ├── CLOUDXR_LICENSE
+   ├── .env
+   ├── .env.default
+   └── .gitignore
 
 4. Whitelist ports for Firewall
 -------------------------------

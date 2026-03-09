@@ -450,6 +450,19 @@ CloudXR WSS proxy: running
 <p>Keep this terminal open — CloudXR must stay running for the duration of the
 session. Open a <strong>new terminal</strong> for the remaining steps.</p>
 </div>
+<section id="cloudxr-configurations-optional">
+<h3>CloudXR Configurations (Optional)<a class="headerlink" href="#cloudxr-configurations-optional" title="Link to this heading">#</a></h3>
+<p>You can override CloudXR configurations by creating a <code class="docutils literal notranslate"><span class="pre">.env</span></code> and place it next
+to <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/deps/cloudxr/.env.default" rel="noopener noreferrer" target="_blank">deps/cloudxr/.env.default</a>. The folder structure should look like:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>tree<span class="w"> </span>-a<span class="w"> </span>deps/cloudxr/
+deps/cloudxr/
+├──<span class="w"> </span>CLOUDXR_LICENSE
+├──<span class="w"> </span>.env
+├──<span class="w"> </span>.env.default
+└──<span class="w"> </span>.gitignore
+</pre></div>
+</div>
+</section>
 </section>
 <section id="whitelist-ports-for-firewall">
 <h2><a class="toc-backref" href="#id6" role="doc-backlink">4. Whitelist ports for Firewall</a><a class="headerlink" href="#whitelist-ports-for-firewall" title="Link to this heading">#</a></h2>
@@ -623,7 +636,10 @@ from source</p></li>
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#check-out-code-base">1. Check out code base</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#install-the-isaacteleop-pip-package">2. Install the <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> pip package</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#run-cloudxr-server">3. Run CloudXR Server</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#run-cloudxr-server">3. Run CloudXR Server</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cloudxr-configurations-optional">CloudXR Configurations (Optional)</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#whitelist-ports-for-firewall">4. Whitelist ports for Firewall</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#connect-an-xr-headset">5. Connect an XR headset</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#meta-quest-and-pico-headsets">Meta Quest and Pico headsets</a></li>
