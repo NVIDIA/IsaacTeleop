@@ -91,8 +91,8 @@ The `mode` parameter selects the teleoperation scenario and which topics are pub
 
 | Mode | Topics published |
 |------|------------------|
-| `controller_teleop` (default) | `ee_poses` (from controller aim pose), `root_twist`, `root_pose`, TF wrist frames |
-| `hand_teleop` | `ee_poses` (from hand tracking wrist), `hand` (finger joints only), `root_twist`, `root_pose`, TF wrist frames |
+| `controller_teleop` (default) | `ee_poses` (from controller aim pose), `root_twist`, `root_pose`, `tf` (from controller aim pose) |
+| `hand_teleop` | `ee_poses` (from hand tracking wrist), `hand` (finger joints only), `root_twist`, `root_pose`, `tf` (from hand tracking wrist) |
 | `controller_raw` | `controller_data` only |
 | `full_body` | `full_body` only |
 
@@ -109,6 +109,7 @@ ros2 topic echo /xr_teleop/root_twist geometry_msgs/msg/TwistStamped
 ros2 topic echo /xr_teleop/root_pose geometry_msgs/msg/PoseStamped
 ros2 topic echo /xr_teleop/controller_data std_msgs/msg/ByteMultiArray
 ros2 topic echo /xr_teleop/full_body std_msgs/msg/ByteMultiArray
+ros2 topic echo /tf tf2_msgs/msg/TFMessage
 ```
 
 ## Controller Data Decoding
