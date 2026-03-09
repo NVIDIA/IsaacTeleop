@@ -9,7 +9,7 @@ import signal
 import sys
 import threading
 
-from .util import ensure_logs_dir, openxr_run_dir
+from .env_config import get_env_config
 
 
 _EULA_URL = (
@@ -21,7 +21,7 @@ _RUNTIME_STARTUP_TIMEOUT_SEC = 10
 
 def check_eula() -> None:
     """Require CloudXR EULA to be accepted; exits the process if not. Call from main process before spawning runtime."""
-    marker = os.path.join(openxr_run_dir(), "eula_accepted")
+    marker = os.path.join(get_env_config().openxr_run_dir(), "eula_accepted")
     if os.path.isfile(marker):
         return
 
@@ -43,13 +43,15 @@ def check_eula() -> None:
         f.write("accepted\n")
 
 
-def _sdk_path() -> str | None:
+def _get_sdk_path() -> str | None:
     """Return the path to the bundled CloudXR native libs (wheel package data), or None."""
     this_dir = os.path.dirname(os.path.abspath(__file__))
     native_dir = os.path.join(this_dir, "native")
-    if os.path.isfile(os.path.join(native_dir, "libcloudxr.so")):
-        return native_dir
-    return None
+
+    if not os.path.isfile(os.path.join(native_dir, "libcloudxr.so")):
+        raise RuntimeError(f"CloudXR SDK missing libcloudxr.so at {native_dir}. ")
+
+    return native_dir
 
 
 async def wait_for_runtime_ready(
@@ -63,7 +65,7 @@ async def wait_for_runtime_ready(
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout_sec
 
-    lock_file = os.path.join(openxr_run_dir(), "runtime_started")
+    lock_file = os.path.join(get_env_config().openxr_run_dir(), "runtime_started")
 
     while loop.time() < deadline:
         if not process.is_alive():
@@ -115,10 +117,11 @@ def _setup_openxr_dir(sdk_path: str, run_dir: str) -> str:
 
 def run() -> None:
     """Run the CloudXR runtime service until SIGINT/SIGTERM. Blocks until shutdown."""
-    sdk_path = _sdk_path()
-    run_dir = openxr_run_dir()
+    cfg = get_env_config()
+    sdk_path = _get_sdk_path()
+    run_dir = cfg.openxr_run_dir()
     openxr_dir = _setup_openxr_dir(sdk_path, run_dir)
-    logs_dir_path = ensure_logs_dir()
+    logs_dir_path = cfg.ensure_logs_dir()
 
     expected_json = os.path.join(openxr_dir, "openxr_cloudxr.json")
     for var, expected in (
@@ -135,14 +138,10 @@ def run() -> None:
                 f"{var} mismatch: environment has {actual!r}, expected {expected!r}"
             )
 
-    os.environ["NV_CXR_ENABLE_PUSH_DEVICES"] = "true"
-    os.environ["NV_CXR_ENABLE_TENSOR_DATA"] = "true"
-    os.environ["XRT_NO_STDIN"] = "true"
-
     # CloudXR Runtime writes cxr_server.<timestamp>.log under NV_CXR_OUTPUT_DIR when
+    os.environ["XRT_NO_STDIN"] = "true"
     os.environ["NV_CXR_FILE_LOGGING"] = "true"
     os.environ["NV_CXR_OUTPUT_DIR"] = str(logs_dir_path)
-    os.environ["NV_DEVICE_PROFILE"] = "Quest3"
 
     prev_ld = os.environ.get("LD_LIBRARY_PATH", "")
     os.environ["LD_LIBRARY_PATH"] = sdk_path + (f":{prev_ld}" if prev_ld else "")

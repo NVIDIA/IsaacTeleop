@@ -86,8 +86,8 @@ add_custom_target(cloudxr_python ALL
     COMMAND ${CMAKE_COMMAND} -E copy
         "${CMAKE_CURRENT_SOURCE_DIR}/__init__.py"
         "${CMAKE_CURRENT_SOURCE_DIR}/__main__.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/env_config.py"
         "${CMAKE_CURRENT_SOURCE_DIR}/runtime.py"
-        "${CMAKE_CURRENT_SOURCE_DIR}/util.py"
         "${CMAKE_CURRENT_SOURCE_DIR}/wss.py"
         "${CLOUDXR_PYTHON_DIR}/"
     COMMAND ${CMAKE_COMMAND} -E rm -rf "${CLOUDXR_PYTHON_DIR}/__pycache__"
@@ -101,8 +101,8 @@ install(
     FILES
         __init__.py
         __main__.py
+        env_config.py
         runtime.py
-        util.py
         wss.py
     DESTINATION "python/isaacteleop/cloudxr"
 )

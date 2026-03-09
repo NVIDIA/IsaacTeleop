@@ -3,25 +3,48 @@
 
 """Entry point for python -m isaacteleop.cloudxr. Runs CloudXR runtime and WSS proxy; main process winds both down on exit."""
 
+import argparse
 import asyncio
 import multiprocessing
+import os
 import signal
 import sys
 from datetime import datetime, timezone
 
+from isaacteleop.cloudxr.env_config import EnvConfig
 from isaacteleop.cloudxr.runtime import (
     check_eula,
     run as runtime_run,
     terminate_or_kill_runtime,
     wait_for_runtime_ready,
 )
-from isaacteleop.cloudxr.util import ensure_logs_dir
 from isaacteleop.cloudxr.wss import run as wss_run
 
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="CloudXR runtime and WSS proxy")
+    parser.add_argument(
+        "--cloudxr-install-dir",
+        type=str,
+        default=os.path.expanduser("~/.cloudxr"),
+        metavar="PATH",
+        help="CloudXR install directory (default: ~/.cloudxr)",
+    )
+    parser.add_argument(
+        "--cloudxr-env-config",
+        type=str,
+        default=None,
+        metavar="PATH",
+        help="Optional env file (KEY=value per line) to override default CloudXR env vars",
+    )
+    return parser.parse_args()
+
+
 async def _main_async() -> None:
+    args = _parse_args()
+    env_cfg = EnvConfig.from_args(args.cloudxr_install_dir, args.cloudxr_env_config)
     check_eula()
-    logs_dir_path = ensure_logs_dir()
+    logs_dir_path = env_cfg.ensure_logs_dir()
     wss_ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M%SZ")
     wss_log_path = logs_dir_path / f"wss.{wss_ts}.log"
 
@@ -37,6 +60,13 @@ async def _main_async() -> None:
                 )
             print("CloudXR runtime failed to start, terminating...")
             sys.exit(1)
+
+        print("CloudXR runtime started, make sure load environment variables:")
+        print("")
+        print("```bash")
+        print(f"source {env_cfg.env_filepath()}")
+        print("```")
+        print("")
 
         stop = asyncio.get_running_loop().create_future()
 

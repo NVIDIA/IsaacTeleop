@@ -14,7 +14,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from .util import openxr_run_dir
+from .env_config import get_env_config
 
 try:
     import websockets
@@ -274,7 +274,7 @@ async def proxy_handler(client, backend_host: str, backend_port: int):
 
 def default_cert_paths() -> CertPaths:
     """Return cert paths under the default location (~/.cloudxr/certs)."""
-    return cert_paths_from_dir(Path(openxr_run_dir()).parent / "certs")
+    return cert_paths_from_dir(Path(get_env_config().openxr_run_dir()).parent / "certs")
 
 
 async def run(
