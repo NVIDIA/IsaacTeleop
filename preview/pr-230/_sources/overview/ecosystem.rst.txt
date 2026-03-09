@@ -4,11 +4,43 @@
 Ecosystem
 =========
 
+Unified Stack for Sim & Real Teleoperation
+-------------------------------------------
+
+A single framework that works seamlessly across simulated and real-world robots, ensuring
+streamlined device workflow and consistent data schemas.
+
+.. list-table:: Robotics Stacks
+   :header-rows: 1
+   :widths: 15 50 20
+
+   * - Stack
+     - Description
+     - Status
+   * - ROS2
+     - Widely adopted middleware for robot software integration and communication
+     - Supported
+   * - Isaac Sim
+     - Simulation platform to develop, test, and train AI-powered robots
+     - Supported (v6.0)
+   * - Isaac Lab
+     - Unified framework for robot learning designed to help train robot policies
+     - Supported (v3.0)
+   * - Isaac ROS
+     - NVIDIA CUDA-accelerated toolkit for ROS2
+     - Q2 2026
+   * - Isaac Arena
+     - Isaac Lab extension for large-scale evaluation and resource orchestration
+     - Q2 2026 (v0.2)
+
 Supported Input Devices
 ------------------------
 
-Isaac Teleop supports multiple XR headsets and tracking peripherals. Each device provides different
-input modes, which determine which retargeters and control schemes are available.
+Isaac Teleop provides a standardized interface for teleoperation devices, removing the need for
+custom device integrations and ongoing maintenance. It supports multiple XR headsets and tracking
+peripherals. Each device provides different input modes, which determine which retargeters and
+control schemes are available. Easily extend support for additional devices through a plugin system;
+see :ref:`device-interface-device-plugin` for details.
 
 .. list-table:: XR Headsets and Tracking Peripherals
    :header-rows: 1
@@ -59,7 +91,7 @@ session is running via USB or Bluetooth. See :ref:`device-interface-device-plugi
 Planned Input Device Support
 -----------------------------
 
-The following input devices are planned for support in the future:
+The following input devices and device categories are planned for support in the future:
 
 .. list-table:: Planned Input Devices
    :header-rows: 1
@@ -73,6 +105,23 @@ The following input devices are planned for support in the future:
      - Keyboard and mouse input
      - CLI tool
      - Q2 2026
+   * - Master Manipulators
+     - Gello, Haply, JoyLo etc.
+     - CLI tool
+     - Q2 2026
+   * - Exoskeletons
+     - TBA
+     - TBA
+     - TBA
+
+Targeted Robotics Embodiments
+-----------------------------
+
+- Retarget the standardized device outputs to different embodiments.
+- `Reference retargeter implementations <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/core/retargeting_engine/python/retargeters/>`_,
+  including popular embodiments such as Unitree G1.
+- `Retargeter tuning UI <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/core/retargeting_engine_ui/python>`_ to facilitate
+  live retargeter tuning.
 
 ..
    References

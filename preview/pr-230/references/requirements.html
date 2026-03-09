@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Device Interface &#8212; Isaac Teleop Documentation</title>
+    <title>System Requirements &#8212; Isaac Teleop Documentation</title>
   
   
   
@@ -51,14 +51,14 @@
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../_static/copybutton.js?v=f281be69"></script>
     <script src="../_static/design-tabs.js?v=f930bc37"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'device/index';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'references/requirements';</script>
 
     <link rel="icon" href="../_static/favicon.ico"/>
 
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Device Trackers" href="trackers.html" />
-    <link rel="prev" title="Contributing" href="../getting_started/contributing.html" />
+    <link rel="next" title="License" href="license.html" />
+    <link rel="prev" title="Retargeting Interface" href="retargeting.html" />
 
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -319,14 +319,10 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
 <ul class="current nav bd-sidenav">
-<li class="toctree-l1 current active has-children"><a class="current reference internal" href="#">Device Interface</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="trackers.html">Device Trackers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="add_device.html">Add a New Device</a></li>
-</ul>
-</details></li>
-<li class="toctree-l1"><a class="reference internal" href="../references/retargeting.html">Retargeting Interface</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../references/requirements.html">System Requirements</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../references/license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../device/index.html">Device Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="retargeting.html">Retargeting Interface</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">System Requirements</a></li>
+<li class="toctree-l1"><a class="reference internal" href="license.html">License</a></li>
 </ul>
 </div>
 </nav></div>
@@ -361,7 +357,7 @@
         <i class="fa-solid fa-home"></i>
       </a>
     </li>
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Device Interface</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">System Requirements</span></li>
   </ul>
 </nav>
 </div>
@@ -378,34 +374,31 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="device-interface">
-<h1>Device Interface<a class="headerlink" href="#device-interface" title="Link to this heading">#</a></h1>
-<section id="isaac-teleop-device-plugin-c-level">
-<span id="device-interface-device-plugin"></span><h2>Isaac Teleop device plugin (C++ level)<a class="headerlink" href="#isaac-teleop-device-plugin-c-level" title="Link to this heading">#</a></h2>
-<p>For new hardware that requires a custom driver or SDK. Plugins push data via OpenXR tensor
-collections. Existing plugins include Manus gloves, OAK-D camera, controller synthetic hands,
-and foot pedals. After creating the plugin, update the retargeting pipeline config to consume
-data from the new plugin’s source node.</p>
-<p>See the <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/" rel="noopener noreferrer" target="_blank">Plugins directory</a> for examples.</p>
-<div class="toctree-wrapper compound">
-<p aria-level="2" class="caption" role="heading"><span class="caption-text">Device</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="trackers.html">Device Trackers</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="trackers.html#data-schema-convention">Data Schema Convention</a></li>
-<li class="toctree-l2"><a class="reference internal" href="trackers.html#tracker-reference">Tracker Reference</a></li>
-<li class="toctree-l2"><a class="reference internal" href="trackers.html#usage-examples">Usage Examples</a></li>
+  <section id="system-requirements">
+<h1>System Requirements<a class="headerlink" href="#system-requirements" title="Link to this heading">#</a></h1>
+<section id="hardware-requirements">
+<h2>Hardware requirements<a class="headerlink" href="#hardware-requirements" title="Link to this heading">#</a></h2>
+<p><strong>Minimum</strong></p>
+<p>For real robot teleop &amp; data collection:</p>
+<ul class="simple">
+<li><p><strong>CPU</strong>: X86 or ARM (Jetson Thor)</p></li>
+<li><p><strong>GPU</strong>: NVIDIA GPU required</p></li>
 </ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="add_device.html">Add a New Device</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="add_device.html#step-1-define-the-data-schema">Step 1: Define the data schema</a></li>
-<li class="toctree-l2"><a class="reference internal" href="add_device.html#step-2-implement-a-device-plugin">Step 2: Implement a device plugin</a></li>
-<li class="toctree-l2"><a class="reference internal" href="add_device.html#step-3-implement-a-tracker">Step 3: Implement a tracker</a></li>
-<li class="toctree-l2"><a class="reference internal" href="add_device.html#step-4-implement-a-simple-c-printer-optional">Step 4: Implement a simple C++ printer (optional)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="add_device.html#schema-io-example-build-and-run">Schema IO example: build and run</a></li>
+<p><strong>Simulation Ready</strong></p>
+<p>For running simulation with Isaac Sim and Isaac Lab with RTX rendering:</p>
+<ul class="simple">
+<li><p><strong>CPU</strong>: AMD Ryzen Threadripper 7960x (Recommended)</p></li>
+<li><p><strong>GPU</strong>: 1x RTX 6000 Pro (Blackwell) or 2x RTX 6000 (Ada)</p></li>
 </ul>
-</li>
+</section>
+<section id="software-requirements">
+<h2>Software Requirements<a class="headerlink" href="#software-requirements" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><strong>OS</strong>: Ubuntu 22.04 or 24.04</p></li>
+<li><p><strong>Python</strong>: 3.10 or newer (version configured in root <cite>CMakeLists.txt</cite>)</p></li>
+<li><p><strong>CUDA</strong>: 12.8 (Recommended)</p></li>
+<li><p><strong>NVIDIA Driver</strong>: 580.95.05 (Recommended)</p></li>
 </ul>
-</div>
 </section>
 </section>
 
@@ -420,20 +413,20 @@ data from the new plugin’s source node.</p>
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="../getting_started/contributing.html"
+       href="retargeting.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Contributing</p>
+        <p class="prev-next-title">Retargeting Interface</p>
       </div>
     </a>
     <a class="right-next"
-       href="trackers.html"
+       href="license.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Device Trackers</p>
+        <p class="prev-next-title">License</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -458,7 +451,8 @@ data from the new plugin’s source node.</p>
   </div>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaac-teleop-device-plugin-c-level">Isaac Teleop device plugin (C++ level)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#hardware-requirements">Hardware requirements</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#software-requirements">Software Requirements</a></li>
 </ul>
   </nav></div>
 
