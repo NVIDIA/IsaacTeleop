@@ -15,7 +15,7 @@ copyright = f"2025-{build_time.year}, NVIDIA CORPORATION & AFFILIATES"
 copyright += f", last updated on {build_time.strftime('%B %d, %Y')}"
 author = "NVIDIA"
 
-_version_file = os.path.join(os.path.dirname(__file__), "..", "VERSION")
+_version_file = os.path.join(os.path.dirname(__file__), "..", "..", "VERSION")
 if os.path.exists(_version_file):
     with open(_version_file) as f:
         full_version = f.read().strip()
@@ -33,7 +33,9 @@ extensions = [
     "sphinx_design",
 ]
 
-exclude_patterns = ["build", "Thumbs.db", ".DS_Store"]
+exclude_patterns = ["build", "_templates", "Thumbs.db", ".DS_Store"]
+
+templates_path = ["_templates"]
 
 # sphinx-multiversion: which refs to build (avoids "No matching refs found" in CI)
 smv_remote_whitelist = r"^.*$"
@@ -50,6 +52,31 @@ html_show_sphinx = False
 html_static_path = ["_static"]
 html_css_files = ["css/custom.css"]
 
+# Per-version icon link overrides.  Keyed by the git ref name that
+# sphinx-multiversion builds (SPHINX_MULTIVERSION_NAME env var).  Unmatched
+# refs (including plain ``sphinx-build`` without multiversion) use _DEFAULT_ICONS.
+_smv_name = os.environ.get("SPHINX_MULTIVERSION_NAME", "")
+
+_DEFAULT_ICONS = {
+    "teleop_version": "main",
+    "teleop_url": "https://github.com/NVIDIA/IsaacTeleop",
+    "cloudxr_version": "6.1",
+    "cloudxr_url": "https://docs.nvidia.com/cloudxr-sdk",
+    "lab_version": "3.0",
+    "lab_url": "https://isaac-sim.github.io/IsaacLab",
+}
+_VERSION_ICON_MAP = {
+    "release/1.0.x": {
+        "teleop_version": "1.0",
+        "teleop_url": "https://github.com/NVIDIA/IsaacTeleop/tree/release/1.0.x",
+        "cloudxr_version": "6.1",
+        "cloudxr_url": "https://docs.nvidia.com/cloudxr-sdk/release/6",
+        "lab_version": "3.0",
+        "lab_url": "https://isaac-sim.github.io/IsaacLab/develop",
+    },
+}
+_icons = _VERSION_ICON_MAP.get(_smv_name, _DEFAULT_ICONS)
+
 html_theme_options = {
     "collapse_navigation": True,
     "use_edit_page_button": True,
@@ -58,20 +85,20 @@ html_theme_options = {
     "icon_links": [
         {
             "name": "GitHub",
-            "url": "https://github.com/NVIDIA/IsaacTeleop",
+            "url": _icons["teleop_url"],
             "icon": "fa-brands fa-square-github",
             "type": "fontawesome",
         },
         {
             "name": "CloudXR",
-            "url": "https://docs.nvidia.com/cloudxr-sdk",
-            "icon": "https://img.shields.io/badge/CloudXR-6.1-green.svg",
+            "url": _icons["cloudxr_url"],
+            "icon": f"https://img.shields.io/badge/CloudXR-{_icons['cloudxr_version']}-green.svg",
             "type": "url",
         },
         {
             "name": "Isaac Lab",
-            "url": "https://isaac-sim.github.io/IsaacLab/",
-            "icon": "https://img.shields.io/badge/IsaacLab-3.0-silver.svg",
+            "url": _icons["lab_url"],
+            "icon": f"https://img.shields.io/badge/IsaacLab-{_icons['lab_version']}-silver.svg",
             "type": "url",
         },
     ],
@@ -81,14 +108,14 @@ html_theme_options = {
 
 # Primary sidebar (left): icon links row, search, then TOC (like Isaac Lab)
 html_sidebars = {
-    "**": ["icon-links", "search-field", "sidebar-nav-bs"],
+    "**": ["versioning.html", "icon-links", "search-field", "sidebar-nav-bs"],
 }
 
 # Edit page button: link to GitHub so users can suggest edits (PyData theme uses html_context)
 html_context = {
     "github_user": "NVIDIA",
     "github_repo": "IsaacTeleop",
-    "github_version": "main",
+    "github_version": _smv_name or "main",
     "doc_path": "docs/source",
 }
 

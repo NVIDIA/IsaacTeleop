@@ -1,0 +1,16 @@
+<!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+{% if versions %}
+<div class="version-switcher">
+  <label for="version-select" class="version-switcher__label">Version</label>
+  <select id="version-select" class="version-switcher__select" onchange="location = this.value;">
+    {%- for item in versions.branches %}
+    <option value="{{ item.url }}" {% if item == current_version %}selected{% endif %}>{{ item.name }}</option>
+    {%- endfor %}
+    {%- for item in versions.tags|reverse %}
+    <option value="{{ item.url }}" {% if item == current_version %}selected{% endif %}>{{ item.name }}</option>
+    {%- endfor %}
+  </select>
+</div>
+{% endif %}
