@@ -50,9 +50,10 @@ Table of Contents
    :maxdepth: 2
    :caption: References
 
+   references/requirements
+   references/build
    device/index
    references/retargeting
-   references/requirements
    references/license
 
 Indices and tables
