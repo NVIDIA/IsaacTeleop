@@ -42,9 +42,9 @@ services:
     environment:
       - NV_CXR_RUNTIME_DIR=/cloudxr-test/.cloudxr/run
       - XR_RUNTIME_JSON=/cloudxr-test/.cloudxr/openxr_cloudxr.json
-      - CXR_PYTHON_GPU_TESTS=${CXR_PYTHON_GPU_TESTS:-}
-      - CXR_NATIVE_GPU_TESTS=${CXR_NATIVE_GPU_TESTS:-}
-      - EXPECTED_ISAACTELEOP_VERSION=${EXPECTED_ISAACTELEOP_VERSION:-}
+      - CXR_PYTHON_GPU_TESTS
+      - CXR_NATIVE_GPU_TESTS
+      - EXPECTED_ISAACTELEOP_VERSION
     volumes:
       - openxr-volume:/cloudxr-test/:ro
     working_dir: /app/tests

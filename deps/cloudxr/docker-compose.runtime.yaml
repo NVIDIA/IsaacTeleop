@@ -10,11 +10,11 @@ services:
       context: .
       dockerfile: Dockerfile.runtime
       args:
-        PYTHON_VERSION: ${PYTHON_VERSION:-3.12}
-        CXR_RUNTIME_SDK_VERSION: ${CXR_RUNTIME_SDK_VERSION}
-        ISAACTELEOP_PIP_SPEC: ${ISAACTELEOP_PIP_SPEC:-isaacteleop[cloudxr]}
-        ISAACTELEOP_PIP_FIND_LINKS: ${ISAACTELEOP_PIP_FIND_LINKS:-}
-        ISAACTELEOP_PIP_DEBUG: ${ISAACTELEOP_PIP_DEBUG:-0}
+        PYTHON_VERSION:
+        CXR_RUNTIME_SDK_VERSION:
+        ISAACTELEOP_PIP_SPEC:
+        ISAACTELEOP_PIP_FIND_LINKS:
+        ISAACTELEOP_PIP_DEBUG:
     container_name: cloudxr-runtime-${CXR_RUNTIME_SDK_VERSION}
     user: "${CXR_UID:-1000}:${CXR_GID:-1000}"
     network_mode: host
@@ -27,9 +27,9 @@ services:
     runtime: nvidia
     environment:
       - ACCEPT_EULA=${ACCEPT_CLOUDXR_EULA:-Y}
-      - NV_CXR_ENABLE_PUSH_DEVICES=${NV_CXR_ENABLE_PUSH_DEVICES}
-      - NV_CXR_ENABLE_TENSOR_DATA=${NV_CXR_ENABLE_TENSOR_DATA}
-      - NV_DEVICE_PROFILE=${NV_DEVICE_PROFILE:-auto-webrtc}
+      - NV_CXR_ENABLE_PUSH_DEVICES
+      - NV_CXR_ENABLE_TENSOR_DATA
+      - NV_DEVICE_PROFILE
       - NV_GPU_INDEX=${NV_GPU_INDEX:-0}
     volumes:
       - openxr-volume:/openxr/
