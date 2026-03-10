@@ -15,9 +15,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 IMAGE_NAME="isaac-teleop-camera"
 CONTAINER_NAME="isaac-teleop-camera"
-DEFAULT_CONFIG="config/multi_camera.yaml"
+
+DEFAULT_CONFIG="config/single_camera.yaml"
 DEFAULT_RECEIVER_HOST="127.0.0.1"
-DEFAULT_ROBOT_USER="nvidia"
+DEFAULT_ROBOT_IP=""
+DEFAULT_ROBOT_USER=""
 REMOTE_BUILD_DIR="/tmp/isaac-teleop-camera-build"
 
 # CloudXR runtime paths (set by setup_cloudxr_env.sh or defaults)
@@ -96,7 +98,7 @@ common_docker_args() {
 # CONFIG, SKIP_BUILD, NO_DEPLOY.
 parse_remote_opts() {
     _REMOTE_IP=""
-    _REMOTE_USER="$DEFAULT_ROBOT_USER"
+    _REMOTE_USER=""
     RECEIVER_HOST="$DEFAULT_RECEIVER_HOST"
     CONFIG="$DEFAULT_CONFIG"
     SKIP_BUILD=false
@@ -115,7 +117,17 @@ parse_remote_opts() {
     done
 
     if [[ -z "$_REMOTE_IP" ]]; then
-        log_error "--ip is required for remote commands"
+        _REMOTE_IP="$DEFAULT_ROBOT_IP"
+    fi
+    if [[ -z "$_REMOTE_IP" ]]; then
+        log_error "--ip is required (or set DEFAULT_ROBOT_IP in the script)"
+        exit 1
+    fi
+    if [[ -z "$_REMOTE_USER" ]]; then
+        _REMOTE_USER="$DEFAULT_ROBOT_USER"
+    fi
+    if [[ -z "$_REMOTE_USER" ]]; then
+        log_error "--user is required (or set DEFAULT_ROBOT_USER in the script)"
         exit 1
     fi
 }
@@ -141,8 +153,8 @@ ${_BOLD}ROBOT / LOCAL COMMANDS${_RESET}
     clean                   Remove Docker images
 
 ${_BOLD}OPTIONS${_RESET}
-    --ip IP                 Robot IP address (required for push / push-config)
-    --user USER             SSH username                (default: $DEFAULT_ROBOT_USER)
+    --ip IP                 Robot IP address             (default: \$DEFAULT_ROBOT_IP)
+    --user USER             SSH username                 (default: \$DEFAULT_ROBOT_USER)
     --sender-only           Build only the encoder (skip decoder + XR)
     --receiver-host IP      Stream destination IP       (default: $DEFAULT_RECEIVER_HOST)
     --config PATH           Camera config YAML          (default: $DEFAULT_CONFIG)
