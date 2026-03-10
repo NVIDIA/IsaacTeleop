@@ -621,19 +621,20 @@ class TeleopRos2PublisherNode(Node):
                                 self._pub_root_pose.publish(pose_msg)
 
                         if self._mode == "controller_teleop":
-                            finger_joints_msg = JointState()
-                            finger_joints_msg.header.stamp = now
-                            finger_joints_msg.header.frame_id = self._world_frame
-                            finger_joints_msg.name = _FINGER_JOINT_NAMES
                             left_joints = result["finger_joints_left"]
                             right_joints = result["finger_joints_right"]
-                            finger_joints_msg.position = np.concatenate(
-                                [
-                                    np.asarray(left_joints, dtype=np.float32),
-                                    np.asarray(right_joints, dtype=np.float32),
-                                ]
-                            ).tolist()
-                            self._pub_finger_joints.publish(finger_joints_msg)
+                            if not left_joints.is_none and not right_joints.is_none:
+                                finger_joints_msg = JointState()
+                                finger_joints_msg.header.stamp = now
+                                finger_joints_msg.header.frame_id = self._world_frame
+                                finger_joints_msg.name = _FINGER_JOINT_NAMES
+                                finger_joints_msg.position = np.concatenate(
+                                    [
+                                        np.asarray(left_joints, dtype=np.float32),
+                                        np.asarray(right_joints, dtype=np.float32),
+                                    ]
+                                ).tolist()
+                                self._pub_finger_joints.publish(finger_joints_msg)
 
                         if self._mode == "controller_raw":
                             if not left_ctrl.is_none or not right_ctrl.is_none:
