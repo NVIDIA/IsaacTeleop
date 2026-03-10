@@ -184,7 +184,7 @@ class EnvConfig:
         (e.g. $HOME) via os.path.expandvars and os.path.expanduser.
         """
         result: dict[str, str] = {}
-        p = Path(path)
+        p = Path(path).expanduser().resolve()
         if not p.exists():
             raise FileNotFoundError(f"CloudXR env config not found: {p}")
         if not p.is_file():
