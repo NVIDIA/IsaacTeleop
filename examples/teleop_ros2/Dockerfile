@@ -109,7 +109,9 @@ WORKDIR /opt/isaacteleop/install/examples/teleop_ros2/python
 # Copy requirements from the context, avoiding any files from the 'builder' stage.
 COPY src/core/python/requirements.txt src/core/python/requirements-retargeters.txt /tmp/
 RUN uv venv --python=${PYTHON_VERSION} && \
-    uv pip install -r /tmp/requirements.txt -r /tmp/requirements-retargeters.txt msgpack msgpack-numpy && \
+    uv pip install setuptools wheel && \
+    uv pip install --no-build-isolation-package nlopt \
+        -r /tmp/requirements.txt -r /tmp/requirements-retargeters.txt msgpack msgpack-numpy && \
     rm /tmp/requirements.txt /tmp/requirements-retargeters.txt
 
 COPY --from=builder /opt/isaacteleop/install /opt/isaacteleop/install
