@@ -7,8 +7,8 @@
 services:
   cloudxr-runtime:
     build:
-      context: .
-      dockerfile: Dockerfile.runtime
+      context: ${CXR_BUILD_CONTEXT:?CXR_BUILD_CONTEXT must point to repository root}
+      dockerfile: deps/cloudxr/Dockerfile.runtime
       args:
         PYTHON_VERSION:
         ISAACTELEOP_PIP_SPEC:

@@ -68,8 +68,8 @@ RUN --mount=type=bind,source=.,target=/workspace,readonly \
 
 # Vulkan ICD + EGL vendor so the loader can find the NVIDIA driver.
 RUN mkdir -p /etc/vulkan/icd.d /usr/share/glvnd/egl_vendor.d
-COPY runtime/data/10_nvidia.json /usr/share/glvnd/egl_vendor.d/
-COPY runtime/data/nvidia_icd.json /etc/vulkan/icd.d/
+COPY deps/cloudxr/runtime/data/10_nvidia.json /usr/share/glvnd/egl_vendor.d/
+COPY deps/cloudxr/runtime/data/nvidia_icd.json /etc/vulkan/icd.d/
 ENV VK_DRIVER_FILES=/etc/vulkan/icd.d/nvidia_icd.json
 
 RUN mkdir -p /openxr && chmod 777 /openxr && \
@@ -80,7 +80,7 @@ RUN mkdir -p /openxr && chmod 777 /openxr && \
 ENV HOME=/openxr
 ENV PYTHON_VERSION=${PYTHON_VERSION}
 
-COPY --chmod=0755 runtime/eula.sh /eula.sh
-COPY --chmod=0755 runtime/entrypoint.sh /entrypoint.sh
+COPY --chmod=0755 deps/cloudxr/runtime/eula.sh /eula.sh
+COPY --chmod=0755 deps/cloudxr/runtime/entrypoint.sh /entrypoint.sh
 
 ENTRYPOINT ["/eula.sh", "/entrypoint.sh"]

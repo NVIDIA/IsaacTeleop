@@ -63,7 +63,6 @@ COMPOSE_PROJECT="isaacteleop-test"
 
 # Environment file for test configuration
 ENV_TEST="deps/cloudxr/.env.test"
-RUNTIME_WHEELS_STAGING_DIR="deps/cloudxr/.runtime-wheels"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -171,7 +170,6 @@ cleanup_containers() {
         -f "$COMPOSE_RUNTIME" \
         -f "$COMPOSE_TEST" \
         down -v --remove-orphans 2>/dev/null || true
-    rm -rf "$RUNTIME_WHEELS_STAGING_DIR"
     log_success "Cleanup complete"
 }
 
@@ -190,6 +188,7 @@ log_info "Test container Python version: $PYTHON_VERSION"
 
 # Compose interpolation reads environment variables, not shell locals.
 export PYTHON_VERSION
+export CXR_BUILD_CONTEXT="$GIT_ROOT"
 
 # Join arrays into comma-separated strings for docker-compose environment variables
 CXR_PYTHON_GPU_TESTS_ENV=$(IFS=','; echo "${CXR_PYTHON_GPU_TESTS[*]}")
@@ -232,11 +231,8 @@ fi
 log_success "Found $WHEEL_COUNT isaacteleop wheel(s) in install/wheels/"
 
 # Make docker-compose.runtime install from a local wheel directory via pip find-links.
-mkdir -p "$RUNTIME_WHEELS_STAGING_DIR"
-cp -f install/wheels/*.whl "$RUNTIME_WHEELS_STAGING_DIR/"
 export ISAACTELEOP_PIP_SPEC="isaacteleop[cloudxr]"
-ISAACTELEOP_PIP_FIND_LINKS="/workspace/$(basename "$RUNTIME_WHEELS_STAGING_DIR")"
-export ISAACTELEOP_PIP_FIND_LINKS
+export ISAACTELEOP_PIP_FIND_LINKS="/workspace/install/wheels"
 export ISAACTELEOP_PIP_DEBUG=0
 log_info "Using ISAACTELEOP_PIP_SPEC=$ISAACTELEOP_PIP_SPEC"
 log_info "Using ISAACTELEOP_PIP_FIND_LINKS=$ISAACTELEOP_PIP_FIND_LINKS"

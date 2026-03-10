@@ -121,7 +121,6 @@ def run() -> None:
     sdk_path = _get_sdk_path()
     run_dir = cfg.openxr_run_dir()
     openxr_dir = _setup_openxr_dir(sdk_path, run_dir)
-    logs_dir_path = cfg.ensure_logs_dir()
 
     expected_json = os.path.join(openxr_dir, "openxr_cloudxr.json")
     for var, expected in (
@@ -137,9 +136,6 @@ def run() -> None:
             raise RuntimeError(
                 f"{var} mismatch: environment has {actual!r}, expected {expected!r}"
             )
-
-    # CloudXR Runtime writes cxr_server.<timestamp>.log under NV_CXR_OUTPUT_DIR when
-    os.environ["NV_CXR_OUTPUT_DIR"] = str(logs_dir_path)
 
     prev_ld = os.environ.get("LD_LIBRARY_PATH", "")
     os.environ["LD_LIBRARY_PATH"] = sdk_path + (f":{prev_ld}" if prev_ld else "")
