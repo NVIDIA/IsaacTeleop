@@ -207,12 +207,6 @@ jobs:
         mkdir -p install
         tar -xvf isaacteleop-install.tar -C install
 
-    - name: Setup CloudXR SDK
-      id: cloudxr-sdk
-      uses: ./.github/actions/setup-cloudxr-sdk
-      with:
-        ngc-cli-api-key: ${{ secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY }}
-
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 

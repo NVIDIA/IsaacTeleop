@@ -169,7 +169,18 @@ class EnvConfig:
                     stacklevel=2,
                 )
                 del overrides[key]
+
         merged = self._merge_env(self._DEFAULT_ENV, overrides)
+
+        # Respect existing process environment values (e.g. docker-compose
+        # container env) unless explicitly overridden via env_file.
+        for key in self._DEFAULT_ENV:
+            if key in self._RESOLVED_ONLY_KEYS or key in overrides:
+                continue
+            value = os.environ.get(key)
+            if value is not None:
+                merged[key] = value
+
         return self._resolve_and_apply(merged)
 
     # -------------------------------------------------------------------------

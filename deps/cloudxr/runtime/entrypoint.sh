@@ -3,8 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 set -e
 
-mkdir -p /openxr/run
-cp -f /opt/cloudxr/libopenxr_cloudxr.so /openxr/
-cp -f /opt/cloudxr/openxr_cloudxr.json /openxr/
-rm -f /openxr/run/ipc_cloudxr /openxr/run/runtime_started
-exec /eula.sh "$@"
+mkdir -p /openxr/.cloudxr/run
+printf 'accepted\n' > /openxr/.cloudxr/run/eula_accepted
+
+exec python -m isaacteleop.cloudxr

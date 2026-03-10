@@ -139,8 +139,6 @@ def run() -> None:
             )
 
     # CloudXR Runtime writes cxr_server.<timestamp>.log under NV_CXR_OUTPUT_DIR when
-    os.environ["XRT_NO_STDIN"] = "true"
-    os.environ["NV_CXR_FILE_LOGGING"] = "true"
     os.environ["NV_CXR_OUTPUT_DIR"] = str(logs_dir_path)
 
     prev_ld = os.environ.get("LD_LIBRARY_PATH", "")

@@ -63,6 +63,7 @@ COMPOSE_PROJECT="isaacteleop-test"
 
 # Environment file for test configuration
 ENV_TEST="deps/cloudxr/.env.test"
+RUNTIME_WHEELS_STAGING_DIR="deps/cloudxr/.runtime-wheels"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -170,6 +171,7 @@ cleanup_containers() {
         -f "$COMPOSE_RUNTIME" \
         -f "$COMPOSE_TEST" \
         down -v --remove-orphans 2>/dev/null || true
+    rm -rf "$RUNTIME_WHEELS_STAGING_DIR"
     log_success "Cleanup complete"
 }
 
@@ -185,6 +187,9 @@ for test in "${CXR_NATIVE_GPU_TESTS[@]}"; do
     log_info "  - $test"
 done
 log_info "Test container Python version: $PYTHON_VERSION"
+
+# Compose interpolation reads environment variables, not shell locals.
+export PYTHON_VERSION
 
 # Join arrays into comma-separated strings for docker-compose environment variables
 CXR_PYTHON_GPU_TESTS_ENV=$(IFS=','; echo "${CXR_PYTHON_GPU_TESTS[*]}")
@@ -222,13 +227,19 @@ WHEEL_COUNT=$(find install/wheels -name "isaacteleop-*.whl" | wc -l)
 if [ "$WHEEL_COUNT" -eq 0 ]; then
     log_error "No isaacteleop wheel found in install/wheels/"
     exit 1
-elif [ "$WHEEL_COUNT" -gt 1 ]; then
-    log_error "Multiple isaacteleop wheels found - consider cleaning install/wheels/"
-    ls -la install/wheels/isaacteleop-*.whl
-    exit 1
 fi
 
-log_success "Found isaacteleop wheel in install/wheels/"
+log_success "Found $WHEEL_COUNT isaacteleop wheel(s) in install/wheels/"
+
+# Make docker-compose.runtime install from a local wheel directory via pip find-links.
+mkdir -p "$RUNTIME_WHEELS_STAGING_DIR"
+cp -f install/wheels/*.whl "$RUNTIME_WHEELS_STAGING_DIR/"
+export ISAACTELEOP_PIP_SPEC="isaacteleop[cloudxr]"
+export ISAACTELEOP_PIP_FIND_LINKS="/workspace/$(basename "$RUNTIME_WHEELS_STAGING_DIR")"
+export ISAACTELEOP_PIP_DEBUG=1
+log_info "Using ISAACTELEOP_PIP_SPEC=$ISAACTELEOP_PIP_SPEC"
+log_info "Using ISAACTELEOP_PIP_FIND_LINKS=$ISAACTELEOP_PIP_FIND_LINKS"
+log_info "Using ISAACTELEOP_PIP_DEBUG=$ISAACTELEOP_PIP_DEBUG"
 
 WHEEL_PATH=$(find install/wheels -name "isaacteleop-*.whl")
 WHEEL_BASENAME=$(basename "$WHEEL_PATH")

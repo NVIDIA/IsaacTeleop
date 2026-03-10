@@ -10,12 +10,16 @@ services:
       context: .
       dockerfile: Dockerfile.runtime
       args:
+        PYTHON_VERSION: ${PYTHON_VERSION:-3.12}
         CXR_RUNTIME_SDK_VERSION: ${CXR_RUNTIME_SDK_VERSION}
+        ISAACTELEOP_PIP_SPEC: ${ISAACTELEOP_PIP_SPEC:-isaacteleop[cloudxr]}
+        ISAACTELEOP_PIP_FIND_LINKS: ${ISAACTELEOP_PIP_FIND_LINKS:-}
+        ISAACTELEOP_PIP_DEBUG: ${ISAACTELEOP_PIP_DEBUG:-0}
     container_name: cloudxr-runtime-${CXR_RUNTIME_SDK_VERSION}
     user: "${CXR_UID:-1000}:${CXR_GID:-1000}"
     network_mode: host
     healthcheck:
-      test: ["CMD", "test", "-f", "/openxr/run/runtime_started"]
+      test: ["CMD", "test", "-f", "/openxr/.cloudxr/run/runtime_started"]
       interval: 1s
       timeout: 1s
       retries: 10
