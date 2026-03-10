@@ -290,6 +290,7 @@ class TeleopCameraSubgraph(Subgraph):
         self._config = config
         self._xr_session = xr_session
         self._name_prefix = name
+        self._camera_outputs: Dict[str, Tuple[Any, str]] = {}
 
         # Validate configuration
         config.validate_or_raise()
@@ -299,6 +300,16 @@ class TeleopCameraSubgraph(Subgraph):
             raise ValueError("xr_session is required for XR display mode")
 
         super().__init__(fragment, name)
+
+    @property
+    def camera_outputs(self) -> Dict[str, Tuple[Any, str]]:
+        """Decoded camera frame outputs keyed by display name.
+
+        Each value is ``(operator, output_port_name)`` suitable for
+        ``add_flow(op, downstream, {(port, "input")})``.
+        Available after ``compose()`` has run.
+        """
+        return self._camera_outputs
 
     def _create_name(self, suffix: str) -> str:
         """Create a namespaced operator name."""
@@ -336,6 +347,9 @@ class TeleopCameraSubgraph(Subgraph):
                 monitored_outputs,
                 tensor_names,
             )
+
+        # Expose all camera outputs so the parent app can tap into them.
+        self._camera_outputs = dict(monitored_outputs)
 
         # -------------------------
         # Display mode specific pipeline
