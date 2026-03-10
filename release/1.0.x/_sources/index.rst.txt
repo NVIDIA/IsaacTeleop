@@ -43,13 +43,16 @@ Table of Contents
 
    getting_started/quick_start
    getting_started/build_from_source
+   getting_started/teleop_session
    getting_started/contributing
 
 .. toctree::
    :maxdepth: 2
    :caption: References
 
-   references/device
+   references/requirements
+   references/build
+   device/index
    references/retargeting
    references/license
 

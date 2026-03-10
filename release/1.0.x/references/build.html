@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>License &#8212; Isaac Teleop Documentation</title>
+    <title>Build System &#8212; Isaac Teleop Documentation</title>
   
   
   
@@ -51,13 +51,14 @@
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../_static/copybutton.js?v=f281be69"></script>
     <script src="../_static/design-tabs.js?v=f930bc37"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'references/license';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'references/build';</script>
 
     <link rel="icon" href="../_static/favicon.ico"/>
 
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="prev" title="Retargeting Interface" href="retargeting.html" />
+    <link rel="next" title="Device Interface" href="../device/index.html" />
+    <link rel="prev" title="System Requirements" href="requirements.html" />
 
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -319,10 +320,10 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="requirements.html">System Requirements</a></li>
-<li class="toctree-l1"><a class="reference internal" href="build.html">Build System</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Build System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../device/index.html">Device Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="retargeting.html">Retargeting Interface</a></li>
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="license.html">License</a></li>
 </ul>
 </div>
 </nav></div>
@@ -357,7 +358,7 @@
         <i class="fa-solid fa-home"></i>
       </a>
     </li>
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">License</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Build System</span></li>
   </ul>
 </nav>
 </div>
@@ -374,35 +375,124 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="license">
-<span id="id1"></span><h1>License<a class="headerlink" href="#license" title="Link to this heading">#</a></h1>
-<p>Unless otherwise noted, the code in this repository is licensed under the
-<a class="reference external" href="https://www.apache.org/licenses/LICENSE-2.0" rel="noopener noreferrer" target="_blank">Apache 2.0 license</a>.</p>
-<section id="known-exceptions">
-<h2>Known exceptions<a class="headerlink" href="#known-exceptions" title="Link to this heading">#</a></h2>
-<ul class="simple">
-<li><p>Certain headers from the <a class="reference external" href="https://github.com/KhronosGroup/OpenXR-SDK" rel="noopener noreferrer" target="_blank">OpenXR SDK</a> or related
-<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/deps/cloudxr/openxr_extensions" rel="noopener noreferrer" target="_blank">extensions</a>
-are imported from their original source and are licensed under the
-<a class="reference external" href="https://opensource.org/licenses/MIT" rel="noopener noreferrer" target="_blank">MIT license</a> or <a class="reference external" href="https://www.boost.org/LICENSE_1_0.txt" rel="noopener noreferrer" target="_blank">Boost Software License 1.0</a>.</p></li>
-<li><p>CloudXR SDK is NVIDIA’s proprietary software, licensed under the <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/deps/cloudxr/CLOUDXR_LICENSE" rel="noopener noreferrer" target="_blank">NVIDIA CloudXR License</a>.</p></li>
-</ul>
-</section>
-<section id="license-headers">
-<h2>License headers<a class="headerlink" href="#license-headers" title="Link to this heading">#</a></h2>
-<p>We use <a class="reference external" href="https://reuse.software/" rel="noopener noreferrer" target="_blank">REUSE</a> to enforce SPDX license headers on source files.
-<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/.pre-commit-config.yaml" rel="noopener noreferrer" target="_blank">Pre-commit</a> runs
-<code class="docutils literal notranslate"><span class="pre">reuse</span> <span class="pre">lint-file</span></code> on changed files (e.g. <code class="docutils literal notranslate"><span class="pre">.py</span></code>, <code class="docutils literal notranslate"><span class="pre">.cpp</span></code>, <code class="docutils literal notranslate"><span class="pre">.md</span></code>, <code class="docutils literal notranslate"><span class="pre">.yaml</span></code>):</p>
-<ol class="arabic simple">
-<li><p><strong>Required fields</strong>: Each file must have <code class="docutils literal notranslate"><span class="pre">SPDX-FileCopyrightText</span></code> and <code class="docutils literal notranslate"><span class="pre">SPDX-License-Identifier</span></code>.</p></li>
-<li><p><strong>License</strong>: <code class="docutils literal notranslate"><span class="pre">SPDX-License-Identifier</span></code> must be <code class="docutils literal notranslate"><span class="pre">Apache-2.0</span></code> (full text in <code class="docutils literal notranslate"><span class="pre">LICENSES/Apache-2.0.txt</span></code>).</p></li>
-</ol>
-<p>Example header (for Python files):</p>
-<div class="code-100col highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION &amp; AFFILIATES. All rights reserved.</span>
-<span class="c1"># SPDX-License-Identifier: Apache-2.0</span>
+  <section id="build-system">
+<h1>Build System<a class="headerlink" href="#build-system" title="Link to this heading">#</a></h1>
+<section id="project-structure">
+<h2>Project structure<a class="headerlink" href="#project-structure" title="Link to this heading">#</a></h2>
+<p>The layout below reflects the actual <code class="docutils literal notranslate"><span class="pre">CMakeLists.txt</span></code> hierarchy (root <code class="docutils literal notranslate"><span class="pre">CMakeLists.txt</span></code> and <code class="docutils literal notranslate"><span class="pre">src/core/CMakeLists.txt</span></code>):</p>
+<div class="code-100col highlight-text notranslate"><div class="highlight"><pre><span></span>IsaacTeleop/
+├── CMakeLists.txt              # Top-level: deps, core, examples, plugins, etc.
+├── cmake/
+│   ├── SetupHunter.cmake       # BUILD_PLUGINS, Hunter for OAK/DepthAI
+│   ├── SetupPython.cmake       # BUILD_PYTHON_BINDINGS, uv-managed Python
+│   ├── ClangFormat.cmake       # clang_format_check / clang_format_fix
+│   └── ...
+├── deps/
+│   ├── CMakeLists.txt          # Adds third_party
+│   ├── third_party/CMakeLists.txt  # FetchContent: OpenXR, yaml-cpp, pybind11, etc.
+│   └── cloudxr/                # CloudXR (CI / optional)
+├── src/core/
+│   ├── CMakeLists.txt          # Core options, subdirs in dependency order
+│   ├── schema/                 # FlatBuffer schemas and generated code
+│   ├── oxr_utils/              # Header-only OpenXR utilities
+│   ├── plugin_manager/         # Plugin manager (C++ and Python)
+│   ├── oxr/                    # OpenXR session management (C++ and Python)
+│   ├── pusherio/               # PusherIO (depends on oxr)
+│   ├── deviceio/               # Device I/O library (C++ and Python)
+│   ├── mcap/                   # MCAP recording (depends on deviceio)
+│   ├── retargeting_engine/     # Retargeting (Python)
+│   ├── retargeting_engine_ui/  # Retargeting UI (Python)
+│   ├── teleop_session_manager/ # Teleop session manager (Python)
+│   ├── cloudxr/                # CloudXR runtime helper (Python)
+│   └── python/                 # Python wheel packaging (when BUILD_PYTHON_BINDINGS=ON)
+├── src/plugins/                # Built when BUILD_PLUGINS=ON
+│   ├── plugin_utils/
+│   ├── controller_synthetic_hands/
+│   ├── generic_3axis_pedal/
+│   ├── manus/
+│   └── oak/                    # When BUILD_PLUGIN_OAK_CAMERA=ON
+└── examples/
+    ├── oxr/                    # OpenXR examples (C++ and Python)
+    ├── retargeting/
+    ├── teleop_session_manager/
+    ├── teleop_ros2/
+    ├── schemaio/
+    └── native_openxr/
 </pre></div>
 </div>
-<p>You can also run <code class="docutils literal notranslate"><span class="pre">reuse</span> <span class="pre">spdx</span> <span class="pre">-o</span> <span class="pre">project.spdx</span></code> to generate an SPDX report for the project.</p>
+</section>
+<section id="cmake-integration">
+<h2>CMake integration<a class="headerlink" href="#cmake-integration" title="Link to this heading">#</a></h2>
+<p>The project uses a modern CMake target-based approach. Libraries export targets (e.g. OXR, DEVICEIO, schema); include directories are propagated. Package config files are generated for use after install. See the respective <code class="docutils literal notranslate"><span class="pre">CMakeLists.txt</span></code> in <code class="docutils literal notranslate"><span class="pre">src/core</span></code> and under <code class="docutils literal notranslate"><span class="pre">examples/</span></code> for target names and usage.</p>
+</section>
+<section id="using-the-python-wheel">
+<h2>Using the Python wheel<a class="headerlink" href="#using-the-python-wheel" title="Link to this heading">#</a></h2>
+<p>After building, install the wheel with <code class="docutils literal notranslate"><span class="pre">uv</span></code> or <code class="docutils literal notranslate"><span class="pre">pip</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>isaacteleop<span class="w"> </span>--find-links<span class="o">=</span>./install/wheels/<span class="w"> </span>--reinstall
+
+<span class="c1"># or</span>
+pip<span class="w"> </span>install<span class="w"> </span>install/wheels/isaacteleop-*.whl
+</pre></div>
+</div>
+</section>
+<section id="output-locations">
+<h2>Output locations<a class="headerlink" href="#output-locations" title="Link to this heading">#</a></h2>
+<p>After a successful build and install:</p>
+<ul class="simple">
+<li><p><strong>C++ libraries:</strong> <code class="docutils literal notranslate"><span class="pre">build/src/core/</span></code> (and under each module)</p></li>
+<li><p><strong>Python wheel:</strong> <code class="docutils literal notranslate"><span class="pre">build/wheels/isaacteleop-*.whl</span></code></p></li>
+<li><p><strong>Examples (binaries):</strong> under <code class="docutils literal notranslate"><span class="pre">build/examples/</span></code> (e.g. <code class="docutils literal notranslate"><span class="pre">build/examples/oxr/cpp/</span></code>)</p></li>
+<li><p><strong>Installed files:</strong> <code class="docutils literal notranslate"><span class="pre">install/</span></code> (or your <code class="docutils literal notranslate"><span class="pre">CMAKE_INSTALL_PREFIX</span></code>)
+- Libraries: <code class="docutils literal notranslate"><span class="pre">install/lib/</span></code>
+- Headers: <code class="docutils literal notranslate"><span class="pre">install/include/</span></code>
+- Wheels: <code class="docutils literal notranslate"><span class="pre">install/wheels/</span></code>
+- Examples: <code class="docutils literal notranslate"><span class="pre">install/examples/</span></code></p></li>
+</ul>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
+<section id="dependencies-fail-to-download">
+<h3>Dependencies fail to download<a class="headerlink" href="#dependencies-fail-to-download" title="Link to this heading">#</a></h3>
+<p>FetchContent in <code class="docutils literal notranslate"><span class="pre">deps/third_party/CMakeLists.txt</span></code> requires network access. If downloads fail, check connectivity. Key repositories:</p>
+<ul class="simple">
+<li><p>OpenXR SDK: <a class="github reference external" href="https://github.com/KhronosGroup/OpenXR-SDK.git" rel="noopener noreferrer" target="_blank">KhronosGroup/OpenXR-SDK.git</a></p></li>
+<li><p>pybind11: <a class="github reference external" href="https://github.com/pybind/pybind11.git" rel="noopener noreferrer" target="_blank">pybind/pybind11.git</a></p></li>
+<li><p>yaml-cpp: <a class="github reference external" href="https://github.com/jbeder/yaml-cpp.git" rel="noopener noreferrer" target="_blank">jbeder/yaml-cpp.git</a></p></li>
+<li><p>FlatBuffers, Catch2, MCAP: see <code class="docutils literal notranslate"><span class="pre">deps/third_party/CMakeLists.txt</span></code> for URLs and tags.</p></li>
+</ul>
+<p>You can inspect the <code class="docutils literal notranslate"><span class="pre">_deps</span></code> directory in your build tree for fetch logs.</p>
+</section>
+<section id="cmake-can-t-find-openxr">
+<h3>CMake can’t find OpenXR<a class="headerlink" href="#cmake-can-t-find-openxr" title="Link to this heading">#</a></h3>
+<p>OpenXR is fetched automatically; it is not a system package. If configuration fails, try a clean configure:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>rm<span class="w"> </span>-rf<span class="w"> </span>build
+cmake<span class="w"> </span>-B<span class="w"> </span>build
+</pre></div>
+</div>
+</section>
+<section id="examples-or-tests-can-t-find-the-library">
+<h3>Examples or tests can’t find the library<a class="headerlink" href="#examples-or-tests-can-t-find-the-library" title="Link to this heading">#</a></h3>
+<p>When building from the top-level, examples and tests use the build tree. Ensure you run
+<code class="docutils literal notranslate"><span class="pre">cmake</span> <span class="pre">--build</span> <span class="pre">build</span></code> from the project root and run executables from the build directory (or use
+<code class="docutils literal notranslate"><span class="pre">cmake</span> <span class="pre">--install</span> <span class="pre">build</span></code> and run from <code class="docutils literal notranslate"><span class="pre">install/</span></code>).</p>
+</section>
+<section id="uv-or-python-version">
+<h3>uv or Python version<a class="headerlink" href="#uv-or-python-version" title="Link to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">cmake/SetupPython.cmake</span></code> requires <strong>uv</strong> and uses <code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_PYTHON_VERSION</span></code>. Install uv as
+in <a class="reference internal" href="../getting_started/build_from_source.html#one-time-setup"><span class="std std-ref">One time setup</span></a> and pass <code class="docutils literal notranslate"><span class="pre">-DISAAC_TELEOP_PYTHON_VERSION=3.10</span></code> (or 3.11,
+3.12) if you need a specific version.</p>
+</section>
+</section>
+<section id="reference">
+<h2>Reference<a class="headerlink" href="#reference" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Root build and options: <code class="docutils literal notranslate"><span class="pre">CMakeLists.txt</span></code></p></li>
+<li><p>Core modules and options: <code class="docutils literal notranslate"><span class="pre">src/core/CMakeLists.txt</span></code></p></li>
+<li><p>Dependencies: <code class="docutils literal notranslate"><span class="pre">deps/third_party/CMakeLists.txt</span></code></p></li>
+<li><p>Python and uv: <code class="docutils literal notranslate"><span class="pre">cmake/SetupPython.cmake</span></code></p></li>
+<li><p>Plugins and Hunter: <code class="docutils literal notranslate"><span class="pre">cmake/SetupHunter.cmake</span></code></p></li>
+<li><p>CI (Ubuntu, matrix build_type/python_version/arch): <code class="docutils literal notranslate"><span class="pre">.github/workflows/build-ubuntu.yml</span></code></p></li>
+</ul>
 </section>
 </section>
 
@@ -417,13 +507,22 @@ are imported from their original source and are licensed under the
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="retargeting.html"
+       href="requirements.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Retargeting Interface</p>
+        <p class="prev-next-title">System Requirements</p>
       </div>
+    </a>
+    <a class="right-next"
+       href="../device/index.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Device Interface</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
     </a>
 </div>
                 </footer>
@@ -446,8 +545,18 @@ are imported from their original source and are licensed under the
   </div>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#known-exceptions">Known exceptions</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#license-headers">License headers</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#project-structure">Project structure</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cmake-integration">CMake integration</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-the-python-wheel">Using the Python wheel</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#output-locations">Output locations</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dependencies-fail-to-download">Dependencies fail to download</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cmake-can-t-find-openxr">CMake can’t find OpenXR</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#examples-or-tests-can-t-find-the-library">Examples or tests can’t find the library</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#uv-or-python-version">uv or Python version</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reference">Reference</a></li>
 </ul>
   </nav></div>
 
