@@ -235,7 +235,8 @@ log_success "Found $WHEEL_COUNT isaacteleop wheel(s) in install/wheels/"
 mkdir -p "$RUNTIME_WHEELS_STAGING_DIR"
 cp -f install/wheels/*.whl "$RUNTIME_WHEELS_STAGING_DIR/"
 export ISAACTELEOP_PIP_SPEC="isaacteleop[cloudxr]"
-export ISAACTELEOP_PIP_FIND_LINKS="/workspace/$(basename "$RUNTIME_WHEELS_STAGING_DIR")"
+ISAACTELEOP_PIP_FIND_LINKS="/workspace/$(basename "$RUNTIME_WHEELS_STAGING_DIR")"
+export ISAACTELEOP_PIP_FIND_LINKS
 export ISAACTELEOP_PIP_DEBUG=0
 log_info "Using ISAACTELEOP_PIP_SPEC=$ISAACTELEOP_PIP_SPEC"
 log_info "Using ISAACTELEOP_PIP_FIND_LINKS=$ISAACTELEOP_PIP_FIND_LINKS"
