@@ -35,7 +35,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/styles/nvidia-sphinx-theme.css?v=933278ad" />
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
-    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=592b52f6" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=1fd48548" />
   
   <!-- So that users can add custom icons -->
   <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
@@ -313,11 +313,14 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/quick_start.html">Quick Start</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/build_from_source.html">Build from Source</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/teleop_session.html">Teleop Session</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/contributing.html">Contributing</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
 <ul class="current nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="device.html">Device Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="requirements.html">System Requirements</a></li>
+<li class="toctree-l1"><a class="reference internal" href="build.html">Build System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../device/index.html">Device Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="retargeting.html">Retargeting Interface</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">License</a></li>
 </ul>
@@ -374,21 +377,21 @@
   <section id="license">
 <span id="id1"></span><h1>License<a class="headerlink" href="#license" title="Link to this heading">#</a></h1>
 <p>Unless otherwise noted, the code in this repository is licensed under the
-<a class="reference external" href="https://www.apache.org/licenses/LICENSE-2.0">Apache 2.0 license</a>.</p>
+<a class="reference external" href="https://www.apache.org/licenses/LICENSE-2.0" rel="noopener noreferrer" target="_blank">Apache 2.0 license</a>.</p>
 <section id="known-exceptions">
 <h2>Known exceptions<a class="headerlink" href="#known-exceptions" title="Link to this heading">#</a></h2>
 <ul class="simple">
-<li><p>Certain headers from the <a class="reference external" href="https://github.com/KhronosGroup/OpenXR-SDK">OpenXR SDK</a> or related
-<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/deps/cloudxr/openxr_extensions">extensions</a>
+<li><p>Certain headers from the <a class="reference external" href="https://github.com/KhronosGroup/OpenXR-SDK" rel="noopener noreferrer" target="_blank">OpenXR SDK</a> or related
+<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/deps/cloudxr/openxr_extensions" rel="noopener noreferrer" target="_blank">extensions</a>
 are imported from their original source and are licensed under the
-<a class="reference external" href="https://opensource.org/licenses/MIT">MIT license</a> or <a class="reference external" href="https://www.boost.org/LICENSE_1_0.txt">Boost Software License 1.0</a>.</p></li>
-<li><p>CloudXR SDK is NVIDIA’s proprietary software, licensed under the <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/deps/cloudxr/CLOUDXR_LICENSE">NVIDIA CloudXR License</a>.</p></li>
+<a class="reference external" href="https://opensource.org/licenses/MIT" rel="noopener noreferrer" target="_blank">MIT license</a> or <a class="reference external" href="https://www.boost.org/LICENSE_1_0.txt" rel="noopener noreferrer" target="_blank">Boost Software License 1.0</a>.</p></li>
+<li><p>CloudXR SDK is NVIDIA’s proprietary software, licensed under the <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/deps/cloudxr/CLOUDXR_LICENSE" rel="noopener noreferrer" target="_blank">NVIDIA CloudXR License</a>.</p></li>
 </ul>
 </section>
 <section id="license-headers">
 <h2>License headers<a class="headerlink" href="#license-headers" title="Link to this heading">#</a></h2>
-<p>We use <a class="reference external" href="https://reuse.software/">REUSE</a> to enforce SPDX license headers on source files.
-<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/.pre-commit-config.yaml">Pre-commit</a> runs
+<p>We use <a class="reference external" href="https://reuse.software/" rel="noopener noreferrer" target="_blank">REUSE</a> to enforce SPDX license headers on source files.
+<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/.pre-commit-config.yaml" rel="noopener noreferrer" target="_blank">Pre-commit</a> runs
 <code class="docutils literal notranslate"><span class="pre">reuse</span> <span class="pre">lint-file</span></code> on changed files (e.g. <code class="docutils literal notranslate"><span class="pre">.py</span></code>, <code class="docutils literal notranslate"><span class="pre">.cpp</span></code>, <code class="docutils literal notranslate"><span class="pre">.md</span></code>, <code class="docutils literal notranslate"><span class="pre">.yaml</span></code>):</p>
 <ol class="arabic simple">
 <li><p><strong>Required fields</strong>: Each file must have <code class="docutils literal notranslate"><span class="pre">SPDX-FileCopyrightText</span></code> and <code class="docutils literal notranslate"><span class="pre">SPDX-License-Identifier</span></code>.</p></li>

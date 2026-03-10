@@ -35,7 +35,7 @@
     <link rel="stylesheet" type="text/css" href="_static/styles/nvidia-sphinx-theme.css?v=933278ad" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
-    <link rel="stylesheet" type="text/css" href="_static/css/custom.css?v=592b52f6" />
+    <link rel="stylesheet" type="text/css" href="_static/css/custom.css?v=1fd48548" />
   
   <!-- So that users can add custom icons -->
   <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
@@ -313,11 +313,14 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="getting_started/quick_start.html">Quick Start</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started/build_from_source.html">Build from Source</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started/teleop_session.html">Teleop Session</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started/contributing.html">Contributing</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="references/device.html">Device Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references/requirements.html">System Requirements</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references/build.html">Build System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="device/index.html">Device Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="references/retargeting.html">Retargeting Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="references/license.html">License</a></li>
 </ul>
@@ -351,7 +354,7 @@
 <h1>Welcome to Isaac Teleop<a class="headerlink" href="#welcome-to-isaac-teleop" title="Link to this heading">#</a></h1>
 <a class="reference external image-reference" href="references/license.html"><img alt="License" class="license-badge" src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" />
 </a>
-<p><strong>Isaac Teleop</strong> (<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop">GitHub repo</a>) is the unified framework for high-fidelity
+<p><strong>Isaac Teleop</strong> (<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop" rel="noopener noreferrer" target="_blank">GitHub repo</a>) is the unified framework for high-fidelity
 egocentric and robot data collection. It provides a standardized device interface, a flexible
 graph-based retargeting pipeline, and a streamlined data collection workflow
 that work seamlessly across simulated and real-world robots.</p>
@@ -380,23 +383,33 @@ installation and first-run steps.</p>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="getting_started/quick_start.html">Quick Start</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/quick_start.html#installation">Installation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/quick_start.html#id1">Quick start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/quick_start.html#check-out-code-base-optional">1. Check out code base (Optional)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/quick_start.html#install-the-isaacteleop-pip-package">2. Install the <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> pip package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/quick_start.html#run-cloudxr-server">3. Run CloudXR Server</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/quick_start.html#whitelist-ports-for-firewall">4. Whitelist ports for Firewall</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/quick_start.html#connect-an-xr-headset">5. Connect an XR headset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/quick_start.html#load-cloudxr-environment-variables">6. Load CloudXR environment variables</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/quick_start.html#run-a-teleop-example">7. Run a teleop example</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/quick_start.html#next-steps">Next steps</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started/build_from_source.html">Build from Source</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#prerequisites">Prerequisites</a></li>
 <li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#one-time-setup">One time setup</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#c-formatting-enforcement-linux">C++ Formatting Enforcement (Linux)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#cmake-configure-and-build">CMake: Configure and build</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#build-options">Build options</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#running-tests">Running tests</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#project-structure">Project structure</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#cmake-integration">CMake integration</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#using-the-python-wheel">Using the Python wheel</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#output-locations">Output locations</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#troubleshooting">Troubleshooting</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#reference">Reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#clone-the-repository">1. Clone the repository</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#cmake-configure-and-build">2. CMake: Configure and build</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#running-tests">3. Running tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#install-the-isaacteleop-pip-package">4. Install the <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> pip package</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started/teleop_session.html">Teleop Session</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/teleop_session.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/teleop_session.html#quick-start">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/teleop_session.html#configuration-classes">Configuration Classes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/teleop_session.html#api-reference">API Reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/teleop_session.html#examples">Examples</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/teleop_session.html#benefits">Benefits</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/teleop_session.html#advanced-features">Advanced Features</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started/contributing.html">Contributing</a></li>
@@ -405,9 +418,22 @@ installation and first-run steps.</p>
 <div class="toctree-wrapper compound">
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="references/device.html">Device Interface</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="references/device.html#supported-devices">Supported Devices</a></li>
-<li class="toctree-l2"><a class="reference internal" href="references/device.html#add-a-new-device">Add a New Device</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references/requirements.html">System Requirements</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="references/requirements.html#hardware-requirements">Hardware requirements</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/requirements.html#software-requirements">Software Requirements</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="references/build.html">Build System</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="references/build.html#project-structure">Project structure</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/build.html#cmake-integration">CMake integration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/build.html#using-the-python-wheel">Using the Python wheel</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/build.html#output-locations">Output locations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/build.html#troubleshooting">Troubleshooting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/build.html#reference">Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="device/index.html">Device Interface</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="device/index.html#isaac-teleop-device-plugin-c-level">Isaac Teleop device plugin (C++ level)</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="references/retargeting.html">Retargeting Interface</a><ul>

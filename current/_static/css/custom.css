@@ -55,6 +55,25 @@ html[data-theme="dark"] {
     --pst-color-accent: var(--pst-color-primary);
 }
 
+/* Inline code (e.g. ``literal`` in RST): no outline/background, keep monospace + green */
+code.literal,
+code.docutils.literal {
+    background: none !important;
+    border: none !important;
+    padding: 0 !important;
+    font-family: var(--pst-font-family-monospace), monospace;
+    font-weight: bold !important;
+}
+
+/* remove underline from links */
+a {
+    text-decoration: none !important;
+}
+a:hover,
+a:focus {
+    text-decoration: underline !important;
+}
+
 /* for the announcement link */
 .bd-header-announcement a,
 .bd-header-version-warning a {
@@ -196,4 +215,18 @@ html[data-theme="dark"] {
 /* Extra space after license badge on index */
 img.license-badge {
     margin-bottom: 1rem;
+}
+
+/* Local contents box (e.g. "Steps"): title and list must be readable (nav.contents from theme) */
+nav.contents .topic-title,
+nav.contents.local .topic-title,
+.topic.contents .topic-title,
+.topic.contents .rubric {
+    color: #000 !important;
+    font-weight: 600;
+}
+nav.contents .simple a,
+nav.contents.local .simple a,
+nav.contents ul a {
+    color: #000 !important;
 }

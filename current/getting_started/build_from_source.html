@@ -35,7 +35,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/styles/nvidia-sphinx-theme.css?v=933278ad" />
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
-    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=592b52f6" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=1fd48548" />
   
   <!-- So that users can add custom icons -->
   <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
@@ -57,7 +57,7 @@
 
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Contributing" href="contributing.html" />
+    <link rel="next" title="Teleop Session" href="teleop_session.html" />
     <link rel="prev" title="Quick Start" href="quick_start.html" />
 
 
@@ -314,11 +314,14 @@
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="quick_start.html">Quick Start</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Build from Source</a></li>
+<li class="toctree-l1"><a class="reference internal" href="teleop_session.html">Teleop Session</a></li>
 <li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../references/device.html">Device Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/requirements.html">System Requirements</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/build.html">Build System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../device/index.html">Device Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/retargeting.html">Retargeting Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/license.html">License</a></li>
 </ul>
@@ -376,9 +379,20 @@
 <h1>Build from Source<a class="headerlink" href="#build-from-source" title="Link to this heading">#</a></h1>
 <p>This page describes how to build Isaac Teleop from source, including core libraries, plugins, and
 examples. The instructions align with the project’s CMake configuration and the CI workflow
-(<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/.github/workflows/build-ubuntu.yml">build-ubuntu.yml</a> in the GitHub repository).</p>
+(<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/.github/workflows/build-ubuntu.yml" rel="noopener noreferrer" target="_blank">build-ubuntu.yml</a> in the GitHub repository).</p>
+<nav class="contents local" id="steps">
+<p class="topic-title">Steps</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#prerequisites" id="id5">Prerequisites</a></p></li>
+<li><p><a class="reference internal" href="#one-time-setup" id="id6">One time setup</a></p></li>
+<li><p><a class="reference internal" href="#clone-the-repository" id="id7">1. Clone the repository</a></p></li>
+<li><p><a class="reference internal" href="#cmake-configure-and-build" id="id8">2. CMake: Configure and build</a></p></li>
+<li><p><a class="reference internal" href="#running-tests" id="id9">3. Running tests</a></p></li>
+<li><p><a class="reference internal" href="#install-the-isaacteleop-pip-package" id="id10">4. Install the <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> pip package</a></p></li>
+</ul>
+</nav>
 <section id="prerequisites">
-<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
+<h2><a class="toc-backref" href="#id5" role="doc-backlink">Prerequisites</a><a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
 <ul class="simple">
 <li><p><strong>CMake</strong> 3.20 or higher</p></li>
 <li><p><strong>C++20</strong> compatible compiler</p></li>
@@ -388,25 +402,78 @@ examples. The instructions align with the project’s CMake configuration and th
 </ul>
 </section>
 <section id="one-time-setup">
-<span id="id1"></span><h2>One time setup<a class="headerlink" href="#one-time-setup" title="Link to this heading">#</a></h2>
-<p>Install build tools and dependencies, such as CMake, clang-format. See <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/.github/workflows/build-ubuntu.yml">build-ubuntu.yml</a> in the GitHub repository for
+<span id="id1"></span><h2><a class="toc-backref" href="#id6" role="doc-backlink">One time setup</a><a class="headerlink" href="#one-time-setup" title="Link to this heading">#</a></h2>
+<p>Install build tools and dependencies, such as CMake, clang-format. See <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/.github/workflows/build-ubuntu.yml" rel="noopener noreferrer" target="_blank">build-ubuntu.yml</a> in the GitHub repository for
 the list of dependencies. On <strong>Ubuntu</strong>, install build tools and clang-format:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt-get<span class="w"> </span>update
 sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>build-essential<span class="w"> </span>cmake<span class="w"> </span>libx11-dev<span class="w"> </span>clang-format-14<span class="w"> </span>ccache
 </pre></div>
 </div>
-<p>Our build system uses <a class="reference external" href="https://docs.astral.sh/uv/">uv</a> for Python version and dependency management. Install <a class="reference external" href="https://docs.astral.sh/uv/">uv</a> if not already installed:</p>
+<p>Our build system uses <a class="reference external" href="https://docs.astral.sh/uv/" rel="noopener noreferrer" target="_blank">uv</a> for Python version and dependency management. Install <a class="reference external" href="https://docs.astral.sh/uv/" rel="noopener noreferrer" target="_blank">uv</a> if not already installed:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>-LsSf<span class="w"> </span>https://astral.sh/uv/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>sh
 </pre></div>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>While the build system uses <a class="reference external" href="https://docs.astral.sh/uv/">uv</a>, the final Python packages can be installed via any Python package manager
-such as <a class="reference external" href="https://pip.pypa.io/">pip</a> or <a class="reference external" href="https://conda.io/">conda</a>.</p>
+<p>While the build system uses <a class="reference external" href="https://docs.astral.sh/uv/" rel="noopener noreferrer" target="_blank">uv</a>, the final Python packages can be installed via any Python package manager
+such as <a class="reference external" href="https://pip.pypa.io/" rel="noopener noreferrer" target="_blank">pip</a> or <a class="reference external" href="https://conda.io/" rel="noopener noreferrer" target="_blank">conda</a>.</p>
 </div>
 </section>
+<section id="clone-the-repository">
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">1. Clone the repository</a><a class="headerlink" href="#clone-the-repository" title="Link to this heading">#</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/NVIDIA/IsaacTeleop.git
+<span class="nb">cd</span><span class="w"> </span>IsaacTeleop
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Dependencies (OpenXR SDK, pybind11, yaml-cpp) are automatically downloaded
+during CMake configuration using FetchContent. No manual dependency installation or
+git submodule initialization is required.</p>
+</div>
+<section id="pre-download-cloudxr-sdk-optional">
+<h3>Pre-download CloudXR SDK (Optional)<a class="headerlink" href="#pre-download-cloudxr-sdk-optional" title="Link to this heading">#</a></h3>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If you are using the default flow, skip this step. The
+<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/cloudxr/python/CMakeLists.txt" rel="noopener noreferrer" target="_blank">CMakeLists.txt</a>
+will automatically download the CloudXR SDK by calling the
+<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/scripts/download_cloudxr_runtime_sdk.sh" rel="noopener noreferrer" target="_blank">download_cloudxr_runtime_sdk.sh</a>
+script.</p>
+</div>
+<p>Sometimes NVIDIA might share early access CloudXR SDKs with you. In that case, you may get one of
+the two tarballs:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">CloudXR-&lt;version-for-runtime-sdk&gt;-Linux-&lt;arch&gt;-sdk.tar.gz</span></code> (CloudXR Runtime SDK)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">nvidia-cloudxr-&lt;version-for-web-sdk&gt;.tgz</span></code> (CloudXR Web SDK)</p></li>
+</ul>
+<p>You can place them in the <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/deps/cloudxr/" rel="noopener noreferrer" target="_blank">deps/cloudxr/</a> directory and update the <code class="docutils literal notranslate"><span class="pre">deps/cloudxr/.env</span></code>
+file to locally override the default version defined in <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/deps/cloudxr/.env.default" rel="noopener noreferrer" target="_blank">deps/cloudxr/.env.default</a>,
+like this:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">CXR_RUNTIME_SDK_VERSION</span><span class="o">=</span>&lt;version-for-runtime-sdk&gt;
+<span class="nv">CXR_WEB_SDK_VERSION</span><span class="o">=</span>&lt;version-for-web-sdk&gt;
+</pre></div>
+</div>
+</section>
+</section>
+<section id="cmake-configure-and-build">
+<h2><a class="toc-backref" href="#id8" role="doc-backlink">2. CMake: Configure and build</a><a class="headerlink" href="#cmake-configure-and-build" title="Link to this heading">#</a></h2>
+<p>From the project root:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-B<span class="w"> </span>build
+cmake<span class="w"> </span>--build<span class="w"> </span>build
+cmake<span class="w"> </span>--install<span class="w"> </span>build
+</pre></div>
+</div>
+<p>This will:</p>
+<ol class="arabic simple">
+<li><p>Fetch dependencies (OpenXR SDK, yaml-cpp, pybind11, FlatBuffers, MCAP, and optionally Catch2 for tests) via FetchContent in <code class="docutils literal notranslate"><span class="pre">deps/third_party/CMakeLists.txt</span></code></p></li>
+<li><p>Build core C++ libraries (schema, oxr_utils, plugin_manager, oxr, pusherio, deviceio, mcap, etc.) and Python bindings</p></li>
+<li><p>Build the Python wheel</p></li>
+<li><p>Build examples (if enabled)</p></li>
+<li><p>Install to <code class="docutils literal notranslate"><span class="pre">./install</span></code> (default prefix set in root <code class="docutils literal notranslate"><span class="pre">CMakeLists.txt</span></code>)</p></li>
+</ol>
 <section id="c-formatting-enforcement-linux">
-<h2>C++ Formatting Enforcement (Linux)<a class="headerlink" href="#c-formatting-enforcement-linux" title="Link to this heading">#</a></h2>
+<h3>C++ Formatting Enforcement (Linux)<a class="headerlink" href="#c-formatting-enforcement-linux" title="Link to this heading">#</a></h3>
 <p>On Linux, <strong>clang-format</strong> is enforced by default; the build fails if formatting changes would be applied. The project
 uses <strong>clang-format-14</strong> for consistent results across distributions (see <code class="docutils literal notranslate"><span class="pre">cmake/ClangFormat.cmake</span></code>).</p>
 <p>To disable enforcement, set <code class="docutils literal notranslate"><span class="pre">ENABLE_CLANG_FORMAT_CHECK</span></code> to <code class="docutils literal notranslate"><span class="pre">OFF</span></code>:</p>
@@ -423,28 +490,11 @@ cmake<span class="w"> </span>--build<span class="w"> </span>build<span class="w"
 </pre></div>
 </div>
 </section>
-<section id="cmake-configure-and-build">
-<h2>CMake: Configure and build<a class="headerlink" href="#cmake-configure-and-build" title="Link to this heading">#</a></h2>
-<p>From the project root:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-B<span class="w"> </span>build
-cmake<span class="w"> </span>--build<span class="w"> </span>build
-cmake<span class="w"> </span>--install<span class="w"> </span>build
-</pre></div>
-</div>
-<p>This will:</p>
-<ol class="arabic simple">
-<li><p>Fetch dependencies (OpenXR SDK, yaml-cpp, pybind11, FlatBuffers, MCAP, and optionally Catch2 for tests) via FetchContent in <code class="docutils literal notranslate"><span class="pre">deps/third_party/CMakeLists.txt</span></code></p></li>
-<li><p>Build core C++ libraries (schema, oxr_utils, plugin_manager, oxr, pusherio, deviceio, mcap, etc.) and Python bindings</p></li>
-<li><p>Build the Python wheel</p></li>
-<li><p>Build examples (if enabled)</p></li>
-<li><p>Install to <code class="docutils literal notranslate"><span class="pre">./install</span></code> (default prefix set in root <code class="docutils literal notranslate"><span class="pre">CMakeLists.txt</span></code>)</p></li>
-</ol>
-</section>
-<section id="build-options">
-<h2>Build options<a class="headerlink" href="#build-options" title="Link to this heading">#</a></h2>
-<p>CMake options (defined in root <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/CMakeLists.txt">CMakeLists.txt</a>,
-<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/cmake/SetupPython.cmake">SetupPython.cmake</a>, and
-<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/cmake/SetupHunter.cmake">SetupHunter.cmake</a>):</p>
+<section id="other-build-options">
+<h3>Other Build options<a class="headerlink" href="#other-build-options" title="Link to this heading">#</a></h3>
+<p>CMake options (defined in root <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/CMakeLists.txt" rel="noopener noreferrer" target="_blank">CMakeLists.txt</a>,
+<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/cmake/SetupPython.cmake" rel="noopener noreferrer" target="_blank">SetupPython.cmake</a>, and
+<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/cmake/SetupHunter.cmake" rel="noopener noreferrer" target="_blank">SetupHunter.cmake</a>):</p>
 <div class="pst-scrollable-table-container"><table class="table" id="id2">
 <caption><span class="caption-text">Common CMake Options</span><a class="headerlink" href="#id2" title="Link to this table">#</a></caption>
 <colgroup>
@@ -536,6 +586,7 @@ cmake<span class="w"> </span>--install<span class="w"> </span>build
 </tbody>
 </table>
 </div>
+</section>
 <section id="examples">
 <h3>Examples<a class="headerlink" href="#examples" title="Link to this heading">#</a></h3>
 <p>Build with a different Python version (must match a version supported by <code class="docutils literal notranslate"><span class="pre">SetupPython.cmake</span></code>):</p>
@@ -577,7 +628,7 @@ cmake<span class="w"> </span>--build<span class="w"> </span>build
 </section>
 </section>
 <section id="running-tests">
-<h2>Running tests<a class="headerlink" href="#running-tests" title="Link to this heading">#</a></h2>
+<h2><a class="toc-backref" href="#id9" role="doc-backlink">3. Running tests</a><a class="headerlink" href="#running-tests" title="Link to this heading">#</a></h2>
 <p>When <code class="docutils literal notranslate"><span class="pre">BUILD_TESTING</span></code> is <code class="docutils literal notranslate"><span class="pre">ON</span></code>, CTest is enabled at the top level. Run all tests either via the CMake <code class="docutils literal notranslate"><span class="pre">test</span></code> target or with <code class="docutils literal notranslate"><span class="pre">ctest</span></code>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>--build<span class="w"> </span>build<span class="w"> </span>--target<span class="w"> </span><span class="nb">test</span>
 
@@ -587,122 +638,20 @@ ctest<span class="w"> </span>--test-dir<span class="w"> </span>build<span class=
 </div>
 <p>The CI uses <code class="docutils literal notranslate"><span class="pre">ctest</span></code> (see <code class="docutils literal notranslate"><span class="pre">.github/workflows/build-ubuntu.yml</span></code>).</p>
 </section>
-<section id="project-structure">
-<h2>Project structure<a class="headerlink" href="#project-structure" title="Link to this heading">#</a></h2>
-<p>The layout below reflects the actual <code class="docutils literal notranslate"><span class="pre">CMakeLists.txt</span></code> hierarchy (root <code class="docutils literal notranslate"><span class="pre">CMakeLists.txt</span></code> and <code class="docutils literal notranslate"><span class="pre">src/core/CMakeLists.txt</span></code>):</p>
-<div class="code-100col highlight-text notranslate"><div class="highlight"><pre><span></span>IsaacTeleop/
-├── CMakeLists.txt              # Top-level: deps, core, examples, plugins, etc.
-├── cmake/
-│   ├── SetupHunter.cmake       # BUILD_PLUGINS, Hunter for OAK/DepthAI
-│   ├── SetupPython.cmake       # BUILD_PYTHON_BINDINGS, uv-managed Python
-│   ├── ClangFormat.cmake       # clang_format_check / clang_format_fix
-│   └── ...
-├── deps/
-│   ├── CMakeLists.txt          # Adds third_party
-│   ├── third_party/CMakeLists.txt  # FetchContent: OpenXR, yaml-cpp, pybind11, etc.
-│   └── cloudxr/                # CloudXR (CI / optional)
-├── src/core/
-│   ├── CMakeLists.txt          # Core options, subdirs in dependency order
-│   ├── schema/                 # FlatBuffer schemas and generated code
-│   ├── oxr_utils/              # Header-only OpenXR utilities
-│   ├── plugin_manager/         # Plugin manager (C++ and Python)
-│   ├── oxr/                    # OpenXR session management (C++ and Python)
-│   ├── pusherio/               # PusherIO (depends on oxr)
-│   ├── deviceio/               # Device I/O library (C++ and Python)
-│   ├── mcap/                   # MCAP recording (depends on deviceio)
-│   ├── retargeting_engine/     # Retargeting (Python)
-│   ├── retargeting_engine_ui/  # Retargeting UI (Python)
-│   ├── teleop_session_manager/ # Teleop session manager (Python)
-│   ├── cloudxr/                # CloudXR runtime helper (Python)
-│   └── python/                 # Python wheel packaging (when BUILD_PYTHON_BINDINGS=ON)
-├── src/plugins/                # Built when BUILD_PLUGINS=ON
-│   ├── plugin_utils/
-│   ├── controller_synthetic_hands/
-│   ├── generic_3axis_pedal/
-│   ├── manus/
-│   └── oak/                    # When BUILD_PLUGIN_OAK_CAMERA=ON
-└── examples/
-    ├── oxr/                    # OpenXR examples (C++ and Python)
-    ├── retargeting/
-    ├── teleop_session_manager/
-    ├── teleop_ros2/
-    ├── schemaio/
-    └── native_openxr/
+<section id="install-the-isaacteleop-pip-package">
+<h2><a class="toc-backref" href="#id10" role="doc-backlink">4. Install the <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> pip package</a><a class="headerlink" href="#install-the-isaacteleop-pip-package" title="Link to this heading">#</a></h2>
+<p>The wheels are built in the <code class="docutils literal notranslate"><span class="pre">./install/wheels/</span></code> directory. Install the package from the wheels.
+Using <code class="docutils literal notranslate"><span class="pre">pip</span></code>, you need to pass the <code class="docutils literal notranslate"><span class="pre">--no-index</span></code> option to automatically find the right wheel
+based on the Python version.  Note that <code class="docutils literal notranslate"><span class="pre">pip</span></code> and <code class="docutils literal notranslate"><span class="pre">uv</span> <span class="pre">pip</span></code> has slightly different options.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Pass --no-index to use only wheels in ./install/wheels/;</span>
+<span class="c1"># Pass --force-reinstall to replace an existing install.</span>
+pip<span class="w"> </span>install<span class="w"> </span>isaacteleop<span class="o">[</span>retargeters,cloudxr,ui<span class="o">]</span><span class="w"> </span>--find-links<span class="o">=</span>./install/wheels/<span class="w"> </span>--no-index<span class="w"> </span>--force-reinstall
 </pre></div>
 </div>
-</section>
-<section id="cmake-integration">
-<h2>CMake integration<a class="headerlink" href="#cmake-integration" title="Link to this heading">#</a></h2>
-<p>The project uses a modern CMake target-based approach. Libraries export targets (e.g. OXR, DEVICEIO, schema); include directories are propagated. Package config files are generated for use after install. See the respective <code class="docutils literal notranslate"><span class="pre">CMakeLists.txt</span></code> in <code class="docutils literal notranslate"><span class="pre">src/core</span></code> and under <code class="docutils literal notranslate"><span class="pre">examples/</span></code> for target names and usage.</p>
-</section>
-<section id="using-the-python-wheel">
-<h2>Using the Python wheel<a class="headerlink" href="#using-the-python-wheel" title="Link to this heading">#</a></h2>
-<p>After building, install the wheel with <code class="docutils literal notranslate"><span class="pre">uv</span></code> or <code class="docutils literal notranslate"><span class="pre">pip</span></code>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>isaacteleop<span class="w"> </span>--find-links<span class="o">=</span>./install/wheels/<span class="w"> </span>--reinstall
-
-<span class="c1"># or</span>
-pip<span class="w"> </span>install<span class="w"> </span>install/wheels/isaacteleop-*.whl
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Pass --reinstall to replace an existing install.</span>
+uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>isaacteleop<span class="o">[</span>retargeters,cloudxr,ui<span class="o">]</span><span class="w"> </span>--find-links<span class="o">=</span>./install/wheels/<span class="w"> </span>--reinstall
 </pre></div>
 </div>
-</section>
-<section id="output-locations">
-<h2>Output locations<a class="headerlink" href="#output-locations" title="Link to this heading">#</a></h2>
-<p>After a successful build and install:</p>
-<ul class="simple">
-<li><p><strong>C++ libraries:</strong> <code class="docutils literal notranslate"><span class="pre">build/src/core/</span></code> (and under each module)</p></li>
-<li><p><strong>Python wheel:</strong> <code class="docutils literal notranslate"><span class="pre">build/wheels/isaacteleop-*.whl</span></code></p></li>
-<li><p><strong>Examples (binaries):</strong> under <code class="docutils literal notranslate"><span class="pre">build/examples/</span></code> (e.g. <code class="docutils literal notranslate"><span class="pre">build/examples/oxr/cpp/</span></code>)</p></li>
-<li><p><strong>Installed files:</strong> <code class="docutils literal notranslate"><span class="pre">install/</span></code> (or your <code class="docutils literal notranslate"><span class="pre">CMAKE_INSTALL_PREFIX</span></code>)
-- Libraries: <code class="docutils literal notranslate"><span class="pre">install/lib/</span></code>
-- Headers: <code class="docutils literal notranslate"><span class="pre">install/include/</span></code>
-- Wheels: <code class="docutils literal notranslate"><span class="pre">install/wheels/</span></code>
-- Examples: <code class="docutils literal notranslate"><span class="pre">install/examples/</span></code></p></li>
-</ul>
-</section>
-<section id="troubleshooting">
-<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
-<section id="dependencies-fail-to-download">
-<h3>Dependencies fail to download<a class="headerlink" href="#dependencies-fail-to-download" title="Link to this heading">#</a></h3>
-<p>FetchContent in <code class="docutils literal notranslate"><span class="pre">deps/third_party/CMakeLists.txt</span></code> requires network access. If downloads fail, check connectivity. Key repositories:</p>
-<ul class="simple">
-<li><p>OpenXR SDK: <a class="github reference external" href="https://github.com/KhronosGroup/OpenXR-SDK.git">KhronosGroup/OpenXR-SDK.git</a></p></li>
-<li><p>pybind11: <a class="github reference external" href="https://github.com/pybind/pybind11.git">pybind/pybind11.git</a></p></li>
-<li><p>yaml-cpp: <a class="github reference external" href="https://github.com/jbeder/yaml-cpp.git">jbeder/yaml-cpp.git</a></p></li>
-<li><p>FlatBuffers, Catch2, MCAP: see <code class="docutils literal notranslate"><span class="pre">deps/third_party/CMakeLists.txt</span></code> for URLs and tags.</p></li>
-</ul>
-<p>You can inspect the <code class="docutils literal notranslate"><span class="pre">_deps</span></code> directory in your build tree for fetch logs.</p>
-</section>
-<section id="cmake-can-t-find-openxr">
-<h3>CMake can’t find OpenXR<a class="headerlink" href="#cmake-can-t-find-openxr" title="Link to this heading">#</a></h3>
-<p>OpenXR is fetched automatically; it is not a system package. If configuration fails, try a clean configure:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>rm<span class="w"> </span>-rf<span class="w"> </span>build
-cmake<span class="w"> </span>-B<span class="w"> </span>build
-</pre></div>
-</div>
-</section>
-<section id="examples-or-tests-can-t-find-the-library">
-<h3>Examples or tests can’t find the library<a class="headerlink" href="#examples-or-tests-can-t-find-the-library" title="Link to this heading">#</a></h3>
-<p>When building from the top-level, examples and tests use the build tree. Ensure you run
-<code class="docutils literal notranslate"><span class="pre">cmake</span> <span class="pre">--build</span> <span class="pre">build</span></code> from the project root and run executables from the build directory (or use
-<code class="docutils literal notranslate"><span class="pre">cmake</span> <span class="pre">--install</span> <span class="pre">build</span></code> and run from <code class="docutils literal notranslate"><span class="pre">install/</span></code>).</p>
-</section>
-<section id="uv-or-python-version">
-<h3>uv or Python version<a class="headerlink" href="#uv-or-python-version" title="Link to this heading">#</a></h3>
-<p><code class="docutils literal notranslate"><span class="pre">cmake/SetupPython.cmake</span></code> requires <strong>uv</strong> and uses <code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_PYTHON_VERSION</span></code>. Install uv as
-in <a class="reference internal" href="#one-time-setup"><span class="std std-ref">One time setup</span></a> and pass <code class="docutils literal notranslate"><span class="pre">-DISAAC_TELEOP_PYTHON_VERSION=3.10</span></code> (or 3.11,
-3.12) if you need a specific version.</p>
-</section>
-</section>
-<section id="reference">
-<h2>Reference<a class="headerlink" href="#reference" title="Link to this heading">#</a></h2>
-<ul class="simple">
-<li><p>Root build and options: <code class="docutils literal notranslate"><span class="pre">CMakeLists.txt</span></code></p></li>
-<li><p>Core modules and options: <code class="docutils literal notranslate"><span class="pre">src/core/CMakeLists.txt</span></code></p></li>
-<li><p>Dependencies: <code class="docutils literal notranslate"><span class="pre">deps/third_party/CMakeLists.txt</span></code></p></li>
-<li><p>Python and uv: <code class="docutils literal notranslate"><span class="pre">cmake/SetupPython.cmake</span></code></p></li>
-<li><p>Plugins and Hunter: <code class="docutils literal notranslate"><span class="pre">cmake/SetupHunter.cmake</span></code></p></li>
-<li><p>CI (Ubuntu, matrix build_type/python_version/arch): <code class="docutils literal notranslate"><span class="pre">.github/workflows/build-ubuntu.yml</span></code></p></li>
-</ul>
 </section>
 </section>
 
@@ -726,11 +675,11 @@ in <a class="reference internal" href="#one-time-setup"><span class="std std-ref
       </div>
     </a>
     <a class="right-next"
-       href="contributing.html"
+       href="teleop_session.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Contributing</p>
+        <p class="prev-next-title">Teleop Session</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -757,25 +706,18 @@ in <a class="reference internal" href="#one-time-setup"><span class="std std-ref
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#one-time-setup">One time setup</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#c-formatting-enforcement-linux">C++ Formatting Enforcement (Linux)</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cmake-configure-and-build">CMake: Configure and build</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#build-options">Build options</a><ul class="nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#clone-the-repository">1. Clone the repository</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pre-download-cloudxr-sdk-optional">Pre-download CloudXR SDK (Optional)</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cmake-configure-and-build">2. CMake: Configure and build</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#c-formatting-enforcement-linux">C++ Formatting Enforcement (Linux)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#other-build-options">Other Build options</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#examples">Examples</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#running-tests">Running tests</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#project-structure">Project structure</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cmake-integration">CMake integration</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-the-python-wheel">Using the Python wheel</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#output-locations">Output locations</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dependencies-fail-to-download">Dependencies fail to download</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cmake-can-t-find-openxr">CMake can’t find OpenXR</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#examples-or-tests-can-t-find-the-library">Examples or tests can’t find the library</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#uv-or-python-version">uv or Python version</a></li>
-</ul>
-</li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reference">Reference</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#running-tests">3. Running tests</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#install-the-isaacteleop-pip-package">4. Install the <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> pip package</a></li>
 </ul>
   </nav></div>
 

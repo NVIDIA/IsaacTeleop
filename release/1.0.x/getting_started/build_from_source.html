@@ -35,7 +35,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/styles/nvidia-sphinx-theme.css?v=933278ad" />
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
-    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=592b52f6" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=1fd48548" />
   
   <!-- So that users can add custom icons -->
   <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
@@ -376,7 +376,7 @@
 <h1>Build from Source<a class="headerlink" href="#build-from-source" title="Link to this heading">#</a></h1>
 <p>This page describes how to build Isaac Teleop from source, including core libraries, plugins, and
 examples. The instructions align with the project’s CMake configuration and the CI workflow
-(<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/.github/workflows/build-ubuntu.yml">build-ubuntu.yml</a> in the GitHub repository).</p>
+(<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/.github/workflows/build-ubuntu.yml" rel="noopener noreferrer" target="_blank">build-ubuntu.yml</a> in the GitHub repository).</p>
 <section id="prerequisites">
 <h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
 <ul class="simple">
@@ -389,20 +389,20 @@ examples. The instructions align with the project’s CMake configuration and th
 </section>
 <section id="one-time-setup">
 <span id="id1"></span><h2>One time setup<a class="headerlink" href="#one-time-setup" title="Link to this heading">#</a></h2>
-<p>Install build tools and dependencies, such as CMake, clang-format. See <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/.github/workflows/build-ubuntu.yml">build-ubuntu.yml</a> in the GitHub repository for
+<p>Install build tools and dependencies, such as CMake, clang-format. See <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/.github/workflows/build-ubuntu.yml" rel="noopener noreferrer" target="_blank">build-ubuntu.yml</a> in the GitHub repository for
 the list of dependencies. On <strong>Ubuntu</strong>, install build tools and clang-format:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt-get<span class="w"> </span>update
 sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>build-essential<span class="w"> </span>cmake<span class="w"> </span>libx11-dev<span class="w"> </span>clang-format-14<span class="w"> </span>ccache
 </pre></div>
 </div>
-<p>Our build system uses <a class="reference external" href="https://docs.astral.sh/uv/">uv</a> for Python version and dependency management. Install <a class="reference external" href="https://docs.astral.sh/uv/">uv</a> if not already installed:</p>
+<p>Our build system uses <a class="reference external" href="https://docs.astral.sh/uv/" rel="noopener noreferrer" target="_blank">uv</a> for Python version and dependency management. Install <a class="reference external" href="https://docs.astral.sh/uv/" rel="noopener noreferrer" target="_blank">uv</a> if not already installed:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>-LsSf<span class="w"> </span>https://astral.sh/uv/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>sh
 </pre></div>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>While the build system uses <a class="reference external" href="https://docs.astral.sh/uv/">uv</a>, the final Python packages can be installed via any Python package manager
-such as <a class="reference external" href="https://pip.pypa.io/">pip</a> or <a class="reference external" href="https://conda.io/">conda</a>.</p>
+<p>While the build system uses <a class="reference external" href="https://docs.astral.sh/uv/" rel="noopener noreferrer" target="_blank">uv</a>, the final Python packages can be installed via any Python package manager
+such as <a class="reference external" href="https://pip.pypa.io/" rel="noopener noreferrer" target="_blank">pip</a> or <a class="reference external" href="https://conda.io/" rel="noopener noreferrer" target="_blank">conda</a>.</p>
 </div>
 </section>
 <section id="c-formatting-enforcement-linux">
@@ -442,9 +442,9 @@ cmake<span class="w"> </span>--install<span class="w"> </span>build
 </section>
 <section id="build-options">
 <h2>Build options<a class="headerlink" href="#build-options" title="Link to this heading">#</a></h2>
-<p>CMake options (defined in root <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/CMakeLists.txt">CMakeLists.txt</a>,
-<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/cmake/SetupPython.cmake">SetupPython.cmake</a>, and
-<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/cmake/SetupHunter.cmake">SetupHunter.cmake</a>):</p>
+<p>CMake options (defined in root <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/CMakeLists.txt" rel="noopener noreferrer" target="_blank">CMakeLists.txt</a>,
+<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/cmake/SetupPython.cmake" rel="noopener noreferrer" target="_blank">SetupPython.cmake</a>, and
+<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/cmake/SetupHunter.cmake" rel="noopener noreferrer" target="_blank">SetupHunter.cmake</a>):</p>
 <div class="pst-scrollable-table-container"><table class="table" id="id2">
 <caption><span class="caption-text">Common CMake Options</span><a class="headerlink" href="#id2" title="Link to this table">#</a></caption>
 <colgroup>
@@ -665,9 +665,9 @@ pip<span class="w"> </span>install<span class="w"> </span>install/wheels/isaacte
 <h3>Dependencies fail to download<a class="headerlink" href="#dependencies-fail-to-download" title="Link to this heading">#</a></h3>
 <p>FetchContent in <code class="docutils literal notranslate"><span class="pre">deps/third_party/CMakeLists.txt</span></code> requires network access. If downloads fail, check connectivity. Key repositories:</p>
 <ul class="simple">
-<li><p>OpenXR SDK: <a class="github reference external" href="https://github.com/KhronosGroup/OpenXR-SDK.git">KhronosGroup/OpenXR-SDK.git</a></p></li>
-<li><p>pybind11: <a class="github reference external" href="https://github.com/pybind/pybind11.git">pybind/pybind11.git</a></p></li>
-<li><p>yaml-cpp: <a class="github reference external" href="https://github.com/jbeder/yaml-cpp.git">jbeder/yaml-cpp.git</a></p></li>
+<li><p>OpenXR SDK: <a class="github reference external" href="https://github.com/KhronosGroup/OpenXR-SDK.git" rel="noopener noreferrer" target="_blank">KhronosGroup/OpenXR-SDK.git</a></p></li>
+<li><p>pybind11: <a class="github reference external" href="https://github.com/pybind/pybind11.git" rel="noopener noreferrer" target="_blank">pybind/pybind11.git</a></p></li>
+<li><p>yaml-cpp: <a class="github reference external" href="https://github.com/jbeder/yaml-cpp.git" rel="noopener noreferrer" target="_blank">jbeder/yaml-cpp.git</a></p></li>
 <li><p>FlatBuffers, Catch2, MCAP: see <code class="docutils literal notranslate"><span class="pre">deps/third_party/CMakeLists.txt</span></code> for URLs and tags.</p></li>
 </ul>
 <p>You can inspect the <code class="docutils literal notranslate"><span class="pre">_deps</span></code> directory in your build tree for fetch logs.</p>
