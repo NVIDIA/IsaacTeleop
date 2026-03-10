@@ -6,7 +6,7 @@ Build from Source
 
 This page describes how to build Isaac Teleop from source, including core libraries, plugins, and
 examples. The instructions align with the project's CMake configuration and the CI workflow
-(`build-ubuntu.yml`_ in the GitHub repository).
+(:code-file:`build-ubuntu.yml <.github/workflows/build-ubuntu.yml>` in the GitHub repository).
 
 .. contents:: Steps
    :local:
@@ -26,7 +26,7 @@ Prerequisites
 One time setup
 --------------
 
-Install build tools and dependencies, such as CMake, clang-format. See `build-ubuntu.yml`_ in the GitHub repository for
+Install build tools and dependencies, such as CMake, clang-format. See :code-file:`build-ubuntu.yml <.github/workflows/build-ubuntu.yml>` in the GitHub repository for
 the list of dependencies. On **Ubuntu**, install build tools and clang-format:
 
 .. code-block:: bash
@@ -128,9 +128,7 @@ Useful targets:
 Other Build options
 ~~~~~~~~~~~~~~~~~~~
 
-CMake options (defined in root `CMakeLists.txt <https://github.com/NVIDIA/IsaacTeleop/blob/main/CMakeLists.txt>`_,
-`SetupPython.cmake <https://github.com/NVIDIA/IsaacTeleop/blob/main/cmake/SetupPython.cmake>`_, and
-`SetupHunter.cmake <https://github.com/NVIDIA/IsaacTeleop/blob/main/cmake/SetupHunter.cmake>`_):
+The CMake options (defined in root :code-file:`CMakeLists.txt`, :code-file:`cmake/SetupPython.cmake`, and :code-file:`cmake/SetupHunter.cmake`):
 
 .. list-table:: Common CMake Options
    :widths: 20 36 44
@@ -224,7 +222,7 @@ Build with OAK camera plugin (pulls Hunter/DepthAI):
    cmake -B build -DBUILD_PLUGIN_OAK_CAMERA=ON
    cmake --build build
 
-Build only the teleop_ros2 example (e.g. for Docker, as in ``.github/workflows/build-ubuntu.yml`` teleop-ros2-docker job):
+Build only the teleop_ros2 example (e.g. for Docker, as in :code-file:`build-ubuntu.yml <.github/workflows/build-ubuntu.yml>` teleop-ros2-docker job):
 
 .. code-block:: bash
 
@@ -251,7 +249,7 @@ When ``BUILD_TESTING`` is ``ON``, CTest is enabled at the top level. Run all tes
    # Or with ctest (e.g. parallel, output on failure)
    ctest --test-dir build --output-on-failure --parallel
 
-The CI uses ``ctest`` (see ``.github/workflows/build-ubuntu.yml``).
+The CI uses ``ctest`` (see :code-file:`build-ubuntu.yml <.github/workflows/build-ubuntu.yml>`).
 
 4. Install the ``isaacteleop`` pip package
 ------------------------------------------
@@ -274,4 +272,3 @@ based on the Python version.  Note that ``pip`` and ``uv pip`` has slightly diff
 ..
    References
 .. _`uv`: https://docs.astral.sh/uv/
-.. _`build-ubuntu.yml`: https://github.com/NVIDIA/IsaacTeleop/blob/main/.github/workflows/build-ubuntu.yml
