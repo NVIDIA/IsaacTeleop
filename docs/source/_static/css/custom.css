@@ -257,11 +257,11 @@ nav.contents .topic-title,
 nav.contents.local .topic-title,
 .topic.contents .topic-title,
 .topic.contents .rubric {
-    color: #000 !important;
+    color: var(--pst-color-text-base) !important;
     font-weight: 600;
 }
 nav.contents .simple a,
 nav.contents.local .simple a,
 nav.contents ul a {
-    color: #000 !important;
+     color: var(--pst-color-text-base) !important;
 }
