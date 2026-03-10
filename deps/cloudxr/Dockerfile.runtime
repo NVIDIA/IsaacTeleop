@@ -37,9 +37,9 @@ RUN apt-get update && \
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 ENV UV_PYTHON_INSTALL_DIR=/opt/uv/python
-RUN mkdir -p /opt/uv/python && chmod 755 /opt/uv /opt/uv/python
-RUN uv python install ${PYTHON_VERSION} --quiet
-RUN uv venv --python ${PYTHON_VERSION} --seed /opt/isaacteleop-venv
+RUN mkdir -p /opt/uv/python && chmod 755 /opt/uv /opt/uv/python && \
+    uv python install ${PYTHON_VERSION} --quiet && \
+    uv venv --python ${PYTHON_VERSION} --seed /opt/isaacteleop-venv
 ENV PATH=/opt/isaacteleop-venv/bin:${PATH}
 
 # ISAACTELEOP_PIP_SPEC may be a package name, URL, or a wheel path under /workspace.
