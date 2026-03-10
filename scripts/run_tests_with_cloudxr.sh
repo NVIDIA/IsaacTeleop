@@ -25,6 +25,7 @@ set -euo pipefail
 # run on a runner without GPU support immediately after the build.
 #==============================================================================
 CXR_PYTHON_GPU_TESTS=(
+    "test_package_version.py"
     "test_extensions.py"
     "test_modular.py"
 )
@@ -228,6 +229,16 @@ elif [ "$WHEEL_COUNT" -gt 1 ]; then
 fi
 
 log_success "Found isaacteleop wheel in install/wheels/"
+
+WHEEL_PATH=$(find install/wheels -name "isaacteleop-*.whl")
+WHEEL_BASENAME=$(basename "$WHEEL_PATH")
+EXPECTED_ISAACTELEOP_VERSION=$(echo "$WHEEL_BASENAME" | sed -E 's/^isaacteleop-([^-]+)-.*/\1/' | tr '_' '-')
+if [ -z "$EXPECTED_ISAACTELEOP_VERSION" ]; then
+    log_error "Failed to derive expected version from wheel name: $WHEEL_BASENAME"
+    exit 1
+fi
+export EXPECTED_ISAACTELEOP_VERSION
+log_info "Expected isaacteleop version from wheel artifact: $EXPECTED_ISAACTELEOP_VERSION"
 
 # Build test container
 log_info "Building test container..."

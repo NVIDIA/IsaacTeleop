@@ -6,7 +6,13 @@
 This package provides Python bindings for teleoperation with Device I/O.
 """
 
-__version__ = "1.0.0"
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("isaacteleop")
+except PackageNotFoundError:
+    # Fallback for local source-tree usage before wheel/package installation.
+    __version__ = "0+unknown"
 
 # Import submodules.
 from . import deviceio
