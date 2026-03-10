@@ -290,7 +290,7 @@ class TeleopCameraSubgraph(Subgraph):
         self._config = config
         self._xr_session = xr_session
         self._name_prefix = name
-        self._camera_outputs: Dict[str, Tuple[Any, str]] = {}
+        self._camera_output_names: List[str] = []
 
         # Validate configuration
         config.validate_or_raise()
@@ -302,14 +302,16 @@ class TeleopCameraSubgraph(Subgraph):
         super().__init__(fragment, name)
 
     @property
-    def camera_outputs(self) -> Dict[str, Tuple[Any, str]]:
-        """Decoded camera frame outputs keyed by display name.
+    def camera_output_names(self) -> List[str]:
+        """Names of the camera output interface ports.
 
-        Each value is ``(operator, output_port_name)`` suitable for
-        ``add_flow(op, downstream, {(port, "input")})``.
-        Available after ``compose()`` has run.
+        Each name can be used in ``add_flow(subgraph, downstream, {(name, ...)})``
+        to receive decoded camera frames. Available after ``compose()`` has run.
+
+        Mono cameras produce one port (e.g. ``"front"``).
+        Stereo cameras produce two (e.g. ``"front_left"``, ``"front_right"``).
         """
-        return self._camera_outputs
+        return list(self._camera_output_names)
 
     def _create_name(self, suffix: str) -> str:
         """Create a namespaced operator name."""
@@ -348,8 +350,12 @@ class TeleopCameraSubgraph(Subgraph):
                 tensor_names,
             )
 
-        # Expose all camera outputs so the parent app can tap into them.
-        self._camera_outputs = dict(monitored_outputs)
+        # Expose each camera frame as a subgraph output interface port so the
+        # parent application can connect them to downstream operators via
+        # add_flow(subgraph, downstream, {("cam_name", "input_port")}).
+        for display_key, (op, port) in monitored_outputs.items():
+            self.add_output_interface_port(display_key, op, port)
+        self._camera_output_names = list(monitored_outputs.keys())
 
         # -------------------------
         # Display mode specific pipeline
