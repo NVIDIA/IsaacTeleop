@@ -216,3 +216,17 @@ a:focus {
 img.license-badge {
     margin-bottom: 1rem;
 }
+
+/* Local contents box (e.g. "Steps"): title and list must be readable (nav.contents from theme) */
+nav.contents .topic-title,
+nav.contents.local .topic-title,
+.topic.contents .topic-title,
+.topic.contents .rubric {
+    color: #000 !important;
+    font-weight: 600;
+}
+nav.contents .simple a,
+nav.contents.local .simple a,
+nav.contents ul a {
+    color: #000 !important;
+}

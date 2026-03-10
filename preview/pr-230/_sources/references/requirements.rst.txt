@@ -9,7 +9,7 @@ Hardware requirements
 
 For real robot teleop & data collection:
 
-- **CPU**: X86 or ARM (Jetson Thor)
+- **CPU**: x86 or ARM (Jetson Thor)
 - **GPU**: NVIDIA GPU required
 
 **Simulation Ready**

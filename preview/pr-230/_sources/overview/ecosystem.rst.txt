@@ -28,10 +28,10 @@ streamlined device workflow and consistent data schemas.
      - Supported (v3.0)
    * - Isaac ROS
      - NVIDIA CUDA-accelerated toolkit for ROS2
-     - Q2 2026
+     - Planned
    * - Isaac Arena
      - Isaac Lab extension for large-scale evaluation and resource orchestration
-     - Q2 2026 (v0.2)
+     - Planned (v0.2)
 
 Supported Input Devices
 ------------------------
@@ -104,11 +104,11 @@ The following input devices and device categories are planned for support in the
    * - Keyboard and Mouse
      - Keyboard and mouse input
      - CLI tool
-     - Q2 2026
+     - Planned
    * - Master Manipulators
      - Gello, Haply, JoyLo etc.
      - CLI tool
-     - Q2 2026
+     - Planned
    * - Exoskeletons
      - TBA
      - TBA

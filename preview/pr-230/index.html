@@ -35,7 +35,7 @@
     <link rel="stylesheet" type="text/css" href="_static/styles/nvidia-sphinx-theme.css?v=933278ad" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
-    <link rel="stylesheet" type="text/css" href="_static/css/custom.css?v=3391dc1b" />
+    <link rel="stylesheet" type="text/css" href="_static/css/custom.css?v=1fd48548" />
   
   <!-- So that users can add custom icons -->
   <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
@@ -318,9 +318,10 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="references/requirements.html">System Requirements</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references/build.html">Build System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="device/index.html">Device Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="references/retargeting.html">Retargeting Interface</a></li>
-<li class="toctree-l1"><a class="reference internal" href="references/requirements.html">System Requirements</a></li>
 <li class="toctree-l1"><a class="reference internal" href="references/license.html">License</a></li>
 </ul>
 </div>
@@ -395,18 +396,10 @@ installation and first-run steps.</p>
 <li class="toctree-l1"><a class="reference internal" href="getting_started/build_from_source.html">Build from Source</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#prerequisites">Prerequisites</a></li>
 <li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#one-time-setup">One time setup</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#clone-the-repository">Clone the repository</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#pre-download-cloudxr-sdk-optional">Pre-download CloudXR SDK (Optional)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#c-formatting-enforcement-linux">C++ Formatting Enforcement (Linux)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#cmake-configure-and-build">CMake: Configure and build</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#build-options">Build options</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#running-tests">Running tests</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#project-structure">Project structure</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#cmake-integration">CMake integration</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#using-the-python-wheel">Using the Python wheel</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#output-locations">Output locations</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#troubleshooting">Troubleshooting</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#reference">Reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#clone-the-repository">1. Clone the repository</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#cmake-configure-and-build">2. CMake: Configure and build</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#running-tests">3. Running tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#install-the-isaacteleop-pip-package">4. Install the <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> pip package</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started/teleop_session.html">Teleop Session</a><ul>
@@ -425,6 +418,20 @@ installation and first-run steps.</p>
 <div class="toctree-wrapper compound">
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
 <ul>
+<li class="toctree-l1"><a class="reference internal" href="references/requirements.html">System Requirements</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="references/requirements.html#hardware-requirements">Hardware requirements</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/requirements.html#software-requirements">Software Requirements</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="references/build.html">Build System</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="references/build.html#project-structure">Project structure</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/build.html#cmake-integration">CMake integration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/build.html#using-the-python-wheel">Using the Python wheel</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/build.html#output-locations">Output locations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/build.html#troubleshooting">Troubleshooting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/build.html#reference">Reference</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="device/index.html">Device Interface</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="device/index.html#isaac-teleop-device-plugin-c-level">Isaac Teleop device plugin (C++ level)</a></li>
 </ul>
@@ -434,11 +441,6 @@ installation and first-run steps.</p>
 <li class="toctree-l2"><a class="reference internal" href="references/retargeting.html#available-retargeters">Available Retargeters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="references/retargeting.html#build-a-retargeting-pipeline">Build a Retargeting Pipeline</a></li>
 <li class="toctree-l2"><a class="reference internal" href="references/retargeting.html#add-a-new-retargeter">Add a New Retargeter</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="references/requirements.html">System Requirements</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="references/requirements.html#hardware-requirements">Hardware requirements</a></li>
-<li class="toctree-l2"><a class="reference internal" href="references/requirements.html#software-requirements">Software Requirements</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="references/license.html">License</a><ul>
