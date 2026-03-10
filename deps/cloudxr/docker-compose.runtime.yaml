@@ -11,11 +11,10 @@ services:
       dockerfile: Dockerfile.runtime
       args:
         PYTHON_VERSION:
-        CXR_RUNTIME_SDK_VERSION:
         ISAACTELEOP_PIP_SPEC:
         ISAACTELEOP_PIP_FIND_LINKS:
         ISAACTELEOP_PIP_DEBUG:
-    container_name: cloudxr-runtime-${CXR_RUNTIME_SDK_VERSION}
+    container_name: cloudxr-runtime-${CXR_RUNTIME_SDK_VERSION:-unset}-${PYTHON_VERSION:-unset}
     user: "${CXR_UID:-1000}:${CXR_GID:-1000}"
     network_mode: host
     healthcheck:
