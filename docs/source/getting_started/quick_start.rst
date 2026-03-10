@@ -4,16 +4,16 @@
 Quick Start
 ===========
 
-This guide walks through running a teleoperation session with an XR headset
-using CloudXR. By the end you will have the retargeting pipeline processing
-live hand/controller data and printing gripper commands to the terminal.
+This guide walks through running a teleoperation session with an XR headset using CloudXR. By the
+end you will have the retargeting pipeline processing live hand/controller data and printing gripper
+commands to the terminal.
 
 .. contents:: Steps
    :local:
    :depth: 1
 
-1. Check out code base
-----------------------
+1. Check out code base (Optional)
+---------------------------------
 
 Clone the repository and enter the project directory:
 
@@ -23,13 +23,12 @@ Clone the repository and enter the project directory:
    cd IsaacTeleop
 
 As a quick start guide, we don't need to build the code base from source. However, we still need
-to clone the repository for a couple scripts mentioned in the following steps.
+to clone the repository for a couple quick samples to run.
 
 2. Install the ``isaacteleop`` pip package
 ------------------------------------------
 
-In a new terminal, install the package from PyPI (or from a local wheel if you
-built from source):
+In a new terminal, install the package from PyPI (or from a local wheel if you built from source):
 
 .. code-block:: bash
 
@@ -49,55 +48,75 @@ and asks you to review and accept the EULA:
 
 .. code-block:: bash
 
-   ./scripts/run_cloudxr.sh
+   python -m isaacteleop.cloudxr
 
 You should see output similar to:
 
 .. code-block:: text
 
-   CloudXR has been configured as the OpenXR runtime:
-
-   CXR_HOST_VOLUME_PATH: /home/jiwenc/.cloudxr
-   XR_RUNTIME_JSON: /home/jiwenc/.cloudxr/openxr_cloudxr.json
-   NV_CXR_RUNTIME_DIR: /home/jiwenc/.cloudxr/run
-   Starting WSS proxy...
-
    NVIDIA CloudXR EULA must be accepted to run. View: https://github.com/NVIDIA/IsaacTeleop/blob/main/deps/cloudxr/CLOUDXR_LICENSE
 
    Accept NVIDIA CloudXR EULA? [y/N]: y
+
    INFO [logServiceInfo] Created CloudXR™ Service
          version: 6.1.0
          tag: 6.1.0-rc2
-         outputDir: /home/jiwenc/.cloudxr/logs
-         logFile:   /home/jiwenc/.cloudxr/logs/cxr_server.2026-03-08T232043Z.log
+         outputDir: /home/dev/.cloudxr/logs
+         logFile:   /home/dev/.cloudxr/logs/cxr_server.2026-03-09T234239Z.log
          uses: Monado™
 
-   Further logging is now being redirected to the file: `/home/jiwenc/.cloudxr/logs/cxr_streamsdk.2026-03-08T232043Z.000.log`
-   (Error messages will appear both on the console and in that file.)
+   CloudXR runtime started, make sure load environment variables:
 
+   ```bash
+   source /home/dev/.cloudxr/run/cloudxr.env
+   ```
 
    CloudXR WSS proxy: running
-         logFile:   /home/jiwenc/.cloudxr/logs/wss.2026-03-08T232043Z.log
+         logFile:   /home/dev/.cloudxr/logs/wss.2026-03-09T234239Z.log
 
-.. tip::
+.. important::
 
-   Keep this terminal open — CloudXR must stay running for the duration of the
-   session. Open a **new terminal** for the remaining steps.
+   Keep this terminal open — CloudXR must stay running for the duration of the session. Open a
+   **new terminal** for the remaining steps.
+
+   Also take note of the ``source /home/dev/.cloudxr/run/cloudxr.env`` path it mentioned in the
+   output. You will need to source it in step :ref:`load-cloudxr-environment-variables`.
 
 CloudXR Configurations (Optional)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-You can override CloudXR configurations by creating a ``.env`` and place it next
-to :code-file:`deps/cloudxr/.env.default`. The folder structure should look like:
+You can also inspect the CloudXR environment variables by running:
 
 .. code-block:: bash
 
-   $ tree -a deps/cloudxr/
-   deps/cloudxr/
-   ├── CLOUDXR_LICENSE
-   ├── .env
-   ├── .env.default
-   └── .gitignore
+   cat ~/.cloudxr/run/cloudxr.env
+
+You should see:
+
+.. code-block:: text
+
+   export NV_DEVICE_PROFILE=auto-webrtc
+   ...
+
+By default, the CloudXR runtime is configured to use the ``auto-webrtc`` device profile for Pico &
+Quest headsets. For Apple Vision Pro, the runtime is configured to use the ``auto-native`` device
+profile.
+
+To do that, you can override CloudXR configurations by creating an ``env`` file and pass it to the
+CloudXR runtime via the ``--cloudxr-env-config`` argument.
+
+.. code-block:: bash
+
+   echo 'NV_DEVICE_PROFILE=auto-native' > vision_pro.env
+   python -m isaacteleop.cloudxr --cloudxr-env-config=./vision_pro.env
+
+Again, you can also inspect the CloudXR environment variables by looking at the
+``~/.cloudxr/run/cloudxr.env`` file:
+
+.. code-block:: bash
+
+   export NV_DEVICE_PROFILE=auto-native
+   ...
 
 4. Whitelist ports for Firewall
 -------------------------------
@@ -173,24 +192,25 @@ and install the sample client on your Apple Vision Pro.
    You will need v3.0.0 or newer of the `Isaac XR Teleop Sample Client for Apple Vision Pro`_
    to connect to Isaac Teleop.
 
+
+.. _load-cloudxr-environment-variables:
+
 6. Load CloudXR environment variables
 --------------------------------------
+
+Open a new terminal and source the CloudXR environment variables posted from the CloudXR runtime in
+:ref:`run-cloudxr-server`:
 
 Source the setup script so that the OpenXR runtime points to CloudXR:
 
 .. code-block:: bash
 
-   source scripts/setup_cloudxr_env.sh
+   source ~/.cloudxr/run/cloudxr.env
 
-You should see:
+.. important::
 
-.. code-block:: text
-
-   CloudXR has been configured as the OpenXR runtime:
-
-   CXR_HOST_VOLUME_PATH: /home/<user>/.cloudxr
-   XR_RUNTIME_JSON: /home/<user>/.cloudxr/share/openxr/1/openxr_cloudxr.json
-   NV_CXR_RUNTIME_DIR: /home/<user>/.cloudxr/run
+   Make sure to run the rest of the commands in the same terminal. Or if have to open a new
+   terminal, source the CloudXR environment variables again.
 
 7. Run a teleop example
 -----------------------
