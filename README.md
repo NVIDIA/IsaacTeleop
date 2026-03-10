@@ -42,7 +42,7 @@ See the [Ecosystem](https://nvidia.github.io/IsaacTeleop/main/overview/ecosystem
   - Tracking based full body loco-manipulation (Sonic)
 - Upcoming use cases
   - Egocentric data collection (aka “no-robot”)
-  - Teleoperate using only non-XR devices (e.g. gamepad, Gello, haply, etc)
+  - Teleoperate using only non-XR devices (e.g. gamepad, Gello, haply, etc.)
   - Teleoperate cloud based robotics simulations
   - Remote teleoperation with camera streaming to the desktop
   - Remote teleoperation with immersive camera streaming to XR headsets
@@ -62,4 +62,4 @@ Our [documentation page](https://nvidia.github.io/IsaacTeleop) provides everythi
 
 Isaac Tepeop Core is design to work side by side with [NVIDIA Isaac Lab](https://github.com/isaac-sim/IsaacLab) starting with Isaac Lab 3.0 EA release.
 
-To get started, please refer to Isaac Lab's [Installation](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html) guide for more details. Then follow the [CloudXR teleoperation in Isaac Lab](https://isaac-sim.github.io/IsaacLab/main/source/how-to/cloudxr_teleoperation.html) to get started with Teleoperation in .
+To get started, please refer to Isaac Lab's [Installation](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html) guide for more details. Then follow the [CloudXR teleoperation in Isaac Lab](https://isaac-sim.github.io/IsaacLab/main/source/how-to/cloudxr_teleoperation.html) to get started with Teleoperation in Sim.

@@ -137,7 +137,7 @@ web server:
    sudo ufw allow 8080/tcp && sudo ufw allow 8443/tcp
 
 Please see the `CloudXR network setup`_ for more details for other network configurations (such as
-running the CloudXR runtime and wss proxy in containerized environment; or using Vision Pro cilent).
+running the CloudXR runtime and wss proxy in containerized environment; or using Vision Pro client).
 
 5. Connect an XR headset
 ------------------------
@@ -149,8 +149,7 @@ Meta Quest and Pico headsets
 
 To stream from a Meta Quest or PICO headset, you will need a CloudXR web client. For your
 convenience, we host a prebuilt CloudXR web client at `nvidia.github.io/IsaacTeleop/client`_.
-You can just open this URL in your headset's browser to connect to your headset. No need to build
-or insetall a separate client.
+You can just open this URL in your headset's browser. No need to build or install a separate client.
 
 .. tip::
 
@@ -174,9 +173,9 @@ As illustrated in the figure above, there are 3 steps to connect to your headset
    For advanced usage and troubleshooting of CloudXR, see the `CloudXR documentation`_ for more
    details.
 
-The source code for the web client is in the :code-dir:`deps/cloudxr/webxr_client/` directory. Follow
-the instructions in the official `CloudXR.js documentation`_ for more details if you want to run the web client from source.
-for more details if you want to run the web client from source.
+The source code for the web client is in the :code-dir:`deps/cloudxr/webxr_client/` directory.
+Follow the instructions in the official `CloudXR.js documentation`_ for more details if you want to
+run the web client from source.
 
 .. _connect-apple-vision-pro:
 
@@ -249,7 +248,7 @@ The example runs for 20 seconds and then exits. To try other examples, see
 Next steps
 ----------
 
-- `CloudXR teleoperation in Isaac Lab`_ — learn how to use CloudXR to teleoperate a simulated
+- `Teleoperation and Imitation Learning with Isaac Lab Mimic`_ — learn how to use CloudXR to teleoperate a simulated
   robot in Isaac Lab
 - :doc:`teleop_session` — learn how ``TeleopSession`` works and how to build
   custom retargeting pipelines
@@ -262,5 +261,6 @@ Next steps
 .. _`CloudXR documentation`: https://docs.nvidia.com/cloudxr-sdk/latest/index.html
 .. _`CloudXR.js documentation`: https://docs.nvidia.com/cloudxr-sdk/latest/usr_guide/cloudxr_js/index.html
 .. _`Isaac XR Teleop Sample Client for Apple Vision Pro`: https://github.com/isaac-sim/isaac-xr-teleop-sample-client-apple
-.. _`CloudXR teleoperation in Isaac Lab`: https://isaac-sim.github.io/IsaacLab/main/source/how-to/cloudxr_teleoperation.html
+.. _`Isaac Lab Quick Start`: https://isaac-sim.github.io/IsaacLab/main/source/setup/quickstart.html
+.. _`Teleoperation and Imitation Learning with Isaac Lab Mimic`: https://isaac-sim.github.io/IsaacLab/main/source/overview/imitation-learning/teleop_imitation.html#teleoperation-imitation-learning
 .. _`CloudXR network setup`: https://docs.nvidia.com/cloudxr-sdk/latest/requirement/network_setup.html#ports-and-firewalls

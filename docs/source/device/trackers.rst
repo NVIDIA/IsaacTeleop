@@ -32,7 +32,7 @@ All trackers follow the same lifecycle:
 
 .. note::
 
-    The ``DeviceIOSession`` is considerred as a low level API. In practive, it is recommended to
+    The ``DeviceIOSession`` is considered a low-level API. In practice, it is recommended to
     use the :doc:`../getting_started/teleop_session` to manage a teleop session with multiple
     device trackers and retargeters to work together.
 
