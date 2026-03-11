@@ -16,7 +16,7 @@ published:
   - hand_teleop: ee_poses (from hand tracking wrist), hand (raw finger poses),
                  root_twist, root_pose, and TF transforms for left/right wrists
   - controller_raw: controller_data only
-  - full_body: full_body only
+  - full_body: full_body and controller_data
 
 Topic names (configurable via parameters):
   - xr_teleop/hand (PoseArray): [finger_joint_poses...]
