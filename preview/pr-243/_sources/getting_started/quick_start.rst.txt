@@ -196,37 +196,37 @@ running the CloudXR runtime and wss proxy in containerized environment; or using
       desktop browser. IWER (Immersive Web Emulator Runtime) will automatically load to emulate a Meta
       Quest 3 headset.
 
-   .. figure:: ../_static/cloudxr-web-client-howto.png
-      :alt: CloudXR web client usage instruction
-      :align: center
+   .. tab-set::
+      .. tab-item:: CloudXR web client
 
-      **Figure:** CloudXR web client usage instruction
+         .. figure:: ../_static/cloudxr-web-client-howto.png
+            :alt: CloudXR web client usage instruction
+            :align: center
+
+            **Figure:** CloudXR web client usage instruction
+
+      .. tab-item:: Privacy warning
+
+         .. figure:: ../_static/cloudxr_accept_cert_not_private.png
+            :alt: Browser privacy warning for self-signed certificate
+
+            **Figure:** Browser privacy warning for self-signed certificate
+
+      .. tab-item:: Certificate accepted
+
+         .. figure:: ../_static/cloudxr_accept_cert_accepted.png
+            :alt: Expected error page after accepting the certificate
+
+            **Figure:** Expected error page after accepting the certificate
 
    As illustrated in the figure above, there are 3 steps to connect to your headset:
 
    1. Enter the IP address of the workstation running CloudXR
-   2. Accept the self-signed SSL certificate (created automatically for you during :ref:`run-cloudxr-server`)
-      by clicking the **Click https://<ip>:48322/ to accept cert** link that appears on the page.
-      Accept the certificate in the new page that opens, then navigate back to the CloudXR.js client
-      page. A new tab opens with a **"Your connection is not private"** warning. Click
-      **Advanced**, then click **Proceed to <ip> (unsafe)**.
+   2. Accept the self-signed SSL certificate, which was created automatically during :ref:`run-cloudxr-server`:
 
-      .. tab-set::
-
-         .. tab-item:: Privacy warning
-
-            .. figure:: ../_static/cloudxr_accept_cert_not_private.png
-               :alt: Browser privacy warning for self-signed certificate
-
-               **Figure:** Browser privacy warning for self-signed certificate
-
-         .. tab-item:: Certificate accepted
-
-            .. figure:: ../_static/cloudxr_accept_cert_accepted.png
-               :alt: Expected error page after accepting the certificate
-
-               **Figure:** Expected error page after accepting the certificate
-
+      - Click the **Click https://<ip>:48322/ to accept cert** link that appears on the page.
+      - In the new tab, you will see a **"Your connection is not private"** warning. Click **Advanced**, then **Proceed to <ip> (unsafe)**.
+      - Once accepted, the page will show **Certificate Accepted**. Navigate back to the CloudXR.js client page.
    3. Click **Connect** to begin teleoperation.
 
    .. note::
