@@ -45,6 +45,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxfixes-dev \
     libxxf86vm-dev \
     swig \
+    ros-${ROS_DISTRO}-rmw-cyclonedds-cpp \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv via standalone script (avoids PEP 668 "externally managed" pip on Ubuntu 24.04 / Jazzy)
