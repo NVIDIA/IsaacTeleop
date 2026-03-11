@@ -50,6 +50,14 @@ and asks you to review and accept the EULA:
 
    python -m isaacteleop.cloudxr
 
+To bypass the interactive EULA prompt (e.g. for CI or headless runs), set the environment variable:
+
+.. code-block:: bash
+
+   ACCEPT_EULA=true python -m isaacteleop.cloudxr
+
+Accepted values for ``ACCEPT_EULA`` are ``true``, ``yes``, ``y``, or ``1`` (case-insensitive).
+
 You should see output similar to:
 
 .. code-block:: text
