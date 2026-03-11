@@ -110,7 +110,7 @@ To position the MANUS gloves in 3D space two avenues are available:
 - Use the MANUS Quest 3 controller adapters to attach the Quest 3 controllers to the MANUS Universal Mount on the back of the glove.
 - Use the HMD's optical hand tracking to position the hands. 
 
-The system will switch dynamically based on the available tracking source. When using controllers it's advised to turn of hand tracking entirely or turn off automatic switching.
+The system will switch dynamically based on the available tracking source. When using controllers it's advised to turn off hand tracking entirely or turn off automatic switching.
 
 ## Troubleshooting
 

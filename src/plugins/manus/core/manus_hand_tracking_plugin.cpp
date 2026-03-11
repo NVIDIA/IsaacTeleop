@@ -24,6 +24,30 @@ namespace plugins
 namespace manus
 {
 
+namespace
+{
+
+// Returns true if the OpenXR loader/runtime advertises the given extension.
+// xrEnumerateInstanceExtensionProperties is a loader-level function that can be
+// called before any XrInstance exists, so this is safe to use at init time.
+bool is_openxr_extension_supported(const char* ext_name)
+{
+    uint32_t count = 0;
+    if (XR_FAILED(xrEnumerateInstanceExtensionProperties(nullptr, 0, &count, nullptr)))
+    {
+        return false;
+    }
+    std::vector<XrExtensionProperties> props(count, XrExtensionProperties{ XR_TYPE_EXTENSION_PROPERTIES });
+    if (XR_FAILED(xrEnumerateInstanceExtensionProperties(nullptr, count, &count, props.data())))
+    {
+        return false;
+    }
+    return std::any_of(props.begin(), props.end(),
+                       [ext_name](const XrExtensionProperties& p) { return std::string(p.extensionName) == ext_name; });
+}
+
+} // anonymous namespace
+
 static constexpr XrPosef kLeftHandOffset = { { -0.70710678f, -0.5f, 0.0f, 0.5f }, { -0.1f, 0.02f, -0.02f } };
 static constexpr XrPosef kRightHandOffset = { { -0.70710678f, 0.5f, 0.0f, 0.5f }, { 0.1f, 0.02f, -0.02f } };
 
@@ -122,8 +146,20 @@ void ManusTracker::initialize(const std::string& app_name) noexcept(false)
         auto extensions = core::DeviceIOSession::get_required_extensions(trackers);
         extensions.push_back(XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME);
 
-        // Add XDev extension for HMD hand tracking
-        extensions.push_back(XR_MNDX_XDEV_SPACE_EXTENSION_NAME);
+        // XR_MNDX_XDEV_SPACE_EXTENSION_NAME is optional: it enables optical (HMD) hand
+        // tracking as a higher-quality wrist source. If the runtime does not advertise
+        // it we fall back to controller-based tracking instead of crashing.
+        const bool xdev_extension_supported = is_openxr_extension_supported(XR_MNDX_XDEV_SPACE_EXTENSION_NAME);
+        if (xdev_extension_supported)
+        {
+            extensions.push_back(XR_MNDX_XDEV_SPACE_EXTENSION_NAME);
+        }
+        else
+        {
+            std::cout << "[Manus] " << XR_MNDX_XDEV_SPACE_EXTENSION_NAME
+                      << " is not supported by the current runtime; optical hand tracking"
+                      << " will not be available and controller fallback will be used." << std::endl;
+        }
 
         // Create session with required extensions - constructor automatically begins the session
         m_session = std::make_shared<core::OpenXRSession>(app_name, extensions);
@@ -140,9 +176,13 @@ void ManusTracker::initialize(const std::string& app_name) noexcept(false)
 
         m_deviceio_session = core::DeviceIOSession::run(trackers, m_handles);
 
-        // Initialize XDev hand trackers if using hand tracking mode
-        // Initialize native hand tracking (falls back to controllers if unavailable)
-        initialize_xdev_hand_trackers();
+        // Only attempt XDev hand tracker setup when the extension was actually enabled.
+        // Skipping here avoids calling xrGetInstanceProcAddr for MNDX entry points that
+        // the runtime would not have loaded.
+        if (xdev_extension_supported)
+        {
+            initialize_xdev_hand_trackers();
+        }
 
         std::cout << "[Manus] Initialized with wrist source: " << (m_xdev_available ? "HandTracking" : "Controllers")
                   << std::endl;
@@ -336,16 +376,40 @@ void ManusTracker::OnLandscapeStream(const Landscape* landscape)
     }
 
     // Extract glove IDs from landscape data
+    bool left_present = false;
+    bool right_present = false;
     for (uint32_t i = 0; i < gloves.gloveCount; i++)
     {
         const GloveLandscapeData& glove = gloves.gloves[i];
         if (glove.side == Side::Side_Left)
         {
             tracker.left_glove_id = glove.id;
+            left_present = true;
         }
         else if (glove.side == Side::Side_Right)
         {
             tracker.right_glove_id = glove.id;
+            right_present = true;
+        }
+    }
+
+    // Clear stale state for any glove that is no longer present in this landscape
+    // update (i.e., disconnected). Resetting the IDs prevents OnSkeletonStream from
+    // matching future packets to a dead glove, and clearing the node cache prevents
+    // inject_hand_data() from replaying the last known stale pose indefinitely.
+    {
+        std::lock_guard<std::mutex> skeleton_lock(tracker.m_skeleton_mutex);
+        if (!left_present && tracker.left_glove_id.has_value())
+        {
+            std::cout << "[Manus] Left glove disconnected (ID " << *tracker.left_glove_id << ")" << std::endl;
+            tracker.left_glove_id.reset();
+            tracker.m_left_hand_nodes.clear();
+        }
+        if (!right_present && tracker.right_glove_id.has_value())
+        {
+            std::cout << "[Manus] Right glove disconnected (ID " << *tracker.right_glove_id << ")" << std::endl;
+            tracker.right_glove_id.reset();
+            tracker.m_right_hand_nodes.clear();
         }
     }
 }
@@ -403,9 +467,16 @@ void ManusTracker::initialize_xdev_hand_trackers()
         return;
     }
 
-    // Find native hand tracking devices ("Head Device (0)" = left, "Head Device (1)" = right)
+    // Find native hand tracking devices by matching against their serial strings.
+    //
+    // NOTE: The serial values "Head Device (0)" (left) and "Head Device (1)" (right) are
+    // NOT defined by the XR_MNDX_xdev_space specification. They are an observed runtime-
+    // specific naming convention (e.g. Monado). If a runtime changes these display names
+    // across firmware or software updates the match below will silently fail.
+    // See: https://registry.khronos.org/OpenXR/specs/1.0/html/xrspec.html (XR_MNDX_xdev_space)
     XrXDevIdMNDX left_xdev_id = 0;
     XrXDevIdMNDX right_xdev_id = 0;
+    std::vector<std::string> seen_serials;
 
     for (const auto& xdev_id : xdev_ids)
     {
@@ -420,6 +491,8 @@ void ManusTracker::initialize_xdev_hand_trackers()
         }
 
         std::string serial_str = properties.serial ? properties.serial : "";
+        seen_serials.push_back(serial_str);
+
         if (serial_str == "Head Device (0)")
         {
             left_xdev_id = xdev_id;
@@ -428,6 +501,23 @@ void ManusTracker::initialize_xdev_hand_trackers()
         {
             right_xdev_id = xdev_id;
         }
+    }
+
+    if (left_xdev_id == 0 || right_xdev_id == 0)
+    {
+        std::string serials_list;
+        for (const auto& s : seen_serials)
+        {
+            if (!serials_list.empty())
+                serials_list += ", ";
+            serials_list += '"';
+            serials_list += s;
+            serials_list += '"';
+        }
+        std::cerr << "[Manus] Could not match optical hand-tracking XDevs by serial. "
+                  << "Expected \"Head Device (0)\" (left) and \"Head Device (1)\" (right), "
+                  << "but found: [" << serials_list << "]. "
+                  << "These serial strings are runtime-specific and may have changed." << std::endl;
     }
 
     // Create hand trackers from XDevs
