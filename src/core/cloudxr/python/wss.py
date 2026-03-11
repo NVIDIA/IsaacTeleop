@@ -5,7 +5,6 @@
 
 import asyncio
 import errno
-import http.client
 import logging
 import shutil
 import ssl
@@ -112,56 +111,6 @@ CORS_HEADERS = {
 }
 
 
-def _forward_http(backend_host, backend_port, request):
-    """Forward plain HTTP requests to the backend and return its response."""
-    conn = http.client.HTTPConnection(backend_host, backend_port, timeout=5)
-    try:
-        method = getattr(request, "method", "GET")
-        body = getattr(request, "body", None)
-
-        hop_by_hop_headers = {
-            "host",
-            "connection",
-            "upgrade",
-            "proxy-connection",
-            "transfer-encoding",
-            "content-length",
-            "keep-alive",
-            "te",
-            "trailer",
-        }
-        request_headers = {}
-        for k, v in request.headers.raw_items():
-            if k.lower() not in hop_by_hop_headers:
-                request_headers[k] = v
-
-        conn.request(method, request.path or "/", body=body, headers=request_headers)
-        resp = conn.getresponse()
-        body = resp.read()
-        headers = Headers(
-            (k, v) for k, v in resp.getheaders() if k.lower() != "transfer-encoding"
-        )
-        headers.update(CORS_HEADERS)
-        return Response(resp.status, resp.reason, headers, body)
-    except TimeoutError:
-        return Response(
-            504,
-            "Gateway Timeout",
-            Headers({"Content-Type": "text/plain", **CORS_HEADERS}),
-            b"Backend did not respond in time.\n",
-        )
-    except (http.client.HTTPException, OSError) as exc:
-        log.warning("Backend HTTP request failed: %s", exc)
-        return Response(
-            502,
-            "Bad Gateway",
-            Headers({"Content-Type": "text/plain", **CORS_HEADERS}),
-            f"Backend connection failed: {exc}\n".encode(),
-        )
-    finally:
-        conn.close()
-
-
 def _make_http_handler(backend_host, backend_port):
     async def handle_http_request(connection, request):
         if request.headers.get("Upgrade", "").lower() == "websocket":
@@ -173,8 +122,19 @@ def _make_http_handler(backend_host, backend_port):
                 Headers({"Content-Type": "text/plain", **CORS_HEADERS}),
                 b"OK",
             )
-        return await asyncio.to_thread(
-            _forward_http, backend_host, backend_port, request
+        return Response(
+            200,
+            "OK",
+            Headers({"Content-Type": "text/html; charset=utf-8", **CORS_HEADERS}),
+            b"<!doctype html><html><head><meta charset=utf-8>"
+            b"<style>body{font-family:system-ui,sans-serif;display:flex;"
+            b"align-items:center;justify-content:center;height:100vh;margin:0;"
+            b"background:#f5f5f5;color:#222}div{text-align:center}"
+            b"h1{font-weight:600;font-size:1.5rem;margin-bottom:.5rem}"
+            b"p{color:#555;font-size:1rem}</style></head>"
+            b"<body><div><h1>Certificate Accepted</h1>"
+            b"<p>You can close this tab and return to the web client.</p>"
+            b"</div></body></html>",
         )
 
     return handle_http_request
