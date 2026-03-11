@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 set -e  # Exit on error
 set -u  # Exit on undefined variable
 
@@ -103,6 +106,7 @@ CC=gcc-11 CXX=g++-11 cmake .. \
     -DgRPC_CARES_PROVIDER=module \
     -DgRPC_SSL_PROVIDER=package \
     -DgRPC_BUILD_CSHARP_EXT=OFF
+make -j$(nproc)
 make install
 ldconfig
 
@@ -116,8 +120,8 @@ apt-get install -y \
     
 # Configure library path persistently
 echo "[Setup] Configuring library path..."
-if [ ! -f "/etc/ld.so.conf.d/aarch64-local.conf" ]; then
-    echo "/usr/local/lib" | tee /etc/ld.so.conf.d/aarch64-local.conf > /dev/null
+if [ ! -f "/etc/ld.so.conf.d/local-libs.conf" ]; then
+    echo "/usr/local/lib" | tee /etc/ld.so.conf.d/local-libs.conf > /dev/null
     ldconfig
     echo "Added /usr/local/lib to ld.so.conf"
 fi

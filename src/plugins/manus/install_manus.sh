@@ -117,15 +117,7 @@ else
     exit 1
 fi
 
-# Determine the SDK client directory based on architecture
-if [ "$ARCH" = "x86_64" ]; then
-    SDK_CLIENT_DIR="SDKClient_Linux"
-elif [ "$ARCH" = "aarch64" ]; then
-    SDK_CLIENT_DIR="SDKClient_Linux"
-else
-    echo "Warning: Unsupported architecture $ARCH. Attempting to use SDKClient_Linux..."
-    SDK_CLIENT_DIR="SDKClient_Linux"
-fi
+SDK_CLIENT_DIR="SDKClient_Linux"
 
 # Find and copy ManusSDK folder
 EXTRACTED_DIR=$(find . -maxdepth 1 -type d -name "ManusSDK_v*" | head -n 1)
