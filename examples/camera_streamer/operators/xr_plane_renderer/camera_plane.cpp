@@ -59,11 +59,17 @@ void CameraPlane::update_lazy(const glm::vec3& head_pos, const glm::vec3& forwar
         return;
     }
 
-    // Check if user is looking away from the plane
+    // Angle-based check: is the user looking away from the plane?
     glm::vec3 head_to_plane_xz(position_.x - head_pos.x, 0.f, position_.z - head_pos.z);
     float angle = angle_between(forward_xz, head_to_plane_xz);
+    bool angle_triggered = angle > config_.look_away_angle;
 
-    if (angle > config_.look_away_angle)
+    // Position drift check: has the user moved far from the plane's ideal position?
+    glm::vec3 ideal_position = compute_target_position(head_pos, forward_xz);
+    float drift = glm::length(position_ - ideal_position);
+    bool position_triggered = config_.reposition_distance > 0.f && drift > config_.reposition_distance;
+
+    if (angle_triggered || position_triggered)
     {
         if (!is_looking_away_)
         {

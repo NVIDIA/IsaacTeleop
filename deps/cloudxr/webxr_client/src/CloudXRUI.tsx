@@ -33,6 +33,7 @@
  * back to the parent component through callback props.
  */
 
+import { useXRButton } from '@helpers/react/useXRButton';
 import { ReadonlySignal } from '@preact/signals-react';
 import { useFrame } from '@react-three/fiber';
 import { Handle, HandleTarget } from '@react-three/handle';
@@ -100,6 +101,7 @@ export default function CloudXR3DUI({
 
   const groupRef = useRef<Group>(null);
   const handleRef = useRef<Mesh>(null);
+  const xrButton = useXRButton();
   // useState(initializer): React calls the fn once on mount to get the initial value; it returns [value, setter]. Setter used in onClick below.
   const [minimizeOnPlay, setMinimizeOnPlay] = useState(() => {
     try {
@@ -208,7 +210,7 @@ export default function CloudXR3DUI({
               padding={24}
             >
               <Button
-                onClick={onStartTeleop}
+                {...xrButton('start-min', onStartTeleop)}
                 variant="default"
                 width={400}
                 height={80}
@@ -229,7 +231,7 @@ export default function CloudXR3DUI({
                 </Container>
               </Button>
               <Button
-                onClick={onResetTeleop}
+                {...xrButton('reset-min', onResetTeleop)}
                 variant="default"
                 width={400}
                 height={80}
@@ -397,7 +399,7 @@ export default function CloudXR3DUI({
                   gap={14}
                   marginTop={20}
                   cursor="pointer"
-                  onClick={() => setMinimizeOnPlay(v => !v)}
+                  {...xrButton('minimize', () => setMinimizeOnPlay(v => !v))}
                 >
                   <Container
                     width={48}
@@ -466,7 +468,7 @@ export default function CloudXR3DUI({
                     Countdown
                   </Text>
                   <Button
-                    onClick={onCountdownDecrease}
+                    {...xrButton('countdown-dec', onCountdownDecrease)}
                     variant="default"
                     width={90}
                     height={90}
@@ -491,7 +493,7 @@ export default function CloudXR3DUI({
                     </Text>
                   </Container>
                   <Button
-                    onClick={onCountdownIncrease}
+                    {...xrButton('countdown-inc', onCountdownIncrease)}
                     variant="default"
                     width={90}
                     height={90}
@@ -517,7 +519,7 @@ export default function CloudXR3DUI({
                   {/* Start/reset row*/}
                   <Container flexDirection="row" gap={24} justifyContent="center">
                     <Button
-                      onClick={onStartTeleop}
+                      {...xrButton('start', onStartTeleop)}
                       variant="default"
                       width={420}
                       height={100}
@@ -541,7 +543,7 @@ export default function CloudXR3DUI({
                     </Button>
 
                     <Button
-                      onClick={onResetTeleop}
+                      {...xrButton('reset', onResetTeleop)}
                       variant="default"
                       width={420}
                       height={100}
@@ -565,7 +567,7 @@ export default function CloudXR3DUI({
                   {/* Bottom Row */}
                   <Container flexDirection="row" justifyContent="center">
                     <Button
-                      onClick={onDisconnect}
+                      {...xrButton('disconnect', onDisconnect)}
                       variant="destructive"
                       width={320}
                       height={90}

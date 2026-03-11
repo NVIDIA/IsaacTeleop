@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: Setup uv
+description: Install pinned uv version for CI jobs.
+
+runs:
+  using: composite
+  steps:
+    - name: Install uv
+      # v7.3.1
+      uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098
+      with:
+        # Pinning explicitly avoids setup-uv version-resolution API calls and fallback paths.
+        version: "0.10.6"

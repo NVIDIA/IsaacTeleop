@@ -98,7 +98,7 @@ class Generic3AxisPedalSource(IDeviceIOSource):
             "pedals": OptionalType(Generic3AxisPedalInput()),
         }
 
-    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
+    def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         """
         Convert DeviceIO Generic3AxisPedalOutputTrackedT to standard Generic3AxisPedalInput tensor.
 
@@ -107,6 +107,7 @@ class Generic3AxisPedalSource(IDeviceIOSource):
         Args:
             inputs: Dict with "deviceio_pedals" containing Generic3AxisPedalOutputTrackedT wrapper
             outputs: Dict with "pedals" OptionalTensorGroup
+            context: Shared ComputeContext for the current step (carries GraphTime).
         """
         tracked: "Generic3AxisPedalOutputTrackedT" = inputs["deviceio_pedals"][0]
         pedal: Generic3AxisPedalOutput | None = tracked.data

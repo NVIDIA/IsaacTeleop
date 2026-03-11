@@ -109,7 +109,7 @@ class HandsSource(IDeviceIOSource):
             "hand_right": OptionalType(HandInput()),
         }
 
-    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
+    def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         """
         Convert DeviceIO HandPoseTrackedT to standard HandInput tensors.
 
@@ -118,6 +118,7 @@ class HandsSource(IDeviceIOSource):
         Args:
             inputs: Dict with "deviceio_hand_left" and "deviceio_hand_right" HandPoseTrackedT wrappers
             outputs: Dict with "hand_left" and "hand_right" OptionalTensorGroups
+            context: ComputeContext (unused by this converter node).
         """
         left_tracked: "HandPoseTrackedT" = inputs["deviceio_hand_left"][0]
         right_tracked: "HandPoseTrackedT" = inputs["deviceio_hand_right"][0]

@@ -5,19 +5,25 @@
 Foot Pedal Retargeter Module.
 
 Provides root command retargeting from generic 3-axis foot pedal input
-(forward/backward pedals + rudder), mirroring Isaac OS LowerBodyController logic.
+(forward/backward pedals + rudder).
 """
 
 import numpy as np
 from dataclasses import dataclass
 
-from ..interface import (
+from isaacteleop.retargeting_engine.interface import (
     BaseRetargeter,
     RetargeterIOType,
 )
-from ..interface.retargeter_core_types import RetargeterIO
-from ..interface.tensor_group_type import TensorGroupType, OptionalType
-from ..tensor_types import (
+from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
+    RetargeterIO,
+    ComputeContext,
+)
+from isaacteleop.retargeting_engine.interface.tensor_group_type import (
+    TensorGroupType,
+    OptionalType,
+)
+from isaacteleop.retargeting_engine.tensor_types import (
     Generic3AxisPedalInput,
     NDArrayType,
     DLDataType,
@@ -36,10 +42,7 @@ DEFAULT_STRAFE_PEDAL_PRESSED_THRESHOLD = 0.1
 
 @dataclass
 class FootPedalRootCmdRetargeterConfig:
-    """Configuration for foot pedal root command retargeter.
-
-    Mirrors Isaac OS LowerBodyController parameters. No gamepad mode.
-    """
+    """Configuration for foot pedal root command retargeter."""
 
     max_linear_vel_mps: float = DEFAULT_MAX_LINEAR_VEL_MPS
     max_angular_vel_radps: float = DEFAULT_MAX_ANGULAR_VEL_RADPS
@@ -98,7 +101,9 @@ class FootPedalRootCmdRetargeter(BaseRetargeter):
             )
         }
 
-    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
+    def _compute_fn(
+        self, inputs: RetargeterIO, outputs: RetargeterIO, context: ComputeContext
+    ) -> None:
         """Computes root command from pedal input."""
         root_cmd = outputs["root_command"]
 

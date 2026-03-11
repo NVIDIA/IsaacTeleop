@@ -36,6 +36,7 @@ struct CameraPlaneConfig
 
     // Lazy mode settings
     float look_away_angle = 45.f; // Degrees before considering "looking away"
+    float reposition_distance = 0.5f; // Meters of positional drift before repositioning
     float reposition_delay = 0.5f; // Seconds before repositioning
     float transition_duration = 0.3f; // Seconds for smooth transition
 };

@@ -8,8 +8,9 @@ from .output_combiner import OutputCombiner
 from .value_input import ValueInput
 from .parameter_state import ParameterState
 from .retargeter_core_types import (
-    ExecutionContext,
+    ComputeContext,
     GraphExecutable,
+    GraphTime,
     OutputSelector,
     RetargeterIO,
     RetargeterIOType,
@@ -43,8 +44,9 @@ __all__ = [
     "OutputSelector",
     "RetargeterIO",
     "RetargeterIOType",
-    "ExecutionContext",
     "GraphExecutable",
+    "GraphTime",
+    "ComputeContext",
     "ParameterSpec",
     "BoolParameter",
     "FloatParameter",

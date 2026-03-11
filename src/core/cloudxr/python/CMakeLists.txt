@@ -52,16 +52,19 @@ if(NOT EXISTS "${CLOUDXR_SDK_PATH}")
         message(STATUS "CloudXR SDK tarball download failed with exit code: ${DOWNLOAD_EXIT_CODE}")
         message(STATUS "stdout:\n${DOWNLOAD_OUT}")
         message(STATUS "stderr:\n${DOWNLOAD_ERR}")
+        set(CLOUDXR_SDK_PATH "")
     endif()
 endif()
 
 set(CLOUDXR_NATIVE_AVAILABLE FALSE)
-if(NOT EXISTS CLOUDXR_SDK_PATH)
-    message(WARNING
-        "CloudXR SDK tarball not found. Version is read from deps/cloudxr/.env.default (CXR_RUNTIME_SDK_VERSION). "
-        "Place ${CLOUDXR_SDK_FILE} in deps/cloudxr/ (e.g. run scripts/download_cloudxr_runtime_sdk.sh). "
-        "Skipping cloudxr_native_bundle."
-    )
+if(NOT EXISTS "${CLOUDXR_SDK_PATH}")
+    set(error_message "CloudXR SDK tarball is required. Place ${CLOUDXR_SDK_FILE} in "
+                      "deps/cloudxr/ or run scripts/download_cloudxr_runtime_sdk.sh.")
+    if(ENABLE_CLOUDXR_BUNDLE_CHECK)
+        message(FATAL_ERROR "${error_message}")
+    else()
+        message(WARNING "${error_message} Skipping cloudxr_native_bundle.")
+    endif()
 else()
     set(CLOUDXR_NATIVE_AVAILABLE TRUE)
     set(CLOUDXR_NATIVE_DIR "${CLOUDXR_PYTHON_DIR}/native")
@@ -83,6 +86,7 @@ add_custom_target(cloudxr_python ALL
     COMMAND ${CMAKE_COMMAND} -E copy
         "${CMAKE_CURRENT_SOURCE_DIR}/__init__.py"
         "${CMAKE_CURRENT_SOURCE_DIR}/__main__.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/env_config.py"
         "${CMAKE_CURRENT_SOURCE_DIR}/runtime.py"
         "${CMAKE_CURRENT_SOURCE_DIR}/wss.py"
         "${CLOUDXR_PYTHON_DIR}/"
@@ -97,6 +101,7 @@ install(
     FILES
         __init__.py
         __main__.py
+        env_config.py
         runtime.py
         wss.py
     DESTINATION "python/isaacteleop/cloudxr"

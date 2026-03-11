@@ -50,7 +50,7 @@ class AddRetargeter(BaseRetargeter):
             "sum": TensorGroupType("output_sum", [FloatType("result")]),
         }
 
-    def compute(self, inputs, outputs):
+    def _compute_fn(self, inputs, outputs, context):
         a = inputs["a"][0]
         b = inputs["b"][0]
         outputs["sum"][0] = a + b
@@ -72,7 +72,7 @@ class DoubleRetargeter(BaseRetargeter):
             "result": TensorGroupType("output_result", [FloatType("doubled")]),
         }
 
-    def compute(self, inputs, outputs):
+    def _compute_fn(self, inputs, outputs, context):
         x = inputs["x"][0]
         outputs["result"][0] = x * 2.0
 
@@ -94,7 +94,7 @@ class MultiplyRetargeter(BaseRetargeter):
             "product": TensorGroupType("output_product", [FloatType("result")]),
         }
 
-    def compute(self, inputs, outputs):
+    def _compute_fn(self, inputs, outputs, context):
         x = inputs["x"][0]
         y = inputs["y"][0]
         outputs["product"][0] = x * y
@@ -116,7 +116,7 @@ class IdentityRetargeter(BaseRetargeter):
             "value": TensorGroupType("output_value", [FloatType("x")]),
         }
 
-    def compute(self, inputs, outputs):
+    def _compute_fn(self, inputs, outputs, context):
         outputs["value"][0] = inputs["value"][0]
 
 
@@ -138,7 +138,7 @@ class MultiOutputRetargeter(BaseRetargeter):
             "squared": TensorGroupType("output_squared", [FloatType("x_sq")]),
         }
 
-    def compute(self, inputs, outputs):
+    def _compute_fn(self, inputs, outputs, context):
         x = inputs["x"][0]
         outputs["doubled"][0] = x * 2.0
         outputs["tripled"][0] = x * 3.0
@@ -162,7 +162,7 @@ class IntAddRetargeter(BaseRetargeter):
             "sum": TensorGroupType("output_sum", [IntType("result")]),
         }
 
-    def compute(self, inputs, outputs):
+    def _compute_fn(self, inputs, outputs, context):
         a = inputs["a"][0]
         b = inputs["b"][0]
         outputs["sum"][0] = a + b
@@ -537,7 +537,7 @@ class ParametricScaleRetargeter(BaseRetargeter):
             "result": TensorGroupType("output_result", [FloatType("scaled")]),
         }
 
-    def compute(self, inputs, outputs):
+    def _compute_fn(self, inputs, outputs, context):
         outputs["result"][0] = inputs["x"][0] * self.scale
 
 
@@ -573,7 +573,7 @@ class ParametricOffsetRetargeter(BaseRetargeter):
             "result": TensorGroupType("output_result", [FloatType("value")]),
         }
 
-    def compute(self, inputs, outputs):
+    def _compute_fn(self, inputs, outputs, context):
         value = inputs["x"][0]
         if self.enabled:
             outputs["result"][0] = value + self.offset
@@ -609,7 +609,7 @@ class ParametricIntMultiplierRetargeter(BaseRetargeter):
             "result": TensorGroupType("output_result", [IntType("value")]),
         }
 
-    def compute(self, inputs, outputs):
+    def _compute_fn(self, inputs, outputs, context):
         outputs["result"][0] = inputs["x"][0] * self.multiplier
 
 

@@ -154,6 +154,7 @@ void XrPlaneRendererOp::start()
         config.offset_x = 0.0f; // Main plane has no offset
         config.offset_y = 0.0f;
         config.look_away_angle = main_plane.config.look_away_angle;
+        config.reposition_distance = main_plane.config.reposition_distance;
         config.reposition_delay = main_plane.config.reposition_delay;
         config.transition_duration = main_plane.config.transition_duration;
         main_tracker_ = std::make_unique<CameraPlane>(config);

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 cmake_minimum_required(VERSION 3.20)
@@ -48,8 +48,4 @@ target_link_libraries(frame_metadata_printer PRIVATE
 # Install
 install(TARGETS pedal_pusher pedal_printer frame_metadata_printer
     RUNTIME DESTINATION examples/schemaio
-)
-
-install(FILES README.md
-    DESTINATION examples/schemaio
 )

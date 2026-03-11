@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 cmake_minimum_required(VERSION 3.20...3.25)
@@ -63,6 +63,11 @@ option(BUILD_EXAMPLE_TELEOP_ROS2 "Build only the teleop_ros2 example (e.g. for D
 option(BUILD_TESTING "Build unit tests" ON)
 option(ENABLE_EXPERIMENTAL_WINDOWS_BUILD "Enable experimental Windows build support (source code only)" OFF)
 
+# Note: This is used to check if the CloudXR bundle is available to be bundled with Isaac Teleop.
+# When enabled, build will fail if the CloudXR runtime SDK is not available.
+# TODO: Make this default to ON for Linux builds when the CloudXR runtime SDK is publicly available.
+option(ENABLE_CLOUDXR_BUNDLE_CHECK "Enable CloudXR bundle check" OFF)
+
 ## Enforce clang-format on Linux builds by default
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(_clang_default ON)
@@ -114,6 +119,9 @@ add_subdirectory(deps/cloudxr/openxr_extensions)
 
 # Build core modules (OXR and DEVICEIO)
 add_subdirectory(src/core)
+
+# Build retargeters (pure Python, sibling of src/core)
+add_subdirectory(src/retargeters)
 
 # Build examples if requested
 if(BUILD_EXAMPLES)

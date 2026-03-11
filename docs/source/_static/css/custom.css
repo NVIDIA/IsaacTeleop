@@ -55,10 +55,64 @@ html[data-theme="dark"] {
     --pst-color-accent: var(--pst-color-primary);
 }
 
+/* Inline code (e.g. ``literal`` in RST): no outline/background, keep monospace + green */
+code.literal,
+code.docutils.literal {
+    background: none !important;
+    border: none !important;
+    padding: 0 !important;
+    font-family: var(--pst-font-family-monospace), monospace;
+    font-weight: bold !important;
+}
+
+/* remove underline from links */
+a {
+    text-decoration: none !important;
+}
+a:hover,
+a:focus {
+    text-decoration: underline !important;
+}
+
 /* for the announcement link */
 .bd-header-announcement a,
 .bd-header-version-warning a {
     color: #7FDBFF;
+}
+
+/* Version switcher: match sidebar search box appearance */
+.version-switcher {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--pst-color-border);
+    border-radius: 6px;
+    background: var(--pst-color-background);
+}
+.version-switcher:focus-within {
+    border-color: var(--pst-color-primary);
+    box-shadow: 0 0 0 2px rgba(118, 185, 0, 0.2);
+}
+.version-switcher__label {
+    font-weight: 600;
+    font-size: 0.9em;
+    color: var(--pst-color-text-muted);
+    white-space: nowrap;
+}
+.version-switcher__select {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 0.9em;
+    color: var(--pst-color-text-base);
+    cursor: pointer;
+}
+.version-switcher__select:focus {
+    box-shadow: none;
 }
 
 /* Sidebar search box: one unified bar; green highlight wraps icon + input + shortcut */
@@ -196,4 +250,18 @@ html[data-theme="dark"] {
 /* Extra space after license badge on index */
 img.license-badge {
     margin-bottom: 1rem;
+}
+
+/* Local contents box (e.g. "Steps"): title and list must be readable (nav.contents from theme) */
+nav.contents .topic-title,
+nav.contents.local .topic-title,
+.topic.contents .topic-title,
+.topic.contents .rubric {
+    color: var(--pst-color-text-base) !important;
+    font-weight: 600;
+}
+nav.contents .simple a,
+nav.contents.local .simple a,
+nav.contents ul a {
+     color: var(--pst-color-text-base) !important;
 }

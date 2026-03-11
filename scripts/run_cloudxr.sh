@@ -1,38 +1,19 @@
 #!/bin/bash
-
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 set -euo pipefail
 
-# Make sure to run this script from the root of the repository.
-GIT_ROOT=$(git rev-parse --show-toplevel)
-cd "$GIT_ROOT" || exit 1
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+cd "$SCRIPT_DIR" || exit 1
+source "./setup_cloudxr_env.sh"
 
-# Source shared CloudXR environment setup
-source scripts/setup_cloudxr_env.sh
-
-# Check CloudXR EULA acceptance
-./scripts/check_cloudxr_eula.sh || exit 1
-
-# Download CloudXR Runtime SDK if not already present
-./scripts/download_cloudxr_runtime_sdk.sh || exit 1
-
-# Download CloudXR Web SDK if not already present
-./scripts/download_cloudxr_sdk.sh || exit 1
-
-# Detect available compose command: "docker compose" (v2) or "docker-compose" (v1)
-if docker compose version &>/dev/null; then
-    COMPOSE_CMD="docker compose"
-else
-    COMPOSE_CMD="docker-compose"
+echo "Starting WSS proxy..."
+if ! python -c "import isaacteleop.cloudxr" >/dev/null 2>&1; then
+    echo "Error: isaacteleop[cloudxr] is not installed. Install it before running this script (e.g. pip install isaacteleop[cloudxr])."
+    echo "Follow the Quick Start guide to install the package via pypi: https://nvidia.github.io/IsaacTeleop/main/getting_started/quick_start.html"
+    echo "Or build and install the package from source: https://nvidia.github.io/IsaacTeleop/main/getting_started/build_from_source.html"
+    exit 1
 fi
 
-# Run the docker compose file (--build so Dockerfile.web-app / context changes are picked up)
-# Note: variables in deps/cloudxr/.env.default are overridden by those in deps/cloudxr/.env
-# if a variable exists in both.
-$COMPOSE_CMD \
-    --env-file "$ENV_DEFAULT" \
-    --env-file "$ENV_LOCAL" \
-    -f deps/cloudxr/docker-compose.yaml \
-    up --build
+exec python -m isaacteleop.cloudxr

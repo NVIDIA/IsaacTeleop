@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -7,14 +7,16 @@ OutputCombiner - Combines outputs from multiple retargeters into a single output
 This is a GraphExecutable that can be used as a source in further connections.
 """
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 from .retargeter_core_types import (
     GraphExecutable,
-    ExecutionContext,
+    ExecutionCache,
     OutputSelector,
     RetargeterIO,
     RetargeterIOType,
     BaseExecutable,
+    ComputeContext,
+    _default_compute_context,
 )
 
 
@@ -91,47 +93,61 @@ class OutputCombiner(GraphExecutable):
         """
         return self._output_types
 
-    def _compute_in_graph(self, context: ExecutionContext) -> RetargeterIO:
+    def _compute_with_cache(self, cache: ExecutionCache) -> RetargeterIO:
         """
-        Compute the combiner in a graph context.
+        Compute the combiner within an ExecutionCache.
 
-        This executes each source module and gathers their outputs with custom names.
+        Executes each source module (with deduplication via the cache) and
+        gathers their outputs under the custom names.
 
         Args:
-            context: The execution context for caching
+            cache: The per-step execution cache carrying leaf inputs and context.
 
         Returns:
             Dict[str, TensorGroup] - Combined outputs with custom names
         """
-        # Check if we've already computed this combiner
-        outputs = context.get_cached(id(self))
+        outputs = cache.get_cached(id(self))
         if outputs is not None:
             return outputs
 
-        # Execute each source and gather outputs
-        outputs = {}
+        outputs = dict()
         for custom_name, selector in self.output_mapping.items():
-            # Execute the source module (with caching)
-            source_outputs = selector.module._compute_in_graph(context)
-
-            # Get the specific output
+            source_outputs = selector.module._compute_with_cache(cache)
             outputs[custom_name] = source_outputs[selector.output_name]
 
-        # Cache the combined outputs
-        context.cache(id(self), outputs)
+        cache.cache(id(self), outputs)
         return outputs
 
-    def __call__(self, inputs: Dict[str, RetargeterIO]) -> RetargeterIO:
+    # ========================================================================
+    # External API
+    # ========================================================================
+
+    def execute_pipeline(
+        self,
+        inputs: Dict[str, RetargeterIO],
+        context: Optional[ComputeContext] = None,
+    ) -> RetargeterIO:
         """
-        Execute the combiner as a callable (for running outside of a graph context).
+        Execute the combiner and return combined outputs.
 
         Args:
-            inputs: Dict[module_name, Dict[str, TensorGroup]] - Inputs for leaf modules
+            inputs: Dict[module_name, Dict[str, TensorGroup]] - Inputs for leaf modules.
+            context: ComputeContext for this step. Auto-generated from the monotonic
+                     clock when not provided.
 
         Returns:
             Dict[str, TensorGroup] - Combined outputs with custom names
         """
-        return self._compute_in_graph(ExecutionContext(inputs))
+        if context is None:
+            context = _default_compute_context()
+        return self._compute_with_cache(ExecutionCache(inputs, context))
+
+    def __call__(
+        self,
+        inputs: Dict[str, RetargeterIO],
+        context: Optional[ComputeContext] = None,
+    ) -> RetargeterIO:
+        return self.execute_pipeline(inputs, context)
 
     def get_leaf_nodes(self) -> List[BaseExecutable]:
         """

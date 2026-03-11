@@ -15,7 +15,7 @@ from types import SimpleNamespace
 from pathlib import Path
 
 from isaacteleop.retargeting_engine.deviceio_source_nodes import HandsSource
-from isaacteleop.retargeting_engine.retargeters import (
+from isaacteleop.retargeters import (
     DexHandRetargeter,
     DexHandRetargeterConfig,
 )

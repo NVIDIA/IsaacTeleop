@@ -15,7 +15,7 @@ copyright = f"2025-{build_time.year}, NVIDIA CORPORATION & AFFILIATES"
 copyright += f", last updated on {build_time.strftime('%B %d, %Y')}"
 author = "NVIDIA"
 
-_version_file = os.path.join(os.path.dirname(__file__), "..", "VERSION")
+_version_file = os.path.join(os.path.dirname(__file__), "..", "..", "VERSION")
 if os.path.exists(_version_file):
     with open(_version_file) as f:
         full_version = f.read().strip()
@@ -33,7 +33,9 @@ extensions = [
     "sphinx_design",
 ]
 
-exclude_patterns = ["build", "Thumbs.db", ".DS_Store"]
+exclude_patterns = ["build", "_templates", "Thumbs.db", ".DS_Store"]
+
+templates_path = ["_templates"]
 
 # sphinx-multiversion: which refs to build (avoids "No matching refs found" in CI)
 smv_remote_whitelist = r"^.*$"
@@ -50,6 +52,31 @@ html_show_sphinx = False
 html_static_path = ["_static"]
 html_css_files = ["css/custom.css"]
 
+# Per-version icon link overrides.  Keyed by the git ref name that
+# sphinx-multiversion builds (SPHINX_MULTIVERSION_NAME env var).  Unmatched
+# refs (including plain ``sphinx-build`` without multiversion) use _DEFAULT_ICONS.
+_smv_name = os.environ.get("SPHINX_MULTIVERSION_NAME", "")
+
+_DEFAULT_ICONS = {
+    "teleop_version": "main",
+    "teleop_url": "https://github.com/NVIDIA/IsaacTeleop",
+    "cloudxr_version": "6.1",
+    "cloudxr_url": "https://docs.nvidia.com/cloudxr-sdk",
+    "lab_version": "3.0",
+    "lab_url": "https://isaac-sim.github.io/IsaacLab",
+}
+_VERSION_ICON_MAP = {
+    "release/1.0.x": {
+        "teleop_version": "1.0",
+        "teleop_url": "https://github.com/NVIDIA/IsaacTeleop/tree/release/1.0.x",
+        "cloudxr_version": "6.1",
+        "cloudxr_url": "https://docs.nvidia.com/cloudxr-sdk/release/6",
+        "lab_version": "3.0",
+        "lab_url": "https://isaac-sim.github.io/IsaacLab/develop",
+    },
+}
+_icons = _VERSION_ICON_MAP.get(_smv_name, _DEFAULT_ICONS)
+
 html_theme_options = {
     "collapse_navigation": True,
     "use_edit_page_button": True,
@@ -58,20 +85,20 @@ html_theme_options = {
     "icon_links": [
         {
             "name": "GitHub",
-            "url": "https://github.com/NVIDIA/IsaacTeleop",
+            "url": _icons["teleop_url"],
             "icon": "fa-brands fa-square-github",
             "type": "fontawesome",
         },
         {
             "name": "CloudXR",
-            "url": "https://docs.nvidia.com/cloudxr-sdk",
-            "icon": "https://img.shields.io/badge/CloudXR-6.1-green.svg",
+            "url": _icons["cloudxr_url"],
+            "icon": f"https://img.shields.io/badge/CloudXR-{_icons['cloudxr_version']}-green.svg",
             "type": "url",
         },
         {
             "name": "Isaac Lab",
-            "url": "https://isaac-sim.github.io/IsaacLab/",
-            "icon": "https://img.shields.io/badge/IsaacLab-3.0-silver.svg",
+            "url": _icons["lab_url"],
+            "icon": f"https://img.shields.io/badge/IsaacLab-{_icons['lab_version']}-silver.svg",
             "type": "url",
         },
     ],
@@ -81,13 +108,81 @@ html_theme_options = {
 
 # Primary sidebar (left): icon links row, search, then TOC (like Isaac Lab)
 html_sidebars = {
-    "**": ["icon-links", "search-field", "sidebar-nav-bs"],
+    "**": ["versioning.html", "icon-links", "search-field", "sidebar-nav-bs"],
 }
 
 # Edit page button: link to GitHub so users can suggest edits (PyData theme uses html_context)
 html_context = {
     "github_user": "NVIDIA",
     "github_repo": "IsaacTeleop",
-    "github_version": "main",
+    "github_version": _smv_name or "main",
     "doc_path": "docs/source",
 }
+
+# Base URL for linking to repository source (used by code-file and code-dir roles).
+_GH_BASE = "https://github.com/NVIDIA/IsaacTeleop"
+_GH_BRANCH = html_context["github_version"]
+
+
+def _parse_code_role(text):
+    """Parse role text as 'path' or 'label <path>'. Returns (label, path)."""
+    text = text.strip()
+    if " <" in text and text.endswith(">"):
+        label, path = text.rsplit(" <", 1)
+        return label.strip(), path[:-1].strip()
+    return text, text
+
+
+def _code_file_role(name, rawtext, text, lineno, inliner, options=None, content=None):
+    """Role for linking to a file in the GitHub repo: :code-file:`path` or :code-file:`label <path>`."""
+    from docutils import nodes
+    from docutils.utils import unescape
+
+    label, path = _parse_code_role(unescape(text))
+    url = f"{_GH_BASE}/blob/{_GH_BRANCH}/{path}"
+    node = nodes.reference(rawtext, label, refuri=url)
+    return [node], []
+
+
+def _code_dir_role(name, rawtext, text, lineno, inliner, options=None, content=None):
+    """Role for linking to a directory in the GitHub repo: :code-dir:`path` or :code-dir:`label <path>`."""
+    from docutils import nodes
+    from docutils.utils import unescape
+
+    label, path = _parse_code_role(unescape(text))
+    path = path.rstrip("/")
+    url = f"{_GH_BASE}/tree/{_GH_BRANCH}/{path}"
+    node = nodes.reference(rawtext, label if label != path else path, refuri=url)
+    return [node], []
+
+
+def _external_links_new_tab(app, doctree, docname):
+    """Mark external links to open in a new tab."""
+    from docutils import nodes
+
+    for node in doctree.traverse(nodes.reference):
+        refuri = node.get("refuri", "")
+        if refuri.startswith(("http://", "https://")):
+            node["target"] = "_blank"
+
+
+def setup(app):
+    app.add_role("code-file", _code_file_role)
+    app.add_role("code-dir", _code_dir_role)
+    app.add_config_value("html_external_links_new_tab", True, "html")
+    # Add rel="noopener noreferrer" when target="_blank" so external links are safe
+    from sphinx.writers.html5 import HTML5Translator
+
+    _base_visit_reference = HTML5Translator.visit_reference
+
+    def visit_reference(self, node):
+        if (
+            getattr(self.config, "html_external_links_new_tab", True)
+            and node.get("target") == "_blank"
+            and "rel" not in node
+        ):
+            node["rel"] = "noopener noreferrer"
+        return _base_visit_reference(self, node)
+
+    HTML5Translator.visit_reference = visit_reference
+    app.connect("doctree-resolved", _external_links_new_tab)

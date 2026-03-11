@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -10,13 +10,17 @@ A generic retargeter that reorders inputs and flattens them into a single NDArra
 from typing import Dict, List, Tuple, Optional
 import numpy as np
 
-from ..interface import (
+from isaacteleop.retargeting_engine.interface import (
     BaseRetargeter,
     RetargeterIOType,
     TensorGroupType,
 )
-from ..interface.retargeter_core_types import RetargeterIO
-from ..tensor_types import FloatType, NDArrayType, DLDataType
+from isaacteleop.retargeting_engine.interface.retargeter_core_types import RetargeterIO
+from isaacteleop.retargeting_engine.tensor_types import (
+    FloatType,
+    NDArrayType,
+    DLDataType,
+)
 
 
 class TensorReorderer(BaseRetargeter):
@@ -128,7 +132,7 @@ class TensorReorderer(BaseRetargeter):
             )
         }
 
-    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
+    def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         """
         Gather values and pack them into a single numpy array.
         """
@@ -162,9 +166,11 @@ class TensorReorderer(BaseRetargeter):
                 try:
                     val = source[src_idx]
                     flat_action[dst_idx] = float(val)
-                except (IndexError, TypeError):
-                    # Fallback or error logging
-                    pass
+                except (IndexError, TypeError) as e:
+                    raise ValueError(
+                        f"Mapping error in {self.name}: "
+                        f"input '{input_name}'[{src_idx}] -> output[{dst_idx}]: {e}"
+                    ) from e
 
         # Set the single output tensor
         outputs["output"][0] = flat_action

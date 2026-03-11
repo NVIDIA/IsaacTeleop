@@ -58,6 +58,10 @@ from isaacteleop.retargeting_engine.interface import (
     TensorGroupType,
     OptionalType,
 )
+from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
+    ComputeContext,
+    RetargeterIO,
+)
 from isaacteleop.retargeting_engine.tensor_types import (
     ControllerInput,
     ControllerInputIndex,
@@ -145,7 +149,12 @@ class DeltaPositionRetargeter(BaseRetargeter):
             "delta": OptionalType(DeltaCommand()),
         }
 
-    def compute(self, inputs, outputs):
+    def _compute_fn(
+        self,
+        inputs: RetargeterIO,
+        outputs: RetargeterIO,
+        context: ComputeContext,
+    ) -> None:
         if inputs["controller"].is_none:
             outputs["delta"].set_none()
             return

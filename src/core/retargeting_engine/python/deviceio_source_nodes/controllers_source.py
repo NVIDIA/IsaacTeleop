@@ -109,7 +109,7 @@ class ControllersSource(IDeviceIOSource):
             "controller_right": OptionalType(ControllerInput()),
         }
 
-    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
+    def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         """
         Convert DeviceIO ControllerSnapshotTrackedT to standard ControllerInput tensors.
 
@@ -118,6 +118,7 @@ class ControllersSource(IDeviceIOSource):
         Args:
             inputs: Dict with "deviceio_controller_left" and "deviceio_controller_right" TrackedT wrappers
             outputs: Dict with "controller_left" and "controller_right" OptionalTensorGroups
+            context: ComputeContext (unused by this converter node).
         """
         left_tracked: "ControllerSnapshotTrackedT" = inputs["deviceio_controller_left"][
             0

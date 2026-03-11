@@ -93,7 +93,7 @@ class HandTransform(BaseRetargeter):
             self.RIGHT: OptionalType(HandInput()),
         }
 
-    def compute(self, inputs: RetargeterIO, outputs: RetargeterIO) -> None:
+    def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         """
         Apply the 4x4 transform to all hand joint positions and orientations.
 
@@ -107,6 +107,7 @@ class HandTransform(BaseRetargeter):
         Args:
             inputs: Dict with "hand_left", "hand_right", and "transform" TensorGroups.
             outputs: Dict with "hand_left" and "hand_right" TensorGroups.
+            context: ComputeContext (unused by this transform node).
         """
         matrix = np.from_dlpack(inputs["transform"][_MATRIX_INDEX])
         rotation, translation = decompose_transform(matrix)

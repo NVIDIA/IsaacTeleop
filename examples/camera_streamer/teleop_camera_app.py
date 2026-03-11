@@ -12,7 +12,6 @@ Supports camera sources:
 """
 
 import argparse
-import gc
 import os
 import sys
 import time
@@ -175,8 +174,11 @@ def main():
                 raise
             logger.warning(f"No XR headset connected, retrying in 2s... ({msg})")
             del app
-            gc.collect()
             time.sleep(2.0)
+            # Re-exec for a clean process — in-process GC cannot break the
+            # C++ shared_ptr cycles holding the OpenXR instance alive.
+            logger.info("Re-executing for clean XR state...")
+            os.execv(sys.executable, [sys.executable, *sys.argv])
 
     logger.info("Shutdown complete")
     # Required to avoid GIL crash.

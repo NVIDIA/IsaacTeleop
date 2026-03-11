@@ -10,7 +10,7 @@ SPDX-License-Identifier: Apache-2.0
 **The unified framework for high-fidelity ego-centric and robotics data collection.**
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![Isaac Lab](https://img.shields.io/badge/Isaac%20Lab-2.3.0-orange.svg)](https://isaac-sim.github.io/IsaacLab/)
+[![Isaac Lab](https://img.shields.io/badge/Isaac%20Lab-3.0.0-orange.svg)](https://isaac-sim.github.io/IsaacLab/)
 [![numpy](https://img.shields.io/badge/numpy-1.22%2B-lightgrey.svg)](https://numpy.org/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 
@@ -27,40 +27,11 @@ standardizing high-fidelity human demo data collection; and foster device & data
 
 ## Key Features
 
-### Unified Stack for Sim & Real Teleoperation
+- Unified stack for sim & real teleoperation
+- Standardized device interface
+- Flexible retargeting framework
 
-- A single framework that works seamlessly across simulated and real-world robots, ensuring
-streamlined device workflow and consistent data schemas.
-- Currently supported robotics stacks:
-  - **ROS2**: Widely adopted middleware for robot software integration and communication
-  - **Isaac Sim**: Simulation platform to develop, test, and train AI-powered robots
-  - **Isaac Lab**: Unified framework for robot learning designed to help train robot policies
-- Upcoming robotics stacks:
-  - **Isaac OS**: Enterprise-ready robotics operating system (in early access)
-  - **Isaac Arena**: Isaac Lab extension for large-scale evaluation and resource orchestration
-
-### Standardized Device Interface
-
-- Provides a **standardized interface** for teleoperation devices, removing the need for custom
-device integrations and ongoing maintenance.
-  - Currently supported device categories:
-    - **XR Headsets** (with spatial controllers): Vision Pro, Pico, Quest
-    - **Gloves**: Manus
-    - **Foot Pedals** (hands-free lower body control): Logitech Rudder Pedal
-    - **Body Trackers**: Pico Motion Tracker
-  - Upcoming device categories:
-    - **Master Manipulators**: TBA
-    - **Exoskeletons**: TBA
-- Easily extend support for additional devices through a **plugin system**, enabling quick
-integration of new hardware.
-
-### Flexible Retargeting Framework
-
-- Retarget the standardized device outputs to different embodiments.
-- [Reference retargeter implementations](src/core/retargeting_engine/python/retargeters/),
-including popular embodiments such as Unitree G1.
-- [Retargeter tuning UI](src/core/retargeting_engine_ui/python) to facilitate
-live retargeter tuning.
+See the [Ecosystem](https://nvidia.github.io/IsaacTeleop/main/overview/ecosystem.html) page for supported robotics stacks, devices, and retargeting details.
 
 ### Teleoperation Use Cases
 
@@ -71,268 +42,24 @@ live retargeter tuning.
   - Tracking based full body loco-manipulation (Sonic)
 - Upcoming use cases
   - Egocentric data collection (aka “no-robot”)
+  - Teleoperate using only non-XR devices (e.g. gamepad, Gello, haply, etc.)
   - Teleoperate cloud based robotics simulations
+  - Remote teleoperation with camera streaming to the desktop
   - Remote teleoperation with immersive camera streaming to XR headsets
-
-## Hardware requirements
-
-### Minimum (for robot teleop & data collection)
-
-- **CPU**: X86 or ARM (Jetson Thor)
-- **GPU**: NVIDIA GPU required
-
-### Running simulation with Isaac Sim and Isaac Lab
-
-- **CPU**: AMD Ryzen Threadripper 7960x (Recommended)
-- **GPU**: 1x RTX 6000 Pro (Blackwell) or 2x RTX 6000 (Ada)
-
-## Prerequisites
-
-- **OS**: Ubuntu 22.04 or 24.04
-- **Python**: 3.10 or newer (version configured in root `CMakeLists.txt`)
-- **CUDA**: 12.8 (Recommended)
-- **NVIDIA Driver**: 580.95.05 (Recommended)
-
-### One time setup
-
-1. Request [CloudXR SDK Early Access](https://developer.nvidia.com/cloudxr-sdk-early-access-program/join)
-
-2. Install Docker by following the [public guide](https://docs.docker.com/engine/install/ubuntu)
-
-3. Install [NGC CLI tool](https://org.ngc.nvidia.com/setup/installers/cli)
-
-4. Configure your [NGC API key](https://org.ngc.nvidia.com/setup/api-keys)
-
-5. Verify you have access to all the artifacts
-```
-ngc registry resource list "nvidia/cloudxr-js-early-access"
-ngc registry image list "nvidia/cloudxr-runtime-early-access"
-```
 
 ## Quick Start
 
-### Installation
+### Documentation
 
-1. **Install uv** (if not already installed):
+Our [documentation page](https://nvidia.github.io/IsaacTeleop) provides everything you need to get started, including detailed tutorials and step-by-step guides. Follow these links to learn more:
 
-We strongly recommend using `uv` for dependency management and Python virtual
-environment.  Other solution should also work, but your mileage may vary.
+- [Architecture](https://nvidia.github.io/IsaacTeleop/main/overview/architecture.html)
+- [Quick installation steps](https://nvidia.github.io/IsaacTeleop/main/getting_started/quick_start.html)
+- [How to build from source](https://nvidia.github.io/IsaacTeleop/main/getting_started/build_from_source.html)
 
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
-2. **Create UV virtual environment**
-
-```bash
-uv venv --python 3.11 venv_isaacteleop
-source venv_isaacteleop/bin/activate
-```
-
-3. **Clone the repository**
-```bash
-git clone git@github.com:NVIDIA/IsaacTeleop.git
-cd IsaacTeleop
-```
-
-> **Note**: Dependencies (OpenXR SDK, pybind11, yaml-cpp) are automatically downloaded
-> during CMake configuration using FetchContent. No manual dependency installation or
-> git submodule initialization is required.
-
-4. **(Optional) Pre-download CloudXR Runtime SDK**
-
-If you are using the default flow, skip this step and run step 6.
-`./scripts/run_cloudxr.sh` automatically downloads both CloudXR SDKs.
-
-Use this step only if you want to pre-download the Runtime SDK manually:
-
-- Download via script (NGC default):
-  ```bash
-  ./scripts/download_cloudxr_runtime_sdk.sh
-  ```
-- Or place local tarball in `deps/cloudxr/`:
-  `CloudXR-<version>-Linux-<arch>-sdk.tar.gz`
-- Version is controlled by `CXR_RUNTIME_SDK_VERSION` in `deps/cloudxr/.env.default`.
-
-5. **(Optional) Pre-download CloudXR Web SDK**
-
-If you are using the default flow, skip this step and run step 6.
-`./scripts/run_cloudxr.sh` automatically downloads both CloudXR SDKs.
-
-Use this step only if you want to pre-download the Runtime SDK manually:
-
-- Download via script (NGC default):
-  ```bash
-  ./scripts/download_cloudxr_sdk.sh
-  ```
-- Or place local tarball in `deps/cloudxr/`:
-  `cloudxr-web-sdk-<version>.tar.gz`
-- Version is controlled by `CXR_WEB_SDK_VERSION` in `deps/cloudxr/.env.default`.
-
-6. **Run CloudXR**
-```bash
-./scripts/run_cloudxr.sh
-```
-
-The `./scripts/run_cloudxr.sh` script will automatically:
-- Download the CloudXR Runtime SDK (if not already present)
-- Download the CloudXR Web SDK (if not already present)
-- Build the necessary Docker containers (wss-proxy, web-app)
-- Start all CloudXR services
-
-> **Note:** The first run may take a few minutes to download the SDK and build containers.
-> Subsequent runs will be faster as these are cached.
-
-#### Alternative: run CloudXR via local wheel
-
-If you prefer a non-Docker runtime/proxy flow, you can launch CloudXR and the WSS
-proxy together with:
-
-```bash
-./scripts/run_cloudxr_via_wheel.sh
-```
-
-This script runs the Python CloudXR runtime (`python -m isaacteleop.cloudxr`) and
-the Python WSS proxy (`python -m isaacteleop.cloudxr.wss`). If those modules are
-not importable in the current Python environment, it tries to bootstrap
-`isaacteleop[cloudxr]` from local wheels in `install/wheels` (or `build/wheels`).
-If no local wheel is found, the script will build and install one automatically.
-
-After the script starts, open a CloudXR.js client page.
-
-For convenience, you can use the hosted NVIDIA Isaac Teleop Web Client:
-`https://nvidia.github.io/IsaacTeleop/client/`
-
-In that page, set **Server IP** to your server IP (for example, `192.168.1.2`).
-
-7. **White list ports for Firewall**
-
-Open the [required CloudXR ports](https://docs.nvidia.com/cloudxr-sdk/latest/requirement/network_setup.html#ports-and-firewalls).
-
-If you are running the web client on this machine:
-
-```bash
-sudo ufw allow 47998/udp && sudo ufw allow 49100/tcp && sudo ufw allow 48322/tcp && sudo ufw allow 8080/tcp && sudo ufw allow 8443/tcp
-```
-
-If you are not running the web client locally you only need the ports for the runtime and proxy:
-
-```bash
-sudo ufw allow 47998/udp && sudo ufw allow 49100/tcp && sudo ufw allow 48322/tcp
-```
-
-8. **WebXR Client Setup**
-
-The last step will run a couple docker containers and one of them is the WebXR server. It can be
-accessed via the browser on your HMD support (Quest 3 or Pico 4 Ultra).
-
-- Local: `https://localhost:8443` or `http://localhost:8080`
-- Network: `https://<server-ip>:8443` or `http://<server-ip>:8080`
-
-> **Tips:**
-> - For rapid development and debugging, we recommend testing your CloudXR.js application on a
->   desktop browser before deploying to XR headsets.
-> - For Pico 4 Ultra, Pico OS 15.4.4U or later is required.
-> - HTTP mode is easier to use, but currently is not supported by
-
-### CloudXR Configurations (Optional)
-
-You can override CloudXR configurations by creating a `.env` and place it next
-to `deps/cloudxr/.env.default`. The folder structure should look like:
-
-```bash
-$ tree -a deps/cloudxr/
-deps/cloudxr/
-├── CLOUDXR_LICENSE
-├── .env
-├── .env.default
-└── .gitignore
-```
 
 ### Install & Run Isaac Lab
 
-Isaac Tepeop Core is design to work side by side with [NVIDIA Isaac Lab](https://github.com/isaac-sim/IsaacLab). We recommend the [Installation using Isaac Sim Pip Package](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/pip_installation.html) method for Isaac Lab.  Please refer to Isaac Lab's [Installation](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html) guide for other advanced methods. Here are the quick steps to do so.
+Isaac Tepeop Core is design to work side by side with [NVIDIA Isaac Lab](https://github.com/isaac-sim/IsaacLab) starting with Isaac Lab 3.0 EA release.
 
-1. **Install dependencies**
-
-```bash
-source venv_isaacteleop/bin/activate
-uv pip install "isaacsim[all,extscache]==5.1.0" --extra-index-url https://pypi.nvidia.com
-uv pip install -U torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
-```
-
-2. **Clone & install Isaac Lab**
-
-Run this outside of the `IsaacTeleop` code base.
-
-```bash
-# In a separate folder outside of Isaac Teleop:
-git clone git@github.com:isaac-sim/IsaacLab.git
-
-# Run the install command
-cd IsaacLab
-./isaaclab.sh --install
-
-# Set ISAACLAB_PATH, which will be used later in `run_isaac_lab.sh`.
-export ISAACLAB_PATH=$(pwd)
-```
-
-### Build Isaac Teleop and Run Isaac Lab Sample
-
-1. Build & install Teleop Python packages
-
-Build with default settings. See
-[Build from Source](https://nvidia.github.io/IsaacTeleop/main/getting_started/build_from_source.html) for advanced build steps.
-
-```bash
-cmake -B build
-cmake --build build --parallel
-cmake --install build
-```
-
-Install the Python package
-```bash
-uv pip install --find-links=install/wheels isaacteleop
-```
-
-Validate the Python package has been successfully built and installed.
-```bash
-python -c "import isaacteleop.deviceio"
-```
-
-Run a quick test:
-```bash
-source scripts/setup_cloudxr_env.sh
-
-python ./examples/oxr/python/test_extensions.py
-```
-
-2. **Run teleoperation with Isaac Lab**
-
-```bash
-# In the IsaacTeleop repo:
-./scripts/run_isaac_lab.sh
-```
-
-## Documentation
-
-### Getting Started
-- [Contributing Guide](CONTRIBUTING.md) - Code style, PR process, DCO
-
-### Architecture
-- [Retargeting Engine](src/core/retargeting_engine/python/retargeters/README.md) - Hand retargeters
-- [Teleop Session Manager](src/core/teleop_session_manager/README.md) - Session API
-
-### Plugins
-- [Manus Gloves](src/plugins/manus/README.md) - Manus SDK integration
-- [OAK-D Camera](src/plugins/oakd/README.md) - DepthAI camera plugin
-- [Synthetic Hands](src/plugins/controller_synthetic_hands/README.md) - Controller-based hand simulation
-
-### Examples
-- [OpenXR Examples](examples/oxr/README.md) - C++ and Python OpenXR tracking
-- [LeRobot Integration](examples/lerobot/README.md) - Dataset recording/visualization
-- [Camera Streaming](examples/cam_streamer/README.md) - GStreamer OAK-D pipeline
-- [Teleop Session](examples/teleop_session_manager/python/README.md) - Session API usage
-
-### Dependencies
-- [Dependencies Overview](deps/README.md) - Dependency management
+To get started, please refer to Isaac Lab's [Installation](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html) guide for more details. Then follow the [CloudXR teleoperation in Isaac Lab](https://isaac-sim.github.io/IsaacLab/main/source/how-to/cloudxr_teleoperation.html) to get started with Teleoperation in Sim.
