@@ -120,6 +120,11 @@ Again, you can also inspect the CloudXR environment variables by looking at the
         - Enable or disable push device overseer for hand tracking
         - | ``true``
           | ``false``
+      * - NV_CXR_FILE_LOGGING
+        - ``true``
+        - Enable or disable file-based logging, when disabled logs are printed to the console
+        - | ``true``
+          | ``false``
 
 .. code-block:: bash
 
