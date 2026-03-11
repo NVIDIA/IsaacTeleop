@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import asyncio
 import ctypes
+import glob
 import multiprocessing
 import os
 import shutil
@@ -92,6 +93,26 @@ async def wait_for_runtime_ready(
     return False
 
 
+def runtime_version() -> str:
+    """Query the CloudXR runtime version from the native library (major.minor.patch)."""
+    sdk_path = _get_sdk_path()
+    lib = ctypes.CDLL(os.path.join(sdk_path, "libcloudxr.so"))
+    if not hasattr(lib, "nv_cxr_get_runtime_version"):
+        return "unknown"
+    major, minor, patch = ctypes.c_uint32(), ctypes.c_uint32(), ctypes.c_uint32()
+    lib.nv_cxr_get_runtime_version(
+        ctypes.byref(major), ctypes.byref(minor), ctypes.byref(patch)
+    )
+    return f"{major.value}.{minor.value}.{patch.value}"
+
+
+def latest_runtime_log() -> str | None:
+    """Return the path to the most recent cxr_server log file, or None if not found."""
+    logs_dir = get_env_config().ensure_logs_dir()
+    candidates = sorted(glob.glob(str(logs_dir / "cxr_server.*.log")))
+    return candidates[-1] if candidates else None
+
+
 def terminate_or_kill_runtime(process: multiprocessing.Process) -> None:
     """Terminate or kill the runtime process."""
     if process.is_alive():
@@ -151,6 +172,22 @@ def run() -> None:
 
     prev_ld = os.environ.get("LD_LIBRARY_PATH", "")
     os.environ["LD_LIBRARY_PATH"] = sdk_path + (f":{prev_ld}" if prev_ld else "")
+
+    # By default suppress native library console output (banner, StreamSDK redirect notice), so
+    # that we can have complete control over the console output.
+    _file_logging = os.environ.get("NV_CXR_FILE_LOGGING", "yes")
+    if _file_logging and _file_logging.lower() not in (
+        "false",
+        "off",
+        "no",
+        "n",
+        "f",
+        "0",
+    ):
+        devnull_fd = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull_fd, sys.stdout.fileno())
+        os.dup2(devnull_fd, sys.stderr.fileno())
+        os.close(devnull_fd)
 
     lib_path = os.path.join(sdk_path, "libcloudxr.so")
     lib = ctypes.CDLL(lib_path)

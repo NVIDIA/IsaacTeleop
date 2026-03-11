@@ -35,6 +35,7 @@ class EnvConfig:
     _RESOLVED_ONLY_KEYS: frozenset[str] = frozenset(
         {
             "XR_RUNTIME_JSON",
+            "XRT_NO_STDIN",
             "NV_CXR_RUNTIME_DIR",
             "NV_CXR_OUTPUT_DIR",
         }
@@ -47,7 +48,6 @@ class EnvConfig:
         "NV_CXR_OUTPUT_DIR": None,  # resolved from ensure_logs_dir()
         "NV_CXR_ENABLE_PUSH_DEVICES": "true",
         "NV_CXR_ENABLE_TENSOR_DATA": "true",
-        "XRT_NO_STDIN": "true",
         "NV_CXR_FILE_LOGGING": "true",
         "NV_DEVICE_PROFILE": "auto-webrtc",
     }
@@ -139,12 +139,13 @@ class EnvConfig:
         logs_dir = self.ensure_logs_dir()
         openxr_dir = os.path.dirname(run_dir)
 
-        path_vars = {
+        inferred_vars = {
             "XR_RUNTIME_JSON": os.path.join(openxr_dir, "openxr_cloudxr.json"),
             "NV_CXR_RUNTIME_DIR": run_dir,
             "NV_CXR_OUTPUT_DIR": str(logs_dir),
+            "XRT_NO_STDIN": "true",  # should always be true
         }
-        for k, v in path_vars.items():
+        for k, v in inferred_vars.items():
             env[k] = v
             os.environ[k] = v
 

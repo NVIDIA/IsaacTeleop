@@ -58,27 +58,11 @@ To bypass the interactive EULA prompt (e.g. for CI or headless runs), pass the f
 
 You should see output similar to:
 
-.. code-block:: text
+.. figure:: ../_static/cloudxr-run-output.png
+   :alt: CloudXR run output
+   :align: center
 
-   NVIDIA CloudXR EULA must be accepted to run. View: https://github.com/NVIDIA/IsaacTeleop/blob/main/deps/cloudxr/CLOUDXR_LICENSE
-
-   Accept NVIDIA CloudXR EULA? [y/N]: y
-
-   INFO [logServiceInfo] Created CloudXR™ Service
-         version: 6.1.0
-         tag: 6.1.0-rc2
-         outputDir: /home/dev/.cloudxr/logs
-         logFile:   /home/dev/.cloudxr/logs/cxr_server.2026-03-09T234239Z.log
-         uses: Monado™
-
-   CloudXR runtime started, make sure load environment variables:
-
-   ```bash
-   source /home/dev/.cloudxr/run/cloudxr.env
-   ```
-
-   CloudXR WSS proxy: running
-         logFile:   /home/dev/.cloudxr/logs/wss.2026-03-09T234239Z.log
+   **Figure:** CloudXR run output
 
 .. important::
 
@@ -140,6 +124,11 @@ Again, you can also inspect the CloudXR environment variables by looking at the
       * - NV_CXR_ENABLE_PUSH_DEVICES
         - ``true``
         - Enable or disable push device overseer for hand tracking
+        - | ``true``
+          | ``false``
+      * - NV_CXR_FILE_LOGGING
+        - ``true``
+        - Enable or disable file-based logging, when disabled logs are printed to the console
         - | ``true``
           | ``false``
 
