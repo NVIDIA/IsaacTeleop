@@ -215,9 +215,9 @@ running the CloudXR runtime and wss proxy in containerized environment; or using
       .. tab-item:: Certificate accepted
 
          .. figure:: ../_static/cloudxr_accept_cert_accepted.png
-            :alt: Expected error page after accepting the certificate
+            :alt: Certificate accepted page
 
-            **Figure:** Expected error page after accepting the certificate
+            **Figure:** Certificate accepted page
 
    As illustrated in the figure above, there are 3 steps to connect to your headset:
 
