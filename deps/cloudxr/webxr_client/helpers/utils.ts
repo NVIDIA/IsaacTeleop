@@ -258,7 +258,7 @@ export function getConnectionConfig(
       const proxyPath = proxyUrlObj.pathname.replace(/\/$/, '');
 
       // Route through proxy: combine proxy path with target server IP
-      if (serverIP && serverIP !== 'localhost' && serverIP !== '127.0.0.1') {
+      if (serverIP) {
         const cleanServerIP = stripProtocol(serverIP);
         // Combine proxy path with target server: /proxy/10.28.132.185
         resourcePath = proxyPath ? `${proxyPath}/${cleanServerIP}` : `/${cleanServerIP}`;
@@ -277,7 +277,7 @@ export function getConnectionConfig(
       console.info('No proxy URL - using direct WSS connection');
 
       // Handle server IP input
-      if (serverIP && serverIP !== 'localhost' && serverIP !== '127.0.0.1') {
+      if (serverIP) {
         finalServerIP = stripProtocol(serverIP);
         console.info('Using user-provided server IP:', finalServerIP);
       } else {
@@ -297,7 +297,7 @@ export function getConnectionConfig(
     finalUseSecureConnection = false;
 
     // Handle server IP input
-    if (serverIP && serverIP !== 'localhost' && serverIP !== '127.0.0.1') {
+    if (serverIP) {
       finalServerIP = stripProtocol(serverIP);
       console.info('Using user-provided server IP:', finalServerIP);
     } else {
