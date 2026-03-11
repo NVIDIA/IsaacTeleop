@@ -577,25 +577,20 @@ You can just open this URL in your headset’s browser. No need to build or inst
 desktop browser. IWER (Immersive Web Emulator Runtime) will automatically load to emulate a Meta
 Quest 3 headset.</p>
 </div>
+<div class="sd-tab-set docutils">
+<input checked="checked" id="sd-tab-item-0" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label" for="sd-tab-item-0">
+CloudXR web client</label><div class="sd-tab-content docutils">
 <figure class="align-center" id="id4">
 <img alt="CloudXR web client usage instruction" src="../_images/cloudxr-web-client-howto.png" />
 <figcaption>
 <p><span class="caption-text"><strong>Figure:</strong> CloudXR web client usage instruction</span><a class="headerlink" href="#id4" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
-<p class="sd-card-text">As illustrated in the figure above, there are 3 steps to connect to your headset:</p>
-<ol class="arabic">
-<li><p class="sd-card-text">Enter the IP address of the workstation running CloudXR</p></li>
-<li><p class="sd-card-text">Accept the self-signed SSL certificate (created automatically for you during <a class="reference internal" href="#run-cloudxr-server"><span class="std std-ref">3. Run CloudXR Server</span></a>)
-by clicking the <strong>Click https://&lt;ip&gt;:48322/ to accept cert</strong> link that appears on the page.
-Accept the certificate in the new page that opens, then navigate back to the CloudXR.js client
-page. A new tab opens with a <strong>“Your connection is not private”</strong> warning. Click
-<strong>Advanced</strong>, then click <strong>Proceed to &lt;ip&gt; (unsafe)</strong>.</p>
-<div class="sd-container-fluid sd-sphinx-override sd-mb-4 docutils">
-<div class="sd-row sd-row-cols-2 sd-row-cols-xs-2 sd-row-cols-sm-2 sd-row-cols-md-2 sd-row-cols-lg-2 docutils">
-<div class="sd-col sd-d-flex-row docutils">
-<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm docutils">
-<div class="sd-card-body docutils">
+</div>
+<input id="sd-tab-item-1" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label" for="sd-tab-item-1">
+Privacy warning</label><div class="sd-tab-content docutils">
 <figure class="align-default" id="id5">
 <img alt="Browser privacy warning for self-signed certificate" src="../_images/cloudxr_accept_cert_not_private.png" />
 <figcaption>
@@ -603,25 +598,26 @@ page. A new tab opens with a <strong>“Your connection is not private”</stron
 </figcaption>
 </figure>
 </div>
-</div>
-</div>
-<div class="sd-col sd-d-flex-row docutils">
-<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm docutils">
-<div class="sd-card-body docutils">
+<input id="sd-tab-item-2" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label" for="sd-tab-item-2">
+Certificate accepted</label><div class="sd-tab-content docutils">
 <figure class="align-default" id="id6">
-<img alt="Expected error page after accepting the certificate" src="../_images/cloudxr_accept_cert_isnt_working.png" />
+<img alt="Certificate accepted page" src="../_images/cloudxr_accept_cert_accepted.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure:</strong> Expected error page after accepting the certificate</span><a class="headerlink" href="#id6" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure:</strong> Certificate accepted page</span><a class="headerlink" href="#id6" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 </div>
 </div>
-</div>
-</div>
-</div>
-<p class="sd-card-text">The browser will show a <strong>“This page isn’t working”</strong> error. This is expected –
-the certificate has been accepted. Close this tab or press <strong>Back</strong> to return to
-the CloudXR.js client page.</p>
+<p class="sd-card-text">As illustrated in the figure above, there are 3 steps to connect to your headset:</p>
+<ol class="arabic simple">
+<li><p class="sd-card-text">Enter the IP address of the workstation running CloudXR</p></li>
+<li><p class="sd-card-text">Accept the self-signed SSL certificate, which was created automatically during <a class="reference internal" href="#run-cloudxr-server"><span class="std std-ref">3. Run CloudXR Server</span></a>:</p>
+<ul class="simple">
+<li><p class="sd-card-text">Click the <strong>Click https://&lt;ip&gt;:48322/ to accept cert</strong> link that appears on the page.</p></li>
+<li><p class="sd-card-text">In the new tab, you will see a <strong>“Your connection is not private”</strong> warning. Click <strong>Advanced</strong>, then <strong>Proceed to &lt;ip&gt; (unsafe)</strong>.</p></li>
+<li><p class="sd-card-text">Once accepted, the page will show <strong>Certificate Accepted</strong>. Navigate back to the CloudXR.js client page.</p></li>
+</ul>
 </li>
 <li><p class="sd-card-text">Click <strong>Connect</strong> to begin teleoperation.</p></li>
 </ol>
