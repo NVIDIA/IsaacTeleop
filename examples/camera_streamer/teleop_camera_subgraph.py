@@ -290,6 +290,7 @@ class TeleopCameraSubgraph(Subgraph):
         self._config = config
         self._xr_session = xr_session
         self._name_prefix = name
+        self._camera_output_names: List[str] = []
 
         # Validate configuration
         config.validate_or_raise()
@@ -299,6 +300,18 @@ class TeleopCameraSubgraph(Subgraph):
             raise ValueError("xr_session is required for XR display mode")
 
         super().__init__(fragment, name)
+
+    @property
+    def camera_output_names(self) -> List[str]:
+        """Names of the camera output interface ports.
+
+        Each name can be used in ``add_flow(subgraph, downstream, {(name, ...)})``
+        to receive decoded camera frames. Available after ``compose()`` has run.
+
+        Mono cameras produce one port (e.g. ``"front"``).
+        Stereo cameras produce two (e.g. ``"front_left"``, ``"front_right"``).
+        """
+        return list(self._camera_output_names)
 
     def _create_name(self, suffix: str) -> str:
         """Create a namespaced operator name."""
@@ -336,6 +349,13 @@ class TeleopCameraSubgraph(Subgraph):
                 monitored_outputs,
                 tensor_names,
             )
+
+        # Expose each camera frame as a subgraph output interface port so the
+        # parent application can connect them to downstream operators via
+        # add_flow(subgraph, downstream, {("cam_name", "input_port")}).
+        for display_key, (op, port) in monitored_outputs.items():
+            self.add_output_interface_port(display_key, op, port)
+        self._camera_output_names = list(monitored_outputs.keys())
 
         # -------------------------
         # Display mode specific pipeline

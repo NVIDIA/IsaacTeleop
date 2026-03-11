@@ -15,8 +15,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 IMAGE_NAME="isaac-teleop-camera"
 CONTAINER_NAME="isaac-teleop-camera"
-DEFAULT_CONFIG="config/multi_camera.yaml"
+
+DEFAULT_CONFIG="config/single_camera.yaml"
 DEFAULT_RECEIVER_HOST="127.0.0.1"
+DEFAULT_ROBOT_IP=""
+DEFAULT_ROBOT_USER=""
+REMOTE_BUILD_DIR="/tmp/isaac-teleop-camera-build"
 
 # CloudXR runtime paths (set by setup_cloudxr_env.sh or defaults)
 CXR_HOST_VOLUME_PATH="${CXR_HOST_VOLUME_PATH:-$HOME/.cloudxr}"
@@ -89,10 +93,53 @@ common_docker_args() {
         -v "$CXR_HOST_VOLUME_PATH:$CXR_HOST_VOLUME_PATH:ro"
 }
 
+# Parse remote-deployment options (--ip, --user, --receiver-host, --config,
+# --skip-build, --no-deploy).  Sets _REMOTE_IP, _REMOTE_USER, RECEIVER_HOST,
+# CONFIG, SKIP_BUILD, NO_DEPLOY.
+parse_remote_opts() {
+    _REMOTE_IP=""
+    _REMOTE_USER=""
+    RECEIVER_HOST="$DEFAULT_RECEIVER_HOST"
+    CONFIG="$DEFAULT_CONFIG"
+    SKIP_BUILD=false
+    NO_DEPLOY=false
+
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --ip)             _REMOTE_IP="$2"; shift 2 ;;
+            --user)           _REMOTE_USER="$2"; shift 2 ;;
+            --receiver-host)  RECEIVER_HOST="$2"; shift 2 ;;
+            --config)         CONFIG="$2"; shift 2 ;;
+            --skip-build)     SKIP_BUILD=true; shift ;;
+            --no-deploy)      NO_DEPLOY=true; shift ;;
+            *) log_error "Unknown option: $1"; exit 1 ;;
+        esac
+    done
+
+    if [[ -z "$_REMOTE_IP" ]]; then
+        _REMOTE_IP="$DEFAULT_ROBOT_IP"
+    fi
+    if [[ -z "$_REMOTE_IP" ]]; then
+        log_error "--ip is required (or set DEFAULT_ROBOT_IP in the script)"
+        exit 1
+    fi
+    if [[ -z "$_REMOTE_USER" ]]; then
+        _REMOTE_USER="$DEFAULT_ROBOT_USER"
+    fi
+    if [[ -z "$_REMOTE_USER" ]]; then
+        log_error "--user is required (or set DEFAULT_ROBOT_USER in the script)"
+        exit 1
+    fi
+}
+
 show_help() {
     echo -e "${_BOLD}Usage:${_RESET} camera_streamer.sh <command> [options]
 
-${_BOLD}COMMANDS${_RESET}
+${_BOLD}WORKSTATION COMMANDS${_RESET} (run from dev machine, deploy to robot via SSH)
+    push                    Push source to robot and deploy (build + start)
+    push-config             Push camera config and restart sender container
+
+${_BOLD}ROBOT / LOCAL COMMANDS${_RESET}
     build [--sender-only]   Build Docker image (encoder + decoder + XR by default)
                             Inside a container: rebuilds C++ operators only
     shell                   Interactive dev shell (host source mounted)
@@ -106,11 +153,23 @@ ${_BOLD}COMMANDS${_RESET}
     clean                   Remove Docker images
 
 ${_BOLD}OPTIONS${_RESET}
+    --ip IP                 Robot IP address             (default: \$DEFAULT_ROBOT_IP)
+    --user USER             SSH username                 (default: \$DEFAULT_ROBOT_USER)
     --sender-only           Build only the encoder (skip decoder + XR)
     --receiver-host IP      Stream destination IP       (default: $DEFAULT_RECEIVER_HOST)
     --config PATH           Camera config YAML          (default: $DEFAULT_CONFIG)
+    --skip-build            Skip image build during push
+    --no-deploy             Push source without deploying
 
 ${_BOLD}MODES${_RESET}
+    ${_CYAN}push${_RESET}            Workstation command. Copies the camera_streamer source to
+                     the robot via rsync, builds the Docker image, and starts
+                     the sender container. Use --skip-build to skip the image
+                     build, or --no-deploy to only push source.
+
+    ${_CYAN}push-config${_RESET}     Workstation command. Copies only the camera config YAML
+                     to the robot and restarts the sender container.
+
     ${_CYAN}shell${_RESET}           Dev shell. Mounts host camera_streamer/ into the container
                      so Python/config edits are reflected immediately. Built C++
                      libs are at build/python/ on the host.
@@ -123,6 +182,16 @@ ${_BOLD}MODES${_RESET}
                      you can edit it and restart without rebuilding.
 
 ${_BOLD}EXAMPLES${_RESET}
+    # Push source and deploy on robot
+    ./camera_streamer.sh push --ip 10.29.90.127 --user xrthor1 --receiver-host 10.29.90.182
+
+    # Push source, skip rebuild (restart with new code only)
+    ./camera_streamer.sh push --ip 10.29.90.127 --user xrthor1 --skip-build
+
+    # Push new camera config (no rebuild needed)
+    ./camera_streamer.sh push-config --ip 10.29.90.127 --user xrthor1
+
+    # Local commands
     ./camera_streamer.sh build
     ./camera_streamer.sh shell
     ./camera_streamer.sh run -- --source local --mode monitor
@@ -131,6 +200,67 @@ ${_BOLD}EXAMPLES${_RESET}
     ./camera_streamer.sh status
     ./camera_streamer.sh logs
     ./camera_streamer.sh restart"
+}
+
+# ---------------------------------------------------------------------------
+# push / push-config  (workstation → robot)
+# ---------------------------------------------------------------------------
+
+cmd_push() {
+    parse_remote_opts "$@"
+
+    local REMOTE="$_REMOTE_USER@$_REMOTE_IP"
+    local REMOTE_DIR="$REMOTE_BUILD_DIR/camera_streamer"
+
+    log_step "Pushing source to $REMOTE"
+    log_info "Target: $REMOTE_DIR"
+
+    ssh "$REMOTE" "mkdir -p $REMOTE_BUILD_DIR"
+    rsync -az --delete \
+        --exclude='build/' --exclude='.git/' \
+        "$SCRIPT_DIR/" "$REMOTE:$REMOTE_DIR/"
+    log_ok "Source pushed to $REMOTE:$REMOTE_DIR"
+
+    if [[ "$NO_DEPLOY" == true ]]; then
+        log_info "Skipping deploy (--no-deploy). To deploy manually:"
+        log_info "  ssh $REMOTE"
+        log_info "  cd $REMOTE_DIR && ./camera_streamer.sh build --sender-only"
+        log_info "  ./camera_streamer.sh deploy-sender --receiver-host <IP>"
+        return 0
+    fi
+
+    log_step "Deploying on $REMOTE"
+    local REMOTE_CMD=""
+    if [[ "$SKIP_BUILD" != true ]]; then
+        REMOTE_CMD="./camera_streamer.sh build --sender-only && "
+    fi
+    REMOTE_CMD+="./camera_streamer.sh deploy-sender"
+    REMOTE_CMD+=" --receiver-host $RECEIVER_HOST --config $CONFIG"
+
+    ssh -t "$REMOTE" "cd $REMOTE_DIR && $REMOTE_CMD"
+}
+
+cmd_push_config() {
+    parse_remote_opts "$@"
+
+    local REMOTE="$_REMOTE_USER@$_REMOTE_IP"
+    local REMOTE_DIR="$REMOTE_BUILD_DIR/camera_streamer"
+    local HOST_CONFIG="$SCRIPT_DIR/$CONFIG"
+
+    if [[ ! -f "$HOST_CONFIG" ]]; then
+        log_error "Config not found: $HOST_CONFIG"
+        exit 1
+    fi
+
+    log_step "Pushing config to $REMOTE"
+    log_info "Config: $CONFIG"
+
+    ssh "$REMOTE" "mkdir -p $REMOTE_DIR/$(dirname "$CONFIG")"
+    scp "$HOST_CONFIG" "$REMOTE:$REMOTE_DIR/$CONFIG"
+
+    log_info "Restarting sender container"
+    ssh "$REMOTE" "docker restart $SENDER_CONTAINER_NAME"
+    log_ok "Config pushed and container restarted"
 }
 
 # ---------------------------------------------------------------------------
@@ -442,6 +572,8 @@ cmd_clean() {
 CMD="$1"; shift
 
 case "$CMD" in
+    push)           cmd_push "$@" ;;
+    push-config)    cmd_push_config "$@" ;;
     build)          cmd_build "$@" ;;
     shell)          cmd_shell ;;
     run)            cmd_run "$@" ;;
