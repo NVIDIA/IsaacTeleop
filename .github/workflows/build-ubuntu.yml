@@ -466,8 +466,8 @@ jobs:
         fi
 
         status_url="${KITMAKER_API_ENDPOINT%/}/v0/status/${KITMAKER_RELEASE_UUID}"
-        # Limit total polling time to at most ~10 minutes (20 * 30s)
-        max_attempts=20
+        # Limit total polling time to under an hour with exponential backoff starting at 30s
+        max_attempts=15
         sleep_seconds=30
 
         for ((attempt=1; attempt<=max_attempts; attempt++)); do
@@ -495,6 +495,7 @@ jobs:
           fi
 
           sleep "${sleep_seconds}"
+          sleep_seconds=$(( sleep_seconds * 125 / 100 ))
         done
 
         echo "Timed out waiting for Kitmaker release ${KITMAKER_RELEASE_UUID} to complete"
