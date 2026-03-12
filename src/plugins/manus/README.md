@@ -41,9 +41,9 @@ The script will:
 
 If you prefer to install manually:
 
-1. Download the MANUS Core SDK from [MANUS Downloads](https://docs.manus-meta.com/3.1.0/Resources/)
+1. Download the MANUS Core SDK from [MANUS Downloads](https://docs.manus-meta.com/3.1.1/Resources/)
 2. Extract and place the `ManusSDK` folder inside `src/plugins/manus/`, or set the `MANUS_SDK_ROOT` environment variable to your installation path
-3. Follow the [MANUS Getting Started guide for Linux](https://docs.manus-meta.com/3.1.0/Plugins/SDK/Linux/) to install the dependencies and setup device permissions.
+3. Follow the [MANUS Getting Started guide for Linux](https://docs.manus-meta.com/3.1.1/Plugins/SDK/Linux/) to install the dependencies and setup device permissions.
 
 Expected layout:
 ```text
