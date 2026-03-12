@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 # Downloads the CloudXR Runtime SDK if not already present using NGC.
@@ -82,7 +82,7 @@ install_from_local_tarball() {
 # Resource: nvidia/cloudxr-runtime:${CXR_RUNTIME_SDK_VERSION}
 # -----------------------------------------------------------------------------
 install_from_public_ngc() {
-    local SDK_RESOURCE="nvidia/cloudxr-runtime:${CXR_RUNTIME_SDK_VERSION}"
+    local SDK_RESOURCE="nvidia/cloudxr-runtime-for-isaac-teleop:${CXR_RUNTIME_SDK_VERSION}"
     local SDK_DOWNLOAD_DIR="$GIT_ROOT/deps/cloudxr/.sdk-download"
 
     if ! command -v ngc &> /dev/null; then

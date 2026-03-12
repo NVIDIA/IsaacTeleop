@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Downloads the CloudXR Web Client EA SDK if not already present using NGC.
+# Downloads the CloudXR Web Client SDK if not already present using NGC.
 # The SDK is extracted to deps/cloudxr/cloudxr-web-sdk-${CXR_WEB_SDK_VERSION}/ for use by Dockerfile.web-app.
 #
 # Two ways to obtain the SDK:
@@ -92,7 +92,7 @@ install_from_local_tarball() {
 # Resource: nvidia/cloudxr-js-early-access:${CXR_WEB_SDK_VERSION}
 # -----------------------------------------------------------------------------
 install_from_public_ngc() {
-    local SDK_RESOURCE="nvidia/cloudxr-js-early-access:${CXR_WEB_SDK_VERSION}"
+    local SDK_RESOURCE="nvidia/cloudxr-js:${CXR_WEB_SDK_VERSION}"
     local SDK_DOWNLOAD_DIR="$GIT_ROOT/deps/cloudxr/.sdk-download"
 
     if ! command -v ngc &> /dev/null; then
@@ -102,9 +102,9 @@ install_from_public_ngc() {
         exit 1
     fi
 
-    echo -e "${GREEN}========================================${NC}"
-    echo -e "${GREEN}Downloading CloudXR Web Client EA SDK${NC}"
-    echo -e "${GREEN}========================================${NC}"
+    echo -e "${GREEN}==================================${NC}"
+    echo -e "${GREEN}Downloading CloudXR Web Client SDK${NC}"
+    echo -e "${GREEN}==================================${NC}"
     echo ""
 
     mkdir -p "$SDK_DOWNLOAD_DIR"
