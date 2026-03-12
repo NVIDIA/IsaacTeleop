@@ -19,38 +19,26 @@ _RUNTIME_JOIN_TIMEOUT = 10
 _RUNTIME_STARTUP_TIMEOUT_SEC = 10
 
 
-def _eula_accepted_via_env() -> bool | None:
-    """Return True if ACCEPT_EULA env indicates acceptance, False if rejection, None if unset/unknown."""
-    raw = os.environ.get("ACCEPT_EULA", "").strip()
-    if not raw:
-        return None
-    lower = raw.lower()
-    if lower in ("true", "yes", "y", "1"):
-        return True
-    if lower in ("false", "no", "n", "0"):
-        return False
-    return None
+def _write_eula_marker(marker: str) -> None:
+    run_dir = os.path.dirname(marker)
+    os.makedirs(run_dir, mode=0o700, exist_ok=True)
+    with open(marker, "w") as f:
+        f.write("accepted\n")
 
 
-def check_eula() -> None:
-    """Require CloudXR EULA to be accepted; exits the process if not. Call from main process before spawning runtime."""
+def check_eula(*, accept_eula: bool | None = None) -> None:
+    """Require CloudXR EULA to be accepted; exits the process if not. Call from main process before spawning runtime.
+
+    Args:
+        accept_eula: If True, accept and write marker. If None, check marker then prompt interactively.
+    """
     marker = os.path.join(get_env_config().openxr_run_dir(), "eula_accepted")
     if os.path.isfile(marker):
         return
 
-    accepted = _eula_accepted_via_env()
-    if accepted is True:
-        run_dir = os.path.dirname(marker)
-        os.makedirs(run_dir, mode=0o700, exist_ok=True)
-        with open(marker, "w") as f:
-            f.write("accepted\n")
+    if accept_eula is True:
+        _write_eula_marker(marker)
         return
-    if accepted is False:
-        print(
-            "EULA not accepted (ACCEPT_EULA is set to a negative value). Exiting.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
 
     print(
         "\nNVIDIA CloudXR EULA must be accepted to run. View: " + _EULA_URL,
@@ -64,10 +52,7 @@ def check_eula() -> None:
         print("EULA not accepted. Exiting.", file=sys.stderr)
         sys.exit(1)
 
-    run_dir = os.path.dirname(marker)
-    os.makedirs(run_dir, mode=0o700, exist_ok=True)
-    with open(marker, "w") as f:
-        f.write("accepted\n")
+    _write_eula_marker(marker)
 
 
 def _get_sdk_path() -> str | None:

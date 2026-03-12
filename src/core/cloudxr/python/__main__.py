@@ -37,13 +37,18 @@ def _parse_args() -> argparse.Namespace:
         metavar="PATH",
         help="Optional env file (KEY=value per line) to override default CloudXR env vars",
     )
+    parser.add_argument(
+        "--accept-eula",
+        action="store_true",
+        help="Accept the NVIDIA CloudXR EULA non-interactively (e.g. for CI or containers).",
+    )
     return parser.parse_args()
 
 
 async def _main_async() -> None:
     args = _parse_args()
     env_cfg = EnvConfig.from_args(args.cloudxr_install_dir, args.cloudxr_env_config)
-    check_eula()
+    check_eula(accept_eula=args.accept_eula or None)
     logs_dir_path = env_cfg.ensure_logs_dir()
     wss_ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M%SZ")
     wss_log_path = logs_dir_path / f"wss.{wss_ts}.log"
