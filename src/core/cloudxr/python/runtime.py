@@ -148,7 +148,8 @@ def run() -> None:
     os.environ["LD_LIBRARY_PATH"] = sdk_path + (f":{prev_ld}" if prev_ld else "")
 
     lib_path = os.path.join(sdk_path, "libcloudxr.so")
-    lib = ctypes.CDLL(lib_path)
+    deepbind = getattr(os, "RTLD_DEEPBIND", 0)
+    lib = ctypes.CDLL(lib_path, mode=deepbind)
     svc = ctypes.c_void_p()
     # Signal handler must only call stop() after create() has run; avoid calling with null svc.
     state = {"service_created": False, "interrupted": False}
