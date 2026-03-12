@@ -29,7 +29,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         fetch-depth: 0 # Full history for accurate git describe
 
@@ -54,7 +54,7 @@ jobs:
 
     # Hunter cache - caches depthai dependencies (OpenSSL, CURL, etc.)
     - name: Cache Hunter packages
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: ~/.hunter
         key: hunter-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('cmake/SetupHunter.cmake') }}
@@ -62,7 +62,7 @@ jobs:
           hunter-${{ runner.os }}-${{ runner.arch }}-
 
     - name: Cache ccache
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: ~/.cache/ccache
         key: ccache-${{ runner.os }}-${{ runner.arch }}-${{ matrix.build_type }}-py${{ matrix.python_version }}-${{ hashFiles('**/CMakeLists.txt') }}
@@ -155,7 +155,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         fetch-depth: 0
 
@@ -190,7 +190,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         submodules: recursive
 
@@ -232,7 +232,7 @@ jobs:
 
     steps:
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: '3.11'
 
