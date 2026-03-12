@@ -63,7 +63,11 @@ private:
     void inject_hand_data();
     void initialize_xdev_hand_trackers();
     void cleanup_xdev_hand_trackers();
-    bool update_xdev_hand(XrHandTrackerEXT tracker, XrTime time, XrPosef& out_wrist_pose);
+    // Returns true if a valid (POSITION_VALID | ORIENTATION_VALID) wrist pose was
+    // obtained. out_is_tracked is set to true only when the runtime also reports
+    // POSITION_TRACKED | ORIENTATION_TRACKED, meaning the pose is actively tracked
+    // rather than predicted/stale.
+    bool update_xdev_hand(XrHandTrackerEXT tracker, XrTime time, XrPosef& out_wrist_pose, bool& out_is_tracked);
     bool get_controller_wrist_pose(bool is_left, XrPosef& out_wrist_pose);
 
     // -- Member Variables --

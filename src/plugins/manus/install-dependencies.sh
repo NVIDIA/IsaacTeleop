@@ -22,6 +22,22 @@ if ! apt-cache show gcc-11 &>/dev/null; then
         echo "Adding Debian 12 (Bookworm) repository for GCC-11..."
         apt-get install -y debian-archive-keyring
         echo "deb http://deb.debian.org/debian bookworm main" | tee /etc/apt/sources.list.d/bookworm-gcc.list
+
+        # Pin only the GCC-11 packages to Bookworm; everything else stays at the
+        # default priority (500) so unrelated Bookworm packages are never chosen
+        # over the host distro's packages.
+        cat > /etc/apt/preferences.d/bookworm-gcc.pref << 'EOF'
+# Allow only gcc-11 / g++-11 / libgcc-11 to be installed from Bookworm.
+# All other packages from this release keep the default low priority (1)
+# so they cannot shadow packages from the host distribution.
+Package: *
+Pin: release n=bookworm
+Pin-Priority: 1
+
+Package: gcc-11 g++-11 libgcc-11-dev libgcc-s1 cpp-11
+Pin: release n=bookworm
+Pin-Priority: 900
+EOF
     fi
 fi
 
@@ -43,7 +59,21 @@ mkdir -p /var/local/git
 if [ ! -d "/var/local/git/grpc" ]; then
     git clone --recurse-submodules -b v1.28.1 --depth 1 https://github.com/grpc/grpc /var/local/git/grpc
 else
-    echo "gRPC repository already exists, skipping clone"
+    # Normalize the existing checkout so the build always operates on exactly
+    # v1.28.1, regardless of any prior modifications or partial updates.
+    echo "gRPC repository already exists; resetting to v1.28.1..."
+    cd /var/local/git/grpc
+    # Unshallow if this is a shallow clone so we can fetch/checkout freely
+    if [ -f .git/shallow ]; then
+        git fetch --unshallow origin
+    fi
+    git fetch origin refs/tags/v1.28.1:refs/tags/v1.28.1 --force
+    git checkout v1.28.1
+    git reset --hard v1.28.1
+    git clean -ffdx
+    git submodule sync --recursive
+    git submodule update --init --recursive
+    cd /var/local/git
 fi
 
 # Check if running on x86_64

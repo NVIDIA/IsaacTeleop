@@ -122,7 +122,7 @@ void ManusTracker::initialize(const std::string& app_name) noexcept(false)
     t_VUH.view = AxisView::AxisView_ZToViewer;
     t_VUH.unitScale = 1.0f;
 
-    std::cout << "[Manus] Setting up coordinate system (Z-up, right-handed, meters)..." << std::endl;
+    std::cout << "[Manus] Setting up coordinate system (Y-up, right-handed, meters)..." << std::endl;
     const SDKReturnCode t_CoordinateResult = CoreSdk_InitializeCoordinateSystemWithVUH(t_VUH, true);
 
     if (t_CoordinateResult != SDKReturnCode::SDKReturnCode_Success)
@@ -139,10 +139,25 @@ void ManusTracker::initialize(const std::string& app_name) noexcept(false)
 
     try
     {
-        // Create ControllerTracker, HandTracker and DeviceIOSession
+        // Create ControllerTracker unconditionally; HandTracker requires
+        // XR_EXT_hand_tracking which is optional — only add it when the runtime
+        // advertises support so xrCreateInstance does not fail with
+        // XR_ERROR_EXTENSION_NOT_PRESENT on runtimes that lack the extension.
         m_controller_tracker = std::make_shared<core::ControllerTracker>();
-        m_hand_tracker = std::make_shared<core::HandTracker>();
-        std::vector<std::shared_ptr<core::ITracker>> trackers = { m_controller_tracker, m_hand_tracker };
+        std::vector<std::shared_ptr<core::ITracker>> trackers = { m_controller_tracker };
+
+        const bool hand_tracking_supported = is_openxr_extension_supported(XR_EXT_HAND_TRACKING_EXTENSION_NAME);
+        if (hand_tracking_supported)
+        {
+            m_hand_tracker = std::make_shared<core::HandTracker>();
+            trackers.push_back(m_hand_tracker);
+        }
+        else
+        {
+            std::cout << "[Manus] " << XR_EXT_HAND_TRACKING_EXTENSION_NAME
+                      << " is not supported by the current runtime; HandTracker will not be created."
+                      << std::endl;
+        }
 
         // Get required extensions from trackers
         auto extensions = core::DeviceIOSession::get_required_extensions(trackers);
@@ -574,8 +589,10 @@ void ManusTracker::cleanup_xdev_hand_trackers()
     m_xdev_available = false;
 }
 
-bool ManusTracker::update_xdev_hand(XrHandTrackerEXT tracker, XrTime time, XrPosef& out_wrist_pose)
+bool ManusTracker::update_xdev_hand(XrHandTrackerEXT tracker, XrTime time, XrPosef& out_wrist_pose, bool& out_is_tracked)
 {
+    out_is_tracked = false;
+
     if (tracker == XR_NULL_HANDLE || !m_pfn_locate_hand_joints || time == 0)
     {
         return false;
@@ -598,12 +615,16 @@ bool ManusTracker::update_xdev_hand(XrHandTrackerEXT tracker, XrTime time, XrPos
     }
     
     const auto& wrist = joint_locations[XR_HAND_JOINT_WRIST_EXT];
-    bool is_valid = (wrist.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) &&
-                    (wrist.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT);
+    const bool is_valid = (wrist.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) &&
+                          (wrist.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT);
     
     if (is_valid)
     {
         out_wrist_pose = wrist.pose;
+        // Distinguish actively tracked from valid-but-predicted/stale poses so
+        // callers can advertise TRACKED bits only when the runtime confirms it.
+        out_is_tracked = (wrist.locationFlags & XR_SPACE_LOCATION_POSITION_TRACKED_BIT) &&
+                         (wrist.locationFlags & XR_SPACE_LOCATION_ORIENTATION_TRACKED_BIT);
         return true;
     }
     
@@ -660,11 +681,15 @@ void ManusTracker::inject_hand_data()
 
         // Get wrist pose - auto-select hand tracking or controllers
         XrPosef wrist_pose;
+        bool xdev_pose_valid = false;
         if (m_xdev_available)
         {
             XrHandTrackerEXT tracker = is_left ? m_native_left_hand_tracker : m_native_right_hand_tracker;
-            if (update_xdev_hand(tracker, time, wrist_pose))
+            bool xdev_tracked = false;
+            if (update_xdev_hand(tracker, time, wrist_pose, xdev_tracked))
             {
+                // Cache the pose (valid even when only predicted/stale) so the
+                // last good pose is available if tracking is briefly interrupted.
                 if (is_left)
                 {
                     m_left_root_pose = wrist_pose;
@@ -673,12 +698,17 @@ void ManusTracker::inject_hand_data()
                 {
                     m_right_root_pose = wrist_pose;
                 }
-                is_root_tracked = true;
+                // Only mark as tracked when the runtime confirms active tracking;
+                // a valid-but-untracked pose must not have TRACKED bits set.
+                is_root_tracked = xdev_tracked;
+                xdev_pose_valid = true;
             }
         }
         
-        // Use controllers if hand tracking not available or not configured
-        if (!is_root_tracked && get_controller_wrist_pose(is_left, wrist_pose))
+        // Fall back to controllers only when xdev provided no valid pose at all.
+        // If xdev gave a valid-but-untracked pose we keep it rather than
+        // overwriting it with a controller pose that would be falsely marked tracked.
+        if (!xdev_pose_valid && get_controller_wrist_pose(is_left, wrist_pose))
         {
             if (is_left)
             {
