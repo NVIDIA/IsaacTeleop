@@ -12,6 +12,7 @@ echo ""
 MANUS_SDK_VERSION="3.1.1"
 MANUS_SDK_URL="https://static.manus-meta.com/resources/manus_core_3/sdk/MANUS_Core_${MANUS_SDK_VERSION}_SDK.zip"
 MANUS_SDK_ZIP="MANUS_Core_${MANUS_SDK_VERSION}_SDK.zip"
+MANUS_SDK_SHA256="c5ccd3c42a501107ec79f70d8450a486fbc3925c5c1e18e606114d09f2d9d24a"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Detect architecture
@@ -54,8 +55,10 @@ if [ -f "$SCRIPT_DIR/install-dependencies.sh" ]; then
         sudo apt-get install -y \
             build-essential \
             cmake \
+            curl \
             git \
             libssl-dev \
+            unzip \
             zlib1g-dev \
             libc-ares-dev \
             libzmq3-dev \
@@ -89,14 +92,34 @@ cd "$SCRIPT_DIR"
 if [ -f "$MANUS_SDK_ZIP" ]; then
     echo "SDK archive already exists. Skipping download."
 else
-    if command -v wget &> /dev/null; then
-        wget "$MANUS_SDK_URL" -O "$MANUS_SDK_ZIP"
-    elif command -v curl &> /dev/null; then
-        curl -L "$MANUS_SDK_URL" -o "$MANUS_SDK_ZIP"
+    if command -v curl &> /dev/null; then
+        # -f: fail on HTTP errors (4xx/5xx), -L: follow redirects
+        curl -fL "$MANUS_SDK_URL" -o "$MANUS_SDK_ZIP"
+    elif command -v wget &> /dev/null; then
+        # --server-response prints HTTP status; wget already exits non-zero on errors
+        wget --server-response "$MANUS_SDK_URL" -O "$MANUS_SDK_ZIP"
     else
-        echo "Error: Neither wget nor curl found. Please install one of them."
+        echo "Error: Neither curl nor wget found. Please install curl (apt-get install curl)."
         exit 1
     fi
+fi
+
+# Verify archive integrity before extracting
+if [ -n "${MANUS_SDK_SHA256:-}" ]; then
+    echo "Verifying SDK archive checksum..."
+    ACTUAL_SHA256=$(sha256sum "$MANUS_SDK_ZIP" | awk '{print $1}')
+    if [ "$ACTUAL_SHA256" != "$MANUS_SDK_SHA256" ]; then
+        echo "Error: SHA-256 checksum mismatch for $MANUS_SDK_ZIP"
+        echo "  Expected: $MANUS_SDK_SHA256"
+        echo "  Actual:   $ACTUAL_SHA256"
+        echo "The archive may be corrupted or tampered with. Aborting."
+        rm -f "$MANUS_SDK_ZIP"
+        exit 1
+    fi
+    echo "Checksum verified."
+else
+    echo "Warning: MANUS_SDK_SHA256 is not set. Skipping checksum verification."
+    echo "         Set MANUS_SDK_SHA256 in install_manus.sh to enable integrity checking."
 fi
 echo ""
 
@@ -157,22 +180,12 @@ cd "$TELEOP_ROOT"
 
 echo "TeleopCore root: $TELEOP_ROOT"
 
-# Create build directory if it doesn't exist
-if [ ! -d "build" ]; then
-    mkdir -p build
-fi
+echo "Configuring CMake..."
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
-# Configure with CMake (only if needed)
-if [ ! -f "build/CMakeCache.txt" ]; then
-    echo "Configuring CMake..."
-    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-else
-    echo "CMake already configured, skipping configuration..."
-fi
-
-# Build only the manus plugin (and its dependencies)
+# Build the plugin and the diagnostic printer tool
 echo "Building..."
-cmake --build build --target manus_hand_plugin -j$(nproc)
+cmake --build build --target manus_hand_plugin manus_hand_tracker_printer -j$(nproc)
 
 # Install only the manus component
 echo "Installing..."
@@ -182,7 +195,8 @@ echo ""
 echo "=== Installation Complete ==="
 echo "MANUS SDK v${MANUS_SDK_VERSION} installed to: $SCRIPT_DIR/ManusSDK"
 echo "Plugin built and installed successfully"
-echo "Plugin executable: $TELEOP_ROOT/install/plugins/manus/manus_hand_plugin"
+echo "Plugin executable:  $TELEOP_ROOT/install/plugins/manus/manus_hand_plugin"
+echo "Printer diagnostic: $TELEOP_ROOT/build/bin/manus_hand_tracker_printer"
 echo ""
 if [ "$INSTALL_REMOTE" = false ]; then
     echo "Note: Only MANUS Core Integrated dependencies were installed."
