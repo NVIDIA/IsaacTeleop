@@ -35,7 +35,7 @@ The script will:
 2. Install required system packages
 3. Automatically download the MANUS SDK v3.1.1
 4. Extract and configure the SDK in the correct location
-5. Build the plugin from the TeleopCore root
+5. Build the plugin
 
 ### Manual Installation
 
@@ -76,17 +76,11 @@ cmake --install build --component manus
 ### 1. Setup CloudXR Environment
 Before running the plugin, ensure CloudXR environment is configured:
 
-```bash
-cd /path/to/TeleopCore
-source scripts/setup_cloudxr_env.sh
-./scripts/run_cloudxr.sh  # Start CloudXR runtime if not already running
-```
-
 The following environment variables must be set before running either the CLI tool or the plugin (adjust paths if your CloudXR installation differs from the defaults):
 
 ```bash
 export NV_CXR_RUNTIME_DIR=~/.cloudxr/run
-export XR_RUNTIME_JSON=~/.cloudxr/share/openxr/1/openxr_cloudxr.json
+export XR_RUNTIME_JSON=~/.cloudxr/openxr_cloudxr.json
 ```
 
 ### 2. Verify with CLI Tool
