@@ -78,6 +78,24 @@ else()
         COMMENT "Extracting CloudXR SDK tarball into python_package/.../cloudxr/native/"
     )
     add_dependencies(cloudxr_native_bundle cloudxr_native_dir)
+
+    # libcloudxr.so in the SDK tarball carries a NEEDED entry for libssl.so.3 even
+    # though it never calls any OpenSSL functions. When Python (which bundles its own
+    # OpenSSL) loads libcloudxr.so, the loader pulls in a second, incompatible
+    # libssl.so.3 and NVST crashes. Strip the spurious dependency at build time.
+    # A future SDK built with -Wl,--as-needed will make this step unnecessary.
+    find_program(PATCHELF_EXECUTABLE patchelf)
+    if(PATCHELF_EXECUTABLE)
+        add_custom_target(cloudxr_patchelf ALL
+            COMMAND ${PATCHELF_EXECUTABLE} --remove-needed libssl.so.3
+                    "${CLOUDXR_NATIVE_DIR}/libcloudxr.so"
+            COMMENT "Stripping spurious libssl.so.3 dependency from libcloudxr.so"
+        )
+        add_dependencies(cloudxr_patchelf cloudxr_native_bundle)
+    else()
+        message(WARNING "patchelf not found; libcloudxr.so will retain its libssl.so.3 "
+                        "dependency. Install patchelf to avoid OpenSSL symbol conflicts.")
+    endif()
 endif()
 
 # Copy CloudXR Python module to package structure (always; pure Python is cross-platform)
@@ -94,7 +112,11 @@ add_custom_target(cloudxr_python ALL
     COMMENT "Copying cloudxr Python files to package structure"
 )
 if(CLOUDXR_NATIVE_AVAILABLE)
-    add_dependencies(cloudxr_python cloudxr_native_bundle)
+    if(PATCHELF_EXECUTABLE)
+        add_dependencies(cloudxr_python cloudxr_patchelf)
+    else()
+        add_dependencies(cloudxr_python cloudxr_native_bundle)
+    endif()
 endif()
 
 install(
