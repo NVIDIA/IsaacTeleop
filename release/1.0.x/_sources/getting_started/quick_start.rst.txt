@@ -50,29 +50,19 @@ and asks you to review and accept the EULA:
 
    python -m isaacteleop.cloudxr
 
+To bypass the interactive EULA prompt (e.g. for CI or headless runs), pass the flag:
+
+.. code-block:: bash
+
+   python -m isaacteleop.cloudxr --accept-eula
+
 You should see output similar to:
 
-.. code-block:: text
+.. figure:: ../_static/cloudxr-run-output.png
+   :alt: CloudXR run output
+   :align: center
 
-   NVIDIA CloudXR EULA must be accepted to run. View: https://github.com/NVIDIA/IsaacTeleop/blob/main/deps/cloudxr/CLOUDXR_LICENSE
-
-   Accept NVIDIA CloudXR EULA? [y/N]: y
-
-   INFO [logServiceInfo] Created CloudXR™ Service
-         version: 6.1.0
-         tag: 6.1.0-rc2
-         outputDir: /home/dev/.cloudxr/logs
-         logFile:   /home/dev/.cloudxr/logs/cxr_server.2026-03-09T234239Z.log
-         uses: Monado™
-
-   CloudXR runtime started, make sure load environment variables:
-
-   ```bash
-   source /home/dev/.cloudxr/run/cloudxr.env
-   ```
-
-   CloudXR WSS proxy: running
-         logFile:   /home/dev/.cloudxr/logs/wss.2026-03-09T234239Z.log
+   **Figure:** CloudXR run output
 
 .. important::
 
@@ -107,11 +97,40 @@ CloudXR runtime via the ``--cloudxr-env-config`` argument.
 
 .. code-block:: bash
 
-   echo 'NV_DEVICE_PROFILE=auto-native' > vision_pro.env
-   python -m isaacteleop.cloudxr --cloudxr-env-config=./vision_pro.env
+   echo 'NV_DEVICE_PROFILE=auto-native' > custom.env
+   python -m isaacteleop.cloudxr --cloudxr-env-config=./custom.env
 
 Again, you can also inspect the CloudXR environment variables by looking at the
 ``~/.cloudxr/run/cloudxr.env`` file:
+
+.. dropdown:: Custom CloudXR configurations
+
+   .. list-table:: Custom CloudXR configurations
+      :header-rows: 1
+      :widths: 20 15 30 20
+      :width: 100%
+
+      * - Variable
+        - Default
+        - Description
+        - Possible Values
+      * - NV_DEVICE_PROFILE
+        - ``auto-webrtc``
+        - Custom device profile to use
+        - | ``auto-webrtc``
+          | ``auto-native``
+          | ``Quest3``
+          | ``AppleVisionPro``
+      * - NV_CXR_ENABLE_PUSH_DEVICES
+        - ``true``
+        - Enable or disable push device overseer for hand tracking
+        - | ``true``
+          | ``false``
+      * - NV_CXR_FILE_LOGGING
+        - ``true``
+        - Enable or disable file-based logging, when disabled logs are printed to the console
+        - | ``true``
+          | ``false``
 
 .. code-block:: bash
 
@@ -122,19 +141,34 @@ Again, you can also inspect the CloudXR environment variables by looking at the
 -------------------------------
 
 CloudXR requires certain network ports to be open. Depending on your firewall configuration, you
-might need to whitelist them manually. For **Quest and Pico headsets** (WebXR Client), at the
-minimum, you need to whitelist the ports for the CloudXR runtime and wss proxy:
+might need to whitelist them manually.
 
-.. code-block:: bash
+.. dropdown:: Meta Quest and Pico headsets
+   :open:
 
-   sudo ufw allow 47998/udp && sudo ufw allow 49100/tcp && sudo ufw allow 48322/tcp
+   For **Quest and Pico headsets** (WebXR Client), at the minimum, you need to whitelist the ports
+   for the CloudXR runtime and wss proxy:
 
-If you are running the WebXR client from source, you need to whitelist the additional ports for the
-web server:
+   .. code-block:: bash
 
-.. code-block:: bash
+      sudo ufw allow 47998/udp
+      sudo ufw allow 49100,48322/tcp
 
-   sudo ufw allow 8080/tcp && sudo ufw allow 8443/tcp
+   If you are running the WebXR client from source, you need to whitelist the additional ports for
+   the web server:
+
+   .. code-block:: bash
+
+      sudo ufw allow 8080,8443/tcp
+
+.. dropdown:: Vision Pro client
+
+   For **Vision Pro client**, you need to whitelist the ports for the CloudXR runtime and wss proxy:
+
+   .. code-block:: bash
+
+      sudo ufw allow 48010,48322/tcp
+      sudo ufw allow 47998:48000,48005,48008,48012/udp
 
 Please see the `CloudXR network setup`_ for more details for other network configurations (such as
 running the CloudXR runtime and wss proxy in containerized environment; or using Vision Pro client).
@@ -144,52 +178,72 @@ running the CloudXR runtime and wss proxy in containerized environment; or using
 
 .. _connect-quest-pico:
 
-Meta Quest and Pico headsets
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. dropdown:: Meta Quest and Pico headsets
+   :open:
 
-To stream from a Meta Quest or PICO headset, you will need a CloudXR web client. For your
-convenience, we host a prebuilt CloudXR web client at `nvidia.github.io/IsaacTeleop/client`_.
-You can just open this URL in your headset's browser. No need to build or install a separate client.
+   To stream from a Meta Quest or PICO headset, you will need a CloudXR web client. For your
+   convenience, we host a prebuilt CloudXR web client at `nvidia.github.io/IsaacTeleop/client`_.
+   You can just open this URL in your headset's browser. No need to build or install a separate client.
 
-.. tip::
+   .. tip::
 
-   For quick validation, you can also open the `nvidia.github.io/IsaacTeleop/client`_ URL in a
-   desktop browser. IWER (Immersive Web Emulator Runtime) will automatically load to emulate a Meta
-   Quest 3 headset.
+      For quick validation, you can also open the `nvidia.github.io/IsaacTeleop/client`_ URL in a
+      desktop browser. IWER (Immersive Web Emulator Runtime) will automatically load to emulate a Meta
+      Quest 3 headset.
 
-.. figure:: ../_static/cloudxr-web-client-howto.png
-   :alt: CloudXR web client usage instruction
-   :align: center
+   .. tab-set::
+      .. tab-item:: CloudXR web client
 
-   **Figure:** CloudXR web client usage instruction
+         .. figure:: ../_static/cloudxr-web-client-howto.png
+            :alt: CloudXR web client usage instruction
+            :align: center
 
-As illustrated in the figure above, there are 3 steps to connect to your headset:
+            **Figure:** CloudXR web client usage instruction
 
-1. Enter the IP address of the workstation running CloudXR
-2. Accept the self-signed SSL certificate (created automatically for you during :ref:`run-cloudxr-server`)
-3. Click "CONNECT"
+      .. tab-item:: Privacy warning
 
-.. note::
-   For advanced usage and troubleshooting of CloudXR, see the `CloudXR documentation`_ for more
-   details.
+         .. figure:: ../_static/cloudxr_accept_cert_not_private.png
+            :alt: Browser privacy warning for self-signed certificate
 
-The source code for the web client is in the :code-dir:`deps/cloudxr/webxr_client/` directory.
-Follow the instructions in the official `CloudXR.js documentation`_ for more details if you want to
-run the web client from source.
+            **Figure:** Browser privacy warning for self-signed certificate
+
+      .. tab-item:: Certificate accepted
+
+         .. figure:: ../_static/cloudxr_accept_cert_accepted.png
+            :alt: Certificate accepted page
+
+            **Figure:** Certificate accepted page
+
+   As illustrated in the figure above, there are 3 steps to connect to your headset:
+
+   1. Enter the IP address of the workstation running CloudXR
+   2. Accept the self-signed SSL certificate, which was created automatically during :ref:`run-cloudxr-server`:
+
+      - Click the **Click https://<ip>:48322/ to accept cert** link that appears on the page.
+      - In the new tab, you will see a **"Your connection is not private"** warning. Click **Advanced**, then **Proceed to <ip> (unsafe)**.
+      - Once accepted, the page will show **Certificate Accepted**. Navigate back to the CloudXR.js client page.
+   3. Click **Connect** to begin teleoperation.
+
+   .. note::
+      For advanced usage and troubleshooting of CloudXR, see the `CloudXR documentation`_ for more
+      details.
+
+   The source code for the web client is in the :code-dir:`deps/cloudxr/webxr_client/` directory.
+   Follow the instructions in the official `CloudXR.js documentation`_ for more details if you want to
+   run the web client from source.
 
 .. _connect-apple-vision-pro:
 
-Apple Vision Pro
-~~~~~~~~~~~~~~~~
+.. dropdown:: Apple Vision Pro
 
-For Apple Vision Pro, you will need to build and install the Isaac XR Teleop Sample Client. Follow
-the instructions in the `Isaac XR Teleop Sample Client for Apple Vision Pro`_ repository to build
-and install the sample client on your Apple Vision Pro.
+   For Apple Vision Pro, you will need to build and install the Isaac XR Teleop Sample Client. Follow
+   the instructions in the `Isaac XR Teleop Sample Client for Apple Vision Pro`_ repository to build
+   and install the sample client on your Apple Vision Pro.
 
-.. note::
+   .. note::
 
-   You will need v3.0.0 or newer of the `Isaac XR Teleop Sample Client for Apple Vision Pro`_
-   to connect to Isaac Teleop.
+      You will need v3.0.0 or newer of the `Isaac XR Teleop Sample Client for Apple Vision Pro`_
+      to connect to Isaac Teleop.
 
 
 .. _load-cloudxr-environment-variables:
