@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# CloudXR compose override for web/proxy services and runtime mode.
+# CloudXR compose override for the WebSocket SSL proxy service.
 # Used together with docker-compose.runtime.yaml.
 
 services:
@@ -25,18 +25,4 @@ services:
       - HEALTH_CHECK_INTERVAL=1s
       - HEALTH_CHECK_RISE=2
       - HEALTH_CHECK_FALL=3
-    restart: unless-stopped
-
-  # Web App Service (serves CloudXR.js web client; webxr_client mounted for live reload)
-  web-app:
-    build:
-      context: .
-      dockerfile: Dockerfile.web-app
-      args:
-        CXR_WEB_SDK_VERSION: ${CXR_WEB_SDK_VERSION}
-    container_name: cloudxr-web-app-${CXR_WEB_SDK_VERSION}
-    network_mode: host
-    user: "${CXR_UID:-1000}:${CXR_GID:-1000}"
-    volumes:
-      - ./webxr_client:/app/webxr_client
     restart: unless-stopped
