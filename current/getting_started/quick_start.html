@@ -387,18 +387,18 @@ commands to the terminal.</p>
 <nav class="contents local" id="steps">
 <p class="topic-title">Steps</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#check-out-code-base-optional" id="id7">1. Check out code base (Optional)</a></p></li>
-<li><p><a class="reference internal" href="#install-the-isaacteleop-pip-package" id="id8">2. Install the <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> pip package</a></p></li>
-<li><p><a class="reference internal" href="#run-cloudxr-server" id="id9">3. Run CloudXR Server</a></p></li>
-<li><p><a class="reference internal" href="#whitelist-ports-for-firewall" id="id10">4. Whitelist ports for Firewall</a></p></li>
-<li><p><a class="reference internal" href="#connect-an-xr-headset" id="id11">5. Connect an XR headset</a></p></li>
-<li><p><a class="reference internal" href="#load-cloudxr-environment-variables" id="id12">6. Load CloudXR environment variables</a></p></li>
-<li><p><a class="reference internal" href="#run-a-teleop-example" id="id13">7. Run a teleop example</a></p></li>
-<li><p><a class="reference internal" href="#next-steps" id="id14">Next steps</a></p></li>
+<li><p><a class="reference internal" href="#check-out-code-base-optional" id="id8">1. Check out code base (Optional)</a></p></li>
+<li><p><a class="reference internal" href="#install-the-isaacteleop-pip-package" id="id9">2. Install the <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> pip package</a></p></li>
+<li><p><a class="reference internal" href="#run-cloudxr-server" id="id10">3. Run CloudXR Server</a></p></li>
+<li><p><a class="reference internal" href="#whitelist-ports-for-firewall" id="id11">4. Whitelist ports for Firewall</a></p></li>
+<li><p><a class="reference internal" href="#connect-an-xr-headset" id="id12">5. Connect an XR headset</a></p></li>
+<li><p><a class="reference internal" href="#load-cloudxr-environment-variables" id="id13">6. Load CloudXR environment variables</a></p></li>
+<li><p><a class="reference internal" href="#run-a-teleop-example" id="id14">7. Run a teleop example</a></p></li>
+<li><p><a class="reference internal" href="#next-steps" id="id15">Next steps</a></p></li>
 </ul>
 </nav>
 <section id="check-out-code-base-optional">
-<h2><a class="toc-backref" href="#id7" role="doc-backlink">1. Check out code base (Optional)</a><a class="headerlink" href="#check-out-code-base-optional" title="Link to this heading">#</a></h2>
+<h2><a class="toc-backref" href="#id8" role="doc-backlink">1. Check out code base (Optional)</a><a class="headerlink" href="#check-out-code-base-optional" title="Link to this heading">#</a></h2>
 <p>Clone the repository and enter the project directory:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/NVIDIA/IsaacTeleop.git
 <span class="nb">cd</span><span class="w"> </span>IsaacTeleop
@@ -408,7 +408,7 @@ commands to the terminal.</p>
 to clone the repository for a couple quick samples to run.</p>
 </section>
 <section id="install-the-isaacteleop-pip-package">
-<h2><a class="toc-backref" href="#id8" role="doc-backlink">2. Install the <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> pip package</a><a class="headerlink" href="#install-the-isaacteleop-pip-package" title="Link to this heading">#</a></h2>
+<h2><a class="toc-backref" href="#id9" role="doc-backlink">2. Install the <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> pip package</a><a class="headerlink" href="#install-the-isaacteleop-pip-package" title="Link to this heading">#</a></h2>
 <p>In a new terminal, install the package from PyPI (or from a local wheel if you built from source):</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># From PyPI</span>
 uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>isaacteleop<span class="o">[</span>cloudxr,retargeters<span class="o">]</span>~<span class="o">=</span><span class="m">1</span>.0<span class="w"> </span>--extra-index-url<span class="w"> </span>https://pypi.nvidia.com
@@ -418,7 +418,7 @@ uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </s
 See <a class="reference internal" href="build_from_source.html"><span class="doc">Build from Source</span></a> for more details.</p>
 </section>
 <section id="run-cloudxr-server">
-<span id="id1"></span><h2><a class="toc-backref" href="#id9" role="doc-backlink">3. Run CloudXR Server</a><a class="headerlink" href="#run-cloudxr-server" title="Link to this heading">#</a></h2>
+<span id="id1"></span><h2><a class="toc-backref" href="#id10" role="doc-backlink">3. Run CloudXR Server</a><a class="headerlink" href="#run-cloudxr-server" title="Link to this heading">#</a></h2>
 <p>Start the CloudXR runtime. The first run downloads the CloudXR Web Client SDK
 and asks you to review and accept the EULA:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr
@@ -429,27 +429,12 @@ and asks you to review and accept the EULA:</p>
 </pre></div>
 </div>
 <p>You should see output similar to:</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>NVIDIA CloudXR EULA must be accepted to run. View: https://github.com/NVIDIA/IsaacTeleop/blob/main/deps/cloudxr/CLOUDXR_LICENSE
-
-Accept NVIDIA CloudXR EULA? [y/N]: y
-
-INFO [logServiceInfo] Created CloudXR™ Service
-      version: 6.1.0
-      tag: 6.1.0-rc2
-      outputDir: /home/dev/.cloudxr/logs
-      logFile:   /home/dev/.cloudxr/logs/cxr_server.2026-03-09T234239Z.log
-      uses: Monado™
-
-CloudXR runtime started, make sure load environment variables:
-
-```bash
-source /home/dev/.cloudxr/run/cloudxr.env
-```
-
-CloudXR WSS proxy: running
-      logFile:   /home/dev/.cloudxr/logs/wss.2026-03-09T234239Z.log
-</pre></div>
-</div>
+<figure class="align-center" id="id3">
+<img alt="CloudXR run output" src="../_images/cloudxr-run-output.png" />
+<figcaption>
+<p><span class="caption-text"><strong>Figure:</strong> CloudXR run output</span><a class="headerlink" href="#id3" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
 <div class="admonition important">
 <p class="admonition-title">Important</p>
 <p>Keep this terminal open — CloudXR must stay running for the duration of the session. Open a
@@ -482,8 +467,8 @@ python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr<span
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
 <span class="sd-summary-text">Custom CloudXR configurations</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
-<div class="pst-scrollable-table-container"><table class="table" id="id3" style="width: 100%">
-<caption><span class="caption-text">Custom CloudXR configurations</span><a class="headerlink" href="#id3" title="Link to this table">#</a></caption>
+<div class="pst-scrollable-table-container"><table class="table" id="id4" style="width: 100%">
+<caption><span class="caption-text">Custom CloudXR configurations</span><a class="headerlink" href="#id4" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 23.5%" />
 <col style="width: 17.6%" />
@@ -518,6 +503,15 @@ python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr<span
 </div>
 </td>
 </tr>
+<tr class="row-even"><td><p class="sd-card-text">NV_CXR_FILE_LOGGING</p></td>
+<td><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p class="sd-card-text">Enable or disable file-based logging, when disabled logs are printed to the console</p></td>
+<td><div class="line-block">
+<div class="line"><code class="docutils literal notranslate"><span class="pre">true</span></code></div>
+<div class="line"><code class="docutils literal notranslate"><span class="pre">false</span></code></div>
+</div>
+</td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -529,7 +523,7 @@ python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr<span
 </section>
 </section>
 <section id="whitelist-ports-for-firewall">
-<h2><a class="toc-backref" href="#id10" role="doc-backlink">4. Whitelist ports for Firewall</a><a class="headerlink" href="#whitelist-ports-for-firewall" title="Link to this heading">#</a></h2>
+<h2><a class="toc-backref" href="#id11" role="doc-backlink">4. Whitelist ports for Firewall</a><a class="headerlink" href="#whitelist-ports-for-firewall" title="Link to this heading">#</a></h2>
 <p>CloudXR requires certain network ports to be open. Depending on your firewall configuration, you
 might need to whitelist them manually.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3" open="open">
@@ -560,7 +554,7 @@ sudo<span class="w"> </span>ufw<span class="w"> </span>allow<span class="w"> </s
 running the CloudXR runtime and wss proxy in containerized environment; or using Vision Pro client).</p>
 </section>
 <section id="connect-an-xr-headset">
-<h2><a class="toc-backref" href="#id11" role="doc-backlink">5. Connect an XR headset</a><a class="headerlink" href="#connect-an-xr-headset" title="Link to this heading">#</a></h2>
+<h2><a class="toc-backref" href="#id12" role="doc-backlink">5. Connect an XR headset</a><a class="headerlink" href="#connect-an-xr-headset" title="Link to this heading">#</a></h2>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3" id="connect-quest-pico" open="open">
 <summary class="sd-summary-title sd-card-header">
 <span class="sd-summary-text">Meta Quest and Pico headsets</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
@@ -577,30 +571,30 @@ Quest 3 headset.</p>
 <input checked="checked" id="sd-tab-item-0" name="sd-tab-set-0" type="radio">
 <label class="sd-tab-label" for="sd-tab-item-0">
 CloudXR web client</label><div class="sd-tab-content docutils">
-<figure class="align-center" id="id4">
+<figure class="align-center" id="id5">
 <img alt="CloudXR web client usage instruction" src="../_images/cloudxr-web-client-howto.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure:</strong> CloudXR web client usage instruction</span><a class="headerlink" href="#id4" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure:</strong> CloudXR web client usage instruction</span><a class="headerlink" href="#id5" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 </div>
 <input id="sd-tab-item-1" name="sd-tab-set-0" type="radio">
 <label class="sd-tab-label" for="sd-tab-item-1">
 Privacy warning</label><div class="sd-tab-content docutils">
-<figure class="align-default" id="id5">
+<figure class="align-default" id="id6">
 <img alt="Browser privacy warning for self-signed certificate" src="../_images/cloudxr_accept_cert_not_private.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure:</strong> Browser privacy warning for self-signed certificate</span><a class="headerlink" href="#id5" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure:</strong> Browser privacy warning for self-signed certificate</span><a class="headerlink" href="#id6" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 </div>
 <input id="sd-tab-item-2" name="sd-tab-set-0" type="radio">
 <label class="sd-tab-label" for="sd-tab-item-2">
 Certificate accepted</label><div class="sd-tab-content docutils">
-<figure class="align-default" id="id6">
+<figure class="align-default" id="id7">
 <img alt="Certificate accepted page" src="../_images/cloudxr_accept_cert_accepted.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure:</strong> Certificate accepted page</span><a class="headerlink" href="#id6" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure:</strong> Certificate accepted page</span><a class="headerlink" href="#id7" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 </div>
@@ -640,7 +634,7 @@ to connect to Isaac Teleop.</p>
 </div>
 </details></section>
 <section id="load-cloudxr-environment-variables">
-<span id="id2"></span><h2><a class="toc-backref" href="#id12" role="doc-backlink">6. Load CloudXR environment variables</a><a class="headerlink" href="#load-cloudxr-environment-variables" title="Link to this heading">#</a></h2>
+<span id="id2"></span><h2><a class="toc-backref" href="#id13" role="doc-backlink">6. Load CloudXR environment variables</a><a class="headerlink" href="#load-cloudxr-environment-variables" title="Link to this heading">#</a></h2>
 <p>Open a new terminal and source the CloudXR environment variables posted from the CloudXR runtime in
 <a class="reference internal" href="#run-cloudxr-server"><span class="std std-ref">3. Run CloudXR Server</span></a>:</p>
 <p>Source the setup script so that the OpenXR runtime points to CloudXR:</p>
@@ -654,7 +648,7 @@ terminal, source the CloudXR environment variables again.</p>
 </div>
 </section>
 <section id="run-a-teleop-example">
-<h2><a class="toc-backref" href="#id13" role="doc-backlink">7. Run a teleop example</a><a class="headerlink" href="#run-a-teleop-example" title="Link to this heading">#</a></h2>
+<h2><a class="toc-backref" href="#id14" role="doc-backlink">7. Run a teleop example</a><a class="headerlink" href="#run-a-teleop-example" title="Link to this heading">#</a></h2>
 <p>Run the simplified gripper retargeting example. This demonstrates the full
 pipeline: reading XR controller input via CloudXR, retargeting it through the
 <code class="docutils literal notranslate"><span class="pre">GripperRetargeter</span></code>, and printing the resulting gripper command values:</p>
@@ -684,7 +678,7 @@ configuration options</p></li>
 </ul>
 </section>
 <section id="next-steps">
-<h2><a class="toc-backref" href="#id14" role="doc-backlink">Next steps</a><a class="headerlink" href="#next-steps" title="Link to this heading">#</a></h2>
+<h2><a class="toc-backref" href="#id15" role="doc-backlink">Next steps</a><a class="headerlink" href="#next-steps" title="Link to this heading">#</a></h2>
 <ul class="simple">
 <li><p><a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/overview/imitation-learning/teleop_imitation.html#teleoperation-imitation-learning" rel="noopener noreferrer" target="_blank">Teleoperation and Imitation Learning with Isaac Lab Mimic</a> — learn how to use CloudXR to teleoperate a simulated
 robot in Isaac Lab</p></li>
