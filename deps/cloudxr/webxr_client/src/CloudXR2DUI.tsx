@@ -44,13 +44,17 @@ import {
 import {
   CloudXRConfig,
   enableLocalStorage,
+  getGridFromInputs,
   getResolutionFromInputs,
   setSelectValueIfAvailable,
   setupCertificateAcceptanceLink,
 } from '@helpers/utils';
 import {
+  getGridValidationError,
+  getGridValidationMessageForConnect,
   getResolutionValidationError,
   getResolutionValidationMessageForConnect,
+  validateDepthReprojectionGrid,
   validatePerEyeResolution,
 } from '@nvidia/cloudxr';
 
@@ -83,10 +87,18 @@ export class CloudXR2DUI {
   private perEyeWidthInput!: HTMLInputElement;
   /** Input field for per-eye height configuration */
   private perEyeHeightInput!: HTMLInputElement;
+  /** Input field for reprojection mesh grid X (columns) */
+  private reprojectionGridColsInput!: HTMLInputElement;
+  /** Input field for reprojection mesh grid Y (rows) */
+  private reprojectionGridRowsInput!: HTMLInputElement;
   /** Inline resolution validation under width input */
   private resolutionWidthValidationMessage: HTMLElement | null = null;
   /** Inline resolution validation under height input */
   private resolutionHeightValidationMessage: HTMLElement | null = null;
+  /** Inline grid validation under reprojection grid columns input */
+  private reprojectionGridColsValidationMessage: HTMLElement | null = null;
+  /** Inline grid validation under reprojection grid rows input */
+  private reprojectionGridRowsValidationMessage: HTMLElement | null = null;
   private validationMessageBox!: HTMLElement;
   private validationMessageText!: HTMLElement;
   /** Dropdown to enable pose smoothing */
@@ -201,11 +213,19 @@ export class CloudXR2DUI {
     this.codecSelect = this.getElement<HTMLSelectElement>('codec');
     this.perEyeWidthInput = this.getElement<HTMLInputElement>('perEyeWidth');
     this.perEyeHeightInput = this.getElement<HTMLInputElement>('perEyeHeight');
+    this.reprojectionGridColsInput = this.getElement<HTMLInputElement>('reprojectionGridCols');
+    this.reprojectionGridRowsInput = this.getElement<HTMLInputElement>('reprojectionGridRows');
     this.resolutionWidthValidationMessage = document.getElementById(
       'resolutionWidthValidationMessage'
     );
     this.resolutionHeightValidationMessage = document.getElementById(
       'resolutionHeightValidationMessage'
+    );
+    this.reprojectionGridColsValidationMessage = document.getElementById(
+      'reprojectionGridColsValidationMessage'
+    );
+    this.reprojectionGridRowsValidationMessage = document.getElementById(
+      'reprojectionGridRowsValidationMessage'
     );
     this.enablePoseSmoothingSelect = this.getElement<HTMLSelectElement>('enablePoseSmoothing');
     this.posePredictionFactorInput = this.getElement<HTMLInputElement>('posePredictionFactor');
@@ -264,6 +284,8 @@ export class CloudXR2DUI {
       useSecureConnection: useSecure,
       perEyeWidth: 2048,
       perEyeHeight: 1792,
+      reprojectionGridCols: 0,
+      reprojectionGridRows: 0,
       deviceFrameRate: 90,
       maxStreamingBitrateMbps: 150,
       codec: 'av1',
@@ -292,6 +314,8 @@ export class CloudXR2DUI {
     enableLocalStorage(this.portInput, 'port');
     enableLocalStorage(this.perEyeWidthInput, 'perEyeWidth');
     enableLocalStorage(this.perEyeHeightInput, 'perEyeHeight');
+    enableLocalStorage(this.reprojectionGridColsInput, 'reprojectionGridCols');
+    enableLocalStorage(this.reprojectionGridRowsInput, 'reprojectionGridRows');
     enableLocalStorage(this.proxyUrlInput, 'proxyUrl');
     enableLocalStorage(this.deviceFrameRateSelect, 'deviceFrameRate');
     enableLocalStorage(this.maxStreamingBitrateMbpsSelect, 'maxStreamingBitrateMbps');
@@ -370,6 +394,16 @@ export class CloudXR2DUI {
     addListener(this.perEyeHeightInput, 'blur', updateResValidation);
     addListener(this.perEyeHeightInput, 'keyup', updateResValidation);
     this.updateResolutionValidationMessage();
+    const updateGridValidation = () => this.updateGridValidationMessage();
+    addListener(this.reprojectionGridColsInput, 'input', onProfileLinkedChange);
+    addListener(this.reprojectionGridColsInput, 'change', onProfileLinkedChange);
+    addListener(this.reprojectionGridColsInput, 'blur', updateGridValidation);
+    addListener(this.reprojectionGridColsInput, 'keyup', updateGridValidation);
+    addListener(this.reprojectionGridRowsInput, 'input', onProfileLinkedChange);
+    addListener(this.reprojectionGridRowsInput, 'change', onProfileLinkedChange);
+    addListener(this.reprojectionGridRowsInput, 'blur', updateGridValidation);
+    addListener(this.reprojectionGridRowsInput, 'keyup', updateGridValidation);
+    this.updateGridValidationMessage();
     addListener(this.deviceFrameRateSelect, 'change', onProfileLinkedChange);
     addListener(this.maxStreamingBitrateMbpsSelect, 'change', onProfileLinkedChange);
     addListener(this.codecSelect, 'change', onProfileLinkedChange);
@@ -440,13 +474,50 @@ export class CloudXR2DUI {
     this.updateConnectButtonState();
   }
 
+  /** Update inline grid validation under each input. */
+  private updateGridValidationMessage(): void {
+    const { reprojectionGridCols, reprojectionGridRows } = getGridFromInputs(
+      this.reprojectionGridColsInput,
+      this.reprojectionGridRowsInput
+    );
+    const { reprojectionGridColsError, reprojectionGridRowsError } = validateDepthReprojectionGrid(
+      reprojectionGridCols,
+      reprojectionGridRows
+    );
+    if (this.reprojectionGridColsValidationMessage) {
+      const showGridCols = reprojectionGridColsError ?? '';
+      this.reprojectionGridColsValidationMessage.textContent = showGridCols;
+      this.reprojectionGridColsValidationMessage.className = showGridCols
+        ? 'config-text resolution-validation-error'
+        : 'config-text';
+    }
+    if (this.reprojectionGridRowsValidationMessage) {
+      const showGridRows = reprojectionGridRowsError ?? '';
+      this.reprojectionGridRowsValidationMessage.textContent = showGridRows;
+      this.reprojectionGridRowsValidationMessage.className = showGridRows
+        ? 'config-text resolution-validation-error'
+        : 'config-text';
+    }
+    this.updateConnectButtonState();
+  }
+
   /** Disable Connect button and show validation error when resolution invalid; enable when valid. */
   public updateConnectButtonState(): void {
     const { w, h } = getResolutionFromInputs(this.perEyeWidthInput, this.perEyeHeightInput);
+    const { reprojectionGridCols, reprojectionGridRows } = getGridFromInputs(
+      this.reprojectionGridColsInput,
+      this.reprojectionGridRowsInput
+    );
     const resolutionError = getResolutionValidationError(w, h);
+    const gridError = getGridValidationError(reprojectionGridCols, reprojectionGridRows);
     const connectMessage = getResolutionValidationMessageForConnect(w, h);
-    if (connectMessage) {
-      this.validationMessageText.textContent = connectMessage;
+    const gridConnectMessage = getGridValidationMessageForConnect(
+      reprojectionGridCols,
+      reprojectionGridRows
+    );
+    const combinedConnectMessage = [connectMessage, gridConnectMessage].filter(Boolean).join(' ');
+    if (combinedConnectMessage) {
+      this.validationMessageText.textContent = combinedConnectMessage;
       this.validationMessageBox.className = 'validation-message-box show';
     } else {
       this.validationMessageText.textContent = '';
@@ -454,7 +525,7 @@ export class CloudXR2DUI {
     }
     // Only update button when idle (don't override "CONNECT (starting...)" or "CONNECT (XR session active)")
     if (this.startButton && this.startButton.innerHTML === 'CONNECT') {
-      const shouldEnable = !resolutionError;
+      const shouldEnable = !resolutionError && !gridError;
       this.setStartButtonState(!shouldEnable, 'CONNECT');
     }
   }
@@ -478,12 +549,18 @@ export class CloudXR2DUI {
       this.perEyeWidthInput,
       this.perEyeHeightInput
     );
+    const { reprojectionGridCols, reprojectionGridRows } = getGridFromInputs(
+      this.reprojectionGridColsInput,
+      this.reprojectionGridRowsInput
+    );
     const newConfiguration: AppConfig = {
       serverIP: this.serverIpInput.value || this.getDefaultConfiguration().serverIP,
       port: portValue || defaultPort,
       useSecureConnection: useSecure,
       perEyeWidth,
       perEyeHeight,
+      reprojectionGridCols,
+      reprojectionGridRows,
       deviceFrameRate:
         parseInt(this.deviceFrameRateSelect.value) ||
         this.getDefaultConfiguration().deviceFrameRate,
@@ -560,6 +637,10 @@ export class CloudXR2DUI {
     if (cloudxr.perEyeHeight !== undefined) {
       this.perEyeHeightInput.value = String(cloudxr.perEyeHeight);
     }
+    this.reprojectionGridColsInput.value =
+      cloudxr.reprojectionGridCols !== undefined ? String(cloudxr.reprojectionGridCols) : '';
+    this.reprojectionGridRowsInput.value =
+      cloudxr.reprojectionGridRows !== undefined ? String(cloudxr.reprojectionGridRows) : '';
     if (cloudxr.deviceFrameRate !== undefined) {
       setSelectValueIfAvailable(this.deviceFrameRateSelect, String(cloudxr.deviceFrameRate));
     }
@@ -600,6 +681,8 @@ export class CloudXR2DUI {
     try {
       localStorage.setItem('perEyeWidth', this.perEyeWidthInput.value);
       localStorage.setItem('perEyeHeight', this.perEyeHeightInput.value);
+      localStorage.setItem('reprojectionGridCols', this.reprojectionGridColsInput.value);
+      localStorage.setItem('reprojectionGridRows', this.reprojectionGridRowsInput.value);
       localStorage.setItem('deviceFrameRate', this.deviceFrameRateSelect.value);
       localStorage.setItem('maxStreamingBitrateMbps', this.maxStreamingBitrateMbpsSelect.value);
       localStorage.setItem('codec', this.codecSelect.value);
@@ -666,7 +749,11 @@ export class CloudXR2DUI {
       this.handleConnectClick = async () => {
         const cfg = this.getConfiguration();
         const resolutionError = getResolutionValidationError(cfg.perEyeWidth, cfg.perEyeHeight);
-        if (resolutionError) {
+        const gridError = getGridValidationError(
+          cfg.reprojectionGridCols,
+          cfg.reprojectionGridRows
+        );
+        if (resolutionError || gridError) {
           this.updateConnectButtonState();
           return;
         }

@@ -653,6 +653,17 @@ limitations under the License.
                     <div class="config-text">
                         Configure the per-eye resolution. Width must be a multiple of 16 (min 128); height must be a multiple of 64 (min 128).
                     </div>
+                    <label for="reprojectionGridCols" class="input-label">Depth Reprojection Grid Columns (optional)</label>
+                    <input id="reprojectionGridCols" class="ui-input config-input" type="number"
+                        placeholder="Leave blank for factor mode, or set >= 2" spellcheck="false" value="">
+                    <div id="reprojectionGridColsValidationMessage" class="config-text" aria-live="polite"></div>
+                    <label for="reprojectionGridRows" class="input-label">Depth Reprojection Grid Rows (optional)</label>
+                    <input id="reprojectionGridRows" class="ui-input config-input" type="number"
+                        placeholder="Leave blank for factor mode, or set >= 2" spellcheck="false" value="">
+                    <div id="reprojectionGridRowsValidationMessage" class="config-text" aria-live="polite"></div>
+                    <div class="config-text">
+                        Grid rules: leave either field blank to use factor mode, or set both to integers >= 2 for explicit mesh resolution.
+                    </div>
                 </div>
 
                 <div class="config-section">

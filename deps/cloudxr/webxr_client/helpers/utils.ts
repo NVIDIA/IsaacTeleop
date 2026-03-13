@@ -134,6 +134,12 @@ export interface CloudXRConfig {
   /** Height of each eye in pixels (must be multiple of 16) */
   perEyeHeight: number;
 
+  /** Depth reprojection mesh grid vertex columns (not cell columns). Undefined uses factor mode. */
+  reprojectionGridCols?: number;
+
+  /** Depth reprojection mesh grid vertex rows (not cell rows). Undefined uses factor mode. */
+  reprojectionGridRows?: number;
+
   /** Target frame rate for the XR device in frames per second (FPS) */
   deviceFrameRate: number;
 
@@ -207,6 +213,24 @@ export function getResolutionFromInputs(
   return {
     w: Number.isFinite(w) ? w : 0,
     h: Number.isFinite(h) ? h : 0,
+  };
+}
+
+/**
+ * Reads reprojection grid values from two number inputs.
+ * Blank means "use default factor mode", returned as undefined.
+ */
+export function getGridFromInputs(
+  reprojectionGridColsInput: HTMLInputElement,
+  reprojectionGridRowsInput: HTMLInputElement
+): { reprojectionGridCols: number | undefined; reprojectionGridRows: number | undefined } {
+  const colsRaw = reprojectionGridColsInput.value.trim();
+  const rowsRaw = reprojectionGridRowsInput.value.trim();
+  const cols = colsRaw === '' ? undefined : parseInt(reprojectionGridColsInput.value, 10);
+  const rows = rowsRaw === '' ? undefined : parseInt(reprojectionGridRowsInput.value, 10);
+  return {
+    reprojectionGridCols: cols === undefined || Number.isFinite(cols) ? cols : NaN,
+    reprojectionGridRows: rows === undefined || Number.isFinite(rows) ? rows : NaN,
   };
 }
 

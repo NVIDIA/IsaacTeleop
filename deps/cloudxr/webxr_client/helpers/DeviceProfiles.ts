@@ -47,6 +47,8 @@ export interface DeviceProfile {
   cloudxr?: {
     perEyeWidth?: number;
     perEyeHeight?: number;
+    reprojectionGridCols?: number;
+    reprojectionGridRows?: number;
     deviceFrameRate?: number;
     maxStreamingBitrateKbps?: number;
     codec?: 'av1' | 'h264' | 'h265';
@@ -100,6 +102,9 @@ const QUEST3S_PROFILE: DeviceProfile = {
   id: 'quest3s',
   label: 'Quest 3S',
   description: 'Same as Quest 3 for now.',
+  cloudxr: {
+    ...QUEST3_PROFILE.cloudxr!,
+  },
 };
 
 // Quest 2: same as Quest 3 but default codec H.265 (no hardware AV1 support).
@@ -108,7 +113,12 @@ const QUEST2_PROFILE: DeviceProfile = {
   id: 'quest2',
   label: 'Quest 2',
   description: 'Same as Quest 3 except using H.265.',
-  cloudxr: { ...QUEST3_PROFILE.cloudxr!, codec: 'h265' },
+  cloudxr: {
+    ...QUEST3_PROFILE.cloudxr!,
+    reprojectionGridCols: 64,
+    reprojectionGridRows: 64,
+    codec: 'h265',
+  },
 };
 
 // Pico 4 Ultra defaults are conservative until device-specific validation is complete.
@@ -130,6 +140,8 @@ const PICO4ULTRA_PROFILE: DeviceProfile = {
   cloudxr: {
     perEyeWidth: 2048,
     perEyeHeight: 1792,
+    reprojectionGridCols: 64,
+    reprojectionGridRows: 64,
     deviceFrameRate: 90,
     maxStreamingBitrateKbps: 100000,
     codec: 'av1',
