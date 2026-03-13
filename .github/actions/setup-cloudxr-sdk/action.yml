@@ -52,7 +52,7 @@ runs:
           "https://api.ngc.nvidia.com/v2/resources/nvidia/ngc-apps/ngc_cli/versions/${NGC_CLI_VERSION}/files/${NGC_CLI_ZIP}" \
           -o ngccli.zip
         mkdir -p ~/.local/bin
-        unzip -o ngccli.zip -d ~/.local/bin/
+        unzip -oq ngccli.zip -d ~/.local/bin/
         chmod u+x ~/.local/bin/ngc-cli/ngc
         echo "$HOME/.local/bin/ngc-cli" >> "$GITHUB_PATH"
         ~/.local/bin/ngc-cli/ngc --version
