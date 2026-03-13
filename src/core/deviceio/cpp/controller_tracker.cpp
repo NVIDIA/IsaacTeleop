@@ -264,10 +264,10 @@ ControllerTracker::Impl::Impl(const OpenXRSessionHandles& handles)
     std::cout << "ControllerTracker initialized (left + right)" << std::endl;
 }
 
-// Override from ITrackerImpl
-bool ControllerTracker::Impl::update(XrTime time)
+bool ControllerTracker::Impl::update_live(int64_t system_monotonic_time_ns)
 {
-    last_update_time_ = time;
+    last_update_time_ns_ = system_monotonic_time_ns;
+    const XrTime time = time_converter_.convert_monotonic_ns_to_xrtime(system_monotonic_time_ns);
 
     // Sync actions
     XrActionsSyncInfo sync_info{ XR_TYPE_ACTIONS_SYNC_INFO };
@@ -379,8 +379,9 @@ void ControllerTracker::Impl::serialize_all(size_t channel_index, const RecordCa
     flatbuffers::FlatBufferBuilder builder(256);
 
     const auto& tracked = (channel_index == 0) ? left_tracked_ : right_tracked_;
-    int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
-    DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
+    const int64_t monotonic_ns = last_update_time_ns_;
+    const XrTime raw_device = time_converter_.convert_monotonic_ns_to_xrtime(monotonic_ns);
+    DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, raw_device);
 
     ControllerSnapshotRecordBuilder record_builder(builder);
     if (tracked.data)
@@ -406,20 +407,48 @@ std::vector<std::string> ControllerTracker::get_required_extensions() const
 
 const ControllerSnapshotTrackedT& ControllerTracker::get_left_controller(const DeviceIOSession& session) const
 {
-    return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_left_controller();
+    return dynamic_cast<const IImpl&>(session.get_tracker_impl(*this)).get_left_controller();
 }
 
 const ControllerSnapshotTrackedT& ControllerTracker::get_right_controller(const DeviceIOSession& session) const
 {
-    return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_right_controller();
+    return dynamic_cast<const IImpl&>(session.get_tracker_impl(*this)).get_right_controller();
 }
 
-std::shared_ptr<ITrackerImpl> ControllerTracker::create_tracker(const OpenXRSessionHandles& handles) const
+std::shared_ptr<IReplayTrackerImpl> ControllerTracker::create_replay_tracker(const ITrackerSession& session) const
+{
+    return std::make_shared<ReplayImpl>(session);
+}
+
+// -----------------------------------------------------------------------------
+// ControllerTracker::ReplayImpl (dummy replay impl)
+// -----------------------------------------------------------------------------
+
+ControllerTracker::ReplayImpl::ReplayImpl(const ITrackerSession& session) : session_(&session)
+{
+}
+
+bool ControllerTracker::ReplayImpl::update_replay(int64_t /* replay_time_ns */)
+{
+    return true; // no-op for dummy
+}
+
+const ControllerSnapshotTrackedT& ControllerTracker::ReplayImpl::get_left_controller() const
+{
+    return left_tracked_;
+}
+
+const ControllerSnapshotTrackedT& ControllerTracker::ReplayImpl::get_right_controller() const
+{
+    return right_tracked_;
+}
+
+std::shared_ptr<ILiveTrackerImpl> ControllerTracker::create_tracker(const OpenXRSessionHandles& handles) const
 {
     // Multiple ControllerTracker instances sharing the same XrSession must reuse
     // a single Impl because OpenXR forbids duplicate action-set names /
     // interaction-profile bindings per session.
-    static std::unordered_map<XrSession, std::weak_ptr<ITrackerImpl>> shared_impls;
+    static std::unordered_map<XrSession, std::weak_ptr<ILiveTrackerImpl>> shared_impls;
 
     // Prune expired entries while we're here
     for (auto it = shared_impls.begin(); it != shared_impls.end();)

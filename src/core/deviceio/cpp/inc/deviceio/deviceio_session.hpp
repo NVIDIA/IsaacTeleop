@@ -7,10 +7,11 @@
 
 #include <oxr_utils/oxr_funcs.hpp>
 #include <oxr_utils/oxr_session_handles.hpp>
-#include <oxr_utils/oxr_time.hpp>
 
 #include <memory>
+#include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace core
@@ -18,21 +19,20 @@ namespace core
 
 // OpenXR DeviceIO Session - Main user-facing class for OpenXR tracking
 // Manages trackers and session lifetime
-class DeviceIOSession
+class DeviceIOSession : public ITrackerSession
 {
 public:
     // Static helper - Get all required OpenXR extensions from a list of trackers
     static std::vector<std::string> get_required_extensions(const std::vector<std::shared_ptr<ITracker>>& trackers);
 
-    // Static factory - Create and initialize a session with trackers
+    // Static factory - Create and initialize a session with trackers (uses create_tracker for live impls)
     // Returns fully initialized session ready to use (throws on failure)
     static std::unique_ptr<DeviceIOSession> run(const std::vector<std::shared_ptr<ITracker>>& trackers,
                                                 const OpenXRSessionHandles& handles);
 
-    // Update session and all trackers
-    bool update();
-
-    const ITrackerImpl& get_tracker_impl(const ITracker& tracker) const
+    // ITrackerSession
+    bool update(int64_t system_monotonic_time_ns) override;
+    const ITrackerImpl& get_tracker_impl(const ITracker& tracker) const override
     {
         auto it = tracker_impls_.find(&tracker);
         if (it == tracker_impls_.end())
@@ -49,9 +49,6 @@ private:
     const OpenXRSessionHandles handles_;
     std::unordered_map<const ITracker*, std::shared_ptr<ITrackerImpl>> tracker_impls_;
     std::unordered_map<const ITracker*, uint64_t> tracker_update_failure_counts_;
-
-    // For time conversion
-    XrTimeConverter time_converter_;
 };
 
 } // namespace core

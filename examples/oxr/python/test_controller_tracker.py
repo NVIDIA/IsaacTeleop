@@ -48,7 +48,7 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
 
         # Test 4: Initial update
         print("[Test 4] Testing initial data retrieval...")
-        if not session.update():
+        if not session.update(time.monotonic_ns()):
             print("❌ Update failed")
             sys.exit(1)
 
@@ -90,7 +90,7 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
 
         try:
             while time.time() - start_time < 10.0:
-                if not session.update():
+                if not session.update(time.monotonic_ns()):
                     print("Update failed")
                     break
 

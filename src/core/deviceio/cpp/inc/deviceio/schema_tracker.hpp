@@ -78,18 +78,18 @@ struct SchemaTrackerConfig
  *     }
  *
  * private:
- *     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override {
+ *     std::shared_ptr<ILiveTrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override {
  *         return std::make_shared<Impl>(handles, m_config);
  *     }
  *
  *     SchemaTrackerConfig m_config;
  *
- *     class Impl : public ITrackerImpl {
+ *     class Impl : public ILiveTrackerImpl {
  *     public:
  *         Impl(const OpenXRSessionHandles& handles, SchemaTrackerConfig config)
  *             : m_schema_reader(handles, std::move(config)) {}
  *
- *         bool update(XrTime) override {
+ *         bool update_live(int64_t system_monotonic_time_ns) override {
  *             m_pending.clear();
  *             std::vector<SchemaTracker::SampleResult> raw;
  *             m_schema_reader.read_all_samples(raw);

@@ -54,7 +54,6 @@ public:
     std::string_view get_name() const override;
     std::string_view get_schema_name() const override;
     std::string_view get_schema_text() const override;
-
     std::vector<std::string> get_record_channels() const override
     {
         return m_channel_names;
@@ -76,22 +75,35 @@ public:
     }
 
 private:
-    std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
+    static constexpr const char* TRACKER_NAME = "FrameMetadataTrackerOak";
+    static constexpr const char* SCHEMA_NAME = "core.FrameMetadataOakRecord";
+
+    std::shared_ptr<ILiveTrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
+    std::shared_ptr<IReplayTrackerImpl> create_replay_tracker(const ITrackerSession& session) const override;
 
     std::vector<SchemaTrackerConfig> m_configs;
     std::vector<std::string> m_channel_names;
 
-    class Impl : public ITrackerImpl
+    struct IImpl
+    {
+        virtual ~IImpl() = default;
+        virtual const FrameMetadataOakTrackedT& get_stream_data(size_t stream_index) const = 0;
+    };
+
+    class Impl : public ILiveTrackerImpl, public IImpl
     {
     public:
-        Impl(const OpenXRSessionHandles& handles, std::vector<SchemaTrackerConfig> configs);
+        Impl(const OpenXRSessionHandles& handles,
+             std::vector<SchemaTrackerConfig> configs,
+             std::vector<std::string> record_channels);
 
-        bool update(XrTime time) override;
+        bool update_live(int64_t system_monotonic_time_ns) override;
         void serialize_all(size_t channel_index, const RecordCallback& callback) const override;
 
-        const FrameMetadataOakTrackedT& get_stream_data(size_t stream_index) const;
+        const FrameMetadataOakTrackedT& get_stream_data(size_t stream_index) const override;
 
     private:
+        std::vector<std::string> m_record_channels_;
         struct StreamState
         {
             std::unique_ptr<SchemaTracker> reader;
@@ -101,8 +113,22 @@ private:
         };
 
         XrTimeConverter m_time_converter_;
-        XrTime m_last_update_time_ = 0;
+        int64_t m_last_update_time_ns_ = 0; // monotonic ns; XrTime only when needed
         std::vector<StreamState> m_streams;
+    };
+
+    class ReplayImpl : public IReplayTrackerImpl, public IImpl
+    {
+    public:
+        ReplayImpl(const ITrackerSession& session, size_t stream_count);
+
+        bool update_replay(int64_t replay_time_ns) override;
+
+        const FrameMetadataOakTrackedT& get_stream_data(size_t stream_index) const override;
+
+    private:
+        const ITrackerSession* session_;
+        std::vector<FrameMetadataOakTrackedT> stream_tracked_;
     };
 };
 

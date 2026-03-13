@@ -97,8 +97,9 @@ void HandTracker::Impl::serialize_all(size_t channel_index, const RecordCallback
     flatbuffers::FlatBufferBuilder builder(256);
 
     const auto& tracked = (channel_index == 0) ? left_tracked_ : right_tracked_;
-    int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
-    DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
+    const int64_t monotonic_ns = last_update_time_ns_;
+    const XrTime raw_device = time_converter_.convert_monotonic_ns_to_xrtime(monotonic_ns);
+    DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, raw_device);
 
     HandPoseRecordBuilder record_builder(builder);
     if (tracked.data)
@@ -129,10 +130,15 @@ HandTracker::Impl::~Impl()
     }
 }
 
-// Override from ITrackerImpl
-bool HandTracker::Impl::update(XrTime time)
+std::shared_ptr<IReplayTrackerImpl> HandTracker::create_replay_tracker(const ITrackerSession&) const
 {
-    last_update_time_ = time;
+    throw std::runtime_error("Replay not implemented for HandTracker");
+}
+
+bool HandTracker::Impl::update_live(int64_t system_monotonic_time_ns)
+{
+    last_update_time_ns_ = system_monotonic_time_ns;
+    const XrTime time = time_converter_.convert_monotonic_ns_to_xrtime(system_monotonic_time_ns);
     bool left_ok = update_hand(left_hand_tracker_, time, left_tracked_);
     bool right_ok = update_hand(right_hand_tracker_, time, right_tracked_);
 
@@ -219,15 +225,15 @@ std::vector<std::string> HandTracker::get_required_extensions() const
 
 const HandPoseTrackedT& HandTracker::get_left_hand(const DeviceIOSession& session) const
 {
-    return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_left_hand();
+    return dynamic_cast<const IImpl&>(session.get_tracker_impl(*this)).get_left_hand();
 }
 
 const HandPoseTrackedT& HandTracker::get_right_hand(const DeviceIOSession& session) const
 {
-    return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_right_hand();
+    return dynamic_cast<const IImpl&>(session.get_tracker_impl(*this)).get_right_hand();
 }
 
-std::shared_ptr<ITrackerImpl> HandTracker::create_tracker(const OpenXRSessionHandles& handles) const
+std::shared_ptr<ILiveTrackerImpl> HandTracker::create_tracker(const OpenXRSessionHandles& handles) const
 {
     return std::make_shared<Impl>(handles);
 }

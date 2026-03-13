@@ -5,6 +5,7 @@
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <deviceio/tracker.hpp>
 #include <flatbuffers/flatbuffer_builder.h>
 #include <mcap/recorder.hpp>
 #include <schema/timestamp_generated.h>
@@ -15,6 +16,7 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <stdexcept>
 #include <string_view>
 #include <vector>
 
@@ -32,18 +34,34 @@ namespace
 {
 
 // =============================================================================
-// Mock TrackerImpl for testing
+// Mock session for tests that use session.update(time_ns) (which calls impl.update_live(time_ns))
 // =============================================================================
-class MockTrackerImpl : public core::ITrackerImpl
+class MockSession : public core::ITrackerSession
+{
+public:
+    bool update(int64_t /* system_monotonic_time_ns */) override
+    {
+        return true;
+    }
+    const core::ITrackerImpl& get_tracker_impl(const core::ITracker&) const override
+    {
+        throw std::runtime_error("MockSession::get_tracker_impl not used in test");
+    }
+};
+
+// =============================================================================
+// Mock TrackerImpl for testing (live impl: update_live(monotonic_ns) only)
+// =============================================================================
+class MockTrackerImpl : public core::ILiveTrackerImpl
 {
 public:
     static constexpr const char* TRACKER_NAME = "MockTracker";
 
     MockTrackerImpl() = default;
 
-    bool update(XrTime time) override
+    bool update_live(int64_t system_monotonic_time_ns) override
     {
-        timestamp_ = time;
+        timestamp_ = system_monotonic_time_ns;
         update_count_++;
         return true;
     }
@@ -84,33 +102,26 @@ private:
 class MockTracker : public core::ITracker
 {
 public:
-    static constexpr const char* SCHEMA_NAME = "core.MockPose";
-    static constexpr const char* SCHEMA_TEXT = "mock_schema_binary_data";
-
     MockTracker() : impl_(std::make_shared<MockTrackerImpl>())
     {
     }
 
     std::vector<std::string> get_required_extensions() const override
     {
-        return {}; // No extensions required for mock
+        return {};
     }
-
     std::string_view get_name() const override
     {
         return MockTrackerImpl::TRACKER_NAME;
     }
-
     std::string_view get_schema_name() const override
     {
-        return SCHEMA_NAME;
+        return "core.MockPose";
     }
-
     std::string_view get_schema_text() const override
     {
-        return SCHEMA_TEXT;
+        return "mock_schema_binary_data";
     }
-
     std::vector<std::string> get_record_channels() const override
     {
         return { "mock" };
@@ -122,9 +133,13 @@ public:
     }
 
 protected:
-    std::shared_ptr<core::ITrackerImpl> create_tracker(const core::OpenXRSessionHandles& handles) const override
+    std::shared_ptr<core::ILiveTrackerImpl> create_tracker(const core::OpenXRSessionHandles&) const override
     {
         return impl_;
+    }
+    std::shared_ptr<core::IReplayTrackerImpl> create_replay_tracker(const core::ITrackerSession&) const override
+    {
+        throw std::runtime_error("Replay not implemented for MockTracker");
     }
 
 private:
@@ -132,12 +147,24 @@ private:
 };
 
 // =============================================================================
-// Multi-channel mock tracker for testing
+// Multi-channel mock tracker for testing (impl returns {"left", "right"})
 // =============================================================================
+class MockMultiChannelTrackerImpl : public core::ILiveTrackerImpl
+{
+public:
+    bool update_live(int64_t) override
+    {
+        return true;
+    }
+    void serialize_all(size_t, const RecordCallback&) const override
+    {
+    }
+};
+
 class MockMultiChannelTracker : public core::ITracker
 {
 public:
-    MockMultiChannelTracker() : impl_(std::make_shared<MockTrackerImpl>())
+    MockMultiChannelTracker() : impl_(std::make_shared<MockMultiChannelTrackerImpl>())
     {
     }
 
@@ -145,49 +172,90 @@ public:
     {
         return {};
     }
-
     std::string_view get_name() const override
     {
         return "MockMultiChannelTracker";
     }
-
     std::string_view get_schema_name() const override
     {
-        return MockTracker::SCHEMA_NAME;
+        return "core.MockPose";
     }
-
     std::string_view get_schema_text() const override
     {
-        return MockTracker::SCHEMA_TEXT;
+        return "mock_schema_binary_data";
     }
-
     std::vector<std::string> get_record_channels() const override
     {
         return { "left", "right" };
     }
 
-    std::shared_ptr<MockTrackerImpl> get_impl() const
+    std::shared_ptr<MockMultiChannelTrackerImpl> get_impl() const
     {
         return impl_;
     }
 
 protected:
-    std::shared_ptr<core::ITrackerImpl> create_tracker(const core::OpenXRSessionHandles& handles) const override
+    std::shared_ptr<core::ILiveTrackerImpl> create_tracker(const core::OpenXRSessionHandles&) const override
     {
         return impl_;
     }
+    std::shared_ptr<core::IReplayTrackerImpl> create_replay_tracker(const core::ITrackerSession&) const override
+    {
+        throw std::runtime_error("Replay not implemented for MockMultiChannelTracker");
+    }
 
 private:
-    std::shared_ptr<MockTrackerImpl> impl_;
+    std::shared_ptr<MockMultiChannelTrackerImpl> impl_;
 };
 
 // =============================================================================
-// Mock tracker returning an empty channel name (for validation testing)
+// Mock impl that returns empty record channels (for validation testing at record())
+// =============================================================================
+class MockEmptyChannelTrackerImpl : public core::ILiveTrackerImpl
+{
+public:
+    bool update_live(int64_t) override
+    {
+        return true;
+    }
+    void serialize_all(size_t, const RecordCallback&) const override
+    {
+    }
+};
+
+// Mock session that returns a specific impl for a given tracker (for record() tests).
+class MockSessionWithImpls : public core::ITrackerSession
+{
+public:
+    MockSessionWithImpls(const core::ITracker* tracker, std::shared_ptr<core::ITrackerImpl> impl)
+        : tracker_(tracker), impl_(std::move(impl))
+    {
+    }
+    bool update(int64_t) override
+    {
+        return true;
+    }
+    const core::ITrackerImpl& get_tracker_impl(const core::ITracker& t) const override
+    {
+        if (&t == tracker_)
+        {
+            return *impl_;
+        }
+        throw std::runtime_error("MockSessionWithImpls: unknown tracker");
+    }
+
+private:
+    const core::ITracker* tracker_;
+    std::shared_ptr<core::ITrackerImpl> impl_;
+};
+
+// =============================================================================
+// Mock tracker returning empty channel list (for validation testing)
 // =============================================================================
 class MockEmptyChannelTracker : public core::ITracker
 {
 public:
-    MockEmptyChannelTracker() : impl_(std::make_shared<MockTrackerImpl>())
+    MockEmptyChannelTracker() : impl_(std::make_shared<MockEmptyChannelTrackerImpl>())
     {
     }
 
@@ -195,35 +263,40 @@ public:
     {
         return {};
     }
-
     std::string_view get_name() const override
     {
         return "MockEmptyChannelTracker";
     }
-
     std::string_view get_schema_name() const override
     {
-        return MockTracker::SCHEMA_NAME;
+        return "core.MockEmpty";
     }
-
     std::string_view get_schema_text() const override
     {
-        return MockTracker::SCHEMA_TEXT;
+        return "x";
     }
-
     std::vector<std::string> get_record_channels() const override
     {
-        return { "" };
+        return {};
     }
 
-protected:
-    std::shared_ptr<core::ITrackerImpl> create_tracker(const core::OpenXRSessionHandles& handles) const override
+    std::shared_ptr<core::ITrackerImpl> get_impl_for_test() const
     {
         return impl_;
     }
 
+protected:
+    std::shared_ptr<core::ILiveTrackerImpl> create_tracker(const core::OpenXRSessionHandles&) const override
+    {
+        return impl_;
+    }
+    std::shared_ptr<core::IReplayTrackerImpl> create_replay_tracker(const core::ITrackerSession&) const override
+    {
+        throw std::runtime_error("Replay not implemented for MockEmptyChannelTracker");
+    }
+
 private:
-    std::shared_ptr<MockTrackerImpl> impl_;
+    std::shared_ptr<MockEmptyChannelTrackerImpl> impl_;
 };
 
 // Helper to create a temporary file path unique across parallel CTest processes.
@@ -421,8 +494,9 @@ TEST_CASE("McapRecorder rejects tracker with empty channel name", "[mcap_recorde
     TempFileCleanup cleanup(path);
 
     auto tracker = std::make_shared<MockEmptyChannelTracker>();
-
-    CHECK_THROWS_AS(core::McapRecorder::create(path, { { tracker, "base" } }), std::runtime_error);
+    auto recorder = core::McapRecorder::create(path, { { tracker, "base" } });
+    MockSessionWithImpls session(tracker.get(), tracker->get_impl_for_test());
+    CHECK_THROWS_AS(recorder->record(session), std::runtime_error);
 }
 
 // =============================================================================
@@ -440,7 +514,7 @@ namespace
 
 // Queues independent samples and overrides serialize_all to emit each as a
 // separate callback, mirroring what SchemaTracker-based impls do.
-class MockMultiSampleTrackerImpl : public core::ITrackerImpl
+class MockMultiSampleTrackerImpl : public core::ILiveTrackerImpl
 {
 public:
     void add_pending(int64_t sample_time_ns)
@@ -453,7 +527,7 @@ public:
         return pending_.size();
     }
 
-    bool update(XrTime) override
+    bool update_live(int64_t /* system_monotonic_time_ns */) override
     {
         return true;
     }
@@ -483,7 +557,8 @@ TEST_CASE("MockTrackerImpl serialize_all invokes callback exactly once per updat
 {
     // MockTrackerImpl::serialize_all emits one record per call (single-state tracker).
     MockTrackerImpl impl;
-    impl.update(1'000'000'000LL);
+    MockSession session;
+    impl.update_live(1'000'000'000LL);
 
     int count = 0;
     impl.serialize_all(0, [&](int64_t, const uint8_t*, size_t) { ++count; });

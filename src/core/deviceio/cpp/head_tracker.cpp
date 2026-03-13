@@ -30,10 +30,33 @@ HeadTracker::Impl::Impl(const OpenXRSessionHandles& handles)
 {
 }
 
-// Override from ITrackerImpl
-bool HeadTracker::Impl::update(XrTime time)
+std::shared_ptr<IReplayTrackerImpl> HeadTracker::create_replay_tracker(const ITrackerSession& session) const
 {
-    last_update_time_ = time;
+    return std::make_shared<ReplayImpl>(session);
+}
+
+// -----------------------------------------------------------------------------
+// HeadTracker::ReplayImpl (dummy replay impl)
+// -----------------------------------------------------------------------------
+
+HeadTracker::ReplayImpl::ReplayImpl(const ITrackerSession& session) : session_(&session)
+{
+}
+
+bool HeadTracker::ReplayImpl::update_replay(int64_t /* replay_time_ns */)
+{
+    return true; // no-op for dummy
+}
+
+const HeadPoseTrackedT& HeadTracker::ReplayImpl::get_head() const
+{
+    return tracked_;
+}
+
+bool HeadTracker::Impl::update_live(int64_t system_monotonic_time_ns)
+{
+    last_update_time_ns_ = system_monotonic_time_ns;
+    const XrTime time = time_converter_.convert_monotonic_ns_to_xrtime(system_monotonic_time_ns);
 
     // Locate the view space (head) relative to the base space
     XrSpaceLocation location{ XR_TYPE_SPACE_LOCATION };
@@ -88,8 +111,9 @@ void HeadTracker::Impl::serialize_all(size_t channel_index, const RecordCallback
 
     flatbuffers::FlatBufferBuilder builder(256);
 
-    int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
-    DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
+    const int64_t monotonic_ns = last_update_time_ns_;
+    const XrTime raw_device = time_converter_.convert_monotonic_ns_to_xrtime(monotonic_ns);
+    DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, raw_device);
 
     HeadPoseRecordBuilder record_builder(builder);
     if (tracked_.data)
@@ -115,10 +139,10 @@ std::vector<std::string> HeadTracker::get_required_extensions() const
 
 const HeadPoseTrackedT& HeadTracker::get_head(const DeviceIOSession& session) const
 {
-    return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_head();
+    return dynamic_cast<const IImpl&>(session.get_tracker_impl(*this)).get_head();
 }
 
-std::shared_ptr<ITrackerImpl> HeadTracker::create_tracker(const OpenXRSessionHandles& handles) const
+std::shared_ptr<ILiveTrackerImpl> HeadTracker::create_tracker(const OpenXRSessionHandles& handles) const
 {
     return std::make_shared<Impl>(handles);
 }

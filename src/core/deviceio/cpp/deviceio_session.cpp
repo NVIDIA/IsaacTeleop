@@ -3,6 +3,8 @@
 
 #include "inc/deviceio/deviceio_session.hpp"
 
+#include <oxr_utils/oxr_time.hpp>
+
 #include <cassert>
 #include <iostream>
 #include <set>
@@ -18,7 +20,7 @@ namespace core
 
 DeviceIOSession::DeviceIOSession(const std::vector<std::shared_ptr<ITracker>>& trackers,
                                  const OpenXRSessionHandles& handles)
-    : handles_(handles), time_converter_(handles)
+    : handles_(handles)
 {
     // Initialize all trackers and collect their implementations
     for (const auto& tracker : trackers)
@@ -67,10 +69,8 @@ std::unique_ptr<DeviceIOSession> DeviceIOSession::run(const std::vector<std::sha
     return std::unique_ptr<DeviceIOSession>(new DeviceIOSession(trackers, handles));
 }
 
-bool DeviceIOSession::update()
+bool DeviceIOSession::update(int64_t system_monotonic_time_ns)
 {
-    XrTime current_time = time_converter_.os_monotonic_now();
-
     // Multiple ITracker instances may share the same ITrackerImpl (e.g. two
     // ControllerTrackers on the same XrSession).  Deduplicate so that each
     // unique impl is updated exactly once per frame.
@@ -83,7 +83,8 @@ bool DeviceIOSession::update()
             continue; // already updated this impl
         }
 
-        if (!impl->update(current_time))
+        auto* live = dynamic_cast<ILiveTrackerImpl*>(impl.get());
+        if (!live || !live->update_live(system_monotonic_time_ns))
         {
             auto& count = tracker_update_failure_counts_[tracker];
             count++;

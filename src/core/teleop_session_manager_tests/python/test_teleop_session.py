@@ -306,7 +306,7 @@ class MockDeviceIOSession:
     def __init__(self):
         self.update_count = 0
 
-    def update(self):
+    def update(self, step_time_ns):
         self.update_count += 1
         return True
 

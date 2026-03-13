@@ -93,7 +93,7 @@ with oxr.OpenXRSession("ModularTest", required_extensions) as oxr_session:
 
         try:
             while time.time() - start_time < 5.0:
-                if not session.update():
+                if not session.update(time.monotonic_ns()):
                     print("Update failed")
                     break
 

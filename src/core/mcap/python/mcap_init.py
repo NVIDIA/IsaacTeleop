@@ -13,12 +13,13 @@ Usage:
     head_tracker = HeadTracker()
 
     # Create recorder with context manager (similar to DeviceIOSession.run)
+    import time
     with McapRecorder.create("output.mcap", [
         (hand_tracker, "hands"),
         (head_tracker, "head"),
     ]) as recorder:
         while running:
-            session.update()
+            session.update(time.monotonic_ns())
             recorder.record(session)
 """
 
