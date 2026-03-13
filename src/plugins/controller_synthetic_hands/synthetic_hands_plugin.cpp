@@ -3,6 +3,7 @@
 
 #include <controller_synthetic_hands/synthetic_hands_plugin.hpp>
 #include <oxr_utils/pose_conversions.hpp>
+#include <time_utils/os_time.hpp>
 
 #include <algorithm>
 #include <chrono>
@@ -67,7 +68,7 @@ void SyntheticHandsPlugin::worker_thread()
     while (m_running)
     {
         // Update DeviceIOSession (handles time and tracker updates)
-        if (!m_deviceio_session->update())
+        if (!m_deviceio_session->update(core::os_monotonic_now_ns()))
         {
             std::cerr << "DeviceIOSession update failed" << std::endl;
             std::this_thread::sleep_for(std::chrono::milliseconds(16));

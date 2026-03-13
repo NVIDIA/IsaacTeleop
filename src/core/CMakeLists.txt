@@ -9,7 +9,10 @@ option(BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
 # Generated headers from FlatBuffer schemas with additional utilities.
 add_subdirectory(schema)
 
-# Build OXR Utils first - header-only utilities (no dependencies)
+# Platform time utilities (no OpenXR dependency)
+add_subdirectory(time_utils)
+
+# Build OXR Utils - header-only utilities (depends on time_utils for os_time)
 add_subdirectory(oxr_utils)
 
 # Build Plugin Manager

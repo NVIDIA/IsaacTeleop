@@ -16,10 +16,6 @@ target_include_directories(deviceio_base
 target_link_libraries(deviceio_base
     PUBLIC
         isaacteleop_schema
-    PRIVATE
-        OpenXR::headers
-    INTERFACE
-        oxr::oxr_utils
 )
 
 add_library(deviceio::deviceio_base ALIAS deviceio_base)

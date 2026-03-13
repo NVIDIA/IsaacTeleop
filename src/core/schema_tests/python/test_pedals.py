@@ -231,7 +231,11 @@ class TestGeneric3AxisPedalOutputRecordTimestamp:
     def test_construction_with_timestamp(self):
         """Test Generic3AxisPedalOutputRecord carries DeviceDataTimestamp."""
         data = Generic3AxisPedalOutput(0.8, 0.2, 0.5)
-        ts = DeviceDataTimestamp(1000000000, 2000000000, 3000000000)
+        ts = DeviceDataTimestamp(
+            available_time_local_common_clock=1000000000,
+            sample_time_local_common_clock=2000000000,
+            sample_time_raw_device_clock=3000000000,
+        )
         record = Generic3AxisPedalOutputRecord(data, ts)
 
         assert record.timestamp.available_time_local_common_clock == 1000000000
@@ -249,7 +253,11 @@ class TestGeneric3AxisPedalOutputRecordTimestamp:
     def test_timestamp_fields(self):
         """Test all three DeviceDataTimestamp fields are accessible."""
         data = Generic3AxisPedalOutput()
-        ts = DeviceDataTimestamp(111, 222, 333)
+        ts = DeviceDataTimestamp(
+            available_time_local_common_clock=111,
+            sample_time_local_common_clock=222,
+            sample_time_raw_device_clock=333,
+        )
         record = Generic3AxisPedalOutputRecord(data, ts)
 
         assert record.timestamp.available_time_local_common_clock == 111

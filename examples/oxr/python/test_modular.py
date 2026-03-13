@@ -47,7 +47,7 @@ with oxr.OpenXRSession("ModularTest", required_extensions) as oxr_session:
 
         # Test 4: Update and get data
         print("[Test 4] Testing data retrieval...")
-        if not session.update():
+        if not session.update(time.monotonic_ns()):
             print("❌ Update failed")
             sys.exit(1)
 
@@ -66,7 +66,7 @@ with oxr.OpenXRSession("ModularTest", required_extensions) as oxr_session:
         )
 
         if left_tracked.data is not None:
-            pos = left_tracked.data.joints.poses(deviceio.JOINT_WRIST).pose.position
+            pos = left_tracked.data.joints.poses(deviceio.HandJoint.WRIST).pose.position
             print(f"  Left wrist position: [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
         else:
             print("  Left hand: inactive")
@@ -93,7 +93,7 @@ with oxr.OpenXRSession("ModularTest", required_extensions) as oxr_session:
 
         try:
             while time.time() - start_time < 5.0:
-                if not session.update():
+                if not session.update(time.monotonic_ns()):
                     print("Update failed")
                     break
 
@@ -104,7 +104,7 @@ with oxr.OpenXRSession("ModularTest", required_extensions) as oxr_session:
                     print(f"  [{elapsed:4.1f}s] Frame {frame_count:3d}:")
                     if left_tracked.data is not None:
                         pos = left_tracked.data.joints.poses(
-                            deviceio.JOINT_WRIST
+                            deviceio.HandJoint.WRIST
                         ).pose.position
                         print(
                             f"    Left wrist: [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]"

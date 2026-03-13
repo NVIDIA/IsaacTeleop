@@ -22,6 +22,10 @@ using OakSchemaTracker = SchemaTracker<FrameMetadataOakRecord, FrameMetadataOak>
 class LiveFrameMetadataTrackerOakImpl : public FrameMetadataTrackerOakImpl
 {
 public:
+    static std::vector<std::string> required_extensions()
+    {
+        return SchemaTrackerBase::get_required_extensions();
+    }
     static std::unique_ptr<OakMcapChannels> create_mcap_channels(mcap::McapWriter& writer,
                                                                  std::string_view base_name,
                                                                  const FrameMetadataTrackerOak* tracker);
@@ -35,7 +39,7 @@ public:
     LiveFrameMetadataTrackerOakImpl(LiveFrameMetadataTrackerOakImpl&&) = delete;
     LiveFrameMetadataTrackerOakImpl& operator=(LiveFrameMetadataTrackerOakImpl&&) = delete;
 
-    bool update(XrTime time) override;
+    bool update(int64_t target_monotonic_time_ns) override;
     const FrameMetadataOakTrackedT& get_stream_data(size_t stream_index) const override;
 
 private:

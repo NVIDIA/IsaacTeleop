@@ -100,7 +100,7 @@ def run_test():
                         print(f"Plugin crashed: {e}")
                         break
 
-                if not deviceio_session.update():
+                if not deviceio_session.update(time.monotonic_ns()):
                     print("  ✗ Reader session update failed")
                     break
 
@@ -111,14 +111,14 @@ def run_test():
                     print(f"Frame {frame_count}:")
                     if left_tracked.data is not None:
                         pos = left_tracked.data.joints.poses(
-                            deviceio.JOINT_WRIST
+                            deviceio.HandJoint.WRIST
                         ).pose.position
                         print(f"  Left wrist:  [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
                     else:
                         print("  Left hand:   inactive")
                     if right_tracked.data is not None:
                         pos = right_tracked.data.joints.poses(
-                            deviceio.JOINT_WRIST
+                            deviceio.HandJoint.WRIST
                         ).pose.position
                         print(f"  Right wrist: [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
                     else:

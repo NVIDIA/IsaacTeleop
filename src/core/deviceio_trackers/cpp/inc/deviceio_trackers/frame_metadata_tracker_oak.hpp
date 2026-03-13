@@ -25,7 +25,7 @@ namespace core
  * auto tracker = std::make_shared<FrameMetadataTrackerOak>(
  *     "oak_camera", {StreamType_Color, StreamType_MonoLeft});
  * // ... create session with tracker ...
- * session->update();
+ * session->update(core::os_monotonic_now_ns());
  * const auto& color = tracker->get_stream_data(*session, 0);
  * if (color.data)
  *     std::cout << EnumNameStreamType(color.data->stream) << " seq=" << color.data->sequence_number << std::endl;
@@ -48,7 +48,6 @@ public:
                             const std::vector<StreamType>& streams,
                             size_t max_flatbuffer_size = DEFAULT_MAX_FLATBUFFER_SIZE);
 
-    std::vector<std::string> get_required_extensions() const override;
     std::string_view get_name() const override
     {
         return TRACKER_NAME;

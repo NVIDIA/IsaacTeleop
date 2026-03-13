@@ -7,7 +7,6 @@
 #include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
-#include <openxr/openxr.h>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
@@ -95,10 +94,4 @@ PYBIND11_MODULE(_deviceio_trackers, m)
             [](const core::FullBodyTrackerPico& self, const core::ITrackerSession& session) -> core::FullBodyPosePicoTrackedT
             { return self.get_body_pose(session); },
             py::arg("session"), "Get full body pose tracked state (data is None if inactive)");
-
-    m.attr("NUM_JOINTS") = static_cast<int>(XR_HAND_JOINT_COUNT_EXT);
-    m.attr("JOINT_PALM") = static_cast<int>(XR_HAND_JOINT_PALM_EXT);
-    m.attr("JOINT_WRIST") = static_cast<int>(XR_HAND_JOINT_WRIST_EXT);
-    m.attr("JOINT_THUMB_TIP") = static_cast<int>(XR_HAND_JOINT_THUMB_TIP_EXT);
-    m.attr("JOINT_INDEX_TIP") = static_cast<int>(XR_HAND_JOINT_INDEX_TIP_EXT);
 }

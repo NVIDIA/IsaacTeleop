@@ -37,7 +37,7 @@ def poll_hands(hand_tracker, deviceio_session):
     Raises UpdateFailedError if the underlying DeviceIOSession update fails so
     callers can distinguish a session error from genuine hand inactivity.
     """
-    if not deviceio_session.update():
+    if not deviceio_session.update(time.monotonic_ns()):
         raise UpdateFailedError("deviceio_session.update() returned False")
     left = hand_tracker.get_left_hand(deviceio_session)
     right = hand_tracker.get_right_hand(deviceio_session)

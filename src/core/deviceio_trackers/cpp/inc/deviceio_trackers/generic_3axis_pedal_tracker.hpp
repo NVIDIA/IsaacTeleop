@@ -33,7 +33,7 @@ namespace core
  * @code
  * auto tracker = std::make_shared<Generic3AxisPedalTracker>("my_pedal_collection");
  * // ... register the tracker with a session, then each tick: ...
- * session->update();
+ * session->update(core::os_monotonic_now_ns());
  * const auto& data = tracker->get_data(*session);
  * @endcode
  */
@@ -53,7 +53,6 @@ public:
     explicit Generic3AxisPedalTracker(const std::string& collection_id,
                                       size_t max_flatbuffer_size = DEFAULT_MAX_FLATBUFFER_SIZE);
 
-    std::vector<std::string> get_required_extensions() const override;
     std::string_view get_name() const override
     {
         return TRACKER_NAME;

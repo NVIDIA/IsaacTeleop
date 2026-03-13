@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Python bindings for the HandPose FlatBuffer schema.
-// Includes HandJointPose struct, HandJoints struct, and HandPoseT table.
+// Includes HandJoint enum, HandJointPose struct, HandJoints struct, and HandPoseT table.
 
 #pragma once
 
@@ -23,6 +23,36 @@ namespace core
 
 inline void bind_hand(py::module& m)
 {
+    // Bind HandJoint enum (joint indices for XR_EXT_hand_tracking).
+    py::enum_<HandJoint>(m, "HandJoint")
+        .value("PALM", HandJoint_PALM)
+        .value("WRIST", HandJoint_WRIST)
+        .value("THUMB_METACARPAL", HandJoint_THUMB_METACARPAL)
+        .value("THUMB_PROXIMAL", HandJoint_THUMB_PROXIMAL)
+        .value("THUMB_DISTAL", HandJoint_THUMB_DISTAL)
+        .value("THUMB_TIP", HandJoint_THUMB_TIP)
+        .value("INDEX_METACARPAL", HandJoint_INDEX_METACARPAL)
+        .value("INDEX_PROXIMAL", HandJoint_INDEX_PROXIMAL)
+        .value("INDEX_INTERMEDIATE", HandJoint_INDEX_INTERMEDIATE)
+        .value("INDEX_DISTAL", HandJoint_INDEX_DISTAL)
+        .value("INDEX_TIP", HandJoint_INDEX_TIP)
+        .value("MIDDLE_METACARPAL", HandJoint_MIDDLE_METACARPAL)
+        .value("MIDDLE_PROXIMAL", HandJoint_MIDDLE_PROXIMAL)
+        .value("MIDDLE_INTERMEDIATE", HandJoint_MIDDLE_INTERMEDIATE)
+        .value("MIDDLE_DISTAL", HandJoint_MIDDLE_DISTAL)
+        .value("MIDDLE_TIP", HandJoint_MIDDLE_TIP)
+        .value("RING_METACARPAL", HandJoint_RING_METACARPAL)
+        .value("RING_PROXIMAL", HandJoint_RING_PROXIMAL)
+        .value("RING_INTERMEDIATE", HandJoint_RING_INTERMEDIATE)
+        .value("RING_DISTAL", HandJoint_RING_DISTAL)
+        .value("RING_TIP", HandJoint_RING_TIP)
+        .value("LITTLE_METACARPAL", HandJoint_LITTLE_METACARPAL)
+        .value("LITTLE_PROXIMAL", HandJoint_LITTLE_PROXIMAL)
+        .value("LITTLE_INTERMEDIATE", HandJoint_LITTLE_INTERMEDIATE)
+        .value("LITTLE_DISTAL", HandJoint_LITTLE_DISTAL)
+        .value("LITTLE_TIP", HandJoint_LITTLE_TIP)
+        .value("NUM_JOINTS", HandJoint_NUM_JOINTS);
+
     // Bind HandJointPose struct (pose, is_valid, radius).
     py::class_<HandJointPose>(m, "HandJointPose")
         .def(py::init<>())
@@ -51,7 +81,7 @@ inline void bind_hand(py::module& m)
             "poses",
             [](const HandJoints& self, size_t index) -> const HandJointPose*
             {
-                if (index >= 26)
+                if (index >= static_cast<size_t>(HandJoint_NUM_JOINTS))
                 {
                     throw py::index_error("HandJoints index out of range (must be 0-25)");
                 }

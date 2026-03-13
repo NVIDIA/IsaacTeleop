@@ -118,13 +118,3 @@ if(CLOUDXR_NATIVE_AVAILABLE)
         add_dependencies(cloudxr_python cloudxr_native_bundle)
     endif()
 endif()
-
-install(
-    FILES
-        __init__.py
-        __main__.py
-        env_config.py
-        runtime.py
-        wss.py
-    DESTINATION "python/isaacteleop/cloudxr"
-)

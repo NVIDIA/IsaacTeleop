@@ -173,7 +173,11 @@ class TestHandPoseRecordTimestamp:
     def test_construction_with_timestamp(self):
         """Test HandPoseRecord carries DeviceDataTimestamp."""
         data = HandPoseT(HandJoints())
-        ts = DeviceDataTimestamp(1000000000, 2000000000, 3000000000)
+        ts = DeviceDataTimestamp(
+            available_time_local_common_clock=1000000000,
+            sample_time_local_common_clock=2000000000,
+            sample_time_raw_device_clock=3000000000,
+        )
         record = HandPoseRecord(data, ts)
 
         assert record.timestamp.available_time_local_common_clock == 1000000000
@@ -190,7 +194,11 @@ class TestHandPoseRecordTimestamp:
     def test_timestamp_fields(self):
         """Test all three DeviceDataTimestamp fields are accessible."""
         data = HandPoseT()
-        ts = DeviceDataTimestamp(111, 222, 333)
+        ts = DeviceDataTimestamp(
+            available_time_local_common_clock=111,
+            sample_time_local_common_clock=222,
+            sample_time_raw_device_clock=333,
+        )
         record = HandPoseRecord(data, ts)
 
         assert record.timestamp.available_time_local_common_clock == 111

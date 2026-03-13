@@ -16,11 +16,62 @@
 #include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
+#include <oxr_utils/oxr_time.hpp>
 
+#include <set>
 #include <stdexcept>
 
 namespace core
 {
+
+namespace
+{
+
+template <typename TrackerT, typename ImplT>
+bool try_add_extensions(const ITracker& tracker, std::set<std::string>& out)
+{
+    if (dynamic_cast<const TrackerT*>(&tracker))
+    {
+        for (const auto& ext : ImplT::required_extensions())
+            out.insert(ext);
+        return true;
+    }
+    return false;
+}
+
+} // namespace
+
+std::vector<std::string> LiveDeviceIOFactory::get_required_extensions(const std::vector<std::shared_ptr<ITracker>>& trackers)
+{
+    if (trackers.empty())
+        return {};
+
+    std::set<std::string> all;
+
+    for (const auto& ext : XrTimeConverter::get_required_extensions())
+        all.insert(ext);
+
+    for (const auto& tracker : trackers)
+    {
+        if (!tracker)
+            throw std::invalid_argument("LiveDeviceIOFactory: null tracker in trackers list");
+
+        bool matched = try_add_extensions<HeadTracker, LiveHeadTrackerImpl>(*tracker, all) ||
+                       try_add_extensions<HandTracker, LiveHandTrackerImpl>(*tracker, all) ||
+                       try_add_extensions<ControllerTracker, LiveControllerTrackerImpl>(*tracker, all) ||
+                       try_add_extensions<FullBodyTrackerPico, LiveFullBodyTrackerPicoImpl>(*tracker, all) ||
+                       try_add_extensions<Generic3AxisPedalTracker, LiveGeneric3AxisPedalTrackerImpl>(*tracker, all) ||
+                       try_add_extensions<FrameMetadataTrackerOak, LiveFrameMetadataTrackerOakImpl>(*tracker, all);
+
+        if (!matched)
+        {
+            throw std::invalid_argument("LiveDeviceIOFactory::get_required_extensions: unsupported tracker type '" +
+                                        std::string(tracker->get_name()) + "'");
+        }
+    }
+
+    return { all.begin(), all.end() };
+}
 
 LiveDeviceIOFactory::LiveDeviceIOFactory(const OpenXRSessionHandles& handles,
                                          mcap::McapWriter* writer,

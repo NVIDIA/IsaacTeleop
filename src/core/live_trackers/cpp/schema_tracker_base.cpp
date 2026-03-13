@@ -257,10 +257,10 @@ bool SchemaTrackerBase::read_next_sample(SampleResult& out)
         m_time_converter.convert_xrtime_to_monotonic_ns(static_cast<XrTime>(metadata.arrivalTimestamp));
     int64_t sample_ns = m_time_converter.convert_xrtime_to_monotonic_ns(static_cast<XrTime>(metadata.timestamp));
 
-    out.timestamp = DeviceDataTimestamp(available_ns, // available_time_local_common_clock
-                                        sample_ns, // sample_time_local_common_clock
-                                        static_cast<int64_t>(metadata.rawDeviceTimestamp) // sample_time_raw_device_clock
-    );
+    out.timestamp =
+        DeviceDataTimestamp(/*available_time_local_common_clock=*/available_ns,
+                            /*sample_time_local_common_clock=*/sample_ns,
+                            /*sample_time_raw_device_clock=*/static_cast<int64_t>(metadata.rawDeviceTimestamp));
 
     return true;
 }

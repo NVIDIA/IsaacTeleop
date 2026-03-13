@@ -9,6 +9,8 @@ Demonstrates how to query required extensions before initialization.
 Useful when creating external OpenXR sessions.
 """
 
+import time
+
 import isaacteleop.deviceio as deviceio
 import isaacteleop.oxr as oxr
 
@@ -87,12 +89,12 @@ with oxr.OpenXRSession("ExtensionTest", required_exts) as oxr_session:
         print("  ✅ Initialized successfully")
 
         # Quick update test
-        if session.update():
+        if session.update(time.monotonic_ns()):
             left_tracked = hand.get_left_hand(session)
             head_tracked = head.get_head(session)
             print("  ✅ Update successful")
             if left_tracked.data is not None:
-                pos = left_tracked.data.joints.poses(deviceio.JOINT_WRIST).pose.position
+                pos = left_tracked.data.joints.poses(deviceio.HandJoint.WRIST).pose.position
                 print(f"    Left wrist: [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
             else:
                 print("    Left hand:  inactive")

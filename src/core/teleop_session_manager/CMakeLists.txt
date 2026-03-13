@@ -34,14 +34,3 @@ add_custom_target(teleop_session_manager_python ALL
     DEPENDS ${TELEOP_SESSION_MANAGER_OUTPUT_FILES}
     COMMENT "Building teleop_session_manager Python module"
 )
-
-# Install Python files for direct installation (non-wheel)
-install(FILES
-    python/__init__.py
-    python/config.py
-    python/teleop_session.py
-    python/helpers.py
-    DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/python3/dist-packages/isaacteleop/teleop_session_manager
-)
-
-message(STATUS "TeleopSessionManager Python package configured for installation")

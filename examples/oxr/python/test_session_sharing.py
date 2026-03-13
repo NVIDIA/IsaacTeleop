@@ -86,11 +86,12 @@ frame_count = 0
 try:
     while time.time() - start_time < 5.0:
         # Both sessions update using the same underlying OpenXR session
-        if not session1.update():
+        now_ns = time.monotonic_ns()
+        if not session1.update(now_ns):
             print("Session 1 update failed")
             break
 
-        if not session2.update():
+        if not session2.update(now_ns):
             print("Session 2 update failed")
             break
 
@@ -104,7 +105,7 @@ try:
 
             print(f"[{elapsed:4.1f}s] Frame {frame_count:3d}:")
             if left_tracked.data is not None:
-                pos = left_tracked.data.joints.poses(deviceio.JOINT_WRIST).pose.position
+                pos = left_tracked.data.joints.poses(deviceio.HandJoint.WRIST).pose.position
                 print(f"  Left wrist: [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]")
             else:
                 print("  Left hand:  inactive")

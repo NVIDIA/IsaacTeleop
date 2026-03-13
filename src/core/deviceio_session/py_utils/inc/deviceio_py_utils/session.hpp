@@ -29,13 +29,13 @@ public:
     {
     }
 
-    bool update()
+    bool update(int64_t target_monotonic_time_ns) override
     {
         if (!impl_)
         {
             throw std::runtime_error("Session has been closed/destroyed");
         }
-        return impl_->update();
+        return impl_->update(target_monotonic_time_ns);
     }
 
     void close()

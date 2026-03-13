@@ -3,8 +3,7 @@
 
 #pragma once
 
-#include <openxr/openxr.h>
-
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -24,11 +23,11 @@ class ITrackerImpl
 public:
     virtual ~ITrackerImpl() = default;
 
-    virtual bool update(XrTime time) = 0;
+    virtual bool update(int64_t target_monotonic_time_ns) = 0;
 };
 
 /**
- * @brief Session handle for resolving `ITracker` implementations.
+ * @brief Session handle for resolving `ITracker` implementations and driving updates.
  *
  * @note Identity contract: Implementations (e.g. `DeviceIOSession`) resolve
  *       `get_tracker_impl(const ITracker& tracker)` by the tracker object's
@@ -40,24 +39,28 @@ public:
  *       a new, distinct `ITracker` instance, even if it is logically equivalent,
  *       will not match the map and typically yields "Tracker implementation not found".
  */
-// Interface for looking up tracker implementations from a session.
-// DeviceIOSession implements this so that typed tracker get_*() methods can
-// retrieve their impl without depending on the concrete session class.
 class ITrackerSession
 {
 public:
     virtual ~ITrackerSession() = default;
     virtual const ITrackerImpl& get_tracker_impl(const class ITracker& tracker) const = 0;
+
+    /**
+     * @brief Advance the session and all trackers to the given time.
+     *
+     * @param target_monotonic_time_ns Current time in system monotonic nanoseconds.
+     * @return true on success.
+     */
+    virtual bool update(int64_t target_monotonic_time_ns) = 0;
 };
 
 // Base interface for all trackers.
-// Public API: configuration, extension requirements, and typed data accessors.
+// Public API: tracker identity, typed data accessors, and factory-based impl creation.
 class ITracker
 {
 public:
     virtual ~ITracker() = default;
 
-    virtual std::vector<std::string> get_required_extensions() const = 0;
     virtual std::string_view get_name() const = 0;
 
     /**

@@ -110,7 +110,7 @@ def main():
             try:
                 while time.time() - start_time < 10.0:
                     # Update session and all trackers
-                    if not session.update():
+                    if not session.update(time.monotonic_ns()):
                         print("Update failed")
                         break
 
@@ -130,13 +130,13 @@ def main():
                     right_pos = np.zeros(3, dtype=np.float32)
 
                     if left_tracked.data is not None and left_tracked.data.joints:
-                        wrist = left_tracked.data.joints.poses(deviceio.JOINT_WRIST)
+                        wrist = left_tracked.data.joints.poses(deviceio.HandJoint.WRIST)
                         if wrist.is_valid:
                             pos = wrist.pose.position
                             left_pos = np.array([pos.x, pos.y, pos.z], dtype=np.float32)
 
                     if right_tracked.data is not None and right_tracked.data.joints:
-                        wrist = right_tracked.data.joints.poses(deviceio.JOINT_WRIST)
+                        wrist = right_tracked.data.joints.poses(deviceio.HandJoint.WRIST)
                         if wrist.is_valid:
                             pos = wrist.pose.position
                             right_pos = np.array(
