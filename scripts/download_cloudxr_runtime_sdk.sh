@@ -7,9 +7,10 @@
 # The SDK tarball (CloudXR-<VERSION>-Linux-<ARCH>-sdk.tar.gz) is placed in deps/cloudxr/
 # for use by Dockerfile.runtime.
 #
-# Two ways to obtain the SDK:
-# 1) NGC (default): requires ngc CLI; downloads from public or private NGC.
-# 2) Local tarball: place CloudXR-<VERSION>-Linux-<ARCH>-sdk.tar.gz in deps/cloudxr/.
+# Three ways to obtain the SDK (tried in order):
+# 1) Local tarball: place CloudXR-<VERSION>-Linux-<ARCH>-sdk.tar.gz in deps/cloudxr/.
+# 2) Public NGC: downloads via wget from the public NGC resource API (no NGC CLI needed).
+# 3) Private NGC: requires ngc CLI; downloads from private NGC org.
 
 set -Eeuo pipefail
 
@@ -78,18 +79,16 @@ install_from_local_tarball() {
 }
 
 # -----------------------------------------------------------------------------
-# NGC: resource path and download/install logic
-# Resource: nvidia/cloudxr-runtime:${CXR_RUNTIME_SDK_VERSION}
+# Public NGC: download via wget from the public NGC resource API
+# Resource: nvidia/cloudxr-runtime-for-isaac-teleop/${CXR_RUNTIME_SDK_VERSION}
 # -----------------------------------------------------------------------------
 install_from_public_ngc() {
-    local SDK_RESOURCE="nvidia/cloudxr-runtime-for-isaac-teleop:${CXR_RUNTIME_SDK_VERSION}"
-    local SDK_DOWNLOAD_DIR="$GIT_ROOT/deps/cloudxr/.sdk-download"
+    local NGC_URL="https://api.ngc.nvidia.com/v2/resources/org/nvidia/cloudxr-runtime-for-isaac-teleop/${CXR_RUNTIME_SDK_VERSION}/files?redirect=true&path=${SDK_FILE}"
 
-    if ! command -v ngc &> /dev/null; then
-        echo -e "${RED}Error: NGC CLI not found. Please install it first.${NC}"
+    if ! command -v wget &> /dev/null; then
+        echo -e "${RED}Error: wget not found. Please install it first.${NC}"
         echo -e "To use a local SDK instead, place $SDK_FILE in deps/cloudxr/"
-        echo -e "Visit: https://ngc.nvidia.com/setup/installers/cli"
-        exit 1
+        return 1
     fi
 
     echo -e "${GREEN}========================================${NC}"
@@ -97,36 +96,16 @@ install_from_public_ngc() {
     echo -e "${GREEN}========================================${NC}"
     echo ""
 
-    mkdir -p "$SDK_DOWNLOAD_DIR"
+    mkdir -p "$CXR_DEPLOYMENT_DIR"
 
-    echo -e "${YELLOW}[1/2] Downloading CloudXR Runtime SDK from NGC...${NC}"
-    cd "$SDK_DOWNLOAD_DIR"
-    if ! ngc registry resource download-version \
-        --team no-team \
-        --file "$SDK_FILE" \
-        "$SDK_RESOURCE"; then
+    echo -e "${YELLOW}Downloading CloudXR Runtime SDK from NGC...${NC}"
+    if ! wget --content-disposition \
+        --output-document "$CXR_DEPLOYMENT_DIR/$SDK_FILE" \
+        "$NGC_URL"; then
         echo -e "${RED}Error: Failed to download CloudXR Runtime SDK from NGC${NC}"
+        rm -f "$CXR_DEPLOYMENT_DIR/$SDK_FILE"
         return 1
     fi
-
-    local DOWNLOADED_DIR="$(basename "$(find . -mindepth 1 -maxdepth 1 -type d -name 'cloudxr-runtime_v*' -print -quit)")"
-    if [ -z "$DOWNLOADED_DIR" ]; then
-        echo -e "${RED}Error: Failed to find downloaded SDK directory${NC}"
-        return 1
-    fi
-
-    echo -e "${GREEN}✓ CloudXR Runtime SDK downloaded${NC}"
-    echo ""
-
-    echo -e "${YELLOW}[2/2] Installing SDK to deps/cloudxr/...${NC}"
-    cd "$SDK_DOWNLOAD_DIR/$DOWNLOADED_DIR"
-
-    if [ ! -f "$SDK_FILE" ]; then
-        echo -e "${RED}Error: $SDK_FILE not found in downloaded SDK${NC}"
-        return 1
-    fi
-
-    mv "$SDK_FILE" "$CXR_DEPLOYMENT_DIR/"
 
     echo -e "${GREEN}✓ CloudXR Runtime SDK installed successfully${NC}"
     echo ""
