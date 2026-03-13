@@ -215,6 +215,8 @@ export default function CloudXRComponent({
             signalingResourcePath: connectionConfig.resourcePath,
             perEyeWidth: config.perEyeWidth,
             perEyeHeight: config.perEyeHeight,
+            reprojectionGridCols: config.reprojectionGridCols,
+            reprojectionGridRows: config.reprojectionGridRows,
             codec: config.codec,
             gl: gl,
             referenceSpace: referenceSpace,
