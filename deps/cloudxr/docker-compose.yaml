@@ -1,10 +1,33 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# CloudXR compose override for web/proxy services and runtime mode.
-# Used together with docker-compose.runtime.yaml.
-
 services:
+  # CloudXR Runtime
+  cloudxr-runtime:
+    build:
+      context: .
+      dockerfile: Dockerfile.runtime-ngc
+      args:
+        CXR_RUNTIME_SDK_VERSION: ${CXR_RUNTIME_SDK_VERSION}
+    container_name: cloudxr-runtime-${CXR_RUNTIME_SDK_VERSION}
+    user: "${CXR_UID:-1000}:${CXR_GID:-1000}"
+    network_mode: host
+    healthcheck:
+      test: ["CMD", "test", "-f", "/openxr/run/runtime_started"]
+      interval: 1s
+      timeout: 1s
+      retries: 10
+      start_period: 5s
+    environment:
+      - ACCEPT_EULA=${ACCEPT_CLOUDXR_EULA:-Y}
+      - NV_CXR_ENABLE_PUSH_DEVICES=${NV_CXR_ENABLE_PUSH_DEVICES}
+      - NV_CXR_ENABLE_TENSOR_DATA=${NV_CXR_ENABLE_TENSOR_DATA}
+      - NV_DEVICE_PROFILE=${NV_DEVICE_PROFILE:-auto-webrtc}
+      - NV_GPU_INDEX=${NV_GPU_INDEX:-0}
+    volumes:
+      - openxr-volume:/openxr/
+    runtime: nvidia
+
   # WebSocket SSL Proxy Service
   wss-proxy:
     build:
@@ -40,3 +63,11 @@ services:
     volumes:
       - ./webxr_client:/app/webxr_client
     restart: unless-stopped
+
+volumes:
+  openxr-volume:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${CXR_HOST_VOLUME_PATH:-/tmp/cloudxr}
