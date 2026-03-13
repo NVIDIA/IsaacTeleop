@@ -5,19 +5,12 @@
 
 #include <deviceio_base/tracker_factory.hpp>
 
-#include <XR_NVX1_action_context.h>
-
 namespace core
 {
 
 // ============================================================================
 // ControllerTracker Public Interface
 // ============================================================================
-
-std::vector<std::string> ControllerTracker::get_required_extensions() const
-{
-    return { XR_NVX1_ACTION_CONTEXT_EXTENSION_NAME };
-}
 
 const ControllerSnapshotTrackedT& ControllerTracker::get_left_controller(const ITrackerSession& session) const
 {

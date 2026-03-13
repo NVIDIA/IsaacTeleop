@@ -18,6 +18,7 @@ from isaacteleop.retargeting_engine.interface import BaseRetargeter
 from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
     ComputeContext,
     GraphExecutable,
+    GraphTime,
     RetargeterIO,
     RetargeterIOType,
 )
@@ -212,12 +213,22 @@ class TeleopSession:
         # Validate external inputs
         self._validate_external_inputs(external_inputs)
 
+        # Use provided context or create one from current monotonic time so the
+        # same time is used for the session update and the pipeline.
+        if context is None:
+            now_ns = time.monotonic_ns()
+            context = ComputeContext(
+                graph_time=GraphTime(sim_time_ns=now_ns, real_time_ns=now_ns)
+            )
+
+        step_time_ns = context.graph_time.real_time_ns
+
         # Check plugin health periodically
         if self.frame_count % 60 == 0:
             self._check_plugin_health()
 
-        # Update DeviceIO session (polls trackers)
-        self.deviceio_session.update()
+        # Update DeviceIO session (polls trackers) with the same time as the context
+        self.deviceio_session.update(step_time_ns)
 
         # Build input dictionary from tracker data
         pipeline_inputs = self._collect_tracker_data()

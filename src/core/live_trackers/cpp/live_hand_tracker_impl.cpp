@@ -117,16 +117,17 @@ LiveHandTrackerImpl::~LiveHandTrackerImpl()
     }
 }
 
-bool LiveHandTrackerImpl::update(XrTime time)
+bool LiveHandTrackerImpl::update(int64_t system_monotonic_time_ns)
 {
-    last_update_time_ = time;
+    const XrTime time = time_converter_.convert_monotonic_ns_to_xrtime(system_monotonic_time_ns);
     bool left_ok = update_hand(left_hand_tracker_, time, left_tracked_);
     bool right_ok = update_hand(right_hand_tracker_, time, right_tracked_);
 
     if (mcap_channels_)
     {
-        int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
-        DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
+        DeviceDataTimestamp timestamp(/*available_time_local_common_clock=*/system_monotonic_time_ns,
+                                      /*sample_time_local_common_clock=*/system_monotonic_time_ns,
+                                      /*sample_time_raw_device_clock=*/time);
         mcap_channels_->write(0, timestamp, left_tracked_.data);
         mcap_channels_->write(1, timestamp, right_tracked_.data);
     }

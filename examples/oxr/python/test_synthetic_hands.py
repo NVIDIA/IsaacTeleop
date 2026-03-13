@@ -100,7 +100,7 @@ def run_test():
                         print(f"Plugin crashed: {e}")
                         break
 
-                if not deviceio_session.update():
+                if not deviceio_session.update(time.monotonic_ns()):
                     print("  ✗ Reader session update failed")
                     break
 

@@ -84,7 +84,7 @@ def _run_schema_pusher(
 
             while time.time() - start_time < duration:
                 plugin.check_health()
-                session.update()
+                session.update(time.monotonic_ns())
                 frame_count += 1
 
                 elapsed = time.time() - start_time

@@ -161,7 +161,11 @@ class TestFrameMetadataOakRecordTimestamp:
         data = FrameMetadataOak()
         data.stream = StreamType.MonoLeft
         data.sequence_number = 42
-        ts = DeviceDataTimestamp(1000000000, 2000000000, 3000000000)
+        ts = DeviceDataTimestamp(
+            available_time_local_common_clock=1000000000,
+            sample_time_local_common_clock=2000000000,
+            sample_time_raw_device_clock=3000000000,
+        )
         record = FrameMetadataOakRecord(data, ts)
 
         assert record.timestamp.available_time_local_common_clock == 1000000000
@@ -179,7 +183,11 @@ class TestFrameMetadataOakRecordTimestamp:
     def test_timestamp_fields(self):
         """Test all three DeviceDataTimestamp fields are accessible."""
         data = FrameMetadataOak()
-        ts = DeviceDataTimestamp(111, 222, 333)
+        ts = DeviceDataTimestamp(
+            available_time_local_common_clock=111,
+            sample_time_local_common_clock=222,
+            sample_time_raw_device_clock=333,
+        )
         record = FrameMetadataOakRecord(data, ts)
 
         assert record.timestamp.available_time_local_common_clock == 111

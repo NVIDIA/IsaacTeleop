@@ -5,6 +5,7 @@
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
 #include <oxr/oxr_session.hpp>
+#include <time_utils/os_time.hpp>
 
 #include <chrono>
 #include <iostream>
@@ -76,13 +77,14 @@ try
     for (int i = 0; i < 10; ++i)
     {
         // Both sessions update using the same underlying OpenXR session
-        if (!session1->update())
+        const int64_t now_ns = core::os_monotonic_now_ns();
+        if (!session1->update(now_ns))
         {
             std::cerr << "Session 1 update failed" << std::endl;
             break;
         }
 
-        if (!session2->update())
+        if (!session2->update(now_ns))
         {
             std::cerr << "Session 2 update failed" << std::endl;
             break;

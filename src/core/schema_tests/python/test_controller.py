@@ -324,7 +324,11 @@ class TestControllerSnapshotRecordTimestamp:
         )
         inputs = ControllerInputState(True, False, False, 0.5, 0.0, 0.8, 1.0)
         data = ControllerSnapshot(grip, aim, inputs)
-        ts = DeviceDataTimestamp(1000000000, 2000000000, 3000000000)
+        ts = DeviceDataTimestamp(
+            available_time_local_common_clock=1000000000,
+            sample_time_local_common_clock=2000000000,
+            sample_time_raw_device_clock=3000000000,
+        )
         record = ControllerSnapshotRecord(data, ts)
 
         assert record.timestamp.available_time_local_common_clock == 1000000000
@@ -341,7 +345,11 @@ class TestControllerSnapshotRecordTimestamp:
     def test_timestamp_fields(self):
         """Test all three DeviceDataTimestamp fields are accessible."""
         data = ControllerSnapshot()
-        ts = DeviceDataTimestamp(111, 222, 333)
+        ts = DeviceDataTimestamp(
+            available_time_local_common_clock=111,
+            sample_time_local_common_clock=222,
+            sample_time_raw_device_clock=333,
+        )
         record = ControllerSnapshotRecord(data, ts)
 
         assert record.timestamp.available_time_local_common_clock == 111

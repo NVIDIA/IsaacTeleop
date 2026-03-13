@@ -86,11 +86,12 @@ frame_count = 0
 try:
     while time.time() - start_time < 5.0:
         # Both sessions update using the same underlying OpenXR session
-        if not session1.update():
+        now_ns = time.monotonic_ns()
+        if not session1.update(now_ns):
             print("Session 1 update failed")
             break
 
-        if not session2.update():
+        if not session2.update(now_ns):
             print("Session 2 update failed")
             break
 

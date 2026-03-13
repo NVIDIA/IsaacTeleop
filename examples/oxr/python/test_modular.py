@@ -47,7 +47,7 @@ with oxr.OpenXRSession("ModularTest", required_extensions) as oxr_session:
 
         # Test 4: Update and get data
         print("[Test 4] Testing data retrieval...")
-        if not session.update():
+        if not session.update(time.monotonic_ns()):
             print("❌ Update failed")
             sys.exit(1)
 
@@ -93,7 +93,7 @@ with oxr.OpenXRSession("ModularTest", required_extensions) as oxr_session:
 
         try:
             while time.time() - start_time < 5.0:
-                if not session.update():
+                if not session.update(time.monotonic_ns()):
                     print("Update failed")
                     break
 

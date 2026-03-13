@@ -27,8 +27,6 @@ target_include_directories(deviceio_trackers
 target_link_libraries(deviceio_trackers
     PUBLIC
         deviceio::deviceio_base
-    PRIVATE
-        Teleop::openxr_extensions
 )
 
 add_library(deviceio::deviceio_trackers ALIAS deviceio_trackers)

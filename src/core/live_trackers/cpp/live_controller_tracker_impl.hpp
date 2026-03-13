@@ -11,6 +11,7 @@
 #include <oxr_utils/oxr_time.hpp>
 #include <schema/controller_generated.h>
 
+#include <XR_NVX1_action_context.h>
 #include <memory>
 #include <string_view>
 
@@ -22,6 +23,10 @@ using ControllerMcapChannels = McapTrackerChannels<ControllerSnapshotRecord, Con
 class LiveControllerTrackerImpl : public ControllerTrackerImpl
 {
 public:
+    static std::vector<std::string> required_extensions()
+    {
+        return { XR_NVX1_ACTION_CONTEXT_EXTENSION_NAME };
+    }
     static std::unique_ptr<ControllerMcapChannels> create_mcap_channels(mcap::McapWriter& writer,
                                                                         std::string_view base_name);
 
@@ -33,7 +38,7 @@ public:
     LiveControllerTrackerImpl(LiveControllerTrackerImpl&&) = delete;
     LiveControllerTrackerImpl& operator=(LiveControllerTrackerImpl&&) = delete;
 
-    bool update(XrTime time) override;
+    bool update(int64_t system_monotonic_time_ns) override;
     const ControllerSnapshotTrackedT& get_left_controller() const override;
     const ControllerSnapshotTrackedT& get_right_controller() const override;
 
@@ -68,7 +73,6 @@ private:
 
     ControllerSnapshotTrackedT left_tracked_;
     ControllerSnapshotTrackedT right_tracked_;
-    XrTime last_update_time_ = 0;
 
     std::unique_ptr<ControllerMcapChannels> mcap_channels_;
 };

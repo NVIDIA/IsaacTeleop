@@ -17,6 +17,7 @@
 #include <deviceio_session/deviceio_session.hpp>
 #include <deviceio_trackers/frame_metadata_tracker_oak.hpp>
 #include <oxr/oxr_session.hpp>
+#include <time_utils/os_time.hpp>
 
 #include <chrono>
 #include <iostream>
@@ -107,7 +108,7 @@ try
 
     while (true)
     {
-        if (!session->update())
+        if (!session->update(core::os_monotonic_now_ns()))
         {
             std::cerr << "Update failed" << std::endl;
             break;

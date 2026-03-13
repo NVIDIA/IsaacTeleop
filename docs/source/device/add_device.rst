@@ -157,7 +157,7 @@ the collection and prints samples. Pattern (see :code-file:`examples/schemaio/pe
 2. Get required extensions with ``DeviceIOSession::get_required_extensions(trackers)`` and
    create an ``OpenXRSession``.
 3. Create a ``DeviceIOSession`` with ``DeviceIOSession::run(trackers, oxr_session->get_handles())``.
-4. Loop: call ``session->update()``, then read ``tracker->get_data(*session)``. If
+4. Loop: call ``session->update(core::os_monotonic_now_ns())``, then read ``tracker->get_data(*session)``. If
    ``tracked.data`` is non-null, use the latest sample; otherwise sleep briefly and repeat.
 
 Use the same ``collection_id`` (and optionally ``tensor_identifier``) as the plugin. See

@@ -7,7 +7,6 @@
 #include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
-#include <openxr/openxr.h>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
@@ -96,9 +95,11 @@ PYBIND11_MODULE(_deviceio_trackers, m)
             { return self.get_body_pose(session); },
             py::arg("session"), "Get full body pose tracked state (data is None if inactive)");
 
-    m.attr("NUM_JOINTS") = static_cast<int>(XR_HAND_JOINT_COUNT_EXT);
-    m.attr("JOINT_PALM") = static_cast<int>(XR_HAND_JOINT_PALM_EXT);
-    m.attr("JOINT_WRIST") = static_cast<int>(XR_HAND_JOINT_WRIST_EXT);
-    m.attr("JOINT_THUMB_TIP") = static_cast<int>(XR_HAND_JOINT_THUMB_TIP_EXT);
-    m.attr("JOINT_INDEX_TIP") = static_cast<int>(XR_HAND_JOINT_INDEX_TIP_EXT);
+    // XR_EXT_hand_tracking joint indices (XrHandJointEXT enum).
+    // See: https://registry.khronos.org/OpenXR/specs/1.1/html/xrspec.html#XrHandJointEXT
+    m.attr("NUM_JOINTS") = 26;
+    m.attr("JOINT_PALM") = 0;
+    m.attr("JOINT_WRIST") = 1;
+    m.attr("JOINT_THUMB_TIP") = 5;
+    m.attr("JOINT_INDEX_TIP") = 10;
 }

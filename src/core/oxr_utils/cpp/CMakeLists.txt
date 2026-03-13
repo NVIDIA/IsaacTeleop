@@ -19,9 +19,11 @@ target_include_directories(oxr_utils
 )
 
 # Link with OpenXR::headers to get OpenXR header files (no loader linking)
+# Link with time_utils for platform clock utilities (oxr_time.hpp uses os_monotonic_now_ns)
 target_link_libraries(oxr_utils
     INTERFACE
         OpenXR::headers
+        core::time_utils
 )
 
 # Platform-specific definitions for XrTime conversion (used by oxr_time.hpp)
