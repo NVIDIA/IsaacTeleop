@@ -48,7 +48,6 @@ public:
     std::string_view get_name() const override;
     std::string_view get_schema_name() const override;
     std::string_view get_schema_text() const override;
-
     std::vector<std::string> get_record_channels() const override
     {
         return { "pedals" };
@@ -59,6 +58,13 @@ public:
      */
     const Generic3AxisPedalOutputTrackedT& get_data(const DeviceIOSession& session) const;
 
+    // Tracker-specific impl interface (public so out-of-class Impl in .cpp can inherit)
+    struct IImpl
+    {
+        virtual ~IImpl() = default;
+        virtual const Generic3AxisPedalOutputTrackedT& get_data() const = 0;
+    };
+
 protected:
     /*!
      * @brief Access the configuration for subclass use.
@@ -66,11 +72,29 @@ protected:
     const SchemaTrackerConfig& get_config() const;
 
 private:
-    std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
+    static constexpr const char* TRACKER_NAME = "Generic3AxisPedalTracker";
+    static constexpr const char* SCHEMA_NAME = "core.Generic3AxisPedalOutputRecord";
+
+    std::shared_ptr<ILiveTrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
+    std::shared_ptr<IReplayTrackerImpl> create_replay_tracker(const ITrackerSession& session) const override;
 
     SchemaTrackerConfig m_config;
 
     class Impl;
+
+    class ReplayImpl : public IReplayTrackerImpl, public IImpl
+    {
+    public:
+        explicit ReplayImpl(const ITrackerSession& session);
+
+        bool update_replay(int64_t replay_time_ns) override;
+
+        const Generic3AxisPedalOutputTrackedT& get_data() const override;
+
+    private:
+        const ITrackerSession* session_;
+        Generic3AxisPedalOutputTrackedT tracked_;
+    };
 };
 
 } // namespace core

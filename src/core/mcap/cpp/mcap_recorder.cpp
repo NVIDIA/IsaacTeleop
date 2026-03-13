@@ -61,9 +61,10 @@ public:
                     std::cerr << "McapRecorder: Tracker " << config.second << " not registered" << std::endl;
                     continue;
                 }
+                const auto& live_impl = static_cast<const ILiveTrackerImpl&>(tracker_impl);
                 for (size_t i = 0; i < it->second.size(); ++i)
                 {
-                    if (!record_tracker(config.first.get(), tracker_impl, i))
+                    if (!record_tracker(config.first.get(), live_impl, i))
                     {
                         std::cerr << "McapRecorder: Failed to record tracker " << config.second << std::endl;
                     }
@@ -122,7 +123,7 @@ private:
         tracker_channel_ids_[tracker] = std::move(channel_ids);
     }
 
-    bool record_tracker(const ITracker* tracker, const ITrackerImpl& tracker_impl, size_t channel_index)
+    bool record_tracker(const ITracker* tracker, const ILiveTrackerImpl& tracker_impl, size_t channel_index)
     {
         auto it = tracker_channel_ids_.find(tracker);
         if (it == tracker_channel_ids_.end() || channel_index >= it->second.size())

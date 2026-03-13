@@ -22,23 +22,19 @@ class ControllerTracker : public ITracker
 public:
     // Public API - what external users see
     std::vector<std::string> get_required_extensions() const override;
-
     std::string_view get_name() const override
     {
         return TRACKER_NAME;
     }
-
     std::string_view get_schema_name() const override
     {
         return SCHEMA_NAME;
     }
-
     std::string_view get_schema_text() const override
     {
         return std::string_view(reinterpret_cast<const char*>(ControllerSnapshotRecordBinarySchema::data()),
                                 ControllerSnapshotRecordBinarySchema::size());
     }
-
     std::vector<std::string> get_record_channels() const override
     {
         return { "left_controller", "right_controller" };
@@ -52,20 +48,30 @@ private:
     static constexpr const char* TRACKER_NAME = "ControllerTracker";
     static constexpr const char* SCHEMA_NAME = "core.ControllerSnapshotRecord";
 
-    std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
+    std::shared_ptr<ILiveTrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
+    std::shared_ptr<IReplayTrackerImpl> create_replay_tracker(const ITrackerSession& session) const override;
 
-    class Impl : public ITrackerImpl
+    // Tracker-specific interface: both live and replay impls implement this so the tracker
+    // can use get_tracker_impl() and cast to IImpl& without caring which impl type it is.
+    struct IImpl
+    {
+        virtual ~IImpl() = default;
+        virtual const ControllerSnapshotTrackedT& get_left_controller() const = 0;
+        virtual const ControllerSnapshotTrackedT& get_right_controller() const = 0;
+    };
+
+    class Impl : public ILiveTrackerImpl, public IImpl
     {
     public:
         explicit Impl(const OpenXRSessionHandles& handles);
 
-        // Override from ITrackerImpl
-        bool update(XrTime time) override;
+        // Override from ILiveTrackerImpl
+        bool update_live(int64_t system_monotonic_time_ns) override;
 
         void serialize_all(size_t channel_index, const RecordCallback& callback) const override;
 
-        const ControllerSnapshotTrackedT& get_left_controller() const;
-        const ControllerSnapshotTrackedT& get_right_controller() const;
+        const ControllerSnapshotTrackedT& get_left_controller() const override;
+        const ControllerSnapshotTrackedT& get_right_controller() const override;
 
     private:
         const OpenXRCoreFunctions core_funcs_;
@@ -98,7 +104,24 @@ private:
         // Controller data (tracked.data is null when inactive)
         ControllerSnapshotTrackedT left_tracked_;
         ControllerSnapshotTrackedT right_tracked_;
-        XrTime last_update_time_ = 0;
+        int64_t last_update_time_ns_ = 0; // monotonic ns; XrTime only for OpenXR calls
+    };
+
+    // Dummy replay impl: returns default (inactive) data; update_replay is a no-op.
+    class ReplayImpl : public IReplayTrackerImpl, public IImpl
+    {
+    public:
+        explicit ReplayImpl(const ITrackerSession& session);
+
+        bool update_replay(int64_t replay_time_ns) override;
+
+        const ControllerSnapshotTrackedT& get_left_controller() const override;
+        const ControllerSnapshotTrackedT& get_right_controller() const override;
+
+    private:
+        const ITrackerSession* session_;
+        ControllerSnapshotTrackedT left_tracked_;
+        ControllerSnapshotTrackedT right_tracked_;
     };
 };
 

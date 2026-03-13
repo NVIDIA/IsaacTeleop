@@ -105,7 +105,8 @@ PYBIND11_MODULE(_deviceio, m)
     // Other C++ modules (like mcap) should include <py_deviceio/session.hpp> and accept
     // PyDeviceIOSession& directly, calling .native() internally in C++ code.
     py::class_<PyDeviceIOSession>(m, "DeviceIOSession")
-        .def("update", &PyDeviceIOSession::update, "Update session and all trackers")
+        .def("update", &PyDeviceIOSession::update, py::arg("system_monotonic_time_ns"),
+             "Update session and all trackers to the given time (system monotonic nanoseconds)")
         .def("__enter__", &PyDeviceIOSession::enter)
         .def("__exit__", &PyDeviceIOSession::exit)
         .def_static("get_required_extensions", &core::DeviceIOSession::get_required_extensions, py::arg("trackers"),

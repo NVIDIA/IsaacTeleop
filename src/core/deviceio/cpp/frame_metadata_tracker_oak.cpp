@@ -19,8 +19,10 @@ namespace core
 // FrameMetadataTrackerOak::Impl
 // ============================================================================
 
-FrameMetadataTrackerOak::Impl::Impl(const OpenXRSessionHandles& handles, std::vector<SchemaTrackerConfig> configs)
-    : m_time_converter_(handles)
+FrameMetadataTrackerOak::Impl::Impl(const OpenXRSessionHandles& handles,
+                                    std::vector<SchemaTrackerConfig> configs,
+                                    std::vector<std::string> record_channels)
+    : m_record_channels_(std::move(record_channels)), m_time_converter_(handles)
 {
     for (auto& config : configs)
     {
@@ -30,9 +32,25 @@ FrameMetadataTrackerOak::Impl::Impl(const OpenXRSessionHandles& handles, std::ve
     }
 }
 
-bool FrameMetadataTrackerOak::Impl::update(XrTime time)
+std::string_view FrameMetadataTrackerOak::get_schema_name() const
 {
-    m_last_update_time_ = time;
+    return SCHEMA_NAME;
+}
+
+std::string_view FrameMetadataTrackerOak::get_schema_text() const
+{
+    return std::string_view(reinterpret_cast<const char*>(FrameMetadataOakRecordBinarySchema::data()),
+                            FrameMetadataOakRecordBinarySchema::size());
+}
+
+std::shared_ptr<IReplayTrackerImpl> FrameMetadataTrackerOak::create_replay_tracker(const ITrackerSession&) const
+{
+    throw std::runtime_error("Replay not implemented for FrameMetadataTrackerOak");
+}
+
+bool FrameMetadataTrackerOak::Impl::update_live(int64_t system_monotonic_time_ns)
+{
+    m_last_update_time_ns_ = system_monotonic_time_ns;
     for (auto& stream : m_streams)
     {
         stream.pending_records.clear();
@@ -82,7 +100,7 @@ void FrameMetadataTrackerOak::Impl::serialize_all(size_t channel_index, const Re
     // The DeviceDataTimestamp passed to the callback is the update-tick time
     // (used by the MCAP recorder for logTime/publishTime). The timestamps
     // embedded inside the Record payload are the tensor transport timestamps.
-    int64_t update_ns = m_time_converter_.convert_xrtime_to_monotonic_ns(m_last_update_time_);
+    const int64_t update_ns = m_last_update_time_ns_;
 
     const auto& stream = m_streams[channel_index];
     if (stream.pending_records.empty())
@@ -166,29 +184,18 @@ std::vector<std::string> FrameMetadataTrackerOak::get_required_extensions() cons
 
 std::string_view FrameMetadataTrackerOak::get_name() const
 {
-    return "FrameMetadataTrackerOak";
-}
-
-std::string_view FrameMetadataTrackerOak::get_schema_name() const
-{
-    return "core.FrameMetadataOakRecord";
-}
-
-std::string_view FrameMetadataTrackerOak::get_schema_text() const
-{
-    return std::string_view(reinterpret_cast<const char*>(FrameMetadataOakRecordBinarySchema::data()),
-                            FrameMetadataOakRecordBinarySchema::size());
+    return TRACKER_NAME;
 }
 
 const FrameMetadataOakTrackedT& FrameMetadataTrackerOak::get_stream_data(const DeviceIOSession& session,
                                                                          size_t stream_index) const
 {
-    return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_stream_data(stream_index);
+    return dynamic_cast<const IImpl&>(session.get_tracker_impl(*this)).get_stream_data(stream_index);
 }
 
-std::shared_ptr<ITrackerImpl> FrameMetadataTrackerOak::create_tracker(const OpenXRSessionHandles& handles) const
+std::shared_ptr<ILiveTrackerImpl> FrameMetadataTrackerOak::create_tracker(const OpenXRSessionHandles& handles) const
 {
-    return std::make_shared<Impl>(handles, m_configs);
+    return std::make_shared<Impl>(handles, m_configs, m_channel_names);
 }
 
 } // namespace core

@@ -90,7 +90,7 @@ def _run_schema_pusher(
 
                 while time.time() - start_time < duration:
                     plugin.check_health()
-                    if not session.update():
+                    if not session.update(time.monotonic_ns()):
                         print("  Warning: Session update failed")
                         continue
                     recorder.record(session)

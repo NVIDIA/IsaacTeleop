@@ -76,7 +76,7 @@ def main():
 
                 while time.time() - start_time < 30.0:
                     # Update session and all trackers
-                    if not session.update():
+                    if not session.update(time.monotonic_ns()):
                         print("Update failed")
                         break
 

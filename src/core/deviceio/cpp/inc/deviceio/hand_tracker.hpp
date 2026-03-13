@@ -25,18 +25,15 @@ public:
     {
         return TRACKER_NAME;
     }
-
     std::string_view get_schema_name() const override
     {
         return SCHEMA_NAME;
     }
-
     std::string_view get_schema_text() const override
     {
         return std::string_view(
             reinterpret_cast<const char*>(HandPoseRecordBinarySchema::data()), HandPoseRecordBinarySchema::size());
     }
-
     std::vector<std::string> get_record_channels() const override
     {
         return { "left_hand", "right_hand" };
@@ -53,23 +50,29 @@ private:
     static constexpr const char* TRACKER_NAME = "HandTracker";
     static constexpr const char* SCHEMA_NAME = "core.HandPoseRecord";
 
-    std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
+    std::shared_ptr<ILiveTrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
+    std::shared_ptr<IReplayTrackerImpl> create_replay_tracker(const ITrackerSession& session) const override;
 
-    class Impl : public ITrackerImpl
+    struct IImpl
+    {
+        virtual ~IImpl() = default;
+        virtual const HandPoseTrackedT& get_left_hand() const = 0;
+        virtual const HandPoseTrackedT& get_right_hand() const = 0;
+    };
+
+    class Impl : public ILiveTrackerImpl, public IImpl
     {
     public:
         // Constructor - throws std::runtime_error on failure
         explicit Impl(const OpenXRSessionHandles& handles);
-
         ~Impl();
 
-        // Override from ITrackerImpl
-        bool update(XrTime time) override;
+        bool update_live(int64_t system_monotonic_time_ns) override;
 
         void serialize_all(size_t channel_index, const RecordCallback& callback) const override;
 
-        const HandPoseTrackedT& get_left_hand() const;
-        const HandPoseTrackedT& get_right_hand() const;
+        const HandPoseTrackedT& get_left_hand() const override;
+        const HandPoseTrackedT& get_right_hand() const override;
 
     private:
         // Helper functions
@@ -85,12 +88,28 @@ private:
         // Hand data (tracked.data is null when inactive)
         HandPoseTrackedT left_tracked_;
         HandPoseTrackedT right_tracked_;
-        XrTime last_update_time_ = 0;
+        int64_t last_update_time_ns_ = 0; // monotonic ns; XrTime only for OpenXR calls
 
         // Extension function pointers
         PFN_xrCreateHandTrackerEXT pfn_create_hand_tracker_;
         PFN_xrDestroyHandTrackerEXT pfn_destroy_hand_tracker_;
         PFN_xrLocateHandJointsEXT pfn_locate_hand_joints_;
+    };
+
+    class ReplayImpl : public IReplayTrackerImpl, public IImpl
+    {
+    public:
+        explicit ReplayImpl(const ITrackerSession& session);
+
+        bool update_replay(int64_t replay_time_ns) override;
+
+        const HandPoseTrackedT& get_left_hand() const override;
+        const HandPoseTrackedT& get_right_hand() const override;
+
+    private:
+        const ITrackerSession* session_;
+        HandPoseTrackedT left_tracked_;
+        HandPoseTrackedT right_tracked_;
     };
 };
 

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+#include <deviceio/tracker.hpp>
 #include <deviceio_py_utils/session.hpp>
 #include <mcap/recorder.hpp>
 #include <pybind11/pybind11.h>
@@ -16,7 +17,7 @@ public:
     {
     }
 
-    void record(core::DeviceIOSession& session)
+    void record(const core::DeviceIOSession& session)
     {
         if (!recorder_)
         {
@@ -58,13 +59,7 @@ PYBIND11_MODULE(_mcap, m)
             "Create a recorder for an MCAP file with the specified trackers. "
             "Returns a context-managed recorder.")
         .def(
-            "record",
-            [](PyMcapRecorder& self, PyDeviceIOSession& session)
-            {
-                // Accept PyDeviceIOSession directly and call .native() in C++
-                // This ensures the wrapper stays alive and prevents dangling pointers
-                self.record(session.native());
-            },
+            "record", [](PyMcapRecorder& self, PyDeviceIOSession& session) { self.record(session.native()); },
             py::arg("session"), "Record the current state of all registered trackers")
         .def("__enter__", &PyMcapRecorder::enter)
         .def("__exit__", &PyMcapRecorder::exit);

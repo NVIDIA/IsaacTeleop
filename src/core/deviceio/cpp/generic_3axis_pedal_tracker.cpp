@@ -18,20 +18,20 @@ namespace core
 // Generic3AxisPedalTracker::Impl
 // ============================================================================
 
-class Generic3AxisPedalTracker::Impl : public ITrackerImpl
+class Generic3AxisPedalTracker::Impl : public ILiveTrackerImpl, public Generic3AxisPedalTracker::IImpl
 {
 public:
     Impl(const OpenXRSessionHandles& handles, SchemaTrackerConfig config);
 
-    bool update(XrTime time) override;
+    bool update_live(int64_t system_monotonic_time_ns) override;
     void serialize_all(size_t channel_index, const RecordCallback& callback) const override;
 
-    const Generic3AxisPedalOutputTrackedT& get_data() const;
+    const Generic3AxisPedalOutputTrackedT& get_data() const override;
 
 private:
     SchemaTracker m_schema_reader;
     XrTimeConverter m_time_converter_;
-    XrTime m_last_update_time_ = 0;
+    int64_t m_last_update_time_ns_ = 0; // monotonic ns
     bool m_collection_present = false;
     Generic3AxisPedalOutputTrackedT m_tracked;
     std::vector<SchemaTracker::SampleResult> m_pending_records;
@@ -42,9 +42,25 @@ Generic3AxisPedalTracker::Impl::Impl(const OpenXRSessionHandles& handles, Schema
 {
 }
 
-bool Generic3AxisPedalTracker::Impl::update(XrTime time)
+std::string_view Generic3AxisPedalTracker::get_schema_name() const
 {
-    m_last_update_time_ = time;
+    return SCHEMA_NAME;
+}
+
+std::string_view Generic3AxisPedalTracker::get_schema_text() const
+{
+    return std::string_view(reinterpret_cast<const char*>(Generic3AxisPedalOutputRecordBinarySchema::data()),
+                            Generic3AxisPedalOutputRecordBinarySchema::size());
+}
+
+std::shared_ptr<IReplayTrackerImpl> Generic3AxisPedalTracker::create_replay_tracker(const ITrackerSession&) const
+{
+    throw std::runtime_error("Replay not implemented for Generic3AxisPedalTracker");
+}
+
+bool Generic3AxisPedalTracker::Impl::update_live(int64_t system_monotonic_time_ns)
+{
+    m_last_update_time_ns_ = system_monotonic_time_ns;
     m_pending_records.clear();
     m_collection_present = m_schema_reader.read_all_samples(m_pending_records);
 
@@ -89,7 +105,7 @@ void Generic3AxisPedalTracker::Impl::serialize_all(size_t channel_index, const R
     // The DeviceDataTimestamp passed to the callback is the update-tick time
     // (used by the MCAP recorder for logTime/publishTime). The timestamps
     // embedded inside the Record payload are the tensor transport timestamps.
-    int64_t update_ns = m_time_converter_.convert_xrtime_to_monotonic_ns(m_last_update_time_);
+    const int64_t update_ns = m_last_update_time_ns_;
 
     if (m_pending_records.empty())
     {
@@ -153,18 +169,7 @@ std::vector<std::string> Generic3AxisPedalTracker::get_required_extensions() con
 
 std::string_view Generic3AxisPedalTracker::get_name() const
 {
-    return "Generic3AxisPedalTracker";
-}
-
-std::string_view Generic3AxisPedalTracker::get_schema_name() const
-{
-    return "core.Generic3AxisPedalOutputRecord";
-}
-
-std::string_view Generic3AxisPedalTracker::get_schema_text() const
-{
-    return std::string_view(reinterpret_cast<const char*>(Generic3AxisPedalOutputRecordBinarySchema::data()),
-                            Generic3AxisPedalOutputRecordBinarySchema::size());
+    return TRACKER_NAME;
 }
 
 const SchemaTrackerConfig& Generic3AxisPedalTracker::get_config() const
@@ -174,10 +179,10 @@ const SchemaTrackerConfig& Generic3AxisPedalTracker::get_config() const
 
 const Generic3AxisPedalOutputTrackedT& Generic3AxisPedalTracker::get_data(const DeviceIOSession& session) const
 {
-    return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_data();
+    return dynamic_cast<const IImpl&>(session.get_tracker_impl(*this)).get_data();
 }
 
-std::shared_ptr<ITrackerImpl> Generic3AxisPedalTracker::create_tracker(const OpenXRSessionHandles& handles) const
+std::shared_ptr<ILiveTrackerImpl> Generic3AxisPedalTracker::create_tracker(const OpenXRSessionHandles& handles) const
 {
     return std::make_shared<Impl>(handles, get_config());
 }

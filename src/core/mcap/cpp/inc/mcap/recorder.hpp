@@ -13,22 +13,21 @@
 namespace core
 {
 
-// Forward declaration
 class DeviceIOSession;
 
 /**
  * @brief MCAP Recorder for recording tracking data to MCAP files.
  *
- * This class provides a simple interface to record tracker data
- * to MCAP format files, which can be visualized with tools like Foxglove.
+ * Records from a live DeviceIOSession only (OpenXR tracker impls).
+ * Replay sessions are not supported; recording is capture-time only.
  *
  * Usage:
  *   auto recorder = McapRecorder::create("output.mcap", {
  *       {hand_tracker, "hands"},
  *       {head_tracker, "head"},
  *   });
- *   // In your loop:
- *   recorder->record(session);
+ *   // In your loop, after session.update():
+ *   recorder->record(deviceio_session);
  *   // When done, let the recorder go out of scope or reset it
  */
 class McapRecorder
@@ -48,11 +47,12 @@ public:
      * This is the main factory method. Opens the file, registers schemas/channels,
      * and returns a recorder ready for use.
      *
-     * MCAP logTime and publishTime are set to os_monotonic_now_ns() at the
-     * moment each record is written, not from the tracker's own timestamps.
-     * The tracker's DeviceDataTimestamp fields (available_time, sample times)
-     * are embedded in the FlatBuffer payload and remain available for downstream
-     * latency analysis.
+     * MCAP logTime and publishTime are the monotonic nanoseconds supplied by
+     * each tracker's serialize_all callback (the update-tick time for that
+     * frame, derived from the session's update(monotonic_ns)). The tracker's
+     * DeviceDataTimestamp fields (available_time, sample times) are embedded
+     * in the FlatBuffer payload and remain available for downstream latency
+     * analysis.
      *
      * @param filename Path to the output MCAP file.
      * @param trackers List of (tracker, base_channel_name) pairs to record.
@@ -72,9 +72,10 @@ public:
     /**
      * @brief Record the current state of all registered trackers.
      *
-     * This should be called after session.update() in your main loop.
+     * Call after session.update() in your main loop. Only supports live
+     * DeviceIOSession (replay sessions are not recordable).
      *
-     * @param session The DeviceIOSession to get tracker implementations from.
+     * @param session The live DeviceIOSession to record from.
      */
     void record(const DeviceIOSession& session);
 

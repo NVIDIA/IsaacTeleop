@@ -5,6 +5,7 @@
 #include <deviceio/hand_tracker.hpp>
 #include <deviceio/head_tracker.hpp>
 #include <oxr/oxr_session.hpp>
+#include <oxr_utils/os_time.hpp>
 
 #include <iostream>
 #include <memory>
@@ -75,7 +76,7 @@ try
     for (int i = 0; i < 5; ++i)
     {
         // Session handles internal update() calls to trackers
-        if (!session->update())
+        if (!session->update(core::os_monotonic_now_ns()))
         {
             std::cerr << "Update failed" << std::endl;
             break;

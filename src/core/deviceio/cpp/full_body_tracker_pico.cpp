@@ -18,26 +18,23 @@ namespace core
 // FullBodyTrackerPicoImpl Implementation (namespace-level, not nested)
 // ============================================================================
 
-class FullBodyTrackerPicoImpl : public ITrackerImpl
+class FullBodyTrackerPicoImpl : public ILiveTrackerImpl, public FullBodyTrackerPico::IImpl
 {
 public:
-    // Constructor - throws std::runtime_error on failure
     explicit FullBodyTrackerPicoImpl(const OpenXRSessionHandles& handles);
     ~FullBodyTrackerPicoImpl();
 
-    // Override from ITrackerImpl
-    bool update(XrTime time) override;
+    bool update_live(int64_t system_monotonic_time_ns) override;
     void serialize_all(size_t channel_index, const RecordCallback& callback) const override;
 
-    // Get body pose data
-    const FullBodyPosePicoTrackedT& get_body_pose() const;
+    const FullBodyPosePicoTrackedT& get_body_pose() const override;
 
 private:
     XrTimeConverter time_converter_;
     XrSpace base_space_;
     XrBodyTrackerBD body_tracker_;
     FullBodyPosePicoTrackedT tracked_;
-    XrTime last_update_time_ = 0;
+    int64_t last_update_time_ns_ = 0; // monotonic ns; XrTime only for OpenXR calls
 
     // Extension function pointers
     PFN_xrCreateBodyTrackerBD pfn_create_body_tracker_;
@@ -121,9 +118,15 @@ FullBodyTrackerPicoImpl::~FullBodyTrackerPicoImpl()
     }
 }
 
-bool FullBodyTrackerPicoImpl::update(XrTime time)
+std::shared_ptr<IReplayTrackerImpl> FullBodyTrackerPico::create_replay_tracker(const ITrackerSession&) const
 {
-    last_update_time_ = time;
+    throw std::runtime_error("Replay not implemented for FullBodyTrackerPico");
+}
+
+bool FullBodyTrackerPicoImpl::update_live(int64_t system_monotonic_time_ns)
+{
+    last_update_time_ns_ = system_monotonic_time_ns;
+    const XrTime time = time_converter_.convert_monotonic_ns_to_xrtime(system_monotonic_time_ns);
 
     XrBodyJointsLocateInfoBD locate_info{ XR_TYPE_BODY_JOINTS_LOCATE_INFO_BD };
     locate_info.next = nullptr;
@@ -192,12 +195,9 @@ void FullBodyTrackerPicoImpl::serialize_all(size_t channel_index, const RecordCa
 
     flatbuffers::FlatBufferBuilder builder(256);
 
-    int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
-    // The XR_BD_body_tracking extension does not expose a separate per-joint capture
-    // timestamp, so both the available and sample times are set to the update-tick
-    // monotonic time. last_update_time_ (XrTime) is used as the raw device clock
-    // field as a best-available approximation; it is not a true hardware timestamp.
-    DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
+    const int64_t monotonic_ns = last_update_time_ns_;
+    const XrTime raw_device = time_converter_.convert_monotonic_ns_to_xrtime(monotonic_ns);
+    DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, raw_device);
 
     FullBodyPosePicoRecordBuilder record_builder(builder);
     if (tracked_.data)
@@ -222,10 +222,10 @@ std::vector<std::string> FullBodyTrackerPico::get_required_extensions() const
 
 const FullBodyPosePicoTrackedT& FullBodyTrackerPico::get_body_pose(const DeviceIOSession& session) const
 {
-    return static_cast<const FullBodyTrackerPicoImpl&>(session.get_tracker_impl(*this)).get_body_pose();
+    return dynamic_cast<const IImpl&>(session.get_tracker_impl(*this)).get_body_pose();
 }
 
-std::shared_ptr<ITrackerImpl> FullBodyTrackerPico::create_tracker(const OpenXRSessionHandles& handles) const
+std::shared_ptr<ILiveTrackerImpl> FullBodyTrackerPico::create_tracker(const OpenXRSessionHandles& handles) const
 {
     return std::make_shared<FullBodyTrackerPicoImpl>(handles);
 }
