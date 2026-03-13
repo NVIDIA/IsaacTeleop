@@ -63,7 +63,7 @@ RUN --mount=type=bind,source=.,target=/workspace,readonly \
         python -m pip install ${PIP_VERBOSE_ARGS} --no-index --no-deps --no-cache-dir "${ISAACTELEOP_PIP_SPEC}"; \
         python -m pip install ${PIP_VERBOSE_ARGS} --no-cache-dir "${ISAACTELEOP_PIP_SPEC}"; \
     else \
-        python -m pip install ${PIP_VERBOSE_ARGS} --no-cache-dir "${ISAACTELEOP_PIP_SPEC}"; \
+        python -m pip install ${PIP_VERBOSE_ARGS} --no-cache-dir "${ISAACTELEOP_PIP_SPEC}" --extra-index-url https://pypi.nvidia.com; \
     fi
 
 # Vulkan ICD + EGL vendor so the loader can find the NVIDIA driver.
