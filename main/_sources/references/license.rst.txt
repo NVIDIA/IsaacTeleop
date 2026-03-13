@@ -15,6 +15,7 @@ Known exceptions
   `MIT license <https://opensource.org/licenses/MIT>`_ or `Boost Software License 1.0 <https://www.boost.org/LICENSE_1_0.txt>`_.
 
 - CloudXR SDK is NVIDIA's proprietary software, licensed under the `NVIDIA CloudXR License <https://github.com/NVIDIA/IsaacTeleop/blob/main/deps/cloudxr/CLOUDXR_LICENSE>`_.
+- The documentation is built using `NVIDIA Sphinx Theme <https://pypi.org/project/nvidia-sphinx-theme/>`_.
 
 License headers
 ---------------
