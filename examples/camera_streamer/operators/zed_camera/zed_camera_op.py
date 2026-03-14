@@ -147,9 +147,18 @@ class ZedCameraOp(Operator):
             spec.output("right_frame").condition(ConditionType.NONE)
 
     def start(self):
-        """Initialize ZED camera."""
+        """Initialize ZED camera.
+
+        If the camera is not connected, logs a warning and defers to
+        the reconnection logic in compute() instead of crashing the graph.
+        """
         if not self._open_camera():
-            raise RuntimeError("Failed to open ZED camera on startup")
+            sn_str = self._serial_number if self._serial_number else "auto-detect"
+            logger.warning(
+                f"ZED camera '{self.name}' not available on startup "
+                f"(SN={sn_str}). Will retry every {RECONNECT_DELAY_SEC}s."
+            )
+            self._is_disconnected = True
 
     def _open_camera(self) -> bool:
         """Open the ZED camera. Returns True on success, False on failure."""
@@ -190,6 +199,16 @@ class ZedCameraOp(Operator):
 
         self._runtime_params = sl.RuntimeParameters()
         self._last_log_time = time.monotonic()
+
+        # Pre-allocate GPU output buffers to avoid per-frame allocation
+        channels = 4  # BGRA
+        self._frame_buf_left = cp.empty(
+            (self._height, self._width, channels), dtype=cp.uint8
+        )
+        if self._stereo:
+            self._frame_buf_right = cp.empty(
+                (self._height, self._width, channels), dtype=cp.uint8
+            )
 
         # Reset failure counters on successful open
         self._consecutive_failures = 0
@@ -252,11 +271,14 @@ class ZedCameraOp(Operator):
                 logger.warning(f"Failed to retrieve left image: {err_left}")
             return
 
-        left_gpu = self._zed_gpu_to_contiguous(self._left_image, "left")
+        left_gpu = self._zed_gpu_to_contiguous(
+            self._left_image, "left", getattr(self, "_frame_buf_left", None)
+        )
         if left_gpu is None:
             return
 
         # Emit left frame
+        self.metadata.clear()
         self.metadata["frame_timestamp_us"] = timestamp_us
         self.metadata["stream_id"] = self._left_stream_id
         self.metadata["sequence"] = self._frame_count
@@ -273,7 +295,11 @@ class ZedCameraOp(Operator):
                 if self._verbose:
                     logger.warning(f"Failed to retrieve right image: {err_right}")
             else:
-                right_gpu = self._zed_gpu_to_contiguous(self._right_image, "right")
+                right_gpu = self._zed_gpu_to_contiguous(
+                    self._right_image,
+                    "right",
+                    getattr(self, "_frame_buf_right", None),
+                )
                 if right_gpu is not None:
                     self.metadata.clear()
                     self.metadata["frame_timestamp_us"] = timestamp_us
@@ -328,23 +354,31 @@ class ZedCameraOp(Operator):
         self._last_reconnect_time = now
         self._reconnect_attempts += 1
 
-        logger.info(f"ZED camera reconnection attempt #{self._reconnect_attempts}...")
+        sn_str = self._serial_number if self._serial_number else "auto-detect"
+        logger.info(
+            f"ZED '{self.name}' reconnection attempt "
+            f"#{self._reconnect_attempts} (SN={sn_str})..."
+        )
 
         if self._open_camera():
-            logger.info("ZED camera reconnected successfully!")
+            logger.info(f"ZED '{self.name}' reconnected successfully!")
         else:
             logger.warning(
-                f"ZED camera reconnection failed. "
+                f"ZED '{self.name}' reconnection failed. "
                 f"Next attempt in {RECONNECT_DELAY_SEC}s..."
             )
 
     def _zed_gpu_to_contiguous(
-        self, zed_mat: sl.Mat, eye: str = "left"
+        self,
+        zed_mat: sl.Mat,
+        eye: str = "left",
+        out: Optional[cp.ndarray] = None,
     ) -> Optional[cp.ndarray]:
         """Convert ZED GPU Mat to a contiguous CuPy array.
 
         ZED GPU memory uses pitched allocation (rows may have padding for alignment).
         We must copy the data since ZED reuses its internal buffer.
+        If *out* is provided and dimensions match, copies into it to avoid allocation.
         """
         try:
             height = zed_mat.get_height()
@@ -365,18 +399,23 @@ class ZedCameraOp(Operator):
                     logger.warning(f"ZED {eye} Mat has null GPU pointer")
                 return None
 
-            # Wrap ZED's GPU buffer
-            mem = cp.cuda.UnownedMemory(ptr, height * step, owner=None)
+            mem = cp.cuda.UnownedMemory(ptr, height * step, owner=zed_mat)
             memptr = cp.cuda.MemoryPointer(mem, 0)
 
             if step == row_bytes:
                 arr = cp.ndarray(
                     (height, width, channels), dtype=cp.uint8, memptr=memptr
                 )
+                if out is not None and out.shape == arr.shape:
+                    cp.copyto(out, arr)
+                    return out
                 arr = arr.copy()
             else:
                 arr = cp.ndarray((height, step), dtype=cp.uint8, memptr=memptr)
                 arr = arr[:, :row_bytes].reshape(height, width, channels)
+                if out is not None and out.shape == arr.shape:
+                    cp.copyto(out, arr)
+                    return out
                 arr = cp.ascontiguousarray(arr)
 
             if self._color_format == "rgb" and channels == 4:

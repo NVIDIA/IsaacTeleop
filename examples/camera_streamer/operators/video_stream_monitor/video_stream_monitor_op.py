@@ -121,9 +121,7 @@ class VideoStreamMonitorOp(Operator):
                     name_str = f" ({self._camera_name})" if self._camera_name else ""
                     logger.info(f"Stream recovered{name_str}")
 
-            # Rename tensor if tensor_name is specified
             if self._tensor_name:
-                # Get the first tensor value (usually keyed by "")
                 tensor_value = next(iter(frame_dict.values()))
                 frame_dict = {self._tensor_name: tensor_value}
 
@@ -139,3 +137,49 @@ class VideoStreamMonitorOp(Operator):
                         logger.info(f"Stream timeout{name_str} - video unavailable")
 
                 op_output.emit(self._placeholder_tensor, "frame_out")
+
+
+class FrameCombinerOp(Operator):
+    """Combines multiple frame streams into a single output dict.
+
+    HolovizOp's multi-port ``receivers`` triggers when ANY input has data,
+    then expects ALL configured tensor names to be present.  Because
+    independent monitors emit asynchronously, a race exists where HolovizOp
+    ticks before every monitor has emitted.
+
+    Uses the same ``IOSpec.ANY_SIZE`` multi-receiver pattern as holohub's
+    AggregatorOp, but adds per-tensor caching so cameras keep showing their
+    last frame between updates instead of flashing to black.
+    """
+
+    def __init__(
+        self,
+        fragment,
+        *args,
+        placeholders: dict,
+        **kwargs,
+    ):
+        """
+        Args:
+            placeholders: ``{tensor_name: gpu_frame}`` initial frames shown
+                before any real data arrives from each camera.
+        """
+        self._placeholders = placeholders
+        super().__init__(fragment, *args, **kwargs)
+
+    def setup(self, spec: OperatorSpec):
+        spec.input("in", size=IOSpec.ANY_SIZE)
+        spec.output("out")
+
+    def start(self):
+        self._cache = dict(self._placeholders)
+        self._refs = {}
+
+    def compute(self, op_input, op_output, context):
+        in_messages = op_input.receive("in")
+        for msg in in_messages:
+            for k, v in msg.items():
+                self._cache[k] = v
+                self._refs[k] = msg
+
+        op_output.emit(dict(self._cache), "out")
