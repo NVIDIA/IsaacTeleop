@@ -286,6 +286,12 @@ nav.contents ul a {
      color: var(--pst-color-text-base) !important;
 }
 
+/* Disable click-to-zoom on figure images */
+figure a:has(> img) {
+    pointer-events: none;
+    cursor: default;
+}
+
 /* Lighter text for trademark notice (theme muted color; works in light and dark mode) */
 .trademark-notice {
     color: var(--pst-color-text-muted) !important;

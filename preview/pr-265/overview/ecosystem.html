@@ -35,7 +35,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/styles/nvidia-sphinx-theme.css?v=933278ad" />
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
-    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=4c7aeea3" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=1b8e1d43" />
   
   <!-- So that users can add custom icons -->
   <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
@@ -460,12 +460,16 @@ see <a class="reference internal" href="../device/index.html#device-interface-de
 <tr class="row-even"><td><p>Pico 4 Ultra</p></td>
 <td><p>Motion controllers, hand tracking</p></td>
 <td><p><a class="reference external" href="https://nvidia.github.io/IsaacTeleop/client" rel="noopener noreferrer" target="_blank">Isaac Teleop Web Client</a> (browser)</p></td>
-<td><p>Requires Pico OS 15.4.4U+</p></td>
+<td><p>Requires Pico OS 15.4.4U or newer</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference external" href="https://www.picoxr.com/global/products/pico-motion-tracker" rel="noopener noreferrer" target="_blank">Pico Motion Tracker</a></p></td>
 <td><p>Full body tracking</p></td>
 <td><p><a class="reference external" href="https://nvidia.github.io/IsaacTeleop/client" rel="noopener noreferrer" target="_blank">Isaac Teleop Web Client</a> (browser)</p></td>
-<td><p>Requires Pico OS 15.4.4U+</p></td>
+<td><div class="line-block">
+<div class="line">Requires Pico OS 15.4.4U or newer</div>
+<div class="line">Requires Pico Browser 4.0.40 or newer (Enterprise enabled)</div>
+</div>
+</td>
 </tr>
 </tbody>
 </table>
@@ -545,7 +549,7 @@ session is running via USB or Bluetooth. See <a class="reference internal" href=
 <h2>Targeted Robotics Embodiments<a class="headerlink" href="#targeted-robotics-embodiments" title="Link to this heading">#</a></h2>
 <ul class="simple">
 <li><p>Retarget the standardized device outputs to different embodiments.</p></li>
-<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/core/retargeting_engine/python/retargeters/" rel="noopener noreferrer" target="_blank">Reference retargeter implementations</a>,
+<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/retargeters/" rel="noopener noreferrer" target="_blank">Reference retargeter implementations</a>,
 including popular embodiments such as Unitree G1.</p></li>
 <li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/core/retargeting_engine_ui/python" rel="noopener noreferrer" target="_blank">Retargeter tuning UI</a> to facilitate
 live retargeter tuning.</p></li>
