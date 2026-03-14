@@ -54,7 +54,7 @@ see :ref:`device-interface-device-plugin` for details.
      - Hand tracking (26 joints), spatial controllers
      - `Isaac XR Teleop Sample Client`_ (visionOS app)
      - Build from source; see :ref:`Connect Apple Vision Pro <connect-apple-vision-pro>`
-   * - Meta Quest 3
+   * - Meta Quest 2/3/3S
      - Motion controllers (triggers, thumbsticks, squeeze), hand tracking
      - `Isaac Teleop Web Client`_ (browser)
      - See :ref:`Connect Quest and Pico <connect-quest-pico>`
@@ -96,24 +96,40 @@ The following input devices and device categories are planned for support in the
 
 .. list-table:: Planned Input Devices
    :header-rows: 1
-   :widths: 20 25 25 15
+   :widths: 20 25 25 25
 
    * - Device
      - Input Modes
      - Client / Connection
-     - ETA
-   * - Keyboard and Mouse
-     - Keyboard and mouse input
-     - CLI tool
-     - Planned
-   * - Master Manipulators
-     - Gello, Haply, JoyLo etc.
-     - CLI tool
-     - Planned
-   * - Exoskeletons
-     - TBA
-     - TBA
-     - TBA
+     - Status
+   * - JoyLo
+     - Master Manipulators
+     - CLI tool with USB connection
+     - Planning, see `#272 <https://github.com/NVIDIA/IsaacTeleop/issues/272>`_
+   * - Gello
+     - Master Manipulators
+     - CLI tool with USB connection
+     - Planning, see `#273 <https://github.com/NVIDIA/IsaacTeleop/issues/273>`_
+   * - Haply
+     - Master Manipulators
+     - CLI tool with USB connection
+     - Planning, see `#274 <https://github.com/NVIDIA/IsaacTeleop/issues/274>`_
+   * - SO-101
+     - Master Manipulators
+     - CLI tool with USB connection
+     - Planning, see `#275 <https://github.com/NVIDIA/IsaacTeleop/issues/275>`_
+   * - 3D Space Mouse
+     - HID input
+     - CLI tool with USB connection
+     - Planning, see `#276 <https://github.com/NVIDIA/IsaacTeleop/issues/276>`_
+   * - Gamepad
+     - HID input
+     - CLI tool with USB/Bluetooth connection
+     - Planning, see `#277 <https://github.com/NVIDIA/IsaacTeleop/issues/277>`_
+   * - Keyboard
+     - HID input
+     - CLI tool with USB/Bluetooth connection
+     - Planning, see `#278 <https://github.com/NVIDIA/IsaacTeleop/issues/278>`_
 
 Targeted Robotics Embodiments
 -----------------------------
