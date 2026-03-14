@@ -87,10 +87,10 @@ class MockHaplyDevice:
         # Buttons: cycle through patterns every 3 seconds
         button_phase = int(t / 3.0) % 4
         buttons = {
-            "0": button_phase == 0 or button_phase == 3,
-            "1": button_phase == 1 or button_phase == 3,
-            "2": button_phase == 2,
-            "3": button_phase == 3,
+            "button_0": button_phase == 0 or button_phase == 3,
+            "button_1": button_phase == 1 or button_phase == 3,
+            "button_2": button_phase == 2,
+            "button_3": button_phase == 3,
         }
 
         # Build Inverse3 device data
@@ -152,6 +152,8 @@ async def handle_client(websocket, device: MockHaplyDevice, hz: float, verbose: 
 
     try:
         while True:
+            frame_start = asyncio.get_event_loop().time()
+
             # Send device state
             state = device.get_state(first_message=first_message)
             first_message = False
@@ -167,7 +169,7 @@ async def handle_client(websocket, device: MockHaplyDevice, hz: float, verbose: 
 
             # Try to receive a force command (non-blocking with short timeout)
             try:
-                raw = await asyncio.wait_for(websocket.recv(), timeout=period * 0.8)
+                raw = await asyncio.wait_for(websocket.recv(), timeout=0.001)
                 try:
                     cmd = json.loads(raw)
                     device.process_command(cmd)
@@ -176,8 +178,10 @@ async def handle_client(websocket, device: MockHaplyDevice, hz: float, verbose: 
             except asyncio.TimeoutError:
                 pass
 
-            # Maintain target frequency
-            await asyncio.sleep(period * 0.2)
+            # Sleep for remainder of period
+            elapsed = asyncio.get_event_loop().time() - frame_start
+            sleep_time = max(0, period - elapsed)
+            await asyncio.sleep(sleep_time)
 
     except websockets.exceptions.ConnectionClosed:
         print(f"[mock-haply] Client disconnected: {client_addr}")
@@ -189,12 +193,12 @@ async def run_server(port: int, hz: float, handedness: str, duration: float, ver
     """Run the mock Haply WebSocket server."""
     device = MockHaplyDevice(handedness=handedness)
 
-    print(f"[mock-haply] Starting mock Haply SDK server")
+    print("[mock-haply] Starting mock Haply SDK server")
     print(f"[mock-haply]   WebSocket: ws://localhost:{port}")
     print(f"[mock-haply]   Frequency: {hz} Hz")
     print(f"[mock-haply]   Handedness: {handedness}")
     print(f"[mock-haply]   Duration: {'infinite' if duration <= 0 else f'{duration}s'}")
-    print(f"[mock-haply] Waiting for connections...")
+    print("[mock-haply] Waiting for connections...")
 
     stop_event = asyncio.Event()
 
@@ -216,7 +220,7 @@ async def run_server(port: int, hz: float, handedness: str, duration: float, ver
             print(f"\n[mock-haply] Duration elapsed ({duration}s). Shutting down.")
         else:
             await stop_event.wait()
-            print(f"\n[mock-haply] Shutting down.")
+            print("\n[mock-haply] Shutting down.")
 
     print(f"[mock-haply] Total frames sent: {device.frame_count}")
 
