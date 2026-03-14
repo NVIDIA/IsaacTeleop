@@ -417,10 +417,10 @@ void HaplyTracker::initialize(const std::string& app_name) noexcept(false)
     std::cout << "Initializing Haply Tracker..." << std::endl;
 
     // Read WebSocket config from environment
-    const char* host_env = std::getenv("HAPLY_WS_HOST");
+    const char* host_env = std::getenv("HAPLY_WEBSOCKET_HOST");
     std::string ws_host = host_env ? host_env : "127.0.0.1";
     uint16_t ws_port = 10001;
-    const char* port_env = std::getenv("HAPLY_WS_PORT");
+    const char* port_env = std::getenv("HAPLY_WEBSOCKET_PORT");
     if (port_env)
     {
         try
@@ -428,7 +428,8 @@ void HaplyTracker::initialize(const std::string& app_name) noexcept(false)
             unsigned long parsed = std::stoul(port_env);
             if (parsed == 0 || parsed > 65535)
             {
-                std::cerr << "[Haply] Invalid HAPLY_WS_PORT value: " << port_env << ", using default 10001" << std::endl;
+                std::cerr << "[Haply] Invalid HAPLY_WEBSOCKET_PORT value: " << port_env << ", using default 10001"
+                          << std::endl;
             }
             else
             {
@@ -437,7 +438,8 @@ void HaplyTracker::initialize(const std::string& app_name) noexcept(false)
         }
         catch (const std::exception&)
         {
-            std::cerr << "[Haply] Invalid HAPLY_WS_PORT value: " << port_env << ", using default 10001" << std::endl;
+            std::cerr << "[Haply] Invalid HAPLY_WEBSOCKET_PORT value: " << port_env << ", using default 10001"
+                      << std::endl;
         }
     }
 

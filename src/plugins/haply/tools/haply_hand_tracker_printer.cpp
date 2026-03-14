@@ -81,6 +81,12 @@ public:
         int flag = 1;
         setsockopt(fd_, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
 
+        // Set receive timeout to prevent indefinite blocking
+        struct timeval tv;
+        tv.tv_sec = 5;
+        tv.tv_usec = 0;
+        setsockopt(fd_, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
         // Random WebSocket key
         std::random_device rd;
         std::mt19937 gen(rd());
