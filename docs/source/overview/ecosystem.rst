@@ -96,24 +96,40 @@ The following input devices and device categories are planned for support in the
 
 .. list-table:: Planned Input Devices
    :header-rows: 1
-   :widths: 20 25 25 15
+   :widths: 20 25 25 25
 
    * - Device
      - Input Modes
      - Client / Connection
      - ETA
-   * - Keyboard and Mouse
+   * - JoyLo
+     - Master Manipulators
+     - CLI tool
+     - Planning, see `#272 <https://github.com/NVIDIA/IsaacTeleop/issues/272>`_
+   * - Gello
+     - Master Manipulators
+     - CLI tool
+     - Planning, see `#273 <https://github.com/NVIDIA/IsaacTeleop/issues/273>`_
+   * - Haply
+     - Master Manipulators
+     - CLI tool
+     - Planning, see `#274 <https://github.com/NVIDIA/IsaacTeleop/issues/274>`_
+   * - SO-101
+     - Master Manipulators
+     - CLI tool
+     - Planning, see `#275 <https://github.com/NVIDIA/IsaacTeleop/issues/275>`_
+   * - 3D Space Mouse
      - Keyboard and mouse input
+     - HID input
+     - Planning, see `#276 <https://github.com/NVIDIA/IsaacTeleop/issues/276>`_
+   * - Gamepad
+     - HID input
      - CLI tool
-     - Planned
-   * - Master Manipulators
-     - Gello, Haply, JoyLo etc.
+     - Planning, see `#277 <https://github.com/NVIDIA/IsaacTeleop/issues/277>`_
+   * - Keyboard
+     - HID input
      - CLI tool
-     - Planned
-   * - Exoskeletons
-     - TBA
-     - TBA
-     - TBA
+     - Planning, see `#278 <https://github.com/NVIDIA/IsaacTeleop/issues/278>`_
 
 Targeted Robotics Embodiments
 -----------------------------
