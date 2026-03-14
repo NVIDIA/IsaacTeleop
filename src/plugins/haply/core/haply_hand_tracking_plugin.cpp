@@ -1,10 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+#include "third_party/nlohmann/json.hpp"
+
 #include <arpa/inet.h>
 #include <core/haply_hand_tracking_plugin.hpp>
 #include <netinet/tcp.h>
-#include <nlohmann/json.hpp>
 #include <oxr/oxr_session.hpp>
 #include <oxr_utils/math.hpp>
 #include <oxr_utils/pose_conversions.hpp>
@@ -20,10 +21,7 @@
 #include <memory>
 #include <netdb.h>
 #include <random>
-#include <stdexcept>
-#include <thread>
 #include <unistd.h>
-#include <vector>
 
 using json = nlohmann::json;
 
@@ -32,8 +30,7 @@ namespace plugins
 namespace haply
 {
 
-// Offset applied to the controller aim pose to produce an initial hand root.
-// Only right hand is supported for now; left is provided for future use.
+// Hand offset poses (same as Manus plugin for controller-to-wrist transform)
 static constexpr XrPosef kLeftHandOffset = { { -0.70710678f, -0.5f, 0.0f, 0.5f }, { -0.1f, 0.02f, -0.02f } };
 static constexpr XrPosef kRightHandOffset = { { -0.70710678f, 0.5f, 0.0f, 0.5f }, { 0.1f, 0.02f, -0.02f } };
 
@@ -121,6 +118,12 @@ bool HaplyWebSocket::connect(const std::string& host, uint16_t port, const std::
     }
     freeaddrinfo(res);
 
+    // Set receive timeout to avoid blocking indefinitely
+    struct timeval tv;
+    tv.tv_sec = 5;
+    tv.tv_usec = 0;
+    setsockopt(fd_, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
     // Disable Nagle's algorithm for lower latency
     int flag = 1;
     setsockopt(fd_, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
@@ -135,7 +138,7 @@ bool HaplyWebSocket::connect(const std::string& host, uint16_t port, const std::
         key_bytes[i] = static_cast<uint8_t>(dis(gen));
     }
 
-    // Base64 encode the key (simple implementation)
+    // Base64 encode the key
     static const char* b64_table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     std::string ws_key;
     ws_key.reserve(24);
@@ -143,13 +146,9 @@ bool HaplyWebSocket::connect(const std::string& host, uint16_t port, const std::
     {
         uint32_t n = (static_cast<uint32_t>(key_bytes[i]) << 16);
         if (i + 1 < 16)
-        {
             n |= (static_cast<uint32_t>(key_bytes[i + 1]) << 8);
-        }
         if (i + 2 < 16)
-        {
             n |= static_cast<uint32_t>(key_bytes[i + 2]);
-        }
         ws_key += b64_table[(n >> 18) & 0x3F];
         ws_key += b64_table[(n >> 12) & 0x3F];
         ws_key += (i + 1 < 16) ? b64_table[(n >> 6) & 0x3F] : '=';
@@ -204,11 +203,8 @@ bool HaplyWebSocket::connect(const std::string& host, uint16_t port, const std::
 bool HaplyWebSocket::send_frame(uint8_t opcode, const void* payload, size_t len)
 {
     if (fd_ < 0)
-    {
         return false;
-    }
 
-    // Frame header
     std::vector<uint8_t> frame;
     frame.reserve(14 + len);
 
@@ -264,21 +260,16 @@ bool HaplyWebSocket::send_text(const std::string& payload)
 bool HaplyWebSocket::recv_text(std::string& out)
 {
     if (fd_ < 0)
-    {
         return false;
-    }
 
     out.clear();
 
-    // We may receive a fragmented message; loop until FIN is set
     bool fin = false;
     while (!fin)
     {
         uint8_t header[2];
         if (!recv_raw(header, 2))
-        {
             return false;
-        }
 
         fin = (header[0] & 0x80) != 0;
         uint8_t opcode = header[0] & 0x0F;
@@ -289,18 +280,14 @@ bool HaplyWebSocket::recv_text(std::string& out)
         {
             uint8_t ext[2];
             if (!recv_raw(ext, 2))
-            {
                 return false;
-            }
             payload_len = (static_cast<uint64_t>(ext[0]) << 8) | ext[1];
         }
         else if (payload_len == 127)
         {
             uint8_t ext[8];
             if (!recv_raw(ext, 8))
-            {
                 return false;
-            }
             payload_len = 0;
             for (int i = 0; i < 8; ++i)
             {
@@ -308,22 +295,25 @@ bool HaplyWebSocket::recv_text(std::string& out)
             }
         }
 
+        constexpr uint64_t kMaxPayloadSize = 16 * 1024 * 1024; // 16 MB
+        if (payload_len > kMaxPayloadSize)
+        {
+            std::cerr << "[HaplyWebSocket] Payload too large: " << payload_len << " bytes" << std::endl;
+            return false;
+        }
+
         uint8_t mask[4] = { 0, 0, 0, 0 };
         if (masked)
         {
             if (!recv_raw(mask, 4))
-            {
                 return false;
-            }
         }
 
         std::vector<uint8_t> data(payload_len);
         if (payload_len > 0)
         {
             if (!recv_raw(data.data(), payload_len))
-            {
                 return false;
-            }
             if (masked)
             {
                 for (size_t i = 0; i < payload_len; ++i)
@@ -336,19 +326,19 @@ bool HaplyWebSocket::recv_text(std::string& out)
         // Handle control frames
         if (opcode == 0x08)
         {
-            // Close frame — send close response and return false
+            // Close frame - send close response
             send_frame(0x08, data.data(), data.size());
             return false;
         }
         else if (opcode == 0x09)
         {
-            // Ping — respond with pong
+            // Ping - respond with pong
             send_frame(0x0A, data.data(), data.size());
             continue;
         }
         else if (opcode == 0x0A)
         {
-            // Pong — ignore
+            // Pong - ignore
             continue;
         }
         else if (opcode == 0x01 || opcode == 0x00)
@@ -358,7 +348,7 @@ bool HaplyWebSocket::recv_text(std::string& out)
         }
         else
         {
-            // Binary or unknown — append as-is
+            // Binary or unknown
             out.append(reinterpret_cast<char*>(data.data()), data.size());
         }
     }
@@ -370,7 +360,6 @@ void HaplyWebSocket::close()
 {
     if (fd_ >= 0)
     {
-        // Send close frame (best effort)
         send_frame(0x08, nullptr, 0);
         ::close(fd_);
         fd_ = -1;
@@ -387,6 +376,23 @@ HaplyTracker& HaplyTracker::instance(const std::string& app_name) noexcept(false
     return s;
 }
 
+void HaplyTracker::update()
+{
+    // Update DeviceIOSession which handles time conversion and tracker updates internally
+    if (!m_deviceio_session->update())
+    {
+        return;
+    }
+
+    inject_hand_data();
+}
+
+HaplyDeviceState HaplyTracker::get_raw_state() const
+{
+    std::lock_guard<std::mutex> lock(m_state_mutex);
+    return m_state;
+}
+
 HaplyTracker::HaplyTracker(const std::string& app_name) noexcept(false)
 {
     initialize(app_name);
@@ -394,28 +400,55 @@ HaplyTracker::HaplyTracker(const std::string& app_name) noexcept(false)
 
 HaplyTracker::~HaplyTracker()
 {
+    {
+        std::lock_guard<std::mutex> lock(m_lifecycle_mutex);
+        if (!m_initialized)
+        {
+            return;
+        }
+        m_initialized = false;
+    }
+
     shutdown();
 }
 
 void HaplyTracker::initialize(const std::string& app_name) noexcept(false)
 {
-    std::lock_guard<std::mutex> lock(m_lifecycle_mutex);
-    if (m_initialized)
+    std::cout << "Initializing Haply Tracker..." << std::endl;
+
+    // Read WebSocket config from environment
+    const char* host_env = std::getenv("HAPLY_WS_HOST");
+    std::string ws_host = host_env ? host_env : "127.0.0.1";
+    uint16_t ws_port = 10001;
+    const char* port_env = std::getenv("HAPLY_WS_PORT");
+    if (port_env)
     {
-        return;
+        try
+        {
+            unsigned long parsed = std::stoul(port_env);
+            if (parsed == 0 || parsed > 65535)
+            {
+                std::cerr << "[Haply] Invalid HAPLY_WS_PORT value: " << port_env << ", using default 10001" << std::endl;
+            }
+            else
+            {
+                ws_port = static_cast<uint16_t>(parsed);
+            }
+        }
+        catch (const std::exception&)
+        {
+            std::cerr << "[Haply] Invalid HAPLY_WS_PORT value: " << port_env << ", using default 10001" << std::endl;
+        }
     }
 
-    // Read WebSocket configuration from environment
-    const char* host_env = std::getenv("HAPLY_WEBSOCKET_HOST");
-    const char* port_env = std::getenv("HAPLY_WEBSOCKET_PORT");
-    std::string ws_host = host_env ? host_env : "127.0.0.1";
-    uint16_t ws_port = port_env ? static_cast<uint16_t>(std::atoi(port_env)) : 10001;
+    std::cout << "Connecting to Haply SDK at " << ws_host << ":" << ws_port << std::endl;
 
-    std::cout << "[HaplyTracker] Initializing (WebSocket target: " << ws_host << ":" << ws_port << ")" << std::endl;
-
-    // Start the WebSocket I/O thread
+    // Start WebSocket I/O thread
     m_running.store(true);
     m_io_thread = std::thread(&HaplyTracker::io_loop, this, ws_host, ws_port);
+
+    // Wait briefly for connection to establish
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
     std::string error_msg = "Unknown error";
     bool success = false;
@@ -430,7 +463,7 @@ void HaplyTracker::initialize(const std::string& app_name) noexcept(false)
         auto extensions = core::DeviceIOSession::get_required_extensions(trackers);
         extensions.push_back(XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME);
 
-        // Create OpenXR session — constructor automatically begins the session
+        // Create session with required extensions
         m_session = std::make_shared<core::OpenXRSession>(app_name, extensions);
         auto handles = m_session->get_handles();
 
@@ -443,7 +476,7 @@ void HaplyTracker::initialize(const std::string& app_name) noexcept(false)
 
         m_deviceio_session = core::DeviceIOSession::run(trackers, handles);
 
-        std::cout << "[HaplyTracker] OpenXR session, HandInjector and DeviceIOSession initialized" << std::endl;
+        std::cout << "OpenXR session, HandInjector and DeviceIOSession initialized" << std::endl;
         success = true;
     }
     catch (const std::exception& e)
@@ -453,48 +486,29 @@ void HaplyTracker::initialize(const std::string& app_name) noexcept(false)
 
     if (!success)
     {
-        std::cerr << "[HaplyTracker] Failed to initialize OpenXR: " << error_msg << std::endl;
+        std::cerr << "Failed to initialize OpenXR: " << error_msg << std::endl;
 
-        // Stop the I/O thread before propagating the error
-        m_running.store(false);
-        if (m_io_thread.joinable())
-        {
-            m_io_thread.join();
-        }
+        // Stop WebSocket thread
+        shutdown();
 
         throw std::runtime_error(error_msg);
     }
 
+    std::lock_guard<std::mutex> lock(m_lifecycle_mutex);
     m_initialized = true;
 }
 
 void HaplyTracker::shutdown()
 {
+    if (m_running.load())
     {
-        std::lock_guard<std::mutex> lock(m_lifecycle_mutex);
-        if (!m_initialized)
+        m_running.store(false);
+        if (m_io_thread.joinable())
         {
-            return;
+            m_io_thread.join();
         }
-        m_initialized = false;
+        std::cout << "Haply Tracker shutdown complete" << std::endl;
     }
-
-    // Stop the WebSocket I/O thread
-    m_running.store(false);
-    if (m_io_thread.joinable())
-    {
-        m_io_thread.join();
-    }
-
-    // Clean up OpenXR resources (unique_ptrs reset automatically)
-    m_left_injector.reset();
-    m_right_injector.reset();
-    m_deviceio_session.reset();
-    m_time_converter.reset();
-    m_controller_tracker.reset();
-    m_session.reset();
-
-    std::cout << "[HaplyTracker] Shutdown complete" << std::endl;
 }
 
 void HaplyTracker::io_loop(const std::string& host, uint16_t port)
@@ -528,87 +542,82 @@ void HaplyTracker::io_loop(const std::string& host, uint16_t port)
             try
             {
                 json j = json::parse(msg);
-                std::string device_id_for_cmd;
 
+                std::lock_guard<std::mutex> lock(m_state_mutex);
+
+                // Parse inverse3 array
+                if (j.contains("inverse3") && j["inverse3"].is_array() && !j["inverse3"].empty())
                 {
-                    std::lock_guard<std::mutex> lock(m_state_mutex);
-
-                    // Parse inverse3 array
-                    if (j.contains("inverse3") && j["inverse3"].is_array() && !j["inverse3"].empty())
+                    const auto& inv3 = j["inverse3"][0];
+                    if (inv3.contains("device_id"))
                     {
-                        const auto& inv3 = j["inverse3"][0];
-                        if (inv3.contains("device_id"))
-                        {
-                            m_state.inverse3_device_id = inv3["device_id"].get<std::string>();
-                        }
-                        // Handedness from config (only in first message typically)
-                        if (inv3.contains("config") && inv3["config"].contains("handedness"))
-                        {
-                            m_state.handedness = inv3["config"]["handedness"].get<std::string>();
-                        }
-                        if (inv3.contains("state"))
-                        {
-                            const auto& st = inv3["state"];
-                            if (st.contains("cursor_position"))
-                            {
-                                const auto& pos = st["cursor_position"];
-                                m_state.cursor_position.x = pos.value("x", 0.0f);
-                                m_state.cursor_position.y = pos.value("y", 0.0f);
-                                m_state.cursor_position.z = pos.value("z", 0.0f);
-                            }
-                            if (st.contains("cursor_velocity"))
-                            {
-                                const auto& vel = st["cursor_velocity"];
-                                m_state.cursor_velocity.x = vel.value("x", 0.0f);
-                                m_state.cursor_velocity.y = vel.value("y", 0.0f);
-                                m_state.cursor_velocity.z = vel.value("z", 0.0f);
-                            }
-                        }
-                        m_state.has_data = true;
+                        m_state.inverse3_device_id = inv3["device_id"].get<std::string>();
                     }
-
-                    // Parse wireless_verse_grip array
-                    if (j.contains("wireless_verse_grip") && j["wireless_verse_grip"].is_array() &&
-                        !j["wireless_verse_grip"].empty())
+                    // Handedness from config (only in first message)
+                    if (inv3.contains("config") && inv3["config"].contains("handedness"))
                     {
-                        const auto& vg = j["wireless_verse_grip"][0];
-                        if (vg.contains("device_id"))
-                        {
-                            m_state.versegrip_device_id = vg["device_id"].get<std::string>();
-                        }
-                        if (vg.contains("state"))
-                        {
-                            const auto& st = vg["state"];
-                            if (st.contains("orientation"))
-                            {
-                                const auto& ori = st["orientation"];
-                                m_state.orientation.w = ori.value("w", 1.0f);
-                                m_state.orientation.x = ori.value("x", 0.0f);
-                                m_state.orientation.y = ori.value("y", 0.0f);
-                                m_state.orientation.z = ori.value("z", 0.0f);
-                            }
-                            if (st.contains("buttons"))
-                            {
-                                const auto& btn = st["buttons"];
-                                m_state.buttons.button_0 = btn.value("button_0", false);
-                                m_state.buttons.button_1 = btn.value("button_1", false);
-                                m_state.buttons.button_2 = btn.value("button_2", false);
-                                m_state.buttons.button_3 = btn.value("button_3", false);
-                            }
-                        }
-                        m_state.has_data = true;
+                        m_state.handedness = inv3["config"]["handedness"].get<std::string>();
                     }
-
-                    device_id_for_cmd = m_state.inverse3_device_id;
+                    if (inv3.contains("state"))
+                    {
+                        const auto& st = inv3["state"];
+                        if (st.contains("cursor_position"))
+                        {
+                            const auto& pos = st["cursor_position"];
+                            m_state.cursor_position.x = pos.value("x", 0.0f);
+                            m_state.cursor_position.y = pos.value("y", 0.0f);
+                            m_state.cursor_position.z = pos.value("z", 0.0f);
+                        }
+                        if (st.contains("cursor_velocity"))
+                        {
+                            const auto& vel = st["cursor_velocity"];
+                            m_state.cursor_velocity.x = vel.value("x", 0.0f);
+                            m_state.cursor_velocity.y = vel.value("y", 0.0f);
+                            m_state.cursor_velocity.z = vel.value("z", 0.0f);
+                        }
+                    }
+                    m_state.has_data = true;
                 }
 
-                // Send a zero-force command to keep receiving updates
-                if (!device_id_for_cmd.empty())
+                // Parse wireless_verse_grip array
+                if (j.contains("wireless_verse_grip") && j["wireless_verse_grip"].is_array() &&
+                    !j["wireless_verse_grip"].empty())
+                {
+                    const auto& vg = j["wireless_verse_grip"][0];
+                    if (vg.contains("device_id"))
+                    {
+                        m_state.versegrip_device_id = vg["device_id"].get<std::string>();
+                    }
+                    if (vg.contains("state"))
+                    {
+                        const auto& st = vg["state"];
+                        if (st.contains("orientation"))
+                        {
+                            const auto& ori = st["orientation"];
+                            m_state.orientation.w = ori.value("w", 1.0f);
+                            m_state.orientation.x = ori.value("x", 0.0f);
+                            m_state.orientation.y = ori.value("y", 0.0f);
+                            m_state.orientation.z = ori.value("z", 0.0f);
+                        }
+                        if (st.contains("buttons"))
+                        {
+                            const auto& btn = st["buttons"];
+                            m_state.buttons.button_0 = btn.value("button_0", false);
+                            m_state.buttons.button_1 = btn.value("button_1", false);
+                            m_state.buttons.button_2 = btn.value("button_2", false);
+                            m_state.buttons.button_3 = btn.value("button_3", false);
+                        }
+                    }
+                    m_state.has_data = true;
+                }
+
+                // Send a command to keep receiving updates (set zero force)
+                if (!m_state.inverse3_device_id.empty())
                 {
                     json cmd;
                     cmd["inverse3"] = json::array();
                     json dev;
-                    dev["device_id"] = device_id_for_cmd;
+                    dev["device_id"] = m_state.inverse3_device_id;
                     dev["commands"]["set_cursor_force"]["values"]["x"] = 0;
                     dev["commands"]["set_cursor_force"]["values"]["y"] = 0;
                     dev["commands"]["set_cursor_force"]["values"]["z"] = 0;
@@ -628,22 +637,6 @@ void HaplyTracker::io_loop(const std::string& host, uint16_t port)
     ws.close();
 }
 
-void HaplyTracker::update()
-{
-    if (!m_deviceio_session->update())
-    {
-        return;
-    }
-
-    inject_hand_data();
-}
-
-HaplyDeviceState HaplyTracker::get_raw_state() const
-{
-    std::lock_guard<std::mutex> lock(m_state_mutex);
-    return m_state;
-}
-
 void HaplyTracker::inject_hand_data()
 {
     HaplyDeviceState snapshot;
@@ -652,111 +645,130 @@ void HaplyTracker::inject_hand_data()
         snapshot = m_state;
     }
 
-    // Determine active hand from device handedness
-    const bool is_left = (snapshot.handedness == "left");
-
-    auto& injector = is_left ? m_left_injector : m_right_injector;
-    auto& other_injector = is_left ? m_right_injector : m_left_injector;
-
-    if (!snapshot.has_data)
-    {
-        // No data received yet — reset injectors so runtime sees isActive=false
-        injector.reset();
-        other_injector.reset();
-        return;
-    }
-
-    if (!injector)
-    {
-        // Device reconnected — lazily recreate the push device
-        const auto handles = m_session->get_handles();
-        XrHandEXT hand = is_left ? XR_HAND_LEFT_EXT : XR_HAND_RIGHT_EXT;
-        injector = std::make_unique<plugin_utils::HandInjector>(handles.instance, handles.session, hand, handles.space);
-    }
-
-    // The other hand has no data — ensure its injector is inactive
-    other_injector.reset();
-
-    // Get controller snapshot for root tracking
+    // Get controller data from DeviceIOSession
     const auto& left_tracked = m_controller_tracker->get_left_controller(*m_deviceio_session);
     const auto& right_tracked = m_controller_tracker->get_right_controller(*m_deviceio_session);
-    const auto& tracked = is_left ? left_tracked : right_tracked;
 
-    bool is_root_tracked = false;
-    if (tracked.data)
+    // Use the OpenXR runtime clock for injection time
+    XrTime time = m_time_converter->os_monotonic_now();
+
+    // Determine which hand to use based on detected handedness
+    const bool is_left = (snapshot.handedness == "left");
+
+    auto process_hand = [&](bool target_is_left, std::unique_ptr<plugin_utils::HandInjector>& injector)
     {
-        bool aim_valid = false;
-        XrPosef raw_pose = oxr_utils::get_aim_pose(*tracked.data, aim_valid);
-
-        if (aim_valid)
+        // Only process the hand that matches the Haply device handedness
+        if (target_is_left != is_left)
         {
-            XrPosef offset_pose = is_left ? kLeftHandOffset : kRightHandOffset;
-            XrPosef new_root = oxr_utils::multiply_poses(raw_pose, offset_pose);
+            // Other hand has no data — reset injector so runtime sees isActive=false
+            injector.reset();
+            return;
+        }
 
-            if (is_left)
+        if (!snapshot.has_data)
+        {
+            // No data yet — reset the injector
+            injector.reset();
+            return;
+        }
+
+        if (!injector)
+        {
+            // Device connected — lazily recreate the push device
+            const auto handles = m_session->get_handles();
+            XrHandEXT hand = target_is_left ? XR_HAND_LEFT_EXT : XR_HAND_RIGHT_EXT;
+            injector =
+                std::make_unique<plugin_utils::HandInjector>(handles.instance, handles.session, hand, handles.space);
+        }
+
+        XrHandJointLocationEXT joints[XR_HAND_JOINT_COUNT_EXT];
+        XrPosef root_pose = { { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, 0.0f } };
+        bool is_root_tracked = false;
+
+        // Get controller snapshot for this hand
+        const auto& tracked = target_is_left ? left_tracked : right_tracked;
+
+        if (tracked.data)
+        {
+            bool aim_valid = false;
+            XrPosef raw_pose = oxr_utils::get_aim_pose(*tracked.data, aim_valid);
+
+            if (aim_valid)
             {
-                m_left_root_pose = new_root;
+                XrPosef offset_pose = target_is_left ? kLeftHandOffset : kRightHandOffset;
+                XrPosef new_root = oxr_utils::multiply_poses(raw_pose, offset_pose);
+
+                if (target_is_left)
+                {
+                    m_left_root_pose = new_root;
+                }
+                else
+                {
+                    m_right_root_pose = new_root;
+                }
+                is_root_tracked = true;
+            }
+        }
+
+        root_pose = target_is_left ? m_left_root_pose : m_right_root_pose;
+
+        // Calculate grip state from buttons (any button pressed = gripping)
+        const bool gripping = snapshot.buttons.button_0 || snapshot.buttons.button_1 || snapshot.buttons.button_2 ||
+                              snapshot.buttons.button_3;
+
+        // TODO: m_grip_interpolant is computed from button state for future finger pose synthesis.
+        // Currently unused — all finger joints are placed at the wrist position.
+        // When finger pose synthesis is implemented, this value will drive finger curl animations.
+
+        // Smooth the grip interpolant
+        const float target_grip = gripping ? 1.0f : 0.0f;
+        const float grip_speed = 0.15f;
+        m_grip_interpolant += (target_grip - m_grip_interpolant) * grip_speed;
+
+        // Build wrist pose from Haply data
+        XrPosef wrist_local;
+        wrist_local.position.x = snapshot.cursor_position.x;
+        wrist_local.position.y = snapshot.cursor_position.y;
+        wrist_local.position.z = snapshot.cursor_position.z;
+        wrist_local.orientation.x = snapshot.orientation.x;
+        wrist_local.orientation.y = snapshot.orientation.y;
+        wrist_local.orientation.z = snapshot.orientation.z;
+        wrist_local.orientation.w = snapshot.orientation.w;
+
+        // Transform wrist to world space
+        XrPosef wrist_world = oxr_utils::multiply_poses(root_pose, wrist_local);
+
+        // Populate all joints
+        for (uint32_t j = 0; j < XR_HAND_JOINT_COUNT_EXT; j++)
+        {
+            // For Haply, we only have wrist/palm tracking. Finger joints are synthesized.
+            if (j == XR_HAND_JOINT_WRIST_EXT || j == XR_HAND_JOINT_PALM_EXT)
+            {
+                joints[j].pose = wrist_world;
+                joints[j].radius = (j == XR_HAND_JOINT_PALM_EXT) ? 0.04f : 0.03f;
+                joints[j].locationFlags = XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
+                if (is_root_tracked)
+                {
+                    joints[j].locationFlags |=
+                        XR_SPACE_LOCATION_POSITION_TRACKED_BIT | XR_SPACE_LOCATION_ORIENTATION_TRACKED_BIT;
+                }
             }
             else
             {
-                m_right_root_pose = new_root;
-            }
-            is_root_tracked = true;
-        }
-    }
-
-    XrPosef root_pose = is_left ? m_left_root_pose : m_right_root_pose;
-
-    // Smooth grip interpolant based on button presses
-    const bool gripping = snapshot.buttons.button_0 || snapshot.buttons.button_1 || snapshot.buttons.button_2 ||
-                          snapshot.buttons.button_3;
-    const float target_grip = gripping ? 1.0f : 0.0f;
-    const float grip_speed = 0.15f;
-    m_grip_interpolant += (target_grip - m_grip_interpolant) * grip_speed;
-
-    // Build the local wrist pose from cursor position + VerseGrip orientation
-    XrPosef wrist_local;
-    wrist_local.position.x = snapshot.cursor_position.x;
-    wrist_local.position.y = snapshot.cursor_position.y;
-    wrist_local.position.z = snapshot.cursor_position.z;
-    wrist_local.orientation.x = snapshot.orientation.x;
-    wrist_local.orientation.y = snapshot.orientation.y;
-    wrist_local.orientation.z = snapshot.orientation.z;
-    wrist_local.orientation.w = snapshot.orientation.w;
-
-    XrPosef wrist_world = oxr_utils::multiply_poses(root_pose, wrist_local);
-
-    // Build hand joint locations
-    XrHandJointLocationEXT joints[XR_HAND_JOINT_COUNT_EXT];
-
-    for (uint32_t j = 0; j < XR_HAND_JOINT_COUNT_EXT; j++)
-    {
-        if (j == XR_HAND_JOINT_WRIST_EXT || j == XR_HAND_JOINT_PALM_EXT)
-        {
-            // Wrist and palm get the real tracked position + orientation
-            joints[j].pose = wrist_world;
-            joints[j].radius = (j == XR_HAND_JOINT_PALM_EXT) ? 0.04f : 0.03f;
-            joints[j].locationFlags = XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
-
-            if (is_root_tracked)
-            {
-                joints[j].locationFlags |=
-                    XR_SPACE_LOCATION_POSITION_TRACKED_BIT | XR_SPACE_LOCATION_ORIENTATION_TRACKED_BIT;
+                // Synthesize finger joints at wrist position with identity orientation
+                // These are marked as VALID but NOT TRACKED (synthesized)
+                joints[j].pose = wrist_world;
+                joints[j].radius = 0.008f;
+                joints[j].locationFlags = XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
+                // Note: NOT adding TRACKED bits since these are synthesized
             }
         }
-        else
-        {
-            // All finger joints: placed at wrist position with identity orientation.
-            // Marked VALID but not TRACKED (synthesised data).
-            joints[j].pose = wrist_world;
-            joints[j].radius = 0.008f;
-            joints[j].locationFlags = XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
-        }
-    }
 
-    // Use the OpenXR runtime clock for injection
-    XrTime time = m_time_converter->os_monotonic_now();
-    injector->push(joints, time);
+        injector->push(joints, time);
+    };
+
+    process_hand(true, m_left_injector);
+    process_hand(false, m_right_injector);
 }
 
 } // namespace haply
