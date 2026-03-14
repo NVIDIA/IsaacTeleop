@@ -13,23 +13,21 @@ Usage:
 """
 
 import argparse
+from dataclasses import dataclass
 import os
 import sys
-from dataclasses import dataclass
 from typing import Dict, List
 
-import yaml
+from camera_config import CameraConfig, validate_camera_configs
+from camera_sources import create_camera_source, ensure_nvenc_support
 from holoscan.core import Application
 from holoscan.resources import UnboundedAllocator
 from holoscan.schedulers import EventBasedScheduler
 from loguru import logger
-
 from operators.gstreamer_h264_sender.gstreamer_h264_sender_op import (
     GStreamerH264SenderOp,
 )
-from camera_config import CameraConfig, validate_camera_configs
-from camera_sources import create_camera_source, ensure_nvenc_support
-
+import yaml
 
 # -----------------------------------------------------------------------------
 # Sender Configuration
@@ -56,9 +54,7 @@ class TeleopCameraSenderConfig:
         if source not in ("rtp", "local"):
             raise ValueError(f'Invalid source: "{source}". Must be "rtp" or "local".')
         if source != "rtp":
-            raise ValueError(
-                'source is "local" — the sender is only used with source: "rtp".'
-            )
+            raise ValueError('source is "local" — the sender is only used with source: "rtp".')
 
         cameras = {}
         for name, cam_data in data["cameras"].items():
@@ -73,11 +69,7 @@ class TeleopCameraSenderConfig:
 
     def get_cameras_by_type(self, camera_type: str) -> Dict[str, CameraConfig]:
         """Get camera configurations filtered by type."""
-        return {
-            name: cfg
-            for name, cfg in self.cameras.items()
-            if cfg.camera_type == camera_type
-        }
+        return {name: cfg for name, cfg in self.cameras.items() if cfg.camera_type == camera_type}
 
     def validate(self) -> List[str]:
         """Validate configuration and return list of errors."""
@@ -94,15 +86,11 @@ class TeleopCameraSenderConfig:
                 if not cam_cfg.device:
                     errors.append(f"Camera '{cam_name}': V4L2 camera missing 'device'")
                 if cam_cfg.stereo:
-                    errors.append(
-                        f"Camera '{cam_name}': V4L2 cameras only support mono mode"
-                    )
+                    errors.append(f"Camera '{cam_name}': V4L2 cameras only support mono mode")
 
             if cam_cfg.camera_type == "zed":
                 if cam_cfg.resolution is None:
-                    errors.append(
-                        f"Camera '{cam_name}': ZED camera missing 'resolution'"
-                    )
+                    errors.append(f"Camera '{cam_name}': ZED camera missing 'resolution'")
                 else:
                     from operators.zed_camera.zed_camera_op import ZED_RESOLUTION_DIMS
 
@@ -119,10 +107,7 @@ class TeleopCameraSenderConfig:
         """Validate configuration and raise ValueError if invalid."""
         errors = self.validate()
         if errors:
-            raise ValueError(
-                "Configuration validation failed:\n"
-                + "\n".join(f"  - {e}" for e in errors)
-            )
+            raise ValueError("Configuration validation failed:\n" + "\n".join(f"  - {e}" for e in errors))
 
 
 # -----------------------------------------------------------------------------
@@ -159,14 +144,8 @@ class TeleopCameraSenderApp(Application):
         # (VPU can't sustain dual H.264 at full framerate, so stereo OAK-D
         # uses raw frames with host GPU NVENC encoding.)
         NvStreamEncoderOp = None
-        has_stereo_oakd = any(
-            c.stereo for c in self._config.get_cameras_by_type("oakd").values()
-        )
-        if (
-            self._config.get_cameras_by_type("zed")
-            or self._config.get_cameras_by_type("v4l2")
-            or has_stereo_oakd
-        ):
+        has_stereo_oakd = any(c.stereo for c in self._config.get_cameras_by_type("oakd").values())
+        if self._config.get_cameras_by_type("zed") or self._config.get_cameras_by_type("v4l2") or has_stereo_oakd:
             NvStreamEncoderOp = ensure_nvenc_support()
 
         for cam_name, cam_cfg in self._config.cameras.items():
@@ -250,9 +229,7 @@ class TeleopCameraSenderApp(Application):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Teleop Camera Sender: Multi-camera streaming for teleoperation"
-    )
+    parser = argparse.ArgumentParser(description="Teleop Camera Sender: Multi-camera streaming for teleoperation")
     parser.add_argument(
         "--config",
         type=str,
