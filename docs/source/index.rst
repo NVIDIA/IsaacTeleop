@@ -34,6 +34,7 @@ Table of Contents
    :caption: Overview
    :titlesonly:
 
+   Iaacc Teleop <self>
    overview/architecture
    overview/ecosystem
 
