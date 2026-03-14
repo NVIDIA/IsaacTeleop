@@ -24,6 +24,32 @@ namespace plugins
 namespace manus
 {
 
+namespace
+{
+
+// Returns true if the OpenXR loader/runtime advertises the given extension.
+// xrEnumerateInstanceExtensionProperties is a loader-level function that can be
+// called before any XrInstance exists, so this is safe to use at init time.
+bool is_openxr_extension_supported(const char* ext_name)
+{
+    uint32_t count = 0;
+    if (XR_FAILED(xrEnumerateInstanceExtensionProperties(nullptr, 0, &count, nullptr)))
+    {
+        return false;
+    }
+    std::vector<XrExtensionProperties> props(count, XrExtensionProperties{ XR_TYPE_EXTENSION_PROPERTIES });
+    if (XR_FAILED(xrEnumerateInstanceExtensionProperties(nullptr, count, &count, props.data())))
+    {
+        return false;
+    }
+    return std::any_of(props.begin(), props.end(), [ext_name](const XrExtensionProperties& p)
+    {
+        return std::string(p.extensionName) == ext_name;
+    });
+}
+
+} // anonymous namespace
+
 static constexpr XrPosef kLeftHandOffset = { { -0.70710678f, -0.5f, 0.0f, 0.5f }, { -0.1f, 0.02f, -0.02f } };
 static constexpr XrPosef kRightHandOffset = { { -0.70710678f, 0.5f, 0.0f, 0.5f }, { 0.1f, 0.02f, -0.02f } };
 
@@ -38,6 +64,7 @@ void ManusTracker::update()
     // Update DeviceIOSession which handles time conversion and tracker updates internally
     if (!m_deviceio_session->update())
     {
+        // Update failed, skip this frame
         return;
     }
 
@@ -77,14 +104,14 @@ ManusTracker::~ManusTracker()
 
 void ManusTracker::initialize(const std::string& app_name) noexcept(false)
 {
-    std::cout << "Initializing Manus SDK..." << std::endl;
+    std::cout << "[Manus] Initializing SDK..." << std::endl;
     const SDKReturnCode t_InitializeResult = CoreSdk_InitializeIntegrated();
     if (t_InitializeResult != SDKReturnCode::SDKReturnCode_Success)
     {
         throw std::runtime_error("Failed to initialize Manus SDK, error code: " +
                                  std::to_string(static_cast<int>(t_InitializeResult)));
     }
-    std::cout << "Manus SDK initialized successfully" << std::endl;
+    std::cout << "[Manus] SDK initialized successfully" << std::endl;
 
     RegisterCallbacks();
 
@@ -95,7 +122,7 @@ void ManusTracker::initialize(const std::string& app_name) noexcept(false)
     t_VUH.view = AxisView::AxisView_ZToViewer;
     t_VUH.unitScale = 1.0f;
 
-    std::cout << "Setting up coordinate system (Z-up, right-handed, meters)..." << std::endl;
+    std::cout << "[Manus] Setting up coordinate system (Y-up, right-handed, meters)..." << std::endl;
     const SDKReturnCode t_CoordinateResult = CoreSdk_InitializeCoordinateSystemWithVUH(t_VUH, true);
 
     if (t_CoordinateResult != SDKReturnCode::SDKReturnCode_Success)
@@ -103,7 +130,7 @@ void ManusTracker::initialize(const std::string& app_name) noexcept(false)
         throw std::runtime_error("Failed to initialize Manus SDK coordinate system, error code: " +
                                  std::to_string(static_cast<int>(t_CoordinateResult)));
     }
-    std::cout << "Coordinate system initialized successfully" << std::endl;
+    std::cout << "[Manus] Coordinate system initialized successfully" << std::endl;
 
     ConnectToGloves();
 
@@ -112,28 +139,71 @@ void ManusTracker::initialize(const std::string& app_name) noexcept(false)
 
     try
     {
-        // Create ControllerTracker and DeviceIOSession
+        // Create ControllerTracker unconditionally; HandTracker requires
+        // XR_EXT_hand_tracking which is optional — only add it when the runtime
+        // advertises support so xrCreateInstance does not fail with
+        // XR_ERROR_EXTENSION_NOT_PRESENT on runtimes that lack the extension.
         m_controller_tracker = std::make_shared<core::ControllerTracker>();
         std::vector<std::shared_ptr<core::ITracker>> trackers = { m_controller_tracker };
+
+        const bool hand_tracking_supported = is_openxr_extension_supported(XR_EXT_HAND_TRACKING_EXTENSION_NAME);
+        if (hand_tracking_supported)
+        {
+            m_hand_tracker = std::make_shared<core::HandTracker>();
+            trackers.push_back(m_hand_tracker);
+        }
+        else
+        {
+            std::cout << "[Manus] " << XR_EXT_HAND_TRACKING_EXTENSION_NAME
+                      << " is not supported by the current runtime; HandTracker will not be created."
+                      << std::endl;
+        }
 
         // Get required extensions from trackers
         auto extensions = core::DeviceIOSession::get_required_extensions(trackers);
         extensions.push_back(XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME);
 
+        // XR_MNDX_XDEV_SPACE_EXTENSION_NAME is optional: it enables optical (HMD) hand
+        // tracking as a higher-quality wrist source. If the runtime does not advertise
+        // it we fall back to controller-based tracking instead of crashing.
+        const bool xdev_extension_supported = is_openxr_extension_supported(XR_MNDX_XDEV_SPACE_EXTENSION_NAME);
+        if (xdev_extension_supported)
+        {
+            extensions.push_back(XR_MNDX_XDEV_SPACE_EXTENSION_NAME);
+        }
+        else
+        {
+            std::cout << "[Manus] " << XR_MNDX_XDEV_SPACE_EXTENSION_NAME
+                      << " is not supported by the current runtime; optical hand tracking"
+                      << " will not be available and controller fallback will be used."
+                      << std::endl;
+        }
+
         // Create session with required extensions - constructor automatically begins the session
         m_session = std::make_shared<core::OpenXRSession>(app_name, extensions);
-        auto handles = m_session->get_handles();
+        m_handles = m_session->get_handles();
+        
+        // Initialize time converter now that handles are ready
+        m_time_converter.emplace(m_handles);
 
-        // Initialize hand injectors (one per hand) and time converter
-        m_left_injector = std::make_unique<plugin_utils::HandInjector>(
-            handles.instance, handles.session, XR_HAND_LEFT_EXT, handles.space);
-        m_right_injector = std::make_unique<plugin_utils::HandInjector>(
-            handles.instance, handles.session, XR_HAND_RIGHT_EXT, handles.space);
-        m_time_converter.emplace(handles);
+        // Initialize hand injectors (one per hand)
+        m_left_injector = std::make_unique<plugin_utils::HandInjector>(m_handles.instance, m_handles.session, XR_HAND_LEFT_EXT, m_handles.space);
+        m_right_injector = std::make_unique<plugin_utils::HandInjector>(m_handles.instance, m_handles.session, XR_HAND_RIGHT_EXT, m_handles.space);
 
-        m_deviceio_session = core::DeviceIOSession::run(trackers, handles);
+        m_deviceio_session = core::DeviceIOSession::run(trackers, m_handles);
 
-        std::cout << "OpenXR session, HandInjector and DeviceIOSession initialized" << std::endl;
+        // Only attempt XDev hand tracker setup when the extension was actually enabled.
+        // Skipping here avoids calling xrGetInstanceProcAddr for MNDX entry points that
+        // the runtime would not have loaded.
+        if (xdev_extension_supported)
+        {
+            initialize_xdev_hand_trackers();
+        }
+        
+        std::cout << "[Manus] Initialized with wrist source: " 
+                  << (m_xdev_available ? "HandTracking" : "Controllers") 
+                  << std::endl;
+        
         success = true;
     }
     catch (const std::exception& e)
@@ -158,6 +228,9 @@ void ManusTracker::initialize(const std::string& app_name) noexcept(false)
 
 void ManusTracker::shutdown_sdk()
 {
+    // Cleanup XDev hand trackers first
+    cleanup_xdev_hand_trackers();
+    
     CoreSdk_RegisterCallbackForRawSkeletonStream(nullptr);
     CoreSdk_RegisterCallbackForLandscapeStream(nullptr);
     CoreSdk_RegisterCallbackForErgonomicsStream(nullptr);
@@ -319,10 +392,9 @@ void ManusTracker::OnLandscapeStream(const Landscape* landscape)
         return;
     }
 
-    // Determine which sides are present in this landscape update.
+    // Extract glove IDs from landscape data
     bool left_present = false;
     bool right_present = false;
-
     for (uint32_t i = 0; i < gloves.gloveCount; i++)
     {
         const GloveLandscapeData& glove = gloves.gloves[i];
@@ -338,22 +410,248 @@ void ManusTracker::OnLandscapeStream(const Landscape* landscape)
         }
     }
 
-    // If a glove that was previously known is no longer in the landscape, it has
-    // disconnected. Clear its cached nodes and reset its injector so readers see
-    // isActive=false rather than a stale pose.
-    if (!left_present && tracker.left_glove_id.has_value())
+    // Clear stale state for any glove that is no longer present in this landscape
+    // update (i.e., disconnected). Resetting the IDs prevents OnSkeletonStream from
+    // matching future packets to a dead glove, and clearing the node cache prevents
+    // inject_hand_data() from replaying the last known stale pose indefinitely.
     {
-        tracker.left_glove_id.reset();
         std::lock_guard<std::mutex> skeleton_lock(tracker.m_skeleton_mutex);
-        tracker.m_left_hand_nodes.clear();
+        if (!left_present && tracker.left_glove_id.has_value())
+        {
+            std::cout << "[Manus] Left glove disconnected (ID " << *tracker.left_glove_id << ")" << std::endl;
+            tracker.left_glove_id.reset();
+            tracker.m_left_hand_nodes.clear();
+        }
+        if (!right_present && tracker.right_glove_id.has_value())
+        {
+            std::cout << "[Manus] Right glove disconnected (ID " << *tracker.right_glove_id << ")" << std::endl;
+            tracker.right_glove_id.reset();
+            tracker.m_right_hand_nodes.clear();
+        }
+    }
+}
+
+void ManusTracker::initialize_xdev_hand_trackers()
+{
+    // Load XDev extension function pointers
+    auto load_func = [this](const char* name, PFN_xrVoidFunction* ptr) -> bool {
+        XrResult result = m_handles.xrGetInstanceProcAddr(m_handles.instance, name, ptr);
+        return XR_SUCCEEDED(result) && *ptr != nullptr;
+    };
+    
+    // Load XDev extension functions
+    if (!load_func("xrCreateXDevListMNDX", reinterpret_cast<PFN_xrVoidFunction*>(&m_pfn_create_xdev_list)) ||
+        !load_func("xrDestroyXDevListMNDX", reinterpret_cast<PFN_xrVoidFunction*>(&m_pfn_destroy_xdev_list)) ||
+        !load_func("xrEnumerateXDevsMNDX", reinterpret_cast<PFN_xrVoidFunction*>(&m_pfn_enumerate_xdevs)) ||
+        !load_func("xrGetXDevPropertiesMNDX", reinterpret_cast<PFN_xrVoidFunction*>(&m_pfn_get_xdev_properties)))
+    {
+        std::cerr << "[Manus] XR_MNDX_xdev_space extension not available, falling back to controllers" << std::endl;
+        return;
+    }
+    
+    // Load hand tracking extension functions
+    if (!load_func("xrCreateHandTrackerEXT", reinterpret_cast<PFN_xrVoidFunction*>(&m_pfn_create_hand_tracker)) ||
+        !load_func("xrDestroyHandTrackerEXT", reinterpret_cast<PFN_xrVoidFunction*>(&m_pfn_destroy_hand_tracker)) ||
+        !load_func("xrLocateHandJointsEXT", reinterpret_cast<PFN_xrVoidFunction*>(&m_pfn_locate_hand_joints)))
+    {
+        std::cerr << "[Manus] Hand tracking extension not available, falling back to controllers" << std::endl;
+        return;
+    }
+    
+    // Create XDev list
+    XrCreateXDevListInfoMNDX create_info{ XR_TYPE_CREATE_XDEV_LIST_INFO_MNDX };
+    XrResult result = m_pfn_create_xdev_list(m_handles.session, &create_info, &m_xdev_list);
+    if (XR_FAILED(result))
+    {
+        std::cerr << "[Manus] Failed to create XDevList, falling back to controllers" << std::endl;
+        return;
+    }
+    
+    // Enumerate XDevs
+    uint32_t xdev_count = 0;
+    result = m_pfn_enumerate_xdevs(m_xdev_list, 0, &xdev_count, nullptr);
+    if (XR_FAILED(result) || xdev_count == 0)
+    {
+        std::cerr << "[Manus] No XDevs found, falling back to controllers" << std::endl;
+        return;
+    }
+    
+    std::vector<XrXDevIdMNDX> xdev_ids(xdev_count);
+    result = m_pfn_enumerate_xdevs(m_xdev_list, xdev_count, &xdev_count, xdev_ids.data());
+    if (XR_FAILED(result))
+    {
+        return;
+    }
+    
+    // Find native hand tracking devices by matching against their serial strings.
+    //
+    // NOTE: The serial values "Head Device (0)" (left) and "Head Device (1)" (right) are
+    // NOT defined by the XR_MNDX_xdev_space specification. They are an observed runtime-
+    // specific naming convention (e.g. Monado). If a runtime changes these display names
+    // across firmware or software updates the match below will silently fail.
+    // See: https://registry.khronos.org/OpenXR/specs/1.0/html/xrspec.html (XR_MNDX_xdev_space)
+    XrXDevIdMNDX left_xdev_id = 0;
+    XrXDevIdMNDX right_xdev_id = 0;
+    std::vector<std::string> seen_serials;
+    
+    for (const auto& xdev_id : xdev_ids)
+    {
+        XrGetXDevInfoMNDX get_info{ XR_TYPE_GET_XDEV_INFO_MNDX };
+        get_info.id = xdev_id;
+        
+        XrXDevPropertiesMNDX properties{ XR_TYPE_XDEV_PROPERTIES_MNDX };
+        result = m_pfn_get_xdev_properties(m_xdev_list, &get_info, &properties);
+        if (XR_FAILED(result))
+        {
+            continue;
+        }
+        
+        std::string serial_str = properties.serial ? properties.serial : "";
+        seen_serials.push_back(serial_str);
+
+        if (serial_str == "Head Device (0)")
+        {
+            left_xdev_id = xdev_id;
+        }
+        else if (serial_str == "Head Device (1)")
+        {
+            right_xdev_id = xdev_id;
+        }
     }
 
-    if (!right_present && tracker.right_glove_id.has_value())
+    if (left_xdev_id == 0 || right_xdev_id == 0)
     {
-        tracker.right_glove_id.reset();
-        std::lock_guard<std::mutex> skeleton_lock(tracker.m_skeleton_mutex);
-        tracker.m_right_hand_nodes.clear();
+        std::string serials_list;
+        for (const auto& s : seen_serials)
+        {
+            if (!serials_list.empty()) serials_list += ", ";
+            serials_list += '"';
+            serials_list += s;
+            serials_list += '"';
+        }
+        std::cerr << "[Manus] Could not match optical hand-tracking XDevs by serial. "
+                  << "Expected \"Head Device (0)\" (left) and \"Head Device (1)\" (right), "
+                  << "but found: [" << serials_list << "]. "
+                  << "These serial strings are runtime-specific and may have changed."
+                  << std::endl;
     }
+    
+    // Create hand trackers from XDevs
+    auto create_tracker = [this](XrXDevIdMNDX xdev_id, XrHandEXT hand, XrHandTrackerEXT& out_tracker) -> bool {
+        if (xdev_id == 0)
+        {
+            return false;
+        }
+        
+        XrCreateHandTrackerXDevMNDX xdev_create_info{ XR_TYPE_CREATE_HAND_TRACKER_XDEV_MNDX };
+        xdev_create_info.xdevList = m_xdev_list;
+        xdev_create_info.id = xdev_id;
+        
+        XrHandTrackerCreateInfoEXT create_info{ XR_TYPE_HAND_TRACKER_CREATE_INFO_EXT };
+        create_info.next = &xdev_create_info;
+        create_info.hand = hand;
+        create_info.handJointSet = XR_HAND_JOINT_SET_DEFAULT_EXT;
+        
+        return XR_SUCCEEDED(m_pfn_create_hand_tracker(m_handles.session, &create_info, &out_tracker));
+    };
+    
+    bool left_ok = create_tracker(left_xdev_id, XR_HAND_LEFT_EXT, m_native_left_hand_tracker);
+    bool right_ok = create_tracker(right_xdev_id, XR_HAND_RIGHT_EXT, m_native_right_hand_tracker);
+    
+    if (left_ok && right_ok)
+    {
+        m_xdev_available = true;
+    }
+    else
+    {
+        std::cerr << "[Manus] Failed to create native hand trackers, falling back to controllers" << std::endl;
+        cleanup_xdev_hand_trackers();
+    }
+}
+
+void ManusTracker::cleanup_xdev_hand_trackers()
+{
+    if (m_native_left_hand_tracker != XR_NULL_HANDLE && m_pfn_destroy_hand_tracker)
+    {
+        m_pfn_destroy_hand_tracker(m_native_left_hand_tracker);
+        m_native_left_hand_tracker = XR_NULL_HANDLE;
+    }
+    if (m_native_right_hand_tracker != XR_NULL_HANDLE && m_pfn_destroy_hand_tracker)
+    {
+        m_pfn_destroy_hand_tracker(m_native_right_hand_tracker);
+        m_native_right_hand_tracker = XR_NULL_HANDLE;
+    }
+    if (m_xdev_list != XR_NULL_HANDLE && m_pfn_destroy_xdev_list)
+    {
+        m_pfn_destroy_xdev_list(m_xdev_list);
+        m_xdev_list = XR_NULL_HANDLE;
+    }
+    m_xdev_available = false;
+}
+
+bool ManusTracker::update_xdev_hand(XrHandTrackerEXT tracker, XrTime time, XrPosef& out_wrist_pose, bool& out_is_tracked)
+{
+    out_is_tracked = false;
+
+    if (tracker == XR_NULL_HANDLE || !m_pfn_locate_hand_joints || time == 0)
+    {
+        return false;
+    }
+    
+    XrHandJointsLocateInfoEXT locate_info{ XR_TYPE_HAND_JOINTS_LOCATE_INFO_EXT };
+    locate_info.baseSpace = m_handles.space;
+    locate_info.time = time;
+    
+    XrHandJointLocationEXT joint_locations[XR_HAND_JOINT_COUNT_EXT];
+    
+    XrHandJointLocationsEXT locations{ XR_TYPE_HAND_JOINT_LOCATIONS_EXT };
+    locations.jointCount = XR_HAND_JOINT_COUNT_EXT;
+    locations.jointLocations = joint_locations;
+    
+    XrResult result = m_pfn_locate_hand_joints(tracker, &locate_info, &locations);
+    if (XR_FAILED(result) || !locations.isActive)
+    {
+        return false;
+    }
+    
+    const auto& wrist = joint_locations[XR_HAND_JOINT_WRIST_EXT];
+    const bool is_valid = (wrist.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) &&
+                          (wrist.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT);
+    
+    if (is_valid)
+    {
+        out_wrist_pose = wrist.pose;
+        // Distinguish actively tracked from valid-but-predicted/stale poses so
+        // callers can advertise TRACKED bits only when the runtime confirms it.
+        out_is_tracked = (wrist.locationFlags & XR_SPACE_LOCATION_POSITION_TRACKED_BIT) &&
+                         (wrist.locationFlags & XR_SPACE_LOCATION_ORIENTATION_TRACKED_BIT);
+        return true;
+    }
+    
+    return false;
+}
+
+bool ManusTracker::get_controller_wrist_pose(bool is_left, XrPosef& out_wrist_pose)
+{
+    const auto& tracked = is_left ? m_controller_tracker->get_left_controller(*m_deviceio_session)
+                                  : m_controller_tracker->get_right_controller(*m_deviceio_session);
+
+    if (!tracked.data)
+    {
+        return false;
+    }
+    
+    bool aim_valid = false;
+    XrPosef raw_pose = oxr_utils::get_aim_pose(*tracked.data, aim_valid);
+    
+    if (!aim_valid)
+    {
+        return false;
+    }
+    
+    XrPosef offset_pose = is_left ? kLeftHandOffset : kRightHandOffset;
+    out_wrist_pose = oxr_utils::multiply_poses(raw_pose, offset_pose);
+    return true;
 }
 
 void ManusTracker::inject_hand_data()
@@ -367,65 +665,63 @@ void ManusTracker::inject_hand_data()
         right_nodes = m_right_hand_nodes;
     }
 
-    // Get controller data from DeviceIOSession
-    const auto& left_tracked = m_controller_tracker->get_left_controller(*m_deviceio_session);
-    const auto& right_tracked = m_controller_tracker->get_right_controller(*m_deviceio_session);
-
-    // Use the OpenXR runtime clock for injection time so it aligns with the
-    // runtime's own time domain (XrTime), rather than a raw steady_clock cast.
+    // Get current XrTime from the system monotonic clock
     XrTime time = m_time_converter->os_monotonic_now();
 
-    auto process_hand =
-        [&](const std::vector<SkeletonNode>& nodes, bool is_left, std::unique_ptr<plugin_utils::HandInjector>& injector)
+    auto process_hand = [&](const std::vector<SkeletonNode>& nodes, bool is_left)
     {
         if (nodes.empty())
         {
-            // Glove has disconnected — reset the injector so the runtime sees
-            // isActive=false. No-op if already null.
-            injector.reset();
             return;
-        }
-
-        if (!injector)
-        {
-            // Glove reconnected — lazily recreate the push device.
-            const auto handles = m_session->get_handles();
-            XrHandEXT hand = is_left ? XR_HAND_LEFT_EXT : XR_HAND_RIGHT_EXT;
-            injector =
-                std::make_unique<plugin_utils::HandInjector>(handles.instance, handles.session, hand, handles.space);
         }
 
         XrHandJointLocationEXT joints[XR_HAND_JOINT_COUNT_EXT];
         XrPosef root_pose = { { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, 0.0f } };
         bool is_root_tracked = false;
 
-        // Get controller snapshot for this hand
-        const auto& tracked = is_left ? left_tracked : right_tracked;
-
-        if (tracked.data)
+        // Get wrist pose - auto-select hand tracking or controllers
+        XrPosef wrist_pose;
+        bool xdev_pose_valid = false;
+        if (m_xdev_available)
         {
-            bool aim_valid = false;
-            XrPosef raw_pose = oxr_utils::get_aim_pose(*tracked.data, aim_valid);
-
-            if (aim_valid)
+            XrHandTrackerEXT tracker = is_left ? m_native_left_hand_tracker : m_native_right_hand_tracker;
+            bool xdev_tracked = false;
+            if (update_xdev_hand(tracker, time, wrist_pose, xdev_tracked))
             {
-                XrPosef offset_pose = is_left ? kLeftHandOffset : kRightHandOffset;
-                XrPosef new_root = oxr_utils::multiply_poses(raw_pose, offset_pose);
-
+                // Cache the pose (valid even when only predicted/stale) so the
+                // last good pose is available if tracking is briefly interrupted.
                 if (is_left)
                 {
-                    m_left_root_pose = new_root;
+                    m_left_root_pose = wrist_pose;
                 }
                 else
                 {
-                    m_right_root_pose = new_root;
+                    m_right_root_pose = wrist_pose;
                 }
-                is_root_tracked = true;
+                // Only mark as tracked when the runtime confirms active tracking;
+                // a valid-but-untracked pose must not have TRACKED bits set.
+                is_root_tracked = xdev_tracked;
+                xdev_pose_valid = true;
             }
+        }
+        
+        // Fall back to controllers only when xdev provided no valid pose at all.
+        // If xdev gave a valid-but-untracked pose we keep it rather than
+        // overwriting it with a controller pose that would be falsely marked tracked.
+        if (!xdev_pose_valid && get_controller_wrist_pose(is_left, wrist_pose))
+        {
+            if (is_left)
+            {
+                m_left_root_pose = wrist_pose;
+            }
+            else
+            {
+                m_right_root_pose = wrist_pose;
+            }
+            is_root_tracked = true;
         }
 
         root_pose = is_left ? m_left_root_pose : m_right_root_pose;
-
         uint32_t nodes_count = static_cast<uint32_t>(nodes.size());
 
         for (uint32_t j = 0; j < XR_HAND_JOINT_COUNT_EXT; j++)
@@ -486,18 +782,16 @@ void ManusTracker::inject_hand_data()
 
         if (is_left)
         {
-            if (m_left_injector)
-                m_left_injector->push(joints, time);
+            m_left_injector->push(joints, time);
         }
         else
         {
-            if (m_right_injector)
-                m_right_injector->push(joints, time);
+            m_right_injector->push(joints, time);
         }
     };
 
-    process_hand(left_nodes, true, m_left_injector);
-    process_hand(right_nodes, false, m_right_injector);
+    process_hand(left_nodes, true);
+    process_hand(right_nodes, false);
 }
 
 } // namespace manus
