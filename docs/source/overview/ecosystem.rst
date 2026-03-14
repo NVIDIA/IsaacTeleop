@@ -61,11 +61,12 @@ see :ref:`device-interface-device-plugin` for details.
    * - Pico 4 Ultra
      - Motion controllers, hand tracking
      - `Isaac Teleop Web Client`_ (browser)
-     - Requires Pico OS 15.4.4U+
+     - Requires Pico OS 15.4.4U or newer
    * - `Pico Motion Tracker`_
      - Full body tracking
      - `Isaac Teleop Web Client`_ (browser)
-     - Requires Pico OS 15.4.4U+
+     - | Requires Pico OS 15.4.4U or newer
+       | Requires Pico Browser 4.0.40 or newer (Enterprise enabled)
 
 In addition to the fully integrated XR headsets, Isaac Teleop also supports standalone input
 devices. Those devices are typically directly connected to the workstation where the Isaac Teleop
@@ -118,7 +119,7 @@ Targeted Robotics Embodiments
 -----------------------------
 
 - Retarget the standardized device outputs to different embodiments.
-- `Reference retargeter implementations <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/core/retargeting_engine/python/retargeters/>`_,
+- `Reference retargeter implementations <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/retargeters/>`_,
   including popular embodiments such as Unitree G1.
 - `Retargeter tuning UI <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/core/retargeting_engine_ui/python>`_ to facilitate
   live retargeter tuning.

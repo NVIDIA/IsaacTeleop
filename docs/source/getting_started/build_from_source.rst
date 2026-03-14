@@ -91,7 +91,7 @@ From the project root:
 .. code-block:: bash
 
    cmake -B build
-   cmake --build build
+   cmake --build build --parallel
    cmake --install build
 
 This will:
