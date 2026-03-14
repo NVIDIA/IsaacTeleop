@@ -8,20 +8,16 @@ When frames stop arriving, displays "VIDEO STREAM UNAVAILABLE" after timeout.
 
 import time
 
-import cv2
 import cupy as cp
-import numpy as np
-from loguru import logger
-
+import cv2
 from holoscan.core import ConditionType, IOSpec, Operator, OperatorSpec
-
+from loguru import logger
+import numpy as np
 
 NVIDIA_GREEN_BGR = (0, 185, 118)
 
 
-def create_no_signal_frame(
-    width: int, height: int, camera_name: str = ""
-) -> cp.ndarray:
+def create_no_signal_frame(width: int, height: int, camera_name: str = "") -> cp.ndarray:
     """Create placeholder frame with 'VIDEO STREAM UNAVAILABLE' text."""
     frame = np.zeros((height, width, 3), dtype=np.uint8)
 
@@ -50,9 +46,7 @@ def create_no_signal_frame(
     if camera_name:
         name_scale = font_scale * 0.6
         name_thickness = max(1, int(name_scale * 2))
-        (name_w, name_h), _ = cv2.getTextSize(
-            camera_name, font, name_scale, name_thickness
-        )
+        (name_w, name_h), _ = cv2.getTextSize(camera_name, font, name_scale, name_thickness)
         name_x = (width - name_w) // 2
         name_y = main_y + main_h + int(20 * font_scale)
         cv2.putText(
@@ -93,15 +87,11 @@ class VideoStreamMonitorOp(Operator):
         super().__init__(fragment, *args, **kwargs)
 
     def setup(self, spec: OperatorSpec):
-        spec.input("frame_in", size=1, policy=IOSpec.QueuePolicy.POP).condition(
-            ConditionType.NONE
-        )
+        spec.input("frame_in", size=1, policy=IOSpec.QueuePolicy.POP).condition(ConditionType.NONE)
         spec.output("frame_out")
 
     def start(self):
-        placeholder = create_no_signal_frame(
-            self._width, self._height, self._camera_name
-        )
+        placeholder = create_no_signal_frame(self._width, self._height, self._camera_name)
         self._placeholder_tensor = {self._tensor_name: placeholder}
 
         self._last_frame_time = time.monotonic()
@@ -121,9 +111,7 @@ class VideoStreamMonitorOp(Operator):
                     name_str = f" ({self._camera_name})" if self._camera_name else ""
                     logger.info(f"Stream recovered{name_str}")
 
-            # Rename tensor if tensor_name is specified
             if self._tensor_name:
-                # Get the first tensor value (usually keyed by "")
                 tensor_value = next(iter(frame_dict.values()))
                 frame_dict = {self._tensor_name: tensor_value}
 
@@ -133,9 +121,53 @@ class VideoStreamMonitorOp(Operator):
                 if not self._showing_placeholder:
                     self._showing_placeholder = True
                     if self._verbose:
-                        name_str = (
-                            f" ({self._camera_name})" if self._camera_name else ""
-                        )
+                        name_str = f" ({self._camera_name})" if self._camera_name else ""
                         logger.info(f"Stream timeout{name_str} - video unavailable")
 
                 op_output.emit(self._placeholder_tensor, "frame_out")
+
+
+class FrameCombinerOp(Operator):
+    """Combines multiple frame streams into a single output dict.
+
+    HolovizOp's multi-port ``receivers`` triggers when ANY input has data,
+    then expects ALL configured tensor names to be present.  Because
+    independent monitors emit asynchronously, a race exists where HolovizOp
+    ticks before every monitor has emitted.
+
+    Uses the same ``IOSpec.ANY_SIZE`` multi-receiver pattern as holohub's
+    AggregatorOp, but adds per-tensor caching so cameras keep showing their
+    last frame between updates instead of flashing to black.
+    """
+
+    def __init__(
+        self,
+        fragment,
+        *args,
+        placeholders: dict,
+        **kwargs,
+    ):
+        """
+        Args:
+            placeholders: ``{tensor_name: gpu_frame}`` initial frames shown
+                before any real data arrives from each camera.
+        """
+        self._placeholders = placeholders
+        super().__init__(fragment, *args, **kwargs)
+
+    def setup(self, spec: OperatorSpec):
+        spec.input("in", size=IOSpec.ANY_SIZE)
+        spec.output("out")
+
+    def start(self):
+        self._cache = dict(self._placeholders)
+        self._refs = {}
+
+    def compute(self, op_input, op_output, context):
+        in_messages = op_input.receive("in")
+        for msg in in_messages:
+            for k, v in msg.items():
+                self._cache[k] = v
+                self._refs[k] = msg
+
+        op_output.emit(dict(self._cache), "out")

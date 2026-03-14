@@ -177,6 +177,9 @@ void XrPlaneRendererOp::stop()
     }
     main_tracker_.reset();
 
+    color_swapchain_.reset();
+    depth_swapchain_.reset();
+
     holoscan::viz::Shutdown(holoviz_instance_);
     holoviz_instance_ = nullptr;
 
@@ -362,7 +365,7 @@ void XrPlaneRendererOp::render_planes(const std::shared_ptr<holoscan::XrComposit
                 if (len > 0.001f)
                 {
                     to_head /= len;
-                    float yaw = std::atan2(-to_head.x, -to_head.z);
+                    float yaw = std::atan2(to_head.x, to_head.z);
                     plane_rotation = glm::angleAxis(yaw, glm::vec3(0.0f, 1.0f, 0.0f));
                 }
                 else
@@ -382,7 +385,7 @@ void XrPlaneRendererOp::render_planes(const std::shared_ptr<holoscan::XrComposit
                     if (len > 0.001f)
                     {
                         to_head /= len;
-                        float yaw = std::atan2(-to_head.x, -to_head.z);
+                        float yaw = std::atan2(to_head.x, to_head.z);
                         plane.locked_rotation = glm::angleAxis(yaw, glm::vec3(0.0f, 1.0f, 0.0f));
                     }
                     else
@@ -395,17 +398,31 @@ void XrPlaneRendererOp::render_planes(const std::shared_ptr<holoscan::XrComposit
             }
         }
 
-        // Render this plane for each eye
-        const void* frame_data = plane.data_left;
-        int frame_width = plane.width_left;
-        int frame_height = plane.height_left;
-
-        if (!frame_data)
+        if (!plane.has_data())
             continue;
 
         for (int eye_idx = 0; eye_idx < layer->viewCount; eye_idx++)
         {
             auto& view = layer->views[eye_idx];
+
+            // For stereo planes, use right-eye data for the right eye (eye_idx 1)
+            const void* frame_data;
+            int frame_width;
+            int frame_height;
+            if (plane.config.is_stereo && eye_idx == 1 && plane.data_right)
+            {
+                frame_data = plane.data_right;
+                frame_width = plane.width_right;
+                frame_height = plane.height_right;
+            }
+            else
+            {
+                frame_data = plane.data_left;
+                frame_width = plane.width_left;
+                frame_height = plane.height_left;
+            }
+            if (!frame_data)
+                continue;
 
             float aspect = static_cast<float>(frame_height) / static_cast<float>(frame_width);
 
@@ -419,15 +436,15 @@ void XrPlaneRendererOp::render_planes(const std::shared_ptr<holoscan::XrComposit
             model = model * glm::mat4_cast(plane_rotation);
             model = glm::scale(model, glm::vec3(plane.config.width, -plane.config.width * aspect, 1.f));
 
-            glm::mat4 view_rot = glm::mat4_cast(glm::make_quat(&view.pose.orientation.x));
+            glm::mat4 view_rot = glm::mat4_cast(to_glm(view.pose.orientation));
             glm::mat4 view_trans = glm::translate(glm::mat4{ 1 }, glm::make_vec3(&view.pose.position.x));
             glm::mat4 view_mat = glm::inverse(view_trans * view_rot);
 
-            glm::mat4 proj = glm::frustumRH_ZO(layer->depth_info[eye_idx].nearZ * glm::tan(view.fov.angleLeft),
-                                               layer->depth_info[eye_idx].nearZ * glm::tan(view.fov.angleRight),
-                                               layer->depth_info[eye_idx].nearZ * glm::tan(view.fov.angleUp),
-                                               layer->depth_info[eye_idx].nearZ * glm::tan(view.fov.angleDown),
-                                               layer->depth_info[eye_idx].nearZ, layer->depth_info[eye_idx].farZ);
+            float nearZ = layer->depth_info[eye_idx].nearZ;
+            float farZ = layer->depth_info[eye_idx].farZ;
+            glm::mat4 proj =
+                glm::frustumRH_ZO(nearZ * glm::tan(view.fov.angleLeft), nearZ * glm::tan(view.fov.angleRight),
+                                  nearZ * glm::tan(view.fov.angleUp), nearZ * glm::tan(view.fov.angleDown), nearZ, farZ);
 
             glm::mat4 mvp = glm::transpose(proj * view_mat * model);
 
