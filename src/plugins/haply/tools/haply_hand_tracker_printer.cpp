@@ -181,6 +181,12 @@ public:
             uint8_t mask[4] = {};
             if (masked && !recv_raw(mask, 4))
                 return false;
+            constexpr uint64_t kMaxPayloadSize = 16 * 1024 * 1024; // 16 MB
+            if (plen > kMaxPayloadSize)
+            {
+                std::cerr << "[MiniWebSocket] Payload too large: " << plen << " bytes" << std::endl;
+                return false;
+            }
             std::vector<uint8_t> data(plen);
             if (plen > 0)
             {
@@ -305,9 +311,30 @@ int main(int argc, char** argv)
     signal(SIGTERM, signal_handler);
 
     const char* host_env = std::getenv("HAPLY_WEBSOCKET_HOST");
-    const char* port_env = std::getenv("HAPLY_WEBSOCKET_PORT");
     std::string host = host_env ? host_env : "127.0.0.1";
-    uint16_t port = port_env ? static_cast<uint16_t>(std::atoi(port_env)) : 10001;
+    uint16_t port = 10001;
+    const char* port_env = std::getenv("HAPLY_WEBSOCKET_PORT");
+    if (port_env)
+    {
+        try
+        {
+            unsigned long parsed = std::stoul(port_env);
+            if (parsed == 0 || parsed > 65535)
+            {
+                std::cerr << "[Haply] Invalid HAPLY_WEBSOCKET_PORT value: " << port_env << ", using default 10001"
+                          << std::endl;
+            }
+            else
+            {
+                port = static_cast<uint16_t>(parsed);
+            }
+        }
+        catch (const std::exception&)
+        {
+            std::cerr << "[Haply] Invalid HAPLY_WEBSOCKET_PORT value: " << port_env << ", using default 10001"
+                      << std::endl;
+        }
+    }
 
     std::cout << "Haply Hand Tracker Printer" << std::endl;
     std::cout << "Connecting to " << host << ":" << port << " ..." << std::endl;

@@ -71,7 +71,7 @@ The plugin will:
 The Haply Inverse3 provides a 3-DOF cursor position in space. The VerseGrip adds orientation and button inputs. The plugin maps this data to an OpenXR hand model:
 
 - **Wrist / Palm**: Positioned at the Inverse3 cursor position with VerseGrip orientation
-- **Finger joints**: Synthesised at the wrist position (valid but not individually tracked)
+- **Finger joints**: Synthesized at the wrist position (valid but not individually tracked)
 - **Root tracking**: If an OpenXR controller is active, its aim pose is used as the root coordinate frame
 
 ## Troubleshooting
