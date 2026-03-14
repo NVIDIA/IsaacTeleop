@@ -252,6 +252,26 @@ img.license-badge {
     margin-bottom: 1rem;
 }
 
+/* Next steps panels: same image size and aspect ratio in both cards; no margins */
+#next-steps .sd-card-header,
+#next-steps .sd-card-header.docutils,
+.sd-card-header:has(img[alt="Isaac Lab"]),
+.sd-card-header:has(img[alt="Isaac ROS"]) {
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+}
+#next-steps .sd-card-header img,
+.sd-card-header:has(img[alt="Isaac Lab"]) img,
+.sd-card-header:has(img[alt="Isaac ROS"]) img {
+    width: 100% !important;
+    height: 160px !important;
+    object-fit: cover !important;
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
 /* Local contents box (e.g. "Steps"): title and list must be readable (nav.contents from theme) */
 nav.contents .topic-title,
 nav.contents.local .topic-title,
@@ -264,4 +284,15 @@ nav.contents .simple a,
 nav.contents.local .simple a,
 nav.contents ul a {
      color: var(--pst-color-text-base) !important;
+}
+
+/* Disable click-to-zoom on figure images (add class "no-image-zoom" to the figure directive) */
+figure a.no-image-zoom:has(> img) {
+    pointer-events: none;
+    cursor: default;
+}
+
+/* Lighter text for trademark notice (theme muted color; works in light and dark mode) */
+.trademark-notice {
+    color: var(--pst-color-text-muted) !important;
 }
