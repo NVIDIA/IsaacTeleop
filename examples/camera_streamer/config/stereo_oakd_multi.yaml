@@ -1,0 +1,100 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Test Config: OAK-D W Stereo Head + 2x OAK-1 Mono Wrists
+#
+# OAK-D W stereo head camera with raw frames + NVENC encoding, plus two
+# OAK-1 mono wrist cameras with on-device VPU encoding.
+#
+# Usage (sender + receiver on same machine):
+#   python3 teleop_camera_sender.py --config config/stereo_oakd_multi.yaml
+#   python3 teleop_camera_app.py --config config/stereo_oakd_multi.yaml --mode monitor
+#
+# Usage (local, no sender):
+#   python3 teleop_camera_app.py --config config/stereo_oakd_multi.yaml --mode monitor --source local
+
+source: "rtp"
+
+streaming:
+  host: "127.0.0.1"
+
+cameras:
+  head:
+    enabled: true
+    type: oakd
+    stereo: true
+    device_id: "19443010E1529F2F00"                 # use list_cameras.py to find yours
+    width: 1280
+    height: 800
+    fps: 60
+    streams:
+      left:
+        stream_id: 0
+        port: 6000
+        bitrate_mbps: 10
+      right:
+        stream_id: 1
+        port: 6001
+        bitrate_mbps: 10
+
+  left_wrist:
+    enabled: true
+    type: oakd
+    stereo: false
+    device_id: "19443010F1A6327E00"                 # use list_cameras.py to find yours
+    width: 1280
+    height: 720
+    fps: 50
+    streams:
+      mono:
+        stream_id: 2
+        port: 6002
+        bitrate_mbps: 6
+
+  right_wrist:
+    enabled: true
+    type: oakd
+    stereo: false
+    device_id: "19443010311D177E00"                 # use list_cameras.py to find yours
+    width: 1280
+    height: 720
+    fps: 50
+    streams:
+      mono:
+        stream_id: 3
+        port: 6003
+        bitrate_mbps: 6
+
+display:
+  mode: "monitor"
+  cuda_device: 0
+
+  monitor:
+    width: 1920
+    height: 1080
+    title: "OAK-D Stereo + Wrists Test"
+    stream_timeout: 2.0
+    show_stereo: true
+
+  xr:
+    planes:
+      head:
+        distance: 2.0
+        width: 1.0
+        offset_x: 0.0
+        offset_y: 0.0
+      left_wrist:
+        distance: 1.2
+        width: 0.4
+        offset_x: -1.0
+        offset_y: -0.4
+      right_wrist:
+        distance: 1.2
+        width: 0.4
+        offset_x: 1.0
+        offset_y: -0.4
+    lock_mode: "lazy"
+    look_away_angle: 45.0
+    reposition_distance: 0.5
+    reposition_delay: 0.5
+    transition_duration: 0.3

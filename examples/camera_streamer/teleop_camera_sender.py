@@ -155,18 +155,30 @@ class TeleopCameraSenderApp(Application):
         cuda_device = self._cuda_device
         allocator = UnboundedAllocator(self, name="allocator")
 
-        # ZED and V4L2 cameras output raw frames — need NVENC for H.264 encoding.
+        # ZED, V4L2, and stereo OAK-D cameras output raw frames — need NVENC.
+        # (VPU can't sustain dual H.264 at full framerate, so stereo OAK-D
+        # uses raw frames with host GPU NVENC encoding.)
         NvStreamEncoderOp = None
-        if self._config.get_cameras_by_type("zed") or self._config.get_cameras_by_type(
-            "v4l2"
+        has_stereo_oakd = any(
+            c.stereo for c in self._config.get_cameras_by_type("oakd").values()
+        )
+        if (
+            self._config.get_cameras_by_type("zed")
+            or self._config.get_cameras_by_type("v4l2")
+            or has_stereo_oakd
         ):
             NvStreamEncoderOp = ensure_nvenc_support()
 
         for cam_name, cam_cfg in self._config.cameras.items():
             logger.info(f"Adding camera: {cam_name} ({cam_cfg.camera_type})")
 
-            # OAK-D in sender mode uses H.264 VPU encoding (no NVENC needed).
-            output_format = "h264" if cam_cfg.camera_type == "oakd" else "raw"
+            # Mono OAK-D uses on-device VPU H.264 encoding (no NVENC needed).
+            # Stereo OAK-D uses raw frames + host NVENC (VPU can't sustain
+            # dual H.264 at full framerate).
+            if cam_cfg.camera_type == "oakd" and not cam_cfg.stereo:
+                output_format = "h264"
+            else:
+                output_format = "raw"
 
             source_result = create_camera_source(
                 self,
