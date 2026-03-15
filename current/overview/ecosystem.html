@@ -35,7 +35,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/styles/nvidia-sphinx-theme.css?v=933278ad" />
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
-    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=82837e51" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=e662b523" />
   
   <!-- So that users can add custom icons -->
   <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
@@ -311,6 +311,7 @@
   <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
   <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
 <ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Isaac Teleop</a></li>
 <li class="toctree-l1"><a class="reference internal" href="architecture.html">Architecture</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Ecosystem</a></li>
 </ul>
@@ -385,8 +386,8 @@
 <h2>Unified Stack for Sim &amp; Real Teleoperation<a class="headerlink" href="#unified-stack-for-sim-real-teleoperation" title="Link to this heading">#</a></h2>
 <p>A single framework that works seamlessly across simulated and real-world robots, ensuring
 streamlined device workflow and consistent data schemas.</p>
-<div class="pst-scrollable-table-container"><table class="table" id="id1">
-<caption><span class="caption-text">Robotics Stacks</span><a class="headerlink" href="#id1" title="Link to this table">#</a></caption>
+<div class="pst-scrollable-table-container"><table class="table" id="id8">
+<caption><span class="caption-text">Robotics Stacks</span><a class="headerlink" href="#id8" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 17.6%" />
 <col style="width: 58.8%" />
@@ -430,8 +431,8 @@ custom device integrations and ongoing maintenance. It supports multiple XR head
 peripherals. Each device provides different input modes, which determine which retargeters and
 control schemes are available. Easily extend support for additional devices through a plugin system;
 see <a class="reference internal" href="../device/index.html#device-interface-device-plugin"><span class="std std-ref">Isaac Teleop device plugin (C++ level)</span></a> for details.</p>
-<div class="pst-scrollable-table-container"><table class="table" id="id2">
-<caption><span class="caption-text">XR Headsets and Tracking Peripherals</span><a class="headerlink" href="#id2" title="Link to this table">#</a></caption>
+<div class="pst-scrollable-table-container"><table class="table" id="id9">
+<caption><span class="caption-text">XR Headsets and Tracking Peripherals</span><a class="headerlink" href="#id9" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 20.0%" />
 <col style="width: 25.0%" />
@@ -451,7 +452,7 @@ see <a class="reference internal" href="../device/index.html#device-interface-de
 <td><p><a class="reference external" href="https://github.com/isaac-sim/isaac-xr-teleop-sample-client-apple" rel="noopener noreferrer" target="_blank">Isaac XR Teleop Sample Client</a> (visionOS app)</p></td>
 <td><p>Build from source; see <a class="reference internal" href="../getting_started/quick_start.html#connect-apple-vision-pro"><span class="std std-ref">Connect Apple Vision Pro</span></a></p></td>
 </tr>
-<tr class="row-odd"><td><p>Meta Quest 3</p></td>
+<tr class="row-odd"><td><p>Meta Quest 2/3/3S</p></td>
 <td><p>Motion controllers (triggers, thumbsticks, squeeze), hand tracking</p></td>
 <td><p><a class="reference external" href="https://nvidia.github.io/IsaacTeleop/client" rel="noopener noreferrer" target="_blank">Isaac Teleop Web Client</a> (browser)</p></td>
 <td><p>See <a class="reference internal" href="../getting_started/quick_start.html#connect-quest-pico"><span class="std std-ref">Connect Quest and Pico</span></a></p></td>
@@ -459,12 +460,16 @@ see <a class="reference internal" href="../device/index.html#device-interface-de
 <tr class="row-even"><td><p>Pico 4 Ultra</p></td>
 <td><p>Motion controllers, hand tracking</p></td>
 <td><p><a class="reference external" href="https://nvidia.github.io/IsaacTeleop/client" rel="noopener noreferrer" target="_blank">Isaac Teleop Web Client</a> (browser)</p></td>
-<td><p>Requires Pico OS 15.4.4U+</p></td>
+<td><p>Requires Pico OS 15.4.4U or newer</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference external" href="https://www.picoxr.com/global/products/pico-motion-tracker" rel="noopener noreferrer" target="_blank">Pico Motion Tracker</a></p></td>
 <td><p>Full body tracking</p></td>
 <td><p><a class="reference external" href="https://nvidia.github.io/IsaacTeleop/client" rel="noopener noreferrer" target="_blank">Isaac Teleop Web Client</a> (browser)</p></td>
-<td><p>Requires Pico OS 15.4.4U+</p></td>
+<td><div class="line-block">
+<div class="line">Requires Pico OS 15.4.4U or newer</div>
+<div class="line">Requires Pico Browser 4.0.40 or newer (Enterprise enabled)</div>
+</div>
+</td>
 </tr>
 </tbody>
 </table>
@@ -472,8 +477,8 @@ see <a class="reference internal" href="../device/index.html#device-interface-de
 <p>In addition to the fully integrated XR headsets, Isaac Teleop also supports standalone input
 devices. Those devices are typically directly connected to the workstation where the Isaac Teleop
 session is running via USB or Bluetooth. See <a class="reference internal" href="../device/index.html#device-interface-device-plugin"><span class="std std-ref">Isaac Teleop device plugin (C++ level)</span></a> for more details.</p>
-<div class="pst-scrollable-table-container"><table class="table" id="id3">
-<caption><span class="caption-text">Standalone Input Devices</span><a class="headerlink" href="#id3" title="Link to this table">#</a></caption>
+<div class="pst-scrollable-table-container"><table class="table" id="id10">
+<caption><span class="caption-text">Standalone Input Devices</span><a class="headerlink" href="#id10" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 28.6%" />
 <col style="width: 35.7%" />
@@ -505,36 +510,56 @@ session is running via USB or Bluetooth. See <a class="reference internal" href=
 <section id="planned-input-device-support">
 <h2>Planned Input Device Support<a class="headerlink" href="#planned-input-device-support" title="Link to this heading">#</a></h2>
 <p>The following input devices and device categories are planned for support in the future:</p>
-<div class="pst-scrollable-table-container"><table class="table" id="id4">
-<caption><span class="caption-text">Planned Input Devices</span><a class="headerlink" href="#id4" title="Link to this table">#</a></caption>
+<div class="pst-scrollable-table-container"><table class="table" id="id11">
+<caption><span class="caption-text">Planned Input Devices</span><a class="headerlink" href="#id11" title="Link to this table">#</a></caption>
 <colgroup>
-<col style="width: 23.5%" />
-<col style="width: 29.4%" />
-<col style="width: 29.4%" />
-<col style="width: 17.6%" />
+<col style="width: 21.1%" />
+<col style="width: 26.3%" />
+<col style="width: 26.3%" />
+<col style="width: 26.3%" />
 </colgroup>
 <thead>
 <tr class="row-odd"><th class="head"><p>Device</p></th>
 <th class="head"><p>Input Modes</p></th>
 <th class="head"><p>Client / Connection</p></th>
-<th class="head"><p>ETA</p></th>
+<th class="head"><p>Status</p></th>
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p>Keyboard and Mouse</p></td>
-<td><p>Keyboard and mouse input</p></td>
-<td><p>CLI tool</p></td>
-<td><p>Planned</p></td>
+<tr class="row-even"><td><p>JoyLo</p></td>
+<td><p>Master Manipulators</p></td>
+<td><p>CLI tool with USB connection</p></td>
+<td><p>Planning, see <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/issues/272" rel="noopener noreferrer" target="_blank">#272</a></p></td>
 </tr>
-<tr class="row-odd"><td><p>Master Manipulators</p></td>
-<td><p>Gello, Haply, JoyLo etc.</p></td>
-<td><p>CLI tool</p></td>
-<td><p>Planned</p></td>
+<tr class="row-odd"><td><p>Gello</p></td>
+<td><p>Master Manipulators</p></td>
+<td><p>CLI tool with USB connection</p></td>
+<td><p>Planning, see <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/issues/273" rel="noopener noreferrer" target="_blank">#273</a></p></td>
 </tr>
-<tr class="row-even"><td><p>Exoskeletons</p></td>
-<td><p>TBA</p></td>
-<td><p>TBA</p></td>
-<td><p>TBA</p></td>
+<tr class="row-even"><td><p>Haply</p></td>
+<td><p>Master Manipulators</p></td>
+<td><p>CLI tool with USB connection</p></td>
+<td><p>Planning, see <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/issues/274" rel="noopener noreferrer" target="_blank">#274</a></p></td>
+</tr>
+<tr class="row-odd"><td><p>SO-101</p></td>
+<td><p>Master Manipulators</p></td>
+<td><p>CLI tool with USB connection</p></td>
+<td><p>Planning, see <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/issues/275" rel="noopener noreferrer" target="_blank">#275</a></p></td>
+</tr>
+<tr class="row-even"><td><p>3D Space Mouse</p></td>
+<td><p>HID input</p></td>
+<td><p>CLI tool with USB connection</p></td>
+<td><p>Planning, see <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/issues/276" rel="noopener noreferrer" target="_blank">#276</a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Gamepad</p></td>
+<td><p>HID input</p></td>
+<td><p>CLI tool with USB/Bluetooth connection</p></td>
+<td><p>Planning, see <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/issues/277" rel="noopener noreferrer" target="_blank">#277</a></p></td>
+</tr>
+<tr class="row-even"><td><p>Keyboard</p></td>
+<td><p>HID input</p></td>
+<td><p>CLI tool with USB/Bluetooth connection</p></td>
+<td><p>Planning, see <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/issues/278" rel="noopener noreferrer" target="_blank">#278</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -544,7 +569,7 @@ session is running via USB or Bluetooth. See <a class="reference internal" href=
 <h2>Targeted Robotics Embodiments<a class="headerlink" href="#targeted-robotics-embodiments" title="Link to this heading">#</a></h2>
 <ul class="simple">
 <li><p>Retarget the standardized device outputs to different embodiments.</p></li>
-<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/core/retargeting_engine/python/retargeters/" rel="noopener noreferrer" target="_blank">Reference retargeter implementations</a>,
+<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/retargeters/" rel="noopener noreferrer" target="_blank">Reference retargeter implementations</a>,
 including popular embodiments such as Unitree G1.</p></li>
 <li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/core/retargeting_engine_ui/python" rel="noopener noreferrer" target="_blank">Retargeter tuning UI</a> to facilitate
 live retargeter tuning.</p></li>
@@ -687,7 +712,7 @@ live retargeter tuning.</p></li>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on March 13, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on March 15, 2026.
       <br/>
     
   </p>
