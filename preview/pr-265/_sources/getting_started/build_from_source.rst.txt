@@ -32,7 +32,7 @@ the list of dependencies. On **Ubuntu**, install build tools and clang-format:
 .. code-block:: bash
 
    sudo apt-get update
-   sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache
+   sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache patchelf
 
 Our build system uses `uv`_ for Python version and dependency management. Install `uv`_ if not already installed:
 
