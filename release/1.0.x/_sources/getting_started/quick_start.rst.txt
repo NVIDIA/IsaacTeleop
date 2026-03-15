@@ -302,8 +302,46 @@ The example runs for 20 seconds and then exits. To try other examples, see
 Next steps
 ----------
 
-- `Teleoperation and Imitation Learning with Isaac Lab Mimic`_ — learn how to use CloudXR to teleoperate a simulated
-  robot in Isaac Lab
+.. grid:: 2
+   :gutter: 3
+
+   .. grid-item-card::
+
+      .. image:: ../_static/isaaclab.jpg
+         :alt: Isaac Lab
+
+      ^^^^^^^^^^^^^
+
+      **Teleoperation in Isaac Lab**
+
+      Follow instructions in `Teleoperation and Imitation Learning with Isaac Lab Mimic`_ to know
+      more about how to collect demonstrations with Isaac Lab and how to augment them with Isaac
+      Lab Mimic and train imitation learning policies.
+
+      If you are new to Isaac Lab, follow instructions in `Isaac Lab Quick Start`_ to get started.
+
+   .. grid-item-card::
+
+      .. image:: ../_static/isaacros.png
+         :alt: Isaac ROS
+
+      ^^^^^^^^^^^^^
+
+      **Teleoperation with Isaac ROS**
+
+      Check out the :code-dir:`examples/teleop_ros2/` directory for an example on how to make a
+      ROS 2 message publisher using Isaac Teleop.
+
+      We are also working on a Unitree G1-based end-to-end teleoperation, data collection, and
+      imitation learning solution for ROS2 in an upcoming `Isaac ROS`_ release. Stay tuned!
+
+      .. rst-class:: trademark-notice
+
+      *ROS is a trademark of Open Robotics.*
+
+More Information
+----------------
+
 - :doc:`teleop_session` — learn how ``TeleopSession`` works and how to build
   custom retargeting pipelines
 - :doc:`build_from_source` — build the C++ core, Python bindings, and plugins
@@ -318,3 +356,4 @@ Next steps
 .. _`Isaac Lab Quick Start`: https://isaac-sim.github.io/IsaacLab/main/source/setup/quickstart.html
 .. _`Teleoperation and Imitation Learning with Isaac Lab Mimic`: https://isaac-sim.github.io/IsaacLab/main/source/overview/imitation-learning/teleop_imitation.html#teleoperation-imitation-learning
 .. _`CloudXR network setup`: https://docs.nvidia.com/cloudxr-sdk/latest/requirement/network_setup.html#ports-and-firewalls
+.. _`Isaac ROS`: https://nvidia-isaac-ros.github.io
