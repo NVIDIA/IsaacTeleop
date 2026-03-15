@@ -335,6 +335,8 @@ Next steps
       We are also working on a Unitree G1-based end-to-end teleoperation, data collection, and
       imitation learning solution for ROS2 in an upcoming `Isaac ROS`_ release. Stay tuned!
 
+      .. rst-class:: trademark-notice
+
       *ROS is a trademark of Open Robotics.*
 
 More Information

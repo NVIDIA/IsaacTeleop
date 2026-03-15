@@ -286,8 +286,8 @@ nav.contents ul a {
      color: var(--pst-color-text-base) !important;
 }
 
-/* Disable click-to-zoom on figure images */
-figure a:has(> img) {
+/* Disable click-to-zoom on figure images (add class "no-image-zoom" to the figure directive) */
+figure a.no-image-zoom:has(> img) {
     pointer-events: none;
     cursor: default;
 }
