@@ -49,12 +49,16 @@ public:
                             const std::vector<StreamType>& streams,
                             size_t max_flatbuffer_size = DEFAULT_MAX_FLATBUFFER_SIZE);
 
-    // ITracker interface
     std::vector<std::string> get_required_extensions() const override;
-    std::string_view get_name() const override;
-    std::string_view get_schema_name() const override;
+    std::string_view get_name() const override
+    {
+        return TRACKER_NAME;
+    }
+    std::string_view get_schema_name() const override
+    {
+        return SCHEMA_NAME;
+    }
     std::string_view get_schema_text() const override;
-
     std::vector<std::string> get_record_channels() const override
     {
         return m_channel_names;
@@ -76,34 +80,15 @@ public:
     }
 
 private:
+    static constexpr const char* TRACKER_NAME = "FrameMetadataTrackerOak";
+    static constexpr const char* SCHEMA_NAME = "core.FrameMetadataOakRecord";
+
     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
 
     std::vector<SchemaTrackerConfig> m_configs;
     std::vector<std::string> m_channel_names;
 
-    class Impl : public ITrackerImpl
-    {
-    public:
-        Impl(const OpenXRSessionHandles& handles, std::vector<SchemaTrackerConfig> configs);
-
-        bool update(XrTime time) override;
-        void serialize_all(size_t channel_index, const RecordCallback& callback) const override;
-
-        const FrameMetadataOakTrackedT& get_stream_data(size_t stream_index) const;
-
-    private:
-        struct StreamState
-        {
-            std::unique_ptr<SchemaTracker> reader;
-            FrameMetadataOakTrackedT tracked;
-            bool collection_present = false;
-            std::vector<SchemaTracker::SampleResult> pending_records;
-        };
-
-        XrTimeConverter m_time_converter_;
-        XrTime m_last_update_time_ = 0;
-        std::vector<StreamState> m_streams;
-    };
+    class Impl;
 };
 
 } // namespace core

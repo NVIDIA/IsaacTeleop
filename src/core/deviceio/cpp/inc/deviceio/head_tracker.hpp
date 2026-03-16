@@ -5,9 +5,6 @@
 
 #include "tracker.hpp"
 
-#include <oxr_utils/oxr_funcs.hpp>
-#include <oxr_utils/oxr_time.hpp>
-#include <schema/head_bfbs_generated.h>
 #include <schema/head_generated.h>
 
 #include <memory>
@@ -16,34 +13,25 @@ namespace core
 {
 
 // Head tracker - tracks HMD pose (returns HeadPoseTrackedT from FlatBuffer schema)
-// PUBLIC API: Only exposes query methods
 class HeadTracker : public ITracker
 {
 public:
-    // Public API - what external users see
     std::vector<std::string> get_required_extensions() const override;
     std::string_view get_name() const override
     {
         return TRACKER_NAME;
     }
-
     std::string_view get_schema_name() const override
     {
         return SCHEMA_NAME;
     }
-
-    std::string_view get_schema_text() const override
-    {
-        return std::string_view(
-            reinterpret_cast<const char*>(HeadPoseRecordBinarySchema::data()), HeadPoseRecordBinarySchema::size());
-    }
-
+    std::string_view get_schema_text() const override;
     std::vector<std::string> get_record_channels() const override
     {
         return { "head" };
     }
 
-    // Query methods - public API for getting head data (tracked.data is always set)
+    // Query method - tracked.data is always set when the HMD is present
     const HeadPoseTrackedT& get_head(const DeviceIOSession& session) const;
 
 private:
@@ -52,26 +40,7 @@ private:
 
     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
 
-    class Impl : public ITrackerImpl
-    {
-    public:
-        explicit Impl(const OpenXRSessionHandles& handles);
-
-        // Override from ITrackerImpl
-        bool update(XrTime time) override;
-
-        void serialize_all(size_t channel_index, const RecordCallback& callback) const override;
-
-        const HeadPoseTrackedT& get_head() const;
-
-    private:
-        const OpenXRCoreFunctions core_funcs_;
-        XrTimeConverter time_converter_;
-        XrSpace base_space_;
-        XrSpacePtr view_space_;
-        HeadPoseTrackedT tracked_;
-        XrTime last_update_time_ = 0;
-    };
+    class Impl;
 };
 
 } // namespace core

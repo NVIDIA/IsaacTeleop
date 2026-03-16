@@ -151,16 +151,6 @@ std::vector<std::string> Generic3AxisPedalTracker::get_required_extensions() con
     return SchemaTracker::get_required_extensions();
 }
 
-std::string_view Generic3AxisPedalTracker::get_name() const
-{
-    return "Generic3AxisPedalTracker";
-}
-
-std::string_view Generic3AxisPedalTracker::get_schema_name() const
-{
-    return "core.Generic3AxisPedalOutputRecord";
-}
-
 std::string_view Generic3AxisPedalTracker::get_schema_text() const
 {
     return std::string_view(reinterpret_cast<const char*>(Generic3AxisPedalOutputRecordBinarySchema::data()),
