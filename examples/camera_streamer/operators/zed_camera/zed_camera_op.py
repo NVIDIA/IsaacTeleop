@@ -369,21 +369,23 @@ class ZedCameraOp(Operator):
             mem = cp.cuda.UnownedMemory(ptr, height * step, owner=zed_mat)
             memptr = cp.cuda.MemoryPointer(mem, 0)
 
+            need_rgb = self._color_format == "rgb" and channels == 4
+
             if step == row_bytes:
                 arr = cp.ndarray((height, width, channels), dtype=cp.uint8, memptr=memptr)
-                if out is not None and out.shape == arr.shape:
+                if not need_rgb and out is not None and out.shape == arr.shape:
                     cp.copyto(out, arr)
                     return out
                 arr = arr.copy()
             else:
                 arr = cp.ndarray((height, step), dtype=cp.uint8, memptr=memptr)
                 arr = arr[:, :row_bytes].reshape(height, width, channels)
-                if out is not None and out.shape == arr.shape:
+                if not need_rgb and out is not None and out.shape == arr.shape:
                     cp.copyto(out, arr)
                     return out
                 arr = cp.ascontiguousarray(arr)
 
-            if self._color_format == "rgb" and channels == 4:
+            if need_rgb:
                 arr = cp.ascontiguousarray(arr[:, :, [2, 1, 0]])
             return arr
 

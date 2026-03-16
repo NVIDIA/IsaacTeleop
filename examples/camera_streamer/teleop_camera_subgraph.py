@@ -160,6 +160,16 @@ class TeleopCameraSubgraphConfig:
             if cam_cfg.fps <= 0:
                 errors.append(f"Camera '{cam_name}': fps must be positive (got {cam_cfg.fps})")
 
+        if self.monitor.padding < 0:
+            errors.append(f"Monitor padding must be non-negative (got {self.monitor.padding})")
+        elif self.monitor.padding > 0:
+            num_cams = len(self.cameras)
+            if num_cams > 1 and (num_cams - 1) * self.monitor.padding >= self.monitor.width:
+                errors.append(
+                    f"Monitor padding too large: ({num_cams - 1}) * {self.monitor.padding} "
+                    f">= window width {self.monitor.width}"
+                )
+
         if self.display_mode == DisplayMode.XR:
             if self.xr.lock_mode not in ("lazy", "world", "head"):
                 errors.append(f"Invalid XR lock_mode '{self.xr.lock_mode}' (must be 'lazy', 'world', or 'head')")
@@ -560,8 +570,9 @@ class TeleopCameraSubgraph(Subgraph):
         combiner_placeholders = {}
         for display_name, monitor_key, cam_cfg in camera_list:
             if monitor_key in monitored_outputs:
+                tensor_key = tensor_names.get(monitor_key, display_name)
                 placeholder = create_no_signal_frame(cam_cfg.width, cam_cfg.height, display_name)
-                combiner_placeholders[display_name] = placeholder
+                combiner_placeholders[tensor_key] = placeholder
 
         combiner = FrameCombinerOp(
             self.fragment,

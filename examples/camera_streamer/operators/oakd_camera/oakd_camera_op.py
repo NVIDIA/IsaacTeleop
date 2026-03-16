@@ -563,8 +563,21 @@ class OakdCameraOp(Operator):
             gpu = cp.asarray(frame)
 
             if gpu.ndim == 2:
-                # GRAY8: broadcast to BGR channels, reuse alpha from buffer
-                if buf is not None and buf.shape[:2] == gpu.shape:
+                # GRAY8: all channels are identical; output shape depends on
+                # color_format (rgb/bgr → 3-ch, bgra → 4-ch with alpha).
+                if self._color_format in ("rgb", "bgr"):
+                    if buf is not None and buf.shape[:2] == gpu.shape and buf.shape[2] == 3:
+                        buf[:, :, 0] = gpu
+                        buf[:, :, 1] = gpu
+                        buf[:, :, 2] = gpu
+                        return buf
+                    rgb = cp.empty((*gpu.shape, 3), dtype=cp.uint8)
+                    rgb[:, :, 0] = gpu
+                    rgb[:, :, 1] = gpu
+                    rgb[:, :, 2] = gpu
+                    return rgb
+                # Default: BGRA (4-ch) for NVENC compatibility
+                if buf is not None and buf.shape[:2] == gpu.shape and buf.shape[2] == 4:
                     buf[:, :, 0] = gpu
                     buf[:, :, 1] = gpu
                     buf[:, :, 2] = gpu
