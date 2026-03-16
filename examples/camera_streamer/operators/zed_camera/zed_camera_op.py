@@ -12,7 +12,6 @@ Metadata emitted with each frame:
 """
 
 import time
-from typing import Optional
 
 import cupy as cp
 from holoscan import as_tensor
@@ -111,13 +110,13 @@ class ZedCameraOp(Operator):
                 f"Invalid resolution '{resolution}'. Valid options: {list(self.RESOLUTION_MAP.keys())}"
             )
 
-        self._camera: Optional[sl.Camera] = None
-        self._init_params: Optional[sl.InitParameters] = None
-        self._runtime_params: Optional[sl.RuntimeParameters] = None
+        self._camera: sl.Camera | None = None
+        self._init_params: sl.InitParameters | None = None
+        self._runtime_params: sl.RuntimeParameters | None = None
 
         # Image containers
-        self._left_image: Optional[sl.Mat] = None
-        self._right_image: Optional[sl.Mat] = None
+        self._left_image: sl.Mat | None = None
+        self._right_image: sl.Mat | None = None
 
         # Frame dimensions (set after camera opens)
         self._width = 0
@@ -339,8 +338,8 @@ class ZedCameraOp(Operator):
         self,
         zed_mat: sl.Mat,
         eye: str = "left",
-        out: Optional[cp.ndarray] = None,
-    ) -> Optional[cp.ndarray]:
+        out: cp.ndarray | None = None,
+    ) -> cp.ndarray | None:
         """Convert ZED GPU Mat to a contiguous CuPy array.
 
         ZED GPU memory uses pitched allocation (rows may have padding for alignment).
@@ -394,7 +393,7 @@ class ZedCameraOp(Operator):
                 logger.warning(f"Failed to convert ZED {eye} GPU Mat to CuPy: {e}")
             return self._zed_cpu_fallback(zed_mat, eye)
 
-    def _zed_cpu_fallback(self, zed_mat: sl.Mat, eye: str = "left") -> Optional[cp.ndarray]:
+    def _zed_cpu_fallback(self, zed_mat: sl.Mat, eye: str = "left") -> cp.ndarray | None:
         """Fallback: copy via CPU when direct GPU access fails."""
         try:
             cpu_data = zed_mat.get_data()

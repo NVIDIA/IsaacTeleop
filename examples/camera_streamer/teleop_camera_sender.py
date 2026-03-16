@@ -16,7 +16,6 @@ import argparse
 from dataclasses import dataclass
 import os
 import sys
-from typing import Dict, List
 
 from camera_config import CameraConfig, validate_camera_configs
 from camera_sources import create_camera_source, ensure_nvenc_support
@@ -41,13 +40,13 @@ class TeleopCameraSenderConfig:
     host: str
     """Receiver IP address."""
 
-    cameras: Dict[str, CameraConfig]
+    cameras: dict[str, CameraConfig]
     """Camera configurations keyed by camera name."""
 
     @classmethod
     def from_yaml(cls, yaml_path: str) -> "TeleopCameraSenderConfig":
         """Load configuration from YAML file."""
-        with open(yaml_path, "r") as f:
+        with open(yaml_path) as f:
             data = yaml.safe_load(f)
 
         source = data.get("source", "rtp")
@@ -67,11 +66,11 @@ class TeleopCameraSenderConfig:
             cameras=cameras,
         )
 
-    def get_cameras_by_type(self, camera_type: str) -> Dict[str, CameraConfig]:
+    def get_cameras_by_type(self, camera_type: str) -> dict[str, CameraConfig]:
         """Get camera configurations filtered by type."""
         return {name: cfg for name, cfg in self.cameras.items() if cfg.camera_type == camera_type}
 
-    def validate(self) -> List[str]:
+    def validate(self) -> list[str]:
         """Validate configuration and return list of errors."""
         errors = validate_camera_configs(self.cameras)
 

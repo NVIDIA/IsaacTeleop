@@ -13,7 +13,7 @@ This subgraph can be embedded in other applications that need camera visualizati
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from camera_config import CameraConfig, validate_camera_configs
 from holoscan.core import Fragment, Subgraph
@@ -79,7 +79,7 @@ class MonitorConfig:
 class XrConfig:
     """XR mode display configuration."""
 
-    planes: Dict[str, XrPlaneConfig]
+    planes: dict[str, XrPlaneConfig]
     """Per-camera plane configurations (keyed by camera name)."""
 
     lock_mode: str
@@ -124,7 +124,7 @@ class TeleopCameraSubgraphConfig:
     cuda_device: int
     """CUDA device for NVDEC decoding."""
 
-    cameras: Dict[str, CameraConfig]
+    cameras: dict[str, CameraConfig]
     """Camera configurations keyed by camera name."""
 
     monitor: MonitorConfig
@@ -133,7 +133,7 @@ class TeleopCameraSubgraphConfig:
     xr: XrConfig
     """XR mode display settings."""
 
-    def validate(self) -> List[str]:
+    def validate(self) -> list[str]:
         """Validate configuration and return list of errors.
 
         Returns:
@@ -200,7 +200,7 @@ class TeleopCameraSubgraphConfig:
         """
         import yaml
 
-        with open(yaml_path, "r") as f:
+        with open(yaml_path) as f:
             data = yaml.safe_load(f)
 
         # Parse cameras
@@ -275,7 +275,7 @@ class TeleopCameraSubgraph(Subgraph):
         fragment: Fragment,
         name: str,
         config: TeleopCameraSubgraphConfig,
-        xr_session: Optional[Any] = None,
+        xr_session: Any | None = None,
     ):
         """
         Initialize the teleop camera subgraph.
@@ -292,7 +292,7 @@ class TeleopCameraSubgraph(Subgraph):
         self._config = config
         self._xr_session = xr_session
         self._name_prefix = name
-        self._camera_output_names: List[str] = []
+        self._camera_output_names: list[str] = []
 
         # Validate configuration
         config.validate_or_raise()
@@ -304,7 +304,7 @@ class TeleopCameraSubgraph(Subgraph):
         super().__init__(fragment, name)
 
     @property
-    def camera_output_names(self) -> List[str]:
+    def camera_output_names(self) -> list[str]:
         """Names of the camera output interface ports.
 
         Each name can be used in ``add_flow(subgraph, downstream, {(name, ...)})``
@@ -332,11 +332,11 @@ class TeleopCameraSubgraph(Subgraph):
         )
 
         # Track all monitored frame outputs (after VideoStreamMonitorOp)
-        monitored_outputs: Dict[str, Any] = {}
+        monitored_outputs: dict[str, Any] = {}
         # Tensor name each source produces (for HolovizOp matching).
         # Sources going through VideoStreamMonitorOp get renamed to cam_name;
         # sources that skip the monitor keep their native name.
-        tensor_names: Dict[str, str] = {}
+        tensor_names: dict[str, str] = {}
 
         if self._config.source == "local":
             self._compose_local_sources(allocator, verbose, stream_timeout, monitored_outputs, tensor_names)
@@ -492,8 +492,8 @@ class TeleopCameraSubgraph(Subgraph):
 
     def _compose_monitor_mode(
         self,
-        monitored_outputs: Dict[str, Any],
-        tensor_names: Dict[str, str],
+        monitored_outputs: dict[str, Any],
+        tensor_names: dict[str, str],
         allocator,
     ):
         """Compose monitor mode pipeline using HolovizOp native tiling."""
@@ -502,7 +502,7 @@ class TeleopCameraSubgraph(Subgraph):
         # Build list of streams to display.
         # Each entry is (display_name, monitor_key, cam_cfg)
         # With show_stereo, stereo cameras get two entries (left + right).
-        camera_list: List[Tuple[str, str, CameraConfig]] = []
+        camera_list: list[tuple[str, str, CameraConfig]] = []
         for cam_name, cam_cfg in self._config.cameras.items():
             if cam_cfg.stereo:
                 if mon_cfg.show_stereo:
@@ -592,7 +592,7 @@ class TeleopCameraSubgraph(Subgraph):
 
         logger.info(f"Monitor mode: {num_cameras} cameras tiled, {mon_cfg.width}x{mon_cfg.height}")
 
-    def _compose_xr_mode(self, monitored_outputs: Dict[str, Any]):
+    def _compose_xr_mode(self, monitored_outputs: dict[str, Any]):
         """Compose XR mode pipeline with 3D plane rendering using XrPlaneRendererOp.
 
         Uses a single XrPlaneRendererOp to render all planes with one Vulkan context.
@@ -605,6 +605,8 @@ class TeleopCameraSubgraph(Subgraph):
             import holohub.xr as xr
             from xr_plane_renderer import (
                 XrPlaneConfig as CppXrPlaneConfig,
+            )
+            from xr_plane_renderer import (
                 XrPlaneRendererOp,
             )
         except ImportError:
@@ -627,10 +629,10 @@ class TeleopCameraSubgraph(Subgraph):
 
         # Build plane configurations for XrPlaneRendererOp
         # Order: cameras in config order, will be sorted by distance in operator
-        plane_configs: List[CppXrPlaneConfig] = []
+        plane_configs: list[CppXrPlaneConfig] = []
 
         # Track input connections: plane_index -> (left_source, right_source_or_None)
-        plane_inputs: List[Tuple[Optional[Any], Optional[Any]]] = []
+        plane_inputs: list[tuple[Any | None, Any | None]] = []
 
         for cam_name, cam_cfg in self._config.cameras.items():
             plane_cfg = xr_cfg.planes.get(cam_name)

@@ -18,7 +18,6 @@ Metadata emitted with each frame/packet:
 
 from enum import Enum
 import time
-from typing import Optional
 
 import cupy as cp
 import depthai as dai
@@ -140,8 +139,8 @@ class OakdCameraOp(Operator):
         self._quality = quality
 
         # Device and pipeline state
-        self._device: Optional[dai.Device] = None
-        self._pipeline: Optional[dai.Pipeline] = None
+        self._device: dai.Device | None = None
+        self._pipeline: dai.Pipeline | None = None
 
         # Output queues (H264 mode)
         self._h264_queue = None
@@ -177,7 +176,7 @@ class OakdCameraOp(Operator):
             if self._mode == OakdCameraMode.STEREO:
                 spec.output("h264_packets_right").condition(ConditionType.NONE)
 
-    def _get_camera_socket(self, socket_name: Optional[str] = None) -> dai.CameraBoardSocket:
+    def _get_camera_socket(self, socket_name: str | None = None) -> dai.CameraBoardSocket:
         """Map camera socket string to DepthAI enum."""
         name = (socket_name or self._camera_socket).upper()
         socket_map = {
@@ -545,7 +544,7 @@ class OakdCameraOp(Operator):
 
         return emitted
 
-    def _extract_raw_frame(self, frame_msg, buf: Optional[cp.ndarray] = None) -> Optional[cp.ndarray]:
+    def _extract_raw_frame(self, frame_msg, buf: cp.ndarray | None = None) -> cp.ndarray | None:
         """Extract raw frame and convert to GPU tensor (BGRA).
 
         Handles GRAY8 (mono sensors) and BGR888p (color sensors).
@@ -604,7 +603,7 @@ class OakdCameraOp(Operator):
                 logger.warning(f"Failed to extract raw frame: {e}")
         return None
 
-    def _extract_h264_data(self, encoded_msg) -> Optional[bytes]:
+    def _extract_h264_data(self, encoded_msg) -> bytes | None:
         """Extract H.264 data from encoded message."""
         if isinstance(encoded_msg, dai.EncodedFrame):
             data = encoded_msg.getData()
