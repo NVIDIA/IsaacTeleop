@@ -2,10 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Test script for ControllerTracker with simplified API.
+Test script for ControllerTracker with XR_NVX1_action_context support.
 
 Demonstrates:
 - Getting left and right controller data via get_left_controller() and get_right_controller()
+- Multiple ControllerTracker instances on the same session (action context isolation)
 """
 
 import sys
@@ -19,31 +20,34 @@ print("Controller Tracker Test")
 print("=" * 80)
 print()
 
-# Test 1: Create controller tracker (handles both controllers)
-print("[Test 1] Creating controller tracker...")
-controller_tracker = deviceio.ControllerTracker()
-print(f"✓ {controller_tracker.get_name()} created")
+# Test 1: Create two controller trackers to verify action context isolation
+print("[Test 1] Creating two controller trackers...")
+controller_tracker_a = deviceio.ControllerTracker()
+controller_tracker_b = deviceio.ControllerTracker()
+print(f"✓ {controller_tracker_a.get_name()} A created")
+print(f"✓ {controller_tracker_b.get_name()} B created")
 print()
 
-# Test 2: Query required extensions
+# Test 2: Query required extensions (should include XR_NVX1_action_context)
 print("[Test 2] Querying required extensions...")
-trackers = [controller_tracker]
+trackers = [controller_tracker_a, controller_tracker_b]
 required_extensions = deviceio.DeviceIOSession.get_required_extensions(trackers)
-print(
-    f"Required extensions: {required_extensions if required_extensions else 'None (uses core OpenXR)'}"
+print(f"Required extensions: {required_extensions}")
+assert "XR_NVX1_action_context" in required_extensions, (
+    "Expected XR_NVX1_action_context in required extensions"
 )
 print()
 
-# Test 3: Initialize
-print("[Test 3] Creating OpenXR session and initializing...")
+# Test 3: Initialize — both trackers on the same XrSession
+print("[Test 3] Creating OpenXR session with two ControllerTrackers...")
 
-# Use context managers for proper RAII cleanup
 with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_session:
     handles = oxr_session.get_handles()
 
-    # Run deviceio session with trackers (throws exception on failure)
     with deviceio.DeviceIOSession.run(trackers, handles) as session:
-        print("✅ OpenXR session initialized")
+        print(
+            "✅ OpenXR session initialized with two ControllerTrackers (action context isolation)"
+        )
         print()
 
         # Test 4: Initial update
@@ -55,22 +59,33 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
         print("✓ Update successful")
         print()
 
-        # Test 5: Check initial controller state
-        print("[Test 5] Checking controller state...")
-        left_tracked = controller_tracker.get_left_controller(session)
-        right_tracked = controller_tracker.get_right_controller(session)
+        # Test 5: Both trackers should see the same controller state
+        print("[Test 5] Verifying both trackers report consistent data...")
+        left_a = controller_tracker_a.get_left_controller(session)
+        left_b = controller_tracker_b.get_left_controller(session)
+        right_a = controller_tracker_a.get_right_controller(session)
+        right_b = controller_tracker_b.get_right_controller(session)
 
-        if left_tracked.data is not None and left_tracked.data.grip_pose.is_valid:
-            pos = left_tracked.data.grip_pose.pose.position
-            print(f"  Left grip:  [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
-        else:
-            print("  Left:  inactive")
+        def assert_trackers_consistent(label, ta, tb):
+            a_active = ta.data is not None and ta.data.grip_pose.is_valid
+            b_active = tb.data is not None and tb.data.grip_pose.is_valid
+            assert a_active == b_active, (
+                f"{label}: A active={a_active} but B active={b_active}"
+            )
+            if a_active:
+                pa = ta.data.grip_pose.pose.position
+                pb = tb.data.grip_pose.pose.position
+                tol = 0.01
+                assert abs(pa.x - pb.x) < tol, f"{label} x: {pa.x} vs {pb.x}"
+                assert abs(pa.y - pb.y) < tol, f"{label} y: {pa.y} vs {pb.y}"
+                assert abs(pa.z - pb.z) < tol, f"{label} z: {pa.z} vs {pb.z}"
+                print(f"  {label}: A and B match [{pa.x:.3f}, {pa.y:.3f}, {pa.z:.3f}]")
+            else:
+                print(f"  {label}: both inactive (consistent)")
 
-        if right_tracked.data is not None and right_tracked.data.grip_pose.is_valid:
-            pos = right_tracked.data.grip_pose.pose.position
-            print(f"  Right grip: [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
-        else:
-            print("  Right: inactive")
+        assert_trackers_consistent("Left", left_a, left_b)
+        assert_trackers_consistent("Right", right_a, right_b)
+        print("✓ Tracker A and B report consistent data")
         print()
 
         # Test 6: Available inputs
@@ -94,12 +109,11 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
                     print("Update failed")
                     break
 
-                # Get current controller data
                 current_time = time.time()
-                if current_time - last_status_print >= 0.5:  # Print every 0.5 seconds
+                if current_time - last_status_print >= 0.5:
                     elapsed = current_time - start_time
-                    left_tracked = controller_tracker.get_left_controller(session)
-                    right_tracked = controller_tracker.get_right_controller(session)
+                    left_tracked = controller_tracker_a.get_left_controller(session)
+                    right_tracked = controller_tracker_a.get_right_controller(session)
 
                     print(f"  [{elapsed:5.2f}s] Frame {frame_count:4d}")
 
@@ -161,8 +175,8 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
             else:
                 print("    inactive")
 
-        left_tracked = controller_tracker.get_left_controller(session)
-        right_tracked = controller_tracker.get_right_controller(session)
+        left_tracked = controller_tracker_a.get_left_controller(session)
+        right_tracked = controller_tracker_a.get_right_controller(session)
         print_controller_summary("Left", left_tracked)
         print()
         print_controller_summary("Right", right_tracked)

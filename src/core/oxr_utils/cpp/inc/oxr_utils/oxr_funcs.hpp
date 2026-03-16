@@ -9,6 +9,7 @@
 
 #include <openxr/openxr.h>
 
+#include <XR_NVX1_action_context.h>
 #include <cassert>
 #include <functional>
 #include <memory>
@@ -117,6 +118,42 @@ inline void loadExtensionFunction(XrInstance instance,
 // Smart pointer type aliases for OpenXR resources
 using XrActionSetPtr = std::unique_ptr<std::remove_pointer_t<XrActionSet>, PFN_xrDestroyActionSet>;
 using XrSpacePtr = std::unique_ptr<std::remove_pointer_t<XrSpace>, PFN_xrDestroySpace>;
+using XrInstanceActionContextPtr =
+    std::unique_ptr<std::remove_pointer_t<XrInstanceActionContextNV>, PFN_xrDestroyInstanceActionContextNV>;
+using XrSessionActionContextPtr =
+    std::unique_ptr<std::remove_pointer_t<XrSessionActionContextNV>, PFN_xrDestroySessionActionContextNV>;
+
+// Dynamically loaded XR_NVX1_action_context extension function pointers.
+struct ActionContextFunctions
+{
+    PFN_xrCreateInstanceActionContextNV create_instance_ctx;
+    PFN_xrDestroyInstanceActionContextNV destroy_instance_ctx;
+    PFN_xrCreateSessionActionContextNV create_session_ctx;
+    PFN_xrDestroySessionActionContextNV destroy_session_ctx;
+    PFN_xrSyncActions2NV sync_actions_2;
+
+    static ActionContextFunctions load(XrInstance instance, PFN_xrGetInstanceProcAddr getProcAddr)
+    {
+        ActionContextFunctions f{};
+        loadExtensionFunction(instance, getProcAddr, "xrCreateInstanceActionContextNV",
+                              reinterpret_cast<PFN_xrVoidFunction*>(&f.create_instance_ctx));
+        loadExtensionFunction(instance, getProcAddr, "xrDestroyInstanceActionContextNV",
+                              reinterpret_cast<PFN_xrVoidFunction*>(&f.destroy_instance_ctx));
+        loadExtensionFunction(instance, getProcAddr, "xrCreateSessionActionContextNV",
+                              reinterpret_cast<PFN_xrVoidFunction*>(&f.create_session_ctx));
+        loadExtensionFunction(instance, getProcAddr, "xrDestroySessionActionContextNV",
+                              reinterpret_cast<PFN_xrVoidFunction*>(&f.destroy_session_ctx));
+        loadExtensionFunction(
+            instance, getProcAddr, "xrSyncActions2NV", reinterpret_cast<PFN_xrVoidFunction*>(&f.sync_actions_2));
+
+        if (!f.create_instance_ctx || !f.destroy_instance_ctx || !f.create_session_ctx || !f.destroy_session_ctx ||
+            !f.sync_actions_2)
+        {
+            throw std::runtime_error("Required XR_NVX1_action_context extension functions are missing");
+        }
+        return f;
+    }
+};
 
 // Create an action set with automatic cleanup - throws on failure
 inline XrActionSetPtr createActionSet(const OpenXRCoreFunctions& funcs,
@@ -170,6 +207,35 @@ inline XrSpacePtr createActionSpace(const OpenXRCoreFunctions& funcs,
     }
 
     return XrSpacePtr(space, funcs.xrDestroySpace);
+}
+
+// Create an instance action context with automatic cleanup - throws on failure
+inline XrInstanceActionContextPtr createInstanceActionContext(const ActionContextFunctions& funcs, XrInstance instance)
+{
+    XrInstanceActionContextCreateInfoNV create_info{ XR_TYPE_INSTANCE_ACTION_CONTEXT_CREATE_INFO_NV };
+    XrInstanceActionContextNV ctx = XR_NULL_HANDLE;
+    XrResult result = funcs.create_instance_ctx(instance, &create_info, &ctx);
+    if (XR_FAILED(result))
+    {
+        throw std::runtime_error("Failed to create instance action context: " + std::to_string(result));
+    }
+    return XrInstanceActionContextPtr(ctx, funcs.destroy_instance_ctx);
+}
+
+// Create a session action context with automatic cleanup - throws on failure
+inline XrSessionActionContextPtr createSessionActionContext(const ActionContextFunctions& funcs,
+                                                            XrSession session,
+                                                            XrInstanceActionContextNV instance_ctx)
+{
+    XrSessionActionContextCreateInfoNV create_info{ XR_TYPE_SESSION_ACTION_CONTEXT_CREATE_INFO_NV };
+    create_info.instanceActionContext = instance_ctx;
+    XrSessionActionContextNV ctx = XR_NULL_HANDLE;
+    XrResult result = funcs.create_session_ctx(session, &create_info, &ctx);
+    if (XR_FAILED(result))
+    {
+        throw std::runtime_error("Failed to create session action context: " + std::to_string(result));
+    }
+    return XrSessionActionContextPtr(ctx, funcs.destroy_session_ctx);
 }
 
 } // namespace core

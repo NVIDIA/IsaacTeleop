@@ -13,5 +13,6 @@ install(FILES
     XR_NVX1_device_interface.h
     XR_NVX1_tensor_data.h
     XR_NVX1_push_tensor.h
+    XR_NVX1_action_context.h
     DESTINATION include
 )

@@ -5,12 +5,15 @@
 
 #include "inc/deviceio/deviceio_session.hpp"
 
+#include <oxr_utils/oxr_funcs.hpp>
+#include <oxr_utils/oxr_time.hpp>
+#include <schema/controller_bfbs_generated.h>
+
 #include <cassert>
 #include <cmath>
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
-#include <unordered_map>
 
 namespace core
 {
@@ -18,7 +21,21 @@ namespace core
 namespace
 {
 
-// Helper functions for getting OpenXR action states
+XrActionSetPtr createActionSetInContext(const OpenXRCoreFunctions& funcs, XrInstance instance, XrInstanceActionContextNV ctx)
+{
+    XrInstanceActionContextInfoNV ctx_info{ XR_TYPE_INSTANCE_ACTION_CONTEXT_INFO_NV };
+    ctx_info.instanceActionContext = ctx;
+
+    XrActionSetCreateInfo set_info{ XR_TYPE_ACTION_SET_CREATE_INFO };
+    set_info.next = &ctx_info;
+    strcpy(set_info.actionSetName, "controller_tracking");
+    strcpy(set_info.localizedActionSetName, "Controller Tracking");
+    set_info.priority = 0;
+
+    return createActionSet(funcs, instance, set_info);
+}
+
+// ---- OpenXR action helpers ----
 
 XrPath xr_path_from_string(const OpenXRCoreFunctions& funcs, XrInstance instance, const char* s)
 {
@@ -96,7 +113,7 @@ XrSpacePtr create_space(const OpenXRCoreFunctions& funcs, XrSession session, XrA
     space_info.poseInActionSpace.position = { 0.0f, 0.0f, 0.0f };
 
     return createActionSpace(funcs, session, &space_info);
-};
+}
 
 XrAction create_action(const OpenXRCoreFunctions& funcs,
                        XrActionSet action_set,
@@ -114,7 +131,7 @@ XrAction create_action(const OpenXRCoreFunctions& funcs,
     action_info.actionType = type;
     strcpy(action_info.actionName, name);
     strcpy(action_info.localizedActionName, localized_name);
-    action_info.countSubactionPaths = 2; // BOTH hands
+    action_info.countSubactionPaths = 2;
     action_info.subactionPaths = hand_paths;
 
     XrResult res = funcs.xrCreateAction(action_set, &action_info, &out_action);
@@ -124,29 +141,75 @@ XrAction create_action(const OpenXRCoreFunctions& funcs,
     }
 
     return out_action;
-};
+}
 
 } // anonymous namespace
 
 // ============================================================================
-// ControllerTracker::Impl Implementation
+// ControllerTracker::Impl
 // ============================================================================
 
-// Constructor - throws std::runtime_error on failure
+class ControllerTracker::Impl : public ITrackerImpl
+{
+public:
+    explicit Impl(const OpenXRSessionHandles& handles);
+    ~Impl() = default;
+
+    Impl(const Impl&) = delete;
+    Impl& operator=(const Impl&) = delete;
+
+    bool update(XrTime time) override;
+    void serialize_all(size_t channel_index, const RecordCallback& callback) const override;
+
+    const ControllerSnapshotTrackedT& get_left_controller() const;
+    const ControllerSnapshotTrackedT& get_right_controller() const;
+
+private:
+    const OpenXRCoreFunctions core_funcs_;
+    XrTimeConverter time_converter_;
+
+    XrSession session_;
+    XrSpace base_space_;
+
+    XrPath left_hand_path_;
+    XrPath right_hand_path_;
+
+    // Action context — declared before action_set_ so it outlives it.
+    ActionContextFunctions action_ctx_funcs_;
+    XrInstanceActionContextPtr instance_action_context_;
+    XrSessionActionContextPtr session_action_context_;
+
+    XrActionSetPtr action_set_;
+    XrAction grip_pose_action_;
+    XrAction aim_pose_action_;
+    XrAction primary_click_action_;
+    XrAction secondary_click_action_;
+    XrAction thumbstick_action_;
+    XrAction thumbstick_click_action_;
+    XrAction squeeze_value_action_;
+    XrAction trigger_value_action_;
+
+    XrSpacePtr left_grip_space_;
+    XrSpacePtr right_grip_space_;
+    XrSpacePtr left_aim_space_;
+    XrSpacePtr right_aim_space_;
+
+    ControllerSnapshotTrackedT left_tracked_;
+    ControllerSnapshotTrackedT right_tracked_;
+    XrTime last_update_time_ = 0;
+};
+
 ControllerTracker::Impl::Impl(const OpenXRSessionHandles& handles)
     : core_funcs_(OpenXRCoreFunctions::load(handles.instance, handles.xrGetInstanceProcAddr)),
       time_converter_(handles),
       session_(handles.session),
       base_space_(handles.space),
-
       left_hand_path_(xr_path_from_string(core_funcs_, handles.instance, "/user/hand/left")),
       right_hand_path_(xr_path_from_string(core_funcs_, handles.instance, "/user/hand/right")),
-
-      action_set_(createActionSet(core_funcs_,
-                                  handles.instance,
-                                  { .type = XR_TYPE_ACTION_SET_CREATE_INFO,
-                                    .actionSetName = "controller_tracking",
-                                    .localizedActionSetName = "Controller Tracking" })),
+      action_ctx_funcs_(ActionContextFunctions::load(handles.instance, handles.xrGetInstanceProcAddr)),
+      instance_action_context_(createInstanceActionContext(action_ctx_funcs_, handles.instance)),
+      session_action_context_(nullptr, nullptr),
+      action_set_(createActionSetInContext(core_funcs_, handles.instance, instance_action_context_.get())),
       grip_pose_action_(create_action(core_funcs_,
                                       action_set_.get(),
                                       left_hand_path_,
@@ -198,12 +261,12 @@ ControllerTracker::Impl::Impl(const OpenXRSessionHandles& handles)
                                           "trigger_value",
                                           "Trigger Value",
                                           XR_ACTION_TYPE_FLOAT_INPUT)),
-
       left_grip_space_(create_space(core_funcs_, session_, grip_pose_action_, left_hand_path_)),
       right_grip_space_(create_space(core_funcs_, session_, grip_pose_action_, right_hand_path_)),
       left_aim_space_(create_space(core_funcs_, session_, aim_pose_action_, left_hand_path_)),
       right_aim_space_(create_space(core_funcs_, session_, aim_pose_action_, right_hand_path_))
 {
+    // Suggest interaction profile bindings (chained to this action context)
     std::vector<XrActionSuggestedBinding> bindings;
     auto add_binding = [&](XrAction action, const char* path)
     {
@@ -214,7 +277,6 @@ ControllerTracker::Impl::Impl(const OpenXRSessionHandles& handles)
         }
     };
 
-    // Common bindings for both hands
     add_binding(grip_pose_action_, "/user/hand/left/input/grip/pose");
     add_binding(grip_pose_action_, "/user/hand/right/input/grip/pose");
     add_binding(aim_pose_action_, "/user/hand/left/input/aim/pose");
@@ -227,15 +289,16 @@ ControllerTracker::Impl::Impl(const OpenXRSessionHandles& handles)
     add_binding(squeeze_value_action_, "/user/hand/right/input/squeeze/value");
     add_binding(trigger_value_action_, "/user/hand/left/input/trigger/value");
     add_binding(trigger_value_action_, "/user/hand/right/input/trigger/value");
+    add_binding(primary_click_action_, "/user/hand/left/input/x/click");
+    add_binding(secondary_click_action_, "/user/hand/left/input/y/click");
+    add_binding(primary_click_action_, "/user/hand/right/input/a/click");
+    add_binding(secondary_click_action_, "/user/hand/right/input/b/click");
 
-    // Hand-specific button bindings
-    add_binding(primary_click_action_, "/user/hand/left/input/x/click"); // Left: X
-    add_binding(secondary_click_action_, "/user/hand/left/input/y/click"); // Left: Y
-    add_binding(primary_click_action_, "/user/hand/right/input/a/click"); // Right: A
-    add_binding(secondary_click_action_, "/user/hand/right/input/b/click"); // Right: B
+    XrInstanceActionContextInfoNV binding_ctx_info{ XR_TYPE_INSTANCE_ACTION_CONTEXT_INFO_NV };
+    binding_ctx_info.instanceActionContext = instance_action_context_.get();
 
-    // Suggest bindings for Oculus Touch controller profile
     XrInteractionProfileSuggestedBinding suggested_bindings{ XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING };
+    suggested_bindings.next = &binding_ctx_info;
     suggested_bindings.interactionProfile =
         xr_path_from_string(core_funcs_, handles.instance, "/interaction_profiles/oculus/touch_controller");
     suggested_bindings.countSuggestedBindings = static_cast<uint32_t>(bindings.size());
@@ -247,11 +310,17 @@ ControllerTracker::Impl::Impl(const OpenXRSessionHandles& handles)
         throw std::runtime_error("Failed to suggest interaction profile bindings: " + std::to_string(result));
     }
 
-    std::cout << "ControllerTracker: Using Oculus Touch Controller profile" << std::endl;
+    // Create session action context (makes the instance context immutable)
+    session_action_context_ =
+        createSessionActionContext(action_ctx_funcs_, handles.session, instance_action_context_.get());
 
-    // Attach action set to session
+    // Attach action sets to the session action context
+    XrSessionActionContextInfoNV sess_ctx_info{ XR_TYPE_SESSION_ACTION_CONTEXT_INFO_NV };
+    sess_ctx_info.sessionActionContext = session_action_context_.get();
+
     XrActionSet action_set_handle = action_set_.get();
     XrSessionActionSetsAttachInfo attach_info{ XR_TYPE_SESSION_ACTION_SETS_ATTACH_INFO };
+    attach_info.next = &sess_ctx_info;
     attach_info.countActionSets = 1;
     attach_info.actionSets = &action_set_handle;
 
@@ -261,28 +330,33 @@ ControllerTracker::Impl::Impl(const OpenXRSessionHandles& handles)
         throw std::runtime_error("Failed to attach action sets: " + std::to_string(result));
     }
 
-    std::cout << "ControllerTracker initialized (left + right)" << std::endl;
+    std::cout << "ControllerTracker initialized (left + right) with action context" << std::endl;
 }
 
-// Override from ITrackerImpl
 bool ControllerTracker::Impl::update(XrTime time)
 {
     last_update_time_ = time;
 
-    // Sync actions
-    XrActionsSyncInfo sync_info{ XR_TYPE_ACTIONS_SYNC_INFO };
+    // Sync actions via xrSyncActions2NV with our session action context
     XrActiveActionSet active_action_set{ action_set_.get(), XR_NULL_PATH };
+
+    XrActionsSyncInfo2NV sync_info{ XR_TYPE_ACTIONS_SYNC_INFO_2_NV };
     sync_info.countActiveActionSets = 1;
     sync_info.activeActionSets = &active_action_set;
+    sync_info.sessionActionContext = session_action_context_.get();
 
-    XrResult result = core_funcs_.xrSyncActions(session_, &sync_info);
+    XrActionsSyncState2NV sync_state{ XR_TYPE_ACTIONS_SYNC_STATE_2_NV };
+
+    XrResult result = action_ctx_funcs_.sync_actions_2(session_, &sync_info, &sync_state);
     if (XR_FAILED(result))
     {
-        std::cerr << "[ControllerTracker] xrSyncActions failed: " << result << std::endl;
+        std::cerr << "[ControllerTracker] xrSyncActions2NV failed: " << result << std::endl;
         left_tracked_.data.reset();
         right_tracked_.data.reset();
         return false;
     }
+    // sync_state.interactionProfileChanged is intentionally ignored: this
+    // tracker uses a fixed Oculus Touch binding and has no rebinding logic.
 
     auto update_controller = [&](XrPath hand_path, const XrSpacePtr& grip_space, const XrSpacePtr& aim_space,
                                  ControllerSnapshotTrackedT& tracked)
@@ -291,7 +365,6 @@ bool ControllerTracker::Impl::update(XrTime time)
         ControllerPose aim_pose{};
         ControllerInputState inputs{};
 
-        // Update grip pose
         XrSpaceLocation grip_location{ XR_TYPE_SPACE_LOCATION };
         result = core_funcs_.xrLocateSpace(grip_space.get(), base_space_, time, &grip_location);
         if (XR_SUCCEEDED(result))
@@ -306,7 +379,6 @@ bool ControllerTracker::Impl::update(XrTime time)
             grip_pose = ControllerPose(pose, is_valid);
         }
 
-        // Update aim pose
         XrSpaceLocation aim_location{ XR_TYPE_SPACE_LOCATION };
         result = core_funcs_.xrLocateSpace(aim_space.get(), base_space_, time, &aim_location);
         if (XR_SUCCEEDED(result))
@@ -323,7 +395,6 @@ bool ControllerTracker::Impl::update(XrTime time)
 
         bool is_active = grip_pose.is_valid() || aim_pose.is_valid();
 
-        // Update input values
         bool primary_click = get_boolean_action_state(session_, core_funcs_, primary_click_action_, hand_path);
         bool secondary_click = get_boolean_action_state(session_, core_funcs_, secondary_click_action_, hand_path);
 
@@ -395,13 +466,18 @@ void ControllerTracker::Impl::serialize_all(size_t channel_index, const RecordCa
 }
 
 // ============================================================================
-// ControllerTracker Public Interface Implementation
+// ControllerTracker Public Interface
 // ============================================================================
 
 std::vector<std::string> ControllerTracker::get_required_extensions() const
 {
-    // Controllers don't require any extensions (they're part of core OpenXR)
-    return {};
+    return { XR_NVX1_ACTION_CONTEXT_EXTENSION_NAME };
+}
+
+std::string_view ControllerTracker::get_schema_text() const
+{
+    return std::string_view(reinterpret_cast<const char*>(ControllerSnapshotRecordBinarySchema::data()),
+                            ControllerSnapshotRecordBinarySchema::size());
 }
 
 const ControllerSnapshotTrackedT& ControllerTracker::get_left_controller(const DeviceIOSession& session) const
@@ -416,30 +492,7 @@ const ControllerSnapshotTrackedT& ControllerTracker::get_right_controller(const 
 
 std::shared_ptr<ITrackerImpl> ControllerTracker::create_tracker(const OpenXRSessionHandles& handles) const
 {
-    // Multiple ControllerTracker instances sharing the same XrSession must reuse
-    // a single Impl because OpenXR forbids duplicate action-set names /
-    // interaction-profile bindings per session.
-    static std::unordered_map<XrSession, std::weak_ptr<ITrackerImpl>> shared_impls;
-
-    // Prune expired entries while we're here
-    for (auto it = shared_impls.begin(); it != shared_impls.end();)
-    {
-        if (it->second.expired())
-            it = shared_impls.erase(it);
-        else
-            ++it;
-    }
-
-    auto& weak = shared_impls[handles.session];
-    if (auto existing = weak.lock())
-    {
-        std::cout << "ControllerTracker: Reusing existing impl for this XrSession" << std::endl;
-        return existing;
-    }
-
-    auto impl = std::make_shared<Impl>(handles);
-    weak = impl;
-    return impl;
+    return std::make_shared<Impl>(handles);
 }
 
 } // namespace core
