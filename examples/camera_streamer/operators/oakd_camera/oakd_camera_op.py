@@ -319,7 +319,9 @@ class OakdCameraOp(Operator):
             self._close_camera()
             return False
 
-        # Pre-allocate GPU buffers for raw mode to avoid per-frame allocation
+        # Pre-allocate 4-ch BGRA GPU buffers for raw mode (NVENC sender path).
+        # The RGB local-display path (color_format="rgb") produces 3-ch tensors
+        # and skips these buffers; the per-frame cost is negligible there.
         if self._output_format == OakdOutputFormat.RAW:
             self._bgra_buf = cp.empty((self._height, self._width, 4), dtype=cp.uint8)
             self._bgra_buf[:, :, 3] = 255

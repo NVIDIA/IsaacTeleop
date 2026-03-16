@@ -398,14 +398,13 @@ void XrPlaneRendererOp::render_planes(const std::shared_ptr<holoscan::XrComposit
             }
         }
 
-        if (!plane.has_data())
-            continue;
-
         for (int eye_idx = 0; eye_idx < layer->viewCount; eye_idx++)
         {
             auto& view = layer->views[eye_idx];
 
-            // For stereo planes, use right-eye data for the right eye (eye_idx 1)
+            // For stereo planes, use right-eye data for eye_idx 1.
+            // Falls back to data_left when data_right is unavailable (the else
+            // branch covers both mono planes and missing right buffers).
             const void* frame_data;
             int frame_width;
             int frame_height;

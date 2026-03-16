@@ -163,10 +163,10 @@ class TeleopCameraSubgraphConfig:
         if self.monitor.padding < 0:
             errors.append(f"Monitor padding must be non-negative (got {self.monitor.padding})")
         elif self.monitor.padding > 0:
-            num_cams = len(self.cameras)
-            if num_cams > 1 and (num_cams - 1) * self.monitor.padding >= self.monitor.width:
+            num_tiles = sum(2 if (c.stereo and self.monitor.show_stereo) else 1 for c in self.cameras.values())
+            if num_tiles > 1 and (num_tiles - 1) * self.monitor.padding >= self.monitor.width:
                 errors.append(
-                    f"Monitor padding too large: ({num_cams - 1}) * {self.monitor.padding} "
+                    f"Monitor padding too large: ({num_tiles - 1}) * {self.monitor.padding} "
                     f">= window width {self.monitor.width}"
                 )
 
@@ -398,6 +398,8 @@ class TeleopCameraSubgraph(Subgraph):
                     monitored_outputs[display_key] = (src_op, src_port)
                     # V4L2's FormatConverterOp already names tensors;
                     # video_file replayer outputs unnamed ("") tensors.
+                    # Multiple video_file sources would share the "" key in
+                    # FrameCombinerOp, but this is a single-replayer test path.
                     tensor_names[display_key] = cam_name if cam_cfg.camera_type == "v4l2" else ""
                 else:
                     if self._config.display_mode == DisplayMode.MONITOR:

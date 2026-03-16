@@ -161,7 +161,11 @@ class FrameCombinerOp(Operator):
 
     def start(self):
         self._cache = dict(self._placeholders)
-        self._refs = {}
+        # Keep a reference to incoming GXF entities so their GPU memory stays
+        # valid while cached tensors point into it.  Bounded by the fixed set
+        # of tensor-name keys (one per camera stream); old refs are replaced
+        # when the same key arrives again, so this does not grow unboundedly.
+        self._refs: dict = {}
 
     def compute(self, op_input, op_output, context):
         in_messages = op_input.receive("in")

@@ -194,7 +194,9 @@ class ZedCameraOp(Operator):
         self._runtime_params = sl.RuntimeParameters()
         self._last_log_time = time.monotonic()
 
-        # Pre-allocate GPU output buffers to avoid per-frame allocation
+        # Pre-allocate 4-ch BGRA GPU buffers for the NVENC sender path.
+        # The RGB local-display path (color_format="rgb") produces 3-ch tensors
+        # and bypasses these buffers; the per-frame cost is negligible there.
         channels = 4  # BGRA
         self._frame_buf_left = cp.empty((self._height, self._width, channels), dtype=cp.uint8)
         if self._stereo:
