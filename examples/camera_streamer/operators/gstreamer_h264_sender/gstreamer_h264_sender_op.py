@@ -15,15 +15,13 @@ Stream identification and synchronization:
 
 import time
 
-import numpy as np
 import gi
+import numpy as np
 
 gi.require_version("Gst", "1.0")
 from gi.repository import Gst  # noqa: E402
-
-from loguru import logger  # noqa: E402
 from holoscan.core import ConditionType, IOSpec, Operator, OperatorSpec  # noqa: E402
-
+from loguru import logger  # noqa: E402
 
 STATS_INTERVAL_SEC = 30.0
 
@@ -117,9 +115,7 @@ class GStreamerH264SenderOp(Operator):
         self._last_log_time = time.monotonic()
 
         if self._verbose:
-            logger.info(
-                f"H.264 sender started: {self._host}:{self._port} (mtu={self._mtu})"
-            )
+            logger.info(f"H.264 sender started: {self._host}:{self._port} (mtu={self._mtu})")
 
     def stop(self):
         """Stop GStreamer pipeline and log final stats."""
@@ -130,10 +126,7 @@ class GStreamerH264SenderOp(Operator):
 
         if self._verbose:
             mb_sent = self._byte_count / (1024 * 1024)
-            logger.info(
-                f"H.264 sender stopped: packets={self._packet_count}, "
-                f"bytes={mb_sent:.2f}MB"
-            )
+            logger.info(f"H.264 sender stopped: packets={self._packet_count}, bytes={mb_sent:.2f}MB")
 
     def compute(self, op_input, op_output, context):
         """Send H.264 packets via RTP."""

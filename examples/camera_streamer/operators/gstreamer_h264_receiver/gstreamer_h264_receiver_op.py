@@ -8,9 +8,6 @@ import gi
 
 gi.require_version("Gst", "1.0")
 from gi.repository import Gst  # noqa: E402
-
-import numpy as np  # noqa: E402
-from loguru import logger  # noqa: E402
 from holoscan import as_tensor  # noqa: E402
 from holoscan.core import (  # noqa: E402
     ExecutionContext,
@@ -20,6 +17,8 @@ from holoscan.core import (  # noqa: E402
     OperatorSpec,
     OutputContext,
 )
+from loguru import logger  # noqa: E402
+import numpy as np  # noqa: E402
 
 STATS_INTERVAL_SEC = 30.0
 
@@ -66,8 +65,7 @@ class GStreamerH264ReceiverOp(Operator):
                 "rtph264depay",
                 "h264parse config-interval=-1",
                 "video/x-h264,stream-format=byte-stream,alignment=au",
-                f"appsink name=sink emit-signals=false sync=false "
-                f"max-buffers={self._max_buffers} drop=true",
+                f"appsink name=sink emit-signals=false sync=false max-buffers={self._max_buffers} drop=true",
             ]
         )
 
@@ -80,9 +78,7 @@ class GStreamerH264ReceiverOp(Operator):
         rc = self._pipeline.set_state(Gst.State.PLAYING)
         if rc == Gst.StateChangeReturn.FAILURE:
             self._pipeline.set_state(Gst.State.NULL)
-            raise RuntimeError(
-                f"GStreamer pipeline failed to enter PLAYING state (port {self._port})"
-            )
+            raise RuntimeError(f"GStreamer pipeline failed to enter PLAYING state (port {self._port})")
         self._last_log_time = time.monotonic()
 
         if self._verbose:
@@ -134,8 +130,6 @@ class GStreamerH264ReceiverOp(Operator):
         if elapsed >= STATS_INTERVAL_SEC:
             frames = self._frame_count - self._last_log_count
             fps = frames / elapsed
-            logger.info(
-                f"H264 packet receiver | fps={fps:.1f} | total={self._frame_count}"
-            )
+            logger.info(f"H264 packet receiver | fps={fps:.1f} | total={self._frame_count}")
             self._last_log_time = now
             self._last_log_count = self._frame_count

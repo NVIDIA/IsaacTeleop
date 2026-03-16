@@ -18,9 +18,7 @@ def list_oakd_cameras():
         else:
             for dev in devices:
                 # depthai 3.x uses deviceId attribute
-                device_id = getattr(
-                    dev, "deviceId", getattr(dev, "getMxId", lambda: "unknown")()
-                )
+                device_id = getattr(dev, "deviceId", getattr(dev, "getMxId", lambda: "unknown")())
                 state = getattr(dev, "state", None)
                 state_str = state.name if state else "unknown"
                 print(f"  DeviceId: {device_id}  State: {state_str}")
@@ -84,11 +82,7 @@ def list_v4l2_cameras():
                 if result.returncode == 0 and result.stdout.strip():
                     for line in result.stdout.splitlines():
                         line = line.strip()
-                        if (
-                            not line
-                            or line.startswith("ioctl")
-                            or line.startswith("Type")
-                        ):
+                        if not line or line.startswith("ioctl") or line.startswith("Type"):
                             continue
                         print(f"    {line}")
             except FileNotFoundError:

@@ -19,7 +19,6 @@ import time
 from holoscan.core import Application, MetadataPolicy
 from holoscan.schedulers import EventBasedScheduler
 from loguru import logger
-
 from teleop_camera_subgraph import (
     DisplayMode,
     TeleopCameraSubgraph,
@@ -83,9 +82,7 @@ class TeleopCameraApp(Application):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Teleop Camera App: Multi-camera display for teleoperation"
-    )
+    parser = argparse.ArgumentParser(description="Teleop Camera App: Multi-camera display for teleoperation")
     parser.add_argument(
         "--config",
         type=str,

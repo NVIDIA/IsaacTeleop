@@ -6,9 +6,8 @@ Camera Configuration Classes
 Shared configuration dataclasses used by both sender and receiver applications.
 """
 
-import warnings
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+import warnings
 
 VALID_CAMERA_TYPES = {"zed", "oakd", "v4l2", "video_file"}
 
@@ -54,22 +53,22 @@ class CameraConfig:
     fps: int
     """Target frame rate."""
 
-    streams: Dict[str, StreamConfig]
+    streams: dict[str, StreamConfig]
     """Stream configurations. For stereo: 'left'/'right'. For mono: 'mono'."""
 
     # ZED-specific (optional)
-    serial_number: Optional[int] = None
-    resolution: Optional[str] = None
+    serial_number: int | None = None
+    resolution: str | None = None
 
     # OAK-D-specific (optional)
-    device_id: Optional[str] = None
+    device_id: str | None = None
 
     # V4L2-specific (optional)
-    device: Optional[str] = None
+    device: str | None = None
 
     # video_file-specific (optional)
-    video_dir: Optional[str] = None
-    video_basename: Optional[str] = None
+    video_dir: str | None = None
+    video_basename: str | None = None
 
     _KNOWN_KEYS = {
         "type",
@@ -90,8 +89,7 @@ class CameraConfig:
     def __post_init__(self):
         if self.camera_type not in VALID_CAMERA_TYPES:
             raise ValueError(
-                f"Camera '{self.name}': unknown camera_type '{self.camera_type}' "
-                f"(valid: {VALID_CAMERA_TYPES})"
+                f"Camera '{self.name}': unknown camera_type '{self.camera_type}' (valid: {VALID_CAMERA_TYPES})"
             )
 
     @classmethod
@@ -133,8 +131,7 @@ class CameraConfig:
                 width, height = ZED_RESOLUTION_DIMS[resolution.upper()]
             else:
                 raise KeyError(
-                    f"Camera '{name}': 'width'/'height' not set and no valid "
-                    f"'resolution' to derive them from"
+                    f"Camera '{name}': 'width'/'height' not set and no valid 'resolution' to derive them from"
                 )
 
         return cls(
@@ -154,24 +151,20 @@ class CameraConfig:
         )
 
 
-def validate_camera_configs(cameras: Dict[str, CameraConfig]) -> List[str]:
+def validate_camera_configs(cameras: dict[str, CameraConfig]) -> list[str]:
     """Validate stream layout and port uniqueness across cameras.
 
     Shared between sender and receiver configurations.
     """
-    errors: List[str] = []
-    all_ports: Dict[int, str] = {}
+    errors: list[str] = []
+    all_ports: dict[int, str] = {}
 
     for cam_name, cam_cfg in cameras.items():
         if cam_cfg.stereo:
             if "left" not in cam_cfg.streams:
-                errors.append(
-                    f"Camera '{cam_name}': stereo camera missing 'left' stream"
-                )
+                errors.append(f"Camera '{cam_name}': stereo camera missing 'left' stream")
             if "right" not in cam_cfg.streams:
-                errors.append(
-                    f"Camera '{cam_name}': stereo camera missing 'right' stream"
-                )
+                errors.append(f"Camera '{cam_name}': stereo camera missing 'right' stream")
         else:
             if "mono" not in cam_cfg.streams:
                 errors.append(f"Camera '{cam_name}': mono camera missing 'mono' stream")
@@ -183,10 +176,7 @@ def validate_camera_configs(cameras: Dict[str, CameraConfig]) -> List[str]:
             stream_key = f"{cam_name}/{stream_name}"
 
             if port in all_ports:
-                errors.append(
-                    f"Port collision: port {port} used by both "
-                    f"'{all_ports[port]}' and '{stream_key}'"
-                )
+                errors.append(f"Port collision: port {port} used by both '{all_ports[port]}' and '{stream_key}'")
             else:
                 all_ports[port] = stream_key
 
