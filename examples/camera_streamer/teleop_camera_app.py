@@ -82,7 +82,9 @@ class TeleopCameraApp(Application):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Teleop Camera App: Multi-camera display for teleoperation")
+    parser = argparse.ArgumentParser(
+        description="Teleop Camera App: Multi-camera display for teleoperation"
+    )
     parser.add_argument(
         "--config",
         type=str,

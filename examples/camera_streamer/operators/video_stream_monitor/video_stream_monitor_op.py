@@ -17,7 +17,9 @@ import numpy as np
 NVIDIA_GREEN_BGR = (0, 185, 118)
 
 
-def create_no_signal_frame(width: int, height: int, camera_name: str = "") -> cp.ndarray:
+def create_no_signal_frame(
+    width: int, height: int, camera_name: str = ""
+) -> cp.ndarray:
     """Create placeholder frame with 'VIDEO STREAM UNAVAILABLE' text."""
     frame = np.zeros((height, width, 3), dtype=np.uint8)
 
@@ -46,7 +48,9 @@ def create_no_signal_frame(width: int, height: int, camera_name: str = "") -> cp
     if camera_name:
         name_scale = font_scale * 0.6
         name_thickness = max(1, int(name_scale * 2))
-        (name_w, name_h), _ = cv2.getTextSize(camera_name, font, name_scale, name_thickness)
+        (name_w, name_h), _ = cv2.getTextSize(
+            camera_name, font, name_scale, name_thickness
+        )
         name_x = (width - name_w) // 2
         name_y = main_y + main_h + int(20 * font_scale)
         cv2.putText(
@@ -87,11 +91,15 @@ class VideoStreamMonitorOp(Operator):
         super().__init__(fragment, *args, **kwargs)
 
     def setup(self, spec: OperatorSpec):
-        spec.input("frame_in", size=1, policy=IOSpec.QueuePolicy.POP).condition(ConditionType.NONE)
+        spec.input("frame_in", size=1, policy=IOSpec.QueuePolicy.POP).condition(
+            ConditionType.NONE
+        )
         spec.output("frame_out")
 
     def start(self):
-        placeholder = create_no_signal_frame(self._width, self._height, self._camera_name)
+        placeholder = create_no_signal_frame(
+            self._width, self._height, self._camera_name
+        )
         self._placeholder_tensor = {self._tensor_name: placeholder}
 
         self._last_frame_time = time.monotonic()
@@ -121,7 +129,9 @@ class VideoStreamMonitorOp(Operator):
                 if not self._showing_placeholder:
                     self._showing_placeholder = True
                     if self._verbose:
-                        name_str = f" ({self._camera_name})" if self._camera_name else ""
+                        name_str = (
+                            f" ({self._camera_name})" if self._camera_name else ""
+                        )
                         logger.info(f"Stream timeout{name_str} - video unavailable")
 
                 op_output.emit(self._placeholder_tensor, "frame_out")

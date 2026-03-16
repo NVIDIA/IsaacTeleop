@@ -120,7 +120,9 @@ class OakdCameraOp(Operator):
         try:
             self._output_format = OakdOutputFormat(output_format.lower())
         except ValueError:
-            raise ValueError(f"Invalid output_format '{output_format}'. Must be 'raw' or 'h264'.")
+            raise ValueError(
+                f"Invalid output_format '{output_format}'. Must be 'raw' or 'h264'."
+            )
 
         self._device_id = device_id
         self._color_format = color_format.lower()
@@ -176,7 +178,9 @@ class OakdCameraOp(Operator):
             if self._mode == OakdCameraMode.STEREO:
                 spec.output("h264_packets_right").condition(ConditionType.NONE)
 
-    def _get_camera_socket(self, socket_name: str | None = None) -> dai.CameraBoardSocket:
+    def _get_camera_socket(
+        self, socket_name: str | None = None
+    ) -> dai.CameraBoardSocket:
         """Map camera socket string to DepthAI enum."""
         name = (socket_name or self._camera_socket).upper()
         socket_map = {
@@ -188,7 +192,9 @@ class OakdCameraOp(Operator):
             "CAM_C": dai.CameraBoardSocket.CAM_C,
         }
         if name not in socket_map:
-            raise ValueError(f"Unknown camera socket '{name}' (valid: {set(socket_map.keys())})")
+            raise ValueError(
+                f"Unknown camera socket '{name}' (valid: {set(socket_map.keys())})"
+            )
         return socket_map[name]
 
     def _get_encoder_profile(self) -> dai.VideoEncoderProperties.Profile:
@@ -199,10 +205,14 @@ class OakdCameraOp(Operator):
             "high": dai.VideoEncoderProperties.Profile.H264_HIGH,
         }
         if self._profile not in profile_map:
-            raise ValueError(f"Unknown H.264 profile '{self._profile}' (valid: {set(profile_map.keys())})")
+            raise ValueError(
+                f"Unknown H.264 profile '{self._profile}' (valid: {set(profile_map.keys())})"
+            )
         return profile_map[self._profile]
 
-    def _create_encoder(self, pipeline: dai.Pipeline, camera_output) -> dai.node.VideoEncoder:
+    def _create_encoder(
+        self, pipeline: dai.Pipeline, camera_output
+    ) -> dai.node.VideoEncoder:
         """Create and configure H.264 encoder node."""
         encoder = pipeline.create(dai.node.VideoEncoder).build(
             camera_output,
@@ -257,7 +267,9 @@ class OakdCameraOp(Operator):
                 frame_type = dai.ImgFrame.Type.BGR888p
 
             left_socket = (
-                self._get_camera_socket() if self._mode == OakdCameraMode.MONO else self._get_camera_socket("LEFT")
+                self._get_camera_socket()
+                if self._mode == OakdCameraMode.MONO
+                else self._get_camera_socket("LEFT")
             )
             cam_left = pipeline.create(dai.node.Camera).build(left_socket)
             output_left = cam_left.requestOutput(
@@ -279,7 +291,9 @@ class OakdCameraOp(Operator):
                 )
 
             if self._mode == OakdCameraMode.STEREO:
-                cam_right = pipeline.create(dai.node.Camera).build(self._get_camera_socket("RIGHT"))
+                cam_right = pipeline.create(dai.node.Camera).build(
+                    self._get_camera_socket("RIGHT")
+                )
                 output_right = cam_right.requestOutput(
                     (self._width, self._height),
                     type=frame_type,
@@ -326,7 +340,9 @@ class OakdCameraOp(Operator):
             self._bgra_buf = cp.empty((self._height, self._width, 4), dtype=cp.uint8)
             self._bgra_buf[:, :, 3] = 255
             if self._mode == OakdCameraMode.STEREO:
-                self._bgra_buf_right = cp.empty((self._height, self._width, 4), dtype=cp.uint8)
+                self._bgra_buf_right = cp.empty(
+                    (self._height, self._width, 4), dtype=cp.uint8
+                )
                 self._bgra_buf_right[:, :, 3] = 255
 
         # Reset state on success
@@ -334,7 +350,11 @@ class OakdCameraOp(Operator):
         self._is_disconnected = False
         self._last_log_time = time.monotonic()
 
-        reconnect_str = f" (reconnect #{self._reconnect_attempts})" if self._reconnect_attempts > 0 else ""
+        reconnect_str = (
+            f" (reconnect #{self._reconnect_attempts})"
+            if self._reconnect_attempts > 0
+            else ""
+        )
         device_str = f"device={self._device_id}" if self._device_id else "auto-detect"
         format_str = self._output_format.value
         if self._output_format == OakdOutputFormat.H264:
@@ -436,17 +456,23 @@ class OakdCameraOp(Operator):
             self.metadata["frame_timestamp_us"] = self._extract_timestamp_us(frame_msg)
             self.metadata["stream_id"] = self._left_stream_id
             self.metadata["sequence"] = self._frame_count
-            op_output.emit(as_tensor(frame_data), "left_frame", emitter_name="holoscan::Tensor")
+            op_output.emit(
+                as_tensor(frame_data), "left_frame", emitter_name="holoscan::Tensor"
+            )
             emitted = True
         else:
             # Stereo: handle left and right independently
             if self._frame_queue and self._frame_queue.has():
                 try:
                     frame_left = self._frame_queue.get()
-                    left_data = self._extract_raw_frame(frame_left, getattr(self, "_bgra_buf", None))
+                    left_data = self._extract_raw_frame(
+                        frame_left, getattr(self, "_bgra_buf", None)
+                    )
                     if left_data is not None:
                         self.metadata.clear()
-                        self.metadata["frame_timestamp_us"] = self._extract_timestamp_us(frame_left)
+                        self.metadata["frame_timestamp_us"] = (
+                            self._extract_timestamp_us(frame_left)
+                        )
                         self.metadata["stream_id"] = self._left_stream_id
                         self.metadata["sequence"] = self._frame_count
                         op_output.emit(
@@ -463,10 +489,14 @@ class OakdCameraOp(Operator):
             if self._frame_queue_right and self._frame_queue_right.has():
                 try:
                     frame_right = self._frame_queue_right.get()
-                    right_data = self._extract_raw_frame(frame_right, getattr(self, "_bgra_buf_right", None))
+                    right_data = self._extract_raw_frame(
+                        frame_right, getattr(self, "_bgra_buf_right", None)
+                    )
                     if right_data is not None:
                         self.metadata.clear()
-                        self.metadata["frame_timestamp_us"] = self._extract_timestamp_us(frame_right)
+                        self.metadata["frame_timestamp_us"] = (
+                            self._extract_timestamp_us(frame_right)
+                        )
                         self.metadata["stream_id"] = self._right_stream_id
                         self.metadata["sequence"] = self._frame_count_right
                         op_output.emit(
@@ -500,7 +530,9 @@ class OakdCameraOp(Operator):
             if h264_data is None:
                 return False
 
-            self.metadata["frame_timestamp_us"] = self._extract_timestamp_us(encoded_msg)
+            self.metadata["frame_timestamp_us"] = self._extract_timestamp_us(
+                encoded_msg
+            )
             self.metadata["stream_id"] = self._left_stream_id
             self.metadata["sequence"] = self._frame_count
             op_output.emit(
@@ -516,7 +548,9 @@ class OakdCameraOp(Operator):
                     left_data = self._extract_h264_data(encoded_left)
                     if left_data is not None:
                         self.metadata.clear()
-                        self.metadata["frame_timestamp_us"] = self._extract_timestamp_us(encoded_left)
+                        self.metadata["frame_timestamp_us"] = (
+                            self._extract_timestamp_us(encoded_left)
+                        )
                         self.metadata["stream_id"] = self._left_stream_id
                         self.metadata["sequence"] = self._frame_count
                         packet_left = np.frombuffer(left_data, dtype=np.uint8).copy()
@@ -533,7 +567,9 @@ class OakdCameraOp(Operator):
                     right_data = self._extract_h264_data(encoded_right)
                     if right_data is not None:
                         self.metadata.clear()
-                        self.metadata["frame_timestamp_us"] = self._extract_timestamp_us(encoded_right)
+                        self.metadata["frame_timestamp_us"] = (
+                            self._extract_timestamp_us(encoded_right)
+                        )
                         self.metadata["stream_id"] = self._right_stream_id
                         self.metadata["sequence"] = self._frame_count_right
                         packet_right = np.frombuffer(right_data, dtype=np.uint8).copy()
@@ -546,7 +582,9 @@ class OakdCameraOp(Operator):
 
         return emitted
 
-    def _extract_raw_frame(self, frame_msg, buf: cp.ndarray | None = None) -> cp.ndarray | None:
+    def _extract_raw_frame(
+        self, frame_msg, buf: cp.ndarray | None = None
+    ) -> cp.ndarray | None:
         """Extract raw frame and convert to GPU tensor (BGRA).
 
         Handles GRAY8 (mono sensors) and BGR888p (color sensors).
@@ -567,7 +605,11 @@ class OakdCameraOp(Operator):
                 # GRAY8: all channels are identical; output shape depends on
                 # color_format (rgb/bgr → 3-ch, bgra → 4-ch with alpha).
                 if self._color_format in ("rgb", "bgr"):
-                    if buf is not None and buf.shape[:2] == gpu.shape and buf.shape[2] == 3:
+                    if (
+                        buf is not None
+                        and buf.shape[:2] == gpu.shape
+                        and buf.shape[2] == 3
+                    ):
                         buf[:, :, 0] = gpu
                         buf[:, :, 1] = gpu
                         buf[:, :, 2] = gpu
@@ -655,7 +697,9 @@ class OakdCameraOp(Operator):
         if self._open_camera():
             logger.info(f"OAK-D '{self.name}' reconnected successfully!")
         else:
-            logger.warning(f"OAK-D '{self.name}' reconnection failed. Next attempt in {RECONNECT_DELAY_SEC}s...")
+            logger.warning(
+                f"OAK-D '{self.name}' reconnection failed. Next attempt in {RECONNECT_DELAY_SEC}s..."
+            )
 
     def _log_stats(self):
         """Log periodic statistics."""
@@ -675,7 +719,9 @@ class OakdCameraOp(Operator):
                 )
                 self._last_log_count_right = self._frame_count_right
             else:
-                logger.info(f"OAK-D camera | fps={left_fps:.1f} | total={self._frame_count}")
+                logger.info(
+                    f"OAK-D camera | fps={left_fps:.1f} | total={self._frame_count}"
+                )
 
             self._last_log_time = now
             self._last_log_count = self._frame_count

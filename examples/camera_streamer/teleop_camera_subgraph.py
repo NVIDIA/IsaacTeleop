@@ -156,15 +156,27 @@ class TeleopCameraSubgraphConfig:
                         )
 
             if cam_cfg.width <= 0 or cam_cfg.height <= 0:
-                errors.append(f"Camera '{cam_name}': invalid dimensions {cam_cfg.width}x{cam_cfg.height}")
+                errors.append(
+                    f"Camera '{cam_name}': invalid dimensions {cam_cfg.width}x{cam_cfg.height}"
+                )
             if cam_cfg.fps <= 0:
-                errors.append(f"Camera '{cam_name}': fps must be positive (got {cam_cfg.fps})")
+                errors.append(
+                    f"Camera '{cam_name}': fps must be positive (got {cam_cfg.fps})"
+                )
 
         if self.monitor.padding < 0:
-            errors.append(f"Monitor padding must be non-negative (got {self.monitor.padding})")
+            errors.append(
+                f"Monitor padding must be non-negative (got {self.monitor.padding})"
+            )
         elif self.monitor.padding > 0:
-            num_tiles = sum(2 if (c.stereo and self.monitor.show_stereo) else 1 for c in self.cameras.values())
-            if num_tiles > 1 and (num_tiles - 1) * self.monitor.padding >= self.monitor.width:
+            num_tiles = sum(
+                2 if (c.stereo and self.monitor.show_stereo) else 1
+                for c in self.cameras.values()
+            )
+            if (
+                num_tiles > 1
+                and (num_tiles - 1) * self.monitor.padding >= self.monitor.width
+            ):
                 errors.append(
                     f"Monitor padding too large: ({num_tiles - 1}) * {self.monitor.padding} "
                     f">= window width {self.monitor.width}"
@@ -172,9 +184,13 @@ class TeleopCameraSubgraphConfig:
 
         if self.display_mode == DisplayMode.XR:
             if self.xr.lock_mode not in ("lazy", "world", "head"):
-                errors.append(f"Invalid XR lock_mode '{self.xr.lock_mode}' (must be 'lazy', 'world', or 'head')")
+                errors.append(
+                    f"Invalid XR lock_mode '{self.xr.lock_mode}' (must be 'lazy', 'world', or 'head')"
+                )
             if self.xr.reposition_distance < 0:
-                errors.append(f"XR reposition_distance must be >= 0 (got {self.xr.reposition_distance})")
+                errors.append(
+                    f"XR reposition_distance must be >= 0 (got {self.xr.reposition_distance})"
+                )
 
         return errors
 
@@ -182,7 +198,10 @@ class TeleopCameraSubgraphConfig:
         """Validate configuration and raise ValueError if invalid."""
         errors = self.validate()
         if errors:
-            raise ValueError("Configuration validation failed:\n" + "\n".join(f"  - {e}" for e in errors))
+            raise ValueError(
+                "Configuration validation failed:\n"
+                + "\n".join(f"  - {e}" for e in errors)
+            )
 
     @classmethod
     def from_yaml(cls, yaml_path: str) -> "TeleopCameraSubgraphConfig":
@@ -339,7 +358,9 @@ class TeleopCameraSubgraph(Subgraph):
         tensor_names: dict[str, str] = {}
 
         if self._config.source == "local":
-            self._compose_local_sources(allocator, verbose, stream_timeout, monitored_outputs, tensor_names)
+            self._compose_local_sources(
+                allocator, verbose, stream_timeout, monitored_outputs, tensor_names
+            )
         else:
             self._compose_rtp_sources(
                 allocator,
@@ -367,7 +388,9 @@ class TeleopCameraSubgraph(Subgraph):
 
         logger.info(f"Teleop camera subgraph: mode={self._config.display_mode.value}")
 
-    def _compose_local_sources(self, allocator, verbose, stream_timeout, monitored_outputs, tensor_names):
+    def _compose_local_sources(
+        self, allocator, verbose, stream_timeout, monitored_outputs, tensor_names
+    ):
         """Create direct camera sources (local mode)."""
         from camera_sources import create_camera_source
 
@@ -390,7 +413,9 @@ class TeleopCameraSubgraph(Subgraph):
                 self.add_flow(src_op, dst_op, port_map)
 
             for stream_name, (src_op, src_port) in source_result.frame_outputs.items():
-                display_key = f"{cam_name}_{stream_name}" if cam_cfg.stereo else cam_name
+                display_key = (
+                    f"{cam_name}_{stream_name}" if cam_cfg.stereo else cam_name
+                )
 
                 # Skip Python VideoStreamMonitorOp for V4L2 and video_file
                 # in local mode to avoid GXF entity lifetime crashes.
@@ -400,13 +425,17 @@ class TeleopCameraSubgraph(Subgraph):
                     # video_file replayer outputs unnamed ("") tensors.
                     # Multiple video_file sources would share the "" key in
                     # FrameCombinerOp, but this is a single-replayer test path.
-                    tensor_names[display_key] = cam_name if cam_cfg.camera_type == "v4l2" else ""
+                    tensor_names[display_key] = (
+                        cam_name if cam_cfg.camera_type == "v4l2" else ""
+                    )
                 else:
                     if self._config.display_mode == DisplayMode.MONITOR:
                         if cam_cfg.stereo and self._config.monitor.show_stereo:
                             tensor_name = f"{cam_name}_{stream_name}"
                         else:
-                            tensor_name = cam_name if stream_name in ("left", "mono") else ""
+                            tensor_name = (
+                                cam_name if stream_name in ("left", "mono") else ""
+                            )
                     else:
                         tensor_name = ""
 
@@ -446,7 +475,9 @@ class TeleopCameraSubgraph(Subgraph):
                 stream_items = [("mono", cam_cfg.streams["mono"])]
 
             for stream_name, stream_cfg in stream_items:
-                display_key = f"{cam_name}_{stream_name}" if cam_cfg.stereo else cam_name
+                display_key = (
+                    f"{cam_name}_{stream_name}" if cam_cfg.stereo else cam_name
+                )
 
                 receiver = GStreamerH264ReceiverOp(
                     self.fragment,
@@ -466,11 +497,15 @@ class TeleopCameraSubgraph(Subgraph):
                     if cam_cfg.stereo and self._config.monitor.show_stereo:
                         tensor_name = f"{cam_name}_{stream_name}"
                     else:
-                        tensor_name = cam_name if stream_name in ("left", "mono") else ""
+                        tensor_name = (
+                            cam_name if stream_name in ("left", "mono") else ""
+                        )
                 else:
                     tensor_name = ""
 
-                camera_label = f"{cam_name}/{stream_name}" if cam_cfg.stereo else cam_name
+                camera_label = (
+                    f"{cam_name}/{stream_name}" if cam_cfg.stereo else cam_name
+                )
                 monitor = VideoStreamMonitorOp(
                     self.fragment,
                     name=self._create_name(f"{display_key}_monitor"),
@@ -508,8 +543,12 @@ class TeleopCameraSubgraph(Subgraph):
         for cam_name, cam_cfg in self._config.cameras.items():
             if cam_cfg.stereo:
                 if mon_cfg.show_stereo:
-                    camera_list.append((f"{cam_name}_left", f"{cam_name}_left", cam_cfg))
-                    camera_list.append((f"{cam_name}_right", f"{cam_name}_right", cam_cfg))
+                    camera_list.append(
+                        (f"{cam_name}_left", f"{cam_name}_left", cam_cfg)
+                    )
+                    camera_list.append(
+                        (f"{cam_name}_right", f"{cam_name}_right", cam_cfg)
+                    )
                 else:
                     camera_list.append((cam_name, f"{cam_name}_left", cam_cfg))
             else:
@@ -573,7 +612,9 @@ class TeleopCameraSubgraph(Subgraph):
         for display_name, monitor_key, cam_cfg in camera_list:
             if monitor_key in monitored_outputs:
                 tensor_key = tensor_names.get(monitor_key, display_name)
-                placeholder = create_no_signal_frame(cam_cfg.width, cam_cfg.height, display_name)
+                placeholder = create_no_signal_frame(
+                    cam_cfg.width, cam_cfg.height, display_name
+                )
                 combiner_placeholders[tensor_key] = placeholder
 
         combiner = FrameCombinerOp(
@@ -592,7 +633,9 @@ class TeleopCameraSubgraph(Subgraph):
         self.add_operator(combiner)
         self.add_operator(visualizer)
 
-        logger.info(f"Monitor mode: {num_cameras} cameras tiled, {mon_cfg.width}x{mon_cfg.height}")
+        logger.info(
+            f"Monitor mode: {num_cameras} cameras tiled, {mon_cfg.width}x{mon_cfg.height}"
+        )
 
     def _compose_xr_mode(self, monitored_outputs: dict[str, Any]):
         """Compose XR mode pipeline with 3D plane rendering using XrPlaneRendererOp.
@@ -691,12 +734,16 @@ class TeleopCameraSubgraph(Subgraph):
                 self.add_flow(src_op, xr_renderer, {(src_port, f"camera_frame_{i}")})
             if right_src:
                 src_op, src_port = right_src
-                self.add_flow(src_op, xr_renderer, {(src_port, f"camera_frame_{i}_right")})
+                self.add_flow(
+                    src_op, xr_renderer, {(src_port, f"camera_frame_{i}_right")}
+                )
 
         # Connect XR frame timing loop
         self.fragment.add_flow(self.fragment.start_op(), xr_begin)  # Bootstrap
         self.add_flow(xr_begin, xr_renderer, {("xr_frame_state", "xr_frame_state")})
-        self.add_flow(xr_renderer, xr_end, {("xr_composition_layer", "xr_composition_layers")})
+        self.add_flow(
+            xr_renderer, xr_end, {("xr_composition_layer", "xr_composition_layers")}
+        )
         self.add_flow(xr_begin, xr_end, {("xr_frame_state", "xr_frame_state")})
         self.fragment.add_flow(xr_end, xr_begin)  # Close loop
 
@@ -704,4 +751,6 @@ class TeleopCameraSubgraph(Subgraph):
         self.add_operator(xr_renderer)
         self.add_operator(xr_end)
 
-        logger.info(f"XR mode: {len(plane_configs)} camera planes (single Vulkan context)")
+        logger.info(
+            f"XR mode: {len(plane_configs)} camera planes (single Vulkan context)"
+        )

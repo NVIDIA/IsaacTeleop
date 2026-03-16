@@ -78,7 +78,9 @@ class GStreamerH264ReceiverOp(Operator):
         rc = self._pipeline.set_state(Gst.State.PLAYING)
         if rc == Gst.StateChangeReturn.FAILURE:
             self._pipeline.set_state(Gst.State.NULL)
-            raise RuntimeError(f"GStreamer pipeline failed to enter PLAYING state (port {self._port})")
+            raise RuntimeError(
+                f"GStreamer pipeline failed to enter PLAYING state (port {self._port})"
+            )
         self._last_log_time = time.monotonic()
 
         if self._verbose:
@@ -130,6 +132,8 @@ class GStreamerH264ReceiverOp(Operator):
         if elapsed >= STATS_INTERVAL_SEC:
             frames = self._frame_count - self._last_log_count
             fps = frames / elapsed
-            logger.info(f"H264 packet receiver | fps={fps:.1f} | total={self._frame_count}")
+            logger.info(
+                f"H264 packet receiver | fps={fps:.1f} | total={self._frame_count}"
+            )
             self._last_log_time = now
             self._last_log_count = self._frame_count

@@ -162,9 +162,13 @@ def validate_camera_configs(cameras: dict[str, CameraConfig]) -> list[str]:
     for cam_name, cam_cfg in cameras.items():
         if cam_cfg.stereo:
             if "left" not in cam_cfg.streams:
-                errors.append(f"Camera '{cam_name}': stereo camera missing 'left' stream")
+                errors.append(
+                    f"Camera '{cam_name}': stereo camera missing 'left' stream"
+                )
             if "right" not in cam_cfg.streams:
-                errors.append(f"Camera '{cam_name}': stereo camera missing 'right' stream")
+                errors.append(
+                    f"Camera '{cam_name}': stereo camera missing 'right' stream"
+                )
         else:
             if "mono" not in cam_cfg.streams:
                 errors.append(f"Camera '{cam_name}': mono camera missing 'mono' stream")
@@ -176,7 +180,9 @@ def validate_camera_configs(cameras: dict[str, CameraConfig]) -> list[str]:
             stream_key = f"{cam_name}/{stream_name}"
 
             if port in all_ports:
-                errors.append(f"Port collision: port {port} used by both '{all_ports[port]}' and '{stream_key}'")
+                errors.append(
+                    f"Port collision: port {port} used by both '{all_ports[port]}' and '{stream_key}'"
+                )
             else:
                 all_ports[port] = stream_key
 

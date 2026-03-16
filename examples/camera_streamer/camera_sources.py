@@ -127,7 +127,9 @@ def create_zed_source(
     else:
         result.frame_outputs["mono"] = (zed_source, "left_frame")
 
-    logger.info(f"  ZED source: {cam_name} {cam_cfg.width}x{cam_cfg.height}@{cam_cfg.fps}fps")
+    logger.info(
+        f"  ZED source: {cam_name} {cam_cfg.width}x{cam_cfg.height}@{cam_cfg.fps}fps"
+    )
     return result
 
 
@@ -210,7 +212,9 @@ def create_oakd_source(
         else:
             result.frame_outputs["mono"] = (oakd_source, "left_frame")
 
-    logger.info(f"  OAK-D source: {cam_name} {cam_cfg.width}x{cam_cfg.height}@{cam_cfg.fps}fps ({output_format})")
+    logger.info(
+        f"  OAK-D source: {cam_name} {cam_cfg.width}x{cam_cfg.height}@{cam_cfg.fps}fps ({output_format})"
+    )
     return result
 
 
@@ -284,7 +288,9 @@ def create_v4l2_source(
             frame_outputs={"mono": (rgb_to_bgra, "tensor")},
         )
 
-    logger.info(f"  V4L2 source: {cam_name} {device} {cam_cfg.width}x{cam_cfg.height}@{cam_cfg.fps}fps")
+    logger.info(
+        f"  V4L2 source: {cam_name} {device} {cam_cfg.width}x{cam_cfg.height}@{cam_cfg.fps}fps"
+    )
     return result
 
 
@@ -347,7 +353,9 @@ def create_camera_source(
         color_format: "rgb" for display pipelines, "bgra" for NVENC encoding.
     """
     if cam_cfg.camera_type == "zed":
-        return create_zed_source(fragment, cam_name, cam_cfg, color_format=color_format, verbose=verbose)
+        return create_zed_source(
+            fragment, cam_name, cam_cfg, color_format=color_format, verbose=verbose
+        )
     elif cam_cfg.camera_type == "oakd":
         return create_oakd_source(
             fragment,
@@ -367,6 +375,8 @@ def create_camera_source(
             verbose=verbose,
         )
     elif cam_cfg.camera_type == "video_file":
-        return create_video_file_source(fragment, cam_name, cam_cfg, allocator, verbose=verbose)
+        return create_video_file_source(
+            fragment, cam_name, cam_cfg, allocator, verbose=verbose
+        )
     else:
         raise ValueError(f"Unknown camera type: {cam_cfg.camera_type}")

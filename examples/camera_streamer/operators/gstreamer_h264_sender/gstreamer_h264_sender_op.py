@@ -115,7 +115,9 @@ class GStreamerH264SenderOp(Operator):
         self._last_log_time = time.monotonic()
 
         if self._verbose:
-            logger.info(f"H.264 sender started: {self._host}:{self._port} (mtu={self._mtu})")
+            logger.info(
+                f"H.264 sender started: {self._host}:{self._port} (mtu={self._mtu})"
+            )
 
     def stop(self):
         """Stop GStreamer pipeline and log final stats."""
@@ -126,7 +128,9 @@ class GStreamerH264SenderOp(Operator):
 
         if self._verbose:
             mb_sent = self._byte_count / (1024 * 1024)
-            logger.info(f"H.264 sender stopped: packets={self._packet_count}, bytes={mb_sent:.2f}MB")
+            logger.info(
+                f"H.264 sender stopped: packets={self._packet_count}, bytes={mb_sent:.2f}MB"
+            )
 
     def compute(self, op_input, op_output, context):
         """Send H.264 packets via RTP."""
