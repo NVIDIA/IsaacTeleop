@@ -5,7 +5,9 @@
 
 #include "inc/deviceio/deviceio_session.hpp"
 
-#include <schema/hand_generated.h>
+#include <oxr_utils/oxr_funcs.hpp>
+#include <oxr_utils/oxr_time.hpp>
+#include <schema/hand_bfbs_generated.h>
 
 #include <cassert>
 #include <cstring>
@@ -15,12 +17,40 @@
 namespace core
 {
 
-
 // ============================================================================
-// HandTracker::Impl Implementation
+// HandTracker::Impl
 // ============================================================================
 
-// Constructor - throws std::runtime_error on failure
+class HandTracker::Impl : public ITrackerImpl
+{
+public:
+    explicit Impl(const OpenXRSessionHandles& handles);
+    ~Impl();
+
+    bool update(XrTime time) override;
+    void serialize_all(size_t channel_index, const RecordCallback& callback) const override;
+
+    const HandPoseTrackedT& get_left_hand() const;
+    const HandPoseTrackedT& get_right_hand() const;
+
+private:
+    bool update_hand(XrHandTrackerEXT tracker, XrTime time, HandPoseTrackedT& tracked);
+
+    XrTimeConverter time_converter_;
+    XrSpace base_space_;
+
+    XrHandTrackerEXT left_hand_tracker_;
+    XrHandTrackerEXT right_hand_tracker_;
+
+    HandPoseTrackedT left_tracked_;
+    HandPoseTrackedT right_tracked_;
+    XrTime last_update_time_ = 0;
+
+    PFN_xrCreateHandTrackerEXT pfn_create_hand_tracker_;
+    PFN_xrDestroyHandTrackerEXT pfn_destroy_hand_tracker_;
+    PFN_xrLocateHandJointsEXT pfn_locate_hand_joints_;
+};
+
 HandTracker::Impl::Impl(const OpenXRSessionHandles& handles)
     : time_converter_(handles),
       base_space_(handles.space),
@@ -30,10 +60,8 @@ HandTracker::Impl::Impl(const OpenXRSessionHandles& handles)
       pfn_destroy_hand_tracker_(nullptr),
       pfn_locate_hand_joints_(nullptr)
 {
-    // Load core OpenXR functions dynamically using the provided xrGetInstanceProcAddr
     auto core_funcs = OpenXRCoreFunctions::load(handles.instance, handles.xrGetInstanceProcAddr);
 
-    // Check if system supports hand tracking
     XrSystemId system_id;
     XrSystemGetInfo system_info{ XR_TYPE_SYSTEM_GET_INFO };
     system_info.formFactor = XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY;
@@ -59,11 +87,14 @@ HandTracker::Impl::Impl(const OpenXRSessionHandles& handles)
     loadExtensionFunction(handles.instance, handles.xrGetInstanceProcAddr, "xrLocateHandJointsEXT",
                           reinterpret_cast<PFN_xrVoidFunction*>(&pfn_locate_hand_joints_));
 
-    // Create hand trackers
+    if (!pfn_create_hand_tracker_ || !pfn_destroy_hand_tracker_ || !pfn_locate_hand_joints_)
+    {
+        throw std::runtime_error("Failed to get hand tracking function pointers");
+    }
+
     XrHandTrackerCreateInfoEXT create_info{ XR_TYPE_HAND_TRACKER_CREATE_INFO_EXT };
     create_info.handJointSet = XR_HAND_JOINT_SET_DEFAULT_EXT;
 
-    // Create left hand tracker
     create_info.hand = XR_HAND_LEFT_EXT;
     result = pfn_create_hand_tracker_(handles.session, &create_info, &left_hand_tracker_);
     if (XR_FAILED(result))
@@ -71,12 +102,10 @@ HandTracker::Impl::Impl(const OpenXRSessionHandles& handles)
         throw std::runtime_error("Failed to create left hand tracker: " + std::to_string(result));
     }
 
-    // Create right hand tracker
     create_info.hand = XR_HAND_RIGHT_EXT;
     result = pfn_create_hand_tracker_(handles.session, &create_info, &right_hand_tracker_);
     if (XR_FAILED(result))
     {
-        // Clean up left hand tracker on failure
         if (left_hand_tracker_ != XR_NULL_HANDLE)
         {
             pfn_destroy_hand_tracker_(left_hand_tracker_);
@@ -85,6 +114,40 @@ HandTracker::Impl::Impl(const OpenXRSessionHandles& handles)
     }
 
     std::cout << "HandTracker initialized (left + right)" << std::endl;
+}
+
+HandTracker::Impl::~Impl()
+{
+    assert(pfn_destroy_hand_tracker_ != nullptr && "pfn_destroy_hand_tracker must not be null");
+
+    if (left_hand_tracker_ != XR_NULL_HANDLE)
+    {
+        pfn_destroy_hand_tracker_(left_hand_tracker_);
+        left_hand_tracker_ = XR_NULL_HANDLE;
+    }
+    if (right_hand_tracker_ != XR_NULL_HANDLE)
+    {
+        pfn_destroy_hand_tracker_(right_hand_tracker_);
+        right_hand_tracker_ = XR_NULL_HANDLE;
+    }
+}
+
+bool HandTracker::Impl::update(XrTime time)
+{
+    last_update_time_ = time;
+    bool left_ok = update_hand(left_hand_tracker_, time, left_tracked_);
+    bool right_ok = update_hand(right_hand_tracker_, time, right_tracked_);
+    return left_ok || right_ok;
+}
+
+const HandPoseTrackedT& HandTracker::Impl::get_left_hand() const
+{
+    return left_tracked_;
+}
+
+const HandPoseTrackedT& HandTracker::Impl::get_right_hand() const
+{
+    return right_tracked_;
 }
 
 void HandTracker::Impl::serialize_all(size_t channel_index, const RecordCallback& callback) const
@@ -112,69 +175,28 @@ void HandTracker::Impl::serialize_all(size_t channel_index, const RecordCallback
     callback(monotonic_ns, builder.GetBufferPointer(), builder.GetSize());
 }
 
-HandTracker::Impl::~Impl()
-{
-    // pfn_destroy_hand_tracker_ should never be null (verified in constructor)
-    assert(pfn_destroy_hand_tracker_ != nullptr && "pfn_destroy_hand_tracker must not be null");
-
-    if (left_hand_tracker_ != XR_NULL_HANDLE)
-    {
-        pfn_destroy_hand_tracker_(left_hand_tracker_);
-        left_hand_tracker_ = XR_NULL_HANDLE;
-    }
-    if (right_hand_tracker_ != XR_NULL_HANDLE)
-    {
-        pfn_destroy_hand_tracker_(right_hand_tracker_);
-        right_hand_tracker_ = XR_NULL_HANDLE;
-    }
-}
-
-// Override from ITrackerImpl
-bool HandTracker::Impl::update(XrTime time)
-{
-    last_update_time_ = time;
-    bool left_ok = update_hand(left_hand_tracker_, time, left_tracked_);
-    bool right_ok = update_hand(right_hand_tracker_, time, right_tracked_);
-
-    // Return true if at least one hand updated successfully
-    return left_ok || right_ok;
-}
-
-const HandPoseTrackedT& HandTracker::Impl::get_left_hand() const
-{
-    return left_tracked_;
-}
-
-const HandPoseTrackedT& HandTracker::Impl::get_right_hand() const
-{
-    return right_tracked_;
-}
-
 bool HandTracker::Impl::update_hand(XrHandTrackerEXT tracker, XrTime time, HandPoseTrackedT& tracked)
 {
     XrHandJointsLocateInfoEXT locate_info{ XR_TYPE_HAND_JOINTS_LOCATE_INFO_EXT };
     locate_info.baseSpace = base_space_;
     locate_info.time = time;
 
-    XrHandJointLocationEXT joint_locations[26]; // XR_HAND_JOINT_COUNT_EXT
+    XrHandJointLocationEXT joint_locations[XR_HAND_JOINT_COUNT_EXT];
 
     XrHandJointLocationsEXT locations{ XR_TYPE_HAND_JOINT_LOCATIONS_EXT };
     locations.next = nullptr;
-    locations.jointCount = 26;
+    locations.jointCount = XR_HAND_JOINT_COUNT_EXT;
     locations.jointLocations = joint_locations;
 
     XrResult result = pfn_locate_hand_joints_(tracker, &locate_info, &locations);
     if (XR_FAILED(result))
     {
-        // Hard failure: treat as device loss and clear tracked data.
         tracked.data.reset();
         return false;
     }
 
     if (!locations.isActive)
     {
-        // Hand not active: equivalent to collection loss for schema-tracker devices.
-        // Clear tracked data so callers see null rather than a stale pose.
         tracked.data.reset();
         return true;
     }
@@ -189,7 +211,7 @@ bool HandTracker::Impl::update_hand(XrHandTrackerEXT tracker, XrTime time, HandP
         tracked.data->joints = std::make_shared<HandJoints>();
     }
 
-    for (uint32_t i = 0; i < 26; ++i)
+    for (uint32_t i = 0; i < XR_HAND_JOINT_COUNT_EXT; ++i)
     {
         const auto& joint_loc = joint_locations[i];
 
@@ -209,12 +231,18 @@ bool HandTracker::Impl::update_hand(XrHandTrackerEXT tracker, XrTime time, HandP
 }
 
 // ============================================================================
-// HandTracker Public Interface Implementation
+// HandTracker Public Interface
 // ============================================================================
 
 std::vector<std::string> HandTracker::get_required_extensions() const
 {
     return { XR_EXT_HAND_TRACKING_EXTENSION_NAME };
+}
+
+std::string_view HandTracker::get_schema_text() const
+{
+    return std::string_view(
+        reinterpret_cast<const char*>(HandPoseRecordBinarySchema::data()), HandPoseRecordBinarySchema::size());
 }
 
 const HandPoseTrackedT& HandTracker::get_left_hand(const DeviceIOSession& session) const
@@ -261,7 +289,7 @@ std::string HandTracker::get_joint_name(uint32_t joint_index)
                                          "Little_Distal",
                                          "Little_Tip" };
 
-    if (joint_index < 26)
+    if (joint_index < XR_HAND_JOINT_COUNT_EXT)
     {
         return joint_names[joint_index];
     }

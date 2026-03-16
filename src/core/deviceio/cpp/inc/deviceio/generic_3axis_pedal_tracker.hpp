@@ -43,12 +43,16 @@ public:
     explicit Generic3AxisPedalTracker(const std::string& collection_id,
                                       size_t max_flatbuffer_size = DEFAULT_MAX_FLATBUFFER_SIZE);
 
-    // ITracker interface
     std::vector<std::string> get_required_extensions() const override;
-    std::string_view get_name() const override;
-    std::string_view get_schema_name() const override;
+    std::string_view get_name() const override
+    {
+        return TRACKER_NAME;
+    }
+    std::string_view get_schema_name() const override
+    {
+        return SCHEMA_NAME;
+    }
     std::string_view get_schema_text() const override;
-
     std::vector<std::string> get_record_channels() const override
     {
         return { "pedals" };
@@ -66,6 +70,9 @@ protected:
     const SchemaTrackerConfig& get_config() const;
 
 private:
+    static constexpr const char* TRACKER_NAME = "Generic3AxisPedalTracker";
+    static constexpr const char* SCHEMA_NAME = "core.Generic3AxisPedalOutputRecord";
+
     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
 
     SchemaTrackerConfig m_config;

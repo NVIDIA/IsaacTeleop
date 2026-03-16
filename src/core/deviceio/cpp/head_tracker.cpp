@@ -5,18 +5,39 @@
 
 #include "inc/deviceio/deviceio_session.hpp"
 
+#include <oxr_utils/oxr_funcs.hpp>
+#include <oxr_utils/oxr_time.hpp>
+#include <schema/head_bfbs_generated.h>
+
 #include <cstring>
 #include <iostream>
 
 namespace core
 {
 
-
 // ============================================================================
-// HeadTracker::Impl Implementation
+// HeadTracker::Impl
 // ============================================================================
 
-// Constructor - throws std::runtime_error on failure
+class HeadTracker::Impl : public ITrackerImpl
+{
+public:
+    explicit Impl(const OpenXRSessionHandles& handles);
+
+    bool update(XrTime time) override;
+    void serialize_all(size_t channel_index, const RecordCallback& callback) const override;
+
+    const HeadPoseTrackedT& get_head() const;
+
+private:
+    const OpenXRCoreFunctions core_funcs_;
+    XrTimeConverter time_converter_;
+    XrSpace base_space_;
+    XrSpacePtr view_space_;
+    HeadPoseTrackedT tracked_;
+    XrTime last_update_time_ = 0;
+};
+
 HeadTracker::Impl::Impl(const OpenXRSessionHandles& handles)
     : core_funcs_(OpenXRCoreFunctions::load(handles.instance, handles.xrGetInstanceProcAddr)),
       time_converter_(handles),
@@ -30,24 +51,19 @@ HeadTracker::Impl::Impl(const OpenXRSessionHandles& handles)
 {
 }
 
-// Override from ITrackerImpl
 bool HeadTracker::Impl::update(XrTime time)
 {
     last_update_time_ = time;
 
-    // Locate the view space (head) relative to the base space
     XrSpaceLocation location{ XR_TYPE_SPACE_LOCATION };
     XrResult result = core_funcs_.xrLocateSpace(view_space_.get(), base_space_, time, &location);
 
     if (XR_FAILED(result))
     {
-        // Hard failure: clear tracked data so callers see null, consistent with other trackers.
         tracked_.data.reset();
         return false;
     }
 
-    // position/orientation valid bits are a quality flag — the HMD is still present even when
-    // they are unset, so we always populate tracked_.data and reflect quality via is_valid.
     bool position_valid = (location.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0;
     bool orientation_valid = (location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0;
 
@@ -104,13 +120,18 @@ void HeadTracker::Impl::serialize_all(size_t channel_index, const RecordCallback
 }
 
 // ============================================================================
-// HeadTracker Public Interface Implementation
+// HeadTracker Public Interface
 // ============================================================================
 
 std::vector<std::string> HeadTracker::get_required_extensions() const
 {
-    // Head tracking doesn't require special extensions - it's part of core OpenXR
     return {};
+}
+
+std::string_view HeadTracker::get_schema_text() const
+{
+    return std::string_view(
+        reinterpret_cast<const char*>(HeadPoseRecordBinarySchema::data()), HeadPoseRecordBinarySchema::size());
 }
 
 const HeadPoseTrackedT& HeadTracker::get_head(const DeviceIOSession& session) const

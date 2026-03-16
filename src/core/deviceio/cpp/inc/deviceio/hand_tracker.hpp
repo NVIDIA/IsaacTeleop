@@ -5,48 +5,38 @@
 
 #include "tracker.hpp"
 
-#include <oxr_utils/oxr_time.hpp>
-#include <schema/hand_bfbs_generated.h>
 #include <schema/hand_generated.h>
 
 #include <memory>
+#include <string>
 
 namespace core
 {
 
-// Hand tracker - tracks both left and right hands
-// PUBLIC API: Only exposes query methods
+// Hand tracker - tracks both left and right hands via XR_EXT_hand_tracking
 class HandTracker : public ITracker
 {
 public:
-    // Public API - what external users see
     std::vector<std::string> get_required_extensions() const override;
     std::string_view get_name() const override
     {
         return TRACKER_NAME;
     }
-
     std::string_view get_schema_name() const override
     {
         return SCHEMA_NAME;
     }
-
-    std::string_view get_schema_text() const override
-    {
-        return std::string_view(
-            reinterpret_cast<const char*>(HandPoseRecordBinarySchema::data()), HandPoseRecordBinarySchema::size());
-    }
-
+    std::string_view get_schema_text() const override;
     std::vector<std::string> get_record_channels() const override
     {
         return { "left_hand", "right_hand" };
     }
 
-    // Query methods - public API for getting hand data (tracked.data is null when inactive)
+    // Query methods - tracked.data is null when the hand is inactive
     const HandPoseTrackedT& get_left_hand(const DeviceIOSession& session) const;
     const HandPoseTrackedT& get_right_hand(const DeviceIOSession& session) const;
 
-    // Get joint name for debugging
+    /** @brief Get joint name for debugging. */
     static std::string get_joint_name(uint32_t joint_index);
 
 private:
@@ -55,43 +45,7 @@ private:
 
     std::shared_ptr<ITrackerImpl> create_tracker(const OpenXRSessionHandles& handles) const override;
 
-    class Impl : public ITrackerImpl
-    {
-    public:
-        // Constructor - throws std::runtime_error on failure
-        explicit Impl(const OpenXRSessionHandles& handles);
-
-        ~Impl();
-
-        // Override from ITrackerImpl
-        bool update(XrTime time) override;
-
-        void serialize_all(size_t channel_index, const RecordCallback& callback) const override;
-
-        const HandPoseTrackedT& get_left_hand() const;
-        const HandPoseTrackedT& get_right_hand() const;
-
-    private:
-        // Helper functions
-        bool update_hand(XrHandTrackerEXT tracker, XrTime time, HandPoseTrackedT& tracked);
-
-        XrTimeConverter time_converter_;
-        XrSpace base_space_;
-
-        // Hand trackers
-        XrHandTrackerEXT left_hand_tracker_;
-        XrHandTrackerEXT right_hand_tracker_;
-
-        // Hand data (tracked.data is null when inactive)
-        HandPoseTrackedT left_tracked_;
-        HandPoseTrackedT right_tracked_;
-        XrTime last_update_time_ = 0;
-
-        // Extension function pointers
-        PFN_xrCreateHandTrackerEXT pfn_create_hand_tracker_;
-        PFN_xrDestroyHandTrackerEXT pfn_destroy_hand_tracker_;
-        PFN_xrLocateHandJointsEXT pfn_locate_hand_joints_;
-    };
+    class Impl;
 };
 
 } // namespace core

@@ -5,7 +5,9 @@
 
 #include "inc/deviceio/deviceio_session.hpp"
 
+#include <oxr_utils/oxr_funcs.hpp>
 #include <oxr_utils/oxr_time.hpp>
+#include <schema/full_body_bfbs_generated.h>
 
 #include <cassert>
 #include <cstring>
@@ -15,21 +17,18 @@ namespace core
 {
 
 // ============================================================================
-// FullBodyTrackerPicoImpl Implementation (namespace-level, not nested)
+// FullBodyTrackerPico::Impl
 // ============================================================================
 
-class FullBodyTrackerPicoImpl : public ITrackerImpl
+class FullBodyTrackerPico::Impl : public ITrackerImpl
 {
 public:
-    // Constructor - throws std::runtime_error on failure
-    explicit FullBodyTrackerPicoImpl(const OpenXRSessionHandles& handles);
-    ~FullBodyTrackerPicoImpl();
+    explicit Impl(const OpenXRSessionHandles& handles);
+    ~Impl();
 
-    // Override from ITrackerImpl
     bool update(XrTime time) override;
     void serialize_all(size_t channel_index, const RecordCallback& callback) const override;
 
-    // Get body pose data
     const FullBodyPosePicoTrackedT& get_body_pose() const;
 
 private:
@@ -39,13 +38,12 @@ private:
     FullBodyPosePicoTrackedT tracked_;
     XrTime last_update_time_ = 0;
 
-    // Extension function pointers
     PFN_xrCreateBodyTrackerBD pfn_create_body_tracker_;
     PFN_xrDestroyBodyTrackerBD pfn_destroy_body_tracker_;
     PFN_xrLocateBodyJointsBD pfn_locate_body_joints_;
 };
 
-FullBodyTrackerPicoImpl::FullBodyTrackerPicoImpl(const OpenXRSessionHandles& handles)
+FullBodyTrackerPico::Impl::Impl(const OpenXRSessionHandles& handles)
     : time_converter_(handles),
       base_space_(handles.space),
       body_tracker_(XR_NULL_HANDLE),
@@ -53,10 +51,8 @@ FullBodyTrackerPicoImpl::FullBodyTrackerPicoImpl(const OpenXRSessionHandles& han
       pfn_destroy_body_tracker_(nullptr),
       pfn_locate_body_joints_(nullptr)
 {
-    // Load core OpenXR functions dynamically using the provided xrGetInstanceProcAddr
     auto core_funcs = OpenXRCoreFunctions::load(handles.instance, handles.xrGetInstanceProcAddr);
 
-    // Check if system supports body tracking
     XrSystemId system_id;
     XrSystemGetInfo system_info{ XR_TYPE_SYSTEM_GET_INFO };
     system_info.formFactor = XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY;
@@ -95,7 +91,6 @@ FullBodyTrackerPicoImpl::FullBodyTrackerPicoImpl(const OpenXRSessionHandles& han
         throw std::runtime_error("Failed to get body tracking function pointers");
     }
 
-    // Create body tracker for full body joints (24 joints)
     XrBodyTrackerCreateInfoBD create_info{ XR_TYPE_BODY_TRACKER_CREATE_INFO_BD };
     create_info.next = nullptr;
     create_info.jointSet = XR_BODY_JOINT_SET_FULL_BODY_JOINTS_BD;
@@ -109,9 +104,8 @@ FullBodyTrackerPicoImpl::FullBodyTrackerPicoImpl(const OpenXRSessionHandles& han
     std::cout << "FullBodyTrackerPico initialized (24 joints)" << std::endl;
 }
 
-FullBodyTrackerPicoImpl::~FullBodyTrackerPicoImpl()
+FullBodyTrackerPico::Impl::~Impl()
 {
-    // pfn_destroy_body_tracker_ should never be null (verified in constructor)
     assert(pfn_destroy_body_tracker_ != nullptr && "pfn_destroy_body_tracker must not be null");
 
     if (body_tracker_ != XR_NULL_HANDLE)
@@ -121,7 +115,7 @@ FullBodyTrackerPicoImpl::~FullBodyTrackerPicoImpl()
     }
 }
 
-bool FullBodyTrackerPicoImpl::update(XrTime time)
+bool FullBodyTrackerPico::Impl::update(XrTime time)
 {
     last_update_time_ = time;
 
@@ -149,8 +143,6 @@ bool FullBodyTrackerPicoImpl::update(XrTime time)
         tracked_.data = std::make_shared<FullBodyPosePicoT>();
     }
 
-    // all_joint_poses_tracked is a quality flag: the body tracker is present even when
-    // false, so we always populate tracked_.data and reflect quality via the field.
     tracked_.data->all_joint_poses_tracked = locations.allJointPosesTracked;
 
     if (!tracked_.data->joints)
@@ -177,12 +169,12 @@ bool FullBodyTrackerPicoImpl::update(XrTime time)
     return true;
 }
 
-const FullBodyPosePicoTrackedT& FullBodyTrackerPicoImpl::get_body_pose() const
+const FullBodyPosePicoTrackedT& FullBodyTrackerPico::Impl::get_body_pose() const
 {
     return tracked_;
 }
 
-void FullBodyTrackerPicoImpl::serialize_all(size_t channel_index, const RecordCallback& callback) const
+void FullBodyTrackerPico::Impl::serialize_all(size_t channel_index, const RecordCallback& callback) const
 {
     if (channel_index != 0)
     {
@@ -193,10 +185,6 @@ void FullBodyTrackerPicoImpl::serialize_all(size_t channel_index, const RecordCa
     flatbuffers::FlatBufferBuilder builder(256);
 
     int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
-    // The XR_BD_body_tracking extension does not expose a separate per-joint capture
-    // timestamp, so both the available and sample times are set to the update-tick
-    // monotonic time. last_update_time_ (XrTime) is used as the raw device clock
-    // field as a best-available approximation; it is not a true hardware timestamp.
     DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
 
     FullBodyPosePicoRecordBuilder record_builder(builder);
@@ -212,7 +200,7 @@ void FullBodyTrackerPicoImpl::serialize_all(size_t channel_index, const RecordCa
 }
 
 // ============================================================================
-// FullBodyTrackerPico Public Interface Implementation
+// FullBodyTrackerPico Public Interface
 // ============================================================================
 
 std::vector<std::string> FullBodyTrackerPico::get_required_extensions() const
@@ -220,14 +208,20 @@ std::vector<std::string> FullBodyTrackerPico::get_required_extensions() const
     return { XR_BD_BODY_TRACKING_EXTENSION_NAME };
 }
 
+std::string_view FullBodyTrackerPico::get_schema_text() const
+{
+    return std::string_view(reinterpret_cast<const char*>(FullBodyPosePicoRecordBinarySchema::data()),
+                            FullBodyPosePicoRecordBinarySchema::size());
+}
+
 const FullBodyPosePicoTrackedT& FullBodyTrackerPico::get_body_pose(const DeviceIOSession& session) const
 {
-    return static_cast<const FullBodyTrackerPicoImpl&>(session.get_tracker_impl(*this)).get_body_pose();
+    return static_cast<const Impl&>(session.get_tracker_impl(*this)).get_body_pose();
 }
 
 std::shared_ptr<ITrackerImpl> FullBodyTrackerPico::create_tracker(const OpenXRSessionHandles& handles) const
 {
-    return std::make_shared<FullBodyTrackerPicoImpl>(handles);
+    return std::make_shared<Impl>(handles);
 }
 
 } // namespace core

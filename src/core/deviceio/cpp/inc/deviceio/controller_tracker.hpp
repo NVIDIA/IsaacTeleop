@@ -12,6 +12,9 @@
 namespace core
 {
 
+// Controller tracker - tracks both left and right controllers.
+// Updates all controller state (poses + inputs) each frame.
+//
 // Each instance creates its own XR_NVX1_action_context so that multiple
 // ControllerTracker instances can coexist on the same XrSession without
 // conflicting action-set names or interaction-profile bindings.
@@ -33,6 +36,7 @@ public:
         return { "left_controller", "right_controller" };
     }
 
+    // Query methods - tracked.data is null when the controller is inactive
     const ControllerSnapshotTrackedT& get_left_controller(const DeviceIOSession& session) const;
     const ControllerSnapshotTrackedT& get_right_controller(const DeviceIOSession& session) const;
 
