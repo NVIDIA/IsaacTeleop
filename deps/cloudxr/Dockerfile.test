@@ -31,7 +31,8 @@ COPY examples/oxr/python/ /app/tests/
 WORKDIR /app/tests
 RUN uv venv --python $PYTHON_VERSION /app/venv && \
     . /app/venv/bin/activate && \
-    uv pip install --find-links=/app/install/wheels isaacteleop numpy
+    uv pip install --find-links=/app/install/wheels --no-index --no-deps --no-cache-dir 'isaacteleop' && \
+    uv pip install isaacteleop
 
 # Set environment variables
 ENV PATH="/app/venv/bin:$PATH"
