@@ -443,7 +443,7 @@ void XrPlaneRendererOp::render_planes(const std::shared_ptr<holoscan::XrComposit
             float farZ = layer->depth_info[eye_idx].farZ;
             glm::mat4 proj =
                 glm::frustumRH_ZO(nearZ * glm::tan(view.fov.angleLeft), nearZ * glm::tan(view.fov.angleRight),
-                                  nearZ * glm::tan(view.fov.angleDown), nearZ * glm::tan(view.fov.angleUp), nearZ, farZ);
+                                  nearZ * glm::tan(view.fov.angleUp), nearZ * glm::tan(view.fov.angleDown), nearZ, farZ);
 
             glm::mat4 mvp = glm::transpose(proj * view_mat * model);
 
