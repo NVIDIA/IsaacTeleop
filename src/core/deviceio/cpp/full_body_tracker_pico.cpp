@@ -71,7 +71,9 @@ FullBodyTrackerPico::Impl::Impl(const OpenXRSessionHandles& handles)
         }
         if (!body_tracking_props.supportsBodyTracking)
         {
-            throw std::runtime_error("Body tracking not supported by this system");
+            std::cerr << "[FullBodyTrackerPico] Body tracking not supported by this system, running in limp mode"
+                      << std::endl;
+            return;
         }
     }
     else
@@ -85,11 +87,6 @@ FullBodyTrackerPico::Impl::Impl(const OpenXRSessionHandles& handles)
                           reinterpret_cast<PFN_xrVoidFunction*>(&pfn_destroy_body_tracker_));
     loadExtensionFunction(handles.instance, handles.xrGetInstanceProcAddr, "xrLocateBodyJointsBD",
                           reinterpret_cast<PFN_xrVoidFunction*>(&pfn_locate_body_joints_));
-
-    if (!pfn_create_body_tracker_ || !pfn_destroy_body_tracker_ || !pfn_locate_body_joints_)
-    {
-        throw std::runtime_error("Failed to get body tracking function pointers");
-    }
 
     XrBodyTrackerCreateInfoBD create_info{ XR_TYPE_BODY_TRACKER_CREATE_INFO_BD };
     create_info.next = nullptr;
@@ -106,10 +103,9 @@ FullBodyTrackerPico::Impl::Impl(const OpenXRSessionHandles& handles)
 
 FullBodyTrackerPico::Impl::~Impl()
 {
-    assert(pfn_destroy_body_tracker_ != nullptr && "pfn_destroy_body_tracker must not be null");
-
     if (body_tracker_ != XR_NULL_HANDLE)
     {
+        assert(pfn_destroy_body_tracker_ != nullptr && "pfn_destroy_body_tracker must not be null");
         pfn_destroy_body_tracker_(body_tracker_);
         body_tracker_ = XR_NULL_HANDLE;
     }
@@ -118,6 +114,12 @@ FullBodyTrackerPico::Impl::~Impl()
 bool FullBodyTrackerPico::Impl::update(XrTime time)
 {
     last_update_time_ = time;
+
+    if (body_tracker_ == XR_NULL_HANDLE)
+    {
+        tracked_.data.reset();
+        return true;
+    }
 
     XrBodyJointsLocateInfoBD locate_info{ XR_TYPE_BODY_JOINTS_LOCATE_INFO_BD };
     locate_info.next = nullptr;
