@@ -4,7 +4,6 @@
 #define MCAP_IMPLEMENTATION
 #include "inc/mcap/recorder.hpp"
 
-#include <deviceio/deviceio_session.hpp>
 #include <flatbuffers/flatbuffers.h>
 #include <mcap/writer.hpp>
 
@@ -48,7 +47,7 @@ public:
         std::cout << "McapRecorder: Closed " << filename_ << " with " << message_count_ << " messages" << std::endl;
     }
 
-    void record(const DeviceIOSession& session)
+    void record(const ITrackerSession& session)
     {
         for (const auto& config : tracker_configs_)
         {
@@ -201,7 +200,7 @@ McapRecorder::McapRecorder(const std::string& filename, const std::vector<Tracke
 
 McapRecorder::~McapRecorder() = default;
 
-void McapRecorder::record(const DeviceIOSession& session)
+void McapRecorder::record(const ITrackerSession& session)
 {
     impl_->record(session);
 }

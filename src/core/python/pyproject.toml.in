@@ -36,6 +36,8 @@ optional-dependencies.cloudxr = {file = ["requirements-cloudxr.txt"]}
 packages = [
     "isaacteleop",
     "isaacteleop.deviceio",
+    "isaacteleop.deviceio_trackers",
+    "isaacteleop.deviceio_session",
     "isaacteleop.mcap",
     "isaacteleop.oxr",
     "isaacteleop.plugin_manager",
@@ -55,6 +57,8 @@ include-package-data = true
 [tool.setuptools.package-data]
 isaacteleop = ["*.so", "*.pyd", "*.pyi", "py.typed"]
 "isaacteleop.deviceio" = ["*.so", "*.pyd", "*.pyi"]
+"isaacteleop.deviceio_trackers" = ["*.so", "*.pyd", "*.pyi"]
+"isaacteleop.deviceio_session" = ["*.so", "*.pyd", "*.pyi"]
 "isaacteleop.mcap" = ["*.so", "*.pyd", "*.pyi"]
 "isaacteleop.oxr" = ["*.so", "*.pyd", "*.pyi"]
 "isaacteleop.plugin_manager" = ["*.so", "*.pyd", "*.pyi"]

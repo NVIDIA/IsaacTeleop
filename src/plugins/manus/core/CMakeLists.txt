@@ -15,7 +15,8 @@ target_link_libraries(manus_plugin_core
   PUBLIC
     ManusSDK::ManusSDK
     Teleop::plugin_utils
-    deviceio::deviceio_core
+    deviceio::deviceio_session
+        deviceio::deviceio_trackers
     OpenXR::openxr_loader
     oxr::oxr_core
   PRIVATE

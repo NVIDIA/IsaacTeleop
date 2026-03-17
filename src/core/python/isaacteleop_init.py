@@ -15,6 +15,8 @@ except PackageNotFoundError:
     __version__ = "0+unknown"
 
 # Import submodules.
+from . import deviceio_trackers
+from . import deviceio_session
 from . import deviceio
 from . import oxr
 from . import plugin_manager
@@ -23,6 +25,8 @@ from . import teleop_session_manager
 from . import cloudxr
 
 __all__ = [
+    "deviceio_trackers",
+    "deviceio_session",
     "deviceio",
     "oxr",
     "plugin_manager",

@@ -3,8 +3,8 @@
 
 #pragma once
 #include <controller_synthetic_hands/hand_generator.hpp>
-#include <deviceio/controller_tracker.hpp>
-#include <deviceio/deviceio_session.hpp>
+#include <deviceio_session/deviceio_session.hpp>
+#include <deviceio_trackers/controller_tracker.hpp>
 #include <oxr/oxr_session.hpp>
 #include <oxr_utils/oxr_time.hpp>
 #include <plugin_utils/hand_injector.hpp>

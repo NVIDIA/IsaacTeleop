@@ -8,8 +8,8 @@ pybind11_add_module(mcap_py
 target_link_libraries(mcap_py
     PRIVATE
         mcap::mcap_core
-        deviceio::deviceio_core
-        deviceio_py_utils
+        deviceio::deviceio_session
+        deviceio::deviceio_trackers
 )
 
 set_target_properties(mcap_py PROPERTIES

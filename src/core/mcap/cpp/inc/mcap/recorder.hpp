@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <deviceio/tracker.hpp>
+#include <deviceio_base/tracker.hpp>
 
 #include <memory>
 #include <string>
@@ -12,9 +12,6 @@
 
 namespace core
 {
-
-// Forward declaration
-class DeviceIOSession;
 
 /**
  * @brief MCAP Recorder for recording tracking data to MCAP files.
@@ -74,9 +71,9 @@ public:
      *
      * This should be called after session.update() in your main loop.
      *
-     * @param session The DeviceIOSession to get tracker implementations from.
+     * @param session Session that can resolve tracker implementations (e.g. DeviceIOSession).
      */
-    void record(const DeviceIOSession& session);
+    void record(const ITrackerSession& session);
 
 private:
     // Private constructor - use create() factory method

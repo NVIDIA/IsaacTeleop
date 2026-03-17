@@ -3,18 +3,19 @@
 
 // Unit tests for McapRecorder
 
-#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <deviceio_base/tracker.hpp>
+#include <deviceio_base/tracker_factory.hpp>
 #include <flatbuffers/flatbuffer_builder.h>
 #include <mcap/recorder.hpp>
 #include <schema/timestamp_generated.h>
 
 #include <atomic>
-#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <stdexcept>
 #include <string_view>
 #include <vector>
 
@@ -78,6 +79,26 @@ private:
     mutable int serialize_count_ = 0;
 };
 
+// Forward declaration — used by TestITrackerFactory::create_mock_tracker_impl
+class MockTracker;
+
+// =============================================================================
+// Test-only ITrackerFactory (mirrors production double-dispatch entry point)
+// =============================================================================
+class TestITrackerFactory : public core::ITrackerFactory
+{
+public:
+    mutable bool mock_create_invoked = false;
+    const MockTracker* last_tracker_arg = nullptr;
+
+    std::unique_ptr<core::ITrackerImpl> create_mock_tracker_impl(const MockTracker* tracker)
+    {
+        mock_create_invoked = true;
+        last_tracker_arg = tracker;
+        return std::make_unique<MockTrackerImpl>();
+    }
+};
+
 // =============================================================================
 // Mock Tracker for testing (implements ITracker interface)
 // =============================================================================
@@ -121,15 +142,20 @@ public:
         return impl_;
     }
 
-protected:
-    std::shared_ptr<core::ITrackerImpl> create_tracker(const core::OpenXRSessionHandles& handles) const override
-    {
-        return impl_;
-    }
+    std::unique_ptr<core::ITrackerImpl> create_tracker_impl(core::ITrackerFactory& factory) const override;
 
 private:
     std::shared_ptr<MockTrackerImpl> impl_;
 };
+
+inline std::unique_ptr<core::ITrackerImpl> MockTracker::create_tracker_impl(core::ITrackerFactory& factory) const
+{
+    if (auto* test_factory = dynamic_cast<TestITrackerFactory*>(&factory))
+    {
+        return test_factory->create_mock_tracker_impl(this);
+    }
+    return std::make_unique<MockTrackerImpl>();
+}
 
 // =============================================================================
 // Multi-channel mock tracker for testing
@@ -171,10 +197,10 @@ public:
         return impl_;
     }
 
-protected:
-    std::shared_ptr<core::ITrackerImpl> create_tracker(const core::OpenXRSessionHandles& handles) const override
+    // Not called in these tests (no DeviceIOSession used)
+    std::unique_ptr<core::ITrackerImpl> create_tracker_impl(core::ITrackerFactory& /*factory*/) const override
     {
-        return impl_;
+        return std::make_unique<MockTrackerImpl>();
     }
 
 private:
@@ -187,10 +213,6 @@ private:
 class MockEmptyChannelTracker : public core::ITracker
 {
 public:
-    MockEmptyChannelTracker() : impl_(std::make_shared<MockTrackerImpl>())
-    {
-    }
-
     std::vector<std::string> get_required_extensions() const override
     {
         return {};
@@ -216,14 +238,10 @@ public:
         return { "" };
     }
 
-protected:
-    std::shared_ptr<core::ITrackerImpl> create_tracker(const core::OpenXRSessionHandles& handles) const override
+    std::unique_ptr<core::ITrackerImpl> create_tracker_impl(core::ITrackerFactory& /*factory*/) const override
     {
-        return impl_;
+        return std::make_unique<MockTrackerImpl>();
     }
-
-private:
-    std::shared_ptr<MockTrackerImpl> impl_;
 };
 
 // Helper to create a temporary file path unique across parallel CTest processes.
@@ -261,6 +279,30 @@ private:
 };
 
 } // anonymous namespace
+
+// =============================================================================
+// ITrackerFactory / create_tracker_impl (double dispatch)
+// =============================================================================
+
+TEST_CASE("MockTracker create_tracker_impl double-dispatches through TestITrackerFactory",
+          "[mcap_recorder][tracker_factory]")
+{
+    TestITrackerFactory factory;
+    auto tracker = std::make_shared<MockTracker>();
+
+    auto impl = tracker->create_tracker_impl(factory);
+
+    REQUIRE(impl != nullptr);
+    CHECK(factory.mock_create_invoked);
+    REQUIRE(factory.last_tracker_arg == tracker.get());
+
+    auto* mock_impl = dynamic_cast<MockTrackerImpl*>(impl.get());
+    REQUIRE(mock_impl != nullptr);
+
+    constexpr XrTime test_time = 42;
+    REQUIRE(mock_impl->update(test_time));
+    CHECK(mock_impl->get_update_count() == 1);
+}
 
 // =============================================================================
 // McapRecorder Basic Tests

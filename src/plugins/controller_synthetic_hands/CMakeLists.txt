@@ -20,7 +20,8 @@ find_package(Threads REQUIRED)
 
 target_link_libraries(controller_synthetic_hands PRIVATE
     Teleop::plugin_utils
-    deviceio::deviceio_core
+    deviceio::deviceio_session
+        deviceio::deviceio_trackers
     oxr::oxr_core
     oxr::oxr_utils
     OpenXR::openxr_loader

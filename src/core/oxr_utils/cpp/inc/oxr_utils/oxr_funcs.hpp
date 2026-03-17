@@ -52,6 +52,7 @@ struct OpenXRCoreFunctions
     PFN_xrGetActionStateBoolean xrGetActionStateBoolean;
     PFN_xrGetActionStateFloat xrGetActionStateFloat;
     PFN_xrGetActionStateVector2f xrGetActionStateVector2f;
+    PFN_xrGetActionStatePose xrGetActionStatePose;
 
     // Load all core functions from an instance using the provided xrGetInstanceProcAddr
     static OpenXRCoreFunctions load(XrInstance instance, PFN_xrGetInstanceProcAddr getProcAddr)
@@ -95,6 +96,8 @@ struct OpenXRCoreFunctions
             instance, "xrGetActionStateFloat", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrGetActionStateFloat));
         getProcAddr(instance, "xrGetActionStateVector2f",
                     reinterpret_cast<PFN_xrVoidFunction*>(&results.xrGetActionStateVector2f));
+        getProcAddr(
+            instance, "xrGetActionStatePose", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrGetActionStatePose));
 
         return results;
     }

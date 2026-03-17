@@ -1,0 +1,51 @@
+// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#pragma once
+
+#include <deviceio_base/hand_tracker_base.hpp>
+#include <openxr/openxr.h>
+#include <oxr_utils/oxr_funcs.hpp>
+#include <oxr_utils/oxr_session_handles.hpp>
+#include <oxr_utils/oxr_time.hpp>
+#include <schema/hand_generated.h>
+
+namespace core
+{
+
+// OpenXR-backed implementation of HandTrackerImpl.
+class LiveHandTrackerImpl : public HandTrackerImpl
+{
+public:
+    explicit LiveHandTrackerImpl(const OpenXRSessionHandles& handles);
+    ~LiveHandTrackerImpl();
+
+    LiveHandTrackerImpl(const LiveHandTrackerImpl&) = delete;
+    LiveHandTrackerImpl& operator=(const LiveHandTrackerImpl&) = delete;
+    LiveHandTrackerImpl(LiveHandTrackerImpl&&) = delete;
+    LiveHandTrackerImpl& operator=(LiveHandTrackerImpl&&) = delete;
+
+    bool update(XrTime time) override;
+    void serialize_all(size_t channel_index, const RecordCallback& callback) const override;
+    const HandPoseTrackedT& get_left_hand() const override;
+    const HandPoseTrackedT& get_right_hand() const override;
+
+private:
+    bool update_hand(XrHandTrackerEXT tracker, XrTime time, HandPoseTrackedT& tracked);
+
+    XrTimeConverter time_converter_;
+    XrSpace base_space_;
+
+    XrHandTrackerEXT left_hand_tracker_;
+    XrHandTrackerEXT right_hand_tracker_;
+
+    HandPoseTrackedT left_tracked_;
+    HandPoseTrackedT right_tracked_;
+    XrTime last_update_time_ = 0;
+
+    PFN_xrCreateHandTrackerEXT pfn_create_hand_tracker_;
+    PFN_xrDestroyHandTrackerEXT pfn_destroy_hand_tracker_;
+    PFN_xrLocateHandJointsEXT pfn_locate_hand_joints_;
+};
+
+} // namespace core

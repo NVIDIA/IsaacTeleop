@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+cmake_minimum_required(VERSION 3.20)
+project(deviceio_session VERSION 1.0.0 LANGUAGES CXX)
+
+add_subdirectory(cpp)
+
+if(BUILD_PYTHON_BINDINGS)
+    add_subdirectory(py_utils)
+    add_subdirectory(python)
+endif()

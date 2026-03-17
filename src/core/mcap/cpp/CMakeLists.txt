@@ -15,11 +15,12 @@ target_include_directories(mcap_core
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
 )
 
-# mcap_core depends on deviceio_core for DeviceIOSession and tracker interfaces
+# mcap_core depends on deviceio_session and deviceio_trackers for DeviceIOSession and tracker interfaces
 target_link_libraries(mcap_core
     PUBLIC
-        # deviceio_core for DeviceIOSession and ITracker interfaces
-        deviceio::deviceio_core
+        # deviceio_session + deviceio_trackers for DeviceIOSession and ITracker interfaces
+        deviceio::deviceio_session
+        deviceio::deviceio_trackers
     PRIVATE
         # MCAP header-only library (PRIVATE - implementation detail)
         mcap::mcap

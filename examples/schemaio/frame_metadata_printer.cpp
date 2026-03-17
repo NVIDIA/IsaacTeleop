@@ -14,8 +14,8 @@
  * The collection-prefix should match the value used by the camera plugin.
  */
 
-#include <deviceio/deviceio_session.hpp>
-#include <deviceio/frame_metadata_tracker_oak.hpp>
+#include <deviceio_session/deviceio_session.hpp>
+#include <deviceio_trackers/frame_metadata_tracker_oak.hpp>
 #include <oxr/oxr_session.hpp>
 
 #include <chrono>

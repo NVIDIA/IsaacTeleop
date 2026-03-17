@@ -21,8 +21,15 @@ add_subdirectory(oxr)
 # Build PusherIO library (depends on oxr for session management)
 add_subdirectory(pusherio)
 
-# Build DEVICEIO library first (depends on oxr_utils for types)
-add_subdirectory(deviceio)
+# DeviceIO: 4-module design
+#   1. deviceio_base           — abstract interfaces (ITracker, ITrackerFactory, typed impl bases)
+#   2. deviceio_trackers       — public tracker classes (HeadTracker, HandTracker, etc.)
+#   3. live_trackers            — live OpenXR tracker impls (depends on trackers)
+#   4. deviceio_session        — DeviceIOSession (wires trackers to live factory)
+add_subdirectory(deviceio_base)
+add_subdirectory(deviceio_trackers)
+add_subdirectory(live_trackers)
+add_subdirectory(deviceio_session)
 
 # Build MCAP library (depends on deviceio for DeviceIOSession and tracker interfaces)
 add_subdirectory(mcap)

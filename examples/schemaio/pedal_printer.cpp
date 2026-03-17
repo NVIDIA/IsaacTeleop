@@ -15,8 +15,8 @@
 
 #include "common_utils.hpp"
 
-#include <deviceio/deviceio_session.hpp>
-#include <deviceio/generic_3axis_pedal_tracker.hpp>
+#include <deviceio_session/deviceio_session.hpp>
+#include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>
 #include <oxr/oxr_session.hpp>
 
 #include <chrono>

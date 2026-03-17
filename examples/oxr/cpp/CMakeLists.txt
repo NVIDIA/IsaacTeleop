@@ -10,7 +10,8 @@ add_executable(oxr_session_sharing
 
 target_link_libraries(oxr_session_sharing
     PRIVATE
-        deviceio::deviceio_core
+        deviceio::deviceio_session
+        deviceio::deviceio_trackers
         oxr::oxr_core
 )
 
@@ -21,7 +22,8 @@ add_executable(oxr_simple_api_demo
 
 target_link_libraries(oxr_simple_api_demo
     PRIVATE
-        deviceio::deviceio_core
+        deviceio::deviceio_session
+        deviceio::deviceio_trackers
         oxr::oxr_core
 )
 

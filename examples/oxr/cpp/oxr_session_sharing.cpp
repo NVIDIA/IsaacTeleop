@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-#include <deviceio/deviceio_session.hpp>
-#include <deviceio/hand_tracker.hpp>
-#include <deviceio/head_tracker.hpp>
+#include <deviceio_session/deviceio_session.hpp>
+#include <deviceio_trackers/hand_tracker.hpp>
+#include <deviceio_trackers/head_tracker.hpp>
 #include <oxr/oxr_session.hpp>
 
 #include <chrono>

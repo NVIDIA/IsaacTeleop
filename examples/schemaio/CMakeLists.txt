@@ -25,7 +25,8 @@ add_executable(pedal_printer
 )
 
 target_link_libraries(pedal_printer PRIVATE
-    deviceio::deviceio_core
+    deviceio::deviceio_session
+        deviceio::deviceio_trackers
     oxr::oxr_core
     isaacteleop_schema
     ${CMAKE_DL_LIBS}
@@ -38,7 +39,8 @@ add_executable(frame_metadata_printer
 )
 
 target_link_libraries(frame_metadata_printer PRIVATE
-    deviceio::deviceio_core
+    deviceio::deviceio_session
+        deviceio::deviceio_trackers
     oxr::oxr_core
     isaacteleop_schema
     ${CMAKE_DL_LIBS}

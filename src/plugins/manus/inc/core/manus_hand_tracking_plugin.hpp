@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include <deviceio/controller_tracker.hpp>
-#include <deviceio/deviceio_session.hpp>
+#include <deviceio_session/deviceio_session.hpp>
+#include <deviceio_trackers/controller_tracker.hpp>
 #include <openxr/openxr.h>
 #include <oxr_utils/oxr_time.hpp>
 #include <plugin_utils/hand_injector.hpp>
