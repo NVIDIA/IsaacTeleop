@@ -226,6 +226,8 @@ jobs:
     needs:
       - build-ubuntu
       - test-cloudxr
+    outputs:
+      wheel_urls: ${{ steps.upload-artifactory.outputs.wheel_urls }}
     environment: dev
     # Publish only after build and CloudXR tests succeed.
     if: ${{ needs.build-ubuntu.result == 'success' && needs.test-cloudxr.result == 'success' }}
@@ -244,6 +246,7 @@ jobs:
         path: wheels
 
     - name: Upload wheel(s) to Artifactory
+      id: upload-artifactory
       env:
         ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
         ARTIFACTORY_REPO: ${{ secrets.ARTIFACTORY_REPO }}
@@ -283,88 +286,54 @@ jobs:
           -p "${ARTIFACTORY_API_KEY}" \
           "${wheels[@]}"
 
-  publish-github-release-assets:
-    runs-on: ubuntu-latest
-    needs:
-      - build-ubuntu
-      - test-cloudxr
-    outputs:
-      wheel_urls: ${{ steps.upload-release-assets.outputs.wheel_urls }}
-      release_tag: ${{ steps.upload-release-assets.outputs.release_tag }}
-    permissions:
-      contents: write
-    # Publish on every push after build and CloudXR tests succeed.
-    if: ${{ github.event_name == 'push' && needs.build-ubuntu.result == 'success' && needs.test-cloudxr.result == 'success' }}
+        wheel_urls=()
+        for wheel in "${wheels[@]}"; do
+          wheel_name="$(basename "${wheel}")"
+          echo "Resolving Artifactory URL for ${wheel_name}"
 
-    steps:
-    - name: Download wheel artifacts
-      uses: actions/download-artifact@v7
-      with:
-        pattern: isaacteleop-wheels-*
-        merge-multiple: true
-        path: wheels
+          search_json="$(curl --fail-with-body --show-error --silent --location --get --connect-timeout 10 --max-time 60 \
+            -u "${ARTIFACTORY_USERNAME}:${ARTIFACTORY_API_KEY}" \
+            --data-urlencode "name=${wheel_name}" \
+            --data-urlencode "repos=${ARTIFACTORY_REPO}" \
+            "${ARTIFACTORY_URL%/}/api/search/artifact")"
 
-    - name: Upload wheel(s) as GitHub release assets
-      id: upload-release-assets
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        GH_REPO: ${{ github.repository }}
-      run: |
-        set -euo pipefail
+          storage_uri="$(jq -r '.results[0].uri // empty' <<< "${search_json}")"
+          if [[ -z "${storage_uri}" ]]; then
+            echo "Unable to resolve storage URI for ${wheel_name}"
+            echo "${search_json}"
+            exit 1
+          fi
 
-        shopt -s nullglob
-        wheels=(wheels/*.whl)
-        if (( ${#wheels[@]} == 0 )); then
-          echo "No wheels found under wheels/*.whl"
-          ls -la wheels || true
-          exit 1
-        fi
+          metadata_json="$(curl --fail-with-body --show-error --silent --location --connect-timeout 10 --max-time 60 \
+            -u "${ARTIFACTORY_USERNAME}:${ARTIFACTORY_API_KEY}" \
+            "${storage_uri}")"
 
-        tag="ci-wheels-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-        title="CI Wheels ${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}"
+          download_uri="$(jq -r '.downloadUri // empty' <<< "${metadata_json}")"
+          if [[ -z "${download_uri}" ]]; then
+            echo "Unable to resolve downloadUri for ${wheel_name}"
+            echo "${metadata_json}"
+            exit 1
+          fi
 
-        gh release create "${tag}" \
-          --repo "${GH_REPO}" \
-          --target "${GITHUB_SHA}" \
-          --title "${title}" \
-          --notes "Automated wheel artifacts for ${GITHUB_SHA}" \
-          --draft
-
-        # Persist tag output immediately so cleanup can still run even if later steps fail.
-        echo "release_tag=${tag}" >> "$GITHUB_OUTPUT"
-
-        echo "Uploading ${#wheels[@]} wheel(s) to release ${tag}"
-        gh release upload "${tag}" "${wheels[@]}" --repo "${GH_REPO}"
-
-        echo "Finalizing release ${tag} as pre-release"
-        gh release edit "${tag}" --repo "${GH_REPO}" --draft=false --prerelease
-
-        echo "Uploaded assets on ${tag}:"
-        release_assets_json="$(gh release view "${tag}" --repo "${GH_REPO}" --json assets)"
-        echo "${release_assets_json}"
-
-        wheel_urls="$(jq -r '.assets[] | select(.name | endswith(".whl")) | .url' <<< "${release_assets_json}")"
-        if [[ -z "${wheel_urls}" ]]; then
-          echo "Unable to find wheel asset URLs in uploaded release assets"
-          exit 1
-        fi
+          wheel_urls+=("${download_uri}")
+        done
 
         {
           echo "wheel_urls<<EOF"
-          echo "${wheel_urls}"
+          printf '%s\n' "${wheel_urls[@]}"
           echo "EOF"
         } >> "$GITHUB_OUTPUT"
 
   kitmaker:
     runs-on: [self-hosted, linux]
     needs:
-      - publish-github-release-assets
+      - publish-wheel
     outputs:
       release_uuid: ${{ steps.submit-kitmaker.outputs.release_uuid }}
     environment: release
     permissions:
       contents: read
-    if: ${{ needs.publish-github-release-assets.result == 'success' }}
+    if: ${{ needs.publish-wheel.result == 'success' }}
 
     steps:
     - name: Submit wheel release to Kitmaker
@@ -374,7 +343,7 @@ jobs:
         KITMAKER_PROJECT_ID: ${{ secrets.KITMAKER_PROJECT_ID }}
         KITMAKER_TOKEN: ${{ secrets.KITMAKER_TOKEN }}
         KITMAKER_PIC_EMAIL: ${{ secrets.KITMAKER_PIC_EMAIL }}
-        WHEEL_URLS: ${{ needs.publish-github-release-assets.outputs.wheel_urls }}
+        WHEEL_URLS: ${{ needs.publish-wheel.outputs.wheel_urls }}
         KITMAKER_UPLOAD: ${{ startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/tags/v') }}
       run: |
         set -euo pipefail
@@ -390,7 +359,7 @@ jobs:
         fi
 
         if [[ -z "${WHEEL_URLS}" ]]; then
-          echo "No wheel URLs were produced by publish-github-release-assets job"
+          echo "No wheel URLs were produced by publish-wheel job"
           exit 1
         fi
 
@@ -501,28 +470,3 @@ jobs:
         echo "Timed out waiting for Kitmaker release ${KITMAKER_RELEASE_UUID} to complete"
         exit 1
 
-  cleanup-github-release-assets:
-    runs-on: ubuntu-latest
-    needs:
-      - publish-github-release-assets
-      - kitmaker-status
-    permissions:
-      contents: write
-    if: ${{ always() && needs.publish-github-release-assets.result == 'success' }}
-
-    steps:
-    - name: Delete GitHub release and tag
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        GH_REPO: ${{ github.repository }}
-        RELEASE_TAG: ${{ needs.publish-github-release-assets.outputs.release_tag }}
-      run: |
-        set -euo pipefail
-
-        if [[ -z "${RELEASE_TAG}" ]]; then
-          echo "No release tag was produced by publish-github-release-assets job"
-          exit 1
-        fi
-
-        echo "Deleting GitHub release and tag: ${RELEASE_TAG}"
-        gh release delete "${RELEASE_TAG}" --repo "${GH_REPO}" --cleanup-tag --yes
