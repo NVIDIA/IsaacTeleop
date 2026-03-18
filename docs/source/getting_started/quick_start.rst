@@ -353,7 +353,7 @@ More Information
 .. _`CloudXR documentation`: https://docs.nvidia.com/cloudxr-sdk/latest/index.html
 .. _`CloudXR.js documentation`: https://docs.nvidia.com/cloudxr-sdk/latest/usr_guide/cloudxr_js/index.html
 .. _`Isaac XR Teleop Sample Client for Apple Vision Pro`: https://github.com/isaac-sim/isaac-xr-teleop-sample-client-apple
-.. _`Isaac Lab Quick Start`: https://isaac-sim.github.io/IsaacLab/main/source/setup/quickstart.html
-.. _`Teleoperation and Imitation Learning with Isaac Lab Mimic`: https://isaac-sim.github.io/IsaacLab/main/source/overview/imitation-learning/teleop_imitation.html#teleoperation-imitation-learning
+.. _`Isaac Lab Quick Start`: https://isaac-sim.github.io/IsaacLab/develop/source/setup/quickstart.html
+.. _`Teleoperation and Imitation Learning with Isaac Lab Mimic`: https://isaac-sim.github.io/IsaacLab/develop/source/overview/imitation-learning/teleop_imitation.html#teleoperation-imitation-learning
 .. _`CloudXR network setup`: https://docs.nvidia.com/cloudxr-sdk/latest/requirement/network_setup.html#ports-and-firewalls
 .. _`Isaac ROS`: https://nvidia-isaac-ros.github.io
