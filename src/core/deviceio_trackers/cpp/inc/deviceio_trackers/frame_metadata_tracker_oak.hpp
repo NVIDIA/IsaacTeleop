@@ -15,10 +15,10 @@ namespace core
 {
 
 /*!
- * @brief Multi-channel tracker for reading OAK FrameMetadataOak from multiple streams.
+ * @brief Multi-stream tracker for OAK FrameMetadataOak.
  *
- * Maintains one tensor reader per stream and records each as a separate MCAP
- * channel using FrameMetadataOak as the root type.
+ * Maintains one SchemaTracker per stream. Each stream is identified by its
+ * StreamType enum name (e.g., "Color", "MonoLeft").
  *
  * Usage:
  * @code
@@ -53,15 +53,6 @@ public:
     {
         return TRACKER_NAME;
     }
-    std::string_view get_schema_name() const override
-    {
-        return SCHEMA_NAME;
-    }
-    std::string_view get_schema_text() const override;
-    std::vector<std::string> get_record_channels() const override
-    {
-        return m_channel_names;
-    }
 
     // Double-dispatch: calls factory.create_frame_metadata_tracker_oak_impl()
     std::unique_ptr<ITrackerImpl> create_tracker_impl(ITrackerFactory& factory) const override;
@@ -78,7 +69,7 @@ public:
     //! Number of streams this tracker is configured for.
     size_t get_stream_count() const
     {
-        return m_channel_names.size();
+        return m_stream_names.size();
     }
 
     const std::string& collection_prefix() const
@@ -96,14 +87,18 @@ public:
         return max_flatbuffer_size_;
     }
 
+    const std::vector<std::string>& get_stream_names() const
+    {
+        return m_stream_names;
+    }
+
 private:
     static constexpr const char* TRACKER_NAME = "FrameMetadataTrackerOak";
-    static constexpr const char* SCHEMA_NAME = "core.FrameMetadataOakRecord";
 
     std::string collection_prefix_;
     std::vector<StreamType> streams_;
     size_t max_flatbuffer_size_{ DEFAULT_MAX_FLATBUFFER_SIZE };
-    std::vector<std::string> m_channel_names;
+    std::vector<std::string> m_stream_names;
 };
 
 } // namespace core

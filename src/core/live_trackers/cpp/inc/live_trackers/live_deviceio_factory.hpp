@@ -6,21 +6,36 @@
 #include <deviceio_base/tracker_factory.hpp>
 
 #include <memory>
+#include <string>
+#include <string_view>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
+namespace mcap
+{
+class McapWriter;
+} // namespace mcap
 
 namespace core
 {
 
+class ITracker;
 struct OpenXRSessionHandles;
 
 /**
  * @brief ITrackerFactory implementation for live OpenXR sessions.
  *
  * Used by DeviceIOSession to construct OpenXR-backed tracker implementations.
+ * When writer is non-null, each simple impl receives a typed McapTrackerChannels
+ * for MCAP recording.
  */
 class LiveDeviceIOFactory : public ITrackerFactory
 {
 public:
-    explicit LiveDeviceIOFactory(const OpenXRSessionHandles& handles);
+    LiveDeviceIOFactory(const OpenXRSessionHandles& handles,
+                        mcap::McapWriter* writer,
+                        const std::vector<std::pair<const ITracker*, std::string>>& tracker_names);
 
     std::unique_ptr<HeadTrackerImpl> create_head_tracker_impl(const HeadTracker* tracker) override;
     std::unique_ptr<HandTrackerImpl> create_hand_tracker_impl(const HandTracker* tracker) override;
@@ -32,7 +47,12 @@ public:
         const FrameMetadataTrackerOak* tracker) override;
 
 private:
+    bool should_record(const ITracker* tracker) const;
+    std::string_view get_name(const ITracker* tracker) const;
+
     const OpenXRSessionHandles& handles_;
+    mcap::McapWriter* writer_;
+    std::unordered_map<const ITracker*, std::string> name_map_;
 };
 
 } // namespace core

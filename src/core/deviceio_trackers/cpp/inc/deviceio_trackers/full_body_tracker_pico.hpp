@@ -12,27 +12,18 @@
 namespace core
 {
 
-// Full body tracker for PICO devices using XR_BD_body_tracking extension.
-// Tracks 24 body joints from pelvis to hands.
+// Full body tracker for PICO devices using XR_BD_body_tracking.
+// Tracks 24 body joints (indices 0-23) from pelvis to hands.
 class FullBodyTrackerPico : public ITracker
 {
 public:
-    //! Number of joints in XR_BD_body_tracking (0-23)
+    //! Number of joints in XR_BD_body_tracking (0-23).
     static constexpr uint32_t JOINT_COUNT = 24;
 
     std::vector<std::string> get_required_extensions() const override;
     std::string_view get_name() const override
     {
         return TRACKER_NAME;
-    }
-    std::string_view get_schema_name() const override
-    {
-        return SCHEMA_NAME;
-    }
-    std::string_view get_schema_text() const override;
-    std::vector<std::string> get_record_channels() const override
-    {
-        return { "full_body" };
     }
 
     // Double-dispatch: calls factory.create_full_body_tracker_pico_impl()
@@ -43,7 +34,6 @@ public:
 
 private:
     static constexpr const char* TRACKER_NAME = "FullBodyTrackerPico";
-    static constexpr const char* SCHEMA_NAME = "core.FullBodyPosePicoRecord";
 };
 
 } // namespace core

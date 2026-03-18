@@ -4,7 +4,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 add_library(live_trackers STATIC
-    schema_tracker.cpp
+    schema_tracker_base.cpp
     live_deviceio_factory.cpp
     live_head_tracker_impl.cpp
     live_hand_tracker_impl.cpp
@@ -12,6 +12,7 @@ add_library(live_trackers STATIC
     live_full_body_tracker_pico_impl.cpp
     live_generic_3axis_pedal_tracker_impl.cpp
     live_frame_metadata_tracker_oak_impl.cpp
+    inc/live_trackers/schema_tracker_base.hpp
     inc/live_trackers/schema_tracker.hpp
     inc/live_trackers/live_deviceio_factory.hpp
     live_head_tracker_impl.hpp
@@ -31,6 +32,7 @@ target_link_libraries(live_trackers
     PUBLIC
         deviceio::deviceio_base
         deviceio::deviceio_trackers
+        mcap::mcap_core
         Teleop::openxr_extensions
 )
 

@@ -4,7 +4,6 @@
 #include "inc/deviceio_trackers/hand_tracker.hpp"
 
 #include <deviceio_base/tracker_factory.hpp>
-#include <schema/hand_bfbs_generated.h>
 
 #include <array>
 
@@ -18,12 +17,6 @@ namespace core
 std::vector<std::string> HandTracker::get_required_extensions() const
 {
     return { XR_EXT_HAND_TRACKING_EXTENSION_NAME };
-}
-
-std::string_view HandTracker::get_schema_text() const
-{
-    return std::string_view(
-        reinterpret_cast<const char*>(HandPoseRecordBinarySchema::data()), HandPoseRecordBinarySchema::size());
 }
 
 std::unique_ptr<ITrackerImpl> HandTracker::create_tracker_impl(ITrackerFactory& factory) const

@@ -3,8 +3,10 @@
 
 #include "live_controller_tracker_impl.hpp"
 
+#include <mcap/recording_traits.hpp>
 #include <oxr_utils/oxr_funcs.hpp>
 #include <oxr_utils/oxr_time.hpp>
+#include <schema/controller_bfbs_generated.h>
 
 #include <cassert>
 #include <cmath>
@@ -157,7 +159,16 @@ XrAction create_action(const OpenXRCoreFunctions& funcs,
 // LiveControllerTrackerImpl
 // ============================================================================
 
-LiveControllerTrackerImpl::LiveControllerTrackerImpl(const OpenXRSessionHandles& handles)
+std::unique_ptr<ControllerMcapChannels> LiveControllerTrackerImpl::create_mcap_channels(mcap::McapWriter& writer,
+                                                                                        std::string_view base_name)
+{
+    return std::make_unique<ControllerMcapChannels>(
+        writer, base_name, ControllerRecordingTraits::schema_name,
+        std::vector<std::string>(ControllerRecordingTraits::channels.begin(), ControllerRecordingTraits::channels.end()));
+}
+
+LiveControllerTrackerImpl::LiveControllerTrackerImpl(const OpenXRSessionHandles& handles,
+                                                     std::unique_ptr<ControllerMcapChannels> mcap_channels)
     : core_funcs_(OpenXRCoreFunctions::load(handles.instance, handles.xrGetInstanceProcAddr)),
       time_converter_(handles),
       session_(handles.session),
@@ -222,7 +233,8 @@ LiveControllerTrackerImpl::LiveControllerTrackerImpl(const OpenXRSessionHandles&
       left_grip_space_(create_space(core_funcs_, session_, grip_pose_action_, left_hand_path_)),
       right_grip_space_(create_space(core_funcs_, session_, grip_pose_action_, right_hand_path_)),
       left_aim_space_(create_space(core_funcs_, session_, aim_pose_action_, left_hand_path_)),
-      right_aim_space_(create_space(core_funcs_, session_, aim_pose_action_, right_hand_path_))
+      right_aim_space_(create_space(core_funcs_, session_, aim_pose_action_, right_hand_path_)),
+      mcap_channels_(std::move(mcap_channels))
 {
     // Suggest interaction profile bindings (chained to this action context)
     std::vector<XrActionSuggestedBinding> bindings;
@@ -308,8 +320,6 @@ bool LiveControllerTrackerImpl::update(XrTime time)
         right_tracked_.data.reset();
         return false;
     }
-    // sync_state.interactionProfileChanged is intentionally ignored: this
-    // tracker uses a fixed Oculus Touch binding and has no rebinding logic.
 
     auto update_controller = [&](XrPath hand_path, const XrSpacePtr& grip_space, const XrSpacePtr& aim_space,
                                  ControllerSnapshotTrackedT& tracked)
@@ -379,8 +389,14 @@ bool LiveControllerTrackerImpl::update(XrTime time)
     update_controller(left_hand_path_, left_grip_space_, left_aim_space_, left_tracked_);
     update_controller(right_hand_path_, right_grip_space_, right_aim_space_, right_tracked_);
 
-    // Sync succeeded; return true even if neither controller is equipped.
-    // Returns false only on xrSyncActions2NV failure (early return above).
+    if (mcap_channels_)
+    {
+        int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
+        DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
+        mcap_channels_->write(0, timestamp, left_tracked_.data);
+        mcap_channels_->write(1, timestamp, right_tracked_.data);
+    }
+
     return true;
 }
 
@@ -392,31 +408,6 @@ const ControllerSnapshotTrackedT& LiveControllerTrackerImpl::get_left_controller
 const ControllerSnapshotTrackedT& LiveControllerTrackerImpl::get_right_controller() const
 {
     return right_tracked_;
-}
-
-void LiveControllerTrackerImpl::serialize_all(size_t channel_index, const RecordCallback& callback) const
-{
-    if (channel_index > 1)
-    {
-        throw std::runtime_error("ControllerTracker::serialize_all: invalid channel_index " +
-                                 std::to_string(channel_index) + " (must be 0 or 1)");
-    }
-    flatbuffers::FlatBufferBuilder builder(256);
-
-    const auto& tracked = (channel_index == 0) ? left_tracked_ : right_tracked_;
-    int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
-    DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
-
-    ControllerSnapshotRecordBuilder record_builder(builder);
-    if (tracked.data)
-    {
-        auto data_offset = ControllerSnapshot::Pack(builder, tracked.data.get());
-        record_builder.add_data(data_offset);
-    }
-    record_builder.add_timestamp(&timestamp);
-    builder.Finish(record_builder.Finish());
-
-    callback(monotonic_ns, builder.GetBufferPointer(), builder.GetSize());
 }
 
 } // namespace core

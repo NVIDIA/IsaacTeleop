@@ -58,16 +58,6 @@ public:
     {
         return TRACKER_NAME;
     }
-    std::string_view get_schema_name() const override
-    {
-        return SCHEMA_NAME;
-    }
-    std::string_view get_schema_text() const override;
-    std::vector<std::string> get_record_channels() const override
-    {
-        return { "pedals" };
-    }
-
     // Double-dispatch: calls factory.create_generic_3axis_pedal_tracker_impl(this)
     std::unique_ptr<ITrackerImpl> create_tracker_impl(ITrackerFactory& factory) const override;
 
@@ -93,7 +83,6 @@ public:
 
 private:
     static constexpr const char* TRACKER_NAME = "Generic3AxisPedalTracker";
-    static constexpr const char* SCHEMA_NAME = "core.Generic3AxisPedalOutputRecord";
 
     std::string collection_id_;
     size_t max_flatbuffer_size_;

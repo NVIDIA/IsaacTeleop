@@ -4,20 +4,27 @@
 #pragma once
 
 #include <deviceio_base/hand_tracker_base.hpp>
+#include <mcap/tracker_channels.hpp>
 #include <openxr/openxr.h>
 #include <oxr_utils/oxr_funcs.hpp>
 #include <oxr_utils/oxr_session_handles.hpp>
 #include <oxr_utils/oxr_time.hpp>
 #include <schema/hand_generated.h>
 
+#include <memory>
+#include <string_view>
+
 namespace core
 {
 
-// OpenXR-backed implementation of HandTrackerImpl.
+using HandMcapChannels = McapTrackerChannels<HandPoseRecord, HandPose>;
+
 class LiveHandTrackerImpl : public HandTrackerImpl
 {
 public:
-    explicit LiveHandTrackerImpl(const OpenXRSessionHandles& handles);
+    static std::unique_ptr<HandMcapChannels> create_mcap_channels(mcap::McapWriter& writer, std::string_view base_name);
+
+    LiveHandTrackerImpl(const OpenXRSessionHandles& handles, std::unique_ptr<HandMcapChannels> mcap_channels);
     ~LiveHandTrackerImpl();
 
     LiveHandTrackerImpl(const LiveHandTrackerImpl&) = delete;
@@ -26,7 +33,6 @@ public:
     LiveHandTrackerImpl& operator=(LiveHandTrackerImpl&&) = delete;
 
     bool update(XrTime time) override;
-    void serialize_all(size_t channel_index, const RecordCallback& callback) const override;
     const HandPoseTrackedT& get_left_hand() const override;
     const HandPoseTrackedT& get_right_hand() const override;
 
@@ -46,6 +52,8 @@ private:
     PFN_xrCreateHandTrackerEXT pfn_create_hand_tracker_;
     PFN_xrDestroyHandTrackerEXT pfn_destroy_hand_tracker_;
     PFN_xrLocateHandJointsEXT pfn_locate_hand_joints_;
+
+    std::unique_ptr<HandMcapChannels> mcap_channels_;
 };
 
 } // namespace core

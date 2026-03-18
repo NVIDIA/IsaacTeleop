@@ -3,8 +3,10 @@
 
 #include "live_hand_tracker_impl.hpp"
 
+#include <mcap/recording_traits.hpp>
 #include <oxr_utils/oxr_funcs.hpp>
 #include <oxr_utils/oxr_time.hpp>
+#include <schema/hand_bfbs_generated.h>
 
 #include <cassert>
 #include <cstring>
@@ -18,14 +20,24 @@ namespace core
 // LiveHandTrackerImpl
 // ============================================================================
 
-LiveHandTrackerImpl::LiveHandTrackerImpl(const OpenXRSessionHandles& handles)
+std::unique_ptr<HandMcapChannels> LiveHandTrackerImpl::create_mcap_channels(mcap::McapWriter& writer,
+                                                                            std::string_view base_name)
+{
+    return std::make_unique<HandMcapChannels>(
+        writer, base_name, HandRecordingTraits::schema_name,
+        std::vector<std::string>(HandRecordingTraits::channels.begin(), HandRecordingTraits::channels.end()));
+}
+
+LiveHandTrackerImpl::LiveHandTrackerImpl(const OpenXRSessionHandles& handles,
+                                         std::unique_ptr<HandMcapChannels> mcap_channels)
     : time_converter_(handles),
       base_space_(handles.space),
       left_hand_tracker_(XR_NULL_HANDLE),
       right_hand_tracker_(XR_NULL_HANDLE),
       pfn_create_hand_tracker_(nullptr),
       pfn_destroy_hand_tracker_(nullptr),
-      pfn_locate_hand_joints_(nullptr)
+      pfn_locate_hand_joints_(nullptr),
+      mcap_channels_(std::move(mcap_channels))
 {
     auto core_funcs = OpenXRCoreFunctions::load(handles.instance, handles.xrGetInstanceProcAddr);
 
@@ -36,7 +48,7 @@ LiveHandTrackerImpl::LiveHandTrackerImpl(const OpenXRSessionHandles& handles)
     XrResult result = core_funcs.xrGetSystem(handles.instance, &system_info, &system_id);
     if (XR_FAILED(result))
     {
-        throw std::runtime_error("xrGetSystem failed: " + std::to_string(result));
+        throw std::runtime_error("Failed to get OpenXR system: " + std::to_string(result));
     }
 
     XrSystemHandTrackingPropertiesEXT hand_tracking_props{ XR_TYPE_SYSTEM_HAND_TRACKING_PROPERTIES_EXT };
@@ -46,7 +58,7 @@ LiveHandTrackerImpl::LiveHandTrackerImpl(const OpenXRSessionHandles& handles)
     result = core_funcs.xrGetSystemProperties(handles.instance, system_id, &system_props);
     if (XR_FAILED(result))
     {
-        throw std::runtime_error("xrGetSystemProperties failed: " + std::to_string(result));
+        throw std::runtime_error("Failed to get system properties: " + std::to_string(result));
     }
     if (!hand_tracking_props.supportsHandTracking)
     {
@@ -110,7 +122,16 @@ bool LiveHandTrackerImpl::update(XrTime time)
     last_update_time_ = time;
     bool left_ok = update_hand(left_hand_tracker_, time, left_tracked_);
     bool right_ok = update_hand(right_hand_tracker_, time, right_tracked_);
-    return left_ok && right_ok;
+
+    if (mcap_channels_)
+    {
+        int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
+        DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
+        mcap_channels_->write(0, timestamp, left_tracked_.data);
+        mcap_channels_->write(1, timestamp, right_tracked_.data);
+    }
+
+    return left_ok || right_ok;
 }
 
 const HandPoseTrackedT& LiveHandTrackerImpl::get_left_hand() const
@@ -121,31 +142,6 @@ const HandPoseTrackedT& LiveHandTrackerImpl::get_left_hand() const
 const HandPoseTrackedT& LiveHandTrackerImpl::get_right_hand() const
 {
     return right_tracked_;
-}
-
-void LiveHandTrackerImpl::serialize_all(size_t channel_index, const RecordCallback& callback) const
-{
-    if (channel_index > 1)
-    {
-        throw std::runtime_error("HandTracker::serialize_all: invalid channel_index " + std::to_string(channel_index) +
-                                 " (must be 0 or 1)");
-    }
-    flatbuffers::FlatBufferBuilder builder(256);
-
-    const auto& tracked = (channel_index == 0) ? left_tracked_ : right_tracked_;
-    int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
-    DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
-
-    HandPoseRecordBuilder record_builder(builder);
-    if (tracked.data)
-    {
-        auto data_offset = HandPose::Pack(builder, tracked.data.get());
-        record_builder.add_data(data_offset);
-    }
-    record_builder.add_timestamp(&timestamp);
-    builder.Finish(record_builder.Finish());
-
-    callback(monotonic_ns, builder.GetBufferPointer(), builder.GetSize());
 }
 
 bool LiveHandTrackerImpl::update_hand(XrHandTrackerEXT tracker, XrTime time, HandPoseTrackedT& tracked)
@@ -188,19 +184,15 @@ bool LiveHandTrackerImpl::update_hand(XrHandTrackerEXT tracker, XrTime time, Han
     {
         const auto& joint_loc = joint_locations[i];
 
+        Point position(joint_loc.pose.position.x, joint_loc.pose.position.y, joint_loc.pose.position.z);
+        Quaternion orientation(joint_loc.pose.orientation.x, joint_loc.pose.orientation.y, joint_loc.pose.orientation.z,
+                               joint_loc.pose.orientation.w);
+        Pose pose(position, orientation);
+
         bool is_valid = (joint_loc.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) &&
                         (joint_loc.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT);
 
-        Pose pose;
-        if (is_valid)
-        {
-            Point position(joint_loc.pose.position.x, joint_loc.pose.position.y, joint_loc.pose.position.z);
-            Quaternion orientation(joint_loc.pose.orientation.x, joint_loc.pose.orientation.y,
-                                   joint_loc.pose.orientation.z, joint_loc.pose.orientation.w);
-            pose = Pose(position, orientation);
-        }
-
-        HandJointPose joint_pose(pose, is_valid, is_valid ? joint_loc.radius : 0.0f);
+        HandJointPose joint_pose(pose, is_valid, joint_loc.radius);
         tracked.data->joints->mutable_poses()->Mutate(i, joint_pose);
     }
 

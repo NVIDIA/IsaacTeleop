@@ -4,7 +4,6 @@
 #include "inc/deviceio_trackers/generic_3axis_pedal_tracker.hpp"
 
 #include <deviceio_base/tracker_factory.hpp>
-#include <schema/pedals_bfbs_generated.h>
 
 namespace core
 {
@@ -23,12 +22,6 @@ std::vector<std::string> Generic3AxisPedalTracker::get_required_extensions() con
     // Tensor-data extension required by SchemaTracker-based trackers.
     // XrTimeConverter extensions are added separately by DeviceIOSession::get_required_extensions().
     return { "XR_NVX1_tensor_data" };
-}
-
-std::string_view Generic3AxisPedalTracker::get_schema_text() const
-{
-    return std::string_view(reinterpret_cast<const char*>(Generic3AxisPedalOutputRecordBinarySchema::data()),
-                            Generic3AxisPedalOutputRecordBinarySchema::size());
 }
 
 const Generic3AxisPedalOutputTrackedT& Generic3AxisPedalTracker::get_data(const ITrackerSession& session) const

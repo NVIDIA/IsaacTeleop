@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-#include "inc/live_trackers/schema_tracker.hpp"
+#include "inc/live_trackers/schema_tracker_base.hpp"
 
 #include <openxr/openxr.h>
 #include <oxr_utils/oxr_funcs.hpp>
@@ -19,7 +19,7 @@ namespace core
 // SchemaTracker Implementation
 // =============================================================================
 
-SchemaTracker::SchemaTracker(const OpenXRSessionHandles& handles, SchemaTrackerConfig config)
+SchemaTrackerBase::SchemaTrackerBase(const OpenXRSessionHandles& handles, SchemaTrackerConfig config)
     : m_handles(handles), m_config(std::move(config)), m_time_converter(handles)
 {
     // Validate handles
@@ -36,7 +36,7 @@ SchemaTracker::SchemaTracker(const OpenXRSessionHandles& handles, SchemaTrackerC
     std::cout << "SchemaTracker initialized, looking for collection: " << m_config.collection_id << std::endl;
 }
 
-SchemaTracker::~SchemaTracker()
+SchemaTrackerBase::~SchemaTrackerBase()
 {
     // m_tensor_list is guaranteed to be non-null by create_tensor_list(), or the constructor would have thrown.
     assert(m_tensor_list != XR_NULL_HANDLE && m_destroy_list_fn != nullptr);
@@ -48,7 +48,7 @@ SchemaTracker::~SchemaTracker()
     }
 }
 
-std::vector<std::string> SchemaTracker::get_required_extensions()
+std::vector<std::string> SchemaTrackerBase::get_required_extensions()
 {
     std::vector<std::string> exts = { "XR_NVX1_tensor_data" };
     for (const auto& ext : XrTimeConverter::get_required_extensions())
@@ -58,25 +58,76 @@ std::vector<std::string> SchemaTracker::get_required_extensions()
     return exts;
 }
 
-bool SchemaTracker::ensure_collection()
+bool SchemaTrackerBase::ensure_collection()
 {
-    poll_for_updates();
+    uint64_t latest_generation = 0;
+    XrResult result = m_get_latest_gen_fn(m_handles.session, &latest_generation);
+    if (result != XR_SUCCESS)
+    {
+        throw std::runtime_error("Failed to get latest generation, result=" + std::to_string(result));
+    }
 
-    auto new_index = find_target_collection();
-    if (!new_index)
+    if (latest_generation == m_cached_generation && m_target_collection_index.has_value())
     {
-        return false;
+        return true;
     }
-    if (new_index != m_target_collection_index)
+
+    if (latest_generation != m_cached_generation)
     {
-        m_target_collection_index = new_index;
-        m_last_sample_index.reset();
-        std::cout << "Found target collection at index " << *m_target_collection_index << std::endl;
+        result = m_update_list_fn(m_tensor_list);
+        if (result != XR_SUCCESS)
+        {
+            throw std::runtime_error("Failed to update tensor list, result=" + std::to_string(result));
+        }
+        m_cached_generation = latest_generation;
     }
-    return true;
+
+    XrSystemTensorListPropertiesNV list_props{ XR_TYPE_SYSTEM_TENSOR_LIST_PROPERTIES_NV };
+    result = m_get_list_props_fn(m_tensor_list, &list_props);
+    if (result != XR_SUCCESS)
+    {
+        throw std::runtime_error("Failed to get list properties, result=" + std::to_string(result));
+    }
+
+    for (uint32_t i = 0; i < list_props.tensorCollectionCount; ++i)
+    {
+        XrTensorCollectionPropertiesNV coll_props{ XR_TYPE_TENSOR_COLLECTION_PROPERTIES_NV };
+        result = m_get_coll_props_fn(m_tensor_list, i, &coll_props);
+        if (result != XR_SUCCESS)
+        {
+            throw std::runtime_error("Failed to get collection properties, result=" + std::to_string(result));
+        }
+
+        if (std::strncmp(coll_props.data.identifier, m_config.collection_id.c_str(), XR_MAX_TENSOR_IDENTIFIER_SIZE) != 0)
+        {
+            continue;
+        }
+
+        if (coll_props.data.totalSampleSize > m_config.max_flatbuffer_size)
+        {
+            throw std::runtime_error(
+                "SchemaTracker: collection '" + m_config.collection_id +
+                "' reports totalSampleSize=" + std::to_string(coll_props.data.totalSampleSize) +
+                " which exceeds configured max_flatbuffer_size=" + std::to_string(m_config.max_flatbuffer_size));
+        }
+
+        m_sample_batch_stride = coll_props.sampleBatchStride;
+        m_sample_size = coll_props.data.totalSampleSize;
+
+        if (i != m_target_collection_index)
+        {
+            m_last_sample_index.reset();
+            std::cout << "Found target collection at index " << i << std::endl;
+        }
+        m_target_collection_index = i;
+        return true;
+    }
+
+    m_target_collection_index.reset();
+    return false;
 }
 
-bool SchemaTracker::read_all_samples(std::vector<SampleResult>& samples)
+bool SchemaTrackerBase::read_all_samples(std::vector<SampleResult>& samples)
 {
     if (!ensure_collection())
     {
@@ -99,12 +150,12 @@ bool SchemaTracker::read_all_samples(std::vector<SampleResult>& samples)
     return true;
 }
 
-const SchemaTrackerConfig& SchemaTracker::config() const
+const SchemaTrackerConfig& SchemaTrackerBase::config() const
 {
     return m_config;
 }
 
-void SchemaTracker::initialize_tensor_data_functions()
+void SchemaTrackerBase::initialize_tensor_data_functions()
 {
     loadExtensionFunction(m_handles.instance, m_handles.xrGetInstanceProcAddr, "xrGetTensorListLatestGenerationNV",
                           reinterpret_cast<PFN_xrVoidFunction*>(&m_get_latest_gen_fn));
@@ -122,7 +173,7 @@ void SchemaTracker::initialize_tensor_data_functions()
                           reinterpret_cast<PFN_xrVoidFunction*>(&m_destroy_list_fn));
 }
 
-void SchemaTracker::create_tensor_list()
+void SchemaTrackerBase::create_tensor_list()
 {
     XrCreateTensorListInfoNV createInfo{ XR_TYPE_CREATE_TENSOR_LIST_INFO_NV };
     createInfo.next = nullptr;
@@ -134,70 +185,7 @@ void SchemaTracker::create_tensor_list()
     }
 }
 
-void SchemaTracker::poll_for_updates()
-{
-    // Check if tensor list needs update
-    uint64_t latest_generation = 0;
-    XrResult result = m_get_latest_gen_fn(m_handles.session, &latest_generation);
-    if (result != XR_SUCCESS)
-    {
-        throw std::runtime_error("Failed to get latest generation, result=" + std::to_string(result));
-    }
-
-    if (latest_generation != m_cached_generation)
-    {
-        result = m_update_list_fn(m_tensor_list);
-        if (result != XR_SUCCESS)
-        {
-            throw std::runtime_error("Failed to update tensor list, result=" + std::to_string(result));
-        }
-        m_cached_generation = latest_generation;
-        // Invalidate the cached collection index so ensure_collection() re-discovers
-        // it on the next call, which also resets m_last_sample_index for the new collection.
-        m_target_collection_index = std::nullopt;
-    }
-}
-
-std::optional<uint32_t> SchemaTracker::find_target_collection()
-{
-    // Get list properties
-    XrSystemTensorListPropertiesNV listProps{ XR_TYPE_SYSTEM_TENSOR_LIST_PROPERTIES_NV };
-
-    XrResult result = m_get_list_props_fn(m_tensor_list, &listProps);
-    if (result != XR_SUCCESS)
-    {
-        throw std::runtime_error("Failed to get list properties, result=" + std::to_string(result));
-    }
-
-    if (listProps.tensorCollectionCount == 0)
-    {
-        return std::nullopt; // No collections available yet
-    }
-
-    // Search for matching collection
-    for (uint32_t i = 0; i < listProps.tensorCollectionCount; ++i)
-    {
-        XrTensorCollectionPropertiesNV collProps{ XR_TYPE_TENSOR_COLLECTION_PROPERTIES_NV };
-
-        result = m_get_coll_props_fn(m_tensor_list, i, &collProps);
-        if (result != XR_SUCCESS)
-        {
-            throw std::runtime_error("Failed to get collection properties, result=" + std::to_string(result));
-        }
-
-        if (std::strncmp(collProps.data.identifier, m_config.collection_id.c_str(), XR_MAX_TENSOR_IDENTIFIER_SIZE) == 0)
-        {
-            // Found matching collection
-            m_sample_batch_stride = collProps.sampleBatchStride;
-            m_sample_size = collProps.data.totalSampleSize;
-            return i;
-        }
-    }
-
-    return std::nullopt;
-}
-
-bool SchemaTracker::read_next_sample(SampleResult& out)
+bool SchemaTrackerBase::read_next_sample(SampleResult& out)
 {
     if (!m_target_collection_index.has_value())
     {
@@ -246,12 +234,6 @@ bool SchemaTracker::read_next_sample(SampleResult& out)
         return false; // No new samples
     }
 
-    // Update last sample index
-    if (!m_last_sample_index.has_value() || metadata.sampleIndex > m_last_sample_index.value())
-    {
-        m_last_sample_index = metadata.sampleIndex;
-    }
-
     // Guard against invalid runtime state: batch stride must cover at least one full sample.
     if (dataBuffer.size() < m_sample_size)
     {
@@ -263,6 +245,12 @@ bool SchemaTracker::read_next_sample(SampleResult& out)
     // Copy data to output buffer (trim to sample size, not batch stride)
     out.buffer.resize(m_sample_size);
     std::memcpy(out.buffer.data(), dataBuffer.data(), m_sample_size);
+
+    // Advance past this sample only after successful copy
+    if (!m_last_sample_index.has_value() || metadata.sampleIndex > m_last_sample_index.value())
+    {
+        m_last_sample_index = metadata.sampleIndex;
+    }
 
     // Convert XrTime values from tensor metadata back to monotonic nanoseconds.
     int64_t available_ns =

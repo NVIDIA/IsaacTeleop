@@ -3,149 +3,102 @@
 
 #pragma once
 
-#include <oxr_utils/oxr_session_handles.hpp>
-#include <oxr_utils/oxr_time.hpp>
-#include <schema/timestamp_generated.h>
+#include "schema_tracker_base.hpp"
 
-#include <XR_NVX1_tensor_data.h>
-#include <cstddef>
-#include <cstdint>
-#include <optional>
-#include <string>
-#include <vector>
+#include <flatbuffers/flatbuffers.h>
+#include <mcap/tracker_channels.hpp>
+
+#include <memory>
 
 namespace core
 {
 
-/*!
- * @brief Configuration for OpenXR tensor-backed FlatBuffer readers (used by SchemaTracker).
+/**
+ * @brief Typed SchemaTracker that optionally records to MCAP.
+ *
+ * Wraps SchemaTrackerBase with FlatBuffer type knowledge so that each sample
+ * read from the tensor can be automatically written to an MCAP channel.
+ *
+ * @tparam RecordT    FlatBuffer record wrapper (e.g. Generic3AxisPedalOutputRecord).
+ * @tparam DataTableT FlatBuffer data table (e.g. Generic3AxisPedalOutput).
  */
-struct SchemaTrackerConfig
-{
-    //! Tensor collection identifier for discovery (e.g., "head_data").
-    std::string collection_id;
-
-    //! Maximum serialized FlatBuffer message size in bytes.
-    size_t max_flatbuffer_size;
-
-    //! Tensor name within the collection (e.g., "head_pose").
-    std::string tensor_identifier;
-
-    //! Human-readable description for debugging and runtime display.
-    std::string localized_name;
-};
-
-/*!
- * @brief Utility class for reading FlatBuffer schema data via OpenXR tensor extensions.
- *
- * This class handles all the OpenXR tensor extension calls for reading data.
- * Use it via composition in live ITrackerImpl implementations.
- *
- * The caller is responsible for creating the OpenXR session with the required extensions
- * (XR_NVX1_TENSOR_DATA_EXTENSION_NAME).
- *
- * See LiveGeneric3AxisPedalTrackerImpl for a concrete usage example.
- */
-class SchemaTracker
+template <typename RecordT, typename DataTableT>
+class SchemaTracker : public SchemaTrackerBase
 {
 public:
-    /*!
-     * @brief Constructs the tracker and initializes the OpenXR tensor list.
-     * @param handles OpenXR session handles.
-     * @param config Configuration for the tensor collection.
-     * @throws std::runtime_error if initialization fails.
-     */
-    SchemaTracker(const OpenXRSessionHandles& handles, SchemaTrackerConfig config);
+    using NativeDataT = typename DataTableT::NativeTableType;
+    using Channels = McapTrackerChannels<RecordT, DataTableT>;
 
-    /*!
-     * @brief Destroys the tracker and cleans up OpenXR resources.
+    /**
+     * @param mcap_channels Non-owning pointer to the MCAP channel writer. Must outlive
+     *        this SchemaTracker. Owned by the live tracker impl that also owns this
+     *        SchemaTracker instance. Null when recording is disabled.
+     * @param mcap_channel_index 0-based sub-channel index within mcap_channels.
      */
-    ~SchemaTracker();
-
-    // Non-copyable, non-movable
-    SchemaTracker(const SchemaTracker&) = delete;
-    SchemaTracker& operator=(const SchemaTracker&) = delete;
-    SchemaTracker(SchemaTracker&&) = delete;
-    SchemaTracker& operator=(SchemaTracker&&) = delete;
-
-    /*!
-     * @brief Get required OpenXR extensions for tensor data reading and time conversion.
-     * @return Vector of required extension name strings.
-     */
-    static std::vector<std::string> get_required_extensions();
-
-    /*!
-     * @brief A single tensor sample with its data buffer and timestamps.
-     *
-     * The DeviceDataTimestamp fields are populated as follows:
-     *   - available_time_local_common_clock: system monotonic nanoseconds when the runtime
-     *     received the sample (converted from XrTime via xrConvertTimeToTimespecTimeKHR).
-     *   - sample_time_local_common_clock: system monotonic nanoseconds when the sample was
-     *     captured on the push side (converted from XrTime symmetrically with push_buffer).
-     *   - sample_time_raw_device_clock: raw device clock nanoseconds, unchanged from what
-     *     the pusher provided.
-     */
-    struct SampleResult
+    SchemaTracker(const OpenXRSessionHandles& handles,
+                  SchemaTrackerConfig config,
+                  Channels* mcap_channels = nullptr,
+                  size_t mcap_channel_index = 0)
+        : SchemaTrackerBase(handles, std::move(config)),
+          mcap_channels_(mcap_channels),
+          mcap_channel_index_(mcap_channel_index)
     {
-        std::vector<uint8_t> buffer;
-        DeviceDataTimestamp timestamp;
-    };
+    }
 
-    /*!
-     * @brief Read ALL pending samples from the tensor collection.
+    /**
+     * @brief Read all pending samples; write each to MCAP if channels are set.
      *
-     * Drains every available sample since the last read, appending each to the
-     * output vector with timestamps converted from XrTensorSampleMetadataNV:
-     *   - available_time_local_common_clock = arrivalTimestamp → local monotonic nanoseconds
-     *   - sample_time_local_common_clock    = timestamp → local monotonic nanoseconds
-     *   - sample_time_raw_device_clock      = rawDeviceTimestamp (raw device clock, not converted)
+     * Each sample is unpacked, repacked into a Record with its timestamp,
+     * and written to the MCAP channel. The last sample's unpacked data is
+     * returned via out_latest (if non-null and samples were read).
      *
-     * A @c false return does not imply that no samples were appended — use
-     * @c samples.size() to determine how many were read. The return value only
-     * indicates whether the target collection is currently reachable, which lets
-     * callers distinguish between "tracker disappeared" (false) and "update called
-     * before any new samples arrived" (true, zero appended).
-     *
-     * @param samples Output vector; new samples are appended (not cleared).
-     * @return @c true if the target collection is present; @c false if it has not
-     *         been discovered yet or has disappeared.
+     * @param out_latest If non-null and samples were read, receives the unpacked
+     *                   data from the last sample.
+     * @return true if the tensor collection is present.
      */
-    bool read_all_samples(std::vector<SampleResult>& samples);
+    bool update(std::shared_ptr<NativeDataT>& out_latest)
+    {
+        samples_.clear();
+        bool present = read_all_samples(samples_);
 
-    /*!
-     * @brief Access the configuration.
-     */
-    const SchemaTrackerConfig& config() const;
+        if (samples_.empty())
+        {
+            if (!present)
+            {
+                out_latest.reset();
+            }
+            return present;
+        }
+
+        for (const auto& sample : samples_)
+        {
+            auto fb = flatbuffers::GetRoot<DataTableT>(sample.buffer.data());
+            if (!fb)
+            {
+                continue;
+            }
+
+            if (!out_latest)
+            {
+                out_latest = std::make_shared<NativeDataT>();
+            }
+            fb->UnPackTo(out_latest.get());
+
+            // write() serializes synchronously and does not retain the shared_ptr,
+            // so reusing out_latest across loop iterations is safe.
+            if (mcap_channels_)
+            {
+                mcap_channels_->write(mcap_channel_index_, sample.timestamp, out_latest);
+            }
+        }
+
+        return present;
+    }
 
 private:
-    void initialize_tensor_data_functions();
-    void create_tensor_list();
-    bool ensure_collection();
-    void poll_for_updates();
-    std::optional<uint32_t> find_target_collection();
-    bool read_next_sample(SampleResult& out);
-
-    OpenXRSessionHandles m_handles;
-    SchemaTrackerConfig m_config;
-    XrTimeConverter m_time_converter;
-
-    XrTensorListNV m_tensor_list{ XR_NULL_HANDLE };
-
-    PFN_xrGetTensorListLatestGenerationNV m_get_latest_gen_fn{ nullptr };
-    PFN_xrCreateTensorListNV m_create_list_fn{ nullptr };
-    PFN_xrGetTensorListPropertiesNV m_get_list_props_fn{ nullptr };
-    PFN_xrGetTensorCollectionPropertiesNV m_get_coll_props_fn{ nullptr };
-    PFN_xrGetTensorDataNV m_get_data_fn{ nullptr };
-    PFN_xrUpdateTensorListNV m_update_list_fn{ nullptr };
-    PFN_xrDestroyTensorListNV m_destroy_list_fn{ nullptr };
-
-    std::optional<uint32_t> m_target_collection_index;
-    uint32_t m_sample_batch_stride{ 0 };
-    uint32_t m_sample_size{ 0 };
-
-    uint64_t m_cached_generation{ 0 };
-
-    std::optional<int64_t> m_last_sample_index;
+    Channels* mcap_channels_;
+    size_t mcap_channel_index_;
+    std::vector<SampleResult> samples_;
 };
 
 } // namespace core

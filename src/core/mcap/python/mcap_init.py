@@ -1,29 +1,21 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Isaac Teleop MCAP - MCAP Recording Module
+"""Isaac Teleop MCAP module.
 
-This module provides MCAP file recording functionality for tracker data.
+MCAP recording is handled by DeviceIOSession. Pass a McapRecordingConfig
+to DeviceIOSession.run() to enable automatic recording; omit it (or pass
+None) to disable recording:
 
-Usage:
-    from isaacteleop.mcap import McapRecorder
-    from isaacteleop.deviceio import DeviceIOSession, HandTracker, HeadTracker
+    from isaacteleop.deviceio_session import DeviceIOSession, McapRecordingConfig
 
-    hand_tracker = HandTracker()
-    head_tracker = HeadTracker()
-
-    # Create recorder with context manager (similar to DeviceIOSession.run)
-    with McapRecorder.create("output.mcap", [
+    config = McapRecordingConfig("output.mcap", [
         (hand_tracker, "hands"),
         (head_tracker, "head"),
-    ]) as recorder:
+    ])
+    with DeviceIOSession.run(trackers, handles, config) as session:
         while running:
-            session.update()
-            recorder.record(session)
+            session.update()  # writes to MCAP automatically
 """
 
-from ._mcap import McapRecorder
-
-__all__ = [
-    "McapRecorder",
-]
+__all__ = []

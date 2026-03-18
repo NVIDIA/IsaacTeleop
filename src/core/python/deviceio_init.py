@@ -5,7 +5,7 @@
 
 Prefer importing directly:
     from isaacteleop.deviceio_trackers import HeadTracker, HandTracker
-    from isaacteleop.deviceio_session import DeviceIOSession
+    from isaacteleop.deviceio_session import DeviceIOSession, McapRecordingConfig
 """
 
 from isaacteleop.deviceio_trackers import (
@@ -23,7 +23,7 @@ from isaacteleop.deviceio_trackers import (
     JOINT_INDEX_TIP,
 )
 
-from isaacteleop.deviceio_session import DeviceIOSession
+from isaacteleop.deviceio_session import DeviceIOSession, McapRecordingConfig
 
 from ..oxr import OpenXRSessionHandles
 
@@ -54,6 +54,7 @@ __all__ = [
     "FullBodyTrackerPico",
     "OpenXRSessionHandles",
     "DeviceIOSession",
+    "McapRecordingConfig",
     "NUM_JOINTS",
     "JOINT_PALM",
     "JOINT_WRIST",
