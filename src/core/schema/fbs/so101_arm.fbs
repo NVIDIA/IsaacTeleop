@@ -1,0 +1,35 @@
+// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+include "timestamp.fbs";
+
+namespace core;
+
+// Joint positions from an SO-101 6-DOF robot arm (leader arm for teleoperation).
+// Positions are normalized to [-1.0, 1.0] range from the servo's 0-4095 raw range,
+// centered around the calibrated midpoint.
+table SO101ArmOutput {
+  shoulder_pan: float (id: 0);
+  shoulder_lift: float (id: 1);
+  elbow_flex: float (id: 2);
+  wrist_flex: float (id: 3);
+  wrist_roll: float (id: 4);
+  gripper: float (id: 5);     // 0.0 = open, 1.0 = closed
+}
+
+// Tracked wrapper for the in-memory tracker API (data is null when no arm data available).
+table SO101ArmOutputTracked {
+    data: SO101ArmOutput (id: 0);
+}
+
+// MCAP recording wrapper for SO101ArmOutput.
+//
+// Record types are the root types written to MCAP channels by the McapRecorder.
+// Trackers serialize into Record types via their serialize() method, but the
+// public query API returns the inner data type directly.
+table SO101ArmOutputRecord {
+    data: SO101ArmOutput (id: 0);
+    timestamp: DeviceDataTimestamp (id: 1);
+}
+
+root_type SO101ArmOutputRecord;
