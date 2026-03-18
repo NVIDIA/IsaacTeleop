@@ -11,12 +11,9 @@
 namespace core
 {
 
-// Controller tracker - tracks both left and right controllers.
-// Updates all controller state (poses + inputs) each frame.
-//
-// Each instance creates its own XR_NVX1_action_context so that multiple
-// ControllerTracker instances can coexist on the same XrSession without
-// conflicting action-set names or interaction-profile bindings.
+// Tracks both left and right controllers via XR_NVX1_action_context.
+// Each instance creates its own action context, so multiple ControllerTracker
+// instances can coexist on the same XrSession.
 class ControllerTracker : public ITracker
 {
 public:
@@ -24,15 +21,6 @@ public:
     std::string_view get_name() const override
     {
         return TRACKER_NAME;
-    }
-    std::string_view get_schema_name() const override
-    {
-        return SCHEMA_NAME;
-    }
-    std::string_view get_schema_text() const override;
-    std::vector<std::string> get_record_channels() const override
-    {
-        return { "left_controller", "right_controller" };
     }
 
     // Double-dispatch: calls factory.create_controller_tracker_impl()
@@ -44,7 +32,6 @@ public:
 
 private:
     static constexpr const char* TRACKER_NAME = "ControllerTracker";
-    static constexpr const char* SCHEMA_NAME = "core.ControllerSnapshotRecord";
 };
 
 } // namespace core

@@ -12,7 +12,7 @@
 namespace core
 {
 
-// Hand tracker - tracks both left and right hands via XR_EXT_hand_tracking
+// Tracks both left and right hands via XR_EXT_hand_tracking.
 class HandTracker : public ITracker
 {
 public:
@@ -20,15 +20,6 @@ public:
     std::string_view get_name() const override
     {
         return TRACKER_NAME;
-    }
-    std::string_view get_schema_name() const override
-    {
-        return SCHEMA_NAME;
-    }
-    std::string_view get_schema_text() const override;
-    std::vector<std::string> get_record_channels() const override
-    {
-        return { "left_hand", "right_hand" };
     }
 
     // Double-dispatch: calls factory.create_hand_tracker_impl()
@@ -43,7 +34,6 @@ public:
 
 private:
     static constexpr const char* TRACKER_NAME = "HandTracker";
-    static constexpr const char* SCHEMA_NAME = "core.HandPoseRecord";
 };
 
 } // namespace core

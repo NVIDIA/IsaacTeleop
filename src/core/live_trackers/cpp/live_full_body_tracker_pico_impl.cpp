@@ -3,8 +3,10 @@
 
 #include "live_full_body_tracker_pico_impl.hpp"
 
+#include <mcap/recording_traits.hpp>
 #include <oxr_utils/oxr_funcs.hpp>
 #include <oxr_utils/oxr_time.hpp>
+#include <schema/full_body_bfbs_generated.h>
 
 #include <cassert>
 #include <cstring>
@@ -17,13 +19,23 @@ namespace core
 // LiveFullBodyTrackerPicoImpl
 // ============================================================================
 
-LiveFullBodyTrackerPicoImpl::LiveFullBodyTrackerPicoImpl(const OpenXRSessionHandles& handles)
+std::unique_ptr<FullBodyMcapChannels> LiveFullBodyTrackerPicoImpl::create_mcap_channels(mcap::McapWriter& writer,
+                                                                                        std::string_view base_name)
+{
+    return std::make_unique<FullBodyMcapChannels>(writer, base_name, FullBodyPicoRecordingTraits::schema_name,
+                                                  std::vector<std::string>(FullBodyPicoRecordingTraits::channels.begin(),
+                                                                           FullBodyPicoRecordingTraits::channels.end()));
+}
+
+LiveFullBodyTrackerPicoImpl::LiveFullBodyTrackerPicoImpl(const OpenXRSessionHandles& handles,
+                                                         std::unique_ptr<FullBodyMcapChannels> mcap_channels)
     : time_converter_(handles),
       base_space_(handles.space),
       body_tracker_(XR_NULL_HANDLE),
       pfn_create_body_tracker_(nullptr),
       pfn_destroy_body_tracker_(nullptr),
-      pfn_locate_body_joints_(nullptr)
+      pfn_locate_body_joints_(nullptr),
+      mcap_channels_(std::move(mcap_channels))
 {
     auto core_funcs = OpenXRCoreFunctions::load(handles.instance, handles.xrGetInstanceProcAddr);
 
@@ -61,11 +73,6 @@ LiveFullBodyTrackerPicoImpl::LiveFullBodyTrackerPicoImpl(const OpenXRSessionHand
                           reinterpret_cast<PFN_xrVoidFunction*>(&pfn_destroy_body_tracker_));
     loadExtensionFunction(handles.instance, handles.xrGetInstanceProcAddr, "xrLocateBodyJointsBD",
                           reinterpret_cast<PFN_xrVoidFunction*>(&pfn_locate_body_joints_));
-
-    if (!pfn_create_body_tracker_ || !pfn_destroy_body_tracker_ || !pfn_locate_body_joints_)
-    {
-        throw std::runtime_error("Failed to get body tracking function pointers");
-    }
 
     XrBodyTrackerCreateInfoBD create_info{ XR_TYPE_BODY_TRACKER_CREATE_INFO_BD };
     create_info.next = nullptr;
@@ -135,20 +142,23 @@ bool LiveFullBodyTrackerPicoImpl::update(XrTime time)
     {
         const auto& joint_loc = joint_locations[i];
 
+        Point position(joint_loc.pose.position.x, joint_loc.pose.position.y, joint_loc.pose.position.z);
+        Quaternion orientation(joint_loc.pose.orientation.x, joint_loc.pose.orientation.y, joint_loc.pose.orientation.z,
+                               joint_loc.pose.orientation.w);
+        Pose pose(position, orientation);
+
         bool is_valid = (joint_loc.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) &&
                         (joint_loc.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT);
 
-        Pose pose(Point(0.0f, 0.0f, 0.0f), Quaternion(0.0f, 0.0f, 0.0f, 1.0f));
-        if (is_valid)
-        {
-            Point position(joint_loc.pose.position.x, joint_loc.pose.position.y, joint_loc.pose.position.z);
-            Quaternion orientation(joint_loc.pose.orientation.x, joint_loc.pose.orientation.y,
-                                   joint_loc.pose.orientation.z, joint_loc.pose.orientation.w);
-            pose = Pose(position, orientation);
-        }
-
         BodyJointPose joint_pose(pose, is_valid);
         tracked_.data->joints->mutable_joints()->Mutate(i, joint_pose);
+    }
+
+    if (mcap_channels_)
+    {
+        int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
+        DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
+        mcap_channels_->write(0, timestamp, tracked_.data);
     }
 
     return true;
@@ -157,31 +167,6 @@ bool LiveFullBodyTrackerPicoImpl::update(XrTime time)
 const FullBodyPosePicoTrackedT& LiveFullBodyTrackerPicoImpl::get_body_pose() const
 {
     return tracked_;
-}
-
-void LiveFullBodyTrackerPicoImpl::serialize_all(size_t channel_index, const RecordCallback& callback) const
-{
-    if (channel_index != 0)
-    {
-        throw std::runtime_error("FullBodyTrackerPico::serialize_all: invalid channel_index " +
-                                 std::to_string(channel_index) + " (only channel 0 exists)");
-    }
-
-    flatbuffers::FlatBufferBuilder builder(256);
-
-    int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
-    DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
-
-    FullBodyPosePicoRecordBuilder record_builder(builder);
-    if (tracked_.data)
-    {
-        auto data_offset = FullBodyPosePico::Pack(builder, tracked_.data.get());
-        record_builder.add_data(data_offset);
-    }
-    record_builder.add_timestamp(&timestamp);
-    builder.Finish(record_builder.Finish());
-
-    callback(monotonic_ns, builder.GetBufferPointer(), builder.GetSize());
 }
 
 } // namespace core

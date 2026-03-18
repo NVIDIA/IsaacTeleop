@@ -4,7 +4,6 @@
 #include "inc/deviceio_trackers/frame_metadata_tracker_oak.hpp"
 
 #include <deviceio_base/tracker_factory.hpp>
-#include <schema/oak_bfbs_generated.h>
 
 #include <stdexcept>
 #include <string>
@@ -34,7 +33,7 @@ FrameMetadataTrackerOak::FrameMetadataTrackerOak(const std::string& collection_p
             throw std::invalid_argument("FrameMetadataTrackerOak: invalid StreamType value " +
                                         std::to_string(static_cast<int>(type)));
         }
-        m_channel_names.emplace_back(name);
+        m_stream_names.emplace_back(name);
     }
 }
 
@@ -43,12 +42,6 @@ std::vector<std::string> FrameMetadataTrackerOak::get_required_extensions() cons
     // Tensor-data extension required by SchemaTracker-based trackers.
     // XrTimeConverter extensions are added separately by DeviceIOSession::get_required_extensions().
     return { "XR_NVX1_tensor_data" };
-}
-
-std::string_view FrameMetadataTrackerOak::get_schema_text() const
-{
-    return std::string_view(reinterpret_cast<const char*>(FrameMetadataOakRecordBinarySchema::data()),
-                            FrameMetadataOakRecordBinarySchema::size());
 }
 
 const FrameMetadataOakTrackedT& FrameMetadataTrackerOak::get_stream_data(const ITrackerSession& session,

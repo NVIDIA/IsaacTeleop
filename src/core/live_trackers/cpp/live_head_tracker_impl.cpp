@@ -3,6 +3,9 @@
 
 #include "live_head_tracker_impl.hpp"
 
+#include <mcap/recording_traits.hpp>
+#include <schema/head_bfbs_generated.h>
+
 #include <cstring>
 #include <iostream>
 
@@ -13,7 +16,16 @@ namespace core
 // LiveHeadTrackerImpl
 // ============================================================================
 
-LiveHeadTrackerImpl::LiveHeadTrackerImpl(const OpenXRSessionHandles& handles)
+std::unique_ptr<HeadMcapChannels> LiveHeadTrackerImpl::create_mcap_channels(mcap::McapWriter& writer,
+                                                                            std::string_view base_name)
+{
+    return std::make_unique<HeadMcapChannels>(
+        writer, base_name, HeadRecordingTraits::schema_name,
+        std::vector<std::string>(HeadRecordingTraits::channels.begin(), HeadRecordingTraits::channels.end()));
+}
+
+LiveHeadTrackerImpl::LiveHeadTrackerImpl(const OpenXRSessionHandles& handles,
+                                         std::unique_ptr<HeadMcapChannels> mcap_channels)
     : core_funcs_(OpenXRCoreFunctions::load(handles.instance, handles.xrGetInstanceProcAddr)),
       time_converter_(handles),
       base_space_(handles.space),
@@ -22,7 +34,8 @@ LiveHeadTrackerImpl::LiveHeadTrackerImpl(const OpenXRSessionHandles& handles)
                                        { .type = XR_TYPE_REFERENCE_SPACE_CREATE_INFO,
                                          .referenceSpaceType = XR_REFERENCE_SPACE_TYPE_VIEW,
                                          .poseInReferenceSpace = { .orientation = { 0, 0, 0, 1 } } })),
-      tracked_{}
+      tracked_{},
+      mcap_channels_(std::move(mcap_channels))
 {
 }
 
@@ -61,37 +74,19 @@ bool LiveHeadTrackerImpl::update(XrTime time)
         tracked_.data->pose.reset();
     }
 
+    if (mcap_channels_)
+    {
+        int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
+        DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
+        mcap_channels_->write(0, timestamp, tracked_.data);
+    }
+
     return true;
 }
 
 const HeadPoseTrackedT& LiveHeadTrackerImpl::get_head() const
 {
     return tracked_;
-}
-
-void LiveHeadTrackerImpl::serialize_all(size_t channel_index, const RecordCallback& callback) const
-{
-    if (channel_index != 0)
-    {
-        throw std::runtime_error("LiveHeadTrackerImpl::serialize_all: invalid channel_index " +
-                                 std::to_string(channel_index) + " (only channel 0 exists)");
-    }
-
-    flatbuffers::FlatBufferBuilder builder(256);
-
-    int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
-    DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
-
-    HeadPoseRecordBuilder record_builder(builder);
-    if (tracked_.data)
-    {
-        auto data_offset = HeadPose::Pack(builder, tracked_.data.get());
-        record_builder.add_data(data_offset);
-    }
-    record_builder.add_timestamp(&timestamp);
-    builder.Finish(record_builder.Finish());
-
-    callback(monotonic_ns, builder.GetBufferPointer(), builder.GetSize());
 }
 
 } // namespace core

@@ -4,21 +4,29 @@
 #pragma once
 
 #include <deviceio_base/full_body_tracker_pico_base.hpp>
+#include <mcap/tracker_channels.hpp>
 #include <oxr_utils/oxr_funcs.hpp>
 #include <oxr_utils/oxr_session_handles.hpp>
 #include <oxr_utils/oxr_time.hpp>
 #include <schema/full_body_generated.h>
 
+#include <memory>
+#include <string_view>
+
 namespace core
 {
 
-// OpenXR-backed implementation of FullBodyTrackerPicoImpl.
+using FullBodyMcapChannels = McapTrackerChannels<FullBodyPosePicoRecord, FullBodyPosePico>;
+
 // Supports limp-mode: if body tracking hardware is unavailable, the constructor
 // succeeds but body_tracker_ remains XR_NULL_HANDLE and update() returns empty data.
 class LiveFullBodyTrackerPicoImpl : public FullBodyTrackerPicoImpl
 {
 public:
-    explicit LiveFullBodyTrackerPicoImpl(const OpenXRSessionHandles& handles);
+    static std::unique_ptr<FullBodyMcapChannels> create_mcap_channels(mcap::McapWriter& writer,
+                                                                      std::string_view base_name);
+
+    LiveFullBodyTrackerPicoImpl(const OpenXRSessionHandles& handles, std::unique_ptr<FullBodyMcapChannels> mcap_channels);
     ~LiveFullBodyTrackerPicoImpl();
 
     LiveFullBodyTrackerPicoImpl(const LiveFullBodyTrackerPicoImpl&) = delete;
@@ -27,7 +35,6 @@ public:
     LiveFullBodyTrackerPicoImpl& operator=(LiveFullBodyTrackerPicoImpl&&) = delete;
 
     bool update(XrTime time) override;
-    void serialize_all(size_t channel_index, const RecordCallback& callback) const override;
     const FullBodyPosePicoTrackedT& get_body_pose() const override;
 
 private:
@@ -40,6 +47,8 @@ private:
     PFN_xrCreateBodyTrackerBD pfn_create_body_tracker_;
     PFN_xrDestroyBodyTrackerBD pfn_destroy_body_tracker_;
     PFN_xrLocateBodyJointsBD pfn_locate_body_joints_;
+
+    std::unique_ptr<FullBodyMcapChannels> mcap_channels_;
 };
 
 } // namespace core

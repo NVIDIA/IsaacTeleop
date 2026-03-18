@@ -24,6 +24,7 @@ target_link_libraries(deviceio_session
     PRIVATE
         deviceio::deviceio_trackers
         deviceio::live_trackers
+        mcap::mcap
 )
 
 add_library(deviceio::deviceio_session ALIAS deviceio_session)

@@ -11,7 +11,7 @@
 namespace core
 {
 
-// Head tracker - tracks HMD pose (returns HeadPoseTrackedT from FlatBuffer schema)
+// Tracks HMD pose via XR_REFERENCE_SPACE_TYPE_VIEW.
 class HeadTracker : public ITracker
 {
 public:
@@ -19,15 +19,6 @@ public:
     std::string_view get_name() const override
     {
         return TRACKER_NAME;
-    }
-    std::string_view get_schema_name() const override
-    {
-        return SCHEMA_NAME;
-    }
-    std::string_view get_schema_text() const override;
-    std::vector<std::string> get_record_channels() const override
-    {
-        return { "head" };
     }
 
     // Double-dispatch: calls factory.create_head_tracker_impl()
@@ -38,7 +29,6 @@ public:
 
 private:
     static constexpr const char* TRACKER_NAME = "HeadTracker";
-    static constexpr const char* SCHEMA_NAME = "core.HeadPoseRecord";
 };
 
 } // namespace core

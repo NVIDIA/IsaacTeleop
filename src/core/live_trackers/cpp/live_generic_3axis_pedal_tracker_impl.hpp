@@ -7,18 +7,25 @@
 
 #include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>
 #include <oxr_utils/oxr_session_handles.hpp>
-#include <oxr_utils/oxr_time.hpp>
+#include <schema/pedals_generated.h>
 
-#include <vector>
+#include <memory>
+#include <string_view>
 
 namespace core
 {
 
-// OpenXR-backed implementation of Generic3AxisPedalTrackerImpl.
+using PedalMcapChannels = McapTrackerChannels<Generic3AxisPedalOutputRecord, Generic3AxisPedalOutput>;
+using PedalSchemaTracker = SchemaTracker<Generic3AxisPedalOutputRecord, Generic3AxisPedalOutput>;
+
 class LiveGeneric3AxisPedalTrackerImpl : public Generic3AxisPedalTrackerImpl
 {
 public:
-    LiveGeneric3AxisPedalTrackerImpl(const OpenXRSessionHandles& handles, const Generic3AxisPedalTracker* tracker);
+    static std::unique_ptr<PedalMcapChannels> create_mcap_channels(mcap::McapWriter& writer, std::string_view base_name);
+
+    LiveGeneric3AxisPedalTrackerImpl(const OpenXRSessionHandles& handles,
+                                     const Generic3AxisPedalTracker* tracker,
+                                     std::unique_ptr<PedalMcapChannels> mcap_channels);
 
     LiveGeneric3AxisPedalTrackerImpl(const LiveGeneric3AxisPedalTrackerImpl&) = delete;
     LiveGeneric3AxisPedalTrackerImpl& operator=(const LiveGeneric3AxisPedalTrackerImpl&) = delete;
@@ -26,16 +33,12 @@ public:
     LiveGeneric3AxisPedalTrackerImpl& operator=(LiveGeneric3AxisPedalTrackerImpl&&) = delete;
 
     bool update(XrTime time) override;
-    void serialize_all(size_t channel_index, const RecordCallback& callback) const override;
     const Generic3AxisPedalOutputTrackedT& get_data() const override;
 
 private:
-    SchemaTracker m_schema_reader;
-    XrTimeConverter m_time_converter_;
-    XrTime m_last_update_time_ = 0;
-    bool m_collection_present = false;
+    std::unique_ptr<PedalMcapChannels> mcap_channels_;
+    PedalSchemaTracker m_schema_reader;
     Generic3AxisPedalOutputTrackedT m_tracked;
-    std::vector<SchemaTracker::SampleResult> m_pending_records;
 };
 
 } // namespace core

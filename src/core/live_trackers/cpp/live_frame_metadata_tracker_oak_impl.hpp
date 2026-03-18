@@ -7,19 +7,28 @@
 
 #include <deviceio_trackers/frame_metadata_tracker_oak.hpp>
 #include <oxr_utils/oxr_session_handles.hpp>
-#include <oxr_utils/oxr_time.hpp>
+#include <schema/oak_generated.h>
 
 #include <memory>
+#include <string_view>
 #include <vector>
 
 namespace core
 {
 
-// OpenXR-backed implementation of FrameMetadataTrackerOakImpl.
+using OakMcapChannels = McapTrackerChannels<FrameMetadataOakRecord, FrameMetadataOak>;
+using OakSchemaTracker = SchemaTracker<FrameMetadataOakRecord, FrameMetadataOak>;
+
 class LiveFrameMetadataTrackerOakImpl : public FrameMetadataTrackerOakImpl
 {
 public:
-    LiveFrameMetadataTrackerOakImpl(const OpenXRSessionHandles& handles, const FrameMetadataTrackerOak* tracker);
+    static std::unique_ptr<OakMcapChannels> create_mcap_channels(mcap::McapWriter& writer,
+                                                                 std::string_view base_name,
+                                                                 const FrameMetadataTrackerOak* tracker);
+
+    LiveFrameMetadataTrackerOakImpl(const OpenXRSessionHandles& handles,
+                                    const FrameMetadataTrackerOak* tracker,
+                                    std::unique_ptr<OakMcapChannels> mcap_channels);
 
     LiveFrameMetadataTrackerOakImpl(const LiveFrameMetadataTrackerOakImpl&) = delete;
     LiveFrameMetadataTrackerOakImpl& operator=(const LiveFrameMetadataTrackerOakImpl&) = delete;
@@ -27,20 +36,16 @@ public:
     LiveFrameMetadataTrackerOakImpl& operator=(LiveFrameMetadataTrackerOakImpl&&) = delete;
 
     bool update(XrTime time) override;
-    void serialize_all(size_t channel_index, const RecordCallback& callback) const override;
     const FrameMetadataOakTrackedT& get_stream_data(size_t stream_index) const override;
 
 private:
     struct StreamState
     {
-        std::unique_ptr<SchemaTracker> reader;
+        std::unique_ptr<OakSchemaTracker> reader;
         FrameMetadataOakTrackedT tracked;
-        bool collection_present = false;
-        std::vector<SchemaTracker::SampleResult> pending_records;
     };
 
-    XrTimeConverter m_time_converter_;
-    XrTime m_last_update_time_ = 0;
+    std::unique_ptr<OakMcapChannels> mcap_channels_;
     std::vector<StreamState> m_streams;
 };
 

@@ -4,13 +4,13 @@
 cmake_minimum_required(VERSION 3.20)
 
 add_executable(mcap_tests
-  test_mcap_recorder.cpp
+    test_mcap_tracker_channels.cpp
 )
 
 target_link_libraries(mcap_tests PRIVATE
-  mcap_core
-  mcap::mcap
-  Catch2::Catch2WithMain
+    deviceio::deviceio_session
+    mcap::mcap_core
+    Catch2::Catch2WithMain
 )
 
 message(STATUS "mcap_tests target enabled with Catch2")

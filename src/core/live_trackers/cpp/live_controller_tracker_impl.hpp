@@ -4,20 +4,28 @@
 #pragma once
 
 #include <deviceio_base/controller_tracker_base.hpp>
+#include <mcap/tracker_channels.hpp>
 #include <openxr/openxr.h>
 #include <oxr_utils/oxr_funcs.hpp>
 #include <oxr_utils/oxr_session_handles.hpp>
 #include <oxr_utils/oxr_time.hpp>
 #include <schema/controller_generated.h>
 
+#include <memory>
+#include <string_view>
+
 namespace core
 {
 
-// OpenXR-backed implementation of ControllerTrackerImpl.
+using ControllerMcapChannels = McapTrackerChannels<ControllerSnapshotRecord, ControllerSnapshot>;
+
 class LiveControllerTrackerImpl : public ControllerTrackerImpl
 {
 public:
-    explicit LiveControllerTrackerImpl(const OpenXRSessionHandles& handles);
+    static std::unique_ptr<ControllerMcapChannels> create_mcap_channels(mcap::McapWriter& writer,
+                                                                        std::string_view base_name);
+
+    LiveControllerTrackerImpl(const OpenXRSessionHandles& handles, std::unique_ptr<ControllerMcapChannels> mcap_channels);
     ~LiveControllerTrackerImpl() = default;
 
     LiveControllerTrackerImpl(const LiveControllerTrackerImpl&) = delete;
@@ -26,7 +34,6 @@ public:
     LiveControllerTrackerImpl& operator=(LiveControllerTrackerImpl&&) = delete;
 
     bool update(XrTime time) override;
-    void serialize_all(size_t channel_index, const RecordCallback& callback) const override;
     const ControllerSnapshotTrackedT& get_left_controller() const override;
     const ControllerSnapshotTrackedT& get_right_controller() const override;
 
@@ -40,7 +47,6 @@ private:
     XrPath left_hand_path_;
     XrPath right_hand_path_;
 
-    // Action context -- declared before action_set_ so it outlives it.
     ActionContextFunctions action_ctx_funcs_;
     XrInstanceActionContextPtr instance_action_context_;
     XrSessionActionContextPtr session_action_context_;
@@ -63,6 +69,8 @@ private:
     ControllerSnapshotTrackedT left_tracked_;
     ControllerSnapshotTrackedT right_tracked_;
     XrTime last_update_time_ = 0;
+
+    std::unique_ptr<ControllerMcapChannels> mcap_channels_;
 };
 
 } // namespace core

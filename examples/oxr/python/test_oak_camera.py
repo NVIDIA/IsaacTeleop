@@ -24,7 +24,6 @@ from pathlib import Path
 
 import isaacteleop.plugin_manager as pm
 import isaacteleop.deviceio as deviceio
-import isaacteleop.mcap as mcap
 import isaacteleop.oxr as oxr
 
 PLUGIN_ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent / "plugins"
@@ -66,62 +65,53 @@ def _run_schema_pusher(
         handles = oxr_session.get_handles()
         print("  ✓ OpenXR session created")
 
-        # Create DeviceIOSession with all trackers
-        with deviceio.DeviceIOSession.run([tracker], handles) as session:
-            print("  ✓ DeviceIO session initialized")
+        recording_config = deviceio.McapRecordingConfig(
+            mcap_filename, [(tracker, "oak_metadata")]
+        )
+        with deviceio.DeviceIOSession.run(
+            [tracker], handles, recording_config
+        ) as session:
+            print("  ✓ DeviceIO session initialized (recording active during update())")
+            print()
 
-            # Create MCAP recorder with per-stream FrameMetadataOak channels
-            mcap_entries = [(tracker, "oak_metadata")]
-            with mcap.McapRecorder.create(
-                mcap_filename,
-                mcap_entries,
-            ) as recorder:
-                print("  ✓ MCAP recording started")
-                print()
+            print(f"[Step 6] Recording video and metadata ({duration} seconds)...")
+            print("-" * 80)
+            start_time = time.time()
+            frame_count = 0
+            last_print_time = 0
+            last_seq = dict.fromkeys(stream_names, -1)
+            metadata_samples = dict.fromkeys(stream_names, 0)
 
-                # 6. Main tracking loop
-                print(f"[Step 6] Recording video and metadata ({duration} seconds)...")
-                print("-" * 80)
-                start_time = time.time()
-                frame_count = 0
-                last_print_time = 0
-                last_seq = dict.fromkeys(stream_names, -1)
-                metadata_samples = dict.fromkeys(stream_names, 0)
+            while time.time() - start_time < duration:
+                plugin.check_health()
+                session.update()
+                frame_count += 1
 
-                while time.time() - start_time < duration:
-                    plugin.check_health()
-                    if not session.update():
-                        print("  Warning: Session update failed")
-                        continue
-                    recorder.record(session)
-                    frame_count += 1
+                elapsed = time.time() - start_time
+                for idx, name in enumerate(stream_names):
+                    tracked = tracker.get_stream_data(session, idx)
+                    if (
+                        tracked.data is not None
+                        and tracked.data.sequence_number != last_seq.get(name, -1)
+                    ):
+                        metadata_samples[name] = metadata_samples.get(name, 0) + 1
+                        last_seq[name] = tracked.data.sequence_number
 
-                    elapsed = time.time() - start_time
-                    for idx, name in enumerate(stream_names):
-                        tracked = tracker.get_stream_data(session, idx)
-                        if (
-                            tracked.data is not None
-                            and tracked.data.sequence_number != last_seq.get(name, -1)
-                        ):
-                            metadata_samples[name] = metadata_samples.get(name, 0) + 1
-                            last_seq[name] = tracked.data.sequence_number
+                if int(elapsed) > last_print_time:
+                    last_print_time = int(elapsed)
+                    parts = [
+                        f"{name}={metadata_samples.get(name, 0)}"
+                        for name in stream_names
+                    ]
+                    print(f"  [{last_print_time:3d}s] samples: {', '.join(parts)}")
+                time.sleep(0.016)
 
-                    if int(elapsed) > last_print_time:
-                        last_print_time = int(elapsed)
-                        parts = []
-                        for name in stream_names:
-                            parts.append(f"{name}={metadata_samples.get(name, 0)}")
-                        print(f"  [{last_print_time:3d}s] samples: {', '.join(parts)}")
-                    time.sleep(0.016)
-
-                print("-" * 80)
-                print()
-                print(f"  ✓ Recording completed ({duration:.1f} seconds)")
-                print(f"  ✓ Processed {frame_count} update cycles")
-                for name in stream_names:
-                    print(
-                        f"  ✓ {name}: {metadata_samples.get(name, 0)} metadata samples"
-                    )
+            print("-" * 80)
+            print()
+            print(f"  ✓ Recording completed ({duration:.1f} seconds)")
+            print(f"  ✓ Processed {frame_count} update cycles")
+            for name in stream_names:
+                print(f"  ✓ {name}: {metadata_samples.get(name, 0)} metadata samples")
 
 
 def run_test(duration: float = 10.0, mode: str = MODE_NO_METADATA):
