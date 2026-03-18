@@ -252,8 +252,8 @@
 <div class="version-switcher">
   <label for="version-select" class="version-switcher__label">Version</label>
   <select id="version-select" class="version-switcher__select" onchange="location = this.value;">
-    <option value="../../../main/references/requirements.html" >main</option>
     <option value="requirements.html" selected>release/1.0.x</option>
+    <option value="../../../main/references/requirements.html" >main</option>
     <option value="../../../v1.0.191/references/requirements.html" >v1.0.191</option>
   </select>
 </div>
@@ -393,55 +393,8 @@
 <h1>System Requirements<a class="headerlink" href="#system-requirements" title="Link to this heading">#</a></h1>
 <p>Isaac Teleop can be used for teleoperation of robots, data collection, and human-centric data
 collection. The hardware &amp; software requirements are different for each use case.</p>
-<section id="direct-teleoperation-to-robots">
-<h2>Direct Teleoperation to Robots<a class="headerlink" href="#direct-teleoperation-to-robots" title="Link to this heading">#</a></h2>
-<figure class="align-default">
-<a class="no-image-zoom reference internal image-reference" href="../_images/hardware-req-01.svg"><img alt="Hardware requirements for direct teleoperation to real robots" class="no-image-zoom" src="../_images/hardware-req-01.svg" style="width: 75%;" />
-</a>
-</figure>
-<p>For the bare minimum use case, you can use an XR headset to teleoperate a robot directly. No extra
-hardware is required. NVIDIA CloudXR server and Isaac Teleop can be <strong>run directly on the robot</strong>.</p>
-<div class="pst-scrollable-table-container"><table class="table">
-<colgroup>
-<col style="width: 30.0%" />
-<col style="width: 70.0%" />
-</colgroup>
-<thead>
-<tr class="row-odd"><th class="head"><p>Component</p></th>
-<th class="head"><p>Requirement</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p>XR Device</p></td>
-<td><div class="line-block">
-<div class="line">Pico 4 Ultra Enterprise (Recommended) <a class="footnote-reference brackets" href="#cloudxr-js-req" id="id1" role="doc-noteref"><span class="fn-bracket">[</span>1<span class="fn-bracket">]</span></a></div>
-<div class="line">Pico 4 Ultra <a class="footnote-reference brackets" href="#cloudxr-js-req" id="id2" role="doc-noteref"><span class="fn-bracket">[</span>1<span class="fn-bracket">]</span></a></div>
-<div class="line">Apple Vision Pro (with PSVR2 controllers) <a class="footnote-reference brackets" href="#cloudxr-js-req" id="id3" role="doc-noteref"><span class="fn-bracket">[</span>1<span class="fn-bracket">]</span></a></div>
-<div class="line">Meta Quest 3</div>
-</div>
-</td>
-</tr>
-<tr class="row-odd"><td><p>CPU / GPU (Robot)</p></td>
-<td><p>NVIDIA Jetson Thor <a class="footnote-reference brackets" href="#jetson-orin" id="id4" role="doc-noteref"><span class="fn-bracket">[</span>2<span class="fn-bracket">]</span></a></p></td>
-</tr>
-<tr class="row-even"><td><p>OS (Robot)</p></td>
-<td><p>Ubuntu 22.04 or 24.04 (ARM64)</p></td>
-</tr>
-<tr class="row-odd"><td><p>Python</p></td>
-<td><p>3.10 / 3.11 / 3.12</p></td>
-</tr>
-<tr class="row-even"><td><p>CUDA</p></td>
-<td><p>12.8 or newer</p></td>
-</tr>
-<tr class="row-odd"><td><p>NVIDIA Driver</p></td>
-<td><p>580.95.05 or newer</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-</section>
-<section id="teleoperation-to-robots-with-extra-input-devices">
-<h2>Teleoperation to Robots with Extra Input Devices<a class="headerlink" href="#teleoperation-to-robots-with-extra-input-devices" title="Link to this heading">#</a></h2>
+<section id="teleoperation-to-robots-with-input-devices">
+<h2>Teleoperation to Robots with Input Devices<a class="headerlink" href="#teleoperation-to-robots-with-input-devices" title="Link to this heading">#</a></h2>
 <figure class="align-default">
 <a class="no-image-zoom reference internal image-reference" href="../_images/hardware-req-02.svg"><img alt="Hardware requirements for teleoperation with extra input devices" class="no-image-zoom" src="../_images/hardware-req-02.svg" style="width: 75%;" />
 </a>
@@ -461,7 +414,7 @@ network.  The minimum requirements for the laptop/workstation are:</p>
 </thead>
 <tbody>
 <tr class="row-even"><td><p>CPU / GPU</p></td>
-<td><p>x86_64 <a class="footnote-reference brackets" href="#jetson-nano" id="id5" role="doc-noteref"><span class="fn-bracket">[</span>3<span class="fn-bracket">]</span></a>, NVIDIA GPU required</p></td>
+<td><p>x86_64 <a class="footnote-reference brackets" href="#jetson-nano" id="id1" role="doc-noteref"><span class="fn-bracket">[</span>1<span class="fn-bracket">]</span></a>, NVIDIA GPU required</p></td>
 </tr>
 <tr class="row-odd"><td><p>OS</p></td>
 <td><p>Ubuntu 22.04 or 24.04</p></td>
@@ -487,7 +440,7 @@ network.  The minimum requirements for the laptop/workstation are:</p>
 </figure>
 <p>For running simulation with Isaac Sim and Isaac Lab with RTX rendering, the CloudXR server and
 Isaac Teleop sessions need to be <strong>run on the same workstation with Isaac Sim and Isaac Lab</strong>. The
-workstation’s system requirements are driven by Isaac Sim and Isaac Lab <a class="footnote-reference brackets" href="#isaacsim-req" id="id6" role="doc-noteref"><span class="fn-bracket">[</span>4<span class="fn-bracket">]</span></a>.</p>
+workstation’s system requirements are driven by Isaac Sim and Isaac Lab <a class="footnote-reference brackets" href="#isaacsim-req" id="id2" role="doc-noteref"><span class="fn-bracket">[</span>2<span class="fn-bracket">]</span></a>.</p>
 <p>The recommended workstation configuration for Sim-based Teleop is:</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <colgroup>
@@ -507,10 +460,10 @@ workstation’s system requirements are driven by Isaac Sim and Isaac Lab <a cla
 <td><p>1x RTX 6000 Pro (Blackwell) or 2x RTX 6000 (Ada)</p></td>
 </tr>
 <tr class="row-even"><td><p>OS</p></td>
-<td><p>Ubuntu 22.04 <a class="footnote-reference brackets" href="#isaaclab-req" id="id7" role="doc-noteref"><span class="fn-bracket">[</span>5<span class="fn-bracket">]</span></a></p></td>
+<td><p>Ubuntu 22.04 <a class="footnote-reference brackets" href="#isaaclab-req" id="id3" role="doc-noteref"><span class="fn-bracket">[</span>3<span class="fn-bracket">]</span></a></p></td>
 </tr>
 <tr class="row-odd"><td><p>Python</p></td>
-<td><p>3.12 <a class="footnote-reference brackets" href="#isaaclab-req" id="id8" role="doc-noteref"><span class="fn-bracket">[</span>5<span class="fn-bracket">]</span></a></p></td>
+<td><p>3.12 <a class="footnote-reference brackets" href="#isaaclab-req" id="id4" role="doc-noteref"><span class="fn-bracket">[</span>3<span class="fn-bracket">]</span></a></p></td>
 </tr>
 <tr class="row-even"><td><p>CUDA</p></td>
 <td><p>12.8 or newer</p></td>
@@ -522,7 +475,7 @@ workstation’s system requirements are driven by Isaac Sim and Isaac Lab <a cla
 </table>
 </div>
 <p>If you are only using XR headsets for teleoperation, you can host the workstation in the cloud.
-See <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/deployment/index.html" rel="noopener noreferrer" target="_blank">Isaac Lab Cloud Deployment</a>
+See <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/develop/source/deployment/index.html" rel="noopener noreferrer" target="_blank">Isaac Lab Cloud Deployment</a>
 for more details.</p>
 </section>
 <section id="human-centric-data-collection">
@@ -546,7 +499,7 @@ to device peripherals. The minimum requirements for the laptop/workstation are:<
 </thead>
 <tbody>
 <tr class="row-even"><td><p>CPU / GPU</p></td>
-<td><p>x86_64 <a class="footnote-reference brackets" href="#jetson-nano" id="id9" role="doc-noteref"><span class="fn-bracket">[</span>3<span class="fn-bracket">]</span></a>, NVIDIA GPU required</p></td>
+<td><p>x86_64 <a class="footnote-reference brackets" href="#jetson-nano" id="id5" role="doc-noteref"><span class="fn-bracket">[</span>1<span class="fn-bracket">]</span></a>, NVIDIA GPU required</p></td>
 </tr>
 <tr class="row-odd"><td><p>OS</p></td>
 <td><p>Ubuntu 22.04 or 24.04</p></td>
@@ -565,34 +518,22 @@ to device peripherals. The minimum requirements for the laptop/workstation are:<
 </div>
 <p class="rubric">Footnotes</p>
 <aside class="footnote-list brackets">
-<aside class="footnote brackets" id="cloudxr-js-req" role="doc-footnote">
-<span class="label"><span class="fn-bracket">[</span>1<span class="fn-bracket">]</span></span>
-<span class="backrefs">(<a role="doc-backlink" href="#id1">1</a>,<a role="doc-backlink" href="#id2">2</a>,<a role="doc-backlink" href="#id3">3</a>)</span>
-<p>Please refer to <a class="reference external" href="https://docs.nvidia.com/cloudxr-sdk/latest/requirement/cloudxrjs_req.html" rel="noopener noreferrer" target="_blank">CloudXR.js Requirements</a>
-for more details.</p>
-</aside>
-<aside class="footnote brackets" id="jetson-orin" role="doc-footnote">
-<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id4">2</a><span class="fn-bracket">]</span></span>
-<p>Jetson Orin support is being considered. See
-<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/issues/269" rel="noopener noreferrer" target="_blank">#269</a>
-for more details. Please up-vote and/or comment on the issue if you are interested in this feature.</p>
-</aside>
 <aside class="footnote brackets" id="jetson-nano" role="doc-footnote">
-<span class="label"><span class="fn-bracket">[</span>3<span class="fn-bracket">]</span></span>
-<span class="backrefs">(<a role="doc-backlink" href="#id5">1</a>,<a role="doc-backlink" href="#id9">2</a>)</span>
+<span class="label"><span class="fn-bracket">[</span>1<span class="fn-bracket">]</span></span>
+<span class="backrefs">(<a role="doc-backlink" href="#id1">1</a>,<a role="doc-backlink" href="#id5">2</a>)</span>
 <p>Jetson Nano support is being considered. See
 <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/issues/271" rel="noopener noreferrer" target="_blank">#271</a>
 for more details. Please up-vote and/or comment on the issue if you are interested in this feature.</p>
 </aside>
 <aside class="footnote brackets" id="isaacsim-req" role="doc-footnote">
-<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id6">4</a><span class="fn-bracket">]</span></span>
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id2">2</a><span class="fn-bracket">]</span></span>
 <p>Please refer to <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html" rel="noopener noreferrer" target="_blank">Isaac Sim System Requirements</a>
 for more details.</p>
 </aside>
 <aside class="footnote brackets" id="isaaclab-req" role="doc-footnote">
-<span class="label"><span class="fn-bracket">[</span>5<span class="fn-bracket">]</span></span>
-<span class="backrefs">(<a role="doc-backlink" href="#id7">1</a>,<a role="doc-backlink" href="#id8">2</a>)</span>
-<p>Please refer to <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html#general-requirements" rel="noopener noreferrer" target="_blank">Isaac Lab System Requirements</a>
+<span class="label"><span class="fn-bracket">[</span>3<span class="fn-bracket">]</span></span>
+<span class="backrefs">(<a role="doc-backlink" href="#id3">1</a>,<a role="doc-backlink" href="#id4">2</a>)</span>
+<p>Please refer to <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/develop/source/setup/installation/index.html#general-requirements" rel="noopener noreferrer" target="_blank">Isaac Lab System Requirements</a>
 for more details.</p>
 </aside>
 </aside>
@@ -648,8 +589,7 @@ for more details.</p>
   </div>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#direct-teleoperation-to-robots">Direct Teleoperation to Robots</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#teleoperation-to-robots-with-extra-input-devices">Teleoperation to Robots with Extra Input Devices</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#teleoperation-to-robots-with-input-devices">Teleoperation to Robots with Input Devices</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#teleoperation-with-isaac-sim-and-isaac-lab">Teleoperation with Isaac Sim and Isaac Lab</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#human-centric-data-collection">Human-centric Data Collection</a></li>
 </ul>
