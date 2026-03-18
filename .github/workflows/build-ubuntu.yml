@@ -227,7 +227,7 @@ jobs:
       - build-ubuntu
       - test-cloudxr
     outputs:
-      wheel_urls: ${{ steps.upload-artifactory.outputs.wheel_urls }}
+      wheel_paths: ${{ steps.upload-artifactory.outputs.wheel_paths }}
     environment: dev
     # Publish only after build and CloudXR tests succeed.
     if: ${{ needs.build-ubuntu.result == 'success' && needs.test-cloudxr.result == 'success' }}
@@ -286,7 +286,10 @@ jobs:
           -p "${ARTIFACTORY_API_KEY}" \
           "${wheels[@]}"
 
-        wheel_urls=()
+        wheel_base="${ARTIFACTORY_URL%/}/${ARTIFACTORY_REPO}"
+        wheel_prefix="${wheel_base}/"
+
+        wheel_paths=()
         for wheel in "${wheels[@]}"; do
           wheel_name="$(basename "${wheel}")"
           echo "Resolving Artifactory URL for ${wheel_name}"
@@ -315,12 +318,20 @@ jobs:
             exit 1
           fi
 
-          wheel_urls+=("${download_uri}")
+          wheel_path="${download_uri#${wheel_prefix}}"
+          if [[ "${wheel_path}" == "${download_uri}" || -z "${wheel_path}" ]]; then
+            echo "Unable to clip Artifactory prefix from downloadUri for ${wheel_name}"
+            echo "Expected prefix: ${wheel_prefix}"
+            echo "${metadata_json}"
+            exit 1
+          fi
+
+          wheel_paths+=("${wheel_path}")
         done
 
         {
-          echo "wheel_urls<<EOF"
-          printf '%s\n' "${wheel_urls[@]}"
+          echo "wheel_paths<<EOF"
+          printf '%s\n' "${wheel_paths[@]}"
           echo "EOF"
         } >> "$GITHUB_OUTPUT"
 
@@ -343,13 +354,15 @@ jobs:
         KITMAKER_PROJECT_ID: ${{ secrets.KITMAKER_PROJECT_ID }}
         KITMAKER_TOKEN: ${{ secrets.KITMAKER_TOKEN }}
         KITMAKER_PIC_EMAIL: ${{ secrets.KITMAKER_PIC_EMAIL }}
-        WHEEL_URLS: ${{ needs.publish-wheel.outputs.wheel_urls }}
+        ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
+        ARTIFACTORY_REPO: ${{ secrets.ARTIFACTORY_REPO }}
+        WHEEL_PATHS: ${{ needs.publish-wheel.outputs.wheel_paths }}
         KITMAKER_UPLOAD: ${{ startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/tags/v') }}
       run: |
         set -euo pipefail
 
-        if [[ -z "${KITMAKER_API_ENDPOINT}" || -z "${KITMAKER_PROJECT_ID}" || -z "${KITMAKER_TOKEN}" || -z "${KITMAKER_PIC_EMAIL}" ]]; then
-          echo "Missing one or more required secrets: KITMAKER_API_ENDPOINT, KITMAKER_PROJECT_ID, KITMAKER_TOKEN, KITMAKER_PIC_EMAIL"
+        if [[ -z "${KITMAKER_API_ENDPOINT}" || -z "${KITMAKER_PROJECT_ID}" || -z "${KITMAKER_TOKEN}" || -z "${KITMAKER_PIC_EMAIL}" || -z "${ARTIFACTORY_URL}" || -z "${ARTIFACTORY_REPO}" ]]; then
+          echo "Missing one or more required secrets: KITMAKER_API_ENDPOINT, KITMAKER_PROJECT_ID, KITMAKER_TOKEN, KITMAKER_PIC_EMAIL, ARTIFACTORY_URL, ARTIFACTORY_REPO"
           exit 1
         fi
 
@@ -358,16 +371,24 @@ jobs:
           exit 1
         fi
 
-        if [[ -z "${WHEEL_URLS}" ]]; then
-          echo "No wheel URLs were produced by publish-wheel job"
+        if [[ "${ARTIFACTORY_URL}" != https://* ]]; then
+          echo "ARTIFACTORY_URL must use https://"
           exit 1
         fi
 
+        if [[ -z "${WHEEL_PATHS}" ]]; then
+          echo "No wheel paths were produced by publish-wheel job"
+          exit 1
+        fi
+
+        wheel_base="${ARTIFACTORY_URL%/}/${ARTIFACTORY_REPO}"
+
         api_url="${KITMAKER_API_ENDPOINT%/}/v0/projects/${KITMAKER_PROJECT_ID}/releases"
         payload_items=()
-        while IFS= read -r wheel_url; do
-          [[ -z "${wheel_url}" ]] && continue
-          wheel_name="$(basename "${wheel_url}")"
+        while IFS= read -r wheel_path; do
+          [[ -z "${wheel_path}" ]] && continue
+          wheel_url="${wheel_base}/${wheel_path}"
+          wheel_name="$(basename "${wheel_path}")"
           echo "Queueing wheel for Kitmaker payload: ${wheel_name}"
 
           payload_items+=("$(jq -cn \
@@ -375,7 +396,7 @@ jobs:
             --arg url "${wheel_url}" \
             --argjson upload "${KITMAKER_UPLOAD}" \
             '{pic: $pic, job_type: "wheel-release-job", publish_to: "both_devzone_pypi", url: $url, size: "small", upload: $upload}')")
-        done <<< "${WHEEL_URLS}"
+          done <<< "${WHEEL_PATHS}"
 
         if (( ${#payload_items[@]} == 0 )); then
           echo "No valid wheel URLs found to submit to Kitmaker"
