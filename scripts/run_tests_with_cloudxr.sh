@@ -251,9 +251,9 @@ log_info "Expected isaacteleop version from wheel artifact: $EXPECTED_ISAACTELEO
 # Build CloudXR runtime + test services via compose
 log_info "Building CloudXR runtime and test containers..."
 
-COMPOSE_BUILD_ARGS=""
+COMPOSE_BUILD_ARGS=()
 if [ "$FORCE_BUILD" = true ]; then
-    COMPOSE_BUILD_ARGS="--no-cache"
+    COMPOSE_BUILD_ARGS+=(--no-cache)
 fi
 
 docker compose \
@@ -263,7 +263,7 @@ docker compose \
     ${ENV_TEST:+--env-file "$ENV_TEST"} \
     -f "$COMPOSE_RUNTIME" \
     -f "$COMPOSE_TEST" \
-    build $COMPOSE_BUILD_ARGS cloudxr-runtime isaacteleop-tests
+    build "${COMPOSE_BUILD_ARGS[@]}" cloudxr-runtime isaacteleop-tests
 
 log_success "CloudXR runtime and test containers built successfully"
 
