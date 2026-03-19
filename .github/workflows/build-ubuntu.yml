@@ -304,6 +304,13 @@ jobs:
             --data-urlencode "repos=${ARTIFACTORY_REPO}" \
             "${ARTIFACTORY_URL%/}/api/search/artifact")"
 
+          result_count="$(jq '.results | length' <<< "${search_json}")"
+          if [[ "${result_count}" -ne 1 ]]; then
+            echo "Expected exactly 1 Artifactory search result for ${wheel_name}, but got ${result_count}"
+            echo "${search_json}"
+            exit 1
+          fi
+
           storage_uri="$(jq -r '.results[0].uri // empty' <<< "${search_json}")"
           if [[ -z "${storage_uri}" ]]; then
             echo "Unable to resolve storage URI for ${wheel_name}"
