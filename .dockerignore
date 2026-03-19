@@ -7,17 +7,8 @@
 !.dockerignore
 
 # Allow CloudXR Dockerfiles and runtime assets.
-!deps/
 !deps/cloudxr/
-!deps/cloudxr/Dockerfile.runtime
-!deps/cloudxr/Dockerfile.test
-!deps/cloudxr/runtime/
-!deps/cloudxr/runtime/**
 
 # Allow build artifacts and tests consumed by Dockerfile.test and Dockerfile.runtime.
 !install/
-!install/**
 !examples/
-!examples/oxr/
-!examples/oxr/python/
-!examples/oxr/python/**
