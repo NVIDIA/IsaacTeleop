@@ -439,10 +439,22 @@ jobs:
     - name: Monitor Kitmaker release status
       env:
         KITMAKER_API_ENDPOINT: ${{ secrets.KITMAKER_API_ENDPOINT }}
+        KITMAKER_PROJECT_ID: ${{ secrets.KITMAKER_PROJECT_ID }}
         KITMAKER_TOKEN: ${{ secrets.KITMAKER_TOKEN }}
         KITMAKER_RELEASE_UUID: ${{ needs.kitmaker.outputs.release_uuid }}
+        ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
+        ARTIFACTORY_REPO: ${{ secrets.ARTIFACTORY_REPO }}
       run: |
         set -euo pipefail
+
+        # Redact sensitive values that may appear in API responses.
+        echo "::add-mask::${KITMAKER_API_ENDPOINT}"
+        echo "::add-mask::${KITMAKER_API_ENDPOINT%/}"
+        echo "::add-mask::${KITMAKER_RELEASE_UUID}"
+        echo "::add-mask::${KITMAKER_PROJECT_ID}"
+        echo "::add-mask::${ARTIFACTORY_URL}"
+        echo "::add-mask::${ARTIFACTORY_URL%/}"
+        echo "::add-mask::${ARTIFACTORY_REPO}"
 
         if [[ -z "${KITMAKER_API_ENDPOINT}" || -z "${KITMAKER_TOKEN}" ]]; then
           echo "Missing required secrets: KITMAKER_API_ENDPOINT, KITMAKER_TOKEN"
