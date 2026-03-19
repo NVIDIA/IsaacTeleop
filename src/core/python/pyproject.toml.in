@@ -52,7 +52,8 @@ packages = [
     "isaacteleop.retargeting_engine_ui",
     "isaacteleop.teleop_session_manager",
     "isaacteleop.cloudxr",
-    "isaacteleop.cloudxr.native"
+    "isaacteleop.cloudxr.native",
+    "isaacteleop.cloudxr.native.plugins"
 ]
 include-package-data = true
 
