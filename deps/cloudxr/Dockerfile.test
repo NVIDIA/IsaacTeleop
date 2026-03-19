@@ -21,11 +21,11 @@ WORKDIR /app
 # Install uv for fast Python package management
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# Copy the install directory (contains wheels, libs, native test binaries, etc.)
-COPY install/ /app/install/
-
 # Copy test files
 COPY examples/oxr/python/ /app/tests/
+
+# Copy the install directory (contains wheels, libs, native test binaries, etc.)
+COPY install/ /app/install/
 
 # Install Python dependencies using uv
 WORKDIR /app/tests
