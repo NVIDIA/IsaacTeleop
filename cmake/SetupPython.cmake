@@ -97,18 +97,30 @@ if(BUILD_PYTHON_BINDINGS)
     )
     if(NOT _numpy_ok EQUAL 0)
         message(STATUS "Creating build venv with numpy>=2.0 for ABI-compatible extensions...")
-        execute_process(
-            COMMAND "${UV_EXECUTABLE}" venv --python "${Python3_EXECUTABLE}" "${_build_venv}"
-            RESULT_VARIABLE _venv_ok
-            ERROR_VARIABLE _venv_err
-        )
-        if(NOT _venv_ok EQUAL 0)
-            message(FATAL_ERROR "Failed to create build venv: ${_venv_err}")
-        endif()
         if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
             set(_venv_python "${_build_venv}/Scripts/python.exe")
         else()
             set(_venv_python "${_build_venv}/bin/python")
+        endif()
+        # Reuse an existing venv when possible. If the directory exists but the
+        # interpreter is missing, fail fast and require explicit cleanup.
+        if(EXISTS "${_build_venv}" AND NOT EXISTS "${_venv_python}")
+            message(FATAL_ERROR
+                "Found stale build venv directory at ${_build_venv}, but no interpreter at ${_venv_python}. "
+                "Please remove ${_build_venv} and reconfigure."
+            )
+        endif()
+        if(NOT EXISTS "${_venv_python}")
+            execute_process(
+                COMMAND "${UV_EXECUTABLE}" venv --python "${Python3_EXECUTABLE}" "${_build_venv}"
+                RESULT_VARIABLE _venv_ok
+                ERROR_VARIABLE _venv_err
+            )
+            if(NOT _venv_ok EQUAL 0)
+                message(FATAL_ERROR "Failed to create build venv: ${_venv_err}")
+            endif()
+        else()
+            message(STATUS "Reusing existing build venv at ${_build_venv}")
         endif()
         execute_process(
             COMMAND "${UV_EXECUTABLE}" pip install --python "${_venv_python}" "numpy>=2.0"
