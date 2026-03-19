@@ -104,8 +104,14 @@ to read raw tensor samples from OpenXR. Implement a concrete tracker class (e.g.
 - **Holds user configuration** — Same logical inputs as the pusher (e.g. ``collection_id``,
   ``max_flatbuffer_size``). The live ``ITrackerImpl`` builds the internal tensor settings
   (``SchemaTrackerConfig``) so they match the plugin.
-- **create_tracker()** — Return an ``ITrackerImpl`` that holds a ``SchemaTracker`` and
-  implements ``update(XrTime)`` and ``serialize_all(channel_index, callback)``.
+- **create_tracker_impl(TrackerFactory&)** — Override this to delegate to the provided
+  ``TrackerFactory``. The implementation uses double dispatch: call the factory method
+  specific to your tracker type (e.g.
+  ``factory.create_generic_3axis_pedal_tracker_impl(this)``) and return the resulting
+  ``std::unique_ptr<ITrackerImpl>``. The factory constructs an ``ITrackerImpl`` that holds
+  a ``SchemaTracker``, builds a ``SchemaTrackerConfig`` from the tracker's stored
+  configuration, and implements ``update(XrTime)`` and
+  ``serialize_all(channel_index, callback)``.
 
 In the **Impl**:
 
