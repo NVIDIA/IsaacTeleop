@@ -39,7 +39,5 @@ ENV PATH="/app/venv/bin:$PATH"
 ENV PYTHONPATH="/app/install/lib:$PYTHONPATH"
 ENV XR_RUNTIME_JSON="/openxr/openxr_cloudxr.json"
 
-WORKDIR /app/tests
-
 # Default command runs the test script
 CMD ["python", "test_extensions.py"]
