@@ -279,7 +279,7 @@ export class CloudXR2DUI {
     // Default port: HTTP → 49100, HTTPS without proxy → 48322, HTTPS with proxy → 443
     const defaultPort = useSecure ? 48322 : 49100;
     return {
-      serverIP: typeof window !== 'undefined' ? window.location.hostname : '127.0.0.1',
+      serverIP: (typeof window !== 'undefined' && window.location.hostname) || '127.0.0.1',
       port: defaultPort,
       useSecureConnection: useSecure,
       perEyeWidth: 2048,
