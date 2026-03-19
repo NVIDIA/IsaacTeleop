@@ -111,8 +111,8 @@ tensor samples from OpenXR. Implement a concrete tracker class (e.g.
 - **Holds user configuration** — Same logical inputs as the pusher (e.g. ``collection_id``,
   ``max_flatbuffer_size``). The live ``ITrackerImpl`` builds the internal tensor settings
   (``SchemaTrackerConfig``) so they match the plugin.
-- **create_tracker_impl(TrackerFactory&)** — Override this to delegate to the provided
-  ``TrackerFactory``. The implementation uses double dispatch: call the factory method
+- **create_tracker_impl(ITrackerFactory&)** — Override this to delegate to the provided
+  ``ITrackerFactory``. The implementation uses double dispatch: call the factory method
   specific to your tracker type (e.g.
   ``factory.create_generic_3axis_pedal_tracker_impl(this)``) and return the resulting
   ``std::unique_ptr<ITrackerImpl>``. The factory constructs an ``ITrackerImpl`` that holds
@@ -136,7 +136,7 @@ Reference implementation — split across facade and live backend:
 
 - **Tracker facade** — :code-file:`src/core/deviceio_trackers/cpp/generic_3axis_pedal_tracker.cpp`
   (class ``Generic3AxisPedalTracker``): holds collection configuration, implements ``ITracker`` and
-  ``create_tracker_impl(TrackerFactory&)``, and exposes ``get_data(session)`` returning
+  ``create_tracker_impl(ITrackerFactory&)``, and exposes ``get_data(session)`` returning
   ``Generic3AxisPedalOutputTrackedT`` by dispatching to the session’s
   ``Generic3AxisPedalTrackerImpl`` (see :code-file:`src/core/deviceio_base/cpp/inc/deviceio_base/generic_3axis_pedal_tracker_base.hpp`).
 - **Live backend** — :code-file:`src/core/live_trackers/cpp/live_generic_3axis_pedal_tracker_impl.cpp`

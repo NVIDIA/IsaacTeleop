@@ -504,8 +504,8 @@ and binary schema for MCAP; return at least one channel name.</p></li>
 <li><p><strong>Holds user configuration</strong> — Same logical inputs as the pusher (e.g. <code class="docutils literal notranslate"><span class="pre">collection_id</span></code>,
 <code class="docutils literal notranslate"><span class="pre">max_flatbuffer_size</span></code>). The live <code class="docutils literal notranslate"><span class="pre">ITrackerImpl</span></code> builds the internal tensor settings
 (<code class="docutils literal notranslate"><span class="pre">SchemaTrackerConfig</span></code>) so they match the plugin.</p></li>
-<li><p><strong>create_tracker_impl(TrackerFactory&amp;)</strong> — Override this to delegate to the provided
-<code class="docutils literal notranslate"><span class="pre">TrackerFactory</span></code>. The implementation uses double dispatch: call the factory method
+<li><p><strong>create_tracker_impl(ITrackerFactory&amp;)</strong> — Override this to delegate to the provided
+<code class="docutils literal notranslate"><span class="pre">ITrackerFactory</span></code>. The implementation uses double dispatch: call the factory method
 specific to your tracker type (e.g.
 <code class="docutils literal notranslate"><span class="pre">factory.create_generic_3axis_pedal_tracker_impl(this)</span></code>) and return the resulting
 <code class="docutils literal notranslate"><span class="pre">std::unique_ptr&lt;ITrackerImpl&gt;</span></code>. The factory constructs an <code class="docutils literal notranslate"><span class="pre">ITrackerImpl</span></code> that holds
@@ -529,7 +529,7 @@ the update-tick timestamp so the MCAP stream marks absence.</p></li>
 <ul class="simple">
 <li><p><strong>Tracker facade</strong> — <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_trackers/cpp/generic_3axis_pedal_tracker.cpp" rel="noopener noreferrer" target="_blank">src/core/deviceio_trackers/cpp/generic_3axis_pedal_tracker.cpp</a>
 (class <code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalTracker</span></code>): holds collection configuration, implements <code class="docutils literal notranslate"><span class="pre">ITracker</span></code> and
-<code class="docutils literal notranslate"><span class="pre">create_tracker_impl(TrackerFactory&amp;)</span></code>, and exposes <code class="docutils literal notranslate"><span class="pre">get_data(session)</span></code> returning
+<code class="docutils literal notranslate"><span class="pre">create_tracker_impl(ITrackerFactory&amp;)</span></code>, and exposes <code class="docutils literal notranslate"><span class="pre">get_data(session)</span></code> returning
 <code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalOutputTrackedT</span></code> by dispatching to the session’s
 <code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalTrackerImpl</span></code> (see <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_base/cpp/inc/deviceio_base/generic_3axis_pedal_tracker_base.hpp" rel="noopener noreferrer" target="_blank">src/core/deviceio_base/cpp/inc/deviceio_base/generic_3axis_pedal_tracker_base.hpp</a>).</p></li>
 <li><p><strong>Live backend</strong> — <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/live_trackers/cpp/live_generic_3axis_pedal_tracker_impl.cpp" rel="noopener noreferrer" target="_blank">src/core/live_trackers/cpp/live_generic_3axis_pedal_tracker_impl.cpp</a>
