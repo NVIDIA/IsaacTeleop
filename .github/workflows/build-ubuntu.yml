@@ -494,4 +494,3 @@ jobs:
 
         echo "Timed out waiting for Kitmaker release ${KITMAKER_RELEASE_UUID} to complete"
         exit 1
-
