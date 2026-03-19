@@ -413,11 +413,11 @@ The reference implementation is the <strong>generic 3-axis foot pedal</strong>:<
 <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_trackers/cpp/inc/deviceio/generic_3axis_pedal_tracker.hpp" rel="noopener noreferrer" target="_blank">src/core/deviceio_trackers/cpp/inc/deviceio/generic_3axis_pedal_tracker.hpp</a></p></td>
 </tr>
 <tr class="row-odd"><td><p>Live backend (<code class="docutils literal notranslate"><span class="pre">LiveGeneric3AxisPedalTrackerImpl</span></code>)</p></td>
-<td><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_live_implementation/cpp/live_generic_3axis_pedal_tracker_impl.cpp" rel="noopener noreferrer" target="_blank">src/core/deviceio_live_implementation/cpp/live_generic_3axis_pedal_tracker_impl.cpp</a> and
-<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_live_implementation/cpp/live_generic_3axis_pedal_tracker_impl.hpp" rel="noopener noreferrer" target="_blank">src/core/deviceio_live_implementation/cpp/live_generic_3axis_pedal_tracker_impl.hpp</a></p></td>
+<td><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/live_trackers/cpp/live_generic_3axis_pedal_tracker_impl.cpp" rel="noopener noreferrer" target="_blank">src/core/live_trackers/cpp/live_generic_3axis_pedal_tracker_impl.cpp</a> and
+<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/live_trackers/cpp/live_generic_3axis_pedal_tracker_impl.hpp" rel="noopener noreferrer" target="_blank">src/core/live_trackers/cpp/live_generic_3axis_pedal_tracker_impl.hpp</a></p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">SchemaTracker</span></code> / <code class="docutils literal notranslate"><span class="pre">SampleResult</span></code></p></td>
-<td><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_live_implementation/cpp/inc/deviceio_live_implementation/schema_tracker.hpp" rel="noopener noreferrer" target="_blank">src/core/deviceio_live_implementation/cpp/inc/deviceio_live_implementation/schema_tracker.hpp</a></p></td>
+<td><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/live_trackers/cpp/inc/live_trackers/schema_tracker.hpp" rel="noopener noreferrer" target="_blank">src/core/live_trackers/cpp/inc/live_trackers/schema_tracker.hpp</a></p></td>
 </tr>
 <tr class="row-odd"><td><p>Debug printer</p></td>
 <td><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/examples/schemaio/pedal_printer.cpp" rel="noopener noreferrer" target="_blank">examples/schemaio/pedal_printer.cpp</a></p></td>
@@ -493,7 +493,7 @@ for the local common clock; use the device’s own clock for the raw device cloc
 <h2>Step 3: Implement a tracker<a class="headerlink" href="#step-3-implement-a-tracker" title="Link to this heading">#</a></h2>
 <p>The tracker runs inside a consumer process (e.g. Teleop pipeline or a small reader app). It
 implements the <strong>ITracker</strong> interface (tracker <strong>facade</strong> in <code class="docutils literal notranslate"><span class="pre">deviceio_trackers</span></code>); the
-<strong>live backend</strong> in <code class="docutils literal notranslate"><span class="pre">deviceio_live_implementation</span></code> composes <strong>SchemaTracker</strong> to read raw
+<strong>live backend</strong> in <code class="docutils literal notranslate"><span class="pre">live_trackers</span></code> composes <strong>SchemaTracker</strong> to read raw
 tensor samples from OpenXR. Implement a concrete tracker class (e.g.
 <code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalTracker</span></code>) that:</p>
 <ul class="simple">
@@ -531,12 +531,12 @@ the update-tick timestamp so the MCAP stream marks absence.</p></li>
 (class <code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalTracker</span></code>): holds collection configuration, implements <code class="docutils literal notranslate"><span class="pre">ITracker</span></code> and
 <code class="docutils literal notranslate"><span class="pre">create_tracker_impl(TrackerFactory&amp;)</span></code>, and exposes <code class="docutils literal notranslate"><span class="pre">get_data(session)</span></code> returning
 <code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalOutputTrackedT</span></code> by dispatching to the session’s
-<code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalTrackerImpl</span></code> (see <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_base/cpp/inc/deviceio_base/generic_3axis_pedal_tracker_impl.hpp" rel="noopener noreferrer" target="_blank">src/core/deviceio_base/cpp/inc/deviceio_base/generic_3axis_pedal_tracker_impl.hpp</a>).</p></li>
-<li><p><strong>Live backend</strong> — <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_live_implementation/cpp/live_generic_3axis_pedal_tracker_impl.cpp" rel="noopener noreferrer" target="_blank">src/core/deviceio_live_implementation/cpp/live_generic_3axis_pedal_tracker_impl.cpp</a>
+<code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalTrackerImpl</span></code> (see <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_base/cpp/inc/deviceio_base/generic_3axis_pedal_tracker_base.hpp" rel="noopener noreferrer" target="_blank">src/core/deviceio_base/cpp/inc/deviceio_base/generic_3axis_pedal_tracker_base.hpp</a>).</p></li>
+<li><p><strong>Live backend</strong> — <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/live_trackers/cpp/live_generic_3axis_pedal_tracker_impl.cpp" rel="noopener noreferrer" target="_blank">src/core/live_trackers/cpp/live_generic_3axis_pedal_tracker_impl.cpp</a>
 (<code class="docutils literal notranslate"><span class="pre">LiveGeneric3AxisPedalTrackerImpl</span></code>): composes <code class="docutils literal notranslate"><span class="pre">SchemaTracker</span></code>, implements <code class="docutils literal notranslate"><span class="pre">update()</span></code> and
 <code class="docutils literal notranslate"><span class="pre">serialize_all()</span></code>, and uses <code class="docutils literal notranslate"><span class="pre">SchemaTracker::read_all_samples()</span></code> with
 <code class="docutils literal notranslate"><span class="pre">std::vector&lt;SchemaTracker::SampleResult&gt;</span></code> for the pending batch. See
-<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_live_implementation/cpp/inc/deviceio_live_implementation/schema_tracker.hpp" rel="noopener noreferrer" target="_blank">src/core/deviceio_live_implementation/cpp/inc/deviceio_live_implementation/schema_tracker.hpp</a>
+<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/live_trackers/cpp/inc/live_trackers/schema_tracker.hpp" rel="noopener noreferrer" target="_blank">src/core/live_trackers/cpp/inc/live_trackers/schema_tracker.hpp</a>
 for <code class="docutils literal notranslate"><span class="pre">SchemaTracker</span></code> and <code class="docutils literal notranslate"><span class="pre">SampleResult</span></code> (buffer + timestamp metadata).</p></li>
 </ul>
 </section>
@@ -588,7 +588,7 @@ Both exit after 100 samples, or press Ctrl+C to exit early.</p>
 extensions: takes externally-provided OpenXR session handles, creates a tensor collection with
 the configured identifier, provides <code class="docutils literal notranslate"><span class="pre">push_buffer()</span></code> for raw serialized data. Use composition
 to create typed wrappers (e.g. <code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalPusher</span></code> in <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/examples/schemaio/pedal_pusher.cpp" rel="noopener noreferrer" target="_blank">examples/schemaio/pedal_pusher.cpp</a>).</p></li>
-<li><p><strong>SchemaTracker</strong> (<code class="docutils literal notranslate"><span class="pre">deviceio_live_implementation</span></code>) — Helper for reading FlatBuffer schema data via
+<li><p><strong>SchemaTracker</strong> (<code class="docutils literal notranslate"><span class="pre">live_trackers</span></code>) — Helper for reading FlatBuffer schema data via
 OpenXR tensor collections: discovers collections by identifier, exposes <code class="docutils literal notranslate"><span class="pre">read_all_samples()</span></code> into
 <code class="docutils literal notranslate"><span class="pre">SampleResult</span></code> values. Live tracker implementations (e.g. <code class="docutils literal notranslate"><span class="pre">LiveGeneric3AxisPedalTrackerImpl</span></code>)
 compose a <code class="docutils literal notranslate"><span class="pre">SchemaTracker</span></code> and implement <code class="docutils literal notranslate"><span class="pre">ITrackerImpl::update()</span></code> / <code class="docutils literal notranslate"><span class="pre">serialize_all()</span></code>.</p></li>

@@ -404,7 +404,7 @@ APIs (<code class="docutils literal notranslate"><span class="pre">xrLocateSpace
 </ul>
 <p><strong>SchemaTracker-based trackers</strong> – create new device type by defining a FlatBuffer schema and
 reading it from OpenXR tensor collections via the
-<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_live_implementation/cpp/inc/deviceio_live_implementation/schema_tracker.hpp" rel="noopener noreferrer" target="_blank">SchemaTracker</a> utility.</p>
+<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/live_trackers/cpp/inc/live_trackers/schema_tracker.hpp" rel="noopener noreferrer" target="_blank">SchemaTracker</a> utility.</p>
 <ul class="simple">
 <li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_trackers/cpp/inc/deviceio/frame_metadata_tracker_oak.hpp" rel="noopener noreferrer" target="_blank">FrameMetadataTrackerOak</a> – per-stream frame metadata from OAK cameras</p></li>
 <li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_trackers/cpp/inc/deviceio/generic_3axis_pedal_tracker.hpp" rel="noopener noreferrer" target="_blank">Generic3AxisPedalTracker</a> – foot pedal axis values</p></li>
@@ -597,7 +597,7 @@ extension.</p>
 <section id="framemetadatatrackeroak">
 <h3>FrameMetadataTrackerOak<a class="headerlink" href="#framemetadatatrackeroak" title="Link to this heading">#</a></h3>
 <p>Multi-channel tracker for per-frame metadata from OAK camera streams.
-Uses the <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_live_implementation/cpp/inc/deviceio_live_implementation/schema_tracker.hpp" rel="noopener noreferrer" target="_blank">SchemaTracker</a>
+Uses the <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/live_trackers/cpp/inc/live_trackers/schema_tracker.hpp" rel="noopener noreferrer" target="_blank">SchemaTracker</a>
 utility internally.</p>
 <ul class="simple">
 <li><p>Schema: <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/schema/fbs/oak.fbs" rel="noopener noreferrer" target="_blank">src/core/schema/fbs/oak.fbs</a></p></li>
@@ -621,7 +621,7 @@ utility internally.</p>
 <section id="generic3axispedaltracker">
 <h3>Generic3AxisPedalTracker<a class="headerlink" href="#generic3axispedaltracker" title="Link to this heading">#</a></h3>
 <p>Reads foot pedal axis values pushed by a device plugin through OpenXR tensor
-collections. Uses the <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_live_implementation/cpp/inc/deviceio_live_implementation/schema_tracker.hpp" rel="noopener noreferrer" target="_blank">SchemaTracker</a>
+collections. Uses the <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/live_trackers/cpp/inc/live_trackers/schema_tracker.hpp" rel="noopener noreferrer" target="_blank">SchemaTracker</a>
 utility internally.</p>
 <ul class="simple">
 <li><p>Schema: <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/schema/fbs/pedals.fbs" rel="noopener noreferrer" target="_blank">src/core/schema/fbs/pedals.fbs</a></p></li>

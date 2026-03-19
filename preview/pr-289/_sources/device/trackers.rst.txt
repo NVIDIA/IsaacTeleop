@@ -18,7 +18,7 @@ APIs (``xrLocateSpace``, ``xrSyncActions``, etc.):
 
 **SchemaTracker-based trackers** -- create new device type by defining a FlatBuffer schema and
 reading it from OpenXR tensor collections via the
-:code-file:`SchemaTracker <src/core/deviceio_live_implementation/cpp/inc/deviceio_live_implementation/schema_tracker.hpp>` utility.
+:code-file:`SchemaTracker <src/core/live_trackers/cpp/inc/live_trackers/schema_tracker.hpp>` utility.
 
 - :code-file:`FrameMetadataTrackerOak <src/core/deviceio_trackers/cpp/inc/deviceio/frame_metadata_tracker_oak.hpp>` -- per-stream frame metadata from OAK cameras
 - :code-file:`Generic3AxisPedalTracker <src/core/deviceio_trackers/cpp/inc/deviceio/generic_3axis_pedal_tracker.hpp>` -- foot pedal axis values
@@ -203,7 +203,7 @@ FrameMetadataTrackerOak
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 Multi-channel tracker for per-frame metadata from OAK camera streams.
-Uses the :code-file:`SchemaTracker <src/core/deviceio_live_implementation/cpp/inc/deviceio_live_implementation/schema_tracker.hpp>`
+Uses the :code-file:`SchemaTracker <src/core/live_trackers/cpp/inc/live_trackers/schema_tracker.hpp>`
 utility internally.
 
 - Schema: :code-file:`src/core/schema/fbs/oak.fbs`
@@ -224,7 +224,7 @@ Generic3AxisPedalTracker
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 Reads foot pedal axis values pushed by a device plugin through OpenXR tensor
-collections. Uses the :code-file:`SchemaTracker <src/core/deviceio_live_implementation/cpp/inc/deviceio_live_implementation/schema_tracker.hpp>`
+collections. Uses the :code-file:`SchemaTracker <src/core/live_trackers/cpp/inc/live_trackers/schema_tracker.hpp>`
 utility internally.
 
 - Schema: :code-file:`src/core/schema/fbs/pedals.fbs`
