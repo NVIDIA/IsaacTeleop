@@ -348,7 +348,7 @@ jobs:
     environment: release
     permissions:
       contents: read
-    if: ${{ needs.publish-wheel.result == 'success' }}
+    if: ${{ github.event_name != 'pull_request' && needs.publish-wheel.result == 'success' }}
 
     steps:
     - name: Submit wheel release to Kitmaker
@@ -433,7 +433,7 @@ jobs:
     environment: release
     permissions:
       contents: read
-    if: ${{ needs.kitmaker.result == 'success' }}
+    if: ${{ github.event_name != 'pull_request' && needs.kitmaker.result == 'success' }}
 
     steps:
     - name: Monitor Kitmaker release status
