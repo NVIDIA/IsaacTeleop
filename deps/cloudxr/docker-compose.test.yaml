@@ -31,8 +31,13 @@ services:
               capabilities: [ gpu ]
 
   # Test runner container
-  # Build with: docker build -t isaacteleop-tests:latest -f deps/cloudxr/Dockerfile.test .
+  # Build handled via docker compose using this service's build definition.
   isaacteleop-tests:
+    build:
+      context: ${CXR_BUILD_CONTEXT:?CXR_BUILD_CONTEXT must point to repository root}
+      dockerfile: deps/cloudxr/Dockerfile.test
+      args:
+        PYTHON_VERSION:
     image: isaacteleop-tests:latest
     pull_policy: never
     network_mode: host
