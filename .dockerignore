@@ -12,3 +12,6 @@
 # Allow build artifacts and tests consumed by Dockerfile.test and Dockerfile.runtime.
 !install/
 !examples/
+
+# Allow src for ros2 workflows
+!src/
