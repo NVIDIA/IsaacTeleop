@@ -105,12 +105,14 @@ void print_usage(const char* program_name)
         << "\nMetadata (mutually exclusive):\n"
         << "  --collection-prefix=PREFIX  Push metadata via OpenXR tensor extensions\n"
         << "  --mcap-filename=PATH        Record metadata to an MCAP file\n"
+        << "\nPreview:\n"
+        << "  --preview           Show live color camera preview via SDL2 window\n"
         << "\nGeneral:\n"
         << "  --help              Show this help message\n"
         << "\nExamples:\n"
         << "  " << program_name << " --add-stream camera=Color,output=./color.h264\n"
         << "  " << program_name
-        << " --add-stream=camera=Color,output=./color.h264 --add-stream=camera=LeftMono,output=./left.h264 --add-stream=camera=RightMono,output=./right.h264\n";
+        << " --add-stream=camera=Color,output=./color.h264 --add-stream=camera=MonoLeft,output=./left.h264 --add-stream=camera=MonoRight,output=./right.h264\n";
 }
 
 // =============================================================================
@@ -154,6 +156,10 @@ try
         else if (arg.find("--device-id=") == 0)
         {
             camera_config.device_id = arg.substr(12);
+        }
+        else if (arg == "--preview")
+        {
+            camera_config.preview = true;
         }
         else if (arg.find("--collection-prefix=") == 0)
         {
