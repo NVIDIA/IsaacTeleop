@@ -16,7 +16,6 @@ namespace core
 class HandTracker : public ITracker
 {
 public:
-    std::vector<std::string> get_required_extensions() const override;
     std::string_view get_name() const override
     {
         return TRACKER_NAME;

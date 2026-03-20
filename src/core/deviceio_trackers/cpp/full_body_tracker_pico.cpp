@@ -12,11 +12,6 @@ namespace core
 // FullBodyTrackerPico Public Interface
 // ============================================================================
 
-std::vector<std::string> FullBodyTrackerPico::get_required_extensions() const
-{
-    return { XR_BD_BODY_TRACKING_EXTENSION_NAME };
-}
-
 const FullBodyPosePicoTrackedT& FullBodyTrackerPico::get_body_pose(const ITrackerSession& session) const
 {
     return static_cast<const FullBodyTrackerPicoImpl&>(session.get_tracker_impl(*this)).get_body_pose();

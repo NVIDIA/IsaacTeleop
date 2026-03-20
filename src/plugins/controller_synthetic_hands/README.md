@@ -86,6 +86,7 @@ Controllers → Wrist Pose → Hand Generator → Hand Injector → OpenXR Runti
 #include <deviceio/controller_tracker.hpp>
 #include <deviceio/deviceio_session.hpp>
 #include <oxr_utils/pose_conversions.hpp>
+#include <time_utils/os_time.hpp>
 
 // Create controller tracker and get required extensions
 auto controller_tracker = std::make_shared<core::ControllerTracker>();
@@ -105,7 +106,7 @@ HandInjector left_injector(h.instance, h.session, XR_HAND_LEFT_EXT, h.space);
 HandInjector right_injector(h.instance, h.session, XR_HAND_RIGHT_EXT, h.space);
 
 while (running) {
-    deviceio_session->update();
+    deviceio_session->update(core::os_monotonic_now_ns());
 
     const auto& left_tracked = controller_tracker->get_left_controller(*deviceio_session);
     if (left_tracked.data) {
@@ -141,12 +142,13 @@ auto handles = session->get_handles();
 #include <deviceio/controller_tracker.hpp>
 #include <deviceio/deviceio_session.hpp>
 #include <oxr_utils/pose_conversions.hpp>
+#include <time_utils/os_time.hpp>
 
 auto controller_tracker = std::make_shared<core::ControllerTracker>();
 std::vector<std::shared_ptr<core::ITracker>> trackers = { controller_tracker };
 auto deviceio_session = core::DeviceIOSession::run(trackers, handles);
 
-deviceio_session->update();
+deviceio_session->update(core::os_monotonic_now_ns());
 const auto& left_tracked = controller_tracker->get_left_controller(*deviceio_session);
 const auto& right_tracked = controller_tracker->get_right_controller(*deviceio_session);
 // Use left_tracked.data and right_tracked.data (null when inactive)

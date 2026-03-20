@@ -6,7 +6,6 @@
 #include <deviceio_base/tracker.hpp>
 #include <oxr_utils/oxr_funcs.hpp>
 #include <oxr_utils/oxr_session_handles.hpp>
-#include <oxr_utils/oxr_time.hpp>
 
 #include <memory>
 #include <optional>
@@ -59,9 +58,9 @@ public:
     // Destructor defined in .cpp where mcap::McapWriter is fully defined
     ~DeviceIOSession();
 
-    // Update session and all trackers. If recording is active, tracker impls
-    // write their data to the MCAP file directly during this call.
-    bool update();
+    // Update session and all trackers with the given monotonic timestamp.
+    // Each tracker impl converts to XrTime internally when needed for OpenXR calls.
+    bool update(int64_t system_monotonic_time_ns) override;
 
     const ITrackerImpl& get_tracker_impl(const ITracker& tracker) const override
     {
@@ -81,7 +80,6 @@ private:
     const OpenXRSessionHandles handles_;
     std::unordered_map<const ITracker*, std::unique_ptr<ITrackerImpl>> tracker_impls_;
     std::unordered_map<const ITracker*, uint64_t> tracker_update_failure_counts_;
-    XrTimeConverter time_converter_;
 
     // Owned MCAP writer; null when recording is not configured.
     std::unique_ptr<mcap::McapWriter> mcap_writer_;

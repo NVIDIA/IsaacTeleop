@@ -6,9 +6,9 @@
 #include <flatbuffers/flatbuffers.h>
 #include <linux/joystick.h>
 #include <oxr/oxr_session.hpp>
-#include <oxr_utils/os_time.hpp>
 #include <schema/pedals_generated.h>
 #include <sys/select.h>
+#include <time_utils/os_time.hpp>
 
 #include <cerrno>
 #include <cstring>

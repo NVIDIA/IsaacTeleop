@@ -3,9 +3,10 @@
 
 #pragma once
 
-#include "os_time.hpp"
 #include "oxr_funcs.hpp"
 #include "oxr_session_handles.hpp"
+
+#include <time_utils/os_time.hpp>
 
 // Include platform-specific headers first
 #if defined(XR_USE_PLATFORM_WIN32)

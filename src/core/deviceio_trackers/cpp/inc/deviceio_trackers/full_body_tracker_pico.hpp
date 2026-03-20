@@ -20,7 +20,6 @@ public:
     //! Number of joints in XR_BD_body_tracking (0-23).
     static constexpr uint32_t JOINT_COUNT = 24;
 
-    std::vector<std::string> get_required_extensions() const override;
     std::string_view get_name() const override
     {
         return TRACKER_NAME;

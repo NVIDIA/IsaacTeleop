@@ -9,6 +9,7 @@ target_link_libraries(deviceio_session_py
     PRIVATE
         deviceio::deviceio_session
         deviceio::deviceio_py_utils
+        core::time_utils
 )
 
 set_target_properties(deviceio_session_py PROPERTIES

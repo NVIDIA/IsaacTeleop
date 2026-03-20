@@ -5,6 +5,7 @@
 #include <deviceio_session/deviceio_session.hpp>
 #include <openxr/openxr.h>
 #include <pybind11/stl.h>
+#include <time_utils/os_time.hpp>
 
 #include <optional>
 #include <stdexcept>
@@ -41,7 +42,16 @@ PYBIND11_MODULE(_deviceio_session, m)
 
     py::class_<core::PyDeviceIOSession, core::ITrackerSession, std::unique_ptr<core::PyDeviceIOSession>>(
         m, "DeviceIOSession")
-        .def("update", &core::PyDeviceIOSession::update, "Update session and all trackers")
+        .def(
+            "update",
+            [](core::PyDeviceIOSession& self, std::optional<int64_t> system_monotonic_time_ns)
+            {
+                int64_t t = system_monotonic_time_ns.value_or(core::os_monotonic_now_ns());
+                return self.update(t);
+            },
+            py::arg("system_monotonic_time_ns") = py::none(),
+            "Update session and all trackers. "
+            "If system_monotonic_time_ns is omitted, the current system monotonic time is used.")
         .def("close", &core::PyDeviceIOSession::close,
              "Release the native session immediately (usually automatic via context manager)")
         .def("__enter__", &core::PyDeviceIOSession::enter)

@@ -59,7 +59,7 @@ LiveFrameMetadataTrackerOakImpl::LiveFrameMetadataTrackerOakImpl(const OpenXRSes
     }
 }
 
-bool LiveFrameMetadataTrackerOakImpl::update(XrTime /*time*/)
+bool LiveFrameMetadataTrackerOakImpl::update(int64_t /*system_monotonic_time_ns*/)
 {
     bool any_present = false;
     for (auto& stream : m_streams)

@@ -57,7 +57,7 @@ try:
 
             # Test 5: Initial update
             print("[Test 5] Testing initial data retrieval...")
-            if not session.update():
+            if not session.update(time.monotonic_ns()):
                 print("❌ Update failed")
                 sys.exit(1)
 
@@ -92,7 +92,7 @@ try:
             last_status_print = start_time
 
             while time.time() - start_time < 10.0:
-                if not session.update():
+                if not session.update(time.monotonic_ns()):
                     print("Update failed")
                     break
 
