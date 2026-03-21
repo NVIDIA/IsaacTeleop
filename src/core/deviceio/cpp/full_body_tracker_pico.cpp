@@ -75,7 +75,9 @@ FullBodyTrackerPicoImpl::FullBodyTrackerPicoImpl(const OpenXRSessionHandles& han
         }
         if (!body_tracking_props.supportsBodyTracking)
         {
-            throw std::runtime_error("Body tracking not supported by this system");
+            std::cerr << "[FullBodyTrackerPico] Body tracking not supported by this system, running in limp mode"
+                      << std::endl;
+            return;
         }
     }
     else
@@ -90,12 +92,6 @@ FullBodyTrackerPicoImpl::FullBodyTrackerPicoImpl(const OpenXRSessionHandles& han
     loadExtensionFunction(handles.instance, handles.xrGetInstanceProcAddr, "xrLocateBodyJointsBD",
                           reinterpret_cast<PFN_xrVoidFunction*>(&pfn_locate_body_joints_));
 
-    if (!pfn_create_body_tracker_ || !pfn_destroy_body_tracker_ || !pfn_locate_body_joints_)
-    {
-        throw std::runtime_error("Failed to get body tracking function pointers");
-    }
-
-    // Create body tracker for full body joints (24 joints)
     XrBodyTrackerCreateInfoBD create_info{ XR_TYPE_BODY_TRACKER_CREATE_INFO_BD };
     create_info.next = nullptr;
     create_info.jointSet = XR_BODY_JOINT_SET_FULL_BODY_JOINTS_BD;
@@ -111,11 +107,9 @@ FullBodyTrackerPicoImpl::FullBodyTrackerPicoImpl(const OpenXRSessionHandles& han
 
 FullBodyTrackerPicoImpl::~FullBodyTrackerPicoImpl()
 {
-    // pfn_destroy_body_tracker_ should never be null (verified in constructor)
-    assert(pfn_destroy_body_tracker_ != nullptr && "pfn_destroy_body_tracker must not be null");
-
     if (body_tracker_ != XR_NULL_HANDLE)
     {
+        assert(pfn_destroy_body_tracker_ != nullptr && "pfn_destroy_body_tracker must not be null");
         pfn_destroy_body_tracker_(body_tracker_);
         body_tracker_ = XR_NULL_HANDLE;
     }
@@ -124,6 +118,12 @@ FullBodyTrackerPicoImpl::~FullBodyTrackerPicoImpl()
 bool FullBodyTrackerPicoImpl::update(XrTime time)
 {
     last_update_time_ = time;
+
+    if (body_tracker_ == XR_NULL_HANDLE)
+    {
+        tracked_.data.reset();
+        return true;
+    }
 
     XrBodyJointsLocateInfoBD locate_info{ XR_TYPE_BODY_JOINTS_LOCATE_INFO_BD };
     locate_info.next = nullptr;
