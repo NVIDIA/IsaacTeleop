@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 # Test Runner Script with CloudXR
@@ -196,6 +196,9 @@ export CXR_PYTHON_GPU_TESTS="$CXR_PYTHON_GPU_TESTS_ENV"
 
 CXR_NATIVE_GPU_TESTS_ENV=$(IFS=','; echo "${CXR_NATIVE_GPU_TESTS[*]}")
 export CXR_NATIVE_GPU_TESTS="$CXR_NATIVE_GPU_TESTS_ENV"
+
+# Set CloudXR runtime network mode
+export CXR_RUNTIME_NETWORK_MODE="bridge"
 
 # Create/update .env file with test configuration
 log_info "Writing test configuration to $ENV_TEST..."

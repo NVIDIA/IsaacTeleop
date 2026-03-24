@@ -16,7 +16,7 @@ services:
         ISAACTELEOP_PIP_DEBUG:
     container_name: cloudxr-runtime-${CXR_RUNTIME_SDK_VERSION:-unset}-${PYTHON_VERSION:-unset}
     user: "${CXR_UID:-1000}:${CXR_GID:-1000}"
-    network_mode: host
+    network_mode: "${CXR_RUNTIME_NETWORK_MODE:-host}"
     healthcheck:
       test: ["CMD", "test", "-f", "/openxr/.cloudxr/run/runtime_started"]
       interval: 1s
