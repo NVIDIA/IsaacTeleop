@@ -13,7 +13,7 @@ if(NOT TARGET OpenXR::OpenXR)
     add_library(OpenXR::OpenXR ALIAS openxr_loader)
 endif()
 
-# Core OXR session library (static for distribution)
+# Core OXR session library (static; consumed in-tree via oxr::oxr_core)
 add_library(oxr_core STATIC
     oxr_session.cpp
     inc/oxr/oxr_session.hpp
@@ -22,7 +22,6 @@ add_library(oxr_core STATIC
 target_include_directories(oxr_core
     INTERFACE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
-        $<INSTALL_INTERFACE:include>
 )
 
 target_link_libraries(oxr_core
@@ -33,13 +32,3 @@ target_link_libraries(oxr_core
 
 # Create alias for consistent naming
 add_library(oxr::oxr_core ALIAS oxr_core)
-
-# Optional: Install for distribution
-install(TARGETS oxr_core
-    ARCHIVE DESTINATION lib
-    INCLUDES DESTINATION include
-)
-
-install(DIRECTORY inc/oxr
-    DESTINATION include
-)

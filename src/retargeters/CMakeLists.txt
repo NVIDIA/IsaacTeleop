@@ -16,11 +16,4 @@ if(BUILD_PYTHON_BINDINGS)
             "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/retargeters/README.md"
         COMMENT "Copying retargeters Python files to package structure"
     )
-
-    install(
-        DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/"
-        DESTINATION "python/isaacteleop/retargeters"
-        FILES_MATCHING PATTERN "*.py"
-        REGEX "/\\." EXCLUDE
-    )
 endif()

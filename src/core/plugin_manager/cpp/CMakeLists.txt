@@ -25,15 +25,3 @@ target_link_libraries(teleop_plugin_manager
     PRIVATE
         yaml-cpp::yaml-cpp
 )
-
-# Install
-install(TARGETS teleop_plugin_manager
-    EXPORT teleop_plugin_manager_targets
-    ARCHIVE DESTINATION lib
-    LIBRARY DESTINATION lib
-    RUNTIME DESTINATION bin
-)
-
-install(DIRECTORY inc/
-    DESTINATION include
-)

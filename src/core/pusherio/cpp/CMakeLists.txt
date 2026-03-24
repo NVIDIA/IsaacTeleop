@@ -3,7 +3,7 @@
 
 cmake_minimum_required(VERSION 3.20)
 
-# PusherIO library (static for distribution)
+# PusherIO library (static; consumed in-tree via pusherio::pusherio)
 add_library(pusherio STATIC
     schema_pusher.cpp
     inc/pusherio/schema_pusher.hpp
@@ -12,7 +12,6 @@ add_library(pusherio STATIC
 target_include_directories(pusherio
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
-        $<INSTALL_INTERFACE:include>
 )
 
 target_link_libraries(pusherio
@@ -30,13 +29,3 @@ target_link_libraries(pusherio
 
 # Create alias for consistent naming
 add_library(pusherio::pusherio ALIAS pusherio)
-
-# Optional: Install for distribution
-install(TARGETS pusherio
-    ARCHIVE DESTINATION lib
-    INCLUDES DESTINATION include
-)
-
-install(DIRECTORY inc/pusherio
-    DESTINATION include
-)
