@@ -59,14 +59,14 @@ LiveFrameMetadataTrackerOakImpl::LiveFrameMetadataTrackerOakImpl(const OpenXRSes
     }
 }
 
-bool LiveFrameMetadataTrackerOakImpl::update(XrTime /*time*/)
+void LiveFrameMetadataTrackerOakImpl::update(XrTime /*time*/)
 {
-    bool any_present = false;
+    // Policy: per-stream SchemaTracker throws on critical OpenXR/tensor API failures.
+    // Missing stream collection/no fresh sample are treated as common non-fatal cases.
     for (auto& stream : m_streams)
     {
-        any_present |= stream.reader->update(stream.tracked.data);
+        stream.reader->update(stream.tracked.data);
     }
-    return any_present;
 }
 
 const FrameMetadataOakTrackedT& LiveFrameMetadataTrackerOakImpl::get_stream_data(size_t stream_index) const

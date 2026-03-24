@@ -208,6 +208,9 @@ class TeleopSession:
             ValueError: If external leaves exist but external_inputs is missing or
                 incomplete, or if external_inputs contains keys that collide with
                 DeviceIO source names.
+            RuntimeError: If a critical DeviceIO/tracker/runtime failure occurs
+                while updating the session. This is a fatal condition; the
+                application is expected to terminate rather than continue.
         """
         # Validate external inputs
         self._validate_external_inputs(external_inputs)

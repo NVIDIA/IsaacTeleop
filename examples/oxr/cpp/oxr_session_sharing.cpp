@@ -76,17 +76,8 @@ try
     for (int i = 0; i < 10; ++i)
     {
         // Both sessions update using the same underlying OpenXR session
-        if (!session1->update())
-        {
-            std::cerr << "Session 1 update failed" << std::endl;
-            break;
-        }
-
-        if (!session2->update())
-        {
-            std::cerr << "Session 2 update failed" << std::endl;
-            break;
-        }
+        session1->update();
+        session2->update();
 
         // Get data from both trackers
         const auto& left_tracked = hand_tracker->get_left_hand(*session1);

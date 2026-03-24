@@ -9,7 +9,6 @@ Demonstrates:
 - Multiple ControllerTracker instances on the same session (action context isolation)
 """
 
-import sys
 import time
 
 import isaacteleop.deviceio as deviceio
@@ -52,9 +51,7 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
 
         # Test 4: Initial update
         print("[Test 4] Testing initial data retrieval...")
-        if not session.update():
-            print("❌ Update failed")
-            sys.exit(1)
+        session.update()
 
         print("✓ Update successful")
         print()
@@ -104,9 +101,7 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
         last_status_print = start_time
 
         while time.time() - start_time < 10.0:
-            if not session.update():
-                print("Update failed")
-                break
+            session.update()
 
             current_time = time.time()
             if current_time - last_status_print >= 0.5:

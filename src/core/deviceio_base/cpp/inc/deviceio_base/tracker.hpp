@@ -22,7 +22,14 @@ class ITrackerImpl
 public:
     virtual ~ITrackerImpl() = default;
 
-    virtual bool update(XrTime time) = 0;
+    /**
+     * @brief Updates tracker state for the specified OpenXR time.
+     *
+     * @throws std::runtime_error On critical tracker/runtime failures.
+     * @note A thrown exception indicates a fatal condition; the application is
+     *       expected to terminate rather than continue running.
+     */
+    virtual void update(XrTime time) = 0;
 };
 
 /**

@@ -38,12 +38,12 @@ public:
     LiveHandTrackerImpl(LiveHandTrackerImpl&&) = delete;
     LiveHandTrackerImpl& operator=(LiveHandTrackerImpl&&) = delete;
 
-    bool update(XrTime time) override;
+    void update(XrTime time) override;
     const HandPoseTrackedT& get_left_hand() const override;
     const HandPoseTrackedT& get_right_hand() const override;
 
 private:
-    bool update_hand(XrHandTrackerEXT tracker, XrTime time, HandPoseTrackedT& tracked);
+    void update_hand(XrHandTrackerEXT tracker, XrTime time, HandPoseTrackedT& tracked);
 
     XrTimeConverter time_converter_;
     XrSpace base_space_;

@@ -299,7 +299,6 @@ class MockDeviceIOSession:
 
     def update(self):
         self.update_count += 1
-        return True
 
     def __enter__(self):
         return self

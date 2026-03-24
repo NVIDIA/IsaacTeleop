@@ -23,7 +23,9 @@ public:
         return TRACKER_NAME;
     }
 
-    // Query method - tracked.data is null when the body tracker is inactive
+    // Query method:
+    // - tracked.data is null when the body tracker is inactive.
+    // - when tracked.data is non-null, nested fields in FullBodyPosePicoT are safe to read.
     const FullBodyPosePicoTrackedT& get_body_pose(const ITrackerSession& session) const;
 
 private:
