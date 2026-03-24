@@ -36,10 +36,7 @@ ManusTracker& ManusTracker::instance(const std::string& app_name) noexcept(false
 void ManusTracker::update()
 {
     // Update DeviceIOSession which handles time conversion and tracker updates internally
-    if (!m_deviceio_session->update())
-    {
-        return;
-    }
+    m_deviceio_session->update();
 
     inject_hand_data();
 }

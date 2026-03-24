@@ -22,7 +22,7 @@ class ITrackerImpl
 public:
     virtual ~ITrackerImpl() = default;
 
-    virtual bool update(XrTime time) = 0;
+    virtual void update(XrTime time) = 0;
 };
 
 /**

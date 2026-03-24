@@ -29,13 +29,13 @@ public:
     {
     }
 
-    bool update()
+    void update()
     {
         if (!impl_)
         {
             throw std::runtime_error("Session has been closed/destroyed");
         }
-        return impl_->update();
+        impl_->update();
     }
 
     void close()
