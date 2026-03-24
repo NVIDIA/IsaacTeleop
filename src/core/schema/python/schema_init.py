@@ -19,6 +19,7 @@ from ._schema import (
     HeadPoseTrackedT,
     HeadPoseRecord,
     # Hand-related types.
+    HandJoint,
     HandJointPose,
     HandJoints,
     HandPoseT,
@@ -61,6 +62,7 @@ __all__ = [
     "HeadPoseTrackedT",
     "HeadPoseRecord",
     # Hand types.
+    "HandJoint",
     "HandJointPose",
     "HandJoints",
     "HandPoseT",

@@ -37,13 +37,6 @@ FrameMetadataTrackerOak::FrameMetadataTrackerOak(const std::string& collection_p
     }
 }
 
-std::vector<std::string> FrameMetadataTrackerOak::get_required_extensions() const
-{
-    // Tensor-data extension required by SchemaTracker-based trackers.
-    // XrTimeConverter extensions are added separately by DeviceIOSession::get_required_extensions().
-    return { "XR_NVX1_tensor_data" };
-}
-
 const FrameMetadataOakTrackedT& FrameMetadataTrackerOak::get_stream_data(const ITrackerSession& session,
                                                                          size_t stream_index) const
 {

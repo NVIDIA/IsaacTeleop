@@ -298,9 +298,9 @@ LiveControllerTrackerImpl::LiveControllerTrackerImpl(const OpenXRSessionHandles&
     std::cout << "ControllerTracker initialized (left + right) with action context" << std::endl;
 }
 
-bool LiveControllerTrackerImpl::update(XrTime time)
+bool LiveControllerTrackerImpl::update(int64_t target_monotonic_time_ns)
 {
-    last_update_time_ = time;
+    const XrTime time = time_converter_.convert_monotonic_ns_to_xrtime(target_monotonic_time_ns);
 
     // Sync actions via xrSyncActions2NV with our session action context
     XrActiveActionSet active_action_set{ action_set_.get(), XR_NULL_PATH };
@@ -391,8 +391,9 @@ bool LiveControllerTrackerImpl::update(XrTime time)
 
     if (mcap_channels_)
     {
-        int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
-        DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
+        DeviceDataTimestamp timestamp(/*available_time_local_common_clock=*/target_monotonic_time_ns,
+                                      /*sample_time_local_common_clock=*/target_monotonic_time_ns,
+                                      /*sample_time_raw_device_clock=*/time);
         mcap_channels_->write(0, timestamp, left_tracked_.data);
         mcap_channels_->write(1, timestamp, right_tracked_.data);
     }

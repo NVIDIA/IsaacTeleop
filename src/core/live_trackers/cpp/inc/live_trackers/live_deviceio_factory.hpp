@@ -33,6 +33,9 @@ struct OpenXRSessionHandles;
 class LiveDeviceIOFactory : public ITrackerFactory
 {
 public:
+    /** Aggregate OpenXR extensions required by the given trackers for a live session. */
+    static std::vector<std::string> get_required_extensions(const std::vector<std::shared_ptr<ITracker>>& trackers);
+
     LiveDeviceIOFactory(const OpenXRSessionHandles& handles,
                         mcap::McapWriter* writer,
                         const std::vector<std::pair<const ITracker*, std::string>>& tracker_names);

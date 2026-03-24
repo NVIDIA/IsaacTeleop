@@ -7,6 +7,7 @@ MCAP recording is handled by DeviceIOSession. Pass a McapRecordingConfig
 to DeviceIOSession.run() to enable automatic recording; omit it (or pass
 None) to disable recording:
 
+    import time
     from isaacteleop.deviceio_session import DeviceIOSession, McapRecordingConfig
 
     config = McapRecordingConfig("output.mcap", [
@@ -15,7 +16,7 @@ None) to disable recording:
     ])
     with DeviceIOSession.run(trackers, handles, config) as session:
         while running:
-            session.update()  # writes to MCAP automatically
+            session.update(time.monotonic_ns())  # writes to MCAP automatically
 """
 
 __all__ = []

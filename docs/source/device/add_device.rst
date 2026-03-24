@@ -115,14 +115,14 @@ tensor samples from OpenXR. Implement a concrete tracker class (e.g.
   ``ITrackerFactory``. The implementation uses double dispatch: call the factory method
   specific to your tracker type (e.g.
   ``factory.create_generic_3axis_pedal_tracker_impl(this)``) and return the resulting
-  ``std::unique_ptr<ITrackerImpl>``. The factory constructs an ``ITrackerImpl`` that holds
+  ``std::unique_ptr<ITrackerImpl>``. The factory constructs an   ``ITrackerImpl`` that holds
   a ``SchemaTracker``, builds a ``SchemaTrackerConfig`` from the tracker's stored
-  configuration, and implements ``update(XrTime)`` and
+  configuration, and implements ``update(int64_t target_monotonic_time_ns)`` and
   ``serialize_all(channel_index, callback)``.
 
 In the **Impl**:
 
-- **update()** — Call ``m_schema_reader.read_all_samples(pending_records)``. If the
+- **update(target_monotonic_time_ns)** — Call ``m_schema_reader.read_all_samples(pending_records)``. If the
   collection is not present, clear the tracked state (e.g. set ``m_tracked.data = nullptr``).
   Otherwise, deserialize the latest sample (or all samples) into your tracked type and
   keep the last one for ``get_data()``.
@@ -157,7 +157,7 @@ the collection and prints samples. Pattern (see :code-file:`examples/schemaio/pe
 2. Get required extensions with ``DeviceIOSession::get_required_extensions(trackers)`` and
    create an ``OpenXRSession``.
 3. Create a ``DeviceIOSession`` with ``DeviceIOSession::run(trackers, oxr_session->get_handles())``.
-4. Loop: call ``session->update()``, then read ``tracker->get_data(*session)``. If
+4. Loop: call ``session->update(core::os_monotonic_now_ns())``, then read ``tracker->get_data(*session)``. If
    ``tracked.data`` is non-null, use the latest sample; otherwise sleep briefly and repeat.
 
 Use the same ``collection_id`` (and optionally ``tensor_identifier``) as the plugin. See
@@ -213,5 +213,5 @@ Both exit after 100 samples, or press Ctrl+C to exit early.
   ``get_data(session)`` returning ``Generic3AxisPedalOutputTrackedT`` via the session’s
   ``Generic3AxisPedalTrackerImpl``.
 - **DeviceIOSession** — Session manager: collects required OpenXR extensions from registered
-  trackers, creates tracker implementations with session handles, and calls ``update()`` on all
-  trackers during the update loop.
+  trackers, creates tracker implementations with session handles, and calls
+  ``update(target_monotonic_time_ns)`` on all trackers during the update loop.

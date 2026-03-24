@@ -39,9 +39,9 @@ LiveHeadTrackerImpl::LiveHeadTrackerImpl(const OpenXRSessionHandles& handles,
 {
 }
 
-bool LiveHeadTrackerImpl::update(XrTime time)
+bool LiveHeadTrackerImpl::update(int64_t target_monotonic_time_ns)
 {
-    last_update_time_ = time;
+    const XrTime time = time_converter_.convert_monotonic_ns_to_xrtime(target_monotonic_time_ns);
 
     XrSpaceLocation location{ XR_TYPE_SPACE_LOCATION };
     XrResult result = core_funcs_.xrLocateSpace(view_space_.get(), base_space_, time, &location);
@@ -76,8 +76,9 @@ bool LiveHeadTrackerImpl::update(XrTime time)
 
     if (mcap_channels_)
     {
-        int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
-        DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
+        DeviceDataTimestamp timestamp(/*available_time_local_common_clock=*/target_monotonic_time_ns,
+                                      /*sample_time_local_common_clock=*/target_monotonic_time_ns,
+                                      /*sample_time_raw_device_clock=*/time);
         mcap_channels_->write(0, timestamp, tracked_.data);
     }
 

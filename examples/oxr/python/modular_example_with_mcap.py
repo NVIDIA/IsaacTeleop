@@ -71,7 +71,9 @@ def main():
             start_time = time.time()
 
             while time.time() - start_time < 30.0:
-                session.update()
+                if not session.update(time.monotonic_ns()):
+                    print("Session update failed, stopping")
+                    break
 
                 # Print every 60 frames (~1 second)
                 if frame_count % 60 == 0:

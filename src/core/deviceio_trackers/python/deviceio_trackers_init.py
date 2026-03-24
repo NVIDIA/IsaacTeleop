@@ -12,11 +12,6 @@ from ._deviceio_trackers import (
     Generic3AxisPedalTracker,
     FullBodyTrackerPico,
     ITrackerSession,
-    NUM_JOINTS,
-    JOINT_PALM,
-    JOINT_WRIST,
-    JOINT_THUMB_TIP,
-    JOINT_INDEX_TIP,
 )
 
 __all__ = [
@@ -27,10 +22,5 @@ __all__ = [
     "HandTracker",
     "HeadTracker",
     "ITracker",
-    "JOINT_INDEX_TIP",
-    "JOINT_PALM",
-    "JOINT_THUMB_TIP",
-    "JOINT_WRIST",
-    "NUM_JOINTS",
     "ITrackerSession",
 ]

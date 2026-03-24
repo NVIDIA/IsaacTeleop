@@ -23,11 +23,3 @@ add_custom_target(retargeting_engine_ui_python ALL
         "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/retargeting_engine_ui/CMakeLists.txt"
     COMMENT "Copying retargeting_engine_ui Python files to package structure"
 )
-
-# Install Python files to the wheel package directory (only .py files, no hidden dirs)
-install(
-    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/"
-    DESTINATION "python/isaacteleop/retargeting_engine_ui"
-    FILES_MATCHING PATTERN "*.py"
-    REGEX "/\\." EXCLUDE
-)

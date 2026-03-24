@@ -23,6 +23,10 @@ using FullBodyMcapChannels = McapTrackerChannels<FullBodyPosePicoRecord, FullBod
 class LiveFullBodyTrackerPicoImpl : public FullBodyTrackerPicoImpl
 {
 public:
+    static std::vector<std::string> required_extensions()
+    {
+        return { "XR_BD_body_tracking" };
+    }
     static std::unique_ptr<FullBodyMcapChannels> create_mcap_channels(mcap::McapWriter& writer,
                                                                       std::string_view base_name);
 
@@ -34,7 +38,7 @@ public:
     LiveFullBodyTrackerPicoImpl(LiveFullBodyTrackerPicoImpl&&) = delete;
     LiveFullBodyTrackerPicoImpl& operator=(LiveFullBodyTrackerPicoImpl&&) = delete;
 
-    bool update(XrTime time) override;
+    bool update(int64_t target_monotonic_time_ns) override;
     const FullBodyPosePicoTrackedT& get_body_pose() const override;
 
 private:
@@ -42,7 +46,6 @@ private:
     XrSpace base_space_;
     XrBodyTrackerBD body_tracker_;
     FullBodyPosePicoTrackedT tracked_;
-    XrTime last_update_time_ = 0;
 
     PFN_xrCreateBodyTrackerBD pfn_create_body_tracker_;
     PFN_xrDestroyBodyTrackerBD pfn_destroy_body_tracker_;

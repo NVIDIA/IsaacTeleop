@@ -24,9 +24,9 @@ public:
     OpenXRSessionHandles get_handles() const;
 
 private:
-    using InstanceHandle = std::unique_ptr<std::remove_pointer_t<XrInstance>, decltype(&xrDestroyInstance)>;
-    using SessionHandle = std::unique_ptr<std::remove_pointer_t<XrSession>, decltype(&xrDestroySession)>;
-    using SpaceHandle = std::unique_ptr<std::remove_pointer_t<XrSpace>, decltype(&xrDestroySpace)>;
+    using InstanceHandle = std::unique_ptr<std::remove_pointer_t<XrInstance>, PFN_xrDestroyInstance>;
+    using SessionHandle = std::unique_ptr<std::remove_pointer_t<XrSession>, PFN_xrDestroySession>;
+    using SpaceHandle = std::unique_ptr<std::remove_pointer_t<XrSpace>, PFN_xrDestroySpace>;
 
     // Initialization methods
     void create_instance(const std::string& app_name, const std::vector<std::string>& extensions);

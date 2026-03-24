@@ -44,7 +44,7 @@ LiveGeneric3AxisPedalTrackerImpl::LiveGeneric3AxisPedalTrackerImpl(const OpenXRS
 {
 }
 
-bool LiveGeneric3AxisPedalTrackerImpl::update(XrTime /*time*/)
+bool LiveGeneric3AxisPedalTrackerImpl::update(int64_t /*target_monotonic_time_ns*/)
 {
     return m_schema_reader.update(m_tracked.data);
 }

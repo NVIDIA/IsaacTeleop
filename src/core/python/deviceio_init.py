@@ -16,11 +16,6 @@ from isaacteleop.deviceio_trackers import (
     FrameMetadataTrackerOak,
     Generic3AxisPedalTracker,
     FullBodyTrackerPico,
-    NUM_JOINTS,
-    JOINT_PALM,
-    JOINT_WRIST,
-    JOINT_THUMB_TIP,
-    JOINT_INDEX_TIP,
 )
 
 from isaacteleop.deviceio_session import DeviceIOSession, McapRecordingConfig
@@ -32,6 +27,7 @@ from ..schema import (
     ControllerPose,
     ControllerSnapshot,
     DeviceDataTimestamp,
+    HandJoint,
     StreamType,
     FrameMetadataOak,
     Generic3AxisPedalOutput,
@@ -42,6 +38,7 @@ __all__ = [
     "ControllerPose",
     "ControllerSnapshot",
     "DeviceDataTimestamp",
+    "HandJoint",
     "StreamType",
     "FrameMetadataOak",
     "Generic3AxisPedalOutput",
@@ -55,9 +52,4 @@ __all__ = [
     "OpenXRSessionHandles",
     "DeviceIOSession",
     "McapRecordingConfig",
-    "NUM_JOINTS",
-    "JOINT_PALM",
-    "JOINT_WRIST",
-    "JOINT_THUMB_TIP",
-    "JOINT_INDEX_TIP",
 ]

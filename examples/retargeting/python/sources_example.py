@@ -121,7 +121,7 @@ def main():
 
             while time.time() - start_time < 10.0:
                 # Update session and all trackers
-                if not session.update():
+                if not session.update(time.monotonic_ns()):
                     print("Update failed")
                     break
 
@@ -195,7 +195,7 @@ def main():
                     )
                     if not left_hand.is_none:
                         left_positions = left_hand[HandInputIndex.JOINT_POSITIONS]
-                        wrist_idx = deviceio.JOINT_WRIST
+                        wrist_idx = deviceio.HandJoint.WRIST
                         wrist_pos = left_positions[wrist_idx]
                         print(
                             f"      Wrist: [{wrist_pos[0]:6.3f}, {wrist_pos[1]:6.3f}, {wrist_pos[2]:6.3f}]"
@@ -206,7 +206,7 @@ def main():
                     )
                     if not right_hand.is_none:
                         right_positions = right_hand[HandInputIndex.JOINT_POSITIONS]
-                        wrist_idx = deviceio.JOINT_WRIST
+                        wrist_idx = deviceio.HandJoint.WRIST
                         wrist_pos = right_positions[wrist_idx]
                         print(
                             f"      Wrist: [{wrist_pos[0]:6.3f}, {wrist_pos[1]:6.3f}, {wrist_pos[2]:6.3f}]"

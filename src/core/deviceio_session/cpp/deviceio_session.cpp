@@ -13,7 +13,6 @@
 
 #include <cassert>
 #include <iostream>
-#include <set>
 #include <stdexcept>
 
 namespace core
@@ -26,7 +25,7 @@ namespace core
 DeviceIOSession::DeviceIOSession(const std::vector<std::shared_ptr<ITracker>>& trackers,
                                  const OpenXRSessionHandles& handles,
                                  std::optional<McapRecordingConfig> recording_config)
-    : handles_(handles), time_converter_(handles)
+    : handles_(handles)
 {
     std::vector<std::pair<const ITracker*, std::string>> tracker_names;
 
@@ -87,27 +86,7 @@ DeviceIOSession::~DeviceIOSession() = default;
 
 std::vector<std::string> DeviceIOSession::get_required_extensions(const std::vector<std::shared_ptr<ITracker>>& trackers)
 {
-    std::set<std::string> all_extensions;
-
-    for (const auto& ext : XrTimeConverter::get_required_extensions())
-    {
-        all_extensions.insert(ext);
-    }
-
-    for (const auto& tracker : trackers)
-    {
-        if (!tracker)
-        {
-            throw std::invalid_argument("DeviceIOSession: null tracker in trackers list");
-        }
-        auto extensions = tracker->get_required_extensions();
-        for (const auto& ext : extensions)
-        {
-            all_extensions.insert(ext);
-        }
-    }
-
-    return std::vector<std::string>(all_extensions.begin(), all_extensions.end());
+    return LiveDeviceIOFactory::get_required_extensions(trackers);
 }
 
 std::unique_ptr<DeviceIOSession> DeviceIOSession::run(const std::vector<std::shared_ptr<ITracker>>& trackers,
@@ -123,14 +102,15 @@ std::unique_ptr<DeviceIOSession> DeviceIOSession::run(const std::vector<std::sha
     return std::unique_ptr<DeviceIOSession>(new DeviceIOSession(trackers, handles, std::move(recording_config)));
 }
 
-bool DeviceIOSession::update()
+bool DeviceIOSession::update(int64_t target_monotonic_time_ns)
 {
-    XrTime current_time = time_converter_.os_monotonic_now();
+    bool success = true;
 
     for (auto& [tracker, impl] : tracker_impls_)
     {
-        if (!impl->update(current_time))
+        if (!impl->update(target_monotonic_time_ns))
         {
+            success = false;
             auto& count = tracker_update_failure_counts_[tracker];
             count++;
             if (count == 1 || count % 1000 == 0)
@@ -145,7 +125,7 @@ bool DeviceIOSession::update()
         }
     }
 
-    return true;
+    return success;
 }
 
 } // namespace core
