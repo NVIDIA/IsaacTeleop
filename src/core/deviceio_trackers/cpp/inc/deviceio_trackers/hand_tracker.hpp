@@ -20,7 +20,9 @@ public:
         return TRACKER_NAME;
     }
 
-    // Query methods - tracked.data is null when the hand is inactive
+    // Query methods:
+    // - tracked.data is null when the hand is inactive.
+    // - when tracked.data is non-null, nested fields in HandPoseT are safe to read.
     const HandPoseTrackedT& get_left_hand(const ITrackerSession& session) const;
     const HandPoseTrackedT& get_right_hand(const ITrackerSession& session) const;
 

@@ -53,10 +53,14 @@ public:
      * returned via out_latest (if non-null and samples were read).
      *
      * @param out_latest If non-null and samples were read, receives the unpacked
-     *                   data from the last sample.
-     * @return true if the tensor collection is present.
+     *                   data from the last sample. Cleared when the tensor collection
+     *                   is absent.
+     * @throws std::runtime_error On critical OpenXR/tensor API failures propagated
+     *         from SchemaTrackerBase.
+     * @note Missing collection, temporary collection loss, and "no new sample"
+     *       are treated as common non-fatal conditions and do not throw.
      */
-    bool update(std::shared_ptr<NativeDataT>& out_latest)
+    void update(std::shared_ptr<NativeDataT>& out_latest)
     {
         samples_.clear();
         bool present = read_all_samples(samples_);
@@ -67,7 +71,7 @@ public:
             {
                 out_latest.reset();
             }
-            return present;
+            return;
         }
 
         for (const auto& sample : samples_)
@@ -91,8 +95,6 @@ public:
                 mcap_channels_->write(mcap_channel_index_, sample.timestamp, out_latest);
             }
         }
-
-        return present;
     }
 
 private:

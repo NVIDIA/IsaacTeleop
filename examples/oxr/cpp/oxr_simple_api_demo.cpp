@@ -76,11 +76,7 @@ try
     for (int i = 0; i < 5; ++i)
     {
         // Session handles internal update() calls to trackers
-        if (!session->update())
-        {
-            std::cerr << "Update failed" << std::endl;
-            break;
-        }
+        session->update();
 
         // External user only uses public query methods
         const auto& left_tracked = hand_tracker->get_left_hand(*session);
@@ -93,7 +89,7 @@ try
         std::cout << "  Head pose:  " << ((head_tracked.data && head_tracked.data->is_valid) ? "VALID" : "INVALID")
                   << std::endl;
 
-        if (head_tracked.data && head_tracked.data->is_valid && head_tracked.data->pose)
+        if (head_tracked.data && head_tracked.data->is_valid)
         {
             const auto& pos = head_tracked.data->pose->position();
             std::cout << "    Position: [" << pos.x() << ", " << pos.y() << ", " << pos.z() << "]" << std::endl;

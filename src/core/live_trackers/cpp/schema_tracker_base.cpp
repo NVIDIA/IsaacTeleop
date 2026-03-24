@@ -15,6 +15,16 @@
 namespace core
 {
 
+namespace
+{
+
+bool is_known_non_fatal_tensor_unavailable(XrResult result)
+{
+    return result == XR_ERROR_TENSOR_LOST_NV;
+}
+
+} // namespace
+
 // =============================================================================
 // SchemaTracker Implementation
 // =============================================================================
@@ -64,6 +74,11 @@ bool SchemaTrackerBase::ensure_collection()
     XrResult result = m_get_latest_gen_fn(m_handles.session, &latest_generation);
     if (result != XR_SUCCESS)
     {
+        if (is_known_non_fatal_tensor_unavailable(result))
+        {
+            m_target_collection_index.reset();
+            return false;
+        }
         throw std::runtime_error("Failed to get latest generation, result=" + std::to_string(result));
     }
 
@@ -77,6 +92,11 @@ bool SchemaTrackerBase::ensure_collection()
         result = m_update_list_fn(m_tensor_list);
         if (result != XR_SUCCESS)
         {
+            if (is_known_non_fatal_tensor_unavailable(result))
+            {
+                m_target_collection_index.reset();
+                return false;
+            }
             throw std::runtime_error("Failed to update tensor list, result=" + std::to_string(result));
         }
         m_cached_generation = latest_generation;
@@ -86,6 +106,11 @@ bool SchemaTrackerBase::ensure_collection()
     result = m_get_list_props_fn(m_tensor_list, &list_props);
     if (result != XR_SUCCESS)
     {
+        if (is_known_non_fatal_tensor_unavailable(result))
+        {
+            m_target_collection_index.reset();
+            return false;
+        }
         throw std::runtime_error("Failed to get list properties, result=" + std::to_string(result));
     }
 
@@ -95,6 +120,11 @@ bool SchemaTrackerBase::ensure_collection()
         result = m_get_coll_props_fn(m_tensor_list, i, &coll_props);
         if (result != XR_SUCCESS)
         {
+            if (is_known_non_fatal_tensor_unavailable(result))
+            {
+                m_target_collection_index.reset();
+                return false;
+            }
             throw std::runtime_error("Failed to get collection properties, result=" + std::to_string(result));
         }
 
@@ -216,6 +246,7 @@ bool SchemaTrackerBase::read_next_sample(SampleResult& out)
     {
         if (result == XR_ERROR_TENSOR_LOST_NV)
         {
+            // Policy: temporary collection loss is treated as non-fatal.
             std::cerr << "[SchemaTracker] m_get_data_fn(m_tensor_list, &retrievalInfo, &tensorData): "
                       << "XR_ERROR_TENSOR_LOST_NV — tensor/collection data lost; clearing m_target_collection_index."
                       << std::endl;

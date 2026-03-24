@@ -6,7 +6,6 @@
 Test script for modular OpenXR tracking API
 """
 
-import sys
 import time
 
 import isaacteleop.deviceio as deviceio
@@ -47,9 +46,7 @@ with oxr.OpenXRSession("ModularTest", required_extensions) as oxr_session:
 
         # Test 4: Update and get data
         print("[Test 4] Testing data retrieval...")
-        if not session.update():
-            print("❌ Update failed")
-            sys.exit(1)
+        session.update()
 
         print("✓ Update successful")
         print()
@@ -92,9 +89,7 @@ with oxr.OpenXRSession("ModularTest", required_extensions) as oxr_session:
         start_time = time.time()
 
         while time.time() - start_time < 5.0:
-            if not session.update():
-                print("Update failed")
-                break
+            session.update()
 
             if frame_count % 60 == 0:
                 elapsed = time.time() - start_time

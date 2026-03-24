@@ -20,7 +20,9 @@ public:
         return TRACKER_NAME;
     }
 
-    // Query methods - tracked.data is null when the controller is inactive
+    // Query methods:
+    // - tracked.data is null when the controller is inactive.
+    // - when tracked.data is non-null, nested fields in ControllerSnapshotT are safe to read.
     const ControllerSnapshotTrackedT& get_left_controller(const ITrackerSession& session) const;
     const ControllerSnapshotTrackedT& get_right_controller(const ITrackerSession& session) const;
 

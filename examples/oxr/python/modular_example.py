@@ -60,9 +60,7 @@ def main():
 
             while time.time() - start_time < 10.0:
                 # Update session and all trackers
-                if not session.update():
-                    print("Update failed")
-                    break
+                session.update()
 
                 # Print every 60 frames (~1 second)
                 if frame_count % 60 == 0:

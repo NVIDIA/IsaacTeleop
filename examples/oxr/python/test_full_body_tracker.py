@@ -9,7 +9,6 @@ Demonstrates:
 - Requires PICO device with body tracking support
 """
 
-import sys
 import time
 
 import isaacteleop.deviceio as deviceio
@@ -56,9 +55,7 @@ with oxr.OpenXRSession("FullBodyTrackerTest", required_extensions) as oxr_sessio
 
         # Test 5: Initial update
         print("[Test 5] Testing initial data retrieval...")
-        if not session.update():
-            print("❌ Update failed")
-            sys.exit(1)
+        session.update()
 
         print("✓ Update successful")
         print()
@@ -89,9 +86,7 @@ with oxr.OpenXRSession("FullBodyTrackerTest", required_extensions) as oxr_sessio
         last_status_print = start_time
 
         while time.time() - start_time < 10.0:
-            if not session.update():
-                print("Update failed")
-                break
+            session.update()
 
             # Get current body pose
             current_time = time.time()

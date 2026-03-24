@@ -117,11 +117,11 @@ LiveHandTrackerImpl::~LiveHandTrackerImpl()
     }
 }
 
-bool LiveHandTrackerImpl::update(XrTime time)
+void LiveHandTrackerImpl::update(XrTime time)
 {
     last_update_time_ = time;
-    bool left_ok = update_hand(left_hand_tracker_, time, left_tracked_);
-    bool right_ok = update_hand(right_hand_tracker_, time, right_tracked_);
+    update_hand(left_hand_tracker_, time, left_tracked_);
+    update_hand(right_hand_tracker_, time, right_tracked_);
 
     if (mcap_channels_)
     {
@@ -130,8 +130,6 @@ bool LiveHandTrackerImpl::update(XrTime time)
         mcap_channels_->write(0, timestamp, left_tracked_.data);
         mcap_channels_->write(1, timestamp, right_tracked_.data);
     }
-
-    return left_ok || right_ok;
 }
 
 const HandPoseTrackedT& LiveHandTrackerImpl::get_left_hand() const
@@ -144,7 +142,7 @@ const HandPoseTrackedT& LiveHandTrackerImpl::get_right_hand() const
     return right_tracked_;
 }
 
-bool LiveHandTrackerImpl::update_hand(XrHandTrackerEXT tracker, XrTime time, HandPoseTrackedT& tracked)
+void LiveHandTrackerImpl::update_hand(XrHandTrackerEXT tracker, XrTime time, HandPoseTrackedT& tracked)
 {
     XrHandJointsLocateInfoEXT locate_info{ XR_TYPE_HAND_JOINTS_LOCATE_INFO_EXT };
     locate_info.baseSpace = base_space_;
@@ -161,13 +159,14 @@ bool LiveHandTrackerImpl::update_hand(XrHandTrackerEXT tracker, XrTime time, Han
     if (XR_FAILED(result))
     {
         tracked.data.reset();
-        return false;
+        throw std::runtime_error("[HandTracker] xrLocateHandJointsEXT failed: " + std::to_string(result));
     }
 
     if (!locations.isActive)
     {
+        // Policy: inactive hand is a common runtime condition; non-fatal.
         tracked.data.reset();
-        return true;
+        return;
     }
 
     if (!tracked.data)
@@ -195,8 +194,6 @@ bool LiveHandTrackerImpl::update_hand(XrHandTrackerEXT tracker, XrTime time, Han
         HandJointPose joint_pose(pose, is_valid, joint_loc.radius);
         tracked.data->joints->mutable_poses()->Mutate(i, joint_pose);
     }
-
-    return true;
 }
 
 } // namespace core
