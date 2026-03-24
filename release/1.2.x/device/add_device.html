@@ -252,10 +252,10 @@
 <div class="version-switcher">
   <label for="version-select" class="version-switcher__label">Version</label>
   <select id="version-select" class="version-switcher__select" onchange="location = this.value;">
-    <option value="add_device.html" selected>release/1.2.x</option>
     <option value="../../../main/device/add_device.html" >main</option>
     <option value="../../1.0.x/device/add_device.html" >release/1.0.x</option>
     <option value="../../1.1.x/device/add_device.html" >release/1.1.x</option>
+    <option value="add_device.html" selected>release/1.2.x</option>
     <option value="../../../v1.0.191/device/add_device.html" >v1.0.191</option>
   </select>
 </div>
@@ -508,18 +508,18 @@ implements the <strong>ITracker</strong> interface (tracker <strong>facade</stro
 tensor samples from OpenXR. Implement a concrete tracker class (e.g.
 <code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalTracker</span></code>) that:</p>
 <ul class="simple">
-<li><p><strong>Extends ITracker</strong> — Override <code class="docutils literal notranslate"><span class="pre">get_required_extensions()</span></code>, <code class="docutils literal notranslate"><span class="pre">get_name()</span></code>,
-<code class="docutils literal notranslate"><span class="pre">get_schema_name()</span></code>, <code class="docutils literal notranslate"><span class="pre">get_schema_text()</span></code>, and <code class="docutils literal notranslate"><span class="pre">get_record_channels()</span></code>. Return
-<code class="docutils literal notranslate"><span class="pre">SchemaTracker::get_required_extensions()</span></code> for extensions; return the Record type name
+<li><p><strong>Extends ITracker</strong> — Override <code class="docutils literal notranslate"><span class="pre">get_name()</span></code>,
+<code class="docutils literal notranslate"><span class="pre">get_schema_name()</span></code>, <code class="docutils literal notranslate"><span class="pre">get_schema_text()</span></code>, and <code class="docutils literal notranslate"><span class="pre">get_record_channels()</span></code>.
+For OpenXR, add a static <code class="docutils literal notranslate"><span class="pre">required_extensions()</span></code> on your live <code class="docutils literal notranslate"><span class="pre">ITrackerImpl</span></code> and register
+the tracker type in <code class="docutils literal notranslate"><span class="pre">LiveDeviceIOFactory::get_required_extensions</span></code> (tensor/schema readers
+usually forward <code class="docutils literal notranslate"><span class="pre">SchemaTrackerBase::get_required_extensions()</span></code>). Callers use
+<code class="docutils literal notranslate"><span class="pre">DeviceIOSession::get_required_extensions(trackers)</span></code>. Return the Record type name
 and binary schema for MCAP; return at least one channel name.</p></li>
 <li><p><strong>Holds user configuration</strong> — Same logical inputs as the pusher (e.g. <code class="docutils literal notranslate"><span class="pre">collection_id</span></code>,
 <code class="docutils literal notranslate"><span class="pre">max_flatbuffer_size</span></code>). The live <code class="docutils literal notranslate"><span class="pre">ITrackerImpl</span></code> builds the internal tensor settings
 (<code class="docutils literal notranslate"><span class="pre">SchemaTrackerConfig</span></code>) so they match the plugin.</p></li>
-<li><p><strong>create_tracker_impl(ITrackerFactory&amp;)</strong> — Override this to delegate to the provided
-<code class="docutils literal notranslate"><span class="pre">ITrackerFactory</span></code>. The implementation uses double dispatch: call the factory method
-specific to your tracker type (e.g.
-<code class="docutils literal notranslate"><span class="pre">factory.create_generic_3axis_pedal_tracker_impl(this)</span></code>) and return the resulting
-<code class="docutils literal notranslate"><span class="pre">std::unique_ptr&lt;ITrackerImpl&gt;</span></code>. The factory constructs an <code class="docutils literal notranslate"><span class="pre">ITrackerImpl</span></code> that holds
+<li><p><strong>Factory registration</strong> — Register your tracker in the live factory dispatch table
+(see <code class="docutils literal notranslate"><span class="pre">LiveDeviceIOFactory</span></code>). The factory constructs an <code class="docutils literal notranslate"><span class="pre">ITrackerImpl</span></code> that holds
 a <code class="docutils literal notranslate"><span class="pre">SchemaTracker</span></code>, builds a <code class="docutils literal notranslate"><span class="pre">SchemaTrackerConfig</span></code> from the tracker’s stored
 configuration, and implements <code class="docutils literal notranslate"><span class="pre">update(XrTime)</span></code> and
 <code class="docutils literal notranslate"><span class="pre">serialize_all(channel_index,</span> <span class="pre">callback)</span></code>.</p></li>
@@ -539,8 +539,8 @@ the update-tick timestamp so the MCAP stream marks absence.</p></li>
 <p>Reference implementation — split across facade and live backend:</p>
 <ul class="simple">
 <li><p><strong>Tracker facade</strong> — <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_trackers/cpp/generic_3axis_pedal_tracker.cpp" rel="noopener noreferrer" target="_blank">src/core/deviceio_trackers/cpp/generic_3axis_pedal_tracker.cpp</a>
-(class <code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalTracker</span></code>): holds collection configuration, implements <code class="docutils literal notranslate"><span class="pre">ITracker</span></code> and
-<code class="docutils literal notranslate"><span class="pre">create_tracker_impl(ITrackerFactory&amp;)</span></code>, and exposes <code class="docutils literal notranslate"><span class="pre">get_data(session)</span></code> returning
+(class <code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalTracker</span></code>): holds collection configuration, implements <code class="docutils literal notranslate"><span class="pre">ITracker</span></code>, and
+exposes <code class="docutils literal notranslate"><span class="pre">get_data(session)</span></code> returning
 <code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalOutputTrackedT</span></code> by dispatching to the session’s
 <code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalTrackerImpl</span></code> (see <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_base/cpp/inc/deviceio_base/generic_3axis_pedal_tracker_base.hpp" rel="noopener noreferrer" target="_blank">src/core/deviceio_base/cpp/inc/deviceio_base/generic_3axis_pedal_tracker_base.hpp</a>).</p></li>
 <li><p><strong>Live backend</strong> — <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/live_trackers/cpp/live_generic_3axis_pedal_tracker_impl.cpp" rel="noopener noreferrer" target="_blank">src/core/live_trackers/cpp/live_generic_3axis_pedal_tracker_impl.cpp</a>
@@ -604,7 +604,7 @@ OpenXR tensor collections: discovers collections by identifier, exposes <code cl
 <code class="docutils literal notranslate"><span class="pre">SampleResult</span></code> values. Live tracker implementations (e.g. <code class="docutils literal notranslate"><span class="pre">LiveGeneric3AxisPedalTrackerImpl</span></code>)
 compose a <code class="docutils literal notranslate"><span class="pre">SchemaTracker</span></code> and implement <code class="docutils literal notranslate"><span class="pre">ITrackerImpl::update()</span></code> / <code class="docutils literal notranslate"><span class="pre">serialize_all()</span></code>.</p></li>
 <li><p><strong>Generic3AxisPedalTracker</strong> (tracker facade in <code class="docutils literal notranslate"><span class="pre">deviceio_trackers</span></code>) — Concrete <code class="docutils literal notranslate"><span class="pre">ITracker</span></code> for
-<code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalOutput</span></code>: holds configuration, implements <code class="docutils literal notranslate"><span class="pre">create_tracker_impl()</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalOutput</span></code>: holds configuration and
 <code class="docutils literal notranslate"><span class="pre">get_data(session)</span></code> returning <code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalOutputTrackedT</span></code> via the session’s
 <code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalTrackerImpl</span></code>.</p></li>
 <li><p><strong>DeviceIOSession</strong> — Session manager: collects required OpenXR extensions from registered
