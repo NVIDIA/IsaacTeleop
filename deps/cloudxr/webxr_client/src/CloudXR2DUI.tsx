@@ -719,6 +719,46 @@ export class CloudXR2DUI {
   }
 
   /**
+   * Applies a partial stream config pushed from the teleop control hub.
+   * Updates the corresponding form inputs (keeping the UI in sync), persists
+   * values to localStorage, and notifies the configuration-change callback.
+   *
+   * Only the fields present in the hub's StreamConfig schema are touched;
+   * all other form fields are left unchanged.
+   */
+  public setStreamConfig(config: {
+    serverIP?: string;
+    port?: number;
+    proxyUrl?: string | null;
+    mediaAddress?: string;
+    mediaPort?: number;
+  }): void {
+    if (config.serverIP !== undefined) {
+      this.serverIpInput.value = config.serverIP;
+      try { localStorage.setItem('serverIp', config.serverIP); } catch (_) {}
+    }
+    if (config.port !== undefined) {
+      this.portInput.value = String(config.port);
+      try { localStorage.setItem('port', String(config.port)); } catch (_) {}
+    }
+    if ('proxyUrl' in config) {
+      const url = config.proxyUrl ?? '';
+      this.proxyUrlInput.value = url;
+      try { localStorage.setItem('proxyUrl', url); } catch (_) {}
+    }
+    if (config.mediaAddress !== undefined) {
+      this.mediaAddressInput.value = config.mediaAddress;
+      try { localStorage.setItem('mediaAddress', config.mediaAddress); } catch (_) {}
+    }
+    if (config.mediaPort !== undefined) {
+      this.mediaPortInput.value = String(config.mediaPort);
+      try { localStorage.setItem('mediaPort', String(config.mediaPort)); } catch (_) {}
+    }
+    // Re-derive currentConfiguration from the now-updated form inputs
+    this.updateConfiguration();
+  }
+
+  /**
    * Sets the start button state
    * @param disabled - Whether the button should be disabled
    * @param text - Text to display on the button

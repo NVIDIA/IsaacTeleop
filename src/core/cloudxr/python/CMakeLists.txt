@@ -107,7 +107,11 @@ add_custom_target(cloudxr_python ALL
         "${CMAKE_CURRENT_SOURCE_DIR}/env_config.py"
         "${CMAKE_CURRENT_SOURCE_DIR}/runtime.py"
         "${CMAKE_CURRENT_SOURCE_DIR}/wss.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/teleop_ws_hub.py"
         "${CLOUDXR_PYTHON_DIR}/"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/static"
+        "${CLOUDXR_PYTHON_DIR}/static"
     COMMAND ${CMAKE_COMMAND} -E rm -rf "${CLOUDXR_PYTHON_DIR}/__pycache__"
     COMMENT "Copying cloudxr Python files to package structure"
 )

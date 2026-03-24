@@ -63,7 +63,13 @@ isaacteleop = ["*.so", "*.pyd", "*.pyi", "py.typed"]
 "isaacteleop.oxr" = ["*.so", "*.pyd", "*.pyi"]
 "isaacteleop.plugin_manager" = ["*.so", "*.pyd", "*.pyi"]
 "isaacteleop.schema" = ["*.so", "*.pyd", "*.pyi"]
-"isaacteleop.cloudxr" = ["*.py", "native/*.so", "native/*.so.*", "native/openxr_cloudxr.json"]
+"isaacteleop.cloudxr" = [
+    "*.py",
+    "native/*.so",
+    "native/*.so.*",
+    "native/openxr_cloudxr.json",
+    "static/operator/*",
+]
 
 [tool.uv]
 # Only use managed Python installations (not system Python)

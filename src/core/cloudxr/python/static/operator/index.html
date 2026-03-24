@@ -1,0 +1,413 @@
+<!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Operator Dashboard — Isaac Teleop</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #232635;
+      --border: #2e3248;
+      --accent: #76b900;
+      --accent-dim: #4d7a00;
+      --red: #e05252;
+      --text: #e8eaf0;
+      --text-muted: #7b8099;
+      --radius: 8px;
+      --gap: 16px;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: var(--gap);
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    header h1 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .brand-mark {
+      flex-shrink: 0;
+      background: var(--accent);
+      color: #000;
+      font-weight: 700;
+      font-size: 0.7rem;
+      letter-spacing: 0.03em;
+      padding: 7px 11px;
+      border-radius: 6px;
+      line-height: 1.15;
+      white-space: nowrap;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      margin-left: auto;
+      transition: background 0.3s;
+    }
+    .status-dot.connected { background: var(--accent); }
+
+    .status-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: var(--gap);
+    }
+
+    @media (max-width: 700px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: var(--gap);
+    }
+
+    .card h2 {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+      margin-top: 12px;
+    }
+    label:first-of-type { margin-top: 0; }
+
+    input[type="text"], input[type="number"] {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 0.875rem;
+      padding: 7px 10px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus { border-color: var(--accent); }
+
+    .row { display: flex; gap: 8px; }
+    .row input { flex: 1; }
+
+    button {
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 8px 14px;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #000;
+    }
+    .btn-primary:not(:disabled):hover { background: #8fcf00; }
+
+    .btn-danger {
+      background: var(--red);
+      color: #fff;
+    }
+    .btn-danger:not(:disabled):hover { background: #c74040; }
+
+    .btn-secondary {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:not(:disabled):hover { background: var(--border); }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+
+    .headset-list { display: flex; flex-direction: column; gap: 8px; }
+
+    .headset-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .headset-card.selected { border-color: var(--accent); }
+    .headset-card:hover:not(.selected) { border-color: #4e5470; }
+
+    .headset-name {
+      font-size: 0.8rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .headset-id {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+      font-family: monospace;
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .metric-tile {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px;
+    }
+
+    .metric-value {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--accent);
+      line-height: 1;
+    }
+
+    .metric-name {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+      letter-spacing: 0.03em;
+      line-height: 1.25;
+    }
+
+    .empty {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      padding: 20px 0;
+      text-align: center;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 16px;
+      font-size: 0.8rem;
+      max-width: 280px;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.2s, transform 0.2s;
+      z-index: 100;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.error { border-color: var(--red); color: var(--red); }
+
+    .config-version {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      margin-top: 10px;
+    }
+
+    details.instructions {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      padding: 0;
+    }
+    details.instructions > summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 14px var(--gap);
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      user-select: none;
+    }
+    details.instructions > summary::-webkit-details-marker { display: none; }
+    details.instructions > summary::after {
+      content: ' ▶';
+      font-size: 0.65rem;
+      opacity: 0.7;
+    }
+    details.instructions[open] > summary::after { content: ' ▼'; }
+    .instructions-body {
+      padding: 0 var(--gap) var(--gap);
+      border-top: 1px solid var(--border);
+    }
+    .instr-step {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 10px;
+      line-height: 1.4;
+    }
+    .instr-step:first-child { margin-top: 12px; }
+    .instr-label {
+      font-size: 0.65rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-top: 12px;
+    }
+    .instr-code {
+      display: block;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.7rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin-top: 8px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      color: var(--text);
+    }
+    .instr-code--clickcopy {
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .instr-code--clickcopy:hover {
+      border-color: var(--accent-dim);
+      background: #2a2e3d;
+    }
+    .instr-code--clickcopy:active {
+      border-color: var(--accent);
+    }
+    .instr-code--clickcopy:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand-mark">Isaac Teleop</div>
+    <h1>Operator Dashboard</h1>
+    <span
+      class="status-label"
+      id="statusLabel"
+      title="No WebSocket to the hub, or reconnecting. Commands and live headset list need this link."
+    >Not connected to teleop hub</span>
+    <div class="status-dot" id="statusDot"></div>
+  </header>
+
+  <div class="grid">
+    <!-- Left column: config + controls -->
+    <div style="display:flex;flex-direction:column;gap:var(--gap)">
+
+      <details class="instructions" open>
+        <summary>Headset</summary>
+        <div class="instructions-body">
+          <p class="instr-step">
+            Put your PC’s IP in the hub URL if the headset isn’t on this machine. On the headset: <strong>Arm remote control</strong>, then connect from here.
+          </p>
+          <div class="instr-label">Hub WebSocket <span style="font-weight:400;color:var(--text-muted);text-transform:none;letter-spacing:0">· click to copy</span></div>
+          <code id="instrHubWs" class="instr-code instr-code--clickcopy" tabindex="0" role="button" aria-label="Copy hub WebSocket URL"></code>
+          <div class="instr-label">Add to WebXR app URL</div>
+          <code id="instrHeadsetParams" class="instr-code"></code>
+          <p class="instr-step">This page: add <code style="font-size:0.85em">?token=…</code> or <code style="font-size:0.85em">?wsUrl=…</code> only if you need them.</p>
+        </div>
+      </details>
+
+      <div class="card">
+        <h2>Stream Target</h2>
+
+        <label>Headset</label>
+        <select id="headsetSelect" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.875rem;padding:7px 10px;outline:none;">
+          <option value="">— no headset selected —</option>
+        </select>
+
+        <label>Server IP</label>
+        <input id="serverIP" type="text" placeholder="192.168.1.100" />
+
+        <label>Port</label>
+        <input id="port" type="number" placeholder="48322" min="1" max="65535" />
+
+        <label>Proxy URL <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+        <input id="proxyUrl" type="text" placeholder="https://proxy.example.com/" />
+
+        <div class="actions">
+          <button type="button" class="btn-primary" id="btnSetConfig" disabled>Apply Config</button>
+        </div>
+        <div class="config-version" id="configVersion"></div>
+      </div>
+
+      <div class="card">
+        <h2>Session Control</h2>
+        <p style="font-size:0.65rem;color:var(--text-muted);margin-bottom:10px;letter-spacing:0.02em">
+          <kbd style="font-family:inherit;border:1px solid var(--border);padding:1px 5px;border-radius:4px;background:var(--surface2)">C</kbd> connect ·
+          <kbd style="font-family:inherit;border:1px solid var(--border);padding:1px 5px;border-radius:4px;background:var(--surface2)">D</kbd> disconnect
+          when focus is not in a field
+        </p>
+        <div class="actions">
+          <button type="button" class="btn-primary" id="btnConnect" title="Connect (keyboard: C)" disabled>Connect</button>
+          <button type="button" class="btn-danger" id="btnDisconnect" title="Disconnect (keyboard: D)" disabled>Disconnect</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right column: headsets + metrics -->
+    <div style="display:flex;flex-direction:column;gap:var(--gap)">
+
+      <div class="card">
+        <h2>Connected Headsets</h2>
+        <div id="headsetList" class="empty">No headsets connected</div>
+      </div>
+
+      <div class="card">
+        <h2>Metrics</h2>
+        <div id="metricsPanel" class="empty">Select a headset to see metrics</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="operator.js"></script>
+</body>
+</html>

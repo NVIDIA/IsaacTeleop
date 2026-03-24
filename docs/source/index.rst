@@ -59,6 +59,7 @@ Table of Contents
    references/build
    device/index
    references/retargeting
+   references/teleop_control_protocol
    references/license
 
 Indices and tables
