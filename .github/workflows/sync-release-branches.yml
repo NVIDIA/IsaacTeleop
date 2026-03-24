@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: Sync Release Branches
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  sync:
+    name: Sync ${{ matrix.branch }}
+    runs-on: ubuntu-latest
+    concurrency:
+      group: sync-branch-${{ matrix.branch }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    strategy:
+      # Keep syncing other branches even if one fails
+      fail-fast: false
+      matrix:
+        branch:
+          # Add or remove release branches here to control which ones track main
+          - release/1.2.x
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_SYNC_TOKEN }}
+
+      - name: Fast-forward ${{ matrix.branch }} to main
+        run: |
+          git checkout ${{ matrix.branch }}
+          git merge --ff-only origin/main
+          git push origin ${{ matrix.branch }}
