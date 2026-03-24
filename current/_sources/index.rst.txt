@@ -14,6 +14,10 @@ egocentric and robot data collection. It provides a standardized device interfac
 graph-based retargeting pipeline, and a streamlined data collection workflow
 that work seamlessly across simulated and real-world robots.
 
+.. figure:: _static/isaac-teleop-hero.jpg
+   :width: 100%
+   :alt: Isaac Teleop
+
 Key features:
 
 - **Unified stack** for sim and real teleoperation (ROS2, Isaac Sim, Isaac Lab)
