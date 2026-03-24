@@ -111,6 +111,10 @@ add_custom_target(cloudxr_python ALL
         "${CMAKE_CURRENT_SOURCE_DIR}/launcher.py"
         "${CMAKE_CURRENT_SOURCE_DIR}/runtime.py"
         "${CMAKE_CURRENT_SOURCE_DIR}/wss.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/udp_tcp_relay.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/oob_teleop_env.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/oob_teleop_adb.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/oob_teleop_hub.py"
         "${CLOUDXR_PYTHON_DIR}/"
     COMMAND ${CMAKE_COMMAND} -E rm -rf "${CLOUDXR_PYTHON_DIR}/__pycache__"
     COMMENT "Copying cloudxr Python files to package structure"
@@ -124,3 +128,15 @@ if(CLOUDXR_NATIVE_AVAILABLE)
 else()
     add_dependencies(cloudxr_python cloudxr_native_dir)
 endif()
+
+# Copy pre-built headset UDP relay binary into native/ at build time (if it exists).
+# Build it with: cd src/core/cloudxr/udprelay && GOOS=linux GOARCH=arm64 go build -o udprelay .
+set(UDPRELAY_SRC "${CMAKE_CURRENT_SOURCE_DIR}/../udprelay/udprelay")
+add_custom_target(cloudxr_udprelay ALL
+    COMMAND ${CMAKE_COMMAND}
+        -DSRC=${UDPRELAY_SRC}
+        -DDST=${CLOUDXR_NATIVE_DIR}/udprelay
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/copy_if_exists.cmake
+    COMMENT "Copying udprelay binary to native/ (skipped if not yet built)"
+)
+add_dependencies(cloudxr_udprelay cloudxr_native_dir)

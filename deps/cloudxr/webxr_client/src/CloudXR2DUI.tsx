@@ -41,6 +41,7 @@ import {
   parseControlPanelPosition,
   ReactUIConfig,
 } from '@helpers/react/utils';
+import type { StreamConfig } from '@helpers/controlChannel';
 import {
   CloudXRConfig,
   enableLocalStorage,
@@ -60,6 +61,21 @@ import {
 
 /** Full config: CloudXR connection settings + React UI options. */
 type AppConfig = CloudXRConfig & ReactUIConfig;
+
+/**
+ * Form element ids the teleop hub / bookmark URL may set. Keys match ``StreamConfig`` and JSON
+ * ``config`` from the hub. To add a field: extend the allowlist, add coercion in
+ * ``applyRemoteUiFieldsFromHub``, and wire Python ``_stream_config_from_query`` / bookmark encoding.
+ * Arbitrary id→value maps from the network are intentionally not supported.
+ */
+const HUB_CLIENT_UI_FIELDS = [
+  'panelHiddenAtStart',
+  'codec',
+  'perEyeWidth',
+  'perEyeHeight',
+] as const;
+
+type HubClientUiKey = (typeof HUB_CLIENT_UI_FIELDS)[number];
 
 /**
  * 2D UI Management for CloudXR React Example
@@ -173,9 +189,11 @@ export class CloudXR2DUI {
   }
 
   /**
-   * Initializes the CloudXR2DUI with all necessary components and event handlers
+   * Initializes the CloudXR2DUI with all necessary components and event handlers.
+   * @param urlSeeds - Optional stream config parsed from URL query parameters.
+   *   Applied after localStorage restore so URL params always take priority.
    */
-  public initialize(): void {
+  public initialize(urlSeeds?: StreamConfig): void {
     if (this.initialized) {
       return;
     }
@@ -183,6 +201,9 @@ export class CloudXR2DUI {
     try {
       this.initializeElements();
       this.setupLocalStorage();
+      if (urlSeeds && Object.keys(urlSeeds).length > 0) {
+        this.applyUrlSeeds(urlSeeds);
+      }
       this.setupProxyConfiguration();
       this.setupEventListeners();
       // Set initial display value
@@ -335,6 +356,59 @@ export class CloudXR2DUI {
     enableLocalStorage(this.mediaAddressInput, 'mediaAddress');
     enableLocalStorage(this.mediaPortInput, 'mediaPort');
     enableLocalStorage(this.controllerModelVisibilitySelect, 'controllerModelVisibility');
+  }
+
+  /**
+   * Override form inputs with URL query seeds so they take priority over localStorage.
+   * Only touches keys that are actually present in {@link seeds}.
+   */
+  private applyUrlSeeds(seeds: StreamConfig): void {
+    if (seeds.serverIP !== undefined) {
+      this.serverIpInput.value = seeds.serverIP;
+      try { localStorage.setItem('serverIp', seeds.serverIP); } catch (_) {}
+    }
+    if (seeds.port !== undefined) {
+      this.portInput.value = String(seeds.port);
+      try { localStorage.setItem('port', String(seeds.port)); } catch (_) {}
+    }
+    if ('proxyUrl' in seeds) {
+      const url = seeds.proxyUrl ?? '';
+      this.proxyUrlInput.value = url;
+      try { localStorage.setItem('proxyUrl', url); } catch (_) {}
+    }
+    if (seeds.mediaAddress !== undefined) {
+      this.mediaAddressInput.value = seeds.mediaAddress;
+      try { localStorage.setItem('mediaAddress', seeds.mediaAddress); } catch (_) {}
+    }
+    if (seeds.mediaPort !== undefined) {
+      this.mediaPortInput.value = String(seeds.mediaPort);
+      try { localStorage.setItem('mediaPort', String(seeds.mediaPort)); } catch (_) {}
+    }
+    if (seeds.panelHiddenAtStart !== undefined) {
+      this.panelHiddenAtStartSelect.value = this._remoteTruthy(seeds.panelHiddenAtStart)
+        ? 'true'
+        : 'false';
+      try { localStorage.setItem('panelHiddenAtStart', this.panelHiddenAtStartSelect.value); } catch (_) {}
+    }
+    if (seeds.codec !== undefined && typeof seeds.codec === 'string' && seeds.codec !== '') {
+      setSelectValueIfAvailable(this.codecSelect, seeds.codec);
+      try { localStorage.setItem('codec', this.codecSelect.value); } catch (_) {}
+    }
+    if (seeds.perEyeWidth !== undefined) {
+      const n = Number(seeds.perEyeWidth);
+      if (Number.isFinite(n)) {
+        this.perEyeWidthInput.value = String(Math.round(n));
+        try { localStorage.setItem('perEyeWidth', this.perEyeWidthInput.value); } catch (_) {}
+      }
+    }
+    if (seeds.perEyeHeight !== undefined) {
+      const n = Number(seeds.perEyeHeight);
+      if (Number.isFinite(n)) {
+        this.perEyeHeightInput.value = String(Math.round(n));
+        try { localStorage.setItem('perEyeHeight', this.perEyeHeightInput.value); } catch (_) {}
+      }
+    }
+    console.info('[CloudXR2DUI] URL query params applied (override localStorage):', seeds);
   }
 
   /**
@@ -718,6 +792,116 @@ export class CloudXR2DUI {
    */
   public getConfiguration(): AppConfig {
     return { ...this.currentConfiguration };
+  }
+
+  private _remoteTruthy(v: unknown): boolean {
+    if (v === true || v === 1) return true;
+    if (typeof v === 'string') {
+      const s = v.trim().toLowerCase();
+      return s === '1' || s === 'true' || s === 'yes' || s === 'on';
+    }
+    return false;
+  }
+
+  /**
+   * Applies allowlisted client UI fields from hub ``config`` / bookmark query (see
+   * ``HUB_CLIENT_UI_FIELDS``).
+   */
+  private applyRemoteUiFieldsFromHub(
+    config: Partial<Pick<StreamConfig, HubClientUiKey>>
+  ): void {
+    let touchedCodecOrResolution = false;
+
+    if (config.panelHiddenAtStart !== undefined) {
+      this.panelHiddenAtStartSelect.value = this._remoteTruthy(config.panelHiddenAtStart)
+        ? 'true'
+        : 'false';
+      try {
+        localStorage.setItem('panelHiddenAtStart', this.panelHiddenAtStartSelect.value);
+      } catch (_) {}
+    }
+    if (config.codec !== undefined && typeof config.codec === 'string' && config.codec !== '') {
+      setSelectValueIfAvailable(this.codecSelect, config.codec);
+      try {
+        localStorage.setItem('codec', this.codecSelect.value);
+      } catch (_) {}
+      touchedCodecOrResolution = true;
+    }
+    if (config.perEyeWidth !== undefined) {
+      const n = Number(config.perEyeWidth);
+      if (Number.isFinite(n)) {
+        this.perEyeWidthInput.value = String(Math.round(n));
+        try {
+          localStorage.setItem('perEyeWidth', this.perEyeWidthInput.value);
+        } catch (_) {}
+        touchedCodecOrResolution = true;
+      }
+    }
+    if (config.perEyeHeight !== undefined) {
+      const n = Number(config.perEyeHeight);
+      if (Number.isFinite(n)) {
+        this.perEyeHeightInput.value = String(Math.round(n));
+        try {
+          localStorage.setItem('perEyeHeight', this.perEyeHeightInput.value);
+        } catch (_) {}
+        touchedCodecOrResolution = true;
+      }
+    }
+    if (touchedCodecOrResolution) {
+      this.setProfileToCustomIfNeeded();
+      this.persistProfileFieldsToLocalStorage();
+    }
+    this.updateResolutionValidationMessage();
+    this.updateGridValidationMessage();
+    this.updateConnectButtonState();
+    this.updateConfiguration();
+  }
+
+  /**
+   * Applies a partial stream / teleop config pushed from the hub or URL seeds.
+   * Updates matching form inputs, persists where appropriate, and notifies the callback.
+   *
+   * Streaming target fields and allowlisted client UI fields (``HUB_CLIENT_UI_FIELDS``) are applied;
+   * other hub keys are ignored by this client.
+   */
+  public setStreamConfig(config: StreamConfig): void {
+    if (config.serverIP !== undefined) {
+      this.serverIpInput.value = config.serverIP;
+      try { localStorage.setItem('serverIp', config.serverIP); } catch (_) {}
+    }
+    if (config.port !== undefined) {
+      this.portInput.value = String(config.port);
+      try { localStorage.setItem('port', String(config.port)); } catch (_) {}
+    }
+    if ('proxyUrl' in config) {
+      const url = config.proxyUrl ?? '';
+      this.proxyUrlInput.value = url;
+      try { localStorage.setItem('proxyUrl', url); } catch (_) {}
+    }
+    if (config.mediaAddress !== undefined) {
+      this.mediaAddressInput.value = config.mediaAddress;
+      try { localStorage.setItem('mediaAddress', config.mediaAddress); } catch (_) {}
+    }
+    if (config.mediaPort !== undefined) {
+      this.mediaPortInput.value = String(config.mediaPort);
+      try { localStorage.setItem('mediaPort', String(config.mediaPort)); } catch (_) {}
+    }
+
+    const hasClientUi =
+      config.panelHiddenAtStart !== undefined ||
+      config.codec !== undefined ||
+      config.perEyeWidth !== undefined ||
+      config.perEyeHeight !== undefined;
+    if (hasClientUi) {
+      this.applyRemoteUiFieldsFromHub({
+        panelHiddenAtStart: config.panelHiddenAtStart,
+        codec: config.codec,
+        perEyeWidth: config.perEyeWidth,
+        perEyeHeight: config.perEyeHeight,
+      });
+    } else {
+      this.updateConfiguration();
+    }
   }
 
   /**
