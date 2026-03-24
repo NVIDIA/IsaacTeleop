@@ -510,12 +510,12 @@ specific to your tracker type (e.g.
 <code class="docutils literal notranslate"><span class="pre">factory.create_generic_3axis_pedal_tracker_impl(this)</span></code>) and return the resulting
 <code class="docutils literal notranslate"><span class="pre">std::unique_ptr&lt;ITrackerImpl&gt;</span></code>. The factory constructs an   <code class="docutils literal notranslate"><span class="pre">ITrackerImpl</span></code> that holds
 a <code class="docutils literal notranslate"><span class="pre">SchemaTracker</span></code>, builds a <code class="docutils literal notranslate"><span class="pre">SchemaTrackerConfig</span></code> from the tracker’s stored
-configuration, and implements <code class="docutils literal notranslate"><span class="pre">update(int64_t</span> <span class="pre">system_monotonic_time_ns)</span></code> and
+configuration, and implements <code class="docutils literal notranslate"><span class="pre">update(int64_t</span> <span class="pre">target_monotonic_time_ns)</span></code> and
 <code class="docutils literal notranslate"><span class="pre">serialize_all(channel_index,</span> <span class="pre">callback)</span></code>.</p></li>
 </ul>
 <p>In the <strong>Impl</strong>:</p>
 <ul class="simple">
-<li><p><strong>update(system_monotonic_time_ns)</strong> — Call <code class="docutils literal notranslate"><span class="pre">m_schema_reader.read_all_samples(pending_records)</span></code>. If the
+<li><p><strong>update(target_monotonic_time_ns)</strong> — Call <code class="docutils literal notranslate"><span class="pre">m_schema_reader.read_all_samples(pending_records)</span></code>. If the
 collection is not present, clear the tracked state (e.g. set <code class="docutils literal notranslate"><span class="pre">m_tracked.data</span> <span class="pre">=</span> <span class="pre">nullptr</span></code>).
 Otherwise, deserialize the latest sample (or all samples) into your tracked type and
 keep the last one for <code class="docutils literal notranslate"><span class="pre">get_data()</span></code>.</p></li>
@@ -598,7 +598,7 @@ compose a <code class="docutils literal notranslate"><span class="pre">SchemaTra
 <code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalTrackerImpl</span></code>.</p></li>
 <li><p><strong>DeviceIOSession</strong> — Session manager: collects required OpenXR extensions from registered
 trackers, creates tracker implementations with session handles, and calls
-<code class="docutils literal notranslate"><span class="pre">update(system_monotonic_time_ns)</span></code> on all trackers during the update loop.</p></li>
+<code class="docutils literal notranslate"><span class="pre">update(target_monotonic_time_ns)</span></code> on all trackers during the update loop.</p></li>
 </ul>
 </section>
 </section>

@@ -117,12 +117,12 @@ tensor samples from OpenXR. Implement a concrete tracker class (e.g.
   ``factory.create_generic_3axis_pedal_tracker_impl(this)``) and return the resulting
   ``std::unique_ptr<ITrackerImpl>``. The factory constructs an   ``ITrackerImpl`` that holds
   a ``SchemaTracker``, builds a ``SchemaTrackerConfig`` from the tracker's stored
-  configuration, and implements ``update(int64_t system_monotonic_time_ns)`` and
+  configuration, and implements ``update(int64_t target_monotonic_time_ns)`` and
   ``serialize_all(channel_index, callback)``.
 
 In the **Impl**:
 
-- **update(system_monotonic_time_ns)** — Call ``m_schema_reader.read_all_samples(pending_records)``. If the
+- **update(target_monotonic_time_ns)** — Call ``m_schema_reader.read_all_samples(pending_records)``. If the
   collection is not present, clear the tracked state (e.g. set ``m_tracked.data = nullptr``).
   Otherwise, deserialize the latest sample (or all samples) into your tracked type and
   keep the last one for ``get_data()``.
@@ -214,4 +214,4 @@ Both exit after 100 samples, or press Ctrl+C to exit early.
   ``Generic3AxisPedalTrackerImpl``.
 - **DeviceIOSession** — Session manager: collects required OpenXR extensions from registered
   trackers, creates tracker implementations with session handles, and calls
-  ``update(system_monotonic_time_ns)`` on all trackers during the update loop.
+  ``update(target_monotonic_time_ns)`` on all trackers during the update loop.
