@@ -10,8 +10,8 @@ namespace core
 
 struct HeadPoseTrackedT;
 
-// Abstract base for head tracker implementations.
-class HeadTrackerImpl : public ITrackerImpl
+// Abstract base interface for head tracker implementations.
+class IHeadTrackerImpl : public ITrackerImpl
 {
 public:
     virtual const HeadPoseTrackedT& get_head() const = 0;

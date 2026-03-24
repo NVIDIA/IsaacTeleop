@@ -22,7 +22,7 @@ namespace core
 
 using ControllerMcapChannels = McapTrackerChannels<ControllerSnapshotRecord, ControllerSnapshot>;
 
-class LiveControllerTrackerImpl : public ControllerTrackerImpl
+class LiveControllerTrackerImpl : public IControllerTrackerImpl
 {
 public:
     static std::vector<std::string> required_extensions()

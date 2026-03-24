@@ -10,8 +10,8 @@ namespace core
 
 struct HandPoseTrackedT;
 
-// Abstract base for hand tracker implementations.
-class HandTrackerImpl : public ITrackerImpl
+// Abstract base interface for hand tracker implementations.
+class IHandTrackerImpl : public ITrackerImpl
 {
 public:
     virtual const HandPoseTrackedT& get_left_hand() const = 0;

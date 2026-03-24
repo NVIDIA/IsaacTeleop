@@ -12,12 +12,12 @@ namespace core
 
 const ControllerSnapshotTrackedT& ControllerTracker::get_left_controller(const ITrackerSession& session) const
 {
-    return static_cast<const ControllerTrackerImpl&>(session.get_tracker_impl(*this)).get_left_controller();
+    return static_cast<const IControllerTrackerImpl&>(session.get_tracker_impl(*this)).get_left_controller();
 }
 
 const ControllerSnapshotTrackedT& ControllerTracker::get_right_controller(const ITrackerSession& session) const
 {
-    return static_cast<const ControllerTrackerImpl&>(session.get_tracker_impl(*this)).get_right_controller();
+    return static_cast<const IControllerTrackerImpl&>(session.get_tracker_impl(*this)).get_right_controller();
 }
 
 } // namespace core

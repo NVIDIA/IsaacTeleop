@@ -21,7 +21,7 @@ namespace core
 
 using HandMcapChannels = McapTrackerChannels<HandPoseRecord, HandPose>;
 
-class LiveHandTrackerImpl : public HandTrackerImpl
+class LiveHandTrackerImpl : public IHandTrackerImpl
 {
 public:
     static std::vector<std::string> required_extensions()

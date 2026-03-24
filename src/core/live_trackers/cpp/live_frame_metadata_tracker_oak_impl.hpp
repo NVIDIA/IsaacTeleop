@@ -20,7 +20,7 @@ namespace core
 using OakMcapChannels = McapTrackerChannels<FrameMetadataOakRecord, FrameMetadataOak>;
 using OakSchemaTracker = SchemaTracker<FrameMetadataOakRecord, FrameMetadataOak>;
 
-class LiveFrameMetadataTrackerOakImpl : public FrameMetadataTrackerOakImpl
+class LiveFrameMetadataTrackerOakImpl : public IFrameMetadataTrackerOakImpl
 {
 public:
     static std::vector<std::string> required_extensions()

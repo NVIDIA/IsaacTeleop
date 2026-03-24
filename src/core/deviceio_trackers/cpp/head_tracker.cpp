@@ -12,7 +12,7 @@ namespace core
 
 const HeadPoseTrackedT& HeadTracker::get_head(const ITrackerSession& session) const
 {
-    return static_cast<const HeadTrackerImpl&>(session.get_tracker_impl(*this)).get_head();
+    return static_cast<const IHeadTrackerImpl&>(session.get_tracker_impl(*this)).get_head();
 }
 
 } // namespace core

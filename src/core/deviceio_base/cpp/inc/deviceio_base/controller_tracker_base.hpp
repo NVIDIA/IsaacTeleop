@@ -10,8 +10,8 @@ namespace core
 
 struct ControllerSnapshotTrackedT;
 
-// Abstract base for controller tracker implementations.
-class ControllerTrackerImpl : public ITrackerImpl
+// Abstract base interface for controller tracker implementations.
+class IControllerTrackerImpl : public ITrackerImpl
 {
 public:
     virtual const ControllerSnapshotTrackedT& get_left_controller() const = 0;

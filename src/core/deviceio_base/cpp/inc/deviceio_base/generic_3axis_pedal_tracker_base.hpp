@@ -10,8 +10,8 @@ namespace core
 
 struct Generic3AxisPedalOutputTrackedT;
 
-// Abstract base for Generic3AxisPedalTracker implementations.
-class Generic3AxisPedalTrackerImpl : public ITrackerImpl
+// Abstract base interface for Generic3AxisPedalTracker implementations.
+class IGeneric3AxisPedalTrackerImpl : public ITrackerImpl
 {
 public:
     virtual const Generic3AxisPedalOutputTrackedT& get_data() const = 0;

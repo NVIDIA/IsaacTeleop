@@ -172,7 +172,7 @@ std::string_view LiveDeviceIOFactory::get_name(const ITracker* tracker) const
     return it->second;
 }
 
-std::unique_ptr<HeadTrackerImpl> LiveDeviceIOFactory::create_head_tracker_impl(const HeadTracker* tracker)
+std::unique_ptr<IHeadTrackerImpl> LiveDeviceIOFactory::create_head_tracker_impl(const HeadTracker* tracker)
 {
     std::unique_ptr<HeadMcapChannels> channels;
     if (should_record(tracker))
@@ -182,7 +182,7 @@ std::unique_ptr<HeadTrackerImpl> LiveDeviceIOFactory::create_head_tracker_impl(c
     return std::make_unique<LiveHeadTrackerImpl>(handles_, std::move(channels));
 }
 
-std::unique_ptr<HandTrackerImpl> LiveDeviceIOFactory::create_hand_tracker_impl(const HandTracker* tracker)
+std::unique_ptr<IHandTrackerImpl> LiveDeviceIOFactory::create_hand_tracker_impl(const HandTracker* tracker)
 {
     std::unique_ptr<HandMcapChannels> channels;
     if (should_record(tracker))
@@ -192,7 +192,7 @@ std::unique_ptr<HandTrackerImpl> LiveDeviceIOFactory::create_hand_tracker_impl(c
     return std::make_unique<LiveHandTrackerImpl>(handles_, std::move(channels));
 }
 
-std::unique_ptr<ControllerTrackerImpl> LiveDeviceIOFactory::create_controller_tracker_impl(const ControllerTracker* tracker)
+std::unique_ptr<IControllerTrackerImpl> LiveDeviceIOFactory::create_controller_tracker_impl(const ControllerTracker* tracker)
 {
     std::unique_ptr<ControllerMcapChannels> channels;
     if (should_record(tracker))
@@ -202,7 +202,7 @@ std::unique_ptr<ControllerTrackerImpl> LiveDeviceIOFactory::create_controller_tr
     return std::make_unique<LiveControllerTrackerImpl>(handles_, std::move(channels));
 }
 
-std::unique_ptr<FullBodyTrackerPicoImpl> LiveDeviceIOFactory::create_full_body_tracker_pico_impl(
+std::unique_ptr<IFullBodyTrackerPicoImpl> LiveDeviceIOFactory::create_full_body_tracker_pico_impl(
     const FullBodyTrackerPico* tracker)
 {
     std::unique_ptr<FullBodyMcapChannels> channels;
@@ -213,7 +213,7 @@ std::unique_ptr<FullBodyTrackerPicoImpl> LiveDeviceIOFactory::create_full_body_t
     return std::make_unique<LiveFullBodyTrackerPicoImpl>(handles_, std::move(channels));
 }
 
-std::unique_ptr<Generic3AxisPedalTrackerImpl> LiveDeviceIOFactory::create_generic_3axis_pedal_tracker_impl(
+std::unique_ptr<IGeneric3AxisPedalTrackerImpl> LiveDeviceIOFactory::create_generic_3axis_pedal_tracker_impl(
     const Generic3AxisPedalTracker* tracker)
 {
     std::unique_ptr<PedalMcapChannels> channels;
@@ -224,7 +224,7 @@ std::unique_ptr<Generic3AxisPedalTrackerImpl> LiveDeviceIOFactory::create_generi
     return std::make_unique<LiveGeneric3AxisPedalTrackerImpl>(handles_, tracker, std::move(channels));
 }
 
-std::unique_ptr<FrameMetadataTrackerOakImpl> LiveDeviceIOFactory::create_frame_metadata_tracker_oak_impl(
+std::unique_ptr<IFrameMetadataTrackerOakImpl> LiveDeviceIOFactory::create_frame_metadata_tracker_oak_impl(
     const FrameMetadataTrackerOak* tracker)
 {
     std::unique_ptr<OakMcapChannels> channels;

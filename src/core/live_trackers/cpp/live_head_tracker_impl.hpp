@@ -20,7 +20,7 @@ namespace core
 
 using HeadMcapChannels = McapTrackerChannels<HeadPoseRecord, HeadPose>;
 
-class LiveHeadTrackerImpl : public HeadTrackerImpl
+class LiveHeadTrackerImpl : public IHeadTrackerImpl
 {
 public:
     static std::vector<std::string> required_extensions()

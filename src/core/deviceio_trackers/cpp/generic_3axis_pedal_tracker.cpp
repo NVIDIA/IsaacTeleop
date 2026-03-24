@@ -17,7 +17,7 @@ Generic3AxisPedalTracker::Generic3AxisPedalTracker(const std::string& collection
 
 const Generic3AxisPedalOutputTrackedT& Generic3AxisPedalTracker::get_data(const ITrackerSession& session) const
 {
-    return static_cast<const Generic3AxisPedalTrackerImpl&>(session.get_tracker_impl(*this)).get_data();
+    return static_cast<const IGeneric3AxisPedalTrackerImpl&>(session.get_tracker_impl(*this)).get_data();
 }
 
 } // namespace core

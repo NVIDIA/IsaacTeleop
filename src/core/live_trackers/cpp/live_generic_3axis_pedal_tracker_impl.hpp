@@ -20,7 +20,7 @@ namespace core
 using PedalMcapChannels = McapTrackerChannels<Generic3AxisPedalOutputRecord, Generic3AxisPedalOutput>;
 using PedalSchemaTracker = SchemaTracker<Generic3AxisPedalOutputRecord, Generic3AxisPedalOutput>;
 
-class LiveGeneric3AxisPedalTrackerImpl : public Generic3AxisPedalTrackerImpl
+class LiveGeneric3AxisPedalTrackerImpl : public IGeneric3AxisPedalTrackerImpl
 {
 public:
     static std::vector<std::string> required_extensions()

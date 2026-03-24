@@ -12,7 +12,7 @@ namespace core
 
 const FullBodyPosePicoTrackedT& FullBodyTrackerPico::get_body_pose(const ITrackerSession& session) const
 {
-    return static_cast<const FullBodyTrackerPicoImpl&>(session.get_tracker_impl(*this)).get_body_pose();
+    return static_cast<const IFullBodyTrackerPicoImpl&>(session.get_tracker_impl(*this)).get_body_pose();
 }
 
 } // namespace core

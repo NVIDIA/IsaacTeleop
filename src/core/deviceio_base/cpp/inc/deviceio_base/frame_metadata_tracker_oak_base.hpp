@@ -12,8 +12,8 @@ namespace core
 
 struct FrameMetadataOakTrackedT;
 
-// Abstract base for FrameMetadataTrackerOak implementations.
-class FrameMetadataTrackerOakImpl : public ITrackerImpl
+// Abstract base interface for FrameMetadataTrackerOak implementations.
+class IFrameMetadataTrackerOakImpl : public ITrackerImpl
 {
 public:
     virtual const FrameMetadataOakTrackedT& get_stream_data(size_t stream_index) const = 0;

@@ -14,12 +14,12 @@ namespace core
 
 const HandPoseTrackedT& HandTracker::get_left_hand(const ITrackerSession& session) const
 {
-    return static_cast<const HandTrackerImpl&>(session.get_tracker_impl(*this)).get_left_hand();
+    return static_cast<const IHandTrackerImpl&>(session.get_tracker_impl(*this)).get_left_hand();
 }
 
 const HandPoseTrackedT& HandTracker::get_right_hand(const ITrackerSession& session) const
 {
-    return static_cast<const HandTrackerImpl&>(session.get_tracker_impl(*this)).get_right_hand();
+    return static_cast<const IHandTrackerImpl&>(session.get_tracker_impl(*this)).get_right_hand();
 }
 
 std::string HandTracker::get_joint_name(uint32_t joint_index)

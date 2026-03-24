@@ -21,17 +21,17 @@ namespace core
 class ITracker;
 class ITrackerImpl;
 class ControllerTracker;
-class ControllerTrackerImpl;
+class IControllerTrackerImpl;
 class FrameMetadataTrackerOak;
-class FrameMetadataTrackerOakImpl;
+class IFrameMetadataTrackerOakImpl;
 class FullBodyTrackerPico;
-class FullBodyTrackerPicoImpl;
+class IFullBodyTrackerPicoImpl;
 class Generic3AxisPedalTracker;
-class Generic3AxisPedalTrackerImpl;
+class IGeneric3AxisPedalTrackerImpl;
 class HandTracker;
-class HandTrackerImpl;
+class IHandTrackerImpl;
 class HeadTracker;
-class HeadTrackerImpl;
+class IHeadTrackerImpl;
 struct OpenXRSessionHandles;
 
 /**
@@ -53,13 +53,13 @@ public:
                         mcap::McapWriter* writer,
                         const std::vector<std::pair<const ITracker*, std::string>>& tracker_names);
 
-    std::unique_ptr<HeadTrackerImpl> create_head_tracker_impl(const HeadTracker* tracker);
-    std::unique_ptr<HandTrackerImpl> create_hand_tracker_impl(const HandTracker* tracker);
-    std::unique_ptr<ControllerTrackerImpl> create_controller_tracker_impl(const ControllerTracker* tracker);
-    std::unique_ptr<FullBodyTrackerPicoImpl> create_full_body_tracker_pico_impl(const FullBodyTrackerPico* tracker);
-    std::unique_ptr<Generic3AxisPedalTrackerImpl> create_generic_3axis_pedal_tracker_impl(
+    std::unique_ptr<IHeadTrackerImpl> create_head_tracker_impl(const HeadTracker* tracker);
+    std::unique_ptr<IHandTrackerImpl> create_hand_tracker_impl(const HandTracker* tracker);
+    std::unique_ptr<IControllerTrackerImpl> create_controller_tracker_impl(const ControllerTracker* tracker);
+    std::unique_ptr<IFullBodyTrackerPicoImpl> create_full_body_tracker_pico_impl(const FullBodyTrackerPico* tracker);
+    std::unique_ptr<IGeneric3AxisPedalTrackerImpl> create_generic_3axis_pedal_tracker_impl(
         const Generic3AxisPedalTracker* tracker);
-    std::unique_ptr<FrameMetadataTrackerOakImpl> create_frame_metadata_tracker_oak_impl(
+    std::unique_ptr<IFrameMetadataTrackerOakImpl> create_frame_metadata_tracker_oak_impl(
         const FrameMetadataTrackerOak* tracker);
 
 private:

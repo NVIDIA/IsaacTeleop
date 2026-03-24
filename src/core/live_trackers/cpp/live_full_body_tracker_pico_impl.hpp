@@ -22,7 +22,7 @@ using FullBodyMcapChannels = McapTrackerChannels<FullBodyPosePicoRecord, FullBod
 
 // Supports limp-mode: if body tracking hardware is unavailable, the constructor
 // succeeds but body_tracker_ remains XR_NULL_HANDLE and update() returns empty data.
-class LiveFullBodyTrackerPicoImpl : public FullBodyTrackerPicoImpl
+class LiveFullBodyTrackerPicoImpl : public IFullBodyTrackerPicoImpl
 {
 public:
     static std::vector<std::string> required_extensions()

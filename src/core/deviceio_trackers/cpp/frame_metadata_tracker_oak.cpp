@@ -38,7 +38,7 @@ FrameMetadataTrackerOak::FrameMetadataTrackerOak(const std::string& collection_p
 const FrameMetadataOakTrackedT& FrameMetadataTrackerOak::get_stream_data(const ITrackerSession& session,
                                                                          size_t stream_index) const
 {
-    return static_cast<const FrameMetadataTrackerOakImpl&>(session.get_tracker_impl(*this)).get_stream_data(stream_index);
+    return static_cast<const IFrameMetadataTrackerOakImpl&>(session.get_tracker_impl(*this)).get_stream_data(stream_index);
 }
 
 } // namespace core
