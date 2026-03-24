@@ -50,9 +50,6 @@ class HeadTracker:
     def get_head(self, session):
         return self._head_data
 
-    def get_required_extensions(self):
-        return ["XR_EXT_head_tracking"]
-
 
 class HandTracker:
     """Mock hand tracker for testing."""
@@ -67,9 +64,6 @@ class HandTracker:
     def get_right_hand(self, session):
         return self._right_hand
 
-    def get_required_extensions(self):
-        return ["XR_EXT_hand_tracking"]
-
 
 class ControllerTracker:
     """Mock controller tracker for testing."""
@@ -83,9 +77,6 @@ class ControllerTracker:
 
     def get_right_controller(self, session):
         return self._right_controller
-
-    def get_required_extensions(self):
-        return ["XR_EXT_controller_interaction"]
 
 
 # ============================================================================

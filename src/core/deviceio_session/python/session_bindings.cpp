@@ -47,7 +47,8 @@ PYBIND11_MODULE(_deviceio_session, m)
         .def("__enter__", &core::PyDeviceIOSession::enter)
         .def("__exit__", &core::PyDeviceIOSession::exit)
         .def_static("get_required_extensions", &core::DeviceIOSession::get_required_extensions, py::arg("trackers"),
-                    "Get list of OpenXR extensions required by a list of trackers")
+                    "Aggregate OpenXR extensions required for a live session with these tracker types "
+                    "(not a per-tracker instance method)")
         .def_static(
             "run",
             [](const std::vector<std::shared_ptr<core::ITracker>>& trackers, const core::OpenXRSessionHandles& handles,

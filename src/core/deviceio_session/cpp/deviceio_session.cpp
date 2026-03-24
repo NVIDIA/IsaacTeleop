@@ -7,13 +7,11 @@
 
 #include "inc/deviceio_session/deviceio_session.hpp"
 
-#include <deviceio_base/tracker_factory.hpp>
 #include <live_trackers/live_deviceio_factory.hpp>
 #include <mcap/writer.hpp>
 
 #include <cassert>
 #include <iostream>
-#include <set>
 #include <stdexcept>
 
 namespace core
@@ -73,7 +71,7 @@ DeviceIOSession::DeviceIOSession(const std::vector<std::shared_ptr<ITracker>>& t
         {
             throw std::invalid_argument("DeviceIOSession: null tracker in trackers list");
         }
-        auto impl = tracker->create_tracker_impl(factory);
+        auto impl = factory.create_tracker_impl(*tracker);
         if (!impl)
         {
             throw std::runtime_error("DeviceIOSession: tracker '" + std::string(tracker->get_name()) +
@@ -87,27 +85,7 @@ DeviceIOSession::~DeviceIOSession() = default;
 
 std::vector<std::string> DeviceIOSession::get_required_extensions(const std::vector<std::shared_ptr<ITracker>>& trackers)
 {
-    std::set<std::string> all_extensions;
-
-    for (const auto& ext : XrTimeConverter::get_required_extensions())
-    {
-        all_extensions.insert(ext);
-    }
-
-    for (const auto& tracker : trackers)
-    {
-        if (!tracker)
-        {
-            throw std::invalid_argument("DeviceIOSession: null tracker in trackers list");
-        }
-        auto extensions = tracker->get_required_extensions();
-        for (const auto& ext : extensions)
-        {
-            all_extensions.insert(ext);
-        }
-    }
-
-    return std::vector<std::string>(all_extensions.begin(), all_extensions.end());
+    return LiveDeviceIOFactory::get_required_extensions(trackers);
 }
 
 std::unique_ptr<DeviceIOSession> DeviceIOSession::run(const std::vector<std::shared_ptr<ITracker>>& trackers,

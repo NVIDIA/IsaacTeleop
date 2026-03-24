@@ -10,6 +10,7 @@
 #include <schema/oak_generated.h>
 
 #include <memory>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -22,6 +23,10 @@ using OakSchemaTracker = SchemaTracker<FrameMetadataOakRecord, FrameMetadataOak>
 class LiveFrameMetadataTrackerOakImpl : public FrameMetadataTrackerOakImpl
 {
 public:
+    static std::vector<std::string> required_extensions()
+    {
+        return SchemaTrackerBase::get_required_extensions();
+    }
     static std::unique_ptr<OakMcapChannels> create_mcap_channels(mcap::McapWriter& writer,
                                                                  std::string_view base_name,
                                                                  const FrameMetadataTrackerOak* tracker);

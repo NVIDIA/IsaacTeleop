@@ -3,10 +3,8 @@
 
 cmake_minimum_required(VERSION 3.20)
 
-# Abstract APIs and ITrackerFactory default implementations.
-add_library(deviceio_base STATIC
-    tracker_factory.cpp
-)
+# Abstract APIs and typed tracker impl bases.
+add_library(deviceio_base INTERFACE)
 
 target_include_directories(deviceio_base
     INTERFACE
@@ -14,12 +12,10 @@ target_include_directories(deviceio_base
 )
 
 target_link_libraries(deviceio_base
-    PUBLIC
-        isaacteleop_schema
-    PRIVATE
-        OpenXR::headers
     INTERFACE
+        isaacteleop_schema
         oxr::oxr_utils
+        OpenXR::headers
 )
 
 add_library(deviceio::deviceio_base ALIAS deviceio_base)

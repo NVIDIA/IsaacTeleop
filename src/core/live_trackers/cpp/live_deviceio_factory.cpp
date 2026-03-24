@@ -16,11 +16,120 @@
 #include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
+#include <oxr_utils/oxr_time.hpp>
 
+#include <cassert>
+#include <set>
 #include <stdexcept>
+#include <string>
 
 namespace core
 {
+
+namespace
+{
+
+template <typename TrackerT, typename ImplT>
+bool try_add_extensions(const ITracker& tracker, std::set<std::string>& out)
+{
+    if (dynamic_cast<const TrackerT*>(&tracker))
+    {
+        for (const auto& ext : ImplT::required_extensions())
+            out.insert(ext);
+        return true;
+    }
+    return false;
+}
+
+std::unique_ptr<ITrackerImpl> try_create_head_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const HeadTracker*>(&tracker);
+    return typed ? factory.create_head_tracker_impl(typed) : nullptr;
+}
+
+std::unique_ptr<ITrackerImpl> try_create_hand_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const HandTracker*>(&tracker);
+    return typed ? factory.create_hand_tracker_impl(typed) : nullptr;
+}
+
+std::unique_ptr<ITrackerImpl> try_create_controller_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const ControllerTracker*>(&tracker);
+    return typed ? factory.create_controller_tracker_impl(typed) : nullptr;
+}
+
+std::unique_ptr<ITrackerImpl> try_create_full_body_pico_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const FullBodyTrackerPico*>(&tracker);
+    return typed ? factory.create_full_body_tracker_pico_impl(typed) : nullptr;
+}
+
+std::unique_ptr<ITrackerImpl> try_create_generic_pedal_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const Generic3AxisPedalTracker*>(&tracker);
+    return typed ? factory.create_generic_3axis_pedal_tracker_impl(typed) : nullptr;
+}
+
+std::unique_ptr<ITrackerImpl> try_create_oak_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const FrameMetadataTrackerOak*>(&tracker);
+    return typed ? factory.create_frame_metadata_tracker_oak_impl(typed) : nullptr;
+}
+
+using CollectExtensionsFn = bool (*)(const ITracker&, std::set<std::string>&);
+using TryCreateFn = std::unique_ptr<ITrackerImpl> (*)(LiveDeviceIOFactory&, const ITracker&);
+
+struct TrackerDispatchEntry
+{
+    CollectExtensionsFn collect_extensions;
+    TryCreateFn try_create;
+};
+
+// Shared tracker dispatch table for both extension collection and impl creation.
+inline const TrackerDispatchEntry k_tracker_dispatch[] = {
+    { &try_add_extensions<HeadTracker, LiveHeadTrackerImpl>, &try_create_head_impl },
+    { &try_add_extensions<HandTracker, LiveHandTrackerImpl>, &try_create_hand_impl },
+    { &try_add_extensions<ControllerTracker, LiveControllerTrackerImpl>, &try_create_controller_impl },
+    { &try_add_extensions<FullBodyTrackerPico, LiveFullBodyTrackerPicoImpl>, &try_create_full_body_pico_impl },
+    { &try_add_extensions<Generic3AxisPedalTracker, LiveGeneric3AxisPedalTrackerImpl>, &try_create_generic_pedal_impl },
+    { &try_add_extensions<FrameMetadataTrackerOak, LiveFrameMetadataTrackerOakImpl>, &try_create_oak_impl },
+};
+
+} // namespace
+
+std::vector<std::string> LiveDeviceIOFactory::get_required_extensions(const std::vector<std::shared_ptr<ITracker>>& trackers)
+{
+    std::set<std::string> all;
+
+    // DeviceIOSession always owns an XrTimeConverter; match session requirements even with zero trackers.
+    for (const auto& ext : XrTimeConverter::get_required_extensions())
+        all.insert(ext);
+
+    for (const auto& tracker : trackers)
+    {
+        if (!tracker)
+            throw std::invalid_argument("LiveDeviceIOFactory: null tracker in trackers list");
+
+        bool matched = false;
+        for (const auto& dispatch : k_tracker_dispatch)
+        {
+            if (dispatch.collect_extensions(*tracker, all))
+            {
+                matched = true;
+                break;
+            }
+        }
+
+        if (!matched)
+        {
+            throw std::invalid_argument("LiveDeviceIOFactory::get_required_extensions: unsupported tracker type '" +
+                                        std::string(tracker->get_name()) + "'");
+        }
+    }
+
+    return { all.begin(), all.end() };
+}
 
 LiveDeviceIOFactory::LiveDeviceIOFactory(const OpenXRSessionHandles& handles,
                                          mcap::McapWriter* writer,
@@ -36,6 +145,19 @@ LiveDeviceIOFactory::LiveDeviceIOFactory(const OpenXRSessionHandles& handles,
                                         "' (already mapped as '" + it->second + "')");
         }
     }
+}
+
+std::unique_ptr<ITrackerImpl> LiveDeviceIOFactory::create_tracker_impl(const ITracker& tracker)
+{
+    for (const auto& dispatch : k_tracker_dispatch)
+    {
+        if (std::unique_ptr<ITrackerImpl> impl = dispatch.try_create(*this, tracker))
+        {
+            return impl;
+        }
+    }
+    throw std::invalid_argument("LiveDeviceIOFactory::create_tracker_impl: unsupported tracker type '" +
+                                std::string(tracker.get_name()) + "'");
 }
 
 bool LiveDeviceIOFactory::should_record(const ITracker* tracker) const

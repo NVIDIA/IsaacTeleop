@@ -11,8 +11,11 @@
 #include <oxr_utils/oxr_time.hpp>
 #include <schema/controller_generated.h>
 
+#include <XR_NVX1_action_context.h>
 #include <memory>
+#include <string>
 #include <string_view>
+#include <vector>
 
 namespace core
 {
@@ -22,6 +25,10 @@ using ControllerMcapChannels = McapTrackerChannels<ControllerSnapshotRecord, Con
 class LiveControllerTrackerImpl : public ControllerTrackerImpl
 {
 public:
+    static std::vector<std::string> required_extensions()
+    {
+        return { XR_NVX1_ACTION_CONTEXT_EXTENSION_NAME };
+    }
     static std::unique_ptr<ControllerMcapChannels> create_mcap_channels(mcap::McapWriter& writer,
                                                                         std::string_view base_name);
 

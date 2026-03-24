@@ -39,9 +39,9 @@ def get_required_oxr_extensions_from_pipeline(pipeline: Any) -> List[str]:
     """Return the OpenXR extensions required by a retargeting pipeline.
 
     Convenience wrapper that discovers trackers via
-    :func:`_get_trackers_from_pipeline` and then queries each tracker for
-    the OpenXR extensions it needs via
-    ``DeviceIOSession.get_required_extensions()``.
+    :func:`_get_trackers_from_pipeline` and passes them to
+    ``DeviceIOSession.get_required_extensions()``, which aggregates extensions
+    for known live tracker types (see ``LiveDeviceIOFactory`` in C++).
 
     Example::
 

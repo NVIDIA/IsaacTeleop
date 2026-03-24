@@ -8,14 +8,12 @@
 #include <memory>
 #include <string>
 #include <string_view>
-#include <vector>
 
 namespace core
 {
 
 // Forward declarations
 struct OpenXRSessionHandles;
-class ITrackerFactory;
 
 // Base interface for tracker implementations.
 // The actual worker objects updated each frame by DeviceIOSession.
@@ -51,27 +49,14 @@ public:
 };
 
 // Base interface for all trackers.
-// Public API: configuration, extension requirements, and typed data accessors.
+// Public API: identity and typed data accessors.
+// DeviceIOSession::get_required_extensions(trackers) aggregates required extensions for the session.
 class ITracker
 {
 public:
     virtual ~ITracker() = default;
 
-    virtual std::vector<std::string> get_required_extensions() const = 0;
     virtual std::string_view get_name() const = 0;
-
-    /**
-     * @brief Create the tracker's implementation via the provided factory.
-     *
-     * Uses double dispatch: the tracker calls the factory method specific to its
-     * concrete type. The factory (e.g. LiveDeviceIOFactory) owns the optional
-     * MCAP writer and creates typed McapTrackerChannels for each impl that
-     * should record.
-     *
-     * @param factory Session-provided factory.
-     * @return Owning pointer to the newly created impl.
-     */
-    virtual std::unique_ptr<ITrackerImpl> create_tracker_impl(ITrackerFactory& factory) const = 0;
 };
 
 } // namespace core

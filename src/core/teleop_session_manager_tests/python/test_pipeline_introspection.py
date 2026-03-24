@@ -9,6 +9,7 @@ get_required_oxr_extensions_from_pipeline() correctly discover trackers and
 extensions from a retargeting pipeline without requiring an OpenXR runtime.
 """
 
+import sys
 from unittest.mock import MagicMock
 
 from isaacteleop.retargeting_engine.deviceio_source_nodes import (
@@ -115,15 +116,20 @@ class TestGetRequiredOxrExtensionsFromPipeline:
         assert len(extensions) > 0
         assert all(isinstance(e, str) for e in extensions)
 
-    def test_empty_pipeline_returns_baseline_extensions(self):
-        """An empty pipeline still returns the baseline platform extensions."""
+    def test_empty_pipeline_includes_baseline_time_extensions(self):
+        """No trackers still need XrTimeConverter extensions (DeviceIOSession always uses it)."""
         pipeline = _mock_pipeline_with_leaf_nodes([])
 
         extensions = get_required_oxr_extensions_from_pipeline(pipeline)
 
-        # DeviceIOSession.get_required_extensions always adds the platform
-        # time conversion extension even with no trackers.
         assert isinstance(extensions, list)
+        if sys.platform.startswith("linux"):
+            assert "XR_KHR_convert_timespec_time" in extensions
+        elif sys.platform == "win32":
+            assert "XR_KHR_win32_convert_performance_counter_time" in extensions
+        else:
+            # Other platforms: XrTimeConverter may report no extensions; list must still be well-formed.
+            assert extensions == sorted(set(extensions))
 
     def test_multiple_sources_combine_extensions(self):
         """Extensions from multiple sources are combined (no duplicates)."""
@@ -132,8 +138,16 @@ class TestGetRequiredOxrExtensionsFromPipeline:
         pipeline = _mock_pipeline_with_leaf_nodes([hands, controllers])
 
         extensions = get_required_oxr_extensions_from_pipeline(pipeline)
+        hands_only_pipeline = _mock_pipeline_with_leaf_nodes([hands])
+        hands_only_extensions = get_required_oxr_extensions_from_pipeline(
+            hands_only_pipeline
+        )
 
-        # Should include hand tracking extension at minimum
+        # ControllersSource contributes XR_NVX1_action_context via LiveDeviceIOFactory; hands-only must not.
+        controller_extension = "XR_NVX1_action_context"
         assert isinstance(extensions, list)
+        assert controller_extension in extensions
+        assert controller_extension not in hands_only_extensions
+
         # No duplicates
         assert len(extensions) == len(set(extensions))

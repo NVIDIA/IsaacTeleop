@@ -10,7 +10,9 @@
 #include <schema/pedals_generated.h>
 
 #include <memory>
+#include <string>
 #include <string_view>
+#include <vector>
 
 namespace core
 {
@@ -21,6 +23,10 @@ using PedalSchemaTracker = SchemaTracker<Generic3AxisPedalOutputRecord, Generic3
 class LiveGeneric3AxisPedalTrackerImpl : public Generic3AxisPedalTrackerImpl
 {
 public:
+    static std::vector<std::string> required_extensions()
+    {
+        return SchemaTrackerBase::get_required_extensions();
+    }
     static std::unique_ptr<PedalMcapChannels> create_mcap_channels(mcap::McapWriter& writer, std::string_view base_name);
 
     LiveGeneric3AxisPedalTrackerImpl(const OpenXRSessionHandles& handles,

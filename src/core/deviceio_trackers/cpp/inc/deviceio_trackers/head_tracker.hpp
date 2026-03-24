@@ -6,8 +6,6 @@
 #include <deviceio_base/head_tracker_base.hpp>
 #include <schema/head_generated.h>
 
-#include <memory>
-
 namespace core
 {
 
@@ -15,14 +13,10 @@ namespace core
 class HeadTracker : public ITracker
 {
 public:
-    std::vector<std::string> get_required_extensions() const override;
     std::string_view get_name() const override
     {
         return TRACKER_NAME;
     }
-
-    // Double-dispatch: calls factory.create_head_tracker_impl()
-    std::unique_ptr<ITrackerImpl> create_tracker_impl(ITrackerFactory& factory) const override;
 
     // Query method - tracked.data is always set when the HMD is present
     const HeadPoseTrackedT& get_head(const ITrackerSession& session) const;

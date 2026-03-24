@@ -7,7 +7,6 @@
 #include <schema/oak_generated.h>
 
 #include <cstddef>
-#include <memory>
 #include <string>
 #include <vector>
 
@@ -48,14 +47,10 @@ public:
                             const std::vector<StreamType>& streams,
                             size_t max_flatbuffer_size = DEFAULT_MAX_FLATBUFFER_SIZE);
 
-    std::vector<std::string> get_required_extensions() const override;
     std::string_view get_name() const override
     {
         return TRACKER_NAME;
     }
-
-    // Double-dispatch: calls factory.create_frame_metadata_tracker_oak_impl()
-    std::unique_ptr<ITrackerImpl> create_tracker_impl(ITrackerFactory& factory) const override;
 
     /*!
      * @brief Get per-stream frame metadata.

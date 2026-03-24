@@ -47,7 +47,7 @@ struct McapRecordingConfig
 class DeviceIOSession : public ITrackerSession
 {
 public:
-    // Static helper - Get all required OpenXR extensions from a list of trackers
+    // Static helper — required OpenXR extensions for the given trackers (live factory; not per-tracker API).
     static std::vector<std::string> get_required_extensions(const std::vector<std::shared_ptr<ITracker>>& trackers);
 
     // Static factory - Create and initialize a session with trackers.

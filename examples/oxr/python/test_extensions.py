@@ -3,10 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Test get_required_extensions() API
+Test DeviceIOSession.get_required_extensions() (session-level aggregate).
 
-Demonstrates how to query required extensions before initialization.
-Useful when creating external OpenXR sessions.
+Query required extensions before creating an OpenXR session; individual trackers
+do not expose get_required_extensions().
 """
 
 import isaacteleop.deviceio as deviceio

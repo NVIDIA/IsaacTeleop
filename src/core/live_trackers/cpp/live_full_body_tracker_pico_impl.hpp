@@ -11,7 +11,9 @@
 #include <schema/full_body_generated.h>
 
 #include <memory>
+#include <string>
 #include <string_view>
+#include <vector>
 
 namespace core
 {
@@ -23,6 +25,10 @@ using FullBodyMcapChannels = McapTrackerChannels<FullBodyPosePicoRecord, FullBod
 class LiveFullBodyTrackerPicoImpl : public FullBodyTrackerPicoImpl
 {
 public:
+    static std::vector<std::string> required_extensions()
+    {
+        return { "XR_BD_body_tracking" };
+    }
     static std::unique_ptr<FullBodyMcapChannels> create_mcap_channels(mcap::McapWriter& writer,
                                                                       std::string_view base_name);
 

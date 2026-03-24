@@ -12,7 +12,9 @@
 #include <schema/hand_generated.h>
 
 #include <memory>
+#include <string>
 #include <string_view>
+#include <vector>
 
 namespace core
 {
@@ -22,6 +24,10 @@ using HandMcapChannels = McapTrackerChannels<HandPoseRecord, HandPose>;
 class LiveHandTrackerImpl : public HandTrackerImpl
 {
 public:
+    static std::vector<std::string> required_extensions()
+    {
+        return { XR_EXT_HAND_TRACKING_EXTENSION_NAME };
+    }
     static std::unique_ptr<HandMcapChannels> create_mcap_channels(mcap::McapWriter& writer, std::string_view base_name);
 
     LiveHandTrackerImpl(const OpenXRSessionHandles& handles, std::unique_ptr<HandMcapChannels> mcap_channels);

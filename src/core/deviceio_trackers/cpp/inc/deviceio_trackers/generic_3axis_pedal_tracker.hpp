@@ -7,7 +7,6 @@
 #include <schema/pedals_generated.h>
 
 #include <cstddef>
-#include <memory>
 #include <string>
 
 namespace core
@@ -53,14 +52,10 @@ public:
     explicit Generic3AxisPedalTracker(const std::string& collection_id,
                                       size_t max_flatbuffer_size = DEFAULT_MAX_FLATBUFFER_SIZE);
 
-    std::vector<std::string> get_required_extensions() const override;
     std::string_view get_name() const override
     {
         return TRACKER_NAME;
     }
-    // Double-dispatch: calls factory.create_generic_3axis_pedal_tracker_impl(this)
-    std::unique_ptr<ITrackerImpl> create_tracker_impl(ITrackerFactory& factory) const override;
-
     /*!
      * @brief Pedal snapshot from the session’s implementation.
      *

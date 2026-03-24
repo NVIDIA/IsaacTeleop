@@ -14,7 +14,8 @@
  *
  * External users only see:
  * - get_head() / get_left_hand() / get_right_hand()
- * - get_name() / get_required_extensions()
+ * - get_name()
+ * - DeviceIOSession::get_required_extensions(trackers) before creating OpenXRSession
  *
  * Internal lifecycle methods (initialize, update, cleanup) are hidden!
  */

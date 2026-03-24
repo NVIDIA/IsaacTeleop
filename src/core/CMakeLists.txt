@@ -22,7 +22,7 @@ add_subdirectory(oxr)
 add_subdirectory(pusherio)
 
 # DeviceIO: 4-module design
-#   1. deviceio_base           — abstract interfaces (ITracker, ITrackerFactory, typed impl bases)
+#   1. deviceio_base           — abstract interfaces (ITracker, typed impl bases)
 #   2. deviceio_trackers       — public tracker classes (HeadTracker, HandTracker, etc.)
 #   3. live_trackers            — live OpenXR tracker impls (depends on trackers)
 #   4. deviceio_session        — DeviceIOSession (wires trackers to live factory)

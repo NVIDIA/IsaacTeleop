@@ -6,8 +6,6 @@
 #include <deviceio_base/controller_tracker_base.hpp>
 #include <schema/controller_generated.h>
 
-#include <memory>
-
 namespace core
 {
 
@@ -17,14 +15,10 @@ namespace core
 class ControllerTracker : public ITracker
 {
 public:
-    std::vector<std::string> get_required_extensions() const override;
     std::string_view get_name() const override
     {
         return TRACKER_NAME;
     }
-
-    // Double-dispatch: calls factory.create_controller_tracker_impl()
-    std::unique_ptr<ITrackerImpl> create_tracker_impl(ITrackerFactory& factory) const override;
 
     // Query methods - tracked.data is null when the controller is inactive
     const ControllerSnapshotTrackedT& get_left_controller(const ITrackerSession& session) const;

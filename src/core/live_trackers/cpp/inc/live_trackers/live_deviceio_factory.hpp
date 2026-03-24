@@ -3,8 +3,6 @@
 
 #pragma once
 
-#include <deviceio_base/tracker_factory.hpp>
-
 #include <memory>
 #include <string>
 #include <string_view>
@@ -21,30 +19,48 @@ namespace core
 {
 
 class ITracker;
+class ITrackerImpl;
+class ControllerTracker;
+class ControllerTrackerImpl;
+class FrameMetadataTrackerOak;
+class FrameMetadataTrackerOakImpl;
+class FullBodyTrackerPico;
+class FullBodyTrackerPicoImpl;
+class Generic3AxisPedalTracker;
+class Generic3AxisPedalTrackerImpl;
+class HandTracker;
+class HandTrackerImpl;
+class HeadTracker;
+class HeadTrackerImpl;
 struct OpenXRSessionHandles;
 
 /**
- * @brief ITrackerFactory implementation for live OpenXR sessions.
+ * @brief Factory for live OpenXR tracker implementations.
  *
  * Used by DeviceIOSession to construct OpenXR-backed tracker implementations.
  * When writer is non-null, each simple impl receives a typed McapTrackerChannels
  * for MCAP recording.
  */
-class LiveDeviceIOFactory : public ITrackerFactory
+class LiveDeviceIOFactory
 {
 public:
+    /** Aggregate OpenXR extensions required by the given trackers for a live session. */
+    static std::vector<std::string> get_required_extensions(const std::vector<std::shared_ptr<ITracker>>& trackers);
+    /** Create tracker impl from a tracker instance using the same dispatch table as extension discovery. */
+    std::unique_ptr<ITrackerImpl> create_tracker_impl(const ITracker& tracker);
+
     LiveDeviceIOFactory(const OpenXRSessionHandles& handles,
                         mcap::McapWriter* writer,
                         const std::vector<std::pair<const ITracker*, std::string>>& tracker_names);
 
-    std::unique_ptr<HeadTrackerImpl> create_head_tracker_impl(const HeadTracker* tracker) override;
-    std::unique_ptr<HandTrackerImpl> create_hand_tracker_impl(const HandTracker* tracker) override;
-    std::unique_ptr<ControllerTrackerImpl> create_controller_tracker_impl(const ControllerTracker* tracker) override;
-    std::unique_ptr<FullBodyTrackerPicoImpl> create_full_body_tracker_pico_impl(const FullBodyTrackerPico* tracker) override;
+    std::unique_ptr<HeadTrackerImpl> create_head_tracker_impl(const HeadTracker* tracker);
+    std::unique_ptr<HandTrackerImpl> create_hand_tracker_impl(const HandTracker* tracker);
+    std::unique_ptr<ControllerTrackerImpl> create_controller_tracker_impl(const ControllerTracker* tracker);
+    std::unique_ptr<FullBodyTrackerPicoImpl> create_full_body_tracker_pico_impl(const FullBodyTrackerPico* tracker);
     std::unique_ptr<Generic3AxisPedalTrackerImpl> create_generic_3axis_pedal_tracker_impl(
-        const Generic3AxisPedalTracker* tracker) override;
+        const Generic3AxisPedalTracker* tracker);
     std::unique_ptr<FrameMetadataTrackerOakImpl> create_frame_metadata_tracker_oak_impl(
-        const FrameMetadataTrackerOak* tracker) override;
+        const FrameMetadataTrackerOak* tracker);
 
 private:
     bool should_record(const ITracker* tracker) const;

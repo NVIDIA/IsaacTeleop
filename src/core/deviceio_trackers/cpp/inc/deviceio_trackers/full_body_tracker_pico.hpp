@@ -7,8 +7,6 @@
 #include <schema/full_body_generated.h>
 
 #include <cstdint>
-#include <memory>
-
 namespace core
 {
 
@@ -20,14 +18,10 @@ public:
     //! Number of joints in XR_BD_body_tracking (0-23).
     static constexpr uint32_t JOINT_COUNT = 24;
 
-    std::vector<std::string> get_required_extensions() const override;
     std::string_view get_name() const override
     {
         return TRACKER_NAME;
     }
-
-    // Double-dispatch: calls factory.create_full_body_tracker_pico_impl()
-    std::unique_ptr<ITrackerImpl> create_tracker_impl(ITrackerFactory& factory) const override;
 
     // Query method - tracked.data is null when the body tracker is inactive
     const FullBodyPosePicoTrackedT& get_body_pose(const ITrackerSession& session) const;

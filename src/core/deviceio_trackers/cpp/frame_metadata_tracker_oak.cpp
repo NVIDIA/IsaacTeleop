@@ -3,8 +3,6 @@
 
 #include "inc/deviceio_trackers/frame_metadata_tracker_oak.hpp"
 
-#include <deviceio_base/tracker_factory.hpp>
-
 #include <stdexcept>
 #include <string>
 
@@ -37,22 +35,10 @@ FrameMetadataTrackerOak::FrameMetadataTrackerOak(const std::string& collection_p
     }
 }
 
-std::vector<std::string> FrameMetadataTrackerOak::get_required_extensions() const
-{
-    // Tensor-data extension required by SchemaTracker-based trackers.
-    // XrTimeConverter extensions are added separately by DeviceIOSession::get_required_extensions().
-    return { "XR_NVX1_tensor_data" };
-}
-
 const FrameMetadataOakTrackedT& FrameMetadataTrackerOak::get_stream_data(const ITrackerSession& session,
                                                                          size_t stream_index) const
 {
     return static_cast<const FrameMetadataTrackerOakImpl&>(session.get_tracker_impl(*this)).get_stream_data(stream_index);
-}
-
-std::unique_ptr<ITrackerImpl> FrameMetadataTrackerOak::create_tracker_impl(ITrackerFactory& factory) const
-{
-    return factory.create_frame_metadata_tracker_oak_impl(this);
 }
 
 } // namespace core

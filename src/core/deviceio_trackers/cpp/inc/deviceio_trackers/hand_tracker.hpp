@@ -6,7 +6,6 @@
 #include <deviceio_base/hand_tracker_base.hpp>
 #include <schema/hand_generated.h>
 
-#include <memory>
 #include <string>
 
 namespace core
@@ -16,14 +15,10 @@ namespace core
 class HandTracker : public ITracker
 {
 public:
-    std::vector<std::string> get_required_extensions() const override;
     std::string_view get_name() const override
     {
         return TRACKER_NAME;
     }
-
-    // Double-dispatch: calls factory.create_hand_tracker_impl()
-    std::unique_ptr<ITrackerImpl> create_tracker_impl(ITrackerFactory& factory) const override;
 
     // Query methods - tracked.data is null when the hand is inactive
     const HandPoseTrackedT& get_left_hand(const ITrackerSession& session) const;
