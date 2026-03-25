@@ -4,7 +4,6 @@
  */
 
 #include "nv_stream_decoder_op.hpp"
-#include "nv12_to_rgb.cuh"
 
 #include "gxf/multimedia/video.hpp"
 #include "gxf/std/allocator.hpp"
@@ -13,6 +12,7 @@
 #include "holoscan/core/execution_context.hpp"
 #include "holoscan/core/gxf/entity.hpp"
 #include "holoscan/core/io_context.hpp"
+#include "nv12_to_rgb.cuh"
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -195,8 +195,7 @@ void NvStreamDecoderOp::compute(holoscan::InputContext& op_input,
             use_full_range_ = (fmt.video_signal_description.video_full_range_flag != 0);
         }
         HOLOSCAN_LOG_INFO("NV12->RGB color range: {} (force_full_range={}, bitstream flag={})",
-                          use_full_range_ ? "full" : "limited",
-                          force_full_range_.get(),
+                          use_full_range_ ? "full" : "limited", force_full_range_.get(),
                           decoder_->GetVideoFormatInfo().video_signal_description.video_full_range_flag);
     }
 
@@ -227,8 +226,7 @@ void NvStreamDecoderOp::compute(holoscan::InputContext& op_input,
     {
         // BT.601 full-range (ITU-T T.871).  NPP has no NV12 variant for this
         // combination so we use a single-pass CUDA kernel.  See nv12_to_rgb.cu.
-        nv12_to_rgb_fullrange_bt601(pFrame, pFrame + lumaSize, pitch,
-                                    dst, width * 3, width, height);
+        nv12_to_rgb_fullrange_bt601(pFrame, pFrame + lumaSize, pitch, dst, width * 3, width, height);
     }
     else
     {
