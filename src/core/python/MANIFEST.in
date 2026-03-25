@@ -27,3 +27,4 @@ include isaacteleop/cloudxr/*.py
 include isaacteleop/cloudxr/native/*.so
 include isaacteleop/cloudxr/native/*.so.*
 include isaacteleop/cloudxr/native/openxr_cloudxr.json
+recursive-include isaacteleop/cloudxr/static/operator *

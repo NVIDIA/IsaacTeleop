@@ -48,6 +48,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 
 import { CloudXR2DUI } from './CloudXR2DUI';
 import CloudXR3DUI from './CloudXRUI';
+import { HeadsetControlChannel } from '@helpers/controlChannel';
 
 // Performance metrics signals - raw numeric data, one per callback cadence.
 // Signals update their value without triggering React re-renders.
@@ -92,6 +93,10 @@ function App() {
   const COUNTDOWN_STORAGE_KEY = 'cxr.react.countdownSeconds';
   // 2D UI management
   const [cloudXR2DUI, setCloudXR2DUI] = useState<CloudXR2DUI | null>(null);
+  // Stable refs so the control channel can call connect/disconnect without
+  // capturing stale closures or triggering effect restarts.
+  const doConnectRef = useRef<(() => Promise<void>) | null>(null);
+  const handleDisconnectRef = useRef<(() => void) | null>(null);
   // IWER loading state
   const [iwerLoaded, setIwerLoaded] = useState(false);
   // Capability state management
@@ -293,47 +298,48 @@ function App() {
       setConfigVersion(v => v + 1);
     });
     ui.initialize();
-    ui.setupConnectButtonHandler(
-      async () => {
-        const config = ui.getConfiguration();
-        const resolutionError = getResolutionValidationError(
-          config.perEyeWidth,
-          config.perEyeHeight
-        );
-        if (resolutionError) {
-          ui.updateConnectButtonState();
-          return;
-        }
-        // Start XR session
-        if (config.immersiveMode === 'ar') {
-          await store.enterAR();
-        } else if (config.immersiveMode === 'vr') {
-          await store.enterVR();
-        } else {
-          setErrorMessage('Unrecognized immersive mode');
-        }
-        store.setFrameRate((supportedFrameRates: ArrayLike<number>): number | false => {
-          let frameRate = ui.getConfiguration().deviceFrameRate;
-          let found = false;
-          for (let i = 0; i < supportedFrameRates.length; ++i) {
-            if (supportedFrameRates[i] === frameRate) {
-              found = true;
-              break;
-            }
-          }
-          if (found) {
-            console.info('Changed frame rate to', frameRate);
-            return frameRate;
-          } else {
-            console.error('Failed to change frame rate to', frameRate);
-            return false;
-          }
-        });
-      },
-      (error: Error) => {
-        setErrorMessage(`Failed to start XR session: ${error}`);
+    const doConnect = async () => {
+      const config = ui.getConfiguration();
+      const resolutionError = getResolutionValidationError(
+        config.perEyeWidth,
+        config.perEyeHeight
+      );
+      if (resolutionError) {
+        ui.updateConnectButtonState();
+        return;
       }
-    );
+      // Start XR session
+      if (config.immersiveMode === 'ar') {
+        await store.enterAR();
+      } else if (config.immersiveMode === 'vr') {
+        await store.enterVR();
+      } else {
+        setErrorMessage('Unrecognized immersive mode');
+      }
+      store.setFrameRate((supportedFrameRates: ArrayLike<number>): number | false => {
+        let frameRate = ui.getConfiguration().deviceFrameRate;
+        let found = false;
+        for (let i = 0; i < supportedFrameRates.length; ++i) {
+          if (supportedFrameRates[i] === frameRate) {
+            found = true;
+            break;
+          }
+        }
+        if (found) {
+          console.info('Changed frame rate to', frameRate);
+          return frameRate;
+        } else {
+          console.error('Failed to change frame rate to', frameRate);
+          return false;
+        }
+      });
+    };
+
+    doConnectRef.current = doConnect;
+
+    ui.setupConnectButtonHandler(doConnect, (error: Error) => {
+      setErrorMessage(`Failed to start XR session: ${error}`);
+    });
 
     setCloudXR2DUI(ui);
 
@@ -615,6 +621,68 @@ function App() {
       });
     }
   };
+
+  // Keep the ref current so the control channel always calls the latest version.
+  handleDisconnectRef.current = handleDisconnect;
+
+  // Control channel: optional hub ↔ headset WebSocket connection.
+  // Activated when the page URL contains ?controlWsUrl=wss://host:PORT/teleop/v1/ws.
+  // The channel registers as a headset, receives config/sessionCommand, and reports metrics.
+  useEffect(() => {
+    if (!cloudXR2DUI) return;
+    const p = new URLSearchParams(window.location.search);
+    const controlWsUrl = p.get('controlWsUrl');
+    if (!controlWsUrl) return;
+
+    const channel = new HeadsetControlChannel({
+      url: controlWsUrl,
+      token: p.get('controlToken') ?? undefined,
+      onSessionCommand: (action) => {
+        if (action === 'connect') {
+          const connect = doConnectRef.current;
+          if (connect) {
+            // Same entry path as the Connect button: doConnect awaits store.enterAR()/enterVR(),
+            // which can reject; the button path catches via setupConnectButtonHandler — handle
+            // hub-triggered connect here so rejections surface in the UI and are not unhandled.
+            void connect().catch((err: unknown) => {
+              setErrorMessage(
+                `Failed to start XR session: ${err instanceof Error ? err.message : String(err)}`
+              );
+            });
+          }
+        } else {
+          handleDisconnectRef.current?.();
+        }
+      },
+      onConfig: (config) => {
+        cloudXR2DUI.setStreamConfig(config);
+      },
+      getMetricsSnapshot: () => {
+        const snapshots: Array<{ cadence: string; metrics: Record<string, number> }> = [];
+        const rm = renderMetrics.value;
+        if (rm) {
+          snapshots.push({
+            cadence: 'render',
+            metrics: { [CloudXR.MetricsName.RenderFramerate]: rm.fps },
+          });
+        }
+        const sm = streamingMetrics.value;
+        if (sm) {
+          snapshots.push({
+            cadence: 'frame',
+            metrics: {
+              [CloudXR.MetricsName.StreamingFramerate]: sm.fps,
+              [CloudXR.MetricsName.PoseToRenderTime]: sm.latencyMs,
+            },
+          });
+        }
+        return snapshots;
+      },
+    });
+    channel.connect();
+
+    return () => { channel.dispose(); };
+  }, [cloudXR2DUI]);
 
   // Countdown configuration handlers (0-5 seconds)
   const handleIncreaseCountdown = () => {
