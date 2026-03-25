@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #include <core/manus_hand_tracking_plugin.hpp>
@@ -153,8 +153,7 @@ void ManusTracker::initialize(const std::string& app_name) noexcept(false)
         else
         {
             std::cout << "[Manus] " << XR_EXT_HAND_TRACKING_EXTENSION_NAME
-                      << " is not supported by the current runtime; HandTracker will not be created."
-                      << std::endl;
+                      << " is not supported by the current runtime; HandTracker will not be created." << std::endl;
         }
 
         // Get required extensions from trackers
