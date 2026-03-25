@@ -45,115 +45,109 @@ print("[Test 4] Creating OpenXR session and initializing...")
 print("Note: This requires a PICO device with body tracking support")
 print()
 
-try:
-    # Use context managers for proper RAII cleanup
-    with oxr.OpenXRSession("FullBodyTrackerTest", required_extensions) as oxr_session:
-        handles = oxr_session.get_handles()
+# Use context managers for proper RAII cleanup
+with oxr.OpenXRSession("FullBodyTrackerTest", required_extensions) as oxr_session:
+    handles = oxr_session.get_handles()
 
-        # Run deviceio session with trackers (throws exception on failure)
-        with deviceio.DeviceIOSession.run(trackers, handles) as session:
-            print("✅ OpenXR session initialized with body tracking")
-            print()
+    # Run deviceio session with trackers (throws exception on failure)
+    with deviceio.DeviceIOSession.run(trackers, handles) as session:
+        print("✅ OpenXR session initialized with body tracking")
+        print()
 
-            # Test 5: Initial update
-            print("[Test 5] Testing initial data retrieval...")
+        # Test 5: Initial update
+        print("[Test 5] Testing initial data retrieval...")
+        if not session.update():
+            print("❌ Update failed")
+            sys.exit(1)
+
+        print("✓ Update successful")
+        print()
+
+        # Test 6: Check initial body tracking state
+        print("[Test 6] Checking body tracking state...")
+        body_tracked = body_tracker.get_body_pose(session)
+        print(
+            f"  Body tracking active: {'YES' if body_tracked.data is not None else 'NO'}"
+        )
+
+        if body_tracked.data is not None:
+            valid_count = sum(
+                1
+                for i in range(schema.BodyJointPico.NUM_JOINTS)
+                if body_tracked.data.joints.joints(i).is_valid
+            )
+            print(f"  Valid joints: {valid_count}/{schema.BodyJointPico.NUM_JOINTS}")
+        print()
+
+        # Test 7: Run tracking loop
+        print("[Test 7] Running body tracking loop (10 seconds)...")
+        print("Move around to see body tracking data!")
+        print()
+
+        frame_count = 0
+        start_time = time.time()
+        last_status_print = start_time
+
+        while time.time() - start_time < 10.0:
             if not session.update():
-                print("❌ Update failed")
-                sys.exit(1)
+                print("Update failed")
+                break
 
-            print("✓ Update successful")
-            print()
+            # Get current body pose
+            current_time = time.time()
+            if current_time - last_status_print >= 0.5:  # Print every 0.5 seconds
+                elapsed = current_time - start_time
+                body_tracked = body_tracker.get_body_pose(session)
 
-            # Test 6: Check initial body tracking state
-            print("[Test 6] Checking body tracking state...")
-            body_tracked = body_tracker.get_body_pose(session)
-            print(
-                f"  Body tracking active: {'YES' if body_tracked.data is not None else 'NO'}"
-            )
-
-            if body_tracked.data is not None:
-                valid_count = sum(
-                    1
-                    for i in range(schema.BodyJointPico.NUM_JOINTS)
-                    if body_tracked.data.joints.joints(i).is_valid
-                )
-                print(
-                    f"  Valid joints: {valid_count}/{schema.BodyJointPico.NUM_JOINTS}"
-                )
-            print()
-
-            # Test 7: Run tracking loop
-            print("[Test 7] Running body tracking loop (10 seconds)...")
-            print("Move around to see body tracking data!")
-            print()
-
-            frame_count = 0
-            start_time = time.time()
-            last_status_print = start_time
-
-            while time.time() - start_time < 10.0:
-                if not session.update():
-                    print("Update failed")
-                    break
-
-                # Get current body pose
-                current_time = time.time()
-                if current_time - last_status_print >= 0.5:  # Print every 0.5 seconds
-                    elapsed = current_time - start_time
-                    body_tracked = body_tracker.get_body_pose(session)
-
-                    if body_tracked.data is not None:
-                        pelvis_pos = body_tracked.data.joints.joints(
-                            int(schema.BodyJointPico.PELVIS)
-                        ).pose.position
-                        head_pos = body_tracked.data.joints.joints(
-                            int(schema.BodyJointPico.HEAD)
-                        ).pose.position
-                        print(
-                            f"  [{elapsed:5.2f}s] Frame {frame_count:4d}"
-                            f" | Pelvis: [{pelvis_pos.x:+.2f}, {pelvis_pos.y:+.2f}, {pelvis_pos.z:+.2f}]"
-                            f" | Head: [{head_pos.x:+.2f}, {head_pos.y:+.2f}, {head_pos.z:+.2f}]"
-                        )
-                    else:
-                        print(f"  [{elapsed:5.2f}s] Frame {frame_count:4d} | inactive")
-                    last_status_print = current_time
-
-                frame_count += 1
-                time.sleep(0.016)  # ~60 FPS
-
-            print()
-            print(f"✓ Processed {frame_count} frames")
-            print()
-
-            # Test 8: Show final body pose
-            print("[Test 8] Final body pose state...")
-            body_tracked = body_tracker.get_body_pose(session)
-
-            print(
-                f"  Body tracking active: {'YES' if body_tracked.data is not None else 'NO'}"
-            )
-
-            if body_tracked.data is not None:
-                print()
-                print("  Joint positions:")
-                for i in range(schema.BodyJointPico.NUM_JOINTS):
-                    joint = body_tracked.data.joints.joints(i)
-                    name = schema.BodyJointPico(i).name
-                    pos = joint.pose.position
-                    rot = joint.pose.orientation
+                if body_tracked.data is not None:
+                    pelvis_pos = body_tracked.data.joints.joints(
+                        int(schema.BodyJointPico.PELVIS)
+                    ).pose.position
+                    head_pos = body_tracked.data.joints.joints(
+                        int(schema.BodyJointPico.HEAD)
+                    ).pose.position
                     print(
-                        f"    [{i:2d}] {name:15s}: pos=[{pos.x:+.3f}, {pos.y:+.3f}, {pos.z:+.3f}]"
-                        f"  rot=[{rot.x:+.3f}, {rot.y:+.3f}, {rot.z:+.3f}, {rot.w:+.3f}]"
+                        f"  [{elapsed:5.2f}s] Frame {frame_count:4d}"
+                        f" | Pelvis: [{pelvis_pos.x:+.2f}, {pelvis_pos.y:+.2f}, {pelvis_pos.z:+.2f}]"
+                        f" | Head: [{head_pos.x:+.2f}, {head_pos.y:+.2f}, {head_pos.z:+.2f}]"
                     )
-            print()
+                else:
+                    print(f"  [{elapsed:5.2f}s] Frame {frame_count:4d} | inactive")
+                last_status_print = current_time
 
-            # Cleanup
-            print("[Test 9] Cleanup...")
-            print("✓ Resources will be cleaned up when exiting 'with' blocks (RAII)")
-            print()
+            frame_count += 1
+            time.sleep(0.016)  # ~60 FPS
 
-except Exception as e:
-    sys.exit(f"{sys.argv[0]}: {e}")
+        print()
+        print(f"✓ Processed {frame_count} frames")
+        print()
+
+        # Test 8: Show final body pose
+        print("[Test 8] Final body pose state...")
+        body_tracked = body_tracker.get_body_pose(session)
+
+        print(
+            f"  Body tracking active: {'YES' if body_tracked.data is not None else 'NO'}"
+        )
+
+        if body_tracked.data is not None:
+            print()
+            print("  Joint positions:")
+            for i in range(schema.BodyJointPico.NUM_JOINTS):
+                joint = body_tracked.data.joints.joints(i)
+                name = schema.BodyJointPico(i).name
+                pos = joint.pose.position
+                rot = joint.pose.orientation
+                print(
+                    f"    [{i:2d}] {name:15s}: pos=[{pos.x:+.3f}, {pos.y:+.3f}, {pos.z:+.3f}]"
+                    f"  rot=[{rot.x:+.3f}, {rot.y:+.3f}, {rot.z:+.3f}, {rot.w:+.3f}]"
+                )
+        print()
+
+        # Cleanup
+        print("[Test 9] Cleanup...")
+        print("✓ Resources will be cleaned up when exiting 'with' blocks (RAII)")
+        print()
 
 print("=" * 80)
 print("✅ All tests passed")

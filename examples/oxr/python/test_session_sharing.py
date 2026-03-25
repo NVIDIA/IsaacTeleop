@@ -36,108 +36,96 @@ print("  Required extensions:")
 for ext in extensions:
     print(f"    - {ext}")
 
-oxr_session = oxr.OpenXRSession("SessionSharingExample", extensions)
+with oxr.OpenXRSession("SessionSharingExample", extensions) as oxr_session:
+    print("  ✓ OpenXR session created")
+    print()
 
-print("  ✓ OpenXR session created")
-print()
+    # ============================================================================
+    # Step 2: Get handles from the session
+    # ============================================================================
+    print("[Step 2] Getting session handles...")
+    handles = oxr_session.get_handles()
 
-# ============================================================================
-# Step 2: Get handles from the session
-# ============================================================================
-print("[Step 2] Getting session handles...")
-handles = oxr_session.get_handles()
+    print(f"  Instance: {handles.instance:#x}")
+    print(f"  Session:  {handles.session:#x}")
+    print(f"  Space:    {handles.space:#x}")
+    print()
 
-print(f"  Instance: {handles.instance:#x}")
-print(f"  Session:  {handles.session:#x}")
-print(f"  Space:    {handles.space:#x}")
-print()
+    # ============================================================================
+    # Step 3: Create Manager 1 with HandTracker using the shared session
+    # ============================================================================
+    print("[Step 3] Creating Manager 1 with HandTracker...")
+    hand_tracker = deviceio.HandTracker()
 
-# ============================================================================
-# Step 3: Create Manager 1 with HandTracker using the shared session
-# ============================================================================
-print("[Step 3] Creating Manager 1 with HandTracker...")
-hand_tracker = deviceio.HandTracker()
+    # ============================================================================
+    # Step 4: Create Manager 2 with HeadTracker using the SAME shared session
+    # ============================================================================
+    print("[Step 4] Creating Manager 2 with HeadTracker...")
+    head_tracker = deviceio.HeadTracker()
 
-# run() throws exception on failure
-session1 = deviceio.DeviceIOSession.run([hand_tracker], handles)
-print("  ✓ Manager 1 using shared session")
-print()
+    # run() throws exception on failure
+    with (
+        deviceio.DeviceIOSession.run([hand_tracker], handles) as session1,
+        deviceio.DeviceIOSession.run([head_tracker], handles) as session2,
+    ):
+        print("  ✓ Manager 1 using shared session")
+        print()
+        print("  ✓ Manager 2 using shared session")
+        print()
 
-# ============================================================================
-# Step 4: Create Manager 2 with HeadTracker using the SAME shared session
-# ============================================================================
-print("[Step 4] Creating Manager 2 with HeadTracker...")
-head_tracker = deviceio.HeadTracker()
+        # ============================================================================
+        # Step 5: Update both sessions - they share the same OpenXR session!
+        # ============================================================================
+        print("[Step 5] Testing both managers with shared session (5 seconds)...")
+        print()
 
-# run() throws exception on failure
-session2 = deviceio.DeviceIOSession.run([head_tracker], handles)
-print("  ✓ Manager 2 using shared session")
-print()
+        start_time = time.time()
+        frame_count = 0
+        while time.time() - start_time < 5.0:
+            # Both sessions update using the same underlying OpenXR session
+            if not session1.update():
+                print("Session 1 update failed")
+                break
 
-# ============================================================================
-# Step 5: Update both sessions - they share the same OpenXR session!
-# ============================================================================
-print("[Step 5] Testing both managers with shared session (5 seconds)...")
-print()
+            if not session2.update():
+                print("Session 2 update failed")
+                break
 
-start_time = time.time()
-frame_count = 0
+            # Print status every 60 frames
+            if frame_count % 60 == 0:
+                elapsed = time.time() - start_time
 
-try:
-    while time.time() - start_time < 5.0:
-        # Both sessions update using the same underlying OpenXR session
-        if not session1.update():
-            print("Session 1 update failed")
-            break
+                # Get data from both trackers
+                left_tracked = hand_tracker.get_left_hand(session1)
+                head_tracked = head_tracker.get_head(session2)
 
-        if not session2.update():
-            print("Session 2 update failed")
-            break
+                print(f"[{elapsed:4.1f}s] Frame {frame_count:3d}:")
+                if left_tracked.data is not None:
+                    pos = left_tracked.data.joints.poses(
+                        deviceio.JOINT_WRIST
+                    ).pose.position
+                    print(f"  Left wrist: [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]")
+                else:
+                    print("  Left hand:  inactive")
+                if head_tracked.data is not None:
+                    pos = head_tracked.data.pose.position
+                    print(f"  Head pos:   [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]")
+                else:
+                    print("  Head:       inactive")
+                print()
 
-        # Print status every 60 frames
-        if frame_count % 60 == 0:
-            elapsed = time.time() - start_time
+            frame_count += 1
+            time.sleep(0.016)
 
-            # Get data from both trackers
-            left_tracked = hand_tracker.get_left_hand(session1)
-            head_tracked = head_tracker.get_head(session2)
+        print(f"Processed {frame_count} frames")
+        print()
 
-            print(f"[{elapsed:4.1f}s] Frame {frame_count:3d}:")
-            if left_tracked.data is not None:
-                pos = left_tracked.data.joints.poses(deviceio.JOINT_WRIST).pose.position
-                print(f"  Left wrist: [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]")
-            else:
-                print("  Left hand:  inactive")
-            if head_tracked.data is not None:
-                pos = head_tracked.data.pose.position
-                print(f"  Head pos:   [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]")
-            else:
-                print("  Head:       inactive")
-            print()
-
-        frame_count += 1
-        time.sleep(0.016)
-
-except KeyboardInterrupt:
-    print("\nInterrupted")
-
-print(f"Processed {frame_count} frames")
-print()
-
-# ============================================================================
-# Cleanup
-# ============================================================================
-print("[Cleanup]")
-print("  Destroying Manager 1...")
-del session1  # RAII cleanup
-print("  ✓ Manager 1 destroyed")
-
-print("  Destroying Manager 2...")
-del session2  # RAII cleanup
-print("  ✓ Manager 2 destroyed")
-
-print("  Destroying shared OpenXR session...")
-del oxr_session  # RAII cleanup
+    print("[Cleanup]")
+    print("  Destroying Manager 2...")
+    print("  ✓ Manager 2 destroyed")
+    print("  Destroying Manager 1...")
+    print("  ✓ Manager 1 destroyed")
+    print("  Destroying shared OpenXR session...")
 print("  ✓ OpenXR session destroyed")
 print()
 

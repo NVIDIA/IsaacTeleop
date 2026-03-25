@@ -183,9 +183,8 @@ def main():
 
                     frame_count += 1
                     time.sleep(0.016)  # ~60 FPS
-
             except KeyboardInterrupt:
-                print("\nInterrupted by user")
+                print("\nKeyboardInterrupt received, stopping recording early.")
 
             # STEP 4: Save episode
             print(f"\nSaving episode with {frame_count} frames...")

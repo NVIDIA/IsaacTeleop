@@ -7,7 +7,9 @@
 #include <openxr/openxr.h>
 
 #include <XR_MNDX_xdev_space.h>
+#include <exception>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -179,6 +181,19 @@ public:
 
 int main(int argc, char* argv[])
 {
-    XDevListApp app;
-    return doHeadless(app);
+    try
+    {
+        XDevListApp app;
+        return doHeadless(app);
+    }
+    catch (const std::exception& e)
+    {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return 1;
+    }
+    catch (...)
+    {
+        std::cerr << "Unknown error occurred" << std::endl;
+        return 1;
+    }
 }
