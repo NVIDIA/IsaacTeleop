@@ -61,7 +61,7 @@ public:
 
     // Update session and all trackers. If recording is active, tracker impls
     // write their data to the MCAP file directly during this call.
-    bool update();
+    void update();
 
     const ITrackerImpl& get_tracker_impl(const ITracker& tracker) const override
     {
@@ -80,7 +80,6 @@ private:
 
     const OpenXRSessionHandles handles_;
     std::unordered_map<const ITracker*, std::unique_ptr<ITrackerImpl>> tracker_impls_;
-    std::unordered_map<const ITracker*, uint64_t> tracker_update_failure_counts_;
     XrTimeConverter time_converter_;
 
     // Owned MCAP writer; null when recording is not configured.

@@ -36,7 +36,7 @@ public:
     LiveHeadTrackerImpl(LiveHeadTrackerImpl&&) = delete;
     LiveHeadTrackerImpl& operator=(LiveHeadTrackerImpl&&) = delete;
 
-    bool update(XrTime time) override;
+    void update(XrTime time) override;
     const HeadPoseTrackedT& get_head() const override;
 
 private:

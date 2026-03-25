@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <exception>
 #include <iostream>
 
 namespace plugins
@@ -66,17 +67,33 @@ void SyntheticHandsPlugin::worker_thread()
 
     while (m_running)
     {
-        // Update DeviceIOSession (handles time and tracker updates)
-        if (!m_deviceio_session->update())
+        core::ControllerSnapshotTrackedT left_tracked;
+        core::ControllerSnapshotTrackedT right_tracked;
+        try
         {
-            std::cerr << "DeviceIOSession update failed" << std::endl;
+            // Update DeviceIOSession (handles time and tracker updates)
+            m_deviceio_session->update();
+
+            // Read tracker data in the same exception boundary as update.
+            left_tracked = m_controller_tracker->get_left_controller(*m_deviceio_session);
+            right_tracked = m_controller_tracker->get_right_controller(*m_deviceio_session);
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "SyntheticHandsPlugin update error: " << e.what() << std::endl;
+            m_left_injector.reset();
+            m_right_injector.reset();
             std::this_thread::sleep_for(std::chrono::milliseconds(16));
             continue;
         }
-
-        // Get controller data from tracker
-        const auto& left_tracked = m_controller_tracker->get_left_controller(*m_deviceio_session);
-        const auto& right_tracked = m_controller_tracker->get_right_controller(*m_deviceio_session);
+        catch (...)
+        {
+            std::cerr << "SyntheticHandsPlugin update error: unknown exception" << std::endl;
+            m_left_injector.reset();
+            m_right_injector.reset();
+            std::this_thread::sleep_for(std::chrono::milliseconds(16));
+            continue;
+        }
 
         // Use the OpenXR runtime clock for injection time so it aligns with the
         // runtime's own time domain (XrTime), rather than a raw steady_clock cast.

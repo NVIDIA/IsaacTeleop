@@ -40,7 +40,7 @@ public:
     LiveFullBodyTrackerPicoImpl(LiveFullBodyTrackerPicoImpl&&) = delete;
     LiveFullBodyTrackerPicoImpl& operator=(LiveFullBodyTrackerPicoImpl&&) = delete;
 
-    bool update(XrTime time) override;
+    void update(XrTime time) override;
     const FullBodyPosePicoTrackedT& get_body_pose() const override;
 
 private:

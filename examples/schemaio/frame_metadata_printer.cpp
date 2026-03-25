@@ -107,11 +107,7 @@ try
 
     while (true)
     {
-        if (!session->update())
-        {
-            std::cerr << "Update failed" << std::endl;
-            break;
-        }
+        session->update();
 
         // Refresh stream count and extend per-stream tracking if streams were added.
         stream_count = tracker->get_stream_count();

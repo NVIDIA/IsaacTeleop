@@ -87,20 +87,20 @@ with oxr.OpenXRSession("ExtensionTest", required_exts) as oxr_session:
         print("  ✅ Initialized successfully")
 
         # Quick update test
-        if session.update():
-            left_tracked = hand.get_left_hand(session)
-            head_tracked = head.get_head(session)
-            print("  ✅ Update successful")
-            if left_tracked.data is not None:
-                pos = left_tracked.data.joints.poses(deviceio.JOINT_WRIST).pose.position
-                print(f"    Left wrist: [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
-            else:
-                print("    Left hand:  inactive")
-            if head_tracked.data is not None:
-                pos = head_tracked.data.pose.position
-                print(f"    Head pos:   [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
-            else:
-                print("    Head:       inactive")
+        session.update()
+        left_tracked = hand.get_left_hand(session)
+        head_tracked = head.get_head(session)
+        print("  ✅ Update successful")
+        if left_tracked.data is not None:
+            pos = left_tracked.data.joints.poses(deviceio.JOINT_WRIST).pose.position
+            print(f"    Left wrist: [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
+        else:
+            print("    Left hand:  inactive")
+        if head_tracked.data is not None:
+            pos = head_tracked.data.pose.position
+            print(f"    Head pos:   [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
+        else:
+            print("    Head:       inactive")
 
         # Session will be cleaned up when exiting 'with' block (RAII)
 

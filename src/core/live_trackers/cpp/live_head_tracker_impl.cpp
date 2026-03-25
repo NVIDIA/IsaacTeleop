@@ -39,7 +39,7 @@ LiveHeadTrackerImpl::LiveHeadTrackerImpl(const OpenXRSessionHandles& handles,
 {
 }
 
-bool LiveHeadTrackerImpl::update(XrTime time)
+void LiveHeadTrackerImpl::update(XrTime time)
 {
     last_update_time_ = time;
 
@@ -49,7 +49,7 @@ bool LiveHeadTrackerImpl::update(XrTime time)
     if (XR_FAILED(result))
     {
         tracked_.data.reset();
-        return false;
+        return;
     }
 
     bool position_valid = (location.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0;
@@ -80,8 +80,6 @@ bool LiveHeadTrackerImpl::update(XrTime time)
         DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
         mcap_channels_->write(0, timestamp, tracked_.data);
     }
-
-    return true;
 }
 
 const HeadPoseTrackedT& LiveHeadTrackerImpl::get_head() const

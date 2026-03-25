@@ -298,7 +298,7 @@ LiveControllerTrackerImpl::LiveControllerTrackerImpl(const OpenXRSessionHandles&
     std::cout << "ControllerTracker initialized (left + right) with action context" << std::endl;
 }
 
-bool LiveControllerTrackerImpl::update(XrTime time)
+void LiveControllerTrackerImpl::update(XrTime time)
 {
     last_update_time_ = time;
 
@@ -315,10 +315,7 @@ bool LiveControllerTrackerImpl::update(XrTime time)
     XrResult result = action_ctx_funcs_.sync_actions_2(session_, &sync_info, &sync_state);
     if (XR_FAILED(result))
     {
-        std::cerr << "[ControllerTracker] xrSyncActions2NV failed: " << result << std::endl;
-        left_tracked_.data.reset();
-        right_tracked_.data.reset();
-        return false;
+        throw std::runtime_error("[ControllerTracker] xrSyncActions2NV failed: " + std::to_string(result));
     }
 
     auto update_controller = [&](XrPath hand_path, const XrSpacePtr& grip_space, const XrSpacePtr& aim_space,
@@ -396,8 +393,6 @@ bool LiveControllerTrackerImpl::update(XrTime time)
         mcap_channels_->write(0, timestamp, left_tracked_.data);
         mcap_channels_->write(1, timestamp, right_tracked_.data);
     }
-
-    return true;
 }
 
 const ControllerSnapshotTrackedT& LiveControllerTrackerImpl::get_left_controller() const

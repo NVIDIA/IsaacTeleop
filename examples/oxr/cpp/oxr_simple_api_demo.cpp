@@ -76,11 +76,7 @@ try
     for (int i = 0; i < 5; ++i)
     {
         // Session handles internal update() calls to trackers
-        if (!session->update())
-        {
-            std::cerr << "Update failed" << std::endl;
-            break;
-        }
+        session->update();
 
         // External user only uses public query methods
         const auto& left_tracked = hand_tracker->get_left_hand(*session);
