@@ -81,20 +81,18 @@ def list_v4l2_cameras():
                     text=True,
                     timeout=5,
                 )
-                if result.returncode == 0 and result.stdout.strip():
-                    for line in result.stdout.splitlines():
-                        line = line.strip()
-                        if (
-                            not line
-                            or line.startswith("ioctl")
-                            or line.startswith("Type")
-                        ):
-                            continue
-                        print(f"    {line}")
             except FileNotFoundError:
                 print("    (install v4l-utils for format details)")
+                return
             except subprocess.TimeoutExpired:
                 print("    (timeout querying formats)")
+                continue
+            if result.returncode == 0 and result.stdout.strip():
+                for line in result.stdout.splitlines():
+                    line = line.strip()
+                    if not line or line.startswith("ioctl") or line.startswith("Type"):
+                        continue
+                    print(f"    {line}")
     except Exception as e:
         print(f"  Error: {e}")
 

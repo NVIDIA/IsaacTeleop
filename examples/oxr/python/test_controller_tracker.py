@@ -103,48 +103,44 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
         start_time = time.time()
         last_status_print = start_time
 
-        try:
-            while time.time() - start_time < 10.0:
-                if not session.update():
-                    print("Update failed")
-                    break
+        while time.time() - start_time < 10.0:
+            if not session.update():
+                print("Update failed")
+                break
 
-                current_time = time.time()
-                if current_time - last_status_print >= 0.5:
-                    elapsed = current_time - start_time
-                    left_tracked = controller_tracker_a.get_left_controller(session)
-                    right_tracked = controller_tracker_a.get_right_controller(session)
+            current_time = time.time()
+            if current_time - last_status_print >= 0.5:
+                elapsed = current_time - start_time
+                left_tracked = controller_tracker_a.get_left_controller(session)
+                right_tracked = controller_tracker_a.get_right_controller(session)
 
-                    print(f"  [{elapsed:5.2f}s] Frame {frame_count:4d}")
+                print(f"  [{elapsed:5.2f}s] Frame {frame_count:4d}")
 
-                    left_data = left_tracked.data
-                    if left_data is not None:
-                        li = left_data.inputs
-                        print(
-                            f"    L: Trig={li.trigger_value:.2f} Sq={li.squeeze_value:.2f}"
-                            f" Stick=({li.thumbstick_x:+.2f},{li.thumbstick_y:+.2f})"
-                            f" Btn=[{int(li.primary_click)}{int(li.secondary_click)}{int(li.thumbstick_click)}]"
-                        )
-                    else:
-                        print("    L: INACTIVE")
+                left_data = left_tracked.data
+                if left_data is not None:
+                    li = left_data.inputs
+                    print(
+                        f"    L: Trig={li.trigger_value:.2f} Sq={li.squeeze_value:.2f}"
+                        f" Stick=({li.thumbstick_x:+.2f},{li.thumbstick_y:+.2f})"
+                        f" Btn=[{int(li.primary_click)}{int(li.secondary_click)}{int(li.thumbstick_click)}]"
+                    )
+                else:
+                    print("    L: INACTIVE")
 
-                    right_data = right_tracked.data
-                    if right_data is not None:
-                        ri = right_data.inputs
-                        print(
-                            f"    R: Trig={ri.trigger_value:.2f} Sq={ri.squeeze_value:.2f}"
-                            f" Stick=({ri.thumbstick_x:+.2f},{ri.thumbstick_y:+.2f})"
-                            f" Btn=[{int(ri.primary_click)}{int(ri.secondary_click)}{int(ri.thumbstick_click)}]"
-                        )
-                    else:
-                        print("    R: INACTIVE")
-                    last_status_print = current_time
+                right_data = right_tracked.data
+                if right_data is not None:
+                    ri = right_data.inputs
+                    print(
+                        f"    R: Trig={ri.trigger_value:.2f} Sq={ri.squeeze_value:.2f}"
+                        f" Stick=({ri.thumbstick_x:+.2f},{ri.thumbstick_y:+.2f})"
+                        f" Btn=[{int(ri.primary_click)}{int(ri.secondary_click)}{int(ri.thumbstick_click)}]"
+                    )
+                else:
+                    print("    R: INACTIVE")
+                last_status_print = current_time
 
-                frame_count += 1
-                time.sleep(0.016)  # ~60 FPS
-
-        except KeyboardInterrupt:
-            print("\n⚠️  Interrupted by user")
+            frame_count += 1
+            time.sleep(0.016)  # ~60 FPS
 
         print()
         print(f"✓ Processed {frame_count} frames")

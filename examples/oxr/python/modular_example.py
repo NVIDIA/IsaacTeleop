@@ -58,65 +58,61 @@ def main():
             frame_count = 0
             start_time = time.time()
 
-            try:
-                while time.time() - start_time < 10.0:
-                    # Update session and all trackers
-                    if not session.update():
-                        print("Update failed")
-                        break
+            while time.time() - start_time < 10.0:
+                # Update session and all trackers
+                if not session.update():
+                    print("Update failed")
+                    break
 
-                    # Print every 60 frames (~1 second)
-                    if frame_count % 60 == 0:
-                        elapsed = time.time() - start_time
-                        print(f"[{elapsed:4.1f}s] Frame {frame_count}")
+                # Print every 60 frames (~1 second)
+                if frame_count % 60 == 0:
+                    elapsed = time.time() - start_time
+                    print(f"[{elapsed:4.1f}s] Frame {frame_count}")
 
-                        # Get hand data
-                        left_tracked: schema.HandPoseTrackedT = (
-                            hand_tracker.get_left_hand(session)
+                    # Get hand data
+                    left_tracked: schema.HandPoseTrackedT = hand_tracker.get_left_hand(
+                        session
+                    )
+                    right_tracked: schema.HandPoseTrackedT = (
+                        hand_tracker.get_right_hand(session)
+                    )
+
+                    if left_tracked.data is not None:
+                        pos = left_tracked.data.joints.poses(
+                            deviceio.JOINT_WRIST
+                        ).pose.position
+                        print(
+                            f"  Left wrist:  [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]"
                         )
-                        right_tracked: schema.HandPoseTrackedT = (
-                            hand_tracker.get_right_hand(session)
+                    else:
+                        print("  Left hand:   inactive")
+
+                    if right_tracked.data is not None:
+                        pos = right_tracked.data.joints.poses(
+                            deviceio.JOINT_WRIST
+                        ).pose.position
+                        print(
+                            f"  Right wrist: [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]"
                         )
+                    else:
+                        print("  Right hand:  inactive")
 
-                        if left_tracked.data is not None:
-                            pos = left_tracked.data.joints.poses(
-                                deviceio.JOINT_WRIST
-                            ).pose.position
-                            print(
-                                f"  Left wrist:  [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]"
-                            )
-                        else:
-                            print("  Left hand:   inactive")
-
-                        if right_tracked.data is not None:
-                            pos = right_tracked.data.joints.poses(
-                                deviceio.JOINT_WRIST
-                            ).pose.position
-                            print(
-                                f"  Right wrist: [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]"
-                            )
-                        else:
-                            print("  Right hand:  inactive")
-
-                        # Get head data
-                        head_tracked: schema.HeadPoseTrackedT = head_tracker.get_head(
-                            session
+                    # Get head data
+                    head_tracked: schema.HeadPoseTrackedT = head_tracker.get_head(
+                        session
+                    )
+                    if head_tracked.data is not None:
+                        pos = head_tracked.data.pose.position
+                        print(
+                            f"  Head pos:    [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]"
                         )
-                        if head_tracked.data is not None:
-                            pos = head_tracked.data.pose.position
-                            print(
-                                f"  Head pos:    [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]"
-                            )
-                        else:
-                            print("  Head:        inactive")
+                    else:
+                        print("  Head:        inactive")
 
-                        print()
+                    print()
 
-                    frame_count += 1
-                    time.sleep(0.016)  # ~60 FPS
-
-            except KeyboardInterrupt:
-                print("\nInterrupted by user")
+                frame_count += 1
+                time.sleep(0.016)  # ~60 FPS
 
             # Cleanup
             print(f"\nProcessed {frame_count} frames")

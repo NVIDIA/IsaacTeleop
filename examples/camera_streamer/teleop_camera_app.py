@@ -119,12 +119,7 @@ def main():
         sys.exit(1)
 
     logger.info(f"Loading config from: {args.config}")
-
-    try:
-        config = TeleopCameraSubgraphConfig.from_yaml(args.config)
-    except Exception as e:
-        logger.error(f"Failed to load config '{args.config}': {e}")
-        sys.exit(1)
+    config = TeleopCameraSubgraphConfig.from_yaml(args.config)
 
     # Apply command-line overrides
     if args.source:

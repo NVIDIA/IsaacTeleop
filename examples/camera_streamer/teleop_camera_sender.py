@@ -282,11 +282,7 @@ def main():
         sys.exit(1)
 
     logger.info(f"Loading config from: {args.config}")
-    try:
-        config = TeleopCameraSenderConfig.from_yaml(args.config)
-    except Exception as e:
-        logger.error(f"Failed to load config '{args.config}': {e}")
-        sys.exit(1)
+    config = TeleopCameraSenderConfig.from_yaml(args.config)
 
     # Apply command-line overrides
     if args.host:
@@ -320,11 +316,6 @@ def main():
 
     try:
         app.run()
-    except KeyboardInterrupt:
-        logger.info("Interrupted by user")
-    except Exception as e:
-        logger.error(f"Error: {e}")
-        raise
     finally:
         logger.info("Shutdown complete")
         # Required to avoid GIL crash.
