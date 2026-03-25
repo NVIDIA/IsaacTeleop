@@ -50,6 +50,7 @@ endif()
 # C++ library.
 add_library(nv_stream_decoder SHARED
   nv_stream_decoder_op.cpp
+  nv12_to_rgb.cu
   ${NVC_SDK_DIR}/NvDecoder/NvDecoder.cpp
   ${NVC_SDK_DIR}/Logger.cpp
 )
