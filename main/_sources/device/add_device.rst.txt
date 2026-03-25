@@ -138,7 +138,7 @@ Reference implementation — split across facade and live backend:
   (class ``Generic3AxisPedalTracker``): holds collection configuration, implements ``ITracker``, and
   exposes ``get_data(session)`` returning
   ``Generic3AxisPedalOutputTrackedT`` by dispatching to the session’s
-  ``Generic3AxisPedalTrackerImpl`` (see :code-file:`src/core/deviceio_base/cpp/inc/deviceio_base/generic_3axis_pedal_tracker_base.hpp`).
+  ``IGeneric3AxisPedalTrackerImpl`` (see :code-file:`src/core/deviceio_base/cpp/inc/deviceio_base/generic_3axis_pedal_tracker_base.hpp`).
 - **Live backend** — :code-file:`src/core/live_trackers/cpp/live_generic_3axis_pedal_tracker_impl.cpp`
   (``LiveGeneric3AxisPedalTrackerImpl``): composes ``SchemaTracker``, implements ``update()`` and
   ``serialize_all()``, and uses ``SchemaTracker::read_all_samples()`` with
@@ -211,7 +211,7 @@ Both exit after 100 samples, or press Ctrl+C to exit early.
 - **Generic3AxisPedalTracker** (tracker facade in ``deviceio_trackers``) — Concrete ``ITracker`` for
   ``Generic3AxisPedalOutput``: holds configuration and
   ``get_data(session)`` returning ``Generic3AxisPedalOutputTrackedT`` via the session’s
-  ``Generic3AxisPedalTrackerImpl``.
+  ``IGeneric3AxisPedalTrackerImpl``.
 - **DeviceIOSession** — Session manager: collects required OpenXR extensions from registered
   trackers, creates tracker implementations with session handles, and calls ``update()`` on all
   trackers during the update loop.

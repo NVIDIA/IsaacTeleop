@@ -531,7 +531,7 @@ the update-tick timestamp so the MCAP stream marks absence.</p></li>
 (class <code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalTracker</span></code>): holds collection configuration, implements <code class="docutils literal notranslate"><span class="pre">ITracker</span></code>, and
 exposes <code class="docutils literal notranslate"><span class="pre">get_data(session)</span></code> returning
 <code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalOutputTrackedT</span></code> by dispatching to the session’s
-<code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalTrackerImpl</span></code> (see <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_base/cpp/inc/deviceio_base/generic_3axis_pedal_tracker_base.hpp" rel="noopener noreferrer" target="_blank">src/core/deviceio_base/cpp/inc/deviceio_base/generic_3axis_pedal_tracker_base.hpp</a>).</p></li>
+<code class="docutils literal notranslate"><span class="pre">IGeneric3AxisPedalTrackerImpl</span></code> (see <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_base/cpp/inc/deviceio_base/generic_3axis_pedal_tracker_base.hpp" rel="noopener noreferrer" target="_blank">src/core/deviceio_base/cpp/inc/deviceio_base/generic_3axis_pedal_tracker_base.hpp</a>).</p></li>
 <li><p><strong>Live backend</strong> — <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/live_trackers/cpp/live_generic_3axis_pedal_tracker_impl.cpp" rel="noopener noreferrer" target="_blank">src/core/live_trackers/cpp/live_generic_3axis_pedal_tracker_impl.cpp</a>
 (<code class="docutils literal notranslate"><span class="pre">LiveGeneric3AxisPedalTrackerImpl</span></code>): composes <code class="docutils literal notranslate"><span class="pre">SchemaTracker</span></code>, implements <code class="docutils literal notranslate"><span class="pre">update()</span></code> and
 <code class="docutils literal notranslate"><span class="pre">serialize_all()</span></code>, and uses <code class="docutils literal notranslate"><span class="pre">SchemaTracker::read_all_samples()</span></code> with
@@ -595,7 +595,7 @@ compose a <code class="docutils literal notranslate"><span class="pre">SchemaTra
 <li><p><strong>Generic3AxisPedalTracker</strong> (tracker facade in <code class="docutils literal notranslate"><span class="pre">deviceio_trackers</span></code>) — Concrete <code class="docutils literal notranslate"><span class="pre">ITracker</span></code> for
 <code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalOutput</span></code>: holds configuration and
 <code class="docutils literal notranslate"><span class="pre">get_data(session)</span></code> returning <code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalOutputTrackedT</span></code> via the session’s
-<code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalTrackerImpl</span></code>.</p></li>
+<code class="docutils literal notranslate"><span class="pre">IGeneric3AxisPedalTrackerImpl</span></code>.</p></li>
 <li><p><strong>DeviceIOSession</strong> — Session manager: collects required OpenXR extensions from registered
 trackers, creates tracker implementations with session handles, and calls <code class="docutils literal notranslate"><span class="pre">update()</span></code> on all
 trackers during the update loop.</p></li>
@@ -739,7 +739,7 @@ trackers during the update loop.</p></li>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on March 24, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on March 25, 2026.
       <br/>
     
   </p>
