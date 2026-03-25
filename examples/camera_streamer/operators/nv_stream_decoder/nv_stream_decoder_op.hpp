@@ -52,6 +52,7 @@ private:
     holoscan::Parameter<int> cuda_device_ordinal_;
     holoscan::Parameter<std::shared_ptr<holoscan::Allocator>> allocator_;
     holoscan::Parameter<bool> verbose_;
+    holoscan::Parameter<bool> force_full_range_;
 
     holoscan::CudaStreamHandler cuda_stream_handler_;
 
@@ -63,6 +64,10 @@ private:
     // Decoder
     std::unique_ptr<NvDecoder> decoder_;
     bool decoder_initialized_ = false;
+
+    // Color range detection (resolved after first decoded frame)
+    bool use_full_range_ = false;
+    bool range_detected_ = false;
 
     // Stats
     uint64_t frame_count_ = 0;
