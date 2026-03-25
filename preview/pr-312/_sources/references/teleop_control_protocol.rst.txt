@@ -365,6 +365,10 @@ HTTP Snapshot
 Headset Query Parameters
 ------------------------
 
+The WebXR client reads these from the **page URL** when the app loads (standard query string on the
+same HTTPS origin that serves ``webxr_client``). They are not entered in a separate form inside the
+app unless you add one; the usual approach is to open a single long URL in the headset browser.
+
 .. list-table::
    :header-rows: 1
    :widths: 25 75
@@ -377,6 +381,59 @@ Headset Query Parameters
    * - ``controlToken``
      - Token sent in the ``register`` message. Must match the ``CONTROL_TOKEN``
        environment variable if set on the server.
+
+.. _teleop-headset-control-url:
+
+Getting ``controlWsUrl`` onto the headset (avoid typing)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Typing a long ``wss://…`` URL in a XR keyboard is error-prone. Prefer **copy–paste** or a **link**
+opened directly on the device.
+
+**1. Build the correct hub address on the PC**
+
+- Open the operator dashboard in a desktop browser: ``https://<pc-host>:<PROXY_PORT>/teleop/``
+  (see :ref:`teleop-wss-only-testing` for local TLS notes).
+- If the headset is **not** on the same machine as the hub, open the dashboard using the PC's
+  **LAN IP or DNS name**, not ``127.0.0.1``, so the generated WebSocket URL points at a host the
+  headset can reach.
+- Optional dashboard query params (only if you use them): ``?token=…`` for hub auth, or ``?wsUrl=…``
+  if the dashboard's origin differs from the hub WebSocket host.
+
+**2. Copy the pre-built query string from the dashboard**
+
+- In the dashboard, expand **Headset**.
+- **Hub WebSocket** shows the raw ``controlWsUrl`` value (the ``wss://…/teleop/v1/ws`` string).
+- **Add to WebXR app URL** shows a template:
+  ``https://<your-teleop-web-client-url>/?controlWsUrl=…`` (and ``controlToken=…`` when a token is
+  in use). The query part is already URL-encoded; keep it intact.
+
+You can either:
+
+- Replace ``https://<your-teleop-web-client-url>/`` with the real HTTPS base URL where you host the
+  Teleop WebXR client, then copy the **entire** line and use it as the browser URL on the headset,
+  **or**
+- Copy only everything from ``?`` onward and append it to your known client base URL
+  (e.g. ``https://nvidia.github.io/IsaacTeleop/client/?controlWsUrl=…``).
+
+**3. Move the URL from PC to headset without retyping**
+
+Use whichever option your headset browser and IT policy allow:
+
+- **Send the full URL** to yourself (email, chat, notes) and **open the link** in the headset
+  browser.
+- **ADB (Android-based headsets, dev kits):** with USB or wireless debugging enabled, from the PC run
+  ``adb shell am start -a android.intent.action.VIEW -d '<full-https-url>'`` so the system browser
+  opens that URL on the device. Use a single pair of quotes around the entire URL (query strings
+  often contain ``&``). Typical for Meta Quest and other Android XR builds when sideloading or
+  iterating without typing in-headset.
+
+**4. Continue the normal activation flow**
+
+After the page loads with ``controlWsUrl`` set, follow :ref:`teleop-user-activation` (arm remote
+control, then connect from the dashboard).
+
+.. _teleop-user-activation:
 
 User Activation
 ---------------

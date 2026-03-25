@@ -104,18 +104,18 @@ implements the **ITracker** interface (tracker **facade** in ``deviceio_trackers
 tensor samples from OpenXR. Implement a concrete tracker class (e.g.
 ``Generic3AxisPedalTracker``) that:
 
-- **Extends ITracker** — Override ``get_required_extensions()``, ``get_name()``,
-  ``get_schema_name()``, ``get_schema_text()``, and ``get_record_channels()``. Return
-  ``SchemaTracker::get_required_extensions()`` for extensions; return the Record type name
+- **Extends ITracker** — Override ``get_name()``,
+  ``get_schema_name()``, ``get_schema_text()``, and ``get_record_channels()``.
+  For OpenXR, add a static ``required_extensions()`` on your live ``ITrackerImpl`` and register
+  the tracker type in ``LiveDeviceIOFactory::get_required_extensions`` (tensor/schema readers
+  usually forward ``SchemaTrackerBase::get_required_extensions()``). Callers use
+  ``DeviceIOSession::get_required_extensions(trackers)``. Return the Record type name
   and binary schema for MCAP; return at least one channel name.
 - **Holds user configuration** — Same logical inputs as the pusher (e.g. ``collection_id``,
   ``max_flatbuffer_size``). The live ``ITrackerImpl`` builds the internal tensor settings
   (``SchemaTrackerConfig``) so they match the plugin.
-- **create_tracker_impl(ITrackerFactory&)** — Override this to delegate to the provided
-  ``ITrackerFactory``. The implementation uses double dispatch: call the factory method
-  specific to your tracker type (e.g.
-  ``factory.create_generic_3axis_pedal_tracker_impl(this)``) and return the resulting
-  ``std::unique_ptr<ITrackerImpl>``. The factory constructs an ``ITrackerImpl`` that holds
+- **Factory registration** — Register your tracker in the live factory dispatch table
+  (see ``LiveDeviceIOFactory``). The factory constructs an ``ITrackerImpl`` that holds
   a ``SchemaTracker``, builds a ``SchemaTrackerConfig`` from the tracker's stored
   configuration, and implements ``update(XrTime)`` and
   ``serialize_all(channel_index, callback)``.
@@ -135,10 +135,10 @@ In the **Impl**:
 Reference implementation — split across facade and live backend:
 
 - **Tracker facade** — :code-file:`src/core/deviceio_trackers/cpp/generic_3axis_pedal_tracker.cpp`
-  (class ``Generic3AxisPedalTracker``): holds collection configuration, implements ``ITracker`` and
-  ``create_tracker_impl(ITrackerFactory&)``, and exposes ``get_data(session)`` returning
+  (class ``Generic3AxisPedalTracker``): holds collection configuration, implements ``ITracker``, and
+  exposes ``get_data(session)`` returning
   ``Generic3AxisPedalOutputTrackedT`` by dispatching to the session’s
-  ``Generic3AxisPedalTrackerImpl`` (see :code-file:`src/core/deviceio_base/cpp/inc/deviceio_base/generic_3axis_pedal_tracker_base.hpp`).
+  ``IGeneric3AxisPedalTrackerImpl`` (see :code-file:`src/core/deviceio_base/cpp/inc/deviceio_base/generic_3axis_pedal_tracker_base.hpp`).
 - **Live backend** — :code-file:`src/core/live_trackers/cpp/live_generic_3axis_pedal_tracker_impl.cpp`
   (``LiveGeneric3AxisPedalTrackerImpl``): composes ``SchemaTracker``, implements ``update()`` and
   ``serialize_all()``, and uses ``SchemaTracker::read_all_samples()`` with
@@ -209,9 +209,9 @@ Both exit after 100 samples, or press Ctrl+C to exit early.
   ``SampleResult`` values. Live tracker implementations (e.g. ``LiveGeneric3AxisPedalTrackerImpl``)
   compose a ``SchemaTracker`` and implement ``ITrackerImpl::update()`` / ``serialize_all()``.
 - **Generic3AxisPedalTracker** (tracker facade in ``deviceio_trackers``) — Concrete ``ITracker`` for
-  ``Generic3AxisPedalOutput``: holds configuration, implements ``create_tracker_impl()``, and
+  ``Generic3AxisPedalOutput``: holds configuration and
   ``get_data(session)`` returning ``Generic3AxisPedalOutputTrackedT`` via the session’s
-  ``Generic3AxisPedalTrackerImpl``.
+  ``IGeneric3AxisPedalTrackerImpl``.
 - **DeviceIOSession** — Session manager: collects required OpenXR extensions from registered
   trackers, creates tracker implementations with session handles, and calls ``update()`` on all
   trackers during the update loop.

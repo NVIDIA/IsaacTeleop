@@ -748,6 +748,9 @@ connection settings before executing <code class="docutils literal notranslate">
 </section>
 <section id="headset-query-parameters">
 <h2>Headset Query Parameters<a class="headerlink" href="#headset-query-parameters" title="Link to this heading">#</a></h2>
+<p>The WebXR client reads these from the <strong>page URL</strong> when the app loads (standard query string on the
+same HTTPS origin that serves <code class="docutils literal notranslate"><span class="pre">webxr_client</span></code>). They are not entered in a separate form inside the
+app unless you add one; the usual approach is to open a single long URL in the headset browser.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <colgroup>
 <col style="width: 25.0%" />
@@ -770,9 +773,54 @@ environment variable if set on the server.</p></td>
 </tbody>
 </table>
 </div>
+<section id="getting-controlwsurl-onto-the-headset-avoid-typing">
+<span id="teleop-headset-control-url"></span><h3>Getting <code class="docutils literal notranslate"><span class="pre">controlWsUrl</span></code> onto the headset (avoid typing)<a class="headerlink" href="#getting-controlwsurl-onto-the-headset-avoid-typing" title="Link to this heading">#</a></h3>
+<p>Typing a long <code class="docutils literal notranslate"><span class="pre">wss://…</span></code> URL in a XR keyboard is error-prone. Prefer <strong>copy–paste</strong> or a <strong>link</strong>
+opened directly on the device.</p>
+<p><strong>1. Build the correct hub address on the PC</strong></p>
+<ul class="simple">
+<li><p>Open the operator dashboard in a desktop browser: <code class="docutils literal notranslate"><span class="pre">https://&lt;pc-host&gt;:&lt;PROXY_PORT&gt;/teleop/</span></code>
+(see <a class="reference internal" href="#teleop-wss-only-testing"><span class="std std-ref">Local testing (hub + WSS without starting the runtime)</span></a> for local TLS notes).</p></li>
+<li><p>If the headset is <strong>not</strong> on the same machine as the hub, open the dashboard using the PC’s
+<strong>LAN IP or DNS name</strong>, not <code class="docutils literal notranslate"><span class="pre">127.0.0.1</span></code>, so the generated WebSocket URL points at a host the
+headset can reach.</p></li>
+<li><p>Optional dashboard query params (only if you use them): <code class="docutils literal notranslate"><span class="pre">?token=…</span></code> for hub auth, or <code class="docutils literal notranslate"><span class="pre">?wsUrl=…</span></code>
+if the dashboard’s origin differs from the hub WebSocket host.</p></li>
+</ul>
+<p><strong>2. Copy the pre-built query string from the dashboard</strong></p>
+<ul class="simple">
+<li><p>In the dashboard, expand <strong>Headset</strong>.</p></li>
+<li><p><strong>Hub WebSocket</strong> shows the raw <code class="docutils literal notranslate"><span class="pre">controlWsUrl</span></code> value (the <code class="docutils literal notranslate"><span class="pre">wss://…/teleop/v1/ws</span></code> string).</p></li>
+<li><p><strong>Add to WebXR app URL</strong> shows a template:
+<code class="docutils literal notranslate"><span class="pre">https://&lt;your-teleop-web-client-url&gt;/?controlWsUrl=…</span></code> (and <code class="docutils literal notranslate"><span class="pre">controlToken=…</span></code> when a token is
+in use). The query part is already URL-encoded; keep it intact.</p></li>
+</ul>
+<p>You can either:</p>
+<ul class="simple">
+<li><p>Replace <code class="docutils literal notranslate"><span class="pre">https://&lt;your-teleop-web-client-url&gt;/</span></code> with the real HTTPS base URL where you host the
+Teleop WebXR client, then copy the <strong>entire</strong> line and use it as the browser URL on the headset,
+<strong>or</strong></p></li>
+<li><p>Copy only everything from <code class="docutils literal notranslate"><span class="pre">?</span></code> onward and append it to your known client base URL
+(e.g. <code class="docutils literal notranslate"><span class="pre">https://nvidia.github.io/IsaacTeleop/client/?controlWsUrl=…</span></code>).</p></li>
+</ul>
+<p><strong>3. Move the URL from PC to headset without retyping</strong></p>
+<p>Use whichever option your headset browser and IT policy allow:</p>
+<ul class="simple">
+<li><p><strong>Send the full URL</strong> to yourself (email, chat, notes) and <strong>open the link</strong> in the headset
+browser.</p></li>
+<li><p><strong>ADB (Android-based headsets, dev kits):</strong> with USB or wireless debugging enabled, from the PC run
+<code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">shell</span> <span class="pre">am</span> <span class="pre">start</span> <span class="pre">-a</span> <span class="pre">android.intent.action.VIEW</span> <span class="pre">-d</span> <span class="pre">'&lt;full-https-url&gt;'</span></code> so the system browser
+opens that URL on the device. Use a single pair of quotes around the entire URL (query strings
+often contain <code class="docutils literal notranslate"><span class="pre">&amp;</span></code>). Typical for Meta Quest and other Android XR builds when sideloading or
+iterating without typing in-headset.</p></li>
+</ul>
+<p><strong>4. Continue the normal activation flow</strong></p>
+<p>After the page loads with <code class="docutils literal notranslate"><span class="pre">controlWsUrl</span></code> set, follow <a class="reference internal" href="#teleop-user-activation"><span class="std std-ref">User Activation</span></a> (arm remote
+control, then connect from the dashboard).</p>
+</section>
 </section>
 <section id="user-activation">
-<h2>User Activation<a class="headerlink" href="#user-activation" title="Link to this heading">#</a></h2>
+<span id="teleop-user-activation"></span><h2>User Activation<a class="headerlink" href="#user-activation" title="Link to this heading">#</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">navigator.xr.requestSession()</span></code> requires a <strong>user gesture</strong> on most devices. Recommended flow:</p>
 <ol class="arabic simple">
 <li><p>User opens the Teleop web app on the headset.</p></li>
@@ -936,7 +984,10 @@ traffic.</p></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#http-snapshot">HTTP Snapshot</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#headset-query-parameters">Headset Query Parameters</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#headset-query-parameters">Headset Query Parameters</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#getting-controlwsurl-onto-the-headset-avoid-typing">Getting <code class="docutils literal notranslate"><span class="pre">controlWsUrl</span></code> onto the headset (avoid typing)</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#user-activation">User Activation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#trust-model">Trust Model</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#local-testing-hub-wss-without-starting-the-runtime">Local testing (hub + WSS without starting the runtime)</a></li>
@@ -1023,7 +1074,7 @@ traffic.</p></li>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on March 24, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on March 25, 2026.
       <br/>
     
   </p>
