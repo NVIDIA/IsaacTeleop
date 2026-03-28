@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 add_library(haply_plugin_core SHARED
-  haply_hand_tracking_plugin.cpp
-  ${HAPLY_PLUGIN_INC_DIR}/core/haply_hand_tracking_plugin.hpp
+  haply_plugin.cpp
+  ${HAPLY_PLUGIN_INC_DIR}/core/haply_plugin.hpp
 )
 
 target_include_directories(haply_plugin_core
@@ -15,13 +15,11 @@ target_include_directories(haply_plugin_core
 
 target_link_libraries(haply_plugin_core
   PUBLIC
-    Teleop::plugin_utils
-    deviceio::deviceio_core
-    OpenXR::openxr_loader
+    pusherio::pusherio
     oxr::oxr_core
+    isaacteleop_schema
+    OpenXR::openxr_loader
   PRIVATE
-    oxr::oxr_utils
-    Teleop::openxr_extensions
     Threads::Threads
 )
 

@@ -1,0 +1,63 @@
+// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+include "timestamp.fbs";
+
+namespace core;
+
+// Raw device output from a Haply Inverse3 + VerseGrip haptic device.
+//
+// The Inverse3 provides 3-DOF cursor position and velocity in its local
+// coordinate frame (meters, m/s). The VerseGrip adds 3-DOF orientation
+// (quaternion) and four digital buttons.
+//
+// All fields are always present when the parent Tracked/Record wrapper's
+// data is non-null.
+//
+// Validated devices:
+// - https://www.haply.co/inverse3
+// - https://www.haply.co/versegrip
+table HaplyDeviceOutput {
+    // Inverse3 cursor position (meters, device-local frame)
+    cursor_position_x: float (id: 0);
+    cursor_position_y: float (id: 1);
+    cursor_position_z: float (id: 2);
+
+    // Inverse3 cursor velocity (m/s, device-local frame)
+    cursor_velocity_x: float (id: 3);
+    cursor_velocity_y: float (id: 4);
+    cursor_velocity_z: float (id: 5);
+
+    // VerseGrip orientation quaternion (w, x, y, z)
+    orientation_w: float = 1.0 (id: 6);
+    orientation_x: float (id: 7);
+    orientation_y: float (id: 8);
+    orientation_z: float (id: 9);
+
+    // VerseGrip digital button states
+    button_0: bool (id: 10);
+    button_1: bool (id: 11);
+    button_2: bool (id: 12);
+    button_3: bool (id: 13);
+
+    // Device handedness: 0 = right (default), 1 = left.
+    // Determined from the Haply SDK config message at connection time.
+    handedness: uint8 (id: 14);
+}
+
+// Tracked wrapper for the in-memory tracker API (data is null when no device data available).
+table HaplyDeviceOutputTracked {
+    data: HaplyDeviceOutput (id: 0);
+}
+
+// MCAP recording wrapper for HaplyDeviceOutput.
+//
+// Record types are the root types written to MCAP channels by the McapRecorder.
+// Trackers serialize into Record types via their serialize() method, but the
+// public query API returns the inner data type directly.
+table HaplyDeviceOutputRecord {
+    data: HaplyDeviceOutput (id: 0);
+    timestamp: DeviceDataTimestamp (id: 1);
+}
+
+root_type HaplyDeviceOutputRecord;

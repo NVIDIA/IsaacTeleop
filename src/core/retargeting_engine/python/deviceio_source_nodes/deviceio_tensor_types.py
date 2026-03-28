@@ -17,6 +17,7 @@ from isaacteleop.schema import (
     HandPoseTrackedT,
     ControllerSnapshotTrackedT,
     Generic3AxisPedalOutputTrackedT,
+    HaplyDeviceOutputTrackedT,
     FullBodyPosePicoTrackedT,
 )
 
@@ -117,6 +118,26 @@ class FullBodyPosePicoTrackedType(TensorType):
             )
 
 
+class HaplyDeviceOutputTrackedType(TensorType):
+    """HaplyDeviceOutputTrackedT wrapper type from DeviceIO HaplyDeviceTracker."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__(name)
+
+    def _check_instance_compatibility(self, other: TensorType) -> bool:
+        if not isinstance(other, HaplyDeviceOutputTrackedType):
+            raise TypeError(
+                f"Expected HaplyDeviceOutputTrackedType, got {type(other).__name__}"
+            )
+        return True
+
+    def validate_value(self, value: Any) -> None:
+        if not isinstance(value, HaplyDeviceOutputTrackedT):
+            raise TypeError(
+                f"Expected HaplyDeviceOutputTrackedT for '{self.name}', got {type(value).__name__}"
+            )
+
+
 def DeviceIOHeadPoseTracked() -> TensorGroupType:
     """Tracked head pose from DeviceIO HeadTracker.
 
@@ -168,4 +189,16 @@ def DeviceIOFullBodyPosePicoTracked() -> TensorGroupType:
     return TensorGroupType(
         "deviceio_full_body_pose_pico",
         [FullBodyPosePicoTrackedType("full_body_tracked")],
+    )
+
+
+def DeviceIOHaplyDeviceOutputTracked() -> TensorGroupType:
+    """Tracked Haply device data from DeviceIO HaplyDeviceTracker.
+
+    Contains:
+        haply_tracked: HaplyDeviceOutputTrackedT wrapper (always set; .data is None when inactive)
+    """
+    return TensorGroupType(
+        "deviceio_haply_device_output",
+        [HaplyDeviceOutputTrackedType("haply_tracked")],
     )

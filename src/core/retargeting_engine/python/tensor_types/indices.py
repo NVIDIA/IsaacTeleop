@@ -19,6 +19,7 @@ from .standard_types import (
     HeadPose,
     ControllerInput,
     Generic3AxisPedalInput,
+    HaplyDeviceInput,
     FullBodyInput,
 )
 
@@ -42,6 +43,9 @@ ControllerInputIndex: Any = _create_index_enum(
 )
 Generic3AxisPedalInputIndex: Any = _create_index_enum(
     "Generic3AxisPedalInputIndex", Generic3AxisPedalInput(), "pedal_"
+)
+HaplyDeviceInputIndex: Any = _create_index_enum(
+    "HaplyDeviceInputIndex", HaplyDeviceInput(), "haply_"
 )
 FullBodyInputIndex: Any = _create_index_enum(
     "FullBodyInputIndex", FullBodyInput(), "body_"

@@ -6,6 +6,7 @@
 #include <deviceio/full_body_tracker_pico.hpp>
 #include <deviceio/generic_3axis_pedal_tracker.hpp>
 #include <deviceio/hand_tracker.hpp>
+#include <deviceio/haply_device_tracker.hpp>
 #include <deviceio/head_tracker.hpp>
 #include <deviceio_py_utils/session.hpp>
 #include <openxr/openxr.h>
@@ -100,6 +101,20 @@ PYBIND11_MODULE(_deviceio, m)
             { return self.get_body_pose(session.native()); },
             py::arg("session"), py::return_value_policy::reference_internal,
             "Get full body pose tracked state (data is None if inactive)");
+
+    // HaplyDeviceTracker class
+    py::class_<core::HaplyDeviceTracker, core::ITracker, std::shared_ptr<core::HaplyDeviceTracker>>(
+        m, "HaplyDeviceTracker")
+        .def(py::init<const std::string&, size_t>(), py::arg("collection_id") = "haply_device",
+             py::arg("max_flatbuffer_size") = core::HaplyDeviceTracker::DEFAULT_MAX_FLATBUFFER_SIZE,
+             "Construct a HaplyDeviceTracker for the given tensor collection ID")
+        .def(
+            "get_data",
+            [](core::HaplyDeviceTracker& self,
+               PyDeviceIOSession& session) -> const core::HaplyDeviceOutputTrackedT&
+            { return self.get_data(session.native()); },
+            py::arg("session"), py::return_value_policy::reference_internal,
+            "Get the current Haply device tracked state (data is None when no data available)");
 
     // DeviceIOSession class (bound via wrapper for context management)
     // Other C++ modules (like mcap) should include <py_deviceio/session.hpp> and accept

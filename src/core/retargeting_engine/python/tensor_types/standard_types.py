@@ -324,3 +324,59 @@ def Generic3AxisPedalInput() -> TensorGroupType:
             FloatType("pedal_rudder"),
         ],
     )
+
+
+# ============================================================================
+# Haply Device Types
+# ============================================================================
+
+
+def HaplyDeviceInput() -> TensorGroupType:
+    """
+    Standard TensorGroupType for Haply Inverse3 + VerseGrip device data.
+
+    Matches the HaplyDeviceOutput schema from haply_device.fbs. Used as input
+    to retargeters that consume raw haptic device state for teleoperation.
+
+    Fields:
+        - cursor_position_x: float - Inverse3 cursor X position (meters)
+        - cursor_position_y: float - Inverse3 cursor Y position (meters)
+        - cursor_position_z: float - Inverse3 cursor Z position (meters)
+        - cursor_velocity_x: float - Inverse3 cursor X velocity (m/s)
+        - cursor_velocity_y: float - Inverse3 cursor Y velocity (m/s)
+        - cursor_velocity_z: float - Inverse3 cursor Z velocity (m/s)
+        - orientation_w: float - VerseGrip quaternion W
+        - orientation_x: float - VerseGrip quaternion X
+        - orientation_y: float - VerseGrip quaternion Y
+        - orientation_z: float - VerseGrip quaternion Z
+        - button_0: float - VerseGrip button 0 (0.0 or 1.0)
+        - button_1: float - VerseGrip button 1 (0.0 or 1.0)
+        - button_2: float - VerseGrip button 2 (0.0 or 1.0)
+        - button_3: float - VerseGrip button 3 (0.0 or 1.0)
+        - handedness: float - 0.0 = right, 1.0 = left
+
+    Returns:
+        TensorGroupType for Haply device data
+
+    Schema reference: TeleopCore/src/core/schema/fbs/haply_device.fbs
+    """
+    return TensorGroupType(
+        "haply_device",
+        [
+            FloatType("haply_cursor_position_x"),
+            FloatType("haply_cursor_position_y"),
+            FloatType("haply_cursor_position_z"),
+            FloatType("haply_cursor_velocity_x"),
+            FloatType("haply_cursor_velocity_y"),
+            FloatType("haply_cursor_velocity_z"),
+            FloatType("haply_orientation_w"),
+            FloatType("haply_orientation_x"),
+            FloatType("haply_orientation_y"),
+            FloatType("haply_orientation_z"),
+            FloatType("haply_button_0"),
+            FloatType("haply_button_1"),
+            FloatType("haply_button_2"),
+            FloatType("haply_button_3"),
+            FloatType("haply_handedness"),
+        ],
+    )

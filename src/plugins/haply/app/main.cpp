@@ -1,51 +1,38 @@
 // SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-#include <core/haply_hand_tracking_plugin.hpp>
+#include <core/haply_plugin.hpp>
 
-#include <atomic>
 #include <chrono>
-#include <csignal>
+#include <cstdlib>
 #include <iostream>
+#include <string>
 #include <thread>
 
 using namespace plugins::haply;
 
-namespace
-{
-std::atomic<bool> g_should_exit{ false };
-
-void signal_handler(int)
-{
-    g_should_exit.store(true);
-}
-} // namespace
-
 int main(int argc, char** argv)
 try
 {
-    std::cout << "Haply Hand Plugin starting..." << std::endl;
+    const char* env_collection = std::getenv("HAPLY_COLLECTION_ID");
+    const std::string collection_id = (argc > 1) ? argv[1] : (env_collection ? env_collection : "haply_device");
 
-    std::signal(SIGINT, signal_handler);
-    std::signal(SIGTERM, signal_handler);
+    std::cout << "Haply Device Plugin (collection: " << collection_id << ")" << std::endl;
 
-    auto& tracker = HaplyTracker::instance();
+    HaplyPlugin plugin(collection_id);
 
-    std::cout << "Plugin running. Press Ctrl+C to stop." << std::endl;
+    // Push data at 90 Hz
+    const auto frame_duration = std::chrono::nanoseconds(1000000000 / 90);
+    const auto program_start = std::chrono::steady_clock::now();
+    std::size_t frame_count = 0;
 
-    // Target 90Hz frequency (~11.1ms period)
-    const auto target_frame_duration = std::chrono::nanoseconds(1000000000 / 90);
-
-    while (!g_should_exit.load())
+    while (true)
     {
-        auto frame_start = std::chrono::steady_clock::now();
-
-        tracker.update();
-
-        std::this_thread::sleep_until(frame_start + target_frame_duration);
+        plugin.update();
+        frame_count++;
+        std::this_thread::sleep_until(program_start + frame_duration * frame_count);
     }
 
-    std::cout << "Haply Hand Plugin shutting down." << std::endl;
     return 0;
 }
 catch (const std::exception& e)
@@ -55,6 +42,6 @@ catch (const std::exception& e)
 }
 catch (...)
 {
-    std::cerr << argv[0] << ": Unknown error occurred" << std::endl;
+    std::cerr << argv[0] << ": Unknown error" << std::endl;
     return 1;
 }
