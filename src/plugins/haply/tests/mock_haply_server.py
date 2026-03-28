@@ -71,8 +71,7 @@ class MockHaplyDevice:
         py = amplitude * math.sin(2.0 * math.pi * 0.5 * t + math.pi / 4.0)
         pz = 0.15 + amplitude * 0.5 * math.sin(2.0 * math.pi * 0.2 * t)  # centered ~15cm up
 
-        # Velocity (numerical derivative approximation)
-        dt = 0.005  # 200Hz
+        # Velocity (analytical derivative of position)
         vx = amplitude * 2.0 * math.pi * 0.3 * math.cos(2.0 * math.pi * 0.3 * t)
         vy = amplitude * 2.0 * math.pi * 0.5 * math.cos(2.0 * math.pi * 0.5 * t + math.pi / 4.0)
         vz = amplitude * 0.5 * 2.0 * math.pi * 0.2 * math.cos(2.0 * math.pi * 0.2 * t)
@@ -152,7 +151,7 @@ async def handle_client(websocket, device: MockHaplyDevice, hz: float, verbose: 
 
     try:
         while True:
-            frame_start = asyncio.get_event_loop().time()
+            frame_start = time.monotonic()
 
             # Send device state
             state = device.get_state(first_message=first_message)
@@ -179,7 +178,7 @@ async def handle_client(websocket, device: MockHaplyDevice, hz: float, verbose: 
                 pass
 
             # Sleep for remainder of period
-            elapsed = asyncio.get_event_loop().time() - frame_start
+            elapsed = time.monotonic() - frame_start
             sleep_time = max(0, period - elapsed)
             await asyncio.sleep(sleep_time)
 

@@ -80,6 +80,8 @@ public:
 
     HaplyWebSocket(const HaplyWebSocket&) = delete;
     HaplyWebSocket& operator=(const HaplyWebSocket&) = delete;
+    HaplyWebSocket(HaplyWebSocket&&) = delete;
+    HaplyWebSocket& operator=(HaplyWebSocket&&) = delete;
 
     /// Connect and perform the HTTP upgrade handshake.
     /// @return true on success.

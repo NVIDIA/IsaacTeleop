@@ -123,11 +123,17 @@ bool HaplyWebSocket::connect(const std::string& host, uint16_t port, const std::
     struct timeval tv;
     tv.tv_sec = 5;
     tv.tv_usec = 0;
-    setsockopt(fd_, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    if (setsockopt(fd_, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0)
+    {
+        std::cerr << "[HaplyWebSocket] Warning: Failed to set SO_RCVTIMEO: " << strerror(errno) << std::endl;
+    }
 
     // Disable Nagle's algorithm for lower latency
     int flag = 1;
-    setsockopt(fd_, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
+    if (setsockopt(fd_, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag)) < 0)
+    {
+        std::cerr << "[HaplyWebSocket] Warning: Failed to set TCP_NODELAY: " << strerror(errno) << std::endl;
+    }
 
     // Generate a random 16-byte WebSocket key
     std::random_device rd;
@@ -542,7 +548,17 @@ void HaplyPlugin::io_loop(const std::string& host, uint16_t port)
             {
                 json j = json::parse(msg);
 
-                std::lock_guard<std::mutex> lock(m_state_mutex);
+                // Parse into local variables first to minimize mutex hold time
+                std::string inverse3_device_id;
+                std::string versegrip_device_id;
+                std::string handedness;
+                HaplyVec3 cursor_position{};
+                HaplyVec3 cursor_velocity{};
+                HaplyQuat orientation{1.0f, 0.0f, 0.0f, 0.0f};
+                HaplyButtons buttons{};
+                bool has_inverse3 = false;
+                bool has_versegrip = false;
+                bool has_handedness = false;
 
                 // Parse inverse3 array
                 if (j.contains("inverse3") && j["inverse3"].is_array() && !j["inverse3"].empty())
@@ -550,12 +566,12 @@ void HaplyPlugin::io_loop(const std::string& host, uint16_t port)
                     const auto& inv3 = j["inverse3"][0];
                     if (inv3.contains("device_id"))
                     {
-                        m_state.inverse3_device_id = inv3["device_id"].get<std::string>();
+                        inverse3_device_id = inv3["device_id"].get<std::string>();
                     }
-                    // Handedness from config (only in first message)
                     if (inv3.contains("config") && inv3["config"].contains("handedness"))
                     {
-                        m_state.handedness = inv3["config"]["handedness"].get<std::string>();
+                        handedness = inv3["config"]["handedness"].get<std::string>();
+                        has_handedness = true;
                     }
                     if (inv3.contains("state"))
                     {
@@ -563,19 +579,19 @@ void HaplyPlugin::io_loop(const std::string& host, uint16_t port)
                         if (st.contains("cursor_position"))
                         {
                             const auto& pos = st["cursor_position"];
-                            m_state.cursor_position.x = pos.value("x", 0.0f);
-                            m_state.cursor_position.y = pos.value("y", 0.0f);
-                            m_state.cursor_position.z = pos.value("z", 0.0f);
+                            cursor_position.x = pos.value("x", 0.0f);
+                            cursor_position.y = pos.value("y", 0.0f);
+                            cursor_position.z = pos.value("z", 0.0f);
                         }
                         if (st.contains("cursor_velocity"))
                         {
                             const auto& vel = st["cursor_velocity"];
-                            m_state.cursor_velocity.x = vel.value("x", 0.0f);
-                            m_state.cursor_velocity.y = vel.value("y", 0.0f);
-                            m_state.cursor_velocity.z = vel.value("z", 0.0f);
+                            cursor_velocity.x = vel.value("x", 0.0f);
+                            cursor_velocity.y = vel.value("y", 0.0f);
+                            cursor_velocity.z = vel.value("z", 0.0f);
                         }
                     }
-                    m_state.has_data = true;
+                    has_inverse3 = true;
                 }
 
                 // Parse wireless_verse_grip array
@@ -585,7 +601,7 @@ void HaplyPlugin::io_loop(const std::string& host, uint16_t port)
                     const auto& vg = j["wireless_verse_grip"][0];
                     if (vg.contains("device_id"))
                     {
-                        m_state.versegrip_device_id = vg["device_id"].get<std::string>();
+                        versegrip_device_id = vg["device_id"].get<std::string>();
                     }
                     if (vg.contains("state"))
                     {
@@ -593,30 +609,58 @@ void HaplyPlugin::io_loop(const std::string& host, uint16_t port)
                         if (st.contains("orientation"))
                         {
                             const auto& ori = st["orientation"];
-                            m_state.orientation.w = ori.value("w", 1.0f);
-                            m_state.orientation.x = ori.value("x", 0.0f);
-                            m_state.orientation.y = ori.value("y", 0.0f);
-                            m_state.orientation.z = ori.value("z", 0.0f);
+                            orientation.w = ori.value("w", 1.0f);
+                            orientation.x = ori.value("x", 0.0f);
+                            orientation.y = ori.value("y", 0.0f);
+                            orientation.z = ori.value("z", 0.0f);
                         }
                         if (st.contains("buttons"))
                         {
                             const auto& btn = st["buttons"];
-                            m_state.buttons.button_0 = btn.value("button_0", false);
-                            m_state.buttons.button_1 = btn.value("button_1", false);
-                            m_state.buttons.button_2 = btn.value("button_2", false);
-                            m_state.buttons.button_3 = btn.value("button_3", false);
+                            buttons.button_0 = btn.value("button_0", false);
+                            buttons.button_1 = btn.value("button_1", false);
+                            buttons.button_2 = btn.value("button_2", false);
+                            buttons.button_3 = btn.value("button_3", false);
                         }
                     }
-                    m_state.has_data = true;
+                    has_versegrip = true;
                 }
 
-                // Send a command to keep receiving updates (set zero force)
-                if (!m_state.inverse3_device_id.empty())
+                // Brief lock to update shared state
+                {
+                    std::lock_guard<std::mutex> lock(m_state_mutex);
+                    if (has_inverse3)
+                    {
+                        m_state.inverse3_device_id = std::move(inverse3_device_id);
+                        m_state.cursor_position = cursor_position;
+                        m_state.cursor_velocity = cursor_velocity;
+                        m_state.has_data = true;
+                    }
+                    if (has_handedness)
+                    {
+                        m_state.handedness = std::move(handedness);
+                    }
+                    if (has_versegrip)
+                    {
+                        m_state.versegrip_device_id = std::move(versegrip_device_id);
+                        m_state.orientation = orientation;
+                        m_state.buttons = buttons;
+                        m_state.has_data = true;
+                    }
+                }
+
+                // Send a command to keep receiving updates (set zero force) — outside lock
+                std::string device_id;
+                {
+                    std::lock_guard<std::mutex> lock(m_state_mutex);
+                    device_id = m_state.inverse3_device_id;
+                }
+                if (!device_id.empty())
                 {
                     json cmd;
                     cmd["inverse3"] = json::array();
                     json dev;
-                    dev["device_id"] = m_state.inverse3_device_id;
+                    dev["device_id"] = device_id;
                     dev["commands"]["set_cursor_force"]["values"]["x"] = 0;
                     dev["commands"]["set_cursor_force"]["values"]["y"] = 0;
                     dev["commands"]["set_cursor_force"]["values"]["z"] = 0;
@@ -632,8 +676,6 @@ void HaplyPlugin::io_loop(const std::string& host, uint16_t port)
 
         ws.close();
     }
-
-    ws.close();
 }
 
 } // namespace haply

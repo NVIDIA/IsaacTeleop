@@ -1,21 +1,21 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-add_executable(haply_hand_plugin
+add_executable(haply_device_plugin
   main.cpp
 )
 
-target_include_directories(haply_hand_plugin
+target_include_directories(haply_device_plugin
   PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../inc>
 )
 
-target_link_libraries(haply_hand_plugin
+target_link_libraries(haply_device_plugin
   PRIVATE
     haply_plugin_core
 )
 
-set_target_properties(haply_hand_plugin PROPERTIES
+set_target_properties(haply_device_plugin PROPERTIES
   CXX_VISIBILITY_PRESET hidden
   VISIBILITY_INLINES_HIDDEN YES
   BUILD_WITH_INSTALL_RPATH NO
@@ -24,7 +24,7 @@ set_target_properties(haply_hand_plugin PROPERTIES
   INSTALL_RPATH "$ORIGIN/../../${CMAKE_INSTALL_LIBDIR}"
 )
 
-install(TARGETS haply_hand_plugin
+install(TARGETS haply_device_plugin
     RUNTIME DESTINATION plugins/haply
 )
 

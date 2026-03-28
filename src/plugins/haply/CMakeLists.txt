@@ -1,6 +1,13 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    message(STATUS "Skipping haply plugin (Linux only)")
+    add_custom_target(haply_device_plugin
+        COMMAND ${CMAKE_COMMAND} -E echo "Skipping haply: Linux only")
+    return()
+endif()
+
 include(GNUInstallDirs)
 
 find_package(Threads REQUIRED)
