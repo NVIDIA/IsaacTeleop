@@ -117,7 +117,7 @@ def __getattr__(name: str):
             raise
         raise ModuleNotFoundError(
             f"{name} requires additional dependencies that are not installed.\n"
-            f"Install them with:  pip install isaacteleop[{extra}]"
+            f"Install them with:  pip install 'isaacteleop[{extra}]'"
         ) from exc
 
     value = getattr(mod, attr)
