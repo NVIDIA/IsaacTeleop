@@ -83,7 +83,8 @@ RUN --mount=type=cache,target=/opt/isaacteleop/build,id=isaacteleop-teleop-ros2-
         -DENABLE_CLANG_FORMAT_CHECK=OFF \
         -DISAAC_TELEOP_PYTHON_VERSION=${PYTHON_VERSION} \
     && cmake --build build --config Release -j$(nproc) \
-    && cmake --install build --config Release
+    && cmake --install build --config Release \
+    && rm -rf build
 
 COPY --chmod=644 <<EOF /usr/local/bin/teleop-env-setup
 source /opt/ros/${ROS_DISTRO}/setup.bash
