@@ -13,6 +13,9 @@
 !install/
 !examples/
 
-# Allow src for ros2 workflows
-!src/
+# Allow building from source for ros2 workflows
 !.git/
+!cmake/
+!deps/
+!src/
+!CMakeLists.txt
