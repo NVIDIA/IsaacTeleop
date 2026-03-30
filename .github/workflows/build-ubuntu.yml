@@ -168,11 +168,18 @@ jobs:
       uses: docker/setup-buildx-action@v4.0.0
 
     - name: Build teleop_ros2 image
-      run: |
-        docker build -f examples/teleop_ros2/Dockerfile \
-          --build-arg ROS_DISTRO=${{ matrix.ros_distro }} \
-          --build-arg PYTHON_VERSION=${{ matrix.python_version }} \
-          -t teleop_ros2_ref:${{ matrix.ros_distro }} .
+      uses: docker/build-push-action@v7
+      with:
+        context: .
+        file: examples/teleop_ros2/Dockerfile
+        build-args: |
+          ROS_DISTRO=${{ matrix.ros_distro }}
+          PYTHON_VERSION=${{ matrix.python_version }}
+        tags: teleop_ros2_ref:${{ matrix.ros_distro }}
+        load: true
+        push: false
+        cache-from: type=gha,scope=teleop-ros2-${{ matrix.ros_distro }}
+        cache-to: type=gha,mode=max,scope=teleop-ros2-${{ matrix.ros_distro }}
 
     - name: Smoke test (ROS 2 + rclpy)
       run: |
