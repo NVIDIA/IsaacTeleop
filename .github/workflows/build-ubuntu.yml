@@ -179,7 +179,7 @@ jobs:
         load: true
         push: false
         cache-from: type=gha,scope=teleop-ros2-${{ matrix.ros_distro }}
-        cache-to: type=gha,mode=max,scope=teleop-ros2-${{ matrix.ros_distro }}
+        cache-to: type=gha,mode=min,scope=teleop-ros2-${{ matrix.ros_distro }}
 
     - name: Smoke test (ROS 2 + rclpy)
       run: |
