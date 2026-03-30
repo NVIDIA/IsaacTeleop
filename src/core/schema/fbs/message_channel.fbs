@@ -1,0 +1,24 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+include "timestamp.fbs";
+
+namespace core;
+
+// Raw message payload for OpenXR opaque message channels.
+table MessageChannelMessages {
+    payload: [ubyte] (id: 0);
+}
+
+// Tracked wrapper for drained batches (data is null when no messages were drained).
+table MessageChannelMessagesTracked {
+    data: [MessageChannelMessages] (id: 0);
+}
+
+// MCAP recording wrapper for MessageChannelMessages.
+table MessageChannelMessagesRecord {
+    data: MessageChannelMessages (id: 0);
+    timestamp: DeviceDataTimestamp (id: 1);
+}
+
+root_type MessageChannelMessagesRecord;

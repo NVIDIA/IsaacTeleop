@@ -10,6 +10,7 @@ SPDX-License-Identifier: Apache-2.0
 ## No OpenXR dependency
 
 - **`deviceio_trackers`** must **not** link **`OpenXR::headers`**, **`oxr::oxr_utils`**, or vendor extension targets, and must **not** `#include` OpenXR headers. Public API stays schema + **`deviceio_base`** only.
+- This includes **`tracker_bindings.cpp`**: do not add `#include <openxr/openxr.h>` or any `XR_NV_*` extension headers here, even when the bound tracker wraps an OpenXR concept. The UUID is `std::array<uint8_t, 16>` at the `deviceio_trackers` boundary—no OpenXR types leak through.
 
 ## Related docs
 

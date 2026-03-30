@@ -24,6 +24,8 @@ class ControllerTracker;
 class IControllerTrackerImpl;
 class FrameMetadataTrackerOak;
 class IFrameMetadataTrackerOakImpl;
+class MessageChannelTracker;
+class IMessageChannelTrackerImpl;
 class FullBodyTrackerPico;
 class IFullBodyTrackerPicoImpl;
 class Generic3AxisPedalTracker;
@@ -56,6 +58,7 @@ public:
     std::unique_ptr<IHeadTrackerImpl> create_head_tracker_impl(const HeadTracker* tracker);
     std::unique_ptr<IHandTrackerImpl> create_hand_tracker_impl(const HandTracker* tracker);
     std::unique_ptr<IControllerTrackerImpl> create_controller_tracker_impl(const ControllerTracker* tracker);
+    std::unique_ptr<IMessageChannelTrackerImpl> create_message_channel_tracker_impl(const MessageChannelTracker* tracker);
     std::unique_ptr<IFullBodyTrackerPicoImpl> create_full_body_tracker_pico_impl(const FullBodyTrackerPico* tracker);
     std::unique_ptr<IGeneric3AxisPedalTrackerImpl> create_generic_3axis_pedal_tracker_impl(
         const Generic3AxisPedalTracker* tracker);

@@ -9,6 +9,7 @@ Each TrackedT always exists (never None) and contains a `.data` property that ho
 the raw flatbuffer object (or None when the tracker is inactive).
 """
 
+from enum import IntEnum
 from typing import Any
 from ..interface.tensor_type import TensorType
 from ..interface.tensor_group_type import TensorGroupType
@@ -18,6 +19,7 @@ from isaacteleop.schema import (
     ControllerSnapshotTrackedT,
     Generic3AxisPedalOutputTrackedT,
     FullBodyPosePicoTrackedT,
+    MessageChannelMessagesTrackedT,
 )
 
 
@@ -117,6 +119,56 @@ class FullBodyPosePicoTrackedType(TensorType):
             )
 
 
+class MessageChannelMessagesTrackedType(TensorType):
+    """MessageChannelMessagesTrackedT wrapper type from DeviceIO MessageChannelTracker."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__(name)
+
+    def _check_instance_compatibility(self, other: TensorType) -> bool:
+        if not isinstance(other, MessageChannelMessagesTrackedType):
+            raise TypeError(
+                f"Expected MessageChannelMessagesTrackedType, got {type(other).__name__}"
+            )
+        return True
+
+    def validate_value(self, value: Any) -> None:
+        if not isinstance(value, MessageChannelMessagesTrackedT):
+            raise TypeError(
+                f"Expected MessageChannelMessagesTrackedT for '{self.name}', got {type(value).__name__}"
+            )
+
+
+class MessageChannelConnectionStatus(IntEnum):
+    """Message channel connection states exposed by MessageChannelSource."""
+
+    CONNECTING = 0
+    CONNECTED = 1
+    SHUTTING = 2
+    DISCONNECTED = 3
+    UNKNOWN = -1
+
+
+class MessageChannelStatusType(TensorType):
+    """Enum status for message channel connectivity."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__(name)
+
+    def _check_instance_compatibility(self, other: TensorType) -> bool:
+        if not isinstance(other, MessageChannelStatusType):
+            raise TypeError(
+                f"Expected MessageChannelStatusType, got {type(other).__name__}"
+            )
+        return True
+
+    def validate_value(self, value: Any) -> None:
+        if not isinstance(value, MessageChannelConnectionStatus):
+            raise TypeError(
+                f"Expected MessageChannelConnectionStatus for '{self.name}', got {type(value).__name__}"
+            )
+
+
 def DeviceIOHeadPoseTracked() -> TensorGroupType:
     """Tracked head pose from DeviceIO HeadTracker.
 
@@ -168,4 +220,28 @@ def DeviceIOFullBodyPosePicoTracked() -> TensorGroupType:
     return TensorGroupType(
         "deviceio_full_body_pose_pico",
         [FullBodyPosePicoTrackedType("full_body_tracked")],
+    )
+
+
+def DeviceIOMessageChannelMessagesTracked() -> TensorGroupType:
+    """Tracked message wrapper from DeviceIO MessageChannelTracker."""
+    return TensorGroupType(
+        "deviceio_message_channel_messages_tracked",
+        [MessageChannelMessagesTrackedType("messages_tracked")],
+    )
+
+
+def MessageChannelMessagesTrackedGroup() -> TensorGroupType:
+    """Tracked batch of messages drained in one update."""
+    return TensorGroupType(
+        "message_channel_messages_tracked",
+        [MessageChannelMessagesTrackedType("messages_tracked")],
+    )
+
+
+def MessageChannelStatusGroup() -> TensorGroupType:
+    """Message channel connection status enum."""
+    return TensorGroupType(
+        "message_channel_status",
+        [MessageChannelStatusType("status")],
     )

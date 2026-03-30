@@ -8,12 +8,14 @@ add_library(deviceio_trackers STATIC
     hand_tracker.cpp
     head_tracker.cpp
     controller_tracker.cpp
+    message_channel_tracker.cpp
     generic_3axis_pedal_tracker.cpp
     frame_metadata_tracker_oak.cpp
     full_body_tracker_pico.cpp
     inc/deviceio_trackers/head_tracker.hpp
     inc/deviceio_trackers/hand_tracker.hpp
     inc/deviceio_trackers/controller_tracker.hpp
+    inc/deviceio_trackers/message_channel_tracker.hpp
     inc/deviceio_trackers/full_body_tracker_pico.hpp
     inc/deviceio_trackers/generic_3axis_pedal_tracker.hpp
     inc/deviceio_trackers/frame_metadata_tracker_oak.hpp

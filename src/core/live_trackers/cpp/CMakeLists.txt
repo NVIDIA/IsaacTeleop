@@ -9,6 +9,7 @@ add_library(live_trackers STATIC
     live_head_tracker_impl.cpp
     live_hand_tracker_impl.cpp
     live_controller_tracker_impl.cpp
+    live_message_channel_tracker_impl.cpp
     live_full_body_tracker_pico_impl.cpp
     live_generic_3axis_pedal_tracker_impl.cpp
     live_frame_metadata_tracker_oak_impl.cpp
@@ -18,6 +19,7 @@ add_library(live_trackers STATIC
     live_head_tracker_impl.hpp
     live_hand_tracker_impl.hpp
     live_controller_tracker_impl.hpp
+    live_message_channel_tracker_impl.hpp
     live_full_body_tracker_pico_impl.hpp
     live_generic_3axis_pedal_tracker_impl.hpp
     live_frame_metadata_tracker_oak_impl.hpp
