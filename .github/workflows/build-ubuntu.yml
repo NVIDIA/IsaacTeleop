@@ -165,7 +165,7 @@ jobs:
         ngc-cli-api-key: ${{ secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY }}
 
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      uses: docker/setup-buildx-action@v4.0.0
 
     - name: Build teleop_ros2 image
       run: |
@@ -208,7 +208,7 @@ jobs:
         tar -xvf isaacteleop-install.tar -C install
 
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      uses: docker/setup-buildx-action@v4.0.0
 
     - name: Run Tests with CloudXR
       env:
