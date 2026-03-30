@@ -167,6 +167,19 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v4.0.0
 
+    - name: Cache teleop_ros2 base stage
+      uses: docker/build-push-action@v7
+      with:
+        context: .
+        file: examples/teleop_ros2/Dockerfile
+        target: base
+        build-args: |
+          ROS_DISTRO=${{ matrix.ros_distro }}
+          PYTHON_VERSION=${{ matrix.python_version }}
+        cache-from: type=gha,scope=teleop-ros2-base-${{ matrix.ros_distro }}-py${{ matrix.python_version }}
+        cache-to: type=gha,mode=max,scope=teleop-ros2-base-${{ matrix.ros_distro }}-py${{ matrix.python_version }}
+        outputs: type=cacheonly
+
     - name: Build teleop_ros2 image
       uses: docker/build-push-action@v7
       with:
@@ -178,8 +191,7 @@ jobs:
         tags: teleop_ros2_ref:${{ matrix.ros_distro }}
         load: true
         push: false
-        cache-from: type=gha,scope=teleop-ros2-${{ matrix.ros_distro }}
-        cache-to: type=gha,mode=min,scope=teleop-ros2-${{ matrix.ros_distro }}
+        cache-from: type=gha,scope=teleop-ros2-base-${{ matrix.ros_distro }}-py${{ matrix.python_version }}
 
     - name: Smoke test (ROS 2 + rclpy)
       run: |
