@@ -14,8 +14,8 @@
 !examples/
 
 # Allow building from source for ros2 workflows
-!.git/
 !cmake/
 !deps/
 !src/
 !CMakeLists.txt
+!VERSION
