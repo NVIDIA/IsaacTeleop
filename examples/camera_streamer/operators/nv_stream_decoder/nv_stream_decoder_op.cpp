@@ -58,6 +58,9 @@ void NvStreamDecoderOp::initialize()
     cuda_check(cuDevicePrimaryCtxRetain(&cu_context_, cu_device_));
 
     // Initialize NPP stream context manually.
+    // Push the target device context so the CUDA runtime API calls below
+    // query the correct GPU (matters on multi-GPU systems).
+    cuda_check(cuCtxPushCurrent(cu_context_));
     {
         npp_ctx_.hStream = 0; // Default (NULL) stream.
 
@@ -78,6 +81,7 @@ void NvStreamDecoderOp::initialize()
         npp_ctx_.nMaxThreadsPerBlock = deviceProperties.maxThreadsPerBlock;
         npp_ctx_.nSharedMemPerBlock = deviceProperties.sharedMemPerBlock;
     }
+    cuda_check(cuCtxPopCurrent(nullptr));
 
     if (verbose_.get())
     {
@@ -215,6 +219,10 @@ void NvStreamDecoderOp::compute(holoscan::InputContext& op_input,
 
     auto dst = static_cast<uint8_t*>(out_tensor.value()->pointer());
 
+    // Push the decoder's CUDA context so the conversion runs on the correct
+    // GPU.  pFrame and dst reside on cu_device_; without this, multi-GPU
+    // setups would target the wrong device after the decode context pop above.
+    cuda_check(cuCtxPushCurrent(cu_context_));
     if (use_full_range_)
     {
         // BT.601 full-range (ITU-T T.871).  NPP has no NV12 variant for this
@@ -225,6 +233,7 @@ void NvStreamDecoderOp::compute(holoscan::InputContext& op_input,
         {
             HOLOSCAN_LOG_ERROR("CUDA NV12->RGB kernel failed: {}", cudaGetErrorString(cuda_status));
             decoder_->UnlockFrame(&pFrame);
+            cuda_check(cuCtxPopCurrent(nullptr));
             return;
         }
     }
@@ -239,9 +248,11 @@ void NvStreamDecoderOp::compute(holoscan::InputContext& op_input,
         {
             HOLOSCAN_LOG_ERROR("NPP NV12->RGB failed: {}", static_cast<int>(status));
             decoder_->UnlockFrame(&pFrame);
+            cuda_check(cuCtxPopCurrent(nullptr));
             return;
         }
     }
+    cuda_check(cuCtxPopCurrent(nullptr));
 
     decoder_->UnlockFrame(&pFrame);
 
