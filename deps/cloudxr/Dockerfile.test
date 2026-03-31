@@ -5,7 +5,7 @@
 # This container installs dependencies and runs tests against CloudXR runtime
 
 ARG PYTHON_VERSION=3.11
-FROM python:${PYTHON_VERSION}-slim
+FROM ubuntu:24.04
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -15,17 +15,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libvulkan1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Create app directory
-WORKDIR /app
-
 # Install uv for fast Python package management
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# Copy the install directory (contains wheels, libs, native test binaries, etc.)
-COPY install/ /app/install/
-
 # Copy test files
 COPY examples/oxr/python/ /app/tests/
+
+# Copy the install directory (contains wheels, libs, native test binaries, etc.)
+COPY install/ /app/install/
 
 # Install Python dependencies using uv
 WORKDIR /app/tests
@@ -38,8 +35,6 @@ RUN uv venv --python $PYTHON_VERSION /app/venv && \
 ENV PATH="/app/venv/bin:$PATH"
 ENV PYTHONPATH="/app/install/lib:$PYTHONPATH"
 ENV XR_RUNTIME_JSON="/openxr/openxr_cloudxr.json"
-
-WORKDIR /app/tests
 
 # Default command runs the test script
 CMD ["python", "test_extensions.py"]
