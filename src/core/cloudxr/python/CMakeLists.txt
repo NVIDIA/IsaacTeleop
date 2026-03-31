@@ -75,9 +75,9 @@ else()
     add_custom_target(cloudxr_native_bundle ALL
         COMMAND ${CMAKE_COMMAND} -E tar xzf "${CLOUDXR_SDK_PATH}"
         COMMAND ${CMAKE_COMMAND} -E rm -rf "${CLOUDXR_NATIVE_DIR}/include"
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${CLOUDXR_NATIVE_DIR}/plugins"
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "${CLOUDXR_NATIVE_DIR}/plugins"
         WORKING_DIRECTORY "${CLOUDXR_NATIVE_DIR}"
-        COMMENT "Extracting CloudXR SDK tarball, removing headers, and keeping runtime/plugins files in python_package/.../cloudxr/native/"
+        COMMENT "Extracting CloudXR SDK tarball and keeping runtime core files (no plugins) in python_package/.../cloudxr/native/"
     )
     add_dependencies(cloudxr_native_bundle cloudxr_native_dir)
 
