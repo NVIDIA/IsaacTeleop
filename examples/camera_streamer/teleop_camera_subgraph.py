@@ -485,16 +485,13 @@ class TeleopCameraSubgraph(Subgraph):
                     port=stream_cfg.port,
                     verbose=verbose,
                 )
-                # OAK-D VPU encoder produces full-range NV12; the default
-                # limited-range BT.709 conversion causes over-saturated colors.
-                full_range = cam_cfg.camera_type == "oakd"
                 decoder = NvStreamDecoderOp(
                     self.fragment,
                     name=self._create_name(f"{display_key}_decoder"),
                     cuda_device_ordinal=cuda_device,
                     allocator=allocator,
                     verbose=verbose,
-                    force_full_range=full_range,
+                    force_full_range=cam_cfg.is_full_range,
                 )
 
                 if self._config.display_mode == DisplayMode.MONITOR:
