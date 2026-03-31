@@ -189,8 +189,7 @@ void NvStreamDecoderOp::compute(holoscan::InputContext& op_input,
         int bitstream_flag = fmt.video_signal_description.video_full_range_flag;
         use_full_range_ = force_full_range_.get() || (bitstream_flag != 0);
         HOLOSCAN_LOG_INFO("NV12->RGB color range: {} (force_full_range={}, bitstream flag={})",
-                          use_full_range_ ? "full" : "limited", force_full_range_.get(),
-                          bitstream_flag);
+                          use_full_range_ ? "full" : "limited", force_full_range_.get(), bitstream_flag);
     }
 
     auto allocator = nvidia::gxf::Handle<nvidia::gxf::Allocator>::Create(context.context(), allocator_->gxf_cid());
@@ -220,8 +219,7 @@ void NvStreamDecoderOp::compute(holoscan::InputContext& op_input,
     {
         // BT.601 full-range (ITU-T T.871).  NPP has no NV12 variant for this
         // combination so we use a single-pass CUDA kernel.  See nv12_to_rgb.cu.
-        nv12_to_rgb_fullrange_bt601(pFrame, pFrame + lumaSize, pitch, dst, width * 3, width, height,
-                                    npp_ctx_.hStream);
+        nv12_to_rgb_fullrange_bt601(pFrame, pFrame + lumaSize, pitch, dst, width * 3, width, height, npp_ctx_.hStream);
         cudaError_t cuda_status = cudaGetLastError();
         if (cuda_status != cudaSuccess)
         {
