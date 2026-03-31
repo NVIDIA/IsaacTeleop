@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[project]
+name = "github-project-sync"
+version = "1.0.0"
+description = "Sync GitHub Project v2 issues to Google Sheets"
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.32.4,<3",
+    "gspread>=6.0.0,<7",
+    "google-auth>=2.20.0,<3",
+]
+
+[project.scripts]
+github-project-sync = "github_project_sync.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
