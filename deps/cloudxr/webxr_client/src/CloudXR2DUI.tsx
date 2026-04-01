@@ -115,8 +115,8 @@ export class CloudXR2DUI {
   private serverTypeSelect!: HTMLSelectElement;
   /** Dropdown to select device profile */
   private deviceProfileSelect!: HTMLSelectElement;
-  /** Dropdown to select application type */
-  private appSelect!: HTMLSelectElement;
+  /** Whether the control panel starts hidden when immersive XR begins */
+  private panelHiddenAtStartSelect!: HTMLSelectElement;
   /** Dropdown to select reference space for XR tracking */
   private referenceSpaceSelect!: HTMLSelectElement;
   /** Input for XR reference space X offset (cm) */
@@ -235,7 +235,7 @@ export class CloudXR2DUI {
       this.getElement<HTMLSelectElement>('useQuestColorWorkaround');
     this.serverTypeSelect = this.getElement<HTMLSelectElement>('serverType');
     this.deviceProfileSelect = this.getElement<HTMLSelectElement>('deviceProfile');
-    this.appSelect = this.getElement<HTMLSelectElement>('app');
+    this.panelHiddenAtStartSelect = this.getElement<HTMLSelectElement>('panelHiddenAtStart');
     this.referenceSpaceSelect = this.getElement<HTMLSelectElement>('referenceSpace');
     this.xrOffsetXInput = this.getElement<HTMLInputElement>('xrOffsetX');
     this.xrOffsetYInput = this.getElement<HTMLInputElement>('xrOffsetY');
@@ -291,8 +291,8 @@ export class CloudXR2DUI {
       codec: 'av1',
       immersiveMode: 'ar',
       deviceProfileId: 'custom',
-      app: 'generic',
       serverType: 'manual',
+      panelHiddenAtStart: false,
       proxyUrl: '',
       referenceSpaceType: 'auto',
       controlPanelPosition: 'center',
@@ -326,7 +326,7 @@ export class CloudXR2DUI {
     enableLocalStorage(this.useQuestColorWorkaroundSelect, 'useQuestColorWorkaround');
     enableLocalStorage(this.immersiveSelect, 'immersiveMode');
     enableLocalStorage(this.deviceProfileSelect, 'deviceProfile');
-    enableLocalStorage(this.appSelect, 'app');
+    enableLocalStorage(this.panelHiddenAtStartSelect, 'panelHiddenAtStart');
     enableLocalStorage(this.referenceSpaceSelect, 'referenceSpace');
     enableLocalStorage(this.xrOffsetXInput, 'xrOffsetX');
     enableLocalStorage(this.xrOffsetYInput, 'xrOffsetY');
@@ -417,7 +417,7 @@ export class CloudXR2DUI {
     addListener(this.enableTexSubImage2DSelect, 'change', onProfileLinkedChange);
     addListener(this.useQuestColorWorkaroundSelect, 'change', onProfileLinkedChange);
     addListener(this.immersiveSelect, 'change', updateConfig);
-    addListener(this.appSelect, 'change', updateConfig);
+    addListener(this.panelHiddenAtStartSelect, 'change', updateConfig);
     addListener(this.referenceSpaceSelect, 'change', updateConfig);
     addListener(this.xrOffsetXInput, 'input', updateConfig);
     addListener(this.xrOffsetXInput, 'change', updateConfig);
@@ -572,7 +572,6 @@ export class CloudXR2DUI {
       immersiveMode:
         (this.immersiveSelect.value as 'ar' | 'vr') || this.getDefaultConfiguration().immersiveMode,
       deviceProfileId: resolveDeviceProfileId(this.deviceProfileSelect.value),
-      app: this.appSelect.value || this.getDefaultConfiguration().app,
       serverType: this.serverTypeSelect.value || this.getDefaultConfiguration().serverType,
       proxyUrl: this.proxyUrlInput.value || this.getDefaultConfiguration().proxyUrl,
       referenceSpaceType:
@@ -606,6 +605,7 @@ export class CloudXR2DUI {
         return !isNaN(v) ? v : undefined;
       })(),
       hideControllerModel: this.controllerModelVisibilitySelect.value === 'hide',
+      panelHiddenAtStart: this.panelHiddenAtStartSelect.value === 'true',
     };
 
     this.currentConfiguration = newConfiguration;

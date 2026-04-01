@@ -772,6 +772,8 @@ function App() {
                 onStartTeleop={handleStartTeleop}
                 onDisconnect={handleDisconnect}
                 onResetTeleop={handleResetTeleop}
+                isXRMode={isXRMode}
+                panelHiddenAtStart={config.panelHiddenAtStart ?? false}
                 serverAddress={serverAddress || config.serverIP}
                 sessionStatus={sessionStatus}
                 playLabel={
