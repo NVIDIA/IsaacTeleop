@@ -763,6 +763,7 @@ function App() {
                     cloudXR2DUI.showError(error);
                   }
                 }}
+                onExitImmersiveXR={handleDisconnect}
                 onSessionReady={setCloudXRSession}
                 onServerAddress={setServerAddress}
                 onRenderPerformanceMetrics={handleRenderPerformanceMetrics}
