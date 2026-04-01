@@ -1,0 +1,124 @@
+.. SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+.. SPDX-License-Identifier: Apache-2.0
+
+Teleop Control State Machine
+============================
+
+This page describes the default teleop control state machine used by
+``DefaultTeleopStateManager`` and how to connect button inputs.
+
+Overview
+--------
+
+The state manager outputs:
+
+- ``teleop_state``: one-hot execution state in this order:
+  ``STOPPED``, ``PAUSED``, ``RUNNING``
+- ``reset_event``: bool pulse
+
+The state manager writes into ``ComputeContext.execution_events`` through
+``TeleopSession`` so downstream retargeters and high-level app logic can read:
+
+- ``context.execution_events.execution_state``
+- ``context.execution_events.reset``
+
+Default Two-Button Behavior
+---------------------------
+
+Inputs (all optional bool signals):
+
+- ``kill_button``
+- ``run_toggle_button``
+- ``reset_button``
+
+Transitions:
+
+1. ``kill_button`` rising edge:
+
+   - any state -> ``STOPPED``
+   - emits ``reset_event = True``
+
+2. ``run_toggle_button`` rising edge:
+
+   - ``STOPPED`` -> ``PAUSED``
+   - ``PAUSED`` -> ``RUNNING``
+   - ``RUNNING`` -> ``PAUSED``
+
+3. ``reset_button`` rising edge:
+
+   - state unchanged
+   - emits ``reset_event = True``
+
+Safety behavior:
+
+- If any required control input is absent for the frame, manager fail-safes to
+  ``STOPPED`` and emits ``reset_event = True``.
+
+Connecting Inputs
+-----------------
+
+Use one bool selector per signal (simple wiring, no multi-input lambdas):
+
+.. code-block:: python
+
+   from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
+   from isaacteleop.retargeting_engine.tensor_types import ControllerInputIndex
+   from isaacteleop.teleop_session_manager import (
+       DefaultTeleopStateManager,
+       create_bool_selector,
+   )
+
+   controllers = ControllersSource(name="controllers")
+   left = controllers.output(ControllersSource.LEFT)
+
+   kill_signal = create_bool_selector(
+       left,
+       name="kill_signal_selector",
+       selector_fn=lambda inputs: (
+           None
+           if inputs["selected_input"].is_none
+           else float(inputs["selected_input"][ControllerInputIndex.SECONDARY_CLICK]) > 0.5
+       ),
+   )
+   run_toggle_signal = create_bool_selector(
+       left,
+       name="run_toggle_signal_selector",
+       selector_fn=lambda inputs: (
+           None
+           if inputs["selected_input"].is_none
+           else float(inputs["selected_input"][ControllerInputIndex.PRIMARY_CLICK]) > 0.5
+       ),
+   )
+   reset_signal = create_bool_selector(
+       left,
+       name="reset_signal_selector",
+       selector_fn=lambda inputs: (
+           None
+           if inputs["selected_input"].is_none
+           else float(inputs["selected_input"][ControllerInputIndex.THUMBSTICK_CLICK]) > 0.5
+       ),
+   )
+
+   manager = DefaultTeleopStateManager(name="teleop_manager")
+   control_pipeline = manager.connect(
+       {
+           manager.INPUT_KILL: kill_signal.output("value"),
+           manager.INPUT_RUN_TOGGLE: run_toggle_signal.output("value"),
+           manager.INPUT_RESET: reset_signal.output("value"),
+       }
+   )
+
+Using Context in High-Level App Logic
+-------------------------------------
+
+After ``session.step()``, use ``session.last_context`` to gate robot enablement
+or other high-level behavior:
+
+.. code-block:: python
+
+   outputs = session.step()
+   context = session.last_context
+   if context is not None:
+       robot_enabled = context.execution_events.execution_state != ExecutionState.STOPPED
+       if context.execution_events.reset:
+           handle_reset()
