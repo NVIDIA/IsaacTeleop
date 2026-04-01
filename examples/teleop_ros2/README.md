@@ -72,9 +72,9 @@ docker run --rm --net=host --ipc=host \
   teleop_ros2_ref
 ```
 
-### Overriding parameters
+### Overriding parameters and remapping topics
 
-It's possible to set ROS 2 parameters from the command line when running the container. Append `--ros-args -p param_name:=value` after the image name:
+It's possible to set ROS 2 parameters and remap topics from the command line when running the container. Append `--ros-args -p param_name:=value` to set parameters, or `--ros-args -r old_topic:=new_topic` to remap topics after the image name:
 
 ```bash
 docker run --rm --net=host --ipc=host \
@@ -82,10 +82,13 @@ docker run --rm --net=host --ipc=host \
   -e ROS_LOCALHOST_ONLY=1 \
   -v $CXR_HOST_VOLUME_PATH:$CXR_HOST_VOLUME_PATH:ro \
   --name teleop_ros2_ref \
-  teleop_ros2_ref --ros-args -p world_frame:=odom -p rate_hz:=30.0
+  teleop_ros2_ref --ros-args -p world_frame:=odom -p rate_hz:=30.0 \
+  -r xr_teleop/hand:=my_robot/hand -r xr_teleop/ee_poses:=my_robot/ee_poses
 ```
 
 Available parameters: `rate_hz`, `mode`, `world_frame`, `right_wrist_frame`, `left_wrist_frame`. Use `ros2 param list /teleop_ros2_publisher` and `ros2 param describe /teleop_ros2_publisher <param>` (with the node running) for the full set.
+
+Available topics for remapping: `xr_teleop/hand`, `xr_teleop/ee_poses`, `xr_teleop/root_twist`, `xr_teleop/root_pose`, `xr_teleop/controller_data`, `xr_teleop/full_body`, `xr_teleop/finger_joints`. Active remaps can be inspected with `ros2 node info /teleop_ros2_publisher`.
 
 ### Mode
 

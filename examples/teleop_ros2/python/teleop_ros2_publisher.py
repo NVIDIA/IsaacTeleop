@@ -18,7 +18,7 @@ published:
   - controller_raw: controller_data only
   - full_body: full_body and controller_data
 
-Topic names (configurable via parameters):
+Topic names (remappable via ROS 2 remapping):
   - xr_teleop/hand (PoseArray): [finger_joint_poses...]
   - xr_teleop/ee_poses (PoseArray): [right_ee, left_ee]
   - xr_teleop/root_twist (TwistStamped): root velocity command
@@ -380,7 +380,7 @@ def _build_full_body_payload(full_body: OptionalTensorGroup) -> Dict:
 
 
 class TeleopRos2PublisherNode(Node):
-    """ROS 2 node that publishes teleop data to configurable topics."""
+    """ROS 2 node that publishes teleop data."""
 
     def __init__(self) -> None:
         super().__init__("teleop_ros2_publisher")
