@@ -12,6 +12,9 @@ set(TELEOP_SESSION_MANAGER_PYTHON_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/python/config.py"
     "${CMAKE_CURRENT_SOURCE_DIR}/python/teleop_session.py"
     "${CMAKE_CURRENT_SOURCE_DIR}/python/helpers.py"
+    "${CMAKE_CURRENT_SOURCE_DIR}/python/teleop_state_manager_types.py"
+    "${CMAKE_CURRENT_SOURCE_DIR}/python/teleop_state_manager_retargeter.py"
+    "${CMAKE_CURRENT_SOURCE_DIR}/python/input_selector.py"
 )
 
 # Copy Python files to output directory during build

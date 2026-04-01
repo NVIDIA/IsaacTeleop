@@ -16,6 +16,9 @@ from typing import TYPE_CHECKING, Any, List, Optional
 from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
     GraphExecutable,
 )
+from isaacteleop.retargeting_engine.tensor_types import BoolType
+
+from .teleop_state_manager_types import teleop_control_states
 
 if TYPE_CHECKING:
     from teleopcore.oxr import OpenXRSessionHandles
@@ -46,6 +49,7 @@ class TeleopSessionConfig:
 
     Encapsulates all components needed to run a teleop session:
     - Retargeting pipeline (trackers auto-discovered from sources!)
+    - Optional teleop control pipeline (state/reset events for ComputeContext)
     - OpenXR application settings
     - Plugin configuration (optional)
     - Manual trackers (optional, for advanced use)
@@ -55,7 +59,12 @@ class TeleopSessionConfig:
 
     Attributes:
         app_name: Name of the OpenXR application
-        pipeline: Connected retargeting module (from new engine)
+        pipeline: Main retargeting pipeline.
+        teleop_control_pipeline: Optional control pipeline whose outputs are
+            decoded into ComputeContext.execution_events before running ``pipeline``.
+            Expected outputs:
+              - "teleop_state": one-hot bool group [stopped, paused, running]
+              - "reset_event": single bool pulse
         trackers: Optional list of manual trackers (usually not needed - auto-discovered!)
         plugins: List of plugin configurations
         verbose: Whether to print detailed progress information during setup
@@ -103,7 +112,66 @@ class TeleopSessionConfig:
 
     app_name: str
     pipeline: GraphExecutable
+    teleop_control_pipeline: Optional[GraphExecutable] = None
     trackers: List[Any] = field(default_factory=list)
     plugins: List[PluginConfig] = field(default_factory=list)
     verbose: bool = True
     oxr_handles: Optional[OpenXRSessionHandles] = None
+
+    def __post_init__(self) -> None:
+        """Validate optional teleop control pipeline output contract."""
+        if self.teleop_control_pipeline is None:
+            return
+
+        output_types = self.teleop_control_pipeline.output_types()
+        if "teleop_state" not in output_types:
+            raise ValueError(
+                "teleop_control_pipeline must output 'teleop_state' "
+                "(one-hot stopped/paused/running)"
+            )
+        if "reset_event" not in output_types:
+            raise ValueError(
+                "teleop_control_pipeline must output 'reset_event' (single bool pulse)"
+            )
+
+        teleop_state_type = output_types["teleop_state"]
+        if teleop_state_type.is_optional:
+            raise ValueError(
+                "teleop_control_pipeline output 'teleop_state' channels must be "
+                "plain BoolType (OptionalType is not allowed)"
+            )
+        expected_channels = [state.value for state in teleop_control_states()]
+        actual_channels = [tensor_type.name for tensor_type in teleop_state_type.types]
+        if set(actual_channels) != set(expected_channels):
+            raise ValueError(
+                "teleop_control_pipeline output 'teleop_state' must expose one bool "
+                f"channel per execution state {expected_channels} "
+                f"(got channels: {actual_channels})"
+            )
+        if len(actual_channels) != len(set(actual_channels)):
+            raise ValueError(
+                "teleop_control_pipeline output 'teleop_state' contains duplicate "
+                f"channels: {actual_channels}"
+            )
+        for tensor_type in teleop_state_type.types:
+            if not isinstance(tensor_type, BoolType):
+                raise ValueError(
+                    "teleop_control_pipeline output 'teleop_state' channels must be "
+                    f"BoolType, got {type(tensor_type).__name__}"
+                )
+
+        reset_event_type = output_types["reset_event"]
+        if reset_event_type.is_optional:
+            raise ValueError(
+                "teleop_control_pipeline output 'reset_event' must be a plain "
+                "BoolType scalar (OptionalType is not allowed)"
+            )
+        if len(reset_event_type.types) != 1:
+            raise ValueError(
+                "teleop_control_pipeline output 'reset_event' must have exactly 1 channel"
+            )
+        if not isinstance(reset_event_type.types[0], BoolType):
+            raise ValueError(
+                "teleop_control_pipeline output 'reset_event' must be a bool scalar "
+                f"(got {type(reset_event_type.types[0]).__name__})"
+            )

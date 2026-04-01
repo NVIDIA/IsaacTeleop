@@ -25,7 +25,6 @@ from .retargeter_core_types import (
     BaseExecutable,
     RetargeterIOType,
     ComputeContext,
-    _default_compute_context,
 )
 from .retargeter_subgraph import RetargeterSubgraph
 from .parameter_state import ParameterState
@@ -177,7 +176,7 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
             Dict[str, TensorGroup] — freshly allocated, independently owned outputs.
         """
         if context is None:
-            context = _default_compute_context()
+            context = ComputeContext()
         outputs = self._allocate_outputs()
         self.compute(inputs, outputs, context)
         return outputs
@@ -262,7 +261,7 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
             Dict[str, TensorGroup] — freshly allocated populated output groups.
         """
         if context is None:
-            context = _default_compute_context()
+            context = ComputeContext()
         node_inputs = inputs.get(self.name, {})
         outputs = self._allocate_outputs()
         self.compute(node_inputs, outputs, context)
@@ -341,7 +340,7 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
                      Auto-generated from the monotonic clock when not provided.
         """
         if context is None:
-            context = _default_compute_context()
+            context = ComputeContext()
         inputs = self._fill_optional_inputs(inputs)
         self._validate_inputs(inputs)
         self._execute_compute(inputs, outputs, context)

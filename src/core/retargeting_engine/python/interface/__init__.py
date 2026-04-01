@@ -7,6 +7,7 @@ from .base_retargeter import BaseRetargeter
 from .output_combiner import OutputCombiner
 from .value_input import ValueInput
 from .parameter_state import ParameterState
+from .execution_events import ExecutionState, ExecutionEvents
 from .retargeter_core_types import (
     ComputeContext,
     GraphExecutable,
@@ -47,6 +48,8 @@ __all__ = [
     "GraphExecutable",
     "GraphTime",
     "ComputeContext",
+    "ExecutionEvents",
+    "ExecutionState",
     "ParameterSpec",
     "BoolParameter",
     "FloatParameter",

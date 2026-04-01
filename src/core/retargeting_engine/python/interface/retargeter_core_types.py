@@ -2,12 +2,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Dict, List, Optional
+from dataclasses import dataclass, field
 import time
+from typing import Dict, List, Optional
 
 from .tensor_group_type import TensorGroupType
 from .tensor_group import OptionalTensorGroup
+from .execution_events import ExecutionEvents
 
 
 RetargeterIOType = Dict[str, TensorGroupType]
@@ -22,17 +23,22 @@ class GraphTime:
     real_time_ns: int
 
 
+def _default_graph_time() -> GraphTime:
+    now_ns = time.monotonic_ns()
+    return GraphTime(sim_time_ns=now_ns, real_time_ns=now_ns)
+
+
 @dataclass
 class ComputeContext:
-    """Context passed to _compute_fn. Extensible for future per-step metadata."""
+    """Context passed to _compute_fn.
 
-    graph_time: GraphTime
+    ``graph_time`` carries timing information for the current step.
+    ``execution_events`` carries app-level control signals, such as reset and
+    run/pause/stop state.
+    """
 
-
-def _default_compute_context() -> "ComputeContext":
-    """Return a ComputeContext stamped with the current monotonic clock."""
-    now = time.monotonic_ns()
-    return ComputeContext(graph_time=GraphTime(sim_time_ns=now, real_time_ns=now))
+    graph_time: GraphTime = field(default_factory=_default_graph_time)
+    execution_events: ExecutionEvents = field(default_factory=ExecutionEvents)
 
 
 class ExecutionCache:

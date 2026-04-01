@@ -16,7 +16,6 @@ from .retargeter_core_types import (
     RetargeterIOType,
     BaseExecutable,
     ComputeContext,
-    _default_compute_context,
 )
 
 
@@ -139,7 +138,7 @@ class OutputCombiner(GraphExecutable):
             Dict[str, TensorGroup] - Combined outputs with custom names
         """
         if context is None:
-            context = _default_compute_context()
+            context = ComputeContext()
         return self._compute_with_cache(ExecutionCache(inputs, context))
 
     def __call__(

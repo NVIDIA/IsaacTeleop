@@ -17,7 +17,6 @@ from .retargeter_core_types import (
     OutputSelector,
     RetargeterIO,
     ComputeContext,
-    _default_compute_context,
 )
 
 
@@ -122,7 +121,7 @@ class RetargeterSubgraph(GraphExecutable):
             Dict[str, TensorGroup] - The computed output tensor groups
         """
         if context is None:
-            context = _default_compute_context()
+            context = ComputeContext()
         return self._compute_with_cache(ExecutionCache(inputs, context))
 
     def __call__(
