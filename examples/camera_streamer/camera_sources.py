@@ -164,11 +164,18 @@ def create_oakd_source(
     if cam_cfg.stereo:
         left_stream = cam_cfg.streams["left"]
         right_stream = cam_cfg.streams["right"]
+        mode = "stereo_rgb" if cam_cfg.stereo_rgb else "stereo"
+
+        extra_kwargs = {}
+        if cam_cfg.stereo_rgb:
+            extra_kwargs["rgb_width"] = cam_cfg.rgb_width or cam_cfg.width
+            extra_kwargs["rgb_height"] = cam_cfg.rgb_height or cam_cfg.height
+            extra_kwargs["rgb_fps"] = cam_cfg.rgb_fps or cam_cfg.fps
 
         oakd_source = OakdCameraOp(
             fragment,
             name=f"{cam_name}_source",
-            mode="stereo",
+            mode=mode,
             output_format=output_format,
             color_format=color_format,
             device_id=cam_cfg.device_id or "",
@@ -179,6 +186,7 @@ def create_oakd_source(
             left_stream_id=left_stream.stream_id,
             right_stream_id=right_stream.stream_id,
             verbose=verbose,
+            **extra_kwargs,
         )
         result.operators.append(oakd_source)
 
@@ -188,6 +196,12 @@ def create_oakd_source(
         else:
             result.frame_outputs["left"] = (oakd_source, "left_frame")
             result.frame_outputs["right"] = (oakd_source, "right_frame")
+
+        if cam_cfg.stereo_rgb:
+            if output_format == "h264":
+                result.frame_outputs["rgb"] = (oakd_source, "h264_packets_rgb")
+            else:
+                result.frame_outputs["rgb"] = (oakd_source, "rgb_frame")
     else:
         mono_stream = cam_cfg.streams["mono"]
 

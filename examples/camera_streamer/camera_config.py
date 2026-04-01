@@ -63,6 +63,12 @@ class CameraConfig:
     # OAK-D-specific (optional)
     device_id: str | None = None
 
+    # stereo_rgb mode: enable RGB center camera alongside stereo (OAK-D only)
+    rgb_enable: bool = False
+    rgb_width: int | None = None
+    rgb_height: int | None = None
+    rgb_fps: int | None = None
+
     # V4L2-specific (optional)
     device: str | None = None
 
@@ -84,7 +90,16 @@ class CameraConfig:
         "device",
         "video_dir",
         "video_basename",
+        "rgb_enable",
+        "rgb_width",
+        "rgb_height",
+        "rgb_fps",
     }
+
+    @property
+    def stereo_rgb(self) -> bool:
+        """True if stereo camera also has RGB center stream enabled."""
+        return self.stereo and self.rgb_enable
 
     def __post_init__(self):
         if self.camera_type not in VALID_CAMERA_TYPES:
@@ -148,6 +163,10 @@ class CameraConfig:
             device=data.get("device"),
             video_dir=data.get("video_dir"),
             video_basename=data.get("video_basename"),
+            rgb_enable=data.get("rgb_enable", False),
+            rgb_width=data.get("rgb_width"),
+            rgb_height=data.get("rgb_height"),
+            rgb_fps=data.get("rgb_fps"),
         )
 
 

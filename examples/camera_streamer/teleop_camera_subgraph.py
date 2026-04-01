@@ -143,7 +143,7 @@ class TeleopCameraSubgraphConfig:
 
         for cam_name, cam_cfg in self.cameras.items():
             for stream_name, stream_cfg in cam_cfg.streams.items():
-                if self.source == "rtp":
+                if self.source == "rtp" and stream_cfg.port != 0:
                     if not (1024 <= stream_cfg.port <= 65535):
                         errors.append(
                             f"Camera '{cam_name}/{stream_name}': "
