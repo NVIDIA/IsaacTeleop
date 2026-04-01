@@ -27,6 +27,8 @@
  * - Configurable position and rotation in world space for flexible UI placement
  * - Draggable handle bar for repositioning the UI in 3D space
  * - Face-camera rotation for optimal viewing angle (Y-axis only)
+ * - Panel depth: full control panel, compact (when "minimize on play" and teleop active), or hidden
+ *   (semi-transparent Show + slim drag handle).
  *
  * The UI is positioned in 3D space and designed for VR/AR interaction with
  * visual feedback and clear button labeling. All interactions are passed
@@ -66,6 +68,10 @@ interface CloudXRUIProps {
   streamingFpsText?: ReadonlySignal<string>;
   /** Computed signal for pose-to-render latency text - updates without React re-render */
   poseToRenderText?: ReadonlySignal<string>;
+  /** From settings: hide control panel when immersive XR begins. */
+  panelHiddenAtStart?: boolean;
+  /** Immersive XR active; used to apply panelHiddenAtStart on session enter. */
+  isXRMode?: boolean;
 }
 
 // Reusable objects for face-camera rotation (avoid allocations in render loop)
@@ -96,6 +102,8 @@ export default function CloudXR3DUI({
   renderFpsText,
   streamingFpsText,
   poseToRenderText,
+  panelHiddenAtStart = false,
+  isXRMode = false,
 }: CloudXRUIProps) {
   const MINIMIZE_ON_PLAY_KEY = 'cxr.isaac.minimizeOnPlay';
 
@@ -112,6 +120,17 @@ export default function CloudXR3DUI({
     }
   });
 
+  /** Control panel hidden: small Show control (see settings to hide control panel on XR enter). */
+  const [panelHidden, setPanelHidden] = useState(false);
+  const prevXRMode = useRef(false);
+
+  useEffect(() => {
+    if (isXRMode && !prevXRMode.current) {
+      setPanelHidden(panelHiddenAtStart);
+    }
+    prevXRMode.current = isXRMode;
+  }, [isXRMode, panelHiddenAtStart]);
+
   // Keep localStorage in sync when the user toggles the option.
   useEffect(() => {
     try {
@@ -125,7 +144,10 @@ export default function CloudXR3DUI({
     }
   }, [position[0], position[1], position[2]]);
 
-  const isMinimized = minimizeOnPlay && playInProgress;
+  const isCompact = minimizeOnPlay && playInProgress;
+  const isMinimizedLayout = isCompact || panelHidden;
+  const handleWidth = panelHidden ? 0.12 : isCompact ? 0.28 : 1.0;
+  const handleY = panelHidden ? -0.065 : isCompact ? -0.15 : -0.42;
 
   // Face-camera rotation: smoothly rotate UI to face the user (Y-axis only)
   useFrame((state, dt) => {
@@ -165,40 +187,63 @@ export default function CloudXR3DUI({
         >
           <mesh
             ref={handleRef}
-            position={[0, isMinimized ? -0.15 : -0.42, 0.01]}
+            position={[0, handleY, 0.01]}
             onPointerEnter={() => {
               const mat = handleRef.current?.material as MeshStandardMaterial | undefined;
               if (mat) {
                 mat.color.copy(HANDLE_COLOR_HOVER);
-                mat.opacity = 0.9;
+                mat.opacity = panelHidden ? 0.55 : 0.9;
               }
             }}
             onPointerLeave={() => {
               const mat = handleRef.current?.material as MeshStandardMaterial | undefined;
               if (mat) {
                 mat.color.copy(HANDLE_COLOR_DEFAULT);
-                mat.opacity = 0.6;
+                mat.opacity = panelHidden ? 0.35 : 0.6;
               }
             }}
           >
-            <boxGeometry args={[isMinimized ? 0.28 : 1.0, 0.05, 0.02]} />
-            <meshStandardMaterial color="#666666" transparent opacity={0.6} roughness={0.5} />
+            <boxGeometry args={[handleWidth, panelHidden ? 0.035 : 0.05, 0.02]} />
+            <meshStandardMaterial
+              color="#666666"
+              transparent
+              opacity={panelHidden ? 0.35 : 0.6}
+              roughness={0.5}
+            />
           </mesh>
         </Handle>
 
         <Container
           pixelSize={0.001}
-          width={isMinimized ? 520 : 2000}
-          height={isMinimized ? 320 : 1400}
+          width={panelHidden ? 128 : isCompact ? 520 : 2000}
+          height={panelHidden ? 128 : isCompact ? 320 : 1400}
           alignItems="center"
           justifyContent="center"
           pointerEvents="auto"
-          padding={isMinimized ? 24 : 40}
-          sizeX={isMinimized ? 0.87 : 3.33}
-          sizeY={isMinimized ? 0.53 : 2.33}
+          padding={panelHidden ? 0 : isCompact ? 24 : 40}
+          sizeX={panelHidden ? 0.2 : isCompact ? 0.87 : 3.33}
+          sizeY={panelHidden ? 0.2 : isCompact ? 0.53 : 2.33}
           flexDirection="column"
         >
-          {isMinimized ? (
+          {panelHidden ? (
+            <Button
+              {...xrButton('show-panel', () => setPanelHidden(false))}
+              variant="default"
+              width={112}
+              height={112}
+              borderRadius={56}
+              backgroundColor="rgba(90, 130, 210, 0.42)"
+              hover={{
+                backgroundColor: 'rgba(90, 130, 210, 0.72)',
+                borderColor: 'rgba(255, 255, 255, 0.6)',
+                borderWidth: 2,
+              }}
+            >
+              <Text fontSize={26} color="rgba(255, 255, 255, 0.95)" fontWeight="bold">
+                Show
+              </Text>
+            </Button>
+          ) : isCompact ? (
             <Container
               width="100%"
               flexDirection="column"
@@ -230,26 +275,51 @@ export default function CloudXR3DUI({
                   </Text>
                 </Container>
               </Button>
-              <Button
-                {...xrButton('reset-min', onResetTeleop)}
-                variant="default"
-                width={400}
-                height={80}
-                borderRadius={24}
-                backgroundColor="rgba(220, 220, 220, 0.9)"
-                hover={{
-                  backgroundColor: 'rgba(100, 150, 255, 1)',
-                  borderColor: 'white',
-                  borderWidth: 2,
-                }}
+              <Container
+                flexDirection="row"
+                gap={14}
+                alignItems="center"
+                justifyContent="center"
+                width="100%"
               >
-                <Container flexDirection="row" alignItems="center" gap={8}>
-                  <Image src="./arrow-uturn-left.svg" width={40} height={40} />
-                  <Text fontSize={36} color="black" fontWeight="medium">
-                    Reset
+                <Button
+                  {...xrButton('reset-min', onResetTeleop)}
+                  variant="default"
+                  width={292}
+                  height={80}
+                  borderRadius={24}
+                  backgroundColor="rgba(220, 220, 220, 0.9)"
+                  hover={{
+                    backgroundColor: 'rgba(100, 150, 255, 1)',
+                    borderColor: 'white',
+                    borderWidth: 2,
+                  }}
+                >
+                  <Container flexDirection="row" alignItems="center" gap={8}>
+                    <Image src="./arrow-uturn-left.svg" width={40} height={40} />
+                    <Text fontSize={36} color="black" fontWeight="medium">
+                      Reset
+                    </Text>
+                  </Container>
+                </Button>
+                <Button
+                  {...xrButton('hide-panel-compact', () => setPanelHidden(true))}
+                  variant="default"
+                  width={94}
+                  height={80}
+                  borderRadius={20}
+                  backgroundColor="rgba(70, 75, 90, 0.55)"
+                  hover={{
+                    backgroundColor: 'rgba(90, 95, 115, 0.85)',
+                    borderColor: 'rgba(255, 255, 255, 0.5)',
+                    borderWidth: 2,
+                  }}
+                >
+                  <Text fontSize={26} color="rgba(255, 255, 255, 0.92)" fontWeight="medium">
+                    Hide
                   </Text>
-                </Container>
-              </Button>
+                </Button>
+              </Container>
             </Container>
           ) : (
             <Container
@@ -422,9 +492,10 @@ export default function CloudXR3DUI({
                     )}
                   </Container>
                   <Text fontSize={30} color="rgba(220, 220, 220, 1)">
-                    Minimize on play
+                    Minimize on play (compact controls)
                   </Text>
                 </Container>
+
               </Container>
 
               {/* Right Column - Controls */}
@@ -565,7 +636,12 @@ export default function CloudXR3DUI({
                   </Container>
 
                   {/* Bottom Row */}
-                  <Container flexDirection="row" justifyContent="center">
+                  <Container
+                    flexDirection="row"
+                    justifyContent="center"
+                    alignItems="center"
+                    gap={18}
+                  >
                     <Button
                       {...xrButton('disconnect', onDisconnect)}
                       variant="destructive"
@@ -585,6 +661,23 @@ export default function CloudXR3DUI({
                           Disconnect
                         </Text>
                       </Container>
+                    </Button>
+                    <Button
+                      {...xrButton('hide-panel-full', () => setPanelHidden(true))}
+                      variant="default"
+                      width={100}
+                      height={90}
+                      borderRadius={22}
+                      backgroundColor="rgba(70, 75, 90, 0.55)"
+                      hover={{
+                        backgroundColor: 'rgba(90, 95, 115, 0.88)',
+                        borderColor: 'rgba(255, 255, 255, 0.5)',
+                        borderWidth: 2,
+                      }}
+                    >
+                      <Text fontSize={28} color="rgba(255, 255, 255, 0.92)" fontWeight="medium">
+                        Hide
+                      </Text>
                     </Button>
                   </Container>
                 </Container>

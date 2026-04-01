@@ -524,11 +524,6 @@ limitations under the License.
                         </div>
                     </div>
 
-                    <label for="app" class="input-label">Application</label>
-                    <select id="app" name="app" class="ui-input" aria-label="Select application">
-                        <option value="generic">Generic Client</option>
-                        <!-- TODO: Add other applications here -->
-                    </select>
                     <label for="immersive" class="input-label">Immersive Mode</label>
                     <select id="immersive" name="immersive" class="ui-input" aria-label="Select immersive mode">
                         <option value="ar" selected>AR Immersive</option>
@@ -576,6 +571,18 @@ limitations under the License.
                     </select>
                     <div class="config-text">
                         Where the in-XR control panel appears when you enter the session: left, center, or right.
+                    </div>
+                </div>
+
+                <div class="config-section">
+                    <label for="panelHiddenAtStart" class="input-label">Control panel when entering XR</label>
+                    <select id="panelHiddenAtStart" name="panelHiddenAtStart" class="ui-input config-input"
+                        aria-label="Show or hide control panel when entering immersive XR">
+                        <option value="false" selected>Show control panel</option>
+                        <option value="true">Hide control panel</option>
+                    </select>
+                    <div class="config-text">
+                        If you hide the control panel, only a small control stays visible so you can show it again.
                     </div>
                 </div>
 
