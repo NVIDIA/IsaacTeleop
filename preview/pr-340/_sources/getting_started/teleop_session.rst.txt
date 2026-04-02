@@ -133,7 +133,7 @@ TeleopSession
 Methods
 """""""
 
-- ``step(external_inputs=None, graph_time=None, execution_events=None) -> Dict[str, TensorGroup]``
+- ``step(*, external_inputs=None, graph_time=None, execution_events=None) -> Dict[str, TensorGroup]``
   -- Execute one step: updates the DeviceIO session, polls tracker data, merges
   any caller-provided ``external_inputs``, and executes the retargeting pipeline.
   ``graph_time`` can be provided explicitly; when omitted, monotonic time is used
