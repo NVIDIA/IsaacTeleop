@@ -387,21 +387,26 @@
 <code class="docutils literal notranslate"><span class="pre">DefaultTeleopStateManager</span></code> and how to connect button inputs.</p>
 <section id="overview">
 <h2>Overview<a class="headerlink" href="#overview" title="Link to this heading">#</a></h2>
-<p>The state manager outputs:</p>
+<p><code class="docutils literal notranslate"><span class="pre">TeleopSession</span></code> expects the optional <code class="docutils literal notranslate"><span class="pre">teleop_control_pipeline</span></code> to expose
+this output contract:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">teleop_state</span></code>: one-hot execution state in this order:
 <code class="docutils literal notranslate"><span class="pre">STOPPED</span></code>, <code class="docutils literal notranslate"><span class="pre">PAUSED</span></code>, <code class="docutils literal notranslate"><span class="pre">RUNNING</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">reset_event</span></code>: bool pulse</p></li>
 </ul>
-<p>The state manager writes into <code class="docutils literal notranslate"><span class="pre">ComputeContext.execution_events</span></code> through
-<code class="docutils literal notranslate"><span class="pre">TeleopSession</span></code> so downstream retargeters and high-level app logic can read:</p>
+<p>When provided, <code class="docutils literal notranslate"><span class="pre">TeleopSession</span></code> decodes these outputs into
+<code class="docutils literal notranslate"><span class="pre">ComputeContext.execution_events</span></code> so downstream retargeters and high-level app
+logic can read:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">context.execution_events.execution_state</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">context.execution_events.reset</span></code></p></li>
 </ul>
+<p>Isaac Teleop provides <code class="docutils literal notranslate"><span class="pre">DefaultTeleopStateManager</span></code> as a ready-to-use default
+state machine. It should work for most setups, but you can also implement your
+own control state machine as long as it preserves the same output contract.</p>
 </section>
-<section id="default-two-button-behavior">
-<h2>Default Two-Button Behavior<a class="headerlink" href="#default-two-button-behavior" title="Link to this heading">#</a></h2>
+<section id="default-state-machine-behavior">
+<h2>Default State Machine Behavior<a class="headerlink" href="#default-state-machine-behavior" title="Link to this heading">#</a></h2>
 <p>Inputs (all optional bool signals):</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">kill_button</span></code></p></li>
@@ -559,7 +564,7 @@ or other high-level behavior:</p>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#default-two-button-behavior">Default Two-Button Behavior</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#default-state-machine-behavior">Default State Machine Behavior</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#connecting-inputs">Connecting Inputs</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-context-in-high-level-app-logic">Using Context in High-Level App Logic</a></li>
 </ul>

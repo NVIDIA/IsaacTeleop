@@ -10,20 +10,26 @@ This page describes the default teleop control state machine used by
 Overview
 --------
 
-The state manager outputs:
+``TeleopSession`` expects the optional ``teleop_control_pipeline`` to expose
+this output contract:
 
 - ``teleop_state``: one-hot execution state in this order:
   ``STOPPED``, ``PAUSED``, ``RUNNING``
 - ``reset_event``: bool pulse
 
-The state manager writes into ``ComputeContext.execution_events`` through
-``TeleopSession`` so downstream retargeters and high-level app logic can read:
+When provided, ``TeleopSession`` decodes these outputs into
+``ComputeContext.execution_events`` so downstream retargeters and high-level app
+logic can read:
 
 - ``context.execution_events.execution_state``
 - ``context.execution_events.reset``
 
-Default Two-Button Behavior
----------------------------
+Isaac Teleop provides ``DefaultTeleopStateManager`` as a ready-to-use default
+state machine. It should work for most setups, but you can also implement your
+own control state machine as long as it preserves the same output contract.
+
+Default State Machine Behavior
+------------------------------
 
 Inputs (all optional bool signals):
 
