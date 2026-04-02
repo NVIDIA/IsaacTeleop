@@ -434,6 +434,9 @@
 <ul class="simple">
 <li><p>If any required control input is absent for the frame, manager fail-safes to
 <code class="docutils literal notranslate"><span class="pre">STOPPED</span></code> and emits <code class="docutils literal notranslate"><span class="pre">reset_event</span> <span class="pre">=</span> <span class="pre">True</span></code>.</p></li>
+<li><p>This fail-safe is immediate (same frame). If teleop control inputs are lost
+(for example controller disconnect, tracking loss, or selector output becomes
+unavailable), execution state is forced to <code class="docutils literal notranslate"><span class="pre">STOPPED</span></code> right away.</p></li>
 </ul>
 </section>
 <section id="connecting-inputs">
@@ -480,6 +483,13 @@
 <li><p><code class="docutils literal notranslate"><span class="pre">threshold</span></code> / <code class="docutils literal notranslate"><span class="pre">release_threshold</span></code> for float hysteresis</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">activate_frames</span></code> / <code class="docutils literal notranslate"><span class="pre">deactivate_frames</span></code> for rising/falling debounce length</p></li>
 <li><p>automatic <code class="docutils literal notranslate"><span class="pre">None</span></code> propagation when upstream input is absent</p></li>
+</ul>
+<p>Important availability note:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">create_bool_selector</span></code> propagates unavailable upstream input as <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">DefaultTeleopStateManager</span></code> treats <code class="docutils literal notranslate"><span class="pre">None</span></code> on any required control input
+as a safety fault and immediately transitions to <code class="docutils literal notranslate"><span class="pre">STOPPED</span></code> with
+<code class="docutils literal notranslate"><span class="pre">reset_event</span> <span class="pre">=</span> <span class="pre">True</span></code>.</p></li>
 </ul>
 </section>
 <section id="using-context-in-high-level-app-logic">

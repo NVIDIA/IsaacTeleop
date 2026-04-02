@@ -53,6 +53,9 @@ Safety behavior:
 
 - If any required control input is absent for the frame, manager fail-safes to
   ``STOPPED`` and emits ``reset_event = True``.
+- This fail-safe is immediate (same frame). If teleop control inputs are lost
+  (for example controller disconnect, tracking loss, or selector output becomes
+  unavailable), execution state is forced to ``STOPPED`` right away.
 
 Connecting Inputs
 -----------------
@@ -101,6 +104,13 @@ Debounce behavior is configurable in ``create_bool_selector``:
 - ``threshold`` / ``release_threshold`` for float hysteresis
 - ``activate_frames`` / ``deactivate_frames`` for rising/falling debounce length
 - automatic ``None`` propagation when upstream input is absent
+
+Important availability note:
+
+- ``create_bool_selector`` propagates unavailable upstream input as ``None``.
+- ``DefaultTeleopStateManager`` treats ``None`` on any required control input
+  as a safety fault and immediately transitions to ``STOPPED`` with
+  ``reset_event = True``.
 
 Using Context in High-Level App Logic
 -------------------------------------
