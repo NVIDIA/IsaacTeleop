@@ -415,9 +415,9 @@ own control state machine as long as it preserves the same output contract.</p>
 </ul>
 <p>Transitions:</p>
 <ol class="arabic simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">kill_button</span></code> rising edge:</p>
+<li><p><code class="docutils literal notranslate"><span class="pre">kill_button</span></code> level-held:</p>
 <ul class="simple">
-<li><p>any state -&gt; <code class="docutils literal notranslate"><span class="pre">STOPPED</span></code></p></li>
+<li><p>while asserted, state is forced to <code class="docutils literal notranslate"><span class="pre">STOPPED</span></code></p></li>
 <li><p>emits <code class="docutils literal notranslate"><span class="pre">reset_event</span> <span class="pre">=</span> <span class="pre">True</span></code></p></li>
 </ul>
 </li>
@@ -439,6 +439,8 @@ own control state machine as long as it preserves the same output contract.</p>
 <ul class="simple">
 <li><p>If a required control input (kill/run-toggle) is absent for the frame, manager
 fail-safes to <code class="docutils literal notranslate"><span class="pre">STOPPED</span></code>.</p></li>
+<li><p>Loss-driven <code class="docutils literal notranslate"><span class="pre">reset_event</span></code> is edge-triggered on availability loss (emitted once
+on the first frame required inputs drop out, not unconditionally every frame).</p></li>
 <li><p>This fail-safe is immediate (same frame). If teleop control inputs are lost
 (for example controller disconnect, tracking loss, or selector output becomes
 unavailable), execution state is forced to <code class="docutils literal notranslate"><span class="pre">STOPPED</span></code> right away.</p></li>
@@ -495,8 +497,9 @@ for the full runnable setup.</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">create_bool_selector</span></code> propagates unavailable upstream input as <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">DefaultTeleopStateManager</span></code> treats <code class="docutils literal notranslate"><span class="pre">None</span></code> on any required control input
-as a safety fault and immediately transitions to <code class="docutils literal notranslate"><span class="pre">STOPPED</span></code> with
-<code class="docutils literal notranslate"><span class="pre">reset_event</span> <span class="pre">=</span> <span class="pre">True</span></code>.</p></li>
+as a safety fault and immediately transitions to <code class="docutils literal notranslate"><span class="pre">STOPPED</span></code>; when required
+inputs first become unavailable it emits a single loss-driven
+<code class="docutils literal notranslate"><span class="pre">reset_event</span> <span class="pre">=</span> <span class="pre">True</span></code> pulse.</p></li>
 </ul>
 </section>
 <section id="using-context-in-high-level-app-logic">

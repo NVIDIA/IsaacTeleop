@@ -39,9 +39,9 @@ Inputs (all optional bool signals):
 
 Transitions:
 
-1. ``kill_button`` rising edge:
+1. ``kill_button`` level-held:
 
-   - any state -> ``STOPPED``
+   - while asserted, state is forced to ``STOPPED``
    - emits ``reset_event = True``
 
 2. ``run_toggle_button`` rising edge:
@@ -59,6 +59,8 @@ Safety behavior:
 
 - If a required control input (kill/run-toggle) is absent for the frame, manager
   fail-safes to ``STOPPED``.
+- Loss-driven ``reset_event`` is edge-triggered on availability loss (emitted once
+  on the first frame required inputs drop out, not unconditionally every frame).
 - This fail-safe is immediate (same frame). If teleop control inputs are lost
   (for example controller disconnect, tracking loss, or selector output becomes
   unavailable), execution state is forced to ``STOPPED`` right away.
@@ -117,8 +119,9 @@ Important availability note:
 
 - ``create_bool_selector`` propagates unavailable upstream input as ``None``.
 - ``DefaultTeleopStateManager`` treats ``None`` on any required control input
-  as a safety fault and immediately transitions to ``STOPPED`` with
-  ``reset_event = True``.
+  as a safety fault and immediately transitions to ``STOPPED``; when required
+  inputs first become unavailable it emits a single loss-driven
+  ``reset_event = True`` pulse.
 
 Using Context in High-Level App Logic
 -------------------------------------
