@@ -57,7 +57,7 @@ Safety behavior:
 Connecting Inputs
 -----------------
 
-Use one bool selector per signal (simple wiring, no multi-input lambdas):
+Use one debounced selector per signal (simple wiring, no multi-input lambdas):
 
 .. code-block:: python
 
@@ -74,29 +74,17 @@ Use one bool selector per signal (simple wiring, no multi-input lambdas):
    kill_signal = create_bool_selector(
        left,
        name="kill_signal_selector",
-       selector_fn=lambda inputs: (
-           None
-           if inputs["selected_input"].is_none
-           else float(inputs["selected_input"][ControllerInputIndex.SECONDARY_CLICK]) > 0.5
-       ),
+       selector_fn=lambda selected: selected[ControllerInputIndex.SECONDARY_CLICK],
    )
    run_toggle_signal = create_bool_selector(
        left,
        name="run_toggle_signal_selector",
-       selector_fn=lambda inputs: (
-           None
-           if inputs["selected_input"].is_none
-           else float(inputs["selected_input"][ControllerInputIndex.PRIMARY_CLICK]) > 0.5
-       ),
+       selector_fn=lambda selected: selected[ControllerInputIndex.PRIMARY_CLICK],
    )
    reset_signal = create_bool_selector(
        left,
        name="reset_signal_selector",
-       selector_fn=lambda inputs: (
-           None
-           if inputs["selected_input"].is_none
-           else float(inputs["selected_input"][ControllerInputIndex.THUMBSTICK_CLICK]) > 0.5
-       ),
+       selector_fn=lambda selected: selected[ControllerInputIndex.THUMBSTICK_CLICK],
    )
 
    manager = DefaultTeleopStateManager(name="teleop_manager")
@@ -107,6 +95,12 @@ Use one bool selector per signal (simple wiring, no multi-input lambdas):
            manager.INPUT_RESET: reset_signal.output("value"),
        }
    )
+
+Debounce behavior is configurable in ``create_bool_selector``:
+
+- ``threshold`` / ``release_threshold`` for float hysteresis
+- ``activate_frames`` / ``deactivate_frames`` for rising/falling debounce length
+- automatic ``None`` propagation when upstream input is absent
 
 Using Context in High-Level App Logic
 -------------------------------------
