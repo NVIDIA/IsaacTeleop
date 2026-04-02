@@ -446,7 +446,9 @@ unavailable), execution state is forced to <code class="docutils literal notrans
 </section>
 <section id="connecting-inputs">
 <h2>Connecting Inputs<a class="headerlink" href="#connecting-inputs" title="Link to this heading">#</a></h2>
-<p>Use one debounced selector per signal (simple wiring, no multi-input lambdas):</p>
+<p>Use one debounced selector per signal (simple wiring, no multi-input lambdas):
+see <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/examples/teleop_session_manager/python/teleop_controls_simple_example.py" rel="noopener noreferrer" target="_blank">teleop_controls_simple_example.py</a>
+for the full runnable setup.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.retargeting_engine.deviceio_source_nodes</span><span class="w"> </span><span class="kn">import</span> <span class="n">ControllersSource</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.retargeting_engine.tensor_types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ControllerInputIndex</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.teleop_session_manager</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
