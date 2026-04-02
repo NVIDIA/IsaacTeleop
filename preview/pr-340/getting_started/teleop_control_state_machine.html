@@ -390,8 +390,8 @@
 <p><code class="docutils literal notranslate"><span class="pre">TeleopSession</span></code> expects the optional <code class="docutils literal notranslate"><span class="pre">teleop_control_pipeline</span></code> to expose
 this output contract:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">teleop_state</span></code>: one-hot execution state in this order:
-<code class="docutils literal notranslate"><span class="pre">STOPPED</span></code>, <code class="docutils literal notranslate"><span class="pre">PAUSED</span></code>, <code class="docutils literal notranslate"><span class="pre">RUNNING</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">teleop_state</span></code>: one-hot execution state channels in this order:
+<code class="docutils literal notranslate"><span class="pre">stopped</span></code>, <code class="docutils literal notranslate"><span class="pre">paused</span></code>, <code class="docutils literal notranslate"><span class="pre">running</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">reset_event</span></code>: bool pulse</p></li>
 </ul>
 <p>When provided, <code class="docutils literal notranslate"><span class="pre">TeleopSession</span></code> decodes these outputs into
@@ -437,8 +437,8 @@ own control state machine as long as it preserves the same output contract.</p>
 </ol>
 <p>Safety behavior:</p>
 <ul class="simple">
-<li><p>If any required control input is absent for the frame, manager fail-safes to
-<code class="docutils literal notranslate"><span class="pre">STOPPED</span></code> and emits <code class="docutils literal notranslate"><span class="pre">reset_event</span> <span class="pre">=</span> <span class="pre">True</span></code>.</p></li>
+<li><p>If a required control input (kill/run-toggle) is absent for the frame, manager
+fail-safes to <code class="docutils literal notranslate"><span class="pre">STOPPED</span></code>.</p></li>
 <li><p>This fail-safe is immediate (same frame). If teleop control inputs are lost
 (for example controller disconnect, tracking loss, or selector output becomes
 unavailable), execution state is forced to <code class="docutils literal notranslate"><span class="pre">STOPPED</span></code> right away.</p></li>

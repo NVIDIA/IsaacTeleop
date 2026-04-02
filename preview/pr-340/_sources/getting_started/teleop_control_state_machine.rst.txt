@@ -13,8 +13,8 @@ Overview
 ``TeleopSession`` expects the optional ``teleop_control_pipeline`` to expose
 this output contract:
 
-- ``teleop_state``: one-hot execution state in this order:
-  ``STOPPED``, ``PAUSED``, ``RUNNING``
+- ``teleop_state``: one-hot execution state channels in this order:
+  ``stopped``, ``paused``, ``running``
 - ``reset_event``: bool pulse
 
 When provided, ``TeleopSession`` decodes these outputs into
@@ -57,8 +57,8 @@ Transitions:
 
 Safety behavior:
 
-- If any required control input is absent for the frame, manager fail-safes to
-  ``STOPPED`` and emits ``reset_event = True``.
+- If a required control input (kill/run-toggle) is absent for the frame, manager
+  fail-safes to ``STOPPED``.
 - This fail-safe is immediate (same frame). If teleop control inputs are lost
   (for example controller disconnect, tracking loss, or selector output becomes
   unavailable), execution state is forced to ``STOPPED`` right away.
