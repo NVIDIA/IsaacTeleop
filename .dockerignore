@@ -1,0 +1,21 @@
+# Keep Docker build contexts lean for CloudXR compose builds.
+# Ignore everything by default, then allow only what current Dockerfiles need.
+
+*
+
+# Allow Docker metadata files.
+!.dockerignore
+
+# Allow CloudXR Dockerfiles and runtime assets.
+!deps/cloudxr/
+
+# Allow build artifacts and tests consumed by Dockerfile.test and Dockerfile.runtime.
+!install/
+!examples/
+
+# Allow building from source for ros2 workflows
+!cmake/
+!deps/
+!src/
+!CMakeLists.txt
+!VERSION

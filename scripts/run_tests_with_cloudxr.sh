@@ -248,22 +248,24 @@ fi
 export EXPECTED_ISAACTELEOP_VERSION
 log_info "Expected isaacteleop version from wheel artifact: $EXPECTED_ISAACTELEOP_VERSION"
 
-# Build test container
-log_info "Building test container..."
+# Build CloudXR runtime + test services via compose
+log_info "Building CloudXR runtime and test containers..."
 
-BUILD_ARGS="-q"
+COMPOSE_BUILD_ARGS=()
 if [ "$FORCE_BUILD" = true ]; then
-    BUILD_ARGS="$BUILD_ARGS --no-cache"
+    COMPOSE_BUILD_ARGS+=(--no-cache)
 fi
 
-docker build \
-    $BUILD_ARGS \
-    --build-arg PYTHON_VERSION="$PYTHON_VERSION" \
-    -t isaacteleop-tests:latest \
-    -f deps/cloudxr/Dockerfile.test \
-    .
+docker compose \
+    -p "$COMPOSE_PROJECT" \
+    --env-file "$ENV_DEFAULT" \
+    ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
+    ${ENV_TEST:+--env-file "$ENV_TEST"} \
+    -f "$COMPOSE_RUNTIME" \
+    -f "$COMPOSE_TEST" \
+    build "${COMPOSE_BUILD_ARGS[@]}" cloudxr-runtime isaacteleop-tests
 
-log_success "Test container built successfully"
+log_success "CloudXR runtime and test containers built successfully"
 
 # Start CloudXR runtime services
 log_info "Starting CloudXR runtime services..."
@@ -275,7 +277,7 @@ docker compose \
     ${ENV_TEST:+--env-file "$ENV_TEST"} \
     -f "$COMPOSE_RUNTIME" \
     -f "$COMPOSE_TEST" \
-    up --build -d cloudxr-runtime
+    up -d cloudxr-runtime
 
 # Wait for CloudXR runtime to be healthy
 log_info "Waiting for CloudXR runtime to be healthy..."
