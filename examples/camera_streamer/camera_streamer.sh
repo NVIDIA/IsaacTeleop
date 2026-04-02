@@ -58,7 +58,7 @@ ensure_image() {
     tag="$(image_tag)"
     if ! docker image inspect "$tag" >/dev/null 2>&1; then
         log_warn "Image $tag not found, building..."
-        cmd_build
+        cmd_build "$@"
     fi
 }
 
@@ -448,7 +448,7 @@ cmd_deploy_sender() {
         esac
     done
 
-    ensure_image
+    ensure_image --sender-only
     local TAG
     TAG="$(image_tag)"
 

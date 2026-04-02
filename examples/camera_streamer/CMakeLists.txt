@@ -17,8 +17,13 @@ cmake_minimum_required(VERSION 3.22)
 # with --runtime nvidia (GPU accessible) and CUDA 13 dropped compute < 7.0.
 # Without this, CMAKE_POLICY_VERSION_MINIMUM=3.5 causes CMake to default to
 # compute_52 which nvcc 13 rejects.
+# "native" requires CMake 3.24+; fall back to "all" on older versions.
 if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-  set(CMAKE_CUDA_ARCHITECTURES native)
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
+    set(CMAKE_CUDA_ARCHITECTURES native)
+  else()
+    set(CMAKE_CUDA_ARCHITECTURES all)
+  endif()
 endif()
 
 project(camera_streamer LANGUAGES CXX CUDA)
