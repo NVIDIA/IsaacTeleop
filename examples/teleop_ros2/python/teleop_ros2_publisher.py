@@ -18,7 +18,7 @@ published:
   - controller_raw: controller_data only
   - full_body: full_body and controller_data
 
-Topic names (configurable via parameters):
+Topic names (remappable via ROS 2 remapping):
   - xr_teleop/hand (PoseArray): [finger_joint_poses...]
   - xr_teleop/ee_poses (PoseArray): [right_ee, left_ee]
   - xr_teleop/root_twist (TwistStamped): root velocity command
@@ -380,18 +380,11 @@ def _build_full_body_payload(full_body: OptionalTensorGroup) -> Dict:
 
 
 class TeleopRos2PublisherNode(Node):
-    """ROS 2 node that publishes teleop data to configurable topics."""
+    """ROS 2 node that publishes teleop data."""
 
     def __init__(self) -> None:
         super().__init__("teleop_ros2_publisher")
 
-        self.declare_parameter("hand_topic", "xr_teleop/hand")
-        self.declare_parameter("ee_pose_topic", "xr_teleop/ee_poses")
-        self.declare_parameter("root_twist_topic", "xr_teleop/root_twist")
-        self.declare_parameter("root_pose_topic", "xr_teleop/root_pose")
-        self.declare_parameter("controller_topic", "xr_teleop/controller_data")
-        self.declare_parameter("full_body_topic", "xr_teleop/full_body")
-        self.declare_parameter("finger_joints_topic", "xr_teleop/finger_joints")
         self.declare_parameter("rate_hz", 60.0)
         self.declare_parameter("mode", "controller_teleop")
         self.declare_parameter(
@@ -415,27 +408,6 @@ class TeleopRos2PublisherNode(Node):
             ParameterDescriptor(description="TF child frame name for the left wrist."),
         )
 
-        self._hand_topic = (
-            self.get_parameter("hand_topic").get_parameter_value().string_value
-        )
-        self._ee_pose_topic = (
-            self.get_parameter("ee_pose_topic").get_parameter_value().string_value
-        )
-        self._root_twist_topic = (
-            self.get_parameter("root_twist_topic").get_parameter_value().string_value
-        )
-        self._root_pose_topic = (
-            self.get_parameter("root_pose_topic").get_parameter_value().string_value
-        )
-        self._controller_topic = (
-            self.get_parameter("controller_topic").get_parameter_value().string_value
-        )
-        self._full_body_topic = (
-            self.get_parameter("full_body_topic").get_parameter_value().string_value
-        )
-        self._finger_joints_topic = (
-            self.get_parameter("finger_joints_topic").get_parameter_value().string_value
-        )
         rate_hz = self.get_parameter("rate_hz").get_parameter_value().double_value
         if rate_hz <= 0 or not math.isfinite(rate_hz):
             raise ValueError("Parameter 'rate_hz' must be > 0")
@@ -476,22 +448,22 @@ class TeleopRos2PublisherNode(Node):
 
         self._tf_broadcaster = TransformBroadcaster(self)
 
-        self._pub_hand = self.create_publisher(PoseArray, self._hand_topic, 10)
-        self._pub_ee_pose = self.create_publisher(PoseArray, self._ee_pose_topic, 10)
+        self._pub_hand = self.create_publisher(PoseArray, "xr_teleop/hand", 10)
+        self._pub_ee_pose = self.create_publisher(PoseArray, "xr_teleop/ee_poses", 10)
         self._pub_root_twist = self.create_publisher(
-            TwistStamped, self._root_twist_topic, 10
+            TwistStamped, "xr_teleop/root_twist", 10
         )
         self._pub_root_pose = self.create_publisher(
-            PoseStamped, self._root_pose_topic, 10
+            PoseStamped, "xr_teleop/root_pose", 10
         )
         self._pub_controller = self.create_publisher(
-            ByteMultiArray, self._controller_topic, 10
+            ByteMultiArray, "xr_teleop/controller_data", 10
         )
         self._pub_full_body = self.create_publisher(
-            ByteMultiArray, self._full_body_topic, 10
+            ByteMultiArray, "xr_teleop/full_body", 10
         )
         self._pub_finger_joints = self.create_publisher(
-            JointState, self._finger_joints_topic, 10
+            JointState, "xr_teleop/finger_joints", 10
         )
 
         hands = HandsSource(name="hands")
