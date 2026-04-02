@@ -120,6 +120,8 @@ or other high-level behavior:
 
 .. code-block:: python
 
+   from isaacteleop.retargeting_engine.interface.execution_events import ExecutionState
+
    outputs = session.step()
    context = session.last_context
    if context is not None:
