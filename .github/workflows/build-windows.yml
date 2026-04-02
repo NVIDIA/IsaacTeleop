@@ -39,7 +39,7 @@ jobs:
       uses: ./.github/actions/setup-uv
 
     - name: Setup sccache
-      uses: Mozilla-Actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
+      uses: Mozilla-Actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad  # v0.0.9
 
     # Hunter cache - caches depthai dependencies
     # Note: Hunter uses C:/.hunter on Windows (at drive root)
