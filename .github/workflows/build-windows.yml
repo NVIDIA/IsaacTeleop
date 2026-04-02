@@ -53,7 +53,7 @@ jobs:
 
     - name: Verify sccache
       run: |
-        & "${env:SCCACHE_PATH}" --version
+        sccache --version
 
     # Put cl.exe and other build tools in PATH
     - name: Setup MSVC (Developer Command Prompt)
