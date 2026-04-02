@@ -40,7 +40,7 @@ public:
     LiveFrameMetadataTrackerOakImpl(LiveFrameMetadataTrackerOakImpl&&) = delete;
     LiveFrameMetadataTrackerOakImpl& operator=(LiveFrameMetadataTrackerOakImpl&&) = delete;
 
-    void update(XrTime time) override;
+    void update(int64_t graph_time_ns) override;
     const FrameMetadataOakTrackedT& get_stream_data(size_t stream_index) const override;
 
 private:

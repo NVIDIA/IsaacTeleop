@@ -9,6 +9,8 @@ Query required extensions before creating an OpenXR session; individual trackers
 do not expose get_required_extensions().
 """
 
+import time
+
 import isaacteleop.deviceio as deviceio
 import isaacteleop.oxr as oxr
 
@@ -87,7 +89,7 @@ with oxr.OpenXRSession("ExtensionTest", required_exts) as oxr_session:
         print("  ✅ Initialized successfully")
 
         # Quick update test
-        session.update()
+        session.update(time.monotonic_ns())
         left_tracked = hand.get_left_hand(session)
         head_tracked = head.get_head(session)
         print("  ✅ Update successful")

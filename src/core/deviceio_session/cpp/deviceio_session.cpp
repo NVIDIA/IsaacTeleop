@@ -24,7 +24,7 @@ namespace core
 DeviceIOSession::DeviceIOSession(const std::vector<std::shared_ptr<ITracker>>& trackers,
                                  const OpenXRSessionHandles& handles,
                                  std::optional<McapRecordingConfig> recording_config)
-    : handles_(handles), time_converter_(handles)
+    : handles_(handles)
 {
     std::vector<std::pair<const ITracker*, std::string>> tracker_names;
 
@@ -101,13 +101,11 @@ std::unique_ptr<DeviceIOSession> DeviceIOSession::run(const std::vector<std::sha
     return std::unique_ptr<DeviceIOSession>(new DeviceIOSession(trackers, handles, std::move(recording_config)));
 }
 
-void DeviceIOSession::update()
+void DeviceIOSession::update(int64_t graph_time_ns)
 {
-    XrTime current_time = time_converter_.os_monotonic_now();
-
     for (auto& kv : tracker_impls_)
     {
-        kv.second->update(current_time);
+        kv.second->update(graph_time_ns);
     }
 }
 

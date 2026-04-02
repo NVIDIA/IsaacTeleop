@@ -33,6 +33,7 @@ target_link_libraries(live_trackers
         deviceio::deviceio_base
         deviceio::deviceio_trackers
         mcap::mcap_core
+        oxr::oxr_utils
         Teleop::openxr_extensions
 )
 

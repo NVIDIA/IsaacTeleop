@@ -40,12 +40,13 @@ LiveHeadTrackerImpl::LiveHeadTrackerImpl(const OpenXRSessionHandles& handles,
 {
 }
 
-void LiveHeadTrackerImpl::update(XrTime time)
+void LiveHeadTrackerImpl::update(int64_t graph_time_ns)
 {
-    last_update_time_ = time;
+    int64_t now_ns = os_monotonic_now_ns();
+    XrTime xr_time = time_converter_.convert_monotonic_ns_to_xrtime(now_ns);
 
     XrSpaceLocation location{ XR_TYPE_SPACE_LOCATION };
-    XrResult result = core_funcs_.xrLocateSpace(view_space_.get(), base_space_, time, &location);
+    XrResult result = core_funcs_.xrLocateSpace(view_space_.get(), base_space_, xr_time, &location);
 
     if (XR_FAILED(result))
     {
@@ -78,9 +79,10 @@ void LiveHeadTrackerImpl::update(XrTime time)
 
     if (mcap_channels_)
     {
-        int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
-        DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
-        mcap_channels_->write(0, timestamp, tracked_.data);
+        // TODO: Replace with actual client-reported sample/available timestamps
+        // once the runtime exposes per-sample timing metadata.
+        DeviceDataTimestamp timestamp(now_ns, now_ns, static_cast<int64_t>(xr_time));
+        mcap_channels_->write(0, graph_time_ns, timestamp, tracked_.data);
     }
 }
 

@@ -41,7 +41,8 @@ PYBIND11_MODULE(_deviceio_session, m)
 
     py::class_<core::PyDeviceIOSession, core::ITrackerSession, std::unique_ptr<core::PyDeviceIOSession>>(
         m, "DeviceIOSession")
-        .def("update", &core::PyDeviceIOSession::update, "Update session and all trackers")
+        .def("update", &core::PyDeviceIOSession::update, py::arg("graph_time_ns"),
+             "Update session and all trackers. graph_time_ns is used as MCAP logTime/publishTime.")
         .def("close", &core::PyDeviceIOSession::close,
              "Release the native session immediately (usually automatic via context manager)")
         .def("__enter__", &core::PyDeviceIOSession::enter)

@@ -85,7 +85,7 @@ TEST_CASE("McapTrackerChannels: typed write produces readable MCAP with correct 
     {
         auto writer = open_writer(path);
         HeadChannels ch(*writer, "tracking", core::HeadRecordingTraits::schema_name, { "head" });
-        ch.write(0, core::DeviceDataTimestamp(1000000, 1000000, 42), head_data);
+        ch.write(0, 9999, core::DeviceDataTimestamp(1000000, 800000, 42), head_data);
         writer->close();
     }
 
@@ -97,11 +97,13 @@ TEST_CASE("McapTrackerChannels: typed write produces readable MCAP with correct 
     {
         CHECK(view.channel->topic == "tracking/head");
         CHECK(view.schema->name == core::HeadRecordingTraits::schema_name);
-        CHECK(view.message.logTime == 1000000);
+        CHECK(view.message.logTime == 9999);
 
         auto record = flatbuffers::GetRoot<core::HeadPoseRecord>(view.message.data);
         REQUIRE(record != nullptr);
         REQUIRE(record->timestamp() != nullptr);
+        CHECK(record->timestamp()->available_time_local_common_clock() == 1000000);
+        CHECK(record->timestamp()->sample_time_local_common_clock() == 800000);
         CHECK(record->timestamp()->sample_time_raw_device_clock() == 42);
         REQUIRE(record->data() != nullptr);
         CHECK(record->data()->is_valid() == true);
@@ -129,7 +131,7 @@ TEST_CASE("McapTrackerChannels: null data writes record with timestamp only", "[
     {
         auto writer = open_writer(path);
         HeadChannels ch(*writer, "tracking", core::HeadRecordingTraits::schema_name, { "head" });
-        ch.write(0, core::DeviceDataTimestamp(500, 500, 10), std::shared_ptr<core::HeadPoseT>{ nullptr });
+        ch.write(0, 500, core::DeviceDataTimestamp(500, 500, 10), std::shared_ptr<core::HeadPoseT>{ nullptr });
         writer->close();
     }
 
@@ -161,8 +163,8 @@ TEST_CASE("McapTrackerChannels: multi-channel write routes to correct topics", "
     {
         auto writer = open_writer(path);
         HeadChannels ch(*writer, "hands", core::HeadRecordingTraits::schema_name, { "left", "right" });
-        ch.write(0, core::DeviceDataTimestamp(100, 100, 1), data);
-        ch.write(1, core::DeviceDataTimestamp(200, 200, 2), data);
+        ch.write(0, 100, core::DeviceDataTimestamp(100, 100, 1), data);
+        ch.write(1, 200, core::DeviceDataTimestamp(200, 200, 2), data);
         writer->close();
     }
 
@@ -190,7 +192,7 @@ TEST_CASE("McapTrackerChannels: out-of-range channel_index throws", "[mcap][trac
 
     auto writer = open_writer(path);
     HeadChannels ch(*writer, "test", core::HeadRecordingTraits::schema_name, { "only" });
-    CHECK_THROWS_AS(ch.write(99, core::DeviceDataTimestamp(100, 100, 1), data), std::out_of_range);
+    CHECK_THROWS_AS(ch.write(99, 100, core::DeviceDataTimestamp(100, 100, 1), data), std::out_of_range);
     writer->close();
 }
 
@@ -204,9 +206,9 @@ TEST_CASE("McapTrackerChannels: sequence numbers increment across writes", "[mca
     {
         auto writer = open_writer(path);
         HeadChannels ch(*writer, "seq", core::HeadRecordingTraits::schema_name, { "ch" });
-        ch.write(0, core::DeviceDataTimestamp(100, 100, 1), data);
-        ch.write(0, core::DeviceDataTimestamp(200, 200, 2), data);
-        ch.write(0, core::DeviceDataTimestamp(300, 300, 3), data);
+        ch.write(0, 100, core::DeviceDataTimestamp(100, 100, 1), data);
+        ch.write(0, 200, core::DeviceDataTimestamp(200, 200, 2), data);
+        ch.write(0, 300, core::DeviceDataTimestamp(300, 300, 3), data);
         writer->close();
     }
 
@@ -238,9 +240,9 @@ TEST_CASE("McapTrackerChannels: multiple same-type channel instances share one w
         HeadChannels head_ch(*writer, "head", core::HeadRecordingTraits::schema_name, { "pose" });
         HeadChannels ctrl_ch(*writer, "ctrl", core::HeadRecordingTraits::schema_name, { "left", "right" });
 
-        head_ch.write(0, core::DeviceDataTimestamp(100, 100, 1), data);
-        ctrl_ch.write(0, core::DeviceDataTimestamp(200, 200, 2), data);
-        ctrl_ch.write(1, core::DeviceDataTimestamp(300, 300, 3), data);
+        head_ch.write(0, 100, core::DeviceDataTimestamp(100, 100, 1), data);
+        ctrl_ch.write(0, 200, core::DeviceDataTimestamp(200, 200, 2), data);
+        ctrl_ch.write(1, 300, core::DeviceDataTimestamp(300, 300, 3), data);
         writer->close();
     }
 

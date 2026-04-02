@@ -83,8 +83,8 @@ with oxr.OpenXRSession("SessionSharingExample", extensions) as oxr_session:
         frame_count = 0
         while time.time() - start_time < 5.0:
             # Both sessions update using the same underlying OpenXR session
-            session1.update()
-            session2.update()
+            session1.update(time.monotonic_ns())
+            session2.update(time.monotonic_ns())
 
             # Print status every 60 frames
             if frame_count % 60 == 0:

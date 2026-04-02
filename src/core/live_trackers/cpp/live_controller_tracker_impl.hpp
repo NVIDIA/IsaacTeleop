@@ -40,7 +40,7 @@ public:
     LiveControllerTrackerImpl(LiveControllerTrackerImpl&&) = delete;
     LiveControllerTrackerImpl& operator=(LiveControllerTrackerImpl&&) = delete;
 
-    void update(XrTime time) override;
+    void update(int64_t graph_time_ns) override;
     const ControllerSnapshotTrackedT& get_left_controller() const override;
     const ControllerSnapshotTrackedT& get_right_controller() const override;
 
@@ -75,7 +75,6 @@ private:
 
     ControllerSnapshotTrackedT left_tracked_;
     ControllerSnapshotTrackedT right_tracked_;
-    XrTime last_update_time_ = 0;
 
     std::unique_ptr<ControllerMcapChannels> mcap_channels_;
 };

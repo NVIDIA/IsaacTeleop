@@ -110,7 +110,7 @@ def main():
             try:
                 while time.time() - start_time < 10.0:
                     # Update session and all trackers
-                    session.update()
+                    session.update(time.monotonic_ns())
 
                     # Get hand data
                     left_tracked: schema.HandPoseTrackedT = hand_tracker.get_left_hand(

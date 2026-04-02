@@ -5,6 +5,7 @@
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
 #include <oxr/oxr_session.hpp>
+#include <oxr_utils/os_time.hpp>
 
 #include <iostream>
 #include <memory>
@@ -76,7 +77,7 @@ try
     for (int i = 0; i < 5; ++i)
     {
         // Session handles internal update() calls to trackers
-        session->update();
+        session->update(core::os_monotonic_now_ns());
 
         // External user only uses public query methods
         const auto& left_tracked = hand_tracker->get_left_hand(*session);

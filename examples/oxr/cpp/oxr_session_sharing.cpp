@@ -5,6 +5,7 @@
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
 #include <oxr/oxr_session.hpp>
+#include <oxr_utils/os_time.hpp>
 
 #include <chrono>
 #include <iostream>
@@ -76,8 +77,9 @@ try
     for (int i = 0; i < 10; ++i)
     {
         // Both sessions update using the same underlying OpenXR session
-        session1->update();
-        session2->update();
+        const int64_t graph_time_ns = core::os_monotonic_now_ns();
+        session1->update(graph_time_ns);
+        session2->update(graph_time_ns);
 
         // Get data from both trackers
         const auto& left_tracked = hand_tracker->get_left_hand(*session1);

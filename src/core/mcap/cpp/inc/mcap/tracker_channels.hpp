@@ -57,7 +57,21 @@ public:
         }
     }
 
-    void write(size_t channel_index, const DeviceDataTimestamp& timestamp, const std::shared_ptr<NativeDataT>& data)
+    /**
+     * @brief Serialize a FlatBuffer record and write it to the MCAP channel.
+     *
+     * @param channel_index Sub-channel index (0-based) within this writer.
+     * @param log_time_ns   Monotonic nanoseconds used as the MCAP envelope
+     *                      logTime and publishTime. Independent of the
+     *                      DeviceDataTimestamp fields embedded in the record.
+     * @param timestamp     DeviceDataTimestamp embedded inside the FlatBuffer
+     *                      record payload (available, sample, raw-device times).
+     * @param data          Data to serialize; null writes a timestamp-only record.
+     */
+    void write(size_t channel_index,
+               int64_t log_time_ns,
+               const DeviceDataTimestamp& timestamp,
+               const std::shared_ptr<NativeDataT>& data)
     {
         if (channel_index >= channel_ids_.size())
         {
@@ -85,7 +99,7 @@ public:
 
         mcap::Message msg;
         msg.channelId = channel_ids_[channel_index];
-        msg.logTime = static_cast<mcap::Timestamp>(timestamp.available_time_local_common_clock());
+        msg.logTime = static_cast<mcap::Timestamp>(log_time_ns);
         msg.publishTime = msg.logTime;
         msg.sequence = sequence_++;
         msg.data = reinterpret_cast<const std::byte*>(builder.GetBufferPointer());

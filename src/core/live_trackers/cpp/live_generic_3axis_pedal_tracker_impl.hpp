@@ -38,7 +38,7 @@ public:
     LiveGeneric3AxisPedalTrackerImpl(LiveGeneric3AxisPedalTrackerImpl&&) = delete;
     LiveGeneric3AxisPedalTrackerImpl& operator=(LiveGeneric3AxisPedalTrackerImpl&&) = delete;
 
-    void update(XrTime time) override;
+    void update(int64_t graph_time_ns) override;
     const Generic3AxisPedalOutputTrackedT& get_data() const override;
 
 private:
