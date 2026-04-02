@@ -34,6 +34,7 @@ STATS_INTERVAL_SEC = 30.0
 # Reconnection settings
 MAX_CONSECUTIVE_FAILURES = 10  # Failures before attempting reconnect
 RECONNECT_DELAY_SEC = 2.0  # Delay between reconnection attempts
+STARVATION_TIMEOUT_SEC = 5.0  # No frames for this long triggers reconnect
 
 
 class OakdCameraMode(Enum):
@@ -64,6 +65,7 @@ class _StreamState:
     """Per-stream state for queues, buffers, counters."""
 
     name: str
+    socket_name: str | None = None
     stream_id: int = 0
     raw_port: str = ""
     h264_port: str = ""
@@ -167,9 +169,10 @@ class OakdCameraOp(Operator):
         }[self._mode]
 
         self._streams: dict[str, _StreamState] = {}
-        for name, _socket, raw_port, h264_port in stream_defs:
+        for name, socket_name, raw_port, h264_port in stream_defs:
             self._streams[name] = _StreamState(
                 name=name,
+                socket_name=socket_name,
                 stream_id=stream_ids.get(name, 0),
                 raw_port=raw_port,
                 h264_port=h264_port,
@@ -181,6 +184,7 @@ class OakdCameraOp(Operator):
         self._last_reconnect_time = 0.0
         self._is_disconnected = False
         self._last_log_time = 0.0
+        self._last_emit_time = 0.0  # Set on first successful emit; 0 = never emitted
 
         super().__init__(fragment, *args, **kwargs)
 
@@ -274,25 +278,18 @@ class OakdCameraOp(Operator):
             pipeline = dai.Pipeline(self._device)
             is_h264 = self._output_format == OakdOutputFormat.H264
 
-            stream_defs = {
-                OakdCameraMode.MONO: _MONO_STREAMS,
-                OakdCameraMode.STEREO: _STEREO_STREAMS,
-                OakdCameraMode.STEREO_RGB: _STEREO_RGB_STREAMS,
-            }[self._mode]
-
-            for name, socket_name, _, _ in stream_defs:
+            for stream in self._streams.values():
                 socket = (
                     self._get_camera_socket()
                     if self._mode == OakdCameraMode.MONO
-                    else self._get_camera_socket(socket_name)
+                    else self._get_camera_socket(stream.socket_name)
                 )
-                w, h, fps = self._stream_resolution(name)
-                frame_type = self._stream_frame_type(name)
+                w, h, fps = self._stream_resolution(stream.name)
+                frame_type = self._stream_frame_type(stream.name)
 
                 cam = pipeline.create(dai.node.Camera).build(socket)
                 output = cam.requestOutput((w, h), type=frame_type, fps=fps)
 
-                stream = self._streams[name]
                 if is_h264:
                     encoder = self._create_encoder(pipeline, output, fps)
                     stream.queue = encoder.out.createOutputQueue(maxSize=4, blocking=False)
@@ -330,6 +327,7 @@ class OakdCameraOp(Operator):
 
         self._consecutive_failures = 0
         self._is_disconnected = False
+        self._last_emit_time = 0.0
         self._last_log_time = time.monotonic()
 
         reconnect_str = f" (reconnect #{self._reconnect_attempts})" if self._reconnect_attempts > 0 else ""
@@ -410,7 +408,14 @@ class OakdCameraOp(Operator):
 
             if emitted:
                 self._consecutive_failures = 0
+                self._last_emit_time = time.monotonic()
                 self._log_stats()
+            elif self._last_emit_time > 0:
+                elapsed = time.monotonic() - self._last_emit_time
+                if elapsed >= STARVATION_TIMEOUT_SEC:
+                    self._handle_failure(
+                        f"no frames for {elapsed:.1f}s"
+                    )
         except Exception as e:
             self._handle_failure(f"emit failed: {e}")
 
@@ -441,14 +446,13 @@ class OakdCameraOp(Operator):
             return False
         try:
             encoded_msg = stream.queue.get()
-            h264_data = self._extract_h264_data(encoded_msg)
-            if h264_data is None:
+            packet = self._extract_h264_data(encoded_msg)
+            if packet is None:
                 return False
             self.metadata.clear()
             self.metadata["frame_timestamp_us"] = self._extract_timestamp_us(encoded_msg)
             self.metadata["stream_id"] = stream.stream_id
             self.metadata["sequence"] = stream.count
-            packet = np.frombuffer(h264_data, dtype=np.uint8).copy()
             op_output.emit(as_tensor(packet), stream.h264_port)
             stream.count += 1
             return True
@@ -482,11 +486,21 @@ class OakdCameraOp(Operator):
         return cp.concatenate([bgr, alpha], axis=2)
 
     def _extract_raw_frame(self, frame_msg, buf: cp.ndarray | None = None) -> cp.ndarray | None:
-        """Extract raw frame from depthai and convert to the configured color format."""
+        """Extract raw frame from depthai and convert to the configured color format.
+
+        Uses getFrame() for GRAY8 (zero-copy reference from DepthAI buffer)
+        and getCvFrame() for color formats that need CPU-side conversion (e.g.
+        BGR888p planar to BGR interleaved).
+        """
         try:
             if not isinstance(frame_msg, dai.ImgFrame):
                 return None
-            frame = frame_msg.getCvFrame()
+
+            frame_type = frame_msg.getType()
+            if frame_type == dai.ImgFrame.Type.GRAY8:
+                frame = frame_msg.getFrame()
+            else:
+                frame = frame_msg.getCvFrame()
             if frame is None:
                 return None
 
@@ -502,12 +516,12 @@ class OakdCameraOp(Operator):
                 logger.warning(f"Failed to extract raw frame: {e}")
         return None
 
-    def _extract_h264_data(self, encoded_msg) -> bytes | None:
-        """Extract H.264 data from encoded message."""
+    def _extract_h264_data(self, encoded_msg) -> np.ndarray | None:
+        """Extract H.264 data from encoded message as a contiguous numpy array."""
         if isinstance(encoded_msg, dai.EncodedFrame):
             data = encoded_msg.getData()
             if data is not None and len(data) > 0:
-                return bytes(data)
+                return np.array(data, dtype=np.uint8)
         return None
 
     def _extract_timestamp_us(self, msg) -> int:
