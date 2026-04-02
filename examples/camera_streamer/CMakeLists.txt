@@ -11,19 +11,14 @@
 #   With XR (requires HoloHub XR in Docker image):
 #     cmake -DBUILD_XR=ON ..
 
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.24)
 
 # Auto-detect GPU architecture at build time. Required because the build runs
 # with --runtime nvidia (GPU accessible) and CUDA 13 dropped compute < 7.0.
 # Without this, CMAKE_POLICY_VERSION_MINIMUM=3.5 causes CMake to default to
 # compute_52 which nvcc 13 rejects.
-# "native" requires CMake 3.24+; fall back to "all" on older versions.
 if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-  if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
-    set(CMAKE_CUDA_ARCHITECTURES native)
-  else()
-    set(CMAKE_CUDA_ARCHITECTURES all)
-  endif()
+  set(CMAKE_CUDA_ARCHITECTURES native)
 endif()
 
 project(camera_streamer LANGUAGES CXX CUDA)
