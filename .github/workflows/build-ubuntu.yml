@@ -271,7 +271,7 @@ jobs:
             -e NV_CXR_RUNTIME_DIR="$CXR_HOST_VOLUME_PATH/.cloudxr/run" \
             -e XR_RUNTIME_JSON="$CXR_HOST_VOLUME_PATH/.cloudxr/openxr_cloudxr.json" \
             --entrypoint bash teleop_ros2_ref:${{ env.ROS_DISTRO }} -c \
-            "source /usr/local/bin/teleop-env-setup && timeout 5 uv run teleop_ros2_publisher.py --ros-args -p mode:=$mode -p use_mock_operators:=true > /tmp/ros2_test_output.log 2>&1; rc=\$?; [ \$rc -eq 124 ] || exit 1"
+            "source /usr/local/bin/teleop-env-setup && timeout -s SIGINT 5 uv run teleop_ros2_publisher.py --ros-args -p mode:=$mode -p use_mock_operators:=true > /tmp/ros2_test_output.log 2>&1; rc=\$?; [ \$rc -eq 130 ] || [ \$rc -eq 124 ] || exit 1"
 
           cat /tmp/ros2_test_output.log
           if ! grep -q "TeleopSession started successfully" /tmp/ros2_test_output.log; then
