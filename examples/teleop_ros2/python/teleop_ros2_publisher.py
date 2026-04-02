@@ -551,6 +551,7 @@ class TeleopRos2PublisherNode(Node):
         while rclpy.ok():
             try:
                 with TeleopSession(self._config) as session:
+                    self.get_logger().info("TeleopSession started successfully")
                     while rclpy.ok():
                         result = session.step()
 

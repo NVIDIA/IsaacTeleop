@@ -263,14 +263,20 @@ jobs:
         # Run tests
         for mode in controller_teleop hand_teleop controller_raw full_body; do
           echo "Testing mode: $mode"
-          docker run --rm \
+          OUTPUT=$(docker run --rm \
             --gpus all \
             --network host \
             -v "$CXR_HOST_VOLUME_PATH:$CXR_HOST_VOLUME_PATH" \
             -e NV_CXR_RUNTIME_DIR="$CXR_HOST_VOLUME_PATH/.cloudxr/run" \
             -e XR_RUNTIME_JSON="$CXR_HOST_VOLUME_PATH/.cloudxr/openxr_cloudxr.json" \
             --entrypoint bash teleop_ros2_ref:${{ env.ROS_DISTRO }} -c \
-            "source /usr/local/bin/teleop-env-setup && timeout 5 uv run teleop_ros2_publisher.py --ros-args -p mode:=$mode -p use_mock_operators:=true; rc=\$?; [ \$rc -eq 124 ]"
+            "source /usr/local/bin/teleop-env-setup && timeout 5 uv run teleop_ros2_publisher.py --ros-args -p mode:=$mode -p use_mock_operators:=true 2>&1; rc=\$?; [ \$rc -eq 124 ] || exit 1")
+
+          echo "$OUTPUT"
+          if ! echo "$OUTPUT" | grep -q "TeleopSession started successfully"; then
+            echo "Error: TeleopSession never started successfully in mode $mode"
+            exit 1
+          fi
         done
 
         # Cleanup
