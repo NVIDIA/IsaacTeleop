@@ -31,19 +31,32 @@ import numpy as np
 
 STATS_INTERVAL_SEC = 30.0
 
-MAX_CONSECUTIVE_FAILURES = 10
-RECONNECT_DELAY_SEC = 2.0
+# Reconnection settings
+MAX_CONSECUTIVE_FAILURES = 10  # Failures before attempting reconnect
+RECONNECT_DELAY_SEC = 2.0  # Delay between reconnection attempts
 
 
 class OakdCameraMode(Enum):
+    """Camera capture mode."""
+
     MONO = "mono"
+    """Single camera stream."""
+
     STEREO = "stereo"
+    """Dual camera streams (left + right)."""
+
     STEREO_RGB = "stereo_rgb"
+    """Triple streams: left + right (mono) + RGB center."""
 
 
 class OakdOutputFormat(Enum):
+    """Output format for camera frames."""
+
     RAW = "raw"
+    """Raw GPU tensors (BGRA format)."""
+
     H264 = "h264"
+    """H.264 encoded packets from VPU."""
 
 
 @dataclass
@@ -172,12 +185,14 @@ class OakdCameraOp(Operator):
         super().__init__(fragment, *args, **kwargs)
 
     def setup(self, spec: OperatorSpec):
+        """Define output ports based on mode and format."""
         is_raw = self._output_format == OakdOutputFormat.RAW
         for s in self._streams.values():
             port = s.raw_port if is_raw else s.h264_port
             spec.output(port).condition(ConditionType.NONE)
 
     def _get_camera_socket(self, socket_name: str | None = None) -> dai.CameraBoardSocket:
+        """Map camera socket string to DepthAI enum."""
         name = (socket_name or self._camera_socket).upper()
         socket_map = {
             "RGB": dai.CameraBoardSocket.CAM_A,
@@ -192,6 +207,7 @@ class OakdCameraOp(Operator):
         return socket_map[name]
 
     def _get_encoder_profile(self) -> dai.VideoEncoderProperties.Profile:
+        """Map profile string to DepthAI enum."""
         profile_map = {
             "baseline": dai.VideoEncoderProperties.Profile.H264_BASELINE,
             "main": dai.VideoEncoderProperties.Profile.H264_MAIN,
@@ -201,10 +217,11 @@ class OakdCameraOp(Operator):
             raise ValueError(f"Unknown H.264 profile '{self._profile}'")
         return profile_map[self._profile]
 
-    def _create_encoder(self, pipeline: dai.Pipeline, camera_output) -> dai.node.VideoEncoder:
+    def _create_encoder(self, pipeline: dai.Pipeline, camera_output, fps: int) -> dai.node.VideoEncoder:
+        """Create and configure H.264 encoder node."""
         encoder = pipeline.create(dai.node.VideoEncoder).build(
             camera_output,
-            frameRate=self._fps,
+            frameRate=fps,
             profile=self._get_encoder_profile(),
             bitrate=self._bitrate,
             quality=self._quality,
@@ -220,6 +237,7 @@ class OakdCameraOp(Operator):
         return encoder
 
     def _get_device_info(self) -> dai.DeviceInfo:
+        """Get device info, auto-detecting if needed."""
         if self._device_id:
             return dai.DeviceInfo(self._device_id)
         available = dai.Device.getAllAvailableDevices()
@@ -245,6 +263,11 @@ class OakdCameraOp(Operator):
         return dai.ImgFrame.Type.BGR888p
 
     def _create_pipeline(self) -> bool:
+        """Create the DepthAI pipeline for the configured mode and output format.
+
+        Stereo raw mode uses GRAY8 over USB to minimize bandwidth (mono sensors
+        produce grayscale anyway). Gray-to-BGRA conversion happens on the host GPU.
+        """
         try:
             device_info = self._get_device_info()
             self._device = dai.Device(device_info)
@@ -271,7 +294,7 @@ class OakdCameraOp(Operator):
 
                 stream = self._streams[name]
                 if is_h264:
-                    encoder = self._create_encoder(pipeline, output)
+                    encoder = self._create_encoder(pipeline, output, fps)
                     stream.queue = encoder.out.createOutputQueue(maxSize=4, blocking=False)
                 else:
                     stream.queue = output.createOutputQueue(maxSize=4, blocking=False)
@@ -283,6 +306,7 @@ class OakdCameraOp(Operator):
             return False
 
     def _open_camera(self) -> bool:
+        """Open the camera and create pipeline. Returns True on success."""
         self._close_camera()
         if not self._create_pipeline():
             self._close_camera()
@@ -295,6 +319,7 @@ class OakdCameraOp(Operator):
             self._close_camera()
             return False
 
+        # Pre-allocate GPU buffers for raw mode to avoid per-frame allocation.
         if self._output_format == OakdOutputFormat.RAW:
             for name, stream in self._streams.items():
                 w, h, _ = self._stream_resolution(name)
@@ -324,6 +349,7 @@ class OakdCameraOp(Operator):
         return True
 
     def _close_camera(self):
+        """Close the camera and release resources."""
         if self._pipeline:
             try:
                 self._pipeline.stop()
@@ -340,6 +366,11 @@ class OakdCameraOp(Operator):
             s.queue = None
 
     def start(self):
+        """Initialize DepthAI pipeline and start camera.
+
+        If the camera is not connected, logs a warning and defers to
+        the reconnection logic in compute() instead of crashing the graph.
+        """
         if not self._open_camera():
             device_str = self._device_id or "auto-detect"
             logger.warning(
@@ -349,12 +380,14 @@ class OakdCameraOp(Operator):
             self._is_disconnected = True
 
     def stop(self):
+        """Stop DepthAI pipeline and release resources."""
         self._close_camera()
         if self._verbose:
             total = sum(s.count for s in self._streams.values())
             logger.info(f"OAK-D camera stopped: total_frames={total}")
 
     def compute(self, op_input, op_output, context):
+        """Poll for frames/packets and emit them."""
         if self._is_disconnected or not self._pipeline:
             self._attempt_reconnect()
             return
@@ -382,6 +415,7 @@ class OakdCameraOp(Operator):
             self._handle_failure(f"emit failed: {e}")
 
     def _emit_stream_raw(self, op_output, stream: _StreamState) -> bool:
+        """Emit a raw frame for the given stream. Returns True if emitted."""
         if not stream.queue or not stream.queue.has():
             return False
         try:
@@ -402,6 +436,7 @@ class OakdCameraOp(Operator):
         return False
 
     def _emit_stream_h264(self, op_output, stream: _StreamState) -> bool:
+        """Emit an H.264 packet for the given stream. Returns True if emitted."""
         if not stream.queue or not stream.queue.has():
             return False
         try:
@@ -468,6 +503,7 @@ class OakdCameraOp(Operator):
         return None
 
     def _extract_h264_data(self, encoded_msg) -> bytes | None:
+        """Extract H.264 data from encoded message."""
         if isinstance(encoded_msg, dai.EncodedFrame):
             data = encoded_msg.getData()
             if data is not None and len(data) > 0:
@@ -475,6 +511,7 @@ class OakdCameraOp(Operator):
         return None
 
     def _extract_timestamp_us(self, msg) -> int:
+        """Extract device timestamp in microseconds."""
         try:
             ts = msg.getTimestamp()
             return int(ts.total_seconds() * 1_000_000)
@@ -483,6 +520,7 @@ class OakdCameraOp(Operator):
         return int(time.time() * 1_000_000)
 
     def _handle_failure(self, reason: str):
+        """Handle a failure and trigger reconnection if needed."""
         self._consecutive_failures += 1
         if self._consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
             logger.warning(
@@ -495,6 +533,7 @@ class OakdCameraOp(Operator):
             logger.warning(f"OAK-D failure ({self._consecutive_failures}x): {reason}")
 
     def _attempt_reconnect(self):
+        """Attempt to reconnect to the camera with rate limiting."""
         now = time.monotonic()
         if now - self._last_reconnect_time < RECONNECT_DELAY_SEC:
             return
@@ -508,6 +547,7 @@ class OakdCameraOp(Operator):
             logger.warning(f"OAK-D '{self.name}' reconnection failed. Next attempt in {RECONNECT_DELAY_SEC}s...")
 
     def _log_stats(self):
+        """Log periodic statistics."""
         now = time.monotonic()
         elapsed = now - self._last_log_time
         if elapsed < STATS_INTERVAL_SEC:

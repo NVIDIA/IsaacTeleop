@@ -71,7 +71,7 @@ class TeleopCameraSenderSubgraph(Subgraph):
 
         NvStreamEncoderOp = None
         needs_nvenc = self._force_raw or any(
-            c.camera_type in ("zed", "v4l2") or c.stereo
+            c.camera_type in ("zed", "v4l2", "video_file") or c.stereo
             for c in self._cameras.values()
         )
         if needs_nvenc:

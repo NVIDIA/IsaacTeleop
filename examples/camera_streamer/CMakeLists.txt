@@ -12,6 +12,15 @@
 #     cmake -DBUILD_XR=ON ..
 
 cmake_minimum_required(VERSION 3.22)
+
+# Auto-detect GPU architecture at build time. Required because the build runs
+# with --runtime nvidia (GPU accessible) and CUDA 13 dropped compute < 7.0.
+# Without this, CMAKE_POLICY_VERSION_MINIMUM=3.5 causes CMake to default to
+# compute_52 which nvcc 13 rejects.
+if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+  set(CMAKE_CUDA_ARCHITECTURES native)
+endif()
+
 project(camera_streamer LANGUAGES CXX CUDA)
 
 if(NOT CMAKE_BUILD_TYPE)

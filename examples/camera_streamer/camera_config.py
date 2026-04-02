@@ -17,7 +17,7 @@ class StreamConfig:
     """Configuration for a single video stream."""
 
     port: int = 0
-    """RTP port for H.264 video stream (required for RTP mode)."""
+    """RTP port for H.264 video stream. Must be in 1024-65535 for RTP mode; 0 means unconfigured (local-only)."""
 
     bitrate_mbps: float = 10.0
     """Bitrate in Mbps (for encoding)."""
@@ -106,6 +106,33 @@ class CameraConfig:
             raise ValueError(
                 f"Camera '{self.name}': unknown camera_type '{self.camera_type}' (valid: {VALID_CAMERA_TYPES})"
             )
+        self._validate_rgb_fields()
+
+    def _validate_rgb_fields(self):
+        """Validate that rgb_enable and rgb_width/rgb_height/rgb_fps are only used on OAK-D stereo cameras."""
+        rgb_dimension_keys = {"rgb_width": self.rgb_width, "rgb_height": self.rgb_height, "rgb_fps": self.rgb_fps}
+
+        if self.rgb_enable:
+            if self.camera_type != "oakd":
+                raise ValueError(
+                    f"Camera '{self.name}': rgb_enable requires camera_type 'oakd' (got '{self.camera_type}')"
+                )
+            if not self.stereo:
+                raise ValueError(
+                    f"Camera '{self.name}': rgb_enable requires stereo=true (stereo_rgb mode is stereo + center RGB)"
+                )
+            for key, val in rgb_dimension_keys.items():
+                if val is not None:
+                    if not isinstance(val, int) or val <= 0:
+                        raise ValueError(
+                            f"Camera '{self.name}': {key} must be a positive integer (got {val!r})"
+                        )
+        else:
+            set_keys = [k for k, v in rgb_dimension_keys.items() if v is not None]
+            if set_keys:
+                raise ValueError(
+                    f"Camera '{self.name}': {', '.join(set_keys)} set but rgb_enable is false"
+                )
 
     @classmethod
     def from_dict(cls, name: str, data: dict) -> "CameraConfig":

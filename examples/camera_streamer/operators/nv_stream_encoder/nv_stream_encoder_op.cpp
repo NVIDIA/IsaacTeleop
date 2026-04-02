@@ -141,8 +141,9 @@ bool NvStreamEncoderOp::init_encoder()
         encodeConfig.rcParams.averageBitRate = bitrate_.get();
         encodeConfig.rcParams.maxBitRate = bitrate_.get() * 1.2; // 20% overhead
 
-        // VBV buffer size: 1 frame worth of data for minimum latency
-        encodeConfig.rcParams.vbvBufferSize = bitrate_.get() / fps;
+        // VBV buffer: 2 frames of data smooths out IDR bitrate spikes
+        // while keeping latency low.
+        encodeConfig.rcParams.vbvBufferSize = (bitrate_.get() / fps) * 2;
         encodeConfig.rcParams.vbvInitialDelay = encodeConfig.rcParams.vbvBufferSize;
 
         // No B-frames for lowest latency
@@ -150,7 +151,8 @@ bool NvStreamEncoderOp::init_encoder()
 
         // H.264 specific settings
         NV_ENC_CONFIG_H264& h264Config = encodeConfig.encodeCodecConfig.h264Config;
-        h264Config.idrPeriod = fps_.get(); // Every 1sec IDR for instant seeking/recovery
+        int idrPeriod = fps * 5;
+        h264Config.idrPeriod = idrPeriod;
         h264Config.repeatSPSPPS = 1; // Include SPS/PPS with every IDR
         h264Config.sliceMode = 0;
         h264Config.sliceModeData = 0;
@@ -167,7 +169,7 @@ bool NvStreamEncoderOp::init_encoder()
         if (verbose_.get())
         {
             HOLOSCAN_LOG_INFO(
-                "NVENC encoder initialized (BGRA input, ultra-low-latency H.264, IDR every {}frames)", fps_.get());
+                "NVENC encoder initialized (BGRA input, ultra-low-latency H.264, IDR every {}frames)", idrPeriod);
         }
     }
     catch (const NVENCException& e)
