@@ -127,13 +127,16 @@ def _append_hand_poses(
     poses: List[Pose],
     joint_positions: np.ndarray,
     joint_orientations: np.ndarray,
+    transform_rot: Rotation | None = None,
+    transform_trans: Sequence[float] | None = None,
 ) -> None:
     for joint_idx in range(
         HandJointIndex.THUMB_METACARPAL, HandJointIndex.LITTLE_TIP + 1
     ):
-        poses.append(
-            _to_pose(joint_positions[joint_idx], joint_orientations[joint_idx])
-        )
+        pose = _to_pose(joint_positions[joint_idx], joint_orientations[joint_idx])
+        if transform_rot is not None or transform_trans is not None:
+            pose = _apply_transform_to_pose(pose, transform_rot, transform_trans)
+        poses.append(pose)
 
 
 def _find_plugins_dirs(start: Path) -> List[Path]:
@@ -189,6 +192,8 @@ def _build_ee_msg_from_controllers(
     right_ctrl: OptionalTensorGroup,
     now,
     frame_id: str,
+    transform_rot: Rotation | None = None,
+    transform_trans: Sequence[float] | None = None,
 ) -> PoseArray:
     """Build a PoseArray with right then left controller aim poses (wrist proxy)."""
     msg = PoseArray()
@@ -197,14 +202,20 @@ def _build_ee_msg_from_controllers(
     if not right_ctrl.is_none:
         pos = [float(x) for x in right_ctrl[ControllerInputIndex.AIM_POSITION]]
         ori = [float(x) for x in right_ctrl[ControllerInputIndex.AIM_ORIENTATION]]
-        msg.poses.append(_to_pose(pos, ori))
+        pose = _to_pose(pos, ori)
+        if transform_rot is not None or transform_trans is not None:
+            pose = _apply_transform_to_pose(pose, transform_rot, transform_trans)
+        msg.poses.append(pose)
     else:
         msg.poses.append(_to_pose([0.0, 0.0, 0.0]))
 
     if not left_ctrl.is_none:
         pos = [float(x) for x in left_ctrl[ControllerInputIndex.AIM_POSITION]]
         ori = [float(x) for x in left_ctrl[ControllerInputIndex.AIM_ORIENTATION]]
-        msg.poses.append(_to_pose(pos, ori))
+        pose = _to_pose(pos, ori)
+        if transform_rot is not None or transform_trans is not None:
+            pose = _apply_transform_to_pose(pose, transform_rot, transform_trans)
+        msg.poses.append(pose)
     else:
         msg.poses.append(_to_pose([0.0, 0.0, 0.0]))
 
@@ -216,6 +227,8 @@ def _build_ee_msg_from_hands(
     right_hand: OptionalTensorGroup,
     now,
     frame_id: str,
+    transform_rot: Rotation | None = None,
+    transform_trans: Sequence[float] | None = None,
 ) -> PoseArray:
     """Build a PoseArray with right then left hand wrist poses (EE proxy)."""
     msg = PoseArray()
@@ -225,24 +238,26 @@ def _build_ee_msg_from_hands(
     if not right_hand.is_none:
         right_positions = np.asarray(right_hand[HandInputIndex.JOINT_POSITIONS])
         right_orientations = np.asarray(right_hand[HandInputIndex.JOINT_ORIENTATIONS])
-        msg.poses.append(
-            _to_pose(
-                right_positions[HandJointIndex.WRIST],
-                right_orientations[HandJointIndex.WRIST],
-            )
+        pose = _to_pose(
+            right_positions[HandJointIndex.WRIST],
+            right_orientations[HandJointIndex.WRIST],
         )
+        if transform_rot is not None or transform_trans is not None:
+            pose = _apply_transform_to_pose(pose, transform_rot, transform_trans)
+        msg.poses.append(pose)
     else:
         msg.poses.append(_to_pose([0.0, 0.0, 0.0]))
 
     if not left_hand.is_none:
         left_positions = np.asarray(left_hand[HandInputIndex.JOINT_POSITIONS])
         left_orientations = np.asarray(left_hand[HandInputIndex.JOINT_ORIENTATIONS])
-        msg.poses.append(
-            _to_pose(
-                left_positions[HandJointIndex.WRIST],
-                left_orientations[HandJointIndex.WRIST],
-            )
+        pose = _to_pose(
+            left_positions[HandJointIndex.WRIST],
+            left_orientations[HandJointIndex.WRIST],
         )
+        if transform_rot is not None or transform_trans is not None:
+            pose = _apply_transform_to_pose(pose, transform_rot, transform_trans)
+        msg.poses.append(pose)
     else:
         msg.poses.append(_to_pose([0.0, 0.0, 0.0]))
 
@@ -254,6 +269,8 @@ def _build_hand_msg_from_hands(
     right_hand: OptionalTensorGroup,
     now,
     frame_id: str,
+    transform_rot: Rotation | None = None,
+    transform_trans: Sequence[float] | None = None,
 ) -> PoseArray:
     """Build a PoseArray with right then left hand finger joints."""
     msg = PoseArray()
@@ -263,7 +280,13 @@ def _build_hand_msg_from_hands(
     if not right_hand.is_none:
         right_positions = np.asarray(right_hand[HandInputIndex.JOINT_POSITIONS])
         right_orientations = np.asarray(right_hand[HandInputIndex.JOINT_ORIENTATIONS])
-        _append_hand_poses(msg.poses, right_positions, right_orientations)
+        _append_hand_poses(
+            msg.poses,
+            right_positions,
+            right_orientations,
+            transform_rot,
+            transform_trans,
+        )
     else:
         for _ in range(HandJointIndex.THUMB_METACARPAL, HandJointIndex.LITTLE_TIP + 1):
             msg.poses.append(_to_pose([0.0, 0.0, 0.0]))
@@ -271,7 +294,9 @@ def _build_hand_msg_from_hands(
     if not left_hand.is_none:
         left_positions = np.asarray(left_hand[HandInputIndex.JOINT_POSITIONS])
         left_orientations = np.asarray(left_hand[HandInputIndex.JOINT_ORIENTATIONS])
-        _append_hand_poses(msg.poses, left_positions, left_orientations)
+        _append_hand_poses(
+            msg.poses, left_positions, left_orientations, transform_rot, transform_trans
+        )
     else:
         for _ in range(HandJointIndex.THUMB_METACARPAL, HandJointIndex.LITTLE_TIP + 1):
             msg.poses.append(_to_pose([0.0, 0.0, 0.0]))
@@ -390,14 +415,14 @@ class TeleopRos2PublisherNode(Node):
         self.declare_parameter("mode", "controller_teleop")
         self.declare_parameter(
             "transform_translation",
-            [],
+            [0.0, 0.0, 0.0],
             ParameterDescriptor(
                 description="Optional translation [x, y, z] to apply to the teleoperation data to transform it into the ROS world frame."
             ),
         )
         self.declare_parameter(
             "transform_rotation",
-            [],
+            [0.0, 0.0, 0.0, 1.0],
             ParameterDescriptor(
                 description="Optional rotation [qx, qy, qz, qw] to apply to the teleoperation data to transform it into the ROS world frame."
             ),
@@ -427,8 +452,8 @@ class TeleopRos2PublisherNode(Node):
         rate_hz = self.get_parameter("rate_hz").get_parameter_value().double_value
         if rate_hz <= 0 or not math.isfinite(rate_hz):
             raise ValueError("Parameter 'rate_hz' must be > 0")
-        self._sleep_period_s = 1.0 / rate_hz
-        self._use_mock_operators = (
+        self._sleep_period_s: float = 1.0 / rate_hz
+        self._use_mock_operators: bool = (
             self.get_parameter("use_mock_operators").get_parameter_value().bool_value
         )
         mode = self.get_parameter("mode").get_parameter_value().string_value
@@ -436,14 +461,16 @@ class TeleopRos2PublisherNode(Node):
             raise ValueError(
                 f"Parameter 'mode' must be one of {_TELEOP_MODES}, got {mode!r}"
             )
-        self._mode = mode
-        self._world_frame = (
+        self.get_logger().info(f"Mode: {mode}")
+        self._mode: str = mode
+
+        self._world_frame: str = (
             self.get_parameter("world_frame").get_parameter_value().string_value
         )
-        self._right_wrist_frame = (
+        self._right_wrist_frame: str = (
             self.get_parameter("right_wrist_frame").get_parameter_value().string_value
         )
-        self._left_wrist_frame = (
+        self._left_wrist_frame: str = (
             self.get_parameter("left_wrist_frame").get_parameter_value().string_value
         )
 
@@ -452,27 +479,40 @@ class TeleopRos2PublisherNode(Node):
             .get_parameter_value()
             .double_array_value
         )
-        transform_rot_arr = (
-            self.get_parameter("transform_rotation")
-            .get_parameter_value()
-            .double_array_value
-        )
-
-        self._transform_trans = None
+        self._transform_trans: List[float] | None = None
         if transform_trans_arr:
             if len(transform_trans_arr) != 3:
                 raise ValueError(
                     "Parameter 'transform_translation' must have 3 elements if provided"
                 )
-            self._transform_trans = transform_trans_arr
+            if not np.allclose(transform_trans_arr, [0.0, 0.0, 0.0]):
+                self._transform_trans = [float(x) for x in transform_trans_arr]
 
-        self._transform_rot = None
+        transform_rot_arr = (
+            self.get_parameter("transform_rotation")
+            .get_parameter_value()
+            .double_array_value
+        )
+        self._transform_rot: Rotation | None = None
         if transform_rot_arr:
             if len(transform_rot_arr) != 4:
                 raise ValueError(
                     "Parameter 'transform_rotation' must have 4 elements if provided"
                 )
-            self._transform_rot = Rotation.from_quat(transform_rot_arr)
+            if not np.allclose(transform_rot_arr, [0.0, 0.0, 0.0, 1.0]):
+                # Validate and normalize the quaternion
+                transform_rot_floats = [float(x) for x in transform_rot_arr]
+                q_norm = np.linalg.norm(transform_rot_floats)
+                if q_norm < 1e-6:
+                    raise ValueError(
+                        "Parameter 'transform_rotation' must be a valid non-zero quaternion"
+                    )
+                if not math.isclose(q_norm, 1.0, rel_tol=1e-3):
+                    self.get_logger().warn(
+                        f"Parameter 'transform_rotation' is not a unit quaternion (norm={q_norm}). Normalizing it."
+                    )
+                normalized_q = np.array(transform_rot_floats) / q_norm
+                self._transform_rot = Rotation.from_quat(normalized_q)
 
         if not self._world_frame:
             raise ValueError("Parameter 'world_frame' must not be empty")
@@ -582,6 +622,7 @@ class TeleopRos2PublisherNode(Node):
     def _build_wrist_tfs(
         self,
         ee_msg: PoseArray,
+        *,
         right_available: bool,
         left_available: bool,
         now,
@@ -638,72 +679,51 @@ class TeleopRos2PublisherNode(Node):
                             right_hand = result["hand_right"]
                             # Build hand poses from hands
                             hand_msg = _build_hand_msg_from_hands(
-                                left_hand, right_hand, now, self._world_frame
+                                left_hand,
+                                right_hand,
+                                now,
+                                self._world_frame,
+                                self._transform_rot,
+                                self._transform_trans,
                             )
                             if hand_msg.poses:
-                                if (
-                                    self._transform_trans is not None
-                                    or self._transform_rot is not None
-                                ):
-                                    hand_msg.poses = [
-                                        _apply_transform_to_pose(
-                                            p,
-                                            self._transform_rot,
-                                            self._transform_trans,
-                                        )
-                                        for p in hand_msg.poses
-                                    ]
                                 self._pub_hand.publish(hand_msg)
                             # Build EE poses from hands
                             ee_msg = _build_ee_msg_from_hands(
-                                left_hand, right_hand, now, self._world_frame
+                                left_hand,
+                                right_hand,
+                                now,
+                                self._world_frame,
+                                self._transform_rot,
+                                self._transform_trans,
                             )
                             if ee_msg.poses:
-                                if (
-                                    self._transform_trans is not None
-                                    or self._transform_rot is not None
-                                ):
-                                    ee_msg.poses = [
-                                        _apply_transform_to_pose(
-                                            p,
-                                            self._transform_rot,
-                                            self._transform_trans,
-                                        )
-                                        for p in ee_msg.poses
-                                    ]
                                 self._pub_ee_pose.publish(ee_msg)
                             wrist_tfs = self._build_wrist_tfs(
                                 ee_msg,
-                                not right_hand.is_none,
-                                not left_hand.is_none,
-                                now,
+                                right_available=not right_hand.is_none,
+                                left_available=not left_hand.is_none,
+                                now=now,
                             )
                             if wrist_tfs:
                                 self._tf_broadcaster.sendTransform(wrist_tfs)
                         elif self._mode == "controller_teleop":
                             # Build EE poses from controllers
                             ee_msg = _build_ee_msg_from_controllers(
-                                left_ctrl, right_ctrl, now, self._world_frame
+                                left_ctrl,
+                                right_ctrl,
+                                now,
+                                self._world_frame,
+                                self._transform_rot,
+                                self._transform_trans,
                             )
                             if ee_msg.poses:
-                                if (
-                                    self._transform_trans is not None
-                                    or self._transform_rot is not None
-                                ):
-                                    ee_msg.poses = [
-                                        _apply_transform_to_pose(
-                                            p,
-                                            self._transform_rot,
-                                            self._transform_trans,
-                                        )
-                                        for p in ee_msg.poses
-                                    ]
                                 self._pub_ee_pose.publish(ee_msg)
                             wrist_tfs = self._build_wrist_tfs(
                                 ee_msg,
-                                not right_ctrl.is_none,
-                                not left_ctrl.is_none,
-                                now,
+                                right_available=not right_ctrl.is_none,
+                                left_available=not left_ctrl.is_none,
+                                now=now,
                             )
                             if wrist_tfs:
                                 self._tf_broadcaster.sendTransform(wrist_tfs)
