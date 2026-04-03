@@ -49,6 +49,7 @@ Table of Contents
    getting_started/quick_start
    getting_started/build_from_source
    getting_started/teleop_session
+   getting_started/teleop_control_state_machine
    getting_started/contributing
 
 .. toctree::
