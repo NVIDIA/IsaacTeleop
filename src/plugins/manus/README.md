@@ -84,8 +84,7 @@ export XR_RUNTIME_JSON=~/.cloudxr/openxr_cloudxr.json
 ```
 
 ### 2. Verify with CLI Tool
-Ensure Manus Core is running and gloves are connected.
-Run the printer tool to verify data reception:
+Verify that the gloves are working using the CLI tool:
 
 ```bash
 ./build/bin/manus_hand_tracker_printer
@@ -94,7 +93,7 @@ Run the printer tool to verify data reception:
 The tool prints joint positions to the terminal and opens a **MANUS Data Visualizer** window with a top-down and side view of each hand.
 
 ### 3. Run the Plugin
-The plugin is installed to the `install` directory:
+The plugin is installed to the `install` directory, please ensure the CLI tool is not running when running the plugin.
 
 ```bash
 ./install/plugins/manus/manus_hand_plugin

@@ -107,7 +107,7 @@ Source the CloudXR environment and start the runtime before running the plugin:
 2. Verify with the CLI tool
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Ensure Manus Core is running and the gloves are connected, then run:
+Verify that the gloves are working using the CLI tool:
 
 .. code-block:: bash
 
@@ -115,8 +115,11 @@ Ensure Manus Core is running and the gloves are connected, then run:
 
 The tool prints joint positions to the terminal and opens a **MANUS Data
 Visualizer** window showing a top-down and side view of each hand.
+
 3. Run the plugin
 ~~~~~~~~~~~~~~~~~~
+
+The plugin is installed to the `install` directory, please ensure the CLI tool is not running when running the plugin.
 
 .. code-block:: bash
 
