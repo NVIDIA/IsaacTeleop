@@ -194,29 +194,66 @@ jobs:
         ACCEPT_CLOUDXR_EULA: Y
         CXR_BUILD_CONTEXT: ${{ github.workspace }}
         PYTHON_VERSION: ${{ matrix.python_version }}
+        ISAACTELEOP_PIP_DEBUG: "0"
+        ISAACTELEOP_PIP_FIND_LINKS: /workspace/install/wheels
+        ISAACTELEOP_PIP_SPEC: isaacteleop[cloudxr]
       run: |
         source scripts/setup_cloudxr_env.sh
 
-        # Start CloudXR runtime
-        docker compose -p isaacteleop-test \
+        PROJECT_NAME="isaacteleop-test-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}-${{ env.ROS_DISTRO }}"
+        LOG_FILE="/tmp/ros2_test_output_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${{ matrix.arch }}_${{ env.ROS_DISTRO }}.log"
+
+        # Cleanup
+        trap 'docker compose -p "$PROJECT_NAME" \
           --env-file "$ENV_DEFAULT" \
           ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
           -f deps/cloudxr/docker-compose.runtime.yaml \
           -f deps/cloudxr/docker-compose.test.yaml \
-          up -d cloudxr-runtime
+          -f deps/cloudxr/docker-compose.override.yaml \
+          down -v' EXIT
+
+        # Start CloudXR runtime
+        cat <<EOF > deps/cloudxr/docker-compose.override.yaml
+        services:
+          cloudxr-runtime:
+            container_name: "cloudxr-runtime-$PROJECT_NAME"
+        EOF
+
+        docker compose -p "$PROJECT_NAME" \
+          --env-file "$ENV_DEFAULT" \
+          ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
+          -f deps/cloudxr/docker-compose.runtime.yaml \
+          -f deps/cloudxr/docker-compose.test.yaml \
+          -f deps/cloudxr/docker-compose.override.yaml \
+          up --build -d cloudxr-runtime
 
         # Wait for healthy
+        healthy=false
         for i in {1..30}; do
-          if docker compose -p isaacteleop-test \
+          if docker compose -p "$PROJECT_NAME" \
             --env-file "$ENV_DEFAULT" \
             ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
             -f deps/cloudxr/docker-compose.runtime.yaml \
             -f deps/cloudxr/docker-compose.test.yaml \
+            -f deps/cloudxr/docker-compose.override.yaml \
             ps cloudxr-runtime | grep -q "healthy"; then
+            healthy=true
             break
           fi
           sleep 2
         done
+
+        if [ "$healthy" = false ]; then
+          echo "Error: CloudXR runtime failed to become healthy"
+          docker compose -p "$PROJECT_NAME" \
+            --env-file "$ENV_DEFAULT" \
+            ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
+            -f deps/cloudxr/docker-compose.runtime.yaml \
+            -f deps/cloudxr/docker-compose.test.yaml \
+            -f deps/cloudxr/docker-compose.override.yaml \
+            logs cloudxr-runtime
+          exit 1
+        fi
 
         # Run tests
         for mode in controller_teleop hand_teleop controller_raw full_body; do
@@ -229,22 +266,14 @@ jobs:
             -e NV_CXR_RUNTIME_DIR="$CXR_HOST_VOLUME_PATH/.cloudxr/run" \
             -e XR_RUNTIME_JSON="$CXR_HOST_VOLUME_PATH/.cloudxr/openxr_cloudxr.json" \
             --entrypoint bash teleop_ros2_ref:${{ env.ROS_DISTRO }} -c \
-            "source /usr/local/bin/teleop-env-setup && timeout -s SIGINT 5 uv run teleop_ros2_publisher.py --ros-args -p mode:=$mode -p use_mock_operators:=true > /tmp/ros2_test_output.log 2>&1; rc=\$?; [ \$rc -eq 130 ] || [ \$rc -eq 124 ] || exit 1"
+            "source /usr/local/bin/teleop-env-setup && timeout -s SIGINT 5 uv run teleop_ros2_publisher.py --ros-args -p mode:=$mode -p use_mock_operators:=true > $LOG_FILE 2>&1; rc=\$?; [ \$rc -eq 130 ] || [ \$rc -eq 124 ] || exit 1"
 
-          cat /tmp/ros2_test_output.log
-          if ! grep -q "TeleopSession started successfully" /tmp/ros2_test_output.log; then
+          cat "$LOG_FILE"
+          if ! grep -q "TeleopSession started successfully" "$LOG_FILE"; then
             echo "Error: TeleopSession never started successfully in mode $mode"
             exit 1
           fi
         done
-
-        # Cleanup
-        docker compose -p isaacteleop-test \
-          --env-file "$ENV_DEFAULT" \
-          ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
-          -f deps/cloudxr/docker-compose.runtime.yaml \
-          -f deps/cloudxr/docker-compose.test.yaml \
-          down -v
 
   test-cloudxr:
     runs-on: [self-hosted, linux, gpu, "${{ matrix.arch }}"]
