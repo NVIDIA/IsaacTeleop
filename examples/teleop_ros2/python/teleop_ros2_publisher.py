@@ -42,6 +42,7 @@ import msgpack
 import msgpack_numpy as mnp
 import numpy as np
 import rclpy
+from scipy.spatial.transform import Rotation
 from geometry_msgs.msg import (
     Pose,
     PoseArray,
@@ -85,6 +86,41 @@ _TELEOP_MODES = ("controller_teleop", "hand_teleop", "controller_raw", "full_bod
 
 
 # Helper functions
+
+
+def _apply_transform_to_pose(
+    pose: Pose,
+    rotation: Rotation | None = None,
+    translation: Sequence[float] | None = None,
+) -> Pose:
+    """Return a new Pose with rotation and translation applied."""
+    p = [pose.position.x, pose.position.y, pose.position.z]
+    q = [
+        pose.orientation.x,
+        pose.orientation.y,
+        pose.orientation.z,
+        pose.orientation.w,
+    ]
+
+    if rotation is not None:
+        p = rotation.apply(p)
+        q = (rotation * Rotation.from_quat(q)).as_quat()
+
+    result = Pose()
+    if translation is not None:
+        result.position.x = float(p[0]) + translation[0]
+        result.position.y = float(p[1]) + translation[1]
+        result.position.z = float(p[2]) + translation[2]
+    else:
+        result.position.x = float(p[0])
+        result.position.y = float(p[1])
+        result.position.z = float(p[2])
+
+    result.orientation.x = float(q[0])
+    result.orientation.y = float(q[1])
+    result.orientation.z = float(q[2])
+    result.orientation.w = float(q[3])
+    return result
 
 
 def _append_hand_poses(
@@ -243,52 +279,6 @@ def _build_hand_msg_from_hands(
     return msg
 
 
-def _build_wrist_tfs(
-    ee_msg: PoseArray,
-    right_available: bool,
-    left_available: bool,
-    now,
-    world_frame: str,
-    right_wrist_frame: str,
-    left_wrist_frame: str,
-) -> List[TransformStamped]:
-    """Build wrist TF transforms from a pre-built ee_poses PoseArray (right pose at index 0, left at index 1)."""
-    tfs = []
-    if right_available:
-        pose = ee_msg.poses[0]
-        tfs.append(
-            _make_transform(
-                now,
-                world_frame,
-                right_wrist_frame,
-                [pose.position.x, pose.position.y, pose.position.z],
-                [
-                    pose.orientation.x,
-                    pose.orientation.y,
-                    pose.orientation.z,
-                    pose.orientation.w,
-                ],
-            )
-        )
-    if left_available:
-        pose = ee_msg.poses[1]
-        tfs.append(
-            _make_transform(
-                now,
-                world_frame,
-                left_wrist_frame,
-                [pose.position.x, pose.position.y, pose.position.z],
-                [
-                    pose.orientation.x,
-                    pose.orientation.y,
-                    pose.orientation.z,
-                    pose.orientation.w,
-                ],
-            )
-        )
-    return tfs
-
-
 def _build_controller_payload(
     left_ctrl: OptionalTensorGroup, right_ctrl: OptionalTensorGroup
 ) -> Dict:
@@ -399,6 +389,20 @@ class TeleopRos2PublisherNode(Node):
         self.declare_parameter("rate_hz", 60.0)
         self.declare_parameter("mode", "controller_teleop")
         self.declare_parameter(
+            "transform_translation",
+            [],
+            ParameterDescriptor(
+                description="Optional translation [x, y, z] to apply to the teleoperation data to transform it into the ROS world frame."
+            ),
+        )
+        self.declare_parameter(
+            "transform_rotation",
+            [],
+            ParameterDescriptor(
+                description="Optional rotation [qx, qy, qz, qw] to apply to the teleoperation data to transform it into the ROS world frame."
+            ),
+        )
+        self.declare_parameter(
             "world_frame",
             "world",
             ParameterDescriptor(
@@ -442,6 +446,34 @@ class TeleopRos2PublisherNode(Node):
         self._left_wrist_frame = (
             self.get_parameter("left_wrist_frame").get_parameter_value().string_value
         )
+
+        transform_trans_arr = (
+            self.get_parameter("transform_translation")
+            .get_parameter_value()
+            .double_array_value
+        )
+        transform_rot_arr = (
+            self.get_parameter("transform_rotation")
+            .get_parameter_value()
+            .double_array_value
+        )
+
+        self._transform_trans = None
+        if transform_trans_arr:
+            if len(transform_trans_arr) != 3:
+                raise ValueError(
+                    "Parameter 'transform_translation' must have 3 elements if provided"
+                )
+            self._transform_trans = transform_trans_arr
+
+        self._transform_rot = None
+        if transform_rot_arr:
+            if len(transform_rot_arr) != 4:
+                raise ValueError(
+                    "Parameter 'transform_rotation' must have 4 elements if provided"
+                )
+            self._transform_rot = Rotation.from_quat(transform_rot_arr)
+
         if not self._world_frame:
             raise ValueError("Parameter 'world_frame' must not be empty")
         if not self._right_wrist_frame:
@@ -547,6 +579,48 @@ class TeleopRos2PublisherNode(Node):
             plugins=plugins,
         )
 
+    def _build_wrist_tfs(
+        self,
+        ee_msg: PoseArray,
+        right_available: bool,
+        left_available: bool,
+        now,
+    ) -> List[TransformStamped]:
+        """Build wrist TF transforms from a pre-built ee_poses PoseArray (right pose at index 0, left at index 1)."""
+        tfs = []
+
+        def _get_orientation(pose: Pose) -> List[float]:
+            return [
+                pose.orientation.x,
+                pose.orientation.y,
+                pose.orientation.z,
+                pose.orientation.w,
+            ]
+
+        if right_available:
+            pose = ee_msg.poses[0]
+            tfs.append(
+                _make_transform(
+                    now,
+                    self._world_frame,
+                    self._right_wrist_frame,
+                    [pose.position.x, pose.position.y, pose.position.z],
+                    _get_orientation(pose),
+                )
+            )
+        if left_available:
+            pose = ee_msg.poses[1]
+            tfs.append(
+                _make_transform(
+                    now,
+                    self._world_frame,
+                    self._left_wrist_frame,
+                    [pose.position.x, pose.position.y, pose.position.z],
+                    _get_orientation(pose),
+                )
+            )
+        return tfs
+
     def run(self) -> int:
         while rclpy.ok():
             try:
@@ -562,41 +636,74 @@ class TeleopRos2PublisherNode(Node):
                         if self._mode == "hand_teleop":
                             left_hand = result["hand_left"]
                             right_hand = result["hand_right"]
+                            # Build hand poses from hands
                             hand_msg = _build_hand_msg_from_hands(
                                 left_hand, right_hand, now, self._world_frame
                             )
                             if hand_msg.poses:
+                                if (
+                                    self._transform_trans is not None
+                                    or self._transform_rot is not None
+                                ):
+                                    hand_msg.poses = [
+                                        _apply_transform_to_pose(
+                                            p,
+                                            self._transform_rot,
+                                            self._transform_trans,
+                                        )
+                                        for p in hand_msg.poses
+                                    ]
                                 self._pub_hand.publish(hand_msg)
+                            # Build EE poses from hands
                             ee_msg = _build_ee_msg_from_hands(
                                 left_hand, right_hand, now, self._world_frame
                             )
                             if ee_msg.poses:
+                                if (
+                                    self._transform_trans is not None
+                                    or self._transform_rot is not None
+                                ):
+                                    ee_msg.poses = [
+                                        _apply_transform_to_pose(
+                                            p,
+                                            self._transform_rot,
+                                            self._transform_trans,
+                                        )
+                                        for p in ee_msg.poses
+                                    ]
                                 self._pub_ee_pose.publish(ee_msg)
-                            wrist_tfs = _build_wrist_tfs(
+                            wrist_tfs = self._build_wrist_tfs(
                                 ee_msg,
                                 not right_hand.is_none,
                                 not left_hand.is_none,
                                 now,
-                                self._world_frame,
-                                self._right_wrist_frame,
-                                self._left_wrist_frame,
                             )
                             if wrist_tfs:
                                 self._tf_broadcaster.sendTransform(wrist_tfs)
                         elif self._mode == "controller_teleop":
+                            # Build EE poses from controllers
                             ee_msg = _build_ee_msg_from_controllers(
                                 left_ctrl, right_ctrl, now, self._world_frame
                             )
                             if ee_msg.poses:
+                                if (
+                                    self._transform_trans is not None
+                                    or self._transform_rot is not None
+                                ):
+                                    ee_msg.poses = [
+                                        _apply_transform_to_pose(
+                                            p,
+                                            self._transform_rot,
+                                            self._transform_trans,
+                                        )
+                                        for p in ee_msg.poses
+                                    ]
                                 self._pub_ee_pose.publish(ee_msg)
-                            wrist_tfs = _build_wrist_tfs(
+                            wrist_tfs = self._build_wrist_tfs(
                                 ee_msg,
                                 not right_ctrl.is_none,
                                 not left_ctrl.is_none,
                                 now,
-                                self._world_frame,
-                                self._right_wrist_frame,
-                                self._left_wrist_frame,
                             )
                             if wrist_tfs:
                                 self._tf_broadcaster.sendTransform(wrist_tfs)
