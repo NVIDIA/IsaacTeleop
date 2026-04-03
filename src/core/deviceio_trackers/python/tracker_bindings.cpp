@@ -7,9 +7,9 @@
 #include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
-#include <openxr/openxr.h>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
+#include <schema/hand_generated.h>
 
 namespace py = pybind11;
 
@@ -35,8 +35,7 @@ PYBIND11_MODULE(_deviceio_trackers, m)
             "get_right_hand",
             [](const core::HandTracker& self, const core::ITrackerSession& session) -> core::HandPoseTrackedT
             { return self.get_right_hand(session); },
-            py::arg("session"))
-        .def_static("get_joint_name", &core::HandTracker::get_joint_name);
+            py::arg("session"));
 
     py::class_<core::HeadTracker, core::ITracker, std::shared_ptr<core::HeadTracker>>(m, "HeadTracker")
         .def(py::init<>())
@@ -96,9 +95,9 @@ PYBIND11_MODULE(_deviceio_trackers, m)
             { return self.get_body_pose(session); },
             py::arg("session"), "Get full body pose tracked state (data is None if inactive)");
 
-    m.attr("NUM_JOINTS") = static_cast<int>(XR_HAND_JOINT_COUNT_EXT);
-    m.attr("JOINT_PALM") = static_cast<int>(XR_HAND_JOINT_PALM_EXT);
-    m.attr("JOINT_WRIST") = static_cast<int>(XR_HAND_JOINT_WRIST_EXT);
-    m.attr("JOINT_THUMB_TIP") = static_cast<int>(XR_HAND_JOINT_THUMB_TIP_EXT);
-    m.attr("JOINT_INDEX_TIP") = static_cast<int>(XR_HAND_JOINT_INDEX_TIP_EXT);
+    m.attr("NUM_JOINTS") = static_cast<int>(core::HandJoint_NUM_JOINTS);
+    m.attr("JOINT_PALM") = static_cast<int>(core::HandJoint_PALM);
+    m.attr("JOINT_WRIST") = static_cast<int>(core::HandJoint_WRIST);
+    m.attr("JOINT_THUMB_TIP") = static_cast<int>(core::HandJoint_THUMB_TIP);
+    m.attr("JOINT_INDEX_TIP") = static_cast<int>(core::HandJoint_INDEX_TIP);
 }

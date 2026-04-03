@@ -6,6 +6,44 @@ include "timestamp.fbs";
 
 namespace core;
 
+// Hand joint indices for fixed-size hand pose arrays (e.g. HandJoints.poses).
+//
+// Ordinal values match Khronos OpenXR XrHandJointEXT (XR_EXT_hand_tracking):
+// https://registry.khronos.org/OpenXR/specs/1.0/html/xrspec.html#XrHandJointEXT
+// There are 26 joints (OpenXR XR_HAND_JOINT_COUNT_EXT). Enum member names follow
+// the same ordering and naming as the OpenXR identifiers, omitting the
+// XR_HAND_JOINT_ prefix and _EXT suffix (e.g. XR_HAND_JOINT_THUMB_TIP_EXT -> THUMB_TIP).
+enum HandJoint : uint8 {
+    PALM = 0,
+    WRIST = 1,
+    THUMB_METACARPAL = 2,
+    THUMB_PROXIMAL = 3,
+    THUMB_DISTAL = 4,
+    THUMB_TIP = 5,
+    INDEX_METACARPAL = 6,
+    INDEX_PROXIMAL = 7,
+    INDEX_INTERMEDIATE = 8,
+    INDEX_DISTAL = 9,
+    INDEX_TIP = 10,
+    MIDDLE_METACARPAL = 11,
+    MIDDLE_PROXIMAL = 12,
+    MIDDLE_INTERMEDIATE = 13,
+    MIDDLE_DISTAL = 14,
+    MIDDLE_TIP = 15,
+    RING_METACARPAL = 16,
+    RING_PROXIMAL = 17,
+    RING_INTERMEDIATE = 18,
+    RING_DISTAL = 19,
+    RING_TIP = 20,
+    LITTLE_METACARPAL = 21,
+    LITTLE_PROXIMAL = 22,
+    LITTLE_INTERMEDIATE = 23,
+    LITTLE_DISTAL = 24,
+    LITTLE_TIP = 25,
+
+    NUM_JOINTS = 26,
+}
+
 // Describe a HandJoint pose.
 struct HandJointPose {
     // The concrete pose data
@@ -20,14 +58,15 @@ struct HandJointPose {
 }
 
 struct HandJoints {
+    // Fixed-size array; length must stay in sync with HandJoint::NUM_JOINTS (and the OpenXR joint count).
     poses: [HandJointPose:26];
 }
 
 // Hand pose data.
 // All fields are always present when the parent Tracked/Record wrapper's data is non-null.
 table HandPose {
-    // Vector of HandJointPose.
-    // For OpenXR, this should be 26 according to XR_HAND_JOINT_COUNT_EXT
+    // Fixed-size hand joint poses in HandJoint / OpenXR order (struct HandJoints, not a variable-length vector).
+    // The HandJoints.poses array length must stay in sync with HandJoint::NUM_JOINTS.
     joints: HandJoints (id: 0);
 }
 

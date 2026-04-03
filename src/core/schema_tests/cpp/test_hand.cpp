@@ -6,6 +6,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <flatbuffers/flatbuffers.h>
+#include <openxr/openxr.h>
 
 // Include generated FlatBuffer headers.
 #include <schema/hand_generated.h>
@@ -39,9 +40,47 @@ static_assert(std::is_trivially_copyable_v<core::HandJointPose>, "HandJointPose 
 // =============================================================================
 static_assert(std::is_trivially_copyable_v<core::HandJoints>, "HandJoints should be a trivially copyable struct");
 
-// HandJoints should contain exactly 26 HandJointPose entries.
-static_assert(sizeof(core::HandJoints) == 26 * sizeof(core::HandJointPose),
-              "HandJoints should contain exactly 26 HandJointPose entries");
+// HandJoints should contain exactly HandJoint::NUM_JOINTS HandJointPose entries.
+static_assert(sizeof(core::HandJoints) == core::HandJoint_NUM_JOINTS * sizeof(core::HandJointPose),
+              "HandJoints size must match HandJoint::NUM_JOINTS");
+
+// =============================================================================
+// OpenXR parity: core::HandJoint ordinals must match XrHandJointEXT (XR_EXT_hand_tracking).
+// =============================================================================
+static_assert(static_cast<int>(core::HandJoint_NUM_JOINTS) == XR_HAND_JOINT_COUNT_EXT,
+              "HandJoint::NUM_JOINTS must match OpenXR XR_HAND_JOINT_COUNT_EXT");
+static_assert(static_cast<int>(core::HandJoint_PALM) == static_cast<int>(XR_HAND_JOINT_PALM_EXT));
+static_assert(static_cast<int>(core::HandJoint_WRIST) == static_cast<int>(XR_HAND_JOINT_WRIST_EXT));
+static_assert(static_cast<int>(core::HandJoint_THUMB_METACARPAL) == static_cast<int>(XR_HAND_JOINT_THUMB_METACARPAL_EXT));
+static_assert(static_cast<int>(core::HandJoint_THUMB_PROXIMAL) == static_cast<int>(XR_HAND_JOINT_THUMB_PROXIMAL_EXT));
+static_assert(static_cast<int>(core::HandJoint_THUMB_DISTAL) == static_cast<int>(XR_HAND_JOINT_THUMB_DISTAL_EXT));
+static_assert(static_cast<int>(core::HandJoint_THUMB_TIP) == static_cast<int>(XR_HAND_JOINT_THUMB_TIP_EXT));
+static_assert(static_cast<int>(core::HandJoint_INDEX_METACARPAL) == static_cast<int>(XR_HAND_JOINT_INDEX_METACARPAL_EXT));
+static_assert(static_cast<int>(core::HandJoint_INDEX_PROXIMAL) == static_cast<int>(XR_HAND_JOINT_INDEX_PROXIMAL_EXT));
+static_assert(static_cast<int>(core::HandJoint_INDEX_INTERMEDIATE) ==
+              static_cast<int>(XR_HAND_JOINT_INDEX_INTERMEDIATE_EXT));
+static_assert(static_cast<int>(core::HandJoint_INDEX_DISTAL) == static_cast<int>(XR_HAND_JOINT_INDEX_DISTAL_EXT));
+static_assert(static_cast<int>(core::HandJoint_INDEX_TIP) == static_cast<int>(XR_HAND_JOINT_INDEX_TIP_EXT));
+static_assert(static_cast<int>(core::HandJoint_MIDDLE_METACARPAL) ==
+              static_cast<int>(XR_HAND_JOINT_MIDDLE_METACARPAL_EXT));
+static_assert(static_cast<int>(core::HandJoint_MIDDLE_PROXIMAL) == static_cast<int>(XR_HAND_JOINT_MIDDLE_PROXIMAL_EXT));
+static_assert(static_cast<int>(core::HandJoint_MIDDLE_INTERMEDIATE) ==
+              static_cast<int>(XR_HAND_JOINT_MIDDLE_INTERMEDIATE_EXT));
+static_assert(static_cast<int>(core::HandJoint_MIDDLE_DISTAL) == static_cast<int>(XR_HAND_JOINT_MIDDLE_DISTAL_EXT));
+static_assert(static_cast<int>(core::HandJoint_MIDDLE_TIP) == static_cast<int>(XR_HAND_JOINT_MIDDLE_TIP_EXT));
+static_assert(static_cast<int>(core::HandJoint_RING_METACARPAL) == static_cast<int>(XR_HAND_JOINT_RING_METACARPAL_EXT));
+static_assert(static_cast<int>(core::HandJoint_RING_PROXIMAL) == static_cast<int>(XR_HAND_JOINT_RING_PROXIMAL_EXT));
+static_assert(static_cast<int>(core::HandJoint_RING_INTERMEDIATE) ==
+              static_cast<int>(XR_HAND_JOINT_RING_INTERMEDIATE_EXT));
+static_assert(static_cast<int>(core::HandJoint_RING_DISTAL) == static_cast<int>(XR_HAND_JOINT_RING_DISTAL_EXT));
+static_assert(static_cast<int>(core::HandJoint_RING_TIP) == static_cast<int>(XR_HAND_JOINT_RING_TIP_EXT));
+static_assert(static_cast<int>(core::HandJoint_LITTLE_METACARPAL) ==
+              static_cast<int>(XR_HAND_JOINT_LITTLE_METACARPAL_EXT));
+static_assert(static_cast<int>(core::HandJoint_LITTLE_PROXIMAL) == static_cast<int>(XR_HAND_JOINT_LITTLE_PROXIMAL_EXT));
+static_assert(static_cast<int>(core::HandJoint_LITTLE_INTERMEDIATE) ==
+              static_cast<int>(XR_HAND_JOINT_LITTLE_INTERMEDIATE_EXT));
+static_assert(static_cast<int>(core::HandJoint_LITTLE_DISTAL) == static_cast<int>(XR_HAND_JOINT_LITTLE_DISTAL_EXT));
+static_assert(static_cast<int>(core::HandJoint_LITTLE_TIP) == static_cast<int>(XR_HAND_JOINT_LITTLE_TIP_EXT));
 
 // =============================================================================
 // HandJointPose Tests
@@ -88,9 +127,9 @@ TEST_CASE("HandJointPose default construction", "[hand][struct]")
 // =============================================================================
 TEST_CASE("HandJoints struct has correct size", "[hand][struct]")
 {
-    // HandJoints should have exactly 26 entries (XR_HAND_JOINT_COUNT_EXT).
+    // HandJoints should have exactly HandJoint::NUM_JOINTS entries.
     core::HandJoints joints;
-    CHECK(joints.poses()->size() == 26);
+    CHECK(joints.poses()->size() == static_cast<size_t>(core::HandJoint_NUM_JOINTS));
 }
 
 TEST_CASE("HandJoints can be accessed by index", "[hand][struct]")
@@ -99,7 +138,7 @@ TEST_CASE("HandJoints can be accessed by index", "[hand][struct]")
 
     // Access first and last entries (returns pointers).
     const auto* first = (*joints.poses())[0];
-    const auto* last = (*joints.poses())[25];
+    const auto* last = (*joints.poses())[static_cast<size_t>(core::HandJoint_NUM_JOINTS) - 1];
 
     // Default values should be zero.
     CHECK(first->pose().position().x() == 0.0f);
@@ -124,7 +163,7 @@ TEST_CASE("HandPoseT can store joints data", "[hand][native]")
     // Create and set joints.
     hand_pose->joints = std::make_unique<core::HandJoints>();
 
-    CHECK(hand_pose->joints->poses()->size() == 26);
+    CHECK(hand_pose->joints->poses()->size() == static_cast<size_t>(core::HandJoint_NUM_JOINTS));
 }
 
 TEST_CASE("HandPoseT joints can be mutated via flatbuffers Array", "[hand][native]")
@@ -175,7 +214,7 @@ TEST_CASE("HandPoseT serialization and deserialization", "[hand][flatbuffers]")
     auto deserialized = flatbuffers::GetRoot<core::HandPose>(buffer);
 
     // Verify.
-    CHECK(deserialized->joints()->poses()->size() == 26);
+    CHECK(deserialized->joints()->poses()->size() == static_cast<size_t>(core::HandJoint_NUM_JOINTS));
 
     const auto* first_joint = (*deserialized->joints()->poses())[0];
     CHECK(first_joint->pose().position().x() == Catch::Approx(1.5f));
@@ -194,7 +233,7 @@ TEST_CASE("HandPoseT can be unpacked from buffer", "[hand][flatbuffers]")
     original->joints = std::make_unique<core::HandJoints>();
 
     // Set multiple joint poses
-    for (size_t i = 0; i < 26; ++i)
+    for (size_t i = 0; i < static_cast<size_t>(core::HandJoint_NUM_JOINTS); ++i)
     {
         core::Point position(static_cast<float>(i), static_cast<float>(i * 2), static_cast<float>(i * 3));
         core::Quaternion orientation(0.0f, 0.0f, 0.0f, 1.0f);
@@ -218,19 +257,20 @@ TEST_CASE("HandPoseT can be unpacked from buffer", "[hand][flatbuffers]")
     CHECK(joint_5->pose().position().y() == Catch::Approx(10.0f));
     CHECK(joint_5->pose().position().z() == Catch::Approx(15.0f));
 
-    const auto* joint_25 = (*unpacked->joints->poses())[25];
-    CHECK(joint_25->pose().position().x() == Catch::Approx(25.0f));
-    CHECK(joint_25->pose().position().y() == Catch::Approx(50.0f));
-    CHECK(joint_25->pose().position().z() == Catch::Approx(75.0f));
+    const size_t last_joint_index = static_cast<size_t>(core::HandJoint_NUM_JOINTS) - 1;
+    const auto* joint_last = (*unpacked->joints->poses())[last_joint_index];
+    CHECK(joint_last->pose().position().x() == Catch::Approx(static_cast<float>(last_joint_index)));
+    CHECK(joint_last->pose().position().y() == Catch::Approx(static_cast<float>(last_joint_index * 2)));
+    CHECK(joint_last->pose().position().z() == Catch::Approx(static_cast<float>(last_joint_index * 3)));
 }
 
-TEST_CASE("HandPoseT all 26 joints can be set and verified", "[hand][native]")
+TEST_CASE("HandPoseT all joints can be set and verified", "[hand][native]")
 {
     auto hand_pose = std::make_unique<core::HandPoseT>();
     hand_pose->joints = std::make_unique<core::HandJoints>();
 
-    // Set all 26 joints with unique positions.
-    for (size_t i = 0; i < 26; ++i)
+    // Set every joint slot with a unique position.
+    for (size_t i = 0; i < static_cast<size_t>(core::HandJoint_NUM_JOINTS); ++i)
     {
         core::Point position(static_cast<float>(i), 0.0f, 0.0f);
         core::Quaternion orientation(0.0f, 0.0f, 0.0f, 1.0f);
@@ -240,7 +280,7 @@ TEST_CASE("HandPoseT all 26 joints can be set and verified", "[hand][native]")
     }
 
     // Verify all joints.
-    for (size_t i = 0; i < 26; ++i)
+    for (size_t i = 0; i < static_cast<size_t>(core::HandJoint_NUM_JOINTS); ++i)
     {
         const auto* joint = (*hand_pose->joints->poses())[i];
         CHECK(joint->pose().position().x() == Catch::Approx(static_cast<float>(i)));
@@ -268,7 +308,7 @@ TEST_CASE("HandPoseRecord serialization with DeviceDataTimestamp", "[hand][flatb
     CHECK(deserialized->timestamp()->available_time_local_common_clock() == 1000000000LL);
     CHECK(deserialized->timestamp()->sample_time_local_common_clock() == 2000000000LL);
     CHECK(deserialized->timestamp()->sample_time_raw_device_clock() == 3000000000LL);
-    CHECK(deserialized->data()->joints()->poses()->size() == 26);
+    CHECK(deserialized->data()->joints()->poses()->size() == static_cast<size_t>(core::HandJoint_NUM_JOINTS));
 }
 
 TEST_CASE("HandPoseRecord can be unpacked with DeviceDataTimestamp", "[hand][flatbuffers]")
@@ -290,5 +330,5 @@ TEST_CASE("HandPoseRecord can be unpacked with DeviceDataTimestamp", "[hand][fla
     CHECK(unpacked->timestamp->available_time_local_common_clock() == 111LL);
     CHECK(unpacked->timestamp->sample_time_local_common_clock() == 222LL);
     CHECK(unpacked->timestamp->sample_time_raw_device_clock() == 333LL);
-    CHECK(unpacked->data->joints->poses()->size() == 26);
+    CHECK(unpacked->data->joints->poses()->size() == static_cast<size_t>(core::HandJoint_NUM_JOINTS));
 }
