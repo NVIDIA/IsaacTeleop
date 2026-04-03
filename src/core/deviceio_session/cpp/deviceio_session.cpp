@@ -9,6 +9,8 @@
 
 #include <live_trackers/live_deviceio_factory.hpp>
 #include <mcap/writer.hpp>
+#include <openxr/openxr.h>
+#include <oxr_utils/os_time.hpp>
 
 #include <cassert>
 #include <iostream>
@@ -24,7 +26,7 @@ namespace core
 DeviceIOSession::DeviceIOSession(const std::vector<std::shared_ptr<ITracker>>& trackers,
                                  const OpenXRSessionHandles& handles,
                                  std::optional<McapRecordingConfig> recording_config)
-    : handles_(handles), time_converter_(handles)
+    : handles_(handles)
 {
     std::vector<std::pair<const ITracker*, std::string>> tracker_names;
 
@@ -103,11 +105,11 @@ std::unique_ptr<DeviceIOSession> DeviceIOSession::run(const std::vector<std::sha
 
 void DeviceIOSession::update()
 {
-    XrTime current_time = time_converter_.os_monotonic_now();
+    const int64_t monotonic_ns = os_monotonic_now_ns();
 
     for (auto& kv : tracker_impls_)
     {
-        kv.second->update(current_time);
+        kv.second->update(monotonic_ns);
     }
 }
 

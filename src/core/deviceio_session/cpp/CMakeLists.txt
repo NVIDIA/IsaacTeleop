@@ -14,12 +14,14 @@ target_include_directories(deviceio_session
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
 )
 
-# Public headers include oxr_funcs.hpp, which pulls in NVIDIA OpenXR extension
-# headers (e.g. XR_NVX1_action_context.h). Propagate Teleop::openxr_extensions so
-# consumers (Python bindings, apps) can compile without linking deviceio_trackers.
+# Public headers include oxr_funcs.hpp and oxr_session_handles.hpp. Propagate
+# oxr::oxr_utils (OpenXR headers + oxr inc/) and Teleop::openxr_extensions (NVIDIA
+# extension headers) so consumers (Python bindings, apps) compile without linking
+# live_trackers.
 target_link_libraries(deviceio_session
     PUBLIC
         deviceio::deviceio_base
+        oxr::oxr_utils
         Teleop::openxr_extensions
     PRIVATE
         deviceio::deviceio_trackers

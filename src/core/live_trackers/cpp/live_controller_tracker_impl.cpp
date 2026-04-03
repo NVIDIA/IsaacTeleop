@@ -5,8 +5,8 @@
 
 #include <mcap/recording_traits.hpp>
 #include <oxr_utils/oxr_funcs.hpp>
-#include <oxr_utils/oxr_time.hpp>
 #include <schema/controller_bfbs_generated.h>
+#include <schema/timestamp_generated.h>
 
 #include <cassert>
 #include <cmath>
@@ -314,9 +314,10 @@ LiveControllerTrackerImpl::LiveControllerTrackerImpl(const OpenXRSessionHandles&
     std::cout << "ControllerTracker initialized (left + right) with action context" << std::endl;
 }
 
-void LiveControllerTrackerImpl::update(XrTime time)
+void LiveControllerTrackerImpl::update(int64_t monotonic_time_ns)
 {
-    last_update_time_ = time;
+    last_update_time_ = monotonic_time_ns;
+    const XrTime xr_time = time_converter_.convert_monotonic_ns_to_xrtime(monotonic_time_ns);
 
     // Sync actions via xrSyncActions2NV with our session action context
     XrActiveActionSet active_action_set{ action_set_.get(), XR_NULL_PATH };
@@ -352,7 +353,7 @@ void LiveControllerTrackerImpl::update(XrTime time)
         ControllerPose aim_pose{};
 
         XrSpaceLocation grip_location{ XR_TYPE_SPACE_LOCATION };
-        result = core_funcs_.xrLocateSpace(grip_space.get(), base_space_, time, &grip_location);
+        result = core_funcs_.xrLocateSpace(grip_space.get(), base_space_, xr_time, &grip_location);
         if (XR_FAILED(result))
         {
             tracked.data.reset();
@@ -373,7 +374,7 @@ void LiveControllerTrackerImpl::update(XrTime time)
         }
 
         XrSpaceLocation aim_location{ XR_TYPE_SPACE_LOCATION };
-        result = core_funcs_.xrLocateSpace(aim_space.get(), base_space_, time, &aim_location);
+        result = core_funcs_.xrLocateSpace(aim_space.get(), base_space_, xr_time, &aim_location);
         if (XR_FAILED(result))
         {
             tracked.data.reset();
@@ -419,8 +420,7 @@ void LiveControllerTrackerImpl::update(XrTime time)
 
     if (mcap_channels_)
     {
-        int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
-        DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
+        DeviceDataTimestamp timestamp(last_update_time_, last_update_time_, xr_time);
         mcap_channels_->write(0, timestamp, left_tracked_.data);
         mcap_channels_->write(1, timestamp, right_tracked_.data);
     }

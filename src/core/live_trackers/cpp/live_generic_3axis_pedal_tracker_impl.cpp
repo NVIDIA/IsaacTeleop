@@ -44,7 +44,7 @@ LiveGeneric3AxisPedalTrackerImpl::LiveGeneric3AxisPedalTrackerImpl(const OpenXRS
 {
 }
 
-void LiveGeneric3AxisPedalTrackerImpl::update(XrTime /*time*/)
+void LiveGeneric3AxisPedalTrackerImpl::update(int64_t /*monotonic_time_ns*/)
 {
     // Policy: SchemaTracker throws on critical OpenXR/tensor API failures.
     // Missing collection/no new data are treated as common non-fatal cases.

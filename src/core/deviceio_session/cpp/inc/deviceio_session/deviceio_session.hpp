@@ -6,7 +6,6 @@
 #include <deviceio_base/tracker.hpp>
 #include <oxr_utils/oxr_funcs.hpp>
 #include <oxr_utils/oxr_session_handles.hpp>
-#include <oxr_utils/oxr_time.hpp>
 
 #include <memory>
 #include <optional>
@@ -88,7 +87,6 @@ private:
 
     const OpenXRSessionHandles handles_;
     std::unordered_map<const ITracker*, std::unique_ptr<ITrackerImpl>> tracker_impls_;
-    XrTimeConverter time_converter_;
 
     // Owned MCAP writer; null when recording is not configured.
     std::unique_ptr<mcap::McapWriter> mcap_writer_;

@@ -5,13 +5,12 @@
 
 #include <deviceio_base/controller_tracker_base.hpp>
 #include <mcap/tracker_channels.hpp>
-#include <openxr/openxr.h>
 #include <oxr_utils/oxr_funcs.hpp>
 #include <oxr_utils/oxr_session_handles.hpp>
 #include <oxr_utils/oxr_time.hpp>
 #include <schema/controller_generated.h>
 
-#include <XR_NVX1_action_context.h>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -40,7 +39,7 @@ public:
     LiveControllerTrackerImpl(LiveControllerTrackerImpl&&) = delete;
     LiveControllerTrackerImpl& operator=(LiveControllerTrackerImpl&&) = delete;
 
-    void update(XrTime time) override;
+    void update(int64_t monotonic_time_ns) override;
     const ControllerSnapshotTrackedT& get_left_controller() const override;
     const ControllerSnapshotTrackedT& get_right_controller() const override;
 
@@ -75,7 +74,7 @@ private:
 
     ControllerSnapshotTrackedT left_tracked_;
     ControllerSnapshotTrackedT right_tracked_;
-    XrTime last_update_time_ = 0;
+    int64_t last_update_time_ = 0;
 
     std::unique_ptr<ControllerMcapChannels> mcap_channels_;
 };

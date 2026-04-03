@@ -10,6 +10,7 @@
 #include <oxr_utils/oxr_time.hpp>
 #include <schema/head_generated.h>
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -36,7 +37,7 @@ public:
     LiveHeadTrackerImpl(LiveHeadTrackerImpl&&) = delete;
     LiveHeadTrackerImpl& operator=(LiveHeadTrackerImpl&&) = delete;
 
-    void update(XrTime time) override;
+    void update(int64_t monotonic_time_ns) override;
     const HeadPoseTrackedT& get_head() const override;
 
 private:
@@ -45,7 +46,7 @@ private:
     XrSpace base_space_;
     XrSpacePtr view_space_;
     HeadPoseTrackedT tracked_;
-    XrTime last_update_time_ = 0;
+    int64_t last_update_time_ = 0;
     std::unique_ptr<HeadMcapChannels> mcap_channels_;
 };
 

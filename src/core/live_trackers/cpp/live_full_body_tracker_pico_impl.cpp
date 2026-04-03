@@ -5,8 +5,8 @@
 
 #include <mcap/recording_traits.hpp>
 #include <oxr_utils/oxr_funcs.hpp>
-#include <oxr_utils/oxr_time.hpp>
 #include <schema/full_body_bfbs_generated.h>
+#include <schema/timestamp_generated.h>
 
 #include <cassert>
 #include <cstring>
@@ -97,9 +97,9 @@ LiveFullBodyTrackerPicoImpl::~LiveFullBodyTrackerPicoImpl()
     }
 }
 
-void LiveFullBodyTrackerPicoImpl::update(XrTime time)
+void LiveFullBodyTrackerPicoImpl::update(int64_t monotonic_time_ns)
 {
-    last_update_time_ = time;
+    last_update_time_ = monotonic_time_ns;
 
     if (body_tracker_ == XR_NULL_HANDLE)
     {
@@ -108,10 +108,12 @@ void LiveFullBodyTrackerPicoImpl::update(XrTime time)
         return;
     }
 
+    const XrTime xr_time = time_converter_.convert_monotonic_ns_to_xrtime(monotonic_time_ns);
+
     XrBodyJointsLocateInfoBD locate_info{ XR_TYPE_BODY_JOINTS_LOCATE_INFO_BD };
     locate_info.next = nullptr;
     locate_info.baseSpace = base_space_;
-    locate_info.time = time;
+    locate_info.time = xr_time;
 
     XrBodyJointLocationBD joint_locations[XR_BODY_JOINT_COUNT_BD];
 
@@ -157,8 +159,7 @@ void LiveFullBodyTrackerPicoImpl::update(XrTime time)
 
     if (mcap_channels_)
     {
-        int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
-        DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
+        DeviceDataTimestamp timestamp(last_update_time_, last_update_time_, xr_time);
         mcap_channels_->write(0, timestamp, tracked_.data);
     }
 }

@@ -4,7 +4,9 @@
 #include "live_head_tracker_impl.hpp"
 
 #include <mcap/recording_traits.hpp>
+#include <oxr_utils/oxr_funcs.hpp>
 #include <schema/head_bfbs_generated.h>
+#include <schema/timestamp_generated.h>
 
 #include <cstring>
 #include <iostream>
@@ -40,12 +42,14 @@ LiveHeadTrackerImpl::LiveHeadTrackerImpl(const OpenXRSessionHandles& handles,
 {
 }
 
-void LiveHeadTrackerImpl::update(XrTime time)
+void LiveHeadTrackerImpl::update(int64_t monotonic_time_ns)
 {
-    last_update_time_ = time;
+    last_update_time_ = monotonic_time_ns;
+
+    const XrTime xr_time = time_converter_.convert_monotonic_ns_to_xrtime(monotonic_time_ns);
 
     XrSpaceLocation location{ XR_TYPE_SPACE_LOCATION };
-    XrResult result = core_funcs_.xrLocateSpace(view_space_.get(), base_space_, time, &location);
+    XrResult result = core_funcs_.xrLocateSpace(view_space_.get(), base_space_, xr_time, &location);
 
     if (XR_FAILED(result))
     {
@@ -78,8 +82,7 @@ void LiveHeadTrackerImpl::update(XrTime time)
 
     if (mcap_channels_)
     {
-        int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
-        DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
+        DeviceDataTimestamp timestamp(last_update_time_, last_update_time_, xr_time);
         mcap_channels_->write(0, timestamp, tracked_.data);
     }
 }

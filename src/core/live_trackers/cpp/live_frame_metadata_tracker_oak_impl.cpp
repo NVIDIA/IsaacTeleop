@@ -59,7 +59,7 @@ LiveFrameMetadataTrackerOakImpl::LiveFrameMetadataTrackerOakImpl(const OpenXRSes
     }
 }
 
-void LiveFrameMetadataTrackerOakImpl::update(XrTime /*time*/)
+void LiveFrameMetadataTrackerOakImpl::update(int64_t /*monotonic_time_ns*/)
 {
     // Policy: per-stream SchemaTracker throws on critical OpenXR/tensor API failures.
     // Missing stream collection/no fresh sample are treated as common non-fatal cases.

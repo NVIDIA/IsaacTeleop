@@ -9,6 +9,7 @@
 #include <oxr_utils/oxr_session_handles.hpp>
 #include <schema/pedals_generated.h>
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -38,7 +39,7 @@ public:
     LiveGeneric3AxisPedalTrackerImpl(LiveGeneric3AxisPedalTrackerImpl&&) = delete;
     LiveGeneric3AxisPedalTrackerImpl& operator=(LiveGeneric3AxisPedalTrackerImpl&&) = delete;
 
-    void update(XrTime time) override;
+    void update(int64_t monotonic_time_ns) override;
     const Generic3AxisPedalOutputTrackedT& get_data() const override;
 
 private:

@@ -10,6 +10,7 @@
 #include <oxr_utils/oxr_time.hpp>
 #include <schema/full_body_generated.h>
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -40,7 +41,7 @@ public:
     LiveFullBodyTrackerPicoImpl(LiveFullBodyTrackerPicoImpl&&) = delete;
     LiveFullBodyTrackerPicoImpl& operator=(LiveFullBodyTrackerPicoImpl&&) = delete;
 
-    void update(XrTime time) override;
+    void update(int64_t monotonic_time_ns) override;
     const FullBodyPosePicoTrackedT& get_body_pose() const override;
 
 private:
@@ -48,7 +49,7 @@ private:
     XrSpace base_space_;
     XrBodyTrackerBD body_tracker_;
     FullBodyPosePicoTrackedT tracked_;
-    XrTime last_update_time_ = 0;
+    int64_t last_update_time_ = 0;
 
     PFN_xrCreateBodyTrackerBD pfn_create_body_tracker_;
     PFN_xrDestroyBodyTrackerBD pfn_destroy_body_tracker_;

@@ -9,6 +9,7 @@
 #include <oxr_utils/oxr_session_handles.hpp>
 #include <schema/oak_generated.h>
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -40,7 +41,7 @@ public:
     LiveFrameMetadataTrackerOakImpl(LiveFrameMetadataTrackerOakImpl&&) = delete;
     LiveFrameMetadataTrackerOakImpl& operator=(LiveFrameMetadataTrackerOakImpl&&) = delete;
 
-    void update(XrTime time) override;
+    void update(int64_t monotonic_time_ns) override;
     const FrameMetadataOakTrackedT& get_stream_data(size_t stream_index) const override;
 
 private:
