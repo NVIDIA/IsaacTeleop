@@ -17,7 +17,7 @@ Metadata emitted with each frame/packet:
     - sequence: Frame sequence number for drop detection (int)
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 import time
 from typing import Any
@@ -134,12 +134,16 @@ class OakdCameraOp(Operator):
         try:
             self._mode = OakdCameraMode(mode.lower())
         except ValueError:
-            raise ValueError(f"Invalid mode '{mode}'. Must be 'mono', 'stereo', or 'stereo_rgb'.")
+            raise ValueError(
+                f"Invalid mode '{mode}'. Must be 'mono', 'stereo', or 'stereo_rgb'."
+            )
 
         try:
             self._output_format = OakdOutputFormat(output_format.lower())
         except ValueError:
-            raise ValueError(f"Invalid output_format '{output_format}'. Must be 'raw' or 'h264'.")
+            raise ValueError(
+                f"Invalid output_format '{output_format}'. Must be 'raw' or 'h264'."
+            )
 
         self._device_id = device_id
         self._color_format = color_format.lower()
@@ -161,7 +165,11 @@ class OakdCameraOp(Operator):
         self._pipeline: dai.Pipeline | None = None
 
         # Build stream descriptors
-        stream_ids = {"left": left_stream_id, "right": right_stream_id, "rgb": rgb_stream_id}
+        stream_ids = {
+            "left": left_stream_id,
+            "right": right_stream_id,
+            "rgb": rgb_stream_id,
+        }
         stream_defs = {
             OakdCameraMode.MONO: _MONO_STREAMS,
             OakdCameraMode.STEREO: _STEREO_STREAMS,
@@ -195,7 +203,9 @@ class OakdCameraOp(Operator):
             port = s.raw_port if is_raw else s.h264_port
             spec.output(port).condition(ConditionType.NONE)
 
-    def _get_camera_socket(self, socket_name: str | None = None) -> dai.CameraBoardSocket:
+    def _get_camera_socket(
+        self, socket_name: str | None = None
+    ) -> dai.CameraBoardSocket:
         """Map camera socket string to DepthAI enum."""
         name = (socket_name or self._camera_socket).upper()
         socket_map = {
@@ -207,7 +217,9 @@ class OakdCameraOp(Operator):
             "CAM_C": dai.CameraBoardSocket.CAM_C,
         }
         if name not in socket_map:
-            raise ValueError(f"Unknown camera socket '{name}' (valid: {set(socket_map.keys())})")
+            raise ValueError(
+                f"Unknown camera socket '{name}' (valid: {set(socket_map.keys())})"
+            )
         return socket_map[name]
 
     def _get_encoder_profile(self) -> dai.VideoEncoderProperties.Profile:
@@ -221,7 +233,9 @@ class OakdCameraOp(Operator):
             raise ValueError(f"Unknown H.264 profile '{self._profile}'")
         return profile_map[self._profile]
 
-    def _create_encoder(self, pipeline: dai.Pipeline, camera_output, fps: int) -> dai.node.VideoEncoder:
+    def _create_encoder(
+        self, pipeline: dai.Pipeline, camera_output, fps: int
+    ) -> dai.node.VideoEncoder:
         """Create and configure H.264 encoder node."""
         encoder = pipeline.create(dai.node.VideoEncoder).build(
             camera_output,
@@ -292,7 +306,9 @@ class OakdCameraOp(Operator):
 
                 if is_h264:
                     encoder = self._create_encoder(pipeline, output, fps)
-                    stream.queue = encoder.out.createOutputQueue(maxSize=4, blocking=False)
+                    stream.queue = encoder.out.createOutputQueue(
+                        maxSize=4, blocking=False
+                    )
                 else:
                     stream.queue = output.createOutputQueue(maxSize=4, blocking=False)
 
@@ -330,7 +346,11 @@ class OakdCameraOp(Operator):
         self._last_emit_time = 0.0
         self._last_log_time = time.monotonic()
 
-        reconnect_str = f" (reconnect #{self._reconnect_attempts})" if self._reconnect_attempts > 0 else ""
+        reconnect_str = (
+            f" (reconnect #{self._reconnect_attempts})"
+            if self._reconnect_attempts > 0
+            else ""
+        )
         device_str = f"device={self._device_id}" if self._device_id else "auto-detect"
         format_str = self._output_format.value
         if self._output_format == OakdOutputFormat.H264:
@@ -413,9 +433,7 @@ class OakdCameraOp(Operator):
             elif self._last_emit_time > 0:
                 elapsed = time.monotonic() - self._last_emit_time
                 if elapsed >= STARVATION_TIMEOUT_SEC:
-                    self._handle_failure(
-                        f"no frames for {elapsed:.1f}s"
-                    )
+                    self._handle_failure(f"no frames for {elapsed:.1f}s")
         except Exception as e:
             self._handle_failure(f"emit failed: {e}")
 
@@ -432,7 +450,9 @@ class OakdCameraOp(Operator):
             self.metadata["frame_timestamp_us"] = self._extract_timestamp_us(frame_msg)
             self.metadata["stream_id"] = stream.stream_id
             self.metadata["sequence"] = stream.count
-            op_output.emit(as_tensor(frame_data), stream.raw_port, emitter_name="holoscan::Tensor")
+            op_output.emit(
+                as_tensor(frame_data), stream.raw_port, emitter_name="holoscan::Tensor"
+            )
             stream.count += 1
             return True
         except Exception as e:
@@ -450,7 +470,9 @@ class OakdCameraOp(Operator):
             if packet is None:
                 return False
             self.metadata.clear()
-            self.metadata["frame_timestamp_us"] = self._extract_timestamp_us(encoded_msg)
+            self.metadata["frame_timestamp_us"] = self._extract_timestamp_us(
+                encoded_msg
+            )
             self.metadata["stream_id"] = stream.stream_id
             self.metadata["sequence"] = stream.count
             op_output.emit(as_tensor(packet), stream.h264_port)
@@ -485,7 +507,9 @@ class OakdCameraOp(Operator):
         alpha = cp.full((*bgr.shape[:2], 1), 255, dtype=cp.uint8)
         return cp.concatenate([bgr, alpha], axis=2)
 
-    def _extract_raw_frame(self, frame_msg, buf: cp.ndarray | None = None) -> cp.ndarray | None:
+    def _extract_raw_frame(
+        self, frame_msg, buf: cp.ndarray | None = None
+    ) -> cp.ndarray | None:
         """Extract raw frame from depthai and convert to the configured color format.
 
         Uses getFrame() for GRAY8 (zero-copy reference from DepthAI buffer)
@@ -554,11 +578,15 @@ class OakdCameraOp(Operator):
         self._last_reconnect_time = now
         self._reconnect_attempts += 1
         device_str = self._device_id or "auto-detect"
-        logger.info(f"OAK-D '{self.name}' reconnection attempt #{self._reconnect_attempts} (device={device_str})...")
+        logger.info(
+            f"OAK-D '{self.name}' reconnection attempt #{self._reconnect_attempts} (device={device_str})..."
+        )
         if self._open_camera():
             logger.info(f"OAK-D '{self.name}' reconnected successfully!")
         else:
-            logger.warning(f"OAK-D '{self.name}' reconnection failed. Next attempt in {RECONNECT_DELAY_SEC}s...")
+            logger.warning(
+                f"OAK-D '{self.name}' reconnection failed. Next attempt in {RECONNECT_DELAY_SEC}s..."
+            )
 
     def _log_stats(self):
         """Log periodic statistics."""

@@ -121,7 +121,11 @@ class CameraConfig:
 
     def _validate_rgb_fields(self):
         """Validate that rgb_enable and rgb_width/rgb_height/rgb_fps are only used on OAK-D stereo cameras."""
-        rgb_dimension_keys = {"rgb_width": self.rgb_width, "rgb_height": self.rgb_height, "rgb_fps": self.rgb_fps}
+        rgb_dimension_keys = {
+            "rgb_width": self.rgb_width,
+            "rgb_height": self.rgb_height,
+            "rgb_fps": self.rgb_fps,
+        }
 
         if self.rgb_enable:
             if self.camera_type != "oakd":
@@ -144,6 +148,7 @@ class CameraConfig:
                 raise ValueError(
                     f"Camera '{self.name}': {', '.join(set_keys)} set but rgb_enable is false"
                 )
+
     @property
     def is_full_range(self) -> bool:
         """Resolved color range: True for full-range NV12, False for limited-range."""
