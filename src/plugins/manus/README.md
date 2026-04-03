@@ -17,7 +17,7 @@ This folder provides a Linux-only example of using the Manus SDK for hand tracki
 
 - **Linux** (x86_64 tested on Ubuntu 22.04/24.04)
 - **Manus SDK** for Linux (automatically downloaded by install script)
-- **System dependencies**: The install script will prompt to install required packages
+- **System dependencies**: The install script installs required packages automatically
 
 ## Installation
 
@@ -31,11 +31,10 @@ cd src/plugins/manus
 ```
 
 The script will:
-1. Ask whether to install MANUS Core Integrated dependencies only (faster) or both Integrated and Remote dependencies (includes gRPC, takes longer)
-2. Install required system packages
-3. Automatically download the MANUS SDK v3.1.1
-4. Extract and configure the SDK in the correct location
-5. Build the plugin
+1. Install required system packages for MANUS Core Integrated
+2. Automatically download the MANUS SDK v3.1.1
+3. Extract and configure the SDK in the correct location
+4. Build the plugin
 
 ### Manual Installation
 

@@ -27,7 +27,7 @@ Prerequisites
 
 - **Linux** — x86_64 (tested on Ubuntu 22.04 / 24.04).
 - **Manus SDK** for Linux — downloaded automatically by the install script.
-- **System dependencies** — the install script prompts to install required packages.
+- **System dependencies** — the install script installs required packages automatically.
 
 Installation
 ------------
@@ -44,12 +44,10 @@ The install script handles SDK download, dependency installation, and building:
 
 The script will:
 
-1. Ask whether to install **MANUS Core Integrated** dependencies only (faster) or
-   both **Integrated and Remote** dependencies (includes gRPC, takes longer).
-2. Install the required system packages.
-3. Download MANUS SDK v3.1.1.
-4. Extract and place the SDK in the correct location.
-5. Build the plugin and the diagnostic tool
+1. Install the required system packages for MANUS Core Integrated.
+2. Download MANUS SDK v3.1.1.
+3. Extract and place the SDK in the correct location.
+4. Build the plugin and the diagnostic tool
 
 Manual
 ~~~~~~

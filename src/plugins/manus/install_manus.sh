@@ -20,70 +20,31 @@ ARCH=$(uname -m)
 echo "Detected architecture: $ARCH"
 echo ""
 
-# Query user for dependency installation type
-echo "MANUS Core dependencies installation options:"
-echo "  1) Install MANUS Core Integrated dependencies only (faster)"
-echo "  2) Install both MANUS Core Integrated and Remote dependencies (includes gRPC, takes longer)"
-echo ""
-read -p "Enter your choice (1 or 2): " INSTALL_CHOICE
+# Install MANUS Core Integrated dependencies
+echo "[1/4] Installing MANUS Core Integrated dependencies..."
+sudo apt-get update
+sudo apt-get install -y \
+    build-essential \
+    cmake \
+    curl \
+    git \
+    libssl-dev \
+    unzip \
+    zlib1g-dev \
+    libc-ares-dev \
+    libzmq3-dev \
+    libncurses-dev \
+    libudev-dev \
+    libusb-1.0-0-dev
 
-case "$INSTALL_CHOICE" in
-    1)
-        echo "Installing MANUS Core Integrated dependencies only..."
-        INSTALL_REMOTE=false
-        ;;
-    2)
-        echo "Installing MANUS Core Integrated and Remote dependencies..."
-        INSTALL_REMOTE=true
-        ;;
-    *)
-        echo "Invalid choice. Defaulting to option 1 (Integrated only)."
-        INSTALL_REMOTE=false
-        ;;
-esac
-echo ""
-
-# Run the dependency installation script
-if [ -f "$SCRIPT_DIR/install-dependencies.sh" ]; then
-    echo "[1/4] Running dependency installation script..."
-    if [ "$INSTALL_REMOTE" = true ]; then
-        sudo bash "$SCRIPT_DIR/install-dependencies.sh"
-    else
-        echo "Skipping Remote dependencies (gRPC installation)..."
-        echo "Installing minimal dependencies only..."
-        sudo apt-get update
-        sudo apt-get install -y \
-            build-essential \
-            cmake \
-            curl \
-            git \
-            libssl-dev \
-            unzip \
-            zlib1g-dev \
-            libc-ares-dev \
-            libzmq3-dev \
-            libncurses-dev \
-            libudev-dev \
-            libusb-1.0-0-dev
-        
-        # Add read/write permissions for manus devices
-        if [ ! -f "/etc/udev/rules.d/70-manus-hid.rules" ]; then
-            sudo mkdir -p /etc/udev/rules.d/
-            sudo touch /etc/udev/rules.d/70-manus-hid.rules
-            echo "Adding read/write permissions for manus devices..."
-            echo "# HIDAPI/libusb" | sudo tee -a /etc/udev/rules.d/70-manus-hid.rules > /dev/null
-            echo "SUBSYSTEMS==\"usb\", ATTRS{idVendor}==\"3325\", MODE:=\"0666\"" | sudo tee -a /etc/udev/rules.d/70-manus-hid.rules > /dev/null
-            echo "SUBSYSTEMS==\"usb\", ATTRS{idVendor}==\"1915\", ATTRS{idProduct}==\"83fd\", MODE:=\"0666\"" | sudo tee -a /etc/udev/rules.d/70-manus-hid.rules > /dev/null
-            echo "# HIDAPI/hidraw" | sudo tee -a /etc/udev/rules.d/70-manus-hid.rules > /dev/null
-            echo "KERNEL==\"hidraw*\", ATTRS{idVendor}==\"3325\", MODE:=\"0666\"" | sudo tee -a /etc/udev/rules.d/70-manus-hid.rules > /dev/null
-            sudo udevadm control --reload-rules
-        fi
-    fi
-    echo ""
-else
-    echo "Warning: install-dependencies.sh not found. Skipping dependency installation."
-    echo ""
+# Add read/write permissions for manus devices
+if [ ! -f "/etc/udev/rules.d/70-manus-hid.rules" ]; then
+    echo "Adding read/write permissions for manus devices..."
+    sudo mkdir -p /etc/udev/rules.d/
+    sudo cp "$SCRIPT_DIR/70-manus-hid.rules" /etc/udev/rules.d/70-manus-hid.rules
+    sudo udevadm control --reload-rules
 fi
+echo ""
 
 # Download MANUS SDK
 echo "[2/4] Downloading MANUS SDK v${MANUS_SDK_VERSION}..."
@@ -153,13 +114,7 @@ if [ -d "$EXTRACTED_DIR/$SDK_CLIENT_DIR/ManusSDK" ]; then
     echo "Copying ManusSDK folder from $SDK_CLIENT_DIR..."
     cp -r "$EXTRACTED_DIR/$SDK_CLIENT_DIR/ManusSDK" "$SCRIPT_DIR/"
     echo "ManusSDK copied successfully to $SCRIPT_DIR/ManusSDK"
-    
-    if [ "$INSTALL_REMOTE" = true ]; then
-        echo "Note: Both libManusSDK.so and libManusSDK_Integrated.so available."
-        echo "CMake will use libManusSDK_Integrated.so by default."
-    else
-        echo "Note: Using libManusSDK_Integrated.so (CMake auto-selects)."
-    fi
+    echo "Note: Using libManusSDK_Integrated.so (CMake auto-selects)."
 else
     echo "Error: ManusSDK folder not found in $EXTRACTED_DIR/$SDK_CLIENT_DIR"
     exit 1
@@ -197,11 +152,6 @@ echo "MANUS SDK v${MANUS_SDK_VERSION} installed to: $SCRIPT_DIR/ManusSDK"
 echo "Plugin built and installed successfully"
 echo "Plugin executable:  $TELEOP_ROOT/install/plugins/manus/manus_hand_plugin"
 echo "Printer diagnostic: $TELEOP_ROOT/build/bin/manus_hand_tracker_printer"
-echo ""
-if [ "$INSTALL_REMOTE" = false ]; then
-    echo "Note: Only MANUS Core Integrated dependencies were installed."
-    echo "If you need Remote functionality (gRPC), re-run and select option 2."
-fi
 echo ""
 echo "To reload udev rules (if not already done), run:"
 echo "  sudo udevadm control --reload-rules"
