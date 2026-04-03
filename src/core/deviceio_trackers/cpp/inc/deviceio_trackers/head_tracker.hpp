@@ -18,7 +18,9 @@ public:
         return TRACKER_NAME;
     }
 
-    // Query method - tracked.data is always set when the HMD is present
+    // Query method:
+    // - tracked.data is null when no head sample is available for the frame.
+    // - when tracked.data is non-null, nested fields in HeadPoseT are safe to read.
     const HeadPoseTrackedT& get_head(const ITrackerSession& session) const;
 
 private:

@@ -94,15 +94,9 @@ def run_test():
             while time.time() - start_time < 10.0:
                 # Poll plugin health every ~1 second
                 if frame_count % 60 == 0:
-                    try:
-                        plugin.check_health()  # Throws PluginCrashException if plugin crashed
-                    except pm.PluginCrashException as e:
-                        print(f"Plugin crashed: {e}")
-                        break
+                    plugin.check_health()  # Throws PluginCrashException if plugin crashed
 
-                if not deviceio_session.update():
-                    print("  ✗ Reader session update failed")
-                    break
+                deviceio_session.update()
 
                 if frame_count % 60 == 0:
                     left_tracked = hand_tracker.get_left_hand(deviceio_session)

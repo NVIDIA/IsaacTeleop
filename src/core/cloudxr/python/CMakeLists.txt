@@ -57,6 +57,12 @@ if(NOT EXISTS "${CLOUDXR_SDK_PATH}")
 endif()
 
 set(CLOUDXR_NATIVE_AVAILABLE FALSE)
+# Always create native dir for uniform package structure, even if the SDK tarball is not available
+set(CLOUDXR_NATIVE_DIR "${CLOUDXR_PYTHON_DIR}/native")
+add_custom_target(cloudxr_native_dir ALL
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CLOUDXR_NATIVE_DIR}"
+    COMMENT "Creating python_package/.../cloudxr/native/"
+)
 if(NOT EXISTS "${CLOUDXR_SDK_PATH}")
     set(error_message "CloudXR SDK tarball is required. Place ${CLOUDXR_SDK_FILE} in "
                       "deps/cloudxr/ or run scripts/download_cloudxr_runtime_sdk.sh.")
@@ -67,15 +73,12 @@ if(NOT EXISTS "${CLOUDXR_SDK_PATH}")
     endif()
 else()
     set(CLOUDXR_NATIVE_AVAILABLE TRUE)
-    set(CLOUDXR_NATIVE_DIR "${CLOUDXR_PYTHON_DIR}/native")
-    add_custom_target(cloudxr_native_dir ALL
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${CLOUDXR_NATIVE_DIR}"
-        COMMENT "Creating python_package/.../cloudxr/native/"
-    )
     add_custom_target(cloudxr_native_bundle ALL
         COMMAND ${CMAKE_COMMAND} -E tar xzf "${CLOUDXR_SDK_PATH}"
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "${CLOUDXR_NATIVE_DIR}/include"
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "${CLOUDXR_NATIVE_DIR}/plugins"
         WORKING_DIRECTORY "${CLOUDXR_NATIVE_DIR}"
-        COMMENT "Extracting CloudXR SDK tarball into python_package/.../cloudxr/native/"
+        COMMENT "Extracting CloudXR SDK tarball and keeping runtime core files (no plugins) in python_package/.../cloudxr/native/"
     )
     add_dependencies(cloudxr_native_bundle cloudxr_native_dir)
 
@@ -117,4 +120,6 @@ if(CLOUDXR_NATIVE_AVAILABLE)
     else()
         add_dependencies(cloudxr_python cloudxr_native_bundle)
     endif()
+else()
+    add_dependencies(cloudxr_python cloudxr_native_dir)
 endif()

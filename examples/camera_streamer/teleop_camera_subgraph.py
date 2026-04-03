@@ -496,6 +496,7 @@ class TeleopCameraSubgraph(Subgraph):
                     cuda_device_ordinal=cuda_device,
                     allocator=allocator,
                     verbose=verbose,
+                    force_full_range=cam_cfg.is_full_range,
                 )
 
                 if self._config.display_mode == DisplayMode.MONITOR:

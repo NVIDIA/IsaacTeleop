@@ -97,14 +97,15 @@ LiveFullBodyTrackerPicoImpl::~LiveFullBodyTrackerPicoImpl()
     }
 }
 
-bool LiveFullBodyTrackerPicoImpl::update(XrTime time)
+void LiveFullBodyTrackerPicoImpl::update(XrTime time)
 {
     last_update_time_ = time;
 
     if (body_tracker_ == XR_NULL_HANDLE)
     {
+        // Policy: limp mode (feature unsupported/unavailable) is non-fatal.
         tracked_.data.reset();
-        return true;
+        return;
     }
 
     XrBodyJointsLocateInfoBD locate_info{ XR_TYPE_BODY_JOINTS_LOCATE_INFO_BD };
@@ -123,7 +124,7 @@ bool LiveFullBodyTrackerPicoImpl::update(XrTime time)
     if (XR_FAILED(result))
     {
         tracked_.data.reset();
-        return false;
+        throw std::runtime_error("[FullBodyTrackerPico] xrLocateBodyJointsBD failed: " + std::to_string(result));
     }
 
     if (!tracked_.data)
@@ -160,8 +161,6 @@ bool LiveFullBodyTrackerPicoImpl::update(XrTime time)
         DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
         mcap_channels_->write(0, timestamp, tracked_.data);
     }
-
-    return true;
 }
 
 const FullBodyPosePicoTrackedT& LiveFullBodyTrackerPicoImpl::get_body_pose() const

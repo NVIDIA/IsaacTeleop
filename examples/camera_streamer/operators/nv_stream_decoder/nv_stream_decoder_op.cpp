@@ -12,6 +12,7 @@
 #include "holoscan/core/execution_context.hpp"
 #include "holoscan/core/gxf/entity.hpp"
 #include "holoscan/core/io_context.hpp"
+#include "nv12_to_rgb.cuh"
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -39,6 +40,11 @@ void NvStreamDecoderOp::setup(holoscan::OperatorSpec& spec)
     spec.param(cuda_device_ordinal_, "cuda_device_ordinal", "CUDA Device", "CUDA device ordinal", 0);
     spec.param(allocator_, "allocator", "Allocator", "Output buffer allocator");
     spec.param(verbose_, "verbose", "Verbose", "Enable verbose logging", false);
+    spec.param(force_full_range_, "force_full_range", "Force Full Range",
+               "Force full-range NV12 to RGB conversion. Set true for encoders that "
+               "produce full-range YUV (e.g. OAK-D VPU). When false, auto-detects from "
+               "the H.264 bitstream VUI parameters.",
+               false);
 
     cuda_stream_handler_.define_params(spec);
 }
@@ -52,6 +58,9 @@ void NvStreamDecoderOp::initialize()
     cuda_check(cuDevicePrimaryCtxRetain(&cu_context_, cu_device_));
 
     // Initialize NPP stream context manually.
+    // Push the target device context so the CUDA runtime API calls below
+    // query the correct GPU (matters on multi-GPU systems).
+    cuda_check(cuCtxPushCurrent(cu_context_));
     {
         npp_ctx_.hStream = 0; // Default (NULL) stream.
 
@@ -72,6 +81,7 @@ void NvStreamDecoderOp::initialize()
         npp_ctx_.nMaxThreadsPerBlock = deviceProperties.maxThreadsPerBlock;
         npp_ctx_.nSharedMemPerBlock = deviceProperties.sharedMemPerBlock;
     }
+    cuda_check(cuCtxPopCurrent(nullptr));
 
     if (verbose_.get())
     {
@@ -172,6 +182,20 @@ void NvStreamDecoderOp::compute(holoscan::InputContext& op_input,
         }
     }
 
+    // Detect full-range vs limited-range once after first successful decode.
+    // Auto-detection reads video_full_range_flag from the H.264 VUI parameters
+    // (ITU-T H.264 Section E.2.1).  Many embedded encoders (e.g. OAK-D VPU)
+    // don't set this flag, so force_full_range overrides when needed.
+    if (!range_detected_)
+    {
+        range_detected_ = true;
+        auto fmt = decoder_->GetVideoFormatInfo();
+        int bitstream_flag = fmt.video_signal_description.video_full_range_flag;
+        use_full_range_ = force_full_range_.get() || (bitstream_flag != 0);
+        HOLOSCAN_LOG_INFO("NV12->RGB color range: {} (force_full_range={}, bitstream flag={})",
+                          use_full_range_ ? "full" : "limited", force_full_range_.get(), bitstream_flag);
+    }
+
     auto allocator = nvidia::gxf::Handle<nvidia::gxf::Allocator>::Create(context.context(), allocator_->gxf_cid());
     auto output = nvidia::gxf::Entity::New(context.context());
     if (!output)
@@ -180,7 +204,6 @@ void NvStreamDecoderOp::compute(holoscan::InputContext& op_input,
         throw std::runtime_error("Failed to create output entity");
     }
 
-    // Output RGB tensor [height, width, 3] in HWC format
     auto out_tensor = output.value().add<nvidia::gxf::Tensor>("");
     if (!out_tensor)
     {
@@ -196,16 +219,40 @@ void NvStreamDecoderOp::compute(holoscan::InputContext& op_input,
 
     auto dst = static_cast<uint8_t*>(out_tensor.value()->pointer());
 
-    const Npp8u* pSrc[2] = { pFrame, pFrame + lumaSize };
-    NppiSize roi = { width, height };
-
-    NppStatus status = nppiNV12ToRGB_8u_P2C3R_Ctx(pSrc, pitch, dst, width * 3, roi, npp_ctx_);
-    if (status != NPP_SUCCESS)
+    // Push the decoder's CUDA context so the conversion runs on the correct
+    // GPU.  pFrame and dst reside on cu_device_; without this, multi-GPU
+    // setups would target the wrong device after the decode context pop above.
+    cuda_check(cuCtxPushCurrent(cu_context_));
+    if (use_full_range_)
     {
-        HOLOSCAN_LOG_ERROR("NPP NV12->RGB failed: {}", static_cast<int>(status));
-        decoder_->UnlockFrame(&pFrame);
-        return;
+        // BT.601 full-range (ITU-T T.871).  NPP has no NV12 variant for this
+        // combination so we use a single-pass CUDA kernel.  See nv12_to_rgb.cu.
+        nv12_to_rgb_fullrange_bt601(pFrame, pFrame + lumaSize, pitch, dst, width * 3, width, height, npp_ctx_.hStream);
+        cudaError_t cuda_status = cudaGetLastError();
+        if (cuda_status != cudaSuccess)
+        {
+            HOLOSCAN_LOG_ERROR("CUDA NV12->RGB kernel failed: {}", cudaGetErrorString(cuda_status));
+            decoder_->UnlockFrame(&pFrame);
+            cuda_check(cuCtxPopCurrent(nullptr));
+            return;
+        }
     }
+    else
+    {
+        // BT.709 limited-range (16-235).  NPP docs: "use CSC version for
+        // limited range color" (as opposed to the 709HDTV full-range variant).
+        const Npp8u* pSrc[2] = { pFrame, pFrame + lumaSize };
+        NppiSize roi = { width, height };
+        NppStatus status = nppiNV12ToRGB_709CSC_8u_P2C3R_Ctx(pSrc, pitch, dst, width * 3, roi, npp_ctx_);
+        if (status != NPP_SUCCESS)
+        {
+            HOLOSCAN_LOG_ERROR("NPP NV12->RGB failed: {}", static_cast<int>(status));
+            decoder_->UnlockFrame(&pFrame);
+            cuda_check(cuCtxPopCurrent(nullptr));
+            return;
+        }
+    }
+    cuda_check(cuCtxPopCurrent(nullptr));
 
     decoder_->UnlockFrame(&pFrame);
 

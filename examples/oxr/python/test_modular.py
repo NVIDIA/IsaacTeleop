@@ -6,7 +6,6 @@
 Test script for modular OpenXR tracking API
 """
 
-import sys
 import time
 
 import isaacteleop.deviceio as deviceio
@@ -47,9 +46,7 @@ with oxr.OpenXRSession("ModularTest", required_extensions) as oxr_session:
 
         # Test 4: Update and get data
         print("[Test 4] Testing data retrieval...")
-        if not session.update():
-            print("❌ Update failed")
-            sys.exit(1)
+        session.update()
 
         print("✓ Update successful")
         print()
@@ -91,38 +88,29 @@ with oxr.OpenXRSession("ModularTest", required_extensions) as oxr_session:
         frame_count = 0
         start_time = time.time()
 
-        try:
-            while time.time() - start_time < 5.0:
-                if not session.update():
-                    print("Update failed")
-                    break
+        while time.time() - start_time < 5.0:
+            session.update()
 
-                if frame_count % 60 == 0:
-                    elapsed = time.time() - start_time
-                    left_tracked = hand_tracker.get_left_hand(session)
-                    head_tracked = head_tracker.get_head(session)
-                    print(f"  [{elapsed:4.1f}s] Frame {frame_count:3d}:")
-                    if left_tracked.data is not None:
-                        pos = left_tracked.data.joints.poses(
-                            deviceio.JOINT_WRIST
-                        ).pose.position
-                        print(
-                            f"    Left wrist: [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]"
-                        )
-                    else:
-                        print("    Left hand:  inactive")
-                    if head_tracked.data is not None:
-                        pos = head_tracked.data.pose.position
-                        print(
-                            f"    Head pos:   [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]"
-                        )
-                    else:
-                        print("    Head:       inactive")
+            if frame_count % 60 == 0:
+                elapsed = time.time() - start_time
+                left_tracked = hand_tracker.get_left_hand(session)
+                head_tracked = head_tracker.get_head(session)
+                print(f"  [{elapsed:4.1f}s] Frame {frame_count:3d}:")
+                if left_tracked.data is not None:
+                    pos = left_tracked.data.joints.poses(
+                        deviceio.JOINT_WRIST
+                    ).pose.position
+                    print(f"    Left wrist: [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]")
+                else:
+                    print("    Left hand:  inactive")
+                if head_tracked.data is not None:
+                    pos = head_tracked.data.pose.position
+                    print(f"    Head pos:   [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]")
+                else:
+                    print("    Head:       inactive")
 
-                frame_count += 1
-                time.sleep(0.016)
-        except KeyboardInterrupt:
-            print("\nInterrupted")
+            frame_count += 1
+            time.sleep(0.016)
 
         print(f"✓ Processed {frame_count} frames")
         print()

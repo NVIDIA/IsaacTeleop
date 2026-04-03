@@ -46,13 +46,14 @@ packages = [
     "isaacteleop.retargeting_engine.interface",
     "isaacteleop.retargeting_engine.tensor_types",
     "isaacteleop.retargeting_engine.deviceio_source_nodes",
+    "isaacteleop.retargeting_engine.utilities",
     "isaacteleop.retargeters",
     "isaacteleop.retargeters.G1",
     "isaacteleop.retargeting_engine_ui",
     "isaacteleop.teleop_session_manager",
-    "isaacteleop.cloudxr"
+    "isaacteleop.cloudxr",
 ]
-include-package-data = true
+include-package-data = false
 
 [tool.setuptools.package-data]
 isaacteleop = ["*.so", "*.pyd", "*.pyi", "py.typed"]
@@ -63,7 +64,7 @@ isaacteleop = ["*.so", "*.pyd", "*.pyi", "py.typed"]
 "isaacteleop.oxr" = ["*.so", "*.pyd", "*.pyi"]
 "isaacteleop.plugin_manager" = ["*.so", "*.pyd", "*.pyi"]
 "isaacteleop.schema" = ["*.so", "*.pyd", "*.pyi"]
-"isaacteleop.cloudxr" = ["*.py", "native/*.so", "native/*.so.*", "native/openxr_cloudxr.json"]
+"isaacteleop.cloudxr" = ["native/*.so", "native/*.so.*", "native/openxr_cloudxr.json"]
 
 [tool.uv]
 # Only use managed Python installations (not system Python)

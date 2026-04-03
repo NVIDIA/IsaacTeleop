@@ -23,8 +23,7 @@ jobs:
     runs-on: windows-latest
 
     env:
-      SCCACHE_DIR: ${{ github.workspace }}\.sccache
-      SCCACHE_CACHE_SIZE: 5G
+      SCCACHE_GHA_ENABLED: "true"
 
     strategy:
       matrix:
@@ -39,8 +38,8 @@ jobs:
     - name: Install uv
       uses: ./.github/actions/setup-uv
 
-    - name: Install sccache
-      run: choco install -y sccache
+    - name: Setup sccache
+      uses: Mozilla-Actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad  # v0.0.9
 
     # Hunter cache - caches depthai dependencies
     # Note: Hunter uses C:/.hunter on Windows (at drive root)
@@ -51,14 +50,6 @@ jobs:
         key: hunter-${{ runner.os }}-${{ hashFiles('cmake/SetupHunter.cmake') }}
         restore-keys: |
           hunter-${{ runner.os }}-
-
-    - name: Cache sccache
-      uses: actions/cache@v5
-      with:
-        path: ${{ env.SCCACHE_DIR }}
-        key: sccache-${{ runner.os }}-${{ matrix.build_type }}-${{ hashFiles('**/CMakeLists.txt') }}
-        restore-keys: |
-          sccache-${{ runner.os }}-${{ matrix.build_type }}-
 
     - name: Verify sccache
       run: |
@@ -86,9 +77,6 @@ jobs:
 
     - name: Build
       run: cmake --build build --parallel
-
-    - name: sccache stats
-      run: sccache --show-stats
 
     - name: Run All Tests
       run: ctest --test-dir build --output-on-failure --parallel

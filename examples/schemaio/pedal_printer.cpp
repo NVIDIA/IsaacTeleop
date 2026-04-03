@@ -69,11 +69,7 @@ try
     while (received_count < MAX_SAMPLES)
     {
         // Update session (this calls update on all trackers)
-        if (!session->update())
-        {
-            std::cerr << "Update failed" << std::endl;
-            break;
-        }
+        session->update();
 
         // Print current data if available
         const auto& tracked = tracker->get_data(*session);

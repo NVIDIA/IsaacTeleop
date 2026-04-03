@@ -27,18 +27,9 @@ INACTIVE_WAIT_S = 5.0  # max time to wait for hands to become inactive after sto
 FRAME_SLEEP_S = 0.016
 
 
-class UpdateFailedError(RuntimeError):
-    """Raised when deviceio_session.update() fails."""
-
-
 def poll_hands(hand_tracker, deviceio_session):
-    """Return (left_active, right_active) for the current frame.
-
-    Raises UpdateFailedError if the underlying DeviceIOSession update fails so
-    callers can distinguish a session error from genuine hand inactivity.
-    """
-    if not deviceio_session.update():
-        raise UpdateFailedError("deviceio_session.update() returned False")
+    """Return (left_active, right_active) for the current frame."""
+    deviceio_session.update()
     left = hand_tracker.get_left_hand(deviceio_session)
     right = hand_tracker.get_right_hand(deviceio_session)
     return left.data is not None, right.data is not None
@@ -94,19 +85,10 @@ def run_test():
                 left_active = right_active = False
 
                 while time.monotonic() < deadline:
-                    try:
-                        plugin.check_health()
-                    except pm.PluginCrashException as e:
-                        print(f"✗ Plugin crashed before hands became active: {e}")
-                        return False
-
-                    try:
-                        left_active, right_active = poll_hands(
-                            hand_tracker, deviceio_session
-                        )
-                    except UpdateFailedError as e:
-                        print(f"✗ Session update failed during Phase 1: {e}")
-                        return False
+                    plugin.check_health()
+                    left_active, right_active = poll_hands(
+                        hand_tracker, deviceio_session
+                    )
 
                     if left_active and right_active:
                         break
@@ -136,13 +118,9 @@ def run_test():
                 left_inactive = right_inactive = False
 
                 while time.monotonic() < deadline:
-                    try:
-                        left_active, right_active = poll_hands(
-                            hand_tracker, deviceio_session
-                        )
-                    except UpdateFailedError as e:
-                        print(f"✗ Session update failed during Phase 2: {e}")
-                        return False
+                    left_active, right_active = poll_hands(
+                        hand_tracker, deviceio_session
+                    )
 
                     left_inactive = not left_active
                     right_inactive = not right_active

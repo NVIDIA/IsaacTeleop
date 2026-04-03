@@ -49,10 +49,11 @@ public:
                         int cuda_device_ordinal,
                         std::shared_ptr<holoscan::Allocator> allocator,
                         bool verbose,
+                        bool force_full_range,
                         const std::string& name = "nv_stream_decoder")
-        : NvStreamDecoderOp(holoscan::ArgList{ holoscan::Arg{ "cuda_device_ordinal", cuda_device_ordinal },
-                                               holoscan::Arg{ "allocator", allocator },
-                                               holoscan::Arg{ "verbose", verbose } })
+        : NvStreamDecoderOp(holoscan::ArgList{
+              holoscan::Arg{ "cuda_device_ordinal", cuda_device_ordinal }, holoscan::Arg{ "allocator", allocator },
+              holoscan::Arg{ "verbose", verbose }, holoscan::Arg{ "force_full_range", force_full_range } })
     {
         add_positional_condition_and_resource_args(this, args);
         name_ = name;
@@ -83,13 +84,17 @@ allocator : Allocator
     Output buffer allocator.
 verbose : bool
     Enable verbose logging (default: False).
+force_full_range : bool
+    Force full-range NV12 to RGB conversion. Set True for encoders that
+    produce full-range YUV (e.g. OAK-D VPU). When False, auto-detects
+    from the H.264 bitstream VUI parameters (default: False).
 name : str
     Operator name (default: "nv_stream_decoder").
 )doc")
-        .def(py::init<holoscan::Fragment*, const py::args&, int, std::shared_ptr<holoscan::Allocator>, bool,
+        .def(py::init<holoscan::Fragment*, const py::args&, int, std::shared_ptr<holoscan::Allocator>, bool, bool,
                       const std::string&>(),
              "fragment"_a, "cuda_device_ordinal"_a = 0, "allocator"_a, "verbose"_a = false,
-             "name"_a = "nv_stream_decoder"s)
+             "force_full_range"_a = false, "name"_a = "nv_stream_decoder"s)
         .def("initialize", &NvStreamDecoderOp::initialize)
         .def("setup", &NvStreamDecoderOp::setup, "spec"_a);
 }

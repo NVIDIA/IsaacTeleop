@@ -40,7 +40,7 @@ public:
     LiveControllerTrackerImpl(LiveControllerTrackerImpl&&) = delete;
     LiveControllerTrackerImpl& operator=(LiveControllerTrackerImpl&&) = delete;
 
-    bool update(XrTime time) override;
+    void update(XrTime time) override;
     const ControllerSnapshotTrackedT& get_left_controller() const override;
     const ControllerSnapshotTrackedT& get_right_controller() const override;
 

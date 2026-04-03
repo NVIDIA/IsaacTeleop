@@ -58,6 +58,8 @@ public:
      * @param stream_index Index into the streams vector passed at construction.
      * @return Reference to the FrameMetadataOakTrackedT for that stream.
      *         The inner @c data pointer is null until the first frame arrives.
+     *         When @c data is non-null, nested fields in FrameMetadataOakT are
+     *         safe to read.
      */
     const FrameMetadataOakTrackedT& get_stream_data(const ITrackerSession& session, size_t stream_index) const;
 

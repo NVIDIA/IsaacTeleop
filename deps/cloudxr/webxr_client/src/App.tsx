@@ -763,6 +763,7 @@ function App() {
                     cloudXR2DUI.showError(error);
                   }
                 }}
+                onExitImmersiveXR={handleDisconnect}
                 onSessionReady={setCloudXRSession}
                 onServerAddress={setServerAddress}
                 onRenderPerformanceMetrics={handleRenderPerformanceMetrics}
@@ -772,6 +773,8 @@ function App() {
                 onStartTeleop={handleStartTeleop}
                 onDisconnect={handleDisconnect}
                 onResetTeleop={handleResetTeleop}
+                isXRMode={isXRMode}
+                panelHiddenAtStart={config.panelHiddenAtStart ?? false}
                 serverAddress={serverAddress || config.serverIP}
                 sessionStatus={sessionStatus}
                 playLabel={

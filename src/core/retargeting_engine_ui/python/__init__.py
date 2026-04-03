@@ -4,7 +4,7 @@
 """ImGui-based UI for retargeting engine parameter tuning.
 
 This module requires imgui and glfw to be installed:
-    pip install isaacteleop[ui]
+    pip install 'isaacteleop[ui]'
 
 Or manually:
     pip install imgui[glfw]
@@ -26,7 +26,7 @@ except ImportError as e:
     error_msg = (
         "\n"
         "ImGui UI dependencies are not installed.\n"
-        "Install with: pip install isaacteleop[ui]\n"
+        "Install with: pip install 'isaacteleop[ui]'\n"
         f"Original error: {e}\n"
     )
     print(error_msg, file=sys.stderr)

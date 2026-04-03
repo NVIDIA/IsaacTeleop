@@ -55,7 +55,11 @@ bool get_boolean_action_state(XrSession session, const OpenXRCoreFunctions& core
 
     XrActionStateBoolean state{ XR_TYPE_ACTION_STATE_BOOLEAN };
     XrResult result = core_funcs.xrGetActionStateBoolean(session, &get_info, &state);
-    if (XR_SUCCEEDED(result) && state.isActive)
+    if (XR_FAILED(result))
+    {
+        throw std::runtime_error("xrGetActionStateBoolean failed: " + std::to_string(result));
+    }
+    if (state.isActive)
     {
         return state.currentState;
     }
@@ -70,7 +74,11 @@ float get_float_action_state(XrSession session, const OpenXRCoreFunctions& core_
 
     XrActionStateFloat state{ XR_TYPE_ACTION_STATE_FLOAT };
     XrResult result = core_funcs.xrGetActionStateFloat(session, &get_info, &state);
-    if (XR_SUCCEEDED(result) && state.isActive)
+    if (XR_FAILED(result))
+    {
+        throw std::runtime_error("xrGetActionStateFloat failed: " + std::to_string(result));
+    }
+    if (state.isActive)
     {
         return state.currentState;
     }
@@ -90,7 +98,11 @@ bool get_vector2_action_state(XrSession session,
 
     XrActionStateVector2f state{ XR_TYPE_ACTION_STATE_VECTOR2F };
     XrResult result = core_funcs.xrGetActionStateVector2f(session, &get_info, &state);
-    if (XR_SUCCEEDED(result) && state.isActive)
+    if (XR_FAILED(result))
+    {
+        throw std::runtime_error("xrGetActionStateVector2f failed: " + std::to_string(result));
+    }
+    if (state.isActive)
     {
         out_x = state.currentState.x;
         out_y = state.currentState.y;
@@ -108,7 +120,11 @@ bool get_pose_action_active(XrSession session, const OpenXRCoreFunctions& core_f
 
     XrActionStatePose state{ XR_TYPE_ACTION_STATE_POSE };
     XrResult result = core_funcs.xrGetActionStatePose(session, &get_info, &state);
-    return XR_SUCCEEDED(result) && state.isActive;
+    if (XR_FAILED(result))
+    {
+        throw std::runtime_error("xrGetActionStatePose failed: " + std::to_string(result));
+    }
+    return state.isActive;
 }
 
 XrSpacePtr create_space(const OpenXRCoreFunctions& funcs, XrSession session, XrAction action, XrPath subaction_path)
@@ -298,7 +314,7 @@ LiveControllerTrackerImpl::LiveControllerTrackerImpl(const OpenXRSessionHandles&
     std::cout << "ControllerTracker initialized (left + right) with action context" << std::endl;
 }
 
-bool LiveControllerTrackerImpl::update(XrTime time)
+void LiveControllerTrackerImpl::update(XrTime time)
 {
     last_update_time_ = time;
 
@@ -315,10 +331,11 @@ bool LiveControllerTrackerImpl::update(XrTime time)
     XrResult result = action_ctx_funcs_.sync_actions_2(session_, &sync_info, &sync_state);
     if (XR_FAILED(result))
     {
-        std::cerr << "[ControllerTracker] xrSyncActions2NV failed: " << result << std::endl;
+        // Policy: action sync failure is a critical tracker/runtime error.
+        // Ensure callers do not observe stale controller data after sync failure.
         left_tracked_.data.reset();
         right_tracked_.data.reset();
-        return false;
+        throw std::runtime_error("[ControllerTracker] xrSyncActions2NV failed: " + std::to_string(result));
     }
 
     auto update_controller = [&](XrPath hand_path, const XrSpacePtr& grip_space, const XrSpacePtr& aim_space,
@@ -326,6 +343,7 @@ bool LiveControllerTrackerImpl::update(XrTime time)
     {
         if (!get_pose_action_active(session_, core_funcs_, grip_pose_action_, hand_path))
         {
+            // Policy: controller not active is a common runtime condition.
             tracked.data.reset();
             return;
         }
@@ -335,6 +353,11 @@ bool LiveControllerTrackerImpl::update(XrTime time)
 
         XrSpaceLocation grip_location{ XR_TYPE_SPACE_LOCATION };
         result = core_funcs_.xrLocateSpace(grip_space.get(), base_space_, time, &grip_location);
+        if (XR_FAILED(result))
+        {
+            tracked.data.reset();
+            throw std::runtime_error("[ControllerTracker] xrLocateSpace(grip) failed: " + std::to_string(result));
+        }
         if (XR_SUCCEEDED(result))
         {
             bool is_valid = (grip_location.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) &&
@@ -351,6 +374,11 @@ bool LiveControllerTrackerImpl::update(XrTime time)
 
         XrSpaceLocation aim_location{ XR_TYPE_SPACE_LOCATION };
         result = core_funcs_.xrLocateSpace(aim_space.get(), base_space_, time, &aim_location);
+        if (XR_FAILED(result))
+        {
+            tracked.data.reset();
+            throw std::runtime_error("[ControllerTracker] xrLocateSpace(aim) failed: " + std::to_string(result));
+        }
         if (XR_SUCCEEDED(result))
         {
             bool is_valid = (aim_location.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) &&
@@ -396,8 +424,6 @@ bool LiveControllerTrackerImpl::update(XrTime time)
         mcap_channels_->write(0, timestamp, left_tracked_.data);
         mcap_channels_->write(1, timestamp, right_tracked_.data);
     }
-
-    return true;
 }
 
 const ControllerSnapshotTrackedT& LiveControllerTrackerImpl::get_left_controller() const

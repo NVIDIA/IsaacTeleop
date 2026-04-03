@@ -24,6 +24,8 @@ export type ControlPanelPosition = 'left' | 'center' | 'right';
 /** React UI options (e.g. in-XR control panel position). */
 export interface ReactUIConfig {
   controlPanelPosition?: ControlPanelPosition;
+  /** When true, the control panel is hidden at immersive XR enter (small “show control panel” control only). */
+  panelHiddenAtStart?: boolean;
 }
 
 const CONTROL_PANEL_POSITIONS: readonly ControlPanelPosition[] = ['left', 'center', 'right'];

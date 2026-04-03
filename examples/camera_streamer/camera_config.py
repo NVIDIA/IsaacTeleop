@@ -10,6 +10,13 @@ from dataclasses import dataclass
 import warnings
 
 VALID_CAMERA_TYPES = {"zed", "oakd", "v4l2", "video_file"}
+VALID_COLOR_RANGES = {"auto", "full", "limited"}
+
+# Default color range per camera type.  Used when color_range is "auto".
+# OAK-D VPU encoder outputs full-range BT.601 NV12; others use limited-range.
+_DEFAULT_COLOR_RANGE: dict[str, str] = {
+    "oakd": "full",
+}
 
 
 @dataclass
@@ -76,6 +83,9 @@ class CameraConfig:
     video_dir: str | None = None
     video_basename: str | None = None
 
+    color_range: str = "auto"
+    """NV12->RGB color range: 'auto' (per-camera-type default), 'full', or 'limited'."""
+
     _KNOWN_KEYS = {
         "type",
         "stereo",
@@ -90,6 +100,7 @@ class CameraConfig:
         "device",
         "video_dir",
         "video_basename",
+        "color_range",
         "rgb_enable",
         "rgb_width",
         "rgb_height",
@@ -133,6 +144,12 @@ class CameraConfig:
                 raise ValueError(
                     f"Camera '{self.name}': {', '.join(set_keys)} set but rgb_enable is false"
                 )
+    @property
+    def is_full_range(self) -> bool:
+        """Resolved color range: True for full-range NV12, False for limited-range."""
+        if self.color_range == "auto":
+            return _DEFAULT_COLOR_RANGE.get(self.camera_type, "limited") == "full"
+        return self.color_range == "full"
 
     @classmethod
     def from_dict(cls, name: str, data: dict) -> "CameraConfig":
@@ -190,6 +207,7 @@ class CameraConfig:
             device=data.get("device"),
             video_dir=data.get("video_dir"),
             video_basename=data.get("video_basename"),
+            color_range=data.get("color_range", "auto"),
             rgb_enable=data.get("rgb_enable", False),
             rgb_width=data.get("rgb_width"),
             rgb_height=data.get("rgb_height"),

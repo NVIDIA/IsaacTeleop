@@ -155,9 +155,6 @@ export interface CloudXRConfig {
   /** Optional device profile identifier used by the examples UI */
   deviceProfileId?: string;
 
-  /** Application identifier string for the CloudXR session */
-  app: string;
-
   /** Type of server being connected to */
   serverType: string;
 

@@ -110,9 +110,7 @@ def main():
             try:
                 while time.time() - start_time < 10.0:
                     # Update session and all trackers
-                    if not session.update():
-                        print("Update failed")
-                        break
+                    session.update()
 
                     # Get hand data
                     left_tracked: schema.HandPoseTrackedT = hand_tracker.get_left_hand(
@@ -183,9 +181,8 @@ def main():
 
                     frame_count += 1
                     time.sleep(0.016)  # ~60 FPS
-
             except KeyboardInterrupt:
-                print("\nInterrupted by user")
+                print("\nKeyboardInterrupt received, stopping recording early.")
 
             # STEP 4: Save episode
             print(f"\nSaving episode with {frame_count} frames...")

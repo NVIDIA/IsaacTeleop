@@ -58,6 +58,12 @@ interface CloudXRComponentProps {
   /** Callback fired when an error occurs. Receives error message string. */
   onError?: (error: string) => void;
 
+  /**
+   * Called when CloudXR fails to connect or streaming stops with an error.
+   * Use this to end the immersive WebXR session (same as the user pressing Disconnect).
+   */
+  onExitImmersiveXR?: () => void;
+
   /** Callback fired when CloudXR session is created or destroyed. Receives session instance or null. */
   onSessionReady?: (session: CloudXR.Session | null) => void;
 
@@ -91,6 +97,7 @@ export default function CloudXRComponent({
   applicationName,
   onStatusChange,
   onError,
+  onExitImmersiveXR,
   onSessionReady,
   onServerAddress,
   onRenderPerformanceMetrics,
@@ -101,6 +108,8 @@ export default function CloudXRComponent({
   const { session } = useXR();
   // React reference to the CloudXR session that persists across re-renders.
   const cxrSessionRef = useRef<CloudXR.Session | null>(null);
+  const onExitImmersiveXRRef = useRef(onExitImmersiveXR);
+  onExitImmersiveXRRef.current = onExitImmersiveXR;
 
   // Metrics trackers for averaging performance metrics
   // Use prop values if provided, otherwise use defaults
@@ -192,6 +201,7 @@ export default function CloudXRComponent({
           } catch (error) {
             onStatusChange?.(false, 'Configuration Error');
             onError?.(`Proxy configuration failed: ${error}`);
+            onExitImmersiveXRRef.current?.();
             return;
           }
 
@@ -267,6 +277,7 @@ export default function CloudXRComponent({
                 if (error.reasonCode !== undefined) {
                   console.debug('Stop reason code:', error.reasonCode);
                 }
+                onExitImmersiveXRRef.current?.();
               } else {
                 console.debug('CloudXR session stopped');
                 onStatusChange?.(false, 'Disconnected');
@@ -304,6 +315,7 @@ export default function CloudXRComponent({
           } catch (error) {
             onStatusChange?.(false, 'Session Creation Failed');
             onError?.(`Failed to create CloudXR session: ${error}`);
+            onExitImmersiveXRRef.current?.();
             return;
           }
 
@@ -323,9 +335,20 @@ export default function CloudXRComponent({
             onStatusChange?.(false, 'Connection Failed');
             // Report error via callback
             onError?.('Failed to connect CloudXR session');
-            // Clean up the failed session
+            // Best-effort: release SDK resources if connect() threw after createSession(); ignore disconnect failures.
+            try {
+              cxrSession.disconnect();
+            } catch {
+              // Ignore errors from disconnect().
+            }
             cxrSessionRef.current = null;
+            onSessionReady?.(null);
+            onExitImmersiveXRRef.current?.();
           }
+        } else {
+          onStatusChange?.(false, 'Reference Space Unavailable');
+          onError?.('Could not obtain an XR reference space for CloudXR');
+          onExitImmersiveXRRef.current?.();
         }
       };
 
