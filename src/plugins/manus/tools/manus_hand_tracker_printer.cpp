@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <core/manus_hand_tracking_plugin.hpp>
+#include "manus_hand_visualizer.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -20,6 +21,23 @@ try
 
     // Initialize the Manus tracker
     auto& tracker = plugins::manus::ManusTracker::instance("ManusHandPrinter");
+
+    // Start Vulkan visualizer in a background thread.
+    // If X11 or Vulkan is unavailable the thread exits cleanly and printing
+    // continues without the window.
+    std::thread vis_thread([&tracker]()
+    {
+        try
+        {
+            plugins::manus::HandVisualizer vis;
+            vis.run(tracker);
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "[Vis] " << e.what() << " — running without visualizer" << std::endl;
+        }
+    });
+    vis_thread.detach();
 
     std::cout << "[Manus] Press Ctrl+C to stop. Printing joint data..." << std::endl;
 

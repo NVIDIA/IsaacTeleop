@@ -18,7 +18,9 @@ Components
 - **Plugin executable** (``manus_hand_plugin``) — the main plugin binary that
   integrates with the Teleop system via CloudXR / OpenXR.
 - **CLI tool** (``manus_hand_tracker_printer``) — a standalone diagnostic tool
-  that prints tracked joint data to the terminal for quick verification.
+  that prints tracked joint data to the terminal and opens a real-time
+  **MANUS Data Visualizer** window showing the hand skeleton from two orthographic
+  views per hand.
 
 Prerequisites
 -------------
@@ -111,6 +113,8 @@ Ensure Manus Core is running and the gloves are connected, then run:
 
    ./build/bin/manus_hand_tracker_printer
 
+The tool prints joint positions to the terminal and opens a **MANUS Data
+Visualizer** window showing a top-down and side view of each hand.
 3. Run the plugin
 ~~~~~~~~~~~~~~~~~~
 

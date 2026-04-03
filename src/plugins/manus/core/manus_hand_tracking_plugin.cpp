@@ -85,6 +85,18 @@ std::vector<SkeletonNode> ManusTracker::get_right_hand_nodes() const
     return m_right_hand_nodes;
 }
 
+std::vector<NodeInfo> ManusTracker::get_left_node_info() const
+{
+    std::lock_guard<std::mutex> lock(m_skeleton_mutex);
+    return m_left_node_info;
+}
+
+std::vector<NodeInfo> ManusTracker::get_right_node_info() const
+{
+    std::lock_guard<std::mutex> lock(m_skeleton_mutex);
+    return m_right_node_info;
+}
+
 ManusTracker::ManusTracker(const std::string& app_name) noexcept(false)
 {
     initialize(app_name);
@@ -397,15 +409,32 @@ void ManusTracker::OnLandscapeStream(const Landscape* landscape)
     {
         const GloveLandscapeData& glove = gloves.gloves[i];
         if (glove.side == Side::Side_Left)
-        {
-            tracker.left_glove_id = glove.id;
-            left_present = true;
-        }
-        else if (glove.side == Side::Side_Right)
-        {
-            tracker.right_glove_id = glove.id;
-            right_present = true;
-        }
+            {
+                tracker.left_glove_id = glove.id;
+                left_present = true;
+                // Fetch bone topology once on connect
+                uint32_t nc = 0;
+                if (CoreSdk_GetRawSkeletonNodeCount(glove.id, nc) == SDKReturnCode::SDKReturnCode_Success && nc > 0)
+                {
+                    std::lock_guard<std::mutex> sk(tracker.m_skeleton_mutex);
+                    tracker.m_left_node_info.resize(nc);
+                    if (CoreSdk_GetRawSkeletonNodeInfoArray(glove.id, tracker.m_left_node_info.data(), nc) != SDKReturnCode::SDKReturnCode_Success)
+                        tracker.m_left_node_info.clear();
+                }
+            }
+            else if (glove.side == Side::Side_Right)
+            {
+                tracker.right_glove_id = glove.id;
+                right_present = true;
+                uint32_t nc = 0;
+                if (CoreSdk_GetRawSkeletonNodeCount(glove.id, nc) == SDKReturnCode::SDKReturnCode_Success && nc > 0)
+                {
+                    std::lock_guard<std::mutex> sk(tracker.m_skeleton_mutex);
+                    tracker.m_right_node_info.resize(nc);
+                    if (CoreSdk_GetRawSkeletonNodeInfoArray(glove.id, tracker.m_right_node_info.data(), nc) != SDKReturnCode::SDKReturnCode_Success)
+                        tracker.m_right_node_info.clear();
+                }
+            }
     }
 
     // Clear stale state for any glove that is no longer present in this landscape
@@ -419,12 +448,14 @@ void ManusTracker::OnLandscapeStream(const Landscape* landscape)
             std::cout << "[Manus] Left glove disconnected (ID " << *tracker.left_glove_id << ")" << std::endl;
             tracker.left_glove_id.reset();
             tracker.m_left_hand_nodes.clear();
+            tracker.m_left_node_info.clear();
         }
         if (!right_present && tracker.right_glove_id.has_value())
         {
             std::cout << "[Manus] Right glove disconnected (ID " << *tracker.right_glove_id << ")" << std::endl;
             tracker.right_glove_id.reset();
             tracker.m_right_hand_nodes.clear();
+            tracker.m_right_node_info.clear();
         }
     }
 }

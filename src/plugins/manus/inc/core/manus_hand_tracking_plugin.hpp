@@ -39,6 +39,8 @@ public:
     void update();
     std::vector<SkeletonNode> get_left_hand_nodes() const;
     std::vector<SkeletonNode> get_right_hand_nodes() const;
+    std::vector<NodeInfo>     get_left_node_info() const;
+    std::vector<NodeInfo>     get_right_node_info() const;
 
 private:
     // Lifecycle
@@ -114,6 +116,9 @@ private:
     mutable std::mutex m_skeleton_mutex;
     std::vector<SkeletonNode> m_left_hand_nodes;
     std::vector<SkeletonNode> m_right_hand_nodes;
+    // Node topology (parent IDs) — populated once per glove connect
+    std::vector<NodeInfo> m_left_node_info;
+    std::vector<NodeInfo> m_right_node_info;
     
     // Time converter for XR timestamps (initialized after handles are ready)
     std::optional<core::XrTimeConverter> m_time_converter;

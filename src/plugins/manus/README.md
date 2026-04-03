@@ -11,7 +11,7 @@ This folder provides a Linux-only example of using the Manus SDK for hand tracki
 
 - **Core Library** (`manus_plugin_core`): Interfaces with the Manus SDK (`libIsaacTeleopPluginsManus.so`).
 - **Plugin Executable** (`manus_hand_plugin`): The main plugin executable that integrates with the Teleop system.
-- **CLI Tool** (`manus_hand_tracker_printer`): A standalone tool to print tracked joint data for verification.
+- **CLI Tool** (`manus_hand_tracker_printer`): A standalone tool that prints tracked joint data to the terminal **and** opens a real-time Vulkan visualizer window ("MANUS Data Visualizer") showing the hand skeleton from two orthographic views.
 
 ## Prerequisites
 
@@ -90,6 +90,8 @@ Run the printer tool to verify data reception:
 ```bash
 ./build/bin/manus_hand_tracker_printer
 ```
+
+The tool prints joint positions to the terminal and opens a **MANUS Data Visualizer** window with a top-down and side view of each hand.
 
 ### 3. Run the Plugin
 The plugin is installed to the `install` directory:
