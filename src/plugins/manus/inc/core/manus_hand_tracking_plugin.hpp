@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include <deviceio/controller_tracker.hpp>
-#include <deviceio/deviceio_session.hpp>
-#include <deviceio/hand_tracker.hpp>
+#include <deviceio_trackers/controller_tracker.hpp>
+#include <deviceio_session/deviceio_session.hpp>
+#include <deviceio_trackers/hand_tracker.hpp>
 #include <openxr/openxr_platform.h>
 #include <oxr/oxr_session.hpp>
 #include <oxr_utils/oxr_time.hpp>

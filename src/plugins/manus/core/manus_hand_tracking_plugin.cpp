@@ -61,12 +61,14 @@ ManusTracker& ManusTracker::instance(const std::string& app_name) noexcept(false
 
 void ManusTracker::update()
 {
-    // Update DeviceIOSession which handles time conversion and tracker updates internally
-    if (!m_deviceio_session->update())
+    if (!m_deviceio_session)
     {
-        // Update failed, skip this frame
+        // OpenXR unavailable — nothing to update for positioning/injection
         return;
     }
+
+    // Update DeviceIOSession which handles time conversion and tracker updates internally
+    m_deviceio_session->update();
 
     inject_hand_data();
 }
@@ -213,12 +215,8 @@ void ManusTracker::initialize(const std::string& app_name) noexcept(false)
 
     if (!success)
     {
-        std::cerr << "Failed to initialize OpenXR: " << error_msg << std::endl;
-
-        // Clean up Manus SDK
-        shutdown_sdk();
-
-        throw std::runtime_error(error_msg);
+        std::cerr << "[Manus] Warning: OpenXR initialization failed: " << error_msg << std::endl;
+        std::cerr << "[Manus] Continuing in Manus-only mode (no hand injection or OpenXR positioning)." << std::endl;
     }
 
     std::lock_guard<std::mutex> lock(m_lifecycle_mutex);

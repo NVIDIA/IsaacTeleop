@@ -24,6 +24,7 @@ try
     std::cout << "[Manus] Press Ctrl+C to stop. Printing joint data..." << std::endl;
 
     int frame = 0;
+    bool waiting_printed = false;
     while (true)
     {
         // Get glove data from Manus SDK
@@ -32,10 +33,15 @@ try
 
         if (left_nodes.empty() && right_nodes.empty())
         {
-            std::cout << "[Manus] No data available yet..." << std::endl;
+            if (!waiting_printed)
+            {
+                std::cout << "[Manus] Waiting for gloves..." << std::endl;
+                waiting_printed = true;
+            }
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
             continue;
         }
+        waiting_printed = false;
 
         std::cout << "\n[Manus] === Frame " << frame << " ===" << std::endl;
 
