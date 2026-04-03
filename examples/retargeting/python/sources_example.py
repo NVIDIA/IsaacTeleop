@@ -121,7 +121,7 @@ def main():
 
             while time.time() - start_time < 10.0:
                 # Update session and all trackers
-                session.update()
+                session.update(time.monotonic_ns())
 
                 # Print every 60 frames (~1 second)
                 if frame_count % 60 == 0:

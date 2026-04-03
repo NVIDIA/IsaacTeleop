@@ -18,6 +18,7 @@
 #include <deviceio_session/deviceio_session.hpp>
 #include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>
 #include <oxr/oxr_session.hpp>
+#include <oxr_utils/os_time.hpp>
 
 #include <chrono>
 #include <iomanip>
@@ -69,7 +70,7 @@ try
     while (received_count < MAX_SAMPLES)
     {
         // Update session (this calls update on all trackers)
-        session->update();
+        session->update(core::os_monotonic_now_ns());
 
         // Print current data if available
         const auto& tracked = tracker->get_data(*session);

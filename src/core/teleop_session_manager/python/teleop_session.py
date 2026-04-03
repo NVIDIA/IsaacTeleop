@@ -278,8 +278,16 @@ class TeleopSession:
         if self.frame_count % 60 == 0:
             self._check_plugin_health()
 
-        # Update DeviceIO session (polls trackers)
-        self.deviceio_session.update()
+        # Resolve graph time before updating DeviceIO so the same logical
+        # timestamp is used for both MCAP envelope and pipeline execution.
+        if graph_time is None:
+            now_ns = time.monotonic_ns()
+            graph_time = GraphTime(sim_time_ns=now_ns, real_time_ns=now_ns)
+
+        # Update DeviceIO session (polls trackers). The graph time is used for
+        # MCAP logTime; each tracker impl measures its own wall-clock "now" for
+        # DeviceDataTimestamp.
+        self.deviceio_session.update(graph_time.real_time_ns)
 
         # Build input dictionary from tracker data
         pipeline_inputs = self._collect_tracker_data()
@@ -287,10 +295,6 @@ class TeleopSession:
         # Merge external inputs (for non-DeviceIO leaf nodes)
         if external_inputs:
             pipeline_inputs.update(external_inputs)
-
-        now_ns = time.monotonic_ns()
-        if graph_time is None:
-            graph_time = GraphTime(sim_time_ns=now_ns, real_time_ns=now_ns)
 
         if execution_events is None and self.teleop_control_pipeline is not None:
             # Filter pipeline_inputs to only control leaf inputs

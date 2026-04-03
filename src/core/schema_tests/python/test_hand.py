@@ -4,9 +4,9 @@
 """Unit tests for HandPoseT and related types in isaacteleop.schema.
 
 HandPoseT is a FlatBuffers table that represents hand pose data:
-- joints: HandJoints struct containing 26 HandJointPose entries (XR_HAND_JOINT_COUNT_EXT)
+- joints: HandJoints struct with a fixed-size poses array (length HandJoint.NUM_JOINTS; OpenXR order)
 
-HandJoints is a struct with a fixed-size array of 26 HandJointPose entries.
+HandJoints is a struct with a fixed-size array of HandJointPose (length HandJoint.NUM_JOINTS).
 
 HandJointPose is a struct containing:
 - pose: The Pose (position and orientation)
@@ -19,15 +19,25 @@ Timestamps are carried by HandPoseRecord, not HandPoseT.
 import pytest
 
 from isaacteleop.schema import (
-    HandPoseT,
-    HandPoseRecord,
-    HandJoints,
-    HandJointPose,
-    Pose,
-    Point,
-    Quaternion,
     DeviceDataTimestamp,
+    HandJoint,
+    HandJointPose,
+    HandJoints,
+    HandPoseRecord,
+    HandPoseT,
+    Point,
+    Pose,
+    Quaternion,
 )
+
+
+def test_hand_joint_enum_sentinels():
+    """HandJoint ordinals match expected OpenXR-style layout."""
+    assert HandJoint.PALM == 0
+    assert HandJoint.WRIST == 1
+    assert HandJoint.THUMB_TIP == 5
+    assert HandJoint.LITTLE_TIP == 25
+    assert HandJoint.NUM_JOINTS == 26
 
 
 class TestHandJointPoseConstruction:
@@ -105,10 +115,10 @@ class TestHandJointsStruct:
     """Tests for HandJoints struct."""
 
     def test_poses_access(self):
-        """Test accessing all 26 joints via poses() method."""
+        """Test accessing every joint slot via poses() method."""
         hand_joints = HandJoints()
 
-        for i in range(26):
+        for i in range(HandJoint.NUM_JOINTS):
             joint = hand_joints.poses(i)
             assert joint is not None
 
@@ -117,7 +127,7 @@ class TestHandJointsStruct:
         hand_joints = HandJoints()
 
         with pytest.raises(IndexError):
-            _ = hand_joints.poses(26)
+            _ = hand_joints.poses(HandJoint.NUM_JOINTS)
 
 
 class TestHandJointsRepr:

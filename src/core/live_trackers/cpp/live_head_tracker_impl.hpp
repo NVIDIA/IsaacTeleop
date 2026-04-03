@@ -36,7 +36,7 @@ public:
     LiveHeadTrackerImpl(LiveHeadTrackerImpl&&) = delete;
     LiveHeadTrackerImpl& operator=(LiveHeadTrackerImpl&&) = delete;
 
-    void update(XrTime time) override;
+    void update(int64_t graph_time_ns) override;
     const HeadPoseTrackedT& get_head() const override;
 
 private:
@@ -45,7 +45,6 @@ private:
     XrSpace base_space_;
     XrSpacePtr view_space_;
     HeadPoseTrackedT tracked_;
-    XrTime last_update_time_ = 0;
     std::unique_ptr<HeadMcapChannels> mcap_channels_;
 };
 

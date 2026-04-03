@@ -29,13 +29,13 @@ public:
     {
     }
 
-    void update()
+    void update(int64_t graph_time_ns)
     {
         if (!impl_)
         {
             throw std::runtime_error("Session has been closed/destroyed");
         }
-        impl_->update();
+        impl_->update(graph_time_ns);
     }
 
     void close()

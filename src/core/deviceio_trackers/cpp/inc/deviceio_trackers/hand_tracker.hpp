@@ -6,8 +6,6 @@
 #include <deviceio_base/hand_tracker_base.hpp>
 #include <schema/hand_generated.h>
 
-#include <string>
-
 namespace core
 {
 
@@ -25,9 +23,6 @@ public:
     // - when tracked.data is non-null, nested fields in HandPoseT are safe to read.
     const HandPoseTrackedT& get_left_hand(const ITrackerSession& session) const;
     const HandPoseTrackedT& get_right_hand(const ITrackerSession& session) const;
-
-    /** @brief Get joint name for debugging. */
-    static std::string get_joint_name(uint32_t joint_index);
 
 private:
     static constexpr const char* TRACKER_NAME = "HandTracker";

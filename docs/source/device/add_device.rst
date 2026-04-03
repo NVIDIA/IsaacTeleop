@@ -117,7 +117,7 @@ tensor samples from OpenXR. Implement a concrete tracker class (e.g.
 - **Factory registration** — Register your tracker in the live factory dispatch table
   (see ``LiveDeviceIOFactory``). The factory constructs an ``ITrackerImpl`` that holds
   a ``SchemaTracker``, builds a ``SchemaTrackerConfig`` from the tracker's stored
-  configuration, and implements ``update(XrTime)`` and
+  configuration, and implements ``update(int64_t monotonic_time_ns)`` and
   ``serialize_all(channel_index, callback)``.
 
 In the **Impl**:

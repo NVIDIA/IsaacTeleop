@@ -4,6 +4,7 @@
 #include <core/manus_hand_tracking_plugin.hpp>
 #include <oxr/oxr_session.hpp>
 #include <oxr_utils/math.hpp>
+#include <oxr_utils/os_time.hpp>
 #include <oxr_utils/pose_conversions.hpp>
 #include <plugin_utils/hand_injector.hpp>
 
@@ -36,7 +37,7 @@ ManusTracker& ManusTracker::instance(const std::string& app_name) noexcept(false
 void ManusTracker::update()
 {
     // Update DeviceIOSession which handles time conversion and tracker updates internally
-    m_deviceio_session->update();
+    m_deviceio_session->update(core::os_monotonic_now_ns());
 
     inject_hand_data();
 }

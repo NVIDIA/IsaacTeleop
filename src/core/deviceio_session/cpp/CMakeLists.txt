@@ -20,6 +20,7 @@ target_include_directories(deviceio_session
 target_link_libraries(deviceio_session
     PUBLIC
         deviceio::deviceio_base
+        oxr::oxr_utils
         Teleop::openxr_extensions
     PRIVATE
         deviceio::deviceio_trackers

@@ -51,7 +51,7 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
 
         # Test 4: Initial update
         print("[Test 4] Testing initial data retrieval...")
-        session.update()
+        session.update(time.monotonic_ns())
 
         print("✓ Update successful")
         print()
@@ -101,7 +101,7 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
         last_status_print = start_time
 
         while time.time() - start_time < 10.0:
-            session.update()
+            session.update(time.monotonic_ns())
 
             current_time = time.time()
             if current_time - last_status_print >= 0.5:

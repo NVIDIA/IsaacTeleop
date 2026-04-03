@@ -6,7 +6,6 @@
 #include <deviceio_base/tracker.hpp>
 #include <oxr_utils/oxr_funcs.hpp>
 #include <oxr_utils/oxr_session_handles.hpp>
-#include <oxr_utils/oxr_time.hpp>
 
 #include <memory>
 #include <optional>
@@ -65,11 +64,14 @@ public:
      * If recording is active, tracker implementations write MCAP samples
      * directly during this call.
      *
+     * @param graph_time_ns Logical timestamp for this update step (nanoseconds,
+     *        monotonic clock). Forwarded to tracker impls for MCAP envelope time.
+     *
      * @throws std::runtime_error On critical tracker/runtime failures.
      * @note A thrown exception indicates a fatal condition; the application is
      *       expected to terminate rather than continue running.
      */
-    void update();
+    void update(int64_t graph_time_ns);
 
     const ITrackerImpl& get_tracker_impl(const ITracker& tracker) const override
     {
@@ -88,7 +90,6 @@ private:
 
     const OpenXRSessionHandles handles_;
     std::unordered_map<const ITracker*, std::unique_ptr<ITrackerImpl>> tracker_impls_;
-    XrTimeConverter time_converter_;
 
     // Owned MCAP writer; null when recording is not configured.
     std::unique_ptr<mcap::McapWriter> mcap_writer_;

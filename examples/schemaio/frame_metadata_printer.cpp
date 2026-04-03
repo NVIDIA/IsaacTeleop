@@ -17,6 +17,7 @@
 #include <deviceio_session/deviceio_session.hpp>
 #include <deviceio_trackers/frame_metadata_tracker_oak.hpp>
 #include <oxr/oxr_session.hpp>
+#include <oxr_utils/os_time.hpp>
 
 #include <chrono>
 #include <iostream>
@@ -107,7 +108,7 @@ try
 
     while (true)
     {
-        session->update();
+        session->update(core::os_monotonic_now_ns());
 
         // Refresh stream count and extend per-stream tracking if streams were added.
         stream_count = tracker->get_stream_count();

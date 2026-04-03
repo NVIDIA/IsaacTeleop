@@ -117,18 +117,20 @@ LiveHandTrackerImpl::~LiveHandTrackerImpl()
     }
 }
 
-void LiveHandTrackerImpl::update(XrTime time)
+void LiveHandTrackerImpl::update(int64_t graph_time_ns)
 {
-    last_update_time_ = time;
-    update_hand(left_hand_tracker_, time, left_tracked_);
-    update_hand(right_hand_tracker_, time, right_tracked_);
+    int64_t now_ns = os_monotonic_now_ns();
+    XrTime xr_time = time_converter_.convert_monotonic_ns_to_xrtime(now_ns);
+    update_hand(left_hand_tracker_, xr_time, left_tracked_);
+    update_hand(right_hand_tracker_, xr_time, right_tracked_);
 
     if (mcap_channels_)
     {
-        int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
-        DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
-        mcap_channels_->write(0, timestamp, left_tracked_.data);
-        mcap_channels_->write(1, timestamp, right_tracked_.data);
+        // TODO: Replace with actual client-reported sample/available timestamps
+        // once the runtime exposes per-sample timing metadata.
+        DeviceDataTimestamp timestamp(now_ns, now_ns, static_cast<int64_t>(xr_time));
+        mcap_channels_->write(0, graph_time_ns, timestamp, left_tracked_.data);
+        mcap_channels_->write(1, graph_time_ns, timestamp, right_tracked_.data);
     }
 }
 

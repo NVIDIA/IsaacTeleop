@@ -15,6 +15,7 @@ add_executable(schema_tests
 target_link_libraries(schema_tests PRIVATE
   isaacteleop_schema
   Catch2::Catch2WithMain
+  OpenXR::headers
 )
 
 message(STATUS "schema_tests target enabled with Catch2")

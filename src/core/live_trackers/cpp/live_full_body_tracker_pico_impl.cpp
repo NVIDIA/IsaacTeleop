@@ -97,10 +97,8 @@ LiveFullBodyTrackerPicoImpl::~LiveFullBodyTrackerPicoImpl()
     }
 }
 
-void LiveFullBodyTrackerPicoImpl::update(XrTime time)
+void LiveFullBodyTrackerPicoImpl::update(int64_t graph_time_ns)
 {
-    last_update_time_ = time;
-
     if (body_tracker_ == XR_NULL_HANDLE)
     {
         // Policy: limp mode (feature unsupported/unavailable) is non-fatal.
@@ -108,10 +106,13 @@ void LiveFullBodyTrackerPicoImpl::update(XrTime time)
         return;
     }
 
+    int64_t now_ns = os_monotonic_now_ns();
+    XrTime xr_time = time_converter_.convert_monotonic_ns_to_xrtime(now_ns);
+
     XrBodyJointsLocateInfoBD locate_info{ XR_TYPE_BODY_JOINTS_LOCATE_INFO_BD };
     locate_info.next = nullptr;
     locate_info.baseSpace = base_space_;
-    locate_info.time = time;
+    locate_info.time = xr_time;
 
     XrBodyJointLocationBD joint_locations[XR_BODY_JOINT_COUNT_BD];
 
@@ -157,9 +158,10 @@ void LiveFullBodyTrackerPicoImpl::update(XrTime time)
 
     if (mcap_channels_)
     {
-        int64_t monotonic_ns = time_converter_.convert_xrtime_to_monotonic_ns(last_update_time_);
-        DeviceDataTimestamp timestamp(monotonic_ns, monotonic_ns, last_update_time_);
-        mcap_channels_->write(0, timestamp, tracked_.data);
+        // TODO: Replace with actual client-reported sample/available timestamps
+        // once the runtime exposes per-sample timing metadata.
+        DeviceDataTimestamp timestamp(now_ns, now_ns, static_cast<int64_t>(xr_time));
+        mcap_channels_->write(0, graph_time_ns, timestamp, tracked_.data);
     }
 }
 

@@ -29,7 +29,7 @@ FRAME_SLEEP_S = 0.016
 
 def poll_hands(hand_tracker, deviceio_session):
     """Return (left_active, right_active) for the current frame."""
-    deviceio_session.update()
+    deviceio_session.update(time.monotonic_ns())
     left = hand_tracker.get_left_hand(deviceio_session)
     right = hand_tracker.get_right_hand(deviceio_session)
     return left.data is not None, right.data is not None

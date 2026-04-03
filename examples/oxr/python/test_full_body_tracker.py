@@ -55,7 +55,7 @@ with oxr.OpenXRSession("FullBodyTrackerTest", required_extensions) as oxr_sessio
 
         # Test 5: Initial update
         print("[Test 5] Testing initial data retrieval...")
-        session.update()
+        session.update(time.monotonic_ns())
 
         print("✓ Update successful")
         print()
@@ -86,7 +86,7 @@ with oxr.OpenXRSession("FullBodyTrackerTest", required_extensions) as oxr_sessio
         last_status_print = start_time
 
         while time.time() - start_time < 10.0:
-            session.update()
+            session.update(time.monotonic_ns())
 
             # Get current body pose
             current_time = time.time()

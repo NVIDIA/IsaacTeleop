@@ -38,12 +38,12 @@ public:
     LiveHandTrackerImpl(LiveHandTrackerImpl&&) = delete;
     LiveHandTrackerImpl& operator=(LiveHandTrackerImpl&&) = delete;
 
-    void update(XrTime time) override;
+    void update(int64_t graph_time_ns) override;
     const HandPoseTrackedT& get_left_hand() const override;
     const HandPoseTrackedT& get_right_hand() const override;
 
 private:
-    void update_hand(XrHandTrackerEXT tracker, XrTime time, HandPoseTrackedT& tracked);
+    void update_hand(XrHandTrackerEXT tracker, XrTime xr_time, HandPoseTrackedT& tracked);
 
     XrTimeConverter time_converter_;
     XrSpace base_space_;
@@ -53,7 +53,6 @@ private:
 
     HandPoseTrackedT left_tracked_;
     HandPoseTrackedT right_tracked_;
-    XrTime last_update_time_ = 0;
 
     PFN_xrCreateHandTrackerEXT pfn_create_hand_tracker_;
     PFN_xrDestroyHandTrackerEXT pfn_destroy_hand_tracker_;

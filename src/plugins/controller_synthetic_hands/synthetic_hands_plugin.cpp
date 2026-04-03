@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <controller_synthetic_hands/synthetic_hands_plugin.hpp>
+#include <oxr_utils/os_time.hpp>
 #include <oxr_utils/pose_conversions.hpp>
 
 #include <algorithm>
@@ -73,7 +74,7 @@ void SyntheticHandsPlugin::worker_thread()
         try
         {
             // Update DeviceIOSession (handles time and tracker updates)
-            m_deviceio_session->update();
+            m_deviceio_session->update(core::os_monotonic_now_ns());
 
             // Read tracker data in the same exception boundary as update.
             left_tracked = m_controller_tracker->get_left_controller(*m_deviceio_session);

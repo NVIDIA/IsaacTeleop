@@ -96,7 +96,7 @@ def run_test():
                 if frame_count % 60 == 0:
                     plugin.check_health()  # Throws PluginCrashException if plugin crashed
 
-                deviceio_session.update()
+                deviceio_session.update(time.monotonic_ns())
 
                 if frame_count % 60 == 0:
                     left_tracked = hand_tracker.get_left_hand(deviceio_session)

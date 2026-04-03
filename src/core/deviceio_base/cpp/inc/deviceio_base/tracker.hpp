@@ -3,17 +3,13 @@
 
 #pragma once
 
-#include <openxr/openxr.h>
-
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
 
 namespace core
 {
-
-// Forward declarations
-struct OpenXRSessionHandles;
 
 // Base interface for tracker implementations.
 // The actual worker objects updated each frame by DeviceIOSession.
@@ -23,13 +19,18 @@ public:
     virtual ~ITrackerImpl() = default;
 
     /**
-     * @brief Updates tracker state for the specified OpenXR time.
+     * @brief Updates tracker state for the current graph step.
+     *
+     * @param graph_time_ns Logical timestamp for this update step (nanoseconds,
+     *        monotonic clock). Used as the MCAP logTime/publishTime. Tracker
+     *        implementations that perform synchronous device queries compute
+     *        their own wall-clock "now" for DeviceDataTimestamp fields.
      *
      * @throws std::runtime_error On critical tracker/runtime failures.
      * @note A thrown exception indicates a fatal condition; the application is
      *       expected to terminate rather than continue running.
      */
-    virtual void update(XrTime time) = 0;
+    virtual void update(int64_t graph_time_ns) = 0;
 };
 
 /**

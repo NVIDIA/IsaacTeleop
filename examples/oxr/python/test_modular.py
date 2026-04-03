@@ -46,7 +46,7 @@ with oxr.OpenXRSession("ModularTest", required_extensions) as oxr_session:
 
         # Test 4: Update and get data
         print("[Test 4] Testing data retrieval...")
-        session.update()
+        session.update(time.monotonic_ns())
 
         print("✓ Update successful")
         print()
@@ -89,7 +89,7 @@ with oxr.OpenXRSession("ModularTest", required_extensions) as oxr_session:
         start_time = time.time()
 
         while time.time() - start_time < 5.0:
-            session.update()
+            session.update(time.monotonic_ns())
 
             if frame_count % 60 == 0:
                 elapsed = time.time() - start_time

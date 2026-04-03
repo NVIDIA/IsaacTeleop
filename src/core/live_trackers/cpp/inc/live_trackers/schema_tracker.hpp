@@ -52,6 +52,9 @@ public:
      * and written to the MCAP channel. The last sample's unpacked data is
      * returned via out_latest (if non-null and samples were read).
      *
+     * @param log_time_ns Monotonic timestamp (nanoseconds) used as the MCAP
+     *        envelope logTime/publishTime for all samples written in this call.
+     *        Typically the value passed to ITrackerImpl::update().
      * @param out_latest If non-null and samples were read, receives the unpacked
      *                   data from the last sample. Cleared when the tensor collection
      *                   is absent.
@@ -60,7 +63,7 @@ public:
      * @note Missing collection, temporary collection loss, and "no new sample"
      *       are treated as common non-fatal conditions and do not throw.
      */
-    void update(std::shared_ptr<NativeDataT>& out_latest)
+    void update(int64_t log_time_ns, std::shared_ptr<NativeDataT>& out_latest)
     {
         samples_.clear();
         bool present = read_all_samples(samples_);
@@ -88,11 +91,9 @@ public:
             }
             fb->UnPackTo(out_latest.get());
 
-            // write() serializes synchronously and does not retain the shared_ptr,
-            // so reusing out_latest across loop iterations is safe.
             if (mcap_channels_)
             {
-                mcap_channels_->write(mcap_channel_index_, sample.timestamp, out_latest);
+                mcap_channels_->write(mcap_channel_index_, log_time_ns, sample.timestamp, out_latest);
             }
         }
     }
