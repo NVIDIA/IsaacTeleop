@@ -2,3 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """CloudXR integration for isaacteleop."""
+
+from .launcher import CloudXRLauncher
+
+__all__ = ["CloudXRLauncher"]

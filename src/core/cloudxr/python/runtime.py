@@ -9,6 +9,8 @@ import shutil
 import signal
 import sys
 import threading
+import time
+from collections.abc import Callable
 
 from .env_config import get_env_config
 
@@ -16,8 +18,15 @@ from .env_config import get_env_config
 _EULA_URL = (
     "https://github.com/NVIDIA/IsaacTeleop/blob/main/deps/cloudxr/CLOUDXR_LICENSE"
 )
-_RUNTIME_JOIN_TIMEOUT = 10
-_RUNTIME_STARTUP_TIMEOUT_SEC = 10
+
+RUNTIME_STARTUP_TIMEOUT_SEC: float = 10
+"""Maximum time [s] to wait for the runtime ``runtime_started`` sentinel."""
+
+RUNTIME_TERMINATE_TIMEOUT_SEC: float = 10
+"""Timeout [s] for each escalation step (SIGTERM, then SIGKILL) when stopping the runtime."""
+
+RUNTIME_POLL_INTERVAL_SEC: float = 0.5
+"""Polling interval [s] used by :func:`wait_for_runtime_ready_sync`."""
 
 
 def _write_eula_marker(marker: str) -> None:
@@ -67,13 +76,48 @@ def _get_sdk_path() -> str | None:
     return native_dir
 
 
+def wait_for_runtime_ready_sync(
+    is_process_alive: Callable[[], bool],
+    timeout_sec: float = RUNTIME_STARTUP_TIMEOUT_SEC,
+    poll_interval_sec: float = RUNTIME_POLL_INTERVAL_SEC,
+) -> bool:
+    """Synchronously poll for the ``runtime_started`` sentinel file.
+
+    Args:
+        is_process_alive: Callable returning ``True`` while the
+            runtime process is still running.
+        timeout_sec: Maximum time to wait [s].
+        poll_interval_sec: Polling interval [s].
+
+    Returns:
+        ``True`` when the runtime is ready, ``False`` on timeout or
+        if the process exits early.
+    """
+    lock_file = os.path.join(get_env_config().openxr_run_dir(), "runtime_started")
+    deadline = time.monotonic() + timeout_sec
+
+    while time.monotonic() < deadline:
+        if not is_process_alive():
+            return False
+        if os.path.isfile(lock_file):
+            return True
+        time.sleep(poll_interval_sec)
+
+    return False
+
+
 async def wait_for_runtime_ready(
     process: multiprocessing.Process,
-    timeout_sec: float = _RUNTIME_STARTUP_TIMEOUT_SEC,
+    timeout_sec: float = RUNTIME_STARTUP_TIMEOUT_SEC,
 ) -> bool:
-    """
-    Return True when runtime is ready (lock file runtime_started). Return False on timeout or if
-    the process exits early.
+    """Async variant of :func:`wait_for_runtime_ready_sync`.
+
+    Kept for backward compatibility with callers that use
+    :class:`multiprocessing.Process` and an asyncio event loop.
+
+    Returns:
+        ``True`` when the runtime is ready, ``False`` on timeout or
+        if the process exits early.
     """
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout_sec
@@ -89,7 +133,6 @@ async def wait_for_runtime_ready(
 
         await asyncio.sleep(1)
 
-    # Runtime startup timeout reached, assume the runtime is not ready
     return False
 
 
@@ -114,13 +157,13 @@ def latest_runtime_log() -> str | None:
 
 
 def terminate_or_kill_runtime(process: multiprocessing.Process) -> None:
-    """Terminate or kill the runtime process."""
+    """Terminate or kill a :class:`multiprocessing.Process` runtime."""
     if process.is_alive():
         process.terminate()
-        process.join(timeout=_RUNTIME_JOIN_TIMEOUT)
+        process.join(timeout=RUNTIME_TERMINATE_TIMEOUT_SEC)
     if process.is_alive():
         process.kill()
-        process.join(timeout=_RUNTIME_JOIN_TIMEOUT)
+        process.join(timeout=RUNTIME_TERMINATE_TIMEOUT_SEC)
     if process.is_alive():
         raise RuntimeError("Failed to terminate or kill runtime process")
 

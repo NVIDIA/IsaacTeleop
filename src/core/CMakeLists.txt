@@ -65,6 +65,9 @@ if(BUILD_TESTING)
     # Teleop session manager tests (Python)
     add_subdirectory(teleop_session_manager_tests)
 
+    # CloudXR tests (Python)
+    add_subdirectory(cloudxr_tests)
+
     # MCAP tests (C++)
     add_subdirectory(mcap_tests/cpp)
 endif()
