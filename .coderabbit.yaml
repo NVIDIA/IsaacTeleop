@@ -1,7 +1,91 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-# Repository-specific override
+
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+# CodeRabbit config for Isaac Teleop
+# Goal: one review round, critical issues only, no spam.
+
+language: "en-US"
+
+tone_instructions: >-
+  Only flag critical bugs, security vulnerabilities, logic errors, and
+  concurrency issues. Skip style, formatting, naming, and minor suggestions.
+  Be concise and actionable.
+
 reviews:
-  profile: assertive # assertive / chill profile
+  profile: "chill"
+
+  # --- Reduce noise: disable decorative / low-value sections ---
+  high_level_summary: true
+  poem: false
+  sequence_diagrams: true
+  collapse_walkthrough: true
+  changed_files_summary: false
+  suggested_labels: false
+  suggested_reviewers: false
+  related_issues: true
+  related_prs: true
+  estimate_code_review_effort: true
+  in_progress_fortune: false
+  assess_linked_issues: true
+
+  # --- One round and done ---
   auto_review:
-    enabled: true # Enable auto-review for this repository
+    enabled: true
+    auto_incremental_review: false   # Do NOT re-review on every push
+    drafts: false
+    ignore_title_keywords:
+      - "WIP"
+      - "DO NOT MERGE"
+
+  # --- Per-path review focus (tell the reviewer what matters) ---
+  path_instructions:
+    - path: "**/*.{cpp,h,hpp,cxx,hxx}"
+      instructions: >-
+        C++20 code. Focus on memory safety, thread safety, resource leaks, and correctness.
+        Ignore style, clang-format enforces it at build time.
+    - path: "**/*.py"
+      instructions: >-
+        Python code (bindings, retargeters, examples, scripts). Focus on logic errors and security
+        issues only. Ignore formatting and import order, ruff handles those via pre-commit.
+    - path: ".github/workflows/**"
+      instructions: >-
+        CI/CD workflows. Focus on security (secret handling, permissions) and
+        correctness of build/test steps.
+    - path: "docs/**"
+      instructions: "Only flag factual errors, broken links, or spelling mistakes."
+
+  # --- Disable tools that overlap with pre-commit / clang-format ---
+  tools:
+    ruff:
+      enabled: false           # Pre-commit: ruff lint + ruff format
+    markdownlint:
+      enabled: false           # Low value, noisy on docs
+    languagetool:
+      enabled: false           # Spelling/grammar on code comments is noise
+    biome:
+      enabled: false           # Not used in this repo
+    eslint:
+      enabled: false           # No eslint config in repo
+    # Keep these — not covered by pre-commit:
+    shellcheck:
+      enabled: true
+    hadolint:
+      enabled: true            # Dockerfile linting
+    actionlint:
+      enabled: true            # GitHub Actions linting
+    cppcheck:
+      enabled: true            # C++ static analysis
+    github-checks:
+      enabled: true
+      timeout_ms: 90000
+
+# --- Stop the back-and-forth in PR comment threads ---
+chat:
+  auto_reply: false            # Only respond when explicitly @mentioned
+
+knowledge_base:
+  opt_out: false
+  learnings:
+    scope: "local"
