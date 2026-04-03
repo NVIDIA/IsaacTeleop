@@ -32,9 +32,7 @@ import numpy as np
 STATS_INTERVAL_SEC = 30.0
 
 # Reconnection settings
-MAX_CONSECUTIVE_FAILURES = 10  # Failures before attempting reconnect
-RECONNECT_DELAY_SEC = 2.0  # Delay between reconnection attempts
-STARVATION_TIMEOUT_SEC = 5.0  # No frames for this long triggers reconnect
+RECONNECT_DELAY_SEC = 5.0  # Seconds between reconnection attempts
 
 
 class OakdCameraMode(Enum):
@@ -187,12 +185,10 @@ class OakdCameraOp(Operator):
             )
 
         # Reconnection state
-        self._consecutive_failures = 0
         self._reconnect_attempts = 0
         self._last_reconnect_time = 0.0
         self._is_disconnected = False
         self._last_log_time = 0.0
-        self._last_emit_time = 0.0  # Set on first successful emit; 0 = never emitted
 
         super().__init__(fragment, *args, **kwargs)
 
@@ -341,9 +337,7 @@ class OakdCameraOp(Operator):
                 if ch == 4:
                     stream.buf[:, :, 3] = 255
 
-        self._consecutive_failures = 0
         self._is_disconnected = False
-        self._last_emit_time = 0.0
         self._last_log_time = time.monotonic()
 
         reconnect_str = (
@@ -413,7 +407,9 @@ class OakdCameraOp(Operator):
         try:
             self._pipeline.processTasks()
         except Exception as e:
-            self._handle_failure(f"processTasks failed: {e}")
+            logger.warning(f"OAK-D '{self.name}' processTasks failed: {e}")
+            self._is_disconnected = True
+            self._close_camera()
             return
 
         try:
@@ -427,15 +423,11 @@ class OakdCameraOp(Operator):
                         emitted = True
 
             if emitted:
-                self._consecutive_failures = 0
-                self._last_emit_time = time.monotonic()
                 self._log_stats()
-            elif self._last_emit_time > 0:
-                elapsed = time.monotonic() - self._last_emit_time
-                if elapsed >= STARVATION_TIMEOUT_SEC:
-                    self._handle_failure(f"no frames for {elapsed:.1f}s")
         except Exception as e:
-            self._handle_failure(f"emit failed: {e}")
+            logger.warning(f"OAK-D '{self.name}' emit failed: {e}")
+            self._is_disconnected = True
+            self._close_camera()
 
     def _emit_stream_raw(self, op_output, stream: _StreamState) -> bool:
         """Emit a raw frame for the given stream. Returns True if emitted."""
@@ -557,18 +549,19 @@ class OakdCameraOp(Operator):
             pass
         return int(time.time() * 1_000_000)
 
-    def _handle_failure(self, reason: str):
-        """Handle a failure and trigger reconnection if needed."""
-        self._consecutive_failures += 1
-        if self._consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
-            logger.warning(
-                f"OAK-D camera disconnected: {self._consecutive_failures} consecutive failures "
-                f"({reason}). Will attempt reconnection."
-            )
-            self._is_disconnected = True
-            self._close_camera()
-        elif self._verbose:
-            logger.warning(f"OAK-D failure ({self._consecutive_failures}x): {reason}")
+    def _is_device_available(self) -> bool:
+        """Check if the target device is currently visible on USB.
+
+        Calling dai.Device(device_info) for a device that isn't enumerated
+        can block for 10+ seconds.  This fast pre-check avoids that.
+        """
+        try:
+            available = dai.Device.getAllAvailableDevices()
+        except Exception:
+            return False
+        if not self._device_id:
+            return bool(available)
+        return any(self._device_id in str(d) for d in available)
 
     def _attempt_reconnect(self):
         """Attempt to reconnect to the camera with rate limiting."""
@@ -576,16 +569,26 @@ class OakdCameraOp(Operator):
         if now - self._last_reconnect_time < RECONNECT_DELAY_SEC:
             return
         self._last_reconnect_time = now
-        self._reconnect_attempts += 1
+
         device_str = self._device_id or "auto-detect"
+        if not self._is_device_available():
+            logger.info(
+                f"OAK-D '{self.name}' device {device_str} not visible on "
+                f"USB, retrying in {RECONNECT_DELAY_SEC}s..."
+            )
+            return
+
+        self._reconnect_attempts += 1
         logger.info(
-            f"OAK-D '{self.name}' reconnection attempt #{self._reconnect_attempts} (device={device_str})..."
+            f"OAK-D '{self.name}' reconnection attempt "
+            f"#{self._reconnect_attempts} (device={device_str})..."
         )
         if self._open_camera():
             logger.info(f"OAK-D '{self.name}' reconnected successfully!")
         else:
             logger.warning(
-                f"OAK-D '{self.name}' reconnection failed. Next attempt in {RECONNECT_DELAY_SEC}s..."
+                f"OAK-D '{self.name}' reconnection failed. "
+                f"Next attempt in {RECONNECT_DELAY_SEC}s..."
             )
 
     def _log_stats(self):
