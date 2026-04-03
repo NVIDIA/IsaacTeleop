@@ -70,8 +70,8 @@ def load_config() -> Config:
 
     b64 = os.environ.get("GOOGLE_SERVICE_ACCOUNT_B64")
     sa_file = os.environ.get("GOOGLE_SERVICE_ACCOUNT_FILE")
-    if not b64 and not sa_file:
-        missing.append("GOOGLE_SERVICE_ACCOUNT_B64 or GOOGLE_SERVICE_ACCOUNT_FILE")
+    # Google credentials are optional here — ADC / WIF may provide them
+    # at runtime without any env vars. Validated later in get_google_credentials().
 
     if missing:
         print(

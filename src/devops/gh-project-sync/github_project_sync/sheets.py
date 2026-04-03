@@ -41,7 +41,13 @@ class _ExistingIssue:
 
 
 def get_google_credentials() -> Credentials:
-    """Build Google credentials from env vars."""
+    """Build Google credentials, trying in order:
+
+    1. GOOGLE_SERVICE_ACCOUNT_B64 — base64-encoded service account JSON
+    2. GOOGLE_SERVICE_ACCOUNT_FILE — path to service account JSON file
+    3. Application Default Credentials (ADC) — used by GitHub Actions WIF
+       and ``gcloud auth application-default login`` for local dev
+    """
     b64 = os.environ.get("GOOGLE_SERVICE_ACCOUNT_B64")
     if b64:
         info = json.loads(base64.b64decode(b64))
@@ -51,9 +57,22 @@ def get_google_credentials() -> Credentials:
     if sa_file:
         return Credentials.from_service_account_file(sa_file, scopes=SCOPES)
 
+    # Fall back to ADC (Workload Identity Federation, gcloud login, etc.)
+    try:
+        import google.auth
+
+        credentials, _ = google.auth.default(scopes=SCOPES)
+        return credentials
+    except google.auth.exceptions.DefaultCredentialsError:
+        pass
+
     print(
-        "Error: No Google credentials found. "
-        "Set GOOGLE_SERVICE_ACCOUNT_B64 or GOOGLE_SERVICE_ACCOUNT_FILE.",
+        "Error: No Google credentials found. Set one of:\n"
+        "  - GOOGLE_SERVICE_ACCOUNT_B64 (base64 JSON)\n"
+        "  - GOOGLE_SERVICE_ACCOUNT_FILE (path to JSON)\n"
+        "  - GOOGLE_APPLICATION_CREDENTIALS (ADC / WIF)\n"
+        "  - Or run: gcloud auth application-default login "
+        "--scopes=https://www.googleapis.com/auth/spreadsheets",
         file=sys.stderr,
     )
     sys.exit(1)

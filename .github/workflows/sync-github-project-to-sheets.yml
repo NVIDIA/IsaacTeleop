@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: Sync GitHub Project to Google Sheets
+
+on:
+  schedule:
+    - cron: "0 * * * *" # every hour
+  issues:
+    types: [opened, edited, closed, reopened, assigned, unassigned, labeled, unlabeled, milestoned, demilestoned]
+  workflow_dispatch: # manual trigger
+
+concurrency:
+  group: sheets-sync
+  cancel-in-progress: true # only the latest sync runs; earlier ones are cancelled
+
+permissions:
+  contents: read
+  id-token: write # required for WIF OIDC token exchange
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Sync issues to Google Sheets
+        working-directory: src/devops/gh-project-sync
+        env:
+          GITHUB_TOKEN: ${{ secrets.PROJECT_READ_TOKEN }}
+          ISAAC_TELEOP_GITHUB_PROJECT_URL: ${{ vars.ISAAC_TELEOP_GITHUB_PROJECT_URL }}
+          GOOGLE_SHEET_ID: ${{ vars.GOOGLE_SHEET_ID }}
+        run: uv run github-project-sync --verbose
