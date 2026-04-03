@@ -16,6 +16,7 @@
 #include <iostream>
 #include <limits>
 #include <stdexcept>
+#include <stop_token>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -42,7 +43,9 @@ public:
     ~HandVisualizer();
 
     // Block until the window is closed.  Reads hand data from tracker each frame.
-    void run(ManusTracker& tracker);
+    // Exits early when st.stop_requested() returns true, allowing the owning
+    // std::jthread to request a clean shutdown before its destructor joins.
+    void run(ManusTracker& tracker, std::stop_token st = {});
 
     // Non-copyable / non-movable (owns raw Vulkan handles).
     HandVisualizer(const HandVisualizer&) = delete;
@@ -232,6 +235,13 @@ private:
 
     void destroySwapchainResources();
 
+    // Releases all X11/Vulkan resources whose handles are non-null.
+    // Safe to call on a partially-constructed object because every handle is
+    // value-initialised to VK_NULL_HANDLE / nullptr / 0 and each branch is
+    // guarded.  Called from both ~HandVisualizer() and the constructor's
+    // catch block so that a mid-construction throw cannot leak handles.
+    void teardown() noexcept;
+
     VkShaderModule createShaderModule(const uint32_t* spv, size_t bytes);
 
     // -----------------------------------------------------------------------
@@ -284,12 +294,20 @@ inline HandVisualizer::HandVisualizer()
     }
     catch (...)
     {
-        // Partial cleanup — destructor handles the rest.
+        // The destructor is not invoked when a constructor throws, so we
+        // must explicitly release whatever handles were created before the
+        // failing call.
+        teardown();
         throw;
     }
 }
 
 inline HandVisualizer::~HandVisualizer()
+{
+    teardown();
+}
+
+inline void HandVisualizer::teardown() noexcept
 {
     if (m_dev)
         vkDeviceWaitIdle(m_dev);
@@ -315,6 +333,24 @@ inline HandVisualizer::~HandVisualizer()
 
     if (m_win && m_dpy)  XDestroyWindow(m_dpy, m_win);
     if (m_dpy)           XCloseDisplay(m_dpy);
+
+    // Zero handles so repeated teardown() calls (e.g. via destructor after a
+    // catch-rethrow) are harmless.
+    m_vbuf_ptr        = nullptr;
+    m_vbuf            = VK_NULL_HANDLE;
+    m_vbuf_mem        = VK_NULL_HANDLE;
+    m_sem_image_avail = VK_NULL_HANDLE;
+    m_sem_render_done = VK_NULL_HANDLE;
+    m_fence_in_flight = VK_NULL_HANDLE;
+    m_render_pass     = VK_NULL_HANDLE;
+    m_pipe_layout     = VK_NULL_HANDLE;
+    m_pipeline        = VK_NULL_HANDLE;
+    m_cmd_pool        = VK_NULL_HANDLE;
+    m_dev             = VK_NULL_HANDLE;
+    m_surface         = VK_NULL_HANDLE;
+    m_instance        = VK_NULL_HANDLE;
+    m_win             = 0;
+    m_dpy             = nullptr;
 }
 
 // ---------------------------------------------------------------------------
@@ -882,11 +918,11 @@ inline void HandVisualizer::buildHandGeometry(
 }
 
 // ---------------------------------------------------------------------------
-inline void HandVisualizer::run(ManusTracker& tracker)
+inline void HandVisualizer::run(ManusTracker& tracker, std::stop_token st)
 {
     bool running = true;
 
-    while (running)
+    while (running && !st.stop_requested())
     {
         // -- Poll X11 events -------------------------------------------------
         while (XPending(m_dpy))
@@ -985,8 +1021,11 @@ inline void HandVisualizer::run(ManusTracker& tracker)
             std::memcpy(m_vbuf_ptr, verts.data(), vert_count * sizeof(Vertex));
 
         // -- Render frame ----------------------------------------------------
+        // Wait for the previous frame's fence before touching per-frame state.
+        // Do NOT reset the fence yet — if vkAcquireNextImageKHR fails we will
+        // continue without submitting, and the fence must stay signaled so the
+        // next iteration's vkWaitForFences returns immediately.
         vkWaitForFences(m_dev, 1, &m_fence_in_flight, VK_TRUE, UINT64_MAX);
-        vkResetFences(m_dev, 1, &m_fence_in_flight);
 
         uint32_t img_idx = 0;
         VkResult acquire_result = vkAcquireNextImageKHR(
@@ -998,9 +1037,15 @@ inline void HandVisualizer::run(ManusTracker& tracker)
             destroySwapchainResources();
             createSwapchain();
             createFramebuffers();
-            vkResetFences(m_dev, 1, &m_fence_in_flight);
+            createCommandBuffers();
+            // Fence is still signaled — leave it so the next vkWaitForFences
+            // returns immediately without us having submitted anything.
             continue;
         }
+
+        // Acquisition succeeded: safe to reset the fence now so we can use it
+        // as the submit signal for this frame.
+        vkResetFences(m_dev, 1, &m_fence_in_flight);
 
         // Record command buffer
         VkCommandBuffer cmd = m_cmd_bufs[img_idx];
@@ -1076,6 +1121,7 @@ inline void HandVisualizer::run(ManusTracker& tracker)
             destroySwapchainResources();
             createSwapchain();
             createFramebuffers();
+            createCommandBuffers();
         }
     }
 

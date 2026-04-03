@@ -35,7 +35,9 @@ sudo apt-get install -y \
     libzmq3-dev \
     libncurses-dev \
     libudev-dev \
-    libusb-1.0-0-dev
+    libusb-1.0-0-dev \
+    libvulkan-dev \
+    libx11-dev
 
 # Add read/write permissions for manus devices
 if [ ! -f "/etc/udev/rules.d/70-manus-hid.rules" ]; then

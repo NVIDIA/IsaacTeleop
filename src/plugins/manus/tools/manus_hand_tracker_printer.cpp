@@ -25,19 +25,20 @@ try
     // Start Vulkan visualizer in a background thread.
     // If X11 or Vulkan is unavailable the thread exits cleanly and printing
     // continues without the window.
-    std::thread vis_thread([&tracker]()
+    // std::jthread automatically requests stop and joins on destruction,
+    // preventing the thread from outliving the tracker singleton.
+    std::jthread vis_thread([&tracker](std::stop_token st)
     {
         try
         {
             plugins::manus::HandVisualizer vis;
-            vis.run(tracker);
+            vis.run(tracker, std::move(st));
         }
         catch (const std::exception& e)
         {
             std::cerr << "[Vis] " << e.what() << " — running without visualizer" << std::endl;
         }
     });
-    vis_thread.detach();
 
     std::cout << "[Manus] Press Ctrl+C to stop. Printing joint data..." << std::endl;
 
