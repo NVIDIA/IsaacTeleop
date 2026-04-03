@@ -66,7 +66,7 @@ src/plugins/manus/
 ```bash
 cd ../../..  # Navigate to TeleopCore root
 cmake -S . -B build
-cmake --build build --target manus_hand_plugin -j
+cmake --build build --target manus_hand_plugin manus_hand_tracker_printer -j
 cmake --install build --component manus
 ```
 

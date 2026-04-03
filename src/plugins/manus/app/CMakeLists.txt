@@ -26,8 +26,10 @@ set_target_properties(manus_hand_plugin PROPERTIES
 
 install(TARGETS manus_hand_plugin
     RUNTIME DESTINATION plugins/manus
+    COMPONENT manus
 )
 
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../plugin.yaml" "${CMAKE_CURRENT_SOURCE_DIR}/../README.md"
     DESTINATION plugins/manus
+    COMPONENT manus
 )

@@ -107,4 +107,5 @@ add_subdirectory(tools)
 # Install Manus SDK shared library
 install(FILES "${_MANUS_LIB}"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    COMPONENT manus
 )
