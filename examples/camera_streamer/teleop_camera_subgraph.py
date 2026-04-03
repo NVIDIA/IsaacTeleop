@@ -144,7 +144,12 @@ class TeleopCameraSubgraphConfig:
         for cam_name, cam_cfg in self.cameras.items():
             for stream_name, stream_cfg in cam_cfg.streams.items():
                 if self.source == "rtp":
-                    if not (1024 <= stream_cfg.port <= 65535):
+                    if stream_cfg.port == 0:
+                        errors.append(
+                            f"Camera '{cam_name}/{stream_name}': "
+                            f"RTP mode requires a valid port (got 0)"
+                        )
+                    elif not (1024 <= stream_cfg.port <= 65535):
                         errors.append(
                             f"Camera '{cam_name}/{stream_name}': "
                             f"port {stream_cfg.port} out of valid range (1024-65535)"

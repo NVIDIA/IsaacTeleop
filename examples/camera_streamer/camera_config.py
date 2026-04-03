@@ -24,7 +24,7 @@ class StreamConfig:
     """Configuration for a single video stream."""
 
     port: int = 0
-    """RTP port for H.264 video stream (required for RTP mode)."""
+    """RTP port for H.264 video stream. Must be in 1024-65535 for RTP mode; 0 means unconfigured (local-only)."""
 
     bitrate_mbps: float = 10.0
     """Bitrate in Mbps (for encoding)."""
@@ -70,6 +70,12 @@ class CameraConfig:
     # OAK-D-specific (optional)
     device_id: str | None = None
 
+    # stereo_rgb mode: enable RGB center camera alongside stereo (OAK-D only)
+    rgb_enable: bool = False
+    rgb_width: int | None = None
+    rgb_height: int | None = None
+    rgb_fps: int | None = None
+
     # V4L2-specific (optional)
     device: str | None = None
 
@@ -95,17 +101,53 @@ class CameraConfig:
         "video_dir",
         "video_basename",
         "color_range",
+        "rgb_enable",
+        "rgb_width",
+        "rgb_height",
+        "rgb_fps",
     }
+
+    @property
+    def stereo_rgb(self) -> bool:
+        """True if stereo camera also has RGB center stream enabled."""
+        return self.stereo and self.rgb_enable
 
     def __post_init__(self):
         if self.camera_type not in VALID_CAMERA_TYPES:
             raise ValueError(
                 f"Camera '{self.name}': unknown camera_type '{self.camera_type}' (valid: {VALID_CAMERA_TYPES})"
             )
-        if self.color_range not in VALID_COLOR_RANGES:
-            raise ValueError(
-                f"Camera '{self.name}': unknown color_range '{self.color_range}' (valid: {VALID_COLOR_RANGES})"
-            )
+        self._validate_rgb_fields()
+
+    def _validate_rgb_fields(self):
+        """Validate that rgb_enable and rgb_width/rgb_height/rgb_fps are only used on OAK-D stereo cameras."""
+        rgb_dimension_keys = {
+            "rgb_width": self.rgb_width,
+            "rgb_height": self.rgb_height,
+            "rgb_fps": self.rgb_fps,
+        }
+
+        if self.rgb_enable:
+            if self.camera_type != "oakd":
+                raise ValueError(
+                    f"Camera '{self.name}': rgb_enable requires camera_type 'oakd' (got '{self.camera_type}')"
+                )
+            if not self.stereo:
+                raise ValueError(
+                    f"Camera '{self.name}': rgb_enable requires stereo=true (stereo_rgb mode is stereo + center RGB)"
+                )
+            for key, val in rgb_dimension_keys.items():
+                if val is not None:
+                    if not isinstance(val, int) or val <= 0:
+                        raise ValueError(
+                            f"Camera '{self.name}': {key} must be a positive integer (got {val!r})"
+                        )
+        else:
+            set_keys = [k for k, v in rgb_dimension_keys.items() if v is not None]
+            if set_keys:
+                raise ValueError(
+                    f"Camera '{self.name}': {', '.join(set_keys)} set but rgb_enable is false"
+                )
 
     @property
     def is_full_range(self) -> bool:
@@ -171,6 +213,10 @@ class CameraConfig:
             video_dir=data.get("video_dir"),
             video_basename=data.get("video_basename"),
             color_range=data.get("color_range", "auto"),
+            rgb_enable=data.get("rgb_enable", False),
+            rgb_width=data.get("rgb_width"),
+            rgb_height=data.get("rgb_height"),
+            rgb_fps=data.get("rgb_fps"),
         )
 
 

@@ -9,6 +9,7 @@ Uses DepthAI SDK v3 to capture from OAK-D cameras. Supports two output formats:
 Supports:
 - Mono mode: Single camera stream (RGB, LEFT, or RIGHT)
 - Stereo mode: Dual camera streams (LEFT + RIGHT)
+- Stereo RGB mode: Triple streams (LEFT + RIGHT + RGB center)
 
 Metadata emitted with each frame/packet:
     - frame_timestamp_us: Device capture timestamp in microseconds (int64)
@@ -16,8 +17,10 @@ Metadata emitted with each frame/packet:
     - sequence: Frame sequence number for drop detection (int)
 """
 
+from dataclasses import dataclass
 from enum import Enum
 import time
+from typing import Any
 
 import cupy as cp
 import depthai as dai
@@ -31,6 +34,7 @@ STATS_INTERVAL_SEC = 30.0
 # Reconnection settings
 MAX_CONSECUTIVE_FAILURES = 10  # Failures before attempting reconnect
 RECONNECT_DELAY_SEC = 2.0  # Delay between reconnection attempts
+STARVATION_TIMEOUT_SEC = 5.0  # No frames for this long triggers reconnect
 
 
 class OakdCameraMode(Enum):
@@ -41,6 +45,9 @@ class OakdCameraMode(Enum):
 
     STEREO = "stereo"
     """Dual camera streams (left + right)."""
+
+    STEREO_RGB = "stereo_rgb"
+    """Triple streams: left + right (mono) + RGB center."""
 
 
 class OakdOutputFormat(Enum):
@@ -53,39 +60,50 @@ class OakdOutputFormat(Enum):
     """H.264 encoded packets from VPU."""
 
 
+@dataclass
+class _StreamState:
+    """Per-stream state for queues, buffers, counters."""
+
+    name: str
+    socket_name: str | None = None
+    stream_id: int = 0
+    raw_port: str = ""
+    h264_port: str = ""
+    queue: Any = None
+    buf: cp.ndarray | None = None
+    count: int = 0
+    last_log_count: int = 0
+
+
+# Stream configuration per mode: (name, socket_name, raw_port, h264_port)
+_MONO_STREAMS = [("left", None, "left_frame", "h264_packets")]
+_STEREO_STREAMS = [
+    ("left", "LEFT", "left_frame", "h264_packets"),
+    ("right", "RIGHT", "right_frame", "h264_packets_right"),
+]
+_STEREO_RGB_STREAMS = [
+    ("left", "LEFT", "left_frame", "h264_packets"),
+    ("right", "RIGHT", "right_frame", "h264_packets_right"),
+    ("rgb", "RGB", "rgb_frame", "h264_packets_rgb"),
+]
+
+
 class OakdCameraOp(Operator):
     """OAK-D camera source with raw frames or H.264 encoding.
 
-    This operator captures video from OAK-D cameras and outputs either:
-    - Raw GPU tensors (BGRA) for local processing
-    - H.264 encoded packets from the on-device VPU encoder
-
     Outputs (depends on output_format and mode):
-        Raw format:
-            left_frame: Left/main camera frame as GPU tensor (HxWx4, BGRA).
-            right_frame: (Stereo only) Right camera frame as GPU tensor.
-
-        H264 format:
-            h264_packets: Holoscan tensor (1D uint8) containing H.264 NAL units.
-            h264_packets_right: (Stereo only) Right camera H.264 NAL units.
+        Raw: left_frame, right_frame (stereo), rgb_frame (stereo_rgb)
+        H264: h264_packets, h264_packets_right, h264_packets_rgb
 
     Parameters:
-        mode: Camera mode ("mono" or "stereo").
-        output_format: Output format ("raw" or "h264").
-        device_id: Device MxId or empty for first available camera.
-        width: Frame width in pixels.
-        height: Frame height in pixels.
-        fps: Frame rate.
+        mode: "mono", "stereo", or "stereo_rgb".
+        output_format: "raw" or "h264".
+        device_id: Device MxId or empty for auto-detect.
+        width/height/fps: Resolution and framerate for left/right streams.
+        rgb_width/rgb_height/rgb_fps: Resolution for RGB stream (stereo_rgb only, defaults to width/height/fps).
         camera_socket: Camera socket for mono mode ("RGB", "LEFT", "RIGHT").
-        left_stream_id: Stream ID for left/main camera.
-        right_stream_id: Stream ID for right camera (stereo only).
-        verbose: Enable verbose logging.
-
-        H264-specific parameters:
-        bitrate: H.264 bitrate in bits per second.
-        profile: H.264 profile ("baseline", "main", "high").
-        gop_size: Keyframe interval (GOP size).
-        quality: Encoder quality (1-100, higher = better quality).
+        left_stream_id/right_stream_id/rgb_stream_id: Stream IDs.
+        bitrate/profile/gop_size/quality: H.264 encoder settings.
     """
 
     def __init__(
@@ -102,21 +120,24 @@ class OakdCameraOp(Operator):
         camera_socket: str = "RGB",
         left_stream_id: int = 0,
         right_stream_id: int = 1,
+        rgb_stream_id: int = 2,
+        rgb_width: int = 0,
+        rgb_height: int = 0,
+        rgb_fps: int = 0,
         verbose: bool = False,
-        # H264-specific parameters
         bitrate: int = 4_000_000,
         profile: str = "baseline",
         gop_size: int = 15,
         quality: int = 80,
         **kwargs,
     ):
-        # Validate mode
         try:
             self._mode = OakdCameraMode(mode.lower())
         except ValueError:
-            raise ValueError(f"Invalid mode '{mode}'. Must be 'mono' or 'stereo'.")
+            raise ValueError(
+                f"Invalid mode '{mode}'. Must be 'mono', 'stereo', or 'stereo_rgb'."
+            )
 
-        # Validate output format
         try:
             self._output_format = OakdOutputFormat(output_format.lower())
         except ValueError:
@@ -129,54 +150,58 @@ class OakdCameraOp(Operator):
         self._width = width
         self._height = height
         self._fps = fps
+        self._rgb_width = rgb_width or width
+        self._rgb_height = rgb_height or height
+        self._rgb_fps = rgb_fps or fps
         self._camera_socket = camera_socket.upper()
-        self._left_stream_id = left_stream_id
-        self._right_stream_id = right_stream_id
         self._verbose = verbose
 
-        # H264 parameters
         self._bitrate = bitrate
         self._profile = profile.lower()
         self._gop_size = gop_size
         self._quality = quality
 
-        # Device and pipeline state
         self._device: dai.Device | None = None
         self._pipeline: dai.Pipeline | None = None
 
-        # Output queues (H264 mode)
-        self._h264_queue = None
-        self._h264_queue_right = None
+        # Build stream descriptors
+        stream_ids = {
+            "left": left_stream_id,
+            "right": right_stream_id,
+            "rgb": rgb_stream_id,
+        }
+        stream_defs = {
+            OakdCameraMode.MONO: _MONO_STREAMS,
+            OakdCameraMode.STEREO: _STEREO_STREAMS,
+            OakdCameraMode.STEREO_RGB: _STEREO_RGB_STREAMS,
+        }[self._mode]
 
-        # Output queues (Raw mode)
-        self._frame_queue = None
-        self._frame_queue_right = None
-
-        # Stats
-        self._frame_count = 0
-        self._frame_count_right = 0
-        self._last_log_time = 0.0
-        self._last_log_count = 0
-        self._last_log_count_right = 0
+        self._streams: dict[str, _StreamState] = {}
+        for name, socket_name, raw_port, h264_port in stream_defs:
+            self._streams[name] = _StreamState(
+                name=name,
+                socket_name=socket_name,
+                stream_id=stream_ids.get(name, 0),
+                raw_port=raw_port,
+                h264_port=h264_port,
+            )
 
         # Reconnection state
         self._consecutive_failures = 0
         self._reconnect_attempts = 0
         self._last_reconnect_time = 0.0
         self._is_disconnected = False
+        self._last_log_time = 0.0
+        self._last_emit_time = 0.0  # Set on first successful emit; 0 = never emitted
 
         super().__init__(fragment, *args, **kwargs)
 
     def setup(self, spec: OperatorSpec):
         """Define output ports based on mode and format."""
-        if self._output_format == OakdOutputFormat.RAW:
-            spec.output("left_frame").condition(ConditionType.NONE)
-            if self._mode == OakdCameraMode.STEREO:
-                spec.output("right_frame").condition(ConditionType.NONE)
-        else:  # H264
-            spec.output("h264_packets").condition(ConditionType.NONE)
-            if self._mode == OakdCameraMode.STEREO:
-                spec.output("h264_packets_right").condition(ConditionType.NONE)
+        is_raw = self._output_format == OakdOutputFormat.RAW
+        for s in self._streams.values():
+            port = s.raw_port if is_raw else s.h264_port
+            spec.output(port).condition(ConditionType.NONE)
 
     def _get_camera_socket(
         self, socket_name: str | None = None
@@ -205,23 +230,20 @@ class OakdCameraOp(Operator):
             "high": dai.VideoEncoderProperties.Profile.H264_HIGH,
         }
         if self._profile not in profile_map:
-            raise ValueError(
-                f"Unknown H.264 profile '{self._profile}' (valid: {set(profile_map.keys())})"
-            )
+            raise ValueError(f"Unknown H.264 profile '{self._profile}'")
         return profile_map[self._profile]
 
     def _create_encoder(
-        self, pipeline: dai.Pipeline, camera_output
+        self, pipeline: dai.Pipeline, camera_output, fps: int
     ) -> dai.node.VideoEncoder:
         """Create and configure H.264 encoder node."""
         encoder = pipeline.create(dai.node.VideoEncoder).build(
             camera_output,
-            frameRate=self._fps,
+            frameRate=fps,
             profile=self._get_encoder_profile(),
             bitrate=self._bitrate,
             quality=self._quality,
         )
-
         try:
             encoder.setNumFramesPool(3)
             encoder.setRateControlMode(dai.VideoEncoderProperties.RateControlMode.CBR)
@@ -230,22 +252,33 @@ class OakdCameraOp(Operator):
         except Exception as e:
             if self._verbose:
                 logger.warning(f"Some encoder settings not available: {e}")
-
         return encoder
 
     def _get_device_info(self) -> dai.DeviceInfo:
         """Get device info, auto-detecting if needed."""
         if self._device_id:
             return dai.DeviceInfo(self._device_id)
-
-        # Auto-assign: get first available device
         available = dai.Device.getAllAvailableDevices()
         if not available:
             raise RuntimeError("No OAK-D cameras found")
-        device_info = available[0]
-        if self._verbose:
-            logger.info(f"Auto-assigned OAK-D device: {device_info.deviceId}")
-        return device_info
+        return available[0]
+
+    def _stream_resolution(self, stream_name: str) -> tuple[int, int, int]:
+        """Return (width, height, fps) for the given stream."""
+        if stream_name == "rgb":
+            return self._rgb_width, self._rgb_height, self._rgb_fps
+        return self._width, self._height, self._fps
+
+    def _stream_frame_type(self, stream_name: str) -> dai.ImgFrame.Type:
+        """Return the depthai frame type for the given stream."""
+        is_h264 = self._output_format == OakdOutputFormat.H264
+        if is_h264:
+            return dai.ImgFrame.Type.NV12
+        if stream_name == "rgb":
+            return dai.ImgFrame.Type.BGR888p
+        if self._mode in (OakdCameraMode.STEREO, OakdCameraMode.STEREO_RGB):
+            return dai.ImgFrame.Type.GRAY8
+        return dai.ImgFrame.Type.BGR888p
 
     def _create_pipeline(self) -> bool:
         """Create the DepthAI pipeline for the configured mode and output format.
@@ -257,60 +290,27 @@ class OakdCameraOp(Operator):
             device_info = self._get_device_info()
             self._device = dai.Device(device_info)
             pipeline = dai.Pipeline(self._device)
-
             is_h264 = self._output_format == OakdOutputFormat.H264
-            if is_h264:
-                frame_type = dai.ImgFrame.Type.NV12
-            elif self._mode == OakdCameraMode.STEREO:
-                frame_type = dai.ImgFrame.Type.GRAY8
-            else:
-                frame_type = dai.ImgFrame.Type.BGR888p
 
-            left_socket = (
-                self._get_camera_socket()
-                if self._mode == OakdCameraMode.MONO
-                else self._get_camera_socket("LEFT")
-            )
-            cam_left = pipeline.create(dai.node.Camera).build(left_socket)
-            output_left = cam_left.requestOutput(
-                (self._width, self._height),
-                type=frame_type,
-                fps=self._fps,
-            )
+            for stream in self._streams.values():
+                socket = (
+                    self._get_camera_socket()
+                    if self._mode == OakdCameraMode.MONO
+                    else self._get_camera_socket(stream.socket_name)
+                )
+                w, h, fps = self._stream_resolution(stream.name)
+                frame_type = self._stream_frame_type(stream.name)
 
-            if is_h264:
-                encoder_left = self._create_encoder(pipeline, output_left)
-                self._h264_queue = encoder_left.out.createOutputQueue(
-                    maxSize=4,
-                    blocking=False,
-                )
-            else:
-                self._frame_queue = output_left.createOutputQueue(
-                    maxSize=4,
-                    blocking=False,
-                )
-
-            if self._mode == OakdCameraMode.STEREO:
-                cam_right = pipeline.create(dai.node.Camera).build(
-                    self._get_camera_socket("RIGHT")
-                )
-                output_right = cam_right.requestOutput(
-                    (self._width, self._height),
-                    type=frame_type,
-                    fps=self._fps,
-                )
+                cam = pipeline.create(dai.node.Camera).build(socket)
+                output = cam.requestOutput((w, h), type=frame_type, fps=fps)
 
                 if is_h264:
-                    encoder_right = self._create_encoder(pipeline, output_right)
-                    self._h264_queue_right = encoder_right.out.createOutputQueue(
-                        maxSize=4,
-                        blocking=False,
+                    encoder = self._create_encoder(pipeline, output, fps)
+                    stream.queue = encoder.out.createOutputQueue(
+                        maxSize=4, blocking=False
                     )
                 else:
-                    self._frame_queue_right = output_right.createOutputQueue(
-                        maxSize=4,
-                        blocking=False,
-                    )
+                    stream.queue = output.createOutputQueue(maxSize=4, blocking=False)
 
             self._pipeline = pipeline
             return True
@@ -321,7 +321,6 @@ class OakdCameraOp(Operator):
     def _open_camera(self) -> bool:
         """Open the camera and create pipeline. Returns True on success."""
         self._close_camera()
-
         if not self._create_pipeline():
             self._close_camera()
             return False
@@ -333,21 +332,18 @@ class OakdCameraOp(Operator):
             self._close_camera()
             return False
 
-        # Pre-allocate 4-ch BGRA GPU buffers for raw mode (NVENC sender path).
-        # The RGB local-display path (color_format="rgb") produces 3-ch tensors
-        # and skips these buffers; the per-frame cost is negligible there.
+        # Pre-allocate GPU buffers for raw mode to avoid per-frame allocation.
         if self._output_format == OakdOutputFormat.RAW:
-            self._bgra_buf = cp.empty((self._height, self._width, 4), dtype=cp.uint8)
-            self._bgra_buf[:, :, 3] = 255
-            if self._mode == OakdCameraMode.STEREO:
-                self._bgra_buf_right = cp.empty(
-                    (self._height, self._width, 4), dtype=cp.uint8
-                )
-                self._bgra_buf_right[:, :, 3] = 255
+            for name, stream in self._streams.items():
+                w, h, _ = self._stream_resolution(name)
+                ch = 3 if self._color_format in ("rgb", "bgr") else 4
+                stream.buf = cp.empty((h, w, ch), dtype=cp.uint8)
+                if ch == 4:
+                    stream.buf[:, :, 3] = 255
 
-        # Reset state on success
         self._consecutive_failures = 0
         self._is_disconnected = False
+        self._last_emit_time = 0.0
         self._last_log_time = time.monotonic()
 
         reconnect_str = (
@@ -360,9 +356,13 @@ class OakdCameraOp(Operator):
         if self._output_format == OakdOutputFormat.H264:
             format_str += f" {self._bitrate / 1_000_000:.1f}Mbps"
 
+        streams_str = ", ".join(
+            f"{n}={'x'.join(str(x) for x in self._stream_resolution(n)[:2])}@{self._stream_resolution(n)[2]}"
+            for n in self._streams
+        )
         logger.info(
             f"OAK-D camera started{reconnect_str}: mode={self._mode.value}, "
-            f"{device_str}, {self._width}x{self._height}@{self._fps}fps, {format_str}"
+            f"{device_str}, streams=[{streams_str}], {format_str}"
         )
         return True
 
@@ -374,18 +374,14 @@ class OakdCameraOp(Operator):
             except Exception:
                 pass
             self._pipeline = None
-
         if self._device:
             try:
                 self._device.close()
             except Exception:
                 pass
             self._device = None
-
-        self._h264_queue = None
-        self._h264_queue_right = None
-        self._frame_queue = None
-        self._frame_queue_right = None
+        for s in self._streams.values():
+            s.queue = None
 
     def start(self):
         """Initialize DepthAI pipeline and start camera.
@@ -404,9 +400,9 @@ class OakdCameraOp(Operator):
     def stop(self):
         """Stop DepthAI pipeline and release resources."""
         self._close_camera()
-
         if self._verbose:
-            logger.info(f"OAK-D camera stopped: frames={self._frame_count}")
+            total = sum(s.count for s in self._streams.values())
+            logger.info(f"OAK-D camera stopped: total_frames={total}")
 
     def compute(self, op_input, op_output, context):
         """Poll for frames/packets and emit them."""
@@ -421,238 +417,135 @@ class OakdCameraOp(Operator):
             return
 
         try:
-            if self._output_format == OakdOutputFormat.RAW:
-                emitted = self._emit_raw_frames(op_output)
-            else:
-                emitted = self._emit_h264_packets(op_output)
+            emitted = False
+            for stream in self._streams.values():
+                if self._output_format == OakdOutputFormat.RAW:
+                    if self._emit_stream_raw(op_output, stream):
+                        emitted = True
+                else:
+                    if self._emit_stream_h264(op_output, stream):
+                        emitted = True
 
             if emitted:
                 self._consecutive_failures = 0
-                if self._mode == OakdCameraMode.MONO:
-                    self._frame_count += 1
+                self._last_emit_time = time.monotonic()
                 self._log_stats()
+            elif self._last_emit_time > 0:
+                elapsed = time.monotonic() - self._last_emit_time
+                if elapsed >= STARVATION_TIMEOUT_SEC:
+                    self._handle_failure(f"no frames for {elapsed:.1f}s")
         except Exception as e:
             self._handle_failure(f"emit failed: {e}")
 
-    def _emit_raw_frames(self, op_output) -> bool:
-        """Emit raw frame(s). Returns True if any frame was emitted."""
-        emitted = False
-
-        if self._mode == OakdCameraMode.MONO:
-            if not self._frame_queue or not self._frame_queue.has():
-                return False
-            try:
-                frame_msg = self._frame_queue.get()
-            except Exception as e:
-                if self._verbose:
-                    logger.warning(f"Failed to get frame: {e}")
-                return False
-
-            buf = getattr(self, "_bgra_buf", None)
-            frame_data = self._extract_raw_frame(frame_msg, buf)
+    def _emit_stream_raw(self, op_output, stream: _StreamState) -> bool:
+        """Emit a raw frame for the given stream. Returns True if emitted."""
+        if not stream.queue or not stream.queue.has():
+            return False
+        try:
+            frame_msg = stream.queue.get()
+            frame_data = self._extract_raw_frame(frame_msg, stream.buf)
             if frame_data is None:
                 return False
-
+            self.metadata.clear()
             self.metadata["frame_timestamp_us"] = self._extract_timestamp_us(frame_msg)
-            self.metadata["stream_id"] = self._left_stream_id
-            self.metadata["sequence"] = self._frame_count
+            self.metadata["stream_id"] = stream.stream_id
+            self.metadata["sequence"] = stream.count
             op_output.emit(
-                as_tensor(frame_data), "left_frame", emitter_name="holoscan::Tensor"
+                as_tensor(frame_data), stream.raw_port, emitter_name="holoscan::Tensor"
             )
-            emitted = True
-        else:
-            # Stereo: handle left and right independently
-            if self._frame_queue and self._frame_queue.has():
-                try:
-                    frame_left = self._frame_queue.get()
-                    left_data = self._extract_raw_frame(
-                        frame_left, getattr(self, "_bgra_buf", None)
-                    )
-                    if left_data is not None:
-                        self.metadata.clear()
-                        self.metadata["frame_timestamp_us"] = (
-                            self._extract_timestamp_us(frame_left)
-                        )
-                        self.metadata["stream_id"] = self._left_stream_id
-                        self.metadata["sequence"] = self._frame_count
-                        op_output.emit(
-                            as_tensor(left_data),
-                            "left_frame",
-                            emitter_name="holoscan::Tensor",
-                        )
-                        self._frame_count += 1
-                        emitted = True
-                except Exception as e:
-                    if self._verbose:
-                        logger.warning(f"Failed to emit left raw frame: {e}")
+            stream.count += 1
+            return True
+        except Exception as e:
+            if self._verbose:
+                logger.warning(f"Failed to emit {stream.name} raw frame: {e}")
+        return False
 
-            if self._frame_queue_right and self._frame_queue_right.has():
-                try:
-                    frame_right = self._frame_queue_right.get()
-                    right_data = self._extract_raw_frame(
-                        frame_right, getattr(self, "_bgra_buf_right", None)
-                    )
-                    if right_data is not None:
-                        self.metadata.clear()
-                        self.metadata["frame_timestamp_us"] = (
-                            self._extract_timestamp_us(frame_right)
-                        )
-                        self.metadata["stream_id"] = self._right_stream_id
-                        self.metadata["sequence"] = self._frame_count_right
-                        op_output.emit(
-                            as_tensor(right_data),
-                            "right_frame",
-                            emitter_name="holoscan::Tensor",
-                        )
-                        self._frame_count_right += 1
-                        emitted = True
-                except Exception as e:
-                    if self._verbose:
-                        logger.warning(f"Failed to emit right raw frame: {e}")
-
-        return emitted
-
-    def _emit_h264_packets(self, op_output) -> bool:
-        """Emit H.264 packet(s). Returns True if any packet was emitted."""
-        emitted = False
-
-        if self._mode == OakdCameraMode.MONO:
-            if not self._h264_queue or not self._h264_queue.has():
+    def _emit_stream_h264(self, op_output, stream: _StreamState) -> bool:
+        """Emit an H.264 packet for the given stream. Returns True if emitted."""
+        if not stream.queue or not stream.queue.has():
+            return False
+        try:
+            encoded_msg = stream.queue.get()
+            packet = self._extract_h264_data(encoded_msg)
+            if packet is None:
                 return False
-            try:
-                encoded_msg = self._h264_queue.get()
-            except Exception as e:
-                if self._verbose:
-                    logger.warning(f"Failed to get encoded frame: {e}")
-                return False
-
-            h264_data = self._extract_h264_data(encoded_msg)
-            if h264_data is None:
-                return False
-
+            self.metadata.clear()
             self.metadata["frame_timestamp_us"] = self._extract_timestamp_us(
                 encoded_msg
             )
-            self.metadata["stream_id"] = self._left_stream_id
-            self.metadata["sequence"] = self._frame_count
-            op_output.emit(
-                as_tensor(np.frombuffer(h264_data, dtype=np.uint8).copy()),
-                "h264_packets",
-            )
-            emitted = True
+            self.metadata["stream_id"] = stream.stream_id
+            self.metadata["sequence"] = stream.count
+            op_output.emit(as_tensor(packet), stream.h264_port)
+            stream.count += 1
+            return True
+        except Exception as e:
+            if self._verbose:
+                logger.warning(f"Failed to emit {stream.name} H.264 packet: {e}")
+        return False
+
+    def _gray_to_output(self, gray: cp.ndarray, buf: cp.ndarray | None) -> cp.ndarray:
+        """Expand GRAY8 (HxW) to 3-ch or 4-ch depending on color_format."""
+        ch = 3 if self._color_format in ("rgb", "bgr") else 4
+        if buf is not None and buf.shape[:2] == gray.shape and buf.shape[2] == ch:
+            dst = buf
         else:
-            # Stereo: handle left and right independently
-            if self._h264_queue and self._h264_queue.has():
-                try:
-                    encoded_left = self._h264_queue.get()
-                    left_data = self._extract_h264_data(encoded_left)
-                    if left_data is not None:
-                        self.metadata.clear()
-                        self.metadata["frame_timestamp_us"] = (
-                            self._extract_timestamp_us(encoded_left)
-                        )
-                        self.metadata["stream_id"] = self._left_stream_id
-                        self.metadata["sequence"] = self._frame_count
-                        packet_left = np.frombuffer(left_data, dtype=np.uint8).copy()
-                        op_output.emit(as_tensor(packet_left), "h264_packets")
-                        self._frame_count += 1
-                        emitted = True
-                except Exception as e:
-                    if self._verbose:
-                        logger.warning(f"Failed to emit left H.264 packet: {e}")
+            dst = cp.empty((*gray.shape, ch), dtype=cp.uint8)
+            if ch == 4:
+                dst[:, :, 3] = 255
+        dst[:, :, 0] = gray
+        dst[:, :, 1] = gray
+        dst[:, :, 2] = gray
+        return dst
 
-            if self._h264_queue_right and self._h264_queue_right.has():
-                try:
-                    encoded_right = self._h264_queue_right.get()
-                    right_data = self._extract_h264_data(encoded_right)
-                    if right_data is not None:
-                        self.metadata.clear()
-                        self.metadata["frame_timestamp_us"] = (
-                            self._extract_timestamp_us(encoded_right)
-                        )
-                        self.metadata["stream_id"] = self._right_stream_id
-                        self.metadata["sequence"] = self._frame_count_right
-                        packet_right = np.frombuffer(right_data, dtype=np.uint8).copy()
-                        op_output.emit(as_tensor(packet_right), "h264_packets_right")
-                        self._frame_count_right += 1
-                        emitted = True
-                except Exception as e:
-                    if self._verbose:
-                        logger.warning(f"Failed to emit right H.264 packet: {e}")
-
-        return emitted
+    def _bgr_to_output(self, bgr: cp.ndarray, buf: cp.ndarray | None) -> cp.ndarray:
+        """Convert BGR888p (HxWx3) to RGB or BGRA depending on color_format."""
+        if self._color_format == "rgb":
+            return cp.ascontiguousarray(bgr[:, :, ::-1])
+        if buf is not None and buf.shape[:2] == bgr.shape[:2]:
+            buf[:, :, :3] = bgr
+            return buf
+        alpha = cp.full((*bgr.shape[:2], 1), 255, dtype=cp.uint8)
+        return cp.concatenate([bgr, alpha], axis=2)
 
     def _extract_raw_frame(
         self, frame_msg, buf: cp.ndarray | None = None
     ) -> cp.ndarray | None:
-        """Extract raw frame and convert to GPU tensor (BGRA).
+        """Extract raw frame from depthai and convert to the configured color format.
 
-        Handles GRAY8 (mono sensors) and BGR888p (color sensors).
-        Output is always HxWx4 BGRA on GPU for NVENC compatibility.
-        If *buf* is provided and dimensions match, writes into it to avoid allocation.
+        Uses getFrame() for GRAY8 (zero-copy reference from DepthAI buffer)
+        and getCvFrame() for color formats that need CPU-side conversion (e.g.
+        BGR888p planar to BGR interleaved).
         """
         try:
             if not isinstance(frame_msg, dai.ImgFrame):
                 return None
 
-            frame = frame_msg.getCvFrame()
+            frame_type = frame_msg.getType()
+            if frame_type == dai.ImgFrame.Type.GRAY8:
+                frame = frame_msg.getFrame()
+            else:
+                frame = frame_msg.getCvFrame()
             if frame is None:
                 return None
 
             gpu = cp.asarray(frame)
 
             if gpu.ndim == 2:
-                # GRAY8: all channels are identical; output shape depends on
-                # color_format (rgb/bgr → 3-ch, bgra → 4-ch with alpha).
-                if self._color_format in ("rgb", "bgr"):
-                    if (
-                        buf is not None
-                        and buf.shape[:2] == gpu.shape
-                        and buf.shape[2] == 3
-                    ):
-                        buf[:, :, 0] = gpu
-                        buf[:, :, 1] = gpu
-                        buf[:, :, 2] = gpu
-                        return buf
-                    rgb = cp.empty((*gpu.shape, 3), dtype=cp.uint8)
-                    rgb[:, :, 0] = gpu
-                    rgb[:, :, 1] = gpu
-                    rgb[:, :, 2] = gpu
-                    return rgb
-                # Default: BGRA (4-ch) for NVENC compatibility
-                if buf is not None and buf.shape[:2] == gpu.shape and buf.shape[2] == 4:
-                    buf[:, :, 0] = gpu
-                    buf[:, :, 1] = gpu
-                    buf[:, :, 2] = gpu
-                    return buf
-                bgra = cp.empty((*gpu.shape, 4), dtype=cp.uint8)
-                bgra[:, :, 0] = gpu
-                bgra[:, :, 1] = gpu
-                bgra[:, :, 2] = gpu
-                bgra[:, :, 3] = 255
-                return bgra
-
+                return self._gray_to_output(gpu, buf)
             if gpu.ndim == 3 and gpu.shape[2] == 3:
-                if self._color_format == "rgb":
-                    return cp.ascontiguousarray(gpu[:, :, ::-1])
-                if buf is not None and buf.shape[:2] == gpu.shape[:2]:
-                    buf[:, :, :3] = gpu
-                    return buf
-                alpha = cp.full((*gpu.shape[:2], 1), 255, dtype=cp.uint8)
-                return cp.concatenate([gpu, alpha], axis=2)
-
+                return self._bgr_to_output(gpu, buf)
             return gpu
         except Exception as e:
             if self._verbose:
                 logger.warning(f"Failed to extract raw frame: {e}")
         return None
 
-    def _extract_h264_data(self, encoded_msg) -> bytes | None:
-        """Extract H.264 data from encoded message."""
+    def _extract_h264_data(self, encoded_msg) -> np.ndarray | None:
+        """Extract H.264 data from encoded message as a contiguous numpy array."""
         if isinstance(encoded_msg, dai.EncodedFrame):
             data = encoded_msg.getData()
             if data is not None and len(data) > 0:
-                return bytes(data)
+                return np.array(data, dtype=np.uint8)
         return None
 
     def _extract_timestamp_us(self, msg) -> int:
@@ -667,7 +560,6 @@ class OakdCameraOp(Operator):
     def _handle_failure(self, reason: str):
         """Handle a failure and trigger reconnection if needed."""
         self._consecutive_failures += 1
-
         if self._consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
             logger.warning(
                 f"OAK-D camera disconnected: {self._consecutive_failures} consecutive failures "
@@ -681,19 +573,14 @@ class OakdCameraOp(Operator):
     def _attempt_reconnect(self):
         """Attempt to reconnect to the camera with rate limiting."""
         now = time.monotonic()
-
-        # Rate limit reconnection attempts
         if now - self._last_reconnect_time < RECONNECT_DELAY_SEC:
             return
-
         self._last_reconnect_time = now
         self._reconnect_attempts += 1
-
         device_str = self._device_id or "auto-detect"
         logger.info(
             f"OAK-D '{self.name}' reconnection attempt #{self._reconnect_attempts} (device={device_str})..."
         )
-
         if self._open_camera():
             logger.info(f"OAK-D '{self.name}' reconnected successfully!")
         else:
@@ -705,23 +592,17 @@ class OakdCameraOp(Operator):
         """Log periodic statistics."""
         now = time.monotonic()
         elapsed = now - self._last_log_time
+        if elapsed < STATS_INTERVAL_SEC:
+            return
 
-        if elapsed >= STATS_INTERVAL_SEC:
-            left_frames = self._frame_count - self._last_log_count
-            left_fps = left_frames / elapsed
+        parts = []
+        for s in self._streams.values():
+            frames = s.count - s.last_log_count
+            fps = frames / elapsed
+            parts.append(f"{s.name}={fps:.1f}fps")
+            s.last_log_count = s.count
 
-            if self._mode == OakdCameraMode.STEREO:
-                right_frames = self._frame_count_right - self._last_log_count_right
-                right_fps = right_frames / elapsed
-                logger.info(
-                    f"OAK-D camera | left={left_fps:.1f}fps right={right_fps:.1f}fps "
-                    f"| total L={self._frame_count} R={self._frame_count_right}"
-                )
-                self._last_log_count_right = self._frame_count_right
-            else:
-                logger.info(
-                    f"OAK-D camera | fps={left_fps:.1f} | total={self._frame_count}"
-                )
+        totals = " ".join(f"{s.name.upper()}={s.count}" for s in self._streams.values())
+        logger.info(f"OAK-D camera | {' '.join(parts)} | total {totals}")
 
-            self._last_log_time = now
-            self._last_log_count = self._frame_count
+        self._last_log_time = now

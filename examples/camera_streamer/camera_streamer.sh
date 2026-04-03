@@ -58,7 +58,7 @@ ensure_image() {
     tag="$(image_tag)"
     if ! docker image inspect "$tag" >/dev/null 2>&1; then
         log_warn "Image $tag not found, building..."
-        cmd_build
+        cmd_build "$@"
     fi
 }
 
@@ -278,23 +278,26 @@ cmd_build() {
 
     local BUILD_ENCODER=ON
     local BUILD_DECODER=ON
+    local BUILD_XR=ON
     if [[ "$SENDER_ONLY" == true ]]; then
         BUILD_DECODER=OFF
-        log_info "Building sender only (encoder, no decoder)"
+        BUILD_XR=OFF
+        log_info "Building sender only (encoder, no decoder/XR)"
     else
         log_info "Building all operators (encoder + decoder + XR)"
     fi
 
     if is_inside_container; then
-        cmd_build_inplace "$BUILD_ENCODER" "$BUILD_DECODER"
+        cmd_build_inplace "$BUILD_ENCODER" "$BUILD_DECODER" "$BUILD_XR"
     else
-        cmd_build_docker "$BUILD_ENCODER" "$BUILD_DECODER"
+        cmd_build_docker "$BUILD_ENCODER" "$BUILD_DECODER" "$BUILD_XR"
     fi
 }
 
 cmd_build_inplace() {
     local BUILD_ENCODER="$1"
     local BUILD_DECODER="$2"
+    local BUILD_XR="${3:-ON}"
 
     log_step "Rebuilding C++ operators (in-container)"
 
@@ -307,6 +310,7 @@ cmd_build_inplace() {
         -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
         -DBUILD_ENCODER="$BUILD_ENCODER" \
         -DBUILD_DECODER="$BUILD_DECODER" \
+        -DBUILD_XR="$BUILD_XR" \
         -DPYTHON_LIB_OUTPUT_DIR="$BUILD_DIR/python"
     ninja
 
@@ -316,6 +320,7 @@ cmd_build_inplace() {
 cmd_build_docker() {
     local BUILD_ENCODER="$1"
     local BUILD_DECODER="$2"
+    local BUILD_XR="${3:-ON}"
 
     local TAG BASE_TAG BUILD_CONTAINER
     TAG="$(image_tag)"
@@ -348,6 +353,7 @@ cmd_build_docker() {
                 -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
                 -DBUILD_ENCODER=$BUILD_ENCODER \
                 -DBUILD_DECODER=$BUILD_DECODER \
+                -DBUILD_XR=$BUILD_XR \
                 -DPYTHON_LIB_OUTPUT_DIR=/camera_streamer/build/python
             ninja
             # build/ is a host mount — not captured by docker commit.
@@ -442,7 +448,7 @@ cmd_deploy_sender() {
         esac
     done
 
-    ensure_image
+    ensure_image --sender-only
     local TAG
     TAG="$(image_tag)"
 

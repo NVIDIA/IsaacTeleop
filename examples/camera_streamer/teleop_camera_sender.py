@@ -18,14 +18,10 @@ import os
 import sys
 
 from camera_config import CameraConfig, validate_camera_configs
-from camera_sources import create_camera_source, ensure_nvenc_support
 from holoscan.core import Application
-from holoscan.resources import UnboundedAllocator
 from holoscan.schedulers import EventBasedScheduler
 from loguru import logger
-from operators.gstreamer_h264_sender.gstreamer_h264_sender_op import (
-    GStreamerH264SenderOp,
-)
+from teleop_camera_sender_subgraph import TeleopCameraSenderSubgraph
 import yaml
 
 # -----------------------------------------------------------------------------
@@ -146,91 +142,15 @@ class TeleopCameraSenderApp(Application):
         super().__init__(*args, **kwargs)
 
     def compose(self):
-        """Compose the multi-camera streaming pipeline."""
-        verbose = self._verbose
-        host = self._config.host
-        cuda_device = self._cuda_device
-        allocator = UnboundedAllocator(self, name="allocator")
-
-        # ZED, V4L2, and stereo OAK-D cameras output raw frames — need NVENC.
-        # (VPU can't sustain dual H.264 at full framerate, so stereo OAK-D
-        # uses raw frames with host GPU NVENC encoding.)
-        NvStreamEncoderOp = None
-        has_stereo_oakd = any(
-            c.stereo for c in self._config.get_cameras_by_type("oakd").values()
+        """Compose the multi-camera streaming pipeline using the sender subgraph."""
+        TeleopCameraSenderSubgraph(
+            self,
+            name="sender",
+            cameras=self._config.cameras,
+            host=self._config.host,
+            cuda_device=self._cuda_device,
+            verbose=self._verbose,
         )
-        if (
-            self._config.get_cameras_by_type("zed")
-            or self._config.get_cameras_by_type("v4l2")
-            or has_stereo_oakd
-        ):
-            NvStreamEncoderOp = ensure_nvenc_support()
-
-        for cam_name, cam_cfg in self._config.cameras.items():
-            logger.info(f"Adding camera: {cam_name} ({cam_cfg.camera_type})")
-
-            # Mono OAK-D uses on-device VPU H.264 encoding (no NVENC needed).
-            # Stereo OAK-D uses raw frames + host NVENC (VPU can't sustain
-            # dual H.264 at full framerate).
-            if cam_cfg.camera_type == "oakd" and not cam_cfg.stereo:
-                output_format = "h264"
-            else:
-                output_format = "raw"
-
-            source_result = create_camera_source(
-                self,
-                cam_name,
-                cam_cfg,
-                allocator,
-                output_format=output_format,
-                verbose=verbose,
-            )
-
-            for src_op, dst_op, port_map in source_result.flows:
-                self.add_flow(src_op, dst_op, port_map)
-
-            for stream_name, (src_op, src_port) in source_result.frame_outputs.items():
-                stream_cfg = cam_cfg.streams.get(stream_name)
-                if stream_cfg is None:
-                    continue
-
-                if output_format == "h264":
-                    # OAK-D: H.264 packets go directly to RTP sender.
-                    rtp_sender = GStreamerH264SenderOp(
-                        self,
-                        name=f"{cam_name}_{stream_name}_rtp",
-                        host=host,
-                        port=stream_cfg.port,
-                        verbose=verbose,
-                    )
-                    self.add_flow(src_op, rtp_sender, {(src_port, "h264_packets")})
-                else:
-                    # ZED/V4L2: raw frames -> NVENC encoder -> RTP sender.
-                    encoder = NvStreamEncoderOp(
-                        self,
-                        name=f"{cam_name}_{stream_name}_encoder",
-                        width=cam_cfg.width,
-                        height=cam_cfg.height,
-                        bitrate=stream_cfg.bitrate_bps,
-                        fps=cam_cfg.fps,
-                        cuda_device_ordinal=cuda_device,
-                        input_format="bgra",
-                        verbose=verbose,
-                    )
-                    rtp_sender = GStreamerH264SenderOp(
-                        self,
-                        name=f"{cam_name}_{stream_name}_rtp",
-                        host=host,
-                        port=stream_cfg.port,
-                        verbose=verbose,
-                    )
-                    self.add_flow(src_op, encoder, {(src_port, "frame")})
-                    self.add_flow(encoder, rtp_sender, {("packet", "h264_packets")})
-
-                logger.info(
-                    f"  {stream_name}: {cam_cfg.width}x{cam_cfg.height}@{cam_cfg.fps}fps "
-                    f"-> RTP {host}:{stream_cfg.port}"
-                )
 
         scheduler = EventBasedScheduler(
             self,
