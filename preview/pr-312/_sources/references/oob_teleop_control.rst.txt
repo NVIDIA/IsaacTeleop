@@ -1,0 +1,662 @@
+.. SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+.. SPDX-License-Identifier: Apache-2.0
+
+Out-of-band teleop control
+==========================
+
+This page specifies the **teleop control plane**: JSON over a WebSocket (``/oob/v1/ws``), plus **OOB
+(out-of-band) HTTP** on the same TLS port—``GET /api/oob/v1/state``, ``GET /api/oob/v1/command``, and
+``GET /api/oob/v1/config``—when the OOB hub is enabled (``--setup-oob local`` or ``--setup-oob HOST:PORT``). The control plane is **separate from
+CloudXR streaming** (media and poses over the streaming stack), even though both often share the
+**same TLS port** on the **streaming / session host**.
+
+The ``websockets`` HTTP handshake on this port accepts **GET** only, so mutating OOB actions use **GET
+with query parameters** (same semantics as a JSON body would have). Use ``curl`` or any HTTP client.
+
+.. _teleop-roles-three-machines:
+
+Who runs what
+-------------
+
+Many deployments involve **three logical computers**:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 38 40
+
+   * - Role
+     - Software
+     - Responsibilities
+   * - **XR headset**
+     - **Isaac Teleop WebXR client** (``deps/cloudxr/webxr_client``) in the device browser
+     - Acts as the CloudXR **streaming client** (immersive session, poses, metrics). Also connects
+       to the **OOB control hub** WebSocket: applies ``StreamConfig``, obeys ``sessionCommand``
+       (connect / disconnect streaming to the configured host).
+   * - **Control station** (laptop or desktop)
+     - **Scripts, CI, or SSH**: ``curl`` / automation against **OOB HTTP**, or an optional custom
+       WebSocket client with ``role: "dashboard"``
+     - Does **not** run the WebXR client. Applies **streaming** host/port via OOB ``config`` or WebSocket
+       ``setConfig``; starts/stops the headset session via OOB ``command`` or WebSocket ``command``.
+       There is **no** bundled browser dashboard.
+   * - **Streaming / session host** (workstation, robot-mounted PC, or cloud VM)
+     - CloudXR **runtime** + Python **WSS proxy** (``wss.py``), and the **OOB control hub** when
+       ``--setup-oob`` is passed (with ``local`` or ``HOST:PORT``)
+     - Owns the proxy TLS port: CloudXR **server-side** streaming and (if enabled) ``/oob/v1/ws``.
+       The ``serverIP`` / ``port`` fields inside ``StreamConfig`` name this **streaming endpoint**—what
+       the headset's streaming stack connects to—not the control station.
+
+Use a hub hostname or IP that the **headset** can reach (often the streaming host's LAN address).
+The WebXR page defaults to ``wss://{page-host}/oob/v1/ws`` or uses ``controlWsUrl`` in the page URL
+(see :ref:`teleop-headset-control-url`).
+
+**Colocation.** The operator machine is sometimes the **same physical machine** as the streaming host;
+the split above is still useful when reading this spec: the WebXR app and OOB tools are different
+programs, and **client** / **server** in the message sections below mean **WebSocket** client or
+server (the hub), not "CloudXR client" or "robot".
+
+.. _teleop-terminology:
+
+Terminology (overloaded words)
+-------------------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 28 72
+
+   * - Term
+     - Meaning in Isaac Teleop
+   * - **OOB control hub**
+     - Class ``OOBControlHub`` in ``oob_teleop_hub.py``, integrated by ``wss.py``. Holds shared
+       ``StreamConfig`` and routes WebSocket messages plus OOB HTTP handlers.
+   * - **OOB HTTP**
+     - Read/write control without a browser: ``GET /api/oob/v1/state``, ``GET /api/oob/v1/command``,
+       ``GET /api/oob/v1/config`` on the proxy TLS port.
+   * - **Isaac Teleop WebXR client**
+     - The **headset** browser application only (``webxr_client``).
+   * - **Protocol client**
+     - Any WebSocket peer on ``/oob/v1/ws`` (headset or optional ``dashboard`` tool). The hub is the
+       protocol **server**.
+   * - **``"dashboard"``** (register role)
+     - Optional WebSocket role for custom operator tools. Historical name; it does **not** mean the
+       WebXR client.
+
+**Summary.** **Headsets** run the WebXR client; **operators** use OOB HTTP and/or WebSocket
+``dashboard`` messages. The **OOB control hub** runs inside the WSS proxy (``wss.py``) when
+``--setup-oob …`` is passed. Omit the flag entirely to leave the hub off.
+
+Enabling the Hub
+----------------
+
+.. code-block:: bash
+
+   python -m isaacteleop.cloudxr --setup-oob local
+
+``--setup-oob`` takes a **required** argument when you enable OOB:
+
+* **``local``** — USB debugging + ``adb reverse`` + ``am start``. WebXR at **``https://127.0.0.1:8080/``** on the PC (tunneled to the headset).
+* **``HOST:PORT``** — wireless ``adb connect`` first, then ``am start`` with **LAN** URLs (no ``adb reverse`` for WebXR/WSS). Set **``TELEOP_PROXY_HOST``** to this PC’s address if the headset cannot use the auto-guessed LAN IP.
+
+All routes below become active on the **same TLS port** as the CloudXR WSS proxy (default
+``48322``). With no ``--setup-oob``, the proxy behaves as a plain forwarder; teleop paths return 404.
+
+Optional environment variable overrides for containers/systemd:
+
+.. code-block:: bash
+
+   CONTROL_TOKEN=<secret>  # require token on register / OOB HTTP / dashboard messages
+   TELEOP_STREAM_SERVER_IP=<ip>   # optional; hub initial StreamConfig serverIP (default: LAN guess or 127.0.0.1)
+   TELEOP_STREAM_PORT=<port>      # optional; hub initial port (default: PROXY_PORT)
+   TELEOP_STREAM_MEDIA_PORT=<udp>  # optional; bookmark mediaPort when using adb reverse (default: 47998)
+   TELEOP_PROXY_HOST=<ip>          # optional; required for reliable LAN URLs with ``--setup-oob HOST:PORT`` if auto-guess fails
+   TELEOP_WEB_CLIENT_BASE=<url>     # optional; full WebXR page origin for OOB bookmark / ``am start`` (default: colocated ``https://127.0.0.1:8080/`` or ``https://<LAN>:8080/``). Use for a hosted or mirrored client; ``controlWsUrl`` and stream query params still point at this PC.
+
+``--wss-only`` and ``--setup-oob`` are **separate**: the first skips the CloudXR runtime (TLS proxy
+only); the second enables the OOB hub and adb. To run **only** the proxy **and** OOB, pass **both**
+— see :ref:`teleop-wss-only-testing`.
+
+.. _teleop-simple-chrome-inspect:
+
+Headset flow (Chrome inspect + CONNECT)
+---------------------------------------
+
+For Android-based headsets with **USB debugging**, the usual loop is:
+
+1. Start with ``--setup-oob local`` or ``--setup-oob HOST:PORT`` (add ``--wss-only`` if you are not starting the CloudXR runtime). The log
+   prints **headset URL** lines (HTTPS page + ``controlWsUrl`` and stream fields).
+2. **Open that URL** on the headset. With ``local``: **(1)** ``adb reverse`` for proxy, stream, and WebXR dev-server TCP ports, **(2)** ``am start``, **(3)** ``controlWsUrl`` uses ``127.0.0.1`` (USB tunnel). With ``HOST:PORT``: ``adb connect`` then ``am start`` with LAN ``https://<PC>:8080/`` and ``wss://<PC>:…`` (no reverse for those). Or open the URL / ``am start`` manually.
+3. On the **PC**, open **Google Chrome** and go to ``chrome://inspect/#devices`` (the hub log prints this
+   line explicitly). **inspect** the **Isaac Teleop Web Client** target.
+4. In **DevTools**, **click CONNECT** on the page. That satisfies **WebXR user activation** and registers
+   the headset on ``/oob/v1/ws`` for metrics and hub state. The proxy does **not** send an automatic OOB
+   ``connect`` command; the UI button is the session entry path.
+
+Use OOB HTTP (``…/command``, ``…/config``) afterward if you need operator-driven connect/disconnect
+without using the in-page button again.
+
+HTTP Routes (OOB)
+-----------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 10 38 22 30
+
+   * - Method
+     - Path
+     - Auth
+     - Response
+   * - ``GET``
+     - ``/api/oob/v1/state``
+     - ``?token=`` or ``X-Control-Token`` if ``CONTROL_TOKEN`` set
+     - ``200`` JSON snapshot; ``401`` if token invalid
+   * - ``GET``
+     - ``/api/oob/v1/command?action=connect|disconnect``
+     - same
+     - ``200`` ``{"ok":true,...}``; ``400``/``401``/``404``/``409`` with ``{"error":...}``
+   * - ``GET``
+     - ``/api/oob/v1/config``
+     - same
+     - ``200`` with ``changed`` true/false; merges query fields and optional JSON ``config=`` parameter
+   * - ``GET``
+     - ``/teleop`` or ``/teleop/*``
+     - n/a
+     - ``404`` (legacy dashboard removed)
+   * - ``OPTIONS``
+     - ``*``
+     - none
+     - CORS preflight (unchanged from proxy)
+
+**OOB command query parameters:** ``action`` (required), ``targetClientId``, ``requestId``, ``token``.
+
+**OOB config query parameters:** shallow-merge fields: ``serverIP``, ``port``, ``proxyUrl``,
+``mediaAddress``, ``mediaPort``, optional ``targetClientId``, ``token``. Alternatively pass a URL-encoded
+JSON object in a single ``config=`` query parameter (merged after parsing).
+
+.. note::
+
+   All hub HTTP responses include the same CORS headers as the existing CloudXR WSS proxy.
+
+WebSocket Endpoint
+------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - URL
+     - ``wss://<host>:<PROXY_PORT>/oob/v1/ws``
+   * - Subprotocol
+     - none
+   * - Wire format
+     - Text frames, UTF-8 JSON, one object per message
+
+Message Envelope
+~~~~~~~~~~~~~~~~
+
+Every message in both directions uses the same envelope:
+
+.. code-block:: json
+
+   { "type": "<string>", "payload": { } }
+
+An unknown ``type`` causes the server to send an ``error`` message and ignore the payload.
+
+.. note::
+
+   In **Messages: Client → Server** and **Messages: Server → Client** below, **client** means any
+   **WebSocket peer of the hub** (headset or control console). It does **not** by itself mean "the
+   CloudXR streaming client" - the headset happens to play both roles in the full stack.
+
+Messages: Client → Server
+--------------------------
+
+``register``
+~~~~~~~~~~~~
+
+First message after connecting. Establishes role and validates the token (if required).
+
+**Headset:**
+
+.. code-block:: json
+
+   {
+     "type": "register",
+     "payload": {
+       "role": "headset",
+       "token": "<optional; required when CONTROL_TOKEN set>",
+       "deviceLabel": "<optional human-readable name>"
+     }
+   }
+
+**Control console** (WebSocket ``role``: ``"dashboard"`` — see :ref:`teleop-terminology`):
+
+.. code-block:: json
+
+   {
+     "type": "register",
+     "payload": {
+       "role": "dashboard",
+       "token": "<optional; required when CONTROL_TOKEN set>"
+     }
+   }
+
+The hub responds with a ``hello`` message. If the token is invalid the hub sends an
+``error`` (code ``UNAUTHORIZED``) and closes the connection.
+
+``setConfig`` (control console / ``dashboard`` role only)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Updates the hub's authoritative ``StreamConfig``, increments ``configVersion``, and pushes a
+``config`` message to the connected headset(s).
+
+.. code-block:: json
+
+   {
+     "type": "setConfig",
+     "payload": {
+       "token": "<optional>",
+       "targetClientId": "<optional uuid; omit to push to all headsets>",
+       "config": {
+         "serverIP": "192.168.1.100",
+         "port": 48322
+       }
+     }
+   }
+
+``payload.config`` may be **partial**; the hub shallow-merges it over the current
+``StreamConfig``. ``configVersion`` is always monotonically incremented by the hub.
+
+``command`` (control console / ``dashboard`` role only)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Sends a connect or disconnect command to a headset.
+
+.. code-block:: json
+
+   {
+     "type": "command",
+     "payload": {
+       "token": "<optional>",
+       "targetClientId": "<optional uuid; omit if exactly one headset connected>",
+       "action": "connect"
+     }
+   }
+
+``action``: ``connect`` | ``disconnect``.
+
+If ``targetClientId`` is omitted and multiple headsets are connected, the hub returns an
+``error`` (code ``CONFLICT``). Otherwise the command is forwarded to the headset as a
+``sessionCommand``.
+
+``clientMetrics`` (headset only)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The headset reports latest performance metrics. The hub stores the most-recent values per
+``cadence``.
+
+.. code-block:: json
+
+   {
+     "type": "clientMetrics",
+     "payload": {
+       "t": 1730000000000,
+       "cadence": "frame",
+       "metrics": {
+         "streaming.framerate": 72.0,
+         "render.framerate": 90.0,
+         "render.pose_to_render_time": 12.5
+       }
+     }
+   }
+
+``cadence``: ``"frame"`` | ``"render"`` (matches CloudXR ``MetricsCadence``).
+``metrics``: string key → number value. Use the **wire strings** from CloudXR ``MetricsName``
+(for example ``streaming.framerate``, ``render.framerate``, ``render.pose_to_render_time``), not
+the TypeScript enum identifiers.
+
+Messages: Server → Client
+--------------------------
+
+``hello``
+~~~~~~~~~
+
+Sent immediately after a successful ``register``.
+
+**To headset:**
+
+.. code-block:: json
+
+   {
+     "type": "hello",
+     "payload": {
+       "clientId": "uuid",
+       "configVersion": 1,
+       "config": { "<StreamConfig>" }
+     }
+   }
+
+**To control console:**
+
+.. code-block:: json
+
+   {
+     "type": "hello",
+     "payload": {
+       "clientId": "uuid"
+     }
+   }
+
+``config`` (headset only)
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Pushed whenever the hub's ``StreamConfig`` changes (after ``setConfig``).
+
+.. code-block:: json
+
+   {
+     "type": "config",
+     "payload": {
+       "configVersion": 2,
+       "config": { "<StreamConfig — full merged object>" }
+     }
+   }
+
+.. note::
+
+   **Headset behavior when** ``config`` **arrives during an active XR session:** apply the new
+   settings to in-memory state immediately; the next connection (after a disconnect) uses the
+   new target. Do not tear down the existing XR session.
+
+``sessionCommand`` (headset only)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Forwarded from an OOB HTTP command or a ``dashboard`` WebSocket ``command``.
+
+.. code-block:: json
+
+   {
+     "type": "sessionCommand",
+     "payload": {
+       "action": "connect",
+       "requestId": "<optional opaque string>"
+     }
+   }
+
+``action``: ``connect`` | ``disconnect``.
+
+``error`` (any WebSocket peer)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: json
+
+   {
+     "type": "error",
+     "payload": {
+       "code": "UNAUTHORIZED | BAD_REQUEST | NOT_FOUND | CONFLICT",
+       "message": "<human readable>",
+       "requestId": "<optional; echo from request>"
+     }
+   }
+
+``StreamConfig`` Schema
+-----------------------
+
+Required fields
+~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 15 65
+
+   * - Field
+     - Type
+     - Description
+   * - ``serverIP``
+     - string
+     - CloudXR **signaling** host (the streaming / session host the headset should connect to)
+   * - ``port``
+     - number (integer)
+     - CloudXR signaling port
+
+Optional fields
+~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 20 55
+
+   * - Field
+     - Type
+     - Description
+   * - ``useSecureConnection``
+     - boolean
+     - Use WSS / secure signaling
+   * - ``proxyUrl``
+     - string | null
+     - Proxy URL for signaling
+   * - ``mediaAddress``
+     - string
+     - Media server address
+   * - ``mediaPort``
+     - number
+     - Media server port
+
+The hub stores one merged ``StreamConfig`` plus a ``configVersion`` counter. ``setConfig``
+shallow-merges (top-level keys only). The headset applies the hub config to its CloudXR
+connection settings before executing ``sessionCommand.connect``.
+
+HTTP Snapshot
+-------------
+
+``GET /api/oob/v1/state`` returns the following JSON:
+
+.. code-block:: json
+
+   {
+     "updatedAt": 1730000000000,
+     "configVersion": 2,
+     "config": { "<StreamConfig>" },
+     "headsets": [
+       {
+         "clientId": "uuid",
+         "connected": true,
+         "deviceLabel": "string or null",
+         "registeredAt": 1730000000000,
+         "metricsByCadence": {
+           "frame": { "at": 1730000000000, "metrics": { "streaming.framerate": 72.0 } },
+           "render": { "at": 1730000000000, "metrics": { "render.framerate": 90.0 } }
+         }
+       }
+     ],
+     "dashboards": [
+       {
+         "clientId": "uuid",
+         "connected": true,
+         "registeredAt": 1730000000000
+       }
+     ]
+   }
+
+.. note::
+
+   No ``logs`` or ``recentLogs`` fields in v1.
+
+   The ``dashboards`` array lists optional **dashboard** WebSocket peers (register payload
+   ``role: "dashboard"``). The JSON key is historical.
+
+Headset Query Parameters
+------------------------
+
+The WebXR client reads these from the **page URL** when the app loads (standard query string on the
+same HTTPS origin that serves ``webxr_client``). They are not entered in a separate form inside the
+app unless you add one; the usual approach is to open a single long URL in the headset browser.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 75
+
+   * - Parameter
+     - Description
+   * - ``controlWsUrl``
+     - Override hub WebSocket URL. If absent, the client uses ``wss://{location.host}/oob/v1/ws``
+       (colocated hub on the same host as the WebXR page).
+   * - ``controlToken``
+     - Token sent in the ``register`` message. Must match the ``CONTROL_TOKEN``
+       environment variable if set on the server.
+   * - ``serverIP``, ``port``, ``proxyUrl``, ``mediaAddress``, ``mediaPort``
+     - Seed ``StreamConfig`` on load. Hub ``hello`` / ``config`` messages still **override** when
+       ``configVersion`` increases.
+   * - ``autoConnect``
+     - If ``1`` or ``true``, attempt XR connect once after the first hub ``config`` / ``hello``
+       (may still require a prior user gesture; see :ref:`teleop-user-activation`).
+
+.. _teleop-headset-control-url:
+
+Getting ``controlWsUrl`` onto the headset (avoid typing)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Typing a long ``wss://…`` URL in a XR keyboard is error-prone. Prefer **copy–paste** or a **link**
+opened directly on the device.
+
+**``--setup-oob local`` (USB)**
+
+The headset is **USB-connected** to the PC. Serve WebXR at **``https://127.0.0.1:8080/``** (see
+``DEFAULT_COLLOCATED_WEBXR_ORIGIN`` in ``wss.py``). ``adb reverse`` maps proxy, stream, and dev-server
+ports; ``controlWsUrl=wss://127.0.0.1:…`` uses the same tunnel.
+
+**``--setup-oob HOST:PORT`` (wireless adb + LAN)**
+
+Run ``adb connect HOST:PORT``, then ``am start`` with **``https://<PC-LAN>:8080/``** and
+``wss://<PC-LAN>:<PROXY_PORT>/…``. Set ``TELEOP_PROXY_HOST`` if the PC’s LAN IP is not guessed correctly.
+
+**1. Default path:** see :ref:`teleop-simple-chrome-inspect` (headset URL, Chrome inspect, **CONNECT**).
+
+**2. Headset URL from the server log**
+
+With ``--setup-oob local`` or ``--setup-oob HOST:PORT``, ``python -m isaacteleop.cloudxr`` prints **headset URL** lines.
+
+**3. ``--setup-oob`` argument**
+
+After the TLS listener and OOB hub are up: **``local``** — ``adb reverse`` (proxy, stream, **8080**) + ``am start``;
+**``HOST:PORT``** — ``adb connect`` + ``am start`` without reverse for WebXR/WSS. If adb or ``am start`` fails,
+the process **exits**. Use exactly one device in ``adb devices`` (multiple devices are rejected at startup). Shutdown
+removes reverse mappings **only** for the ``local`` path.
+
+**4. Or build the URL in Python**
+
+``isaacteleop.cloudxr.wss.build_headset_bookmark_url`` matches the log line if you script ``adb`` yourself.
+
+**5. Move the URL from PC to headset without retyping**
+
+Use whichever option your headset browser and IT policy allow:
+
+- **Send the full URL** to yourself (email, chat, notes) and **open the link** in the headset
+  browser.
+- **ADB (Android-based headsets, dev kits):** with USB debugging enabled, from the PC run
+  ``adb shell am start -a android.intent.action.VIEW -d '<full-https-url>'`` so the system browser
+  opens that URL on the device. Use a single pair of quotes around the entire URL (query strings
+  often contain ``&``). Typical for Meta Quest and other Android XR builds when sideloading or
+  iterating without typing in-headset.
+
+**6. User activation**
+
+The :ref:`teleop-simple-chrome-inspect` **CONNECT** click is the usual gesture. Alternatively follow
+:ref:`teleop-user-activation` (in-headset tap, then OOB ``command`` if you automate connect from the control side).
+
+.. _teleop-user-activation:
+
+User Activation
+---------------
+
+``navigator.xr.requestSession()`` requires a **user gesture** on most devices.
+
+**Typical dev flow:** open the page on the headset, then in Chrome **remote inspect** click **CONNECT** on
+the Teleop UI (same effect as tapping **CONNECT** on the device).
+
+**Alternative:** operator sends ``connect`` via ``GET /api/oob/v1/command?action=connect`` (or WebSocket
+``dashboard`` ``command``) **after** a prior gesture satisfied activation (e.g. first **CONNECT** in a session).
+
+After the first session, subsequent ``connect`` / ``disconnect`` commands often work without further
+headset interaction.
+
+Trust Model
+-----------
+
+The hub controls **which CloudXR streaming endpoint** (host/port) the headset uses for the streaming
+session. Protect accordingly:
+
+- Use ``CONTROL_TOKEN`` on production deployments.
+- Restrict network access to trusted machines (VPN, LAN).
+- TLS is always enforced (same certificates as the CloudXR WSS proxy).
+
+.. _teleop-wss-only-testing:
+
+Local testing (hub + WSS without starting the runtime)
+---------------------------------------------------------
+
+**Hub unit tests** (no CloudXR runtime, no WSS — only ``pytest``)::
+
+   cd src/core/cloudxr_tests/python
+   pip install -e ".[test]"
+   pytest -q
+
+**WSS + OOB from source (no ``isaacteleop`` wheel / compile)** — for quick iteration on
+``wss.py`` / ``oob_teleop_hub.py``::
+
+   cd src/core/cloudxr/python
+   pip install 'websockets>=14'
+   python run_wss_oob_dev.py --accept-eula --setup-oob local
+
+This bootstraps the ``isaacteleop.cloudxr`` modules from the checkout; it does **not** replace
+``python -m isaacteleop.cloudxr`` for production (that still expects an installed package).
+
+**Hub + OOB HTTP** without the runtime: pass **both** ``--wss-only`` (no CloudXR process) and
+``--setup-oob local`` (or ``HOST:PORT``)::
+
+   python -m isaacteleop.cloudxr --wss-only --setup-oob local --accept-eula
+
+(Install ``isaacteleop`` from your build or ``pip install -e`` as usual.) WSS logs go to stderr.
+Optional: ``CONTROL_TOKEN`` env var.
+Non-teleop WebSocket paths still try to proxy to the runtime backend, which is not running in this
+mode—use teleop URLs only, or run the full stack without ``--wss-only``.
+
+Verify the hub with ``curl`` (accept self-signed TLS with ``-k``)::
+
+   curl -k https://127.0.0.1:48322/api/oob/v1/state
+
+**Do not** use the editor’s embedded browser / Simple Browser for odd localhost errors—use a normal
+browser or ``curl`` if you hit unrelated **RPC / "stateful work request"** messages from tooling.
+
+If the same RPC message appears in **Chrome** anyway, the WSS proxy process still does not emit it (no
+gRPC client to the runtime). Typical causes on a full browser:
+
+- A **Chrome extension** (corporate security, VPN, devtools helpers, vendor tooling) intercepting
+  ``https://127.0.0.1`` or TLS. Try **Incognito** with extensions disabled, or a **fresh browser
+  profile**, and check **DevTools → Console**: if the stack trace points at
+  ``chrome-extension://…``, disable that extension.
+- **Managed / enterprise Chrome** or **local security agents** that MITM or classify localhost
+  traffic.
+
+Implementation Reference
+------------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Component
+     - Location
+   * - Hub logic
+     - :code-file:`oob_teleop_hub.py <src/core/cloudxr/python/oob_teleop_hub.py>`
+   * - WSS proxy integration
+     - :code-file:`wss.py <src/core/cloudxr/python/wss.py>`
+   * - WSS + OOB from source (no package install)
+     - :code-file:`run_wss_oob_dev.py <src/core/cloudxr/python/run_wss_oob_dev.py>`
+   * - CLI entry point (orthogonal ``--wss-only`` and ``--setup-oob``)
+     - :code-file:`__main__.py <src/core/cloudxr/python/__main__.py>`
+   * - ADB automation (after listen)
+     - ``AdbAutomation`` / ``run_adb_headset_bookmark`` in :code-file:`wss.py <src/core/cloudxr/python/wss.py>`
+   * - Headset bookmark builder
+     - ``build_headset_bookmark_url`` in :code-file:`wss.py <src/core/cloudxr/python/wss.py>`
+   * - Headset bridge (TypeScript)
+     - ``deps/cloudxr/webxr_client/helpers/controlChannel.ts``
+   * - Headset wiring (React)
+     - ``deps/cloudxr/webxr_client/src/App.tsx``
