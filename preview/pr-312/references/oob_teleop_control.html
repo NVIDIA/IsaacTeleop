@@ -389,16 +389,40 @@
                   
   <section id="out-of-band-teleop-control">
 <h1>Out-of-band teleop control<a class="headerlink" href="#out-of-band-teleop-control" title="Link to this heading">#</a></h1>
-<p>This page specifies the <strong>teleop control plane</strong>: JSON over a WebSocket (<code class="docutils literal notranslate"><span class="pre">/oob/v1/ws</span></code>), plus <strong>OOB
-(out-of-band) HTTP</strong> on the same TLS port—<code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/api/oob/v1/state</span></code>, <code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/api/oob/v1/command</span></code>, and
-<code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/api/oob/v1/config</span></code>—when the OOB hub is enabled (<code class="docutils literal notranslate"><span class="pre">--setup-oob</span> <span class="pre">local</span></code> or <code class="docutils literal notranslate"><span class="pre">--setup-oob</span> <span class="pre">HOST:PORT</span></code>). The control plane is <strong>separate from
-CloudXR streaming</strong> (media and poses over the streaming stack), even though both often share the
-<strong>same TLS port</strong> on the <strong>streaming / session host</strong>.</p>
-<p>The <code class="docutils literal notranslate"><span class="pre">websockets</span></code> HTTP handshake on this port accepts <strong>GET</strong> only, so mutating OOB actions use <strong>GET
-with query parameters</strong> (same semantics as a JSON body would have). Use <code class="docutils literal notranslate"><span class="pre">curl</span></code> or any HTTP client.</p>
-<section id="who-runs-what">
-<span id="teleop-roles-three-machines"></span><h2>Who runs what<a class="headerlink" href="#who-runs-what" title="Link to this heading">#</a></h2>
-<p>Many deployments involve <strong>three logical computers</strong>:</p>
+<p>This guide explains how to <strong>coordinate Isaac Teleop from outside the headset</strong>—change where the headset
+streams from, read status, and (for advanced setups) push settings over HTTP—using the same TLS port as
+the CloudXR proxy when you enable the feature.</p>
+<p><strong>Primary audience:</strong> <strong>operators</strong> setting up a lab or demo. <strong>Integrators</strong> (automation, custom
+dashboards, metrics) should read <a class="reference internal" href="#teleop-oob-integrators"><span class="std std-ref">For integrators (architecture, metrics, code)</span></a> after the operator workflow.</p>
+<p><strong>Supported browsers and devices:</strong> Use an <strong>Android-based XR headset</strong> with a <strong>Chromium-based</strong> browser
+for WebXR. On the <strong>PC</strong>, use a <strong>Chromium-based</strong> browser for <strong>remote inspect</strong>—for example
+<strong>``chrome://inspect``</strong> in Google Chrome or <strong>``edge://inspect``</strong> in Microsoft Edge. Other browsers or
+non-Android XR stacks are outside the scope of this guide.</p>
+<p><strong>Supported operator flow:</strong> start with <strong>``–setup-oob``</strong> so the bookmark opens on the headset → on
+the <strong>PC</strong>, open <strong>remote inspect</strong> on that tab → click <strong>CONNECT</strong> in DevTools (WebXR user gesture).
+There is <strong>no</strong> <code class="docutils literal notranslate"><span class="pre">autoConnect</span></code> query flag and no hub-driven session start.</p>
+<p><strong>What this is not:</strong> it does not replace CloudXR streaming. Video, audio, and poses still use the
+normal streaming path. The <strong>control plane</strong> (this document) coordinates <strong>which server</strong> the headset should use; the usual
+<strong>when to connect</strong> path is the in-page <strong>CONNECT</strong> control (or refresh / disconnect in the UI), not
+an HTTP trigger. <strong>Signaling is TLS:</strong> use <strong>``https://``</strong> for HTTP on the proxy port and <strong>``wss://``</strong>
+for OOB WebSocket and CloudXR signaling through this stack—there is no supported operator path to use
+plain <strong>``http``</strong> / <strong>``ws``</strong> here.</p>
+<p><strong>What you get when it is enabled</strong></p>
+<ul class="simple">
+<li><p>A <strong>WebXR page</strong> on the headset talks to a small <strong>control service</strong> (the “hub”) over WSS.</p></li>
+<li><p>From a <strong>PC</strong> (optional for operators), you can call <strong>HTTPS</strong> on the proxy port to <strong>read state</strong> and
+<strong>update streaming settings</strong> (<code class="docutils literal notranslate"><span class="pre">/api/oob/v1/state</span></code> and <code class="docutils literal notranslate"><span class="pre">/api/oob/v1/config</span></code>), or use WebSocket
+<strong>``setConfig``</strong> from a <strong>``dashboard``</strong> client. <strong>Connect</strong> / <strong>disconnect</strong> are driven from the
+<strong>WebXR page</strong> while you control it through DevTools (remote inspect), not from the hub—see
+<a class="reference internal" href="#teleop-user-activation"><span class="std std-ref">WebXR user activation (why CONNECT matters)</span></a>.</p></li>
+<li><p>Optional <strong>``–setup-oob``</strong> automates <strong>adb</strong>: open the right URL on the device and wire USB or
+wireless debugging so you rarely type long URLs on the headset.</p></li>
+</ul>
+<p>The proxy’s HTTP API uses <strong>GET</strong> with query parameters because the WebSocket stack on this port only
+accepts GET for ordinary HTTP. <strong>``curl``</strong> and scripts work fine for <strong>state</strong> and <strong>config</strong>.</p>
+<section id="who-is-involved">
+<span id="teleop-roles-three-machines"></span><h2>Who is involved<a class="headerlink" href="#who-is-involved" title="Link to this heading">#</a></h2>
+<p>Most setups look like <strong>three roles</strong> (they can be the same physical machine):</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <colgroup>
 <col style="width: 22.0%" />
@@ -407,44 +431,236 @@ with query parameters</strong> (same semantics as a JSON body would have). Use <
 </colgroup>
 <thead>
 <tr class="row-odd"><th class="head"><p>Role</p></th>
-<th class="head"><p>Software</p></th>
-<th class="head"><p>Responsibilities</p></th>
+<th class="head"><p>Typical software</p></th>
+<th class="head"><p>What it does</p></th>
 </tr>
 </thead>
 <tbody>
 <tr class="row-even"><td><p><strong>XR headset</strong></p></td>
-<td><p><strong>Isaac Teleop WebXR client</strong> (<code class="docutils literal notranslate"><span class="pre">deps/cloudxr/webxr_client</span></code>) in the device browser</p></td>
-<td><p>Acts as the CloudXR <strong>streaming client</strong> (immersive session, poses, metrics). Also connects
-to the <strong>OOB control hub</strong> WebSocket: applies <code class="docutils literal notranslate"><span class="pre">StreamConfig</span></code>, obeys <code class="docutils literal notranslate"><span class="pre">sessionCommand</span></code>
-(connect / disconnect streaming to the configured host).</p></td>
+<td><p>Isaac Teleop <strong>WebXR client</strong> in the device browser</p></td>
+<td><p>Runs the immersive session and streaming client. Registers with the hub, applies the
+streaming <strong>host/port</strong> from <strong>``hello``</strong> / <strong>``config``</strong>, and starts/stops the XR session
+from the <strong>in-page</strong> controls only.</p></td>
 </tr>
-<tr class="row-odd"><td><p><strong>Control station</strong> (laptop or desktop)</p></td>
-<td><p><strong>Scripts, CI, or SSH</strong>: <code class="docutils literal notranslate"><span class="pre">curl</span></code> / automation against <strong>OOB HTTP</strong>, or an optional custom
-WebSocket client with <code class="docutils literal notranslate"><span class="pre">role:</span> <span class="pre">&quot;dashboard&quot;</span></code></p></td>
-<td><p>Does <strong>not</strong> run the WebXR client. Applies <strong>streaming</strong> host/port via OOB <code class="docutils literal notranslate"><span class="pre">config</span></code> or WebSocket
-<code class="docutils literal notranslate"><span class="pre">setConfig</span></code>; starts/stops the headset session via OOB <code class="docutils literal notranslate"><span class="pre">command</span></code> or WebSocket <code class="docutils literal notranslate"><span class="pre">command</span></code>.
-There is <strong>no</strong> bundled browser dashboard.</p></td>
+<tr class="row-odd"><td><p><strong>Operator machine</strong></p></td>
+<td><p>Your PC: Chromium <strong>remote inspect</strong>; optionally <strong>``curl``</strong> or scripts against <strong>HTTPS</strong></p></td>
+<td><p>Drives <strong>CONNECT</strong> through the inspected Teleop tab; can change streaming target via HTTP
+<strong>config</strong> or WebSocket <strong>``setConfig``</strong> (integrator-style). There is <strong>no</strong> built-in browser
+dashboard and <strong>no</strong> hub API to start/stop the XR session remotely.</p></td>
 </tr>
-<tr class="row-even"><td><p><strong>Streaming / session host</strong> (workstation, robot-mounted PC, or cloud VM)</p></td>
-<td><p>CloudXR <strong>runtime</strong> + Python <strong>WSS proxy</strong> (<code class="docutils literal notranslate"><span class="pre">wss.py</span></code>), and the <strong>OOB control hub</strong> when
-<code class="docutils literal notranslate"><span class="pre">--setup-oob</span></code> is passed (with <code class="docutils literal notranslate"><span class="pre">local</span></code> or <code class="docutils literal notranslate"><span class="pre">HOST:PORT</span></code>)</p></td>
-<td><p>Owns the proxy TLS port: CloudXR <strong>server-side</strong> streaming and (if enabled) <code class="docutils literal notranslate"><span class="pre">/oob/v1/ws</span></code>.
-The <code class="docutils literal notranslate"><span class="pre">serverIP</span></code> / <code class="docutils literal notranslate"><span class="pre">port</span></code> fields inside <code class="docutils literal notranslate"><span class="pre">StreamConfig</span></code> name this <strong>streaming endpoint</strong>—what
-the headset’s streaming stack connects to—not the control station.</p></td>
+<tr class="row-even"><td><p><strong>Streaming host</strong></p></td>
+<td><p>Machine where <strong>``python -m isaacteleop.cloudxr``</strong> runs (CloudXR runtime + TLS proxy)</p></td>
+<td><p>Listens on the <strong>proxy TLS port</strong> (default <strong>48322</strong>). Serves CloudXR signaling and, if you
+enable it, the teleop hub. The <strong>``serverIP``</strong> / <strong>``port``</strong> you configure name <strong>this</strong>
+streaming endpoint—the headset must be able to reach that address on the network.</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p>Use a hub hostname or IP that the <strong>headset</strong> can reach (often the streaming host’s LAN address).
-The WebXR page defaults to <code class="docutils literal notranslate"><span class="pre">wss://{page-host}/oob/v1/ws</span></code> or uses <code class="docutils literal notranslate"><span class="pre">controlWsUrl</span></code> in the page URL
-(see <a class="reference internal" href="#teleop-headset-control-url"><span class="std std-ref">Getting controlWsUrl onto the headset (avoid typing)</span></a>).</p>
-<p><strong>Colocation.</strong> The operator machine is sometimes the <strong>same physical machine</strong> as the streaming host;
-the split above is still useful when reading this spec: the WebXR app and OOB tools are different
-programs, and <strong>client</strong> / <strong>server</strong> in the message sections below mean <strong>WebSocket</strong> client or
-server (the hub), not “CloudXR client” or “robot”.</p>
+<p>The headset must reach <strong>both</strong> the <strong>WebXR page</strong> (often <code class="docutils literal notranslate"><span class="pre">https://…:8080/</span></code> during development)
+<strong>and</strong> the <strong>OOB WebSocket</strong> on the streaming host. The bookmark adds <strong>``oobEnable=1``</strong> plus the same
+<strong>``serverIP``</strong> and <strong>``port``</strong> as CloudXR signaling; the client opens <strong>only</strong> that
+<code class="docutils literal notranslate"><span class="pre">wss://{serverIP}:{port}/oob/v1/ws</span></code> (see <a class="reference internal" href="#teleop-headset-control-url"><span class="std std-ref">WebXR page URL query parameters</span></a>). There is no implicit
+default to the page origin.</p>
+<p><strong>Same PC as the headset cable?</strong> Very often the streaming host and the PC you type on are one
+computer. The split above still helps: the <strong>WebXR tab</strong> and <strong>your terminal</strong> are different
+programs.</p>
 </section>
-<section id="terminology-overloaded-words">
-<span id="teleop-terminology"></span><h2>Terminology (overloaded words)<a class="headerlink" href="#terminology-overloaded-words" title="Link to this heading">#</a></h2>
+<section id="end-to-end-workflow-the-usual-path">
+<h2>End-to-end workflow (the usual path)<a class="headerlink" href="#end-to-end-workflow-the-usual-path" title="Link to this heading">#</a></h2>
+<p>With <strong>``–setup-oob``</strong>, the terminal prints an <strong>OOB TELEOP</strong> banner that mirrors the three steps
+below (same order and links).</p>
+<p><strong>Prerequisites:</strong> <strong>``adb``</strong> on PATH; USB or wireless debugging; <strong>one</strong> device in <strong>``adb devices``</strong>;
+WebXR dev server reachable at <strong>``https://127.0.0.1:8080/``</strong> (USB) or <strong>``https://&lt;PC-LAN&gt;:8080/``</strong>
+(wireless), with a certificate the headset trusts.</p>
+<p><strong>1 — Start with hub + adb automation</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr<span class="w"> </span>--setup-oob<span class="w"> </span><span class="nb">local</span>
+</pre></div>
+</div>
+<p>Wireless: use <strong>``–setup-oob &lt;HOST&gt;:5555``</strong> instead. Add <strong>``–wss-only``</strong> if you skip the CloudXR
+runtime (see <a class="reference internal" href="#teleop-wss-only-testing"><span class="std std-ref">Local testing without the CloudXR runtime</span></a>).</p>
+<p>Wait for <strong>``WSS proxy listening on port …``</strong>; the bookmark is printed in the <strong>OOB TELEOP</strong> banner.
+<strong>``–setup-oob``</strong> runs <strong>``am start``</strong> so the page opens on the headset (or open the URL yourself if
+you omitted the flag).</p>
+<p><strong>2 — Inspect from the PC</strong></p>
+<p>On the <strong>PC</strong>, open your Chromium browser to <strong>``chrome://inspect/#devices``</strong> (Chrome) or
+<strong>``edge://inspect``</strong> (Edge). Under <strong>Remote Target</strong>, select the headset browser tab that shows
+<strong>Isaac Teleop Web Client</strong> (or the matching URL) and click <strong>inspect</strong>.</p>
+<p><strong>3 — CONNECT (required gesture)</strong></p>
+<p>In the DevTools window for that page, click <strong>CONNECT</strong> on the Teleop UI (same as tapping CONNECT on
+the headset). WebXR needs this user gesture; see <a class="reference internal" href="#teleop-user-activation"><span class="std std-ref">WebXR user activation (why CONNECT matters)</span></a>.</p>
+<p><strong>4 — Disconnect (from the PC)</strong></p>
+<p>To end the session without reaching for the headset, keep the <strong>same</strong> DevTools window focused on the
+Teleop page and <strong>reload</strong> it—for example click the <strong>URL</strong> in the inspector’s address bar and press
+<strong>Enter</strong>, or use the refresh action. That tears down the page session the same way as navigating away
+on the device.</p>
+<p><strong>After that (optional):</strong> change streaming target with <strong>``GET /api/oob/v1/config``</strong> or WebSocket
+<strong>``setConfig``</strong> without rebuilding the bookmark URL (see <a class="reference internal" href="#teleop-stream-defaults"><span class="std std-ref">Stream settings: defaults and how to change them</span></a>).</p>
+</section>
+<section id="choosing-setup-oob-and-when-the-hub-is-on">
+<span id="teleop-setup-oob-cli"></span><h2>Choosing <code class="docutils literal notranslate"><span class="pre">--setup-oob</span></code> and when the hub is on<a class="headerlink" href="#choosing-setup-oob-and-when-the-hub-is-on" title="Link to this heading">#</a></h2>
+<p><strong>Omit</strong> <strong>``–setup-oob``</strong> if you will open the teleop URL yourself and do not need adb help. In
+that case the <strong>OOB HTTP</strong> paths return <strong>404</strong>, and <strong>``/oob/v1/ws``</strong> is forwarded to the CloudXR
+runtime instead of the hub—so teleop control expects the <strong>full</strong> stack, not <strong>``–wss-only``</strong>
+alone.</p>
+<p><strong>``–setup-oob local``</strong> — USB. After the proxy is listening, the tool sets up <strong>``adb reverse``</strong> for
+the proxy port, the signaling port, and (for a loopback WebXR URL) the dev-server port such as <strong>8080</strong>,
+then opens the bookmark. Streaming through the tunnel uses <strong>``127.0.0.1``</strong> in the default config;
+media port <strong>47998</strong> (override with <strong>``TELEOP_STREAM_MEDIA_PORT``</strong>) is included in the bookmark when
+reverse is used.</p>
+<p><strong>``–setup-oob HOST:PORT``</strong> — Wireless. The tool resolves your PC’s LAN address (<strong>``TELEOP_PROXY_HOST``</strong>
+or an automatic guess), runs <strong>``adb connect``</strong>, checks for a single device, then listens. After
+that, it opens a bookmark using <strong>``https://&lt;LAN&gt;:8080/``</strong> and <strong>``wss://&lt;LAN&gt;:&lt;proxy-port&gt;/…``</strong>. If
+the LAN address cannot be determined, set <strong>``TELEOP_PROXY_HOST``</strong> before starting.</p>
+<p><strong>Edge case:</strong> <strong>``TELEOP_WEB_CLIENT_BASE``</strong> pointing at <strong>loopback</strong> while using wireless adb still
+triggers <strong>``adb reverse``</strong> for the WebXR port so the page loads through the tunnel.</p>
+<p><strong>Requirements:</strong> <strong>``adb``</strong> on PATH; exactly one ready device; failed <strong>``reverse``</strong> or <strong>``am start``</strong>
+exits the process with code <strong>1</strong>. USB reverse mappings are removed on shutdown.</p>
+<p>OOB HTTP and WebSocket share the <strong>same TLS port</strong> as the proxy (<strong>``PROXY_PORT``</strong>, default <strong>48322</strong>).</p>
+</section>
+<section id="stream-settings-defaults-and-how-to-change-them">
+<span id="teleop-stream-defaults"></span><h2>Stream settings: defaults and how to change them<a class="headerlink" href="#stream-settings-defaults-and-how-to-change-them" title="Link to this heading">#</a></h2>
+<p>The hub keeps one merged <strong>``config``</strong> object (often called <strong>``StreamConfig``</strong> in TypeScript). It
+includes <strong>streaming target</strong> fields and optional <strong>WebXR client UI</strong> fields. The stock web client
+applies only <strong>allowlisted</strong> UI keys so values are validated and mapped to real form controls; the
+hub may store other top-level keys from <strong>``setConfig``</strong>, but the browser <strong>ignores</strong> unknown keys.
+How to extend that allowlist is covered in <a class="reference internal" href="#teleop-oob-integrators"><span class="std std-ref">For integrators (architecture, metrics, code)</span></a>.</p>
+<p><strong>Streaming target fields</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 22.0%" />
+<col style="width: 78.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><strong>``serverIP``</strong></p></td>
+<td><p>Hostname or IP for CloudXR <strong>signaling</strong> over <strong>TLS</strong> (<strong>``https://``</strong> / <strong>``wss://``</strong> through
+the proxy) the headset uses.</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>``port``</strong></p></td>
+<td><p>TCP port for TLS signaling (normally the proxy port, default <strong>48322</strong>).</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>``proxyUrl``</strong></p></td>
+<td><p>Optional full proxy URL override; empty string clears it.</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>``mediaAddress``</strong></p></td>
+<td><p>Media (UDP) address.</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>``mediaPort``</strong></p></td>
+<td><p>Media (UDP) port (common default <strong>47998</strong> with USB <strong>``adb reverse``</strong>).</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Client UI fields (allowlist)</strong> — same names as Teleop form element <strong>ids</strong> and bookmark query keys:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 22.0%" />
+<col style="width: 78.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><strong>``panelHiddenAtStart``</strong></p></td>
+<td><p><strong>``true``</strong> / <strong>``false``</strong> — hide the in-XR control panel when the session starts (query:
+<strong>``true``</strong> / <strong>``false``</strong> or <strong>``1``</strong> / <strong>``0``</strong>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>``codec``</strong></p></td>
+<td><p>Preferred video codec: <strong>``h264``</strong>, <strong>``h265``</strong>, or <strong>``av1``</strong> (must match a <strong>``&lt;select&gt;``</strong>
+option on the page).</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>``perEyeWidth``</strong>, <strong>``perEyeHeight``</strong></p></td>
+<td><p>Per-eye resolution in pixels (integers; must satisfy CloudXR validation rules in the UI).</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Order of effect on the headset</strong></p>
+<ol class="arabic simple">
+<li><p><strong>Environment variables</strong> (below) are read when the WSS process starts and seed the hub <strong>initial</strong>
+<strong>``config``</strong> and the <strong>``–setup-oob``</strong> bookmark.</p></li>
+<li><p>On page load, <strong>URL query</strong> parameters seed the form (see <a class="reference internal" href="#teleop-headset-control-url"><span class="std std-ref">WebXR page URL query parameters</span></a>) before
+the OOB socket connects.</p></li>
+<li><p><strong>``hello``</strong> from the hub sends the merged <strong>``config``</strong> and overrides those seeds.</p></li>
+<li><p><strong>``GET /api/oob/v1/config``</strong> or WebSocket <strong>``setConfig``</strong> (<a class="reference internal" href="#teleop-http-api-oob"><span class="std std-ref">HTTP API (operator and automation)</span></a>) bump
+<strong>``configVersion``</strong> and push <strong>``config``</strong> again.</p></li>
+</ol>
+<p><strong>Environment variables</strong> — export before <strong>``python -m isaacteleop.cloudxr``</strong> (or restart after change):</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 28.0%" />
+<col style="width: 72.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Variable</p></th>
+<th class="head"><p>Effect</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><strong>``PROXY_PORT``</strong></p></td>
+<td><p>TLS listen port (default <strong>48322</strong>). Initial <strong>``port``</strong> in hub config matches unless
+<strong>``TELEOP_STREAM_PORT``</strong> overrides it.</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>``CONTROL_TOKEN``</strong></p></td>
+<td><p>If set, required on OOB <strong>register</strong>, HTTP <strong>``state``</strong> / <strong>``config``</strong>, and dashboard
+<strong>``setConfig``</strong>. The printed bookmark may include <strong>``controlToken=…``</strong>.</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>``TELEOP_STREAM_SERVER_IP``</strong></p></td>
+<td><p>Initial <strong>``serverIP``</strong> before <strong>``–setup-oob``</strong> adjusts it (USB <strong>``local``</strong> still forces
+<strong>``127.0.0.1``</strong>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>``TELEOP_STREAM_PORT``</strong></p></td>
+<td><p>Initial signaling <strong>``port``</strong>; defaults to proxy port when unset.</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>``TELEOP_STREAM_MEDIA_PORT``</strong></p></td>
+<td><p>USB <strong>``–setup-oob local``</strong> only: bookmark <strong>``mediaAddress``</strong> / <strong>``mediaPort``</strong> (default
+<strong>47998</strong>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>``TELEOP_PROXY_HOST``</strong></p></td>
+<td><p>Wireless: PC address when LAN auto-detect fails.</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>``TELEOP_WEB_CLIENT_BASE``</strong></p></td>
+<td><p>WebXR page base URL only; does not change streaming <strong>``serverIP``</strong> / <strong>``port``</strong>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>``TELEOP_CLIENT_CODEC``</strong></p></td>
+<td><p>Initial <strong>``codec``</strong> in hub config and bookmark (e.g. <strong>``h265``</strong>).</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>``TELEOP_CLIENT_PANEL_HIDDEN_AT_START``</strong></p></td>
+<td><p><strong>``true``</strong> / <strong>``false``</strong> (or <strong>``1``</strong> / <strong>``0``</strong>) → <strong>``panelHiddenAtStart``</strong> in hub + bookmark.</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>``TELEOP_CLIENT_PER_EYE_WIDTH``</strong>, <strong>``TELEOP_CLIENT_PER_EYE_HEIGHT``</strong></p></td>
+<td><p>Integers → <strong>``perEyeWidth``</strong> / <strong>``perEyeHeight``</strong> in hub + bookmark.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Runtime (no restart):</strong> <strong>``GET …/api/oob/v1/config?…``</strong> with the same flat keys as the HTTP section
+below, or WebSocket <strong>``setConfig``</strong> with a JSON <strong>``config``</strong> object (partial merge).</p>
+<p><strong>Manual bookmark:</strong> same query names as <a class="reference internal" href="#teleop-headset-control-url"><span class="std std-ref">WebXR page URL query parameters</span></a>; Python:
+<strong>``isaacteleop.cloudxr.wss.build_headset_bookmark_url``</strong> with a <strong>``stream_config``</strong> dict that includes
+<strong>``serverIP``</strong>, <strong>``port``</strong>, and any optional fields above.</p>
+</section>
+<section id="remote-inspect-and-connect-quick-reference">
+<span id="teleop-simple-chrome-inspect"></span><h2>Remote inspect and CONNECT (quick reference)<a class="headerlink" href="#remote-inspect-and-connect-quick-reference" title="Link to this heading">#</a></h2>
+<ol class="arabic simple">
+<li><p><strong>``–setup-oob``</strong> (and <strong>``–wss-only``</strong> if needed) → wait for listen → page opens on headset.</p></li>
+<li><p>PC (Chromium): <strong>``chrome://inspect/#devices``</strong> or <strong>``edge://inspect``</strong> → <strong>inspect</strong> the Teleop tab.</p></li>
+<li><p>In DevTools: click <strong>CONNECT</strong> on the page (required gesture).</p></li>
+<li><p>To disconnect from the PC: in that DevTools window, <strong>reload</strong> the page (e.g. focus the URL bar and
+press <strong>Enter</strong>).</p></li>
+</ol>
+<p>HTTP <strong>state</strong> / <strong>``config``</strong> or WebSocket <strong>``setConfig``</strong> change streaming target and allowlisted
+client UI fields; they do <strong>not</strong> start the XR session.</p>
+</section>
+<section id="words-that-mean-more-than-one-thing">
+<span id="teleop-terminology"></span><h2>Words that mean more than one thing<a class="headerlink" href="#words-that-mean-more-than-one-thing" title="Link to this heading">#</a></h2>
 <div class="pst-scrollable-table-container"><table class="table">
 <colgroup>
 <col style="width: 28.0%" />
@@ -452,79 +668,37 @@ server (the hub), not “CloudXR client” or “robot”.</p>
 </colgroup>
 <thead>
 <tr class="row-odd"><th class="head"><p>Term</p></th>
-<th class="head"><p>Meaning in Isaac Teleop</p></th>
+<th class="head"><p>In this guide</p></th>
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><strong>OOB control hub</strong></p></td>
-<td><p>Class <code class="docutils literal notranslate"><span class="pre">OOBControlHub</span></code> in <code class="docutils literal notranslate"><span class="pre">oob_teleop_hub.py</span></code>, integrated by <code class="docutils literal notranslate"><span class="pre">wss.py</span></code>. Holds shared
-<code class="docutils literal notranslate"><span class="pre">StreamConfig</span></code> and routes WebSocket messages plus OOB HTTP handlers.</p></td>
+<tr class="row-even"><td><p><strong>Hub</strong></p></td>
+<td><p>The teleop control service inside the TLS proxy. One shared streaming configuration and
+message routing for all connected clients.</p></td>
 </tr>
 <tr class="row-odd"><td><p><strong>OOB HTTP</strong></p></td>
-<td><p>Read/write control without a browser: <code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/api/oob/v1/state</span></code>, <code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/api/oob/v1/command</span></code>,
-<code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/api/oob/v1/config</span></code> on the proxy TLS port.</p></td>
+<td><p><strong>``GET``</strong> endpoints under <strong>``/api/oob/v1/…``</strong> on the proxy port for scripts and tools.</p></td>
 </tr>
-<tr class="row-even"><td><p><strong>Isaac Teleop WebXR client</strong></p></td>
-<td><p>The <strong>headset</strong> browser application only (<code class="docutils literal notranslate"><span class="pre">webxr_client</span></code>).</p></td>
+<tr class="row-even"><td><p><strong>WebXR client</strong></p></td>
+<td><p>Only the <strong>headset browser app</strong> (Isaac Teleop web client).</p></td>
 </tr>
-<tr class="row-odd"><td><p><strong>Protocol client</strong></p></td>
-<td><p>Any WebSocket peer on <code class="docutils literal notranslate"><span class="pre">/oob/v1/ws</span></code> (headset or optional <code class="docutils literal notranslate"><span class="pre">dashboard</span></code> tool). The hub is the
-protocol <strong>server</strong>.</p></td>
+<tr class="row-odd"><td><p><strong>WebSocket “client”</strong> in the protocol sections</p></td>
+<td><p>Any program connected to <strong>``/oob/v1/ws``</strong> (headset or operator tool), <strong>not</strong> “CloudXR client”
+by default.</p></td>
 </tr>
-<tr class="row-even"><td><p><strong>``”dashboard”``</strong> (register role)</p></td>
-<td><p>Optional WebSocket role for custom operator tools. Historical name; it does <strong>not</strong> mean the
-WebXR client.</p></td>
+<tr class="row-even"><td><p><strong>``dashboard``</strong> role</p></td>
+<td><p>Optional WebSocket client that may send <strong>``setConfig``</strong> only. The name is historical; it is
+<strong>not</strong> the WebXR page.</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p><strong>Summary.</strong> <strong>Headsets</strong> run the WebXR client; <strong>operators</strong> use OOB HTTP and/or WebSocket
-<code class="docutils literal notranslate"><span class="pre">dashboard</span></code> messages. The <strong>OOB control hub</strong> runs inside the WSS proxy (<code class="docutils literal notranslate"><span class="pre">wss.py</span></code>) when
-<code class="docutils literal notranslate"><span class="pre">--setup-oob</span> <span class="pre">…</span></code> is passed. Omit the flag entirely to leave the hub off.</p>
 </section>
-<section id="enabling-the-hub">
-<h2>Enabling the Hub<a class="headerlink" href="#enabling-the-hub" title="Link to this heading">#</a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr<span class="w"> </span>--setup-oob<span class="w"> </span><span class="nb">local</span>
-</pre></div>
-</div>
-<p><code class="docutils literal notranslate"><span class="pre">--setup-oob</span></code> takes a <strong>required</strong> argument when you enable OOB:</p>
-<ul class="simple">
-<li><p><strong>``local``</strong> — USB debugging + <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">reverse</span></code> + <code class="docutils literal notranslate"><span class="pre">am</span> <span class="pre">start</span></code>. WebXR at <strong>``https://127.0.0.1:8080/``</strong> on the PC (tunneled to the headset).</p></li>
-<li><p><strong>``HOST:PORT``</strong> — wireless <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">connect</span></code> first, then <code class="docutils literal notranslate"><span class="pre">am</span> <span class="pre">start</span></code> with <strong>LAN</strong> URLs (no <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">reverse</span></code> for WebXR/WSS). Set <strong>``TELEOP_PROXY_HOST``</strong> to this PC’s address if the headset cannot use the auto-guessed LAN IP.</p></li>
-</ul>
-<p>All routes below become active on the <strong>same TLS port</strong> as the CloudXR WSS proxy (default
-<code class="docutils literal notranslate"><span class="pre">48322</span></code>). With no <code class="docutils literal notranslate"><span class="pre">--setup-oob</span></code>, the proxy behaves as a plain forwarder; teleop paths return 404.</p>
-<p>Optional environment variable overrides for containers/systemd:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">CONTROL_TOKEN</span><span class="o">=</span>&lt;secret&gt;<span class="w">  </span><span class="c1"># require token on register / OOB HTTP / dashboard messages</span>
-<span class="nv">TELEOP_STREAM_SERVER_IP</span><span class="o">=</span>&lt;ip&gt;<span class="w">   </span><span class="c1"># optional; hub initial StreamConfig serverIP (default: LAN guess or 127.0.0.1)</span>
-<span class="nv">TELEOP_STREAM_PORT</span><span class="o">=</span>&lt;port&gt;<span class="w">      </span><span class="c1"># optional; hub initial port (default: PROXY_PORT)</span>
-<span class="nv">TELEOP_STREAM_MEDIA_PORT</span><span class="o">=</span>&lt;udp&gt;<span class="w">  </span><span class="c1"># optional; bookmark mediaPort when using adb reverse (default: 47998)</span>
-<span class="nv">TELEOP_PROXY_HOST</span><span class="o">=</span>&lt;ip&gt;<span class="w">          </span><span class="c1"># optional; required for reliable LAN URLs with ``--setup-oob HOST:PORT`` if auto-guess fails</span>
-<span class="nv">TELEOP_WEB_CLIENT_BASE</span><span class="o">=</span>&lt;url&gt;<span class="w">     </span><span class="c1"># optional; full WebXR page origin for OOB bookmark / ``am start`` (default: colocated ``https://127.0.0.1:8080/`` or ``https://&lt;LAN&gt;:8080/``). Use for a hosted or mirrored client; ``controlWsUrl`` and stream query params still point at this PC.</span>
-</pre></div>
-</div>
-<p><code class="docutils literal notranslate"><span class="pre">--wss-only</span></code> and <code class="docutils literal notranslate"><span class="pre">--setup-oob</span></code> are <strong>separate</strong>: the first skips the CloudXR runtime (TLS proxy
-only); the second enables the OOB hub and adb. To run <strong>only</strong> the proxy <strong>and</strong> OOB, pass <strong>both</strong>
-— see <a class="reference internal" href="#teleop-wss-only-testing"><span class="std std-ref">Local testing (hub + WSS without starting the runtime)</span></a>.</p>
-</section>
-<section id="headset-flow-chrome-inspect-connect">
-<span id="teleop-simple-chrome-inspect"></span><h2>Headset flow (Chrome inspect + CONNECT)<a class="headerlink" href="#headset-flow-chrome-inspect-connect" title="Link to this heading">#</a></h2>
-<p>For Android-based headsets with <strong>USB debugging</strong>, the usual loop is:</p>
-<ol class="arabic simple">
-<li><p>Start with <code class="docutils literal notranslate"><span class="pre">--setup-oob</span> <span class="pre">local</span></code> or <code class="docutils literal notranslate"><span class="pre">--setup-oob</span> <span class="pre">HOST:PORT</span></code> (add <code class="docutils literal notranslate"><span class="pre">--wss-only</span></code> if you are not starting the CloudXR runtime). The log
-prints <strong>headset URL</strong> lines (HTTPS page + <code class="docutils literal notranslate"><span class="pre">controlWsUrl</span></code> and stream fields).</p></li>
-<li><p><strong>Open that URL</strong> on the headset. With <code class="docutils literal notranslate"><span class="pre">local</span></code>: <strong>(1)</strong> <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">reverse</span></code> for proxy, stream, and WebXR dev-server TCP ports, <strong>(2)</strong> <code class="docutils literal notranslate"><span class="pre">am</span> <span class="pre">start</span></code>, <strong>(3)</strong> <code class="docutils literal notranslate"><span class="pre">controlWsUrl</span></code> uses <code class="docutils literal notranslate"><span class="pre">127.0.0.1</span></code> (USB tunnel). With <code class="docutils literal notranslate"><span class="pre">HOST:PORT</span></code>: <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">connect</span></code> then <code class="docutils literal notranslate"><span class="pre">am</span> <span class="pre">start</span></code> with LAN <code class="docutils literal notranslate"><span class="pre">https://&lt;PC&gt;:8080/</span></code> and <code class="docutils literal notranslate"><span class="pre">wss://&lt;PC&gt;:…</span></code> (no reverse for those). Or open the URL / <code class="docutils literal notranslate"><span class="pre">am</span> <span class="pre">start</span></code> manually.</p></li>
-<li><p>On the <strong>PC</strong>, open <strong>Google Chrome</strong> and go to <code class="docutils literal notranslate"><span class="pre">chrome://inspect/#devices</span></code> (the hub log prints this
-line explicitly). <strong>inspect</strong> the <strong>Isaac Teleop Web Client</strong> target.</p></li>
-<li><p>In <strong>DevTools</strong>, <strong>click CONNECT</strong> on the page. That satisfies <strong>WebXR user activation</strong> and registers
-the headset on <code class="docutils literal notranslate"><span class="pre">/oob/v1/ws</span></code> for metrics and hub state. The proxy does <strong>not</strong> send an automatic OOB
-<code class="docutils literal notranslate"><span class="pre">connect</span></code> command; the UI button is the session entry path.</p></li>
-</ol>
-<p>Use OOB HTTP (<code class="docutils literal notranslate"><span class="pre">…/command</span></code>, <code class="docutils literal notranslate"><span class="pre">…/config</span></code>) afterward if you need operator-driven connect/disconnect
-without using the in-page button again.</p>
-</section>
-<section id="http-routes-oob">
-<h2>HTTP Routes (OOB)<a class="headerlink" href="#http-routes-oob" title="Link to this heading">#</a></h2>
+<section id="http-api-operator-and-automation">
+<span id="teleop-http-api-oob"></span><h2>HTTP API (operator and automation)<a class="headerlink" href="#http-api-operator-and-automation" title="Link to this heading">#</a></h2>
+<p>All of these URLs use <strong>``https://&lt;proxy-host&gt;:&lt;PROXY_PORT&gt;``</strong> and the same TLS certificate as the
+proxy. If <strong>``CONTROL_TOKEN``</strong> is set, pass <strong>``?token=…``</strong> or header <strong>``X-Control-Token``</strong>.
+Field meanings and environment defaults: <a class="reference internal" href="#teleop-stream-defaults"><span class="std std-ref">Stream settings: defaults and how to change them</span></a>.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <colgroup>
 <col style="width: 10.0%" />
@@ -542,43 +716,33 @@ without using the in-page button again.</p>
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">GET</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">/api/oob/v1/state</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">?token=</span></code> or <code class="docutils literal notranslate"><span class="pre">X-Control-Token</span></code> if <code class="docutils literal notranslate"><span class="pre">CONTROL_TOKEN</span></code> set</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">200</span></code> JSON snapshot; <code class="docutils literal notranslate"><span class="pre">401</span></code> if token invalid</p></td>
+<td><p>token if configured</p></td>
+<td><p><strong>200</strong> JSON snapshot; <strong>401</strong> if token invalid</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">GET</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">/api/oob/v1/command?action=connect|disconnect</span></code></p></td>
-<td><p>same</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">200</span></code> <code class="docutils literal notranslate"><span class="pre">{&quot;ok&quot;:true,...}</span></code>; <code class="docutils literal notranslate"><span class="pre">400</span></code>/<code class="docutils literal notranslate"><span class="pre">401</span></code>/<code class="docutils literal notranslate"><span class="pre">404</span></code>/<code class="docutils literal notranslate"><span class="pre">409</span></code> with <code class="docutils literal notranslate"><span class="pre">{&quot;error&quot;:...}</span></code></p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">GET</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">/api/oob/v1/config</span></code></p></td>
-<td><p>same</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">200</span></code> with <code class="docutils literal notranslate"><span class="pre">changed</span></code> true/false; merges query fields and optional JSON <code class="docutils literal notranslate"><span class="pre">config=</span></code> parameter</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">GET</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">/teleop</span></code> or <code class="docutils literal notranslate"><span class="pre">/teleop/*</span></code></p></td>
-<td><p>n/a</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">404</span></code> (legacy dashboard removed)</p></td>
+<td><p>token if configured</p></td>
+<td><p><strong>200</strong> with <code class="docutils literal notranslate"><span class="pre">changed</span></code> true/false; merges flat query parameters into <strong>``StreamConfig``</strong></p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">OPTIONS</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">*</span></code></p></td>
 <td><p>none</p></td>
-<td><p>CORS preflight (unchanged from proxy)</p></td>
+<td><p>CORS preflight</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p><strong>OOB command query parameters:</strong> <code class="docutils literal notranslate"><span class="pre">action</span></code> (required), <code class="docutils literal notranslate"><span class="pre">targetClientId</span></code>, <code class="docutils literal notranslate"><span class="pre">requestId</span></code>, <code class="docutils literal notranslate"><span class="pre">token</span></code>.</p>
-<p><strong>OOB config query parameters:</strong> shallow-merge fields: <code class="docutils literal notranslate"><span class="pre">serverIP</span></code>, <code class="docutils literal notranslate"><span class="pre">port</span></code>, <code class="docutils literal notranslate"><span class="pre">proxyUrl</span></code>,
-<code class="docutils literal notranslate"><span class="pre">mediaAddress</span></code>, <code class="docutils literal notranslate"><span class="pre">mediaPort</span></code>, optional <code class="docutils literal notranslate"><span class="pre">targetClientId</span></code>, <code class="docutils literal notranslate"><span class="pre">token</span></code>. Alternatively pass a URL-encoded
-JSON object in a single <code class="docutils literal notranslate"><span class="pre">config=</span></code> query parameter (merged after parsing).</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>All hub HTTP responses include the same CORS headers as the existing CloudXR WSS proxy.</p>
-</div>
+<p><strong>Config query parameters (flat, URL-encoded):</strong> <strong>``serverIP``</strong>, <strong>``port``</strong>, <strong>``proxyUrl``</strong>,
+<strong>``mediaAddress``</strong>, <strong>``mediaPort``</strong>, <strong>``panelHiddenAtStart``</strong> (<strong>``true``</strong> / <strong>``false``</strong>),
+<strong>``codec``</strong>, <strong>``perEyeWidth``</strong>, <strong>``perEyeHeight``</strong>, optional <strong>``targetClientId``</strong>,
+<strong>``token``</strong>. Example:
+<code class="docutils literal notranslate"><span class="pre">…/config?serverIP=192.168.1.10&amp;port=48322&amp;codec=h265&amp;panelHiddenAtStart=true</span></code>. Keys not listed here
+can still be merged via WebSocket <strong>``setConfig``</strong>, but the stock WebXR client only applies the
+fields documented in <a class="reference internal" href="#teleop-stream-defaults"><span class="std std-ref">Stream settings: defaults and how to change them</span></a>.</p>
+<p>Responses include the same CORS headers as the rest of the proxy.</p>
 </section>
 <section id="websocket-endpoint">
-<h2>WebSocket Endpoint<a class="headerlink" href="#websocket-endpoint" title="Link to this heading">#</a></h2>
+<h2>WebSocket endpoint<a class="headerlink" href="#websocket-endpoint" title="Link to this heading">#</a></h2>
 <div class="pst-scrollable-table-container"><table class="table">
 <colgroup>
 <col style="width: 20.0%" />
@@ -591,32 +755,24 @@ JSON object in a single <code class="docutils literal notranslate"><span class="
 <tr class="row-even"><td><p>Subprotocol</p></td>
 <td><p>none</p></td>
 </tr>
-<tr class="row-odd"><td><p>Wire format</p></td>
-<td><p>Text frames, UTF-8 JSON, one object per message</p></td>
+<tr class="row-odd"><td><p>Format</p></td>
+<td><p>Text frames: one UTF-8 JSON object per message</p></td>
 </tr>
 </tbody>
 </table>
 </div>
 <section id="message-envelope">
-<h3>Message Envelope<a class="headerlink" href="#message-envelope" title="Link to this heading">#</a></h3>
-<p>Every message in both directions uses the same envelope:</p>
+<h3>Message envelope<a class="headerlink" href="#message-envelope" title="Link to this heading">#</a></h3>
 <div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;string&gt;&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;payload&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
 </pre></div>
 </div>
-<p>An unknown <code class="docutils literal notranslate"><span class="pre">type</span></code> causes the server to send an <code class="docutils literal notranslate"><span class="pre">error</span></code> message and ignore the payload.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>In <strong>Messages: Client → Server</strong> and <strong>Messages: Server → Client</strong> below, <strong>client</strong> means any
-<strong>WebSocket peer of the hub</strong> (headset or control console). It does <strong>not</strong> by itself mean “the
-CloudXR streaming client” - the headset happens to play both roles in the full stack.</p>
-</div>
+<p>Unknown <strong>``type``</strong> values produce an <strong>``error``</strong> reply and the payload is ignored.</p>
 </section>
 </section>
-<section id="messages-client-server">
-<h2>Messages: Client → Server<a class="headerlink" href="#messages-client-server" title="Link to this heading">#</a></h2>
-<section id="register">
-<h3><code class="docutils literal notranslate"><span class="pre">register</span></code><a class="headerlink" href="#register" title="Link to this heading">#</a></h3>
-<p>First message after connecting. Establishes role and validates the token (if required).</p>
+<section id="messages-from-clients-to-the-hub">
+<h2>Messages from clients to the hub<a class="headerlink" href="#messages-from-clients-to-the-hub" title="Link to this heading">#</a></h2>
+<section id="register-send-first">
+<h3><code class="docutils literal notranslate"><span class="pre">register</span></code> (send first)<a class="headerlink" href="#register-send-first" title="Link to this heading">#</a></h3>
 <p><strong>Headset:</strong></p>
 <div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
 <span class="w">  </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;register&quot;</span><span class="p">,</span>
@@ -628,7 +784,7 @@ CloudXR streaming client” - the headset happens to play both roles in the full
 <span class="p">}</span>
 </pre></div>
 </div>
-<p><strong>Control console</strong> (WebSocket <code class="docutils literal notranslate"><span class="pre">role</span></code>: <code class="docutils literal notranslate"><span class="pre">&quot;dashboard&quot;</span></code> — see <a class="reference internal" href="#teleop-terminology"><span class="std std-ref">Terminology (overloaded words)</span></a>):</p>
+<p><strong>Custom operator client</strong> (<strong>``dashboard``</strong> role):</p>
 <div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
 <span class="w">  </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;register&quot;</span><span class="p">,</span>
 <span class="w">  </span><span class="nt">&quot;payload&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
@@ -638,18 +794,17 @@ CloudXR streaming client” - the headset happens to play both roles in the full
 <span class="p">}</span>
 </pre></div>
 </div>
-<p>The hub responds with a <code class="docutils literal notranslate"><span class="pre">hello</span></code> message. If the token is invalid the hub sends an
-<code class="docutils literal notranslate"><span class="pre">error</span></code> (code <code class="docutils literal notranslate"><span class="pre">UNAUTHORIZED</span></code>) and closes the connection.</p>
+<p>Reply: <strong>``hello``</strong>. Invalid token → <strong>``error``</strong> (<strong>``UNAUTHORIZED``</strong>) and the connection closes.</p>
 </section>
-<section id="setconfig-control-console-dashboard-role-only">
-<h3><code class="docutils literal notranslate"><span class="pre">setConfig</span></code> (control console / <code class="docutils literal notranslate"><span class="pre">dashboard</span></code> role only)<a class="headerlink" href="#setconfig-control-console-dashboard-role-only" title="Link to this heading">#</a></h3>
-<p>Updates the hub’s authoritative <code class="docutils literal notranslate"><span class="pre">StreamConfig</span></code>, increments <code class="docutils literal notranslate"><span class="pre">configVersion</span></code>, and pushes a
-<code class="docutils literal notranslate"><span class="pre">config</span></code> message to the connected headset(s).</p>
+<section id="setconfig-dashboard-only">
+<h3><code class="docutils literal notranslate"><span class="pre">setConfig</span></code> (<code class="docutils literal notranslate"><span class="pre">dashboard</span></code> only)<a class="headerlink" href="#setconfig-dashboard-only" title="Link to this heading">#</a></h3>
+<p>Updates the hub’s <strong>``StreamConfig``</strong>, bumps <strong>``configVersion``</strong>, and pushes <strong>``config``</strong> to
+headset(s).</p>
 <div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
 <span class="w">  </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;setConfig&quot;</span><span class="p">,</span>
 <span class="w">  </span><span class="nt">&quot;payload&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="nt">&quot;token&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;optional&gt;&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;targetClientId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;optional uuid; omit to push to all headsets&gt;&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;targetClientId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;optional uuid; omit to broadcast&gt;&quot;</span><span class="p">,</span>
 <span class="w">    </span><span class="nt">&quot;config&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
 <span class="w">      </span><span class="nt">&quot;serverIP&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;192.168.1.100&quot;</span><span class="p">,</span>
 <span class="w">      </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">48322</span>
@@ -658,31 +813,10 @@ CloudXR streaming client” - the headset happens to play both roles in the full
 <span class="p">}</span>
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">payload.config</span></code> may be <strong>partial</strong>; the hub shallow-merges it over the current
-<code class="docutils literal notranslate"><span class="pre">StreamConfig</span></code>. <code class="docutils literal notranslate"><span class="pre">configVersion</span></code> is always monotonically incremented by the hub.</p>
-</section>
-<section id="command-control-console-dashboard-role-only">
-<h3><code class="docutils literal notranslate"><span class="pre">command</span></code> (control console / <code class="docutils literal notranslate"><span class="pre">dashboard</span></code> role only)<a class="headerlink" href="#command-control-console-dashboard-role-only" title="Link to this heading">#</a></h3>
-<p>Sends a connect or disconnect command to a headset.</p>
-<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
-<span class="w">  </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;command&quot;</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">&quot;payload&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nt">&quot;token&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;optional&gt;&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;targetClientId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;optional uuid; omit if exactly one headset connected&gt;&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;action&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;connect&quot;</span>
-<span class="w">  </span><span class="p">}</span>
-<span class="p">}</span>
-</pre></div>
-</div>
-<p><code class="docutils literal notranslate"><span class="pre">action</span></code>: <code class="docutils literal notranslate"><span class="pre">connect</span></code> | <code class="docutils literal notranslate"><span class="pre">disconnect</span></code>.</p>
-<p>If <code class="docutils literal notranslate"><span class="pre">targetClientId</span></code> is omitted and multiple headsets are connected, the hub returns an
-<code class="docutils literal notranslate"><span class="pre">error</span></code> (code <code class="docutils literal notranslate"><span class="pre">CONFLICT</span></code>). Otherwise the command is forwarded to the headset as a
-<code class="docutils literal notranslate"><span class="pre">sessionCommand</span></code>.</p>
+<p><strong>``payload.config``</strong> may be partial; the hub <strong>shallow-merges</strong> at the top level.</p>
 </section>
 <section id="clientmetrics-headset-only">
 <h3><code class="docutils literal notranslate"><span class="pre">clientMetrics</span></code> (headset only)<a class="headerlink" href="#clientmetrics-headset-only" title="Link to this heading">#</a></h3>
-<p>The headset reports latest performance metrics. The hub stores the most-recent values per
-<code class="docutils literal notranslate"><span class="pre">cadence</span></code>.</p>
 <div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
 <span class="w">  </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;clientMetrics&quot;</span><span class="p">,</span>
 <span class="w">  </span><span class="nt">&quot;payload&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
@@ -697,17 +831,14 @@ CloudXR streaming client” - the headset happens to play both roles in the full
 <span class="p">}</span>
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">cadence</span></code>: <code class="docutils literal notranslate"><span class="pre">&quot;frame&quot;</span></code> | <code class="docutils literal notranslate"><span class="pre">&quot;render&quot;</span></code> (matches CloudXR <code class="docutils literal notranslate"><span class="pre">MetricsCadence</span></code>).
-<code class="docutils literal notranslate"><span class="pre">metrics</span></code>: string key → number value. Use the <strong>wire strings</strong> from CloudXR <code class="docutils literal notranslate"><span class="pre">MetricsName</span></code>
-(for example <code class="docutils literal notranslate"><span class="pre">streaming.framerate</span></code>, <code class="docutils literal notranslate"><span class="pre">render.framerate</span></code>, <code class="docutils literal notranslate"><span class="pre">render.pose_to_render_time</span></code>), not
-the TypeScript enum identifiers.</p>
+<p><strong>``cadence``:</strong> <strong>``frame``</strong> | <strong>``render``</strong>. <strong>``metrics``</strong> keys must use CloudXR <strong>wire</strong>
+strings (e.g. <strong>``streaming.framerate``</strong>), not TypeScript enum names.</p>
 </section>
 </section>
-<section id="messages-server-client">
-<h2>Messages: Server → Client<a class="headerlink" href="#messages-server-client" title="Link to this heading">#</a></h2>
+<section id="messages-from-the-hub-to-clients">
+<h2>Messages from the hub to clients<a class="headerlink" href="#messages-from-the-hub-to-clients" title="Link to this heading">#</a></h2>
 <section id="hello">
 <h3><code class="docutils literal notranslate"><span class="pre">hello</span></code><a class="headerlink" href="#hello" title="Link to this heading">#</a></h3>
-<p>Sent immediately after a successful <code class="docutils literal notranslate"><span class="pre">register</span></code>.</p>
 <p><strong>To headset:</strong></p>
 <div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
 <span class="w">  </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;hello&quot;</span><span class="p">,</span>
@@ -719,7 +850,7 @@ the TypeScript enum identifiers.</p>
 <span class="p">}</span>
 </pre></div>
 </div>
-<p><strong>To control console:</strong></p>
+<p><strong>To ``dashboard``:</strong></p>
 <div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
 <span class="w">  </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;hello&quot;</span><span class="p">,</span>
 <span class="w">  </span><span class="nt">&quot;payload&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
@@ -731,7 +862,7 @@ the TypeScript enum identifiers.</p>
 </section>
 <section id="config-headset-only">
 <h3><code class="docutils literal notranslate"><span class="pre">config</span></code> (headset only)<a class="headerlink" href="#config-headset-only" title="Link to this heading">#</a></h3>
-<p>Pushed whenever the hub’s <code class="docutils literal notranslate"><span class="pre">StreamConfig</span></code> changes (after <code class="docutils literal notranslate"><span class="pre">setConfig</span></code>).</p>
+<p>Sent when configuration changes (after <strong>``setConfig``</strong> or HTTP config).</p>
 <div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
 <span class="w">  </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;config&quot;</span><span class="p">,</span>
 <span class="w">  </span><span class="nt">&quot;payload&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
@@ -743,31 +874,17 @@ the TypeScript enum identifiers.</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p><strong>Headset behavior when</strong> <code class="docutils literal notranslate"><span class="pre">config</span></code> <strong>arrives during an active XR session:</strong> apply the new
-settings to in-memory state immediately; the next connection (after a disconnect) uses the
-new target. Do not tear down the existing XR session.</p>
+<p>If <strong>``config``</strong> arrives while an XR session is already running, apply new settings in memory and
+use them on the <strong>next</strong> connect after a disconnect. Do not tear down the current session
+immediately.</p>
 </div>
 </section>
-<section id="sessioncommand-headset-only">
-<h3><code class="docutils literal notranslate"><span class="pre">sessionCommand</span></code> (headset only)<a class="headerlink" href="#sessioncommand-headset-only" title="Link to this heading">#</a></h3>
-<p>Forwarded from an OOB HTTP command or a <code class="docutils literal notranslate"><span class="pre">dashboard</span></code> WebSocket <code class="docutils literal notranslate"><span class="pre">command</span></code>.</p>
-<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
-<span class="w">  </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sessionCommand&quot;</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">&quot;payload&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nt">&quot;action&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;connect&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;requestId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;optional opaque string&gt;&quot;</span>
-<span class="w">  </span><span class="p">}</span>
-<span class="p">}</span>
-</pre></div>
-</div>
-<p><code class="docutils literal notranslate"><span class="pre">action</span></code>: <code class="docutils literal notranslate"><span class="pre">connect</span></code> | <code class="docutils literal notranslate"><span class="pre">disconnect</span></code>.</p>
-</section>
-<section id="error-any-websocket-peer">
-<h3><code class="docutils literal notranslate"><span class="pre">error</span></code> (any WebSocket peer)<a class="headerlink" href="#error-any-websocket-peer" title="Link to this heading">#</a></h3>
+<section id="error">
+<h3><code class="docutils literal notranslate"><span class="pre">error</span></code><a class="headerlink" href="#error" title="Link to this heading">#</a></h3>
 <div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
 <span class="w">  </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;error&quot;</span><span class="p">,</span>
 <span class="w">  </span><span class="nt">&quot;payload&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nt">&quot;code&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;UNAUTHORIZED | BAD_REQUEST | NOT_FOUND | CONFLICT&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;code&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;UNAUTHORIZED | BAD_REQUEST | NOT_FOUND&quot;</span><span class="p">,</span>
 <span class="w">    </span><span class="nt">&quot;message&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;human readable&gt;&quot;</span><span class="p">,</span>
 <span class="w">    </span><span class="nt">&quot;requestId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;optional; echo from request&gt;&quot;</span>
 <span class="w">  </span><span class="p">}</span>
@@ -776,10 +893,9 @@ new target. Do not tear down the existing XR session.</p>
 </div>
 </section>
 </section>
-<section id="streamconfig-schema">
-<h2><code class="docutils literal notranslate"><span class="pre">StreamConfig</span></code> Schema<a class="headerlink" href="#streamconfig-schema" title="Link to this heading">#</a></h2>
-<section id="required-fields">
-<h3>Required fields<a class="headerlink" href="#required-fields" title="Link to this heading">#</a></h3>
+<section id="streamconfig-what-the-hub-stores">
+<h2><code class="docutils literal notranslate"><span class="pre">StreamConfig</span></code> (what the hub stores)<a class="headerlink" href="#streamconfig-what-the-hub-stores" title="Link to this heading">#</a></h2>
+<p><strong>Required</strong></p>
 <div class="pst-scrollable-table-container"><table class="table">
 <colgroup>
 <col style="width: 20.0%" />
@@ -789,24 +905,22 @@ new target. Do not tear down the existing XR session.</p>
 <thead>
 <tr class="row-odd"><th class="head"><p>Field</p></th>
 <th class="head"><p>Type</p></th>
-<th class="head"><p>Description</p></th>
+<th class="head"><p>Meaning</p></th>
 </tr>
 </thead>
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">serverIP</span></code></p></td>
 <td><p>string</p></td>
-<td><p>CloudXR <strong>signaling</strong> host (the streaming / session host the headset should connect to)</p></td>
+<td><p>CloudXR <strong>signaling</strong> host the headset should use</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">port</span></code></p></td>
-<td><p>number (integer)</p></td>
+<td><p>integer</p></td>
 <td><p>CloudXR signaling port</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-</section>
-<section id="optional-fields">
-<h3>Optional fields<a class="headerlink" href="#optional-fields" title="Link to this heading">#</a></h3>
+<p><strong>Optional</strong></p>
 <div class="pst-scrollable-table-container"><table class="table">
 <colgroup>
 <col style="width: 25.0%" />
@@ -816,37 +930,33 @@ new target. Do not tear down the existing XR session.</p>
 <thead>
 <tr class="row-odd"><th class="head"><p>Field</p></th>
 <th class="head"><p>Type</p></th>
-<th class="head"><p>Description</p></th>
+<th class="head"><p>Meaning</p></th>
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">useSecureConnection</span></code></p></td>
-<td><p>boolean</p></td>
-<td><p>Use WSS / secure signaling</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">proxyUrl</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">proxyUrl</span></code></p></td>
 <td><p>string | null</p></td>
-<td><p>Proxy URL for signaling</p></td>
+<td><p>Signaling proxy URL</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">mediaAddress</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">mediaAddress</span></code></p></td>
 <td><p>string</p></td>
 <td><p>Media server address</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">mediaPort</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">mediaPort</span></code></p></td>
 <td><p>number</p></td>
 <td><p>Media server port</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p>The hub stores one merged <code class="docutils literal notranslate"><span class="pre">StreamConfig</span></code> plus a <code class="docutils literal notranslate"><span class="pre">configVersion</span></code> counter. <code class="docutils literal notranslate"><span class="pre">setConfig</span></code>
-shallow-merges (top-level keys only). The headset applies the hub config to its CloudXR
-connection settings before executing <code class="docutils literal notranslate"><span class="pre">sessionCommand.connect</span></code>.</p>
+<p>Do <strong>not</strong> rely on toggling “insecure” signaling for this product path: operators should assume
+<strong>``https://``</strong> / <strong>``wss://``</strong> only. The hub and bookmark flow do not document or support turning
+off TLS for CloudXR signaling here.</p>
+<p>The hub keeps one merged config and a monotonic <strong>``configVersion``</strong>. The headset applies this
+config before the user starts streaming from the WebXR <strong>CONNECT</strong> control.</p>
 </section>
-</section>
-<section id="http-snapshot">
-<h2>HTTP Snapshot<a class="headerlink" href="#http-snapshot" title="Link to this heading">#</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/api/oob/v1/state</span></code> returns the following JSON:</p>
+<section id="get-api-oob-v1-state-response-shape">
+<h2><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/api/oob/v1/state</span></code> response shape<a class="headerlink" href="#get-api-oob-v1-state-response-shape" title="Link to this heading">#</a></h2>
 <div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
 <span class="w">  </span><span class="nt">&quot;updatedAt&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1730000000000</span><span class="p">,</span>
 <span class="w">  </span><span class="nt">&quot;configVersion&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
@@ -873,18 +983,16 @@ connection settings before executing <code class="docutils literal notranslate">
 <span class="p">}</span>
 </pre></div>
 </div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>No <code class="docutils literal notranslate"><span class="pre">logs</span></code> or <code class="docutils literal notranslate"><span class="pre">recentLogs</span></code> fields in v1.</p>
-<p>The <code class="docutils literal notranslate"><span class="pre">dashboards</span></code> array lists optional <strong>dashboard</strong> WebSocket peers (register payload
-<code class="docutils literal notranslate"><span class="pre">role:</span> <span class="pre">&quot;dashboard&quot;</span></code>). The JSON key is historical.</p>
-</div>
+<p><strong>Metrics:</strong> the hub stores the latest <strong>``clientMetrics``</strong> per cadence per headset and does <strong>not</strong>
+push them to <strong>``dashboard``</strong> clients—poll this endpoint. <strong>``updatedAt``</strong> is when the snapshot was
+built; use <strong>``metricsByCadence`` … ``at``</strong> for sample time.</p>
+<p>There is <strong>no</strong> <strong>``logs``</strong> field in v1. <strong>``dashboards``</strong> lists WebSocket clients that registered
+with <strong>``role: “dashboard”``</strong>.</p>
 </section>
-<section id="headset-query-parameters">
-<h2>Headset Query Parameters<a class="headerlink" href="#headset-query-parameters" title="Link to this heading">#</a></h2>
-<p>The WebXR client reads these from the <strong>page URL</strong> when the app loads (standard query string on the
-same HTTPS origin that serves <code class="docutils literal notranslate"><span class="pre">webxr_client</span></code>). They are not entered in a separate form inside the
-app unless you add one; the usual approach is to open a single long URL in the headset browser.</p>
+<section id="webxr-page-url-query-parameters">
+<span id="teleop-headset-control-url"></span><h2>WebXR page URL query parameters<a class="headerlink" href="#webxr-page-url-query-parameters" title="Link to this heading">#</a></h2>
+<p>The web client reads these from the <strong>page URL</strong> when it loads (build one long URL; users open it on
+the headset). Defaults, env vars, and hub precedence: <a class="reference internal" href="#teleop-stream-defaults"><span class="std std-ref">Stream settings: defaults and how to change them</span></a>.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <colgroup>
 <col style="width: 25.0%" />
@@ -892,131 +1000,121 @@ app unless you add one; the usual approach is to open a single long URL in the h
 </colgroup>
 <thead>
 <tr class="row-odd"><th class="head"><p>Parameter</p></th>
-<th class="head"><p>Description</p></th>
+<th class="head"><p>Purpose</p></th>
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">controlWsUrl</span></code></p></td>
-<td><p>Override hub WebSocket URL. If absent, the client uses <code class="docutils literal notranslate"><span class="pre">wss://{location.host}/oob/v1/ws</span></code>
-(colocated hub on the same host as the WebXR page).</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">oobEnable</span></code></p></td>
+<td><p>If <strong>``1``</strong> or <strong>``true``</strong>, open the OOB WebSocket at
+<strong>``wss://{serverIP}:{port}/oob/v1/ws``</strong> using the <strong>``serverIP``</strong> and <strong>``port``</strong> query
+parameters (same as streaming). <strong>``–setup-oob``</strong> bookmarks set this automatically. If
+<strong>``oobEnable``</strong> is off, or <strong>``serverIP``</strong> / <strong>``port``</strong> are missing or invalid, the client
+does <strong>not</strong> connect to OOB.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">controlToken</span></code></p></td>
-<td><p>Token sent in the <code class="docutils literal notranslate"><span class="pre">register</span></code> message. Must match the <code class="docutils literal notranslate"><span class="pre">CONTROL_TOKEN</span></code>
-environment variable if set on the server.</p></td>
+<td><p>Sent in <strong>``register``</strong>; must match <strong>``CONTROL_TOKEN``</strong> on the server when set.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">serverIP</span></code>, <code class="docutils literal notranslate"><span class="pre">port</span></code>, <code class="docutils literal notranslate"><span class="pre">proxyUrl</span></code>, <code class="docutils literal notranslate"><span class="pre">mediaAddress</span></code>, <code class="docutils literal notranslate"><span class="pre">mediaPort</span></code></p></td>
-<td><p>Seed <code class="docutils literal notranslate"><span class="pre">StreamConfig</span></code> on load. Hub <code class="docutils literal notranslate"><span class="pre">hello</span></code> / <code class="docutils literal notranslate"><span class="pre">config</span></code> messages still <strong>override</strong> when
-<code class="docutils literal notranslate"><span class="pre">configVersion</span></code> increases.</p></td>
+<td><p>Seed streaming target fields at load. Hub <strong>``hello``</strong> / <strong>``config``</strong> still <strong>override</strong> when
+<strong>``configVersion``</strong> increases.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">autoConnect</span></code></p></td>
-<td><p>If <code class="docutils literal notranslate"><span class="pre">1</span></code> or <code class="docutils literal notranslate"><span class="pre">true</span></code>, attempt XR connect once after the first hub <code class="docutils literal notranslate"><span class="pre">config</span></code> / <code class="docutils literal notranslate"><span class="pre">hello</span></code>
-(may still require a prior user gesture; see <a class="reference internal" href="#teleop-user-activation"><span class="std std-ref">User Activation</span></a>).</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">panelHiddenAtStart</span></code>, <code class="docutils literal notranslate"><span class="pre">codec</span></code>, <code class="docutils literal notranslate"><span class="pre">perEyeWidth</span></code>, <code class="docutils literal notranslate"><span class="pre">perEyeHeight</span></code></p></td>
+<td><p>Optional allowlisted <strong>client UI</strong> seeds (same semantics as <a class="reference internal" href="#teleop-stream-defaults"><span class="std std-ref">Stream settings: defaults and how to change them</span></a>).
+<strong>``panelHiddenAtStart``</strong>: <strong>``true``</strong> / <strong>``false``</strong> or <strong>``1``</strong> / <strong>``0``</strong>.</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<section id="getting-controlwsurl-onto-the-headset-avoid-typing">
-<span id="teleop-headset-control-url"></span><h3>Getting <code class="docutils literal notranslate"><span class="pre">controlWsUrl</span></code> onto the headset (avoid typing)<a class="headerlink" href="#getting-controlwsurl-onto-the-headset-avoid-typing" title="Link to this heading">#</a></h3>
-<p>Typing a long <code class="docutils literal notranslate"><span class="pre">wss://…</span></code> URL in a XR keyboard is error-prone. Prefer <strong>copy–paste</strong> or a <strong>link</strong>
-opened directly on the device.</p>
-<p><strong>``–setup-oob local`` (USB)</strong></p>
-<p>The headset is <strong>USB-connected</strong> to the PC. Serve WebXR at <strong>``https://127.0.0.1:8080/``</strong> (see
-<code class="docutils literal notranslate"><span class="pre">DEFAULT_COLLOCATED_WEBXR_ORIGIN</span></code> in <code class="docutils literal notranslate"><span class="pre">wss.py</span></code>). <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">reverse</span></code> maps proxy, stream, and dev-server
-ports; <code class="docutils literal notranslate"><span class="pre">controlWsUrl=wss://127.0.0.1:…</span></code> uses the same tunnel.</p>
-<p><strong>``–setup-oob HOST:PORT`` (wireless adb + LAN)</strong></p>
-<p>Run <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">connect</span> <span class="pre">HOST:PORT</span></code>, then <code class="docutils literal notranslate"><span class="pre">am</span> <span class="pre">start</span></code> with <strong>``https://&lt;PC-LAN&gt;:8080/``</strong> and
-<code class="docutils literal notranslate"><span class="pre">wss://&lt;PC-LAN&gt;:&lt;PROXY_PORT&gt;/…</span></code>. Set <code class="docutils literal notranslate"><span class="pre">TELEOP_PROXY_HOST</span></code> if the PC’s LAN IP is not guessed correctly.</p>
-<p><strong>1. Default path:</strong> see <a class="reference internal" href="#teleop-simple-chrome-inspect"><span class="std std-ref">Headset flow (Chrome inspect + CONNECT)</span></a> (headset URL, Chrome inspect, <strong>CONNECT</strong>).</p>
-<p><strong>2. Headset URL from the server log</strong></p>
-<p>With <code class="docutils literal notranslate"><span class="pre">--setup-oob</span> <span class="pre">local</span></code> or <code class="docutils literal notranslate"><span class="pre">--setup-oob</span> <span class="pre">HOST:PORT</span></code>, <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr</span></code> prints <strong>headset URL</strong> lines.</p>
-<p><strong>3. ``–setup-oob`` argument</strong></p>
-<p>After the TLS listener and OOB hub are up: <strong>``local``</strong> — <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">reverse</span></code> (proxy, stream, <strong>8080</strong>) + <code class="docutils literal notranslate"><span class="pre">am</span> <span class="pre">start</span></code>;
-<strong>``HOST:PORT``</strong> — <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">connect</span></code> + <code class="docutils literal notranslate"><span class="pre">am</span> <span class="pre">start</span></code> without reverse for WebXR/WSS. If adb or <code class="docutils literal notranslate"><span class="pre">am</span> <span class="pre">start</span></code> fails,
-the process <strong>exits</strong>. Use exactly one device in <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">devices</span></code> (multiple devices are rejected at startup). Shutdown
-removes reverse mappings <strong>only</strong> for the <code class="docutils literal notranslate"><span class="pre">local</span></code> path.</p>
-<p><strong>4. Or build the URL in Python</strong></p>
-<p><code class="docutils literal notranslate"><span class="pre">isaacteleop.cloudxr.wss.build_headset_bookmark_url</span></code> matches the log line if you script <code class="docutils literal notranslate"><span class="pre">adb</span></code> yourself.</p>
-<p><strong>5. Move the URL from PC to headset without retyping</strong></p>
-<p>Use whichever option your headset browser and IT policy allow:</p>
+<section id="getting-the-link-onto-the-headset-without-typing">
+<h3>Getting the link onto the headset without typing<a class="headerlink" href="#getting-the-link-onto-the-headset-without-typing" title="Link to this heading">#</a></h3>
 <ul class="simple">
-<li><p><strong>Send the full URL</strong> to yourself (email, chat, notes) and <strong>open the link</strong> in the headset
-browser.</p></li>
-<li><p><strong>ADB (Android-based headsets, dev kits):</strong> with USB debugging enabled, from the PC run
-<code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">shell</span> <span class="pre">am</span> <span class="pre">start</span> <span class="pre">-a</span> <span class="pre">android.intent.action.VIEW</span> <span class="pre">-d</span> <span class="pre">'&lt;full-https-url&gt;'</span></code> so the system browser
-opens that URL on the device. Use a single pair of quotes around the entire URL (query strings
-often contain <code class="docutils literal notranslate"><span class="pre">&amp;</span></code>). Typical for Meta Quest and other Android XR builds when sideloading or
-iterating without typing in-headset.</p></li>
-</ul>
-<p><strong>6. User activation</strong></p>
-<p>The <a class="reference internal" href="#teleop-simple-chrome-inspect"><span class="std std-ref">Headset flow (Chrome inspect + CONNECT)</span></a> <strong>CONNECT</strong> click is the usual gesture. Alternatively follow
-<a class="reference internal" href="#teleop-user-activation"><span class="std std-ref">User Activation</span></a> (in-headset tap, then OOB <code class="docutils literal notranslate"><span class="pre">command</span></code> if you automate connect from the control side).</p>
-</section>
-</section>
-<section id="user-activation">
-<span id="teleop-user-activation"></span><h2>User Activation<a class="headerlink" href="#user-activation" title="Link to this heading">#</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">navigator.xr.requestSession()</span></code> requires a <strong>user gesture</strong> on most devices.</p>
-<p><strong>Typical dev flow:</strong> open the page on the headset, then in Chrome <strong>remote inspect</strong> click <strong>CONNECT</strong> on
-the Teleop UI (same effect as tapping <strong>CONNECT</strong> on the device).</p>
-<p><strong>Alternative:</strong> operator sends <code class="docutils literal notranslate"><span class="pre">connect</span></code> via <code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/api/oob/v1/command?action=connect</span></code> (or WebSocket
-<code class="docutils literal notranslate"><span class="pre">dashboard</span></code> <code class="docutils literal notranslate"><span class="pre">command</span></code>) <strong>after</strong> a prior gesture satisfied activation (e.g. first <strong>CONNECT</strong> in a session).</p>
-<p>After the first session, subsequent <code class="docutils literal notranslate"><span class="pre">connect</span></code> / <code class="docutils literal notranslate"><span class="pre">disconnect</span></code> commands often work without further
-headset interaction.</p>
-</section>
-<section id="trust-model">
-<h2>Trust Model<a class="headerlink" href="#trust-model" title="Link to this heading">#</a></h2>
-<p>The hub controls <strong>which CloudXR streaming endpoint</strong> (host/port) the headset uses for the streaming
-session. Protect accordingly:</p>
-<ul class="simple">
-<li><p>Use <code class="docutils literal notranslate"><span class="pre">CONTROL_TOKEN</span></code> on production deployments.</p></li>
-<li><p>Restrict network access to trusted machines (VPN, LAN).</p></li>
-<li><p>TLS is always enforced (same certificates as the CloudXR WSS proxy).</p></li>
+<li><p>Copy the <strong>bookmark line</strong> from the terminal or build the same string with
+<strong>``isaacteleop.cloudxr.wss.build_headset_bookmark_url``</strong> in Python if you script adb yourself.</p></li>
+<li><p><strong>``–setup-oob``</strong> runs <strong>``adb shell am start -a android.intent.action.VIEW -d ‘&lt;url&gt;’``</strong> for you;
+quote the whole URL because <strong>``&amp;``</strong> appears in query strings.</p></li>
+<li><p>Or email/chat the link to yourself and open it in the headset browser.</p></li>
 </ul>
 </section>
-<section id="local-testing-hub-wss-without-starting-the-runtime">
-<span id="teleop-wss-only-testing"></span><h2>Local testing (hub + WSS without starting the runtime)<a class="headerlink" href="#local-testing-hub-wss-without-starting-the-runtime" title="Link to this heading">#</a></h2>
-<p><strong>Hub unit tests</strong> (no CloudXR runtime, no WSS — only <code class="docutils literal notranslate"><span class="pre">pytest</span></code>):</p>
+</section>
+<section id="webxr-user-activation-why-connect-matters">
+<span id="teleop-user-activation"></span><h2>WebXR user activation (why CONNECT matters)<a class="headerlink" href="#webxr-user-activation-why-connect-matters" title="Link to this heading">#</a></h2>
+<p><strong>``navigator.xr.requestSession()``</strong> usually needs a <strong>user gesture</strong>. The practical approach: use
+Chromium <strong>remote inspect</strong> and click <strong>CONNECT</strong> on the Teleop UI (same as tapping CONNECT on the
+device).</p>
+<p><strong>Disconnect from the PC:</strong> With the Teleop tab still open in DevTools, <strong>reload</strong> the page—click the
+<strong>URL</strong> in the inspector address bar and press <strong>Enter</strong> (or use refresh). That ends the session
+without using the headset.</p>
+<p>After the first successful gesture, later <strong>connect</strong> / <strong>disconnect</strong> cycles often work with less
+interaction.</p>
+</section>
+<section id="security">
+<h2>Security<a class="headerlink" href="#security" title="Link to this heading">#</a></h2>
+<p>The hub decides <strong>which streaming endpoint</strong> the headset uses. Treat the proxy port and token like
+admin access: use <strong>``CONTROL_TOKEN``</strong> in real deployments, keep traffic on trusted networks or VPNs,
+and remember TLS uses the same certificates as the CloudXR proxy.</p>
+</section>
+<section id="local-testing-without-the-cloudxr-runtime">
+<span id="teleop-wss-only-testing"></span><h2>Local testing without the CloudXR runtime<a class="headerlink" href="#local-testing-without-the-cloudxr-runtime" title="Link to this heading">#</a></h2>
+<p><strong>Unit tests</strong> (hub logic only):</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cd</span> <span class="n">src</span><span class="o">/</span><span class="n">core</span><span class="o">/</span><span class="n">cloudxr_tests</span><span class="o">/</span><span class="n">python</span>
 <span class="n">pip</span> <span class="n">install</span> <span class="o">-</span><span class="n">e</span> <span class="s2">&quot;.[test]&quot;</span>
 <span class="n">pytest</span> <span class="o">-</span><span class="n">q</span>
 </pre></div>
 </div>
-<p><strong>Hub + OOB HTTP</strong> without the runtime: pass <strong>both</strong> <code class="docutils literal notranslate"><span class="pre">--wss-only</span></code> (no CloudXR process) and
-<code class="docutils literal notranslate"><span class="pre">--setup-oob</span> <span class="pre">local</span></code> (or <code class="docutils literal notranslate"><span class="pre">HOST:PORT</span></code>):</p>
+<p><strong>Proxy + hub + adb</strong> (no CloudXR process):</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">python</span> <span class="o">-</span><span class="n">m</span> <span class="n">isaacteleop</span><span class="o">.</span><span class="n">cloudxr</span> <span class="o">--</span><span class="n">wss</span><span class="o">-</span><span class="n">only</span> <span class="o">--</span><span class="n">setup</span><span class="o">-</span><span class="n">oob</span> <span class="n">local</span> <span class="o">--</span><span class="n">accept</span><span class="o">-</span><span class="n">eula</span>
 </pre></div>
 </div>
-<p>Install <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> from your build wheel, <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-e</span></code> from the Python package layout, or
-set <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code> to <code class="docutils literal notranslate"><span class="pre">build/python_package/&lt;Config&gt;</span></code> (after CMake has copied the <code class="docutils literal notranslate"><span class="pre">cloudxr</span></code> tree)
-so you can iterate on <code class="docutils literal notranslate"><span class="pre">wss.py</span></code> / <code class="docutils literal notranslate"><span class="pre">oob_teleop_hub.py</span></code>. WSS logs go to stderr.
-Optional: <code class="docutils literal notranslate"><span class="pre">CONTROL_TOKEN</span></code> env var.
-Non-teleop WebSocket paths still try to proxy to the runtime backend, which is not running in this
-mode—use teleop URLs only, or run the full stack without <code class="docutils literal notranslate"><span class="pre">--wss-only</span></code>.</p>
-<p>Verify the hub with <code class="docutils literal notranslate"><span class="pre">curl</span></code> (accept self-signed TLS with <code class="docutils literal notranslate"><span class="pre">-k</span></code>):</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">curl</span> <span class="o">-</span><span class="n">k</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="mf">127.0.0.1</span><span class="p">:</span><span class="mi">48322</span><span class="o">/</span><span class="n">api</span><span class="o">/</span><span class="n">oob</span><span class="o">/</span><span class="n">v1</span><span class="o">/</span><span class="n">state</span>
+<p>Install <strong>``isaacteleop``</strong> from your wheel, editable install, or point <strong>``PYTHONPATH``</strong> at your CMake
+<strong>``build/python_package/&lt;Config&gt;``</strong> output. Logs go to stderr. Other WebSocket paths still expect a
+runtime on localhost—stick to teleop URLs in this mode, or drop <strong>``–wss-only``</strong>.</p>
+<p>Check the hub:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>-k<span class="w"> </span>https://127.0.0.1:48322/api/oob/v1/state
 </pre></div>
 </div>
-<p><strong>Do not</strong> use the editor’s embedded browser / Simple Browser for odd localhost errors—use a normal
-browser or <code class="docutils literal notranslate"><span class="pre">curl</span></code> if you hit unrelated <strong>RPC / “stateful work request”</strong> messages from tooling.</p>
-<p>If the same RPC message appears in <strong>Chrome</strong> anyway, the WSS proxy process still does not emit it (no
-gRPC client to the runtime). Typical causes on a full browser:</p>
-<ul class="simple">
-<li><p>A <strong>Chrome extension</strong> (corporate security, VPN, devtools helpers, vendor tooling) intercepting
-<code class="docutils literal notranslate"><span class="pre">https://127.0.0.1</span></code> or TLS. Try <strong>Incognito</strong> with extensions disabled, or a <strong>fresh browser
-profile</strong>, and check <strong>DevTools → Console</strong>: if the stack trace points at
-<code class="docutils literal notranslate"><span class="pre">chrome-extension://…</span></code>, disable that extension.</p></li>
-<li><p><strong>Managed / enterprise Chrome</strong> or <strong>local security agents</strong> that MITM or classify localhost
-traffic.</p></li>
-</ul>
+<p>If <strong>``curl``</strong> works but a browser shows strange <strong>RPC</strong> or <strong>“stateful work request”</strong> messages, try a
+normal browser window, <strong>Incognito</strong> (extensions off), or another profile—corporate extensions and
+local security tools sometimes intercept <strong>``https://127.0.0.1``</strong>. The proxy does not speak gRPC to
+the runtime in <strong>``–wss-only``</strong> mode; odd messages usually come from the browser environment.</p>
 </section>
-<section id="implementation-reference">
-<h2>Implementation Reference<a class="headerlink" href="#implementation-reference" title="Link to this heading">#</a></h2>
+<section id="for-integrators-architecture-metrics-code">
+<span id="teleop-oob-integrators"></span><h2>For integrators (architecture, metrics, code)<a class="headerlink" href="#for-integrators-architecture-metrics-code" title="Link to this heading">#</a></h2>
+<p>This section is for <strong>automation</strong>, <strong>internal tools</strong>, and <strong>engineers</strong> changing the web client or hub.
+Operators can skip it.</p>
+<p><strong>Architecture (control plane)</strong></p>
+<ul class="simple">
+<li><p>The <strong>TLS proxy</strong> on the streaming host listens on <strong>``PROXY_PORT``</strong> (default <strong>48322</strong>). It terminates
+<strong>HTTPS</strong> and <strong>WSS</strong> for CloudXR signaling and, when <strong>``–setup-oob``</strong> is used, hosts the <strong>hub</strong> on
+<strong>``/oob/v1/ws``</strong> and OOB <strong>HTTPS</strong> under <strong>``/api/oob/v1/…``</strong>.</p></li>
+<li><p>The <strong>headset</strong> loads the WebXR page, opens <strong>``wss://…/oob/v1/ws``</strong> when <strong>``oobEnable``</strong> is set, and
+receives <strong>``hello``</strong> / <strong>``config``</strong> with the merged <strong>``StreamConfig``</strong>. Media and poses still use
+the normal streaming path—not OOB.</p></li>
+<li><p><strong>Operator / dashboard</strong> clients may <strong>GET</strong> <strong>``/api/oob/v1/state``</strong> and <strong>``/api/oob/v1/config``</strong>
+or connect as WebSocket <strong>``dashboard``</strong> and send <strong>``setConfig``</strong>. Protocol details:
+<a class="reference internal" href="#teleop-http-api-oob"><span class="std std-ref">HTTP API (operator and automation)</span></a> and the <strong>WebSocket</strong> message sections earlier in this page.</p></li>
+</ul>
+<p><strong>Metrics</strong></p>
+<ul class="simple">
+<li><p>Headsets may send <strong>``clientMetrics``</strong> over the OOB WebSocket (see the <strong>``clientMetrics``</strong> message
+shape above). The hub keeps the latest sample per <strong>cadence</strong> per headset.</p></li>
+<li><p>Integrators read metrics from <strong>``GET /api/oob/v1/state``</strong>: each headset entry includes
+<strong>``metricsByCadence``</strong> with timestamps—there is <strong>no</strong> push to <strong>``dashboard``</strong> clients; <strong>poll</strong>
+<strong>``/api/oob/v1/state``</strong> on an interval that fits your tooling.</p></li>
+</ul>
+<p><strong>Extending hub-driven UI fields</strong></p>
+<p>A free-form “set any form field by id” API is brittle (typos, internal ids changing, <strong>``&lt;select&gt;``</strong>
+option sets, security if the page ever mixed admin and user content). The supported pattern is: add the
+<strong>HTML id</strong> and hub key name (usually the same string), extend <strong>``_stream_config_from_query``</strong> /
+bookmark encoding in <strong>``wss.py``</strong>, extend <strong>``streamConfigFromUrlSearchParams``</strong> in <strong>``App.tsx``</strong>,
+and add coercion in <strong>``CloudXR2DUI``</strong> (see <strong>``HUB_CLIENT_UI_FIELDS``</strong> in <strong>``CloudXR2DUI.tsx``</strong>).</p>
+<p><strong>Source files</strong></p>
 <div class="pst-scrollable-table-container"><table class="table">
 <colgroup>
 <col style="width: 30.0%" />
 <col style="width: 70.0%" />
 </colgroup>
 <thead>
-<tr class="row-odd"><th class="head"><p>Component</p></th>
+<tr class="row-odd"><th class="head"><p>Area</p></th>
 <th class="head"><p>Location</p></th>
 </tr>
 </thead>
@@ -1024,22 +1122,16 @@ traffic.</p></li>
 <tr class="row-even"><td><p>Hub logic</p></td>
 <td><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/cloudxr/python/oob_teleop_hub.py" rel="noopener noreferrer" target="_blank">oob_teleop_hub.py</a></p></td>
 </tr>
-<tr class="row-odd"><td><p>WSS proxy integration</p></td>
+<tr class="row-odd"><td><p>TLS proxy, HTTP, adb, bookmark URL</p></td>
 <td><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/cloudxr/python/wss.py" rel="noopener noreferrer" target="_blank">wss.py</a></p></td>
 </tr>
-<tr class="row-even"><td><p>CLI entry point (orthogonal <code class="docutils literal notranslate"><span class="pre">--wss-only</span></code> and <code class="docutils literal notranslate"><span class="pre">--setup-oob</span></code>)</p></td>
+<tr class="row-even"><td><p>CLI (<strong>``–wss-only``</strong>, <strong>``–setup-oob``</strong>, <strong>``OobAdbError``</strong> → exit 1)</p></td>
 <td><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/cloudxr/python/__main__.py" rel="noopener noreferrer" target="_blank">__main__.py</a></p></td>
 </tr>
-<tr class="row-odd"><td><p>ADB automation (after listen)</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">AdbAutomation</span></code> / <code class="docutils literal notranslate"><span class="pre">run_adb_headset_bookmark</span></code> in <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/cloudxr/python/wss.py" rel="noopener noreferrer" target="_blank">wss.py</a></p></td>
-</tr>
-<tr class="row-even"><td><p>Headset bookmark builder</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">build_headset_bookmark_url</span></code> in <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/cloudxr/python/wss.py" rel="noopener noreferrer" target="_blank">wss.py</a></p></td>
-</tr>
-<tr class="row-odd"><td><p>Headset bridge (TypeScript)</p></td>
+<tr class="row-odd"><td><p>Headset control channel (TypeScript)</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">deps/cloudxr/webxr_client/helpers/controlChannel.ts</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p>Headset wiring (React)</p></td>
+<tr class="row-even"><td><p>Headset UI wiring (React)</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">deps/cloudxr/webxr_client/src/App.tsx</span></code></p></td>
 </tr>
 </tbody>
@@ -1097,43 +1189,39 @@ traffic.</p></li>
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#who-runs-what">Who runs what</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#terminology-overloaded-words">Terminology (overloaded words)</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#enabling-the-hub">Enabling the Hub</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#headset-flow-chrome-inspect-connect">Headset flow (Chrome inspect + CONNECT)</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#http-routes-oob">HTTP Routes (OOB)</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#websocket-endpoint">WebSocket Endpoint</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#message-envelope">Message Envelope</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#who-is-involved">Who is involved</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#end-to-end-workflow-the-usual-path">End-to-end workflow (the usual path)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#choosing-setup-oob-and-when-the-hub-is-on">Choosing <code class="docutils literal notranslate"><span class="pre">--setup-oob</span></code> and when the hub is on</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#stream-settings-defaults-and-how-to-change-them">Stream settings: defaults and how to change them</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#remote-inspect-and-connect-quick-reference">Remote inspect and CONNECT (quick reference)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#words-that-mean-more-than-one-thing">Words that mean more than one thing</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#http-api-operator-and-automation">HTTP API (operator and automation)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#websocket-endpoint">WebSocket endpoint</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#message-envelope">Message envelope</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#messages-client-server">Messages: Client → Server</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#register"><code class="docutils literal notranslate"><span class="pre">register</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#setconfig-control-console-dashboard-role-only"><code class="docutils literal notranslate"><span class="pre">setConfig</span></code> (control console / <code class="docutils literal notranslate"><span class="pre">dashboard</span></code> role only)</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#command-control-console-dashboard-role-only"><code class="docutils literal notranslate"><span class="pre">command</span></code> (control console / <code class="docutils literal notranslate"><span class="pre">dashboard</span></code> role only)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#messages-from-clients-to-the-hub">Messages from clients to the hub</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#register-send-first"><code class="docutils literal notranslate"><span class="pre">register</span></code> (send first)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#setconfig-dashboard-only"><code class="docutils literal notranslate"><span class="pre">setConfig</span></code> (<code class="docutils literal notranslate"><span class="pre">dashboard</span></code> only)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#clientmetrics-headset-only"><code class="docutils literal notranslate"><span class="pre">clientMetrics</span></code> (headset only)</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#messages-server-client">Messages: Server → Client</a><ul class="nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#messages-from-the-hub-to-clients">Messages from the hub to clients</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#hello"><code class="docutils literal notranslate"><span class="pre">hello</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#config-headset-only"><code class="docutils literal notranslate"><span class="pre">config</span></code> (headset only)</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#sessioncommand-headset-only"><code class="docutils literal notranslate"><span class="pre">sessionCommand</span></code> (headset only)</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#error-any-websocket-peer"><code class="docutils literal notranslate"><span class="pre">error</span></code> (any WebSocket peer)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#error"><code class="docutils literal notranslate"><span class="pre">error</span></code></a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#streamconfig-schema"><code class="docutils literal notranslate"><span class="pre">StreamConfig</span></code> Schema</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#required-fields">Required fields</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#optional-fields">Optional fields</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#streamconfig-what-the-hub-stores"><code class="docutils literal notranslate"><span class="pre">StreamConfig</span></code> (what the hub stores)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#get-api-oob-v1-state-response-shape"><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/api/oob/v1/state</span></code> response shape</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#webxr-page-url-query-parameters">WebXR page URL query parameters</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#getting-the-link-onto-the-headset-without-typing">Getting the link onto the headset without typing</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#http-snapshot">HTTP Snapshot</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#headset-query-parameters">Headset Query Parameters</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#getting-controlwsurl-onto-the-headset-avoid-typing">Getting <code class="docutils literal notranslate"><span class="pre">controlWsUrl</span></code> onto the headset (avoid typing)</a></li>
-</ul>
-</li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#user-activation">User Activation</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#trust-model">Trust Model</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#local-testing-hub-wss-without-starting-the-runtime">Local testing (hub + WSS without starting the runtime)</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#implementation-reference">Implementation Reference</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#webxr-user-activation-why-connect-matters">WebXR user activation (why CONNECT matters)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#security">Security</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#local-testing-without-the-cloudxr-runtime">Local testing without the CloudXR runtime</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#for-integrators-architecture-metrics-code">For integrators (architecture, metrics, code)</a></li>
 </ul>
   </nav></div>
 
