@@ -980,21 +980,14 @@ session. Protect accordingly:</p>
 <span class="n">pytest</span> <span class="o">-</span><span class="n">q</span>
 </pre></div>
 </div>
-<p><strong>WSS + OOB from source (no ``isaacteleop`` wheel / compile)</strong> — for quick iteration on
-<code class="docutils literal notranslate"><span class="pre">wss.py</span></code> / <code class="docutils literal notranslate"><span class="pre">oob_teleop_hub.py</span></code>:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cd</span> <span class="n">src</span><span class="o">/</span><span class="n">core</span><span class="o">/</span><span class="n">cloudxr</span><span class="o">/</span><span class="n">python</span>
-<span class="n">pip</span> <span class="n">install</span> <span class="s1">&#39;websockets&gt;=14&#39;</span>
-<span class="n">python</span> <span class="n">run_wss_oob_dev</span><span class="o">.</span><span class="n">py</span> <span class="o">--</span><span class="n">accept</span><span class="o">-</span><span class="n">eula</span> <span class="o">--</span><span class="n">setup</span><span class="o">-</span><span class="n">oob</span> <span class="n">local</span>
-</pre></div>
-</div>
-<p>This bootstraps the <code class="docutils literal notranslate"><span class="pre">isaacteleop.cloudxr</span></code> modules from the checkout; it does <strong>not</strong> replace
-<code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr</span></code> for production (that still expects an installed package).</p>
 <p><strong>Hub + OOB HTTP</strong> without the runtime: pass <strong>both</strong> <code class="docutils literal notranslate"><span class="pre">--wss-only</span></code> (no CloudXR process) and
 <code class="docutils literal notranslate"><span class="pre">--setup-oob</span> <span class="pre">local</span></code> (or <code class="docutils literal notranslate"><span class="pre">HOST:PORT</span></code>):</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">python</span> <span class="o">-</span><span class="n">m</span> <span class="n">isaacteleop</span><span class="o">.</span><span class="n">cloudxr</span> <span class="o">--</span><span class="n">wss</span><span class="o">-</span><span class="n">only</span> <span class="o">--</span><span class="n">setup</span><span class="o">-</span><span class="n">oob</span> <span class="n">local</span> <span class="o">--</span><span class="n">accept</span><span class="o">-</span><span class="n">eula</span>
 </pre></div>
 </div>
-<p>(Install <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> from your build or <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-e</span></code> as usual.) WSS logs go to stderr.
+<p>Install <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> from your build wheel, <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-e</span></code> from the Python package layout, or
+set <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code> to <code class="docutils literal notranslate"><span class="pre">build/python_package/&lt;Config&gt;</span></code> (after CMake has copied the <code class="docutils literal notranslate"><span class="pre">cloudxr</span></code> tree)
+so you can iterate on <code class="docutils literal notranslate"><span class="pre">wss.py</span></code> / <code class="docutils literal notranslate"><span class="pre">oob_teleop_hub.py</span></code>. WSS logs go to stderr.
 Optional: <code class="docutils literal notranslate"><span class="pre">CONTROL_TOKEN</span></code> env var.
 Non-teleop WebSocket paths still try to proxy to the runtime backend, which is not running in this
 mode—use teleop URLs only, or run the full stack without <code class="docutils literal notranslate"><span class="pre">--wss-only</span></code>.</p>
@@ -1034,22 +1027,19 @@ traffic.</p></li>
 <tr class="row-odd"><td><p>WSS proxy integration</p></td>
 <td><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/cloudxr/python/wss.py" rel="noopener noreferrer" target="_blank">wss.py</a></p></td>
 </tr>
-<tr class="row-even"><td><p>WSS + OOB from source (no package install)</p></td>
-<td><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/cloudxr/python/run_wss_oob_dev.py" rel="noopener noreferrer" target="_blank">run_wss_oob_dev.py</a></p></td>
-</tr>
-<tr class="row-odd"><td><p>CLI entry point (orthogonal <code class="docutils literal notranslate"><span class="pre">--wss-only</span></code> and <code class="docutils literal notranslate"><span class="pre">--setup-oob</span></code>)</p></td>
+<tr class="row-even"><td><p>CLI entry point (orthogonal <code class="docutils literal notranslate"><span class="pre">--wss-only</span></code> and <code class="docutils literal notranslate"><span class="pre">--setup-oob</span></code>)</p></td>
 <td><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/cloudxr/python/__main__.py" rel="noopener noreferrer" target="_blank">__main__.py</a></p></td>
 </tr>
-<tr class="row-even"><td><p>ADB automation (after listen)</p></td>
+<tr class="row-odd"><td><p>ADB automation (after listen)</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">AdbAutomation</span></code> / <code class="docutils literal notranslate"><span class="pre">run_adb_headset_bookmark</span></code> in <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/cloudxr/python/wss.py" rel="noopener noreferrer" target="_blank">wss.py</a></p></td>
 </tr>
-<tr class="row-odd"><td><p>Headset bookmark builder</p></td>
+<tr class="row-even"><td><p>Headset bookmark builder</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">build_headset_bookmark_url</span></code> in <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/cloudxr/python/wss.py" rel="noopener noreferrer" target="_blank">wss.py</a></p></td>
 </tr>
-<tr class="row-even"><td><p>Headset bridge (TypeScript)</p></td>
+<tr class="row-odd"><td><p>Headset bridge (TypeScript)</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">deps/cloudxr/webxr_client/helpers/controlChannel.ts</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p>Headset wiring (React)</p></td>
+<tr class="row-even"><td><p>Headset wiring (React)</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">deps/cloudxr/webxr_client/src/App.tsx</span></code></p></td>
 </tr>
 </tbody>

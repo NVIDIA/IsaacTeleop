@@ -598,22 +598,14 @@ Local testing (hub + WSS without starting the runtime)
    pip install -e ".[test]"
    pytest -q
 
-**WSS + OOB from source (no ``isaacteleop`` wheel / compile)** — for quick iteration on
-``wss.py`` / ``oob_teleop_hub.py``::
-
-   cd src/core/cloudxr/python
-   pip install 'websockets>=14'
-   python run_wss_oob_dev.py --accept-eula --setup-oob local
-
-This bootstraps the ``isaacteleop.cloudxr`` modules from the checkout; it does **not** replace
-``python -m isaacteleop.cloudxr`` for production (that still expects an installed package).
-
 **Hub + OOB HTTP** without the runtime: pass **both** ``--wss-only`` (no CloudXR process) and
 ``--setup-oob local`` (or ``HOST:PORT``)::
 
    python -m isaacteleop.cloudxr --wss-only --setup-oob local --accept-eula
 
-(Install ``isaacteleop`` from your build or ``pip install -e`` as usual.) WSS logs go to stderr.
+Install ``isaacteleop`` from your build wheel, ``pip install -e`` from the Python package layout, or
+set ``PYTHONPATH`` to ``build/python_package/<Config>`` (after CMake has copied the ``cloudxr`` tree)
+so you can iterate on ``wss.py`` / ``oob_teleop_hub.py``. WSS logs go to stderr.
 Optional: ``CONTROL_TOKEN`` env var.
 Non-teleop WebSocket paths still try to proxy to the runtime backend, which is not running in this
 mode—use teleop URLs only, or run the full stack without ``--wss-only``.
@@ -648,8 +640,6 @@ Implementation Reference
      - :code-file:`oob_teleop_hub.py <src/core/cloudxr/python/oob_teleop_hub.py>`
    * - WSS proxy integration
      - :code-file:`wss.py <src/core/cloudxr/python/wss.py>`
-   * - WSS + OOB from source (no package install)
-     - :code-file:`run_wss_oob_dev.py <src/core/cloudxr/python/run_wss_oob_dev.py>`
    * - CLI entry point (orthogonal ``--wss-only`` and ``--setup-oob``)
      - :code-file:`__main__.py <src/core/cloudxr/python/__main__.py>`
    * - ADB automation (after listen)
