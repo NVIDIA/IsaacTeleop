@@ -1,11 +1,11 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 [project]
 name = "isaacteleop-retargeting-engine"
 version = "0.0.0"  # Internal tests - not versioned
 description = "Retargeting engine type system for Isaac Teleop"
-requires-python = ">=3.10,<3.13"
+requires-python = ">=3.10,<3.14"
 
 [project.optional-dependencies]
 dev = [

@@ -24,7 +24,7 @@ jobs:
     strategy:
       matrix:
         build_type: ["Debug", "Release"]
-        python_version: ['3.10', '3.11', '3.12']
+        python_version: ['3.10', '3.11', '3.12', '3.13']
         arch: ['x64', 'arm64']
 
     steps:
@@ -148,7 +148,7 @@ jobs:
 
     strategy:
       matrix:
-        python_version: ['3.10', '3.11', '3.12']
+        python_version: ['3.10', '3.11', '3.12', '3.13']
         arch: ['x64', 'arm64']
 
     steps:
