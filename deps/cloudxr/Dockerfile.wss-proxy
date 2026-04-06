@@ -17,10 +17,37 @@ RUN apt-get update && apt-get install -y \
 RUN mkdir -p /usr/local/etc/haproxy/certs \
     && chown -R haproxy:haproxy /usr/local/etc/haproxy
 
-# Create simple certificate generation script
-COPY <<EOF /usr/local/bin/generate-cert.sh
+# Create simple certificate generation script (skip if persisted material exists)
+COPY <<'EOF' /usr/local/bin/generate-cert.sh
 #!/bin/bash
+set -e
 cd /usr/local/etc/haproxy/certs
+if [ -f server.pem ] && [ -r server.pem ]; then
+    echo "Found existing SSL certificate; validating..."
+    VALID=true
+    if ! grep -q "BEGIN CERTIFICATE" server.pem || ! grep -qE "BEGIN (RSA |EC )?PRIVATE KEY" server.pem; then
+        echo "server.pem is missing PEM certificate or private key blocks; regenerating"
+        VALID=false
+    elif ! openssl x509 -in server.pem -noout >/dev/null 2>&1; then
+        echo "Certificate in server.pem is not parseable; regenerating"
+        VALID=false
+    elif ! openssl x509 -in server.pem -noout -checkend 0 >/dev/null 2>&1; then
+        echo "Certificate in server.pem is expired or not yet valid; regenerating"
+        VALID=false
+    elif ! openssl pkey -in server.pem -noout >/dev/null 2>&1 && ! openssl rsa -in server.pem -noout >/dev/null 2>&1; then
+        echo "No parseable private key in server.pem; regenerating"
+        VALID=false
+    elif ! openssl x509 -in server.pem -noout -pubkey 2>/dev/null | cmp -s - <(openssl pkey -in server.pem -pubout 2>/dev/null); then
+        echo "Private key in server.pem does not match certificate; regenerating"
+        VALID=false
+    fi
+    if [ "$VALID" = true ]; then
+        echo "Using existing SSL certificate at /usr/local/etc/haproxy/certs/server.pem"
+        exit 0
+    fi
+    rm -f server.pem server.key server.crt
+fi
+echo "Generating self-signed SSL certificate..."
 openssl req -x509 -newkey rsa:2048 -keyout server.key -out server.crt -days 365 -nodes -subj "/CN=localhost" -quiet
 # Combine certificate and key into a single file for HAProxy
 cat server.crt server.key > server.pem
@@ -146,10 +173,10 @@ echo "  Health Check Interval: \${HEALTH_CHECK_INTERVAL}"
 echo "  Health Check Rise: \${HEALTH_CHECK_RISE}"
 echo "  Health Check Fall: \${HEALTH_CHECK_FALL}"
 
-# Generate self-signed SSL certificate
+# Ensure SSL material (generate on first run; reuse when certs dir is mounted)
 /usr/local/bin/generate-cert.sh
 export PROXY_SSL_BIND_OPTIONS="ssl crt /usr/local/etc/haproxy/certs/server.pem"
-echo "SSL enabled - self-signed certificate generated"
+echo "SSL enabled - using /usr/local/etc/haproxy/certs/server.pem"
 
 # Process the template and create the final config
 envsubst < /usr/local/etc/haproxy/haproxy.cfg.template > /usr/local/etc/haproxy/haproxy.cfg

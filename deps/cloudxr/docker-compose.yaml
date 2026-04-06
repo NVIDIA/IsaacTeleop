@@ -48,6 +48,9 @@ services:
       - HEALTH_CHECK_INTERVAL=1s
       - HEALTH_CHECK_RISE=2
       - HEALTH_CHECK_FALL=3
+    volumes:
+      # Docker-managed volume: persists TLS material across container recreations (no host bind)
+      - wss-proxy-certs:/usr/local/etc/haproxy/certs
     restart: unless-stopped
 
   # Web App Service (serves CloudXR.js web client; webxr_client mounted for live reload)
@@ -71,3 +74,5 @@ volumes:
       type: none
       o: bind
       device: ${CXR_HOST_VOLUME_PATH:-/tmp/cloudxr}
+  wss-proxy-certs:
+    driver: local
