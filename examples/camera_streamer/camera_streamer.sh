@@ -269,9 +269,11 @@ cmd_push_config() {
 
 cmd_build() {
     local SENDER_ONLY=false
+    local NO_CACHE=false
     while [[ $# -gt 0 ]]; do
         case $1 in
             --sender-only) SENDER_ONLY=true; shift ;;
+            --no-cache)    NO_CACHE=true; shift ;;
             *) log_error "Unknown option: $1"; exit 1 ;;
         esac
     done
@@ -288,9 +290,9 @@ cmd_build() {
     fi
 
     if is_inside_container; then
-        cmd_build_inplace "$BUILD_ENCODER" "$BUILD_DECODER" "$BUILD_XR"
+        cmd_build_inplace "$BUILD_ENCODER" "$BUILD_DECODER" "$BUILD_XR" "$NO_CACHE"
     else
-        cmd_build_docker "$BUILD_ENCODER" "$BUILD_DECODER" "$BUILD_XR"
+        cmd_build_docker "$BUILD_ENCODER" "$BUILD_DECODER" "$BUILD_XR" "$NO_CACHE"
     fi
 }
 
@@ -298,6 +300,7 @@ cmd_build_inplace() {
     local BUILD_ENCODER="$1"
     local BUILD_DECODER="$2"
     local BUILD_XR="${3:-ON}"
+    local NO_CACHE="${4:-false}"
 
     log_step "Rebuilding C++ operators (in-container)"
 
@@ -305,7 +308,13 @@ cmd_build_inplace() {
     mkdir -p "$BUILD_DIR"
     cd "$BUILD_DIR"
 
-    cmake "$SCRIPT_DIR" -GNinja -Wno-dev \
+    local CMAKE_EXTRA=""
+    if [[ "$NO_CACHE" == "true" ]]; then
+        CMAKE_EXTRA="--fresh"
+        log_info "Clean cmake configure (--fresh)"
+    fi
+
+    cmake $CMAKE_EXTRA "$SCRIPT_DIR" -GNinja -Wno-dev \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
         -DBUILD_ENCODER="$BUILD_ENCODER" \
@@ -321,33 +330,45 @@ cmd_build_docker() {
     local BUILD_ENCODER="$1"
     local BUILD_DECODER="$2"
     local BUILD_XR="${3:-ON}"
+    local NO_CACHE="${4:-false}"
 
-    local TAG BASE_TAG BUILD_CONTAINER
+    local TAG BASE_TAG BUILD_CONTAINER DOCKER_CACHE_FLAG=""
     TAG="$(image_tag)"
     BASE_TAG="${IMAGE_NAME}:base"
     BUILD_CONTAINER="${CONTAINER_NAME}-build"
+
+    if [[ "$NO_CACHE" == "true" ]]; then
+        DOCKER_CACHE_FLAG="--no-cache"
+    fi
 
     log_step "Step 1/2: Building base image"
     cd "$SCRIPT_DIR"
     DOCKER_BUILDKIT=1 docker build \
         --progress=auto \
+        $DOCKER_CACHE_FLAG \
         -f Dockerfile \
         -t "$BASE_TAG" \
         .
 
     local HOST_BUILD_DIR="$SCRIPT_DIR/build"
-    mkdir -p "$HOST_BUILD_DIR"
+    local VOLUME_ARGS=""
+    if [[ "$NO_CACHE" == "true" ]]; then
+        log_info "Clean C++ build (no host cache mount)"
+    else
+        mkdir -p "$HOST_BUILD_DIR"
+        VOLUME_ARGS="-v $HOST_BUILD_DIR:/camera_streamer/build"
+        log_info "Build cache: ${_DIM}$HOST_BUILD_DIR${_RESET}"
+    fi
 
     log_step "Step 2/2: Compiling C++ operators"
-    log_info "Build cache: ${_DIM}$HOST_BUILD_DIR${_RESET}"
     docker rm "$BUILD_CONTAINER" 2>/dev/null || true
     docker run --runtime nvidia --name "$BUILD_CONTAINER" \
         --user "$(id -u):$(id -g)" \
-        -v "$HOST_BUILD_DIR:/camera_streamer/build" \
+        $VOLUME_ARGS \
         "$BASE_TAG" \
         bash -c "
             set -e
-            cd /camera_streamer/build
+            mkdir -p /camera_streamer/build && cd /camera_streamer/build
             cmake /camera_streamer -GNinja -Wno-dev \
                 -DCMAKE_BUILD_TYPE=Release \
                 -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
@@ -356,8 +377,6 @@ cmd_build_docker() {
                 -DBUILD_XR=$BUILD_XR \
                 -DPYTHON_LIB_OUTPUT_DIR=/camera_streamer/build/python
             ninja
-            # build/ is a host mount — not captured by docker commit.
-            # Copy Python libs to a non-mounted path for the committed image.
             cp -a /camera_streamer/build/python /camera_streamer/python"
 
     docker commit --change 'USER root' "$BUILD_CONTAINER" "$TAG"
