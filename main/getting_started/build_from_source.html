@@ -257,10 +257,10 @@
 <div class="version-switcher">
   <label for="version-select" class="version-switcher__label">Version</label>
   <select id="version-select" class="version-switcher__select" onchange="location = this.value;">
-    <option value="../../release/1.2.x/getting_started/build_from_source.html" >release/1.2.x</option>
     <option value="build_from_source.html" selected>main</option>
     <option value="../../release/1.0.x/getting_started/build_from_source.html" >release/1.0.x</option>
     <option value="../../release/1.1.x/getting_started/build_from_source.html" >release/1.1.x</option>
+    <option value="../../release/1.2.x/getting_started/build_from_source.html" >release/1.2.x</option>
     <option value="../../v1.0.191/getting_started/build_from_source.html" >v1.0.191</option>
   </select>
 </div>
@@ -418,7 +418,7 @@ examples. The instructions align with the project’s CMake configuration and th
 <ul class="simple">
 <li><p><strong>CMake</strong> 3.20 or higher</p></li>
 <li><p><strong>C++20</strong> compatible compiler</p></li>
-<li><p><strong>Python</strong> 3.10, 3.11, or 3.12 (default 3.11; see <code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_PYTHON_VERSION</span></code> in root <code class="docutils literal notranslate"><span class="pre">CMakeLists.txt</span></code>)</p></li>
+<li><p><strong>Python</strong> 3.10, 3.11, 3.12, or 3.13 (default 3.11; see <code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_PYTHON_VERSION</span></code> in root <code class="docutils literal notranslate"><span class="pre">CMakeLists.txt</span></code>)</p></li>
 <li><p><strong>uv</strong> for Python dependency management and managed Python</p></li>
 <li><p><strong>Internet connection</strong> for downloading dependencies via CMake FetchContent</p></li>
 </ul>
@@ -564,7 +564,7 @@ cmake<span class="w"> </span>--build<span class="w"> </span>build<span class="w"
 </tr>
 <tr class="row-even"><td><p><strong>Python version</strong></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_PYTHON_VERSION</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">3.11</span></code> (3.10, 3.11, or 3.12)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">3.11</span></code> (3.10, 3.11, 3.12, or 3.13)</p></td>
 </tr>
 <tr class="row-odd"><td><p><strong>Testing</strong></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">BUILD_TESTING</span></code></p></td>

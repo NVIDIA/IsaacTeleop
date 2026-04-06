@@ -27,7 +27,7 @@ network.  The minimum requirements for the laptop/workstation are:
     * - OS
       - Ubuntu 22.04 or 24.04
     * - Python
-      - 3.10 / 3.11 / 3.12
+      - 3.10 / 3.11 / 3.12 / 3.13
     * - CUDA
       - 12.8 or newer
     * - NVIDIA Driver
@@ -93,7 +93,7 @@ to device peripherals. The minimum requirements for the laptop/workstation are:
     * - OS
       - Ubuntu 22.04 or 24.04
     * - Python
-      - 3.10 / 3.11 / 3.12
+      - 3.10 / 3.11 / 3.12 / 3.13
     * - CUDA
       - 12.8 or newer
     * - NVIDIA Driver
