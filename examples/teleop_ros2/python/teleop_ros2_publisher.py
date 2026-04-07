@@ -84,8 +84,37 @@ from isaacteleop.teleop_session_manager import (
 _BODY_JOINT_NAMES = [e.name for e in BodyJointPicoIndex]
 _TELEOP_MODES = ("controller_teleop", "hand_teleop", "controller_raw", "full_body")
 
+_TRIHAND_JOINT_NAMES = [
+    "thumb_rotation",
+    "thumb_proximal",
+    "thumb_distal",
+    "index_proximal",
+    "index_distal",
+    "middle_proximal",
+    "middle_distal",
+]
+_FINGER_JOINT_COUNT = len(_TRIHAND_JOINT_NAMES)
+_LEFT_FINGER_JOINT_NAMES = [f"left_{n}" for n in _TRIHAND_JOINT_NAMES]
+_RIGHT_FINGER_JOINT_NAMES = [f"right_{n}" for n in _TRIHAND_JOINT_NAMES]
+
 
 # Helper functions
+
+
+def _append_hand_poses(
+    poses: List[Pose],
+    joint_positions: np.ndarray,
+    joint_orientations: np.ndarray,
+    transform_rot: Rotation | None = None,
+    transform_trans: Sequence[float] | None = None,
+) -> None:
+    for joint_idx in range(
+        HandJointIndex.THUMB_METACARPAL, HandJointIndex.LITTLE_TIP + 1
+    ):
+        pose = _to_pose(joint_positions[joint_idx], joint_orientations[joint_idx])
+        if transform_rot is not None or transform_trans is not None:
+            pose = _apply_transform_to_pose(pose, transform_rot, transform_trans)
+        poses.append(pose)
 
 
 def _apply_transform_to_pose(
@@ -123,22 +152,6 @@ def _apply_transform_to_pose(
     return result
 
 
-def _append_hand_poses(
-    poses: List[Pose],
-    joint_positions: np.ndarray,
-    joint_orientations: np.ndarray,
-    transform_rot: Rotation | None = None,
-    transform_trans: Sequence[float] | None = None,
-) -> None:
-    for joint_idx in range(
-        HandJointIndex.THUMB_METACARPAL, HandJointIndex.LITTLE_TIP + 1
-    ):
-        pose = _to_pose(joint_positions[joint_idx], joint_orientations[joint_idx])
-        if transform_rot is not None or transform_trans is not None:
-            pose = _apply_transform_to_pose(pose, transform_rot, transform_trans)
-        poses.append(pose)
-
-
 def _find_plugins_dirs(start: Path) -> List[Path]:
     candidates: List[Path] = []
     for parent in [start, *start.parents]:
@@ -148,19 +161,8 @@ def _find_plugins_dirs(start: Path) -> List[Path]:
     return candidates
 
 
-def _to_pose(position, orientation=None) -> Pose:
-    pose = Pose()
-    pose.position.x = float(position[0])
-    pose.position.y = float(position[1])
-    pose.position.z = float(position[2])
-    if orientation is None:
-        pose.orientation.w = 1.0
-    else:
-        pose.orientation.x = float(orientation[0])
-        pose.orientation.y = float(orientation[1])
-        pose.orientation.z = float(orientation[2])
-        pose.orientation.w = float(orientation[3])
-    return pose
+def _joint_names_from_group(group: OptionalTensorGroup) -> List[str]:
+    return [tensor_type.name for tensor_type in group.group_type.types]
 
 
 def _make_transform(
@@ -182,6 +184,41 @@ def _make_transform(
     tf.transform.rotation.z = float(orientation[2])
     tf.transform.rotation.w = float(orientation[3])
     return tf
+
+
+def _resolve_finger_joint_names(
+    parameter_name: str,
+    names: Sequence[str],
+) -> List[str]:
+    if len(names) != _FINGER_JOINT_COUNT:
+        raise ValueError(
+            f"Parameter '{parameter_name}' must contain exactly "
+            f"{_FINGER_JOINT_COUNT} entries in TriHand order, got {len(names)}"
+        )
+
+    resolved_names = list(names)
+    for index, joint_name in enumerate(resolved_names, start=1):
+        if not joint_name.strip():
+            raise ValueError(
+                f"Parameter '{parameter_name}' entry {index} must be a non-empty string"
+            )
+
+    return resolved_names
+
+
+def _to_pose(position, orientation=None) -> Pose:
+    pose = Pose()
+    pose.position.x = float(position[0])
+    pose.position.y = float(position[1])
+    pose.position.z = float(position[2])
+    if orientation is None:
+        pose.orientation.w = 1.0
+    else:
+        pose.orientation.x = float(orientation[0])
+        pose.orientation.y = float(orientation[1])
+        pose.orientation.z = float(orientation[2])
+        pose.orientation.w = float(orientation[3])
+    return pose
 
 
 # Message builders
@@ -377,20 +414,6 @@ def _build_controller_payload(
     }
 
 
-_TRIHAND_JOINT_NAMES = [
-    "thumb_rotation",
-    "thumb_proximal",
-    "thumb_distal",
-    "index_proximal",
-    "index_distal",
-    "middle_proximal",
-    "middle_distal",
-]
-_FINGER_JOINT_NAMES = [f"left_{n}" for n in _TRIHAND_JOINT_NAMES] + [
-    f"right_{n}" for n in _TRIHAND_JOINT_NAMES
-]
-
-
 def _build_full_body_payload(full_body: OptionalTensorGroup) -> Dict:
     positions = np.asarray(full_body[FullBodyInputIndex.JOINT_POSITIONS])
     orientations = np.asarray(full_body[FullBodyInputIndex.JOINT_ORIENTATIONS])
@@ -411,8 +434,10 @@ class TeleopRos2PublisherNode(Node):
     def __init__(self) -> None:
         super().__init__("teleop_ros2_publisher")
 
-        self.declare_parameter("rate_hz", 60.0)
         self.declare_parameter("mode", "controller_teleop")
+        self.declare_parameter("rate_hz", 60.0)
+        self.declare_parameter("use_mock_operators", value=False)
+
         self.declare_parameter(
             "transform_translation",
             [0.0, 0.0, 0.0],
@@ -427,6 +452,7 @@ class TeleopRos2PublisherNode(Node):
                 description="Optional rotation [qx, qy, qz, qw] to apply to the teleoperation data to transform it into the ROS world frame."
             ),
         )
+
         self.declare_parameter(
             "world_frame",
             "world",
@@ -447,7 +473,33 @@ class TeleopRos2PublisherNode(Node):
             "left_wrist",
             ParameterDescriptor(description="TF child frame name for the left wrist."),
         )
-        self.declare_parameter("use_mock_operators", value=False)
+
+        finger_joint_name_constraints = (
+            f"Provide exactly {_FINGER_JOINT_COUNT} joint names matching the "
+            f"TriHand order {_TRIHAND_JOINT_NAMES}."
+        )
+        self.declare_parameter(
+            "left_finger_joint_names",
+            list(_LEFT_FINGER_JOINT_NAMES),
+            ParameterDescriptor(
+                description=(
+                    "Published joint names for the left hand on "
+                    "xr_teleop/finger_joints. Defaults to the prefixed TriHand names."
+                ),
+                additional_constraints=finger_joint_name_constraints,
+            ),
+        )
+        self.declare_parameter(
+            "right_finger_joint_names",
+            list(_RIGHT_FINGER_JOINT_NAMES),
+            ParameterDescriptor(
+                description=(
+                    "Published joint names for the right hand on "
+                    "xr_teleop/finger_joints. Defaults to the prefixed TriHand names."
+                ),
+                additional_constraints=finger_joint_name_constraints,
+            ),
+        )
 
         rate_hz = self.get_parameter("rate_hz").get_parameter_value().double_value
         if rate_hz <= 0 or not math.isfinite(rate_hz):
@@ -473,6 +525,24 @@ class TeleopRos2PublisherNode(Node):
         self._left_wrist_frame: str = (
             self.get_parameter("left_wrist_frame").get_parameter_value().string_value
         )
+        if not self._world_frame:
+            raise ValueError("Parameter 'world_frame' must not be empty")
+        if not self._right_wrist_frame:
+            raise ValueError("Parameter 'right_wrist_frame' must not be empty")
+        if not self._left_wrist_frame:
+            raise ValueError("Parameter 'left_wrist_frame' must not be empty")
+        if self._right_wrist_frame == self._left_wrist_frame:
+            raise ValueError(
+                f"'right_wrist_frame' and 'left_wrist_frame' must be different , got {self._right_wrist_frame!r}"
+            )
+        if self._right_wrist_frame == self._world_frame:
+            raise ValueError(
+                f"'right_wrist_frame' must be different from 'world_frame', got {self._right_wrist_frame!r}"
+            )
+        if self._left_wrist_frame == self._world_frame:
+            raise ValueError(
+                f"'left_wrist_frame' must be different from 'world_frame', got {self._left_wrist_frame!r}"
+            )
 
         transform_trans_arr = (
             self.get_parameter("transform_translation")
@@ -514,24 +584,14 @@ class TeleopRos2PublisherNode(Node):
                 normalized_q = np.array(transform_rot_floats) / q_norm
                 self._transform_rot = Rotation.from_quat(normalized_q)
 
-        if not self._world_frame:
-            raise ValueError("Parameter 'world_frame' must not be empty")
-        if not self._right_wrist_frame:
-            raise ValueError("Parameter 'right_wrist_frame' must not be empty")
-        if not self._left_wrist_frame:
-            raise ValueError("Parameter 'left_wrist_frame' must not be empty")
-        if self._right_wrist_frame == self._left_wrist_frame:
-            raise ValueError(
-                f"'right_wrist_frame' and 'left_wrist_frame' must be different , got {self._right_wrist_frame!r}"
-            )
-        if self._right_wrist_frame == self._world_frame:
-            raise ValueError(
-                f"'right_wrist_frame' must be different from 'world_frame', got {self._right_wrist_frame!r}"
-            )
-        if self._left_wrist_frame == self._world_frame:
-            raise ValueError(
-                f"'left_wrist_frame' must be different from 'world_frame', got {self._left_wrist_frame!r}"
-            )
+        left_finger_joint_names = _resolve_finger_joint_names(
+            "left_finger_joint_names",
+            self.get_parameter("left_finger_joint_names").value,
+        )
+        right_finger_joint_names = _resolve_finger_joint_names(
+            "right_finger_joint_names",
+            self.get_parameter("right_finger_joint_names").value,
+        )
 
         self._tf_broadcaster = TransformBroadcaster(self)
 
@@ -568,13 +628,13 @@ class TeleopRos2PublisherNode(Node):
 
         left_hand_retargeter = TriHandMotionControllerRetargeter(
             TriHandMotionControllerConfig(
-                hand_joint_names=_TRIHAND_JOINT_NAMES, controller_side="left"
+                hand_joint_names=left_finger_joint_names, controller_side="left"
             ),
             name="trihand_left",
         )
         right_hand_retargeter = TriHandMotionControllerRetargeter(
             TriHandMotionControllerConfig(
-                hand_joint_names=_TRIHAND_JOINT_NAMES, controller_side="right"
+                hand_joint_names=right_finger_joint_names, controller_side="right"
             ),
             name="trihand_right",
         )
@@ -766,15 +826,11 @@ class TeleopRos2PublisherNode(Node):
                                     else np.array([], dtype=np.float32)
                                 )
                                 finger_joints_msg.name = (
-                                    list(
-                                        _FINGER_JOINT_NAMES[: len(_TRIHAND_JOINT_NAMES)]
-                                    )
+                                    _joint_names_from_group(left_joints)
                                     if not left_joints.is_none
                                     else []
                                 ) + (
-                                    list(
-                                        _FINGER_JOINT_NAMES[len(_TRIHAND_JOINT_NAMES) :]
-                                    )
+                                    _joint_names_from_group(right_joints)
                                     if not right_joints.is_none
                                     else []
                                 )

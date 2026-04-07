@@ -86,7 +86,9 @@ docker run --rm --net=host --ipc=host \
   -r xr_teleop/hand:=my_robot/hand -r xr_teleop/ee_poses:=my_robot/ee_poses
 ```
 
-Available parameters: `rate_hz`, `mode`, `world_frame`, `right_wrist_frame`, `left_wrist_frame`. Use `ros2 param list /teleop_ros2_publisher` and `ros2 param describe /teleop_ros2_publisher <param>` (with the node running) for the full set.
+Available parameters: `rate_hz`, `mode`, `world_frame`, `right_wrist_frame`, `left_wrist_frame`, `left_finger_joint_names`, `right_finger_joint_names`. Use `ros2 param list /teleop_ros2_publisher` and `ros2 param describe /teleop_ros2_publisher <param>` (with the node running) for the full set.
+
+By default, `left_finger_joint_names` and `right_finger_joint_names` use the prefixed TriHand names. If overridden, each parameter must provide 7 names in TriHand order (`thumb_rotation`, `thumb_proximal`, `thumb_distal`, `index_proximal`, `index_distal`, `middle_proximal`, `middle_distal`). Those names are threaded into the retargeter output and published on `xr_teleop/finger_joints`.
 
 Available topics for remapping: `xr_teleop/hand`, `xr_teleop/ee_poses`, `xr_teleop/root_twist`, `xr_teleop/root_pose`, `xr_teleop/controller_data`, `xr_teleop/full_body`, `xr_teleop/finger_joints`. Active remaps can be inspected with `ros2 node info /teleop_ros2_publisher`.
 
