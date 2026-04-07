@@ -243,7 +243,7 @@ jobs:
         source scripts/setup_cloudxr_env.sh
 
         PROJECT_NAME="isaacteleop-test-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}-${{ env.ROS_DISTRO }}"
-        LOG_FILE="/tmp/ros2_test_output_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${{ matrix.arch }}_${{ env.ROS_DISTRO }}.log"
+        LOG_FILE_BASE="/tmp/ros2_test_output_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${{ matrix.arch }}_${{ env.ROS_DISTRO }}"
 
         # Cleanup
         trap 'docker compose -p "$PROJECT_NAME" \
@@ -300,6 +300,8 @@ jobs:
         # Run tests
         for mode in controller_teleop hand_teleop controller_raw full_body; do
           echo "Testing mode: $mode"
+          LOG_FILE="${LOG_FILE_BASE}_${mode}.log"
+          docker_rc=0
           docker run --rm \
             --gpus all \
             --network host \
@@ -308,9 +310,22 @@ jobs:
             -e NV_CXR_RUNTIME_DIR="$CXR_HOST_VOLUME_PATH/.cloudxr/run" \
             -e XR_RUNTIME_JSON="$CXR_HOST_VOLUME_PATH/.cloudxr/openxr_cloudxr.json" \
             --entrypoint bash teleop_ros2_ref:${{ env.ROS_DISTRO }} -c \
-            "source /usr/local/bin/teleop-env-setup && timeout -s SIGINT 5 uv run teleop_ros2_publisher.py --ros-args -p mode:=$mode -p use_mock_operators:=true > $LOG_FILE 2>&1; rc=\$?; [ \$rc -eq 130 ] || [ \$rc -eq 124 ] || exit 1"
+            "source /usr/local/bin/teleop-env-setup && timeout -s SIGINT 5 uv run teleop_ros2_publisher.py --ros-args -p mode:=$mode -p use_mock_operators:=true > $LOG_FILE 2>&1; rc=\$?; [ \$rc -eq 130 ] || [ \$rc -eq 124 ] || exit 1" || docker_rc=$?
 
-          cat "$LOG_FILE"
+          if [ -f "$LOG_FILE" ]; then
+            cat "$LOG_FILE"
+          else
+            echo "No test log captured at $LOG_FILE"
+          fi
+
+          if [ "$docker_rc" -ne 0 ]; then
+            exit "$docker_rc"
+          fi
+
+          if [ ! -f "$LOG_FILE" ]; then
+            exit 1
+          fi
+
           if ! grep -q "TeleopSession started successfully" "$LOG_FILE"; then
             echo "Error: TeleopSession never started successfully in mode $mode"
             exit 1
