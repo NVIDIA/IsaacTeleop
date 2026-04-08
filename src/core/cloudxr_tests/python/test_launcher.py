@@ -67,7 +67,7 @@ def _make_mock_popen(pid: int = 12345, poll_returns: list | None = None) -> Magi
 
 @contextmanager
 def mock_launcher_deps(tmp_path, ready=True):
-    """Patch all heavy external dependencies so CloudXRLauncher.start() runs without I/O.
+    """Patch all heavy external dependencies so CloudXRLauncher construction runs without I/O.
 
     Yields a dict of the mock objects for assertion.
     """
@@ -119,80 +119,47 @@ def mock_launcher_deps(tmp_path, ready=True):
 
 
 # ============================================================================
-# TestLauncherInit
+# TestLauncherConstruction
 # ============================================================================
 
 
-class TestLauncherInit:
-    """Tests for CloudXRLauncher.__init__."""
+class TestLauncherConstruction:
+    """Tests for CloudXRLauncher construction (which starts the runtime)."""
 
-    def test_default_parameters(self):
-        launcher = CloudXRLauncher()
-        assert launcher._install_dir == "~/.cloudxr"
-        assert launcher._env_config is None
-        assert launcher._accept_eula is False
-
-    def test_custom_parameters(self):
-        launcher = CloudXRLauncher(
-            install_dir="/opt/cloudxr",
-            env_config="/etc/cloudxr.env",
-            accept_eula=True,
-        )
+    def test_construction_stores_parameters(self, tmp_path):
+        """Constructor stores install_dir, env_config, and accept_eula."""
+        with mock_launcher_deps(tmp_path, ready=True):
+            launcher = CloudXRLauncher(
+                install_dir="/opt/cloudxr",
+                env_config="/etc/cloudxr.env",
+                accept_eula=True,
+            )
         assert launcher._install_dir == "/opt/cloudxr"
         assert launcher._env_config == "/etc/cloudxr.env"
         assert launcher._accept_eula is True
 
-    def test_health_check_raises_before_start(self):
-        """health_check() raises RuntimeError when the launcher has not been started."""
-        launcher = CloudXRLauncher()
-        with pytest.raises(RuntimeError, match="has not been started"):
-            launcher.health_check()
-        assert launcher.wss_log_path is None
-
-
-# ============================================================================
-# TestLauncherStart
-# ============================================================================
-
-
-class TestLauncherStart:
-    """Tests for CloudXRLauncher.start()."""
-
-    def test_start_launches_runtime_and_wss(self, tmp_path):
-        """Successful start() calls Popen and WSS proxy."""
-        launcher = CloudXRLauncher()
+    def test_construction_launches_runtime_and_wss(self, tmp_path):
+        """Successful construction calls Popen and WSS proxy."""
         with mock_launcher_deps(tmp_path, ready=True) as mocks:
-            launcher.start()
+            CloudXRLauncher()
 
             mocks["popen"].assert_called_once()
             mocks["wss"].assert_called_once()
             mocks["check_eula"].assert_called_once()
             mocks["cleanup"].assert_called_once()
 
-    def test_start_idempotent_when_running(self, tmp_path):
-        """Calling start() twice does not launch a second process."""
-        launcher = CloudXRLauncher()
-        with mock_launcher_deps(tmp_path, ready=True) as mocks:
-            launcher.start()
-            launcher.start()
-
-            assert mocks["popen"].call_count == 1
-
-    def test_start_raises_on_runtime_failure(self, tmp_path):
+    def test_construction_raises_on_runtime_failure(self, tmp_path):
         """RuntimeError when the runtime fails to become ready."""
-        launcher = CloudXRLauncher()
         with mock_launcher_deps(tmp_path, ready=False) as mocks:
-            # Make poll() return an exit code so stop() doesn't try killpg
             mocks["proc"].poll.return_value = 1
 
             with pytest.raises(RuntimeError, match="failed to start"):
-                launcher.start()
+                CloudXRLauncher()
 
-    def test_wss_log_path_set_after_start(self, tmp_path):
-        """wss_log_path is a Path after successful start."""
-        launcher = CloudXRLauncher()
+    def test_wss_log_path_set_after_construction(self, tmp_path):
+        """wss_log_path is a Path after successful construction."""
         with mock_launcher_deps(tmp_path, ready=True):
-            launcher.start()
+            launcher = CloudXRLauncher()
 
             assert launcher.wss_log_path is not None
             assert isinstance(launcher.wss_log_path, Path)
@@ -210,11 +177,9 @@ class TestLauncherStop:
     @_posix_only
     def test_stop_terminates_runtime(self, tmp_path):
         """stop() sends SIGTERM to the runtime process group."""
-        launcher = CloudXRLauncher()
         with mock_launcher_deps(tmp_path, ready=True) as mocks:
-            launcher.start()
+            launcher = CloudXRLauncher()
 
-            # Configure the mock proc so _terminate_runtime exercises killpg
             proc = mocks["proc"]
             poll_seq = [None, 0]
             proc.poll = MagicMock(
@@ -233,19 +198,12 @@ class TestLauncherStop:
                 m_getpgid.assert_called_once_with(proc.pid)
                 m_killpg.assert_called_once_with(99, signal.SIGTERM)
 
-    def test_stop_safe_when_not_started(self):
-        """stop() on a fresh launcher does not raise."""
-        launcher = CloudXRLauncher()
-        launcher.stop()
-
     def test_stop_idempotent(self, tmp_path):
         """Calling stop() twice does not raise."""
-        launcher = CloudXRLauncher()
         with mock_launcher_deps(tmp_path, ready=True) as mocks:
-            launcher.start()
+            launcher = CloudXRLauncher()
 
-            proc = mocks["proc"]
-            proc.poll.return_value = 0
+            mocks["proc"].poll.return_value = 0
 
             launcher.stop()
             launcher.stop()
@@ -253,15 +211,10 @@ class TestLauncherStop:
     @_posix_only
     def test_stop_escalates_to_sigkill(self, tmp_path):
         """stop() sends SIGKILL when SIGTERM doesn't work."""
-        launcher = CloudXRLauncher()
         with mock_launcher_deps(tmp_path, ready=True) as mocks:
-            launcher.start()
+            launcher = CloudXRLauncher()
 
             proc = mocks["proc"]
-            # poll() returns None (alive) twice then 0 (dead) after SIGKILL:
-            #   call 1 (guard): alive  →  don't bail early
-            #   call 2 (after SIGTERM timeout): alive  →  escalate to SIGKILL
-            #   call 3 (after SIGKILL): dead  →  success
             poll_seq = [None, None, 0]
             proc.poll = MagicMock(
                 side_effect=lambda: poll_seq.pop(0) if poll_seq else 0
@@ -288,16 +241,13 @@ class TestLauncherStop:
 class TestLauncherContextManager:
     """Tests for CloudXRLauncher used as a context manager."""
 
-    def test_context_manager_starts_and_stops(self, tmp_path):
-        """__enter__ calls start(), __exit__ calls stop()."""
+    def test_context_manager_stops_on_exit(self, tmp_path):
+        """__exit__ calls stop(), cleaning up the runtime."""
         with mock_launcher_deps(tmp_path, ready=True) as mocks:
             with CloudXRLauncher() as launcher:
                 mocks["popen"].assert_called_once()
-                # Make the process appear dead before __exit__ → stop() so
-                # _terminate_runtime returns early without os.getpgid.
                 mocks["proc"].poll.return_value = 0
 
-            # After exiting, the runtime proc ref should be cleared
             assert launcher._runtime_proc is None
 
 

@@ -44,8 +44,9 @@ class CloudXRLauncher:
     """Programmatic launcher for the CloudXR runtime and WSS proxy.
 
     Manages the full lifecycle of a CloudXR runtime process and its
-    accompanying WSS TLS proxy.  Supports use as a context manager or
-    via explicit :meth:`start` / :meth:`stop` calls.
+    accompanying WSS TLS proxy.  The runtime and WSS proxy are started
+    immediately on construction; use :meth:`stop` or the context
+    manager protocol to shut them down.
 
     The runtime is launched as a fully isolated subprocess (via
     :class:`subprocess.Popen`) to avoid CUDA context conflicts with
@@ -54,18 +55,17 @@ class CloudXRLauncher:
 
     Example::
 
+        with CloudXRLauncher() as launcher:
+            # runtime + WSS proxy are running
+            ...
+
+    Or with explicit stop::
+
         launcher = CloudXRLauncher(install_dir="~/.cloudxr")
-        launcher.start()
         try:
             # ... use the running runtime ...
         finally:
             launcher.stop()
-
-    Or as a context manager::
-
-        with CloudXRLauncher() as launcher:
-            # runtime + WSS proxy are running
-            ...
     """
 
     def __init__(
@@ -74,7 +74,13 @@ class CloudXRLauncher:
         env_config: str | Path | None = None,
         accept_eula: bool = False,
     ) -> None:
-        """Initialize the launcher (does not start anything yet).
+        """Launch the CloudXR runtime and WSS proxy.
+
+        Configures the environment, spawns the runtime subprocess, and
+        starts the WSS TLS proxy.  Blocks until the runtime signals
+        readiness (up to
+        :data:`~isaacteleop.cloudxr.runtime.RUNTIME_STARTUP_TIMEOUT_SEC`)
+        or raises :class:`RuntimeError` on failure.
 
         Args:
             install_dir: CloudXR install directory.
@@ -83,6 +89,10 @@ class CloudXRLauncher:
             accept_eula: Accept the NVIDIA CloudXR EULA
                 non-interactively.  When ``False`` and the EULA marker
                 does not exist, the user is prompted on stdin.
+
+        Raises:
+            RuntimeError: If the EULA is not accepted or the runtime
+                fails to start within the timeout.
         """
         self._install_dir = install_dir
         self._env_config = str(env_config) if env_config is not None else None
@@ -94,34 +104,6 @@ class CloudXRLauncher:
         self._wss_stop_future: asyncio.Future | None = None
         self._wss_log_path: Path | None = None
         self._atexit_registered = False
-
-    # ------------------------------------------------------------------
-    # Context manager
-    # ------------------------------------------------------------------
-
-    def __enter__(self) -> CloudXRLauncher:
-        """Start the launcher and return it for use in a ``with`` block."""
-        self.start()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        """Stop the launcher on exiting the ``with`` block."""
-        self.stop()
-
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-
-    def start(self) -> None:
-        """Configure environment, launch runtime process and WSS proxy.
-
-        Blocks until the runtime signals readiness (up to ~10 s) or
-        raises :class:`RuntimeError` on failure.  Calling ``start()``
-        when the launcher is already running is a no-op.
-        """
-        if self._is_runtime_alive():
-            logger.debug("CloudXR launcher already running; start() is a no-op")
-            return
 
         env_cfg = EnvConfig.from_args(self._install_dir, self._env_config)
         try:
@@ -137,16 +119,17 @@ class CloudXRLauncher:
         self._runtime_proc = subprocess.Popen(
             [sys.executable, "-c", _RUNTIME_WORKER_CODE],
             env=os.environ.copy(),
+            stderr=subprocess.PIPE,
             start_new_session=True,
         )
         logger.info("CloudXR runtime process started (pid=%s)", self._runtime_proc.pid)
 
         if not wait_for_runtime_ready_sync(is_process_alive=self._is_runtime_alive):
+            detail = self._collect_startup_failure_detail(logs_dir_path)
             self.stop()
             raise RuntimeError(
                 "CloudXR runtime failed to start within "
-                f"{RUNTIME_STARTUP_TIMEOUT_SEC}s.  Check logs under "
-                f"{logs_dir_path} for details."
+                f"{RUNTIME_STARTUP_TIMEOUT_SEC}s.  {detail}"
             )
         logger.info("CloudXR runtime ready")
 
@@ -159,6 +142,18 @@ class CloudXRLauncher:
         self._wss_log_path = wss_log_path
         self._start_wss_proxy(wss_log_path)
         logger.info("CloudXR WSS proxy started (log=%s)", wss_log_path)
+
+    # ------------------------------------------------------------------
+    # Context manager
+    # ------------------------------------------------------------------
+
+    def __enter__(self) -> CloudXRLauncher:
+        """Return the launcher for use in a ``with`` block."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Stop the launcher on exiting the ``with`` block."""
+        self.stop()
 
     def stop(self) -> None:
         """Shut down the WSS proxy and terminate the runtime process.
@@ -198,7 +193,7 @@ class CloudXRLauncher:
                 the runtime process or WSS proxy has stopped.
         """
         if self._runtime_proc is None:
-            raise RuntimeError("CloudXR launcher has not been started")
+            raise RuntimeError("CloudXR launcher is not running")
 
         exit_code = self._runtime_proc.poll()
         if exit_code is not None:
@@ -257,6 +252,30 @@ class CloudXRLauncher:
             os.remove(started)
         except FileNotFoundError:
             pass
+
+    def _collect_startup_failure_detail(self, logs_dir: Path) -> str:
+        """Build a diagnostic string after a failed runtime startup."""
+        parts: list[str] = []
+        proc = self._runtime_proc
+        if proc is not None:
+            exit_code = proc.poll()
+            if exit_code is not None:
+                parts.append(f"Process exited with code {exit_code}.")
+                stderr_pipe = getattr(proc, "stderr", None)
+                if stderr_pipe is not None:
+                    try:
+                        stderr_tail = stderr_pipe.read(4096)
+                        if stderr_tail:
+                            parts.append(
+                                f"stderr: {stderr_tail.decode(errors='replace').strip()}"
+                            )
+                    except Exception:
+                        pass
+            else:
+                parts.append("Process is still running but did not signal readiness.")
+
+        parts.append(f"Check logs under {logs_dir} for details.")
+        return "  ".join(parts)
 
     def _is_runtime_alive(self) -> bool:
         """Return whether the runtime subprocess is still running."""

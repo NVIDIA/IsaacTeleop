@@ -78,10 +78,7 @@ def main() -> None:
         signal.signal(signal.SIGTERM, on_signal)
 
         while not stop:
-            try:
-                launcher.health_check()
-            except RuntimeError:
-                break
+            launcher.health_check()
             time.sleep(0.1)
 
     print("Stopped.")

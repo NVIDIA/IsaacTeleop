@@ -18,7 +18,7 @@ _EULA_URL = (
     "https://github.com/NVIDIA/IsaacTeleop/blob/main/deps/cloudxr/CLOUDXR_LICENSE"
 )
 
-RUNTIME_STARTUP_TIMEOUT_SEC: float = 10
+RUNTIME_STARTUP_TIMEOUT_SEC: float = 30
 """Maximum time [s] to wait for the runtime ``runtime_started`` sentinel."""
 
 RUNTIME_TERMINATE_TIMEOUT_SEC: float = 10
