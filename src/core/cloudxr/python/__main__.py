@@ -15,6 +15,7 @@ from isaacteleop.cloudxr.runtime import latest_runtime_log, runtime_version
 
 
 def _parse_args() -> argparse.Namespace:
+    """Parse command-line arguments for the CloudXR runtime entry point."""
     parser = argparse.ArgumentParser(description="CloudXR runtime and WSS proxy")
     parser.add_argument(
         "--cloudxr-install-dir",
@@ -39,6 +40,7 @@ def _parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """Launch the CloudXR runtime and WSS proxy, then block until interrupted."""
     args = _parse_args()
 
     with CloudXRLauncher(
@@ -75,7 +77,11 @@ def main() -> None:
         signal.signal(signal.SIGINT, on_signal)
         signal.signal(signal.SIGTERM, on_signal)
 
-        while not stop and launcher.is_running:
+        while not stop:
+            try:
+                launcher.health_check()
+            except RuntimeError:
+                break
             time.sleep(0.1)
 
     print("Stopped.")

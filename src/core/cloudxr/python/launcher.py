@@ -100,10 +100,12 @@ class CloudXRLauncher:
     # ------------------------------------------------------------------
 
     def __enter__(self) -> CloudXRLauncher:
+        """Start the launcher and return it for use in a ``with`` block."""
         self.start()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Stop the launcher on exiting the ``with`` block."""
         self.stop()
 
     # ------------------------------------------------------------------
@@ -117,7 +119,7 @@ class CloudXRLauncher:
         raises :class:`RuntimeError` on failure.  Calling ``start()``
         when the launcher is already running is a no-op.
         """
-        if self.is_running:
+        if self._is_runtime_alive():
             logger.debug("CloudXR launcher already running; start() is a no-op")
             return
 
@@ -183,10 +185,29 @@ class CloudXRLauncher:
             self._runtime_proc = None
             logger.info("CloudXR runtime process stopped")
 
-    @property
-    def is_running(self) -> bool:
-        """Whether the runtime process is alive."""
-        return self._is_runtime_alive()
+    def health_check(self) -> None:
+        """Verify that the runtime process and WSS proxy are healthy.
+
+        Returns immediately when both components are running.  Raises
+        :class:`RuntimeError` with diagnostic details when any component
+        has stopped unexpectedly, allowing embedding applications to
+        perform a controlled teardown.
+
+        Raises:
+            RuntimeError: If the launcher has not been started, or if
+                the runtime process or WSS proxy has stopped.
+        """
+        if self._runtime_proc is None:
+            raise RuntimeError("CloudXR launcher has not been started")
+
+        exit_code = self._runtime_proc.poll()
+        if exit_code is not None:
+            raise RuntimeError(
+                f"CloudXR runtime process exited unexpectedly (exit code {exit_code})"
+            )
+
+        if self._wss_thread is not None and not self._wss_thread.is_alive():
+            raise RuntimeError("CloudXR WSS proxy thread stopped unexpectedly")
 
     @property
     def wss_log_path(self) -> Path | None:

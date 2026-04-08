@@ -9,7 +9,6 @@ import shutil
 import signal
 import sys
 import threading
-import time
 from collections.abc import Callable
 
 from .env_config import get_env_config
@@ -76,12 +75,15 @@ def _get_sdk_path() -> str | None:
     return native_dir
 
 
-def wait_for_runtime_ready_sync(
+async def wait_for_runtime_ready(
     is_process_alive: Callable[[], bool],
     timeout_sec: float = RUNTIME_STARTUP_TIMEOUT_SEC,
     poll_interval_sec: float = RUNTIME_POLL_INTERVAL_SEC,
 ) -> bool:
-    """Synchronously poll for the ``runtime_started`` sentinel file.
+    """Poll for the ``runtime_started`` sentinel file.
+
+    This is the canonical implementation used by both the async callers
+    and :func:`wait_for_runtime_ready_sync`.
 
     Args:
         is_process_alive: Callable returning ``True`` while the
@@ -94,46 +96,39 @@ def wait_for_runtime_ready_sync(
         if the process exits early.
     """
     lock_file = os.path.join(get_env_config().openxr_run_dir(), "runtime_started")
-    deadline = time.monotonic() + timeout_sec
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout_sec
 
-    while time.monotonic() < deadline:
+    while loop.time() < deadline:
         if not is_process_alive():
             return False
         if os.path.isfile(lock_file):
             return True
-        time.sleep(poll_interval_sec)
+        await asyncio.sleep(poll_interval_sec)
 
     return False
 
 
-async def wait_for_runtime_ready(
-    process: multiprocessing.Process,
+def wait_for_runtime_ready_sync(
+    is_process_alive: Callable[[], bool],
     timeout_sec: float = RUNTIME_STARTUP_TIMEOUT_SEC,
+    poll_interval_sec: float = RUNTIME_POLL_INTERVAL_SEC,
 ) -> bool:
-    """Async variant of :func:`wait_for_runtime_ready_sync`.
+    """Synchronous wrapper around :func:`wait_for_runtime_ready`.
 
-    Kept for backward compatibility with callers that use
-    :class:`multiprocessing.Process` and an asyncio event loop.
+    Args:
+        is_process_alive: Callable returning ``True`` while the
+            runtime process is still running.
+        timeout_sec: Maximum time to wait [s].
+        poll_interval_sec: Polling interval [s].
 
     Returns:
         ``True`` when the runtime is ready, ``False`` on timeout or
         if the process exits early.
     """
-    loop = asyncio.get_running_loop()
-    deadline = loop.time() + timeout_sec
-
-    lock_file = os.path.join(get_env_config().openxr_run_dir(), "runtime_started")
-
-    while loop.time() < deadline:
-        if not process.is_alive():
-            return False
-
-        if os.path.isfile(lock_file):
-            return True
-
-        await asyncio.sleep(1)
-
-    return False
+    return asyncio.run(
+        wait_for_runtime_ready(is_process_alive, timeout_sec, poll_interval_sec)
+    )
 
 
 def runtime_version() -> str:

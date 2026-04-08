@@ -142,9 +142,11 @@ class TestLauncherInit:
         assert launcher._env_config == "/etc/cloudxr.env"
         assert launcher._accept_eula is True
 
-    def test_not_running_before_start(self):
+    def test_health_check_raises_before_start(self):
+        """health_check() raises RuntimeError when the launcher has not been started."""
         launcher = CloudXRLauncher()
-        assert launcher.is_running is False
+        with pytest.raises(RuntimeError, match="has not been started"):
+            launcher.health_check()
         assert launcher.wss_log_path is None
 
 

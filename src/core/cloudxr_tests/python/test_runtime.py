@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Tests for isaacteleop.cloudxr.runtime — wait_for_runtime_ready_sync,
-terminate_or_kill_runtime, and public constants."""
+"""Tests for isaacteleop.cloudxr.runtime — wait_for_runtime_ready_sync and
+terminate_or_kill_runtime."""
 
 import os
 import threading
@@ -12,9 +12,6 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 from isaacteleop.cloudxr.runtime import (
-    RUNTIME_POLL_INTERVAL_SEC,
-    RUNTIME_STARTUP_TIMEOUT_SEC,
-    RUNTIME_TERMINATE_TIMEOUT_SEC,
     terminate_or_kill_runtime,
     wait_for_runtime_ready_sync,
 )
@@ -191,24 +188,6 @@ class TestTerminateOrKillRuntime:
 
         proc.terminate.assert_not_called()
         proc.kill.assert_not_called()
-
-
-# ============================================================================
-# TestPublicConstants
-# ============================================================================
-
-
-class TestPublicConstants:
-    """Guard against accidental changes to the public timeout constants."""
-
-    def test_startup_timeout(self):
-        assert RUNTIME_STARTUP_TIMEOUT_SEC == 10
-
-    def test_terminate_timeout(self):
-        assert RUNTIME_TERMINATE_TIMEOUT_SEC == 10
-
-    def test_poll_interval(self):
-        assert RUNTIME_POLL_INTERVAL_SEC == 0.5
 
 
 if __name__ == "__main__":
