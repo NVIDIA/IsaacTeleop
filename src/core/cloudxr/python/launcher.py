@@ -247,11 +247,11 @@ class CloudXRLauncher:
             except FileNotFoundError:
                 pass
 
-        started = os.path.join(run_dir, "runtime_started")
-        try:
-            os.remove(started)
-        except FileNotFoundError:
-            pass
+        for name in ("runtime_started", "monado.pid", "cloudxr.pid"):
+            try:
+                os.remove(os.path.join(run_dir, name))
+            except FileNotFoundError:
+                pass
 
     def _collect_startup_failure_detail(self, logs_dir: Path) -> str:
         """Build a diagnostic string after a failed runtime startup.

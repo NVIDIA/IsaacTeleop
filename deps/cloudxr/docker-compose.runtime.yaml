@@ -19,10 +19,10 @@ services:
     network_mode: "${CXR_RUNTIME_NETWORK_MODE:-host}"
     healthcheck:
       test: ["CMD", "test", "-f", "/openxr/.cloudxr/run/runtime_started"]
-      interval: 2s
+      interval: 1s
       timeout: 1s
-      retries: 15
-      start_period: 10s
+      retries: 10
+      start_period: 5s
     runtime: nvidia
     environment:
       - ACCEPT_EULA=${ACCEPT_CLOUDXR_EULA:-Y}

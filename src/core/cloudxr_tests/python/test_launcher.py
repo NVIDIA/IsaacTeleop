@@ -260,13 +260,15 @@ class TestCleanupStaleRuntime:
     """Tests for CloudXRLauncher._cleanup_stale_runtime."""
 
     def test_removes_stale_sentinel_files(self, tmp_path):
-        """Stale ipc_cloudxr and runtime_started files are removed."""
+        """Stale ipc_cloudxr, runtime_started, and pidfiles are removed."""
         run_dir = str(tmp_path / "run")
         os.makedirs(run_dir)
         ipc_socket = os.path.join(run_dir, "ipc_cloudxr")
         sentinel = os.path.join(run_dir, "runtime_started")
+        cloudxr_pid = os.path.join(run_dir, "cloudxr.pid")
         Path(ipc_socket).touch()
         Path(sentinel).touch()
+        Path(cloudxr_pid).touch()
 
         fake_cfg = _FakeEnvConfig(run_dir, tmp_path / "logs")
 
@@ -278,6 +280,7 @@ class TestCleanupStaleRuntime:
 
         assert not os.path.exists(ipc_socket)
         assert not os.path.exists(sentinel)
+        assert not os.path.exists(cloudxr_pid)
 
     def test_noop_when_no_stale_files(self, tmp_path):
         """No errors when the run directory has no stale files."""
@@ -293,8 +296,10 @@ class TestCleanupStaleRuntime:
         os.makedirs(run_dir)
         ipc_socket = os.path.join(run_dir, "ipc_cloudxr")
         sentinel = os.path.join(run_dir, "runtime_started")
+        cloudxr_pid = os.path.join(run_dir, "cloudxr.pid")
         Path(ipc_socket).touch()
         Path(sentinel).touch()
+        Path(cloudxr_pid).touch()
 
         fake_cfg = _FakeEnvConfig(run_dir, tmp_path / "logs")
 
@@ -306,6 +311,7 @@ class TestCleanupStaleRuntime:
 
         assert not os.path.exists(ipc_socket)
         assert not os.path.exists(sentinel)
+        assert not os.path.exists(cloudxr_pid)
 
 
 if __name__ == "__main__":

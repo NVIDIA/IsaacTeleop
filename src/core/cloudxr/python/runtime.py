@@ -178,7 +178,7 @@ def _setup_openxr_dir(sdk_path: str, run_dir: str) -> str:
             raise RuntimeError(f"CloudXR SDK missing {name} at {src}. ")
         shutil.copy2(src, os.path.join(openxr_dir, name))
 
-    for stale in ("ipc_cloudxr", "runtime_started"):
+    for stale in ("ipc_cloudxr", "runtime_started", "monado.pid", "cloudxr.pid"):
         p = os.path.join(run_dir, stale)
         if os.path.exists(p):
             os.remove(p)
