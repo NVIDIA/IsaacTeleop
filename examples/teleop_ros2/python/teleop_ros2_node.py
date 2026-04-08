@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Teleop ROS2 Reference Publisher.
+Teleop ROS2 Reference Node.
 
 Publishes teleoperation data over ROS2 topics using isaacteleop TeleopSession.
 The `mode` parameter selects the teleoperation scenario and which topics are
@@ -428,11 +428,11 @@ def _build_full_body_payload(full_body: OptionalTensorGroup) -> Dict:
     }
 
 
-class TeleopRos2PublisherNode(Node):
+class TeleopRos2Node(Node):
     """ROS 2 node that publishes teleop data."""
 
     def __init__(self) -> None:
-        super().__init__("teleop_ros2_publisher")
+        super().__init__("teleop_ros2_node")
 
         self.declare_parameter("mode", "controller_teleop")
         self.declare_parameter("rate_hz", 60.0)
@@ -880,7 +880,7 @@ def main() -> int:
     rclpy.init()
     node = None
     try:
-        node = TeleopRos2PublisherNode()
+        node = TeleopRos2Node()
         return node.run()
     finally:
         if node is not None:

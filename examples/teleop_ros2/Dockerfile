@@ -127,4 +127,4 @@ RUN echo "source /usr/local/bin/teleop-env-setup" >> /etc/bash.bashrc
 # Pre-install Python dependencies so uv run doesn't download at every launch.
 RUN uv sync --no-dev
 
-ENTRYPOINT ["/usr/local/bin/teleop-entrypoint", "uv", "run", "teleop_ros2_publisher.py"]
+ENTRYPOINT ["/usr/local/bin/teleop-entrypoint", "uv", "run", "teleop_ros2_node.py"]
