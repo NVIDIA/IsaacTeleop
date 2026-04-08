@@ -65,8 +65,10 @@ if(BUILD_TESTING)
     # Teleop session manager tests (Python)
     add_subdirectory(teleop_session_manager_tests)
 
-    # CloudXR tests (Python)
-    add_subdirectory(cloudxr_tests)
+    # CloudXR tests (Python — requires the built wheel from python/)
+    if(BUILD_PYTHON_BINDINGS)
+        add_subdirectory(cloudxr_tests)
+    endif()
 
     # MCAP tests (C++)
     add_subdirectory(mcap_tests/cpp)

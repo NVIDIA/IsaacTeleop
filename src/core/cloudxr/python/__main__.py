@@ -6,6 +6,7 @@
 import argparse
 import os
 import signal
+import time
 
 from isaacteleop import __version__ as isaacteleop_version
 from isaacteleop.cloudxr.env_config import get_env_config
@@ -40,48 +41,42 @@ def _parse_args() -> argparse.Namespace:
 def main() -> None:
     args = _parse_args()
 
-    launcher = CloudXRLauncher(
+    with CloudXRLauncher(
         install_dir=args.cloudxr_install_dir,
         env_config=args.cloudxr_env_config,
         accept_eula=args.accept_eula,
-    )
+    ) as launcher:
+        cxr_ver = runtime_version()
+        print(
+            f"Running Isaac Teleop \033[36m{isaacteleop_version}\033[0m, CloudXR Runtime \033[36m{cxr_ver}\033[0m"
+        )
 
-    launcher.start()
+        env_cfg = get_env_config()
+        logs_dir_path = env_cfg.ensure_logs_dir()
+        cxr_log = latest_runtime_log() or logs_dir_path
+        print(
+            f"CloudXR runtime:   \033[36mrunning\033[0m, log file: \033[90m{cxr_log}\033[0m"
+        )
+        wss_log = launcher.wss_log_path
+        print(
+            f"CloudXR WSS proxy: \033[36mrunning\033[0m, log file: \033[90m{wss_log}\033[0m"
+        )
+        print(
+            f"Activate CloudXR environment in another terminal: \033[1;32msource {env_cfg.env_filepath()}\033[0m"
+        )
+        print("\033[33mKeep this terminal open, Ctrl+C to terminate.\033[0m")
 
-    cxr_ver = runtime_version()
-    print(
-        f"Running Isaac Teleop \033[36m{isaacteleop_version}\033[0m, CloudXR Runtime \033[36m{cxr_ver}\033[0m"
-    )
+        stop = False
 
-    env_cfg = get_env_config()
-    logs_dir_path = env_cfg.ensure_logs_dir()
-    cxr_log = latest_runtime_log() or logs_dir_path
-    print(
-        f"CloudXR runtime:   \033[36mrunning\033[0m, log file: \033[90m{cxr_log}\033[0m"
-    )
-    wss_log = launcher.wss_log_path
-    print(
-        f"CloudXR WSS proxy: \033[36mrunning\033[0m, log file: \033[90m{wss_log}\033[0m"
-    )
-    print(
-        f"Activate CloudXR environment in another terminal: \033[1;32msource {env_cfg.env_filepath()}\033[0m"
-    )
-    print("\033[33mKeep this terminal open, Ctrl+C to terminate.\033[0m")
+        def on_signal(sig, frame):
+            nonlocal stop
+            stop = True
 
-    stop = False
+        signal.signal(signal.SIGINT, on_signal)
+        signal.signal(signal.SIGTERM, on_signal)
 
-    def on_signal(sig, frame):
-        nonlocal stop
-        stop = True
-
-    signal.signal(signal.SIGINT, on_signal)
-    signal.signal(signal.SIGTERM, on_signal)
-
-    try:
         while not stop and launcher.is_running:
-            signal.pause()
-    finally:
-        launcher.stop()
+            time.sleep(0.1)
 
     print("Stopped.")
 

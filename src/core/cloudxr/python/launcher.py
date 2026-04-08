@@ -122,7 +122,12 @@ class CloudXRLauncher:
             return
 
         env_cfg = EnvConfig.from_args(self._install_dir, self._env_config)
-        check_eula(accept_eula=self._accept_eula or None)
+        try:
+            check_eula(accept_eula=self._accept_eula or None)
+        except SystemExit as exc:
+            raise RuntimeError(
+                "CloudXR EULA was not accepted; cannot start the runtime"
+            ) from exc
         logs_dir_path = env_cfg.ensure_logs_dir()
 
         self._cleanup_stale_runtime(env_cfg)
@@ -143,20 +148,25 @@ class CloudXRLauncher:
             )
         logger.info("CloudXR runtime ready")
 
+        if not self._atexit_registered:
+            atexit.register(self.stop)
+            self._atexit_registered = True
+
         wss_ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M%SZ")
         wss_log_path = logs_dir_path / f"wss.{wss_ts}.log"
         self._wss_log_path = wss_log_path
         self._start_wss_proxy(wss_log_path)
         logger.info("CloudXR WSS proxy started (log=%s)", wss_log_path)
 
-        if not self._atexit_registered:
-            atexit.register(self.stop)
-            self._atexit_registered = True
-
     def stop(self) -> None:
         """Shut down the WSS proxy and terminate the runtime process.
 
         Safe to call multiple times or when nothing is running.
+
+        Raises:
+            RuntimeError: If the runtime process could not be terminated.
+                The process handle is retained so callers can retry or
+                inspect the still-running process.
         """
         self._stop_wss_proxy()
 
@@ -164,7 +174,12 @@ class CloudXRLauncher:
             try:
                 self._terminate_runtime()
             except RuntimeError:
-                logger.warning("Failed to cleanly terminate CloudXR runtime process")
+                logger.warning(
+                    "Failed to cleanly terminate CloudXR runtime process (pid=%s); "
+                    "handle retained for later cleanup",
+                    self._runtime_proc.pid,
+                )
+                raise
             self._runtime_proc = None
             logger.info("CloudXR runtime process stopped")
 
@@ -211,12 +226,16 @@ class CloudXRLauncher:
             except (FileNotFoundError, subprocess.TimeoutExpired):
                 pass
 
-            for stale in ("ipc_cloudxr", "runtime_started"):
-                p = os.path.join(run_dir, stale)
-                try:
-                    os.remove(p)
-                except FileNotFoundError:
-                    pass
+            try:
+                os.remove(ipc_socket)
+            except FileNotFoundError:
+                pass
+
+        started = os.path.join(run_dir, "runtime_started")
+        try:
+            os.remove(started)
+        except FileNotFoundError:
+            pass
 
     def _is_runtime_alive(self) -> bool:
         """Return whether the runtime subprocess is still running."""
@@ -297,7 +316,14 @@ class CloudXRLauncher:
                 if not future.done():
                     future.set_result(None)
 
-            loop.call_soon_threadsafe(_set_result)
+            if not loop.is_closed():
+                try:
+                    loop.call_soon_threadsafe(_set_result)
+                except RuntimeError:
+                    logger.debug(
+                        "WSS event loop closed before stop signal; "
+                        "proxy already shut down"
+                    )
 
         if self._wss_thread is not None:
             self._wss_thread.join(timeout=5)

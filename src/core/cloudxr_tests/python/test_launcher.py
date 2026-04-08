@@ -256,8 +256,11 @@ class TestLauncherStop:
             launcher.start()
 
             proc = mocks["proc"]
-            # poll() returns None (alive) for several calls, then 0 (dead) after SIGKILL
-            poll_seq = [None, None, None, 0]
+            # poll() returns None (alive) twice then 0 (dead) after SIGKILL:
+            #   call 1 (guard): alive  →  don't bail early
+            #   call 2 (after SIGTERM timeout): alive  →  escalate to SIGKILL
+            #   call 3 (after SIGKILL): dead  →  success
+            poll_seq = [None, None, 0]
             proc.poll = MagicMock(
                 side_effect=lambda: poll_seq.pop(0) if poll_seq else 0
             )
