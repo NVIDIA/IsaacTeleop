@@ -61,11 +61,17 @@ from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     FullBodySource,
     HandsSource,
 )
-from isaacteleop.retargeting_engine.interface import OptionalTensorGroup, OutputCombiner
+from isaacteleop.retargeting_engine.interface import (
+    OptionalTensorGroup,
+    OutputCombiner,
+    TensorGroup,
+    ValueInput,
+)
+from isaacteleop.retargeting_engine.tensor_types import TransformMatrix
 from isaacteleop.retargeters import (
     LocomotionRootCmdRetargeter,
     LocomotionRootCmdRetargeterConfig,
-    TriHandMotionControllerRetargeter,
+    TriHandBiManualMotionControllerRetargeter,
     TriHandMotionControllerConfig,
 )
 from isaacteleop.retargeting_engine.tensor_types.indices import (
@@ -105,51 +111,13 @@ def _append_hand_poses(
     poses: List[Pose],
     joint_positions: np.ndarray,
     joint_orientations: np.ndarray,
-    transform_rot: Rotation | None = None,
-    transform_trans: Sequence[float] | None = None,
 ) -> None:
     for joint_idx in range(
         HandJointIndex.THUMB_METACARPAL, HandJointIndex.LITTLE_TIP + 1
     ):
-        pose = _to_pose(joint_positions[joint_idx], joint_orientations[joint_idx])
-        if transform_rot is not None or transform_trans is not None:
-            pose = _apply_transform_to_pose(pose, transform_rot, transform_trans)
-        poses.append(pose)
-
-
-def _apply_transform_to_pose(
-    pose: Pose,
-    rotation: Rotation | None = None,
-    translation: Sequence[float] | None = None,
-) -> Pose:
-    """Return a new Pose with rotation and translation applied."""
-    p = [pose.position.x, pose.position.y, pose.position.z]
-    q = [
-        pose.orientation.x,
-        pose.orientation.y,
-        pose.orientation.z,
-        pose.orientation.w,
-    ]
-
-    if rotation is not None:
-        p = rotation.apply(p)
-        q = (rotation * Rotation.from_quat(q)).as_quat()
-
-    result = Pose()
-    if translation is not None:
-        result.position.x = float(p[0]) + translation[0]
-        result.position.y = float(p[1]) + translation[1]
-        result.position.z = float(p[2]) + translation[2]
-    else:
-        result.position.x = float(p[0])
-        result.position.y = float(p[1])
-        result.position.z = float(p[2])
-
-    result.orientation.x = float(q[0])
-    result.orientation.y = float(q[1])
-    result.orientation.z = float(q[2])
-    result.orientation.w = float(q[3])
-    return result
+        poses.append(
+            _to_pose(joint_positions[joint_idx], joint_orientations[joint_idx])
+        )
 
 
 def _find_plugins_dirs(start: Path) -> List[Path]:
@@ -184,6 +152,18 @@ def _make_transform(
     tf.transform.rotation.z = float(orientation[2])
     tf.transform.rotation.w = float(orientation[3])
     return tf
+
+
+def _make_world_transform_matrix(
+    rotation: Rotation | None,
+    translation: Sequence[float] | None,
+) -> np.ndarray:
+    matrix = np.eye(4, dtype=np.float32)
+    if rotation is not None:
+        matrix[:3, :3] = rotation.as_matrix().astype(np.float32)
+    if translation is not None:
+        matrix[:3, 3] = np.asarray(translation, dtype=np.float32)
+    return matrix
 
 
 def _resolve_finger_joint_names(
@@ -229,8 +209,6 @@ def _build_ee_msg_from_controllers(
     right_ctrl: OptionalTensorGroup,
     now,
     frame_id: str,
-    transform_rot: Rotation | None = None,
-    transform_trans: Sequence[float] | None = None,
 ) -> PoseArray:
     """Build a PoseArray with right then left controller aim poses (wrist proxy)."""
     msg = PoseArray()
@@ -239,20 +217,14 @@ def _build_ee_msg_from_controllers(
     if not right_ctrl.is_none:
         pos = [float(x) for x in right_ctrl[ControllerInputIndex.AIM_POSITION]]
         ori = [float(x) for x in right_ctrl[ControllerInputIndex.AIM_ORIENTATION]]
-        pose = _to_pose(pos, ori)
-        if transform_rot is not None or transform_trans is not None:
-            pose = _apply_transform_to_pose(pose, transform_rot, transform_trans)
-        msg.poses.append(pose)
+        msg.poses.append(_to_pose(pos, ori))
     else:
         msg.poses.append(_to_pose([0.0, 0.0, 0.0]))
 
     if not left_ctrl.is_none:
         pos = [float(x) for x in left_ctrl[ControllerInputIndex.AIM_POSITION]]
         ori = [float(x) for x in left_ctrl[ControllerInputIndex.AIM_ORIENTATION]]
-        pose = _to_pose(pos, ori)
-        if transform_rot is not None or transform_trans is not None:
-            pose = _apply_transform_to_pose(pose, transform_rot, transform_trans)
-        msg.poses.append(pose)
+        msg.poses.append(_to_pose(pos, ori))
     else:
         msg.poses.append(_to_pose([0.0, 0.0, 0.0]))
 
@@ -264,8 +236,6 @@ def _build_ee_msg_from_hands(
     right_hand: OptionalTensorGroup,
     now,
     frame_id: str,
-    transform_rot: Rotation | None = None,
-    transform_trans: Sequence[float] | None = None,
 ) -> PoseArray:
     """Build a PoseArray with right then left hand wrist poses (EE proxy)."""
     msg = PoseArray()
@@ -279,8 +249,6 @@ def _build_ee_msg_from_hands(
             right_positions[HandJointIndex.WRIST],
             right_orientations[HandJointIndex.WRIST],
         )
-        if transform_rot is not None or transform_trans is not None:
-            pose = _apply_transform_to_pose(pose, transform_rot, transform_trans)
         msg.poses.append(pose)
     else:
         msg.poses.append(_to_pose([0.0, 0.0, 0.0]))
@@ -292,8 +260,6 @@ def _build_ee_msg_from_hands(
             left_positions[HandJointIndex.WRIST],
             left_orientations[HandJointIndex.WRIST],
         )
-        if transform_rot is not None or transform_trans is not None:
-            pose = _apply_transform_to_pose(pose, transform_rot, transform_trans)
         msg.poses.append(pose)
     else:
         msg.poses.append(_to_pose([0.0, 0.0, 0.0]))
@@ -306,8 +272,6 @@ def _build_hand_msg_from_hands(
     right_hand: OptionalTensorGroup,
     now,
     frame_id: str,
-    transform_rot: Rotation | None = None,
-    transform_trans: Sequence[float] | None = None,
 ) -> PoseArray:
     """Build a PoseArray with right then left hand finger joints."""
     msg = PoseArray()
@@ -317,13 +281,7 @@ def _build_hand_msg_from_hands(
     if not right_hand.is_none:
         right_positions = np.asarray(right_hand[HandInputIndex.JOINT_POSITIONS])
         right_orientations = np.asarray(right_hand[HandInputIndex.JOINT_ORIENTATIONS])
-        _append_hand_poses(
-            msg.poses,
-            right_positions,
-            right_orientations,
-            transform_rot,
-            transform_trans,
-        )
+        _append_hand_poses(msg.poses, right_positions, right_orientations)
     else:
         for _ in range(HandJointIndex.THUMB_METACARPAL, HandJointIndex.LITTLE_TIP + 1):
             msg.poses.append(_to_pose([0.0, 0.0, 0.0]))
@@ -331,9 +289,7 @@ def _build_hand_msg_from_hands(
     if not left_hand.is_none:
         left_positions = np.asarray(left_hand[HandInputIndex.JOINT_POSITIONS])
         left_orientations = np.asarray(left_hand[HandInputIndex.JOINT_ORIENTATIONS])
-        _append_hand_poses(
-            msg.poses, left_positions, left_orientations, transform_rot, transform_trans
-        )
+        _append_hand_poses(msg.poses, left_positions, left_orientations)
     else:
         for _ in range(HandJointIndex.THUMB_METACARPAL, HandJointIndex.LITTLE_TIP + 1):
             msg.poses.append(_to_pose([0.0, 0.0, 0.0]))
@@ -549,21 +505,21 @@ class TeleopRos2Node(Node):
             .get_parameter_value()
             .double_array_value
         )
-        self._transform_trans: List[float] | None = None
+        transform_trans: List[float] | None = None
         if transform_trans_arr:
             if len(transform_trans_arr) != 3:
                 raise ValueError(
                     "Parameter 'transform_translation' must have 3 elements if provided"
                 )
             if not np.allclose(transform_trans_arr, [0.0, 0.0, 0.0]):
-                self._transform_trans = [float(x) for x in transform_trans_arr]
+                transform_trans = [float(x) for x in transform_trans_arr]
 
         transform_rot_arr = (
             self.get_parameter("transform_rotation")
             .get_parameter_value()
             .double_array_value
         )
-        self._transform_rot: Rotation | None = None
+        transform_rot: Rotation | None = None
         if transform_rot_arr:
             if len(transform_rot_arr) != 4:
                 raise ValueError(
@@ -582,7 +538,15 @@ class TeleopRos2Node(Node):
                         f"Parameter 'transform_rotation' is not a unit quaternion (norm={q_norm}). Normalizing it."
                     )
                 normalized_q = np.array(transform_rot_floats) / q_norm
-                self._transform_rot = Rotation.from_quat(normalized_q)
+                transform_rot = Rotation.from_quat(normalized_q)
+        self._world_transform_input = TensorGroup(TransformMatrix())
+        self._world_transform_input[0] = _make_world_transform_matrix(
+            transform_rot,
+            transform_trans,
+        )
+        self._session_external_inputs = {
+            "world_transform": {ValueInput.VALUE: self._world_transform_input}
+        }
 
         left_finger_joint_names = _resolve_finger_joint_names(
             "left_finger_joint_names",
@@ -616,45 +580,61 @@ class TeleopRos2Node(Node):
         hands = HandsSource(name="hands")
         controllers = ControllersSource(name="controllers")
         full_body = FullBodySource(name="full_body")
+        world_transform = ValueInput("world_transform", TransformMatrix())
+        transformed_hands = hands.transformed(world_transform.output(ValueInput.VALUE))
+        transformed_controllers = controllers.transformed(
+            world_transform.output(ValueInput.VALUE)
+        )
         locomotion = LocomotionRootCmdRetargeter(
             LocomotionRootCmdRetargeterConfig(), name="locomotion"
         )
         locomotion_connected = locomotion.connect(
             {
-                "controller_left": controllers.output(ControllersSource.LEFT),
-                "controller_right": controllers.output(ControllersSource.RIGHT),
+                "controller_left": transformed_controllers.output(
+                    ControllersSource.LEFT
+                ),
+                "controller_right": transformed_controllers.output(
+                    ControllersSource.RIGHT
+                ),
             }
         )
 
-        left_hand_retargeter = TriHandMotionControllerRetargeter(
-            TriHandMotionControllerConfig(
+        bimanual_hand_retargeter = TriHandBiManualMotionControllerRetargeter(
+            left_config=TriHandMotionControllerConfig(
                 hand_joint_names=left_finger_joint_names, controller_side="left"
             ),
-            name="trihand_left",
-        )
-        right_hand_retargeter = TriHandMotionControllerRetargeter(
-            TriHandMotionControllerConfig(
+            right_config=TriHandMotionControllerConfig(
                 hand_joint_names=right_finger_joint_names, controller_side="right"
             ),
-            name="trihand_right",
+            target_joint_names=left_finger_joint_names + right_finger_joint_names,
+            name="trihand_bimanual",
         )
-        left_hand_connected = left_hand_retargeter.connect(
-            {ControllersSource.LEFT: controllers.output(ControllersSource.LEFT)}
-        )
-        right_hand_connected = right_hand_retargeter.connect(
-            {ControllersSource.RIGHT: controllers.output(ControllersSource.RIGHT)}
+        finger_joints_connected = bimanual_hand_retargeter.connect(
+            {
+                ControllersSource.LEFT: transformed_controllers.output(
+                    ControllersSource.LEFT
+                ),
+                ControllersSource.RIGHT: transformed_controllers.output(
+                    ControllersSource.RIGHT
+                ),
+            }
         )
 
         pipeline = OutputCombiner(
             {
-                "hand_left": hands.output(HandsSource.LEFT),
-                "hand_right": hands.output(HandsSource.RIGHT),
+                "hand_left": transformed_hands.output(HandsSource.LEFT),
+                "hand_right": transformed_hands.output(HandsSource.RIGHT),
                 "controller_left": controllers.output(ControllersSource.LEFT),
                 "controller_right": controllers.output(ControllersSource.RIGHT),
+                "controller_left_world": transformed_controllers.output(
+                    ControllersSource.LEFT
+                ),
+                "controller_right_world": transformed_controllers.output(
+                    ControllersSource.RIGHT
+                ),
                 "root_command": locomotion_connected.output("root_command"),
                 "full_body": full_body.output(FullBodySource.FULL_BODY),
-                "finger_joints_left": left_hand_connected.output("hand_joints"),
-                "finger_joints_right": right_hand_connected.output("hand_joints"),
+                "finger_joints": finger_joints_connected.output("hand_joints"),
             }
         )
 
@@ -728,11 +708,15 @@ class TeleopRos2Node(Node):
                 with TeleopSession(self._config) as session:
                     self.get_logger().info("TeleopSession started successfully")
                     while rclpy.ok():
-                        result = session.step()
+                        result = session.step(
+                            external_inputs=self._session_external_inputs
+                        )
 
                         now = self.get_clock().now().to_msg()
                         left_ctrl = result["controller_left"]
                         right_ctrl = result["controller_right"]
+                        left_ctrl_world = result["controller_left_world"]
+                        right_ctrl_world = result["controller_right_world"]
 
                         if self._mode == "hand_teleop":
                             left_hand = result["hand_left"]
@@ -743,8 +727,6 @@ class TeleopRos2Node(Node):
                                 right_hand,
                                 now,
                                 self._world_frame,
-                                self._transform_rot,
-                                self._transform_trans,
                             )
                             if hand_msg.poses:
                                 self._pub_hand.publish(hand_msg)
@@ -754,8 +736,6 @@ class TeleopRos2Node(Node):
                                 right_hand,
                                 now,
                                 self._world_frame,
-                                self._transform_rot,
-                                self._transform_trans,
                             )
                             if ee_msg.poses:
                                 self._pub_ee_pose.publish(ee_msg)
@@ -768,21 +748,19 @@ class TeleopRos2Node(Node):
                             if wrist_tfs:
                                 self._tf_broadcaster.sendTransform(wrist_tfs)
                         elif self._mode == "controller_teleop":
-                            # Build EE poses from controllers
+                            # Build EE poses from transformed controllers
                             ee_msg = _build_ee_msg_from_controllers(
-                                left_ctrl,
-                                right_ctrl,
+                                left_ctrl_world,
+                                right_ctrl_world,
                                 now,
                                 self._world_frame,
-                                self._transform_rot,
-                                self._transform_trans,
                             )
                             if ee_msg.poses:
                                 self._pub_ee_pose.publish(ee_msg)
                             wrist_tfs = self._build_wrist_tfs(
                                 ee_msg,
-                                right_available=not right_ctrl.is_none,
-                                left_available=not left_ctrl.is_none,
+                                right_available=not right_ctrl_world.is_none,
+                                left_available=not left_ctrl_world.is_none,
                                 now=now,
                             )
                             if wrist_tfs:
@@ -809,33 +787,16 @@ class TeleopRos2Node(Node):
                                 self._pub_root_pose.publish(pose_msg)
 
                         if self._mode == "controller_teleop":
-                            left_joints = result["finger_joints_left"]
-                            right_joints = result["finger_joints_right"]
-                            if not left_joints.is_none or not right_joints.is_none:
+                            finger_joints = result["finger_joints"]
+                            if not finger_joints.is_none:
                                 finger_joints_msg = JointState()
                                 finger_joints_msg.header.stamp = now
                                 finger_joints_msg.header.frame_id = self._world_frame
-                                left_arr = (
-                                    np.asarray(list(left_joints), dtype=np.float32)
-                                    if not left_joints.is_none
-                                    else np.array([], dtype=np.float32)
+                                finger_joints_msg.name = _joint_names_from_group(
+                                    finger_joints
                                 )
-                                right_arr = (
-                                    np.asarray(list(right_joints), dtype=np.float32)
-                                    if not right_joints.is_none
-                                    else np.array([], dtype=np.float32)
-                                )
-                                finger_joints_msg.name = (
-                                    _joint_names_from_group(left_joints)
-                                    if not left_joints.is_none
-                                    else []
-                                ) + (
-                                    _joint_names_from_group(right_joints)
-                                    if not right_joints.is_none
-                                    else []
-                                )
-                                finger_joints_msg.position = np.concatenate(
-                                    [left_arr, right_arr]
+                                finger_joints_msg.position = np.asarray(
+                                    list(finger_joints), dtype=np.float32
                                 ).tolist()
                                 self._pub_finger_joints.publish(finger_joints_msg)
 
