@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -102,7 +102,7 @@ The plugin is installed to the `install` directory, please ensure the CLI tool i
 To position the MANUS gloves in 3D space two avenues are available:
 
 - Use the MANUS Quest 3 controller adapters to attach the Quest 3 controllers to the MANUS Universal Mount on the back of the glove.
-- Use the HMD's optical hand tracking to position the hands. 
+- Use the HMD's optical hand tracking to position the hands.
 
 The system will switch dynamically based on the available tracking source. When using controllers it's advised to turn off hand tracking entirely or turn off automatic switching.
 

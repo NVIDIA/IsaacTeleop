@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -92,13 +92,13 @@ private:
     std::shared_ptr<core::ControllerTracker> m_controller_tracker;
     std::shared_ptr<core::HandTracker> m_hand_tracker;
     std::unique_ptr<core::DeviceIOSession> m_deviceio_session;
-    
+
     // XDev native hand trackers (Quest 3 hand tracking via XR_MNDX_xdev_space)
     XrXDevListMNDX m_xdev_list = XR_NULL_HANDLE;
     XrHandTrackerEXT m_native_left_hand_tracker = XR_NULL_HANDLE;
     XrHandTrackerEXT m_native_right_hand_tracker = XR_NULL_HANDLE;
     bool m_xdev_available = false;
-    
+
     // XDev function pointers
     PFN_xrCreateXDevListMNDX m_pfn_create_xdev_list = nullptr;
     PFN_xrDestroyXDevListMNDX m_pfn_destroy_xdev_list = nullptr;
@@ -107,7 +107,7 @@ private:
     PFN_xrCreateHandTrackerEXT m_pfn_create_hand_tracker = nullptr;
     PFN_xrDestroyHandTrackerEXT m_pfn_destroy_hand_tracker = nullptr;
     PFN_xrLocateHandJointsEXT m_pfn_locate_hand_joints = nullptr;
-    
+
     // Persistent root poses (initialized to identity)
     XrPosef m_left_root_pose = { { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, 0.0f } };
     XrPosef m_right_root_pose = { { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, 0.0f } };
@@ -119,7 +119,7 @@ private:
     // Node topology (parent IDs) — populated once per glove connect
     std::vector<NodeInfo> m_left_node_info;
     std::vector<NodeInfo> m_right_node_info;
-    
+
     // Time converter for XR timestamps (initialized after handles are ready)
     std::optional<core::XrTimeConverter> m_time_converter;
 };

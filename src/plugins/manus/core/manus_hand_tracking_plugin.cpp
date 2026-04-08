@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #include <core/manus_hand_tracking_plugin.hpp>
@@ -196,7 +196,7 @@ void ManusTracker::initialize(const std::string& app_name) noexcept(false)
         // Create session with required extensions - constructor automatically begins the session
         m_session = std::make_shared<core::OpenXRSession>(app_name, extensions);
         m_handles = m_session->get_handles();
-        
+
         // Initialize time converter now that handles are ready
         m_time_converter.emplace(m_handles);
 
@@ -213,11 +213,11 @@ void ManusTracker::initialize(const std::string& app_name) noexcept(false)
         {
             initialize_xdev_hand_trackers();
         }
-        
-        std::cout << "[Manus] Initialized with wrist source: " 
-                  << (m_xdev_available ? "HandTracking" : "Controllers") 
+
+        std::cout << "[Manus] Initialized with wrist source: "
+                  << (m_xdev_available ? "HandTracking" : "Controllers")
                   << std::endl;
-        
+
         success = true;
     }
     catch (const std::exception& e)
@@ -240,7 +240,7 @@ void ManusTracker::shutdown_sdk()
 {
     // Cleanup XDev hand trackers first
     cleanup_xdev_hand_trackers();
-    
+
     CoreSdk_RegisterCallbackForRawSkeletonStream(nullptr);
     CoreSdk_RegisterCallbackForLandscapeStream(nullptr);
     CoreSdk_RegisterCallbackForErgonomicsStream(nullptr);
@@ -467,7 +467,7 @@ void ManusTracker::initialize_xdev_hand_trackers()
         XrResult result = m_handles.xrGetInstanceProcAddr(m_handles.instance, name, ptr);
         return XR_SUCCEEDED(result) && *ptr != nullptr;
     };
-    
+
     // Load XDev extension functions
     if (!load_func("xrCreateXDevListMNDX", reinterpret_cast<PFN_xrVoidFunction*>(&m_pfn_create_xdev_list)) ||
         !load_func("xrDestroyXDevListMNDX", reinterpret_cast<PFN_xrVoidFunction*>(&m_pfn_destroy_xdev_list)) ||
@@ -477,7 +477,7 @@ void ManusTracker::initialize_xdev_hand_trackers()
         std::cerr << "[Manus] XR_MNDX_xdev_space extension not available, falling back to controllers" << std::endl;
         return;
     }
-    
+
     // Load hand tracking extension functions
     if (!load_func("xrCreateHandTrackerEXT", reinterpret_cast<PFN_xrVoidFunction*>(&m_pfn_create_hand_tracker)) ||
         !load_func("xrDestroyHandTrackerEXT", reinterpret_cast<PFN_xrVoidFunction*>(&m_pfn_destroy_hand_tracker)) ||
@@ -486,7 +486,7 @@ void ManusTracker::initialize_xdev_hand_trackers()
         std::cerr << "[Manus] Hand tracking extension not available, falling back to controllers" << std::endl;
         return;
     }
-    
+
     // Create XDev list
     XrCreateXDevListInfoMNDX create_info{ XR_TYPE_CREATE_XDEV_LIST_INFO_MNDX };
     XrResult result = m_pfn_create_xdev_list(m_handles.session, &create_info, &m_xdev_list);
@@ -495,7 +495,7 @@ void ManusTracker::initialize_xdev_hand_trackers()
         std::cerr << "[Manus] Failed to create XDevList, falling back to controllers" << std::endl;
         return;
     }
-    
+
     // Enumerate XDevs
     uint32_t xdev_count = 0;
     result = m_pfn_enumerate_xdevs(m_xdev_list, 0, &xdev_count, nullptr);
@@ -504,14 +504,14 @@ void ManusTracker::initialize_xdev_hand_trackers()
         std::cerr << "[Manus] No XDevs found, falling back to controllers" << std::endl;
         return;
     }
-    
+
     std::vector<XrXDevIdMNDX> xdev_ids(xdev_count);
     result = m_pfn_enumerate_xdevs(m_xdev_list, xdev_count, &xdev_count, xdev_ids.data());
     if (XR_FAILED(result))
     {
         return;
     }
-    
+
     // Find native hand tracking devices by matching against their serial strings.
     //
     // NOTE: The serial values "Head Device (0)" (left) and "Head Device (1)" (right) are
@@ -522,19 +522,19 @@ void ManusTracker::initialize_xdev_hand_trackers()
     XrXDevIdMNDX left_xdev_id = 0;
     XrXDevIdMNDX right_xdev_id = 0;
     std::vector<std::string> seen_serials;
-    
+
     for (const auto& xdev_id : xdev_ids)
     {
         XrGetXDevInfoMNDX get_info{ XR_TYPE_GET_XDEV_INFO_MNDX };
         get_info.id = xdev_id;
-        
+
         XrXDevPropertiesMNDX properties{ XR_TYPE_XDEV_PROPERTIES_MNDX };
         result = m_pfn_get_xdev_properties(m_xdev_list, &get_info, &properties);
         if (XR_FAILED(result))
         {
             continue;
         }
-        
+
         std::string serial_str = properties.serial ? properties.serial : "";
         seen_serials.push_back(serial_str);
 
@@ -564,29 +564,29 @@ void ManusTracker::initialize_xdev_hand_trackers()
                   << "These serial strings are runtime-specific and may have changed."
                   << std::endl;
     }
-    
+
     // Create hand trackers from XDevs
     auto create_tracker = [this](XrXDevIdMNDX xdev_id, XrHandEXT hand, XrHandTrackerEXT& out_tracker) -> bool {
         if (xdev_id == 0)
         {
             return false;
         }
-        
+
         XrCreateHandTrackerXDevMNDX xdev_create_info{ XR_TYPE_CREATE_HAND_TRACKER_XDEV_MNDX };
         xdev_create_info.xdevList = m_xdev_list;
         xdev_create_info.id = xdev_id;
-        
+
         XrHandTrackerCreateInfoEXT create_info{ XR_TYPE_HAND_TRACKER_CREATE_INFO_EXT };
         create_info.next = &xdev_create_info;
         create_info.hand = hand;
         create_info.handJointSet = XR_HAND_JOINT_SET_DEFAULT_EXT;
-        
+
         return XR_SUCCEEDED(m_pfn_create_hand_tracker(m_handles.session, &create_info, &out_tracker));
     };
-    
+
     bool left_ok = create_tracker(left_xdev_id, XR_HAND_LEFT_EXT, m_native_left_hand_tracker);
     bool right_ok = create_tracker(right_xdev_id, XR_HAND_RIGHT_EXT, m_native_right_hand_tracker);
-    
+
     if (left_ok && right_ok)
     {
         m_xdev_available = true;
@@ -626,27 +626,27 @@ bool ManusTracker::update_xdev_hand(XrHandTrackerEXT tracker, XrTime time, XrPos
     {
         return false;
     }
-    
+
     XrHandJointsLocateInfoEXT locate_info{ XR_TYPE_HAND_JOINTS_LOCATE_INFO_EXT };
     locate_info.baseSpace = m_handles.space;
     locate_info.time = time;
-    
+
     XrHandJointLocationEXT joint_locations[XR_HAND_JOINT_COUNT_EXT];
-    
+
     XrHandJointLocationsEXT locations{ XR_TYPE_HAND_JOINT_LOCATIONS_EXT };
     locations.jointCount = XR_HAND_JOINT_COUNT_EXT;
     locations.jointLocations = joint_locations;
-    
+
     XrResult result = m_pfn_locate_hand_joints(tracker, &locate_info, &locations);
     if (XR_FAILED(result) || !locations.isActive)
     {
         return false;
     }
-    
+
     const auto& wrist = joint_locations[XR_HAND_JOINT_WRIST_EXT];
     const bool is_valid = (wrist.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) &&
                           (wrist.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT);
-    
+
     if (is_valid)
     {
         out_wrist_pose = wrist.pose;
@@ -656,7 +656,7 @@ bool ManusTracker::update_xdev_hand(XrHandTrackerEXT tracker, XrTime time, XrPos
                          (wrist.locationFlags & XR_SPACE_LOCATION_ORIENTATION_TRACKED_BIT);
         return true;
     }
-    
+
     return false;
 }
 
@@ -669,15 +669,15 @@ bool ManusTracker::get_controller_wrist_pose(bool is_left, XrPosef& out_wrist_po
     {
         return false;
     }
-    
+
     bool aim_valid = false;
     XrPosef raw_pose = oxr_utils::get_aim_pose(*tracked.data, aim_valid);
-    
+
     if (!aim_valid)
     {
         return false;
     }
-    
+
     XrPosef offset_pose = is_left ? kLeftHandOffset : kRightHandOffset;
     out_wrist_pose = oxr_utils::multiply_poses(raw_pose, offset_pose);
     return true;
@@ -733,7 +733,7 @@ void ManusTracker::inject_hand_data()
                 xdev_pose_valid = true;
             }
         }
-        
+
         // Fall back to controllers only when xdev provided no valid pose at all.
         // If xdev gave a valid-but-untracked pose we keep it rather than
         // overwriting it with a controller pose that would be falsely marked tracked.
