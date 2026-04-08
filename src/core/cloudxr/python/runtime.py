@@ -211,8 +211,10 @@ def run() -> None:
     prev_ld = os.environ.get("LD_LIBRARY_PATH", "")
     os.environ["LD_LIBRARY_PATH"] = sdk_path + (f":{prev_ld}" if prev_ld else "")
 
-    # By default suppress native library console output (banner, StreamSDK redirect notice), so
-    # that we can have complete control over the console output.
+    # When file-logging is active the native library writes detailed logs to
+    # NV_CXR_OUTPUT_DIR.  Suppress the console banner on stdout but redirect
+    # stderr to a file so that Vulkan-loader diagnostics, GPU-init errors,
+    # and Python tracebacks are preserved for post-mortem analysis.
     _file_logging = os.environ.get("NV_CXR_FILE_LOGGING", "yes")
     if _file_logging and _file_logging.lower() not in (
         "false",
@@ -222,10 +224,14 @@ def run() -> None:
         "f",
         "0",
     ):
+        logs_dir = cfg.ensure_logs_dir()
+        stderr_log = os.path.join(str(logs_dir), "runtime_stderr.log")
         devnull_fd = os.open(os.devnull, os.O_WRONLY)
+        stderr_fd = os.open(stderr_log, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
         os.dup2(devnull_fd, sys.stdout.fileno())
-        os.dup2(devnull_fd, sys.stderr.fileno())
+        os.dup2(stderr_fd, sys.stderr.fileno())
         os.close(devnull_fd)
+        os.close(stderr_fd)
 
     lib_path = os.path.join(sdk_path, "libcloudxr.so")
     deepbind = getattr(os, "RTLD_DEEPBIND", 0)

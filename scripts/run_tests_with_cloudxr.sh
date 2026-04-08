@@ -315,6 +315,19 @@ if [ $WAITED -ge $MAX_WAIT ]; then
         -f "$COMPOSE_RUNTIME" \
         -f "$COMPOSE_TEST" \
         logs cloudxr-runtime
+
+    log_info "CloudXR volume log files:"
+    LOGS_DIR="$CXR_HOST_VOLUME_PATH/.cloudxr/logs"
+    if [ -d "$LOGS_DIR" ]; then
+        for f in "$LOGS_DIR"/*.log; do
+            [ -f "$f" ] || continue
+            echo "--- $(basename "$f") ---"
+            tail -c 8192 "$f"
+            echo ""
+        done
+    else
+        echo "No log directory found at $LOGS_DIR"
+    fi
     exit 1
 fi
 

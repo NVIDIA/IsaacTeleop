@@ -294,6 +294,20 @@ jobs:
             -f deps/cloudxr/docker-compose.test.yaml \
             -f deps/cloudxr/docker-compose.override.yaml \
             logs cloudxr-runtime
+
+          echo ""
+          echo "=== CloudXR volume log files ==="
+          LOGS_DIR="$CXR_HOST_VOLUME_PATH/.cloudxr/logs"
+          if [ -d "$LOGS_DIR" ]; then
+            for f in "$LOGS_DIR"/*.log; do
+              [ -f "$f" ] || continue
+              echo "--- $(basename "$f") ---"
+              tail -c 8192 "$f"
+              echo ""
+            done
+          else
+            echo "No log directory found at $LOGS_DIR"
+          fi
           exit 1
         fi
 

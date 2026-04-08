@@ -254,7 +254,13 @@ class CloudXRLauncher:
             pass
 
     def _collect_startup_failure_detail(self, logs_dir: Path) -> str:
-        """Build a diagnostic string after a failed runtime startup."""
+        """Build a diagnostic string after a failed runtime startup.
+
+        Captures the process exit code, subprocess stderr pipe, the
+        runtime stderr log file (written by :func:`~.runtime.run`), and
+        the most recent CloudXR native server log.
+        """
+        _MAX_LOG_BYTES = 4096
         parts: list[str] = []
         proc = self._runtime_proc
         if proc is not None:
@@ -264,7 +270,7 @@ class CloudXRLauncher:
                 stderr_pipe = getattr(proc, "stderr", None)
                 if stderr_pipe is not None:
                     try:
-                        stderr_tail = stderr_pipe.read(4096)
+                        stderr_tail = stderr_pipe.read(_MAX_LOG_BYTES)
                         if stderr_tail:
                             parts.append(
                                 f"stderr: {stderr_tail.decode(errors='replace').strip()}"
@@ -274,8 +280,34 @@ class CloudXRLauncher:
             else:
                 parts.append("Process is still running but did not signal readiness.")
 
+        for log_path in self._gather_diagnostic_logs(logs_dir):
+            try:
+                content = log_path.read_text(errors="replace").strip()
+                if not content:
+                    continue
+                if len(content) > _MAX_LOG_BYTES:
+                    content = "...\n" + content[-_MAX_LOG_BYTES:]
+                parts.append(f"{log_path.name}:\n{content}")
+            except Exception:
+                pass
+
         parts.append(f"Check logs under {logs_dir} for details.")
         return "  ".join(parts)
+
+    @staticmethod
+    def _gather_diagnostic_logs(logs_dir: Path) -> list[Path]:
+        """Return log files useful for diagnosing a startup failure."""
+        result: list[Path] = []
+
+        stderr_log = logs_dir / "runtime_stderr.log"
+        if stderr_log.is_file():
+            result.append(stderr_log)
+
+        cxr_logs = sorted(logs_dir.glob("cxr_server.*.log"))
+        if cxr_logs:
+            result.append(cxr_logs[-1])
+
+        return result
 
     def _is_runtime_alive(self) -> bool:
         """Return whether the runtime subprocess is still running."""
