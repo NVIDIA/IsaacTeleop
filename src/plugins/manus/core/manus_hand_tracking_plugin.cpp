@@ -42,10 +42,8 @@ bool is_openxr_extension_supported(const char* ext_name)
     {
         return false;
     }
-    return std::any_of(props.begin(), props.end(), [ext_name](const XrExtensionProperties& p)
-    {
-        return std::string(p.extensionName) == ext_name;
-    });
+    return std::any_of(props.begin(), props.end(),
+                       [ext_name](const XrExtensionProperties& p) { return std::string(p.extensionName) == ext_name; });
 }
 
 } // anonymous namespace
@@ -169,8 +167,7 @@ void ManusTracker::initialize(const std::string& app_name) noexcept(false)
         else
         {
             std::cout << "[Manus] " << XR_EXT_HAND_TRACKING_EXTENSION_NAME
-                      << " is not supported by the current runtime; HandTracker will not be created."
-                      << std::endl;
+                      << " is not supported by the current runtime; HandTracker will not be created." << std::endl;
         }
 
         // Get required extensions from trackers
@@ -189,8 +186,7 @@ void ManusTracker::initialize(const std::string& app_name) noexcept(false)
         {
             std::cout << "[Manus] " << XR_MNDX_XDEV_SPACE_EXTENSION_NAME
                       << " is not supported by the current runtime; optical hand tracking"
-                      << " will not be available and controller fallback will be used."
-                      << std::endl;
+                      << " will not be available and controller fallback will be used." << std::endl;
         }
 
         // Create session with required extensions - constructor automatically begins the session
@@ -201,8 +197,10 @@ void ManusTracker::initialize(const std::string& app_name) noexcept(false)
         m_time_converter.emplace(m_handles);
 
         // Initialize hand injectors (one per hand)
-        m_left_injector = std::make_unique<plugin_utils::HandInjector>(m_handles.instance, m_handles.session, XR_HAND_LEFT_EXT, m_handles.space);
-        m_right_injector = std::make_unique<plugin_utils::HandInjector>(m_handles.instance, m_handles.session, XR_HAND_RIGHT_EXT, m_handles.space);
+        m_left_injector = std::make_unique<plugin_utils::HandInjector>(
+            m_handles.instance, m_handles.session, XR_HAND_LEFT_EXT, m_handles.space);
+        m_right_injector = std::make_unique<plugin_utils::HandInjector>(
+            m_handles.instance, m_handles.session, XR_HAND_RIGHT_EXT, m_handles.space);
 
         m_deviceio_session = core::DeviceIOSession::run(trackers, m_handles);
 
@@ -214,8 +212,7 @@ void ManusTracker::initialize(const std::string& app_name) noexcept(false)
             initialize_xdev_hand_trackers();
         }
 
-        std::cout << "[Manus] Initialized with wrist source: "
-                  << (m_xdev_available ? "HandTracking" : "Controllers")
+        std::cout << "[Manus] Initialized with wrist source: " << (m_xdev_available ? "HandTracking" : "Controllers")
                   << std::endl;
 
         success = true;
@@ -409,32 +406,34 @@ void ManusTracker::OnLandscapeStream(const Landscape* landscape)
     {
         const GloveLandscapeData& glove = gloves.gloves[i];
         if (glove.side == Side::Side_Left)
+        {
+            tracker.left_glove_id = glove.id;
+            left_present = true;
+            // Fetch bone topology once on connect
+            uint32_t nc = 0;
+            if (CoreSdk_GetRawSkeletonNodeCount(glove.id, nc) == SDKReturnCode::SDKReturnCode_Success && nc > 0)
             {
-                tracker.left_glove_id = glove.id;
-                left_present = true;
-                // Fetch bone topology once on connect
-                uint32_t nc = 0;
-                if (CoreSdk_GetRawSkeletonNodeCount(glove.id, nc) == SDKReturnCode::SDKReturnCode_Success && nc > 0)
-                {
-                    std::lock_guard<std::mutex> sk(tracker.m_skeleton_mutex);
-                    tracker.m_left_node_info.resize(nc);
-                    if (CoreSdk_GetRawSkeletonNodeInfoArray(glove.id, tracker.m_left_node_info.data(), nc) != SDKReturnCode::SDKReturnCode_Success)
-                        tracker.m_left_node_info.clear();
-                }
+                std::lock_guard<std::mutex> sk(tracker.m_skeleton_mutex);
+                tracker.m_left_node_info.resize(nc);
+                if (CoreSdk_GetRawSkeletonNodeInfoArray(glove.id, tracker.m_left_node_info.data(), nc) !=
+                    SDKReturnCode::SDKReturnCode_Success)
+                    tracker.m_left_node_info.clear();
             }
-            else if (glove.side == Side::Side_Right)
+        }
+        else if (glove.side == Side::Side_Right)
+        {
+            tracker.right_glove_id = glove.id;
+            right_present = true;
+            uint32_t nc = 0;
+            if (CoreSdk_GetRawSkeletonNodeCount(glove.id, nc) == SDKReturnCode::SDKReturnCode_Success && nc > 0)
             {
-                tracker.right_glove_id = glove.id;
-                right_present = true;
-                uint32_t nc = 0;
-                if (CoreSdk_GetRawSkeletonNodeCount(glove.id, nc) == SDKReturnCode::SDKReturnCode_Success && nc > 0)
-                {
-                    std::lock_guard<std::mutex> sk(tracker.m_skeleton_mutex);
-                    tracker.m_right_node_info.resize(nc);
-                    if (CoreSdk_GetRawSkeletonNodeInfoArray(glove.id, tracker.m_right_node_info.data(), nc) != SDKReturnCode::SDKReturnCode_Success)
-                        tracker.m_right_node_info.clear();
-                }
+                std::lock_guard<std::mutex> sk(tracker.m_skeleton_mutex);
+                tracker.m_right_node_info.resize(nc);
+                if (CoreSdk_GetRawSkeletonNodeInfoArray(glove.id, tracker.m_right_node_info.data(), nc) !=
+                    SDKReturnCode::SDKReturnCode_Success)
+                    tracker.m_right_node_info.clear();
             }
+        }
     }
 
     // Clear stale state for any glove that is no longer present in this landscape
@@ -463,7 +462,8 @@ void ManusTracker::OnLandscapeStream(const Landscape* landscape)
 void ManusTracker::initialize_xdev_hand_trackers()
 {
     // Load XDev extension function pointers
-    auto load_func = [this](const char* name, PFN_xrVoidFunction* ptr) -> bool {
+    auto load_func = [this](const char* name, PFN_xrVoidFunction* ptr) -> bool
+    {
         XrResult result = m_handles.xrGetInstanceProcAddr(m_handles.instance, name, ptr);
         return XR_SUCCEEDED(result) && *ptr != nullptr;
     };
@@ -553,20 +553,21 @@ void ManusTracker::initialize_xdev_hand_trackers()
         std::string serials_list;
         for (const auto& s : seen_serials)
         {
-            if (!serials_list.empty()) serials_list += ", ";
+            if (!serials_list.empty())
+                serials_list += ", ";
             serials_list += '"';
             serials_list += s;
             serials_list += '"';
         }
         std::cerr << "[Manus] Could not match optical hand-tracking XDevs by serial. "
-                  << "Expected \"Head Device (0)\" (left) and \"Head Device (1)\" (right), "
-                  << "but found: [" << serials_list << "]. "
-                  << "These serial strings are runtime-specific and may have changed."
+                  << "Expected \"Head Device (0)\" (left) and \"Head Device (1)\" (right), " << "but found: ["
+                  << serials_list << "]. " << "These serial strings are runtime-specific and may have changed."
                   << std::endl;
     }
 
     // Create hand trackers from XDevs
-    auto create_tracker = [this](XrXDevIdMNDX xdev_id, XrHandEXT hand, XrHandTrackerEXT& out_tracker) -> bool {
+    auto create_tracker = [this](XrXDevIdMNDX xdev_id, XrHandEXT hand, XrHandTrackerEXT& out_tracker) -> bool
+    {
         if (xdev_id == 0)
         {
             return false;
@@ -662,8 +663,8 @@ bool ManusTracker::update_xdev_hand(XrHandTrackerEXT tracker, XrTime time, XrPos
 
 bool ManusTracker::get_controller_wrist_pose(bool is_left, XrPosef& out_wrist_pose)
 {
-    const auto& tracked = is_left ? m_controller_tracker->get_left_controller(*m_deviceio_session)
-                                  : m_controller_tracker->get_right_controller(*m_deviceio_session);
+    const auto& tracked = is_left ? m_controller_tracker->get_left_controller(*m_deviceio_session) :
+                                    m_controller_tracker->get_right_controller(*m_deviceio_session);
 
     if (!tracked.data)
     {

@@ -1,8 +1,9 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-#include <core/manus_hand_tracking_plugin.hpp>
 #include "manus_hand_visualizer.hpp"
+
+#include <core/manus_hand_tracking_plugin.hpp>
 
 #include <algorithm>
 #include <chrono>
@@ -27,18 +28,19 @@ try
     // continues without the window.
     // std::jthread automatically requests stop and joins on destruction,
     // preventing the thread from outliving the tracker singleton.
-    std::jthread vis_thread([&tracker](std::stop_token st)
-    {
-        try
+    std::jthread vis_thread(
+        [&tracker](std::stop_token st)
         {
-            plugins::manus::HandVisualizer vis;
-            vis.run(tracker, std::move(st));
-        }
-        catch (const std::exception& e)
-        {
-            std::cerr << "[Vis] " << e.what() << " — running without visualizer" << std::endl;
-        }
-    });
+            try
+            {
+                plugins::manus::HandVisualizer vis;
+                vis.run(tracker, std::move(st));
+            }
+            catch (const std::exception& e)
+            {
+                std::cerr << "[Vis] " << e.what() << " — running without visualizer" << std::endl;
+            }
+        });
 
     std::cout << "[Manus] Press Ctrl+C to stop. Printing joint data..." << std::endl;
 
@@ -79,10 +81,9 @@ try
                 const auto& pos = nodes[i].transform.position;
                 const auto& ori = nodes[i].transform.rotation;
 
-                std::cout << "[Manus]   Joint " << i << ": "
-                          << "pos=[" << std::fixed << std::setprecision(3) << pos.x << ", " << pos.y << ", " << pos.z
-                          << "] "
-                          << "ori=[" << ori.x << ", " << ori.y << ", " << ori.z << ", " << ori.w << "]" << std::endl;
+                std::cout << "[Manus]   Joint " << i << ": " << "pos=[" << std::fixed << std::setprecision(3) << pos.x
+                          << ", " << pos.y << ", " << pos.z << "] " << "ori=[" << ori.x << ", " << ori.y << ", "
+                          << ori.z << ", " << ori.w << "]" << std::endl;
             }
 
             if (nodes.size() > 5)

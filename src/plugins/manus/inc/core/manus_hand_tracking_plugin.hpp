@@ -3,17 +3,16 @@
 
 #pragma once
 
-#include <deviceio_trackers/controller_tracker.hpp>
 #include <deviceio_session/deviceio_session.hpp>
+#include <deviceio_trackers/controller_tracker.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <openxr/openxr_platform.h>
 #include <oxr/oxr_session.hpp>
 #include <oxr_utils/oxr_time.hpp>
 #include <plugin_utils/hand_injector.hpp>
 
-#include <XR_MNDX_xdev_space.h>
-
 #include <ManusSDK.h>
+#include <XR_MNDX_xdev_space.h>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -39,8 +38,8 @@ public:
     void update();
     std::vector<SkeletonNode> get_left_hand_nodes() const;
     std::vector<SkeletonNode> get_right_hand_nodes() const;
-    std::vector<NodeInfo>     get_left_node_info() const;
-    std::vector<NodeInfo>     get_right_node_info() const;
+    std::vector<NodeInfo> get_left_node_info() const;
+    std::vector<NodeInfo> get_right_node_info() const;
 
 private:
     // Lifecycle
