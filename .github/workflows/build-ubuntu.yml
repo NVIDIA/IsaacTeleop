@@ -341,8 +341,15 @@ jobs:
     outputs:
       wheel_paths: ${{ steps.upload-artifactory.outputs.wheel_paths }}
     environment: dev
-    # Publish only after build and CloudXR tests succeed.
-    if: ${{ needs.build-ubuntu.result == 'success' && needs.test-cloudxr.result == 'success' && needs.test-teleop-ros2.result == 'success' }}
+
+    # Publish only for PRs wihtin the canonical repository after build and CloudXR tests succeed
+    if: >-
+      ${{
+        github.repository == 'NVIDIA/IsaacTeleop'
+        && needs.build-ubuntu.result == 'success'
+        && needs.test-cloudxr.result == 'success'
+        && needs.test-teleop-ros2.result == 'success'
+      }}
 
     steps:
     - name: Set up Python
