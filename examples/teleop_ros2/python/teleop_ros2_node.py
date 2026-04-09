@@ -13,7 +13,7 @@ published:
   - controller_teleop (default): ee_poses (from controller aim pose), root_twist, root_pose,
                        finger_joints (retargeted TriHand angles), and TF transforms for
                        left/right wrists
-  - hand_teleop: ee_poses (from hand tracking wrist), hand (raw finger poses),
+  - hand_teleop: ee_poses (from hand tracking wrist), hand (finger joint poses),
                  root_twist, root_pose, and TF transforms for left/right wrists
   - controller_raw: controller_data only
   - full_body: full_body and controller_data
@@ -122,18 +122,27 @@ def _apply_transform_to_pose(
     rotation: Rotation | None = None,
     translation: Sequence[float] | None = None,
 ) -> Pose:
-    """Return a new Pose with rotation and translation applied."""
+    """
+    Return a new Pose with world-frame position transform and orientation
+    basis change applied.
+    """
     p = [pose.position.x, pose.position.y, pose.position.z]
-    q = [
-        pose.orientation.x,
-        pose.orientation.y,
-        pose.orientation.z,
-        pose.orientation.w,
-    ]
+    orientation = Rotation.from_quat(
+        [
+            pose.orientation.x,
+            pose.orientation.y,
+            pose.orientation.z,
+            pose.orientation.w,
+        ]
+    )
 
     if rotation is not None:
         p = rotation.apply(p)
-        q = (rotation * Rotation.from_quat(q)).as_quat()
+        # Conjugation keeps the same physical orientation while expressing it
+        # in the rotated basis used for published EE and hand poses.
+        orientation = rotation * orientation * rotation.inv()
+
+    q = orientation.as_quat()
 
     result = Pose()
     if translation is not None:
@@ -442,14 +451,23 @@ class TeleopRos2Node(Node):
             "transform_translation",
             [0.0, 0.0, 0.0],
             ParameterDescriptor(
-                description="Optional translation [x, y, z] to apply to the teleoperation data to transform it into the ROS world frame."
+                description=(
+                    "Optional translation [x, y, z] applied to published "
+                    "hand/EE pose positions after rotating them into the ROS "
+                    "world frame."
+                )
             ),
         )
         self.declare_parameter(
             "transform_rotation",
             [0.0, 0.0, 0.0, 1.0],
             ParameterDescriptor(
-                description="Optional rotation [qx, qy, qz, qw] to apply to the teleoperation data to transform it into the ROS world frame."
+                description=(
+                    "Optional rotation [qx, qy, qz, qw] used to rotate "
+                    "published hand/EE pose positions into the ROS world "
+                    "frame and re-express their orientations in that rotated "
+                    "basis."
+                )
             ),
         )
 
