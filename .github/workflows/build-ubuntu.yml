@@ -235,6 +235,7 @@ jobs:
       env:
         ACCEPT_CLOUDXR_EULA: Y
         CXR_BUILD_CONTEXT: ${{ github.workspace }}
+        CXR_RUNTIME_NETWORK_MODE: bridge
         PYTHON_VERSION: ${{ matrix.python_version }}
         ISAACTELEOP_PIP_DEBUG: "0"
         ISAACTELEOP_PIP_FIND_LINKS: /workspace/install/wheels
