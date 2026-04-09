@@ -212,11 +212,11 @@ function App() {
       } else if (iwerWasLoaded) {
         // Include IWER status in the final success message
         cloudXR2DUI.showStatus(
-          'CloudXR.js SDK is supported. Ready to connect!\nUsing IWER (Immersive Web Emulator Runtime) - Emulating Meta Quest 3.',
+          'CloudXR.js SDK is supported.\nUsing IWER (Immersive Web Emulator Runtime) - Emulating Meta Quest 3.',
           'info'
         );
       } else {
-        cloudXR2DUI.showStatus('CloudXR.js SDK is supported. Ready to connect!', 'success');
+        cloudXR2DUI.showStatus('CloudXR.js SDK is supported.', 'success');
       }
 
       setCapabilitiesValid(true);
