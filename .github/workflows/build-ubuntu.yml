@@ -245,6 +245,9 @@ jobs:
 
         PROJECT_NAME="isaacteleop-test-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}-${{ env.ROS_DISTRO }}"
         LOG_FILE_BASE="/tmp/ros2_test_output_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${{ matrix.arch }}_${{ env.ROS_DISTRO }}"
+        STARTUP_MARKER="TeleopSession started successfully"
+        READINESS_TIMEOUT_SEC=30
+        READINESS_POLL_INTERVAL_SEC=1
 
         # Cleanup
         trap 'docker compose -p "$PROJECT_NAME" \
@@ -302,16 +305,59 @@ jobs:
         for mode in controller_teleop hand_teleop controller_raw full_body; do
           echo "Testing mode: $mode"
           LOG_FILE="${LOG_FILE_BASE}_${mode}.log"
+          RUN_NAME="teleop-ros2-${PROJECT_NAME}-${mode//_/-}"
           docker_rc=0
-          docker run --rm \
+          started=false
+
+          rm -f "$LOG_FILE"
+
+          docker run -d \
+            --name "$RUN_NAME" \
             --gpus all \
             --network host \
             -v "$CXR_HOST_VOLUME_PATH:$CXR_HOST_VOLUME_PATH" \
             -v /tmp:/tmp \
             -e NV_CXR_RUNTIME_DIR="$CXR_HOST_VOLUME_PATH/.cloudxr/run" \
             -e XR_RUNTIME_JSON="$CXR_HOST_VOLUME_PATH/.cloudxr/openxr_cloudxr.json" \
+            -e PYTHONUNBUFFERED=1 \
             --entrypoint bash teleop_ros2_ref:${{ env.ROS_DISTRO }} -c \
-            "source /usr/local/bin/teleop-env-setup && timeout -s SIGINT 5 uv run teleop_ros2_node.py --ros-args -p mode:=$mode -p use_mock_operators:=true > $LOG_FILE 2>&1; rc=\$?; [ \$rc -eq 130 ] || [ \$rc -eq 124 ] || exit 1" || docker_rc=$?
+            "source /usr/local/bin/teleop-env-setup && exec uv run teleop_ros2_node.py --ros-args -p mode:=$mode -p use_mock_operators:=true" >/dev/null
+
+          deadline=$((SECONDS + READINESS_TIMEOUT_SEC))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            docker logs "$RUN_NAME" > "$LOG_FILE" 2>&1 || true
+
+            if [ -f "$LOG_FILE" ] && grep -q "$STARTUP_MARKER" "$LOG_FILE"; then
+              started=true
+              break
+            fi
+
+            running=$(docker inspect -f '{{.State.Running}}' "$RUN_NAME" 2>/dev/null || echo false)
+            if [ "$running" != "true" ]; then
+              docker_rc=$(docker inspect -f '{{.State.ExitCode}}' "$RUN_NAME" 2>/dev/null || echo 1)
+              break
+            fi
+
+            sleep "$READINESS_POLL_INTERVAL_SEC"
+          done
+
+          docker logs "$RUN_NAME" > "$LOG_FILE" 2>&1 || true
+
+          if [ "$started" = true ]; then
+            docker stop --time 5 "$RUN_NAME" >/dev/null || true
+            docker wait "$RUN_NAME" >/dev/null || true
+          else
+            running=$(docker inspect -f '{{.State.Running}}' "$RUN_NAME" 2>/dev/null || echo false)
+            if [ "$running" = "true" ]; then
+              echo "Error: TeleopSession did not report readiness within ${READINESS_TIMEOUT_SEC}s in mode $mode"
+              docker stop --time 5 "$RUN_NAME" >/dev/null || true
+              docker wait "$RUN_NAME" >/dev/null || true
+            else
+              echo "Error: teleop_ros2_node exited before readiness in mode $mode (exit code $docker_rc)"
+            fi
+          fi
+
+          docker rm -f "$RUN_NAME" >/dev/null 2>&1 || true
 
           if [ -f "$LOG_FILE" ]; then
             cat "$LOG_FILE"
@@ -319,16 +365,7 @@ jobs:
             echo "No test log captured at $LOG_FILE"
           fi
 
-          if [ "$docker_rc" -ne 0 ]; then
-            exit "$docker_rc"
-          fi
-
-          if [ ! -f "$LOG_FILE" ]; then
-            exit 1
-          fi
-
-          if ! grep -q "TeleopSession started successfully" "$LOG_FILE"; then
-            echo "Error: TeleopSession never started successfully in mode $mode"
+          if [ "$started" != true ]; then
             exit 1
           fi
         done
