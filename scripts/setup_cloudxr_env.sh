@@ -11,6 +11,7 @@
 #   CXR_UID, CXR_GID - User/group IDs for container
 #   ENV_DEFAULT, ENV_LOCAL - Paths to env files
 #   CXR_HOST_VOLUME_PATH - Host path for CloudXR volume
+#   CXR_ENV_FILE - Path to generated cloudxr.env (source in other terminals)
 
 # This script is intended to be sourced, so it must not change the caller's
 # shell strict-mode options (e.g., -e/-u/pipefail).
@@ -86,8 +87,44 @@ fi
 export XR_RUNTIME_JSON="$CXR_HOST_VOLUME_PATH/openxr_cloudxr.json"
 export NV_CXR_RUNTIME_DIR="$CXR_HOST_VOLUME_PATH/run"
 
+# ---------------------------------------------------------------------------
+# Write cloudxr.env so other terminals can activate the CloudXR environment.
+# Mirrors the env file written by EnvConfig._resolve_and_apply() in the
+# native Python path (python -m isaacteleop.cloudxr).
+# ---------------------------------------------------------------------------
+__cxr_to_bool() {
+    case "$1" in
+        1|true|True|TRUE) printf true ;;
+        0|false|False|FALSE) printf false ;;
+        *) printf '%s' "$1" ;;
+    esac
+}
+
+_CXR_LOGS_DIR="$CXR_HOST_VOLUME_PATH/logs"
+mkdir -p "$NV_CXR_RUNTIME_DIR" "$_CXR_LOGS_DIR"
+
+export CXR_ENV_FILE="$NV_CXR_RUNTIME_DIR/cloudxr.env"
+cat > "$CXR_ENV_FILE" <<CLOUDXR_ENV
+export CXR_HOST_VOLUME_PATH=$CXR_HOST_VOLUME_PATH
+export CXR_INSTALL_DIR=$CXR_HOST_VOLUME_PATH
+export NV_CXR_ENABLE_PUSH_DEVICES=$(__cxr_to_bool "${NV_CXR_ENABLE_PUSH_DEVICES:-true}")
+export NV_CXR_ENABLE_TENSOR_DATA=$(__cxr_to_bool "${NV_CXR_ENABLE_TENSOR_DATA:-true}")
+export NV_CXR_FILE_LOGGING=$(__cxr_to_bool "${NV_CXR_FILE_LOGGING:-true}")
+export NV_CXR_OUTPUT_DIR=$_CXR_LOGS_DIR
+export NV_CXR_RUNTIME_DIR=$NV_CXR_RUNTIME_DIR
+export NV_DEVICE_PROFILE=${NV_DEVICE_PROFILE:-auto-webrtc}
+export XRT_NO_STDIN=true
+export XR_RUNTIME_JSON=$XR_RUNTIME_JSON
+CLOUDXR_ENV
+chmod 600 "$CXR_ENV_FILE"
+
+unset -f __cxr_to_bool
+unset _CXR_LOGS_DIR
+
 echo "CloudXR has been configured as the OpenXR runtime:"
 echo ""
 echo "CXR_HOST_VOLUME_PATH: $CXR_HOST_VOLUME_PATH"
 echo "XR_RUNTIME_JSON: $XR_RUNTIME_JSON"
 echo "NV_CXR_RUNTIME_DIR: $NV_CXR_RUNTIME_DIR"
+echo ""
+echo "Activate CloudXR in another terminal: source $CXR_ENV_FILE"
