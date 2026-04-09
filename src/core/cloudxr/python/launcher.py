@@ -325,7 +325,10 @@ class CloudXRLauncher:
         if proc is None or proc.poll() is not None:
             return
 
-        pgid = os.getpgid(proc.pid)
+        try:
+            pgid = os.getpgid(proc.pid)
+        except ProcessLookupError:
+            return
 
         try:
             os.killpg(pgid, signal.SIGTERM)

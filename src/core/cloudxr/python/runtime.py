@@ -9,6 +9,7 @@ import shutil
 import signal
 import sys
 import threading
+import time
 from collections.abc import Callable
 
 from .env_config import get_env_config
@@ -114,7 +115,12 @@ def wait_for_runtime_ready_sync(
     timeout_sec: float = RUNTIME_STARTUP_TIMEOUT_SEC,
     poll_interval_sec: float = RUNTIME_POLL_INTERVAL_SEC,
 ) -> bool:
-    """Synchronous wrapper around :func:`wait_for_runtime_ready`.
+    """Synchronous poll for the ``runtime_started`` sentinel file.
+
+    Unlike :func:`wait_for_runtime_ready`, this implementation uses
+    :func:`time.monotonic` and :func:`time.sleep` so it is safe to call
+    from threads or processes that already have a running asyncio event
+    loop (e.g. Omniverse Kit / Isaac Sim).
 
     Args:
         is_process_alive: Callable returning ``True`` while the
@@ -126,9 +132,17 @@ def wait_for_runtime_ready_sync(
         ``True`` when the runtime is ready, ``False`` on timeout or
         if the process exits early.
     """
-    return asyncio.run(
-        wait_for_runtime_ready(is_process_alive, timeout_sec, poll_interval_sec)
-    )
+    lock_file = os.path.join(get_env_config().openxr_run_dir(), "runtime_started")
+    deadline = time.monotonic() + timeout_sec
+
+    while time.monotonic() < deadline:
+        if not is_process_alive():
+            return False
+        if os.path.isfile(lock_file):
+            return True
+        time.sleep(poll_interval_sec)
+
+    return False
 
 
 def runtime_version() -> str:
