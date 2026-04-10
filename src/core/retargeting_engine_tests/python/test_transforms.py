@@ -7,6 +7,7 @@ Tests for transform utilities and transform retargeter nodes.
 Covers:
 - transform_utils: validate, decompose, position/orientation transforms
 - HeadTransform, HandTransform, ControllerTransform retargeter nodes
+- Optional inputs: propagation when absent, and absent/present toggling across calls
 """
 
 import pytest
@@ -952,3 +953,204 @@ class TestHeadTransformOptionalPropagation:
 
         with pytest.raises(ValueError, match="absent"):
             _ = result["head"][HeadPoseIndex.POSITION]
+
+
+class TestTransformOptionalNoneToggle:
+    """
+    Optional inputs alternate absent/present across successive calls.
+
+    Ensures no stale state: after ``None``, a later present input still gets
+    the correct transform, and vice versa.
+    """
+
+    def test_head_transform_absent_present_cycle(self) -> None:
+        node = HeadTransform("head_toggle")
+        xform_90 = _make_transform_input(_rotation_z_90())
+        xform_id = _make_transform_input(_identity_4x4())
+        absent = OptionalTensorGroup(HeadPose())
+
+        r1 = _run_retargeter(node, {"head": absent, "transform": xform_id})
+        assert r1["head"].is_none
+
+        active = TensorGroup(HeadPose())
+        active[HeadPoseIndex.POSITION] = np.array([1.0, 0.0, 0.0], dtype=np.float32)
+        active[HeadPoseIndex.ORIENTATION] = np.array(
+            [0.0, 0.0, 0.0, 1.0], dtype=np.float32
+        )
+        active[HeadPoseIndex.IS_VALID] = True
+
+        r2 = _run_retargeter(node, {"head": active, "transform": xform_90})
+        assert not r2["head"].is_none
+        npt.assert_array_almost_equal(
+            np.from_dlpack(r2["head"][HeadPoseIndex.POSITION]),
+            [0.0, 1.0, 0.0],
+            decimal=5,
+        )
+
+        r3 = _run_retargeter(node, {"head": absent, "transform": xform_id})
+        assert r3["head"].is_none
+
+        r4 = _run_retargeter(node, {"head": active, "transform": xform_id})
+        assert not r4["head"].is_none
+        npt.assert_array_almost_equal(
+            np.from_dlpack(r4["head"][HeadPoseIndex.POSITION]),
+            [1.0, 0.0, 0.0],
+            decimal=5,
+        )
+
+    def test_controller_transform_left_optional_toggles(self) -> None:
+        node = ControllerTransform("ctrl_toggle")
+        xform_90 = _make_transform_input(_rotation_z_90())
+        xform_id = _make_transform_input(_identity_4x4())
+        left_absent = OptionalTensorGroup(ControllerInput())
+        id_quat = np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32)
+
+        def _active_left_grip_1_0_0() -> TensorGroup:
+            tg = TensorGroup(ControllerInput())
+            tg[ControllerInputIndex.GRIP_POSITION] = np.array(
+                [1.0, 0.0, 0.0], dtype=np.float32
+            )
+            tg[ControllerInputIndex.GRIP_ORIENTATION] = id_quat.copy()
+            tg[ControllerInputIndex.GRIP_IS_VALID] = True
+            tg[ControllerInputIndex.AIM_POSITION] = np.zeros(3, dtype=np.float32)
+            tg[ControllerInputIndex.AIM_ORIENTATION] = id_quat.copy()
+            tg[ControllerInputIndex.AIM_IS_VALID] = True
+            tg[ControllerInputIndex.PRIMARY_CLICK] = 0.0
+            tg[ControllerInputIndex.SECONDARY_CLICK] = 0.0
+            tg[ControllerInputIndex.THUMBSTICK_CLICK] = 0.0
+            tg[ControllerInputIndex.THUMBSTICK_X] = 0.0
+            tg[ControllerInputIndex.THUMBSTICK_Y] = 0.0
+            tg[ControllerInputIndex.SQUEEZE_VALUE] = 0.0
+            tg[ControllerInputIndex.TRIGGER_VALUE] = 0.5
+            return tg
+
+        right = TensorGroup(ControllerInput())
+        right[ControllerInputIndex.GRIP_POSITION] = np.array(
+            [1.0, 2.0, 3.0], dtype=np.float32
+        )
+        right[ControllerInputIndex.GRIP_ORIENTATION] = id_quat.copy()
+        right[ControllerInputIndex.GRIP_IS_VALID] = True
+        right[ControllerInputIndex.AIM_POSITION] = np.zeros(3, dtype=np.float32)
+        right[ControllerInputIndex.AIM_ORIENTATION] = id_quat.copy()
+        right[ControllerInputIndex.AIM_IS_VALID] = True
+        right[ControllerInputIndex.PRIMARY_CLICK] = 0.0
+        right[ControllerInputIndex.SECONDARY_CLICK] = 0.0
+        right[ControllerInputIndex.THUMBSTICK_CLICK] = 0.0
+        right[ControllerInputIndex.THUMBSTICK_X] = 0.0
+        right[ControllerInputIndex.THUMBSTICK_Y] = 0.0
+        right[ControllerInputIndex.SQUEEZE_VALUE] = 0.0
+        right[ControllerInputIndex.TRIGGER_VALUE] = 0.5
+
+        r1 = _run_retargeter(
+            node,
+            {
+                "controller_left": left_absent,
+                "controller_right": right,
+                "transform": xform_id,
+            },
+        )
+        assert r1["controller_left"].is_none
+        assert not r1["controller_right"].is_none
+
+        left = _active_left_grip_1_0_0()
+        r2 = _run_retargeter(
+            node,
+            {
+                "controller_left": left,
+                "controller_right": right,
+                "transform": xform_90,
+            },
+        )
+        assert not r2["controller_left"].is_none
+        npt.assert_array_almost_equal(
+            np.from_dlpack(r2["controller_left"][ControllerInputIndex.GRIP_POSITION]),
+            [0.0, 1.0, 0.0],
+            decimal=5,
+        )
+
+        r3 = _run_retargeter(
+            node,
+            {
+                "controller_left": left_absent,
+                "controller_right": right,
+                "transform": xform_id,
+            },
+        )
+        assert r3["controller_left"].is_none
+
+        r4 = _run_retargeter(
+            node,
+            {
+                "controller_left": _active_left_grip_1_0_0(),
+                "controller_right": right,
+                "transform": xform_id,
+            },
+        )
+        npt.assert_array_almost_equal(
+            np.from_dlpack(r4["controller_left"][ControllerInputIndex.GRIP_POSITION]),
+            [1.0, 0.0, 0.0],
+            decimal=5,
+        )
+
+    def test_hand_transform_left_optional_toggles(self) -> None:
+        node = HandTransform("hand_toggle")
+        xform_90 = _make_transform_input(_rotation_z_90())
+        xform_id = _make_transform_input(_identity_4x4())
+        left_absent = OptionalTensorGroup(HandInput())
+
+        def _active_left_joint0_1_0_0() -> TensorGroup:
+            tg = TensorGroup(HandInput())
+            positions = np.zeros((NUM_HAND_JOINTS, 3), dtype=np.float32)
+            positions[0] = [1.0, 0.0, 0.0]
+            orientations = np.zeros((NUM_HAND_JOINTS, 4), dtype=np.float32)
+            orientations[:, 3] = 1.0
+            tg[HandInputIndex.JOINT_POSITIONS] = positions
+            tg[HandInputIndex.JOINT_ORIENTATIONS] = orientations
+            tg[HandInputIndex.JOINT_RADII] = (
+                np.ones(NUM_HAND_JOINTS, dtype=np.float32) * 0.01
+            )
+            tg[HandInputIndex.JOINT_VALID] = np.ones(NUM_HAND_JOINTS, dtype=np.uint8)
+            return tg
+
+        right = TensorGroup(HandInput())
+        right[HandInputIndex.JOINT_POSITIONS] = np.zeros(
+            (NUM_HAND_JOINTS, 3), dtype=np.float32
+        )
+        right[HandInputIndex.JOINT_ORIENTATIONS] = np.tile(
+            np.array([0, 0, 0, 1], dtype=np.float32), (NUM_HAND_JOINTS, 1)
+        )
+        right[HandInputIndex.JOINT_RADII] = np.ones(NUM_HAND_JOINTS, dtype=np.float32)
+        right[HandInputIndex.JOINT_VALID] = np.ones(NUM_HAND_JOINTS, dtype=np.uint8)
+
+        r1 = _run_retargeter(
+            node,
+            {"hand_left": left_absent, "hand_right": right, "transform": xform_id},
+        )
+        assert r1["hand_left"].is_none
+        assert not r1["hand_right"].is_none
+
+        left = _active_left_joint0_1_0_0()
+        r2 = _run_retargeter(
+            node,
+            {"hand_left": left, "hand_right": right, "transform": xform_90},
+        )
+        assert not r2["hand_left"].is_none
+        pos2 = np.from_dlpack(r2["hand_left"][HandInputIndex.JOINT_POSITIONS])
+        npt.assert_array_almost_equal(pos2[0], [0.0, 1.0, 0.0], decimal=5)
+
+        r3 = _run_retargeter(
+            node,
+            {"hand_left": left_absent, "hand_right": right, "transform": xform_id},
+        )
+        assert r3["hand_left"].is_none
+
+        r4 = _run_retargeter(
+            node,
+            {
+                "hand_left": _active_left_joint0_1_0_0(),
+                "hand_right": right,
+                "transform": xform_id,
+            },
+        )
+        pos4 = np.from_dlpack(r4["hand_left"][HandInputIndex.JOINT_POSITIONS])
+        npt.assert_array_almost_equal(pos4[0], [1.0, 0.0, 0.0], decimal=5)
