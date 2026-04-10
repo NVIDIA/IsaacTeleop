@@ -61,8 +61,8 @@ management with CUDA-Vulkan interop and simple 2D/3D tensor submission APIs.
 ### Why not keep Holoscan?
 
 Holoscan SDK + HoloHub XR + GXF + HolovizOp + EventBasedScheduler is ~5
-heavyweight dependencies for rendering textured quads. TeleopViz is ~2000
-lines of purpose-built Vulkan code with no external framework dependency.
+heavyweight dependencies for rendering textured quads. TeleopViz is
+~3000-3500 lines of purpose-built C++ with no external framework dependency.
 
 ---
 
@@ -121,7 +121,7 @@ display target, and layer registry. Applications interact through a frame
 loop:
 
 ```python
-session = teleopviz.VizSession.create(config)  # XR, window, or headless
+session = teleopviz.VizSession.create(config)  # XR or window
 
 # Push: submit content as CUDA pointers.
 cam_layer = session.add_quad_layer(...)
@@ -132,7 +132,7 @@ recon_layer.set_render_callback(my_nvblox_render_fn)
 
 while running:
     frame = session.begin_frame()
-    cam_layer.submit_texture(cuda_ptr, width, height, format, stream)
+    cam_layer.submit(camera_frame)  # CuPy array or VizBuffer
     session.end_frame()  # invokes pull callbacks, composites, presents
 ```
 
@@ -269,7 +269,7 @@ with TeleopSession(teleop_config) as teleop:
     while running:
         frame = viz_session.begin_frame()
         teleop.step()
-        cam_layer.submit_texture(camera_ptr, 1920, 1080, viz.RGBA8, stream)
+        cam_layer.submit(camera_ptr, 1920, 1080, viz.RGBA8, stream)
         viz_session.end_frame()
 ```
 
