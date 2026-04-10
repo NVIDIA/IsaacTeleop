@@ -226,10 +226,12 @@ jobs:
 
     - name: Build teleop_ros2 image
       run: |
+        TELEOP_IMAGE="teleop_ros2_ref:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}-${{ env.ROS_DISTRO }}"
+        echo "TELEOP_IMAGE=$TELEOP_IMAGE" >> $GITHUB_ENV
         docker build -f examples/teleop_ros2/Dockerfile \
           --build-arg ROS_DISTRO=${{ env.ROS_DISTRO }} \
           --build-arg PYTHON_VERSION=${{ matrix.python_version }} \
-          -t teleop_ros2_ref:${{ env.ROS_DISTRO }} .
+          -t "$TELEOP_IMAGE" .
 
     - name: Verify application modes
       env:
@@ -243,11 +245,19 @@ jobs:
       run: |
         source scripts/setup_cloudxr_env.sh
 
+        BASE_CXR_HOST_VOLUME_PATH="${CXR_HOST_VOLUME_PATH%/}"
         PROJECT_NAME="isaacteleop-test-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}-${{ env.ROS_DISTRO }}"
-        LOG_FILE_BASE="/tmp/ros2_test_output_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${{ matrix.arch }}_${{ env.ROS_DISTRO }}"
+        RUN_ROOT="${BASE_CXR_HOST_VOLUME_PATH}/${PROJECT_NAME}"
+        OVERRIDE_COMPOSE_FILE="${RUN_ROOT}/docker-compose.override.yaml"
+        LOG_FILE_BASE="${RUN_ROOT}/ros2_test_output"
         STARTUP_MARKER="TeleopSession started successfully"
         READINESS_TIMEOUT_SEC=30
         READINESS_POLL_INTERVAL_SEC=1
+
+        # Isolate CloudXR runtime files per job under the runner's existing
+        # CloudXR root so concurrent self-hosted runs do not share sentinels.
+        export CXR_HOST_VOLUME_PATH="${RUN_ROOT}/cloudxr"
+        mkdir -p "$RUN_ROOT" "$CXR_HOST_VOLUME_PATH"
 
         # Cleanup
         trap 'docker compose -p "$PROJECT_NAME" \
@@ -255,11 +265,11 @@ jobs:
           ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
           -f deps/cloudxr/docker-compose.runtime.yaml \
           -f deps/cloudxr/docker-compose.test.yaml \
-          -f deps/cloudxr/docker-compose.override.yaml \
-          down -v' EXIT
+          -f "$OVERRIDE_COMPOSE_FILE" \
+          down -v; rm -rf "$RUN_ROOT"' EXIT
 
         # Start CloudXR runtime
-        cat <<EOF > deps/cloudxr/docker-compose.override.yaml
+        cat <<EOF > "$OVERRIDE_COMPOSE_FILE"
         services:
           cloudxr-runtime:
             container_name: "cloudxr-runtime-$PROJECT_NAME"
@@ -270,7 +280,7 @@ jobs:
           ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
           -f deps/cloudxr/docker-compose.runtime.yaml \
           -f deps/cloudxr/docker-compose.test.yaml \
-          -f deps/cloudxr/docker-compose.override.yaml \
+          -f "$OVERRIDE_COMPOSE_FILE" \
           up --build -d cloudxr-runtime
 
         # Wait for healthy
@@ -281,7 +291,7 @@ jobs:
             ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
             -f deps/cloudxr/docker-compose.runtime.yaml \
             -f deps/cloudxr/docker-compose.test.yaml \
-            -f deps/cloudxr/docker-compose.override.yaml \
+            -f "$OVERRIDE_COMPOSE_FILE" \
             ps cloudxr-runtime | grep -q "healthy"; then
             healthy=true
             break
@@ -296,7 +306,7 @@ jobs:
             ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
             -f deps/cloudxr/docker-compose.runtime.yaml \
             -f deps/cloudxr/docker-compose.test.yaml \
-            -f deps/cloudxr/docker-compose.override.yaml \
+            -f "$OVERRIDE_COMPOSE_FILE" \
             logs cloudxr-runtime
           exit 1
         fi
@@ -320,7 +330,7 @@ jobs:
             -e NV_CXR_RUNTIME_DIR="$CXR_HOST_VOLUME_PATH/.cloudxr/run" \
             -e XR_RUNTIME_JSON="$CXR_HOST_VOLUME_PATH/.cloudxr/openxr_cloudxr.json" \
             -e PYTHONUNBUFFERED=1 \
-            --entrypoint bash teleop_ros2_ref:${{ env.ROS_DISTRO }} -c \
+            --entrypoint bash "$TELEOP_IMAGE" -c \
             "source /usr/local/bin/teleop-env-setup && exec uv run teleop_ros2_node.py --ros-args -p mode:=$mode -p use_mock_operators:=true" >/dev/null
 
           deadline=$((SECONDS + READINESS_TIMEOUT_SEC))
