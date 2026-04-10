@@ -13,8 +13,13 @@ Quaternion Convention:
     hands_source.py, controllers_source.py).
 """
 
+import copy
+from typing import Tuple, Union
+
 import numpy as np
-from typing import Tuple
+
+from ..interface.tensor_group import OptionalTensorGroup, TensorGroup
+from ..tensor_types import NDArrayType
 
 
 def validate_transform_matrix(matrix: np.ndarray) -> np.ndarray:
@@ -42,6 +47,19 @@ def validate_transform_matrix(matrix: np.ndarray) -> np.ndarray:
         )
 
     return matrix
+
+
+def _copy_tensor_group_slots_from_dlpack_input(
+    inp: Union[OptionalTensorGroup, TensorGroup],
+    out: Union[OptionalTensorGroup, TensorGroup],
+) -> None:
+    """Copy slots *inp* → *out*; ndarray slots via ``from_dlpack`` then ``.copy()``."""
+
+    for i, tensor_type in enumerate(inp.group_type.types):
+        if isinstance(tensor_type, NDArrayType):
+            out[i] = np.from_dlpack(inp[i]).copy()
+        else:
+            out[i] = copy.deepcopy(inp[i])
 
 
 def decompose_transform(matrix: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:

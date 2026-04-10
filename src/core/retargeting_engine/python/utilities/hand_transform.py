@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -15,8 +15,6 @@ wrist) since all joints share the same coordinate frame. Transforming only
 the wrist while leaving other joints untransformed would break the hand skeleton.
 """
 
-import copy
-
 import numpy as np
 
 from ..interface.base_retargeter import BaseRetargeter
@@ -25,9 +23,10 @@ from ..interface.tensor_group import OptionalTensorGroup
 from ..interface.tensor_group_type import OptionalType
 from ..tensor_types import HandInput, HandInputIndex, TransformMatrix
 from .transform_utils import (
+    _copy_tensor_group_slots_from_dlpack_input,
     decompose_transform,
-    transform_positions_batch,
     transform_orientations_batch,
+    transform_positions_batch,
 )
 
 
@@ -126,14 +125,9 @@ class HandTransform(BaseRetargeter):
         translation: np.ndarray,
     ) -> None:
         """Apply the transform to a single hand's joint data."""
-        # Deep-copy all fields from input to output (avoid aliasing)
-        for i in range(len(inp)):
-            out[i] = copy.deepcopy(inp[i])
+        _copy_tensor_group_slots_from_dlpack_input(inp, out)
 
-        # Transform pose fields in-place on the output buffers
         transform_positions_batch(
-            np.from_dlpack(out[HandInputIndex.JOINT_POSITIONS]), rotation, translation
+            out[HandInputIndex.JOINT_POSITIONS], rotation, translation
         )
-        transform_orientations_batch(
-            np.from_dlpack(out[HandInputIndex.JOINT_ORIENTATIONS]), rotation
-        )
+        transform_orientations_batch(out[HandInputIndex.JOINT_ORIENTATIONS], rotation)

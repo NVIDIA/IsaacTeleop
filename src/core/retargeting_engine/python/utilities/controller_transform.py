@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -11,8 +11,6 @@ The transform matrix is received as a tensor input from the graph, typically
 provided by a TransformSource node.
 """
 
-import copy
-
 import numpy as np
 
 from ..interface.base_retargeter import BaseRetargeter
@@ -21,9 +19,10 @@ from ..interface.tensor_group import OptionalTensorGroup
 from ..interface.tensor_group_type import OptionalType
 from ..tensor_types import ControllerInput, ControllerInputIndex, TransformMatrix
 from .transform_utils import (
+    _copy_tensor_group_slots_from_dlpack_input,
     decompose_transform,
-    transform_position,
     transform_orientation,
+    transform_position,
 )
 
 
@@ -120,24 +119,13 @@ class ControllerTransform(BaseRetargeter):
         translation: np.ndarray,
     ) -> None:
         """Apply the transform to a single controller's data."""
-        # Deep-copy all fields from input to output (avoid aliasing)
-        for i in range(len(inp)):
-            out[i] = copy.deepcopy(inp[i])
+        _copy_tensor_group_slots_from_dlpack_input(inp, out)
 
-        # Transform pose fields in-place on the output buffers
         transform_position(
-            np.from_dlpack(out[ControllerInputIndex.GRIP_POSITION]),
-            rotation,
-            translation,
+            out[ControllerInputIndex.GRIP_POSITION], rotation, translation
         )
-        transform_orientation(
-            np.from_dlpack(out[ControllerInputIndex.GRIP_ORIENTATION]), rotation
-        )
+        transform_orientation(out[ControllerInputIndex.GRIP_ORIENTATION], rotation)
         transform_position(
-            np.from_dlpack(out[ControllerInputIndex.AIM_POSITION]),
-            rotation,
-            translation,
+            out[ControllerInputIndex.AIM_POSITION], rotation, translation
         )
-        transform_orientation(
-            np.from_dlpack(out[ControllerInputIndex.AIM_ORIENTATION]), rotation
-        )
+        transform_orientation(out[ControllerInputIndex.AIM_ORIENTATION], rotation)
