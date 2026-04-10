@@ -20,7 +20,7 @@ published:
 
 Topic names (remappable via ROS 2 remapping):
   - xr_teleop/hand (PoseArray): [finger_joint_poses...]
-  - xr_teleop/ee_poses (PoseArray): [right_ee, left_ee]
+  - xr_teleop/ee_poses (PoseArray): [left_ee, right_ee]
   - xr_teleop/root_twist (TwistStamped): root velocity command
   - xr_teleop/root_pose (PoseStamped): root pose command (height only)
   - xr_teleop/controller_data (ByteMultiArray): msgpack-encoded controller data
@@ -241,13 +241,13 @@ def _build_ee_msg_from_controllers(
     transform_rot: Rotation | None = None,
     transform_trans: Sequence[float] | None = None,
 ) -> PoseArray:
-    """Build a PoseArray with right then left controller aim poses (wrist proxy)."""
+    """Build a PoseArray with left then right controller aim poses (wrist proxy)."""
     msg = PoseArray()
     msg.header.stamp = now
     msg.header.frame_id = frame_id
-    if not right_ctrl.is_none:
-        pos = [float(x) for x in right_ctrl[ControllerInputIndex.AIM_POSITION]]
-        ori = [float(x) for x in right_ctrl[ControllerInputIndex.AIM_ORIENTATION]]
+    if not left_ctrl.is_none:
+        pos = [float(x) for x in left_ctrl[ControllerInputIndex.AIM_POSITION]]
+        ori = [float(x) for x in left_ctrl[ControllerInputIndex.AIM_ORIENTATION]]
         pose = _to_pose(pos, ori)
         if transform_rot is not None or transform_trans is not None:
             pose = _apply_transform_to_pose(pose, transform_rot, transform_trans)
@@ -255,9 +255,9 @@ def _build_ee_msg_from_controllers(
     else:
         msg.poses.append(_to_pose([0.0, 0.0, 0.0]))
 
-    if not left_ctrl.is_none:
-        pos = [float(x) for x in left_ctrl[ControllerInputIndex.AIM_POSITION]]
-        ori = [float(x) for x in left_ctrl[ControllerInputIndex.AIM_ORIENTATION]]
+    if not right_ctrl.is_none:
+        pos = [float(x) for x in right_ctrl[ControllerInputIndex.AIM_POSITION]]
+        ori = [float(x) for x in right_ctrl[ControllerInputIndex.AIM_ORIENTATION]]
         pose = _to_pose(pos, ori)
         if transform_rot is not None or transform_trans is not None:
             pose = _apply_transform_to_pose(pose, transform_rot, transform_trans)
@@ -276,23 +276,10 @@ def _build_ee_msg_from_hands(
     transform_rot: Rotation | None = None,
     transform_trans: Sequence[float] | None = None,
 ) -> PoseArray:
-    """Build a PoseArray with right then left hand wrist poses (EE proxy)."""
+    """Build a PoseArray with left then right hand wrist poses (EE proxy)."""
     msg = PoseArray()
     msg.header.stamp = now
     msg.header.frame_id = frame_id
-
-    if not right_hand.is_none:
-        right_positions = np.asarray(right_hand[HandInputIndex.JOINT_POSITIONS])
-        right_orientations = np.asarray(right_hand[HandInputIndex.JOINT_ORIENTATIONS])
-        pose = _to_pose(
-            right_positions[HandJointIndex.WRIST],
-            right_orientations[HandJointIndex.WRIST],
-        )
-        if transform_rot is not None or transform_trans is not None:
-            pose = _apply_transform_to_pose(pose, transform_rot, transform_trans)
-        msg.poses.append(pose)
-    else:
-        msg.poses.append(_to_pose([0.0, 0.0, 0.0]))
 
     if not left_hand.is_none:
         left_positions = np.asarray(left_hand[HandInputIndex.JOINT_POSITIONS])
@@ -300,6 +287,19 @@ def _build_ee_msg_from_hands(
         pose = _to_pose(
             left_positions[HandJointIndex.WRIST],
             left_orientations[HandJointIndex.WRIST],
+        )
+        if transform_rot is not None or transform_trans is not None:
+            pose = _apply_transform_to_pose(pose, transform_rot, transform_trans)
+        msg.poses.append(pose)
+    else:
+        msg.poses.append(_to_pose([0.0, 0.0, 0.0]))
+
+    if not right_hand.is_none:
+        right_positions = np.asarray(right_hand[HandInputIndex.JOINT_POSITIONS])
+        right_orientations = np.asarray(right_hand[HandInputIndex.JOINT_ORIENTATIONS])
+        pose = _to_pose(
+            right_positions[HandJointIndex.WRIST],
+            right_orientations[HandJointIndex.WRIST],
         )
         if transform_rot is not None or transform_trans is not None:
             pose = _apply_transform_to_pose(pose, transform_rot, transform_trans)
@@ -705,7 +705,7 @@ class TeleopRos2Node(Node):
         left_available: bool,
         now,
     ) -> List[TransformStamped]:
-        """Build wrist TF transforms from a pre-built ee_poses PoseArray (right pose at index 0, left at index 1)."""
+        """Build wrist TF transforms from a pre-built ee_poses PoseArray (left pose at index 0, right at index 1)."""
         tfs = []
 
         def _get_orientation(pose: Pose) -> List[float]:
@@ -716,24 +716,24 @@ class TeleopRos2Node(Node):
                 pose.orientation.w,
             ]
 
-        if right_available:
+        if left_available:
             pose = ee_msg.poses[0]
             tfs.append(
                 _make_transform(
                     now,
                     self._world_frame,
-                    self._right_wrist_frame,
+                    self._left_wrist_frame,
                     [pose.position.x, pose.position.y, pose.position.z],
                     _get_orientation(pose),
                 )
             )
-        if left_available:
+        if right_available:
             pose = ee_msg.poses[1]
             tfs.append(
                 _make_transform(
                     now,
                     self._world_frame,
-                    self._left_wrist_frame,
+                    self._right_wrist_frame,
                     [pose.position.x, pose.position.y, pose.position.z],
                     _get_orientation(pose),
                 )
