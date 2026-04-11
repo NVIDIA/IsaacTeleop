@@ -48,8 +48,6 @@ import {
   getResolutionFromInputs,
   setSelectValueIfAvailable,
   setupCertificateAcceptanceLink,
-  type CertLinkController,
-  type CertStatusInfo,
 } from '@helpers/utils';
 import {
   getGridValidationError,
@@ -162,9 +160,8 @@ export class CloudXR2DUI {
     event: string;
     handler: EventListener;
   }> = [];
-  /** Certificate link controller (cleanup + verification helpers) */
-  private certLinkController: CertLinkController | null = null;
-  private certStatus: CertStatusInfo = { accepted: true, required: false, verified: true };
+  /** Certificate link cleanup function */
+  private certLinkCleanup: (() => void) | null = null;
 
   /**
    * Creates a new CloudXR2DUI instance
@@ -444,16 +441,12 @@ export class CloudXR2DUI {
     });
 
     // Set up certificate acceptance link and store cleanup function
-    this.certLinkController = setupCertificateAcceptanceLink(
+    this.certLinkCleanup = setupCertificateAcceptanceLink(
       this.serverIpInput,
       this.portInput,
       this.proxyUrlInput,
       this.certAcceptanceLink,
-      this.certLink,
-      (status: CertStatusInfo) => {
-        this.certStatus = status;
-        this.updateConnectButtonState();
-      }
+      this.certLink
     );
   }
 
@@ -522,12 +515,7 @@ export class CloudXR2DUI {
       reprojectionGridCols,
       reprojectionGridRows
     );
-    const certPending =
-      this.certStatus.required && this.certStatus.verified === true && !this.certStatus.accepted;
-    const certMessage = certPending
-      ? 'Accept the certificate using the link below before connecting.'
-      : '';
-    const combinedConnectMessage = [connectMessage, gridConnectMessage, certMessage]
+    const combinedConnectMessage = [connectMessage, gridConnectMessage]
       .filter(Boolean)
       .join('\n');
     if (combinedConnectMessage) {
@@ -539,7 +527,7 @@ export class CloudXR2DUI {
     }
     // Only update button when idle (don't override "CONNECT (starting...)" or "CONNECT (XR session active)")
     if (this.startButton && this.startButton.innerHTML === 'CONNECT') {
-      const shouldEnable = !resolutionError && !gridError && !certPending;
+      const shouldEnable = !resolutionError && !gridError;
       this.setStartButtonState(!shouldEnable, 'CONNECT');
     }
   }
@@ -762,24 +750,6 @@ export class CloudXR2DUI {
       // Create new handler
       this.handleConnectClick = async () => {
         this.updateConnectButtonState();
-        if (this.certStatus.required && !this.certStatus.accepted && this.certLinkController) {
-          this.setStartButtonState(true, 'CONNECT (waiting for certificate check...)');
-          let certWaitTimeoutId: ReturnType<typeof setTimeout> | null = null;
-          try {
-            await Promise.race([
-              this.certLinkController.verifyNow(),
-              new Promise<void>(resolve => {
-                certWaitTimeoutId = setTimeout(resolve, 500);
-              }),
-            ]);
-          } finally {
-            if (certWaitTimeoutId !== null) {
-              clearTimeout(certWaitTimeoutId);
-            }
-          }
-          this.setStartButtonState(false, 'CONNECT');
-          this.updateConnectButtonState();
-        }
         if (this.startButton?.disabled) {
           this.updateConnectButtonState();
           return;
@@ -858,9 +828,9 @@ export class CloudXR2DUI {
     }
 
     // Clean up certificate acceptance link listeners
-    if (this.certLinkController) {
-      this.certLinkController();
-      this.certLinkController = null;
+    if (this.certLinkCleanup) {
+      this.certLinkCleanup();
+      this.certLinkCleanup = null;
     }
   }
 }

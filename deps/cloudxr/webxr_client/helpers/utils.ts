@@ -362,44 +362,23 @@ export function isLocalServer(hostname: string): boolean {
  * @param certAcceptanceLink - Container element for the certificate link
  * @param certLink - Anchor element for the certificate URL
  * @param location - Optional location object (defaults to window.location)
- * @returns Certificate link controller with cleanup and verification helpers
+ * @returns Cleanup function that removes listeners created by this helper
  */
-export interface CertStatusInfo {
-  accepted: boolean;
-  required: boolean;
-  verified: boolean;
-}
-
-export interface CertLinkController {
-  /** Removes listeners created by setupCertificateAcceptanceLink(). */
-  (): void;
-  /** Forces a cert check for the current effective URL and updates status. */
-  verifyNow: () => Promise<CertStatusInfo>;
-  /** Waits for an in-flight cert check started elsewhere (if any). */
-  waitForPendingVerification: () => Promise<CertStatusInfo>;
-}
-
 export function setupCertificateAcceptanceLink(
   serverIpInput: HTMLInputElement,
   portInput: HTMLInputElement,
   proxyUrlInput: HTMLInputElement,
   certAcceptanceLink: HTMLElement,
   certLink: HTMLAnchorElement,
-  onStatusChange?: (status: CertStatusInfo) => void,
   location: Location = window.location,
   fetchFn: typeof fetch = globalThis.fetch
-): CertLinkController {
+): () => void {
   let abortController: AbortController | null = null;
   let accepted = false;
   let certRequired = false;
-  let verified = false;
   let activeCertUrl: string | null = null;
-  let pendingVerification: Promise<CertStatusInfo> | null = null;
+  let pendingVerification: Promise<void> | null = null;
   let pendingVerificationUrl: string | null = null;
-
-  function notifyStatus(): void {
-    onStatusChange?.({ accepted, required: certRequired, verified });
-  }
 
   function markAccepted(url: string): void {
     if (url !== activeCertUrl) {
@@ -409,11 +388,8 @@ export function setupCertificateAcceptanceLink(
       console.warn('[CloudXR] Certificate accepted for %s', url);
     }
     accepted = true;
-    verified = true;
-    certAcceptanceLink.classList.remove('cert-unverified');
     certAcceptanceLink.classList.add('cert-accepted');
     certLink.textContent = `Certificate accepted (${url})`;
-    notifyStatus();
   }
 
   function markUnverified(url: string): void {
@@ -421,23 +397,8 @@ export function setupCertificateAcceptanceLink(
       return;
     }
     accepted = false;
-    verified = false;
-    certAcceptanceLink.classList.remove('cert-accepted');
-    certAcceptanceLink.classList.add('cert-unverified');
-    certLink.textContent = `Click ${url} to accept cert`;
-    notifyStatus();
-  }
-
-  function markPending(url: string): void {
-    if (url !== activeCertUrl) {
-      return;
-    }
-    accepted = false;
-    verified = true;
-    certAcceptanceLink.classList.remove('cert-unverified');
     certAcceptanceLink.classList.remove('cert-accepted');
     certLink.textContent = `Click ${url} to accept cert`;
-    notifyStatus();
   }
 
   async function checkCert(url: string): Promise<void> {
@@ -459,7 +420,7 @@ export function setupCertificateAcceptanceLink(
       if (err instanceof DOMException && err.name === 'AbortError') {
         return;
       }
-      markPending(url);
+      markUnverified(url);
       console.warn(
         '[CloudXR] Certificate not yet accepted — cert polling errors for %s are expected.',
         url
@@ -471,7 +432,7 @@ export function setupCertificateAcceptanceLink(
    * Updates the certificate acceptance link based on current configuration
    * Shows link only when in HTTPS mode without proxy (direct WSS)
    */
-  const updateCertLink = (runCertCheck: boolean) => {
+  const updateCertLink = () => {
     const isHttps = location.protocol === 'https:';
     const hasProxy = proxyUrlInput.value.trim().length > 0;
     const portValue = parseInt(portInput.value, 10);
@@ -490,20 +451,13 @@ export function setupCertificateAcceptanceLink(
       activeCertUrl = url;
       certAcceptanceLink.style.display = 'block';
       certLink.href = url;
-      // Keep blue "unverified" until a probe result is known.
       markUnverified(url);
-      if (runCertCheck) {
-        void checkCert(url);
-      }
     } else {
       activeCertUrl = null;
       accepted = false;
-      verified = false;
       if (abortController) abortController.abort();
-      certAcceptanceLink.classList.remove('cert-unverified');
       certAcceptanceLink.classList.remove('cert-accepted');
       certAcceptanceLink.style.display = 'none';
-      notifyStatus();
     }
   };
 
@@ -514,13 +468,13 @@ export function setupCertificateAcceptanceLink(
   };
 
   const onInput = () => {
-    updateCertLink(false);
+    updateCertLink();
   };
   const onCommittedChange = () => {
     void startVerification();
   };
   const onProxyCommittedChange = () => {
-    updateCertLink(false);
+    updateCertLink();
     if (certRequired && activeCertUrl) {
       void startVerification();
     }
@@ -541,18 +495,8 @@ export function setupCertificateAcceptanceLink(
   // Run initial cert state after localStorage restoration.
   void startVerification();
 
-  async function verifyNow(): Promise<CertStatusInfo> {
-    updateCertLink(false);
-    if (certRequired && activeCertUrl) {
-      await checkCert(activeCertUrl);
-    } else {
-      notifyStatus();
-    }
-    return { accepted, required: certRequired, verified };
-  }
-
-  function startVerification(): Promise<CertStatusInfo> {
-    updateCertLink(false);
+  function startVerification(): Promise<void> {
+    updateCertLink();
     const currentUrl = certRequired ? activeCertUrl : null;
     if (pendingVerification && pendingVerificationUrl === currentUrl) {
       return pendingVerification;
@@ -560,10 +504,7 @@ export function setupCertificateAcceptanceLink(
     const run = (async () => {
       if (currentUrl) {
         await checkCert(currentUrl);
-      } else {
-        notifyStatus();
       }
-      return { accepted, required: certRequired, verified };
     })();
     pendingVerification = run;
     pendingVerificationUrl = currentUrl;
@@ -575,18 +516,7 @@ export function setupCertificateAcceptanceLink(
     });
   }
 
-  function waitForPendingVerification(): Promise<CertStatusInfo> {
-    if (pendingVerification) {
-      return pendingVerification;
-    }
-    if (certRequired && !verified) {
-      return startVerification();
-    }
-    return Promise.resolve({ accepted, required: certRequired, verified });
-  }
-
-  // Return callable controller with cleanup and verification helpers.
-  const cleanup = () => {
+  return () => {
     serverIpInput.removeEventListener('input', onInput);
     portInput.removeEventListener('input', onInput);
     proxyUrlInput.removeEventListener('input', onInput);
@@ -599,9 +529,4 @@ export function setupCertificateAcceptanceLink(
     window.removeEventListener('focus', onFocus);
     if (abortController) abortController.abort();
   };
-  const controller = Object.assign(cleanup, {
-    verifyNow,
-    waitForPendingVerification,
-  }) as CertLinkController;
-  return controller;
 }
