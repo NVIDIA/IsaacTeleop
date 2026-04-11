@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: so101_arm_plugin
+description: "SO-101 6-DOF robot arm teleoperation (leader arm)"
+command: "./so101_arm_plugin"
+version: "1.0.0"
+devices:
+  - path: "/arm/so101_leader"
+    type: "so101_arm"
+    description: "SO-101 leader arm (6-DOF + gripper)"
