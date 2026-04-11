@@ -36,6 +36,15 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="Accept the NVIDIA CloudXR EULA non-interactively (e.g. for CI or containers).",
     )
+    parser.add_argument(
+        "--setup-oob",
+        action="store_true",
+        default=False,
+        help=(
+            "Enable OOB teleop control hub in the WSS proxy. "
+            "Exposes WebSocket and HTTP API for headset metrics and remote config."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -47,6 +56,7 @@ def main() -> None:
         install_dir=args.cloudxr_install_dir,
         env_config=args.cloudxr_env_config,
         accept_eula=args.accept_eula,
+        setup_oob=args.setup_oob,
     ) as launcher:
         cxr_ver = runtime_version()
         print(
@@ -63,6 +73,10 @@ def main() -> None:
         print(
             f"CloudXR WSS proxy: \033[36mrunning\033[0m, log file: \033[90m{wss_log}\033[0m"
         )
+        if args.setup_oob:
+            print(
+                "        oob:       \033[32menabled\033[0m  (hub running in WSS proxy)"
+            )
         print(
             f"Activate CloudXR environment in another terminal: \033[1;32msource {env_cfg.env_filepath()}\033[0m"
         )

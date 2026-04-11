@@ -5,7 +5,10 @@
 
 import asyncio
 import errno
+import json
 import logging
+import os
+from urllib.parse import unquote, urlparse
 import shutil
 import ssl
 import subprocess
@@ -13,7 +16,38 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+import socket
+
 from .env_config import get_env_config
+from .oob_teleop_hub import OOB_WS_PATH
+
+WSS_PROXY_DEFAULT_PORT = 48322
+
+
+def _wss_proxy_port() -> int:
+    raw = os.environ.get("PROXY_PORT", "").strip()
+    return int(raw) if raw else WSS_PROXY_DEFAULT_PORT
+
+
+def _guess_lan_ipv4() -> str | None:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.settimeout(0.25)
+            s.connect(("192.0.2.1", 1))
+            addr, _ = s.getsockname()
+    except OSError:
+        return None
+    return None if not addr or addr == "127.0.0.1" else addr
+
+
+def _default_initial_config(proxy_port: int) -> dict:
+    server_ip = (
+        os.environ.get("TELEOP_STREAM_SERVER_IP", "").strip()
+        or _guess_lan_ipv4()
+        or "127.0.0.1"
+    )
+    return {"serverIP": server_ip, "port": proxy_port}
+
 
 try:
     import websockets
@@ -111,10 +145,113 @@ CORS_HEADERS = {
 }
 
 
-def _make_http_handler(backend_host, backend_port):
+def _cert_html() -> bytes:
+    return (
+        b"<!doctype html><html><head><meta charset=utf-8>"
+        b"<style>body{font-family:system-ui,sans-serif;display:flex;"
+        b"align-items:center;justify-content:center;height:100vh;margin:0;"
+        b"background:#f5f5f5;color:#222}div{text-align:center}"
+        b"h1{font-weight:600;font-size:1.5rem;margin-bottom:.5rem}"
+        b"p{color:#555;font-size:1rem}</style></head>"
+        b"<body><div><h1>Certificate Accepted</h1>"
+        b"<p>You can close this tab and return to the web client.</p>"
+        b"</div></body></html>"
+    )
+
+
+def _normalize_request_path(raw_path: str) -> str:
+    """Normalize HTTP request-target: query stripped, absolute-URL form, ``%``-decoding, ``//``, ``.`` / ``..``."""
+    path = (raw_path or "/").split("?")[0] or "/"
+    if path.startswith(("http://", "https://")):
+        path = urlparse(path).path or "/"
+    path = unquote(path, errors="replace")
+    segments = [p for p in path.split("/") if p and p != "."]
+    stack: list[str] = []
+    for seg in segments:
+        if seg == "..":
+            if stack:
+                stack.pop()
+        else:
+            stack.append(seg)
+    if not stack:
+        return "/"
+    return "/" + "/".join(stack)
+
+
+def _is_oob_hub_http_path(path: str) -> bool:
+    """True for OOB HTTP API paths on the WSS proxy."""
+    return path in (
+        "/api/oob/v1/state",
+        "/api/oob/v1/config",
+    )
+
+
+def _parse_query_params(raw_path: str) -> dict[str, str]:
+    """First occurrence wins; keys and values are URL-decoded."""
+    if "?" not in raw_path:
+        return {}
+    qs = raw_path.split("?", 1)[1]
+    out: dict[str, str] = {}
+    for part in qs.split("&"):
+        if not part:
+            continue
+        if "=" in part:
+            k, v = part.split("=", 1)
+            k = unquote(k)
+            if k not in out:
+                out[k] = unquote(v, errors="replace")
+        else:
+            k = unquote(part)
+            if k not in out:
+                out[k] = ""
+    return out
+
+
+def _stream_config_from_query(q: dict[str, str]) -> tuple[dict | None, str | None]:
+    """Build ``StreamConfig`` patch from query string (``serverIP=`` / ``port=`` / …)."""
+    cfg: dict[str, object] = {}
+    if "serverIP" in q:
+        cfg["serverIP"] = q["serverIP"]
+    if "port" in q and q["port"] != "":
+        try:
+            cfg["port"] = int(q["port"], 10)
+        except ValueError:
+            return None, "port must be an integer"
+    if "panelHiddenAtStart" in q and q["panelHiddenAtStart"] != "":
+        s = q["panelHiddenAtStart"].strip().lower()
+        if s in ("1", "true", "yes", "on"):
+            cfg["panelHiddenAtStart"] = True
+        elif s in ("0", "false", "no", "off"):
+            cfg["panelHiddenAtStart"] = False
+        else:
+            return None, "panelHiddenAtStart must be true or false"
+    if "codec" in q and q["codec"] != "":
+        cfg["codec"] = q["codec"]
+    return cfg, None
+
+
+def _oob_token(request, q: dict[str, str]) -> str | None:
+    h = request.headers.get("X-Control-Token")
+    if h:
+        return h
+    t = q.get("token")
+    return t if t else None
+
+
+def _json_response(status: int, phrase: str, body: dict) -> Response:
+    return Response(
+        status,
+        phrase,
+        Headers({"Content-Type": "application/json", **CORS_HEADERS}),
+        json.dumps(body).encode(),
+    )
+
+
+def _make_http_handler(backend_host, backend_port, hub=None):
     async def handle_http_request(connection, request):
         if request.headers.get("Upgrade", "").lower() == "websocket":
             return None
+
         if request.headers.get("Access-Control-Request-Method"):
             return Response(
                 200,
@@ -122,19 +259,61 @@ def _make_http_handler(backend_host, backend_port):
                 Headers({"Content-Type": "text/plain", **CORS_HEADERS}),
                 b"OK",
             )
+
+        path = _normalize_request_path(request.path or "/")
+        raw_path = request.path or "/"
+        q = _parse_query_params(raw_path)
+
+        if hub is not None and _is_oob_hub_http_path(path):
+            token = _oob_token(request, q)
+            if path == "/api/oob/v1/state":
+                if not hub.check_token(token):
+                    return _json_response(
+                        401, "Unauthorized", {"error": "Unauthorized"}
+                    )
+                snapshot = await hub.get_snapshot()
+                return Response(
+                    200,
+                    "OK",
+                    Headers({"Content-Type": "application/json", **CORS_HEADERS}),
+                    json.dumps(snapshot).encode(),
+                )
+
+            if path == "/api/oob/v1/config":
+                if not hub.check_token(token):
+                    return _json_response(
+                        401, "Unauthorized", {"error": "Unauthorized"}
+                    )
+                cfg, err = _stream_config_from_query(q)
+                if err:
+                    return _json_response(400, "Bad Request", {"error": err})
+                payload = {
+                    "config": cfg,
+                    "targetClientId": q.get("targetClientId"),
+                    "token": token,
+                }
+                status, body = await hub.http_oob_set_config(payload)
+                phrase = {
+                    200: "OK",
+                    400: "Bad Request",
+                    401: "Unauthorized",
+                    404: "Not Found",
+                }.get(status, "Error")
+                return _json_response(status, phrase, body)
+
+        if hub is None and _is_oob_hub_http_path(path):
+            return Response(
+                404,
+                "Not Found",
+                Headers({"Content-Type": "text/plain", **CORS_HEADERS}),
+                b"Not found",
+            )
+
         return Response(
             200,
             "OK",
             Headers({"Content-Type": "text/html; charset=utf-8", **CORS_HEADERS}),
-            b"<!doctype html><html><head><meta charset=utf-8>"
-            b"<style>body{font-family:system-ui,sans-serif;display:flex;"
-            b"align-items:center;justify-content:center;height:100vh;margin:0;"
-            b"background:#f5f5f5;color:#222}div{text-align:center}"
-            b"h1{font-weight:600;font-size:1.5rem;margin-bottom:.5rem}"
-            b"p{color:#555;font-size:1rem}</style></head>"
-            b"<body><div><h1>Certificate Accepted</h1>"
-            b"<p>You can close this tab and return to the web client.</p>"
-            b"</div></body></html>",
+            _cert_html(),
         )
 
     return handle_http_request
@@ -154,6 +333,24 @@ _SKIP_HEADERS = {
     "sec-websocket-extensions",
     "sec-websocket-protocol",
 }
+
+
+def _is_backend_connection_refused(exc: BaseException) -> bool:
+    """True when ``ws_connect`` failed because nothing is listening (runtime not running)."""
+    if isinstance(exc, ConnectionRefusedError):
+        return True
+    if isinstance(exc, OSError) and exc.errno in (
+        errno.ECONNREFUSED,
+        getattr(errno, "WSAECONNREFUSED", -1),
+    ):
+        return True
+    if isinstance(exc, OSError):
+        msg = str(exc).lower()
+        if "errno 61" in msg or "errno 111" in msg:
+            return True
+        if "connection refused" in msg:
+            return True
+    return False
 
 
 async def _pipe(src, dst, label: str):
@@ -204,6 +401,19 @@ async def proxy_handler(client, backend_host: str, backend_port: int):
             ping_timeout=None,
             close_timeout=10,
         )
+    except OSError as exc:
+        if _is_backend_connection_refused(exc):
+            log.warning(
+                "No CloudXR runtime at ws://%s:%s (connection refused) for path %s — "
+                "expected when running WSS+hub without the runtime; teleop signaling uses %s.",
+                backend_host,
+                backend_port,
+                path,
+                OOB_WS_PATH,
+            )
+            return
+        log.exception("Failed to connect to backend %s", backend_uri)
+        return
     except Exception:
         log.exception("Failed to connect to backend %s", backend_uri)
         return
@@ -238,37 +448,61 @@ def default_cert_paths() -> CertPaths:
 
 
 async def run(
-    log_file_path: str | Path,
+    log_file_path: str | Path | None,
     stop_future: asyncio.Future,
     backend_host: str = "localhost",
     backend_port: int = 49100,
-    proxy_port: int = 48322,
+    proxy_port: int | None = None,
+    setup_oob: bool = False,
 ) -> None:
     logger = log
     logger.setLevel(logging.INFO)
     logger.propagate = False
-    file_handler = logging.FileHandler(log_file_path, mode="a", encoding="utf-8")
-    file_handler.setFormatter(
-        logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-    )
-    logger.addHandler(file_handler)
+    _log_fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    if log_file_path is not None:
+        _handler: logging.Handler = logging.FileHandler(
+            log_file_path, mode="a", encoding="utf-8"
+        )
+    else:
+        _handler = logging.StreamHandler(sys.stderr)
+    _handler.setFormatter(_log_fmt)
+    logger.addHandler(_handler)
 
     try:
+        resolved_port = _wss_proxy_port() if proxy_port is None else proxy_port
         logging.getLogger("websockets").setLevel(logging.WARNING)
         cert_paths = default_cert_paths()
 
         ensure_certificate(cert_paths)
         ssl_ctx = build_ssl_context(cert_paths)
 
+        hub = None
+        if setup_oob:
+            from .oob_teleop_hub import OOBControlHub  # noqa: PLC0415
+
+            control_token = os.environ.get("CONTROL_TOKEN") or None
+            initial = _default_initial_config(resolved_port)
+            hub = OOBControlHub(control_token=control_token, initial_config=initial)
+            log.info(
+                "Teleop control hub enabled (token=%s) OOB_WS=%s initial_stream=%s",
+                "set" if control_token else "none",
+                OOB_WS_PATH,
+                initial,
+            )
+
         def handler(ws):
+            if hub is not None:
+                path = _normalize_request_path(ws.request.path or "/")
+                if path == OOB_WS_PATH:
+                    return hub.handle_connection(ws)
             return proxy_handler(ws, backend_host, backend_port)
 
-        http_handler = _make_http_handler(backend_host, backend_port)
+        http_handler = _make_http_handler(backend_host, backend_port, hub=hub)
 
         async with ws_serve(
             handler,
             host="",
-            port=proxy_port,
+            port=resolved_port,
             ssl=ssl_ctx,
             process_request=http_handler,
             process_response=add_cors_headers,
@@ -278,16 +512,16 @@ async def run(
             ping_timeout=None,
             close_timeout=10,
         ):
-            log.info("WSS proxy listening on port %d", proxy_port)
+            log.info("WSS proxy listening on port %d", resolved_port)
             await stop_future
             log.info("Shutting down ...")
     except OSError as e:
         if e.errno == errno.EADDRINUSE:
             raise RuntimeError(
-                f"WSS proxy port {proxy_port} is already in use. "
-                f"Set PROXY_PORT to a different port or stop the process using {proxy_port}."
+                f"WSS proxy port {resolved_port} is already in use. "
+                f"Set PROXY_PORT to a different port or stop the process using {resolved_port}."
             ) from e
         raise
     finally:
-        logger.removeHandler(file_handler)
-        file_handler.close()
+        logger.removeHandler(_handler)
+        _handler.close()

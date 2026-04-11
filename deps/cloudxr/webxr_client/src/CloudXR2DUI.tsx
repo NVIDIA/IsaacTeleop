@@ -175,7 +175,7 @@ export class CloudXR2DUI {
   /**
    * Initializes the CloudXR2DUI with all necessary components and event handlers
    */
-  public initialize(): void {
+  public initialize(urlSeeds?: Record<string, string>): void {
     if (this.initialized) {
       return;
     }
@@ -183,6 +183,9 @@ export class CloudXR2DUI {
     try {
       this.initializeElements();
       this.setupLocalStorage();
+      if (urlSeeds) {
+        this.applyUrlSeeds(urlSeeds);
+      }
       this.setupProxyConfiguration();
       this.setupEventListeners();
       // Set initial display value
@@ -194,6 +197,25 @@ export class CloudXR2DUI {
     } catch (error) {
       // Continue with default values if initialization fails
       this.showError(`Failed to initialize CloudXR2DUI: ${error}`);
+    }
+  }
+
+  /**
+   * Override form fields and localStorage from URL query params.
+   * Called after setupLocalStorage() so URL params win over stored values.
+   */
+  private applyUrlSeeds(seeds: Record<string, string>): void {
+    const mapping: Array<[string, HTMLInputElement | HTMLSelectElement, string]> = [
+      ['serverIP', this.serverIpInput, 'serverIp'],
+      ['port', this.portInput, 'port'],
+      ['codec', this.codecSelect, 'codec'],
+      ['panelHiddenAtStart', this.panelHiddenAtStartSelect, 'panelHiddenAtStart'],
+    ];
+    for (const [paramKey, element, storageKey] of mapping) {
+      const v = seeds[paramKey];
+      if (v === undefined) continue;
+      element.value = v;
+      try { localStorage.setItem(storageKey, v); } catch (_) { /* quota */ }
     }
   }
 

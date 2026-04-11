@@ -48,6 +48,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 
 import { CloudXR2DUI } from './CloudXR2DUI';
 import CloudXR3DUI from './CloudXRUI';
+import { HeadsetControlChannel } from '@helpers/controlChannel';
 
 // Performance metrics signals - raw numeric data, one per callback cadence.
 // Signals update their value without triggering React re-renders.
@@ -86,6 +87,23 @@ const START_TELEOP_COMMAND = {
     command: 'start teleop',
   },
 } as const;
+
+/** When set with ``serverIP`` + ``port``, WebXR builds ``wss://{serverIP}:{port}/oob/v1/ws``. */
+function isOobEnabled(searchParams: URLSearchParams): boolean {
+  const v = searchParams.get('oobEnable');
+  return v === '1' || v?.toLowerCase() === 'true';
+}
+
+function buildOobHubWsUrlFromQuery(searchParams: URLSearchParams): string | null {
+  if (!isOobEnabled(searchParams)) return null;
+  const serverIP = searchParams.get('serverIP')?.trim();
+  const portStr = searchParams.get('port')?.trim();
+  if (!serverIP || portStr === undefined || portStr === '') return null;
+  if (!/^\d{1,5}$/.test(portStr)) return null;
+  const host =
+    serverIP.includes(':') && !serverIP.startsWith('[') ? `[${serverIP}]` : serverIP;
+  return `wss://${host}:${portStr}/oob/v1/ws`;
+}
 
 function App() {
   const COUNTDOWN_MAX_SECONDS = 9;
@@ -287,53 +305,58 @@ function App() {
 
   // Initialize CloudXR2DUI
   useEffect(() => {
-    // Create and initialize the 2D UI manager
+    // Create and initialize the 2D UI manager.
     const ui = new CloudXR2DUI(() => {
-      // Callback when configuration changes
       setConfigVersion(v => v + 1);
     });
-    ui.initialize();
-    ui.setupConnectButtonHandler(
-      async () => {
-        const config = ui.getConfiguration();
-        const resolutionError = getResolutionValidationError(
-          config.perEyeWidth,
-          config.perEyeHeight
-        );
-        if (resolutionError) {
-          ui.updateConnectButtonState();
-          return;
-        }
-        // Start XR session
-        if (config.immersiveMode === 'ar') {
-          await store.enterAR();
-        } else if (config.immersiveMode === 'vr') {
-          await store.enterVR();
-        } else {
-          setErrorMessage('Unrecognized immersive mode');
-        }
-        store.setFrameRate((supportedFrameRates: ArrayLike<number>): number | false => {
-          let frameRate = ui.getConfiguration().deviceFrameRate;
-          let found = false;
-          for (let i = 0; i < supportedFrameRates.length; ++i) {
-            if (supportedFrameRates[i] === frameRate) {
-              found = true;
-              break;
-            }
-          }
-          if (found) {
-            console.info('Changed frame rate to', frameRate);
-            return frameRate;
-          } else {
-            console.error('Failed to change frame rate to', frameRate);
-            return false;
-          }
-        });
-      },
-      (error: Error) => {
-        setErrorMessage(`Failed to start XR session: ${error}`);
+    // URL query params override localStorage so bookmarked links always win.
+    const urlSeeds: Record<string, string> = {};
+    const p = new URLSearchParams(window.location.search);
+    for (const key of ['serverIP', 'port', 'codec', 'panelHiddenAtStart']) {
+      const v = p.get(key);
+      if (v !== null) urlSeeds[key] = v;
+    }
+    ui.initialize(Object.keys(urlSeeds).length > 0 ? urlSeeds : undefined);
+    const doConnect = async () => {
+      const config = ui.getConfiguration();
+      const resolutionError = getResolutionValidationError(
+        config.perEyeWidth,
+        config.perEyeHeight
+      );
+      if (resolutionError) {
+        ui.updateConnectButtonState();
+        return;
       }
-    );
+      // Start XR session
+      if (config.immersiveMode === 'ar') {
+        await store.enterAR();
+      } else if (config.immersiveMode === 'vr') {
+        await store.enterVR();
+      } else {
+        setErrorMessage('Unrecognized immersive mode');
+      }
+      store.setFrameRate((supportedFrameRates: ArrayLike<number>): number | false => {
+        let frameRate = ui.getConfiguration().deviceFrameRate;
+        let found = false;
+        for (let i = 0; i < supportedFrameRates.length; ++i) {
+          if (supportedFrameRates[i] === frameRate) {
+            found = true;
+            break;
+          }
+        }
+        if (found) {
+          console.info('Changed frame rate to', frameRate);
+          return frameRate;
+        } else {
+          console.error('Failed to change frame rate to', frameRate);
+          return false;
+        }
+      });
+    };
+
+    ui.setupConnectButtonHandler(doConnect, (error: Error) => {
+      setErrorMessage(`Failed to start XR session: ${error}`);
+    });
 
     setCloudXR2DUI(ui);
 
@@ -615,6 +638,50 @@ function App() {
       });
     }
   };
+
+  // OOB WebSocket: only when oobEnable=1 and query has valid serverIP + port → wss://{serverIP}:{port}/oob/v1/ws.
+  useEffect(() => {
+    if (!cloudXR2DUI) return;
+    const p = new URLSearchParams(window.location.search);
+    const hubWsUrl = buildOobHubWsUrlFromQuery(p);
+    if (!hubWsUrl) {
+      return;
+    }
+
+    console.info('[Teleop] OOB control WebSocket:', hubWsUrl);
+
+    const channel = new HeadsetControlChannel({
+      url: hubWsUrl,
+      token: p.get('controlToken') ?? undefined,
+      onConfig: () => {
+        // Config push handling deferred to phase 2.
+      },
+      getMetricsSnapshot: () => {
+        const snapshots: Array<{ cadence: string; metrics: Record<string, number> }> = [];
+        const rm = renderMetrics.value;
+        if (rm) {
+          snapshots.push({
+            cadence: 'render',
+            metrics: { [CloudXR.MetricsName.RenderFramerate]: rm.fps },
+          });
+        }
+        const sm = streamingMetrics.value;
+        if (sm) {
+          snapshots.push({
+            cadence: 'frame',
+            metrics: {
+              [CloudXR.MetricsName.StreamingFramerate]: sm.fps,
+              [CloudXR.MetricsName.PoseToRenderTime]: sm.latencyMs,
+            },
+          });
+        }
+        return snapshots;
+      },
+    });
+    channel.connect();
+
+    return () => { channel.dispose(); };
+  }, [cloudXR2DUI]);
 
   // Countdown configuration handlers (0-5 seconds)
   const handleIncreaseCountdown = () => {
