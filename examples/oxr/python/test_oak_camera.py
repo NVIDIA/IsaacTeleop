@@ -185,6 +185,7 @@ def run_test(duration: float = 10.0, mode: str = MODE_NO_METADATA):
     extra_args = [
         f"--add-stream=camera=Color,output={color_path}",
         f"--add-stream=camera=MonoLeft,output={mono_left_path}",
+        "--preview",
     ]
 
     # For plugin-mcap, resolve to absolute path so the plugin can find it

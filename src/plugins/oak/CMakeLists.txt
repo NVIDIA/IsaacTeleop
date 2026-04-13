@@ -41,6 +41,7 @@ set(SDL_STATIC ON CACHE BOOL "" FORCE)
 FetchContent_Declare(
     sdl2
     URL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz"
+    URL_HASH "SHA256=5f5993c530f084535c65a6879e9b26ad441169b3e25d789d83287040a9ca5165"
 )
 FetchContent_MakeAvailable(sdl2)
 message(STATUS "SDL2 ${SDL2_VERSION} — live preview support enabled")
