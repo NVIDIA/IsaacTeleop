@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #include "live_generic_3axis_pedal_tracker_impl.hpp"
@@ -40,7 +40,7 @@ LiveGeneric3AxisPedalTrackerImpl::LiveGeneric3AxisPedalTrackerImpl(const OpenXRS
                                                                    const Generic3AxisPedalTracker* tracker,
                                                                    std::unique_ptr<PedalMcapChannels> mcap_channels)
     : mcap_channels_(std::move(mcap_channels)),
-      m_schema_reader(handles, make_pedal_tensor_config(tracker), mcap_channels_.get(), 0)
+      m_schema_reader(handles, make_pedal_tensor_config(tracker), mcap_channels_.get(), 0, 1)
 {
 }
 
