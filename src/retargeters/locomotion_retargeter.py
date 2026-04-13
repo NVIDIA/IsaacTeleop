@@ -120,6 +120,9 @@ class LocomotionRootCmdRetargeter(BaseRetargeter):
 
     def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         """Computes root command from controller inputs."""
+        if context.execution_events.reset:
+            self._hip_height = self._config.initial_hip_height
+
         left_thumbstick_x = 0.0
         left_thumbstick_y = 0.0
         right_thumbstick_x = 0.0

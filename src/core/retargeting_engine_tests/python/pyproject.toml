@@ -12,12 +12,14 @@ dev = [
     "pytest",
     "mypy",
     "numpy",
+    "scipy",
     "types-PyYAML",
     "scipy-stubs",
 ]
 test = [
     "pytest",
     "numpy",
+    "scipy",
 ]
 
 [tool.pytest.ini_options]
