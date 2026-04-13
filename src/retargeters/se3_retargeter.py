@@ -205,6 +205,11 @@ class Se3AbsRetargeter(BaseRetargeter):
         }
 
     def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
+        if context.execution_events.reset:
+            self._last_pose = np.array(
+                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], dtype=np.float32
+            )
+
         ee_pose = outputs["ee_pose"]
         device_name = self._config.input_device
         inp = inputs[device_name]
@@ -333,6 +338,14 @@ class Se3RelRetargeter(BaseRetargeter):
         }
 
     def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
+        if context.execution_events.reset:
+            self._smoothed_delta_pos = np.zeros(3)
+            self._smoothed_delta_rot = np.zeros(3)
+            self._previous_wrist = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
+            self._previous_thumb_tip = None
+            self._previous_index_tip = None
+            self._first_frame = True
+
         ee_delta = outputs["ee_delta"]
         device_name = self._config.input_device
         inp = inputs[device_name]
