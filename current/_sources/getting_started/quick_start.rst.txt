@@ -33,7 +33,7 @@ In a new terminal, install the package from PyPI (or from a local wheel if you b
 .. code-block:: bash
 
    # From PyPI
-   pip install 'isaacteleop[cloudxr,retargeters]~=1.0.0' --extra-index-url https://pypi.nvidia.com
+   pip install isaacteleop[cloudxr,retargeters]~=1.0.0 --extra-index-url https://pypi.nvidia.com
 
 Instead of installing the package from PyPI, you can build from source and install the local wheel.
 See :doc:`build_from_source` for more details.

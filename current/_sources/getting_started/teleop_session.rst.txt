@@ -133,13 +133,10 @@ TeleopSession
 Methods
 """""""
 
-- ``step(*, external_inputs=None, graph_time=None, execution_events=None) -> Dict[str, TensorGroup]``
-  -- Execute one step: updates the DeviceIO session, polls tracker data, merges
-  any caller-provided ``external_inputs``, and executes the retargeting pipeline.
-  ``graph_time`` can be provided explicitly; when omitted, monotonic time is used
-  for both sim/real time. If ``execution_events`` is provided, it is injected into
-  ``ComputeContext`` and ``teleop_control_pipeline`` is skipped for that step.
-  Raises ``ValueError`` if required external inputs are missing or collide with
+- ``step(external_inputs=None) -> Dict[str, TensorGroup]`` -- Execute one step:
+  updates the DeviceIO session, polls tracker data, merges any caller-provided
+  ``external_inputs``, and executes the retargeting pipeline. Raises
+  ``ValueError`` if required external inputs are missing or collide with
   DeviceIO source names.
 - ``get_external_input_specs() -> Dict[str, RetargeterIOType]`` -- Return the
   input specifications for all external (non-DeviceIO) leaf nodes that require
@@ -147,27 +144,6 @@ Methods
 - ``has_external_inputs() -> bool`` -- Whether this pipeline has external leaf
   nodes that require caller-provided inputs.
 - ``get_elapsed_time() -> float`` -- Get elapsed time since session started.
-
-Example (explicit GraphTime + ExecutionEvents override):
-
-.. code-block:: python
-
-   import time
-
-   from isaacteleop.retargeting_engine.interface.execution_events import (
-       ExecutionEvents,
-       ExecutionState,
-   )
-   from isaacteleop.retargeting_engine.interface.retargeter_core_types import GraphTime
-
-   now_ns = time.monotonic_ns()
-   result = session.step(
-       graph_time=GraphTime(sim_time_ns=123_000_000, real_time_ns=now_ns),
-       execution_events=ExecutionEvents(
-           execution_state=ExecutionState.PAUSED,
-           reset=False,
-       ),
-   )
 
 Properties
 """"""""""
