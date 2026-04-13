@@ -1,12 +1,13 @@
-# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
 Tests for retargeter reset behaviour via ExecutionEvents.
 
-Verifies that stateful retargeters (LocomotionRootCmdRetargeter,
-Se3AbsRetargeter, Se3RelRetargeter) correctly reinitialize their
-cross-step state when ``context.execution_events.reset`` is True.
+Verifies that stateful retargeters (GripperRetargeter,
+LocomotionRootCmdRetargeter, Se3AbsRetargeter, Se3RelRetargeter)
+correctly reinitialize their cross-step state when
+``context.execution_events.reset`` is True.
 """
 
 import numpy as np
@@ -21,8 +22,13 @@ from isaacteleop.retargeting_engine.interface import (
     TensorGroup,
 )
 from isaacteleop.retargeting_engine.interface.retargeter_core_types import GraphTime
+from isaacteleop.retargeting_engine.interface.tensor_group_type import (
+    OptionalTensorGroupType,
+)
 
 from isaacteleop.retargeters import (
+    GripperRetargeter,
+    GripperRetargeterConfig,
     LocomotionRootCmdRetargeter,
     LocomotionRootCmdRetargeterConfig,
     Se3AbsRetargeter,
@@ -42,10 +48,6 @@ def _make_context(*, reset: bool = False) -> ComputeContext:
 
 def _build_io(retargeter):
     """Build inputs/outputs for a retargeter, using OptionalTensorGroup for optional specs."""
-    from isaacteleop.retargeting_engine.interface.tensor_group_type import (
-        OptionalTensorGroupType,
-    )
-
     inputs = {}
     for k, v in retargeter.input_spec().items():
         if isinstance(v, OptionalTensorGroupType):
@@ -165,11 +167,56 @@ class TestSe3RelRetargeterReset:
         assert retargeter._previous_index_tip is None
 
     def test_no_reset_preserves_state(self, retargeter):
+        stale_pos = np.array([1.0, 2.0, 3.0])
+        stale_rot = np.array([0.1, 0.2, 0.3])
+        stale_wrist = np.array([0.5, 0.5, 0.5, 0.0, 0.0, 0.0, 1.0])
+
         retargeter._first_frame = False
-        retargeter._smoothed_delta_pos = np.array([1.0, 2.0, 3.0])
+        retargeter._smoothed_delta_pos = stale_pos.copy()
+        retargeter._smoothed_delta_rot = stale_rot.copy()
+        retargeter._previous_wrist = stale_wrist.copy()
 
         inputs, outputs = _build_io(retargeter)
         retargeter.compute(inputs, outputs, _make_context(reset=False))
 
         assert retargeter._first_frame is False
-        assert not np.allclose(retargeter._smoothed_delta_pos, np.zeros(3))
+        npt.assert_array_equal(retargeter._smoothed_delta_pos, stale_pos)
+        npt.assert_array_equal(retargeter._smoothed_delta_rot, stale_rot)
+        npt.assert_array_equal(retargeter._previous_wrist, stale_wrist)
+
+
+# ---------------------------------------------------------------------------
+# GripperRetargeter
+# ---------------------------------------------------------------------------
+
+
+class TestGripperRetargeterReset:
+    """GripperRetargeter must restore _previous_gripper_command on reset."""
+
+    @pytest.fixture()
+    def retargeter(self):
+        cfg = GripperRetargeterConfig(hand_side="right")
+        return GripperRetargeter(cfg, name="gripper")
+
+    def test_reset_reopens_gripper(self, retargeter):
+        """After reset with no input, gripper should output open (1.0)."""
+        inputs, outputs = _build_io(retargeter)
+
+        retargeter._previous_gripper_command = True  # closed
+
+        retargeter.compute(inputs, outputs, _make_context(reset=True))
+
+        cmd = outputs["gripper_command"][0]
+        assert cmd == pytest.approx(1.0), "gripper should be open after reset"
+
+    def test_no_reset_preserves_closed_gripper(self, retargeter):
+        """Without reset, _previous_gripper_command stays True (closed)."""
+        inputs, outputs = _build_io(retargeter)
+
+        retargeter._previous_gripper_command = True  # closed
+
+        retargeter.compute(inputs, outputs, _make_context(reset=False))
+
+        assert retargeter._previous_gripper_command is True, (
+            "gripper state should stay closed without reset"
+        )
