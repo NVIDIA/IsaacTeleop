@@ -111,6 +111,8 @@ add_custom_target(cloudxr_python ALL
         "${CMAKE_CURRENT_SOURCE_DIR}/launcher.py"
         "${CMAKE_CURRENT_SOURCE_DIR}/runtime.py"
         "${CMAKE_CURRENT_SOURCE_DIR}/wss.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/oob_teleop_adb.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/oob_teleop_env.py"
         "${CMAKE_CURRENT_SOURCE_DIR}/oob_teleop_hub.py"
         "${CLOUDXR_PYTHON_DIR}/"
     COMMAND ${CMAKE_COMMAND} -E rm -rf "${CLOUDXR_PYTHON_DIR}/__pycache__"

@@ -90,8 +90,8 @@ class CloudXRLauncher:
             accept_eula: Accept the NVIDIA CloudXR EULA
                 non-interactively.  When ``False`` and the EULA marker
                 does not exist, the user is prompted on stdin.
-            setup_oob: Enable the OOB teleop control hub in the WSS
-                proxy.
+            setup_oob: Enable the OOB teleop control hub and USB
+                adb automation in the WSS proxy.
 
         Raises:
             RuntimeError: If the EULA is not accepted or the runtime

@@ -6,12 +6,22 @@
 import argparse
 import os
 import signal
+import sys
 import time
 
 from isaacteleop import __version__ as isaacteleop_version
 from isaacteleop.cloudxr.env_config import get_env_config
 from isaacteleop.cloudxr.launcher import CloudXRLauncher
 from isaacteleop.cloudxr.runtime import latest_runtime_log, runtime_version
+from isaacteleop.cloudxr.oob_teleop_adb import (
+    OobAdbError,
+    assert_exactly_one_adb_device,
+    require_adb_on_path,
+)
+from isaacteleop.cloudxr.oob_teleop_env import (
+    print_oob_hub_startup_banner,
+    resolve_lan_host_for_oob,
+)
 
 
 def _parse_args() -> argparse.Namespace:
@@ -41,8 +51,9 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         default=False,
         help=(
-            "Enable OOB teleop control hub in the WSS proxy. "
-            "Exposes WebSocket and HTTP API for headset metrics and remote config."
+            "Enable OOB teleop control hub and open the teleop page on the headset via USB adb. "
+            "The headset must be connected via USB cable (for adb) and on WiFi (for streaming). "
+            'See docs: "Out-of-band teleop control".'
         ),
     )
     return parser.parse_args()
@@ -51,6 +62,11 @@ def _parse_args() -> argparse.Namespace:
 def main() -> None:
     """Launch the CloudXR runtime and WSS proxy, then block until interrupted."""
     args = _parse_args()
+
+    if args.setup_oob:
+        require_adb_on_path()
+        resolve_lan_host_for_oob()
+        assert_exactly_one_adb_device()
 
     with CloudXRLauncher(
         install_dir=args.cloudxr_install_dir,
@@ -75,8 +91,9 @@ def main() -> None:
         )
         if args.setup_oob:
             print(
-                "        oob:       \033[32menabled\033[0m  (hub running in WSS proxy)"
+                "        oob:       \033[32menabled\033[0m  (hub + USB adb automation — see OOB TELEOP block)"
             )
+            print_oob_hub_startup_banner(lan_host=resolve_lan_host_for_oob())
         print(
             f"Activate CloudXR environment in another terminal: \033[1;32msource {env_cfg.env_filepath()}\033[0m"
         )
@@ -99,4 +116,10 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except OobAdbError as e:
+        print("", file=sys.stderr)
+        print(str(e), file=sys.stderr)
+        print("", file=sys.stderr)
+        raise SystemExit(1) from None

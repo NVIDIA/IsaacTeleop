@@ -234,10 +234,8 @@ class OOBControlHub:
                 ]
                 if not targets:
                     return ("missing", target_id)
-                # Targeted push: send merged snapshot without mutating global state.
                 return ("push", self._config_version, merged, targets)
 
-            # Global push: update shared config and version.
             self._stream_config = merged
             self._config_version += 1
             return (

@@ -16,38 +16,18 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-import socket
-
 from .env_config import get_env_config
+from .oob_teleop_adb import (
+    adb_automation_failure_hint,
+    oob_adb_automation_message,
+    run_adb_headset_bookmark,
+)
+from .oob_teleop_env import (
+    client_ui_fields_from_env,
+    default_initial_stream_config,
+    wss_proxy_port,
+)
 from .oob_teleop_hub import OOB_WS_PATH
-
-WSS_PROXY_DEFAULT_PORT = 48322
-
-
-def _wss_proxy_port() -> int:
-    raw = os.environ.get("PROXY_PORT", "").strip()
-    return int(raw) if raw else WSS_PROXY_DEFAULT_PORT
-
-
-def _guess_lan_ipv4() -> str | None:
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            s.settimeout(0.25)
-            s.connect(("192.0.2.1", 1))
-            addr, _ = s.getsockname()
-    except OSError:
-        return None
-    return None if not addr or addr == "127.0.0.1" else addr
-
-
-def _default_initial_config(proxy_port: int) -> dict:
-    server_ip = (
-        os.environ.get("TELEOP_STREAM_SERVER_IP", "").strip()
-        or _guess_lan_ipv4()
-        or "127.0.0.1"
-    )
-    return {"serverIP": server_ip, "port": proxy_port}
-
 
 try:
     import websockets
@@ -469,7 +449,8 @@ async def run(
     logger.addHandler(_handler)
 
     try:
-        resolved_port = _wss_proxy_port() if proxy_port is None else proxy_port
+        resolved_port = wss_proxy_port() if proxy_port is None else proxy_port
+
         logging.getLogger("websockets").setLevel(logging.WARNING)
         cert_paths = default_cert_paths()
 
@@ -481,7 +462,10 @@ async def run(
             from .oob_teleop_hub import OOBControlHub  # noqa: PLC0415
 
             control_token = os.environ.get("CONTROL_TOKEN") or None
-            initial = _default_initial_config(resolved_port)
+            initial = {
+                **default_initial_stream_config(resolved_port),
+                **client_ui_fields_from_env(),
+            }
             hub = OOBControlHub(control_token=control_token, initial_config=initial)
             log.info(
                 "Teleop control hub enabled (token=%s) OOB_WS=%s initial_stream=%s",
@@ -513,6 +497,21 @@ async def run(
             close_timeout=10,
         ):
             log.info("WSS proxy listening on port %d", resolved_port)
+            if setup_oob:
+                rc, adb_diag = await asyncio.to_thread(
+                    run_adb_headset_bookmark,
+                    resolved_port=resolved_port,
+                )
+                if rc != 0:
+                    hint = adb_automation_failure_hint(adb_diag)
+                    detail = adb_diag if adb_diag else ""
+                    msg = oob_adb_automation_message(rc, detail, hint)
+                    log.warning("ADB bookmark failed (non-fatal): %s", msg)
+                    print(
+                        f"\n\033[33mADB automation failed — open the teleop URL on the headset manually.\033[0m\n"
+                        f"{msg}\n",
+                        file=sys.stderr,
+                    )
             await stop_future
             log.info("Shutting down ...")
     except OSError as e:

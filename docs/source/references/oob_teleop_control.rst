@@ -24,17 +24,34 @@ on first run):
 
    python -m isaacteleop.cloudxr --accept-eula --setup-oob
 
+This will:
+
+1. Verify a USB-connected headset is available via ``adb devices``
+2. Start the WSS proxy with the OOB control hub
+3. Open the teleop page on the headset via ``adb shell am start``
+
 You should see output confirming the hub is running:
 
 .. code-block:: text
 
    CloudXR WSS proxy: running, log file: /home/<user>/.cloudxr/logs/wss.2026-04-13T202133Z.log
-           oob:       enabled  (hub running in WSS proxy)
+           oob:       enabled  (hub + USB adb automation — see OOB TELEOP block)
 
-**Step 2 — Open the web client on the headset**
+.. note::
 
-On the XR headset browser, navigate to the client URL with **all three**
-required query parameters — ``oobEnable``, ``serverIP``, and ``port``:
+   The headset must be:
+
+   - **Connected via USB cable** for adb commands (opening the teleop URL)
+   - **Connected to WiFi** on the same network as the streaming host (for web
+     page access and CloudXR streaming)
+
+   No ``adb reverse`` or USB tethering is used.
+
+**Step 2 — (Manual fallback) Open the web client on the headset**
+
+If the adb automation fails (e.g. headset not paired), you can manually open
+the client URL on the headset browser with **all three** required query
+parameters — ``oobEnable``, ``serverIP``, and ``port``:
 
 .. code-block:: text
 
@@ -106,6 +123,27 @@ state endpoint from a PC to collect them:
 
 The ``metricsByCadence`` field on each headset entry will now contain live streaming metrics.
 
+ADB automation
+--------------
+
+The ``--setup-oob`` flag automates headset setup via USB ``adb``:
+
+1. **adb devices** — verifies exactly one device is connected
+2. **am start** — opens the teleop bookmark URL in the headset browser with
+   the correct ``oobEnable=1``, ``serverIP``, and ``port`` parameters
+
+No ``adb reverse`` ports or USB tethering is used.  The headset reaches the
+streaming host directly over WiFi.
+
+Prerequisites:
+
+- ``adb`` must be on ``PATH`` (Android SDK Platform Tools)
+- The headset must be connected via USB with USB debugging enabled
+- The headset must be on the same WiFi network as the streaming host
+
+If adb automation fails, the hub still starts and you can open the URL
+on the headset manually.
+
 Architecture
 ------------
 
@@ -123,6 +161,7 @@ Architecture
    * - **Streaming host**
      - ``python -m isaacteleop.cloudxr --setup-oob``
      - Runs CloudXR runtime + WSS proxy + OOB hub on a single TLS port.
+       Opens the teleop page on the headset via USB adb.
    * - **Operator / scripts**
      - ``curl``, browser, or custom tooling
      - Reads state via HTTP, optionally pushes config via HTTP.
@@ -264,7 +303,7 @@ The client builds ``wss://{serverIP}:{port}/oob/v1/ws`` and:
 
 1. Registers as role ``"headset"``
 2. Reports ``clientMetrics`` periodically (default every 500 ms)
-3. Receives ``config`` pushes (phase 2)
+3. Receives ``config`` pushes from operator
 
 URL query parameter overrides
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -293,3 +332,17 @@ Environment variables
      - Optional auth token for hub access
    * - ``TELEOP_STREAM_SERVER_IP``
      - Override the auto-detected LAN IP in hub initial config
+   * - ``TELEOP_PROXY_HOST``
+     - Override the LAN IP used for headset bookmark URLs
+   * - ``TELEOP_WEB_CLIENT_BASE``
+     - Override the WebXR client origin URL
+   * - ``TELEOP_STREAM_PORT``
+     - Override the signaling port (default same as proxy port)
+   * - ``TELEOP_CLIENT_CODEC``
+     - Default video codec for headset bookmarks
+   * - ``TELEOP_CLIENT_PANEL_HIDDEN_AT_START``
+     - Hide control panel on load (``true`` / ``false``)
+   * - ``TELEOP_CLIENT_PER_EYE_WIDTH``
+     - Per-eye render width override
+   * - ``TELEOP_CLIENT_PER_EYE_HEIGHT``
+     - Per-eye render height override
