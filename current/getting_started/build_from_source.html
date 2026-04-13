@@ -45,7 +45,7 @@
 
 
 
-    <script src="../_static/documentation_options.js?v=18f8d057"></script>
+    <script src="../_static/documentation_options.js?v=8a870ebc"></script>
     <script src="../_static/doctools.js?v=9bcbadda"></script>
     <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -64,7 +64,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.1.x" />
+  <meta name="docsearch:version" content="1.2.x" />
   
     
     <script src="../_static/searchtools.js"></script>
@@ -325,6 +325,7 @@
 <li class="toctree-l1"><a class="reference internal" href="quick_start.html">Quick Start</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Build from Source</a></li>
 <li class="toctree-l1"><a class="reference internal" href="teleop_session.html">Teleop Session</a></li>
+<li class="toctree-l1"><a class="reference internal" href="teleop_control_state_machine.html">Teleop Control State Machine</a></li>
 <li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
@@ -406,7 +407,7 @@ examples. The instructions align with the project’s CMake configuration and th
 <ul class="simple">
 <li><p><strong>CMake</strong> 3.20 or higher</p></li>
 <li><p><strong>C++20</strong> compatible compiler</p></li>
-<li><p><strong>Python</strong> 3.10, 3.11, or 3.12 (default 3.11; see <code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_PYTHON_VERSION</span></code> in root <code class="docutils literal notranslate"><span class="pre">CMakeLists.txt</span></code>)</p></li>
+<li><p><strong>Python</strong> 3.10, 3.11, 3.12, or 3.13 (default 3.11; see <code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_PYTHON_VERSION</span></code> in root <code class="docutils literal notranslate"><span class="pre">CMakeLists.txt</span></code>)</p></li>
 <li><p><strong>uv</strong> for Python dependency management and managed Python</p></li>
 <li><p><strong>Internet connection</strong> for downloading dependencies via CMake FetchContent</p></li>
 </ul>
@@ -552,7 +553,7 @@ cmake<span class="w"> </span>--build<span class="w"> </span>build<span class="w"
 </tr>
 <tr class="row-even"><td><p><strong>Python version</strong></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_PYTHON_VERSION</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">3.11</span></code> (3.10, 3.11, or 3.12)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">3.11</span></code> (3.10, 3.11, 3.12, or 3.13)</p></td>
 </tr>
 <tr class="row-odd"><td><p><strong>Testing</strong></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">BUILD_TESTING</span></code></p></td>
