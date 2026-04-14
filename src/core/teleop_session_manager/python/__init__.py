@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 from .teleop_session import TeleopSession
@@ -15,6 +15,7 @@ from .teleop_state_manager_retargeter import (
     DefaultTeleopStateManager,
     TwoButtonTeleopStateManager,
 )
+from .command_teleop_state_manager import CommandTeleopStateManager
 from .teleop_state_manager_types import (
     bool_signal,
     teleop_state_channel,
@@ -32,6 +33,7 @@ __all__ = [
     "TeleopStateManager",
     "DefaultTeleopStateManager",
     "TwoButtonTeleopStateManager",
+    "CommandTeleopStateManager",
     "bool_signal",
     "teleop_state_channel",
     "reset_event_channel",

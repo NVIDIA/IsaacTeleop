@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -32,6 +32,8 @@ class HandTracker;
 class IHandTrackerImpl;
 class HeadTracker;
 class IHeadTrackerImpl;
+class OpaqueDataChannelTracker;
+class IOpaqueDataChannelTrackerImpl;
 struct OpenXRSessionHandles;
 
 /**
@@ -61,6 +63,8 @@ public:
         const Generic3AxisPedalTracker* tracker);
     std::unique_ptr<IFrameMetadataTrackerOakImpl> create_frame_metadata_tracker_oak_impl(
         const FrameMetadataTrackerOak* tracker);
+    std::unique_ptr<IOpaqueDataChannelTrackerImpl> create_opaque_data_channel_tracker_impl(
+        const OpaqueDataChannelTracker* tracker);
 
 private:
     bool should_record(const ITracker* tracker) const;
