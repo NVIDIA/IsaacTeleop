@@ -64,6 +64,7 @@ std::unique_ptr<mcap::McapWriter> open_writer(const std::string& path)
 }
 
 using HeadChannels = core::McapTrackerChannels<core::HeadPoseRecord, core::HeadPose>;
+using HeadViewers = core::McapTrackerViewers<core::HeadPoseRecord, core::HeadPose>;
 
 } // namespace
 
@@ -257,5 +258,169 @@ TEST_CASE("McapTrackerChannels: multiple same-type channel instances share one w
     CHECK(topics[0] == "head/pose");
     CHECK(topics[1] == "ctrl/left");
     CHECK(topics[2] == "ctrl/right");
+    reader.close();
+}
+
+// =============================================================================
+// McapTrackerViewers - typed read from specific channels by index
+// =============================================================================
+
+TEST_CASE("McapTrackerViewers: reads records from a single channel", "[mcap][tracker_viewers]")
+{
+    auto path = get_temp_mcap_path();
+    TempFileCleanup cleanup(path);
+
+    auto head_data = std::make_shared<core::HeadPoseT>();
+    head_data->is_valid = true;
+    head_data->pose =
+        std::make_shared<core::Pose>(core::Point(1.0f, 2.0f, 3.0f), core::Quaternion(0.0f, 0.0f, 0.707f, 0.707f));
+
+    {
+        auto writer = open_writer(path);
+        HeadChannels ch(*writer, "tracking", core::HeadRecordingTraits::schema_name, { "head" });
+        ch.write(0, core::DeviceDataTimestamp(1000000, 1000000, 42), head_data);
+        ch.write(0, core::DeviceDataTimestamp(2000000, 2000000, 84), head_data);
+        writer->close();
+    }
+
+    mcap::McapReader reader;
+    REQUIRE(reader.open(path).ok());
+
+    HeadViewers viewers(reader, "tracking", { "head" });
+
+    auto data1 = viewers.read(0);
+    REQUIRE(data1.has_value());
+    REQUIRE(*data1);
+    CHECK((*data1)->is_valid == true);
+    REQUIRE((*data1)->pose);
+    CHECK((*data1)->pose->position().x() == 1.0f);
+
+    auto data2 = viewers.read(0);
+    REQUIRE(data2.has_value());
+    REQUIRE(*data2);
+
+    CHECK_FALSE(viewers.read(0).has_value());
+    reader.close();
+}
+
+TEST_CASE("McapTrackerViewers: multi-channel reads filter by index", "[mcap][tracker_viewers]")
+{
+    auto path = get_temp_mcap_path();
+    TempFileCleanup cleanup(path);
+
+    auto data = std::make_shared<core::HeadPoseT>();
+
+    {
+        auto writer = open_writer(path);
+        HeadChannels ch(*writer, "tracking", core::HeadRecordingTraits::schema_name, { "left", "right" });
+        ch.write(0, core::DeviceDataTimestamp(100, 100, 1), data);
+        ch.write(1, core::DeviceDataTimestamp(200, 200, 2), data);
+        ch.write(0, core::DeviceDataTimestamp(300, 300, 3), data);
+        ch.write(1, core::DeviceDataTimestamp(400, 400, 4), data);
+        writer->close();
+    }
+
+    mcap::McapReader reader;
+    REQUIRE(reader.open(path).ok());
+
+    HeadViewers viewers(reader, "tracking", { "left", "right" });
+
+    auto left1 = viewers.read(0);
+    REQUIRE(left1.has_value());
+
+    auto right1 = viewers.read(1);
+    REQUIRE(right1.has_value());
+
+    auto left2 = viewers.read(0);
+    REQUIRE(left2.has_value());
+
+    auto right2 = viewers.read(1);
+    REQUIRE(right2.has_value());
+
+    CHECK_FALSE(viewers.read(0).has_value());
+    CHECK_FALSE(viewers.read(1).has_value());
+    reader.close();
+}
+
+TEST_CASE("McapTrackerViewers: read subset of written channels", "[mcap][tracker_viewers]")
+{
+    auto path = get_temp_mcap_path();
+    TempFileCleanup cleanup(path);
+
+    auto data = std::make_shared<core::HeadPoseT>();
+    data->is_valid = true;
+
+    {
+        auto writer = open_writer(path);
+        HeadChannels ch(*writer, "tracking", core::HeadRecordingTraits::schema_name, { "left", "right" });
+        ch.write(0, core::DeviceDataTimestamp(100, 100, 1), data);
+        ch.write(1, core::DeviceDataTimestamp(200, 200, 2), data);
+        ch.write(0, core::DeviceDataTimestamp(300, 300, 3), data);
+        ch.write(1, core::DeviceDataTimestamp(400, 400, 4), data);
+        writer->close();
+    }
+
+    mcap::McapReader reader;
+    REQUIRE(reader.open(path).ok());
+
+    HeadViewers viewers(reader, "tracking", { "right" });
+
+    auto r1 = viewers.read(0);
+    REQUIRE(r1.has_value());
+    REQUIRE(*r1);
+    CHECK((*r1)->is_valid == true);
+
+    auto r2 = viewers.read(0);
+    REQUIRE(r2.has_value());
+    REQUIRE(*r2);
+
+    CHECK_FALSE(viewers.read(0).has_value());
+    reader.close();
+}
+
+TEST_CASE("McapTrackerViewers: out-of-range channel_index throws", "[mcap][tracker_viewers]")
+{
+    auto path = get_temp_mcap_path();
+    TempFileCleanup cleanup(path);
+
+    auto data = std::make_shared<core::HeadPoseT>();
+
+    {
+        auto writer = open_writer(path);
+        HeadChannels ch(*writer, "tracking", core::HeadRecordingTraits::schema_name, { "head" });
+        ch.write(0, core::DeviceDataTimestamp(100, 100, 1), data);
+        writer->close();
+    }
+
+    mcap::McapReader reader;
+    REQUIRE(reader.open(path).ok());
+
+    HeadViewers viewers(reader, "tracking", { "head" });
+    CHECK_THROWS_AS(viewers.read(99), std::out_of_range);
+    reader.close();
+}
+
+TEST_CASE("McapTrackerViewers: handles null data records", "[mcap][tracker_viewers]")
+{
+    auto path = get_temp_mcap_path();
+    TempFileCleanup cleanup(path);
+
+    {
+        auto writer = open_writer(path);
+        HeadChannels ch(*writer, "tracking", core::HeadRecordingTraits::schema_name, { "head" });
+        ch.write(0, core::DeviceDataTimestamp(500, 500, 10), std::shared_ptr<core::HeadPoseT>{ nullptr });
+        writer->close();
+    }
+
+    mcap::McapReader reader;
+    REQUIRE(reader.open(path).ok());
+
+    HeadViewers viewers(reader, "tracking", { "head" });
+
+    auto data = viewers.read(0);
+    REQUIRE(data.has_value());
+    CHECK(*data == nullptr);
+
+    CHECK_FALSE(viewers.read(0).has_value());
     reader.close();
 }
