@@ -60,6 +60,7 @@ Table of Contents
    references/build
    device/index
    references/retargeting
+   references/oob_teleop_control
    references/license
 
 Indices and tables

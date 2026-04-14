@@ -73,6 +73,7 @@ class CloudXRLauncher:
         install_dir: str = "~/.cloudxr",
         env_config: str | Path | None = None,
         accept_eula: bool = False,
+        setup_oob: bool = False,
     ) -> None:
         """Launch the CloudXR runtime and WSS proxy.
 
@@ -89,6 +90,8 @@ class CloudXRLauncher:
             accept_eula: Accept the NVIDIA CloudXR EULA
                 non-interactively.  When ``False`` and the EULA marker
                 does not exist, the user is prompted on stdin.
+            setup_oob: Enable the OOB teleop control hub in the WSS
+                proxy.
 
         Raises:
             RuntimeError: If the EULA is not accepted or the runtime
@@ -97,6 +100,7 @@ class CloudXRLauncher:
         self._install_dir = install_dir
         self._env_config = str(env_config) if env_config is not None else None
         self._accept_eula = accept_eula
+        self._setup_oob = setup_oob
 
         self._runtime_proc: subprocess.Popen | None = None
         self._wss_thread: threading.Thread | None = None
@@ -365,11 +369,17 @@ class CloudXRLauncher:
         stop_future = loop.create_future()
         self._wss_stop_future = stop_future
 
+        setup_oob = self._setup_oob
+
         def _run_wss() -> None:
             asyncio.set_event_loop(loop)
             try:
                 loop.run_until_complete(
-                    wss_run(log_file_path=log_path, stop_future=stop_future)
+                    wss_run(
+                        log_file_path=log_path,
+                        stop_future=stop_future,
+                        setup_oob=setup_oob,
+                    )
                 )
             except Exception:
                 logger.exception("WSS proxy thread exited with error")
