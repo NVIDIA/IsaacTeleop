@@ -51,7 +51,8 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         default=False,
         help=(
-            "Enable OOB teleop control hub and open the teleop page on the headset via USB adb. "
+            "Enable OOB teleop control hub, open the teleop page on the headset via USB adb, "
+            "and auto-click CONNECT via CDP (Chrome DevTools Protocol). "
             "The headset must be connected via USB cable (for adb) and on WiFi (for streaming). "
             'See docs: "Out-of-band teleop control".'
         ),

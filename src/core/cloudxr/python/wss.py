@@ -18,9 +18,8 @@ from pathlib import Path
 
 from .env_config import get_env_config
 from .oob_teleop_adb import (
-    adb_automation_failure_hint,
-    oob_adb_automation_message,
-    run_adb_headset_bookmark,
+    OobAdbError,
+    run_oob_connect,
 )
 from .oob_teleop_env import (
     client_ui_fields_from_env,
@@ -447,6 +446,11 @@ async def run(
         _handler = logging.StreamHandler(sys.stderr)
     _handler.setFormatter(_log_fmt)
     logger.addHandler(_handler)
+    # Route oob-teleop-adb logs (ADB/CDP automation) to the same destination
+    _adb_log = logging.getLogger("oob-teleop-adb")
+    _adb_log.setLevel(logging.INFO)
+    _adb_log.propagate = False
+    _adb_log.addHandler(_handler)
 
     try:
         resolved_port = wss_proxy_port() if proxy_port is None else proxy_port
@@ -498,18 +502,19 @@ async def run(
         ):
             log.info("WSS proxy listening on port %d", resolved_port)
             if setup_oob:
-                rc, adb_diag = await asyncio.to_thread(
-                    run_adb_headset_bookmark,
-                    resolved_port=resolved_port,
-                )
-                if rc != 0:
-                    hint = adb_automation_failure_hint(adb_diag)
-                    detail = adb_diag if adb_diag else ""
-                    msg = oob_adb_automation_message(rc, detail, hint)
-                    log.warning("ADB bookmark failed (non-fatal): %s", msg)
+                log.info("Starting OOB ADB+CDP automation")
+                try:
+                    await run_oob_connect(resolved_port=resolved_port)
+                    log.info("OOB automation completed — CONNECT clicked")
+                except OobAdbError as err:
+                    log.warning("OOB automation failed (non-fatal): %s", err)
+                    print(f"\n\033[33m{err}\033[0m\n", file=sys.stderr)
+                except Exception as err:
+                    log.warning(
+                        "OOB automation failed (non-fatal): %s", err, exc_info=True
+                    )
                     print(
-                        f"\n\033[33mADB automation failed — open the teleop URL on the headset manually.\033[0m\n"
-                        f"{msg}\n",
+                        "\n\033[33mOOB automation error — tap CONNECT on the headset manually.\033[0m\n",
                         file=sys.stderr,
                     )
             await stop_future

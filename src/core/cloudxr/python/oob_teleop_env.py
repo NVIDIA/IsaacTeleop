@@ -25,11 +25,25 @@ def web_client_base_override_from_env() -> str | None:
     return v or None
 
 
+def parse_env_port(env_var: str, raw: str) -> int:
+    """Parse and validate a port string from an environment variable."""
+    try:
+        port = int(raw)
+    except ValueError:
+        raise ValueError(
+            f"{env_var}={raw!r} is not a valid integer; "
+            f"set it to a port number (1–65535) or unset it to use the default."
+        ) from None
+    if not 1 <= port <= 65535:
+        raise ValueError(f"{env_var}={port} is out of range; must be 1–65535.")
+    return port
+
+
 def wss_proxy_port() -> int:
     """TCP port for the WSS proxy (``PROXY_PORT`` environment variable if set, else ``48322``)."""
     raw = os.environ.get("PROXY_PORT", "").strip()
     if raw:
-        return int(raw)
+        return parse_env_port("PROXY_PORT", raw)
     return WSS_PROXY_DEFAULT_PORT
 
 
@@ -52,7 +66,11 @@ def default_initial_stream_config(resolved_proxy_port: int) -> dict:
     env_ip = os.environ.get("TELEOP_STREAM_SERVER_IP", "").strip()
     env_port = os.environ.get("TELEOP_STREAM_PORT", "").strip()
     server_ip = env_ip or guess_lan_ipv4() or "127.0.0.1"
-    port = int(env_port) if env_port else resolved_proxy_port
+    port = (
+        parse_env_port("TELEOP_STREAM_PORT", env_port)
+        if env_port
+        else resolved_proxy_port
+    )
     return {"serverIP": server_ip, "port": port}
 
 
@@ -139,11 +157,13 @@ def print_oob_hub_startup_banner(*, lan_host: str | None = None) -> None:
     stream_cfg = {**stream_cfg, **client_ui_fields_from_env()}
 
     primary_base = f"https://{primary_host}:{port}"
-    bookmark_primary = build_headset_bookmark_url(
+    bookmark_display = build_headset_bookmark_url(
         web_client_base=web_base,
         stream_config=stream_cfg,
-        control_token=token,
+        control_token=None,
     )
+    if token:
+        bookmark_display += "&controlToken=<REDACTED>"
     wss_primary = f"wss://{primary_host}:{port}{OOB_WS_PATH}"
 
     bar = "=" * 72
@@ -164,30 +184,26 @@ def print_oob_hub_startup_banner(*, lan_host: str | None = None) -> None:
         "  adb: USB cable — headset connected via USB for adb; streaming and web page over WiFi."
     )
     print()
-    print("  Step 1 — Headset: Teleop page URL")
+    print("  Step 1 — Open teleop page on headset (adb)")
     print(
-        '           After this process logs "WSS proxy listening on port …", `--setup-oob` runs '
-        "`adb` to open the page on the headset. If that fails, open this URL on the headset yourself:"
+        '           After "WSS proxy listening on port …", `--setup-oob` runs '
+        "`adb` to open the page on the headset. If that fails, open this URL manually:"
     )
-    print(f"           {bookmark_primary}")
+    print(f"           {bookmark_display}")
     if web_client_base_override:
         print(
             f"           ({TELEOP_WEB_CLIENT_BASE_ENV} overrides the WebXR origin; "
             "query still targets this streaming host.)"
         )
     print()
-    print("  Step 2 — This PC: Inspect from the PC (Chrome remote debugging)")
-    print(f"           Open {CHROME_INSPECT_DEVICES_URL}")
+    print("  Step 2 — Accept cert + click CONNECT (CDP automation)")
+    print("           CDP automation will accept the self-signed certificate and click")
+    print("           CONNECT automatically via Chrome DevTools Protocol.")
     print(
-        "           Under Remote Target, select the headset tab for Isaac Teleop Web Client "
-        "(or the matching URL) and click inspect."
+        "           If it fails, fall back to manual: open "
+        f"{CHROME_INSPECT_DEVICES_URL},"
     )
-    print()
-    print("  Step 3 — This PC: CONNECT (required WebXR user gesture)")
-    print(
-        "           In that DevTools window, click CONNECT on the Teleop UI (same as tapping "
-        "CONNECT on the headset)."
-    )
+    print("           inspect the headset tab, and click CONNECT in DevTools.")
     print()
     print("-" * 72)
     print("OOB HTTP (optional — operators / curl / scripts on this PC)")

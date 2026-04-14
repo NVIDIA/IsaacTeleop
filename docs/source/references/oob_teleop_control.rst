@@ -1,7 +1,7 @@
 .. SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-Out-of-band teleop control
+Out-of-Band Teleop Control
 ==========================
 
 The **OOB (out-of-band) teleop control hub** lets you coordinate Isaac Teleop
@@ -17,6 +17,12 @@ Quick start
 
 **Step 1 — Start the streaming host with OOB enabled**
 
+On first use, it is recommended to run once **without** ``--setup-oob`` to
+confirm ``adb devices`` sees the headset, verify USB debugging is enabled, and
+accept the self-signed certificate in the headset browser manually (both the
+web client page and the ``https://<host>:48322`` proxy page). Once that
+baseline works, add ``--setup-oob`` to automate the full flow.
+
 Launch the CloudXR runtime with the ``--setup-oob`` flag (add ``--accept-eula``
 on first run):
 
@@ -29,6 +35,8 @@ This will:
 1. Verify a USB-connected headset is available via ``adb devices``
 2. Start the WSS proxy with the OOB control hub
 3. Open the teleop page on the headset via ``adb shell am start``
+4. Accept the self-signed certificate and click CONNECT automatically
+   via Chrome DevTools Protocol (CDP)
 
 You should see output confirming the hub is running:
 
@@ -45,7 +53,8 @@ You should see output confirming the hub is running:
    - **Connected to WiFi** on the same network as the streaming host (for web
      page access and CloudXR streaming)
 
-   No ``adb reverse`` or USB tethering is used.
+   Streaming and web page access use WiFi, not USB tethering.
+   ``adb forward`` is used only temporarily for CDP automation.
 
 **Step 2 — (Manual fallback) Open the web client on the headset**
 
@@ -110,11 +119,12 @@ configuration overrides via the HTTP config API:
 
 See ``GET /api/oob/v1/config`` below for all supported keys.
 
-**Step 5 — Connect and stream; poll for metrics**
+**Step 5 — Stream and poll for metrics**
 
-Press **CONNECT** on the headset to start the CloudXR streaming session. Once
-streaming begins, the headset reports metrics to the hub every 500 ms. Poll the
-state endpoint from a PC to collect them:
+With ``--setup-oob``, CONNECT is clicked automatically via CDP.  If running
+without it, press **CONNECT** on the headset manually.  Once streaming begins,
+the headset reports metrics to the hub every 500 ms.  Poll the state endpoint
+from a PC to collect them:
 
 .. code-block:: bash
 
@@ -128,12 +138,16 @@ ADB automation
 
 The ``--setup-oob`` flag automates headset setup via USB ``adb``:
 
-1. **adb devices** — verifies exactly one device is connected
-2. **am start** — opens the teleop bookmark URL in the headset browser with
+1. **adb devices** verifies exactly one device is connected
+2. **am start** opens the teleop bookmark URL in the headset browser with
    the correct ``oobEnable=1``, ``serverIP``, and ``port`` parameters
+3. **CDP connect** forwards the browser's DevTools socket over ``adb``,
+   accepts the self-signed certificate interstitial, and clicks CONNECT
+   via Chrome DevTools Protocol (``Input.dispatchMouseEvent``)
 
-No ``adb reverse`` ports or USB tethering is used.  The headset reaches the
-streaming host directly over WiFi.
+Streaming and web page access use WiFi, not USB tethering.  The headset
+reaches the streaming host directly over WiFi.  ``adb forward`` is used only
+temporarily during CDP automation to reach the browser's DevTools socket.
 
 Prerequisites:
 
@@ -141,8 +155,9 @@ Prerequisites:
 - The headset must be connected via USB with USB debugging enabled
 - The headset must be on the same WiFi network as the streaming host
 
-If adb automation fails, the hub still starts and you can open the URL
-on the headset manually.
+If any step fails, the hub still starts.  Fall back to
+``chrome://inspect/#devices`` from the PC or tap CONNECT on the headset
+directly.
 
 Architecture
 ------------
@@ -161,7 +176,7 @@ Architecture
    * - **Streaming host**
      - ``python -m isaacteleop.cloudxr --setup-oob``
      - Runs CloudXR runtime + WSS proxy + OOB hub on a single TLS port.
-       Opens the teleop page on the headset via USB adb.
+       Opens the teleop page and clicks CONNECT via USB adb + CDP.
    * - **Operator / scripts**
      - ``curl``, browser, or custom tooling
      - Reads state via HTTP, optionally pushes config via HTTP.
@@ -312,10 +327,10 @@ The following URL parameters override their corresponding form fields (and
 ``localStorage`` values) so that bookmarked links always take priority over
 previously saved settings:
 
-- ``serverIP`` — CloudXR server IP address
-- ``port`` — CloudXR server port
-- ``codec`` — video codec
-- ``panelHiddenAtStart`` — hide the control panel on load
+- ``serverIP`` CloudXR server IP address
+- ``port`` CloudXR server port
+- ``codec`` video codec
+- ``panelHiddenAtStart`` hide the control panel on load
 
 Environment variables
 ---------------------
@@ -342,7 +357,3 @@ Environment variables
      - Default video codec for headset bookmarks
    * - ``TELEOP_CLIENT_PANEL_HIDDEN_AT_START``
      - Hide control panel on load (``true`` / ``false``)
-   * - ``TELEOP_CLIENT_PER_EYE_WIDTH``
-     - Per-eye render width override
-   * - ``TELEOP_CLIENT_PER_EYE_HEIGHT``
-     - Per-eye render height override
