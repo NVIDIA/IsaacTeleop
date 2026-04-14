@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #include "common/main_helpers.hpp"
@@ -159,16 +159,16 @@ public:
             std::string serial_str = properties.serial ? properties.serial : "";
             if (serial_str == "Head Device (0)" || serial_str == "Head Device (1)")
             {
-                std::cout << "[CREATE HAND] XDev ID=" << xdevId << " Name=\"" << properties.name << "\""
-                          << " Serial=\"" << serial_str << "\"" << std::endl;
+                std::cout << "[CREATE HAND] XDev ID=" << xdevId << " Name=\"" << properties.name << "\"" << " Serial=\""
+                          << serial_str << "\"" << std::endl;
 
                 XrHandEXT hand = (serial_str == "Head Device (1)") ? XR_HAND_RIGHT_EXT : XR_HAND_LEFT_EXT;
                 create_hand_tracker_from_xdev(openxr_bundle, xdevList, xdevId, hand);
             }
             else
             {
-                std::cout << "[SKIP] XDev ID=" << xdevId << " Name=\"" << properties.name << "\""
-                          << " Serial=\"" << (properties.serial ? properties.serial : "") << "\"" << std::endl;
+                std::cout << "[SKIP] XDev ID=" << xdevId << " Name=\"" << properties.name << "\"" << " Serial=\""
+                          << (properties.serial ? properties.serial : "") << "\"" << std::endl;
             }
         }
 
