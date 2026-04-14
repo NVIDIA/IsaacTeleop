@@ -23,6 +23,17 @@ NV_CXR_ENABLE_PUSH_DEVICES=0
 ./scripts/run_cloudxr_via_docker.sh
 ```
 
+## Prerequisite: Foot Pedal For `hand_teleop`
+
+`hand_teleop` uses `Generic3AxisPedalSource` + `FootPedalRootCmdRetargeter` for
+`xr_teleop/root_twist` and `xr_teleop/root_pose`. Start `foot_pedal_reader`,
+`pedal_pusher`, or a compatible pedal plugin so pedal data is available through
+the matching collection ID.
+
+The default collection ID is `generic_3axis_pedal`. Override it with
+`--ros-args -p pedal_collection_id:=<your_collection_id>` when your pedal
+publisher uses a different ID.
+
 ## Published Topics
 
 - `xr_teleop/hand` (`geometry_msgs/PoseArray`)
@@ -86,7 +97,7 @@ docker run --rm --net=host --ipc=host \
   -r xr_teleop/hand:=my_robot/hand -r xr_teleop/ee_poses:=my_robot/ee_poses
 ```
 
-Available parameters: `rate_hz`, `mode`, `world_frame`, `right_wrist_frame`, `left_wrist_frame`, `left_finger_joint_names`, `right_finger_joint_names`. Use `ros2 param list /teleop_ros2_node` and `ros2 param describe /teleop_ros2_node <param>` (with the node running) for the full set.
+Available parameters: `rate_hz`, `mode`, `pedal_collection_id`, `world_frame`, `right_wrist_frame`, `left_wrist_frame`, `left_finger_joint_names`, `right_finger_joint_names`. Use `ros2 param list /teleop_ros2_node` and `ros2 param describe /teleop_ros2_node <param>` (with the node running) for the full set.
 
 By default, `left_finger_joint_names` and `right_finger_joint_names` use the prefixed TriHand names. If overridden, each parameter must provide 7 names in TriHand order (`thumb_rotation`, `thumb_proximal`, `thumb_distal`, `index_proximal`, `index_distal`, `middle_proximal`, `middle_distal`). Those names are threaded into the retargeter output and published on `xr_teleop/finger_joints`.
 
@@ -98,10 +109,10 @@ The `mode` parameter selects the teleoperation scenario and which topics are pub
 
 | Mode | Topics published |
 |------|------------------|
-| `controller_teleop` (default) | `ee_poses` (from controller aim pose), `root_twist`, `root_pose`, `finger_joints` (finger joints in joint space), `tf` (from controller aim pose) |
-| `hand_teleop` | `ee_poses` (from hand tracking wrist), `hand` (finger joints only in pose space), `root_twist`, `root_pose`, `tf` (from hand tracking wrist) |
+| `controller_teleop` (default) | `ee_poses` (from controller aim pose), `root_twist`, `root_pose`, `finger_joints` (finger joints in joint space), `controller_data`, `tf` (from controller aim pose) |
+| `hand_teleop` | `ee_poses` (from hand tracking wrist), `hand` (finger joints only in pose space), `root_twist`, `root_pose`, `tf` (from hand tracking wrist); locomotion comes from the configured foot pedal collection |
 | `controller_raw` | `controller_data` only |
-| `full_body` | `full_body` only |
+| `full_body` | `full_body` and `controller_data` |
 
 Example: `--ros-args -p mode:=controller_raw`
 

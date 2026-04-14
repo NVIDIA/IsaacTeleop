@@ -10,11 +10,12 @@ Publishes teleoperation data over ROS2 topics using isaacteleop TeleopSession.
 The `mode` parameter selects the teleoperation scenario and which topics are
 published:
 
-  - controller_teleop (default): ee_poses (from controller aim pose), root_twist, root_pose,
-                       finger_joints (retargeted TriHand angles), and TF transforms for
-                       left/right wrists
+  - controller_teleop (default): ee_poses (from controller aim pose), root_twist,
+                       root_pose, finger_joints (retargeted TriHand angles),
+                       controller_data, and TF transforms for left/right wrists
   - hand_teleop: ee_poses (from hand tracking wrist), hand (finger joint poses),
-                 root_twist, root_pose, and TF transforms for left/right wrists
+                 root_twist/root_pose (from foot pedal locomotion), and TF
+                 transforms for left/right wrists
   - controller_raw: controller_data only
   - full_body: full_body and controller_data
 
@@ -59,10 +60,16 @@ from tf2_ros import TransformBroadcaster
 from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     ControllersSource,
     FullBodySource,
+    Generic3AxisPedalSource,
     HandsSource,
+)
+from isaacteleop.retargeting_engine.deviceio_source_nodes.pedals_source import (
+    DEFAULT_PEDAL_COLLECTION_ID,
 )
 from isaacteleop.retargeting_engine.interface import OptionalTensorGroup, OutputCombiner
 from isaacteleop.retargeters import (
+    FootPedalRootCmdRetargeter,
+    FootPedalRootCmdRetargeterConfig,
     LocomotionRootCmdRetargeter,
     LocomotionRootCmdRetargeterConfig,
     TriHandMotionControllerRetargeter,
@@ -159,6 +166,30 @@ def _apply_transform_to_pose(
     result.orientation.z = float(q[2])
     result.orientation.w = float(q[3])
     return result
+
+
+def _build_plugins(
+    use_mock_operators: bool,
+    *,
+    include_synthetic_hands: bool,
+    search_start: Path,
+) -> List[PluginConfig]:
+    if not use_mock_operators or not include_synthetic_hands:
+        return []
+
+    plugin_paths = []
+    env_paths = os.environ.get("ISAAC_TELEOP_PLUGIN_PATH")
+    if env_paths:
+        plugin_paths.extend([Path(p) for p in env_paths.split(os.pathsep) if p])
+    plugin_paths.extend(_find_plugins_dirs(search_start))
+
+    return [
+        PluginConfig(
+            plugin_name="controller_synthetic_hands",
+            plugin_root_id="synthetic_hands",
+            search_paths=plugin_paths,
+        )
+    ]
 
 
 def _find_plugins_dirs(start: Path) -> List[Path]:
@@ -446,6 +477,16 @@ class TeleopRos2Node(Node):
         self.declare_parameter("mode", "controller_teleop")
         self.declare_parameter("rate_hz", 60.0)
         self.declare_parameter("use_mock_operators", value=False)
+        self.declare_parameter(
+            "pedal_collection_id",
+            DEFAULT_PEDAL_COLLECTION_ID,
+            ParameterDescriptor(
+                description=(
+                    "Tensor collection ID used for hand_teleop foot pedal locomotion. "
+                    "Must match the pedal pusher or reader collection_id."
+                )
+            ),
+        )
 
         self.declare_parameter(
             "transform_translation",
@@ -533,6 +574,12 @@ class TeleopRos2Node(Node):
             )
         self.get_logger().info(f"Mode: {mode}")
         self._mode: str = mode
+
+        self._pedal_collection_id: str = (
+            self.get_parameter("pedal_collection_id").get_parameter_value().string_value
+        )
+        if not self._pedal_collection_id:
+            raise ValueError("Parameter 'pedal_collection_id' must not be empty")
 
         self._world_frame: str = (
             self.get_parameter("world_frame").get_parameter_value().string_value
@@ -631,9 +678,37 @@ class TeleopRos2Node(Node):
             JointState, "xr_teleop/finger_joints", 10
         )
 
-        hands = HandsSource(name="hands")
+        self._config = self._build_session_config(
+            self._mode,
+            left_finger_joint_names,
+            right_finger_joint_names,
+        )
+
+    def _build_controller_raw_config(self) -> TeleopSessionConfig:
         controllers = ControllersSource(name="controllers")
-        full_body = FullBodySource(name="full_body")
+        pipeline = OutputCombiner(
+            {
+                "controller_left": controllers.output(ControllersSource.LEFT),
+                "controller_right": controllers.output(ControllersSource.RIGHT),
+            }
+        )
+
+        return TeleopSessionConfig(
+            app_name="TeleopRos2Publisher",
+            pipeline=pipeline,
+            plugins=_build_plugins(
+                self._use_mock_operators,
+                include_synthetic_hands=False,
+                search_start=Path(__file__).resolve(),
+            ),
+        )
+
+    def _build_controller_teleop_config(
+        self,
+        left_finger_joint_names: Sequence[str],
+        right_finger_joint_names: Sequence[str],
+    ) -> TeleopSessionConfig:
+        controllers = ControllersSource(name="controllers")
         locomotion = LocomotionRootCmdRetargeter(
             LocomotionRootCmdRetargeterConfig(), name="locomotion"
         )
@@ -665,37 +740,92 @@ class TeleopRos2Node(Node):
 
         pipeline = OutputCombiner(
             {
-                "hand_left": hands.output(HandsSource.LEFT),
-                "hand_right": hands.output(HandsSource.RIGHT),
                 "controller_left": controllers.output(ControllersSource.LEFT),
                 "controller_right": controllers.output(ControllersSource.RIGHT),
                 "root_command": locomotion_connected.output("root_command"),
-                "full_body": full_body.output(FullBodySource.FULL_BODY),
                 "finger_joints_left": left_hand_connected.output("hand_joints"),
                 "finger_joints_right": right_hand_connected.output("hand_joints"),
             }
         )
 
-        plugins: List[PluginConfig] = []
-        if self._use_mock_operators:
-            plugin_paths = []
-            env_paths = os.environ.get("ISAAC_TELEOP_PLUGIN_PATH")
-            if env_paths:
-                plugin_paths.extend([Path(p) for p in env_paths.split(os.pathsep) if p])
-            plugin_paths.extend(_find_plugins_dirs(Path(__file__).resolve()))
-            plugins.append(
-                PluginConfig(
-                    plugin_name="controller_synthetic_hands",
-                    plugin_root_id="synthetic_hands",
-                    search_paths=plugin_paths,
-                )
-            )
-
-        self._config = TeleopSessionConfig(
+        return TeleopSessionConfig(
             app_name="TeleopRos2Publisher",
             pipeline=pipeline,
-            plugins=plugins,
+            plugins=_build_plugins(
+                self._use_mock_operators,
+                include_synthetic_hands=False,
+                search_start=Path(__file__).resolve(),
+            ),
         )
+
+    def _build_full_body_config(self) -> TeleopSessionConfig:
+        controllers = ControllersSource(name="controllers")
+        full_body = FullBodySource(name="full_body")
+        pipeline = OutputCombiner(
+            {
+                "controller_left": controllers.output(ControllersSource.LEFT),
+                "controller_right": controllers.output(ControllersSource.RIGHT),
+                "full_body": full_body.output(FullBodySource.FULL_BODY),
+            }
+        )
+
+        return TeleopSessionConfig(
+            app_name="TeleopRos2Publisher",
+            pipeline=pipeline,
+            plugins=_build_plugins(
+                self._use_mock_operators,
+                include_synthetic_hands=False,
+                search_start=Path(__file__).resolve(),
+            ),
+        )
+
+    def _build_hand_teleop_config(self) -> TeleopSessionConfig:
+        hands = HandsSource(name="hands")
+        pedals = Generic3AxisPedalSource(
+            name="pedals", collection_id=self._pedal_collection_id
+        )
+        locomotion = FootPedalRootCmdRetargeter(
+            FootPedalRootCmdRetargeterConfig(),
+            name="foot_pedal",
+        )
+        locomotion_connected = locomotion.connect({"pedals": pedals.output("pedals")})
+
+        pipeline = OutputCombiner(
+            {
+                "hand_left": hands.output(HandsSource.LEFT),
+                "hand_right": hands.output(HandsSource.RIGHT),
+                "root_command": locomotion_connected.output("root_command"),
+            }
+        )
+
+        return TeleopSessionConfig(
+            app_name="TeleopRos2Publisher",
+            pipeline=pipeline,
+            plugins=_build_plugins(
+                self._use_mock_operators,
+                include_synthetic_hands=True,
+                search_start=Path(__file__).resolve(),
+            ),
+        )
+
+    def _build_session_config(
+        self,
+        mode: str,
+        left_finger_joint_names: Sequence[str],
+        right_finger_joint_names: Sequence[str],
+    ) -> TeleopSessionConfig:
+        if mode == "controller_teleop":
+            return self._build_controller_teleop_config(
+                left_finger_joint_names,
+                right_finger_joint_names,
+            )
+        if mode == "hand_teleop":
+            return self._build_hand_teleop_config()
+        if mode == "controller_raw":
+            return self._build_controller_raw_config()
+        if mode == "full_body":
+            return self._build_full_body_config()
+        raise ValueError(f"Unsupported mode {mode!r}")
 
     def _build_wrist_tfs(
         self,
@@ -749,8 +879,6 @@ class TeleopRos2Node(Node):
                         result = session.step()
 
                         now = self.get_clock().now().to_msg()
-                        left_ctrl = result["controller_left"]
-                        right_ctrl = result["controller_right"]
 
                         if self._mode == "hand_teleop":
                             left_hand = result["hand_left"]
@@ -786,6 +914,8 @@ class TeleopRos2Node(Node):
                             if wrist_tfs:
                                 self._tf_broadcaster.sendTransform(wrist_tfs)
                         elif self._mode == "controller_teleop":
+                            left_ctrl = result["controller_left"]
+                            right_ctrl = result["controller_right"]
                             # Build EE poses from controllers
                             ee_msg = _build_ee_msg_from_controllers(
                                 left_ctrl,
@@ -807,7 +937,7 @@ class TeleopRos2Node(Node):
                                 self._tf_broadcaster.sendTransform(wrist_tfs)
 
                         if self._mode in ("hand_teleop", "controller_teleop"):
-                            root_command = result.get("root_command")
+                            root_command = result["root_command"]
                             if not root_command.is_none:
                                 cmd = np.asarray(root_command[0])
                                 twist_msg = TwistStamped()
@@ -827,6 +957,8 @@ class TeleopRos2Node(Node):
                                 self._pub_root_pose.publish(pose_msg)
 
                         if self._mode == "controller_teleop":
+                            left_ctrl = result["controller_left"]
+                            right_ctrl = result["controller_right"]
                             left_joints = result["finger_joints_left"]
                             right_joints = result["finger_joints_right"]
                             if not left_joints.is_none or not right_joints.is_none:
@@ -862,6 +994,8 @@ class TeleopRos2Node(Node):
                             "controller_teleop",
                             "full_body",
                         ):
+                            left_ctrl = result["controller_left"]
+                            right_ctrl = result["controller_right"]
                             if not left_ctrl.is_none or not right_ctrl.is_none:
                                 controller_payload = _build_controller_payload(
                                     left_ctrl, right_ctrl
