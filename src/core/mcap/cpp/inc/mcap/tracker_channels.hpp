@@ -1,9 +1,10 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
 
 #include <flatbuffers/flatbuffers.h>
+#include <mcap/reader.hpp>
 #include <mcap/writer.hpp>
 #include <schema/timestamp_generated.h>
 
@@ -11,6 +12,7 @@
 #include <cstdint>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -101,6 +103,100 @@ private:
     mcap::McapWriter* writer_;
     std::vector<mcap::ChannelId> channel_ids_;
     uint32_t sequence_ = 0;
+};
+
+/**
+ * @brief Type-safe MCAP channel reader for FlatBuffer record types.
+ *
+ * @tparam RecordT   The FlatBuffer record wrapper type (e.g. HeadPoseRecord).
+ *                   Must expose a data() accessor returning the FlatBuffer data table.
+ * @tparam DataTableT The FlatBuffer data table type (e.g. HeadPose).
+ *                   Must expose UnPackTo() and NativeTableType.
+ *
+ * Read-side counterpart to McapTrackerChannels. Takes an externally-owned
+ * McapReader& and a list of sub-channel names, creating one LinearMessageView
+ * per channel. Each LinearMessageView is a lightweight, non-owning view that
+ * reads directly from the McapReader's data source without copying message data.
+ * Callers pull deserialized records one at a time via read(channel_index).
+ *
+ * MCAP message data pointers are only valid until the iterator advances,
+ * so read() fully deserializes each record into a shared_ptr before stepping
+ * the iterator forward.
+ */
+template <typename RecordT, typename DataTableT>
+class McapTrackerViewers
+{
+public:
+    using NativeDataT = typename DataTableT::NativeTableType;
+
+    McapTrackerViewers(mcap::McapReader& reader,
+                       std::string_view base_name,
+                       const std::vector<std::string>& sub_channels)
+        : reader_(&reader)
+    {
+        auto on_problem = [](const mcap::Status& s) {
+            std::cerr << "McapTrackerViewers: " << s.message << std::endl;
+        };
+
+        channels_.reserve(sub_channels.size());
+        for (const auto& sub : sub_channels)
+        {
+            std::string topic = std::string(base_name) + "/" + sub;
+            mcap::ReadMessageOptions options;
+            options.topicFilter = [topic](std::string_view t) { return t == topic; };
+            channels_.emplace_back(reader_->readMessages(on_problem, options));
+        }
+    }
+
+    /**
+     * @brief Read and deserialize the next data payload from the given channel.
+     * @param channel_index Index into the sub_channels list passed at construction.
+     * @return shared_ptr to the deserialized data (null if the record had no data),
+     *         or std::nullopt when no more messages remain.
+     */
+    std::optional<std::shared_ptr<NativeDataT>> read(size_t channel_index)
+    {
+        if (channel_index >= channels_.size())
+        {
+            throw std::out_of_range(
+                "McapTrackerViewers: read called with channel_index=" + std::to_string(channel_index) + " but only " +
+                std::to_string(channels_.size()) + " channels registered");
+        }
+
+        auto& ch = channels_[channel_index];
+        if (ch.it == ch.view.end())
+        {
+            return std::nullopt;
+        }
+
+        auto* fb_record = flatbuffers::GetRoot<RecordT>(ch.it->message.data);
+
+        std::shared_ptr<NativeDataT> data;
+        if (fb_record->data())
+        {
+            data = std::make_shared<NativeDataT>();
+            fb_record->data()->UnPackTo(data.get());
+        }
+
+        ++ch.it;
+        return data;
+    }
+
+private:
+    struct ChannelView
+    {
+        mcap::LinearMessageView view;
+        mcap::LinearMessageView::Iterator it;
+
+        explicit ChannelView(mcap::LinearMessageView&& v)
+            : view(std::move(v))
+            , it(view.begin())
+        {
+        }
+    };
+
+    mcap::McapReader* reader_;
+    std::vector<ChannelView> channels_;
 };
 
 } // namespace core
