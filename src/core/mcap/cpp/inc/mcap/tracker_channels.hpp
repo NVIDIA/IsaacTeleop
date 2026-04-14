@@ -129,14 +129,10 @@ class McapTrackerViewers
 public:
     using NativeDataT = typename DataTableT::NativeTableType;
 
-    McapTrackerViewers(mcap::McapReader& reader,
-                       std::string_view base_name,
-                       const std::vector<std::string>& sub_channels)
+    McapTrackerViewers(mcap::McapReader& reader, std::string_view base_name, const std::vector<std::string>& sub_channels)
         : reader_(&reader)
     {
-        auto on_problem = [](const mcap::Status& s) {
-            std::cerr << "McapTrackerViewers: " << s.message << std::endl;
-        };
+        auto on_problem = [](const mcap::Status& s) { std::cerr << "McapTrackerViewers: " << s.message << std::endl; };
 
         channels_.reserve(sub_channels.size());
         for (const auto& sub : sub_channels)
@@ -158,9 +154,8 @@ public:
     {
         if (channel_index >= channels_.size())
         {
-            throw std::out_of_range(
-                "McapTrackerViewers: read called with channel_index=" + std::to_string(channel_index) + " but only " +
-                std::to_string(channels_.size()) + " channels registered");
+            throw std::out_of_range("McapTrackerViewers: read called with channel_index=" + std::to_string(channel_index) +
+                                    " but only " + std::to_string(channels_.size()) + " channels registered");
         }
 
         auto& ch = channels_[channel_index];
@@ -188,9 +183,7 @@ private:
         mcap::LinearMessageView view;
         mcap::LinearMessageView::Iterator it;
 
-        explicit ChannelView(mcap::LinearMessageView&& v)
-            : view(std::move(v))
-            , it(view.begin())
+        explicit ChannelView(mcap::LinearMessageView&& v) : view(std::move(v)), it(view.begin())
         {
         }
     };
