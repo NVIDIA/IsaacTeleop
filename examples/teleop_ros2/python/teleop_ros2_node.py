@@ -857,7 +857,11 @@ class TeleopRos2Node(Node):
                                 ).tolist()
                                 self._pub_finger_joints.publish(finger_joints_msg)
 
-                        if self._mode in ("controller_raw", "full_body"):
+                        if self._mode in (
+                            "controller_raw",
+                            "controller_teleop",
+                            "full_body",
+                        ):
                             if not left_ctrl.is_none or not right_ctrl.is_none:
                                 controller_payload = _build_controller_payload(
                                     left_ctrl, right_ctrl
