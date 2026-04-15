@@ -18,7 +18,7 @@ Place required files in `outputs/` directory:
 - Place: `outputs/MANO_RIGHT.pkl`
 
 **BMC data** (required):
-- Generate from: https://github.com/MengHao666/Hand-BMC-pytorch
+- Follow the README in https://github.com/MengHao666/Hand-BMC-pytorch to generate (until the step `python calculate_bmc.py`)
 - Place all `.npy` files in: `outputs/BMC/`
 
 ### Build Docker images
