@@ -36,8 +36,6 @@ public:
 private:
     ControllerSnapshotTrackedT left_tracked_;
     ControllerSnapshotTrackedT right_tracked_;
-    int64_t last_update_time_ = 0;
-
     std::unique_ptr<ControllerMcapViewers> mcap_viewers_;
 };
 

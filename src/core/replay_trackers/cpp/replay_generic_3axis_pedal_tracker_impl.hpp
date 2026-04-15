@@ -33,8 +33,6 @@ public:
 
 private:
     Generic3AxisPedalOutputTrackedT tracked_;
-    int64_t last_update_time_ = 0;
-
     std::unique_ptr<PedalMcapViewers> mcap_viewers_;
 };
 

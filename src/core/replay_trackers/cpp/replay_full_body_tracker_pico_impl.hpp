@@ -33,8 +33,6 @@ public:
 
 private:
     FullBodyPosePicoTrackedT tracked_;
-    int64_t last_update_time_ = 0;
-
     std::unique_ptr<FullBodyMcapViewers> mcap_viewers_;
 };
 

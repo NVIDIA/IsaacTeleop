@@ -4,7 +4,6 @@
 #include "replay_full_body_tracker_pico_impl.hpp"
 
 #include <mcap/recording_traits.hpp>
-#include <oxr_utils/oxr_funcs.hpp>
 #include <schema/full_body_bfbs_generated.h>
 #include <schema/timestamp_generated.h>
 
