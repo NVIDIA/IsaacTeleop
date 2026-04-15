@@ -44,6 +44,7 @@ import { signal, computed } from '@preact/signals-react';
 import { Canvas } from '@react-three/fiber';
 import { setPreferredColorScheme } from '@react-three/uikit';
 import { XR, createXRStore, noEvents, PointerEvents, XROrigin, useXR } from '@react-three/xr';
+import type { XRDevice } from 'iwer';
 import { useState, useMemo, useEffect, useRef } from 'react';
 
 import { CloudXR2DUI } from './CloudXR2DUI';

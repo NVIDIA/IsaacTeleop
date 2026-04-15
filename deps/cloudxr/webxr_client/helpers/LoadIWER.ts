@@ -15,8 +15,16 @@
  * limitations under the License.
  */
 
-const IWER_version = '2.1.1';
-const IWER_DEVUI_version = '1.1.2';
+import type { XRDevice } from 'iwer';
+
+declare global {
+  interface Window {
+    xrDevice?: XRDevice | null;
+  }
+}
+
+const IWER_version = '2.2.1';
+const IWER_DEVUI_version = '2.2.0';
 
 export interface IWERLoadResult {
   supportsImmersive: boolean;
@@ -42,7 +50,7 @@ export async function loadIWERIfNeeded(): Promise<IWERLoadResult> {
     const script = document.createElement('script');
     script.src = `https://unpkg.com/iwer@${IWER_version}/build/iwer.min.js`;
     script.async = true;
-    script.integrity = 'sha384-ZOdYbNlfA4q9jkBGcdmjy2ZYmjxy2uzncU6it3cPOHi12/WF048bamSU0Z5N+V5u';
+    script.integrity = 'sha384-3G2UIBh0RX9Imd3PFwcHyXbqRYAeQo9FDMgQTOLcflo9H6LDHaxADB24vKC3b+OY';
     script.crossOrigin = 'anonymous';
 
     await new Promise<void>(resolve => {
@@ -61,7 +69,7 @@ export async function loadIWERIfNeeded(): Promise<IWERLoadResult> {
         devUIScript.src = `https://unpkg.com/@iwer/devui@${IWER_DEVUI_version}/build/iwer-devui.min.js`;
         devUIScript.async = true;
         devUIScript.integrity =
-          'sha384-CG/gISX6PadiSzc8i2paU7CYLVsnVJaJ0tgoVnAPq/gyiTX6bddG5rwOgMDGlq74';
+          'sha384-gPhqycVT+bNyiNIH8kMEWFjaysw6xH9NGYwuduRzK71Ro0Tp3hXByxqAI9sWrc9T';
         devUIScript.crossOrigin = 'anonymous';
 
         await new Promise<void>(devUIResolve => {
@@ -77,23 +85,18 @@ export async function loadIWERIfNeeded(): Promise<IWERLoadResult> {
         });
 
         try {
-          // Create XRDevice with Meta Quest 3 profile
-          const xrDevice = new IWERGlobal.XRDevice(IWERGlobal.metaQuest3);
+          const device: XRDevice = new IWERGlobal.XRDevice(IWERGlobal.metaQuest3);
 
-          // Initialize DevUI with the XR device
           const IWER_DevUI = (window as any).IWER_DevUI || (globalThis as any).IWER_DevUI;
           if (IWER_DevUI?.DevUI) {
-            xrDevice.installDevUI(IWER_DevUI.DevUI);
+            device.installDevUI(IWER_DevUI.DevUI);
             console.info('IWER DevUI initialized with XR device.');
           } else {
             console.warn('IWER DevUI not found after script load, continuing without DevUI.');
           }
 
-          // Install the runtime and wait for it to be ready
-          const maybePromise = xrDevice.installRuntime?.();
-          if (maybePromise && typeof maybePromise.then === 'function') {
-            await maybePromise;
-          }
+          await device.installRuntime();
+          window.xrDevice = device;
           supportsImmersive = true;
           iwerLoaded = true;
         } catch (e) {
