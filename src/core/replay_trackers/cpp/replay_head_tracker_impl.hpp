@@ -33,8 +33,6 @@ public:
 
 private:
     HeadPoseTrackedT tracked_;
-    int64_t last_update_time_ = 0;
-
     std::unique_ptr<HeadMcapViewers> mcap_viewers_;
 };
 

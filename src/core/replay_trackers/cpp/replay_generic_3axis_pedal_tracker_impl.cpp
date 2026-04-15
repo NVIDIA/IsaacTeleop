@@ -4,7 +4,6 @@
 #include "replay_generic_3axis_pedal_tracker_impl.hpp"
 
 #include <mcap/recording_traits.hpp>
-#include <oxr_utils/oxr_funcs.hpp>
 #include <schema/pedals_bfbs_generated.h>
 #include <schema/timestamp_generated.h>
 

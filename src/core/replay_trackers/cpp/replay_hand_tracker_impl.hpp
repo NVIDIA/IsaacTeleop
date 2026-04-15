@@ -35,8 +35,6 @@ public:
 private:
     HandPoseTrackedT left_tracked_;
     HandPoseTrackedT right_tracked_;
-    int64_t last_update_time_ = 0;
-
     std::unique_ptr<HandMcapViewers> mcap_viewers_;
 };
 
