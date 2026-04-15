@@ -1,3 +1,6 @@
+.. SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+.. SPDX-License-Identifier: Apache-2.0
+
 Body Tracking
 =============
 
@@ -170,8 +173,9 @@ Server-side access
 On the server, body tracking data is consumed through the
 ``FullBodyTrackerPico`` tracker (see :doc:`trackers` for the full tracker
 reference). The tracker exposes a ``get_body_pose()`` method that returns the
-24-joint skeleton each frame. Joint data follows the ``FullBodyPosePico``
-FlatBuffers schema defined in ``src/core/schema/fbs/full_body.fbs``.
+24-joint skeleton each frame (or null when body tracking is not available).
+Joint data follows the ``FullBodyPosePico`` FlatBuffers schema defined in
+``src/core/schema/fbs/full_body.fbs``.
 
 The ``all_joint_poses_tracked`` quality flag indicates whether every joint was
 successfully tracked in the current frame. When it is false, consult individual
