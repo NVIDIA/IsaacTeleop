@@ -48,7 +48,7 @@ Instructions
    **Motion Tracker** app directly.
 2. Select a **wear mode** that matches the number of trackers you have and best
    fits your use case.
-3. Click the **Pair** button in the top-right corner.
+3. Click the **Pair** button.
 4. On each tracker, press and hold the top button until the lights start
    flashing (pairing mode).
 5. Strap the trackers on following the placement shown in the app for your
@@ -198,8 +198,7 @@ The CloudXR WebXR client will stream this data when the Quest browser grants the
 However, in the current version the Quest IOBT skeleton is mapped to the PICO BD
 24-joint layout before being sent to the server. This means the server always
 receives data in the ``XR_BD_body_tracking`` joint format regardless of the
-source headset. Quest-specific joints that do not have a direct BD equivalent are
-dropped or approximated during this mapping.
+source headset.
 
 .. note::
 
