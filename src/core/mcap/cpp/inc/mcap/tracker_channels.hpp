@@ -21,6 +21,11 @@
 namespace core
 {
 
+inline std::string mcap_topic(std::string_view base_name, const std::string& sub_channel)
+{
+    return std::string(base_name) + "/" + sub_channel;
+}
+
 /**
  * @brief Type-safe MCAP channel writer for FlatBuffer record types.
  *
@@ -53,7 +58,7 @@ public:
         channel_ids_.reserve(sub_channels.size());
         for (const auto& sub : sub_channels)
         {
-            mcap::Channel ch(std::string(base_name) + "/" + sub, "flatbuffer", schema.id);
+            mcap::Channel ch(mcap_topic(base_name, sub), "flatbuffer", schema.id);
             writer_->addChannel(ch);
             channel_ids_.push_back(ch.id);
         }
@@ -137,7 +142,7 @@ public:
         channels_.reserve(sub_channels.size());
         for (const auto& sub : sub_channels)
         {
-            std::string topic = std::string(base_name) + "/" + sub;
+            std::string topic = mcap_topic(base_name, sub);
             mcap::ReadMessageOptions options;
             options.topicFilter = [topic](std::string_view t) { return t == topic; };
             channels_.emplace_back(reader_->readMessages(on_problem, options));
