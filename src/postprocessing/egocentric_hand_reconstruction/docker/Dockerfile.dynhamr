@@ -120,6 +120,14 @@ RUN pip install -e .
 ARG CACHEBUST=1
 COPY --chown=$USERNAME:$USERNAME docker/setup_dynhamr.sh /home/appuser/setup_dynhamr.sh
 
+# Hand-mesh generation entry points (sit in WORKDIR so `from body_model ...`,
+# `from util ...`, `from vis ...` resolve against the installed Dyn-HaMR source).
+COPY --chown=$USERNAME:$USERNAME \
+    mesh_generation/save_hand_mesh_trajectory.py \
+    mesh_generation/generate_mesh.sh \
+    /home/appuser/Dyn-HaMR/dyn-hamr/
+RUN chmod +x /home/appuser/Dyn-HaMR/dyn-hamr/generate_mesh.sh
+
 # ---------------------------------------------------------------------------
 # Pre-download model assets that are otherwise fetched at runtime.
 #
