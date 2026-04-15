@@ -33,7 +33,7 @@ std::unique_ptr<PedalMcapChannels> LiveGeneric3AxisPedalTrackerImpl::create_mcap
 {
     return std::make_unique<PedalMcapChannels>(
         writer, base_name, PedalRecordingTraits::schema_name,
-        std::vector<std::string>(PedalRecordingTraits::channels.begin(), PedalRecordingTraits::channels.end()));
+        std::vector<std::string>(PedalRecordingTraits::recording_channels.begin(), PedalRecordingTraits::recording_channels.end()));
 }
 
 LiveGeneric3AxisPedalTrackerImpl::LiveGeneric3AxisPedalTrackerImpl(const OpenXRSessionHandles& handles,

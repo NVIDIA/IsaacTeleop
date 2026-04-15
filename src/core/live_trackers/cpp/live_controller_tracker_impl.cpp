@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #include "live_controller_tracker_impl.hpp"
@@ -180,7 +180,7 @@ std::unique_ptr<ControllerMcapChannels> LiveControllerTrackerImpl::create_mcap_c
 {
     return std::make_unique<ControllerMcapChannels>(
         writer, base_name, ControllerRecordingTraits::schema_name,
-        std::vector<std::string>(ControllerRecordingTraits::channels.begin(), ControllerRecordingTraits::channels.end()));
+        std::vector<std::string>(ControllerRecordingTraits::recording_channels.begin(), ControllerRecordingTraits::recording_channels.end()));
 }
 
 LiveControllerTrackerImpl::LiveControllerTrackerImpl(const OpenXRSessionHandles& handles,

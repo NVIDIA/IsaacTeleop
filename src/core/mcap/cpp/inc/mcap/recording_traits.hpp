@@ -20,31 +20,36 @@ namespace core
 struct HeadRecordingTraits
 {
     static constexpr std::string_view schema_name = "core.HeadPoseRecord";
-    static constexpr std::array channels = { "head" };
+    static constexpr std::array recording_channels = { "head" };
+    static constexpr std::array replay_channels = { "head" };
 };
 
 struct HandRecordingTraits
 {
     static constexpr std::string_view schema_name = "core.HandPoseRecord";
-    static constexpr std::array channels = { "left_hand", "right_hand" };
+    static constexpr std::array recording_channels = { "left_hand", "right_hand" };
+    static constexpr std::array replay_channels = { "left_hand", "right_hand" };
 };
 
 struct ControllerRecordingTraits
 {
     static constexpr std::string_view schema_name = "core.ControllerSnapshotRecord";
-    static constexpr std::array channels = { "left_controller", "right_controller" };
+    static constexpr std::array recording_channels = { "left_controller", "right_controller" };
+    static constexpr std::array replay_channels = { "left_controller", "right_controller" };
 };
 
 struct FullBodyPicoRecordingTraits
 {
     static constexpr std::string_view schema_name = "core.FullBodyPosePicoRecord";
-    static constexpr std::array channels = { "full_body" };
+    static constexpr std::array recording_channels = { "full_body" };
+    static constexpr std::array replay_channels = { "full_body" };
 };
 
 struct PedalRecordingTraits
 {
     static constexpr std::string_view schema_name = "core.Generic3AxisPedalOutputRecord";
     static constexpr std::array channels = { "pedals", "pedals_tracked" };
+    static constexpr std::array replay_channels = { "pedals_tracked" };
 };
 
 struct OakRecordingTraits

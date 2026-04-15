@@ -29,6 +29,7 @@ add_subdirectory(pusherio)
 add_subdirectory(deviceio_base)
 add_subdirectory(deviceio_trackers)
 add_subdirectory(live_trackers)
+add_subdirectory(replay_trackers)
 add_subdirectory(deviceio_session)
 
 # Build MCAP library (depends on deviceio for DeviceIOSession and tracker interfaces)
