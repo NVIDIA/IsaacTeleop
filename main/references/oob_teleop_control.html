@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Out-of-band teleop control &#8212; Isaac Teleop Documentation</title>
+    <title>Out-of-Band Teleop Control &#8212; Isaac Teleop Documentation</title>
   
   
   
@@ -345,7 +345,7 @@
 <li class="toctree-l1"><a class="reference internal" href="build.html">Build System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../device/index.html">Device Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="retargeting.html">Retargeting Interface</a></li>
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">Out-of-band teleop control</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="license.html">License</a></li>
 </ul>
 </div>
@@ -381,7 +381,7 @@
         <i class="fa-solid fa-home"></i>
       </a>
     </li>
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Out-of-band teleop control</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Out-of-Band Teleop Control</span></li>
   </ul>
 </nav>
 </div>
@@ -399,7 +399,7 @@
                 <article class="bd-article">
                   
   <section id="out-of-band-teleop-control">
-<h1>Out-of-band teleop control<a class="headerlink" href="#out-of-band-teleop-control" title="Link to this heading">#</a></h1>
+<h1>Out-of-Band Teleop Control<a class="headerlink" href="#out-of-band-teleop-control" title="Link to this heading">#</a></h1>
 <p>The <strong>OOB (out-of-band) teleop control hub</strong> lets you coordinate Isaac Teleop
 from outside the headset — read streaming metrics, inspect connected clients,
 and push configuration changes — over the <strong>same TLS port</strong> as the CloudXR
@@ -409,19 +409,44 @@ proxy.</p>
 <section id="quick-start">
 <h2>Quick start<a class="headerlink" href="#quick-start" title="Link to this heading">#</a></h2>
 <p><strong>Step 1 — Start the streaming host with OOB enabled</strong></p>
+<p>On first use, it is recommended to run once <strong>without</strong> <code class="docutils literal notranslate"><span class="pre">--setup-oob</span></code> to
+confirm <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">devices</span></code> sees the headset, verify USB debugging is enabled, and
+accept the self-signed certificate in the headset browser manually (both the
+web client page and the <code class="docutils literal notranslate"><span class="pre">https://&lt;host&gt;:48322</span></code> proxy page). Once that
+baseline works, add <code class="docutils literal notranslate"><span class="pre">--setup-oob</span></code> to automate the full flow.</p>
 <p>Launch the CloudXR runtime with the <code class="docutils literal notranslate"><span class="pre">--setup-oob</span></code> flag (add <code class="docutils literal notranslate"><span class="pre">--accept-eula</span></code>
 on first run):</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr<span class="w"> </span>--accept-eula<span class="w"> </span>--setup-oob
 </pre></div>
 </div>
+<p>This will:</p>
+<ol class="arabic simple">
+<li><p>Verify a USB-connected headset is available via <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">devices</span></code></p></li>
+<li><p>Start the WSS proxy with the OOB control hub</p></li>
+<li><p>Open the teleop page on the headset via <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">shell</span> <span class="pre">am</span> <span class="pre">start</span></code></p></li>
+<li><p>Accept the self-signed certificate and click CONNECT automatically
+via Chrome DevTools Protocol (CDP)</p></li>
+</ol>
 <p>You should see output confirming the hub is running:</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>CloudXR WSS proxy: running, log file: /home/&lt;user&gt;/.cloudxr/logs/wss.2026-04-13T202133Z.log
-        oob:       enabled  (hub running in WSS proxy)
+        oob:       enabled  (hub + USB adb automation — see OOB TELEOP block)
 </pre></div>
 </div>
-<p><strong>Step 2 — Open the web client on the headset</strong></p>
-<p>On the XR headset browser, navigate to the client URL with <strong>all three</strong>
-required query parameters — <code class="docutils literal notranslate"><span class="pre">oobEnable</span></code>, <code class="docutils literal notranslate"><span class="pre">serverIP</span></code>, and <code class="docutils literal notranslate"><span class="pre">port</span></code>:</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The headset must be:</p>
+<ul class="simple">
+<li><p><strong>Connected via USB cable</strong> for adb commands (opening the teleop URL)</p></li>
+<li><p><strong>Connected to WiFi</strong> on the same network as the streaming host (for web
+page access and CloudXR streaming)</p></li>
+</ul>
+<p>Streaming and web page access use WiFi, not USB tethering.
+<code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">forward</span></code> is used only temporarily for CDP automation.</p>
+</div>
+<p><strong>Step 2 — (Manual fallback) Open the web client on the headset</strong></p>
+<p>If the adb automation fails (e.g. headset not paired), you can manually open
+the client URL on the headset browser with <strong>all three</strong> required query
+parameters — <code class="docutils literal notranslate"><span class="pre">oobEnable</span></code>, <code class="docutils literal notranslate"><span class="pre">serverIP</span></code>, and <code class="docutils literal notranslate"><span class="pre">port</span></code>:</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>https://nvidia.github.io/IsaacTeleop/client/?oobEnable=1&amp;serverIP=&lt;HOST_IP&gt;&amp;port=48322
 </pre></div>
 </div>
@@ -467,15 +492,40 @@ configuration overrides via the HTTP config API:</p>
 </pre></div>
 </div>
 <p>See <code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/api/oob/v1/config</span></code> below for all supported keys.</p>
-<p><strong>Step 5 — Connect and stream; poll for metrics</strong></p>
-<p>Press <strong>CONNECT</strong> on the headset to start the CloudXR streaming session. Once
-streaming begins, the headset reports metrics to the hub every 500 ms. Poll the
-state endpoint from a PC to collect them:</p>
+<p><strong>Step 5 — Stream and poll for metrics</strong></p>
+<p>With <code class="docutils literal notranslate"><span class="pre">--setup-oob</span></code>, CONNECT is clicked automatically via CDP.  If running
+without it, press <strong>CONNECT</strong> on the headset manually.  Once streaming begins,
+the headset reports metrics to the hub every 500 ms.  Poll the state endpoint
+from a PC to collect them:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Poll every 2 seconds (adjust to taste)</span>
 watch<span class="w"> </span>-n<span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="s1">&#39;curl -sk https://&lt;HOST_IP&gt;:48322/api/oob/v1/state | python3 -m json.tool&#39;</span>
 </pre></div>
 </div>
 <p>The <code class="docutils literal notranslate"><span class="pre">metricsByCadence</span></code> field on each headset entry will now contain live streaming metrics.</p>
+</section>
+<section id="adb-automation">
+<h2>ADB automation<a class="headerlink" href="#adb-automation" title="Link to this heading">#</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">--setup-oob</span></code> flag automates headset setup via USB <code class="docutils literal notranslate"><span class="pre">adb</span></code>:</p>
+<ol class="arabic simple">
+<li><p><strong>adb devices</strong> verifies exactly one device is connected</p></li>
+<li><p><strong>am start</strong> opens the teleop bookmark URL in the headset browser with
+the correct <code class="docutils literal notranslate"><span class="pre">oobEnable=1</span></code>, <code class="docutils literal notranslate"><span class="pre">serverIP</span></code>, and <code class="docutils literal notranslate"><span class="pre">port</span></code> parameters</p></li>
+<li><p><strong>CDP connect</strong> forwards the browser’s DevTools socket over <code class="docutils literal notranslate"><span class="pre">adb</span></code>,
+accepts the self-signed certificate interstitial, and clicks CONNECT
+via Chrome DevTools Protocol (<code class="docutils literal notranslate"><span class="pre">Input.dispatchMouseEvent</span></code>)</p></li>
+</ol>
+<p>Streaming and web page access use WiFi, not USB tethering.  The headset
+reaches the streaming host directly over WiFi.  <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">forward</span></code> is used only
+temporarily during CDP automation to reach the browser’s DevTools socket.</p>
+<p>Prerequisites:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">adb</span></code> must be on <code class="docutils literal notranslate"><span class="pre">PATH</span></code> (Android SDK Platform Tools)</p></li>
+<li><p>The headset must be connected via USB with USB debugging enabled</p></li>
+<li><p>The headset must be on the same WiFi network as the streaming host</p></li>
+</ul>
+<p>If any step fails, the hub still starts.  Fall back to
+<code class="docutils literal notranslate"><span class="pre">chrome://inspect/#devices</span></code> from the PC or tap CONNECT on the headset
+directly.</p>
 </section>
 <section id="architecture">
 <h2>Architecture<a class="headerlink" href="#architecture" title="Link to this heading">#</a></h2>
@@ -499,7 +549,8 @@ periodically (default every 500 ms), receives config pushes.</p></td>
 </tr>
 <tr class="row-odd"><td><p><strong>Streaming host</strong></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr</span> <span class="pre">--setup-oob</span></code></p></td>
-<td><p>Runs CloudXR runtime + WSS proxy + OOB hub on a single TLS port.</p></td>
+<td><p>Runs CloudXR runtime + WSS proxy + OOB hub on a single TLS port.
+Opens the teleop page and clicks CONNECT via USB adb + CDP.</p></td>
 </tr>
 <tr class="row-even"><td><p><strong>Operator / scripts</strong></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">curl</span></code>, browser, or custom tooling</p></td>
@@ -627,7 +678,7 @@ Pass it as:</p>
 <ol class="arabic simple">
 <li><p>Registers as role <code class="docutils literal notranslate"><span class="pre">&quot;headset&quot;</span></code></p></li>
 <li><p>Reports <code class="docutils literal notranslate"><span class="pre">clientMetrics</span></code> periodically (default every 500 ms)</p></li>
-<li><p>Receives <code class="docutils literal notranslate"><span class="pre">config</span></code> pushes (phase 2)</p></li>
+<li><p>Receives <code class="docutils literal notranslate"><span class="pre">config</span></code> pushes from operator</p></li>
 </ol>
 <section id="url-query-parameter-overrides">
 <h3>URL query parameter overrides<a class="headerlink" href="#url-query-parameter-overrides" title="Link to this heading">#</a></h3>
@@ -635,10 +686,10 @@ Pass it as:</p>
 <code class="docutils literal notranslate"><span class="pre">localStorage</span></code> values) so that bookmarked links always take priority over
 previously saved settings:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">serverIP</span></code> — CloudXR server IP address</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">port</span></code> — CloudXR server port</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">codec</span></code> — video codec</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">panelHiddenAtStart</span></code> — hide the control panel on load</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">serverIP</span></code> CloudXR server IP address</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">port</span></code> CloudXR server port</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">codec</span></code> video codec</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">panelHiddenAtStart</span></code> hide the control panel on load</p></li>
 </ul>
 </section>
 </section>
@@ -663,6 +714,21 @@ previously saved settings:</p>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">TELEOP_STREAM_SERVER_IP</span></code></p></td>
 <td><p>Override the auto-detected LAN IP in hub initial config</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">TELEOP_PROXY_HOST</span></code></p></td>
+<td><p>Override the LAN IP used for headset bookmark URLs</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">TELEOP_WEB_CLIENT_BASE</span></code></p></td>
+<td><p>Override the WebXR client origin URL</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">TELEOP_STREAM_PORT</span></code></p></td>
+<td><p>Override the signaling port (default same as proxy port)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">TELEOP_CLIENT_CODEC</span></code></p></td>
+<td><p>Default video codec for headset bookmarks</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">TELEOP_CLIENT_PANEL_HIDDEN_AT_START</span></code></p></td>
+<td><p>Hide control panel on load (<code class="docutils literal notranslate"><span class="pre">true</span></code> / <code class="docutils literal notranslate"><span class="pre">false</span></code>)</p></td>
 </tr>
 </tbody>
 </table>
@@ -720,6 +786,7 @@ previously saved settings:</p>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#quick-start">Quick start</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#adb-automation">ADB automation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#architecture">Architecture</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#websocket-protocol">WebSocket protocol</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#registration-first-message">Registration (first message)</a></li>
@@ -819,7 +886,7 @@ previously saved settings:</p>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on April 14, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on April 15, 2026.
       <br/>
     
   </p>
