@@ -9,6 +9,7 @@ from .hands_source import HandsSource
 from .controllers_source import ControllersSource
 from .pedals_source import Generic3AxisPedalSource
 from .full_body_source import FullBodySource
+from .opaque_data_channel_source import OpaqueDataChannelSource
 from .deviceio_tensor_types import (
     HeadPoseTrackedType,
     HandPoseTrackedType,
@@ -29,6 +30,7 @@ __all__ = [
     "ControllersSource",
     "Generic3AxisPedalSource",
     "FullBodySource",
+    "OpaqueDataChannelSource",
     "HeadPoseTrackedType",
     "HandPoseTrackedType",
     "ControllerSnapshotTrackedType",

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #include "inc/live_trackers/live_deviceio_factory.hpp"
@@ -9,6 +9,7 @@
 #include "live_generic_3axis_pedal_tracker_impl.hpp"
 #include "live_hand_tracker_impl.hpp"
 #include "live_head_tracker_impl.hpp"
+#include "live_opaque_data_channel_tracker_impl.hpp"
 
 #include <deviceio_trackers/controller_tracker.hpp>
 #include <deviceio_trackers/frame_metadata_tracker_oak.hpp>
@@ -16,6 +17,7 @@
 #include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
+#include <deviceio_trackers/opaque_data_channel_tracker.hpp>
 #include <oxr_utils/oxr_time.hpp>
 
 #include <cassert>
@@ -77,6 +79,12 @@ std::unique_ptr<ITrackerImpl> try_create_oak_impl(LiveDeviceIOFactory& factory, 
     return typed ? factory.create_frame_metadata_tracker_oak_impl(typed) : nullptr;
 }
 
+std::unique_ptr<ITrackerImpl> try_create_opaque_channel_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const OpaqueDataChannelTracker*>(&tracker);
+    return typed ? factory.create_opaque_data_channel_tracker_impl(typed) : nullptr;
+}
+
 using CollectExtensionsFn = bool (*)(const ITracker&, std::set<std::string>&);
 using TryCreateFn = std::unique_ptr<ITrackerImpl> (*)(LiveDeviceIOFactory&, const ITracker&);
 
@@ -94,6 +102,7 @@ inline const TrackerDispatchEntry k_tracker_dispatch[] = {
     { &try_add_extensions<FullBodyTrackerPico, LiveFullBodyTrackerPicoImpl>, &try_create_full_body_pico_impl },
     { &try_add_extensions<Generic3AxisPedalTracker, LiveGeneric3AxisPedalTrackerImpl>, &try_create_generic_pedal_impl },
     { &try_add_extensions<FrameMetadataTrackerOak, LiveFrameMetadataTrackerOakImpl>, &try_create_oak_impl },
+    { &try_add_extensions<OpaqueDataChannelTracker, LiveOpaqueDataChannelTrackerImpl>, &try_create_opaque_channel_impl },
 };
 
 } // namespace
@@ -233,6 +242,12 @@ std::unique_ptr<IFrameMetadataTrackerOakImpl> LiveDeviceIOFactory::create_frame_
         channels = LiveFrameMetadataTrackerOakImpl::create_mcap_channels(*writer_, get_name(tracker), tracker);
     }
     return std::make_unique<LiveFrameMetadataTrackerOakImpl>(handles_, tracker, std::move(channels));
+}
+
+std::unique_ptr<IOpaqueDataChannelTrackerImpl> LiveDeviceIOFactory::create_opaque_data_channel_tracker_impl(
+    const OpaqueDataChannelTracker* tracker)
+{
+    return std::make_unique<LiveOpaqueDataChannelTrackerImpl>(handles_, tracker);
 }
 
 } // namespace core

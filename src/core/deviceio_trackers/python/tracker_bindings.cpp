@@ -7,9 +7,12 @@
 #include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
+#include <deviceio_trackers/opaque_data_channel_tracker.hpp>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 #include <schema/hand_generated.h>
+
+#include <cstring>
 
 namespace py = pybind11;
 
@@ -94,6 +97,30 @@ PYBIND11_MODULE(_deviceio_trackers, m)
             [](const core::FullBodyTrackerPico& self, const core::ITrackerSession& session) -> core::FullBodyPosePicoTrackedT
             { return self.get_body_pose(session); },
             py::arg("session"), "Get full body pose tracked state (data is None if inactive)");
+
+    py::class_<core::OpaqueDataChannelTracker, core::ITracker, std::shared_ptr<core::OpaqueDataChannelTracker>>(
+        m, "OpaqueDataChannelTracker")
+        .def(py::init([](py::bytes uuid_bytes)
+             {
+                 std::string raw = uuid_bytes;
+                 if (raw.size() != 16)
+                     throw std::invalid_argument("UUID must be exactly 16 bytes");
+                 std::array<uint8_t, 16> arr;
+                 std::memcpy(arr.data(), raw.data(), 16);
+                 return std::make_shared<core::OpaqueDataChannelTracker>(arr);
+             }),
+             py::arg("uuid"), "Construct with a 16-byte UUID identifying the data channel")
+        .def(
+            "get_latest_message",
+            [](const core::OpaqueDataChannelTracker& self,
+               const core::ITrackerSession& session) -> std::optional<py::bytes>
+            {
+                auto msg = self.get_latest_message(session);
+                if (!msg)
+                    return std::nullopt;
+                return py::bytes(reinterpret_cast<const char*>(msg->data()), msg->size());
+            },
+            py::arg("session"), "Get the latest received message bytes, or None if no message this frame");
 
     m.attr("NUM_JOINTS") = static_cast<int>(core::HandJoint_NUM_JOINTS);
     m.attr("JOINT_PALM") = static_cast<int>(core::HandJoint_PALM);
