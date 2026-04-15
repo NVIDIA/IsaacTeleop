@@ -36,7 +36,7 @@ In a new terminal, install the package from PyPI (or from a local wheel if you b
    pip install 'isaacteleop[cloudxr,retargeters]~=1.0.0' --extra-index-url https://pypi.nvidia.com
 
 Instead of installing the package from PyPI, you can build from source and install the local wheel.
-See :doc:`build_from_source` for more details.
+See :doc:`build_from_source/index` for more details.
 
 .. _run-cloudxr-server:
 
@@ -228,9 +228,8 @@ running the CloudXR runtime and wss proxy in containerized environment; or using
       For advanced usage and troubleshooting of CloudXR, see the `CloudXR documentation`_ for more
       details.
 
-   The source code for the web client is in the :code-dir:`deps/cloudxr/webxr_client/` directory.
-   Follow the instructions in the official `CloudXR.js documentation`_ for more details if you want to
-   run the web client from source.
+   The source code for the web client is in the :code-dir:`deps/cloudxr/webxr_client/` directory.  To build the web
+   client from source, see :doc:`build_from_source/webxr`.
 
 .. _connect-apple-vision-pro:
 
@@ -344,14 +343,13 @@ More Information
 
 - :doc:`teleop_session` — learn how ``TeleopSession`` works and how to build
   custom retargeting pipelines
-- :doc:`build_from_source` — build the C++ core, Python bindings, and plugins
+- :doc:`build_from_source/index` — build the C++ core, Python bindings, and plugins
   from source
 
 ..
    References
 .. _`nvidia.github.io/IsaacTeleop/client`: https://nvidia.github.io/IsaacTeleop/client
 .. _`CloudXR documentation`: https://docs.nvidia.com/cloudxr-sdk/latest/index.html
-.. _`CloudXR.js documentation`: https://docs.nvidia.com/cloudxr-sdk/latest/usr_guide/cloudxr_js/index.html
 .. _`Isaac XR Teleop Sample Client for Apple Vision Pro`: https://github.com/isaac-sim/isaac-xr-teleop-sample-client-apple
 .. _`Isaac Lab Quick Start`: https://isaac-sim.github.io/IsaacLab/develop/source/setup/quickstart.html
 .. _`Teleoperation and Imitation Learning with Isaac Lab Mimic`: https://isaac-sim.github.io/IsaacLab/develop/source/overview/imitation-learning/teleop_imitation.html#teleoperation-imitation-learning
