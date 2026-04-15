@@ -15,7 +15,7 @@ and the BD skeleton format used on the server.
 
 .. note::
 
-   Meta Quest 3/3S also exposes body tracking to WebXR via inside-out body
+   Meta Quest 3/3S also expose body tracking to WebXR via inside-out body
    tracking (IOBT), and the CloudXR client will stream it. However the Quest
    skeleton is mapped to the PICO BD 24-joint layout in the current version,
    and accuracy is lower since there are no physical trackers. See
