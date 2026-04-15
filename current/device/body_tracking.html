@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Device Interface &#8212; Isaac Teleop Documentation</title>
+    <title>Body Tracking &#8212; Isaac Teleop Documentation</title>
   
   
   
@@ -51,15 +51,15 @@
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../_static/copybutton.js?v=f281be69"></script>
     <script src="../_static/design-tabs.js?v=f930bc37"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'device/index';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'device/body_tracking';</script>
     <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
 
     <link rel="icon" href="../_static/favicon.ico"/>
 
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Device Trackers" href="trackers.html" />
-    <link rel="prev" title="Build System" href="../references/build.html" />
+    <link rel="next" title="Retargeting Interface" href="../references/retargeting.html" />
+    <link rel="prev" title="Add a New Device" href="add_device.html" />
 
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -253,17 +253,6 @@
         <div class="sidebar-primary-item"><!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-
-<div class="version-switcher">
-  <label for="version-select" class="version-switcher__label">Version</label>
-  <select id="version-select" class="version-switcher__select" onchange="location = this.value;">
-    <option value="index.html" selected>main</option>
-    <option value="../../release/1.0.x/device/index.html" >release/1.0.x</option>
-    <option value="../../release/1.1.x/device/index.html" >release/1.1.x</option>
-    <option value="../../release/1.2.x/device/index.html" >release/1.2.x</option>
-    <option value="../../v1.0.191/device/index.html" >v1.0.191</option>
-  </select>
-</div>
 </div>
         <div class="sidebar-primary-item"><ul class="navbar-icon-links"
     aria-label="Icon Links">
@@ -343,10 +332,10 @@
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../references/requirements.html">System Requirements</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/build.html">Build System</a></li>
-<li class="toctree-l1 current active has-children"><a class="current reference internal" href="#">Device Interface</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">Device Interface</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="trackers.html">Device Trackers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="add_device.html">Add a New Device</a></li>
-<li class="toctree-l2"><a class="reference internal" href="body_tracking.html">Body Tracking</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Body Tracking</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/retargeting.html">Retargeting Interface</a></li>
@@ -386,7 +375,10 @@
         <i class="fa-solid fa-home"></i>
       </a>
     </li>
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Device Interface</span></li>
+    
+    <li class="breadcrumb-item"><a href="index.html" class="nav-link">Device Interface</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Body Tracking</span></li>
   </ul>
 </nav>
 </div>
@@ -403,39 +395,251 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="device-interface">
-<h1>Device Interface<a class="headerlink" href="#device-interface" title="Link to this heading">#</a></h1>
-<section id="isaac-teleop-device-plugin-c-level">
-<span id="device-interface-device-plugin"></span><h2>Isaac Teleop device plugin (C++ level)<a class="headerlink" href="#isaac-teleop-device-plugin-c-level" title="Link to this heading">#</a></h2>
-<p>For new hardware that requires a custom driver or SDK. Plugins push data via OpenXR tensor
-collections. Existing plugins include Manus gloves, OAK-D camera, controller synthetic hands,
-and foot pedals. After creating the plugin, update the retargeting pipeline config to consume
-data from the new plugin’s source node.</p>
-<p>See the <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/" rel="noopener noreferrer" target="_blank">Plugins directory</a> for examples.</p>
-<div class="toctree-wrapper compound">
-<p aria-level="2" class="caption" role="heading"><span class="caption-text">Device</span></p>
+  <section id="body-tracking">
+<h1>Body Tracking<a class="headerlink" href="#body-tracking" title="Link to this heading">#</a></h1>
+<p>Isaac Teleop supports streaming full-body tracking data from an XR headset
+through the CloudXR WebXR client to the teleop server. The server exposes the
+body skeleton to applications through the <code class="docutils literal notranslate"><span class="pre">FullBodyTrackerPico</span></code> tracker and
+the OpenXR <code class="docutils literal notranslate"><span class="pre">XR_BD_body_tracking</span></code> extension.</p>
+<p>Body tracking support currently targets the <strong>PICO 4 Ultra</strong> with
+<strong>PICO Motion Trackers</strong>. The rest of this guide covers PICO hardware setup
+and the BD skeleton format used on the server.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Meta Quest 3/3S also expose body tracking to WebXR via inside-out body
+tracking (IOBT), and the CloudXR client will stream it. However the Quest
+skeleton is mapped to the PICO BD 24-joint layout in the current version,
+and accuracy is lower since there are no physical trackers. See
+<a class="reference internal" href="#quest-body-tracking-limited-support">Quest Body Tracking (Limited Support)</a> for details.</p>
+</div>
+<nav class="contents local" id="on-this-page">
+<p class="topic-title">On this page</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#setting-up-pico-motion-trackers" id="id1">Setting Up PICO Motion Trackers</a></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="trackers.html">Device Trackers</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="trackers.html#data-schema-convention">Data Schema Convention</a></li>
-<li class="toctree-l2"><a class="reference internal" href="trackers.html#tracker-reference">Tracker Reference</a></li>
-<li class="toctree-l2"><a class="reference internal" href="trackers.html#usage-examples">Usage Examples</a></li>
+<li><p><a class="reference internal" href="#instructions" id="id2">Instructions</a></p></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="add_device.html">Add a New Device</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="add_device.html#step-1-define-the-data-schema">Step 1: Define the data schema</a></li>
-<li class="toctree-l2"><a class="reference internal" href="add_device.html#step-2-implement-a-device-plugin">Step 2: Implement a device plugin</a></li>
-<li class="toctree-l2"><a class="reference internal" href="add_device.html#step-3-implement-a-tracker">Step 3: Implement a tracker</a></li>
-<li class="toctree-l2"><a class="reference internal" href="add_device.html#step-4-implement-a-simple-c-printer-optional">Step 4: Implement a simple C++ printer (optional)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="add_device.html#schema-io-example-build-and-run">Schema IO example: build and run</a></li>
+<li><p><a class="reference internal" href="#how-full-body-tracking-works" id="id3">How Full Body Tracking Works</a></p>
+<ul>
+<li><p><a class="reference internal" href="#skeleton-profile" id="id4">Skeleton profile</a></p></li>
+<li><p><a class="reference internal" href="#joint-skeleton-24-joints" id="id5">Joint skeleton (24 joints)</a></p></li>
+<li><p><a class="reference internal" href="#server-side-access" id="id6">Server-side access</a></p></li>
+<li><p><a class="reference internal" href="#troubleshooting" id="id7">Troubleshooting</a></p></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="body_tracking.html">Body Tracking</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="body_tracking.html#setting-up-pico-motion-trackers">Setting Up PICO Motion Trackers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="body_tracking.html#how-full-body-tracking-works">How Full Body Tracking Works</a></li>
-<li class="toctree-l2"><a class="reference internal" href="body_tracking.html#quest-body-tracking-limited-support">Quest Body Tracking (Limited Support)</a></li>
+<li><p><a class="reference internal" href="#quest-body-tracking-limited-support" id="id8">Quest Body Tracking (Limited Support)</a></p></li>
 </ul>
-</li>
+</nav>
+<section id="setting-up-pico-motion-trackers">
+<h2><a class="toc-backref" href="#id1" role="doc-backlink">Setting Up PICO Motion Trackers</a><a class="headerlink" href="#setting-up-pico-motion-trackers" title="Link to this heading">#</a></h2>
+<p>Full body tracking uses
+<a class="reference external" href="https://www.picoxr.com/global/products/pico-motion-tracker" rel="noopener noreferrer" target="_blank">PICO Motion Trackers</a>
+paired with a PICO 4 Ultra headset. Make sure the PICO browser is updated to a
+version that supports body tracking. The following configurations are supported:</p>
+<ul class="simple">
+<li><p><strong>5 trackers:</strong> best tracking quality across all 24 joints.
+Two wear modes are available: 2 ankles + 2 wrists + 1 waist, or 2 ankles +
+2 thighs + 1 waist.</p></li>
+<li><p><strong>3 trackers:</strong> 2 ankles + 1 waist. Upper-body joints are estimated from the
+headset and controllers; lower-body tracking remains accurate.</p></li>
+<li><p><strong>2 trackers:</strong> 2 ankles only. Provides lower-body tracking with upper-body
+estimation. Least hardware, but reduced accuracy for waist and sitting/lying
+postures.</p></li>
 </ul>
+<section id="instructions">
+<h3><a class="toc-backref" href="#id2" role="doc-backlink">Instructions</a><a class="headerlink" href="#instructions" title="Link to this heading">#</a></h3>
+<ol class="arabic simple">
+<li><p>Tap the <strong>clock / Wi-Fi / battery icon</strong> in the lower-right corner of the
+PICO menu. A picture of the headset appears; above it is a small circular
+button with a wristband-and-tracker icon. If the button is missing, open the
+<strong>Motion Tracker</strong> app directly.</p></li>
+<li><p>Select a <strong>wear mode</strong> that matches the number of trackers you have and best
+fits your use case.</p></li>
+<li><p>Click the <strong>Pair</strong> button.</p></li>
+<li><p>On each tracker, press and hold the top button until the lights start
+flashing (pairing mode).</p></li>
+<li><p>Strap the trackers on following the placement shown in the app for your
+chosen wear mode. Scrunch down any baggy clothing so the trackers are visible
+to the headset cameras.</p></li>
+<li><p>Click <strong>Calibrate</strong> and follow the instructions in the Motion Tracker app.</p></li>
+</ol>
+<p>Before each session, confirm all trackers are powered on, paired, and
+calibrated.</p>
+</section>
+</section>
+<section id="how-full-body-tracking-works">
+<h2><a class="toc-backref" href="#id3" role="doc-backlink">How Full Body Tracking Works</a><a class="headerlink" href="#how-full-body-tracking-works" title="Link to this heading">#</a></h2>
+<section id="skeleton-profile">
+<h3><a class="toc-backref" href="#id4" role="doc-backlink">Skeleton profile</a><a class="headerlink" href="#skeleton-profile" title="Link to this heading">#</a></h3>
+<p>Body tracking data uses the
+<a class="reference external" href="https://registry.khronos.org/OpenXR/specs/1.1/html/xrspec.html#XR_BD_body_tracking" rel="noopener noreferrer" target="_blank">XR_BD_body_tracking</a>
+OpenXR extension profile defined by ByteDance (BD). This is the only body
+tracking profile currently supported by the CloudXR runtime.</p>
+<p>When the CloudXR WebXR client starts a session, it requests the <code class="docutils literal notranslate"><span class="pre">body-tracking</span></code>
+feature from the browser. Each frame, the CloudXR client library reads the body
+joint data provided by the PICO runtime and streams it to the server. No
+additional configuration is needed in the WebXR client; body tracking is
+enabled automatically when the device supports it.</p>
+</section>
+<section id="joint-skeleton-24-joints">
+<h3><a class="toc-backref" href="#id5" role="doc-backlink">Joint skeleton (24 joints)</a><a class="headerlink" href="#joint-skeleton-24-joints" title="Link to this heading">#</a></h3>
+<p>The BD profile defines a 24-joint skeleton. Each joint provides a position
+(vec3 in meters), an orientation (quaternion), and a per-joint <code class="docutils literal notranslate"><span class="pre">is_valid</span></code> flag
+indicating whether the tracker successfully resolved that joint in the current
+frame.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 16.7%" />
+<col style="width: 41.7%" />
+<col style="width: 41.7%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Index</p></th>
+<th class="head"><p>Joint</p></th>
+<th class="head"><p>Parent</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>0</p></td>
+<td><p>Pelvis</p></td>
+<td><p><em>(root)</em></p></td>
+</tr>
+<tr class="row-odd"><td><p>1</p></td>
+<td><p>Left Hip</p></td>
+<td><p>Pelvis</p></td>
+</tr>
+<tr class="row-even"><td><p>2</p></td>
+<td><p>Right Hip</p></td>
+<td><p>Pelvis</p></td>
+</tr>
+<tr class="row-odd"><td><p>3</p></td>
+<td><p>Spine 1</p></td>
+<td><p>Pelvis</p></td>
+</tr>
+<tr class="row-even"><td><p>4</p></td>
+<td><p>Left Knee</p></td>
+<td><p>Left Hip</p></td>
+</tr>
+<tr class="row-odd"><td><p>5</p></td>
+<td><p>Right Knee</p></td>
+<td><p>Right Hip</p></td>
+</tr>
+<tr class="row-even"><td><p>6</p></td>
+<td><p>Spine 2</p></td>
+<td><p>Spine 1</p></td>
+</tr>
+<tr class="row-odd"><td><p>7</p></td>
+<td><p>Left Ankle</p></td>
+<td><p>Left Knee</p></td>
+</tr>
+<tr class="row-even"><td><p>8</p></td>
+<td><p>Right Ankle</p></td>
+<td><p>Right Knee</p></td>
+</tr>
+<tr class="row-odd"><td><p>9</p></td>
+<td><p>Spine 3</p></td>
+<td><p>Spine 2</p></td>
+</tr>
+<tr class="row-even"><td><p>10</p></td>
+<td><p>Left Foot</p></td>
+<td><p>Left Ankle</p></td>
+</tr>
+<tr class="row-odd"><td><p>11</p></td>
+<td><p>Right Foot</p></td>
+<td><p>Right Ankle</p></td>
+</tr>
+<tr class="row-even"><td><p>12</p></td>
+<td><p>Neck</p></td>
+<td><p>Spine 3</p></td>
+</tr>
+<tr class="row-odd"><td><p>13</p></td>
+<td><p>Left Collar</p></td>
+<td><p>Spine 3</p></td>
+</tr>
+<tr class="row-even"><td><p>14</p></td>
+<td><p>Right Collar</p></td>
+<td><p>Spine 3</p></td>
+</tr>
+<tr class="row-odd"><td><p>15</p></td>
+<td><p>Head</p></td>
+<td><p>Neck</p></td>
+</tr>
+<tr class="row-even"><td><p>16</p></td>
+<td><p>Left Shoulder</p></td>
+<td><p>Left Collar</p></td>
+</tr>
+<tr class="row-odd"><td><p>17</p></td>
+<td><p>Right Shoulder</p></td>
+<td><p>Right Collar</p></td>
+</tr>
+<tr class="row-even"><td><p>18</p></td>
+<td><p>Left Elbow</p></td>
+<td><p>Left Shoulder</p></td>
+</tr>
+<tr class="row-odd"><td><p>19</p></td>
+<td><p>Right Elbow</p></td>
+<td><p>Right Shoulder</p></td>
+</tr>
+<tr class="row-even"><td><p>20</p></td>
+<td><p>Left Wrist</p></td>
+<td><p>Left Elbow</p></td>
+</tr>
+<tr class="row-odd"><td><p>21</p></td>
+<td><p>Right Wrist</p></td>
+<td><p>Right Elbow</p></td>
+</tr>
+<tr class="row-even"><td><p>22</p></td>
+<td><p>Left Hand</p></td>
+<td><p>Left Wrist</p></td>
+</tr>
+<tr class="row-odd"><td><p>23</p></td>
+<td><p>Right Hand</p></td>
+<td><p>Right Wrist</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="server-side-access">
+<h3><a class="toc-backref" href="#id6" role="doc-backlink">Server-side access</a><a class="headerlink" href="#server-side-access" title="Link to this heading">#</a></h3>
+<p>On the server, body tracking data is consumed through the
+<code class="docutils literal notranslate"><span class="pre">FullBodyTrackerPico</span></code> tracker (see <a class="reference internal" href="trackers.html"><span class="doc">Device Trackers</span></a> for the full tracker
+reference). The tracker exposes a <code class="docutils literal notranslate"><span class="pre">get_body_pose()</span></code> method that returns the
+24-joint skeleton each frame (or null when body tracking is not available).
+Joint data follows the <code class="docutils literal notranslate"><span class="pre">FullBodyPosePico</span></code> FlatBuffers schema defined in
+<code class="docutils literal notranslate"><span class="pre">src/core/schema/fbs/full_body.fbs</span></code>.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">all_joint_poses_tracked</span></code> quality flag indicates whether every joint was
+successfully tracked in the current frame. When it is false, consult individual
+joint <code class="docutils literal notranslate"><span class="pre">is_valid</span></code> flags to determine which joints have valid poses.</p>
+</section>
+<section id="troubleshooting">
+<h3><a class="toc-backref" href="#id7" role="doc-backlink">Troubleshooting</a><a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p><strong>No body tracking data arrives on the server.</strong> Verify all PICO motion
+trackers are paired, powered on, and calibrated. Confirm the PICO browser
+is up to date.</p></li>
+<li><p><strong>Some joints report</strong> <code class="docutils literal notranslate"><span class="pre">is_valid:</span> <span class="pre">false</span></code>. The PICO runtime may
+temporarily lose tracking for individual joints during fast movement or
+partial occlusion. These joints will recover automatically once tracking is
+re-acquired.</p></li>
+</ul>
+</section>
+</section>
+<section id="quest-body-tracking-limited-support">
+<h2><a class="toc-backref" href="#id8" role="doc-backlink">Quest Body Tracking (Limited Support)</a><a class="headerlink" href="#quest-body-tracking-limited-support" title="Link to this heading">#</a></h2>
+<p>Meta Quest headsets expose inside-out body tracking (IOBT) to WebXR sessions.
+The CloudXR WebXR client will stream this data when the Quest browser grants the
+<code class="docutils literal notranslate"><span class="pre">body-tracking</span></code> feature.</p>
+<p>However, in the current version the Quest IOBT skeleton is mapped to the PICO BD
+24-joint layout before being sent to the server. This means the server always
+receives data in the <code class="docutils literal notranslate"><span class="pre">XR_BD_body_tracking</span></code> joint format regardless of the
+source headset.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Quest body tracking does not require external trackers. It uses the
+headset’s built-in cameras. Tracking quality may differ from the
+tracker-based PICO solution, particularly for lower-body joints.</p>
 </div>
 </section>
 </section>
@@ -451,20 +655,20 @@ data from the new plugin’s source node.</p>
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="../references/build.html"
+       href="add_device.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Build System</p>
+        <p class="prev-next-title">Add a New Device</p>
       </div>
     </a>
     <a class="right-next"
-       href="trackers.html"
+       href="../references/retargeting.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Device Trackers</p>
+        <p class="prev-next-title">Retargeting Interface</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -489,7 +693,18 @@ data from the new plugin’s source node.</p>
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#isaac-teleop-device-plugin-c-level">Isaac Teleop device plugin (C++ level)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setting-up-pico-motion-trackers">Setting Up PICO Motion Trackers</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#instructions">Instructions</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-full-body-tracking-works">How Full Body Tracking Works</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#skeleton-profile">Skeleton profile</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#joint-skeleton-24-joints">Joint skeleton (24 joints)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#server-side-access">Server-side access</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#quest-body-tracking-limited-support">Quest Body Tracking (Limited Support)</a></li>
 </ul>
   </nav></div>
 
