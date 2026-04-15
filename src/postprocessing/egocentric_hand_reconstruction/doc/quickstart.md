@@ -53,6 +53,12 @@ To use a remote video, set the following environment variables for credentials:
 | `BUCKET_REGION` | No | Region (default: `us-east-1`) |
 | `BUCKET_ENDPOINT_URL` | No | Custom endpoint for S3-compatible storage |
 
+By default, the pipeline reads data files from and writes results to the `outputs/` directory. Set `OUTPUTS_DIR` to use a different location:
+
+```bash
+OUTPUTS_DIR=/path/to/outputs ./scripts/run_reconstruction.sh path/to/your_video.mp4
+```
+
 The pipeline will:
 1. Copy or download the video to `outputs/`.
 2. Run ViPE to estimate camera poses.

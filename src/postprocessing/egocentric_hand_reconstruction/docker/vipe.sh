@@ -59,6 +59,7 @@ build_image() {
 }
 
 run_container() {
+    local outputs_dir="${OUTPUTS_DIR:-${PROJECT_ROOT}/outputs}"
     print_info "Running container: ${CONTAINER_NAME}"
 
     # Remove existing container if it exists
@@ -68,15 +69,24 @@ run_container() {
     fi
 
     # Create necessary directories
-    mkdir -p "${PROJECT_ROOT}/outputs"
+    mkdir -p "${outputs_dir}"
+
+    # Use interactive TTY only when stdin is a terminal
+    local tty_flags=""
+    local name_flags="--name ${CONTAINER_NAME}"
+    if [ -t 0 ]; then
+        tty_flags="-it"
+    else
+        name_flags=""
+    fi
 
     # Run with GPU support and volume mount
-    docker run -it \
+    docker run ${tty_flags} \
         --rm \
         --gpus all \
         --shm-size 16g \
-        --name "${CONTAINER_NAME}" \
-        -v "${PROJECT_ROOT}/outputs:/home/appuser/ViPE/vipe_results" \
+        ${name_flags} \
+        -v "${outputs_dir}:/home/appuser/ViPE/vipe_results" \
         -w /home/appuser/ViPE \
         "${IMAGE_NAME}" \
         "$@"

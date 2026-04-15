@@ -20,7 +20,7 @@ fi
 
 # Configuration
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUTPUTS_DIR="${PROJECT_ROOT}/outputs"
+OUTPUTS_DIR="${OUTPUTS_DIR:-${PROJECT_ROOT}/outputs}"
 VIDEO_PATH="$1"
 VIDEO_FULL_PATH=""
 VIDEO_FILE=""
@@ -50,6 +50,20 @@ fi
 
 # Extract video name (without extension)
 VIDEO_NAME="${VIDEO_FILE%.*}"
+
+# Check for required licensed data (needed by Dyn-HaMR in Step 3)
+missing=0
+if [ ! -f "${OUTPUTS_DIR}/MANO_RIGHT.pkl" ]; then
+    echo "Error: MANO_RIGHT.pkl not found in ${OUTPUTS_DIR}/"
+    missing=1
+fi
+if [ ! -d "${OUTPUTS_DIR}/BMC" ] || [ -z "$(ls -A "${OUTPUTS_DIR}/BMC/" 2>/dev/null)" ]; then
+    echo "Error: BMC data not found in ${OUTPUTS_DIR}/BMC/"
+    missing=1
+fi
+if [ "$missing" -eq 1 ]; then
+    exit 1
+fi
 
 echo "Processing video: ${VIDEO_PATH}"
 echo "Video name: ${VIDEO_NAME}"
@@ -116,4 +130,4 @@ echo ""
 echo "=========================================="
 echo "Pipeline Complete!"
 echo "=========================================="
-echo "Results saved to: ${PROJECT_ROOT}/outputs/logs/"
+echo "Results saved to: ${OUTPUTS_DIR}/logs/"
