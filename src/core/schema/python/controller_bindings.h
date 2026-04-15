@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 // Python bindings for the Controller FlatBuffer schema.
@@ -119,8 +119,7 @@ inline void bind_controller(py::module& m)
                      return obj;
                  }),
              py::arg("data"), py::arg("timestamp"))
-        .def_property_readonly("data",
-                               [](const ControllerSnapshotRecordT& self) -> std::shared_ptr<ControllerSnapshotT>
+        .def_property_readonly("data", [](const ControllerSnapshotRecordT& self) -> std::shared_ptr<ControllerSnapshotT>
                                { return self.data; })
         .def_readonly("timestamp", &ControllerSnapshotRecordT::timestamp)
         .def("__repr__",
@@ -139,8 +138,7 @@ inline void bind_controller(py::module& m)
                      return obj;
                  }),
              py::arg("data"))
-        .def_property_readonly("data",
-                               [](const ControllerSnapshotTrackedT& self) -> std::shared_ptr<ControllerSnapshotT>
+        .def_property_readonly("data", [](const ControllerSnapshotTrackedT& self) -> std::shared_ptr<ControllerSnapshotT>
                                { return self.data; })
         .def("__repr__",
              [](const ControllerSnapshotTrackedT& self) {

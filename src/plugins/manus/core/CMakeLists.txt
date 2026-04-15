@@ -38,4 +38,5 @@ set_target_properties(manus_plugin_core PROPERTIES
 install(TARGETS manus_plugin_core
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    COMPONENT manus
 )

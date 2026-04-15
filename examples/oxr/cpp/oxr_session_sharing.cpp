@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #include <deviceio_session/deviceio_session.hpp>
@@ -85,8 +85,7 @@ try
 
         if (i % 3 == 0)
         {
-            std::cout << "Frame " << i << ": "
-                      << "Hands=" << (left_tracked.data ? "ACTIVE" : "INACTIVE") << " | "
+            std::cout << "Frame " << i << ": " << "Hands=" << (left_tracked.data ? "ACTIVE" : "INACTIVE") << " | "
                       << "Head=" << ((head_tracked.data && head_tracked.data->is_valid) ? "VALID" : "INVALID");
             if (head_tracked.data && head_tracked.data->is_valid && head_tracked.data->pose)
             {

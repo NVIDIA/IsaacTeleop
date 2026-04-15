@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -24,6 +24,10 @@ extern "C"
     XRAPI_ATTR XrResult XRAPI_CALL xrGetInstanceProcAddr(XrInstance instance,
                                                          const char* name,
                                                          PFN_xrVoidFunction* function);
+    XRAPI_ATTR XrResult XRAPI_CALL xrEnumerateInstanceExtensionProperties(const char* layerName,
+                                                                           uint32_t propertyCapacityInput,
+                                                                           uint32_t* propertyCountOutput,
+                                                                           XrExtensionProperties* properties);
 }
 
 namespace core

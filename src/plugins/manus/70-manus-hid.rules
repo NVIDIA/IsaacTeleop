@@ -1,0 +1,5 @@
+# HIDAPI/libusb
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="3325", MODE:="0666"
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="1915", ATTRS{idProduct}=="83fd", MODE:="0666"
+# HIDAPI/hidraw
+KERNEL=="hidraw*", ATTRS{idVendor}=="3325", MODE:="0666"

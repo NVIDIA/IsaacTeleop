@@ -29,34 +29,31 @@ PYBIND11_MODULE(_deviceio_trackers, m)
         .def(
             "get_left_hand",
             [](const core::HandTracker& self, const core::ITrackerSession& session) -> core::HandPoseTrackedT
-            { return self.get_left_hand(session); },
-            py::arg("session"))
+            { return self.get_left_hand(session); }, py::arg("session"))
         .def(
             "get_right_hand",
             [](const core::HandTracker& self, const core::ITrackerSession& session) -> core::HandPoseTrackedT
-            { return self.get_right_hand(session); },
-            py::arg("session"));
+            { return self.get_right_hand(session); }, py::arg("session"))
+        .def_static("get_joint_name", &core::HandTracker::get_joint_name);
 
     py::class_<core::HeadTracker, core::ITracker, std::shared_ptr<core::HeadTracker>>(m, "HeadTracker")
         .def(py::init<>())
         .def(
-            "get_head",
-            [](const core::HeadTracker& self, const core::ITrackerSession& session) -> core::HeadPoseTrackedT
-            { return self.get_head(session); },
-            py::arg("session"));
+            "get_head", [](const core::HeadTracker& self, const core::ITrackerSession& session) -> core::HeadPoseTrackedT
+            { return self.get_head(session); }, py::arg("session"));
 
     py::class_<core::ControllerTracker, core::ITracker, std::shared_ptr<core::ControllerTracker>>(m, "ControllerTracker")
         .def(py::init<>())
         .def(
             "get_left_controller",
             [](const core::ControllerTracker& self, const core::ITrackerSession& session) -> core::ControllerSnapshotTrackedT
-            { return self.get_left_controller(session); },
-            py::arg("session"), "Get the left controller tracked state (data is None if inactive)")
+            { return self.get_left_controller(session); }, py::arg("session"),
+            "Get the left controller tracked state (data is None if inactive)")
         .def(
             "get_right_controller",
             [](const core::ControllerTracker& self, const core::ITrackerSession& session) -> core::ControllerSnapshotTrackedT
-            { return self.get_right_controller(session); },
-            py::arg("session"), "Get the right controller tracked state (data is None if inactive)");
+            { return self.get_right_controller(session); }, py::arg("session"),
+            "Get the right controller tracked state (data is None if inactive)");
 
     py::class_<core::FrameMetadataTrackerOak, core::ITracker, std::shared_ptr<core::FrameMetadataTrackerOak>>(
         m, "FrameMetadataTrackerOak")
@@ -92,8 +89,8 @@ PYBIND11_MODULE(_deviceio_trackers, m)
         .def(
             "get_body_pose",
             [](const core::FullBodyTrackerPico& self, const core::ITrackerSession& session) -> core::FullBodyPosePicoTrackedT
-            { return self.get_body_pose(session); },
-            py::arg("session"), "Get full body pose tracked state (data is None if inactive)");
+            { return self.get_body_pose(session); }, py::arg("session"),
+            "Get full body pose tracked state (data is None if inactive)");
 
     m.attr("NUM_JOINTS") = static_cast<int>(core::HandJoint_NUM_JOINTS);
     m.attr("JOINT_PALM") = static_cast<int>(core::HandJoint_PALM);

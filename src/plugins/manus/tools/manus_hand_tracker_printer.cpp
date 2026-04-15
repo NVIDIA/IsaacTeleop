@@ -1,5 +1,7 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
+
+#include "manus_hand_visualizer.hpp"
 
 #include <core/manus_hand_tracking_plugin.hpp>
 
@@ -16,14 +18,34 @@ try
     (void)argc;
     (void)argv;
 
-    std::cout << "Initializing Manus Tracker..." << std::endl;
+    std::cout << "[Manus] Initializing Manus Tracker..." << std::endl;
 
     // Initialize the Manus tracker
     auto& tracker = plugins::manus::ManusTracker::instance("ManusHandPrinter");
 
-    std::cout << "Press Ctrl+C to stop. Printing joint data..." << std::endl;
+    // Start Vulkan visualizer in a background thread.
+    // If X11 or Vulkan is unavailable the thread exits cleanly and printing
+    // continues without the window.
+    // std::jthread automatically requests stop and joins on destruction,
+    // preventing the thread from outliving the tracker singleton.
+    std::jthread vis_thread(
+        [&tracker](std::stop_token st)
+        {
+            try
+            {
+                plugins::manus::HandVisualizer vis;
+                vis.run(tracker, std::move(st));
+            }
+            catch (const std::exception& e)
+            {
+                std::cerr << "[Vis] " << e.what() << " — running without visualizer" << std::endl;
+            }
+        });
+
+    std::cout << "[Manus] Press Ctrl+C to stop. Printing joint data..." << std::endl;
 
     int frame = 0;
+    bool waiting_printed = false;
     while (true)
     {
         // Get glove data from Manus SDK
@@ -32,12 +54,17 @@ try
 
         if (left_nodes.empty() && right_nodes.empty())
         {
-            std::cout << "No data available yet..." << std::endl;
+            if (!waiting_printed)
+            {
+                std::cout << "[Manus] Waiting for gloves..." << std::endl;
+                waiting_printed = true;
+            }
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
             continue;
         }
+        waiting_printed = false;
 
-        std::cout << "\n=== Frame " << frame << " ===" << std::endl;
+        std::cout << "\n[Manus] === Frame " << frame << " ===" << std::endl;
 
         // Helper lambda to print hand data
         auto print_hand = [](const std::string& side, const std::vector<SkeletonNode>& nodes)
@@ -47,22 +74,21 @@ try
                 return;
             }
 
-            std::cout << "\n" << side << " hand (" << nodes.size() << " joints):" << std::endl;
+            std::cout << "[Manus] " << side << " hand (" << nodes.size() << " joints):" << std::endl;
 
             for (size_t i = 0; i < std::min(nodes.size(), static_cast<size_t>(5)); ++i)
             {
                 const auto& pos = nodes[i].transform.position;
                 const auto& ori = nodes[i].transform.rotation;
 
-                std::cout << "  Joint " << i << ": "
-                          << "pos=[" << std::fixed << std::setprecision(3) << pos.x << ", " << pos.y << ", " << pos.z
-                          << "] "
-                          << "ori=[" << ori.x << ", " << ori.y << ", " << ori.z << ", " << ori.w << "]" << std::endl;
+                std::cout << "[Manus]   Joint " << i << ": " << "pos=[" << std::fixed << std::setprecision(3) << pos.x
+                          << ", " << pos.y << ", " << pos.z << "] " << "ori=[" << ori.x << ", " << ori.y << ", "
+                          << ori.z << ", " << ori.w << "]" << std::endl;
             }
 
             if (nodes.size() > 5)
             {
-                std::cout << "  ... (" << (nodes.size() - 5) << " more joints)" << std::endl;
+                std::cout << "[Manus]   ... (" << (nodes.size() - 5) << " more joints)" << std::endl;
             }
         };
 

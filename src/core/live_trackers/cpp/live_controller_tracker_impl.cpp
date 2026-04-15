@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #include "live_controller_tracker_impl.hpp"
@@ -254,9 +254,8 @@ LiveControllerTrackerImpl::LiveControllerTrackerImpl(const OpenXRSessionHandles&
 {
     // Suggest interaction profile bindings (chained to this action context)
     std::vector<XrActionSuggestedBinding> bindings;
-    auto add_binding = [&](XrAction action, const char* path) {
-        bindings.push_back({ action, xr_path_from_string(core_funcs_, handles.instance, path) });
-    };
+    auto add_binding = [&](XrAction action, const char* path)
+    { bindings.push_back({ action, xr_path_from_string(core_funcs_, handles.instance, path) }); };
 
     add_binding(grip_pose_action_, "/user/hand/left/input/grip/pose");
     add_binding(grip_pose_action_, "/user/hand/right/input/grip/pose");

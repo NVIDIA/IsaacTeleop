@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 // Python bindings for the Pedals FlatBuffer schema.
@@ -63,9 +63,9 @@ inline void bind_pedals(py::module& m)
                      return obj;
                  }),
              py::arg("data"), py::arg("timestamp"))
-        .def_property_readonly("data",
-                               [](const Generic3AxisPedalOutputRecordT& self) -> std::shared_ptr<Generic3AxisPedalOutputT>
-                               { return self.data; })
+        .def_property_readonly(
+            "data", [](const Generic3AxisPedalOutputRecordT& self) -> std::shared_ptr<Generic3AxisPedalOutputT>
+            { return self.data; })
         .def_readonly("timestamp", &Generic3AxisPedalOutputRecordT::timestamp)
         .def("__repr__",
              [](const Generic3AxisPedalOutputRecordT& self)
@@ -85,9 +85,9 @@ inline void bind_pedals(py::module& m)
                      return obj;
                  }),
              py::arg("data"))
-        .def_property_readonly("data",
-                               [](const Generic3AxisPedalOutputTrackedT& self) -> std::shared_ptr<Generic3AxisPedalOutputT>
-                               { return self.data; })
+        .def_property_readonly(
+            "data", [](const Generic3AxisPedalOutputTrackedT& self) -> std::shared_ptr<Generic3AxisPedalOutputT>
+            { return self.data; })
         .def("__repr__",
              [](const Generic3AxisPedalOutputTrackedT& self)
              {
