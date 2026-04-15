@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #include "live_hand_tracker_impl.hpp"
@@ -25,7 +25,7 @@ std::unique_ptr<HandMcapChannels> LiveHandTrackerImpl::create_mcap_channels(mcap
 {
     return std::make_unique<HandMcapChannels>(
         writer, base_name, HandRecordingTraits::schema_name,
-        std::vector<std::string>(HandRecordingTraits::channels.begin(), HandRecordingTraits::channels.end()));
+        std::vector<std::string>(HandRecordingTraits::recording_channels.begin(), HandRecordingTraits::recording_channels.end()));
 }
 
 LiveHandTrackerImpl::LiveHandTrackerImpl(const OpenXRSessionHandles& handles,
