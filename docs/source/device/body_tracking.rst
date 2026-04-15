@@ -15,7 +15,7 @@ and the BD skeleton format used on the server.
 
 .. note::
 
-   Meta Quest 3 also exposes body tracking to WebXR via inside-out body
+   Meta Quest 3/3S also exposes body tracking to WebXR via inside-out body
    tracking (IOBT), and the CloudXR client will stream it. However the Quest
    skeleton is mapped to the PICO BD 24-joint layout in the current version,
    and accuracy is lower since there are no physical trackers. See
@@ -36,9 +36,9 @@ version that supports body tracking. The following configurations are supported:
 - **5 trackers:** best tracking quality across all 24 joints.
   Two wear modes are available: 2 ankles + 2 wrists + 1 waist, or 2 ankles +
   2 thighs + 1 waist.
-- **3 trackers:** 2 ankles + 1 waist -- upper-body joints are estimated from the
+- **3 trackers:** 2 ankles + 1 waist. Upper-body joints are estimated from the
   headset and controllers; lower-body tracking remains accurate.
-- **2 trackers:** 2 ankles only -- lower-body tracking with upper-body
+- **2 trackers:** 2 ankles only. Provides lower-body tracking with upper-body
   estimation. Least hardware, but reduced accuracy for waist and sitting/lying
   postures.
 
@@ -76,7 +76,7 @@ tracking profile currently supported by the CloudXR runtime.
 When the CloudXR WebXR client starts a session, it requests the ``body-tracking``
 feature from the browser. Each frame, the CloudXR client library reads the body
 joint data provided by the PICO runtime and streams it to the server. No
-additional configuration is needed in the WebXR client -- body tracking is
+additional configuration is needed in the WebXR client; body tracking is
 enabled automatically when the device supports it.
 
 Joint skeleton (24 joints)
@@ -184,10 +184,10 @@ joint ``is_valid`` flags to determine which joints have valid poses.
 Troubleshooting
 ~~~~~~~~~~~~~~~
 
-- **No body tracking data arrives on the server** -- verify all PICO motion
+- **No body tracking data arrives on the server.** Verify all PICO motion
   trackers are paired, powered on, and calibrated. Confirm the PICO browser
   is up to date.
-- **Some joints report** ``is_valid: false`` -- the PICO runtime may
+- **Some joints report** ``is_valid: false``. The PICO runtime may
   temporarily lose tracking for individual joints during fast movement or
   partial occlusion. These joints will recover automatically once tracking is
   re-acquired.
@@ -206,6 +206,6 @@ source headset.
 
 .. note::
 
-   Quest body tracking does not require external trackers -- it uses the
+   Quest body tracking does not require external trackers. It uses the
    headset's built-in cameras. Tracking quality may differ from the
    tracker-based PICO solution, particularly for lower-body joints.
