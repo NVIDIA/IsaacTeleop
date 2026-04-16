@@ -81,7 +81,7 @@ try
     std::cout << "  OpenXR session created" << std::endl;
 
     std::cout << "[Step 3] Creating DeviceIOSession..." << std::endl;
-    auto session = core::DeviceIOSession::run(trackers, oxr_session->get_handles());
+    auto session = core::DeviceIOSession::createLiveSession(trackers, oxr_session->get_handles());
 
     std::cout << "[Step 4] Reading samples (press Ctrl+C to stop)..." << std::endl;
 

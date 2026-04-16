@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -65,8 +65,8 @@ with oxr.OpenXRSession("SessionSharingExample", extensions) as oxr_session:
 
     # run() throws exception on failure
     with (
-        deviceio.DeviceIOSession.run([hand_tracker], handles) as session1,
-        deviceio.DeviceIOSession.run([head_tracker], handles) as session2,
+        deviceio.DeviceIOSession.createLiveSession([hand_tracker], handles) as session1,
+        deviceio.DeviceIOSession.createLiveSession([head_tracker], handles) as session2,
     ):
         print("  ✓ Manager 1 using shared session")
         print()

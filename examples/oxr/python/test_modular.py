@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -40,7 +40,7 @@ with oxr.OpenXRSession("ModularTest", required_extensions) as oxr_session:
     handles = oxr_session.get_handles()
 
     # Run deviceio session with trackers (throws exception on failure)
-    with deviceio.DeviceIOSession.run(trackers, handles) as session:
+    with deviceio.DeviceIOSession.createLiveSession(trackers, handles) as session:
         print("✅ OpenXR session initialized")
         print()
 

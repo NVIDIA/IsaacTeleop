@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #include <core/manus_hand_tracking_plugin.hpp>
@@ -128,7 +128,7 @@ void ManusTracker::initialize(const std::string& app_name) noexcept(false)
             handles.instance, handles.session, XR_HAND_RIGHT_EXT, handles.space);
         m_time_converter.emplace(handles);
 
-        m_deviceio_session = core::DeviceIOSession::run(trackers, handles);
+        m_deviceio_session = core::DeviceIOSession::createLiveSession(trackers, handles);
 
         std::cout << "OpenXR session, HandInjector and DeviceIOSession initialized" << std::endl;
         success = true;

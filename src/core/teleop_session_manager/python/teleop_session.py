@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -479,7 +479,7 @@ class TeleopSession:
         DeviceIO session, plugins, and UI. All preparation was done in __init__.
 
         When ``config.oxr_handles`` is set, the provided handles are passed
-        directly to ``DeviceIOSession.run()`` and no internal OpenXR session
+        directly to ``DeviceIOSession.createLiveSession()`` and no internal OpenXR session
         is created.  The caller is responsible for the external session lifetime.
 
         Returns:
@@ -511,7 +511,7 @@ class TeleopSession:
 
         # Create DeviceIO session with all trackers
         self.deviceio_session = self._exit_stack.enter_context(
-            deviceio.DeviceIOSession.run(trackers, handles)
+            deviceio.DeviceIOSession.createLiveSession(trackers, handles)
         )
 
         # Initialize plugins (if any)

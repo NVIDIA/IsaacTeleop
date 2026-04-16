@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -8,7 +8,7 @@ Demonstrates the modular architecture with MCAP data capture:
 - Create independent trackers
 - Add only the trackers you need
 - Record all tracker data to an MCAP file for playback/analysis
-- Pass mcap_filename and mcap_channels to DeviceIOSession.run() to enable recording
+- Pass mcap_filename and mcap_channels to DeviceIOSession.createLiveSession() to enable recording
 """
 
 import sys
@@ -51,10 +51,10 @@ def main():
 
         # Run deviceio session with MCAP recording enabled.
         print("\nRunning deviceio session with MCAP recording...")
-        recording_config = deviceio.McapRecordingConfig(
+        recording_config = deviceio.McapConfig(
             mcap_filename, [(hand_tracker, "hands"), (head_tracker, "head")]
         )
-        with deviceio.DeviceIOSession.run(
+        with deviceio.DeviceIOSession.createLiveSession(
             trackers, handles, recording_config
         ) as session:
             print("✓ DeviceIO session initialized with all trackers!")

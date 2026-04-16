@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -39,7 +39,7 @@ public:
  *       address (`&tracker`), not by value equality. Callers must pass the
  *       same underlying `ITracker` object that was registered with the session
  *       — for example the same instance whose `shared_ptr` was in the vector
- *       passed to `DeviceIOSession::run`. Copying that `shared_ptr` (or taking
+ *       passed to `DeviceIOSession::createLiveSession`. Copying that `shared_ptr` (or taking
  *       another reference/pointer to the same tracker object) is fine. Creating
  *       a new, distinct `ITracker` instance, even if it is logically equivalent,
  *       will not match the map and typically yields "Tracker implementation not found".
