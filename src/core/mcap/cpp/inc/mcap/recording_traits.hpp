@@ -52,4 +52,10 @@ struct OakRecordingTraits
     static constexpr std::string_view schema_name = "core.FrameMetadataOakRecord";
 };
 
+struct MessageChannelRecordingTraits
+{
+    static constexpr std::string_view schema_name = "core.MessageChannelMessagesRecord";
+    static constexpr std::array channels = { "message_channel" };
+};
+
 } // namespace core

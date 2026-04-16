@@ -28,6 +28,19 @@ SPDX-License-Identifier: Apache-2.0
 
 - **`live_trackers`** should **`PUBLIC` link `oxr::oxr_utils`** (OpenXR headers come through that INTERFACE target) because headers/sources use OpenXR / oxr types.
 
+## New tracker MCAP checklist
+
+When adding MCAP support to a new tracker impl, all of the following are required together—missing any one causes a build failure or wrong timestamps:
+
+1. Add `XrTimeConverter time_converter_` and `int64_t last_update_time_ = 0` members to the impl header.
+2. Initialize `time_converter_(handles)` in the constructor initializer list.
+3. Declare `update(int64_t monotonic_time_ns) override` (not `XrTime`)—they are the same C++ type (`int64_t`) but semantically different; the base interface uses monotonic ns.
+4. At the top of `update()`: store `last_update_time_ = monotonic_time_ns` and compute `const XrTime xr_time = time_converter_.convert_monotonic_ns_to_xrtime(monotonic_time_ns)`.
+5. Use `DeviceDataTimestamp(last_update_time_, last_update_time_, xr_time)` — not `(time, time, time)`.
+6. Add `MessageChannelRecordingTraits` (or equivalent) to `recording_traits.hpp`.
+7. **Always build** (`cmake --build <build_dir> -- -j$(nproc)`) before treating work as done. Pre-commit alone does not catch compile errors or clang-format violations enforced at build time.
+8. Read `AGENTS.md` before starting. Not after CI breaks.
+
 ## Related docs
 
 - Session update loop: [`../deviceio_session/AGENTS.md`](../deviceio_session/AGENTS.md)

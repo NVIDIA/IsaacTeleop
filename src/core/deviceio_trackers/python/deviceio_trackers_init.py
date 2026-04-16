@@ -8,6 +8,8 @@ from ._deviceio_trackers import (
     HandTracker,
     HeadTracker,
     ControllerTracker,
+    MessageChannelStatus,
+    MessageChannelTracker,
     FrameMetadataTrackerOak,
     Generic3AxisPedalTracker,
     FullBodyTrackerPico,
@@ -21,6 +23,8 @@ from ._deviceio_trackers import (
 
 __all__ = [
     "ControllerTracker",
+    "MessageChannelStatus",
+    "MessageChannelTracker",
     "FrameMetadataTrackerOak",
     "FullBodyTrackerPico",
     "Generic3AxisPedalTracker",

@@ -7,9 +7,15 @@
 #include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
+#include <deviceio_trackers/message_channel_tracker.hpp>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 #include <schema/hand_generated.h>
+#include <schema/message_channel_generated.h>
+
+#include <array>
+#include <cstring>
+#include <stdexcept>
 
 namespace py = pybind11;
 
@@ -57,6 +63,47 @@ PYBIND11_MODULE(_deviceio_trackers, m)
             [](const core::ControllerTracker& self, const core::ITrackerSession& session) -> core::ControllerSnapshotTrackedT
             { return self.get_right_controller(session); },
             py::arg("session"), "Get the right controller tracked state (data is None if inactive)");
+
+    py::enum_<core::MessageChannelStatus>(m, "MessageChannelStatus")
+        .value("CONNECTING", core::MessageChannelStatus::CONNECTING)
+        .value("CONNECTED", core::MessageChannelStatus::CONNECTED)
+        .value("SHUTTING", core::MessageChannelStatus::SHUTTING)
+        .value("DISCONNECTED", core::MessageChannelStatus::DISCONNECTED)
+        .value("UNKNOWN", core::MessageChannelStatus::UNKNOWN);
+
+    py::class_<core::MessageChannelTracker, core::ITracker, std::shared_ptr<core::MessageChannelTracker>>(
+        m, "MessageChannelTracker")
+        .def(py::init(
+                 [](py::bytes channel_uuid, const std::string& channel_name, size_t max_message_size)
+                 {
+                     std::string uuid_str = channel_uuid;
+                     if (uuid_str.size() != core::MessageChannelTracker::CHANNEL_UUID_SIZE)
+                     {
+                         throw std::invalid_argument("MessageChannelTracker: channel_uuid must be exactly 16 bytes");
+                     }
+                     std::array<uint8_t, core::MessageChannelTracker::CHANNEL_UUID_SIZE> uuid{};
+                     std::memcpy(uuid.data(), uuid_str.data(), uuid.size());
+                     return std::make_shared<core::MessageChannelTracker>(uuid, channel_name, max_message_size);
+                 }),
+             py::arg("channel_uuid"), py::arg("channel_name") = "",
+             py::arg("max_message_size") = core::MessageChannelTracker::DEFAULT_MAX_MESSAGE_SIZE,
+             "Construct a MessageChannelTracker for XR_NV_opaque_data_channel")
+        .def(
+            "get_messages",
+            [](const core::MessageChannelTracker& self,
+               const core::ITrackerSession& session) -> core::MessageChannelMessagesTrackedT
+            { return self.get_messages(session); },
+            py::arg("session"), "Get all messages drained during the last update (possibly empty)")
+        .def(
+            "get_status",
+            [](const core::MessageChannelTracker& self, const core::ITrackerSession& session) -> core::MessageChannelStatus
+            { return self.get_status(session); },
+            py::arg("session"), "Get current channel connection state")
+        .def(
+            "send_message",
+            [](const core::MessageChannelTracker& self, const core::ITrackerSession& session,
+               const core::MessageChannelMessagesT& message) { self.send_message(session, message.payload); },
+            py::arg("session"), py::arg("message"), "Send a MessageChannelMessages payload over the message channel");
 
     py::class_<core::FrameMetadataTrackerOak, core::ITracker, std::shared_ptr<core::FrameMetadataTrackerOak>>(
         m, "FrameMetadataTrackerOak")

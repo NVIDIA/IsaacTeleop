@@ -9,6 +9,7 @@
 #include "live_generic_3axis_pedal_tracker_impl.hpp"
 #include "live_hand_tracker_impl.hpp"
 #include "live_head_tracker_impl.hpp"
+#include "live_message_channel_tracker_impl.hpp"
 
 #include <deviceio_trackers/controller_tracker.hpp>
 #include <deviceio_trackers/frame_metadata_tracker_oak.hpp>
@@ -16,6 +17,7 @@
 #include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
+#include <deviceio_trackers/message_channel_tracker.hpp>
 #include <oxr_utils/oxr_time.hpp>
 
 #include <cassert>
@@ -59,6 +61,12 @@ std::unique_ptr<ITrackerImpl> try_create_controller_impl(LiveDeviceIOFactory& fa
     return typed ? factory.create_controller_tracker_impl(typed) : nullptr;
 }
 
+std::unique_ptr<ITrackerImpl> try_create_message_channel_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const MessageChannelTracker*>(&tracker);
+    return typed ? factory.create_message_channel_tracker_impl(typed) : nullptr;
+}
+
 std::unique_ptr<ITrackerImpl> try_create_full_body_pico_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
 {
     auto* typed = dynamic_cast<const FullBodyTrackerPico*>(&tracker);
@@ -91,6 +99,7 @@ inline const TrackerDispatchEntry k_tracker_dispatch[] = {
     { &try_add_extensions<HeadTracker, LiveHeadTrackerImpl>, &try_create_head_impl },
     { &try_add_extensions<HandTracker, LiveHandTrackerImpl>, &try_create_hand_impl },
     { &try_add_extensions<ControllerTracker, LiveControllerTrackerImpl>, &try_create_controller_impl },
+    { &try_add_extensions<MessageChannelTracker, LiveMessageChannelTrackerImpl>, &try_create_message_channel_impl },
     { &try_add_extensions<FullBodyTrackerPico, LiveFullBodyTrackerPicoImpl>, &try_create_full_body_pico_impl },
     { &try_add_extensions<Generic3AxisPedalTracker, LiveGeneric3AxisPedalTrackerImpl>, &try_create_generic_pedal_impl },
     { &try_add_extensions<FrameMetadataTrackerOak, LiveFrameMetadataTrackerOakImpl>, &try_create_oak_impl },
@@ -200,6 +209,17 @@ std::unique_ptr<IControllerTrackerImpl> LiveDeviceIOFactory::create_controller_t
         channels = LiveControllerTrackerImpl::create_mcap_channels(*writer_, get_name(tracker));
     }
     return std::make_unique<LiveControllerTrackerImpl>(handles_, std::move(channels));
+}
+
+std::unique_ptr<IMessageChannelTrackerImpl> LiveDeviceIOFactory::create_message_channel_tracker_impl(
+    const MessageChannelTracker* tracker)
+{
+    std::unique_ptr<MessageChannelMcapChannels> channels;
+    if (should_record(tracker))
+    {
+        channels = LiveMessageChannelTrackerImpl::create_mcap_channels(*writer_, get_name(tracker));
+    }
+    return std::make_unique<LiveMessageChannelTrackerImpl>(handles_, tracker, std::move(channels));
 }
 
 std::unique_ptr<IFullBodyTrackerPicoImpl> LiveDeviceIOFactory::create_full_body_tracker_pico_impl(

@@ -35,6 +35,10 @@ from ._schema import (
     Generic3AxisPedalOutput,
     Generic3AxisPedalOutputTrackedT,
     Generic3AxisPedalOutputRecord,
+    # Message channel types.
+    MessageChannelMessages,
+    MessageChannelMessagesTrackedT,
+    MessageChannelMessagesRecord,
     # Camera-related types.
     StreamType,
     FrameMetadataOak,
@@ -78,6 +82,10 @@ __all__ = [
     "Generic3AxisPedalOutput",
     "Generic3AxisPedalOutputTrackedT",
     "Generic3AxisPedalOutputRecord",
+    # Message channel types.
+    "MessageChannelMessages",
+    "MessageChannelMessagesTrackedT",
+    "MessageChannelMessagesRecord",
     # Camera types.
     "StreamType",
     "FrameMetadataOak",
