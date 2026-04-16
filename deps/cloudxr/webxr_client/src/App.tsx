@@ -37,7 +37,7 @@ import { overridePressureObserver } from '@helpers/overridePressureObserver';
 import { kPerformanceOptions } from '@helpers/PerformanceProfiles';
 import CloudXRComponent from '@helpers/react/CloudXRComponent';
 import { SimpleEnvironment } from '@helpers/react/SimpleEnvironment';
-import { getControlPanelPositionVector } from '@helpers/react/utils';
+import { getControlPanelPositionVector, parseTeleopModeFromHash, type TeleopMode } from '@helpers/react/utils';
 import * as CloudXR from '@nvidia/cloudxr';
 import { getResolutionValidationError } from '@nvidia/cloudxr';
 import { signal, computed } from '@preact/signals-react';
@@ -310,6 +310,15 @@ function App() {
     const ui = new CloudXR2DUI(() => {
       setConfigVersion(v => v + 1);
     });
+    // Resolve teleop mode + subproject from URL hash, falling back to localStorage, then 'sim'.
+    const modeInfo = parseTeleopModeFromHash(window.location.hash);
+    const resolvedMode: TeleopMode =
+      modeInfo?.mode ??
+      (localStorage.getItem('cxr.isaac.teleopMode') as TeleopMode | null) ??
+      'sim';
+    const resolvedSubproject = modeInfo?.subproject;
+    try { localStorage.setItem('cxr.isaac.teleopMode', resolvedMode); } catch { /* */ }
+
     // URL query params override localStorage so bookmarked links always win.
     const urlSeeds: Record<string, string> = {};
     const p = new URLSearchParams(window.location.search);
@@ -317,7 +326,7 @@ function App() {
       const v = p.get(key);
       if (v !== null) urlSeeds[key] = v;
     }
-    ui.initialize(Object.keys(urlSeeds).length > 0 ? urlSeeds : undefined);
+    ui.initialize(Object.keys(urlSeeds).length > 0 ? urlSeeds : undefined, resolvedMode, resolvedSubproject);
     const doConnect = async () => {
       const config = ui.getConfiguration();
       const resolutionError = getResolutionValidationError(
@@ -824,7 +833,9 @@ function App() {
             <>
               <CloudXRComponent
                 config={config}
-                applicationName="Isaac Teleop Web Client"
+                applicationName={`Isaac Teleop Web Client (${
+                  config.teleopMode === 'real' ? 'Real' : 'Sim'
+                }${config.subproject ? `/${config.subproject}` : ''})`}
                 onStatusChange={handleStatusChange}
                 onError={error => {
                   if (cloudXR2DUI) {

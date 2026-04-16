@@ -19,13 +19,101 @@
  * Shared utilities for React examples (e.g. control panel position).
  */
 
+import type { TeleopProjectSettings } from '../TeleopProjects';
+
 export type ControlPanelPosition = 'left' | 'center' | 'right';
+
+export type TeleopMode = 'sim' | 'real';
+
+export interface TeleopModeInfo {
+  mode: TeleopMode;
+  subproject?: string;
+}
+
+/**
+ * Extracts teleop mode and optional subproject from a URL hash fragment.
+ * Follows the `#/path` convention (e.g. `#/real/gear/dexmate`).
+ * @returns mode + optional subproject, or `null` if the hash doesn't start with a known mode.
+ */
+export function parseTeleopModeFromHash(hash: string): TeleopModeInfo | null {
+  const cleaned = hash.replace(/^#\/?/, '');
+  if (!cleaned) return null;
+  const slashIndex = cleaned.indexOf('/');
+  const modeStr = (slashIndex === -1 ? cleaned : cleaned.substring(0, slashIndex)).toLowerCase();
+  if (modeStr !== 'sim' && modeStr !== 'real') return null;
+  const subproject = slashIndex === -1 ? undefined : cleaned.substring(slashIndex + 1) || undefined;
+  return { mode: modeStr, subproject };
+}
+
+/** Builds the localStorage key suffix from mode + optional subproject. */
+function projectPath(mode: TeleopMode, subproject?: string): string {
+  return subproject ? `${mode}/${subproject}` : mode;
+}
+
+/**
+ * Resolves panelHiddenAtStart for the current project.
+ * Priority: per-project localStorage > project registry setting > false.
+ */
+export function loadPanelHiddenForMode(
+  mode: TeleopMode,
+  subproject?: string,
+  projectSettings?: TeleopProjectSettings,
+): boolean {
+  try {
+    const stored = localStorage.getItem(`cxr.isaac.panelHiddenAtStart.${projectPath(mode, subproject)}`);
+    if (stored === 'true') return true;
+    if (stored === 'false') return false;
+  } catch {
+    /* localStorage unavailable */
+  }
+  return projectSettings?.panelHiddenAtStart ?? false;
+}
+
+/** Persists panelHiddenAtStart to localStorage keyed by project path. */
+export function savePanelHiddenForMode(mode: TeleopMode, subproject: string | undefined, value: boolean): void {
+  try {
+    localStorage.setItem(`cxr.isaac.panelHiddenAtStart.${projectPath(mode, subproject)}`, String(value));
+  } catch {
+    /* localStorage unavailable */
+  }
+}
+
+/**
+ * Resolves controlPanelPosition for the current project.
+ * Priority: per-project localStorage > project registry setting > 'center'.
+ */
+export function loadControlPanelPositionForProject(
+  mode: TeleopMode,
+  subproject?: string,
+  projectSettings?: TeleopProjectSettings,
+): ControlPanelPosition {
+  try {
+    const stored = localStorage.getItem(`cxr.isaac.controlPanelPosition.${projectPath(mode, subproject)}`);
+    if (stored) return parseControlPanelPosition(stored, 'center');
+  } catch {
+    /* localStorage unavailable */
+  }
+  return projectSettings?.controlPanelPosition ?? 'center';
+}
+
+/** Persists controlPanelPosition to localStorage keyed by project path. */
+export function saveControlPanelPositionForProject(mode: TeleopMode, subproject: string | undefined, value: ControlPanelPosition): void {
+  try {
+    localStorage.setItem(`cxr.isaac.controlPanelPosition.${projectPath(mode, subproject)}`, value);
+  } catch {
+    /* localStorage unavailable */
+  }
+}
 
 /** React UI options (e.g. in-XR control panel position). */
 export interface ReactUIConfig {
   controlPanelPosition?: ControlPanelPosition;
-  /** When true, the control panel is hidden at immersive XR enter (small “show control panel” control only). */
+  /** When true, the control panel is hidden at immersive XR enter (small \u201cshow control panel\u201d control only). */
   panelHiddenAtStart?: boolean;
+  /** Teleop mode resolved from URL hash or localStorage fallback. */
+  teleopMode?: TeleopMode;
+  /** Optional subproject path from the URL hash (e.g. "gear/dexmate" from #/real/gear/dexmate). */
+  subproject?: string;
 }
 
 const CONTROL_PANEL_POSITIONS: readonly ControlPanelPosition[] = ['left', 'center', 'right'];
