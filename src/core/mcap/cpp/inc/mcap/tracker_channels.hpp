@@ -122,6 +122,10 @@ private:
  * reads directly from the McapReader's data source without copying message data.
  * Callers pull deserialized records one at a time via read(channel_index).
  *
+ * Returning the Tracked native type mirrors the live tracker query API
+ * (e.g. HandTracker::get_left_hand returns HandPoseTrackedT&), keeping
+ * live and replay consumers type-compatible.
+ *
  * MCAP message data pointers are only valid until the iterator advances,
  * so read() fully deserializes each record before stepping the iterator forward.
  */
