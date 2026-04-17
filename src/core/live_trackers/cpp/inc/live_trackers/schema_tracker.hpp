@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -9,6 +9,7 @@
 #include <mcap/tracker_channels.hpp>
 
 #include <memory>
+#include <optional>
 
 namespace core
 {
@@ -33,15 +34,21 @@ public:
      * @param mcap_channels Non-owning pointer to the MCAP channel writer. Must outlive
      *        this SchemaTracker. Owned by the live tracker impl that also owns this
      *        SchemaTracker instance. Null when recording is disabled.
-     * @param mcap_channel_index 0-based sub-channel index within mcap_channels.
+     * @param mcap_channel_index 0-based sub-channel index within mcap_channels
+     *        used for per-sample recording.
+     * @param mcap_channel_latest_index If set, an additional write of only the final
+     *        sample per update() call is made to this sub-channel index within the
+     *        same mcap_channels. Unset to disable.
      */
     SchemaTracker(const OpenXRSessionHandles& handles,
                   SchemaTrackerConfig config,
                   Channels* mcap_channels = nullptr,
-                  size_t mcap_channel_index = 0)
+                  size_t mcap_channel_index = 0,
+                  std::optional<size_t> mcap_channel_latest_index = std::nullopt)
         : SchemaTrackerBase(handles, std::move(config)),
           mcap_channels_(mcap_channels),
-          mcap_channel_index_(mcap_channel_index)
+          mcap_channel_index_(mcap_channel_index),
+          mcap_channel_latest_index_(mcap_channel_latest_index)
     {
     }
 
@@ -74,6 +81,7 @@ public:
             return;
         }
 
+        DeviceDataTimestamp last_timestamp{};
         for (const auto& sample : samples_)
         {
             auto fb = flatbuffers::GetRoot<DataTableT>(sample.buffer.data());
@@ -87,6 +95,7 @@ public:
                 out_latest = std::make_shared<NativeDataT>();
             }
             fb->UnPackTo(out_latest.get());
+            last_timestamp = sample.timestamp;
 
             // write() serializes synchronously and does not retain the shared_ptr,
             // so reusing out_latest across loop iterations is safe.
@@ -95,11 +104,17 @@ public:
                 mcap_channels_->write(mcap_channel_index_, sample.timestamp, out_latest);
             }
         }
+
+        if (mcap_channel_latest_index_ && mcap_channels_ && out_latest)
+        {
+            mcap_channels_->write(*mcap_channel_latest_index_, last_timestamp, out_latest);
+        }
     }
 
 private:
     Channels* mcap_channels_;
     size_t mcap_channel_index_;
+    std::optional<size_t> mcap_channel_latest_index_;
     std::vector<SampleResult> samples_;
 };
 

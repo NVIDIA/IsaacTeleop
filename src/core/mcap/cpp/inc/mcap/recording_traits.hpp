@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -44,7 +44,7 @@ struct FullBodyPicoRecordingTraits
 struct PedalRecordingTraits
 {
     static constexpr std::string_view schema_name = "core.Generic3AxisPedalOutputRecord";
-    static constexpr std::array channels = { "pedals" };
+    static constexpr std::array channels = { "pedals", "pedals_tracked" };
 };
 
 struct OakRecordingTraits
