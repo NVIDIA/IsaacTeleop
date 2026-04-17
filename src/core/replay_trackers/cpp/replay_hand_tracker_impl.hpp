@@ -14,7 +14,7 @@
 namespace core
 {
 
-using HandMcapViewers = McapTrackerViewers<HandPoseRecord, HandPose>;
+using HandMcapViewers = McapTrackerViewers<HandPoseRecord, HandPose, HandPoseTracked>;
 
 class ReplayHandTrackerImpl : public IHandTrackerImpl
 {

@@ -41,10 +41,10 @@ void ReplayGeneric3AxisPedalTrackerImpl::update(int64_t /*monotonic_time_ns*/)
 {
     if (mcap_viewers_)
     {
-        auto pedal_data = mcap_viewers_->read(0);
-        if (pedal_data)
+        auto result = mcap_viewers_->read(0);
+        if (result)
         {
-            tracked_.data = *pedal_data;
+            tracked_ = std::move(*result);
         }
         else
         {

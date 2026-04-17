@@ -41,10 +41,10 @@ void ReplayFullBodyTrackerPicoImpl::update(int64_t /*monotonic_time_ns*/)
 {
     if (mcap_viewers_)
     {
-        auto body_data = mcap_viewers_->read(0);
-        if (body_data)
+        auto result = mcap_viewers_->read(0);
+        if (result)
         {
-            tracked_.data = *body_data;
+            tracked_ = std::move(*result);
         }
         else
         {

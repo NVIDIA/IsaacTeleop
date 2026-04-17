@@ -46,11 +46,11 @@ void ReplayControllerTrackerImpl::update(int64_t /*monotonic_time_ns*/)
 {
     if (mcap_viewers_)
     {
-        auto left_data = mcap_viewers_->read(0);
-        auto right_data = mcap_viewers_->read(1);
-        if (left_data)
+        auto left_result = mcap_viewers_->read(0);
+        auto right_result = mcap_viewers_->read(1);
+        if (left_result)
         {
-            left_tracked_.data = *left_data;
+            left_tracked_ = std::move(*left_result);
         }
         else
         {
@@ -58,9 +58,9 @@ void ReplayControllerTrackerImpl::update(int64_t /*monotonic_time_ns*/)
             left_tracked_.data.reset();
         }
 
-        if (right_data)
+        if (right_result)
         {
-            right_tracked_.data = *right_data;
+            right_tracked_ = std::move(*right_result);
         }
         else
         {
