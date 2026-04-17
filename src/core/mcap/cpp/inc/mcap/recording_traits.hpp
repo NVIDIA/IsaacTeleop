@@ -48,7 +48,7 @@ struct FullBodyPicoRecordingTraits
 struct PedalRecordingTraits
 {
     static constexpr std::string_view schema_name = "core.Generic3AxisPedalOutputRecord";
-    static constexpr std::array channels = { "pedals", "pedals_tracked" };
+    static constexpr std::array recording_channels = { "pedals", "pedals_tracked" };
     static constexpr std::array replay_channels = { "pedals_tracked" };
 };
 

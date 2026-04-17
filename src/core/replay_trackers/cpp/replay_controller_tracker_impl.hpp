@@ -14,7 +14,7 @@
 namespace core
 {
 
-using ControllerMcapViewers = McapTrackerViewers<ControllerSnapshotRecord, ControllerSnapshot>;
+using ControllerMcapViewers = McapTrackerViewers<ControllerSnapshotRecord, ControllerSnapshot, ControllerSnapshotTracked>;
 
 class ReplayControllerTrackerImpl : public IControllerTrackerImpl
 {
