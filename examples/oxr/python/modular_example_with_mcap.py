@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -8,7 +8,7 @@ Demonstrates the modular architecture with MCAP data capture:
 - Create independent trackers
 - Add only the trackers you need
 - Record all tracker data to an MCAP file for playback/analysis
-- Pass mcap_filename and mcap_channels to DeviceIOSession.run() to enable recording
+- Pass mcap_filename and mcap_channels to DeviceIOSession.createLiveSession() to enable recording
 """
 
 import sys
@@ -16,6 +16,9 @@ import time
 from datetime import datetime
 import isaacteleop.deviceio as deviceio
 import isaacteleop.oxr as oxr
+
+
+RECORD_DURATION_S = 10.0
 
 
 def main():
@@ -51,10 +54,10 @@ def main():
 
         # Run deviceio session with MCAP recording enabled.
         print("\nRunning deviceio session with MCAP recording...")
-        recording_config = deviceio.McapRecordingConfig(
+        recording_config = deviceio.McapConfig(
             mcap_filename, [(hand_tracker, "hands"), (head_tracker, "head")]
         )
-        with deviceio.DeviceIOSession.run(
+        with deviceio.DeviceIOSession.createLiveSession(
             trackers, handles, recording_config
         ) as session:
             print("✓ DeviceIO session initialized with all trackers!")
@@ -63,14 +66,14 @@ def main():
 
             # Main tracking loop
             print("=" * 60)
-            print("Tracking (30 seconds)...")
+            print(f"Tracking ({RECORD_DURATION_S} seconds)...")
             print("=" * 60)
             print()
 
             frame_count = 0
             start_time = time.time()
 
-            while time.time() - start_time < 30.0:
+            while time.time() - start_time < RECORD_DURATION_S:
                 session.update()
 
                 # Print every 60 frames (~1 second)
@@ -89,8 +92,53 @@ def main():
     print()
     print("=" * 60)
     print(f"✓ Recording saved to: {mcap_filename}")
-    print("  You can view this file with Foxglove Studio or mcap CLI")
     print("=" * 60)
+
+    # ---- Replay the recorded MCAP file ----
+    print()
+    print("=" * 60)
+    print("Replaying recorded MCAP data")
+    print("=" * 60)
+    print()
+
+    replay_config = deviceio.McapConfig(
+        mcap_filename, [(hand_tracker, "hands"), (head_tracker, "head")]
+    )
+    with deviceio.DeviceIOSession.createReplaySession(
+        replay_config,
+    ) as replay_session:
+        print(f"✓ Replay session opened: {mcap_filename}")
+        print(f"  Replaying {RECORD_DURATION_S}s of recorded data...")
+        print()
+
+        replay_frame = 0
+        start_time = time.time()
+
+        while time.time() - start_time < RECORD_DURATION_S:
+            replay_session.update()
+
+            if replay_frame % 60 == 0:
+                elapsed = time.time() - start_time
+                head = head_tracker.get_head(replay_session)
+                left = hand_tracker.get_left_hand(replay_session)
+                right = hand_tracker.get_right_hand(replay_session)
+
+                print(f"[{elapsed:4.1f}s] Replay frame {replay_frame}")
+                if head.data and head.data.pose:
+                    p = head.data.pose.position
+                    print(f"  Head  pos=({p.x:.3f}, {p.y:.3f}, {p.z:.3f})")
+                else:
+                    print("  Head  pos=N/A")
+                print(f"  Left  hand={'present' if left.data else 'None'}")
+                print(f"  Right hand={'present' if right.data else 'None'}")
+                print()
+
+            replay_frame += 1
+            time.sleep(0.016)  # ~60 FPS
+
+        print(f"\nReplay complete: {replay_frame} frames")
+
+    print()
     print("Done!")
     return 0
 

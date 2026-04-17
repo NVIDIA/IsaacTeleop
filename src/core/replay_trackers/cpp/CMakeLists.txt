@@ -28,7 +28,6 @@ target_link_libraries(replay_trackers
         deviceio::deviceio_base
         deviceio::deviceio_trackers
         mcap::mcap_core
-        oxr::oxr_utils
 )
 
 add_library(deviceio::replay_trackers ALIAS replay_trackers)

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -69,7 +69,7 @@ def run_test():
             handles = oxr_session.get_handles()
             hand_tracker = deviceio.HandTracker()
 
-            with deviceio.DeviceIOSession.run(
+            with deviceio.DeviceIOSession.createLiveSession(
                 [hand_tracker], handles
             ) as deviceio_session:
                 print("✓ Reader session created")

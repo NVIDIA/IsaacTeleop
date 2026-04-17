@@ -33,7 +33,7 @@ SyntheticHandsPlugin::SyntheticHandsPlugin(const std::string& plugin_root_id) no
     const auto handles = m_session->get_handles();
 
     // Create DeviceIOSession with trackers
-    m_deviceio_session = core::DeviceIOSession::run(trackers, handles);
+    m_deviceio_session = core::DeviceIOSession::createLiveSession(trackers, handles);
 
     // Injectors are created lazily in worker_thread once a controller is first seen,
     // and destroyed when the controller disappears. This ensures isActive reflects
