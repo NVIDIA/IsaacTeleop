@@ -40,6 +40,35 @@ except ImportError:
         "Install with: uv pip install --find-links=install/wheels 'isaacteleop[cloudxr]'"
     )
 
+
+def _patch_request_parser_for_cors():
+    """Allow HTTP OPTIONS through the websockets request parser.
+
+    ``websockets >= 14`` rejects non-GET methods in ``Request.parse`` before
+    ``process_request`` fires.  This wraps the parser so that OPTIONS requests
+    (CORS preflight) are surfaced as a normal ``Request`` — the existing
+    ``process_request`` hook in ``_make_http_handler`` already returns the
+    correct 200 + CORS-headers response for them.
+    """
+    from websockets.http11 import Request, parse_headers
+
+    _orig_parse = Request.parse.__func__
+
+    @classmethod
+    def _cors_aware_parse(cls, read_line):
+        try:
+            return (yield from _orig_parse(cls, read_line))
+        except ValueError as exc:
+            if "got OPTIONS" not in str(exc):
+                raise
+            headers = yield from parse_headers(read_line)
+            return cls("/__cors_preflight__", headers)
+
+    Request.parse = _cors_aware_parse
+
+
+_patch_request_parser_for_cors()
+
 log = logging.getLogger("wss-proxy")
 
 
