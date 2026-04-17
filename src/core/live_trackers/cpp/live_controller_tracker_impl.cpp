@@ -180,12 +180,8 @@ std::unique_ptr<ControllerMcapChannels> LiveControllerTrackerImpl::create_mcap_c
 {
     return std::make_unique<ControllerMcapChannels>(
         writer, base_name, ControllerRecordingTraits::schema_name,
-<<<<<<< HEAD
         std::vector<std::string>(ControllerRecordingTraits::recording_channels.begin(),
                                  ControllerRecordingTraits::recording_channels.end()));
-=======
-        std::vector<std::string>(ControllerRecordingTraits::recording_channels.begin(), ControllerRecordingTraits::recording_channels.end()));
->>>>>>> 6e69aaec (Add replay version of the trackers)
 }
 
 LiveControllerTrackerImpl::LiveControllerTrackerImpl(const OpenXRSessionHandles& handles,

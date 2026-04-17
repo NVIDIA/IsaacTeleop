@@ -23,15 +23,9 @@ namespace core
 std::unique_ptr<HandMcapChannels> LiveHandTrackerImpl::create_mcap_channels(mcap::McapWriter& writer,
                                                                             std::string_view base_name)
 {
-<<<<<<< HEAD
     return std::make_unique<HandMcapChannels>(writer, base_name, HandRecordingTraits::schema_name,
                                               std::vector<std::string>(HandRecordingTraits::recording_channels.begin(),
                                                                        HandRecordingTraits::recording_channels.end()));
-=======
-    return std::make_unique<HandMcapChannels>(
-        writer, base_name, HandRecordingTraits::schema_name,
-        std::vector<std::string>(HandRecordingTraits::recording_channels.begin(), HandRecordingTraits::recording_channels.end()));
->>>>>>> 6e69aaec (Add replay version of the trackers)
 }
 
 LiveHandTrackerImpl::LiveHandTrackerImpl(const OpenXRSessionHandles& handles,

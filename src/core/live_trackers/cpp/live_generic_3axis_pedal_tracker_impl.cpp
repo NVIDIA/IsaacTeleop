@@ -31,15 +31,9 @@ SchemaTrackerConfig make_pedal_tensor_config(const Generic3AxisPedalTracker* tra
 std::unique_ptr<PedalMcapChannels> LiveGeneric3AxisPedalTrackerImpl::create_mcap_channels(mcap::McapWriter& writer,
                                                                                           std::string_view base_name)
 {
-<<<<<<< HEAD
     return std::make_unique<PedalMcapChannels>(writer, base_name, PedalRecordingTraits::schema_name,
                                                std::vector<std::string>(PedalRecordingTraits::recording_channels.begin(),
                                                                         PedalRecordingTraits::recording_channels.end()));
-=======
-    return std::make_unique<PedalMcapChannels>(
-        writer, base_name, PedalRecordingTraits::schema_name,
-        std::vector<std::string>(PedalRecordingTraits::recording_channels.begin(), PedalRecordingTraits::recording_channels.end()));
->>>>>>> 6e69aaec (Add replay version of the trackers)
 }
 
 LiveGeneric3AxisPedalTrackerImpl::LiveGeneric3AxisPedalTrackerImpl(const OpenXRSessionHandles& handles,

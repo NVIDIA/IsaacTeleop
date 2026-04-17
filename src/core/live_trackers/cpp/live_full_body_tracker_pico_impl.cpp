@@ -22,16 +22,10 @@ namespace core
 std::unique_ptr<FullBodyMcapChannels> LiveFullBodyTrackerPicoImpl::create_mcap_channels(mcap::McapWriter& writer,
                                                                                         std::string_view base_name)
 {
-<<<<<<< HEAD
     return std::make_unique<FullBodyMcapChannels>(
         writer, base_name, FullBodyPicoRecordingTraits::schema_name,
         std::vector<std::string>(FullBodyPicoRecordingTraits::recording_channels.begin(),
                                  FullBodyPicoRecordingTraits::recording_channels.end()));
-=======
-    return std::make_unique<FullBodyMcapChannels>(writer, base_name, FullBodyPicoRecordingTraits::schema_name,
-                                                  std::vector<std::string>(FullBodyPicoRecordingTraits::recording_channels.begin(),
-                                                                           FullBodyPicoRecordingTraits::recording_channels.end()));
->>>>>>> 6e69aaec (Add replay version of the trackers)
 }
 
 LiveFullBodyTrackerPicoImpl::LiveFullBodyTrackerPicoImpl(const OpenXRSessionHandles& handles,
