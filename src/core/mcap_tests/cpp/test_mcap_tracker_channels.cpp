@@ -64,7 +64,7 @@ std::unique_ptr<mcap::McapWriter> open_writer(const std::string& path)
 }
 
 using HeadChannels = core::McapTrackerChannels<core::HeadPoseRecord, core::HeadPose>;
-using HeadViewers = core::McapTrackerViewers<core::HeadPoseRecord, core::HeadPose>;
+using HeadViewers = core::McapTrackerViewers<core::HeadPoseRecord, core::HeadPose, core::HeadPoseTracked>;
 
 } // namespace
 
@@ -288,16 +288,16 @@ TEST_CASE("McapTrackerViewers: reads records from a single channel", "[mcap][tra
 
     HeadViewers viewers(reader, "tracking", { "head" });
 
-    auto data1 = viewers.read(0);
-    REQUIRE(data1.has_value());
-    REQUIRE(*data1);
-    CHECK((*data1)->is_valid == true);
-    REQUIRE((*data1)->pose);
-    CHECK((*data1)->pose->position().x() == 1.0f);
+    auto tracked1 = viewers.read(0);
+    REQUIRE(tracked1.has_value());
+    REQUIRE(tracked1->data);
+    CHECK(tracked1->data->is_valid == true);
+    REQUIRE(tracked1->data->pose);
+    CHECK(tracked1->data->pose->position().x() == 1.0f);
 
-    auto data2 = viewers.read(0);
-    REQUIRE(data2.has_value());
-    REQUIRE(*data2);
+    auto tracked2 = viewers.read(0);
+    REQUIRE(tracked2.has_value());
+    REQUIRE(tracked2->data);
 
     CHECK_FALSE(viewers.read(0).has_value());
     reader.close();
@@ -367,12 +367,12 @@ TEST_CASE("McapTrackerViewers: read subset of written channels", "[mcap][tracker
 
     auto r1 = viewers.read(0);
     REQUIRE(r1.has_value());
-    REQUIRE(*r1);
-    CHECK((*r1)->is_valid == true);
+    REQUIRE(r1->data);
+    CHECK(r1->data->is_valid == true);
 
     auto r2 = viewers.read(0);
     REQUIRE(r2.has_value());
-    REQUIRE(*r2);
+    REQUIRE(r2->data);
 
     CHECK_FALSE(viewers.read(0).has_value());
     reader.close();
@@ -417,9 +417,9 @@ TEST_CASE("McapTrackerViewers: handles null data records", "[mcap][tracker_viewe
 
     HeadViewers viewers(reader, "tracking", { "head" });
 
-    auto data = viewers.read(0);
-    REQUIRE(data.has_value());
-    CHECK(*data == nullptr);
+    auto tracked = viewers.read(0);
+    REQUIRE(tracked.has_value());
+    CHECK(tracked->data == nullptr);
 
     CHECK_FALSE(viewers.read(0).has_value());
     reader.close();
