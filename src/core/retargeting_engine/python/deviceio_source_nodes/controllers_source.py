@@ -8,7 +8,7 @@ Converts raw ControllerSnapshot flatbuffer data to standard ControllerInput tens
 """
 
 import numpy as np
-from typing import Any, TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING
 from .interface import IDeviceIOSource
 from ..interface.retargeter_core_types import (
     OutputSelector,
@@ -28,7 +28,9 @@ if TYPE_CHECKING:
 
 class ControllersSource(IDeviceIOSource):
     """
-    Stateless converter: DeviceIO ControllerSnapshot → ControllerInput tensors.
+    DeviceIO ControllerSnapshot → ControllerInput tensors.
+
+    Optional exponential smoothing on grip/aim poses when ``pose_correction_coef`` is set.
 
     Inputs:
         - "deviceio_controller_left": Raw ControllerSnapshot flatbuffer for left controller
@@ -51,15 +53,26 @@ class ControllersSource(IDeviceIOSource):
     LEFT = "controller_left"
     RIGHT = "controller_right"
 
-    def __init__(self, name: str) -> None:
-        """Initialize stateless controllers source node.
+    def __init__(self, name: str, *, pose_correction_coef: Optional[float] = None) -> None:
+        """Initialize controllers source node.
 
         Creates a ControllerTracker instance for TeleopSession to discover and use.
 
         Args:
             name: Unique name for this source node
+            pose_correction_coef: If set, exponential catch-up smoothing factor in
+                ``(0, 1)`` for grip and aim position/orientation (per hand). ``None``
+                disables smoothing (raw DeviceIO poses).
         """
         import isaacteleop.deviceio as deviceio
+
+        if pose_correction_coef is not None and not (0.0 < pose_correction_coef < 1.0):
+            raise ValueError(
+                "pose_correction_coef must be None or strictly between 0 and 1, "
+                f"got {pose_correction_coef!r}"
+            )
+        self._pose_correction_coef = pose_correction_coef
+        self._current_robot_poses: dict[str, dict[str, np.ndarray]] = {}
 
         self._controller_tracker = deviceio.ControllerTracker()
         super().__init__(name)
@@ -127,14 +140,61 @@ class ControllersSource(IDeviceIOSource):
             "deviceio_controller_right"
         ][0]
 
-        self._update_controller_data(outputs["controller_left"], left_tracked.data)
-        self._update_controller_data(outputs["controller_right"], right_tracked.data)
+        self._update_controller_data(outputs["controller_left"], left_tracked.data, "left")
+        self._update_controller_data(outputs["controller_right"], right_tracked.data, "right")
+
+    def _smooth_transition(
+        self,
+        target_position: np.ndarray,
+        target_orientation: np.ndarray,
+        frame_name: str,
+        correction_coef: float,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Smooth the transition of the position and orientation (numpy; same math as torch lerp)."""
+
+        pose = self._current_robot_poses.get(frame_name)
+        if pose is None:
+            pos = np.array(target_position, dtype=np.float32, copy=True)
+            ori = np.array(target_orientation, dtype=np.float32, copy=True)
+            on = float(np.linalg.norm(ori))
+            if on > 1e-8:
+                ori = ori / on
+            self._current_robot_poses[frame_name] = {"position": pos, "orientation": ori}
+            return pos, ori
+
+        current_position = pose["position"]
+        final_position = current_position + correction_coef * (target_position - current_position)
+
+        current_orientation = pose["orientation"]
+        tgt_ori = np.array(target_orientation, dtype=np.float32, copy=False)
+        if float(np.dot(tgt_ori, current_orientation)) < 0.0:
+            tgt_ori = -tgt_ori
+
+        final_orientation = current_orientation + correction_coef * (tgt_ori - current_orientation)
+        on = float(np.linalg.norm(final_orientation))
+        if on > 1e-8:
+            final_orientation = final_orientation / on
+
+        self._current_robot_poses[frame_name]["position"] = np.array(
+            final_position, dtype=np.float32, copy=True
+        )
+        self._current_robot_poses[frame_name]["orientation"] = np.array(
+            final_orientation, dtype=np.float32, copy=True
+        )
+        return np.asarray(final_position, dtype=np.float32), np.asarray(
+            final_orientation, dtype=np.float32
+        )
 
     def _update_controller_data(
-        self, group: OptionalTensorGroup, snapshot: "ControllerSnapshot | None"
+        self,
+        group: OptionalTensorGroup,
+        snapshot: "ControllerSnapshot | None",
+        pose_prefix: str,
     ) -> None:
         """Helper to convert controller data for a single controller."""
         if snapshot is None:
+            for suffix in ("_grip", "_aim"):
+                self._current_robot_poses.pop(f"{pose_prefix}{suffix}", None)
             group.set_none()
             return
 
@@ -177,6 +237,21 @@ class ControllersSource(IDeviceIOSource):
             ],
             dtype=np.float32,
         )
+
+        coef = self._pose_correction_coef
+        if coef is not None:
+            if snapshot.grip_pose.is_valid:
+                grip_position, grip_orientation = self._smooth_transition(
+                    grip_position, grip_orientation, f"{pose_prefix}_grip", coef
+                )
+            else:
+                self._current_robot_poses.pop(f"{pose_prefix}_grip", None)
+            if snapshot.aim_pose.is_valid:
+                aim_position, aim_orientation = self._smooth_transition(
+                    aim_position, aim_orientation, f"{pose_prefix}_aim", coef
+                )
+            else:
+                self._current_robot_poses.pop(f"{pose_prefix}_aim", None)
 
         # Update output tensor group
         group[ControllerInputIndex.GRIP_POSITION] = grip_position
