@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #include "live_full_body_tracker_pico_impl.hpp"
@@ -22,9 +22,10 @@ namespace core
 std::unique_ptr<FullBodyMcapChannels> LiveFullBodyTrackerPicoImpl::create_mcap_channels(mcap::McapWriter& writer,
                                                                                         std::string_view base_name)
 {
-    return std::make_unique<FullBodyMcapChannels>(writer, base_name, FullBodyPicoRecordingTraits::schema_name,
-                                                  std::vector<std::string>(FullBodyPicoRecordingTraits::channels.begin(),
-                                                                           FullBodyPicoRecordingTraits::channels.end()));
+    return std::make_unique<FullBodyMcapChannels>(
+        writer, base_name, FullBodyPicoRecordingTraits::schema_name,
+        std::vector<std::string>(FullBodyPicoRecordingTraits::recording_channels.begin(),
+                                 FullBodyPicoRecordingTraits::recording_channels.end()));
 }
 
 LiveFullBodyTrackerPicoImpl::LiveFullBodyTrackerPicoImpl(const OpenXRSessionHandles& handles,
