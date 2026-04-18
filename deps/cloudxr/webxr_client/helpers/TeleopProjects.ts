@@ -15,19 +15,14 @@
  * limitations under the License.
  */
 
-import type { ControlPanelPosition, TeleopMode } from './react/utils';
-
-/** Per-project settings that override mode-level defaults. */
+/** Per-project settings that override ancestor defaults. */
 export interface TeleopProjectSettings {
   panelHiddenAtStart?: boolean;
-  controlPanelPosition?: ControlPanelPosition;
 }
 
 /**
- * A node in the project registry tree.
- * Nodes with `settings` are selectable destinations.
- * Nodes with only `children` are organizational groups (rendered as disabled headers in the dropdown).
- * A node can have both (selectable AND has children).
+ * A node in the project registry tree. Nodes with `settings` contribute defaults at
+ * their depth; ancestor settings are merged in priority order (deepest wins).
  */
 export interface TeleopProjectNode {
   label: string;
@@ -35,66 +30,68 @@ export interface TeleopProjectNode {
   children?: Record<string, TeleopProjectNode>;
 }
 
-export type TeleopProjectRegistry = Record<TeleopMode, TeleopProjectNode>;
+export type TeleopProjectRegistry = Record<string, TeleopProjectNode>;
 
+/** Default teleop path when nothing is resolvable from URL hash or localStorage. */
+export const DEFAULT_TELEOP_PATH = 'sim';
+
+/**
+ * Registry of teleop projects, keyed by URL-hash path (e.g. `#/real/gear/dexmate`).
+ *
+ * Keys must be lowercase; URL segments are lowercased before lookup so the
+ * hash is effectively case-insensitive.
+ *
+ * Every node in the tree (top-level keys and their descendants) is selectable,
+ * so a new hardware variant can use a more general path (e.g. `#/real/gear`)
+ * pending adding the specific one to this file. A descendant node's defaults
+ * override its ancestors' defaults at every depth (e.g. `real/gear`'s defaults
+ * override `real`'s). Per-node user overrides (localStorage) are a separate
+ * layer and take priority over any registry defaults.
+ */
 export const TELEOP_PROJECTS: TeleopProjectRegistry = {
   sim: {
-    label: 'IsaacSim',
+    label: 'Simulation',
     settings: { panelHiddenAtStart: false },
+    children: {
+      isaacsim: { label: 'IsaacSim', settings: {} },
+    },
   },
   real: {
     label: 'Real Robot',
     settings: { panelHiddenAtStart: true },
     children: {
+      ros: { label: 'ROS', settings: {} },
+      isaacros: { label: 'IsaacROS', settings: {} },
       gear: {
         label: 'GEAR',
         settings: {},
         children: {
-          dexmate: { label: 'DexMate', settings: {} },
-          g1: { label: 'G1', settings: {} },
-          lerobot: { label: 'LeRobot', settings: { panelHiddenAtStart: false, controlPanelPosition: 'left' } },
+          dexmate: { label: 'Dexmate', settings: {} },
+          g1_sonic: { label: 'G1 Sonic', settings: {} },
+          g1_homie: { label: 'G1 Homie', settings: {} },
         },
       },
     },
   },
 };
 
-/**
- * Walks the registry tree to find the node matching `mode` + optional `subproject` path.
- * @param subproject - Slash-separated path segments after the mode (e.g. "gear/dexmate").
- */
-export function resolveProjectNode(
-  mode: TeleopMode,
-  subproject?: string,
-): TeleopProjectNode | null {
-  const root = TELEOP_PROJECTS[mode];
-  if (!root) return null;
-  if (!subproject) return root;
-
-  const segments = subproject.split('/').filter(Boolean);
-  let current: TeleopProjectNode = root;
-  for (const seg of segments) {
-    if (!current.children?.[seg]) return null;
-    current = current.children[seg];
-  }
-  return current;
+function pathSegments(teleopPath: string | undefined): string[] {
+  if (!teleopPath) return [];
+  return teleopPath.split('/').filter(Boolean);
 }
 
-/** Walks the ancestor chain from root to the target node, merging settings at each level. */
-export function getProjectSettings(
-  mode: TeleopMode,
-  subproject?: string,
-): TeleopProjectSettings {
-  const root = TELEOP_PROJECTS[mode];
+/** Merges node defaults from root to target along the path; deepest non-undefined value wins. */
+export function getProjectSettings(teleopPath: string | undefined): TeleopProjectSettings {
+  const segments = pathSegments(teleopPath);
+  if (segments.length === 0) return {};
+  const root = TELEOP_PROJECTS[segments[0]];
   if (!root) return {};
   let merged: TeleopProjectSettings = { ...root.settings };
-  if (!subproject) return merged;
-
-  const segments = subproject.split('/').filter(Boolean);
   let current: TeleopProjectNode = root;
-  for (const seg of segments) {
-    if (!current.children?.[seg]) break;
-    current = current.children[seg];
+  for (let i = 1; i < segments.length; i++) {
+    const child = current.children?.[segments[i]];
+    if (!child) break;
+    current = child;
     if (current.settings) {
       merged = { ...merged, ...current.settings };
     }
@@ -102,45 +99,73 @@ export function getProjectSettings(
   return merged;
 }
 
-/** Returns the resolved node's label, falling back to the mode root's label. */
-export function getProjectLabel(
-  mode: TeleopMode,
-  subproject?: string,
-): string {
-  const node = resolveProjectNode(mode, subproject);
-  if (node) return node.label;
-  const root = TELEOP_PROJECTS[mode];
-  return root?.label ?? mode;
+/**
+ * Labels for each node along the path, from root to the deepest valid node.
+ * Unknown segments terminate the walk, so `real/fake` yields just `['Real Robot']`,
+ * and an unknown root yields `[]`.
+ */
+export function getProjectBreadcrumb(teleopPath: string | undefined): string[] {
+  const segments = pathSegments(teleopPath);
+  if (segments.length === 0) return [];
+  const root = TELEOP_PROJECTS[segments[0]];
+  if (!root) return [];
+  const labels = [root.label];
+  let current: TeleopProjectNode = root;
+  for (let i = 1; i < segments.length; i++) {
+    const child = current.children?.[segments[i]];
+    if (!child) break;
+    labels.push(child.label);
+    current = child;
+  }
+  return labels;
+}
+
+/**
+ * Extracts a teleop path from a URL hash fragment (e.g. `#/real/gear/dexmate`).
+ * Segments are lowercased before lookup and the walk stops at the deepest valid
+ * registry node, so `#/real/fake/path` canonicalizes to `real`.
+ * @returns a canonicalized slash-separated path, or `null` if no registry match.
+ */
+export function parseTeleopPathFromHash(hash: string): string | null {
+  const cleaned = hash.replace(/^#\/?/, '');
+  if (!cleaned) return null;
+  const segments = cleaned.split('/').filter(Boolean).map(s => s.toLowerCase());
+  if (segments.length === 0) return null;
+  const root = TELEOP_PROJECTS[segments[0]];
+  if (!root) return null;
+  const canonical: string[] = [segments[0]];
+  let current: TeleopProjectNode = root;
+  for (let i = 1; i < segments.length; i++) {
+    const child = current.children?.[segments[i]];
+    if (!child) break;
+    canonical.push(segments[i]);
+    current = child;
+  }
+  return canonical.join('/');
 }
 
 export interface DropdownEntry {
   hash: string;
   label: string;
   depth: number;
-  disabled: boolean;
 }
 
-/** Recursively flattens the registry tree into a list suitable for a `<select>` element. */
-export function flattenRegistryForDropdown(): DropdownEntry[] {
+/**
+ * Pre-flattened registry tree, suitable for a `<select>` element.
+ * Computed once at module load since the registry is static.
+ */
+export const DROPDOWN_ENTRIES: readonly DropdownEntry[] = (() => {
   const entries: DropdownEntry[] = [];
-
   function walk(node: TeleopProjectNode, hashPrefix: string, depth: number): void {
-    const selectable = node.settings !== undefined;
-    entries.push({
-      hash: `#/${hashPrefix}`,
-      label: node.label,
-      depth,
-      disabled: !selectable,
-    });
+    entries.push({ hash: `#/${hashPrefix}`, label: node.label, depth });
     if (node.children) {
       for (const [key, child] of Object.entries(node.children)) {
         walk(child, `${hashPrefix}/${key}`, depth + 1);
       }
     }
   }
-
-  for (const mode of ['sim', 'real'] as TeleopMode[]) {
-    walk(TELEOP_PROJECTS[mode], mode, 0);
+  for (const key of Object.keys(TELEOP_PROJECTS)) {
+    walk(TELEOP_PROJECTS[key], key, 0);
   }
   return entries;
-}
+})();

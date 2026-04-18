@@ -71,15 +71,21 @@ limitations under the License.
         /* Header */
         header {
             background: var(--background-main);
-            padding: 16px 0 16px 24px;
+            padding: 16px 24px;
             min-height: unset;
             box-shadow: none;
             border-bottom: 1px solid var(--border-color);
+            /* Title and project dropdown share a row (wraps on narrow screens). */
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px 24px;
         }
 
         h1 {
             font-size: 1.5rem;
             font-weight: 600;
+            margin: 0;
         }
 
         main {
@@ -495,60 +501,11 @@ limitations under the License.
             border-bottom-color: #1b5e20;
         }
 
-        /* Teleop mode subtitle in header */
-        .teleop-mode-subtitle {
-        }
-
-        .teleop-project-select {
-            font-weight: 400;
-            font-size: 0.55em;
-            color: #1565c0;
-            margin-left: 6px;
-            background: transparent;
-            border: 1px solid transparent;
-            border-radius: 3px;
-            cursor: pointer;
-            padding: 1px 4px;
-            font-family: inherit;
-            min-width: 0;
-            min-height: 0;
-            width: auto;
-        }
-
-        .teleop-project-select:hover,
-        .teleop-project-select:focus {
-            border-color: #1565c0;
-            outline: none;
-        }
-
-        /* Teleop mode indicator */
-        .teleop-mode-indicator {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            background: #f5f5f5;
-            border: 2px solid var(--border-color);
-            border-radius: 4px;
-            padding: 10px 14px;
-            margin-bottom: 16px;
-            font-size: 0.95rem;
-            width: fit-content;
-        }
-
-        .teleop-mode-indicator strong {
-            color: var(--text-main);
-        }
-
-        .teleop-mode-indicator a {
-            color: #1565c0;
-            text-decoration: none;
-            font-weight: 500;
-            font-size: 0.85rem;
-            border-bottom: 1px solid transparent;
-        }
-
-        .teleop-mode-indicator a:hover {
-            border-bottom-color: #1565c0;
+        /* Capped so the select doesn't stretch edge-to-edge on wide screens. */
+        .teleop-project-select-row {
+            flex: 0 1 auto;
+            min-width: 300px;
+            max-width: 540px;
         }
 
         /* Hide 2D UI when in XR mode */
@@ -563,9 +520,11 @@ limitations under the License.
         <div class="top-banner"></div>
         <header>
             <h1>NVIDIA Isaac Teleop Web Client
-                <span id="teleopModeSubtitle" class="teleop-mode-subtitle">for IsaacSim</span>
-                <select id="teleopProjectSelect" class="teleop-project-select" aria-label="Select teleop project"></select>
+                <span id="teleopModeSubtitle"></span>
             </h1>
+            <div class="teleop-project-select-row">
+                <select id="teleopProjectSelect" aria-label="Change teleop application"></select>
+            </div>
         </header>
 
         <main>
@@ -613,13 +572,6 @@ limitations under the License.
             </aside>
 
             <section>
-                <!-- Alternate mode indicator (kept for reference; header version is active)
-                <div id="teleopModeIndicator" class="teleop-mode-indicator">
-                    <span>Mode: <strong id="teleopModeLabel">Simulation</strong></span>
-                    <a id="teleopModeSwitch" href="#/real">Switch to Real Robot</a>
-                </div>
-                -->
-
                 <h3 class="debug-title">Debug Settings</h3>
 
                 <div class="config-section">

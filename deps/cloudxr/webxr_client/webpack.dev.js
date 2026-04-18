@@ -58,6 +58,18 @@ module.exports = merge(common, {
         errors: true,
         warnings: false,
       },
+      // Derive HMR socket URL from window.location so it works behind the
+      // docker-compose TLS proxy (https://<host>:8443) as well as directly
+      // (http://<host>:8080). Sentinels per webpack-dev-server:
+      //   hostname '0.0.0.0' -> window.location.hostname
+      //   port     0         -> window.location.port
+      //   protocol 'auto'    -> ws for http, wss for https
+      webSocketURL: {
+        hostname: '0.0.0.0',
+        port: 0,
+        protocol: 'auto',
+        pathname: '/ws',
+      },
     },
     devMiddleware: {
       writeToDisk: true,

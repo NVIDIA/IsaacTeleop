@@ -37,20 +37,16 @@ import {
   type DeviceProfileId,
 } from '@helpers/DeviceProfiles';
 import {
-  ControlPanelPosition,
-  loadControlPanelPositionForProject,
-  loadPanelHiddenForMode,
+  loadPerProject,
   parseControlPanelPosition,
   ReactUIConfig,
-  saveControlPanelPositionForProject,
-  savePanelHiddenForMode,
-  type TeleopMode,
+  savePerProject,
 } from '@helpers/react/utils';
 import {
-  flattenRegistryForDropdown,
-  getProjectLabel,
+  DEFAULT_TELEOP_PATH,
+  DROPDOWN_ENTRIES,
+  getProjectBreadcrumb,
   getProjectSettings,
-  type TeleopProjectSettings,
 } from '@helpers/TeleopProjects';
 import {
   CloudXRConfig,
@@ -156,18 +152,12 @@ export class CloudXR2DUI {
   private mediaPortInput!: HTMLInputElement;
   /** Dropdown for controller model visibility (show / hide) */
   private controllerModelVisibilitySelect!: HTMLSelectElement;
-  /** Mode indicator label (e.g. "Simulation" or "Real Robot") -- may be absent if box is commented out */
-  private teleopModeLabel: HTMLElement | null = null;
-  /** Mode switch link (navigates to the other mode's URL path) -- may be absent if box is commented out */
-  private teleopModeSwitch: HTMLAnchorElement | null = null;
-  /** Mode subtitle in header (e.g. "for Simulation") */
+  /** Breadcrumb subtitle in header (e.g. "for Real Robot › GEAR › Dexmate"). */
   private teleopModeSubtitle!: HTMLElement;
   /** Hierarchical project selector in header */
   private teleopProjectSelect!: HTMLSelectElement;
-  /** Current teleop mode */
-  private teleopMode: TeleopMode = 'sim';
-  /** Optional subproject path from the URL hash (e.g. "gear/dexmate"). */
-  private subproject: string | undefined;
+  /** Active teleop project path (a key path in `TELEOP_PROJECTS`, e.g. `real/gear/dexmate`). */
+  private teleopPath: string = DEFAULT_TELEOP_PATH;
   /** Flag to track if the 2D UI has been initialized */
   private initialized: boolean = false;
 
@@ -198,20 +188,20 @@ export class CloudXR2DUI {
   /**
    * Initializes the CloudXR2DUI with all necessary components and event handlers
    */
-  public initialize(urlSeeds?: Record<string, string>, teleopMode?: TeleopMode, subproject?: string): void {
+  public initialize(urlSeeds?: Record<string, string>, teleopPath?: string): void {
     if (this.initialized) {
       return;
     }
 
     try {
       this.initializeElements();
+      this.decoratePerProjectLabels();
       this.setupLocalStorage();
 
-      if (teleopMode) {
-        this.teleopMode = teleopMode;
+      if (teleopPath) {
+        this.teleopPath = teleopPath;
       }
-      this.subproject = subproject;
-      this.applyTeleopMode();
+      this.applyTeleopPath();
 
       if (urlSeeds) {
         this.applyUrlSeeds(urlSeeds);
@@ -230,66 +220,77 @@ export class CloudXR2DUI {
     }
   }
 
-  /** Sets the mode indicator text/link, populates the dropdown, and loads per-project settings. */
-  private applyTeleopMode(): void {
-    const isSim = this.teleopMode === 'sim';
-    const otherLabel = isSim ? 'Real Robot' : 'IsaacSim';
-    const otherHash = isSim ? '#/real' : '#/sim';
-
-    if (this.teleopModeLabel) {
-      this.teleopModeLabel.textContent = isSim ? 'Simulation' : 'Real Robot';
-    }
-    if (this.teleopModeSwitch) {
-      this.teleopModeSwitch.textContent = `Switch to ${otherLabel}`;
-      this.teleopModeSwitch.href = otherHash;
-    }
-
-    const projectLabel = getProjectLabel(this.teleopMode, this.subproject);
-    const modePrefix = isSim ? 'for' : 'for';
-    const rootLabel = isSim ? 'IsaacSim' : 'Real Robot';
-    if (this.subproject) {
-      this.teleopModeSubtitle.textContent = `${modePrefix} ${rootLabel} / ${projectLabel}`;
-    } else {
-      this.teleopModeSubtitle.textContent = `${modePrefix} ${rootLabel}`;
-    }
+  /** Renders the header breadcrumb and rebuilds the project dropdown from the registry. */
+  private applyTeleopPath(): void {
+    const breadcrumb = getProjectBreadcrumb(this.teleopPath);
+    this.teleopModeSubtitle.replaceChildren();
+    this.teleopModeSubtitle.appendChild(document.createTextNode('for '));
+    breadcrumb.forEach((label, i) => {
+      if (i > 0) {
+        // aria-hidden so screen readers skip the chevron glyph.
+        const sep = document.createElement('span');
+        sep.setAttribute('aria-hidden', 'true');
+        sep.textContent = ' \u203A ';
+        this.teleopModeSubtitle.appendChild(sep);
+      }
+      this.teleopModeSubtitle.appendChild(document.createTextNode(label));
+    });
 
     this.populateProjectDropdown();
-
-    const settings = getProjectSettings(this.teleopMode, this.subproject);
-    const panelHidden = loadPanelHiddenForMode(this.teleopMode, this.subproject, settings);
-    this.panelHiddenAtStartSelect.value = String(panelHidden);
-
-    const panelPos = loadControlPanelPositionForProject(this.teleopMode, this.subproject, settings);
-    this.controlPanelPositionSelect.value = panelPos;
+    this.applyPerProjectSettings();
   }
 
-  /** Builds the hierarchical dropdown from the project registry. */
+  /** Loads per-project-path settings (falling back to registry defaults) into their form controls. */
+  private applyPerProjectSettings(): void {
+    const settings = getProjectSettings(this.teleopPath);
+    const panelHidden = loadPerProject<boolean>(
+      'panelHiddenAtStart', this.teleopPath,
+      raw => (raw === 'true' ? true : raw === 'false' ? false : undefined),
+      settings.panelHiddenAtStart ?? false,
+    );
+    this.panelHiddenAtStartSelect.value = String(panelHidden);
+  }
+
+  /**
+   * Appends a visible marker to the label of each setting that persists per
+   * teleop application, so users can tell at a glance which fields switch when
+   * they change the active project. No hover text: the UI runs on VR headsets
+   * where hover is not reliable, so the marker itself must be self-describing.
+   * When a second per-project field lands, factor these into a
+   * PER_PROJECT_FIELDS registry (see TeleopProjects.ts) and loop.
+   */
+  private decoratePerProjectLabels(): void {
+    const label = this.panelHiddenAtStartSelect.labels?.[0];
+    if (!label) return;
+    const marker = ' (saved per teleop app)';
+    if (label.textContent?.includes(marker)) return;
+    label.appendChild(document.createTextNode(marker));
+  }
+
+  /** Builds the hierarchical dropdown options from the project registry. */
   private populateProjectDropdown(): void {
     const select = this.teleopProjectSelect;
-    select.innerHTML = '';
+    select.replaceChildren();
 
     const INDENT = '\u00A0\u00A0\u00A0';
-    const entries = flattenRegistryForDropdown();
-    const currentHash = `#/${this.teleopMode}${this.subproject ? `/${this.subproject}` : ''}`;
+    const currentHash = `#/${this.teleopPath}`;
 
-    for (const entry of entries) {
+    // Static prompt when collapsed (the breadcrumb already shows the current path);
+    // a bullet marks the current path inside the open menu.
+    const prompt = document.createElement('option');
+    prompt.value = '';
+    prompt.textContent = 'Change teleop application';
+    select.appendChild(prompt);
+
+    for (const entry of DROPDOWN_ENTRIES) {
       const option = document.createElement('option');
       option.value = entry.hash;
-      option.textContent = INDENT.repeat(entry.depth) + entry.label;
-      option.disabled = entry.disabled;
+      const marker = entry.hash === currentHash ? '\u2022\u00A0' : '\u00A0\u00A0';
+      option.textContent = INDENT.repeat(entry.depth) + marker + entry.label;
       select.appendChild(option);
     }
 
-    select.value = currentHash;
-    // If the current hash didn't match any option, fall back to the mode root
-    if (select.value !== currentHash) {
-      select.value = `#/${this.teleopMode}`;
-    }
-
-    select.onchange = () => {
-      window.location.hash = select.value.replace(/^#/, '');
-      window.location.reload();
-    };
+    select.selectedIndex = 0;
   }
 
   /**
@@ -301,13 +302,19 @@ export class CloudXR2DUI {
       ['serverIP', this.serverIpInput, 'serverIp'],
       ['port', this.portInput, 'port'],
       ['codec', this.codecSelect, 'codec'],
-      ['panelHiddenAtStart', this.panelHiddenAtStartSelect, 'panelHiddenAtStart'],
     ];
     for (const [paramKey, element, storageKey] of mapping) {
       const v = seeds[paramKey];
       if (v === undefined) continue;
       element.value = v;
-      try { localStorage.setItem(storageKey, v); } catch (_) { /* quota */ }
+      try { localStorage.setItem(storageKey, v); } catch (_) { /* localStorage unavailable */ }
+    }
+    // panelHiddenAtStart persists per-project-path, so route it through savePerProject
+    // rather than the flat localStorage key nothing else reads.
+    const panelHidden = seeds['panelHiddenAtStart'];
+    if (panelHidden !== undefined) {
+      this.panelHiddenAtStartSelect.value = panelHidden;
+      savePerProject('panelHiddenAtStart', this.teleopPath, panelHidden);
     }
   }
 
@@ -368,8 +375,6 @@ export class CloudXR2DUI {
     this.controllerModelVisibilitySelect = this.getElement<HTMLSelectElement>(
       'controllerModelVisibility'
     );
-    this.teleopModeLabel = document.getElementById('teleopModeLabel');
-    this.teleopModeSwitch = document.getElementById('teleopModeSwitch') as HTMLAnchorElement | null;
     this.teleopModeSubtitle = this.getElement<HTMLElement>('teleopModeSubtitle');
     this.teleopProjectSelect = this.getElement<HTMLSelectElement>('teleopProjectSelect');
   }
@@ -444,8 +449,9 @@ export class CloudXR2DUI {
     enableLocalStorage(this.useQuestColorWorkaroundSelect, 'useQuestColorWorkaround');
     enableLocalStorage(this.immersiveSelect, 'immersiveMode');
     enableLocalStorage(this.deviceProfileSelect, 'deviceProfile');
-    // panelHiddenAtStart and controlPanelPosition are persisted per-project-path
-    // by savePanelHiddenForMode / saveControlPanelPositionForProject, not here.
+    // panelHiddenAtStart is persisted per-project-path via savePerProject() in
+    // its change listener, not here.
+    enableLocalStorage(this.controlPanelPositionSelect, 'controlPanelPosition');
     enableLocalStorage(this.referenceSpaceSelect, 'referenceSpace');
     enableLocalStorage(this.xrOffsetXInput, 'xrOffsetX');
     enableLocalStorage(this.xrOffsetYInput, 'xrOffsetY');
@@ -536,7 +542,9 @@ export class CloudXR2DUI {
     addListener(this.useQuestColorWorkaroundSelect, 'change', onProfileLinkedChange);
     addListener(this.immersiveSelect, 'change', updateConfig);
     addListener(this.panelHiddenAtStartSelect, 'change', () => {
-      savePanelHiddenForMode(this.teleopMode, this.subproject, this.panelHiddenAtStartSelect.value === 'true');
+      // Pass the raw select value string through savePerProject; the matching
+      // loadPerProject parses `'true'`/`'false'` back into a boolean.
+      savePerProject('panelHiddenAtStart', this.teleopPath, this.panelHiddenAtStartSelect.value);
       updateConfig();
     });
     addListener(this.referenceSpaceSelect, 'change', updateConfig);
@@ -546,12 +554,17 @@ export class CloudXR2DUI {
     addListener(this.xrOffsetYInput, 'change', updateConfig);
     addListener(this.xrOffsetZInput, 'input', updateConfig);
     addListener(this.xrOffsetZInput, 'change', updateConfig);
-    addListener(this.controlPanelPositionSelect, 'change', () => {
-      saveControlPanelPositionForProject(
-        this.teleopMode, this.subproject,
-        parseControlPanelPosition(this.controlPanelPositionSelect.value, 'center'),
-      );
-      updateConfig();
+    addListener(this.controlPanelPositionSelect, 'change', updateConfig);
+    addListener(this.teleopProjectSelect, 'change', () => {
+      const value = this.teleopProjectSelect.value;
+      if (!value) return;
+      // Reset to the prompt before navigating so if the reload is aborted the
+      // control doesn't end up stuck on the just-picked value.
+      this.teleopProjectSelect.selectedIndex = 0;
+      // Full reload: teleopPath seeds initial per-project state and config;
+      // cheaper to rebuild from scratch than to wire a re-init path here.
+      window.location.hash = value.replace(/^#/, '');
+      window.location.reload();
     });
     addListener(this.proxyUrlInput, 'input', updateConfig);
     addListener(this.proxyUrlInput, 'change', updateConfig);
@@ -735,8 +748,7 @@ export class CloudXR2DUI {
       })(),
       hideControllerModel: this.controllerModelVisibilitySelect.value === 'hide',
       panelHiddenAtStart: this.panelHiddenAtStartSelect.value === 'true',
-      teleopMode: this.teleopMode,
-      subproject: this.subproject,
+      teleopPath: this.teleopPath,
     };
 
     this.currentConfiguration = newConfiguration;

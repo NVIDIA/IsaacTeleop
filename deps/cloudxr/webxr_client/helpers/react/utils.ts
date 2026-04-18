@@ -19,87 +19,39 @@
  * Shared utilities for React examples (e.g. control panel position).
  */
 
-import type { TeleopProjectSettings } from '../TeleopProjects';
-
 export type ControlPanelPosition = 'left' | 'center' | 'right';
 
-export type TeleopMode = 'sim' | 'real';
-
-export interface TeleopModeInfo {
-  mode: TeleopMode;
-  subproject?: string;
-}
-
 /**
- * Extracts teleop mode and optional subproject from a URL hash fragment.
- * Follows the `#/path` convention (e.g. `#/real/gear/dexmate`).
- * @returns mode + optional subproject, or `null` if the hash doesn't start with a known mode.
+ * Loads a per-project-path setting from localStorage (key `cxr.isaac.<key>|<teleopPath>`).
+ * `parse` should return `undefined` for unrecognized input so `fallback` wins.
  */
-export function parseTeleopModeFromHash(hash: string): TeleopModeInfo | null {
-  const cleaned = hash.replace(/^#\/?/, '');
-  if (!cleaned) return null;
-  const slashIndex = cleaned.indexOf('/');
-  const modeStr = (slashIndex === -1 ? cleaned : cleaned.substring(0, slashIndex)).toLowerCase();
-  if (modeStr !== 'sim' && modeStr !== 'real') return null;
-  const subproject = slashIndex === -1 ? undefined : cleaned.substring(slashIndex + 1) || undefined;
-  return { mode: modeStr, subproject };
-}
-
-/** Builds the localStorage key suffix from mode + optional subproject. */
-function projectPath(mode: TeleopMode, subproject?: string): string {
-  return subproject ? `${mode}/${subproject}` : mode;
-}
-
-/**
- * Resolves panelHiddenAtStart for the current project.
- * Priority: per-project localStorage > project registry setting > false.
- */
-export function loadPanelHiddenForMode(
-  mode: TeleopMode,
-  subproject?: string,
-  projectSettings?: TeleopProjectSettings,
-): boolean {
+export function loadPerProject<T>(
+  key: string,
+  teleopPath: string,
+  parse: (raw: string) => T | undefined,
+  fallback: T,
+): T {
   try {
-    const stored = localStorage.getItem(`cxr.isaac.panelHiddenAtStart.${projectPath(mode, subproject)}`);
-    if (stored === 'true') return true;
-    if (stored === 'false') return false;
+    const stored = localStorage.getItem(`cxr.isaac.${key}|${teleopPath}`);
+    if (stored !== null) {
+      const parsed = parse(stored);
+      if (parsed !== undefined) return parsed;
+    }
   } catch {
     /* localStorage unavailable */
   }
-  return projectSettings?.panelHiddenAtStart ?? false;
+  return fallback;
 }
 
-/** Persists panelHiddenAtStart to localStorage keyed by project path. */
-export function savePanelHiddenForMode(mode: TeleopMode, subproject: string | undefined, value: boolean): void {
+/** Generic per-project-path localStorage save. See {@link loadPerProject}. */
+export function savePerProject<T>(
+  key: string,
+  teleopPath: string,
+  value: T,
+  serialize: (v: T) => string = String,
+): void {
   try {
-    localStorage.setItem(`cxr.isaac.panelHiddenAtStart.${projectPath(mode, subproject)}`, String(value));
-  } catch {
-    /* localStorage unavailable */
-  }
-}
-
-/**
- * Resolves controlPanelPosition for the current project.
- * Priority: per-project localStorage > project registry setting > 'center'.
- */
-export function loadControlPanelPositionForProject(
-  mode: TeleopMode,
-  subproject?: string,
-  projectSettings?: TeleopProjectSettings,
-): ControlPanelPosition {
-  try {
-    const stored = localStorage.getItem(`cxr.isaac.controlPanelPosition.${projectPath(mode, subproject)}`);
-    if (stored) return parseControlPanelPosition(stored, 'center');
-  } catch {
-    /* localStorage unavailable */
-  }
-  return projectSettings?.controlPanelPosition ?? 'center';
-}
-
-/** Persists controlPanelPosition to localStorage keyed by project path. */
-export function saveControlPanelPositionForProject(mode: TeleopMode, subproject: string | undefined, value: ControlPanelPosition): void {
-  try {
-    localStorage.setItem(`cxr.isaac.controlPanelPosition.${projectPath(mode, subproject)}`, value);
+    localStorage.setItem(`cxr.isaac.${key}|${teleopPath}`, serialize(value));
   } catch {
     /* localStorage unavailable */
   }
@@ -108,15 +60,13 @@ export function saveControlPanelPositionForProject(mode: TeleopMode, subproject:
 /** React UI options (e.g. in-XR control panel position). */
 export interface ReactUIConfig {
   controlPanelPosition?: ControlPanelPosition;
-  /** When true, the control panel is hidden at immersive XR enter (small \u201cshow control panel\u201d control only). */
+  /** When true, the control panel is hidden at immersive XR enter (small “show control panel” control only). */
   panelHiddenAtStart?: boolean;
-  /** Teleop mode resolved from URL hash or localStorage fallback. */
-  teleopMode?: TeleopMode;
-  /** Optional subproject path from the URL hash (e.g. "gear/dexmate" from #/real/gear/dexmate). */
-  subproject?: string;
+  /** Active teleop project path (a key path in `TELEOP_PROJECTS`). */
+  teleopPath?: string;
 }
 
-const CONTROL_PANEL_POSITIONS: readonly ControlPanelPosition[] = ['left', 'center', 'right'];
+export const CONTROL_PANEL_POSITIONS: readonly ControlPanelPosition[] = ['left', 'center', 'right'];
 
 /**
  * Parses a string into a valid control panel position.

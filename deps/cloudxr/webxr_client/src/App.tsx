@@ -37,7 +37,8 @@ import { overridePressureObserver } from '@helpers/overridePressureObserver';
 import { kPerformanceOptions } from '@helpers/PerformanceProfiles';
 import CloudXRComponent from '@helpers/react/CloudXRComponent';
 import { SimpleEnvironment } from '@helpers/react/SimpleEnvironment';
-import { getControlPanelPositionVector, parseTeleopModeFromHash, type TeleopMode } from '@helpers/react/utils';
+import { getControlPanelPositionVector } from '@helpers/react/utils';
+import { DEFAULT_TELEOP_PATH, parseTeleopPathFromHash } from '@helpers/TeleopProjects';
 import * as CloudXR from '@nvidia/cloudxr';
 import { getResolutionValidationError } from '@nvidia/cloudxr';
 import { signal, computed } from '@preact/signals-react';
@@ -310,14 +311,20 @@ function App() {
     const ui = new CloudXR2DUI(() => {
       setConfigVersion(v => v + 1);
     });
-    // Resolve teleop mode + subproject from URL hash, falling back to localStorage, then 'sim'.
-    const modeInfo = parseTeleopModeFromHash(window.location.hash);
-    const resolvedMode: TeleopMode =
-      modeInfo?.mode ??
-      (localStorage.getItem('cxr.isaac.teleopMode') as TeleopMode | null) ??
-      'sim';
-    const resolvedSubproject = modeInfo?.subproject;
-    try { localStorage.setItem('cxr.isaac.teleopMode', resolvedMode); } catch { /* */ }
+    // Teleop path: URL hash -> last-used (localStorage) -> DEFAULT_TELEOP_PATH.
+    const PATH_STORAGE_KEY = 'cxr.isaac.teleopPath';
+    let resolvedPath = parseTeleopPathFromHash(window.location.hash);
+    if (!resolvedPath) {
+      const storedPath = localStorage.getItem(PATH_STORAGE_KEY);
+      resolvedPath = parseTeleopPathFromHash(`#/${storedPath ?? ''}`) ?? DEFAULT_TELEOP_PATH;
+    }
+    // Reflect canonical form (parse may have lowercased/truncated). `#/…` is a
+    // fragment-relative URL so replaceState preserves path and search.
+    const canonicalHash = `#/${resolvedPath}`;
+    if (window.location.hash !== canonicalHash) {
+      window.history.replaceState(null, '', canonicalHash);
+    }
+    try { localStorage.setItem(PATH_STORAGE_KEY, resolvedPath); } catch { /* localStorage unavailable */ }
 
     // URL query params override localStorage so bookmarked links always win.
     const urlSeeds: Record<string, string> = {};
@@ -326,7 +333,7 @@ function App() {
       const v = p.get(key);
       if (v !== null) urlSeeds[key] = v;
     }
-    ui.initialize(Object.keys(urlSeeds).length > 0 ? urlSeeds : undefined, resolvedMode, resolvedSubproject);
+    ui.initialize(Object.keys(urlSeeds).length > 0 ? urlSeeds : undefined, resolvedPath);
     const doConnect = async () => {
       const config = ui.getConfiguration();
       const resolutionError = getResolutionValidationError(
@@ -833,9 +840,7 @@ function App() {
             <>
               <CloudXRComponent
                 config={config}
-                applicationName={`Isaac Teleop Web Client (${
-                  config.teleopMode === 'real' ? 'Real' : 'Sim'
-                }${config.subproject ? `/${config.subproject}` : ''})`}
+                applicationName={`Isaac Teleop Web Client (${config.teleopPath ?? DEFAULT_TELEOP_PATH})`}
                 onStatusChange={handleStatusChange}
                 onError={error => {
                   if (cloudXR2DUI) {
