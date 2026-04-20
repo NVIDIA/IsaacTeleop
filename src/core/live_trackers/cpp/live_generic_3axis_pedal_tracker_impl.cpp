@@ -40,7 +40,11 @@ LiveGeneric3AxisPedalTrackerImpl::LiveGeneric3AxisPedalTrackerImpl(const OpenXRS
                                                                    const Generic3AxisPedalTracker* tracker,
                                                                    std::unique_ptr<PedalMcapChannels> mcap_channels)
     : mcap_channels_(std::move(mcap_channels)),
-      m_schema_reader(handles, make_pedal_tensor_config(tracker), mcap_channels_.get(), 0, 1)
+      m_schema_reader(handles,
+                      make_pedal_tensor_config(tracker),
+                      mcap_channels_.get(),
+                      /*mcap_channel_index=*/0,
+                      /*mcap_channel_tracked_index=*/1)
 {
 }
 

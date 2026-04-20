@@ -36,7 +36,7 @@ public:
      *        SchemaTracker instance. Null when recording is disabled.
      * @param mcap_channel_index 0-based sub-channel index within mcap_channels
      *        used for per-sample recording.
-     * @param mcap_channel_latest_index If set, an additional write of only the final
+     * @param mcap_channel_tracked_index If set, an additional write of only the final
      *        sample per update() call is made to this sub-channel index within the
      *        same mcap_channels. Unset to disable.
      */
@@ -44,11 +44,11 @@ public:
                   SchemaTrackerConfig config,
                   Channels* mcap_channels = nullptr,
                   size_t mcap_channel_index = 0,
-                  std::optional<size_t> mcap_channel_latest_index = std::nullopt)
+                  std::optional<size_t> mcap_channel_tracked_index = std::nullopt)
         : SchemaTrackerBase(handles, std::move(config)),
           mcap_channels_(mcap_channels),
           mcap_channel_index_(mcap_channel_index),
-          mcap_channel_latest_index_(mcap_channel_latest_index)
+          mcap_channel_tracked_index_(mcap_channel_tracked_index)
     {
     }
 
@@ -105,16 +105,16 @@ public:
             }
         }
 
-        if (mcap_channel_latest_index_ && mcap_channels_ && out_latest)
+        if (mcap_channel_tracked_index_ && mcap_channels_ && out_latest)
         {
-            mcap_channels_->write(*mcap_channel_latest_index_, last_timestamp, out_latest);
+            mcap_channels_->write(*mcap_channel_tracked_index_, last_timestamp, out_latest);
         }
     }
 
 private:
     Channels* mcap_channels_;
     size_t mcap_channel_index_;
-    std::optional<size_t> mcap_channel_latest_index_;
+    std::optional<size_t> mcap_channel_tracked_index_;
     std::vector<SampleResult> samples_;
 };
 
