@@ -29,6 +29,7 @@ from isaacteleop.retargeting_engine.deviceio_source_nodes import IDeviceIOSource
 from isaacteleop.retargeting_engine.tensor_types import FloatType
 
 from isaacteleop.teleop_session_manager.config import (
+    SessionMode,
     TeleopSessionConfig,
     PluginConfig,
 )
@@ -1324,6 +1325,260 @@ class TestSessionReuse:
         # Note: plugin_managers list is not cleared on re-entry
         # This is expected behavior - users should create new sessions
         assert first_count == 1
+
+
+# ============================================================================
+# Replay mode (SessionMode.REPLAY)
+# ============================================================================
+
+
+@contextmanager
+def mock_replay_dependencies(mock_pm=None):
+    """Patch DeviceIO and OpenXR so TeleopSession.__enter__ works in replay mode.
+
+    Yields a namespace with:
+        - replay_session: the mock returned by createReplaySession
+        - create_replay: the mock replacing createReplaySession
+        - create_live: the mock replacing createLiveSession
+        - oxr_cls: the mock replacing OpenXRSession
+    """
+    mock_dio_session = MockDeviceIOSession()
+
+    mock_pm = mock_pm or MockPluginManager()
+
+    with (
+        patch(
+            "isaacteleop.deviceio.DeviceIOSession.createReplaySession",
+            return_value=mock_dio_session,
+        ) as create_replay,
+        patch(
+            "isaacteleop.deviceio.DeviceIOSession.createLiveSession",
+            return_value=MagicMock(),
+        ) as create_live,
+        patch("isaacteleop.oxr.OpenXRSession", return_value=MagicMock()) as oxr_cls,
+        patch("isaacteleop.plugin_manager.PluginManager", return_value=mock_pm),
+    ):
+        ns = MagicMock()
+        ns.replay_session = mock_dio_session
+        ns.create_replay = create_replay
+        ns.create_live = create_live
+        ns.oxr_cls = oxr_cls
+        yield ns
+
+
+class TestReplayModeConfigValidation:
+    """Tests for SessionMode field validation in TeleopSessionConfig."""
+
+    def test_replay_mode_requires_mcap_config(self):
+        """REPLAY mode without mcap_config raises ValueError."""
+        with pytest.raises(ValueError, match="mcap_config is required"):
+            TeleopSessionConfig(
+                app_name="test",
+                pipeline=MockPipeline(),
+                mode=SessionMode.REPLAY,
+                mcap_config=None,
+            )
+
+    def test_replay_mode_accepts_mcap_config(self):
+        """REPLAY mode with mcap_config provided succeeds."""
+        config = TeleopSessionConfig(
+            app_name="test",
+            pipeline=MockPipeline(),
+            mode=SessionMode.REPLAY,
+            mcap_config=MagicMock(),
+        )
+        assert config.mode == SessionMode.REPLAY
+        assert config.mcap_config is not None
+
+    def test_default_mode_is_live(self):
+        """Default mode is SessionMode.LIVE."""
+        config = TeleopSessionConfig(
+            app_name="test",
+            pipeline=MockPipeline(),
+        )
+        assert config.mode == SessionMode.LIVE
+
+
+class TestReplayModeSessionEnter:
+    """Tests for TeleopSession.__enter__ when mode is REPLAY."""
+
+    def _make_replay_config(self):
+        mcap_config = MagicMock()
+        return TeleopSessionConfig(
+            app_name="test",
+            pipeline=MockPipeline(leaf_nodes=[]),
+            mode=SessionMode.REPLAY,
+            mcap_config=mcap_config,
+        )
+
+    def test_calls_create_replay_session(self):
+        """createReplaySession is called with the mcap_config."""
+        config = self._make_replay_config()
+
+        with mock_replay_dependencies() as mocks:
+            session = TeleopSession(config)
+            session.__enter__()
+            try:
+                mocks.create_replay.assert_called_once_with(config.mcap_config)
+            finally:
+                session.__exit__(None, None, None)
+
+    def test_skips_oxr_session_creation(self):
+        """OpenXRSession is NOT instantiated in replay mode."""
+        config = self._make_replay_config()
+
+        with mock_replay_dependencies() as mocks:
+            session = TeleopSession(config)
+            session.__enter__()
+            try:
+                mocks.oxr_cls.assert_not_called()
+            finally:
+                session.__exit__(None, None, None)
+
+    def test_skips_create_live_session(self):
+        """createLiveSession is NOT called in replay mode."""
+        config = self._make_replay_config()
+
+        with mock_replay_dependencies() as mocks:
+            session = TeleopSession(config)
+            session.__enter__()
+            try:
+                mocks.create_live.assert_not_called()
+            finally:
+                session.__exit__(None, None, None)
+
+    def test_oxr_session_remains_none(self):
+        """session.oxr_session stays None in replay mode."""
+        config = self._make_replay_config()
+
+        with mock_replay_dependencies():
+            session = TeleopSession(config)
+            session.__enter__()
+            try:
+                assert session.oxr_session is None
+            finally:
+                session.__exit__(None, None, None)
+
+    def test_deviceio_session_is_set(self):
+        """DeviceIO session is populated in replay mode."""
+        config = self._make_replay_config()
+
+        with mock_replay_dependencies() as mocks:
+            session = TeleopSession(config)
+            session.__enter__()
+            try:
+                assert session.deviceio_session is mocks.replay_session
+            finally:
+                session.__exit__(None, None, None)
+
+
+class TestReplayModePlugins:
+    """Tests that plugins are initialized in replay mode."""
+
+    def test_plugins_initialized_in_replay_mode(self, tmp_path):
+        """Enabled plugins are started even when mode is REPLAY."""
+        mock_pm = MockPluginManager(plugin_names=["test_plugin"])
+
+        plugin_config = PluginConfig(
+            plugin_name="test_plugin",
+            plugin_root_id="/root",
+            search_paths=[tmp_path],
+            enabled=True,
+        )
+
+        config = TeleopSessionConfig(
+            app_name="test",
+            pipeline=MockPipeline(leaf_nodes=[]),
+            mode=SessionMode.REPLAY,
+            mcap_config=MagicMock(),
+            plugins=[plugin_config],
+        )
+
+        with mock_replay_dependencies(mock_pm=mock_pm):
+            session = TeleopSession(config)
+            session.__enter__()
+            try:
+                assert len(session.plugin_managers) == 1
+                assert len(session.plugin_contexts) == 1
+            finally:
+                session.__exit__(None, None, None)
+
+
+# ============================================================================
+# Live mode with MCAP recording
+# ============================================================================
+
+
+@contextmanager
+def mock_live_dependencies_with_args():
+    """Patch DeviceIO and OpenXR for live-mode tests that inspect createLiveSession args.
+
+    Yields a namespace with:
+        - create_live: the mock replacing createLiveSession (inspect call_args)
+        - dio_session: the mock DeviceIO session returned by createLiveSession
+    """
+    mock_dio_session = MockDeviceIOSession()
+
+    mock_oxr_session = MockOpenXRSession()
+
+    with (
+        patch(
+            "isaacteleop.deviceio.DeviceIOSession.createLiveSession",
+            return_value=mock_dio_session,
+        ) as create_live,
+        patch("isaacteleop.oxr.OpenXRSession", return_value=mock_oxr_session),
+        patch(
+            "isaacteleop.deviceio.DeviceIOSession.get_required_extensions",
+            return_value=[],
+        ),
+        patch("isaacteleop.plugin_manager.PluginManager", return_value=MagicMock()),
+    ):
+        ns = MagicMock()
+        ns.create_live = create_live
+        ns.dio_session = mock_dio_session
+        yield ns
+
+
+class TestLiveModeWithMcapRecording:
+    """Tests that mcap_config is forwarded to createLiveSession in live mode."""
+
+    def test_mcap_config_passed_to_create_live_session(self):
+        """createLiveSession receives the mcap_config as third argument."""
+        mcap_config = MagicMock()
+        config = TeleopSessionConfig(
+            app_name="test",
+            pipeline=MockPipeline(leaf_nodes=[]),
+            mode=SessionMode.LIVE,
+            mcap_config=mcap_config,
+        )
+
+        with mock_live_dependencies_with_args() as mocks:
+            session = TeleopSession(config)
+            session.__enter__()
+            try:
+                mocks.create_live.assert_called_once()
+                actual_mcap = mocks.create_live.call_args[0][2]
+                assert actual_mcap is mcap_config
+            finally:
+                session.__exit__(None, None, None)
+
+    def test_no_mcap_config_passes_none(self):
+        """When mcap_config is not set, None is passed to createLiveSession."""
+        config = TeleopSessionConfig(
+            app_name="test",
+            pipeline=MockPipeline(leaf_nodes=[]),
+            mode=SessionMode.LIVE,
+        )
+
+        with mock_live_dependencies_with_args() as mocks:
+            session = TeleopSession(config)
+            session.__enter__()
+            try:
+                mocks.create_live.assert_called_once()
+                actual_mcap = mocks.create_live.call_args[0][2]
+                assert actual_mcap is None
+            finally:
+                session.__exit__(None, None, None)
 
 
 if __name__ == "__main__":
