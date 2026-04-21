@@ -262,7 +262,7 @@ export class CloudXR2DUI {
   private decoratePerProjectLabels(): void {
     const label = this.panelHiddenAtStartSelect.labels?.[0];
     if (!label) return;
-    const marker = ' (saved per teleop app)';
+    const marker = ' (saved per teleop application)';
     if (label.textContent?.includes(marker)) return;
     label.appendChild(document.createTextNode(marker));
   }

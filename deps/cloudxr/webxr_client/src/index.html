@@ -501,11 +501,58 @@ limitations under the License.
             border-bottom-color: #1b5e20;
         }
 
-        /* Capped so the select doesn't stretch edge-to-edge on wide screens. */
-        .teleop-project-select-row {
-            flex: 0 1 auto;
-            min-width: 300px;
-            max-width: 540px;
+        /* Opt out of the global `select { width: 100% }` so the help toggle fits alongside. */
+        #teleopProjectSelect {
+            width: auto;
+            vertical-align: top;
+        }
+
+        /* line-height matches select's min-height so the summary reads as vertically
+           centered with the select; position: relative anchors the popover body. */
+        .teleop-project-help {
+            display: inline-block;
+            vertical-align: top;
+            margin-left: 12px;
+            line-height: 48px;
+            position: relative;
+        }
+
+        .teleop-project-help > summary {
+            list-style: none;
+            cursor: pointer;
+            color: #666;
+            font-size: 0.85rem;
+            text-decoration: underline dotted;
+        }
+
+        .teleop-project-help > summary::-webkit-details-marker {
+            display: none;
+        }
+
+        /* Popover: out of flow so the details element never grows and the select stays put. */
+        .teleop-project-help-body {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 320px;
+            margin-top: 4px;
+            padding: 10px 12px;
+            background: var(--background-main);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            line-height: 1.5;
+            font-size: 0.85rem;
+            color: #666;
+            z-index: 20;
+        }
+
+        .teleop-project-help-body p {
+            margin: 0 0 8px;
+        }
+
+        .teleop-project-help-body p:last-child {
+            margin-bottom: 0;
         }
 
         /* Hide 2D UI when in XR mode */
@@ -524,6 +571,16 @@ limitations under the License.
             </h1>
             <div class="teleop-project-select-row">
                 <select id="teleopProjectSelect" aria-label="Change teleop application"></select>
+                <details class="teleop-project-help">
+                    <summary>Not sure which to pick?</summary>
+                    <div class="teleop-project-help-body">
+                        <p>Pick the most specific entry that accurately describes your setup.
+                        If your specific robot configuration isn't listed, just choose the
+                        backend; if your backend isn't listed either, choose Simulation or
+                        Real Robot.</p>
+                        <p>Used for telemetry and app-specific client settings.</p>
+                    </div>
+                </details>
             </div>
         </header>
 
