@@ -28,8 +28,8 @@
   </noscript>
   
   <!-- Loaded before other Sphinx assets -->
-  <link href="../_static/styles/theme.css?digest=7f76b32a3354e82990f2" rel="stylesheet" />
-<link href="../_static/styles/pydata-sphinx-theme.css?digest=7f76b32a3354e82990f2" rel="stylesheet" />
+  <link href="../_static/styles/theme.css?digest=55c26ed414f5f8a31ebb" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=55c26ed414f5f8a31ebb" rel="stylesheet" />
 
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/nvidia-sphinx-theme.css?v=933278ad" />
@@ -38,14 +38,14 @@
     <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=e662b523" />
   
   <!-- So that users can add custom icons -->
-  <script defer src="../_static/scripts/fontawesome.js?digest=7f76b32a3354e82990f2"></script>
+  <script defer src="../_static/scripts/fontawesome.js?digest=55c26ed414f5f8a31ebb"></script>
   <!-- Pre-loaded scripts that we'll load fully later -->
-  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=7f76b32a3354e82990f2" />
-<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=7f76b32a3354e82990f2" />
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=55c26ed414f5f8a31ebb" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=55c26ed414f5f8a31ebb" />
 
 
 
-    <script src="../_static/documentation_options.js?v=692d9a0e"></script>
+    <script src="../_static/documentation_options.js?v=8a870ebc"></script>
     <script src="../_static/doctools.js?v=9bcbadda"></script>
     <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -58,13 +58,13 @@
 
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Contributing" href="contributing.html" />
-    <link rel="prev" title="Build from Source" href="build_from_source.html" />
+    <link rel="next" title="Teleop Control State Machine" href="teleop_control_state_machine.html" />
+    <link rel="prev" title="Build WebXR Client" href="build_from_source/webxr.html" />
 
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.0.x" />
+  <meta name="docsearch:version" content="1.2.x" />
   
     
     <script src="../_static/searchtools.js"></script>
@@ -87,7 +87,9 @@
   
   <button type="button" class="btn rounded-pill" id="pst-back-to-top">
     <i class="fa-solid fa-arrow-up"></i>Back to top</button>
-
+  
+  
+  
   
   <dialog id="pst-search-dialog">
     
@@ -323,8 +325,9 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="quick_start.html">Quick Start</a></li>
-<li class="toctree-l1"><a class="reference internal" href="build_from_source.html">Build from Source</a></li>
+<li class="toctree-l1"><a class="reference internal" href="build_from_source/index.html">Build from Source</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Teleop Session</a></li>
+<li class="toctree-l1"><a class="reference internal" href="teleop_control_state_machine.html">Teleop Control State Machine</a></li>
 <li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
@@ -333,6 +336,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../references/build.html">Build System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../device/index.html">Device Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/retargeting.html">Retargeting Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/license.html">License</a></li>
 </ul>
 </div>
@@ -447,7 +451,7 @@ manage them directly:</p>
 <p class="admonition-title">Note</p>
 <p>Currently, to customize the teleop session, you need to configure it via Python code. We are
 working on a more declarative configuration API that takes a YAML file as input. Follow the
-following issue for progress: <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/issues/229" rel="noopener noreferrer" target="_blank">https://github.com/NVIDIA/IsaacTeleop/issues/229</a></p>
+following issue for progress: <a class="github reference external" href="https://github.com/NVIDIA/IsaacTeleop/issues/229" rel="noopener noreferrer" target="_blank">NVIDIA/IsaacTeleop#229</a></p>
 </div>
 <section id="teleopsessionconfig">
 <h3>TeleopSessionConfig<a class="headerlink" href="#teleopsessionconfig" title="Link to this heading">#</a></h3>
@@ -506,10 +510,13 @@ argument is a <code class="docutils literal notranslate"><span class="pre">uint6
 <section id="methods">
 <h4>Methods<a class="headerlink" href="#methods" title="Link to this heading">#</a></h4>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">step(external_inputs=None)</span> <span class="pre">-&gt;</span> <span class="pre">Dict[str,</span> <span class="pre">TensorGroup]</span></code> – Execute one step:
-updates the DeviceIO session, polls tracker data, merges any caller-provided
-<code class="docutils literal notranslate"><span class="pre">external_inputs</span></code>, and executes the retargeting pipeline. Raises
-<code class="docutils literal notranslate"><span class="pre">ValueError</span></code> if required external inputs are missing or collide with
+<li><p><code class="docutils literal notranslate"><span class="pre">step(*,</span> <span class="pre">external_inputs=None,</span> <span class="pre">graph_time=None,</span> <span class="pre">execution_events=None)</span> <span class="pre">-&gt;</span> <span class="pre">Dict[str,</span> <span class="pre">TensorGroup]</span></code>
+– Execute one step: updates the DeviceIO session, polls tracker data, merges
+any caller-provided <code class="docutils literal notranslate"><span class="pre">external_inputs</span></code>, and executes the retargeting pipeline.
+<code class="docutils literal notranslate"><span class="pre">graph_time</span></code> can be provided explicitly; when omitted, monotonic time is used
+for both sim/real time. If <code class="docutils literal notranslate"><span class="pre">execution_events</span></code> is provided, it is injected into
+<code class="docutils literal notranslate"><span class="pre">ComputeContext</span></code> and <code class="docutils literal notranslate"><span class="pre">teleop_control_pipeline</span></code> is skipped for that step.
+Raises <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> if required external inputs are missing or collide with
 DeviceIO source names.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">get_external_input_specs()</span> <span class="pre">-&gt;</span> <span class="pre">Dict[str,</span> <span class="pre">RetargeterIOType]</span></code> – Return the
 input specifications for all external (non-DeviceIO) leaf nodes that require
@@ -518,6 +525,25 @@ caller-provided inputs in <code class="docutils literal notranslate"><span class
 nodes that require caller-provided inputs.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">get_elapsed_time()</span> <span class="pre">-&gt;</span> <span class="pre">float</span></code> – Get elapsed time since session started.</p></li>
 </ul>
+<p>Example (explicit GraphTime + ExecutionEvents override):</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.retargeting_engine.interface.execution_events</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">ExecutionEvents</span><span class="p">,</span>
+    <span class="n">ExecutionState</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.retargeting_engine.interface.retargeter_core_types</span><span class="w"> </span><span class="kn">import</span> <span class="n">GraphTime</span>
+
+<span class="n">now_ns</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic_ns</span><span class="p">()</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">step</span><span class="p">(</span>
+    <span class="n">graph_time</span><span class="o">=</span><span class="n">GraphTime</span><span class="p">(</span><span class="n">sim_time_ns</span><span class="o">=</span><span class="mi">123_000_000</span><span class="p">,</span> <span class="n">real_time_ns</span><span class="o">=</span><span class="n">now_ns</span><span class="p">),</span>
+    <span class="n">execution_events</span><span class="o">=</span><span class="n">ExecutionEvents</span><span class="p">(</span>
+        <span class="n">execution_state</span><span class="o">=</span><span class="n">ExecutionState</span><span class="o">.</span><span class="n">PAUSED</span><span class="p">,</span>
+        <span class="n">reset</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="p">),</span>
+<span class="p">)</span>
+</pre></div>
+</div>
 </section>
 <section id="properties">
 <h4>Properties<a class="headerlink" href="#properties" title="Link to this heading">#</a></h4>
@@ -658,20 +684,20 @@ of input sources.</p></li>
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="build_from_source.html"
+       href="build_from_source/webxr.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Build from Source</p>
+        <p class="prev-next-title">Build WebXR Client</p>
       </div>
     </a>
     <a class="right-next"
-       href="contributing.html"
+       href="teleop_control_state_machine.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Contributing</p>
+        <p class="prev-next-title">Teleop Control State Machine</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -740,8 +766,8 @@ of input sources.</p></li>
   
 
   <!-- Scripts loaded after <body> so the DOM is not blocked -->
-  <script defer src="../_static/scripts/bootstrap.js?digest=7f76b32a3354e82990f2"></script>
-<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=7f76b32a3354e82990f2"></script>
+  <script defer src="../_static/scripts/bootstrap.js?digest=55c26ed414f5f8a31ebb"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=55c26ed414f5f8a31ebb"></script>
 
 
   <footer class="bd-footer">

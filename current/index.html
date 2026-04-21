@@ -28,8 +28,8 @@
   </noscript>
   
   <!-- Loaded before other Sphinx assets -->
-  <link href="_static/styles/theme.css?digest=7f76b32a3354e82990f2" rel="stylesheet" />
-<link href="_static/styles/pydata-sphinx-theme.css?digest=7f76b32a3354e82990f2" rel="stylesheet" />
+  <link href="_static/styles/theme.css?digest=55c26ed414f5f8a31ebb" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=55c26ed414f5f8a31ebb" rel="stylesheet" />
 
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="_static/styles/nvidia-sphinx-theme.css?v=933278ad" />
@@ -38,14 +38,14 @@
     <link rel="stylesheet" type="text/css" href="_static/css/custom.css?v=e662b523" />
   
   <!-- So that users can add custom icons -->
-  <script defer src="_static/scripts/fontawesome.js?digest=7f76b32a3354e82990f2"></script>
+  <script defer src="_static/scripts/fontawesome.js?digest=55c26ed414f5f8a31ebb"></script>
   <!-- Pre-loaded scripts that we'll load fully later -->
-  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=7f76b32a3354e82990f2" />
-<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=7f76b32a3354e82990f2" />
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=55c26ed414f5f8a31ebb" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=55c26ed414f5f8a31ebb" />
 
 
 
-    <script src="_static/documentation_options.js?v=692d9a0e"></script>
+    <script src="_static/documentation_options.js?v=8a870ebc"></script>
     <script src="_static/doctools.js?v=9bcbadda"></script>
     <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -63,7 +63,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.0.x" />
+  <meta name="docsearch:version" content="1.2.x" />
   
     
     <script src="_static/searchtools.js"></script>
@@ -86,7 +86,9 @@
   
   <button type="button" class="btn rounded-pill" id="pst-back-to-top">
     <i class="fa-solid fa-arrow-up"></i>Back to top</button>
-
+  
+  
+  
   
   <dialog id="pst-search-dialog">
     
@@ -322,8 +324,9 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="getting_started/quick_start.html">Quick Start</a></li>
-<li class="toctree-l1"><a class="reference internal" href="getting_started/build_from_source.html">Build from Source</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started/build_from_source/index.html">Build from Source</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started/teleop_session.html">Teleop Session</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started/teleop_control_state_machine.html">Teleop Control State Machine</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started/contributing.html">Contributing</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
@@ -332,6 +335,7 @@
 <li class="toctree-l1"><a class="reference internal" href="references/build.html">Build System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="device/index.html">Device Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="references/retargeting.html">Retargeting Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references/oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="references/license.html">License</a></li>
 </ul>
 </div>
@@ -368,6 +372,10 @@
 egocentric and robot data collection. It provides a standardized device interface, a flexible
 graph-based retargeting pipeline, and a streamlined data collection workflow
 that work seamlessly across simulated and real-world robots.</p>
+<figure class="align-default">
+<a class="reference internal image-reference" href="_images/isaac-teleop-hero.jpg"><img alt="Isaac Teleop" src="_images/isaac-teleop-hero.jpg" style="width: 100%;" />
+</a>
+</figure>
 <p>Key features:</p>
 <ul class="simple">
 <li><p><strong>Unified stack</strong> for sim and real teleoperation (ROS2, Isaac Sim, Isaac Lab)</p></li>
@@ -405,13 +413,13 @@ installation and first-run steps.</p>
 <li class="toctree-l2"><a class="reference internal" href="getting_started/quick_start.html#more-information">More Information</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="getting_started/build_from_source.html">Build from Source</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#prerequisites">Prerequisites</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#one-time-setup">One time setup</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#clone-the-repository">1. Clone the repository</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#cmake-configure-and-build">2. CMake: Configure and build</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#running-tests">3. Running tests</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source.html#install-the-isaacteleop-pip-package">4. Install the <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> pip package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started/build_from_source/index.html">Build from Source</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source/index.html#prerequisites">Prerequisites</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source/index.html#one-time-setup">One time setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source/index.html#clone-the-repository">1. Clone the repository</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source/index.html#cmake-configure-and-build">2. CMake: Configure and build</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source/index.html#running-tests">3. Running tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/build_from_source/index.html#install-the-isaacteleop-pip-package">4. Install the <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> pip package</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started/teleop_session.html">Teleop Session</a><ul>
@@ -422,6 +430,13 @@ installation and first-run steps.</p>
 <li class="toctree-l2"><a class="reference internal" href="getting_started/teleop_session.html#examples">Examples</a></li>
 <li class="toctree-l2"><a class="reference internal" href="getting_started/teleop_session.html#benefits">Benefits</a></li>
 <li class="toctree-l2"><a class="reference internal" href="getting_started/teleop_session.html#advanced-features">Advanced Features</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started/teleop_control_state_machine.html">Teleop Control State Machine</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/teleop_control_state_machine.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/teleop_control_state_machine.html#default-state-machine-behavior">Default State Machine Behavior</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/teleop_control_state_machine.html#connecting-inputs">Connecting Inputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/teleop_control_state_machine.html#using-context-in-high-level-app-logic">Using Context in High-Level App Logic</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started/contributing.html">Contributing</a></li>
@@ -454,6 +469,17 @@ installation and first-run steps.</p>
 <li class="toctree-l2"><a class="reference internal" href="references/retargeting.html#available-retargeters">Available Retargeters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="references/retargeting.html#build-a-retargeting-pipeline">Build a Retargeting Pipeline</a></li>
 <li class="toctree-l2"><a class="reference internal" href="references/retargeting.html#add-a-new-retargeter">Add a New Retargeter</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="references/oob_teleop_control.html">Out-of-Band Teleop Control</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="references/oob_teleop_control.html#quick-start">Quick start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/oob_teleop_control.html#adb-automation">ADB automation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/oob_teleop_control.html#architecture">Architecture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/oob_teleop_control.html#websocket-protocol">WebSocket protocol</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/oob_teleop_control.html#http-api">HTTP API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/oob_teleop_control.html#authentication">Authentication</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/oob_teleop_control.html#web-client-integration">Web client integration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/oob_teleop_control.html#environment-variables">Environment variables</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="references/license.html">License</a><ul>
@@ -536,8 +562,8 @@ installation and first-run steps.</p>
   
 
   <!-- Scripts loaded after <body> so the DOM is not blocked -->
-  <script defer src="_static/scripts/bootstrap.js?digest=7f76b32a3354e82990f2"></script>
-<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=7f76b32a3354e82990f2"></script>
+  <script defer src="_static/scripts/bootstrap.js?digest=55c26ed414f5f8a31ebb"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=55c26ed414f5f8a31ebb"></script>
 
 
   <footer class="bd-footer">

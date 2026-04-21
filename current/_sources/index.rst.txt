@@ -14,6 +14,10 @@ egocentric and robot data collection. It provides a standardized device interfac
 graph-based retargeting pipeline, and a streamlined data collection workflow
 that work seamlessly across simulated and real-world robots.
 
+.. figure:: _static/isaac-teleop-hero.jpg
+   :width: 100%
+   :alt: Isaac Teleop
+
 Key features:
 
 - **Unified stack** for sim and real teleoperation (ROS2, Isaac Sim, Isaac Lab)
@@ -43,8 +47,9 @@ Table of Contents
    :caption: Getting Started
 
    getting_started/quick_start
-   getting_started/build_from_source
+   getting_started/build_from_source/index
    getting_started/teleop_session
+   getting_started/teleop_control_state_machine
    getting_started/contributing
 
 .. toctree::
@@ -55,6 +60,7 @@ Table of Contents
    references/build
    device/index
    references/retargeting
+   references/oob_teleop_control
    references/license
 
 Indices and tables
