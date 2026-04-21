@@ -45,7 +45,7 @@
 
 
 
-    <script src="../_static/documentation_options.js?v=8a870ebc"></script>
+    <script src="../_static/documentation_options.js?v=692d9a0e"></script>
     <script src="../_static/doctools.js?v=9bcbadda"></script>
     <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -58,13 +58,13 @@
 
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Body Tracking" href="body_tracking.html" />
+    <link rel="next" title="Retargeting Interface" href="../references/retargeting.html" />
     <link rel="prev" title="Device Trackers" href="trackers.html" />
 
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.2.x" />
+  <meta name="docsearch:version" content="1.0.x" />
   
     
     <script src="../_static/searchtools.js"></script>
@@ -323,9 +323,8 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/quick_start.html">Quick Start</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../getting_started/build_from_source/index.html">Build from Source</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/build_from_source.html">Build from Source</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/teleop_session.html">Teleop Session</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../getting_started/teleop_control_state_machine.html">Teleop Control State Machine</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/contributing.html">Contributing</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
@@ -335,11 +334,9 @@
 <li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">Device Interface</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="trackers.html">Device Trackers</a></li>
 <li class="toctree-l2 current active"><a class="current reference internal" href="#">Add a New Device</a></li>
-<li class="toctree-l2"><a class="reference internal" href="body_tracking.html">Body Tracking</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/retargeting.html">Retargeting Interface</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../references/oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/license.html">License</a></li>
 </ul>
 </div>
@@ -416,16 +413,8 @@ The reference implementation is the <strong>generic 3-axis foot pedal</strong>:<
 <tr class="row-odd"><td><p>Device Plugin</p></td>
 <td><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/generic_3axis_pedal" rel="noopener noreferrer" target="_blank">src/plugins/generic_3axis_pedal</a></p></td>
 </tr>
-<tr class="row-even"><td><p>Tracker facade (<code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalTracker</span></code>)</p></td>
-<td><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_trackers/cpp/generic_3axis_pedal_tracker.cpp" rel="noopener noreferrer" target="_blank">src/core/deviceio_trackers/cpp/generic_3axis_pedal_tracker.cpp</a> and
-<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_trackers/cpp/inc/deviceio/generic_3axis_pedal_tracker.hpp" rel="noopener noreferrer" target="_blank">src/core/deviceio_trackers/cpp/inc/deviceio/generic_3axis_pedal_tracker.hpp</a></p></td>
-</tr>
-<tr class="row-odd"><td><p>Live backend (<code class="docutils literal notranslate"><span class="pre">LiveGeneric3AxisPedalTrackerImpl</span></code>)</p></td>
-<td><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/live_trackers/cpp/live_generic_3axis_pedal_tracker_impl.cpp" rel="noopener noreferrer" target="_blank">src/core/live_trackers/cpp/live_generic_3axis_pedal_tracker_impl.cpp</a> and
-<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/live_trackers/cpp/live_generic_3axis_pedal_tracker_impl.hpp" rel="noopener noreferrer" target="_blank">src/core/live_trackers/cpp/live_generic_3axis_pedal_tracker_impl.hpp</a></p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">SchemaTracker</span></code> / <code class="docutils literal notranslate"><span class="pre">SampleResult</span></code></p></td>
-<td><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/live_trackers/cpp/inc/live_trackers/schema_tracker.hpp" rel="noopener noreferrer" target="_blank">src/core/live_trackers/cpp/inc/live_trackers/schema_tracker.hpp</a></p></td>
+<tr class="row-even"><td><p>Device Tracker</p></td>
+<td><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio/cpp/generic_3axis_pedal_tracker.cpp" rel="noopener noreferrer" target="_blank">src/core/deviceio/cpp/generic_3axis_pedal_tracker.cpp</a></p></td>
 </tr>
 <tr class="row-odd"><td><p>Debug printer</p></td>
 <td><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/examples/schemaio/pedal_printer.cpp" rel="noopener noreferrer" target="_blank">examples/schemaio/pedal_printer.cpp</a></p></td>
@@ -500,26 +489,18 @@ for the local common clock; use the device’s own clock for the raw device cloc
 <section id="step-3-implement-a-tracker">
 <h2>Step 3: Implement a tracker<a class="headerlink" href="#step-3-implement-a-tracker" title="Link to this heading">#</a></h2>
 <p>The tracker runs inside a consumer process (e.g. Teleop pipeline or a small reader app). It
-implements the <strong>ITracker</strong> interface (tracker <strong>facade</strong> in <code class="docutils literal notranslate"><span class="pre">deviceio_trackers</span></code>); the
-<strong>live backend</strong> in <code class="docutils literal notranslate"><span class="pre">live_trackers</span></code> composes <strong>SchemaTracker</strong> to read raw
-tensor samples from OpenXR. Implement a concrete tracker class (e.g.
+implements the <strong>ITracker</strong> interface and uses <strong>SchemaTracker</strong> (from the <code class="docutils literal notranslate"><span class="pre">deviceio</span></code> library)
+to read raw tensor samples from OpenXR. Implement a concrete tracker class (e.g.
 <code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalTracker</span></code>) that:</p>
 <ul class="simple">
-<li><p><strong>Extends ITracker</strong> — Override <code class="docutils literal notranslate"><span class="pre">get_name()</span></code>,
-<code class="docutils literal notranslate"><span class="pre">get_schema_name()</span></code>, <code class="docutils literal notranslate"><span class="pre">get_schema_text()</span></code>, and <code class="docutils literal notranslate"><span class="pre">get_record_channels()</span></code>.
-For OpenXR, add a static <code class="docutils literal notranslate"><span class="pre">required_extensions()</span></code> on your live <code class="docutils literal notranslate"><span class="pre">ITrackerImpl</span></code> and register
-the tracker type in <code class="docutils literal notranslate"><span class="pre">LiveDeviceIOFactory::get_required_extensions</span></code> (tensor/schema readers
-usually forward <code class="docutils literal notranslate"><span class="pre">SchemaTrackerBase::get_required_extensions()</span></code>). Callers use
-<code class="docutils literal notranslate"><span class="pre">DeviceIOSession::get_required_extensions(trackers)</span></code>. Return the Record type name
+<li><p><strong>Extends ITracker</strong> — Override <code class="docutils literal notranslate"><span class="pre">get_required_extensions()</span></code>, <code class="docutils literal notranslate"><span class="pre">get_name()</span></code>,
+<code class="docutils literal notranslate"><span class="pre">get_schema_name()</span></code>, <code class="docutils literal notranslate"><span class="pre">get_schema_text()</span></code>, and <code class="docutils literal notranslate"><span class="pre">get_record_channels()</span></code>. Return
+<code class="docutils literal notranslate"><span class="pre">SchemaTracker::get_required_extensions()</span></code> for extensions; return the Record type name
 and binary schema for MCAP; return at least one channel name.</p></li>
-<li><p><strong>Holds user configuration</strong> — Same logical inputs as the pusher (e.g. <code class="docutils literal notranslate"><span class="pre">collection_id</span></code>,
-<code class="docutils literal notranslate"><span class="pre">max_flatbuffer_size</span></code>). The live <code class="docutils literal notranslate"><span class="pre">ITrackerImpl</span></code> builds the internal tensor settings
-(<code class="docutils literal notranslate"><span class="pre">SchemaTrackerConfig</span></code>) so they match the plugin.</p></li>
-<li><p><strong>Factory registration</strong> — Register your tracker in the live factory dispatch table
-(see <code class="docutils literal notranslate"><span class="pre">LiveDeviceIOFactory</span></code>). The factory constructs an <code class="docutils literal notranslate"><span class="pre">ITrackerImpl</span></code> that holds
-a <code class="docutils literal notranslate"><span class="pre">SchemaTracker</span></code>, builds a <code class="docutils literal notranslate"><span class="pre">SchemaTrackerConfig</span></code> from the tracker’s stored
-configuration, and implements <code class="docutils literal notranslate"><span class="pre">update(XrTime)</span></code> and
-<code class="docutils literal notranslate"><span class="pre">serialize_all(channel_index,</span> <span class="pre">callback)</span></code>.</p></li>
+<li><p><strong>Holds SchemaTrackerConfig</strong> — Same logical fields as the pusher: <code class="docutils literal notranslate"><span class="pre">collection_id</span></code>,
+<code class="docutils literal notranslate"><span class="pre">max_flatbuffer_size</span></code>, <code class="docutils literal notranslate"><span class="pre">tensor_identifier</span></code>, <code class="docutils literal notranslate"><span class="pre">localized_name</span></code>. Must match the plugin.</p></li>
+<li><p><strong>create_tracker()</strong> — Return an <code class="docutils literal notranslate"><span class="pre">ITrackerImpl</span></code> that holds a <code class="docutils literal notranslate"><span class="pre">SchemaTracker</span></code> and
+implements <code class="docutils literal notranslate"><span class="pre">update(XrTime)</span></code> and <code class="docutils literal notranslate"><span class="pre">serialize_all(channel_index,</span> <span class="pre">callback)</span></code>.</p></li>
 </ul>
 <p>In the <strong>Impl</strong>:</p>
 <ul class="simple">
@@ -533,20 +514,11 @@ Record FlatBuffer (output table + <code class="docutils literal notranslate"><sp
 device disappeared and there are no samples, you may emit one record with null data and
 the update-tick timestamp so the MCAP stream marks absence.</p></li>
 </ul>
-<p>Reference implementation — split across facade and live backend:</p>
-<ul class="simple">
-<li><p><strong>Tracker facade</strong> — <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_trackers/cpp/generic_3axis_pedal_tracker.cpp" rel="noopener noreferrer" target="_blank">src/core/deviceio_trackers/cpp/generic_3axis_pedal_tracker.cpp</a>
-(class <code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalTracker</span></code>): holds collection configuration, implements <code class="docutils literal notranslate"><span class="pre">ITracker</span></code>, and
-exposes <code class="docutils literal notranslate"><span class="pre">get_data(session)</span></code> returning
-<code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalOutputTrackedT</span></code> by dispatching to the session’s
-<code class="docutils literal notranslate"><span class="pre">IGeneric3AxisPedalTrackerImpl</span></code> (see <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_base/cpp/inc/deviceio_base/generic_3axis_pedal_tracker_base.hpp" rel="noopener noreferrer" target="_blank">src/core/deviceio_base/cpp/inc/deviceio_base/generic_3axis_pedal_tracker_base.hpp</a>).</p></li>
-<li><p><strong>Live backend</strong> — <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/live_trackers/cpp/live_generic_3axis_pedal_tracker_impl.cpp" rel="noopener noreferrer" target="_blank">src/core/live_trackers/cpp/live_generic_3axis_pedal_tracker_impl.cpp</a>
-(<code class="docutils literal notranslate"><span class="pre">LiveGeneric3AxisPedalTrackerImpl</span></code>): composes <code class="docutils literal notranslate"><span class="pre">SchemaTracker</span></code>, implements <code class="docutils literal notranslate"><span class="pre">update()</span></code> and
-<code class="docutils literal notranslate"><span class="pre">serialize_all()</span></code>, and uses <code class="docutils literal notranslate"><span class="pre">SchemaTracker::read_all_samples()</span></code> with
-<code class="docutils literal notranslate"><span class="pre">std::vector&lt;SchemaTracker::SampleResult&gt;</span></code> for the pending batch. See
-<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/live_trackers/cpp/inc/live_trackers/schema_tracker.hpp" rel="noopener noreferrer" target="_blank">src/core/live_trackers/cpp/inc/live_trackers/schema_tracker.hpp</a>
-for <code class="docutils literal notranslate"><span class="pre">SchemaTracker</span></code> and <code class="docutils literal notranslate"><span class="pre">SampleResult</span></code> (buffer + timestamp metadata).</p></li>
-</ul>
+<p>Reference implementation: <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio/cpp/generic_3axis_pedal_tracker.cpp" rel="noopener noreferrer" target="_blank">src/core/deviceio/cpp/generic_3axis_pedal_tracker.cpp</a>. It
+composes <code class="docutils literal notranslate"><span class="pre">SchemaTracker</span></code>, implements <code class="docutils literal notranslate"><span class="pre">Impl::update()</span></code> and <code class="docutils literal notranslate"><span class="pre">Impl::serialize_all()</span></code>,
+and exposes <code class="docutils literal notranslate"><span class="pre">get_data(session)</span></code> returning <code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalOutputTrackedT</span></code>. See also
+<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio/cpp/inc/deviceio/schema_tracker.hpp" rel="noopener noreferrer" target="_blank">inc/deviceio/schema_tracker.hpp</a> for <code class="docutils literal notranslate"><span class="pre">SchemaTracker</span></code> and <code class="docutils literal notranslate"><span class="pre">SampleResult</span></code> (buffer +
+timestamp).</p>
 </section>
 <section id="step-4-implement-a-simple-c-printer-optional">
 <h2>Step 4: Implement a simple C++ printer (optional)<a class="headerlink" href="#step-4-implement-a-simple-c-printer-optional" title="Link to this heading">#</a></h2>
@@ -596,14 +568,13 @@ Both exit after 100 samples, or press Ctrl+C to exit early.</p>
 extensions: takes externally-provided OpenXR session handles, creates a tensor collection with
 the configured identifier, provides <code class="docutils literal notranslate"><span class="pre">push_buffer()</span></code> for raw serialized data. Use composition
 to create typed wrappers (e.g. <code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalPusher</span></code> in <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/examples/schemaio/pedal_pusher.cpp" rel="noopener noreferrer" target="_blank">examples/schemaio/pedal_pusher.cpp</a>).</p></li>
-<li><p><strong>SchemaTracker</strong> (<code class="docutils literal notranslate"><span class="pre">live_trackers</span></code>) — Helper for reading FlatBuffer schema data via
-OpenXR tensor collections: discovers collections by identifier, exposes <code class="docutils literal notranslate"><span class="pre">read_all_samples()</span></code> into
-<code class="docutils literal notranslate"><span class="pre">SampleResult</span></code> values. Live tracker implementations (e.g. <code class="docutils literal notranslate"><span class="pre">LiveGeneric3AxisPedalTrackerImpl</span></code>)
-compose a <code class="docutils literal notranslate"><span class="pre">SchemaTracker</span></code> and implement <code class="docutils literal notranslate"><span class="pre">ITrackerImpl::update()</span></code> / <code class="docutils literal notranslate"><span class="pre">serialize_all()</span></code>.</p></li>
-<li><p><strong>Generic3AxisPedalTracker</strong> (tracker facade in <code class="docutils literal notranslate"><span class="pre">deviceio_trackers</span></code>) — Concrete <code class="docutils literal notranslate"><span class="pre">ITracker</span></code> for
-<code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalOutput</span></code>: holds configuration and
-<code class="docutils literal notranslate"><span class="pre">get_data(session)</span></code> returning <code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalOutputTrackedT</span></code> via the session’s
-<code class="docutils literal notranslate"><span class="pre">IGeneric3AxisPedalTrackerImpl</span></code>.</p></li>
+<li><p><strong>SchemaTracker</strong> (<code class="docutils literal notranslate"><span class="pre">deviceio</span></code> library) — Base for reading FlatBuffer schema data via OpenXR:
+implements <code class="docutils literal notranslate"><span class="pre">ITracker</span></code> for use with <code class="docutils literal notranslate"><span class="pre">DeviceIOSession</span></code>, discovers collections by identifier,
+exposes <code class="docutils literal notranslate"><span class="pre">read_all_samples()</span></code>; subclasses implement <code class="docutils literal notranslate"><span class="pre">update()</span></code> to deserialize and
+<code class="docutils literal notranslate"><span class="pre">serialize_all()</span></code> to re-serialize typed data.</p></li>
+<li><p><strong>Generic3AxisPedalTracker</strong> — Concrete tracker for <code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalOutput</span></code>: extends
+<code class="docutils literal notranslate"><span class="pre">SchemaTracker</span></code> with schema-specific deserialization and provides <code class="docutils literal notranslate"><span class="pre">get_data()</span></code> for the latest
+<code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalOutputT</span></code>.</p></li>
 <li><p><strong>DeviceIOSession</strong> — Session manager: collects required OpenXR extensions from registered
 trackers, creates tracker implementations with session handles, and calls <code class="docutils literal notranslate"><span class="pre">update()</span></code> on all
 trackers during the update loop.</p></li>
@@ -631,11 +602,11 @@ trackers during the update loop.</p></li>
       </div>
     </a>
     <a class="right-next"
-       href="body_tracking.html"
+       href="../references/retargeting.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Body Tracking</p>
+        <p class="prev-next-title">Retargeting Interface</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>

@@ -45,7 +45,7 @@
 
 
 
-    <script src="../_static/documentation_options.js?v=8a870ebc"></script>
+    <script src="../_static/documentation_options.js?v=692d9a0e"></script>
     <script src="../_static/doctools.js?v=9bcbadda"></script>
     <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -64,7 +64,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.2.x" />
+  <meta name="docsearch:version" content="1.0.x" />
   
     
     <script src="../_static/searchtools.js"></script>
@@ -323,9 +323,8 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/quick_start.html">Quick Start</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../getting_started/build_from_source/index.html">Build from Source</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/build_from_source.html">Build from Source</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/teleop_session.html">Teleop Session</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../getting_started/teleop_control_state_machine.html">Teleop Control State Machine</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/contributing.html">Contributing</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
@@ -335,11 +334,9 @@
 <li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">Device Interface</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
 <li class="toctree-l2 current active"><a class="current reference internal" href="#">Device Trackers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="add_device.html">Add a New Device</a></li>
-<li class="toctree-l2"><a class="reference internal" href="body_tracking.html">Body Tracking</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/retargeting.html">Retargeting Interface</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../references/oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/license.html">License</a></li>
 </ul>
 </div>
@@ -397,25 +394,25 @@
                   
   <section id="device-trackers">
 <h1>Device Trackers<a class="headerlink" href="#device-trackers" title="Link to this heading">#</a></h1>
-<p>Trackers (defined in <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/core/deviceio_trackers" rel="noopener noreferrer" target="_blank">src/core/deviceio_trackers</a>) are the consumer-side API for reading device
-data from an active <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_session/cpp/inc/deviceio/deviceio_session.hpp" rel="noopener noreferrer" target="_blank">DeviceIOSession</a>.
+<p>Trackers (defined in <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/core/deviceio" rel="noopener noreferrer" target="_blank">src/core/deviceio</a>) are the consumer-side API for reading device
+data from an active <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio/cpp/inc/deviceio/deviceio_session.hpp" rel="noopener noreferrer" target="_blank">DeviceIOSession</a>.
 Each tracker manages one logical device, queries the OpenXR runtime every frame,
 and exposes the latest sample through typed <code class="docutils literal notranslate"><span class="pre">get_*()</span></code> accessors.</p>
 <p>There are two categories of trackers:</p>
 <p><strong>OpenXR-direct trackers</strong> – read pose and input data through standard OpenXR
 APIs (<code class="docutils literal notranslate"><span class="pre">xrLocateSpace</span></code>, <code class="docutils literal notranslate"><span class="pre">xrSyncActions</span></code>, etc.):</p>
 <ul class="simple">
-<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_trackers/cpp/inc/deviceio/head_tracker.hpp" rel="noopener noreferrer" target="_blank">HeadTracker</a> – HMD head pose</p></li>
-<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_trackers/cpp/inc/deviceio/hand_tracker.hpp" rel="noopener noreferrer" target="_blank">HandTracker</a> – articulated hand joints (left and right)</p></li>
-<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_trackers/cpp/inc/deviceio/controller_tracker.hpp" rel="noopener noreferrer" target="_blank">ControllerTracker</a> – controller poses and button/axis inputs (left and right)</p></li>
-<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_trackers/cpp/inc/deviceio/full_body_tracker_pico.hpp" rel="noopener noreferrer" target="_blank">FullBodyTrackerPico</a> – 24-joint full body pose (PICO <code class="docutils literal notranslate"><span class="pre">XR_BD_body_tracking</span></code>)</p></li>
+<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio/cpp/inc/deviceio/head_tracker.hpp" rel="noopener noreferrer" target="_blank">HeadTracker</a> – HMD head pose</p></li>
+<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio/cpp/inc/deviceio/hand_tracker.hpp" rel="noopener noreferrer" target="_blank">HandTracker</a> – articulated hand joints (left and right)</p></li>
+<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio/cpp/inc/deviceio/controller_tracker.hpp" rel="noopener noreferrer" target="_blank">ControllerTracker</a> – controller poses and button/axis inputs (left and right)</p></li>
+<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio/cpp/inc/deviceio/full_body_tracker_pico.hpp" rel="noopener noreferrer" target="_blank">FullBodyTrackerPico</a> – 24-joint full body pose (PICO <code class="docutils literal notranslate"><span class="pre">XR_BD_body_tracking</span></code>)</p></li>
 </ul>
 <p><strong>SchemaTracker-based trackers</strong> – create new device type by defining a FlatBuffer schema and
 reading it from OpenXR tensor collections via the
-<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/live_trackers/cpp/inc/live_trackers/schema_tracker.hpp" rel="noopener noreferrer" target="_blank">SchemaTracker</a> utility.</p>
+<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio/cpp/inc/deviceio/schema_tracker.hpp" rel="noopener noreferrer" target="_blank">SchemaTracker</a> utility.</p>
 <ul class="simple">
-<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_trackers/cpp/inc/deviceio/frame_metadata_tracker_oak.hpp" rel="noopener noreferrer" target="_blank">FrameMetadataTrackerOak</a> – per-stream frame metadata from OAK cameras</p></li>
-<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_trackers/cpp/inc/deviceio/generic_3axis_pedal_tracker.hpp" rel="noopener noreferrer" target="_blank">Generic3AxisPedalTracker</a> – foot pedal axis values</p></li>
+<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio/cpp/inc/deviceio/frame_metadata_tracker_oak.hpp" rel="noopener noreferrer" target="_blank">FrameMetadataTrackerOak</a> – per-stream frame metadata from OAK cameras</p></li>
+<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio/cpp/inc/deviceio/generic_3axis_pedal_tracker.hpp" rel="noopener noreferrer" target="_blank">Generic3AxisPedalTracker</a> – foot pedal axis values</p></li>
 </ul>
 <p>All trackers follow the same lifecycle:</p>
 <ol class="arabic simple">
@@ -605,7 +602,7 @@ extension.</p>
 <section id="framemetadatatrackeroak">
 <h3>FrameMetadataTrackerOak<a class="headerlink" href="#framemetadatatrackeroak" title="Link to this heading">#</a></h3>
 <p>Multi-channel tracker for per-frame metadata from OAK camera streams.
-Uses the <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/live_trackers/cpp/inc/live_trackers/schema_tracker.hpp" rel="noopener noreferrer" target="_blank">SchemaTracker</a>
+Uses the <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio/cpp/inc/deviceio/schema_tracker.hpp" rel="noopener noreferrer" target="_blank">SchemaTracker</a>
 utility internally.</p>
 <ul class="simple">
 <li><p>Schema: <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/schema/fbs/oak.fbs" rel="noopener noreferrer" target="_blank">src/core/schema/fbs/oak.fbs</a></p></li>
@@ -629,7 +626,7 @@ utility internally.</p>
 <section id="generic3axispedaltracker">
 <h3>Generic3AxisPedalTracker<a class="headerlink" href="#generic3axispedaltracker" title="Link to this heading">#</a></h3>
 <p>Reads foot pedal axis values pushed by a device plugin through OpenXR tensor
-collections. Uses the <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/live_trackers/cpp/inc/live_trackers/schema_tracker.hpp" rel="noopener noreferrer" target="_blank">SchemaTracker</a>
+collections. Uses the <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio/cpp/inc/deviceio/schema_tracker.hpp" rel="noopener noreferrer" target="_blank">SchemaTracker</a>
 utility internally.</p>
 <ul class="simple">
 <li><p>Schema: <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/schema/fbs/pedals.fbs" rel="noopener noreferrer" target="_blank">src/core/schema/fbs/pedals.fbs</a></p></li>

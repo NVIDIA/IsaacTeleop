@@ -17,7 +17,7 @@ Prerequisites
 
 - **CMake** 3.20 or higher
 - **C++20** compatible compiler
-- **Python** 3.10, 3.11, 3.12, or 3.13 (default 3.11; see ``ISAAC_TELEOP_PYTHON_VERSION`` in root ``CMakeLists.txt``)
+- **Python** 3.10, 3.11, or 3.12 (default 3.11; see ``ISAAC_TELEOP_PYTHON_VERSION`` in root ``CMakeLists.txt``)
 - **uv** for Python dependency management and managed Python
 - **Internet connection** for downloading dependencies via CMake FetchContent
 
@@ -159,7 +159,7 @@ The CMake options (defined in root :code-file:`CMakeLists.txt`, :code-file:`cmak
      - ``ON``
    * - **Python version**
      - ``ISAAC_TELEOP_PYTHON_VERSION``
-     - ``3.11`` (3.10, 3.11, 3.12, or 3.13)
+     - ``3.11`` (3.10, 3.11, or 3.12)
    * - **Testing**
      - ``BUILD_TESTING``
      - ``ON``; enables CTest and Catch2
