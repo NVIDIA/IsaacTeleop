@@ -30,18 +30,19 @@
     "@react-three/xr": "^6.6.22",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "three": "^0.172.0"
+    "three": "^0.172.0",
+    "uuid": "^14.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "iwer": "^2.2.1",
     "@types/three": "^0.172.0",
     "@webxr-input-profiles/assets": "1.0.19",
     "copy-webpack-plugin": "^13.0.0",
     "cross-env": "^10.1.0",
     "css-loader": "^6.8.1",
     "html-webpack-plugin": "^5.6.3",
+    "iwer": "^2.2.1",
     "rimraf": "^5.0.5",
     "style-loader": "^3.3.3",
     "ts-loader": "^9.5.1",

@@ -47,6 +47,7 @@ import { XR, createXRStore, noEvents, PointerEvents, XROrigin, useXR } from '@re
 import type { XRDevice } from 'iwer';
 import { useState, useMemo, useEffect, useRef } from 'react';
 
+import { v5 } from 'uuid';
 import { CloudXR2DUI } from './CloudXR2DUI';
 import CloudXR3DUI from './CloudXRUI';
 import { HeadsetControlChannel } from '@helpers/controlChannel';
@@ -81,6 +82,22 @@ const CONTROL_PANEL_LAYOUT = {
 overridePressureObserver();
 
 setPreferredColorScheme('dark');
+
+
+const TELEOP_CHANNEL_UUID: Uint8Array = v5('teleop_command', v5.DNS, new Uint8Array(16));
+
+type AvailableChannel = CloudXR.Session['availableMessageChannels'][number];
+
+function findChannelByUuid(
+  channels: AvailableChannel[],
+  targetUuid: Uint8Array
+): AvailableChannel | undefined {
+  return channels.find(
+    ch =>
+      ch.uuid.length === targetUuid.length &&
+      ch.uuid.every((b: number, i: number) => b === targetUuid[i])
+  );
+}
 
 const START_TELEOP_COMMAND = {
   type: 'teleop_command',
@@ -445,7 +462,7 @@ function App() {
 
   /**
    * Helper to send a message using MessageChannel API (new) or legacy API (fallback).
-   * Automatically uses the first available message channel if present.
+   * Looks for the teleop_command channel by UUID, then falls back to legacy API.
    */
   const sendMessage = async (message: any) => {
     if (!cloudXRSession) {
@@ -453,18 +470,18 @@ function App() {
       return false;
     }
 
-    // Try new MessageChannel API first
+    // Try new MessageChannel API first - find the teleop channel by UUID
     const channels = cloudXRSession.availableMessageChannels;
-    if (channels.length > 0) {
-      const channel = channels[0];
-      console.log(`Using MessageChannel API (${channels.length} channels available)`);
+    const channel = findChannelByUuid(channels, TELEOP_CHANNEL_UUID);
+    if (channel) {
+      console.info(`Using teleop MessageChannel (${channels.length} channel(s) available)`);
 
       try {
         const encoder = new TextEncoder();
         const data = encoder.encode(JSON.stringify(message));
         const success = channel.sendServerMessage(data);
         if (success) {
-          console.log('Message sent via MessageChannel:', message);
+          console.info('Message sent via MessageChannel:', message);
         } else {
           console.error('Failed to send message via MessageChannel');
         }
@@ -476,10 +493,10 @@ function App() {
     }
 
     // Fallback to legacy API
-    console.log('Using legacy sendServerMessage API');
+    console.info('Using legacy sendServerMessage API');
     try {
       cloudXRSession.sendServerMessage(message);
-      console.log('Message sent via legacy API:', message);
+      console.info('Message sent via legacy API:', message);
       return true;
     } catch (error) {
       console.error('Error sending via legacy API:', error);
@@ -489,7 +506,7 @@ function App() {
 
   // UI Event Handlers
   const handleStartTeleop = async () => {
-    console.log('Start Teleop pressed');
+    console.info('Start Teleop pressed');
 
     if (!cloudXRSession) {
       console.error('CloudXR session not available');
@@ -543,41 +560,9 @@ function App() {
     }, 1000);
   };
 
-  const handleStopTeleop = async () => {
-    console.log('Stop Teleop pressed');
-
-    // If countdown is active, cancel it and reset state
-    if (isCountingDown) {
-      if (countdownTimerRef.current !== null) {
-        clearInterval(countdownTimerRef.current);
-        countdownTimerRef.current = null;
-      }
-      setIsCountingDown(false);
-      setCountdownRemaining(0);
-      return;
-    }
-
-    if (!cloudXRSession) {
-      console.error('CloudXR session not available');
-      return;
-    }
-
-    // Send stop teleop command
-    const teleopCommand = {
-      type: 'teleop_command',
-      message: {
-        command: 'stop teleop',
-      },
-    };
-
-    const success = await sendMessage(teleopCommand);
-    if (success) {
-      setIsTeleopRunning(false);
-    }
-  };
 
   const handleResetTeleop = async () => {
-    console.log('Reset Teleop pressed');
+    console.info('Reset Teleop pressed');
 
     // Cancel any active countdown
     if (countdownTimerRef.current !== null) {
@@ -618,7 +603,7 @@ function App() {
   };
 
   const handleDisconnect = () => {
-    console.log('Disconnect pressed');
+    console.info('Disconnect pressed');
 
     // Cleanup countdown state on disconnect
     if (countdownTimerRef.current !== null) {
@@ -628,6 +613,14 @@ function App() {
     setIsCountingDown(false);
     setCountdownRemaining(0);
     setIsTeleopRunning(false);
+
+    // Close message channels before ending XR session to avoid
+    // "Cannot send control message" errors during SDK cleanup.
+    if (cloudXRSession) {
+      for (const ch of cloudXRSession.availableMessageChannels) {
+        ch.disconnect();
+      }
+    }
 
     const xrState = store.getState();
     const session = xrState.session;
@@ -737,9 +730,22 @@ function App() {
 
       const channels = cloudXRSession.availableMessageChannels;
       if (channels.length > 0) {
-        // Use new MessageChannel API
-        const channel = channels[0];
-        console.log('Setting up MessageChannel receiver');
+        console.info(`[MessageChannel] ${channels.length} channel(s) available:`);
+        channels.forEach((ch, i) => {
+          const uuidHex = Array.from(ch.uuid as Uint8Array)
+            .map((b: number) => b.toString(16).padStart(2, '0'))
+            .join('');
+          console.info(
+            `  [${i}] uuid=${uuidHex} status=${ch.status}`
+          );
+        });
+
+        const channel = findChannelByUuid(channels, TELEOP_CHANNEL_UUID);
+        if (!channel) {
+          console.info('[MessageChannel] Teleop channel not found yet, will retry...');
+          return;
+        }
+        console.info('[MessageChannel] Found teleop channel, setting up receiver');
         receiverActive = true;
 
         const receiveMessages = async () => {
@@ -747,22 +753,22 @@ function App() {
             try {
               const data = await channel.receiveMessage();
               if (data === null) {
-                console.log('MessageChannel closed');
+                console.info('MessageChannel closed');
                 break;
               }
 
               // Decode and handle message
               const decoder = new TextDecoder();
               const messageText = decoder.decode(data);
-              console.log('Received message via MessageChannel:', messageText);
+              console.info('Received message via MessageChannel:', messageText);
 
               // Parse if JSON
               try {
                 const message = JSON.parse(messageText);
-                console.log('Parsed message:', message);
+                console.info('Parsed message:', message);
                 // Handle message here if needed
               } catch {
-                console.log('Non-JSON message:', messageText);
+                console.info('Non-JSON message:', messageText);
               }
             } catch (error) {
               console.error('Error receiving message:', error);
@@ -771,7 +777,9 @@ function App() {
           }
         };
 
-        receiveMessages();
+        receiveMessages().finally(() => {
+          receiverActive = false;
+        });
       }
     };
 
