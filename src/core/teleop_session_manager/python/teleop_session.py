@@ -517,10 +517,19 @@ class TeleopSession:
                 )
                 handles = self._oxr_session.get_handles()
 
+            # Auto-populate MCAP tracker names from discovered sources
+            # when the user provided only a filename.
+            mcap_config = self.config.mcap_config
+            if mcap_config is not None and not mcap_config.get_tracker_names():
+                mcap_config = deviceio.McapConfig(
+                    mcap_config.filename,
+                    [(source.get_tracker(), source.name) for source in self._sources],
+                )
+
             # Create DeviceIO session with all trackers
             self.deviceio_session = self._exit_stack.enter_context(
                 deviceio.DeviceIOSession.run(
-                    trackers, handles, self.config.mcap_config
+                    trackers, handles, mcap_config
                 )
             )
 

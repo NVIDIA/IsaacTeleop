@@ -1540,27 +1540,7 @@ def mock_live_dependencies_with_args():
 
 
 class TestLiveModeWithMcapRecording:
-    """Tests that mcap_config is forwarded to createLiveSession in live mode."""
-
-    def test_mcap_config_passed_to_create_live_session(self):
-        """createLiveSession receives the mcap_config as third argument."""
-        mcap_config = MagicMock()
-        config = TeleopSessionConfig(
-            app_name="test",
-            pipeline=MockPipeline(leaf_nodes=[]),
-            mode=SessionMode.LIVE,
-            mcap_config=mcap_config,
-        )
-
-        with mock_live_dependencies_with_args() as mocks:
-            session = TeleopSession(config)
-            session.__enter__()
-            try:
-                mocks.create_live.assert_called_once()
-                actual_mcap = mocks.create_live.call_args[0][2]
-                assert actual_mcap is mcap_config
-            finally:
-                session.__exit__(None, None, None)
+    """Tests that mcap_config is built from discovered sources in live mode."""
 
     def test_no_mcap_config_passes_none(self):
         """When mcap_config is not set, None is passed to createLiveSession."""
@@ -1579,6 +1559,102 @@ class TestLiveModeWithMcapRecording:
                 assert actual_mcap is None
             finally:
                 session.__exit__(None, None, None)
+
+    def test_mcap_auto_populates_when_tracker_names_empty(self):
+        """Empty get_tracker_names() triggers auto-populate from pipeline sources."""
+        mcap_config = MagicMock()
+        mcap_config.filename = "test.mcap"
+        mcap_config.get_tracker_names.return_value = []
+
+        head_source = MockHeadSource(name="head")
+        hands_source = MockHandsSource(name="hands")
+        pipeline = MockPipeline(leaf_nodes=[head_source, hands_source])
+
+        config = TeleopSessionConfig(
+            app_name="test",
+            pipeline=pipeline,
+            mode=SessionMode.LIVE,
+            mcap_config=mcap_config,
+        )
+
+        with mock_live_dependencies_with_args() as mocks:
+            with patch("isaacteleop.deviceio.McapConfig") as mock_mcap_cls:
+                session = TeleopSession(config)
+                session.__enter__()
+                try:
+                    mock_mcap_cls.assert_called_once_with(
+                        "test.mcap",
+                        [
+                            (head_source.get_tracker(), "head"),
+                            (hands_source.get_tracker(), "hands"),
+                        ],
+                    )
+                    actual_mcap = mocks.create_live.call_args[0][2]
+                    assert actual_mcap is mock_mcap_cls.return_value
+                finally:
+                    session.__exit__(None, None, None)
+
+    def test_mcap_passes_through_when_tracker_names_present(self):
+        """Non-empty get_tracker_names() passes the original config through."""
+        mcap_config = MagicMock()
+        mcap_config.get_tracker_names.return_value = [("tracker", "ch")]
+
+        head_source = MockHeadSource(name="head")
+        pipeline = MockPipeline(leaf_nodes=[head_source])
+
+        config = TeleopSessionConfig(
+            app_name="test",
+            pipeline=pipeline,
+            mode=SessionMode.LIVE,
+            mcap_config=mcap_config,
+        )
+
+        with mock_live_dependencies_with_args() as mocks:
+            session = TeleopSession(config)
+            session.__enter__()
+            try:
+                actual_mcap = mocks.create_live.call_args[0][2]
+                assert actual_mcap is mcap_config
+            finally:
+                session.__exit__(None, None, None)
+
+
+class TestMcapConfigGetTrackerNames:
+    """Tests for McapConfig.get_tracker_names() (requires compiled C++ bindings)."""
+
+    @pytest.fixture(autouse=True)
+    def _import_deviceio(self):
+        self.deviceio = pytest.importorskip("isaacteleop.deviceio")
+
+    def test_get_tracker_names_returns_pairs(self):
+        """get_tracker_names() returns the (tracker, name) pairs passed at construction."""
+        hand = self.deviceio.HandTracker()
+        head = self.deviceio.HeadTracker()
+        config = self.deviceio.McapConfig("out.mcap", [(hand, "hands"), (head, "head")])
+
+        result = config.get_tracker_names()
+        assert len(result) == 2
+        assert result[0][0] is hand
+        assert result[0][1] == "hands"
+        assert result[1][0] is head
+        assert result[1][1] == "head"
+
+    def test_get_tracker_names_empty_by_default(self):
+        """McapConfig constructed with only a filename has empty tracker_names."""
+        config = self.deviceio.McapConfig("out.mcap")
+
+        result = config.get_tracker_names()
+        assert result == []
+
+    def test_get_tracker_names_single_tracker(self):
+        """get_tracker_names() works with a single tracker."""
+        head = self.deviceio.HeadTracker()
+        config = self.deviceio.McapConfig("out.mcap", [(head, "tracking")])
+
+        result = config.get_tracker_names()
+        assert len(result) == 1
+        assert result[0][0] is head
+        assert result[0][1] == "tracking"
 
 
 if __name__ == "__main__":

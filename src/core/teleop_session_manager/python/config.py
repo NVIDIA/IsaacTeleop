@@ -85,9 +85,12 @@ class TeleopSessionConfig:
             instead of creating its own OpenXR session via OpenXRSession.create().
             Construct with ``OpenXRSessionHandles(instance, session, space, proc_addr)``
             where each argument is a ``uint64`` handle value.
-        mcap_config: Optional McapConfig for MCAP recording. When provided, the live
-            DeviceIO session will record tracker data to the specified MCAP file.
-            Construct with ``McapConfig(filename, [(tracker, channel_name), ...])``.
+        mcap_config: Optional McapConfig for MCAP recording. When
+            ``tracker_names`` is empty (e.g. ``McapConfig("out.mcap")``),
+            TeleopSession auto-populates it from the pipeline's discovered
+            DeviceIO sources, using each source's ``name`` as the MCAP channel
+            name. When ``tracker_names`` is explicitly provided, it is used
+            as-is.
 
     Example (auto-discovery):
         # Source creates its own tracker automatically!
