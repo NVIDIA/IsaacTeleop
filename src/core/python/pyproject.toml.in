@@ -17,7 +17,7 @@ name = "isaacteleop"
 version = "@ISAAC_TELEOP_PYPROJECT_VERSION@"
 description = "Isaac Teleop - Teleoperation with Device I/O"
 readme = "README.md"
-requires-python = "==@ISAAC_TELEOP_PYTHON_VERSION@.*"
+requires-python = ">=3.10"
 license = "Apache-2.0"
 authors = [
     {name = "NVIDIA"}
