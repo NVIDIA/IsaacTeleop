@@ -14,7 +14,7 @@
 namespace core
 {
 
-using HeadMcapViewers = McapTrackerViewers<HeadPoseRecord, HeadPose, HeadPoseTracked>;
+using HeadMcapViewers = McapTrackerViewers<HeadPoseRecord>;
 
 class ReplayHeadTrackerImpl : public IHeadTrackerImpl
 {

@@ -45,11 +45,11 @@ void ReplayHandTrackerImpl::update(int64_t /*monotonic_time_ns*/)
 {
     if (mcap_viewers_)
     {
-        auto left_result = mcap_viewers_->read(0);
-        auto right_result = mcap_viewers_->read(1);
-        if (left_result)
+        auto left_record = mcap_viewers_->read(0);
+        auto right_record = mcap_viewers_->read(1);
+        if (left_record)
         {
-            left_tracked_ = std::move(*left_result);
+            left_tracked_.data = std::move(left_record->data);
         }
         else
         {
@@ -57,9 +57,9 @@ void ReplayHandTrackerImpl::update(int64_t /*monotonic_time_ns*/)
             left_tracked_.data.reset();
         }
 
-        if (right_result)
+        if (right_record)
         {
-            right_tracked_ = std::move(*right_result);
+            right_tracked_.data = std::move(right_record->data);
         }
         else
         {

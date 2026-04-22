@@ -14,8 +14,7 @@
 namespace core
 {
 
-using PedalMcapViewers =
-    McapTrackerViewers<Generic3AxisPedalOutputRecord, Generic3AxisPedalOutput, Generic3AxisPedalOutputTracked>;
+using PedalMcapViewers = McapTrackerViewers<Generic3AxisPedalOutputRecord>;
 
 class ReplayGeneric3AxisPedalTrackerImpl : public IGeneric3AxisPedalTrackerImpl
 {

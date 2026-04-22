@@ -40,10 +40,10 @@ void ReplayHeadTrackerImpl::update(int64_t /*monotonic_time_ns*/)
 {
     if (mcap_viewers_)
     {
-        auto result = mcap_viewers_->read(0);
-        if (result)
+        auto record = mcap_viewers_->read(0);
+        if (record)
         {
-            tracked_ = std::move(*result);
+            tracked_.data = std::move(record->data);
         }
         else
         {

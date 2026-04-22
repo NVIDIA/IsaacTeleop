@@ -14,7 +14,7 @@
 namespace core
 {
 
-using FullBodyMcapViewers = McapTrackerViewers<FullBodyPosePicoRecord, FullBodyPosePico, FullBodyPosePicoTracked>;
+using FullBodyMcapViewers = McapTrackerViewers<FullBodyPosePicoRecord>;
 
 class ReplayFullBodyTrackerPicoImpl : public IFullBodyTrackerPicoImpl
 {
