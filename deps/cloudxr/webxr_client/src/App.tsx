@@ -315,7 +315,8 @@ function App() {
     const PATH_STORAGE_KEY = 'cxr.isaac.teleopPath';
     let resolvedPath = parseTeleopPathFromHash(window.location.hash);
     if (!resolvedPath) {
-      const storedPath = localStorage.getItem(PATH_STORAGE_KEY);
+      let storedPath: string | null = null;
+      try { storedPath = localStorage.getItem(PATH_STORAGE_KEY); } catch { /* localStorage unavailable */ }
       resolvedPath = parseTeleopPathFromHash(`#/${storedPath ?? ''}`) ?? DEFAULT_TELEOP_PATH;
     }
     // Reflect canonical form (parse may have lowercased/truncated). `#/…` is a
