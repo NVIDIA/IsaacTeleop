@@ -67,8 +67,8 @@ export const TELEOP_PROJECTS: TeleopProjectRegistry = {
         settings: {},
         children: {
           dexmate: { label: 'Dexmate', settings: {} },
-          g1_sonic: { label: 'G1 Sonic', settings: {} },
-          g1_homie: { label: 'G1 Homie', settings: {} },
+          g1_sonic: { label: 'G1 SONIC', settings: {} },
+          g1_homie: { label: 'G1 HOMIE', settings: {} },
         },
       },
     },
