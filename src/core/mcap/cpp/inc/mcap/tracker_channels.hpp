@@ -111,14 +111,10 @@ private:
 };
 
 /**
- * @brief Type-safe MCAP channel reader returning deserialized Tracked wrappers.
+ * @brief Type-safe MCAP channel reader returning deserialized Record native types.
  *
- * @tparam RecordT       The FlatBuffer record wrapper stored in MCAP (e.g. HeadPoseRecord).
- *                       Must expose a data() accessor returning the inner data table.
- * @tparam DataTableT    The FlatBuffer data table type (e.g. HeadPose).
- *                       Must expose UnPackTo() and NativeTableType.
- * @tparam TrackedTableT The FlatBuffer tracked wrapper returned to callers
- *                       (e.g. HeadPoseTracked). Must share the same data table as RecordT.
+ * @tparam RecordT The FlatBuffer record wrapper stored in MCAP (e.g. HeadPoseRecord).
+ *                 Must expose NativeTableType with UnPackTo().
  *
  * Read-side counterpart to McapTrackerChannels. Takes an externally-owned
  * McapReader& and a list of sub-channel names, creating one LinearMessageView
@@ -126,19 +122,14 @@ private:
  * reads directly from the McapReader's data source without copying message data.
  * Callers pull deserialized records one at a time via read(channel_index).
  *
- * Returning the Tracked native type mirrors the live tracker query API
- * (e.g. HandTracker::get_left_hand returns HandPoseTrackedT&), keeping
- * live and replay consumers type-compatible.
- *
  * MCAP message data pointers are only valid until the iterator advances,
  * so read() fully deserializes each record before stepping the iterator forward.
  */
-template <typename RecordT, typename DataTableT, typename TrackedTableT>
+template <typename RecordT>
 class McapTrackerViewers
 {
 public:
-    using NativeDataT = typename DataTableT::NativeTableType;
-    using NativeTrackedT = typename TrackedTableT::NativeTableType;
+    using NativeRecordT = typename RecordT::NativeTableType;
 
     McapTrackerViewers(mcap::McapReader& reader, std::string_view base_name, const std::vector<std::string>& sub_channels)
         : reader_(&reader)
@@ -155,12 +146,12 @@ public:
     }
 
     /**
-     * @brief Read and deserialize the next record as a Tracked wrapper.
+     * @brief Read and deserialize the next record.
      * @param channel_index Index into the sub_channels list passed at construction.
-     * @return The deserialized Tracked object (data member is null when the tracker
+     * @return The deserialized Record (data member is null when the tracker
      *         was inactive), or std::nullopt when no more messages remain.
      */
-    std::optional<NativeTrackedT> read(size_t channel_index)
+    std::optional<NativeRecordT> read(size_t channel_index)
     {
         if (channel_index >= channels_.size())
         {
@@ -175,16 +166,11 @@ public:
         }
 
         auto* fb_record = flatbuffers::GetRoot<RecordT>(ch.it->message.data);
-
-        NativeTrackedT tracked;
-        if (fb_record->data())
-        {
-            tracked.data = std::make_unique<NativeDataT>();
-            fb_record->data()->UnPackTo(tracked.data.get());
-        }
+        NativeRecordT record;
+        fb_record->UnPackTo(&record);
 
         ++ch.it;
-        return tracked;
+        return record;
     }
 
 private:

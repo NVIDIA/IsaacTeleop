@@ -64,7 +64,7 @@ std::unique_ptr<mcap::McapWriter> open_writer(const std::string& path)
 }
 
 using HeadChannels = core::McapTrackerChannels<core::HeadPoseRecord, core::HeadPose>;
-using HeadViewers = core::McapTrackerViewers<core::HeadPoseRecord, core::HeadPose, core::HeadPoseTracked>;
+using HeadViewers = core::McapTrackerViewers<core::HeadPoseRecord>;
 
 } // namespace
 
@@ -288,16 +288,20 @@ TEST_CASE("McapTrackerViewers: reads records from a single channel", "[mcap][tra
 
     HeadViewers viewers(reader, "tracking", { "head" });
 
-    auto tracked1 = viewers.read(0);
-    REQUIRE(tracked1.has_value());
-    REQUIRE(tracked1->data);
-    CHECK(tracked1->data->is_valid == true);
-    REQUIRE(tracked1->data->pose);
-    CHECK(tracked1->data->pose->position().x() == 1.0f);
+    auto record1 = viewers.read(0);
+    REQUIRE(record1.has_value());
+    REQUIRE(record1->data);
+    CHECK(record1->data->is_valid == true);
+    REQUIRE(record1->data->pose);
+    CHECK(record1->data->pose->position().x() == 1.0f);
+    REQUIRE(record1->timestamp);
+    CHECK(record1->timestamp->sample_time_raw_device_clock() == 42);
 
-    auto tracked2 = viewers.read(0);
-    REQUIRE(tracked2.has_value());
-    REQUIRE(tracked2->data);
+    auto record2 = viewers.read(0);
+    REQUIRE(record2.has_value());
+    REQUIRE(record2->data);
+    REQUIRE(record2->timestamp);
+    CHECK(record2->timestamp->sample_time_raw_device_clock() == 84);
 
     CHECK_FALSE(viewers.read(0).has_value());
     reader.close();
@@ -417,9 +421,11 @@ TEST_CASE("McapTrackerViewers: handles null data records", "[mcap][tracker_viewe
 
     HeadViewers viewers(reader, "tracking", { "head" });
 
-    auto tracked = viewers.read(0);
-    REQUIRE(tracked.has_value());
-    CHECK(tracked->data == nullptr);
+    auto record = viewers.read(0);
+    REQUIRE(record.has_value());
+    CHECK(record->data == nullptr);
+    REQUIRE(record->timestamp);
+    CHECK(record->timestamp->sample_time_raw_device_clock() == 10);
 
     CHECK_FALSE(viewers.read(0).has_value());
     reader.close();
