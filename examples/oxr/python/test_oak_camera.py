@@ -65,10 +65,10 @@ def _run_schema_pusher(
         handles = oxr_session.get_handles()
         print("  ✓ OpenXR session created")
 
-        recording_config = deviceio.McapConfig(
+        recording_config = deviceio.McapRecordingConfig(
             mcap_filename, [(tracker, "oak_metadata")]
         )
-        with deviceio.DeviceIOSession.createLiveSession(
+        with deviceio.DeviceIOSession.run(
             [tracker], handles, recording_config
         ) as session:
             print("  ✓ DeviceIO session initialized (recording active during update())")

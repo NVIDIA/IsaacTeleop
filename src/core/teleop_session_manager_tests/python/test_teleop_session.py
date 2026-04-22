@@ -408,7 +408,7 @@ def mock_session_dependencies(
     with (
         patch("isaacteleop.oxr.OpenXRSession", return_value=mock_oxr),
         patch(
-            "isaacteleop.deviceio.DeviceIOSession.createLiveSession",
+            "isaacteleop.deviceio.DeviceIOSession.run",
             return_value=mock_dio,
         ),
         patch("isaacteleop.plugin_manager.PluginManager", return_value=mock_pm),

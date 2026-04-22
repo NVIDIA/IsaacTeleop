@@ -51,7 +51,7 @@ def _mock_session_deps():
     with (
         patch("isaacteleop.oxr.OpenXRSession", return_value=mock_oxr),
         patch(
-            "isaacteleop.deviceio.DeviceIOSession.createLiveSession",
+            "isaacteleop.deviceio.DeviceIOSession.run",
             return_value=mock_dio,
         ),
         patch(

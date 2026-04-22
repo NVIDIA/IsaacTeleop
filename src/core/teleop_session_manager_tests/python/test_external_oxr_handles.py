@@ -7,7 +7,7 @@ Tests for external OpenXR handle support in TeleopSession.
 Verifies that:
   - TeleopSessionConfig accepts an optional oxr_handles field.
   - TeleopSession.__enter__ passes external handles directly to
-    DeviceIOSession.createLiveSession() and skips OpenXRSession.create().
+    DeviceIOSession.run() and skips OpenXRSession.create().
   - TeleopSession.__enter__ falls back to creating its own OpenXR session
     when no external handles are provided.
 
@@ -56,10 +56,10 @@ def _make_empty_pipeline():
 
 @contextmanager
 def _mock_deviceio_and_oxr():
-    """Patch DeviceIOSession.createLiveSession and the OpenXRSession constructor to avoid native calls.
+    """Patch DeviceIOSession.run and the OpenXRSession constructor to avoid native calls.
 
     Yields a namespace object with attributes:
-        - deviceio_run:      the mock replacing DeviceIOSession.createLiveSession
+        - deviceio_run:      the mock replacing DeviceIOSession.run
         - oxr_cls:           the mock replacing the OpenXRSession class
         - mock_dio_session:  the fake DeviceIOSession instance
         - mock_oxr_session:  the fake OpenXRSession instance
@@ -75,7 +75,7 @@ def _mock_deviceio_and_oxr():
 
     with (
         patch(
-            "isaacteleop.deviceio.DeviceIOSession.createLiveSession",
+            "isaacteleop.deviceio.DeviceIOSession.run",
             return_value=mock_dio_session,
         ) as dio_run,
         patch(
@@ -143,7 +143,7 @@ class TestTeleopSessionExternalHandles:
                 session.__exit__(None, None, None)
 
     def test_passes_external_handles_to_deviceio(self):
-        """External handles are forwarded to DeviceIOSession.createLiveSession()."""
+        """External handles are forwarded to DeviceIOSession.run()."""
         external_handles = _make_stub_handles()
         config = TeleopSessionConfig(
             app_name="test",

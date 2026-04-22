@@ -82,9 +82,7 @@ def run_test():
         trackers = [hand_tracker]
 
         # run() throws exception on failure
-        with deviceio.DeviceIOSession.createLiveSession(
-            trackers, handles
-        ) as deviceio_session:
+        with deviceio.DeviceIOSession.run(trackers, handles) as deviceio_session:
             print("  ✓ DeviceIO session created")
             print()
 

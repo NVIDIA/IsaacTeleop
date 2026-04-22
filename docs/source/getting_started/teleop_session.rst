@@ -221,7 +221,7 @@ Before vs After
 
    # Create DeviceIO session
    handles = oxr_session.get_handles()
-   deviceio_session = deviceio.DeviceIOSession.createLiveSession([controller_tracker], handles)
+   deviceio_session = deviceio.DeviceIOSession.run([controller_tracker], handles)
    deviceio_session.__enter__()
 
    # Setup plugins

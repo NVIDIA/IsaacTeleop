@@ -43,7 +43,7 @@ print("[Test 3] Creating OpenXR session with two ControllerTrackers...")
 with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_session:
     handles = oxr_session.get_handles()
 
-    with deviceio.DeviceIOSession.createLiveSession(trackers, handles) as session:
+    with deviceio.DeviceIOSession.run(trackers, handles) as session:
         print(
             "✅ OpenXR session initialized with two ControllerTrackers (action context isolation)"
         )

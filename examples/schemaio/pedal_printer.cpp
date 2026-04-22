@@ -60,7 +60,7 @@ try
     std::cout << "[Step 3] Creating DeviceIOSession..." << std::endl;
 
     std::unique_ptr<core::DeviceIOSession> session;
-    session = core::DeviceIOSession::createLiveSession(trackers, oxr_session->get_handles());
+    session = core::DeviceIOSession::run(trackers, oxr_session->get_handles());
 
     // Step 4: Read samples by updating the session
     std::cout << "[Step 4] Reading samples..." << std::endl;

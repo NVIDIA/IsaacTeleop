@@ -3,17 +3,17 @@
 
 """Isaac Teleop MCAP module.
 
-MCAP recording is handled by DeviceIOSession. Pass a McapConfig
-to DeviceIOSession.createLiveSession() to enable automatic recording; omit it (or pass
+MCAP recording is handled by DeviceIOSession. Pass a McapRecordingConfig
+to DeviceIOSession.run() to enable automatic recording; omit it (or pass
 None) to disable recording:
 
-    from isaacteleop.deviceio_session import DeviceIOSession, McapConfig
+    from isaacteleop.deviceio_session import DeviceIOSession, McapRecordingConfig
 
-    config = McapConfig("output.mcap", [
+    config = McapRecordingConfig("output.mcap", [
         (hand_tracker, "hands"),
         (head_tracker, "head"),
     ])
-    with DeviceIOSession.createLiveSession(trackers, handles, config) as session:
+    with DeviceIOSession.run(trackers, handles, config) as session:
         while running:
             session.update()  # writes to MCAP automatically
 """

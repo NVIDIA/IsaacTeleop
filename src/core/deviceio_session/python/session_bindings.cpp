@@ -20,15 +20,15 @@ PYBIND11_MODULE(_deviceio_session, m)
 
     py::module_::import("isaacteleop.deviceio_trackers._deviceio_trackers");
 
-    py::class_<core::McapConfig>(m, "McapConfig",
-                                 "MCAP configuration for live recording and replay sessions. "
-                                 "Pass to createLiveSession() to enable recording, "
-                                 "or to createReplaySession() to read back recorded data.")
+    py::class_<core::McapRecordingConfig>(m, "McapRecordingConfig",
+                                          "MCAP configuration for live recording and replay sessions. "
+                                          "Pass to run() to enable recording, "
+                                          "or to replay() to read back recorded data.")
         .def(py::init(
                  [](const std::string& filename,
                     const std::vector<std::pair<std::shared_ptr<core::ITracker>, std::string>>& tracker_names)
                  {
-                     core::McapConfig config;
+                     core::McapRecordingConfig config;
                      config.filename = filename;
                      for (const auto& [tracker, name] : tracker_names)
                      {
@@ -37,7 +37,7 @@ PYBIND11_MODULE(_deviceio_session, m)
                      return config;
                  }),
              py::arg("filename"), py::arg("tracker_names"))
-        .def_readwrite("filename", &core::McapConfig::filename);
+        .def_readwrite("filename", &core::McapRecordingConfig::filename);
 
     py::class_<core::PyDeviceIOSession, core::ITrackerSession, std::unique_ptr<core::PyDeviceIOSession>>(
         m, "DeviceIOSession")
@@ -50,31 +50,31 @@ PYBIND11_MODULE(_deviceio_session, m)
                     "Aggregate OpenXR extensions required for a live session with these tracker types "
                     "(not a per-tracker instance method)")
         .def_static(
-            "createLiveSession",
+            "run",
             [](const std::vector<std::shared_ptr<core::ITracker>>& trackers, const core::OpenXRSessionHandles& handles,
-               std::optional<core::McapConfig> mcap_config)
+               std::optional<core::McapRecordingConfig> mcap_config)
             {
                 if (handles.instance == XR_NULL_HANDLE || handles.session == XR_NULL_HANDLE ||
                     handles.space == XR_NULL_HANDLE || handles.xrGetInstanceProcAddr == nullptr)
                 {
                     throw std::runtime_error(
-                        "DeviceIOSession.createLiveSession: invalid OpenXRSessionHandles (instance, session, space "
+                        "DeviceIOSession.run: invalid OpenXRSessionHandles (instance, session, space "
                         "must be non-null handles and xrGetInstanceProcAddr must be set)");
                 }
-                auto session = core::DeviceIOSession::createLiveSession(trackers, handles, std::move(mcap_config));
+                auto session = core::DeviceIOSession::run(trackers, handles, std::move(mcap_config));
                 return std::make_unique<core::PyDeviceIOSession>(std::move(session));
             },
             py::arg("trackers"), py::arg("handles"), py::arg("mcap_config") = py::none(),
             "Create and initialize a live OpenXR session with trackers. "
-            "Pass a McapConfig to enable MCAP recording.")
+            "Pass a McapRecordingConfig to enable MCAP recording.")
         .def_static(
-            "createReplaySession",
-            [](const core::McapConfig& mcap_config)
+            "replay",
+            [](const core::McapRecordingConfig& mcap_config)
             {
-                auto session = core::DeviceIOSession::createReplaySession(mcap_config);
+                auto session = core::DeviceIOSession::replay(mcap_config);
                 return std::make_unique<core::PyDeviceIOSession>(std::move(session));
             },
             py::arg("mcap_config"),
             "Create a replay session that reads recorded data from an MCAP file. "
-            "The McapConfig.tracker_names maps tracker objects to their MCAP channel base names.");
+            "The McapRecordingConfig.tracker_names maps tracker objects to their MCAP channel base names.");
 }

@@ -8,7 +8,7 @@ Demonstrates the modular architecture with MCAP data capture:
 - Create independent trackers
 - Add only the trackers you need
 - Record all tracker data to an MCAP file for playback/analysis
-- Pass mcap_filename and mcap_channels to DeviceIOSession.createLiveSession() to enable recording
+- Pass mcap_filename and mcap_channels to DeviceIOSession.run() to enable recording
 """
 
 import sys
@@ -54,10 +54,10 @@ def main():
 
         # Run deviceio session with MCAP recording enabled.
         print("\nRunning deviceio session with MCAP recording...")
-        recording_config = deviceio.McapConfig(
+        recording_config = deviceio.McapRecordingConfig(
             mcap_filename, [(hand_tracker, "hands"), (head_tracker, "head")]
         )
-        with deviceio.DeviceIOSession.createLiveSession(
+        with deviceio.DeviceIOSession.run(
             trackers, handles, recording_config
         ) as session:
             print("✓ DeviceIO session initialized with all trackers!")
@@ -101,10 +101,10 @@ def main():
     print("=" * 60)
     print()
 
-    replay_config = deviceio.McapConfig(
+    replay_config = deviceio.McapRecordingConfig(
         mcap_filename, [(hand_tracker, "hands"), (head_tracker, "head")]
     )
-    with deviceio.DeviceIOSession.createReplaySession(
+    with deviceio.DeviceIOSession.replay(
         replay_config,
     ) as replay_session:
         print(f"✓ Replay session opened: {mcap_filename}")

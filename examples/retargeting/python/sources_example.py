@@ -82,7 +82,7 @@ def main():
         # Step 5: Run DeviceIO session
         # ====================================================================
         print("\n[Step 5] Initializing DeviceIO session...")
-        with deviceio.DeviceIOSession.createLiveSession(trackers, handles) as session:
+        with deviceio.DeviceIOSession.run(trackers, handles) as session:
             print("  ✓ DeviceIO session initialized with all trackers")
 
             # ================================================================

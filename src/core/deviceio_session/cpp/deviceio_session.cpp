@@ -17,6 +17,7 @@
 #include <cassert>
 #include <iostream>
 #include <stdexcept>
+#include <unordered_map>
 
 namespace core
 {
@@ -30,7 +31,7 @@ class LiveDeviceIOSession : public DeviceIOSession
 public:
     LiveDeviceIOSession(const std::vector<std::shared_ptr<ITracker>>& trackers,
                         const OpenXRSessionHandles& handles,
-                        std::optional<McapConfig> mcap_config)
+                        std::optional<McapRecordingConfig> mcap_config)
     {
         std::vector<std::pair<const ITracker*, std::string>> tracker_names;
 
@@ -49,7 +50,7 @@ public:
                 }
                 if (!found)
                 {
-                    throw std::invalid_argument("LiveDeviceIOSession: McapConfig references tracker '" + name +
+                    throw std::invalid_argument("LiveDeviceIOSession: McapRecordingConfig references tracker '" + name +
                                                 "' that is not in the session's tracker list");
                 }
             }
@@ -86,15 +87,30 @@ public:
         }
     }
 
-    // Ensure tracker impls (which hold raw McapWriter pointers) are destroyed
-    // before the writer they reference.
-    ~LiveDeviceIOSession() override
+    const ITrackerImpl& get_tracker_impl(const ITracker& tracker) const override
     {
-        tracker_impls_.clear();
+        auto it = tracker_impls_.find(&tracker);
+        if (it == tracker_impls_.end())
+        {
+            throw std::runtime_error("Tracker implementation not found for tracker: " + std::string(tracker.get_name()));
+        }
+        return *(it->second);
+    }
+
+    void update() override
+    {
+        const int64_t monotonic_ns = os_monotonic_now_ns();
+        for (auto& kv : tracker_impls_)
+        {
+            kv.second->update(monotonic_ns);
+        }
     }
 
 private:
+    // mcap_writer_ declared before tracker_impls_ so impls (which may hold raw
+    // pointers into the writer) are destroyed first in reverse declaration order.
     std::unique_ptr<mcap::McapWriter> mcap_writer_;
+    std::unordered_map<const ITracker*, std::unique_ptr<ITrackerImpl>> tracker_impls_;
 };
 
 // ============================================================================
@@ -104,7 +120,7 @@ private:
 class ReplayDeviceIOSession : public DeviceIOSession
 {
 public:
-    explicit ReplayDeviceIOSession(const McapConfig& mcap_config)
+    explicit ReplayDeviceIOSession(const McapRecordingConfig& mcap_config)
     {
         mcap_reader_ = std::make_unique<mcap::McapReader>();
         auto status = mcap_reader_->open(mcap_config.filename);
@@ -127,29 +143,44 @@ public:
         }
     }
 
-    ~ReplayDeviceIOSession() override
+    const ITrackerImpl& get_tracker_impl(const ITracker& tracker) const override
     {
-        tracker_impls_.clear();
+        auto it = tracker_impls_.find(&tracker);
+        if (it == tracker_impls_.end())
+        {
+            throw std::runtime_error("Tracker implementation not found for tracker: " + std::string(tracker.get_name()));
+        }
+        return *(it->second);
+    }
+
+    void update() override
+    {
+        const int64_t monotonic_ns = os_monotonic_now_ns();
+        for (auto& kv : tracker_impls_)
+        {
+            kv.second->update(monotonic_ns);
+        }
     }
 
 private:
+    // mcap_reader_ declared before tracker_impls_ so impls (which may hold raw
+    // pointers into the reader) are destroyed first in reverse declaration order.
     std::unique_ptr<mcap::McapReader> mcap_reader_;
+    std::unordered_map<const ITracker*, std::unique_ptr<ITrackerImpl>> tracker_impls_;
 };
 
 // ============================================================================
 // DeviceIOSession (public API)
 // ============================================================================
 
-DeviceIOSession::~DeviceIOSession() = default;
-
 std::vector<std::string> DeviceIOSession::get_required_extensions(const std::vector<std::shared_ptr<ITracker>>& trackers)
 {
     return LiveDeviceIOFactory::get_required_extensions(trackers);
 }
 
-std::unique_ptr<DeviceIOSession> DeviceIOSession::createLiveSession(const std::vector<std::shared_ptr<ITracker>>& trackers,
-                                                                    const OpenXRSessionHandles& handles,
-                                                                    std::optional<McapConfig> mcap_config)
+std::unique_ptr<DeviceIOSession> DeviceIOSession::run(const std::vector<std::shared_ptr<ITracker>>& trackers,
+                                                      const OpenXRSessionHandles& handles,
+                                                      std::optional<McapRecordingConfig> mcap_config)
 {
     assert(handles.instance != XR_NULL_HANDLE && "OpenXR instance handle cannot be null");
     assert(handles.session != XR_NULL_HANDLE && "OpenXR session handle cannot be null");
@@ -160,22 +191,12 @@ std::unique_ptr<DeviceIOSession> DeviceIOSession::createLiveSession(const std::v
     return std::make_unique<LiveDeviceIOSession>(trackers, handles, std::move(mcap_config));
 }
 
-std::unique_ptr<DeviceIOSession> DeviceIOSession::createReplaySession(const McapConfig& mcap_config)
+std::unique_ptr<DeviceIOSession> DeviceIOSession::replay(const McapRecordingConfig& mcap_config)
 {
     std::cout << "DeviceIOSession: Creating replay session with " << mcap_config.tracker_names.size() << " trackers"
               << std::endl;
 
     return std::make_unique<ReplayDeviceIOSession>(mcap_config);
-}
-
-void DeviceIOSession::update()
-{
-    const int64_t monotonic_ns = os_monotonic_now_ns();
-
-    for (auto& kv : tracker_impls_)
-    {
-        kv.second->update(monotonic_ns);
-    }
 }
 
 } // namespace core

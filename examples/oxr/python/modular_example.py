@@ -45,7 +45,7 @@ def main():
 
         # Run deviceio session with trackers (throws exception on failure)
         print("\nRunning deviceio session with trackers...")
-        with deviceio.DeviceIOSession.createLiveSession(trackers, handles) as session:
+        with deviceio.DeviceIOSession.run(trackers, handles) as session:
             print("✓ DeviceIO session initialized with all trackers!")
             print()
 

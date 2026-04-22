@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Integration tests for ReplayDeviceIOSession: write MCAP data, create a replay
-// session via DeviceIOSession::createReplaySession, and verify tracker data
+// session via DeviceIOSession::replay, and verify tracker data
 // round-trips through update() and the typed tracker query methods.
 
 #include <catch2/catch_test_macros.hpp>
@@ -130,11 +130,11 @@ TEST_CASE("ReplayDeviceIOSession: head tracker round-trip with multiple frames",
     }
 
     core::HeadTracker head_tracker;
-    core::McapConfig mcap_config;
+    core::McapRecordingConfig mcap_config;
     mcap_config.filename = path;
     mcap_config.tracker_names = { { &head_tracker, base_name } };
 
-    auto session = core::DeviceIOSession::createReplaySession(mcap_config);
+    auto session = core::DeviceIOSession::replay(mcap_config);
     REQUIRE(session != nullptr);
 
     for (int i = 0; i < num_frames; ++i)
@@ -179,11 +179,11 @@ TEST_CASE("ReplayDeviceIOSession: hand tracker round-trip with left and right", 
     }
 
     core::HandTracker hand_tracker;
-    core::McapConfig mcap_config;
+    core::McapRecordingConfig mcap_config;
     mcap_config.filename = path;
     mcap_config.tracker_names = { { &hand_tracker, base_name } };
 
-    auto session = core::DeviceIOSession::createReplaySession(mcap_config);
+    auto session = core::DeviceIOSession::replay(mcap_config);
 
     for (int i = 0; i < 3; ++i)
     {
@@ -235,14 +235,14 @@ TEST_CASE("ReplayDeviceIOSession: head and hand trackers in one session", "[repl
     core::HeadTracker head_tracker;
     core::HandTracker hand_tracker;
 
-    core::McapConfig mcap_config;
+    core::McapRecordingConfig mcap_config;
     mcap_config.filename = path;
     mcap_config.tracker_names = {
         { &head_tracker, "head" },
         { &hand_tracker, "hands" },
     };
 
-    auto session = core::DeviceIOSession::createReplaySession(mcap_config);
+    auto session = core::DeviceIOSession::replay(mcap_config);
     REQUIRE(session != nullptr);
 
     for (int i = 0; i < num_frames; ++i)
@@ -273,9 +273,9 @@ TEST_CASE("ReplayDeviceIOSession: head and hand trackers in one session", "[repl
 TEST_CASE("ReplayDeviceIOSession: bad file path throws", "[replay][session][error]")
 {
     core::HeadTracker head_tracker;
-    core::McapConfig mcap_config;
+    core::McapRecordingConfig mcap_config;
     mcap_config.filename = "/nonexistent/path/to/file.mcap";
     mcap_config.tracker_names = { { &head_tracker, "tracking" } };
 
-    CHECK_THROWS_AS(core::DeviceIOSession::createReplaySession(mcap_config), std::runtime_error);
+    CHECK_THROWS_AS(core::DeviceIOSession::replay(mcap_config), std::runtime_error);
 }

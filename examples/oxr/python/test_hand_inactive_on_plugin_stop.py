@@ -69,7 +69,7 @@ def run_test():
             handles = oxr_session.get_handles()
             hand_tracker = deviceio.HandTracker()
 
-            with deviceio.DeviceIOSession.createLiveSession(
+            with deviceio.DeviceIOSession.run(
                 [hand_tracker], handles
             ) as deviceio_session:
                 print("✓ Reader session created")

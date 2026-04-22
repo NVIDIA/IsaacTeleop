@@ -65,7 +65,7 @@ try
     std::cout << "[Step 4] Running deviceio session with trackers..." << std::endl;
 
     auto handles = oxr_session->get_handles();
-    auto session = core::DeviceIOSession::createLiveSession(trackers, handles);
+    auto session = core::DeviceIOSession::run(trackers, handles);
 
     std::cout << "  ✓ Session created (internal initialization handled automatically)" << std::endl;
 
