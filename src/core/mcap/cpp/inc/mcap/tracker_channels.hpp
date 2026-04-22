@@ -131,14 +131,19 @@ class McapTrackerViewers
 public:
     using NativeRecordT = typename RecordT::NativeTableType;
 
+    McapTrackerViewers(const McapTrackerViewers&) = delete;
+    McapTrackerViewers& operator=(const McapTrackerViewers&) = delete;
+    McapTrackerViewers(McapTrackerViewers&&) = delete;
+    McapTrackerViewers& operator=(McapTrackerViewers&&) = delete;
+
     McapTrackerViewers(mcap::McapReader& reader, std::string_view base_name, const std::vector<std::string>& sub_channels)
         : reader_(&reader)
     {
-        auto on_problem = [](const mcap::Status& s) { std::cerr << "McapTrackerViewers: " << s.message << std::endl; };
-
         for (const auto& sub : sub_channels)
         {
             std::string topic = mcap_topic(base_name, sub);
+            auto on_problem = [topic](const mcap::Status& s)
+            { throw std::runtime_error("McapTrackerViewers [" + topic + "]: " + s.message); };
             mcap::ReadMessageOptions options;
             options.topicFilter = [topic](std::string_view t) { return t == topic; };
             channels_.push_back(std::make_unique<ChannelView>(reader_->readMessages(on_problem, options)));
@@ -163,6 +168,13 @@ public:
         if (ch.it == ch.view.end())
         {
             return std::nullopt;
+        }
+
+        flatbuffers::Verifier verifier(reinterpret_cast<const uint8_t*>(ch.it->message.data), ch.it->message.dataSize);
+        if (!verifier.VerifyBuffer<RecordT>())
+        {
+            throw std::runtime_error("McapTrackerViewers: corrupt FlatBuffer in channel " + std::to_string(channel_index) +
+                                     " at sequence " + std::to_string(ch.it->message.sequence));
         }
 
         auto* fb_record = flatbuffers::GetRoot<RecordT>(ch.it->message.data);

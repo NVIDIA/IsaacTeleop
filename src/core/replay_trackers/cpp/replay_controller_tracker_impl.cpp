@@ -18,17 +18,12 @@ namespace core
 // ReplayControllerTrackerImpl
 // ============================================================================
 
-std::unique_ptr<ControllerMcapViewers> ReplayControllerTrackerImpl::create_mcap_viewers(mcap::McapReader& reader,
-                                                                                        std::string_view base_name)
-{
-    return std::make_unique<ControllerMcapViewers>(
-        reader, base_name,
-        std::vector<std::string>(
-            ControllerRecordingTraits::replay_channels.begin(), ControllerRecordingTraits::replay_channels.end()));
-}
-
 ReplayControllerTrackerImpl::ReplayControllerTrackerImpl(mcap::McapReader& reader, std::string_view base_name)
-    : mcap_viewers_(create_mcap_viewers(reader, base_name))
+    : mcap_viewers_(std::make_unique<ControllerMcapViewers>(
+          reader,
+          base_name,
+          std::vector<std::string>(
+              ControllerRecordingTraits::replay_channels.begin(), ControllerRecordingTraits::replay_channels.end())))
 {
 }
 
@@ -44,29 +39,26 @@ const ControllerSnapshotTrackedT& ReplayControllerTrackerImpl::get_right_control
 
 void ReplayControllerTrackerImpl::update(int64_t /*monotonic_time_ns*/)
 {
-    if (mcap_viewers_)
+    auto left_record = mcap_viewers_->read(0);
+    auto right_record = mcap_viewers_->read(1);
+    if (left_record)
     {
-        auto left_record = mcap_viewers_->read(0);
-        auto right_record = mcap_viewers_->read(1);
-        if (left_record)
-        {
-            left_tracked_.data = std::move(left_record->data);
-        }
-        else
-        {
-            std::cerr << "ReplayControllerTrackerImpl: left controller data not found" << std::endl;
-            left_tracked_.data.reset();
-        }
+        left_tracked_.data = std::move(left_record->data);
+    }
+    else
+    {
+        std::cerr << "ReplayControllerTrackerImpl: left controller data not found" << std::endl;
+        left_tracked_.data.reset();
+    }
 
-        if (right_record)
-        {
-            right_tracked_.data = std::move(right_record->data);
-        }
-        else
-        {
-            std::cerr << "ReplayControllerTrackerImpl: right controller data not found" << std::endl;
-            right_tracked_.data.reset();
-        }
+    if (right_record)
+    {
+        right_tracked_.data = std::move(right_record->data);
+    }
+    else
+    {
+        std::cerr << "ReplayControllerTrackerImpl: right controller data not found" << std::endl;
+        right_tracked_.data.reset();
     }
 }
 

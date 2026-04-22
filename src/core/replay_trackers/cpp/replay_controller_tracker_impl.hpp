@@ -19,9 +19,6 @@ using ControllerMcapViewers = McapTrackerViewers<ControllerSnapshotRecord>;
 class ReplayControllerTrackerImpl : public IControllerTrackerImpl
 {
 public:
-    static std::unique_ptr<ControllerMcapViewers> create_mcap_viewers(mcap::McapReader& reader,
-                                                                      std::string_view base_name);
-
     ReplayControllerTrackerImpl(mcap::McapReader& reader, std::string_view base_name);
 
     ReplayControllerTrackerImpl(const ReplayControllerTrackerImpl&) = delete;

@@ -19,8 +19,6 @@ using HeadMcapViewers = McapTrackerViewers<HeadPoseRecord>;
 class ReplayHeadTrackerImpl : public IHeadTrackerImpl
 {
 public:
-    static std::unique_ptr<HeadMcapViewers> create_mcap_viewers(mcap::McapReader& reader, std::string_view base_name);
-
     ReplayHeadTrackerImpl(mcap::McapReader& reader, std::string_view base_name);
 
     ReplayHeadTrackerImpl(const ReplayHeadTrackerImpl&) = delete;

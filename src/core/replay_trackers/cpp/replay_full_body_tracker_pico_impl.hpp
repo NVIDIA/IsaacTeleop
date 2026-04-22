@@ -19,8 +19,6 @@ using FullBodyMcapViewers = McapTrackerViewers<FullBodyPosePicoRecord>;
 class ReplayFullBodyTrackerPicoImpl : public IFullBodyTrackerPicoImpl
 {
 public:
-    static std::unique_ptr<FullBodyMcapViewers> create_mcap_viewers(mcap::McapReader& reader, std::string_view base_name);
-
     ReplayFullBodyTrackerPicoImpl(mcap::McapReader& reader, std::string_view base_name);
 
     ReplayFullBodyTrackerPicoImpl(const ReplayFullBodyTrackerPicoImpl&) = delete;

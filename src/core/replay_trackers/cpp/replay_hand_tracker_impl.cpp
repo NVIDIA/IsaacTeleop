@@ -18,16 +18,12 @@ namespace core
 // ReplayHandTrackerImpl
 // ============================================================================
 
-std::unique_ptr<HandMcapViewers> ReplayHandTrackerImpl::create_mcap_viewers(mcap::McapReader& reader,
-                                                                            std::string_view base_name)
-{
-    return std::make_unique<HandMcapViewers>(reader, base_name,
-                                             std::vector<std::string>(HandRecordingTraits::replay_channels.begin(),
-                                                                      HandRecordingTraits::replay_channels.end()));
-}
-
 ReplayHandTrackerImpl::ReplayHandTrackerImpl(mcap::McapReader& reader, std::string_view base_name)
-    : mcap_viewers_(create_mcap_viewers(reader, base_name))
+    : mcap_viewers_(
+          std::make_unique<HandMcapViewers>(reader,
+                                            base_name,
+                                            std::vector<std::string>(HandRecordingTraits::replay_channels.begin(),
+                                                                     HandRecordingTraits::replay_channels.end())))
 {
 }
 
@@ -43,29 +39,26 @@ const HandPoseTrackedT& ReplayHandTrackerImpl::get_right_hand() const
 
 void ReplayHandTrackerImpl::update(int64_t /*monotonic_time_ns*/)
 {
-    if (mcap_viewers_)
+    auto left_record = mcap_viewers_->read(0);
+    auto right_record = mcap_viewers_->read(1);
+    if (left_record)
     {
-        auto left_record = mcap_viewers_->read(0);
-        auto right_record = mcap_viewers_->read(1);
-        if (left_record)
-        {
-            left_tracked_.data = std::move(left_record->data);
-        }
-        else
-        {
-            std::cerr << "ReplayHandTrackerImpl: left hand data not found" << std::endl;
-            left_tracked_.data.reset();
-        }
+        left_tracked_.data = std::move(left_record->data);
+    }
+    else
+    {
+        std::cerr << "ReplayHandTrackerImpl: left hand data not found" << std::endl;
+        left_tracked_.data.reset();
+    }
 
-        if (right_record)
-        {
-            right_tracked_.data = std::move(right_record->data);
-        }
-        else
-        {
-            std::cerr << "ReplayHandTrackerImpl: right hand data not found" << std::endl;
-            right_tracked_.data.reset();
-        }
+    if (right_record)
+    {
+        right_tracked_.data = std::move(right_record->data);
+    }
+    else
+    {
+        std::cerr << "ReplayHandTrackerImpl: right hand data not found" << std::endl;
+        right_tracked_.data.reset();
     }
 }
 

@@ -18,16 +18,12 @@ namespace core
 // ReplayHeadTrackerImpl
 // ============================================================================
 
-std::unique_ptr<HeadMcapViewers> ReplayHeadTrackerImpl::create_mcap_viewers(mcap::McapReader& reader,
-                                                                            std::string_view base_name)
-{
-    return std::make_unique<HeadMcapViewers>(reader, base_name,
-                                             std::vector<std::string>(HeadRecordingTraits::replay_channels.begin(),
-                                                                      HeadRecordingTraits::replay_channels.end()));
-}
-
 ReplayHeadTrackerImpl::ReplayHeadTrackerImpl(mcap::McapReader& reader, std::string_view base_name)
-    : mcap_viewers_(create_mcap_viewers(reader, base_name))
+    : mcap_viewers_(
+          std::make_unique<HeadMcapViewers>(reader,
+                                            base_name,
+                                            std::vector<std::string>(HeadRecordingTraits::replay_channels.begin(),
+                                                                     HeadRecordingTraits::replay_channels.end())))
 {
 }
 
@@ -38,18 +34,15 @@ const HeadPoseTrackedT& ReplayHeadTrackerImpl::get_head() const
 
 void ReplayHeadTrackerImpl::update(int64_t /*monotonic_time_ns*/)
 {
-    if (mcap_viewers_)
+    auto record = mcap_viewers_->read(0);
+    if (record)
     {
-        auto record = mcap_viewers_->read(0);
-        if (record)
-        {
-            tracked_.data = std::move(record->data);
-        }
-        else
-        {
-            std::cerr << "ReplayHeadTrackerImpl: head data not found" << std::endl;
-            tracked_.data.reset();
-        }
+        tracked_.data = std::move(record->data);
+    }
+    else
+    {
+        std::cerr << "ReplayHeadTrackerImpl: head data not found" << std::endl;
+        tracked_.data.reset();
     }
 }
 
