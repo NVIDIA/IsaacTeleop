@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -82,7 +82,9 @@ def run_test():
         trackers = [hand_tracker]
 
         # run() throws exception on failure
-        with deviceio.DeviceIOSession.run(trackers, handles) as deviceio_session:
+        with deviceio.DeviceIOSession.createLiveSession(
+            trackers, handles
+        ) as deviceio_session:
             print("  ✓ DeviceIO session created")
             print()
 

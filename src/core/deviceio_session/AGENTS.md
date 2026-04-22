@@ -7,6 +7,10 @@ SPDX-License-Identifier: Apache-2.0
 
 **CRITICAL (non-optional):** Before editing this package, complete the mandatory **`AGENTS.md` preflight** in [`../../../AGENTS.md`](../../../AGENTS.md) (read every applicable `AGENTS.md` on your paths, not just this file).
 
+## Destruction order
+
+- **`tracker_impls_`** lives in the **base** class; MCAP resources (`McapWriter`, `McapReader`) live in **derived** subclasses. C++ destroys derived members before base members, so every derived destructor **must** call **`tracker_impls_.clear()`** before its resource is destroyed—tracker impls may hold raw pointers into that resource.
+
 ## Update loop
 
 - **`DeviceIOSession::update`** reads the clock once with **`core::os_monotonic_now_ns()`** (via `#include <oxr_utils/os_time.hpp>`) and passes that value to **`ITrackerImpl::update(int64_t)`** for every registered impl.
@@ -14,7 +18,8 @@ SPDX-License-Identifier: Apache-2.0
 
 ## Implementation / includes
 
-- **`deviceio_session.cpp`**: if the TU uses **`XR_NULL_HANDLE`** or other OpenXR macros, include **`<openxr/openxr.h>`** explicitly after the session header so **`XR_NO_PROTOTYPES`** is already established by **`oxr_utils/oxr_funcs.hpp`** pulled in through **`deviceio_session.hpp`**.
+- The public header **`deviceio_session.hpp`** includes **`oxr_session_handles.hpp`** (not `oxr_funcs.hpp`). It does **not** define `XR_NO_PROTOTYPES` or pull in vendor extension headers.
+- **`deviceio_session.cpp`** includes **`<openxr/openxr.h>`** for **`XR_NULL_HANDLE`**; `XR_NO_PROTOTYPES` is not needed because the `.cpp` does not call OpenXR functions directly.
 
 ## Related docs
 

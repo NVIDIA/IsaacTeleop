@@ -92,7 +92,7 @@ def main():
 
         # Create teleop session
         print("\nInitializing teleop session...")
-        session = deviceio.DeviceIOSession.run(trackers, handles)
+        session = deviceio.DeviceIOSession.createLiveSession(trackers, handles)
 
         with session:
             print("Teleop session initialized with all trackers!")

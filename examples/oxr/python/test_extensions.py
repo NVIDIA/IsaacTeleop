@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -54,7 +54,7 @@ print()
 print("[Test 4] Use case: Query before external session creation")
 print()
 print("Scenario: You want to create your own OpenXR session")
-print("          and pass it to DeviceIOSession.run().")
+print("          and pass it to DeviceIOSession.createLiveSession().")
 print()
 
 hand = deviceio.HandTracker()
@@ -73,7 +73,7 @@ print()
 print("Step 3: Create your own OpenXR instance with these extensions")
 print("        (in C++ or custom code)")
 print()
-print("Step 4: Pass trackers and handles to DeviceIOSession.run()")
+print("Step 4: Pass trackers and handles to DeviceIOSession.createLiveSession()")
 print()
 
 # Now initialize normally to show it works
@@ -83,7 +83,7 @@ print("[Test 5] Normal initialization with queried extensions (RAII)")
 with oxr.OpenXRSession("ExtensionTest", required_exts) as oxr_session:
     handles = oxr_session.get_handles()
     # run() throws exception on failure
-    with deviceio.DeviceIOSession.run(trackers, handles) as session:
+    with deviceio.DeviceIOSession.createLiveSession(trackers, handles) as session:
         print("  ✅ Initialized successfully")
 
         # Quick update test

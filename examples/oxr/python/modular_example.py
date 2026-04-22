@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -45,7 +45,7 @@ def main():
 
         # Run deviceio session with trackers (throws exception on failure)
         print("\nRunning deviceio session with trackers...")
-        with deviceio.DeviceIOSession.run(trackers, handles) as session:
+        with deviceio.DeviceIOSession.createLiveSession(trackers, handles) as session:
             print("✓ DeviceIO session initialized with all trackers!")
             print()
 

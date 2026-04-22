@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #include <deviceio_session/deviceio_session.hpp>
@@ -53,7 +53,7 @@ try
 
     std::vector<std::shared_ptr<core::ITracker>> trackers1 = { hand_tracker };
     // run() throws exception on failure
-    auto session1 = core::DeviceIOSession::run(trackers1, handles);
+    auto session1 = core::DeviceIOSession::createLiveSession(trackers1, handles);
 
     std::cout << "  ✓ Manager 1 using shared session" << std::endl;
     std::cout << std::endl;
@@ -64,7 +64,7 @@ try
 
     std::vector<std::shared_ptr<core::ITracker>> trackers2 = { head_tracker };
     // run() throws exception on failure
-    auto session2 = core::DeviceIOSession::run(trackers2, handles);
+    auto session2 = core::DeviceIOSession::createLiveSession(trackers2, handles);
 
     std::cout << "  ✓ Manager 2 using shared session" << std::endl;
     std::cout << std::endl;

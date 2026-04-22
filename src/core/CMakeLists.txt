@@ -73,4 +73,7 @@ if(BUILD_TESTING)
 
     # MCAP tests (C++)
     add_subdirectory(mcap_tests/cpp)
+
+    # Replay DeviceIO session tests (C++)
+    add_subdirectory(replay_deviceio_session_tests/cpp)
 endif()

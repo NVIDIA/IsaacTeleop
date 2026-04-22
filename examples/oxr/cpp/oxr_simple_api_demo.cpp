@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #include <deviceio_session/deviceio_session.hpp>
@@ -65,7 +65,7 @@ try
     std::cout << "[Step 4] Running deviceio session with trackers..." << std::endl;
 
     auto handles = oxr_session->get_handles();
-    auto session = core::DeviceIOSession::run(trackers, handles);
+    auto session = core::DeviceIOSession::createLiveSession(trackers, handles);
 
     std::cout << "  ✓ Session created (internal initialization handled automatically)" << std::endl;
 
