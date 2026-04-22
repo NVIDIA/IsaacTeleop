@@ -386,6 +386,13 @@ function App() {
     };
   }, [store]);
 
+  // Address-bar hash edits need a reload to re-run init.
+  useEffect(() => {
+    const onHashChange = () => window.location.reload();
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+
   // Update HTML error message display when error state changes
   useEffect(() => {
     if (cloudXR2DUI) {
