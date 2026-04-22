@@ -145,6 +145,7 @@ def ControllerInput() -> TensorGroupType:
         - thumbstick_x: float - Thumbstick X axis [-1.0 to 1.0]
         - thumbstick_y: float - Thumbstick Y axis [-1.0 to 1.0]
         - thumbstick_click: float - Thumbstick button press [0.0-1.0]
+        - menu_click: float - Menu (hamburger) button; left hand only on Oculus Touch [0.0-1.0]
         - squeeze_value: float - Grip/squeeze trigger [0.0-1.0]
         - trigger_value: float - Index finger trigger [0.0-1.0]
 
@@ -194,6 +195,7 @@ def ControllerInput() -> TensorGroupType:
             FloatType("controller_thumbstick_x"),
             FloatType("controller_thumbstick_y"),
             FloatType("controller_thumbstick_click"),
+            FloatType("controller_menu_click"),
             FloatType("controller_squeeze_value"),
             FloatType("controller_trigger_value"),
         ],

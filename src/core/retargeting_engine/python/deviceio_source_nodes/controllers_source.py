@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -194,6 +194,7 @@ class ControllersSource(IDeviceIOSource):
         group[ControllerInputIndex.THUMBSTICK_CLICK] = float(
             snapshot.inputs.thumbstick_click
         )
+        group[ControllerInputIndex.MENU_CLICK] = float(snapshot.inputs.menu_click)
         group[ControllerInputIndex.SQUEEZE_VALUE] = float(snapshot.inputs.squeeze_value)
         group[ControllerInputIndex.TRIGGER_VALUE] = float(snapshot.inputs.trigger_value)
 

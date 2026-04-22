@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -87,7 +87,7 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
 
         # Test 6: Available inputs
         print("[Test 6] Available controller inputs:")
-        print("  Buttons: primary_click, secondary_click, thumbstick_click")
+        print("  Buttons: primary_click, secondary_click, thumbstick_click, menu_click")
         print("  Axes: thumbstick_x, thumbstick_y, squeeze_value, trigger_value")
         print()
 
@@ -117,7 +117,7 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
                     print(
                         f"    L: Trig={li.trigger_value:.2f} Sq={li.squeeze_value:.2f}"
                         f" Stick=({li.thumbstick_x:+.2f},{li.thumbstick_y:+.2f})"
-                        f" Btn=[{int(li.primary_click)}{int(li.secondary_click)}{int(li.thumbstick_click)}]"
+                        f" Btn=[{int(li.primary_click)}{int(li.secondary_click)}{int(li.thumbstick_click)}{int(li.menu_click)}]"
                     )
                 else:
                     print("    L: INACTIVE")
@@ -128,7 +128,7 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
                     print(
                         f"    R: Trig={ri.trigger_value:.2f} Sq={ri.squeeze_value:.2f}"
                         f" Stick=({ri.thumbstick_x:+.2f},{ri.thumbstick_y:+.2f})"
-                        f" Btn=[{int(ri.primary_click)}{int(ri.secondary_click)}{int(ri.thumbstick_click)}]"
+                        f" Btn=[{int(ri.primary_click)}{int(ri.secondary_click)}{int(ri.thumbstick_click)}{int(ri.menu_click)}]"
                     )
                 else:
                     print("    R: INACTIVE")
@@ -163,6 +163,7 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
                 print(
                     f"    Secondary: {'PRESSED' if inputs.secondary_click else 'released'}"
                 )
+                print(f"    Menu: {'PRESSED' if inputs.menu_click else 'released'}")
             else:
                 print("    inactive")
 

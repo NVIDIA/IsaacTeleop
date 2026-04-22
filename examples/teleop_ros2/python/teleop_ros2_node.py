@@ -449,6 +449,8 @@ def _build_controller_payload(
         "right_thumbstick_click": _as_float(
             right_ctrl, ControllerInputIndex.THUMBSTICK_CLICK
         ),
+        "left_menu_click": _as_float(left_ctrl, ControllerInputIndex.MENU_CLICK),
+        "right_menu_click": _as_float(right_ctrl, ControllerInputIndex.MENU_CLICK),
         "left_is_active": not left_ctrl.is_none,
         "right_is_active": not right_ctrl.is_none,
     }

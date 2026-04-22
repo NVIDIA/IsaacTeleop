@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """Unit tests for Controller types in isaacteleop.schema.
@@ -34,6 +34,7 @@ class TestControllerInputState:
         assert inputs.primary_click is False
         assert inputs.secondary_click is False
         assert inputs.thumbstick_click is False
+        assert inputs.menu_click is False
         assert inputs.thumbstick_x == pytest.approx(0.0)
         assert inputs.thumbstick_y == pytest.approx(0.0)
         assert inputs.squeeze_value == pytest.approx(0.0)
@@ -45,6 +46,7 @@ class TestControllerInputState:
             primary_click=True,
             secondary_click=True,
             thumbstick_click=True,
+            menu_click=True,
             thumbstick_x=0.0,
             thumbstick_y=0.0,
             squeeze_value=0.0,
@@ -54,6 +56,7 @@ class TestControllerInputState:
         assert inputs.primary_click is True
         assert inputs.secondary_click is True
         assert inputs.thumbstick_click is True
+        assert inputs.menu_click is True
 
     def test_analog_values(self):
         """Test constructing with analog axis values."""
@@ -61,6 +64,7 @@ class TestControllerInputState:
             primary_click=False,
             secondary_click=False,
             thumbstick_click=False,
+            menu_click=False,
             thumbstick_x=0.5,
             thumbstick_y=-0.75,
             squeeze_value=0.8,
@@ -78,6 +82,7 @@ class TestControllerInputState:
             primary_click=True,
             secondary_click=False,
             thumbstick_click=False,
+            menu_click=False,
             thumbstick_x=0.0,
             thumbstick_y=0.0,
             squeeze_value=0.0,
@@ -185,6 +190,7 @@ class TestControllerSnapshot:
             primary_click=True,
             secondary_click=False,
             thumbstick_click=True,
+            menu_click=False,
             thumbstick_x=0.5,
             thumbstick_y=-0.5,
             squeeze_value=0.75,
@@ -225,6 +231,7 @@ class TestControllerIntegration:
             primary_click=True,
             secondary_click=False,
             thumbstick_click=False,
+            menu_click=False,
             thumbstick_x=0.0,
             thumbstick_y=0.0,
             squeeze_value=0.0,
@@ -256,6 +263,7 @@ class TestControllerEdgeCases:
             primary_click=False,
             secondary_click=False,
             thumbstick_click=False,
+            menu_click=False,
             thumbstick_x=0.0,
             thumbstick_y=0.0,
             squeeze_value=0.0,
@@ -273,6 +281,7 @@ class TestControllerEdgeCases:
             primary_click=False,
             secondary_click=False,
             thumbstick_click=False,
+            menu_click=False,
             thumbstick_x=1.0,
             thumbstick_y=1.0,
             squeeze_value=1.0,
@@ -290,6 +299,7 @@ class TestControllerEdgeCases:
             primary_click=False,
             secondary_click=False,
             thumbstick_click=False,
+            menu_click=False,
             thumbstick_x=-1.0,
             thumbstick_y=-1.0,
             squeeze_value=0.0,
@@ -322,7 +332,7 @@ class TestControllerSnapshotRecordTimestamp:
         aim = ControllerPose(
             Pose(Point(0.0, 1.0, 0.0), Quaternion(0.0, 0.0, 0.0, 1.0)), True
         )
-        inputs = ControllerInputState(True, False, False, 0.5, 0.0, 0.8, 1.0)
+        inputs = ControllerInputState(True, False, False, False, 0.5, 0.0, 0.8, 1.0)
         data = ControllerSnapshot(grip, aim, inputs)
         ts = DeviceDataTimestamp(1000000000, 2000000000, 3000000000)
         record = ControllerSnapshotRecord(data, ts)

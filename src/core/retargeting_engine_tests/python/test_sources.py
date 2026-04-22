@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -62,6 +62,7 @@ def create_controller_snapshot(grip_pos, aim_pos, trigger_val):
         primary_click=False,
         secondary_click=False,
         thumbstick_click=False,
+        menu_click=False,
         thumbstick_x=0.0,
         thumbstick_y=0.0,
         squeeze_value=0.0,
