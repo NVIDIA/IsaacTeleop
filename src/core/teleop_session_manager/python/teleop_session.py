@@ -528,9 +528,7 @@ class TeleopSession:
 
             # Create DeviceIO session with all trackers
             self.deviceio_session = self._exit_stack.enter_context(
-                deviceio.DeviceIOSession.run(
-                    trackers, handles, mcap_config
-                )
+                deviceio.DeviceIOSession.run(trackers, handles, mcap_config)
             )
 
         # Initialize plugins (if any)
