@@ -380,14 +380,15 @@ jobs:
       wheel_paths: ${{ steps.upload-artifactory.outputs.wheel_paths }}
     environment: dev
 
-    # Publish only for PRs wihtin the canonical repository after build and CloudXR tests succeed
+    # Publish only for same-repo runs (pushes or non-fork PRs) after upstream jobs succeed.
+    # github.repository is the base repo even for fork PRs, so a plain equality check does
+    # not filter forks; compare the PR head repo instead.
     if: >-
-      ${{
-        github.repository == 'NVIDIA/IsaacTeleop'
-        && needs.build-ubuntu.result == 'success'
-        && needs.test-cloudxr.result == 'success'
-        && needs.test-teleop-ros2.result == 'success'
-      }}
+      (github.event_name != 'pull_request'
+        || github.event.pull_request.head.repo.full_name == github.repository)
+      && needs.build-ubuntu.result == 'success'
+      && needs.test-cloudxr.result == 'success'
+      && needs.test-teleop-ros2.result == 'success'
 
     steps:
     - name: Set up Python
