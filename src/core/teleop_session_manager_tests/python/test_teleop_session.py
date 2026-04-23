@@ -1337,9 +1337,9 @@ def mock_replay_dependencies(mock_pm=None):
     """Patch DeviceIO and OpenXR so TeleopSession.__enter__ works in replay mode.
 
     Yields a namespace with:
-        - replay_session: the mock returned by createReplaySession
-        - create_replay: the mock replacing createReplaySession
-        - create_live: the mock replacing createLiveSession
+        - replay_session: the mock returned by DeviceIOSession.replay
+        - create_replay: the mock replacing DeviceIOSession.replay
+        - create_live: the mock replacing DeviceIOSession.run
         - oxr_cls: the mock replacing OpenXRSession
     """
     mock_dio_session = MockDeviceIOSession()
@@ -1348,11 +1348,11 @@ def mock_replay_dependencies(mock_pm=None):
 
     with (
         patch(
-            "isaacteleop.deviceio.DeviceIOSession.createReplaySession",
+            "isaacteleop.deviceio.DeviceIOSession.replay",
             return_value=mock_dio_session,
         ) as create_replay,
         patch(
-            "isaacteleop.deviceio.DeviceIOSession.createLiveSession",
+            "isaacteleop.deviceio.DeviceIOSession.run",
             return_value=MagicMock(),
         ) as create_live,
         patch("isaacteleop.oxr.OpenXRSession", return_value=MagicMock()) as oxr_cls,
@@ -1412,7 +1412,7 @@ class TestReplayModeSessionEnter:
         )
 
     def test_calls_create_replay_session(self):
-        """createReplaySession is called with the mcap_config."""
+        """DeviceIOSession.replay is called with the mcap_config."""
         config = self._make_replay_config()
 
         with mock_replay_dependencies() as mocks:
@@ -1436,7 +1436,7 @@ class TestReplayModeSessionEnter:
                 session.__exit__(None, None, None)
 
     def test_skips_create_live_session(self):
-        """createLiveSession is NOT called in replay mode."""
+        """DeviceIOSession.run is NOT called in replay mode."""
         config = self._make_replay_config()
 
         with mock_replay_dependencies() as mocks:
@@ -1511,11 +1511,11 @@ class TestReplayModePlugins:
 
 @contextmanager
 def mock_live_dependencies_with_args():
-    """Patch DeviceIO and OpenXR for live-mode tests that inspect createLiveSession args.
+    """Patch DeviceIO and OpenXR for live-mode tests that inspect DeviceIOSession.run args.
 
     Yields a namespace with:
-        - create_live: the mock replacing createLiveSession (inspect call_args)
-        - dio_session: the mock DeviceIO session returned by createLiveSession
+        - create_live: the mock replacing DeviceIOSession.run (inspect call_args)
+        - dio_session: the mock DeviceIO session returned by DeviceIOSession.run
     """
     mock_dio_session = MockDeviceIOSession()
 
@@ -1523,7 +1523,7 @@ def mock_live_dependencies_with_args():
 
     with (
         patch(
-            "isaacteleop.deviceio.DeviceIOSession.createLiveSession",
+            "isaacteleop.deviceio.DeviceIOSession.run",
             return_value=mock_dio_session,
         ) as create_live,
         patch("isaacteleop.oxr.OpenXRSession", return_value=mock_oxr_session),
@@ -1543,7 +1543,7 @@ class TestLiveModeWithMcapRecording:
     """Tests that mcap_config is built from discovered sources in live mode."""
 
     def test_no_mcap_config_passes_none(self):
-        """When mcap_config is not set, None is passed to createLiveSession."""
+        """When mcap_config is not set, None is passed to DeviceIOSession.run."""
         config = TeleopSessionConfig(
             app_name="test",
             pipeline=MockPipeline(leaf_nodes=[]),
@@ -1578,7 +1578,7 @@ class TestLiveModeWithMcapRecording:
         )
 
         with mock_live_dependencies_with_args() as mocks:
-            with patch("isaacteleop.deviceio.McapConfig") as mock_mcap_cls:
+            with patch("isaacteleop.deviceio.McapRecordingConfig") as mock_mcap_cls:
                 session = TeleopSession(config)
                 session.__enter__()
                 try:
@@ -1620,7 +1620,7 @@ class TestLiveModeWithMcapRecording:
 
 
 class TestMcapConfigGetTrackerNames:
-    """Tests for McapConfig.get_tracker_names() (requires compiled C++ bindings)."""
+    """Tests for McapRecordingConfig.get_tracker_names() (requires compiled C++ bindings)."""
 
     @pytest.fixture(autouse=True)
     def _import_deviceio(self):
@@ -1630,7 +1630,9 @@ class TestMcapConfigGetTrackerNames:
         """get_tracker_names() returns the (tracker, name) pairs passed at construction."""
         hand = self.deviceio.HandTracker()
         head = self.deviceio.HeadTracker()
-        config = self.deviceio.McapConfig("out.mcap", [(hand, "hands"), (head, "head")])
+        config = self.deviceio.McapRecordingConfig(
+            "out.mcap", [(hand, "hands"), (head, "head")]
+        )
 
         result = config.get_tracker_names()
         assert len(result) == 2
@@ -1640,8 +1642,8 @@ class TestMcapConfigGetTrackerNames:
         assert result[1][1] == "head"
 
     def test_get_tracker_names_empty_by_default(self):
-        """McapConfig constructed with only a filename has empty tracker_names."""
-        config = self.deviceio.McapConfig("out.mcap")
+        """McapRecordingConfig constructed with only a filename has empty tracker_names."""
+        config = self.deviceio.McapRecordingConfig("out.mcap")
 
         result = config.get_tracker_names()
         assert result == []
@@ -1649,7 +1651,7 @@ class TestMcapConfigGetTrackerNames:
     def test_get_tracker_names_single_tracker(self):
         """get_tracker_names() works with a single tracker."""
         head = self.deviceio.HeadTracker()
-        config = self.deviceio.McapConfig("out.mcap", [(head, "tracking")])
+        config = self.deviceio.McapRecordingConfig("out.mcap", [(head, "tracking")])
 
         result = config.get_tracker_names()
         assert len(result) == 1

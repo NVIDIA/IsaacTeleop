@@ -22,7 +22,7 @@ from isaacteleop.retargeting_engine.tensor_types import BoolType
 from .teleop_state_manager_types import teleop_control_states
 
 if TYPE_CHECKING:
-    from isaacteleop.deviceio_session import McapConfig
+    from isaacteleop.deviceio_session import McapRecordingConfig
     from teleopcore.oxr import OpenXRSessionHandles
 
 
@@ -85,8 +85,8 @@ class TeleopSessionConfig:
             instead of creating its own OpenXR session via OpenXRSession.create().
             Construct with ``OpenXRSessionHandles(instance, session, space, proc_addr)``
             where each argument is a ``uint64`` handle value.
-        mcap_config: Optional McapConfig for MCAP recording. When
-            ``tracker_names`` is empty (e.g. ``McapConfig("out.mcap")``),
+        mcap_config: Optional McapRecordingConfig for MCAP recording. When
+            ``tracker_names`` is empty (e.g. ``McapRecordingConfig("out.mcap")``),
             TeleopSession auto-populates it from the pipeline's discovered
             DeviceIO sources, using each source's ``name`` as the MCAP channel
             name. When ``tracker_names`` is explicitly provided, it is used
@@ -136,7 +136,7 @@ class TeleopSessionConfig:
     plugins: List[PluginConfig] = field(default_factory=list)
     verbose: bool = True
     oxr_handles: Optional[OpenXRSessionHandles] = None
-    mcap_config: Optional[McapConfig] = None
+    mcap_config: Optional[McapRecordingConfig] = None
 
     def __post_init__(self) -> None:
         """Validate configuration consistency."""
