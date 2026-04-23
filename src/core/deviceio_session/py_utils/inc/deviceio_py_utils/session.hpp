@@ -9,11 +9,20 @@
 
 #include <memory>
 #include <stdexcept>
+#include <vector>
 
 namespace py = pybind11;
 
 namespace core
 {
+
+// Python-facing config wrapper: holds the C++ McapRecordingConfig (raw pointers)
+// alongside shared_ptr ownership so trackers stay alive while the config exists.
+struct PyMcapRecordingConfig
+{
+    McapRecordingConfig config;
+    std::vector<std::shared_ptr<ITracker>> tracker_refs;
+};
 
 /**
  * @brief Python-facing session wrapper: destroys the underlying DeviceIOSession in __exit__.
@@ -26,7 +35,8 @@ namespace core
 class PyDeviceIOSession : public ITrackerSession
 {
 public:
-    explicit PyDeviceIOSession(std::unique_ptr<DeviceIOSession> impl) : impl_(std::move(impl))
+    PyDeviceIOSession(std::unique_ptr<DeviceIOSession> impl, std::vector<std::shared_ptr<ITracker>> tracker_refs)
+        : impl_(std::move(impl)), tracker_refs_(std::move(tracker_refs))
     {
     }
 
@@ -42,6 +52,7 @@ public:
     void close()
     {
         impl_.reset();
+        tracker_refs_.clear();
     }
 
     PyDeviceIOSession& enter()
@@ -78,6 +89,15 @@ public:
 
 private:
     std::unique_ptr<DeviceIOSession> impl_;
+    std::vector<std::shared_ptr<ITracker>> tracker_refs_;
+};
+
+// Python-facing config wrapper: holds the C++ McapReplayConfig (raw pointers)
+// alongside shared_ptr ownership so trackers stay alive while the config exists.
+struct PyMcapReplayConfig
+{
+    McapReplayConfig config;
+    std::vector<std::shared_ptr<ITracker>> tracker_refs;
 };
 
 /**
@@ -87,7 +107,8 @@ private:
 class PyReplaySession : public ITrackerSession
 {
 public:
-    explicit PyReplaySession(std::unique_ptr<ReplaySession> impl) : impl_(std::move(impl))
+    PyReplaySession(std::unique_ptr<ReplaySession> impl, std::vector<std::shared_ptr<ITracker>> tracker_refs)
+        : impl_(std::move(impl)), tracker_refs_(std::move(tracker_refs))
     {
     }
 
@@ -103,6 +124,7 @@ public:
     void close()
     {
         impl_.reset();
+        tracker_refs_.clear();
     }
 
     PyReplaySession& enter()
@@ -130,6 +152,7 @@ public:
 
 private:
     std::unique_ptr<ReplaySession> impl_;
+    std::vector<std::shared_ptr<ITracker>> tracker_refs_;
 };
 
 } // namespace core

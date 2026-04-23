@@ -22,43 +22,61 @@ PYBIND11_MODULE(_deviceio_session, m)
     py::module_::import("isaacteleop.deviceio_trackers._deviceio_trackers");
 
     // ---- McapRecordingConfig (live recording) ----
-    py::class_<core::McapRecordingConfig>(m, "McapRecordingConfig",
-                                          "Configuration for MCAP recording. "
-                                          "Pass to DeviceIOSession.run() to enable recording, "
-                                          "or omit / pass None to disable.")
+    // Bound as PyMcapRecordingConfig so the config keeps shared_ptr ownership of
+    // trackers, preventing use-after-free of the raw pointers in the C++ config.
+    py::class_<core::PyMcapRecordingConfig>(m, "McapRecordingConfig",
+                                            "Configuration for MCAP recording. "
+                                            "Pass to DeviceIOSession.run() to enable recording, "
+                                            "or omit / pass None to disable.")
         .def(py::init(
                  [](const std::string& filename,
                     const std::vector<std::pair<std::shared_ptr<core::ITracker>, std::string>>& tracker_names)
                  {
-                     core::McapRecordingConfig config;
-                     config.filename = filename;
+                     core::PyMcapRecordingConfig py_config;
+                     py_config.config.filename = filename;
                      for (const auto& [tracker, name] : tracker_names)
                      {
-                         config.tracker_names.emplace_back(tracker.get(), name);
+                         if (!tracker)
+                         {
+                             throw py::value_error("McapRecordingConfig: tracker for '" + name + "' is None");
+                         }
+                         py_config.config.tracker_names.emplace_back(tracker.get(), name);
+                         py_config.tracker_refs.push_back(tracker);
                      }
-                     return config;
+                     return py_config;
                  }),
              py::arg("filename"), py::arg("tracker_names"))
-        .def_readwrite("filename", &core::McapRecordingConfig::filename);
+        .def_property(
+            "filename", [](const core::PyMcapRecordingConfig& self) { return self.config.filename; },
+            [](core::PyMcapRecordingConfig& self, const std::string& f) { self.config.filename = f; });
 
     // ---- McapReplayConfig (replay) ----
-    py::class_<core::McapReplayConfig>(m, "McapReplayConfig",
-                                       "Configuration for MCAP replay sessions. "
-                                       "Pass to ReplaySession.run() to create a replay session.")
+    // Bound as PyMcapReplayConfig so the config keeps shared_ptr ownership of
+    // trackers, preventing use-after-free of the raw pointers in the C++ config.
+    py::class_<core::PyMcapReplayConfig>(m, "McapReplayConfig",
+                                         "Configuration for MCAP replay sessions. "
+                                         "Pass to ReplaySession.run() to create a replay session.")
         .def(py::init(
                  [](const std::string& filename,
                     const std::vector<std::pair<std::shared_ptr<core::ITracker>, std::string>>& tracker_names)
                  {
-                     core::McapReplayConfig config;
-                     config.filename = filename;
+                     core::PyMcapReplayConfig py_config;
+                     py_config.config.filename = filename;
                      for (const auto& [tracker, name] : tracker_names)
                      {
-                         config.tracker_names.emplace_back(tracker.get(), name);
+                         if (!tracker)
+                         {
+                             throw py::value_error("McapReplayConfig: tracker for '" + name + "' is None");
+                         }
+                         py_config.config.tracker_names.emplace_back(tracker.get(), name);
+                         py_config.tracker_refs.push_back(tracker);
                      }
-                     return config;
+                     return py_config;
                  }),
              py::arg("filename"), py::arg("tracker_names"))
-        .def_readwrite("filename", &core::McapReplayConfig::filename);
+        .def_property(
+            "filename", [](const core::PyMcapReplayConfig& self) { return self.config.filename; },
+            [](core::PyMcapReplayConfig& self, const std::string& f) { self.config.filename = f; });
 
     // ---- DeviceIOSession (live) ----
     py::class_<core::PyDeviceIOSession, core::ITrackerSession, std::unique_ptr<core::PyDeviceIOSession>>(
@@ -74,7 +92,7 @@ PYBIND11_MODULE(_deviceio_session, m)
         .def_static(
             "run",
             [](const std::vector<std::shared_ptr<core::ITracker>>& trackers, const core::OpenXRSessionHandles& handles,
-               std::optional<core::McapRecordingConfig> recording_config)
+               std::optional<core::PyMcapRecordingConfig> py_recording_config)
             {
                 if (handles.instance == XR_NULL_HANDLE || handles.session == XR_NULL_HANDLE ||
                     handles.space == XR_NULL_HANDLE || handles.xrGetInstanceProcAddr == nullptr)
@@ -83,8 +101,16 @@ PYBIND11_MODULE(_deviceio_session, m)
                         "DeviceIOSession.run: invalid OpenXRSessionHandles (instance, session, space must be non-null "
                         "handles and xrGetInstanceProcAddr must be set)");
                 }
+                std::optional<core::McapRecordingConfig> recording_config;
+                if (py_recording_config)
+                {
+                    recording_config = std::move(py_recording_config->config);
+                }
                 auto session = core::DeviceIOSession::run(trackers, handles, std::move(recording_config));
-                return std::make_unique<core::PyDeviceIOSession>(std::move(session));
+                // Ownership source is `trackers`, not py_recording_config->tracker_refs:
+                // DeviceIOSession keys its impl map on raw ITracker* from the trackers
+                // list, and recording_config trackers are validated as a subset of it.
+                return std::make_unique<core::PyDeviceIOSession>(std::move(session), trackers);
             },
             py::arg("trackers"), py::arg("handles"), py::arg("recording_config") = py::none(),
             "Create and initialize a session with trackers. "
@@ -99,10 +125,10 @@ PYBIND11_MODULE(_deviceio_session, m)
         .def("__exit__", &core::PyReplaySession::exit)
         .def_static(
             "run",
-            [](const core::McapReplayConfig& config)
+            [](core::PyMcapReplayConfig py_config)
             {
-                auto session = core::ReplaySession::run(config);
-                return std::make_unique<core::PyReplaySession>(std::move(session));
+                auto session = core::ReplaySession::run(py_config.config);
+                return std::make_unique<core::PyReplaySession>(std::move(session), std::move(py_config.tracker_refs));
             },
             py::arg("config"),
             "Create a replay session that reads recorded data from an MCAP file. "
