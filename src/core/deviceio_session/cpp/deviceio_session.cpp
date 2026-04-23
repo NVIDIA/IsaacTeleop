@@ -69,13 +69,7 @@ DeviceIOSession::DeviceIOSession(const std::vector<std::shared_ptr<ITracker>>& t
         {
             throw std::invalid_argument("DeviceIOSession: null tracker in trackers list");
         }
-        auto impl = factory.create_tracker_impl(*tracker);
-        if (!impl)
-        {
-            throw std::runtime_error("DeviceIOSession: tracker '" + std::string(tracker->get_name()) +
-                                     "' returned null impl");
-        }
-        tracker_impls_.emplace(tracker.get(), std::move(impl));
+        tracker_impls_.emplace(tracker.get(), factory.create_tracker_impl(*tracker));
     }
 }
 

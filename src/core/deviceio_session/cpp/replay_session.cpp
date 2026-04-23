@@ -30,12 +30,7 @@ ReplaySession::ReplaySession(const McapReplayConfig& config)
         {
             throw std::invalid_argument("ReplaySession: tracker '" + name + "' pointer is null in config");
         }
-        auto impl = factory.create_tracker_impl(*tracker_ptr);
-        if (!impl)
-        {
-            throw std::runtime_error("ReplaySession: tracker '" + name + "' returned null impl");
-        }
-        tracker_impls_.emplace(tracker_ptr, std::move(impl));
+        tracker_impls_.emplace(tracker_ptr, factory.create_tracker_impl(*tracker_ptr));
     }
 }
 
