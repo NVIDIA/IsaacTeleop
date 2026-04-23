@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 cmake_minimum_required(VERSION 3.20)
@@ -143,10 +143,14 @@ add_library(mcap_interface INTERFACE)
 target_include_directories(mcap_interface INTERFACE
     ${mcap_SOURCE_DIR}/cpp/mcap/include
 )
-# Disable compression to avoid Zstd/LZ4 dependencies
+# Disable compression to avoid Zstd/LZ4 dependencies.
+# Override MCAP_PUBLIC to empty on Windows: upstream visibility.hpp defaults to
+# __declspec(dllimport) for TUs without MCAP_IMPLEMENTATION, but we compile MCAP
+# into static libraries — dllimport decorations produce unresolvable __imp_ refs.
 target_compile_definitions(mcap_interface INTERFACE
     MCAP_COMPRESSION_NO_ZSTD
     MCAP_COMPRESSION_NO_LZ4
+    $<$<PLATFORM_ID:Windows>:MCAP_PUBLIC=>
 )
 add_library(mcap::mcap ALIAS mcap_interface)
 message(STATUS "MCAP interface library configured")
