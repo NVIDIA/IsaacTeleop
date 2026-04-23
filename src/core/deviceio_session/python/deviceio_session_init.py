@@ -3,9 +3,16 @@
 
 """Isaac Teleop DeviceIO Session — session management for device I/O."""
 
-from ._deviceio_session import DeviceIOSession, McapRecordingConfig
+from ._deviceio_session import (
+    DeviceIOSession,
+    McapRecordingConfig,
+    McapReplayConfig,
+    ReplaySession,
+)
 
 __all__ = [
     "DeviceIOSession",
     "McapRecordingConfig",
+    "McapReplayConfig",
+    "ReplaySession",
 ]

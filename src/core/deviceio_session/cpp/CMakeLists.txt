@@ -3,11 +3,14 @@
 
 cmake_minimum_required(VERSION 3.20)
 
-# DeviceIOSession — shared tracker session logic.
-# Live and replay subclasses are private implementation details.
+# DeviceIOSession — wires trackers to the live factory and runs the update loop.
+# ReplaySession — reads recorded tracker data from an MCAP file.
 add_library(deviceio_session STATIC
+    mcap_impl.cpp
     deviceio_session.cpp
+    replay_session.cpp
     inc/deviceio_session/deviceio_session.hpp
+    inc/deviceio_session/replay_session.hpp
 )
 
 target_include_directories(deviceio_session
@@ -15,12 +18,15 @@ target_include_directories(deviceio_session
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
 )
 
-# Public header includes oxr_session_handles.hpp (OpenXR types). Propagate
-# oxr::oxr_utils so consumers get OpenXR headers and oxr include paths.
+# Public headers include oxr_funcs.hpp and oxr_session_handles.hpp. Propagate
+# oxr::oxr_utils (OpenXR headers + oxr inc/) and Teleop::openxr_extensions (NVIDIA
+# extension headers) so consumers (Python bindings, apps) compile without linking
+# live_trackers.
 target_link_libraries(deviceio_session
     PUBLIC
         deviceio::deviceio_base
         oxr::oxr_utils
+        Teleop::openxr_extensions
     PRIVATE
         deviceio::deviceio_trackers
         deviceio::live_trackers

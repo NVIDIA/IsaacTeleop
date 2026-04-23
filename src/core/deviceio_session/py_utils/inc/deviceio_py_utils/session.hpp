@@ -4,6 +4,7 @@
 #pragma once
 
 #include <deviceio_session/deviceio_session.hpp>
+#include <deviceio_session/replay_session.hpp>
 #include <pybind11/pybind11.h>
 
 #include <memory>
@@ -77,6 +78,58 @@ public:
 
 private:
     std::unique_ptr<DeviceIOSession> impl_;
+};
+
+/**
+ * @brief Python-facing wrapper for ReplaySession with the same context-manager
+ *        and lifetime semantics as PyDeviceIOSession.
+ */
+class PyReplaySession : public ITrackerSession
+{
+public:
+    explicit PyReplaySession(std::unique_ptr<ReplaySession> impl) : impl_(std::move(impl))
+    {
+    }
+
+    void update()
+    {
+        if (!impl_)
+        {
+            throw std::runtime_error("ReplaySession has been closed/destroyed");
+        }
+        impl_->update();
+    }
+
+    void close()
+    {
+        impl_.reset();
+    }
+
+    PyReplaySession& enter()
+    {
+        if (!impl_)
+        {
+            throw std::runtime_error("ReplaySession has been closed/destroyed");
+        }
+        return *this;
+    }
+
+    void exit(py::object, py::object, py::object)
+    {
+        close();
+    }
+
+    const ITrackerImpl& get_tracker_impl(const ITracker& tracker) const override
+    {
+        if (!impl_)
+        {
+            throw std::runtime_error("ReplaySession has been closed/destroyed");
+        }
+        return impl_->get_tracker_impl(tracker);
+    }
+
+private:
+    std::unique_ptr<ReplaySession> impl_;
 };
 
 } // namespace core

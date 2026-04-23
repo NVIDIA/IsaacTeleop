@@ -50,10 +50,7 @@ def _mock_session_deps():
 
     with (
         patch("isaacteleop.oxr.OpenXRSession", return_value=mock_oxr),
-        patch(
-            "isaacteleop.deviceio.DeviceIOSession.run",
-            return_value=mock_dio,
-        ),
+        patch("isaacteleop.deviceio.DeviceIOSession.run", return_value=mock_dio),
         patch(
             "isaacteleop.deviceio.DeviceIOSession.get_required_extensions",
             return_value=[],

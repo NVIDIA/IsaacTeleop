@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -407,10 +407,7 @@ def mock_session_dependencies(
 
     with (
         patch("isaacteleop.oxr.OpenXRSession", return_value=mock_oxr),
-        patch(
-            "isaacteleop.deviceio.DeviceIOSession.run",
-            return_value=mock_dio,
-        ),
+        patch("isaacteleop.deviceio.DeviceIOSession.run", return_value=mock_dio),
         patch("isaacteleop.plugin_manager.PluginManager", return_value=mock_pm),
         patch_get_ext,
     ):

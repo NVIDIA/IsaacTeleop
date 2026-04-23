@@ -14,8 +14,13 @@ SPDX-License-Identifier: Apache-2.0
 
 ## Implementation / includes
 
-- The public header **`deviceio_session.hpp`** includes **`oxr_session_handles.hpp`** (not `oxr_funcs.hpp`). It does **not** define `XR_NO_PROTOTYPES` or pull in vendor extension headers.
-- **`deviceio_session.cpp`** includes **`<openxr/openxr.h>`** for **`XR_NULL_HANDLE`**; `XR_NO_PROTOTYPES` is not needed because the `.cpp` does not call OpenXR functions directly.
+- **`deviceio_session.cpp`**: if the TU uses **`XR_NULL_HANDLE`** or other OpenXR macros, include **`<openxr/openxr.h>`** explicitly after the session header so **`XR_NO_PROTOTYPES`** is already established by **`oxr_utils/oxr_funcs.hpp`** pulled in through **`deviceio_session.hpp`**.
+- **`mcap_impl.cpp`** is the sole TU that defines **`MCAP_IMPLEMENTATION`** and includes **`<mcap/writer.hpp>`** and **`<mcap/reader.hpp>`**. All other TUs (`deviceio_session.cpp`, `replay_session.cpp`) get declarations only.
+
+## Replay session
+
+- **`ReplaySession`** lives in `replay_session.hpp` / `replay_session.cpp` alongside `DeviceIOSession`. Uses **`McapReplayConfig`** (not `McapRecordingConfig`).
+- Factory method is **`ReplaySession::run(const McapReplayConfig&)`**.
 
 ## Related docs
 

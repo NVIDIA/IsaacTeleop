@@ -101,10 +101,10 @@ def main():
     print("=" * 60)
     print()
 
-    replay_config = deviceio.McapRecordingConfig(
+    replay_config = deviceio.McapReplayConfig(
         mcap_filename, [(hand_tracker, "hands"), (head_tracker, "head")]
     )
-    with deviceio.DeviceIOSession.replay(
+    with deviceio.ReplaySession.run(
         replay_config,
     ) as replay_session:
         print(f"✓ Replay session opened: {mcap_filename}")

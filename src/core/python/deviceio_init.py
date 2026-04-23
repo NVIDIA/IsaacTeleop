@@ -25,7 +25,12 @@ from isaacteleop.deviceio_trackers import (
     JOINT_INDEX_TIP,
 )
 
-from isaacteleop.deviceio_session import DeviceIOSession, McapRecordingConfig
+from isaacteleop.deviceio_session import (
+    DeviceIOSession,
+    McapRecordingConfig,
+    McapReplayConfig,
+    ReplaySession,
+)
 
 from ..oxr import OpenXRSessionHandles
 
@@ -59,6 +64,8 @@ __all__ = [
     "OpenXRSessionHandles",
     "DeviceIOSession",
     "McapRecordingConfig",
+    "McapReplayConfig",
+    "ReplaySession",
     "NUM_JOINTS",
     "JOINT_PALM",
     "JOINT_WRIST",
