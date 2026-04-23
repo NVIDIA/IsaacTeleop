@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, List, Optional
+from typing import TYPE_CHECKING, Any, List, Optional, Union
 
 from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
     GraphExecutable,
@@ -22,7 +22,7 @@ from isaacteleop.retargeting_engine.tensor_types import BoolType
 from .teleop_state_manager_types import teleop_control_states
 
 if TYPE_CHECKING:
-    from isaacteleop.deviceio_session import McapRecordingConfig
+    from isaacteleop.deviceio_session import McapRecordingConfig, McapReplayConfig
     from teleopcore.oxr import OpenXRSessionHandles
 
 
@@ -136,7 +136,7 @@ class TeleopSessionConfig:
     plugins: List[PluginConfig] = field(default_factory=list)
     verbose: bool = True
     oxr_handles: Optional[OpenXRSessionHandles] = None
-    mcap_config: Optional[McapRecordingConfig] = None
+    mcap_config: Optional[Union[McapRecordingConfig, McapReplayConfig]] = None
 
     def __post_init__(self) -> None:
         """Validate configuration consistency."""

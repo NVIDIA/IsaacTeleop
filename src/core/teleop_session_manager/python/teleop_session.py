@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -495,7 +495,7 @@ class TeleopSession:
 
         if self.config.mode == SessionMode.REPLAY:
             self.deviceio_session = self._exit_stack.enter_context(
-                deviceio.DeviceIOSession.replay(self.config.mcap_config)
+                deviceio.ReplaySession.run(self.config.mcap_config)
             )
         else:
             # Collect trackers from source nodes and config

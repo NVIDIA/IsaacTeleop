@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -1334,11 +1334,11 @@ class TestSessionReuse:
 
 @contextmanager
 def mock_replay_dependencies(mock_pm=None):
-    """Patch DeviceIO and OpenXR so TeleopSession.__enter__ works in replay mode.
+    """Patch ReplaySession, DeviceIOSession, and OpenXR so TeleopSession.__enter__ works in replay mode.
 
     Yields a namespace with:
-        - replay_session: the mock returned by DeviceIOSession.replay
-        - create_replay: the mock replacing DeviceIOSession.replay
+        - replay_session: the mock returned by ReplaySession.run
+        - create_replay: the mock replacing ReplaySession.run
         - create_live: the mock replacing DeviceIOSession.run
         - oxr_cls: the mock replacing OpenXRSession
     """
@@ -1348,7 +1348,7 @@ def mock_replay_dependencies(mock_pm=None):
 
     with (
         patch(
-            "isaacteleop.deviceio.DeviceIOSession.replay",
+            "isaacteleop.deviceio.ReplaySession.run",
             return_value=mock_dio_session,
         ) as create_replay,
         patch(
