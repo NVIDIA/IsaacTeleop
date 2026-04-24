@@ -71,6 +71,14 @@ _patch_request_parser_for_cors()
 
 log = logging.getLogger("wss-proxy")
 
+# Extra loggers whose records are routed through the wss-proxy file/stream
+# handler installed by :func:`run`.  Kept as a module constant so that
+# :func:`run`'s setup and teardown paths attach and detach the handler
+# against the same list — otherwise a closed handler can linger on these
+# loggers across invocations of :func:`run` in the same process (tests,
+# REPL, future supervisor patterns).
+_OOB_EXTRA_LOG_NAMES: tuple[str, ...] = ("oob-teleop-adb", "oob-teleop-env")
+
 
 @dataclass(frozen=True)
 class CertPaths:
@@ -462,6 +470,7 @@ async def run(
     backend_port: int = 49100,
     proxy_port: int | None = None,
     setup_oob: bool = False,
+    usb_local: bool = False,
 ) -> None:
     logger = log
     logger.setLevel(logging.INFO)
@@ -475,11 +484,12 @@ async def run(
         _handler = logging.StreamHandler(sys.stderr)
     _handler.setFormatter(_log_fmt)
     logger.addHandler(_handler)
-    # Route oob-teleop-adb logs (ADB/CDP automation) to the same destination
-    _adb_log = logging.getLogger("oob-teleop-adb")
-    _adb_log.setLevel(logging.INFO)
-    _adb_log.propagate = False
-    _adb_log.addHandler(_handler)
+    # Route oob-teleop-adb and oob-teleop-env logs to the same destination
+    for _extra_log_name in _OOB_EXTRA_LOG_NAMES:
+        _extra_log = logging.getLogger(_extra_log_name)
+        _extra_log.setLevel(logging.INFO)
+        _extra_log.propagate = False
+        _extra_log.addHandler(_handler)
 
     try:
         resolved_port = wss_proxy_port() if proxy_port is None else proxy_port
@@ -530,10 +540,100 @@ async def run(
             close_timeout=10,
         ):
             log.info("WSS proxy listening on port %d", resolved_port)
+
+            # ------------------------------------------------------------------
+            # USB-local mode: auto-start the webxr_client dev-server (best
+            # effort) + adb reverse (TCP ports + TURN) + coturn TURN relay.
+            # The launcher orchestrates the full stack so the operator just
+            # runs `python -m isaacteleop.cloudxr --usb-local --setup-oob`.
+            # ------------------------------------------------------------------
+            _usb_coturn_handle = None
+            _usb_devserver_proc = None
+
+            if usb_local:
+                from .oob_teleop_env import (  # noqa: PLC0415
+                    USB_TURN_PORT,
+                    USB_TURN_USER,
+                    USB_TURN_CREDENTIAL,
+                    USB_UI_PORT,
+                    WebxrClientSetupError,
+                    ensure_webxr_client_ready,
+                    find_webxr_client_dir,
+                    start_webxr_dev_server,
+                    stop_webxr_dev_server,
+                )
+                from .oob_teleop_adb import (  # noqa: PLC0415
+                    setup_adb_reverse_ports,
+                    teardown_adb_reverse_ports,
+                    setup_adb_reverse_turn,
+                    teardown_adb_reverse_turn,
+                    start_coturn,
+                    stop_coturn,
+                )
+
+                # 1. Locate + prepare the webxr_client, then start dev-server.
+                webxr_client_dir = find_webxr_client_dir()
+                if webxr_client_dir is None:
+                    log.warning(
+                        "USB-local: webxr_client source not found (running from an "
+                        "installed wheel?). Run `npm run dev-server:https` yourself "
+                        "on port %d and adb-reverse that port.",
+                        USB_UI_PORT,
+                    )
+                else:
+                    dev_log_dir = Path(log_file_path).parent if log_file_path else None
+                    try:
+                        ensure_webxr_client_ready(webxr_client_dir, log_dir=dev_log_dir)
+                    except WebxrClientSetupError as exc:
+                        log.warning("USB-local: %s", exc)
+                        print(f"\n\033[33mUSB-local: {exc}\033[0m\n", file=sys.stderr)
+                    else:
+                        _usb_devserver_proc = start_webxr_dev_server(
+                            webxr_client_dir,
+                            port=USB_UI_PORT,
+                            log_dir=dev_log_dir,
+                        )
+
+                # 2. adb reverse for TCP ports (dev-server, WSS proxy, backend)
+                try:
+                    setup_adb_reverse_ports()
+                    log.info("USB-local: adb reverse TCP ports active")
+                except subprocess.CalledProcessError as exc:
+                    log.warning("USB-local: adb reverse TCP setup failed: %s", exc)
+                    print(
+                        f"\n\033[33mUSB-local: adb reverse failed — {exc}\033[0m\n",
+                        file=sys.stderr,
+                    )
+
+                # 3. coturn TURN server (ICE relay required for WebRTC)
+                _usb_coturn_handle = start_coturn(
+                    USB_TURN_PORT, USB_TURN_USER, USB_TURN_CREDENTIAL
+                )
+                if _usb_coturn_handle is None:
+                    print(
+                        "\n\033[33mUSB-local: coturn not found — install + disable system service:\n"
+                        "    sudo apt-get install -y coturn\n"
+                        "    sudo systemctl stop coturn && sudo systemctl disable coturn\n"
+                        "(the launcher manages its own coturn instance on 127.0.0.1:3478).\033[0m\n",
+                        file=sys.stderr,
+                    )
+
+                # 4. adb reverse for TURN port (headset → PC coturn)
+                try:
+                    setup_adb_reverse_turn(USB_TURN_PORT)
+                    log.info(
+                        "USB-local: adb reverse TURN active (port %d)", USB_TURN_PORT
+                    )
+                except subprocess.CalledProcessError as exc:
+                    log.warning("USB-local: adb reverse TURN setup failed: %s", exc)
+
+            oob_monitor_task: asyncio.Task | None = None
             if setup_oob:
                 log.info("Starting OOB ADB+CDP automation")
                 try:
-                    await run_oob_connect(resolved_port=resolved_port)
+                    oob_monitor_task = await run_oob_connect(
+                        resolved_port=resolved_port, usb_local=usb_local
+                    )
                     log.info("OOB automation completed — CONNECT clicked")
                 except OobAdbError as err:
                     log.warning("OOB automation failed (non-fatal): %s", err)
@@ -546,7 +646,23 @@ async def run(
                         "\n\033[33mOOB automation error — tap CONNECT on the headset manually.\033[0m\n",
                         file=sys.stderr,
                     )
-            await stop_future
+
+            try:
+                await stop_future
+            finally:
+                if oob_monitor_task is not None:
+                    oob_monitor_task.cancel()
+                    try:
+                        await oob_monitor_task
+                    except (asyncio.CancelledError, Exception):
+                        pass
+                if usb_local:
+                    stop_coturn(_usb_coturn_handle)
+                    teardown_adb_reverse_turn(USB_TURN_PORT)
+                    teardown_adb_reverse_ports()
+                    stop_webxr_dev_server(_usb_devserver_proc)
+                    log.info("USB-local: cleanup complete")
+
             log.info("Shutting down ...")
     except OSError as e:
         if e.errno == errno.EADDRINUSE:
@@ -556,5 +672,13 @@ async def run(
             ) from e
         raise
     finally:
+        # Detach the shared handler from every logger it was attached to
+        # *before* closing it, so ``logging`` doesn't retain a reference
+        # to a closed handler (which would raise ``ValueError: I/O operation
+        # on closed file`` on any subsequent emit).
+        for _extra_log_name in _OOB_EXTRA_LOG_NAMES:
+            _extra_log = logging.getLogger(_extra_log_name)
+            if _handler in _extra_log.handlers:
+                _extra_log.removeHandler(_handler)
         logger.removeHandler(_handler)
         _handler.close()

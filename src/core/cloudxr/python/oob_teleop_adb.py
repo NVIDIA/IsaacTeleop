@@ -3,14 +3,25 @@
 
 """ADB automation for OOB teleop (``--setup-oob``): open the headset bookmark URL via USB adb.
 
-The headset is connected via USB cable for adb commands only.  Streaming and
-web-page access use WiFi.  ``adb forward`` is used temporarily for CDP
-automation (DevTools socket); no ``adb reverse`` or USB tethering.
+Default mode (WiFi streaming):
+    The headset is connected via USB cable for adb commands only.  Streaming and
+    web-page access use WiFi.  ``adb forward`` is used temporarily for CDP
+    automation (DevTools socket).
+
+USB-local mode (``--usb-local``):
+    Teleop signalling and streaming travel over USB via ``adb reverse`` on the
+    headset's loopback.  The headset URL uses ``serverIP=127.0.0.1`` and loads
+    the WebXR client from ``https://localhost:8080`` (the operator runs
+    ``npm run dev-server:https`` in the webxr_client directory on this PC).
+    coturn runs locally and is reachable from the headset through adb reverse
+    for WebRTC ICE relay.  Note: WebRTC requires a non-loopback interface on
+    the headset, so WiFi must remain connected (no traffic traverses it).
 """
 
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
 import logging
 import os
@@ -18,14 +29,16 @@ import re
 import shlex
 import shutil
 import subprocess
+import sys
+import tempfile
 import time
 import urllib.request
-
 from .oob_teleop_env import (
     DEFAULT_WEB_CLIENT_ORIGIN,
     parse_env_port,
     build_headset_bookmark_url,
     client_ui_fields_from_env,
+    redact_bookmark_url,
     resolve_lan_host_for_oob,
     web_client_base_override_from_env,
 )
@@ -95,6 +108,152 @@ def require_adb_on_path() -> None:
     )
 
 
+def headset_non_loopback_interfaces() -> list[tuple[str, str]]:
+    """Return ``(iface, ipv4)`` for each non-loopback interface with an address.
+
+    Uses ``adb shell ip -o -4 addr show`` on the connected headset.  Returns
+    an empty list when the command fails (no device, adb broken, etc.) — the
+    caller decides whether that's fatal.
+    """
+    try:
+        proc = subprocess.run(
+            ["adb", "shell", "ip", "-o", "-4", "addr", "show"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return []
+    if proc.returncode != 0:
+        return []
+    out: list[tuple[str, str]] = []
+    for line in proc.stdout.splitlines():
+        # Example: "20: wlan0    inet 10.0.0.42/24 brd 10.0.0.255 scope global wlan0"
+        parts = line.split()
+        if len(parts) < 4:
+            continue
+        iface = parts[1]
+        if iface == "lo":
+            continue
+        # Find the "inet <addr>/<cidr>" pair wherever it lands.
+        try:
+            idx = parts.index("inet")
+        except ValueError:
+            continue
+        if idx + 1 >= len(parts):
+            continue
+        addr = parts[idx + 1].split("/")[0]
+        out.append((iface, addr))
+    return out
+
+
+def require_headset_non_loopback_network() -> None:
+    """Fail fast when the headset has no non-loopback IP (USB-local blocker).
+
+    Chromium's WebRTC ``rtc::NetworkManager`` excludes loopback interfaces
+    when enumerating networks for ICE.  Without at least one non-loopback
+    interface with an IP, ICE gathering hangs forever (``iceGatheringState``
+    stuck at ``gathering``, no candidates, no errors), and the teleop
+    session fails with "No local connection candidates" (0xC0F2220F).
+
+    The packets don't actually traverse the reported interface in USB-local
+    mode — the kernel short-circuits loopback regardless of source — but
+    the interface must *exist* for WebRTC's enumeration to be non-empty.
+    """
+    ifaces = headset_non_loopback_interfaces()
+    if not ifaces:
+        raise OobAdbError(
+            "--usb-local: the headset has no non-loopback network interface "
+            "with an IP address.\n\n"
+            "Chromium's WebRTC needs at least one non-loopback interface to "
+            "enumerate ICE sockets, even when all traffic routes over USB "
+            "via adb reverse. Without it, ICE hangs and the session errors "
+            'out with "No local connection candidates" (0xC0F2220F).\n\n'
+            "Fix: connect the headset to any Wi-Fi network (it does not need "
+            "internet access — a phone hotspot with no data plan works). "
+            "Then retry."
+        )
+    log.info(
+        "USB-local: headset has %d non-loopback interface(s): %s",
+        len(ifaces),
+        ", ".join(f"{i}={ip}" for i, ip in ifaces),
+    )
+
+
+def headset_wakefulness() -> str:
+    """Return ``mWakefulness`` from ``adb shell dumpsys power``, or ``""`` on failure.
+
+    Typical values: ``Awake`` | ``Asleep`` | ``Dreaming`` | ``Dozing``.
+    """
+    try:
+        proc = subprocess.run(
+            ["adb", "shell", "dumpsys", "power"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return ""
+    if proc.returncode != 0:
+        return ""
+    m = re.search(r"mWakefulness=(\w+)", proc.stdout or "")
+    return m.group(1) if m else ""
+
+
+def assert_headset_awake(*, timeout: float = 15.0) -> None:
+    """Warn-and-wait when the headset is asleep before launching OOB automation.
+
+    Quest / PICO devices sleep when the proximity sensor is uncovered
+    (e.g. the headset is sitting on a desk).  In that state, ``am start``
+    may still register but the screen can return to sleep before the
+    CONNECT click lands, and WebXR session entry will fail.
+
+    Sends ``KEYCODE_WAKEUP`` once and then polls ``mWakefulness`` for up to
+    ``timeout`` seconds.  Returns silently once the device is ``Awake``.
+    Otherwise logs a warning and returns — downstream automation may still
+    succeed if ``am start`` wakes the device.
+    """
+    wake = headset_wakefulness()
+    if wake == "Awake":
+        return
+
+    try:
+        subprocess.run(
+            ["adb", "shell", "input", "keyevent", "KEYCODE_WAKEUP"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+
+    print(
+        "\n\033[33mHeadset appears to be asleep "
+        f"(wakefulness={wake or '?'}).\n"
+        "Please put on the headset, or cover the proximity sensor "
+        "(e.g. with a piece of tape) so the device stays awake.\n"
+        f"Waiting up to {timeout:.0f}s for the device to wake...\033[0m\n",
+        file=sys.stderr,
+    )
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        time.sleep(1.0)
+        wake = headset_wakefulness()
+        if wake == "Awake":
+            log.info("Headset is awake (wakefulness=%s)", wake)
+            return
+
+    log.warning(
+        "Headset still appears asleep after %.0fs (wakefulness=%s); continuing anyway.",
+        timeout,
+        wake or "?",
+    )
+
+
 def assert_exactly_one_adb_device() -> None:
     """Fail unless exactly one device is in ``device`` state."""
     try:
@@ -147,37 +306,159 @@ def assert_exactly_one_adb_device() -> None:
         )
 
 
-def run_adb_headset_bookmark(*, resolved_port: int) -> tuple[int, str]:
-    """Open the teleop bookmark URL on the headset via ``am start``.
-
-    Uses the PC's LAN address — the headset reaches the proxy over WiFi.
-    ``resolved_port`` is used as the stream port unless ``TELEOP_STREAM_PORT``
-    is set explicitly.  Returns ``(exit_code, diagnostic)``.
-    """
+def build_teleop_url(*, resolved_port: int, usb_local: bool = False) -> str:
+    """Build the headset teleop bookmark URL for ``am start`` and CDP automation."""
     env_port = os.environ.get("TELEOP_STREAM_PORT", "").strip()
     signaling_port = (
         parse_env_port("TELEOP_STREAM_PORT", env_port) if env_port else resolved_port
     )
-    proxy_host = resolve_lan_host_for_oob()
-    stream_cfg: dict = {
-        "serverIP": proxy_host,
-        "port": signaling_port,
-        **client_ui_fields_from_env(),
-    }
 
-    ovr = web_client_base_override_from_env()
-    web_base = ovr if ovr else DEFAULT_WEB_CLIENT_ORIGIN
+    if usb_local:
+        from .oob_teleop_env import (  # noqa: PLC0415
+            USB_HOST,
+            USB_UI_PORT,
+            USB_TURN_PORT,
+            USB_TURN_USER,
+            USB_TURN_CREDENTIAL,
+        )
+
+        stream_cfg: dict = {
+            "serverIP": USB_HOST,
+            "port": signaling_port,
+            # No mediaAddress: it's a NAT-override that bypasses ICE and would
+            # short-circuit the TURN-relayed media path. Let the SDK discover
+            # the media endpoint through ICE via coturn.
+            "turnServer": f"turn:{USB_HOST}:{USB_TURN_PORT}?transport=tcp",
+            "turnUsername": USB_TURN_USER,
+            "turnCredential": USB_TURN_CREDENTIAL,
+            "iceRelayOnly": True,
+            **client_ui_fields_from_env(),
+        }
+        ovr = web_client_base_override_from_env()
+        web_base = ovr if ovr else f"https://localhost:{USB_UI_PORT}"
+    else:
+        stream_cfg = {
+            "serverIP": resolve_lan_host_for_oob(),
+            "port": signaling_port,
+            **client_ui_fields_from_env(),
+        }
+        ovr = web_client_base_override_from_env()
+        web_base = ovr if ovr else DEFAULT_WEB_CLIENT_ORIGIN
+
     token = os.environ.get("CONTROL_TOKEN") or None
-    url = build_headset_bookmark_url(
+    return build_headset_bookmark_url(
         web_client_base=web_base,
         stream_config=stream_cfg,
         control_token=token,
     )
 
-    shell_cmd = "am start -a android.intent.action.VIEW -d " + shlex.quote(url)
+
+def _adb_getprop(prop: str) -> str:
+    """Read an Android system property via adb. Returns "" on failure."""
+    try:
+        proc = subprocess.run(
+            ["adb", "shell", "getprop", prop],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return ""
+    return (proc.stdout or "").strip() if proc.returncode == 0 else ""
+
+
+def _adb_package_installed(package: str) -> bool:
+    """Return ``True`` if ``package`` is installed on the connected adb device.
+
+    Uses ``pm list packages <pkg>`` and matches an exact ``package:<pkg>`` line
+    (the filter is a substring on the device side, so multiple packages can
+    come back; we require an exact match).
+    """
+    try:
+        proc = subprocess.run(
+            ["adb", "shell", "pm", "list", "packages", package],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+    if proc.returncode != 0:
+        return False
+    needle = f"package:{package}"
+    return any(line.strip() == needle for line in (proc.stdout or "").splitlines())
+
+
+def headset_browser_package() -> str | None:
+    """Return the Android package of the full-fat WebXR browser on this headset.
+
+    WebLayer (the default VIEW-intent handler on Meta Quest + PICO) ships a
+    minimal Chromium that accepts ``navigator.xr.requestSession`` but does
+    not fully plumb controller input sources through to ``@react-three/xr``.
+    Forcing the real vendor browser fixes controller rays and clicks.
+
+    Resolution order:
+
+    1. ``TELEOP_HEADSET_BROWSER_PACKAGE`` env var (explicit override).
+    2. Vendor map based on ``ro.product.manufacturer`` / ``ro.product.brand``:
+       Meta / Oculus → ``com.oculus.browser``;
+       Pico          → first installed of ``com.pico.browser.oversea``
+                       (international build) or ``com.pico.browser``
+                       (mainland China build).
+    3. ``None`` (fall back to the generic VIEW intent).
+    """
+    override = os.environ.get("TELEOP_HEADSET_BROWSER_PACKAGE", "").strip()
+    if override:
+        return override
+    vendor = (
+        _adb_getprop("ro.product.manufacturer") + " " + _adb_getprop("ro.product.brand")
+    ).lower()
+    if "meta" in vendor or "oculus" in vendor:
+        # Full-fat Chromium, distinct from WebLayer — forcing it fixes WebXR
+        # controller plumbing that WebLayer handles incompletely.
+        return "com.oculus.browser"
+    if "pico" in vendor:
+        # PICO ships two browser package variants depending on region:
+        #   * com.pico.browser.oversea — international (Pico Neo, Pico 4, etc.)
+        #   * com.pico.browser         — mainland China builds
+        # Note: on current PICO devices the PICO browser is itself a thin
+        # shell over the system WebLayer (same @weblayer_devtools_remote
+        # socket), so forcing this package does NOT bypass WebLayer.  We still
+        # target it for correctness and forward-compatibility with any future
+        # PICO build that ships an independent Chromium.
+        for candidate in ("com.pico.browser.oversea", "com.pico.browser"):
+            if _adb_package_installed(candidate):
+                return candidate
+        return "com.pico.browser.oversea"
+    return None
+
+
+def run_adb_headset_bookmark(
+    *, resolved_port: int, usb_local: bool = False
+) -> tuple[int, str]:
+    """Launch the browser on the headset via ``am start`` (used when browser is not yet running).
+
+    When a known vendor browser is detected (Meta / PICO), launches into it
+    explicitly via ``-p <package>`` so the URL opens in the full Chromium
+    (with working WebXR controller input), not Android WebLayer.  Falls
+    back to the generic VIEW intent on unknown vendors.
+
+    Returns ``(exit_code, diagnostic)``.
+    """
+    url = build_teleop_url(resolved_port=resolved_port, usb_local=usb_local)
+    package = headset_browser_package()
+    if package:
+        log.info("ADB automation: launching into %s (bypass WebLayer)", package)
+        shell_cmd = (
+            f"am start -p {shlex.quote(package)} "
+            f"-a android.intent.action.VIEW -d {shlex.quote(url)}"
+        )
+    else:
+        shell_cmd = "am start -a android.intent.action.VIEW -d " + shlex.quote(url)
     full = ["adb", "shell", shell_cmd]
-    redacted = " ".join(shlex.quote(c) for c in full)
-    redacted = re.sub(r"(controlToken=)[^&\s'\"]+", r"\1<REDACTED>", redacted)
+    redacted = redact_bookmark_url(" ".join(shlex.quote(c) for c in full))
     log.info("ADB automation: %s", redacted)
     try:
         proc = subprocess.run(full, capture_output=True, text=True, timeout=30)
@@ -199,18 +480,358 @@ def run_adb_headset_bookmark(*, resolved_port: int) -> tuple[int, str]:
 
 
 # ---------------------------------------------------------------------------
+# USB-local mode: adb reverse port-forwarding + coturn TURN relay
+# ---------------------------------------------------------------------------
+
+
+def setup_adb_reverse_ports() -> None:
+    """Set up ``adb reverse`` for the USB-local TCP ports.
+
+    Reverse-maps headset loopback ports to the PC so the headset can reach
+    the webxr_client dev-server, WSS proxy, and CloudXR backend over USB.
+
+    Ports reversed: :data:`~.oob_teleop_env.USB_UI_PORT` (8080, the
+    webxr_client dev-server the operator runs with ``npm run
+    dev-server:https``), the WSS proxy port (resolved via
+    :func:`~.oob_teleop_env.wss_proxy_port`), and
+    :data:`~.oob_teleop_env.USB_BACKEND_PORT` (49100).
+
+    Raises:
+        subprocess.CalledProcessError: If any ``adb reverse`` call fails.
+    """
+    from .oob_teleop_env import USB_UI_PORT, USB_BACKEND_PORT, wss_proxy_port  # noqa: PLC0415
+
+    ports = [USB_UI_PORT, wss_proxy_port(), USB_BACKEND_PORT]
+    for port in ports:
+        subprocess.run(
+            ["adb", "reverse", f"tcp:{port}", f"tcp:{port}"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+        )
+        log.info("adb reverse tcp:%d -> tcp:%d (PC)", port, port)
+
+
+def teardown_adb_reverse_ports() -> None:
+    """Remove the ``adb reverse`` rules set by :func:`setup_adb_reverse_ports`."""
+    from .oob_teleop_env import USB_UI_PORT, USB_BACKEND_PORT, wss_proxy_port  # noqa: PLC0415
+
+    ports = [USB_UI_PORT, wss_proxy_port(), USB_BACKEND_PORT]
+    for port in ports:
+        subprocess.run(
+            ["adb", "reverse", "--remove", f"tcp:{port}"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        log.info("adb reverse removed tcp:%d", port)
+
+
+def setup_adb_reverse_turn(turn_port: int) -> None:
+    """Set up ``adb reverse`` for the TURN server port.
+
+    Maps ``headset tcp:turn_port`` → ``PC tcp:turn_port`` so the headset
+    browser can reach the coturn TURN server at ``127.0.0.1:turn_port``
+    without WiFi.
+
+    Raises:
+        subprocess.CalledProcessError: If the ``adb reverse`` call fails.
+    """
+    subprocess.run(
+        ["adb", "reverse", f"tcp:{turn_port}", f"tcp:{turn_port}"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=True,
+    )
+    log.info("adb reverse tcp:%d (TURN) -> tcp:%d (PC coturn)", turn_port, turn_port)
+
+
+def teardown_adb_reverse_turn(turn_port: int) -> None:
+    """Remove the TURN ``adb reverse`` rule."""
+    subprocess.run(
+        ["adb", "reverse", "--remove", f"tcp:{turn_port}"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    log.info("adb reverse removed tcp:%d (TURN)", turn_port)
+
+
+def coturn_binary_path() -> str | None:
+    """Return the path to the ``turnserver`` binary, or ``None`` if not found."""
+    # Prefer PATH lookup; fall back to the common Debian/Ubuntu package path.
+    return shutil.which("turnserver") or (
+        "/usr/bin/turnserver" if os.path.exists("/usr/bin/turnserver") else None
+    )
+
+
+def require_coturn_available() -> None:
+    """Fail fast if coturn is not installed.
+
+    Raises :class:`OobAdbError` with install instructions when
+    ``turnserver`` is not on PATH and not at the default Debian/Ubuntu
+    location.  Call this early (before starting the launcher) in
+    ``--usb-local`` mode so the user gets a clear error instead of a
+    silent WebRTC-gather-timeout later.
+    """
+    if coturn_binary_path() is not None:
+        return
+    raise OobAdbError(
+        "--usb-local requires coturn (TURN server) but `turnserver` was not found.\n\n"
+        "Install it and disable the system service so the launcher can manage its own instance:\n"
+        "    sudo apt-get install -y coturn\n"
+        "    sudo systemctl stop coturn\n"
+        "    sudo systemctl disable coturn\n\n"
+        "The launcher starts its own `turnserver` on 127.0.0.1:3478 and shuts it down on exit; "
+        "the system service would bind the same port and conflict."
+    )
+
+
+@dataclasses.dataclass(frozen=True)
+class CoturnHandle:
+    """Handle to a running coturn process plus its temp file paths.
+
+    The conf/log files contain TURN credentials and the coturn CLI
+    password, so they are created with mode ``0600`` and unlinked by
+    :func:`stop_coturn` to avoid lingering in ``/tmp`` across runs.
+    """
+
+    proc: subprocess.Popen
+    conf_path: str
+    log_path: str
+
+
+def _coturn_unlink_quietly(path: str) -> None:
+    """``os.unlink`` that swallows missing-file / permission errors."""
+    try:
+        os.unlink(path)
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        log.debug("coturn cleanup: failed to unlink %s: %s", path, exc)
+
+
+def _coturn_create_temp_file(prefix: str, suffix: str) -> str | None:
+    """Create an empty temp file with mode 0600 and return its path.
+
+    Uses :func:`tempfile.mkstemp` (``O_CREAT|O_EXCL|O_NOFOLLOW``), so
+    we cannot be racing a symlink at a predictable path and we cannot
+    open an existing file by accident.  ``mkstemp`` already creates
+    with mode 0600, but we ``fchmod`` again explicitly to make the
+    intent obvious in source and to defend against any platform that
+    deviates from the documented default.
+    """
+    try:
+        fd, path = tempfile.mkstemp(prefix=prefix, suffix=suffix)
+    except OSError as exc:
+        log.warning(
+            "coturn: failed to create temp file (%s%s): %s", prefix, suffix, exc
+        )
+        return None
+    try:
+        os.fchmod(fd, 0o600)
+    except OSError as exc:
+        log.debug(
+            "coturn: fchmod(%s, 0o600) failed (mkstemp default still applies): %s",
+            path,
+            exc,
+        )
+    finally:
+        os.close(fd)
+    return path
+
+
+def start_coturn(turn_port: int, user: str, credential: str) -> CoturnHandle | None:
+    """Start a coturn TURN server for USB-local ICE relay.
+
+    coturn listens on ``127.0.0.1:turn_port`` (TCP + UDP).  ``adb reverse``
+    exposes this port to the headset so WebRTC can obtain TURN relay
+    candidates.  ``--allow-loopback-peers`` lets coturn relay between the
+    headset (via adb reverse) and the CloudXR backend (UDP on PC loopback).
+
+    The conf and log files are created via :func:`tempfile.mkstemp` with
+    mode ``0600`` so the embedded TURN credentials and CLI password are
+    not world-readable on shared hosts, and so we cannot be tricked into
+    following a hostile symlink at a predictable ``/tmp/...`` path.
+    Both files are unlinked by :func:`stop_coturn` (and on every error
+    path inside this function) so they don't accumulate in ``/tmp``.
+
+    Args:
+        turn_port: TCP/UDP port for coturn (default :data:`~.oob_teleop_env.USB_TURN_PORT`).
+        user: TURN username.
+        credential: TURN credential (password).
+
+    Returns:
+        :class:`CoturnHandle` carrying the process + temp-file paths, or
+        ``None`` if coturn failed to start.  Callers should treat ``None``
+        as non-fatal (TURN-less streaming may still work on LAN) but warn
+        the operator prominently.
+    """
+    coturn_bin = coturn_binary_path()
+    if coturn_bin is None:
+        log.warning(
+            "coturn: `turnserver` not on PATH — install with `sudo apt-get install -y coturn` "
+            "and disable the system service (`sudo systemctl stop coturn && "
+            "sudo systemctl disable coturn`) so the launcher can manage its own instance."
+        )
+        return None
+
+    # Create both temp files atomically (mode 0600, no symlink-follow) before
+    # writing anything sensitive.  Order matters: we need ``log_path`` to
+    # embed inside the conf file, so create it first.
+    log_path = _coturn_create_temp_file(
+        prefix=f"coturn-cloudxr-{turn_port}-", suffix=".log"
+    )
+    if log_path is None:
+        return None
+    conf_path = _coturn_create_temp_file(
+        prefix=f"turnserver-cloudxr-{turn_port}-", suffix=".conf"
+    )
+    if conf_path is None:
+        _coturn_unlink_quietly(log_path)
+        return None
+
+    # Write the config — easier to maintain than a long arg list and avoids
+    # shell quoting issues with special characters in credentials.  The
+    # file already has mode 0600 from ``mkstemp``; we open it for write
+    # via the same path, which is safe because ``/tmp`` has the sticky
+    # bit and the file is owned by us with no other writer.
+    conf_content = f"""\
+listening-port={turn_port}
+listening-ip=127.0.0.1
+external-ip=127.0.0.1
+min-port=49152
+max-port=49200
+lt-cred-mech
+fingerprint
+user={user}:{credential}
+realm=cloudxr
+allow-loopback-peers
+cli-password=cloudxr-internal
+no-tls
+no-dtls
+no-stdout-log
+log-file={log_path}
+simple-log
+"""
+    try:
+        with open(conf_path, "w") as f:
+            f.write(conf_content)
+    except OSError as exc:
+        log.warning("coturn: failed to write config file %s: %s", conf_path, exc)
+        _coturn_unlink_quietly(conf_path)
+        _coturn_unlink_quietly(log_path)
+        return None
+
+    try:
+        proc = subprocess.Popen(
+            [coturn_bin, "-c", conf_path],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError as exc:
+        log.warning("coturn failed to start (%s): %s", coturn_bin, exc)
+        _coturn_unlink_quietly(conf_path)
+        _coturn_unlink_quietly(log_path)
+        return None
+
+    # Give coturn a moment to start (or exit with a config error)
+    time.sleep(0.5)
+    if proc.poll() is not None:
+        log.warning(
+            "coturn exited immediately (exit code %d). Tail of %s:\n%s",
+            proc.returncode,
+            log_path,
+            _tail_file(log_path, 10),
+        )
+        _coturn_unlink_quietly(conf_path)
+        _coturn_unlink_quietly(log_path)
+        return None
+
+    log.info(
+        "coturn TURN server started (pid=%d) at 127.0.0.1:%d (log: %s)",
+        proc.pid,
+        turn_port,
+        log_path,
+    )
+    return CoturnHandle(proc=proc, conf_path=conf_path, log_path=log_path)
+
+
+def _tail_file(path: str, lines: int) -> str:
+    """Return the last *lines* lines of *path* (empty string on read failure)."""
+    try:
+        with open(path, "r") as f:
+            return "".join(f.readlines()[-lines:]).rstrip()
+    except OSError:
+        return ""
+
+
+def stop_coturn(handle: CoturnHandle | None) -> None:
+    """Terminate the coturn process and remove its temp config/log files.
+
+    Always unlinks ``handle.conf_path`` and ``handle.log_path`` even if the
+    process is already gone, so a crashed coturn doesn't leave conf/log
+    files (with embedded credentials) behind in ``/tmp``.
+    """
+    if handle is None:
+        return
+    try:
+        handle.proc.terminate()
+        handle.proc.wait(timeout=5)
+    except (subprocess.TimeoutExpired, OSError):
+        try:
+            handle.proc.kill()
+        except OSError:
+            pass
+    _coturn_unlink_quietly(handle.conf_path)
+    _coturn_unlink_quietly(handle.log_path)
+    log.info("coturn TURN server stopped")
+
+
+# ---------------------------------------------------------------------------
 # CDP automation — click the CONNECT button via Chrome DevTools Protocol
 # ---------------------------------------------------------------------------
 
 _CDP_LOCAL_PORT = 9223  # avoid clashing with any pre-existing 9222 forward
 
 
-def _discover_devtools_socket() -> str | None:
+_DEVTOOLS_SOCKET_RE = re.compile(r"@([A-Za-z0-9._+-]*_devtools_remote(?:_\d+)?)")
+
+
+def _discover_devtools_socket(prefer_package: str | None = None) -> str | None:
     """Return the bare name of the browser's DevTools abstract socket, or None.
 
-    Pico Browser (WebLayer/Chromium) exposes a socket like
-    ``@weblayer_devtools_remote_<pid>`` in ``/proc/net/unix``.
-    The PID suffix changes every time the browser starts.
+    Chromium-based Android browsers expose a Unix abstract socket matching
+    ``@<prefix>_devtools_remote[_<pid>]`` in ``/proc/net/unix``.  Known
+    prefixes in the wild:
+
+    * ``weblayer_devtools_remote_<pid>`` — WebLayer (Meta Quest / PICO
+      default VIEW handler for some OS versions; PICO browser is itself
+      a thin WebLayer shell on current builds)
+    * ``chrome_devtools_remote`` — full Chrome builds
+    * ``com.oculus.browser_devtools_remote`` — Meta Quest Browser
+    * ``<package>_devtools_remote`` — custom Chromium embedders
+
+    Args:
+        prefer_package: If provided (typically the package we just
+            launched via ``am start -p``), sockets named
+            ``<prefer_package>_devtools_remote*`` are returned in
+            preference to anything else.  This avoids accidentally
+            attaching to a stale WebLayer DevTools socket from a
+            previous teleop session when the freshly-launched browser
+            owns its own socket (e.g., Meta Quest Browser).  When the
+            launched package shares the system WebLayer socket
+            (current PICO behavior), no match is found and we fall
+            through to the standard priority list, which is correct.
+
+    If multiple candidates exist and ``prefer_package`` is not set or
+    matches nothing, WebLayer / Quest Browser sockets are preferred over
+    generic ones (the teleop page is most likely to live there rather
+    than an unrelated WebView from another app).
     """
     try:
         proc = subprocess.run(
@@ -222,12 +843,32 @@ def _discover_devtools_socket() -> str | None:
         )
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return None
+    candidates: list[str] = []
     for line in proc.stdout.splitlines():
-        if "weblayer_devtools_remote" in line:
-            for token in line.split():
-                if token.startswith("@weblayer_devtools_remote"):
-                    return token[1:]  # strip leading @
-    return None
+        for token in line.split():
+            m = _DEVTOOLS_SOCKET_RE.fullmatch(token)
+            if m:
+                candidates.append(m.group(1))
+    if not candidates:
+        return None
+    # First try to match the package we explicitly launched (if any).
+    # Socket names look like ``<package>_devtools_remote[_<pid>]``, so
+    # we anchor on ``<package>_devtools_remote`` to avoid spurious
+    # prefix collisions like ``com.pico.browser`` matching
+    # ``com.pico.browser.oversea_devtools_remote``.
+    if prefer_package:
+        anchor = f"{prefer_package}_devtools_remote"
+        for cand in candidates:
+            if cand.startswith(anchor):
+                return cand
+    # Otherwise fall back to teleop-relevant prefixes; first match wins,
+    # else the first discovered socket.
+    priority = ("weblayer", "com.oculus.browser", "chrome", "webview")
+    for prefix in priority:
+        for cand in candidates:
+            if cand.startswith(prefix):
+                return cand
+    return candidates[0]
 
 
 def _adb_forward_cdp(socket_name: str, local_port: int) -> None:
@@ -265,12 +906,16 @@ def _cdp_list_tabs(local_port: int) -> list[dict]:
 async def _cdp_session_click_connect(ws_url: str) -> None:
     """Open a single CDP session and click the CONNECT button.
 
-    Handles the self-signed cert interstitial before looking for the button:
+    Cert interstitials and the WebXR "immersive experience" permission prompt
+    are **not** auto-dismissed: those flows depend on per-headset / per-browser
+    UI that varies by device and is unreliable to drive via CDP.  The first
+    time you teleop to a new headset, run through the page manually once
+    (accept the self-signed cert, grant the immersive-experience permission,
+    confirm CONNECT works); subsequent runs with ``--setup-oob`` will then
+    automate cleanly because the cert / permission are remembered.
 
-    * Primary path — ``Security.setIgnoreCertificateErrors`` + ``Page.navigate``
-      (re-loads the page with cert checking disabled).
-    * Fallback — DOM click-through: ``details-button`` → ``proceed-link``
-      (standard Chromium cert-warning IDs).
+    If the cert interstitial is detected here, this function aborts with a
+    clear ``OobAdbError`` so the operator knows to do the manual run.
     """
     from websockets.asyncio.client import connect as ws_connect  # already a dep
 
@@ -289,18 +934,15 @@ async def _cdp_session_click_connect(ws_url: str) -> None:
                 return msg.get("result", {})
 
     async with ws_connect(ws_url) as ws:
-        # ---- cert warning handling ----------------------------------------
-        cert_suppressed = False
+        # Suppress cert errors on *future* navigations within this CDP session —
+        # cheap no-op when there's no cert problem; helps with later redirects.
         try:
             await send(ws, "Security.setIgnoreCertificateErrors", {"ignore": True})
-            cert_suppressed = True
-            log.info("CDP: cert errors suppressed")
         except Exception as exc:
-            log.debug(
-                "CDP: Security domain unavailable (%s), will try DOM fallback", exc
-            )
+            log.debug("CDP: Security domain unavailable (%s)", exc)
 
-        # Detect interstitial: Chromium cert warning pages have #details-button
+        # Detect the Chromium cert interstitial (#details-button is its hallmark).
+        # We *don't* try to click through it — see docstring.
         r = await send(
             ws,
             "Runtime.evaluate",
@@ -309,80 +951,114 @@ async def _cdp_session_click_connect(ws_url: str) -> None:
                 "returnByValue": True,
             },
         )
-        on_interstitial = r.get("result", {}).get("value", False)
+        if r.get("result", {}).get("value", False):
+            raise OobAdbError(
+                "CDP: cert warning interstitial is showing on the headset.\n\n"
+                "The self-signed certificate has not been accepted yet on this "
+                "headset / browser.  Run through the teleop URL manually once on "
+                "the headset (accept the cert, grant the immersive-experience "
+                "permission, confirm CONNECT works), then re-run with "
+                "`--setup-oob` to automate.\n\n"
+                "Manual URL is printed in the OOB TELEOP banner at startup."
+            )
 
-        if on_interstitial:
-            log.info("CDP: cert interstitial detected")
-            navigated = False
-            if cert_suppressed:
-                r2 = await send(
-                    ws,
-                    "Runtime.evaluate",
-                    {
-                        "expression": "window.location.href",
-                        "returnByValue": True,
-                    },
-                )
-                current_url = r2.get("result", {}).get("value", "")
-                if current_url and not current_url.startswith("chrome-error"):
-                    log.info("CDP: re-navigating to %s", current_url)
-                    await send(ws, "Page.navigate", {"url": current_url})
-                    await asyncio.sleep(3.0)
-                    navigated = True
-                else:
-                    log.warning(
-                        "CDP: interstitial URL is %r, falling back to DOM click-through",
-                        current_url,
-                    )
+        # ---- bring tab to foreground so WebXR requestSession() succeeds ------
+        # WebXR requires the page to be visible; Page.bringToFront activates the tab.
+        try:
+            await send(ws, "Page.bringToFront")
+            log.info("CDP: tab brought to foreground")
+        except Exception as exc:
+            log.debug("CDP: Page.bringToFront failed (%s), continuing", exc)
 
-            if not navigated:
-                await send(
-                    ws,
-                    "Runtime.evaluate",
-                    {
-                        "expression": "document.getElementById('details-button')?.click()",
-                    },
-                )
-                await asyncio.sleep(1.5)
-                await send(
-                    ws,
-                    "Runtime.evaluate",
-                    {
-                        "expression": "document.getElementById('proceed-link')?.click()",
-                    },
-                )
-                await asyncio.sleep(3.0)
-
-        # ---- find CONNECT button with retries --------------------------------
-        val: dict = {}
-        for attempt in range(1, 4):
+        # ---- wait for #startButton to become actionable ----------------------
+        # State machine returned each poll:
+        #   {state: 'loading'}       — document / button not ready yet
+        #   {state: 'initializing'}  — button exists but disabled (IWER +
+        #                              capability checks still running)
+        #   {state: 'failed', text}  — capability check set a "failed" label;
+        #                              we will never be able to click, error out
+        #   {state: 'ready', x, y, text, disabled}
+        #                            — text === 'CONNECT' and not disabled
+        _READINESS_TIMEOUT = 30.0  # capability/IWER checks can be slow
+        loop = asyncio.get_running_loop()
+        deadline_ready = loop.time() + _READINESS_TIMEOUT
+        start_ready = loop.time()
+        val: dict | None = None
+        last_state: str | None = None
+        while loop.time() < deadline_ready:
             r = await send(
                 ws,
                 "Runtime.evaluate",
                 {
                     "expression": """(function() {
-                    const btn = Array.from(document.querySelectorAll('button,[role=button]'))
-                        .find(e => e.textContent.trim().toUpperCase() === 'CONNECT');
-                    if (!btn) return {found: false};
+                    if (document.readyState !== 'complete') return {state: 'loading'};
+                    const btn = document.getElementById('startButton');
+                    if (!btn) return {state: 'loading'};
+                    const text = btn.textContent?.trim() || '';
+                    const disabled = !!btn.disabled;
+                    if (text.toUpperCase().includes('FAIL')) {
+                        return {state: 'failed', text, disabled};
+                    }
+                    if (disabled || text.toUpperCase() !== 'CONNECT') {
+                        return {state: 'initializing', text, disabled};
+                    }
                     const rc = btn.getBoundingClientRect();
-                    return {found: true, x: rc.left + rc.width / 2, y: rc.top + rc.height / 2};
+                    return {
+                        state: 'ready',
+                        text, disabled,
+                        x: rc.left + rc.width / 2,
+                        y: rc.top + rc.height / 2,
+                    };
                 })()""",
                     "returnByValue": True,
                 },
             )
-            val = (r.get("result") or {}).get("value") or {}
-            if val.get("found"):
+            val = (r.get("result") or {}).get("value") or {"state": "loading"}
+            state = val.get("state")
+            if state != last_state:
+                log.info(
+                    "CDP: page state=%s text=%r disabled=%s",
+                    state,
+                    val.get("text"),
+                    val.get("disabled"),
+                )
+                last_state = state
+            if state == "ready":
                 break
-            log.info("CDP: CONNECT button not found yet (attempt %d/3)", attempt)
-            if attempt < 3:
-                await asyncio.sleep(2.0)
+            if state == "failed":
+                raise OobAdbError(
+                    f"CDP: startButton marked failed (text={val.get('text')!r}). "
+                    "The web client's capability check failed — inspect the headset."
+                )
+            await asyncio.sleep(0.5)
 
-        if not val.get("found"):
+        if val is None or val.get("state") != "ready":
             raise OobAdbError(
-                "CDP: CONNECT button not found on the teleop page.\n"
-                "The page may not have finished loading — check the headset."
+                f"CDP: startButton not actionable within {_READINESS_TIMEOUT:.0f}s "
+                f"(state={val.get('state') if val else 'unknown'!r}, "
+                f"text={val.get('text') if val else None!r}). "
+                "The page may still be initializing — check the headset."
             )
 
+        log.info("CDP: page ready in %.1fs", loop.time() - start_ready)
+
+        # Extra grace period: the CONNECT button can become enabled before the
+        # React <XR> store is fully mounted, which causes "XR is not available"
+        # errors if clicked immediately.
+        await asyncio.sleep(2.0)
+
+        # Click in two phases:
+        #
+        # 1. Input.dispatchMouseEvent (mousePressed + mouseReleased) — this
+        #    is a *trusted* input event, so the browser grants a user-
+        #    activation token (required for navigator.xr.requestSession()).
+        #    PICO Browser's onClick also fires from this path, so on PICO
+        #    phase 2 is effectively a no-op.
+        # 2. element.click() — programmatic follow-up needed on Meta Quest
+        #    Browser, where the synthesized mouse event grants activation
+        #    but does not fire React's onClick handler (touch-first routing).
+        #    By running inside the user-activation window opened in phase 1,
+        #    requestSession() still sees activation when onClick runs.
         x, y = val["x"], val["y"]
         log.info("CDP: clicking CONNECT at (%.0f, %.0f)", x, y)
         for event_type in ("mousePressed", "mouseReleased"):
@@ -397,72 +1073,134 @@ async def _cdp_session_click_connect(ws_url: str) -> None:
                     "clickCount": 1,
                 },
             )
-        log.info("CDP: CONNECT click dispatched")
+        # Follow-up DOM click (safety net for Quest Browser) — inside the
+        # user-activation window opened by the trusted mouse events above.
+        await send(
+            ws,
+            "Runtime.evaluate",
+            {
+                "expression": "document.getElementById('startButton')?.click()",
+            },
+        )
+        log.info("CDP: CONNECT click dispatched (mouse + DOM)")
 
         # ---- monitor connection outcome -------------------------------------
-        # DOM facts learned from page inspection:
-        #   - Start/stop button: id="startButton", text "CONNECT" when idle
-        #   - Error box: first [role=alert] is empty validation-message-box;
-        #     error text lives in the *second* [role=alert] (error-message-box)
+        # DOM facts:
+        #   - Button:     id="startButton", textContent "CONNECT" when idle,
+        #                 changes to "DISCONNECT" / other while streaming.
+        #   - Error text: id="errorMessageText" (child of the error box).
+        #                 textContent is used (not innerText) so the text is
+        #                 readable even when the box has display:none.
         _CONNECT_TIMEOUT = 30.0
         loop = asyncio.get_running_loop()
         deadline = loop.time() + _CONNECT_TIMEOUT
         while loop.time() < deadline:
-            await asyncio.sleep(2.0)
+            await asyncio.sleep(1.0)
             r = await send(
                 ws,
                 "Runtime.evaluate",
                 {
                     "expression": """(function() {
-                    const alertText = Array.from(document.querySelectorAll('[role=alert]'))
-                        .map(e => e.innerText?.trim()).find(t => !!t) || null;
                     const btn = document.getElementById('startButton');
                     const btnText = btn?.textContent?.trim()?.toUpperCase() || null;
-                    return {alertText, btnText};
+                    const box = document.getElementById('errorMessageBox');
+                    // Only treat as error when the box is shown with type 'error'
+                    // (not 'success' or 'info' which are non-fatal status messages).
+                    const isError = box?.classList?.contains('show') &&
+                                   !box?.classList?.contains('success') &&
+                                   !box?.classList?.contains('info');
+                    const errorText = isError
+                        ? (document.getElementById('errorMessageText')?.textContent?.trim() || null)
+                        : null;
+                    return {btnText, errorText};
                 })()""",
                     "returnByValue": True,
                 },
             )
             state = (r.get("result") or {}).get("value") or {}
             btn_text = state.get("btnText")
+            error_text = state.get("errorText") or None
+
+            if error_text:
+                raise OobAdbError(f"Teleop connection failed: {error_text}")
             if btn_text is not None and btn_text != "CONNECT":
                 log.info("CDP: start button changed to %r — session active", btn_text)
                 return
-            if state.get("alertText"):
-                raise OobAdbError(f"Teleop connection failed: {state['alertText']}")
+
         log.warning(
             "CDP: connection state unknown after %.0fs — check headset",
             _CONNECT_TIMEOUT,
         )
 
 
-async def run_oob_connect(*, resolved_port: int, timeout: float = 60.0) -> None:
-    """Open the teleop page on the headset and click CONNECT via CDP.
-
-    Combines the ``am start`` bookmark step with CDP automation so that the
-    new tab can be identified unambiguously by diffing tab IDs before and after
-    ``am start`` — regardless of how many other tabs are already open.
+async def run_oob_connect(
+    *, resolved_port: int, timeout: float = 60.0, usb_local: bool = False
+) -> asyncio.Task | None:
+    """Open the teleop page on the headset via ``am start`` and click CONNECT via CDP.
 
     Flow:
-      1. Discover the Pico Browser DevTools abstract socket and forward it.
-      2. Snapshot existing tab IDs.
-      3. Run ``am start`` to open the teleop bookmark URL.
-      4. Wait for a new tab (ID not in snapshot) to appear.
-      5. Handle self-signed cert interstitial if present.
+      1. Launch the teleop URL on the headset via ``adb shell am start``.
+      2. Wait for the browser's DevTools abstract socket to appear and forward it
+         (WebLayer / Meta Quest Browser / Chrome all supported).
+      3. Find the teleop tab in ``/json`` (by URL content or recent navigation).
+      4. Detect (but do not bypass) the self-signed cert interstitial — abort
+         with a clear error if present so the operator can do the one-time
+         manual cert acceptance + immersive-permission grant.
+      5. Bring the tab to the foreground (required by WebXR ``requestSession``).
       6. Find the CONNECT button and click it via ``Input.dispatchMouseEvent``.
-      7. Clean up the ``adb forward``.
+      7. Start a background monitor that forwards mid-stream errors from the
+         web client's ``errorMessageBox`` into the server log.
 
-    Raises :exc:`OobAdbError` on any unrecoverable failure; callers should
-    treat this as non-fatal and ask the user to tap CONNECT manually.
+    Args:
+        resolved_port: WSS proxy port used for signalling.
+        timeout: Maximum seconds to wait for the browser/tab to appear.
+        usb_local: When ``True``, the headset URL uses ``serverIP=127.0.0.1``
+            and the local webxr_client dev-server at ``https://localhost:8080``.
+
+    Returns:
+        A running :class:`asyncio.Task` that monitors the headset's error
+        banner and keeps the ``adb forward`` alive.  Callers should cancel
+        it at shutdown (``task.cancel()``).  Returns ``None`` if the click
+        phase succeeded but the monitor could not be spawned.
+
+    Raises :exc:`OobAdbError` on any unrecoverable failure during the click
+    phase; callers should treat this as non-fatal and ask the user to tap
+    CONNECT manually.
     """
     deadline = time.monotonic() + timeout
 
-    # --- DevTools socket discovery -------------------------------------------
-    socket_name = _discover_devtools_socket()
+    # --- Step 1: launch browser with the teleop URL --------------------------
+    rc, diag = await asyncio.to_thread(
+        run_adb_headset_bookmark, resolved_port=resolved_port, usb_local=usb_local
+    )
+    if rc != 0:
+        hint = adb_automation_failure_hint(diag)
+        raise OobAdbError(oob_adb_automation_message(rc, diag, hint))
+    log.info("ADB: am start completed")
+
+    # --- Step 2: wait for DevTools socket ------------------------------------
+    # Prefer the socket owned by the package we just launched, so we don't
+    # CDP-attach to a stale WebLayer instance from a prior teleop session.
+    # Falls back transparently for vendors (e.g., current PICO) where the
+    # vendor browser shares the system WebLayer socket.
+    launched_package = await asyncio.to_thread(headset_browser_package)
+    socket_name = None
+    while time.monotonic() < deadline:
+        socket_name = _discover_devtools_socket(prefer_package=launched_package)
+        if socket_name:
+            break
+        log.info("CDP: waiting for browser DevTools socket...")
+        await asyncio.sleep(2.0)
+
     if not socket_name:
         raise OobAdbError(
-            "CDP: Pico Browser DevTools socket not found.\n"
-            "Ensure the browser is open on the headset, then retry or tap CONNECT manually."
+            "CDP: no *_devtools_remote abstract socket found on the headset "
+            "after opening the teleop URL.\n\n"
+            "Chromium-based headset browsers (WebLayer, Meta Quest Browser, "
+            "Chrome) expose one when remote debugging is enabled. Check that "
+            "USB debugging is authorized, the browser actually launched from "
+            "`am start`, and `adb shell cat /proc/net/unix | grep devtools_remote` "
+            "lists a socket."
         )
     log.info("CDP: found socket @%s", socket_name)
 
@@ -472,44 +1210,157 @@ async def run_oob_connect(*, resolved_port: int, timeout: float = 60.0) -> None:
         raise OobAdbError(f"CDP: adb forward failed: {exc}") from exc
 
     try:
-        # --- snapshot existing tabs before am start --------------------------
-        tabs_before = {t["id"] for t in _cdp_list_tabs(_CDP_LOCAL_PORT) if "id" in t}
-        log.info("CDP: %d tab(s) open before am start", len(tabs_before))
+        # --- Step 3: find the teleop tab -------------------------------------
+        # Teleop URL substrings match on the happy path.  We also accept
+        # ``chrome-error://`` URLs because Chromium parks the tab there when
+        # the self-signed cert is blocked — the cert-bypass in
+        # ``_cdp_session_click_connect`` recovers from that state.
+        def _is_candidate_tab(tab: dict) -> bool:
+            url = tab.get("url") or ""
+            if not tab.get("webSocketDebuggerUrl") or not url:
+                return False
+            return (
+                "oobEnable" in url
+                or "localhost" in url
+                or "IsaacTeleop" in url
+                or url.startswith("chrome-error://")
+            )
 
-        # --- open URL on headset ---------------------------------------------
-        rc, diag = await asyncio.to_thread(
-            run_adb_headset_bookmark, resolved_port=resolved_port
-        )
-        if rc != 0:
-            hint = adb_automation_failure_hint(diag)
-            raise OobAdbError(oob_adb_automation_message(rc, diag, hint))
-        log.info("ADB: am start completed; waiting for new tab")
+        # Snapshot {id → url} BEFORE we look for changes so we can detect both
+        # new tabs and existing tabs that were navigated to the new URL by am start.
+        tabs_url_before = {
+            t["id"]: (t.get("url") or "")
+            for t in _cdp_list_tabs(_CDP_LOCAL_PORT)
+            if "id" in t
+        }
+        log.info("CDP: %d tab(s) before navigation", len(tabs_url_before))
 
-        # --- wait for the newly opened tab (not in pre-snapshot) -------------
         ws_url: str | None = None
-        while time.monotonic() < deadline:
-            for tab in _cdp_list_tabs(_CDP_LOCAL_PORT):
-                if "id" not in tab:
-                    continue
-                if tab["id"] not in tabs_before and tab.get("webSocketDebuggerUrl"):
-                    ws_url = tab["webSocketDebuggerUrl"]
-                    log.info("CDP: new tab %r url=%s", tab.get("title"), tab.get("url"))
-                    break
-            if ws_url:
-                break
+        while ws_url is None and time.monotonic() < deadline:
             await asyncio.sleep(1.0)
+            for tab in _cdp_list_tabs(_CDP_LOCAL_PORT):
+                if "id" not in tab or not tab.get("webSocketDebuggerUrl"):
+                    continue
+                old_url = tabs_url_before.get(tab["id"])
+                current_url = tab.get("url") or ""
+                # Case A: brand-new tab — accept only if it looks like our page
+                # (happy path) or is a cert-error page (recoverable).
+                if old_url is None:
+                    if not _is_candidate_tab(tab):
+                        continue
+                    ws_url = tab["webSocketDebuggerUrl"]
+                    log.info("CDP: new tab %r url=%s", tab.get("title"), current_url)
+                    break
+                # Case B: existing tab whose URL changed after am start — this
+                # is ours (the VIEW intent just navigated it).  Trust the diff
+                # even if the new URL is chrome-error://.
+                if old_url != current_url:
+                    ws_url = tab["webSocketDebuggerUrl"]
+                    log.info(
+                        "CDP: navigated tab %r url=%s (was %s)",
+                        tab.get("title"),
+                        current_url,
+                        old_url or "<new>",
+                    )
+                    break
 
         if ws_url is None:
             raise OobAdbError(
-                "CDP: new browser tab not found within timeout.\n"
-                "The browser may not have opened the teleop page — tap CONNECT manually."
+                "CDP: browser tab for the teleop page not found within timeout.\n"
+                "The page may not have loaded — open the teleop URL on the headset manually "
+                "and tap CONNECT."
             )
 
-        # Give the page JS time to finish initializing before we interact with it
-        log.info("CDP: waiting for page to initialize...")
-        await asyncio.sleep(4.0)
-
-        # --- cert interstitial + CONNECT click --------------------------------
+        # --- Step 4: cert interstitial + bring to front + readiness + click --
+        # _cdp_session_click_connect polls the DOM for document.readyState +
+        # #startButton (up to 10s) so no fixed page-init sleep is needed here.
         await _cdp_session_click_connect(ws_url)
-    finally:
+
+        # --- Step 5: background monitor for mid-stream error banners ---------
+        # Keep the adb forward alive; the monitor tears it down on exit.
+        monitor_task = asyncio.create_task(
+            _monitor_teleop_error_banner(ws_url, _CDP_LOCAL_PORT),
+            name="cloudxr-oob-error-monitor",
+        )
+        return monitor_task
+    except BaseException:
+        # Any failure after the forward is set up but before we hand ownership
+        # of it to the monitor task must clean the forward up here.
         _adb_forward_remove(_CDP_LOCAL_PORT)
+        raise
+
+
+async def _monitor_teleop_error_banner(ws_url: str, local_port: int) -> None:
+    """Forward ``errorMessageBox`` content from the web client into the server log.
+
+    Opens its own CDP session and polls the DOM once per second, logging at
+    WARNING level whenever the error banner shows new text with class
+    ``error`` (not ``success``/``info``, which are non-fatal status messages).
+    De-dupes identical messages so a banner that remains displayed logs once.
+
+    Runs until the task is cancelled (normal shutdown) or the WebSocket
+    drops (tab closed / headset disconnected).  Always tears down the
+    ``adb forward`` on exit.
+    """
+    from websockets.asyncio.client import connect as ws_connect  # noqa: PLC0415
+
+    _seq = 0
+    last_banner = ""
+
+    async def send(ws, method: str, params: dict | None = None) -> dict:
+        nonlocal _seq
+        _seq += 1
+        req_id = _seq
+        await ws.send(
+            json.dumps({"id": req_id, "method": method, "params": params or {}})
+        )
+        while True:
+            msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=10.0))
+            if msg.get("id") == req_id:
+                return msg.get("result", {})
+
+    try:
+        async with ws_connect(ws_url) as ws:
+            # Keep errors suppressed so the tab never stops rendering because of
+            # a stray cert hiccup on a later navigation.
+            try:
+                await send(ws, "Security.setIgnoreCertificateErrors", {"ignore": True})
+            except Exception as exc:
+                log.debug("monitor: Security domain unavailable (%s)", exc)
+            log.info("monitor: tracking errorMessageBox on the teleop page")
+            while True:
+                await asyncio.sleep(1.0)
+                r = await send(
+                    ws,
+                    "Runtime.evaluate",
+                    {
+                        "expression": """(function() {
+                            const box = document.getElementById('errorMessageBox');
+                            if (!box || !box.classList.contains('show')) return '';
+                            if (box.classList.contains('success') ||
+                                box.classList.contains('info')) return '';
+                            return document.getElementById('errorMessageText')
+                                       ?.textContent?.trim() || '';
+                        })()""",
+                        "returnByValue": True,
+                    },
+                )
+                banner = (r.get("result") or {}).get("value") or ""
+                if banner and banner != last_banner:
+                    log.warning("Teleop client error: %s", banner)
+                    # Mirror to stderr so the operator sees mid-stream errors
+                    # in the console, not only in the server log file.
+                    print(
+                        f"\n\033[33mTeleop client error: {banner}\033[0m\n",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                last_banner = banner
+    except asyncio.CancelledError:
+        log.info("monitor: cancelled")
+        raise
+    except Exception as exc:
+        # WS drop, CDP error, etc. — expected at tab close; log and exit quietly.
+        log.info("monitor: exiting (%s)", exc)
+    finally:
+        _adb_forward_remove(local_port)

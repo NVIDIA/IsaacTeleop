@@ -88,6 +88,13 @@ interface CloudXRComponentProps {
     /** Window size for pose-to-render latency rolling average. Default: 20 */
     poseToRenderWindow?: number;
   };
+
+  /**
+   * Custom ICE server configuration (STUN/TURN) for WebRTC.
+   * In USB-local mode, set this to a TURN server accessible via adb reverse
+   * with iceTransportPolicy 'relay' so WebRTC can gather candidates without WiFi.
+   */
+  iceServers?: CloudXR.SessionOptions['iceServers'];
 }
 
 // React component that integrates CloudXR with Three.js/WebXR
@@ -103,6 +110,7 @@ export default function CloudXRComponent({
   onRenderPerformanceMetrics,
   onStreamingPerformanceMetrics,
   metricsSettings = {},
+  iceServers,
 }: CloudXRComponentProps) {
   const threeRenderer: WebGLRenderer = useThree().gl;
   const { session } = useXR();
@@ -238,6 +246,7 @@ export default function CloudXRComponent({
             useQuestColorWorkaround: config.useQuestColorWorkaround,
             mediaAddress: config.mediaAddress,
             mediaPort: config.mediaPort,
+            iceServers: iceServers,
             glBinding: glBinding,
             telemetry: {
               enabled: true,
