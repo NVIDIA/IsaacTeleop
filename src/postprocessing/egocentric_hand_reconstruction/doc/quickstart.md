@@ -9,9 +9,29 @@ Automated pipeline for 4D hand and camera pose reconstruction from egocentric vi
 
 ## Setup
 
+### System Requirement
+
+- OS: Ubuntu 24.04
+- GPU: NVIDIA RTX 6000 Ada or L40
+- Memory: 100GB (for a reference 30s video, more for longer)
+- Storage: 100GB
+
 ### Prepare data files
 
-Place required files in `outputs/` directory:
+Place required files in `outputs/` directory.
+
+```
+...
+├── doc/
+├── docker/
+├── scripts/
+├── ...
+└── outputs/
+    ├── MANO_RIGHT.pkl
+    └── BMC/
+        └── *.npy
+```
+
 
 **MANO model** (required):
 - Download from: https://mano.is.tue.mpg.de/
@@ -20,6 +40,18 @@ Place required files in `outputs/` directory:
 **BMC data** (required):
 - Follow the README in https://github.com/MengHao666/Hand-BMC-pytorch to generate (until the step `python calculate_bmc.py`)
 - Place all `.npy` files in: `outputs/BMC/`
+
+> **Note:** The Hand-BMC-pytorch repository is no longer actively maintained, so parts of its setup may not work out-of-the-box on newer systems. At the time of writing, the `environment.yml` pins PyTorch to a specific build (`py3.7_cuda10.0.130_cudnn7.6.2_0`) that may no longer be available on Conda channels or compatible with current hardware. If Conda fails to resolve the environment, one workaround is to relax the pins in `environment.yml`:
+> ```yaml
+> # Before
+> - pytorch==1.2.0=py3.7_cuda10.0.130_cudnn7.6.2_0
+> - torchvision==0.4.0=py37_cu100
+>
+> # After
+> - pytorch=1.2.0
+> - torchvision=0.4.0
+> ```
+> This fix reflects the state of the upstream repo at the time of writing and may need to be adjusted as the ecosystem evolves.
 
 ### Build Docker images
 
