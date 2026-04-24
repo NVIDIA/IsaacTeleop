@@ -233,6 +233,13 @@ LiveControllerTrackerImpl::LiveControllerTrackerImpl(const OpenXRSessionHandles&
                                              "thumbstick_click",
                                              "Thumbstick Click",
                                              XR_ACTION_TYPE_BOOLEAN_INPUT)),
+      menu_click_action_(create_action(core_funcs_,
+                                       action_set_.get(),
+                                       left_hand_path_,
+                                       right_hand_path_,
+                                       "menu_click",
+                                       "Menu Click",
+                                       XR_ACTION_TYPE_BOOLEAN_INPUT)),
       squeeze_value_action_(create_action(core_funcs_,
                                           action_set_.get(),
                                           left_hand_path_,
@@ -275,6 +282,9 @@ LiveControllerTrackerImpl::LiveControllerTrackerImpl(const OpenXRSessionHandles&
     add_binding(secondary_click_action_, "/user/hand/left/input/y/click");
     add_binding(primary_click_action_, "/user/hand/right/input/a/click");
     add_binding(secondary_click_action_, "/user/hand/right/input/b/click");
+    // Oculus Touch exposes menu only on the left controller; right hand has no such path,
+    // so we bind left only. Right-hand menu_click will report false (action inactive).
+    add_binding(menu_click_action_, "/user/hand/left/input/menu/click");
 
     XrInstanceActionContextInfoNV binding_ctx_info{ XR_TYPE_INSTANCE_ACTION_CONTEXT_INFO_NV };
     binding_ctx_info.instanceActionContext = instance_action_context_.get();
@@ -401,11 +411,12 @@ void LiveControllerTrackerImpl::update(int64_t monotonic_time_ns)
         get_vector2_action_state(session_, core_funcs_, thumbstick_action_, hand_path, thumbstick_x, thumbstick_y);
 
         bool thumbstick_click = get_boolean_action_state(session_, core_funcs_, thumbstick_click_action_, hand_path);
+        bool menu_click = get_boolean_action_state(session_, core_funcs_, menu_click_action_, hand_path);
         float squeeze_value = get_float_action_state(session_, core_funcs_, squeeze_value_action_, hand_path);
         float trigger_value = get_float_action_state(session_, core_funcs_, trigger_value_action_, hand_path);
 
-        ControllerInputState inputs(
-            primary_click, secondary_click, thumbstick_click, thumbstick_x, thumbstick_y, squeeze_value, trigger_value);
+        ControllerInputState inputs(primary_click, secondary_click, thumbstick_click, menu_click, thumbstick_x,
+                                    thumbstick_y, squeeze_value, trigger_value);
 
         if (!tracked.data)
         {

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -364,6 +364,7 @@ class TestControllerTransform:
         tg[ControllerInputIndex.PRIMARY_CLICK] = primary_click
         tg[ControllerInputIndex.SECONDARY_CLICK] = 0.0
         tg[ControllerInputIndex.THUMBSTICK_CLICK] = 0.0
+        tg[ControllerInputIndex.MENU_CLICK] = 0.0
         tg[ControllerInputIndex.THUMBSTICK_X] = 0.0
         tg[ControllerInputIndex.THUMBSTICK_Y] = 0.0
         tg[ControllerInputIndex.SQUEEZE_VALUE] = 0.0
@@ -660,6 +661,7 @@ class TestControllerTransformNoAliasing:
         tg[ControllerInputIndex.PRIMARY_CLICK] = 0.5
         tg[ControllerInputIndex.SECONDARY_CLICK] = 0.0
         tg[ControllerInputIndex.THUMBSTICK_CLICK] = 0.0
+        tg[ControllerInputIndex.MENU_CLICK] = 0.0
         tg[ControllerInputIndex.THUMBSTICK_X] = 0.0
         tg[ControllerInputIndex.THUMBSTICK_Y] = 0.0
         tg[ControllerInputIndex.SQUEEZE_VALUE] = 0.0
@@ -771,6 +773,7 @@ class TestControllerTransformOptionalPropagation:
         tg[ControllerInputIndex.PRIMARY_CLICK] = 0.0
         tg[ControllerInputIndex.SECONDARY_CLICK] = 0.0
         tg[ControllerInputIndex.THUMBSTICK_CLICK] = 0.0
+        tg[ControllerInputIndex.MENU_CLICK] = 0.0
         tg[ControllerInputIndex.THUMBSTICK_X] = 0.0
         tg[ControllerInputIndex.THUMBSTICK_Y] = 0.0
         tg[ControllerInputIndex.SQUEEZE_VALUE] = 0.0
@@ -1018,6 +1021,7 @@ class TestTransformOptionalNoneToggle:
             tg[ControllerInputIndex.PRIMARY_CLICK] = 0.0
             tg[ControllerInputIndex.SECONDARY_CLICK] = 0.0
             tg[ControllerInputIndex.THUMBSTICK_CLICK] = 0.0
+            tg[ControllerInputIndex.MENU_CLICK] = 0.0
             tg[ControllerInputIndex.THUMBSTICK_X] = 0.0
             tg[ControllerInputIndex.THUMBSTICK_Y] = 0.0
             tg[ControllerInputIndex.SQUEEZE_VALUE] = 0.0
@@ -1036,6 +1040,7 @@ class TestTransformOptionalNoneToggle:
         right[ControllerInputIndex.PRIMARY_CLICK] = 0.0
         right[ControllerInputIndex.SECONDARY_CLICK] = 0.0
         right[ControllerInputIndex.THUMBSTICK_CLICK] = 0.0
+        right[ControllerInputIndex.MENU_CLICK] = 0.0
         right[ControllerInputIndex.THUMBSTICK_X] = 0.0
         right[ControllerInputIndex.THUMBSTICK_Y] = 0.0
         right[ControllerInputIndex.SQUEEZE_VALUE] = 0.0

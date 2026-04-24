@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -64,6 +64,7 @@ private:
     XrAction secondary_click_action_;
     XrAction thumbstick_action_;
     XrAction thumbstick_click_action_;
+    XrAction menu_click_action_;
     XrAction squeeze_value_action_;
     XrAction trigger_value_action_;
 

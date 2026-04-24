@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 // Python bindings for the Controller FlatBuffer schema.
@@ -24,12 +24,13 @@ inline void bind_controller(py::module& m)
     // Bind ControllerInputState struct
     py::class_<ControllerInputState>(m, "ControllerInputState")
         .def(py::init<>())
-        .def(py::init<bool, bool, bool, float, float, float, float>(), py::arg("primary_click"),
-             py::arg("secondary_click"), py::arg("thumbstick_click"), py::arg("thumbstick_x"), py::arg("thumbstick_y"),
-             py::arg("squeeze_value"), py::arg("trigger_value"))
+        .def(py::init<bool, bool, bool, bool, float, float, float, float>(), py::arg("primary_click"),
+             py::arg("secondary_click"), py::arg("thumbstick_click"), py::arg("menu_click"), py::arg("thumbstick_x"),
+             py::arg("thumbstick_y"), py::arg("squeeze_value"), py::arg("trigger_value"))
         .def_property_readonly("primary_click", &ControllerInputState::primary_click)
         .def_property_readonly("secondary_click", &ControllerInputState::secondary_click)
         .def_property_readonly("thumbstick_click", &ControllerInputState::thumbstick_click)
+        .def_property_readonly("menu_click", &ControllerInputState::menu_click)
         .def_property_readonly("thumbstick_x", &ControllerInputState::thumbstick_x)
         .def_property_readonly("thumbstick_y", &ControllerInputState::thumbstick_y)
         .def_property_readonly("squeeze_value", &ControllerInputState::squeeze_value)
@@ -38,7 +39,8 @@ inline void bind_controller(py::module& m)
              [](const ControllerInputState& self)
              {
                  return "ControllerInputState(primary=" + std::string(self.primary_click() ? "True" : "False") +
-                        ", secondary=" + std::string(self.secondary_click() ? "True" : "False") + ", thumbstick=(" +
+                        ", secondary=" + std::string(self.secondary_click() ? "True" : "False") +
+                        ", menu=" + std::string(self.menu_click() ? "True" : "False") + ", thumbstick=(" +
                         std::to_string(self.thumbstick_x()) + ", " + std::to_string(self.thumbstick_y()) + ")" +
                         ", squeeze=" + std::to_string(self.squeeze_value()) +
                         ", trigger=" + std::to_string(self.trigger_value()) + ")";

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 // Unit tests for the generated Controller FlatBuffer messages.
@@ -47,6 +47,7 @@ TEST_CASE("ControllerInputState default construction", "[controller][struct]")
     CHECK(inputs.primary_click() == false);
     CHECK(inputs.secondary_click() == false);
     CHECK(inputs.thumbstick_click() == false);
+    CHECK(inputs.menu_click() == false);
     CHECK(inputs.thumbstick_x() == 0.0f);
     CHECK(inputs.thumbstick_y() == 0.0f);
     CHECK(inputs.squeeze_value() == 0.0f);
@@ -55,16 +56,17 @@ TEST_CASE("ControllerInputState default construction", "[controller][struct]")
 
 TEST_CASE("ControllerInputState can store button states", "[controller][struct]")
 {
-    core::ControllerInputState inputs(true, true, true, 0.0f, 0.0f, 0.0f, 0.0f);
+    core::ControllerInputState inputs(true, true, true, true, 0.0f, 0.0f, 0.0f, 0.0f);
 
     CHECK(inputs.primary_click() == true);
     CHECK(inputs.secondary_click() == true);
     CHECK(inputs.thumbstick_click() == true);
+    CHECK(inputs.menu_click() == true);
 }
 
 TEST_CASE("ControllerInputState can store analog values", "[controller][struct]")
 {
-    core::ControllerInputState inputs(false, false, false, 0.5f, -0.75f, 0.8f, 1.0f);
+    core::ControllerInputState inputs(false, false, false, false, 0.5f, -0.75f, 0.8f, 1.0f);
 
     CHECK(inputs.thumbstick_x() == Catch::Approx(0.5f));
     CHECK(inputs.thumbstick_y() == Catch::Approx(-0.75f));
@@ -134,7 +136,7 @@ TEST_CASE("ControllerSnapshotT can store complete controller state", "[controlle
     core::ControllerPose aim_pose(aim_p, true);
 
     // Create inputs
-    core::ControllerInputState inputs(true, false, true, 0.5f, -0.5f, 0.8f, 1.0f);
+    core::ControllerInputState inputs(true, false, true, false, 0.5f, -0.5f, 0.8f, 1.0f);
 
     core::ControllerSnapshotT snapshot;
     snapshot.grip_pose = std::make_shared<core::ControllerPose>(grip_pose);
@@ -169,7 +171,7 @@ TEST_CASE("ControllerSnapshotRecord serialization and deserialization", "[contro
     core::Quaternion orient(0.0f, 0.0f, 0.0f, 1.0f);
     core::Pose p(pos, orient);
     core::ControllerPose grip(p, true);
-    core::ControllerInputState inputs(true, false, false, 0.5f, 0.0f, 0.5f, 0.5f);
+    core::ControllerInputState inputs(true, false, false, false, 0.5f, 0.0f, 0.5f, 0.5f);
 
     auto snapshot_offset = core::CreateControllerSnapshot(builder, &grip, &grip, &inputs);
     core::ControllerSnapshotRecordBuilder record_builder(builder);
@@ -216,7 +218,7 @@ TEST_CASE("ControllerSnapshotRecord serialization with DeviceDataTimestamp", "[c
     core::Quaternion orient(0.0f, 0.0f, 0.0f, 1.0f);
     core::Pose p(pos, orient);
     core::ControllerPose grip(p, true);
-    core::ControllerInputState inputs(true, false, false, 0.5f, 0.0f, 0.5f, 0.5f);
+    core::ControllerInputState inputs(true, false, false, false, 0.5f, 0.0f, 0.5f, 0.5f);
 
     record->data->grip_pose = std::make_shared<core::ControllerPose>(grip);
     record->data->aim_pose = std::make_shared<core::ControllerPose>(grip);
