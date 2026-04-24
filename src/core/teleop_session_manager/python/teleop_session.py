@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -32,6 +32,7 @@ import isaacteleop.oxr as oxr
 import isaacteleop.plugin_manager as pm
 
 from .config import (
+    SessionMode,
     TeleopSessionConfig,
 )
 from .teleop_state_manager_types import teleop_control_states
@@ -478,7 +479,10 @@ class TeleopSession:
         Creates OpenXR session (unless external handles were provided),
         DeviceIO session, plugins, and UI. All preparation was done in __init__.
 
-        When ``config.oxr_handles`` is set, the provided handles are passed
+        When ``config.mode`` is ``SessionMode.REPLAY``, an OpenXR session is **not**
+        created; instead a replay DeviceIO session is opened from ``config.mcap_config``.
+
+        When ``config.oxr_handles`` is set (live mode), the provided handles are passed
         directly to ``DeviceIOSession.run()`` and no internal OpenXR session
         is created.  The caller is responsible for the external session lifetime.
 
@@ -489,30 +493,43 @@ class TeleopSession:
         self.plugin_managers = []
         self.plugin_contexts = []
 
-        # Collect trackers from source nodes and config
-        trackers = [source.get_tracker() for source in self._sources]
-        if self.config.trackers:
-            trackers.extend(self.config.trackers)
-
-        # Get required extensions from all trackers
-        required_extensions = deviceio.DeviceIOSession.get_required_extensions(trackers)
-
-        # Resolve OpenXR handles
-        if self.config.oxr_handles is not None:
-            # Use externally provided handles.
-            # The caller owns the OpenXR session lifetime; we only consume handles.
-            handles = self.config.oxr_handles
-        else:
-            # Create our own OpenXR session (standalone mode)
-            self._oxr_session = self._exit_stack.enter_context(
-                oxr.OpenXRSession(self.config.app_name, required_extensions)
+        if self.config.mode == SessionMode.REPLAY:
+            self.deviceio_session = self._exit_stack.enter_context(
+                deviceio.ReplaySession.run(self.config.mcap_config)
             )
-            handles = self._oxr_session.get_handles()
+        else:
+            # Collect trackers from source nodes and config
+            trackers = [source.get_tracker() for source in self._sources]
+            if self.config.trackers:
+                trackers.extend(self.config.trackers)
 
-        # Create DeviceIO session with all trackers
-        self.deviceio_session = self._exit_stack.enter_context(
-            deviceio.DeviceIOSession.run(trackers, handles)
-        )
+            # Get required extensions from all trackers
+            required_extensions = deviceio.DeviceIOSession.get_required_extensions(
+                trackers
+            )
+
+            # Resolve OpenXR handles
+            if self.config.oxr_handles is not None:
+                handles = self.config.oxr_handles
+            else:
+                self._oxr_session = self._exit_stack.enter_context(
+                    oxr.OpenXRSession(self.config.app_name, required_extensions)
+                )
+                handles = self._oxr_session.get_handles()
+
+            # Auto-populate MCAP tracker names from discovered sources
+            # when the user provided only a filename.
+            mcap_config = self.config.mcap_config
+            if mcap_config is not None and not mcap_config.get_tracker_names():
+                mcap_config = deviceio.McapRecordingConfig(
+                    mcap_config.filename,
+                    [(source.get_tracker(), source.name) for source in self._sources],
+                )
+
+            # Create DeviceIO session with all trackers
+            self.deviceio_session = self._exit_stack.enter_context(
+                deviceio.DeviceIOSession.run(trackers, handles, mcap_config)
+            )
 
         # Initialize plugins (if any)
         if self.config.plugins:
