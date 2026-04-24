@@ -9,6 +9,13 @@ Automated pipeline for 4D hand and camera pose reconstruction from egocentric vi
 
 ## Setup
 
+### System Requirement
+
+- OS: Ubuntu 24.04
+- GPU: NVIDIA RTX 6000 Ada or L40
+- Memory: 100GB (for a reference 30s video, more for longer)
+- Storage: 100GB
+
 ### Prepare data files
 
 Place required files in `outputs/` directory:
