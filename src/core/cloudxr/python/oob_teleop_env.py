@@ -5,19 +5,249 @@
 
 from __future__ import annotations
 
+import http.server
+import logging
 import os
 import socket
-from urllib.parse import urlencode
+import ssl
+import threading
+import time
+from pathlib import Path
+from urllib.error import URLError
+from urllib.parse import urlencode, urljoin
+from urllib.request import Request, urlopen
 
 from .oob_teleop_hub import OOB_WS_PATH
+
+log = logging.getLogger("oob-teleop-env")
 
 WSS_PROXY_DEFAULT_PORT = 48322
 
 DEFAULT_WEB_CLIENT_ORIGIN = "https://nvidia.github.io/IsaacTeleop/client/"
 
+# Published WebXR client files (same origin as ``DEFAULT_WEB_CLIENT_ORIGIN``).
+USB_LOCAL_STATIC_INDEX_URL = urljoin(DEFAULT_WEB_CLIENT_ORIGIN, "index.html")
+USB_LOCAL_STATIC_BUNDLE_URL = urljoin(DEFAULT_WEB_CLIENT_ORIGIN, "bundle.js")
+
+# Upper bound for downloaded client assets (supply-chain / accident guard).
+_USB_LOCAL_ASSET_MAX_BYTES = 32 * 1024 * 1024
+
 TELEOP_WEB_CLIENT_BASE_ENV = "TELEOP_WEB_CLIENT_BASE"
 
+# Directory with prebuilt WebXR assets (``index.html`` + ``bundle.js``). Optional for ``--usb-local``:
+# defaults to ``~/.cloudxr/static-client``; missing files are fetched from published URLs.
+TELEOP_WEB_CLIENT_STATIC_DIR_ENV = "TELEOP_WEB_CLIENT_STATIC_DIR"
+
 CHROME_INSPECT_DEVICES_URL = "chrome://inspect/#devices"
+
+# ---------------------------------------------------------------------------
+# USB-local mode constants
+#
+# "USB-local" means: the headset reaches the PC over loopback (127.0.0.1) via
+# ``adb reverse``.  Static assets live under ``TELEOP_WEB_CLIENT_STATIC_DIR`` or
+# default ``~/.cloudxr/static-client`` (downloaded from NVIDIA GitHub Pages if missing).
+# Python serves them over HTTPS on :USB_UI_PORT with the same PEM as the WSS proxy.
+# ---------------------------------------------------------------------------
+
+USB_HOST = "127.0.0.1"  # serverIP seen by the headset (its own localhost)
+USB_UI_PORT = 8080  # HTTPS static WebXR UI (loopback)
+USB_BACKEND_PORT = 49100  # CloudXR backend (native client direct connection)
+USB_TURN_PORT = 3478  # coturn TURN server port (adb reverse'd to headset)
+USB_TURN_USER = "cloudxr"  # TURN username
+USB_TURN_CREDENTIAL = "cloudxrpass"  # TURN credential
+
+
+def default_usb_local_webxr_static_dir() -> Path:
+    """Default directory for USB-local WebXR static files (under ``~/.cloudxr``)."""
+    return Path.home() / ".cloudxr" / "static-client"
+
+
+def resolve_usb_local_webxr_static_dir() -> Path:
+    """Directory for USB-local WebXR assets: :envvar:`TELEOP_WEB_CLIENT_STATIC_DIR` or default.
+
+    Raises:
+        RuntimeError: If ``TELEOP_WEB_CLIENT_STATIC_DIR`` points at a non-directory path.
+    """
+    raw = os.environ.get(TELEOP_WEB_CLIENT_STATIC_DIR_ENV, "").strip()
+    if raw:
+        p = Path(os.path.expanduser(raw)).resolve()
+        if p.exists() and not p.is_dir():
+            raise RuntimeError(
+                f"{TELEOP_WEB_CLIENT_STATIC_DIR_ENV} is not a directory: {p}"
+            )
+        return p
+    return default_usb_local_webxr_static_dir()
+
+
+def _fetch_url_bytes(url: str, *, timeout: float = 120.0) -> bytes:
+    """Download *url* into memory (WebXR client assets only; size-capped)."""
+    req = Request(url, headers={"User-Agent": "isaacteleop-cloudxr"})
+    try:
+        with urlopen(req, timeout=timeout) as resp:
+            cl = resp.headers.get("Content-Length")
+            if cl is not None:
+                try:
+                    n = int(cl)
+                except ValueError:
+                    pass
+                else:
+                    if n > _USB_LOCAL_ASSET_MAX_BYTES:
+                        raise RuntimeError(
+                            f"Refusing download larger than {_USB_LOCAL_ASSET_MAX_BYTES} bytes "
+                            f"(Content-Length={n}): {url}"
+                        )
+            data = resp.read(_USB_LOCAL_ASSET_MAX_BYTES + 1)
+    except URLError as exc:
+        raise RuntimeError(f"Could not download {url}: {exc}") from exc
+    if len(data) > _USB_LOCAL_ASSET_MAX_BYTES:
+        raise RuntimeError(
+            f"Download exceeded {_USB_LOCAL_ASSET_MAX_BYTES} bytes (no trusted Content-Length): {url}"
+        )
+    return data
+
+
+def _write_atomic_bytes(dest: Path, data: bytes) -> None:
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dest.with_name(dest.name + ".part")
+    try:
+        tmp.write_bytes(data)
+        tmp.replace(dest)
+    except OSError:
+        if tmp.is_file():
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+        raise
+
+
+def require_usb_local_webxr_static_dir() -> Path:
+    """Ensure USB-local WebXR static assets exist under :func:`resolve_usb_local_webxr_static_dir`.
+
+    Creates the directory if needed. If ``index.html`` or ``bundle.js`` is missing or empty,
+    downloads from the published Isaac Teleop client URLs.
+
+    Idempotent: safe to call from both :class:`~.launcher.CloudXRLauncher` and ``wss.run``
+    (second call skips network when files are present).
+
+    Raises:
+        RuntimeError: If the path is invalid or downloads/final validation fail.
+    """
+    p = resolve_usb_local_webxr_static_dir()
+
+    try:
+        p.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise RuntimeError(
+            f"Cannot create USB-local WebXR static directory {p}: {exc}"
+        ) from exc
+
+    assets = (
+        ("index.html", USB_LOCAL_STATIC_INDEX_URL),
+        ("bundle.js", USB_LOCAL_STATIC_BUNDLE_URL),
+    )
+    for name, url in assets:
+        dest = p / name
+        if dest.is_file() and dest.stat().st_size > 0:
+            continue
+        log.info("USB-local: fetching %s → %s", url, dest)
+        data = _fetch_url_bytes(url)
+        if not data:
+            raise RuntimeError(f"Downloaded empty body from {url}")
+        try:
+            _write_atomic_bytes(dest, data)
+        except OSError as exc:
+            raise RuntimeError(f"Failed to write {dest}: {exc}") from exc
+
+    for name in ("index.html", "bundle.js"):
+        fp = p / name
+        if not fp.is_file() or fp.stat().st_size == 0:
+            raise RuntimeError(
+                f"USB-local WebXR client file missing or empty after fetch: {fp}"
+            )
+    return p
+
+
+def _wait_for_port(host: str, port: int, timeout: float) -> bool:
+    """Return ``True`` once *host:port* accepts a TCP connection, else ``False``."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection((host, port), timeout=1.0):
+                return True
+        except OSError:
+            time.sleep(0.5)
+    return False
+
+
+def _usb_local_static_handler_class(
+    static_root: Path,
+) -> type[http.server.SimpleHTTPRequestHandler]:
+    root = str(static_root.resolve())
+
+    class _Handler(http.server.SimpleHTTPRequestHandler):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, directory=root, **kwargs)
+
+        def log_message(self, fmt: str, *args) -> None:
+            log.debug("%s - %s", self.address_string(), fmt % args)
+
+    return _Handler
+
+
+def start_usb_local_https_server(
+    static_root: Path,
+    *,
+    cert_file: Path,
+    key_file: Path,
+    port: int = USB_UI_PORT,
+    ready_timeout: float = 15.0,
+) -> tuple[threading.Thread, http.server.ThreadingHTTPServer]:
+    """Serve *static_root* over HTTPS on loopback using the same PEM as the WSS proxy."""
+    handler_cls = _usb_local_static_handler_class(static_root)
+    httpd = http.server.ThreadingHTTPServer(("127.0.0.1", port), handler_cls)
+    httpd.daemon_threads = True
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+    ctx.load_cert_chain(str(cert_file), str(key_file))
+    httpd.socket = ctx.wrap_socket(httpd.socket, server_side=True)
+
+    thread = threading.Thread(
+        target=httpd.serve_forever, name="usb-local-https", daemon=True
+    )
+    thread.start()
+    log.info(
+        "USB-local static HTTPS starting — waiting up to %.0fs for :%d",
+        ready_timeout,
+        port,
+    )
+    if not _wait_for_port("127.0.0.1", port, ready_timeout):
+        try:
+            httpd.shutdown()
+        finally:
+            httpd.server_close()
+        thread.join(timeout=2.0)
+        raise RuntimeError(
+            f"USB-local static HTTPS did not accept connections on 127.0.0.1:{port} "
+            f"within {ready_timeout:.0f}s"
+        )
+    log.info("USB-local static HTTPS ready on https://127.0.0.1:%d", port)
+    return thread, httpd
+
+
+def stop_usb_local_https_server(
+    thread: threading.Thread | None,
+    httpd: http.server.ThreadingHTTPServer | None,
+) -> None:
+    """Shut down the thread HTTP server from :func:`start_usb_local_https_server`."""
+    if httpd is not None:
+        try:
+            httpd.shutdown()
+        finally:
+            httpd.server_close()
+    if thread is not None:
+        thread.join(timeout=5.0)
+    log.info("USB-local static HTTPS server stopped")
 
 
 def web_client_base_override_from_env() -> str | None:
@@ -119,6 +349,17 @@ def build_headset_bookmark_url(
     v = cfg.get("panelHiddenAtStart")
     if isinstance(v, bool):
         params["panelHiddenAtStart"] = "true" if v else "false"
+    v = cfg.get("turnServer")
+    if v is not None and str(v).strip() != "":
+        params["turnServer"] = str(v).strip()
+    v = cfg.get("turnUsername")
+    if v is not None and str(v).strip() != "":
+        params["turnUsername"] = str(v).strip()
+    v = cfg.get("turnCredential")
+    if v is not None and str(v).strip() != "":
+        params["turnCredential"] = str(v).strip()
+    if cfg.get("iceRelayOnly"):
+        params["iceRelayOnly"] = "1"
     q = urlencode(params)
     base = web_client_base.rstrip("/")
     sep = "&" if "?" in base else "?"
@@ -137,18 +378,41 @@ def resolve_lan_host_for_oob() -> str:
     return h
 
 
-def print_oob_hub_startup_banner(*, lan_host: str | None = None) -> None:
-    """Print operator instructions for OOB + USB adb automation."""
+def print_oob_hub_startup_banner(
+    *, lan_host: str | None = None, usb_local: bool = False
+) -> None:
+    """Print operator instructions for OOB + USB adb automation.
+
+    Args:
+        lan_host: PC LAN address (WiFi mode) or ``"127.0.0.1"`` (USB-local mode).
+        usb_local: When ``True``, adjust the banner to describe the USB-local
+            topology: everything reachable from the headset via ``adb reverse``
+            on loopback; WebXR UI from ``TELEOP_WEB_CLIENT_STATIC_DIR`` (HTTPS, same PEM as WSS).
+    """
     port = wss_proxy_port()
     token = os.environ.get("CONTROL_TOKEN") or None
 
     if not lan_host:
-        lan_host = resolve_lan_host_for_oob()
+        lan_host = resolve_lan_host_for_oob() if not usb_local else "127.0.0.1"
     primary_host = lan_host
 
-    web_base = DEFAULT_WEB_CLIENT_ORIGIN
-    stream_cfg = default_initial_stream_config(port)
-    stream_cfg = {**stream_cfg, "serverIP": primary_host}
+    if usb_local:
+        web_base = (
+            os.environ.get("TELEOP_WEB_CLIENT_BASE", "").strip()
+            or f"https://localhost:{USB_UI_PORT}"
+        )
+    else:
+        web_base = DEFAULT_WEB_CLIENT_ORIGIN
+
+    stream_cfg: dict = {"serverIP": primary_host, "port": port}
+    if usb_local:
+        # No mediaAddress: it's a NAT-override that bypasses ICE and would
+        # short-circuit the TURN-relayed media path. Let the SDK discover
+        # the media endpoint through ICE via coturn.
+        stream_cfg["turnServer"] = f"turn:{USB_HOST}:{USB_TURN_PORT}?transport=tcp"
+        stream_cfg["turnUsername"] = USB_TURN_USER
+        stream_cfg["turnCredential"] = USB_TURN_CREDENTIAL
+        stream_cfg["iceRelayOnly"] = True
 
     web_client_base_override = web_client_base_override_from_env()
     if web_client_base_override:
@@ -168,21 +432,42 @@ def print_oob_hub_startup_banner(*, lan_host: str | None = None) -> None:
 
     bar = "=" * 72
     print(bar)
-    print("OOB TELEOP — enabled (out-of-band control hub is running in this WSS proxy)")
+    if usb_local:
+        print("OOB TELEOP (USB-local) — headset reaches PC on loopback via adb reverse")
+    else:
+        print(
+            "OOB TELEOP — enabled (out-of-band control hub is running in this WSS proxy)"
+        )
     print(bar)
     print()
     print(
         f"  The hub shares the CloudXR proxy TLS port {port} on this machine "
         f"(control WebSocket: {wss_primary})."
     )
-    print(
-        "  Same steps as docs: references/oob_teleop_control.rst — "
-        '"End-to-end workflow (the usual path)".'
-    )
+    if usb_local:
+        print(
+            "  USB-local mode: adb reverse active for ports "
+            f"{USB_UI_PORT}/tcp (WebXR static UI — HTTPS), "
+            f"{port}/tcp (WSS), "
+            f"{USB_BACKEND_PORT}/tcp (backend), "
+            f"{USB_TURN_PORT}/tcp (TURN relay — coturn)."
+        )
+        print(
+            "  The launcher has started the WebXR static HTTPS server + coturn automatically "
+            "(see coturn-cloudxr-3478.log if CONNECT fails)."
+        )
+    else:
+        print(
+            "  Same steps as docs: references/oob_teleop_control.rst — "
+            '"End-to-end workflow (the usual path)".'
+        )
     print()
-    print(
-        "  adb: USB cable — headset connected via USB for adb; streaming and web page over WiFi."
-    )
+    if usb_local:
+        print("  adb: USB cable required — headset reaches this PC via adb reverse.")
+    else:
+        print(
+            "  adb: USB cable — headset connected via USB for adb; streaming and web page over WiFi."
+        )
     print()
     print("  Step 1 — Open teleop page on headset (adb)")
     print(

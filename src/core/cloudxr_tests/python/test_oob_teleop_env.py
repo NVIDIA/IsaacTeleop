@@ -7,16 +7,19 @@ from __future__ import annotations
 
 from urllib.parse import parse_qs, urlparse
 
+import cloudxr_py_test_ns.oob_teleop_env as oob_teleop_env_under_test
 import pytest
 
 from cloudxr_py_test_ns.oob_teleop_env import (
     TELEOP_WEB_CLIENT_BASE_ENV,
+    TELEOP_WEB_CLIENT_STATIC_DIR_ENV,
     WSS_PROXY_DEFAULT_PORT,
     build_headset_bookmark_url,
     client_ui_fields_from_env,
     default_initial_stream_config,
     guess_lan_ipv4,
     print_oob_hub_startup_banner,
+    require_usb_local_webxr_static_dir,
     resolve_lan_host_for_oob,
     web_client_base_override_from_env,
     wss_proxy_port,
@@ -35,6 +38,7 @@ def clear_teleop_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "TELEOP_WEB_CLIENT_BASE",
         "TELEOP_PROXY_HOST",
         "CONTROL_TOKEN",
+        TELEOP_WEB_CLIENT_STATIC_DIR_ENV,
     )
     for k in keys:
         monkeypatch.delenv(k, raising=False)
@@ -157,6 +161,61 @@ def test_resolve_lan_host_from_env(
 def test_guess_lan_ipv4_returns_string_or_none() -> None:
     result = guess_lan_ipv4()
     assert result is None or isinstance(result, str)
+
+
+def test_require_usb_local_webxr_static_dir_default_downloads(
+    clear_teleop_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    # Path.home() consults $HOME on POSIX but %USERPROFILE% on Windows
+    # (ntpath.expanduser ignores $HOME when USERPROFILE is set). Patch both
+    # so the redirect works on every platform.
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+
+    def fake_fetch(url: str, *, timeout: float = 120.0) -> bytes:
+        if url.endswith("index.html"):
+            return b"<!doctype html><title>t</title>"
+        if url.endswith("bundle.js"):
+            return b"console.log(1);"
+        raise AssertionError(url)
+
+    monkeypatch.setattr(
+        oob_teleop_env_under_test,
+        "_fetch_url_bytes",
+        fake_fetch,
+    )
+    out = require_usb_local_webxr_static_dir()
+    expected = (tmp_path / ".cloudxr" / "static-client").resolve()
+    assert out == expected
+    assert (out / "index.html").read_bytes().startswith(b"<!doctype")
+    assert b"console.log" in (out / "bundle.js").read_bytes()
+
+
+def test_require_usb_local_webxr_static_dir_ok(
+    clear_teleop_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    (tmp_path / "index.html").write_text(
+        "<!doctype html><title>x</title>", encoding="utf-8"
+    )
+    (tmp_path / "bundle.js").write_text("// bundle", encoding="utf-8")
+    monkeypatch.setenv(TELEOP_WEB_CLIENT_STATIC_DIR_ENV, str(tmp_path))
+    assert require_usb_local_webxr_static_dir() == tmp_path.resolve()
+
+
+def test_require_usb_local_webxr_static_dir_not_a_directory(
+    clear_teleop_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    bogus = tmp_path / "file_not_dir"
+    bogus.write_text("x", encoding="utf-8")
+    monkeypatch.setenv(TELEOP_WEB_CLIENT_STATIC_DIR_ENV, str(bogus))
+    with pytest.raises(RuntimeError, match="not a directory"):
+        require_usb_local_webxr_static_dir()
 
 
 def test_print_oob_hub_startup_banner(
