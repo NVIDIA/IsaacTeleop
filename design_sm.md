@@ -1,4 +1,4 @@
-# TeleopViz — Teleop Visual Streaming Renderer
+# Televiz — Teleop Visualization Renderer
 
 **Author:** Farbod Motlagh
 **Status:** Draft
@@ -14,7 +14,7 @@ Holoscan-based camera streaming app that depends on the full Holoscan SDK,
 HoloHub XR operators, and HolovizOp, a heavy chain of dependecies for what is
 fundamentally compositing textured quads and RGBD buffers.
 
-TeleopViz replaces this with a lightweight, self-contained C++ module
+Televiz replaces this with a lightweight, self-contained C++ module
 (with Python bindings) that:
 
 1. **Renders 2D sensor data as planes in 2D or 3D space** — camera feeds,
@@ -52,7 +52,7 @@ management with CUDA-Vulkan interop and simple 2D/3D tensor submission APIs.
 ## Non-Goals
 
 - Camera capture and network streaming (GStreamer, StreamSDK, V4L2 remain
-  separate — TeleopViz consumes frames, it does not produce or transport them).
+  separate — Televiz consumes frames, it does not produce or transport them).
 - Retargeting, device I/O, or teleop session management (remain in Isaac
   Teleop Core).
 - General-purpose rendering engine (no lighting, shadows, PBR, scene graphs).
@@ -61,14 +61,14 @@ management with CUDA-Vulkan interop and simple 2D/3D tensor submission APIs.
 ### Why not keep Holoscan?
 
 Holoscan SDK + HoloHub XR + GXF + HolovizOp + EventBasedScheduler is ~5
-heavyweight dependencies for rendering textured quads. TeleopViz is
-~3000-3500 lines of purpose-built C++ with no external framework dependency.
+heavyweight dependencies for rendering textured quads. Televiz is
+~3,000-3,500 lines of purpose-built C++ with no external framework dependency.
 
 ---
 
 ## Architecture
 
-TeleopViz sits between content producers (cameras, reconstruction engines)
+Televiz sits between content producers (cameras, reconstruction engines)
 and display targets (OpenXR headsets, monitor windows). It is a compositor,
 not a rendering engine — it assembles content from multiple sources into a
 final frame.
@@ -82,7 +82,7 @@ graph LR
         D[Telemetry<br/>CUDA ptr]
     end
 
-    subgraph TeleopViz
+    subgraph Televiz
         E[VizSession]
         F[QuadLayer]
         G[ProjectionLayer]
@@ -105,7 +105,7 @@ graph LR
     I --> J & K & L
 ```
 
-Effectively, TeleopViz repackages the same OpenXR + Vulkan + CUDA interop
+Effectively, Televiz repackages the same OpenXR + Vulkan + CUDA interop
 patterns used by HoloHub's XR operators into a standalone library with a
 simple frame-loop API — no Holoscan operator graph, no GXF, no external
 framework dependencies.
@@ -121,26 +121,26 @@ display target, and layer registry. Applications interact through a frame
 loop:
 
 ```python
-session = teleopviz.VizSession.create(config)  # XR or window
+session = isaacteleop.viz.VizSession.create(config)  # XR, window, or offscreen
 
 # Push: submit content as CUDA pointers.
-cam_layer = session.add_quad_layer(...)
+cam_layer = session.add_layer(viz.QuadLayer.Config(...))
 
 # Pull: register a callback that receives a Vulkan render target.
-recon_layer = session.add_projection_layer(...)
+recon_layer = session.add_layer(viz.ProjectionLayer.Config(...))
 recon_layer.set_render_callback(my_nvblox_render_fn)
 
 while running:
-    frame = session.begin_frame()
     cam_layer.submit(camera_frame)  # CuPy array or VizBuffer
-    session.end_frame()  # invokes pull callbacks, composites, presents
+    session.render()                 # wait + composite + present
 ```
 
 ### FrameInfo
 
-Returned by `begin_frame()`. Provides per-frame state that content producers
-need: per-eye view/projection matrices, FOV, predicted display time, and a
-`should_render` flag. In windowed mode, synthetic values are provided.
+Returned by `render()` (and `begin_frame()`). Provides per-frame state that
+content producers need: per-eye view/projection matrices, FOV, predicted
+display time, and a `should_render` flag. In windowed mode, synthetic
+values are provided.
 
 ### Layers
 
@@ -185,31 +185,31 @@ Use cases: telemetry HUD, connection status, battery indicators.
 
 ## Push vs Pull (External Renderer Integration)
 
-TeleopViz supports two models for getting content into layers.
+Televiz supports two models for getting content into layers.
 
 **Push model:** The producer renders independently and submits CUDA color +
-depth buffers to TeleopViz. One copy (CUDA to Vulkan import). Good for
+depth buffers to Televiz. One copy (CUDA to Vulkan import). Good for
 async/remote sources.
 
-**Pull model:** TeleopViz provides a Vulkan render target (command buffer +
-framebuffer) and invokes a callback each frame with current view parameters.
-The external renderer draws directly into TeleopViz's framebuffer — zero
-copy. Good for nvblox_renderer and other local Vulkan renderers.
+**Pull model:** Expressed via a custom `LayerBase` subclass. The subclass
+overrides `record(VkCommandBuffer, views, RenderTarget)` and draws directly
+into Televiz's framebuffer — zero copy. Good for nvblox_renderer and other
+local Vulkan renderers.
 
-For the pull model, both libraries remain independent — TeleopViz owns its
+For the pull model, both libraries remain independent — Televiz owns its
 Vulkan infrastructure, the external renderer owns its own. The integration
-point is the `VkCommandBuffer`: TeleopViz provides it, the external renderer
+point is the `VkCommandBuffer`: Televiz provides it, the external renderer
 records draw commands into it. The example application wires them together.
 
 ```mermaid
 graph TB
     subgraph "Push Model (CUDA)"
-        P1[Content Producer] -->|CUDA color+depth ptr| P2[TeleopViz Layer]
+        P1[Content Producer] -->|CUDA color+depth ptr| P2[Televiz Layer]
         P2 -->|import via external memory| P3[Vulkan Framebuffer]
     end
 
     subgraph "Pull Model (Vulkan zero-copy)"
-        T1[TeleopViz] -->|VkCommandBuffer + RenderTarget + ViewInfo| T2[External Renderer<br/>e.g. nvblox_renderer]
+        T1[Televiz] -->|VkCommandBuffer + RenderTarget + ViewInfo| T2[External Renderer<br/>e.g. nvblox_renderer]
         T2 -->|draw commands recorded| T1
     end
 
@@ -228,52 +228,51 @@ graph TB
 
 IsaacTeleop's OXR module currently creates a **headless** OpenXR session for
 device tracking (hand tracking, headset pose). It has no Vulkan device and
-cannot submit frames. TeleopViz needs a **graphics-bound** session with
+cannot submit frames. Televiz needs a **graphics-bound** session with
 Vulkan for rendering.
 
 ### Options
 
 | Option | Description | Pros | Cons |
 |--------|-------------|------|------|
-| **A: Separate sessions** | TeleopViz creates its own graphics session. OXR module keeps its headless session. | No changes to existing code. Works today. | Two CloudXR connections. |
-| **B: TeleopViz owns, trackers attach** | TeleopViz creates the session. Trackers from TeleopSession attach to it via `oxr_handles`. | Single session/connection. | Requires TeleopSession to accept TeleopViz's handles. |
-| **C: Extended OXR module** | OXR module optionally creates a graphics-bound session and passes Vulkan handles to TeleopViz. | OXR retains ownership. | Requires OXR module changes. |
+| **A: Separate sessions** | Televiz creates its own graphics session. OXR module keeps its headless session. | No changes to existing code. Works today. | Two CloudXR connections. |
+| **B: Televiz owns, trackers attach** | Televiz creates the session. Trackers from TeleopSession attach to it via `oxr_handles`. | Single session/connection. | Requires TeleopSession to accept Televiz's handles. |
+| **C: Extended OXR module** | OXR module optionally creates a graphics-bound session and passes Vulkan handles to Televiz. | OXR retains ownership. | Requires OXR module changes. |
 
 ### Recommendation
 
 Start with **Option A** — zero changes to existing modules, immediate
 development. Migrate to **Option B** once stable, using TeleopSession's
-existing `oxr_handles` config to pass TeleopViz's session to device trackers.
+existing `oxr_handles` config to pass Televiz's session to device trackers.
 This gives a single CloudXR connection with no TeleopSession code changes.
 
 ---
 
 ## IsaacTeleop Integration
 
-TeleopViz is packaged as `isaacteleop.viz`, following the convention of
+Televiz is packaged as `isaacteleop.viz`, following the convention of
 `isaacteleop.oxr`, `isaacteleop.mcap`, `isaacteleop.schema`.
 
 It integrates at the **application level** alongside `TeleopSession` — not
 inside it. TeleopSession manages device tracking and retargeting;
-TeleopViz manages rendering. Both run in the same loop:
+Televiz manages rendering. Both run in the same loop:
 
 ```python
 import isaacteleop.viz as viz
 from isaacteleop import TeleopSession, TeleopSessionConfig
 
 viz_session = viz.VizSession.create(viz.Config(mode=viz.DisplayMode.XR))
-cam_layer = viz_session.add_quad_layer(name="front_cam", ...)
+cam_layer = viz_session.add_layer(viz.QuadLayer.Config(name="front_cam", ...))
 
 teleop_config = TeleopSessionConfig(app_name="teleop", pipeline=pipeline)
 with TeleopSession(teleop_config) as teleop:
     while running:
-        frame = viz_session.begin_frame()
         teleop.step()
-        cam_layer.submit(camera_ptr, 1920, 1080, viz.RGBA8, stream)
-        viz_session.end_frame()
+        cam_layer.submit(camera_frame)   # CuPy array or VizBuffer
+        viz_session.render()
 ```
 
-In the future unified-session mode (Option B), TeleopViz can pass its
+In the future unified-session mode (Option B), Televiz can pass its
 graphics-bound session to TeleopSession via the existing `oxr_handles`
 config — no TeleopSession changes needed:
 
@@ -291,7 +290,7 @@ teleop_config = TeleopSessionConfig(
 ### Single Render Pass (recommended)
 
 All layers are composited into one stereo framebuffer, submitted as a single
-`XrCompositionLayerProjection` with depth info. TeleopViz renders textured
+`XrCompositionLayerProjection` with depth info. Televiz renders textured
 quads (planes) and blits RGBD content (projection layers) in one Vulkan
 render pass, with depth testing for correct occlusion between 2D planes and
 3D content.
@@ -321,7 +320,7 @@ future.
 ## XR Runtime Information
 
 Content producers need to know what resolution, FOV, and timing to target.
-TeleopViz exposes this at two levels:
+Televiz exposes this at two levels:
 
 **Session-level (stable after init):** recommended per-eye resolution, view
 count, display refresh rate. Used at startup to allocate buffers.
@@ -342,7 +341,7 @@ stale layer count. Used for adaptive quality control.
 Replaces the Holoscan camera_streamer for the 2D plane use case. Camera
 capture (V4L2, OAK-D, ZED) and GStreamer RTP streaming code are reused from
 the existing camera_streamer — extracted from Holoscan operators into
-standalone modules. TeleopViz renders each camera feed as a
+standalone modules. Televiz renders each camera feed as a
 `QuadLayer`.
 
 Supports local and remote (RTP) camera sources, XR and windowed display.
@@ -350,7 +349,7 @@ Supports local and remote (RTP) camera sources, XR and windowed display.
 ### 3D Reconstruction Visualization (future)
 
 Demonstrates nvblox_renderer integration via the pull model. nvblox produces
-live mesh reconstruction; its `MeshVisualizer` draws directly into TeleopViz's
+live mesh reconstruction; its `MeshVisualizer` draws directly into Televiz's
 `ProjectionLayer` render target. Optional `QuadLayer` camera feeds are
 composited alongside the reconstruction.
 
