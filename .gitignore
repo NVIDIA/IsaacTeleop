@@ -8,6 +8,12 @@
 node_modules/
 package-lock.json
 
+# Playwright artifacts (test-results/, traces, HTML report)
+test-results/
+**/test-results/
+playwright-report/
+**/playwright-report/
+
 # Build directories
 build/
 **/build/

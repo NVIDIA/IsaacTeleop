@@ -15,6 +15,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+permissions:
+  contents: read
+
 jobs:
   build-ubuntu:
     # Pin to 22.04 so the wheel is built with GCC 11's libstdc++. The resulting wheel
@@ -460,6 +463,112 @@ jobs:
           fi
         done
 
+  build-webapp:
+    # GitHub-hosted runner is sufficient: the webxr_client build is pure
+    # Node/Webpack and produces an artifact consumed by test-cloudxr-web-e2e.
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+
+    - name: Setup CloudXR SDK
+      uses: ./.github/actions/setup-cloudxr-sdk
+      with:
+        ngc-cli-api-key: ${{ secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY }}
+
+    - name: Set up Node
+      uses: actions/setup-node@v5
+      with:
+        node-version: '24'
+
+    - name: Install web client dependencies
+      working-directory: deps/cloudxr/webxr_client
+      # `npm install` (not `npm ci`) because package-lock.json is gitignored;
+      # --ignore-scripts skips the @nvidia/cloudxr postinstall (not needed for
+      # a webpack production build) and avoids any host-specific native steps.
+      run: npm install --ignore-scripts
+
+    - name: Build web client
+      working-directory: deps/cloudxr/webxr_client
+      run: npm run build
+
+    - name: Upload web client artifact
+      uses: actions/upload-artifact@v6
+      with:
+        name: webxr-client-build
+        path: deps/cloudxr/webxr_client/build
+        if-no-files-found: error
+        retention-days: 1
+
+  test-cloudxr-web-e2e:
+    # GPU runner required: the CloudXR runtime needs an NVIDIA GPU even when
+    # only one E2E spec is running. Single matrix entry — the web client
+    # behavior is independent of the matrix dims used by other test jobs.
+    runs-on: [self-hosted, linux, gpu, x64]
+    needs:
+      - build-ubuntu
+      - build-webapp
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+      with:
+        submodules: recursive
+
+    - name: Download install artifacts
+      uses: actions/download-artifact@v7
+      with:
+        name: isaacteleop-install-release-x64-py3.11
+
+    - name: Extract tarball to preserve permissions
+      run: |
+        mkdir -p install
+        tar -xvf isaacteleop-install.tar -C install
+
+    - name: Download web client artifact
+      uses: actions/download-artifact@v7
+      with:
+        name: webxr-client-build
+        path: webapp
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Run web E2E tests
+      env:
+        CI: true
+        ACCEPT_CLOUDXR_EULA: Y
+        CXR_BUILD_CONTEXT: ${{ github.workspace }}
+        CXR_WEBAPP_DIR: ${{ github.workspace }}/webapp
+        PYTHON_VERSION: '3.11'
+        ISAACTELEOP_PIP_FIND_LINKS: /workspace/install/wheels
+        ISAACTELEOP_PIP_SPEC: 'isaacteleop[cloudxr]'
+        ISAACTELEOP_PIP_DEBUG: '0'
+      run: ./scripts/run_test_e2e_with_web.sh
+
+    - name: Upload web E2E artifacts
+      # always() so green runs also ship streaming.png + video.webm as
+      # visual proof that the runtime served frames; failure runs
+      # additionally pick up test-failed-N.png and trace.zip.
+      if: always()
+      uses: actions/upload-artifact@v6
+      with:
+        name: web-e2e-results
+        # Compose/runtime logs + Playwright JSON summary + screenshots +
+        # video recording (every run) + trace zip (failure runs only,
+        # per playwright.config.ts).
+        path: |
+          e2e-logs.txt
+          tests/web_e2e/test-results/results.json
+          tests/web_e2e/test-results/**/*.png
+          tests/web_e2e/test-results/**/*.webm
+          tests/web_e2e/test-results/**/trace.zip
+        if-no-files-found: ignore
+        retention-days: 7
+
   publish-wheel:  # to internal Artifactory
     runs-on: [self-hosted, linux]
     needs:
@@ -467,6 +576,7 @@ jobs:
       - test-viz-gpu
       - test-cloudxr
       - test-teleop-ros2
+      - test-cloudxr-web-e2e
     outputs:
       wheel_paths: ${{ steps.upload-artifactory.outputs.wheel_paths }}
     environment: dev
@@ -481,6 +591,7 @@ jobs:
       && needs.test-viz-gpu.result == 'success'
       && needs.test-cloudxr.result == 'success'
       && needs.test-teleop-ros2.result == 'success'
+      && needs.test-cloudxr-web-e2e.result == 'success'
 
     steps:
     - name: Set up Python

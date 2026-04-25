@@ -1,0 +1,10 @@
+{
+  "name": "isaacteleop-web-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Isaac Teleop web client end-to-end tests (Playwright).",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@playwright/test": "1.59.1"
+  }
+}

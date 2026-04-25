@@ -1,0 +1,125 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Self-contained Docker Compose stack used only by web E2E tests
+# (scripts/run_test_e2e_with_web.sh and the test-cloudxr-web-e2e CI job).
+# Defines:
+#   - cloudxr-runtime: the runtime container reusing Dockerfile.runtime, with
+#     a small entrypoint shim that backgrounds python -m http.server to serve
+#     the prebuilt webxr_client at port 8080.
+#   - playwright:      the official Playwright image driving the web client.
+#
+# Both services join the project default user-defined bridge network so the
+# playwright container can reach the runtime by service name (cloudxr-runtime).
+#
+# Use:
+#   docker compose -p <unique> \
+#       -f deps/cloudxr/docker-compose.test-e2e.yaml up
+#
+# This file intentionally duplicates a few lines from docker-compose.runtime.yaml
+# (build args) to avoid extending it with !reset tags for the inherited
+# network_mode/runtime values that conflict with E2E requirements.
+
+services:
+  cloudxr-runtime:
+    build:
+      context: ${CXR_BUILD_CONTEXT:?CXR_BUILD_CONTEXT must point to repository root}
+      dockerfile: deps/cloudxr/Dockerfile.runtime
+      args:
+        PYTHON_VERSION:
+        ISAACTELEOP_PIP_SPEC:
+        ISAACTELEOP_PIP_FIND_LINKS:
+        ISAACTELEOP_PIP_DEBUG:
+    container_name: cloudxr-runtime-${COMPOSE_PROJECT_NAME:-isaacteleop-web-e2e}
+
+    # No `user:` override: the runtime container is fully ephemeral here (no
+    # host bind-writes, no shared OpenXR volume with another consumer) so it
+    # runs as the image-default root. That keeps /openxr/ writable without
+    # having to seed/chown a named volume to match a runner uid/gid.
+
+    # CI hook-based GPU injection: runc + deploy.resources, mirroring the
+    # pattern in docker-compose.test.yaml. Avoids `runtime: nvidia` which is
+    # not registered as a Docker runtime on most CI hosts.
+    runtime: runc
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+    environment:
+      - ACCEPT_EULA=${ACCEPT_CLOUDXR_EULA:-Y}
+      - NV_DEVICE_PROFILE=${NV_DEVICE_PROFILE:-Quest3}
+      - NV_GPU_INDEX=${NV_GPU_INDEX:-0}
+
+    volumes:
+      # /openxr/ stays in the container's own writable layer — Playwright
+      # never reads it, so there's no need for a shared named volume here
+      # (and a Docker-managed named volume seeded from the image's
+      # root-owned /openxr/ would break a non-root container user).
+      #
+      # Bind-mount the prebuilt web client so python -m http.server can serve
+      # it. CI sets CXR_WEBAPP_DIR to the downloaded webxr-client-build artifact
+      # directory; the default works for local runs after `npm run build`.
+      - ${CXR_WEBAPP_DIR:-./webxr_client/build}:/app/webapp:ro
+
+    healthcheck:
+      # Verify both the CloudXR runtime ready marker and the static HTTP
+      # server's TCP port before tests start.
+      test:
+        - CMD-SHELL
+        - >-
+          test -f /openxr/.cloudxr/run/runtime_started &&
+          bash -c 'exec 3<>/dev/tcp/localhost/8080'
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 10s
+
+    entrypoint: ["/bin/bash", "-lc"]
+    command:
+      - |
+        python -m http.server 8080 --bind 0.0.0.0 --directory /app/webapp >/tmp/http.log 2>&1 &
+        exec /eula.sh /entrypoint.sh
+
+  playwright:
+    # Tag must match @playwright/test version in tests/web_e2e/package.json;
+    # mismatched tags break Playwright's bundled-browser path resolution.
+    image: mcr.microsoft.com/playwright:v1.59.1-noble
+    # Run as the host user so writes through the /tests bind mount
+    # (test-results/, package-lock.json, node_modules/) land on the host with
+    # the runner's ownership. The Playwright image otherwise starts as root.
+    user: "${PLAYWRIGHT_UID:-1000}:${PLAYWRIGHT_GID:-1000}"
+    depends_on:
+      cloudxr-runtime:
+        condition: service_healthy
+    working_dir: /tests
+    volumes:
+      # Compose paths are relative to this file's directory (deps/cloudxr/);
+      # ../../tests/web_e2e resolves to <repo-root>/tests/web_e2e/.
+      - ../../tests/web_e2e:/tests
+    environment:
+      - WEB_URL=http://cloudxr-runtime:8080
+      - CXR_HOST=cloudxr-runtime
+      # Direct CloudXR signaling port over plain ws:// (matches HTTP page
+      # protocol), so no TLS/certificate handling is required anywhere in the
+      # test path. Tests that exercise the wss-proxy would use 48322 with
+      # WEB_URL switched to https://.
+      - CXR_PORT=49100
+      - CI=true
+      # Image default HOME=/root is not writable by the non-root user we run
+      # as; redirect HOME so `npm install`'s cache (~/.npm) and any tool
+      # configs land in a writable tmpfs-style path. Playwright browsers are
+      # at PLAYWRIGHT_BROWSERS_PATH=/ms-playwright in the image and don't
+      # depend on HOME.
+      - HOME=/tmp
+    entrypoint: ["/bin/bash", "-lc"]
+    command:
+      # `npm install` (not `npm ci`) because package-lock.json is gitignored;
+      # @playwright/test is exact-pinned in package.json and the image tag is
+      # pinned above, so the install is still effectively reproducible.
+      - |
+        npm install --no-audit --no-fund
+        exec npx playwright test --reporter=list
