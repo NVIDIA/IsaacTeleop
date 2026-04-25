@@ -38,7 +38,12 @@ import { kPerformanceOptions } from '@helpers/PerformanceProfiles';
 import CloudXRComponent from '@helpers/react/CloudXRComponent';
 import { SimpleEnvironment } from '@helpers/react/SimpleEnvironment';
 import { getControlPanelPositionVector } from '@helpers/react/utils';
-import { DEFAULT_TELEOP_PATH, parseTeleopPathFromHash } from '@helpers/TeleopProjects';
+import {
+  DEFAULT_TELEOP_PATH,
+  loadStoredTeleopPath,
+  parseTeleopPathFromHash,
+  saveStoredTeleopPath,
+} from '@helpers/TeleopProjects';
 import * as CloudXR from '@nvidia/cloudxr';
 import { getResolutionValidationError } from '@nvidia/cloudxr';
 import { signal, computed } from '@preact/signals-react';
@@ -312,12 +317,10 @@ function App() {
       setConfigVersion(v => v + 1);
     });
     // Teleop path: URL hash -> last-used (localStorage) -> DEFAULT_TELEOP_PATH.
-    const PATH_STORAGE_KEY = 'cxr.isaac.teleopPath';
     let resolvedPath = parseTeleopPathFromHash(window.location.hash);
     if (!resolvedPath) {
-      let storedPath: string | null = null;
-      try { storedPath = localStorage.getItem(PATH_STORAGE_KEY); } catch { /* localStorage unavailable */ }
-      resolvedPath = parseTeleopPathFromHash(`#/${storedPath ?? ''}`) ?? DEFAULT_TELEOP_PATH;
+      resolvedPath =
+        parseTeleopPathFromHash(`#/${loadStoredTeleopPath() ?? ''}`) ?? DEFAULT_TELEOP_PATH;
     }
     // Reflect canonical form (parse may have lowercased/truncated). `#/…` is a
     // fragment-relative URL so replaceState preserves path and search.
@@ -325,7 +328,7 @@ function App() {
     if (window.location.hash !== canonicalHash) {
       window.history.replaceState(null, '', canonicalHash);
     }
-    try { localStorage.setItem(PATH_STORAGE_KEY, resolvedPath); } catch { /* localStorage unavailable */ }
+    saveStoredTeleopPath(resolvedPath);
 
     // URL query params override localStorage so bookmarked links always win.
     const urlSeeds: Record<string, string> = {};
@@ -848,7 +851,7 @@ function App() {
             <>
               <CloudXRComponent
                 config={config}
-                applicationName={`Isaac Teleop Web Client (${config.teleopPath ?? DEFAULT_TELEOP_PATH})`}
+                applicationName={`Isaac Teleop Web Client (${config.teleopPath})`}
                 onStatusChange={handleStatusChange}
                 onError={error => {
                   if (cloudXR2DUI) {

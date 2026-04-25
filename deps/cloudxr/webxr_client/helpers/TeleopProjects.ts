@@ -22,7 +22,8 @@ export interface TeleopProjectSettings {
 
 /**
  * A node in the project registry tree. Nodes with `settings` contribute defaults at
- * their depth; ancestor settings are merged in priority order (deepest wins).
+ * their depth; when merged along a path, the deepest *defined* value for each key
+ * wins.
  */
 export interface TeleopProjectNode {
   label: string;
@@ -34,6 +35,27 @@ export type TeleopProjectRegistry = Record<string, TeleopProjectNode>;
 
 /** Default teleop path when nothing is resolvable from URL hash or localStorage. */
 export const DEFAULT_TELEOP_PATH = 'sim';
+
+/** localStorage key that remembers the last-used teleop path across reloads. */
+const PATH_STORAGE_KEY = 'cxr.isaac.teleopPath';
+
+/** Returns the stored teleop path, or `null` when none is saved / localStorage is unavailable. */
+export function loadStoredTeleopPath(): string | null {
+  try {
+    return localStorage.getItem(PATH_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Persists the teleop path so a reload without a URL hash restores the same app. */
+export function saveStoredTeleopPath(path: string): void {
+  try {
+    localStorage.setItem(PATH_STORAGE_KEY, path);
+  } catch {
+    /* localStorage unavailable */
+  }
+}
 
 /**
  * Registry of teleop projects, keyed by URL-hash path (e.g. `#/real/gear/dexmate`).
@@ -53,22 +75,21 @@ export const TELEOP_PROJECTS: TeleopProjectRegistry = {
     label: 'Simulation',
     settings: { panelHiddenAtStart: false },
     children: {
-      isaacsim: { label: 'IsaacSim', settings: {} },
+      isaacsim: { label: 'IsaacSim' },
     },
   },
   real: {
     label: 'Real Robot',
     settings: { panelHiddenAtStart: true },
     children: {
-      ros: { label: 'ROS', settings: {} },
-      isaacros: { label: 'IsaacROS', settings: {} },
+      ros: { label: 'ROS' },
+      isaacros: { label: 'IsaacROS' },
       gear: {
         label: 'GEAR',
-        settings: {},
         children: {
-          dexmate: { label: 'Dexmate', settings: {} },
-          g1_sonic: { label: 'G1 SONIC', settings: {} },
-          g1_homie: { label: 'G1 HOMIE', settings: {} },
+          dexmate: { label: 'Dexmate' },
+          g1_sonic: { label: 'G1 SONIC' },
+          g1_homie: { label: 'G1 HOMIE' },
         },
       },
     },
@@ -80,21 +101,31 @@ function pathSegments(teleopPath: string | undefined): string[] {
   return teleopPath.split('/').filter(Boolean);
 }
 
-/** Merges node defaults from root to target along the path; deepest non-undefined value wins. */
+/**
+ * Copies only keys whose value is not `undefined`, so explicit `undefined` on a
+ * descendant node inherits the ancestor's value.
+ */
+function assignDefined(target: TeleopProjectSettings, source: TeleopProjectSettings | undefined): void {
+  if (!source) return;
+  for (const [k, v] of Object.entries(source)) {
+    if (v !== undefined) (target as Record<string, unknown>)[k] = v;
+  }
+}
+
+/** Merges node defaults from root to target along the path; deepest defined value wins. */
 export function getProjectSettings(teleopPath: string | undefined): TeleopProjectSettings {
   const segments = pathSegments(teleopPath);
   if (segments.length === 0) return {};
   const root = TELEOP_PROJECTS[segments[0]];
   if (!root) return {};
-  let merged: TeleopProjectSettings = { ...root.settings };
+  const merged: TeleopProjectSettings = {};
+  assignDefined(merged, root.settings);
   let current: TeleopProjectNode = root;
   for (let i = 1; i < segments.length; i++) {
     const child = current.children?.[segments[i]];
     if (!child) break;
     current = child;
-    if (current.settings) {
-      merged = { ...merged, ...current.settings };
-    }
+    assignDefined(merged, current.settings);
   }
   return merged;
 }

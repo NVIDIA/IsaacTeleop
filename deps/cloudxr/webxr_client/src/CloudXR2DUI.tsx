@@ -425,6 +425,7 @@ export class CloudXR2DUI {
       enableTexSubImage2D: false,
       useQuestColorWorkaround: false,
       hideControllerModel: false,
+      teleopPath: DEFAULT_TELEOP_PATH,
     };
   }
 

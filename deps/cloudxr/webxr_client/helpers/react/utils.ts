@@ -63,10 +63,10 @@ export interface ReactUIConfig {
   /** When true, the control panel is hidden at immersive XR enter (small “show control panel” control only). */
   panelHiddenAtStart?: boolean;
   /** Active teleop project path (a key path in `TELEOP_PROJECTS`). */
-  teleopPath?: string;
+  teleopPath: string;
 }
 
-export const CONTROL_PANEL_POSITIONS: readonly ControlPanelPosition[] = ['left', 'center', 'right'];
+const CONTROL_PANEL_POSITIONS: readonly ControlPanelPosition[] = ['left', 'center', 'right'];
 
 /**
  * Parses a string into a valid control panel position.
