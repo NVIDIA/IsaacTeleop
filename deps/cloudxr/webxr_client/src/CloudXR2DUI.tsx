@@ -276,7 +276,7 @@ export class CloudXR2DUI {
     const currentHash = `#/${this.teleopPath}`;
 
     // Static prompt when collapsed (the breadcrumb already shows the current path);
-    // a bullet marks the current path inside the open menu.
+    // the active entry is suffixed and disabled so it reads as already selected.
     const prompt = document.createElement('option');
     prompt.value = '';
     prompt.textContent = 'Change teleop application';
@@ -285,8 +285,9 @@ export class CloudXR2DUI {
     for (const entry of DROPDOWN_ENTRIES) {
       const option = document.createElement('option');
       option.value = entry.hash;
-      const marker = entry.hash === currentHash ? '\u2022\u00A0' : '\u00A0\u00A0';
-      option.textContent = INDENT.repeat(entry.depth) + marker + entry.label;
+      const isCurrent = entry.hash === currentHash;
+      option.textContent = INDENT.repeat(entry.depth) + entry.label + (isCurrent ? '  (current)' : '');
+      if (isCurrent) option.disabled = true;
       select.appendChild(option);
     }
 
@@ -428,8 +429,9 @@ export class CloudXR2DUI {
   }
 
   /**
-   * Enables localStorage persistence for form inputs
-   * Automatically saves and restores user preferences
+   * Wires up localStorage persistence for global (non-per-project-path) form
+   * inputs. Per-project-path fields are handled separately via
+   * loadPerProject/savePerProject around their own change listeners.
    */
   private setupLocalStorage(): void {
     enableLocalStorage(this.serverTypeSelect, 'serverType');
@@ -449,8 +451,6 @@ export class CloudXR2DUI {
     enableLocalStorage(this.useQuestColorWorkaroundSelect, 'useQuestColorWorkaround');
     enableLocalStorage(this.immersiveSelect, 'immersiveMode');
     enableLocalStorage(this.deviceProfileSelect, 'deviceProfile');
-    // panelHiddenAtStart is persisted per-project-path via savePerProject() in
-    // its change listener, not here.
     enableLocalStorage(this.controlPanelPositionSelect, 'controlPanelPosition');
     enableLocalStorage(this.referenceSpaceSelect, 'referenceSpace');
     enableLocalStorage(this.xrOffsetXInput, 'xrOffsetX');
@@ -561,10 +561,7 @@ export class CloudXR2DUI {
       // Reset to the prompt before navigating so if the reload is aborted the
       // control doesn't end up stuck on the just-picked value.
       this.teleopProjectSelect.selectedIndex = 0;
-      // Full reload: teleopPath seeds initial per-project state and config;
-      // cheaper to rebuild from scratch than to wire a re-init path here.
       window.location.hash = value.replace(/^#/, '');
-      window.location.reload();
     });
     addListener(this.proxyUrlInput, 'input', updateConfig);
     addListener(this.proxyUrlInput, 'change', updateConfig);
