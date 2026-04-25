@@ -38,6 +38,21 @@ the list of dependencies. On **Ubuntu**, install build tools and clang-format:
    sudo apt-get update
    sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache patchelf
 
+Runtime-only dependencies (needed to actually run teleop, not to build):
+
+.. code-block:: bash
+
+   # adb — required for OOB teleop (``--setup-oob``) to talk to the headset over USB.
+   # coturn — required for USB-local mode (``--usb-local``); runs a local TURN server
+   #          so WebRTC ICE can relay traffic from the headset to the CloudXR backend
+   #          over the USB cable.
+   sudo apt-get install -y android-tools-adb coturn
+
+   # Disable the system coturn service so the launcher can manage its own instance
+   # on 127.0.0.1:3478 (the system service would bind the same port and conflict).
+   sudo systemctl stop coturn
+   sudo systemctl disable coturn
+
 Our build system uses `uv`_ for Python version and dependency management. Install `uv`_ if not already installed:
 
 .. code-block:: bash

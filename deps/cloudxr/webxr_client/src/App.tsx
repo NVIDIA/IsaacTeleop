@@ -330,7 +330,7 @@ function App() {
     // URL query params override localStorage so bookmarked links always win.
     const urlSeeds: Record<string, string> = {};
     const p = new URLSearchParams(window.location.search);
-    for (const key of ['serverIP', 'port', 'codec', 'panelHiddenAtStart']) {
+    for (const key of ['serverIP', 'port', 'codec', 'panelHiddenAtStart', 'turnServer', 'turnUsername', 'turnCredential']) {
       const v = p.get(key);
       if (v !== null) urlSeeds[key] = v;
     }
@@ -695,6 +695,25 @@ function App() {
     [cloudXR2DUI, configVersion]
   );
 
+  // Build ICE server config from URL params (set in USB-local mode by oob_teleop_env.py).
+  // turnServer e.g. "turn:127.0.0.1:3478?transport=tcp", iceRelayOnly=1 forces relay-only ICE.
+  const iceServersConfig = useMemo<CloudXR.SessionOptions['iceServers'] | undefined>(() => {
+    const p = new URLSearchParams(window.location.search);
+    const turnServer = p.get('turnServer');
+    if (!turnServer) return undefined;
+    const turnUsername = p.get('turnUsername') ?? undefined;
+    const turnCredential = p.get('turnCredential') ?? undefined;
+    const iceRelayOnly = p.get('iceRelayOnly') === '1';
+    return {
+      iceServers: [{
+        urls: turnServer,
+        ...(turnUsername !== undefined && { username: turnUsername }),
+        ...(turnCredential !== undefined && { credential: turnCredential }),
+      }],
+      ...(iceRelayOnly && { iceTransportPolicy: 'relay' as RTCIceTransportPolicy }),
+    };
+  }, []);
+
   // Calculate panel position from config and memoize it as the vector used in CloudXR3DUI.
   const controlPanelPositionVector = useMemo(
     () =>
@@ -833,6 +852,7 @@ function App() {
               <CloudXRComponent
                 config={config}
                 applicationName="Isaac Teleop Web Client"
+                iceServers={iceServersConfig}
                 onStatusChange={handleStatusChange}
                 onError={error => {
                   if (cloudXR2DUI) {

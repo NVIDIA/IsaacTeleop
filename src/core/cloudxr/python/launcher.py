@@ -74,6 +74,7 @@ class CloudXRLauncher:
         env_config: str | Path | None = None,
         accept_eula: bool = False,
         setup_oob: bool = False,
+        usb_local: bool = False,
     ) -> None:
         """Launch the CloudXR runtime and WSS proxy.
 
@@ -92,6 +93,13 @@ class CloudXRLauncher:
                 does not exist, the user is prompted on stdin.
             setup_oob: Enable the OOB teleop control hub and USB
                 adb automation in the WSS proxy.
+            usb_local: Route teleop traffic over USB on headset loopback
+                via ``adb reverse`` (requires *setup_oob*).  Sets up
+                ``adb reverse`` for WSS proxy, CloudXR backend, and
+                coturn TURN ports, and starts coturn locally for WebRTC
+                ICE relay.  The operator is expected to have the
+                webxr_client dev-server running at
+                ``https://localhost:8080`` on this PC.
 
         Raises:
             RuntimeError: If the EULA is not accepted or the runtime
@@ -101,6 +109,7 @@ class CloudXRLauncher:
         self._env_config = str(env_config) if env_config is not None else None
         self._accept_eula = accept_eula
         self._setup_oob = setup_oob
+        self._usb_local = usb_local
 
         self._runtime_proc: subprocess.Popen | None = None
         self._wss_thread: threading.Thread | None = None
@@ -370,6 +379,7 @@ class CloudXRLauncher:
         self._wss_stop_future = stop_future
 
         setup_oob = self._setup_oob
+        usb_local = self._usb_local
 
         def _run_wss() -> None:
             asyncio.set_event_loop(loop)
@@ -379,6 +389,7 @@ class CloudXRLauncher:
                         log_file_path=log_path,
                         stop_future=stop_future,
                         setup_oob=setup_oob,
+                        usb_local=usb_local,
                     )
                 )
             except Exception:
