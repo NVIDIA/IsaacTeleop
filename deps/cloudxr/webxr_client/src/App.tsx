@@ -38,6 +38,12 @@ import { kPerformanceOptions } from '@helpers/PerformanceProfiles';
 import CloudXRComponent from '@helpers/react/CloudXRComponent';
 import { SimpleEnvironment } from '@helpers/react/SimpleEnvironment';
 import { getControlPanelPositionVector } from '@helpers/react/utils';
+import {
+  DEFAULT_TELEOP_PATH,
+  loadStoredTeleopPath,
+  parseTeleopPathFromHash,
+  saveStoredTeleopPath,
+} from '@helpers/TeleopProjects';
 import * as CloudXR from '@nvidia/cloudxr';
 import { getResolutionValidationError } from '@nvidia/cloudxr';
 import { signal, computed } from '@preact/signals-react';
@@ -327,6 +333,20 @@ function App() {
     const ui = new CloudXR2DUI(() => {
       setConfigVersion(v => v + 1);
     });
+    // Teleop path: URL hash -> last-used (localStorage) -> DEFAULT_TELEOP_PATH.
+    let resolvedPath = parseTeleopPathFromHash(window.location.hash);
+    if (!resolvedPath) {
+      resolvedPath =
+        parseTeleopPathFromHash(`#/${loadStoredTeleopPath() ?? ''}`) ?? DEFAULT_TELEOP_PATH;
+    }
+    // Reflect canonical form (parse may have lowercased/truncated). `#/…` is a
+    // fragment-relative URL so replaceState preserves path and search.
+    const canonicalHash = `#/${resolvedPath}`;
+    if (window.location.hash !== canonicalHash) {
+      window.history.replaceState(null, '', canonicalHash);
+    }
+    saveStoredTeleopPath(resolvedPath);
+
     // URL query params override localStorage so bookmarked links always win.
     const urlSeeds: Record<string, string> = {};
     const p = new URLSearchParams(window.location.search);
@@ -334,7 +354,7 @@ function App() {
       const v = p.get(key);
       if (v !== null) urlSeeds[key] = v;
     }
-    ui.initialize(Object.keys(urlSeeds).length > 0 ? urlSeeds : undefined);
+    ui.initialize(Object.keys(urlSeeds).length > 0 ? urlSeeds : undefined, resolvedPath);
     const doConnect = async () => {
       const config = ui.getConfiguration();
       const resolutionError = getResolutionValidationError(
@@ -385,6 +405,13 @@ function App() {
       }
     };
   }, [store]);
+
+  // Address-bar hash edits need a reload to re-run init.
+  useEffect(() => {
+    const onHashChange = () => window.location.reload();
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
 
   // Update HTML error message display when error state changes
   useEffect(() => {
@@ -832,7 +859,7 @@ function App() {
             <>
               <CloudXRComponent
                 config={config}
-                applicationName="Isaac Teleop Web Client"
+                applicationName={`Isaac Teleop Web Client (${config.teleopPath})`}
                 onStatusChange={handleStatusChange}
                 onError={error => {
                   if (cloudXR2DUI) {
