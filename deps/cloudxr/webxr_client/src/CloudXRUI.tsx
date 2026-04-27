@@ -35,15 +35,16 @@
  * back to the parent component through callback props.
  */
 
-import { useXRButton } from '@helpers/react/useXRButton';
 import { ReadonlySignal } from '@preact/signals-react';
 import { useFrame } from '@react-three/fiber';
 import { Handle, HandleTarget } from '@react-three/handle';
-import { Container, Text, Image } from '@react-three/uikit';
+import { Container, Image, Text } from '@react-three/uikit';
 import { Button } from '@react-three/uikit-default';
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Color, Euler, Group, Mesh, MeshStandardMaterial, Quaternion, Vector3 } from 'three';
 import { damp } from 'three/src/math/MathUtils.js';
+
+import { useXRButton } from '@helpers/react/useXRButton';
 
 // Face-camera rotation constants
 const FACE_CAMERA_DAMPING = 10; // Higher = faster rotation toward camera
@@ -495,7 +496,6 @@ export default function CloudXR3DUI({
                     Minimize on play (compact controls)
                   </Text>
                 </Container>
-
               </Container>
 
               {/* Right Column - Controls */}

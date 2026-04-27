@@ -102,11 +102,7 @@ export class HeadsetControlChannel {
       ws = new WebSocket(this.opts.url);
     } catch (err) {
       if (this.disposed) return;
-      console.warn(
-        '[ControlChannel] WebSocket constructor failed for',
-        this.opts.url,
-        err
-      );
+      console.warn('[ControlChannel] WebSocket constructor failed for', this.opts.url, err);
       this.ws = null;
       this._afterSocketClosed();
       return;
@@ -129,7 +125,7 @@ export class HeadsetControlChannel {
       this._startMetricsTimer();
     };
 
-    ws.onmessage = (ev) => {
+    ws.onmessage = ev => {
       if (typeof ev.data !== 'string') return;
       let msg: { type?: string; payload?: unknown };
       try {
@@ -169,17 +165,11 @@ export class HeadsetControlChannel {
 
     if (type === 'hello') {
       // hello to headset includes initial config
-      if (
-        payload.config != null &&
-        typeof payload.configVersion === 'number'
-      ) {
+      if (payload.config != null && typeof payload.configVersion === 'number') {
         this.opts.onConfig(payload.config as StreamConfig, payload.configVersion as number);
       }
     } else if (type === 'config') {
-      if (
-        payload.config != null &&
-        typeof payload.configVersion === 'number'
-      ) {
+      if (payload.config != null && typeof payload.configVersion === 'number') {
         this.opts.onConfig(payload.config as StreamConfig, payload.configVersion as number);
       }
     } else if (type === 'error') {
