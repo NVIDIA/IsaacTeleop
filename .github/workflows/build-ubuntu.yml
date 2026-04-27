@@ -93,6 +93,34 @@ jobs:
     - name: Run All Tests
       run: ctest --test-dir build --output-on-failure --parallel
 
+    - name: Package viz test binaries (Release, py3.11 only)
+      # GPU [gpu]-tagged tests run separately on a self-hosted GPU runner
+      # in the test-viz-gpu job. We package the test executables here so
+      # that job can download and run them without rebuilding. Test binaries
+      # don't depend on Python, so we only upload from one matrix entry.
+      if: ${{ matrix.build_type == 'Release' && matrix.python_version == '3.11' }}
+      run: |
+        set -euo pipefail
+        mkdir -p viz-tests-pkg
+        # Glob all viz_*_tests executables (covers viz_core_tests today, and
+        # viz_layers_tests / viz_session_tests / viz_xr_tests as they ship).
+        find build/src/viz -name 'viz_*_tests' -type f -executable \
+          -exec cp -v {} viz-tests-pkg/ \;
+        if ! ls viz-tests-pkg/viz_*_tests >/dev/null 2>&1; then
+          echo "No viz test binaries found under build/src/viz/"
+          exit 1
+        fi
+        tar -cvzf viz-tests.tar.gz -C viz-tests-pkg .
+
+    - name: Upload viz test binaries (Release, py3.11 only)
+      if: ${{ matrix.build_type == 'Release' && matrix.python_version == '3.11' }}
+      uses: actions/upload-artifact@v6
+      with:
+        name: viz-tests-${{ matrix.arch }}
+        path: viz-tests.tar.gz
+        if-no-files-found: error
+        retention-days: 1
+
     - name: Install (Release only)
       if: matrix.build_type == 'Release'
       run: cmake --install build
@@ -141,6 +169,52 @@ jobs:
         path: install/wheels/*.whl
         if-no-files-found: error
         retention-days: 1
+
+  test-viz-gpu:
+    # Runs [gpu]-tagged Catch2 tests for the Televiz module on a self-hosted
+    # GPU runner. The build-ubuntu job runs on a GPU-less GitHub-hosted runner
+    # where these tests SKIP cleanly; this job actually exercises the Vulkan
+    # / CUDA paths that build-ubuntu cannot.
+    runs-on: [self-hosted, linux, gpu, "${{ matrix.arch }}"]
+    needs: build-ubuntu
+
+    strategy:
+      matrix:
+        arch: ['x64', 'arm64']
+
+    steps:
+    - name: Download viz test binaries
+      uses: actions/download-artifact@v7
+      with:
+        name: viz-tests-${{ matrix.arch }}
+
+    - name: Extract test binaries
+      run: |
+        set -euo pipefail
+        mkdir -p viz-tests
+        tar -xzvf viz-tests.tar.gz -C viz-tests
+        chmod +x viz-tests/viz_*_tests
+
+    - name: Run viz [gpu] tests
+      run: |
+        set -euo pipefail
+        cd viz-tests
+        # Run [gpu]-tagged tests for every viz_*_tests binary. The build-ubuntu
+        # job already covered [unit] tests on a CPU-only runner; here we focus
+        # on the GPU paths that genuinely need Vulkan/CUDA at runtime.
+        failures=0
+        for test_bin in viz_*_tests; do
+          echo "================================================================"
+          echo "Running ${test_bin} [gpu]"
+          echo "================================================================"
+          if ! ./"${test_bin}" "[gpu]" --reporter compact; then
+            failures=$((failures + 1))
+          fi
+        done
+        if [ "${failures}" -ne 0 ]; then
+          echo "${failures} viz GPU test binary/binaries reported failures"
+          exit 1
+        fi
 
   test-cloudxr:
     runs-on: [self-hosted, linux, gpu, "${{ matrix.arch }}"]
@@ -374,6 +448,7 @@ jobs:
     runs-on: [self-hosted, linux]
     needs:
       - build-ubuntu
+      - test-viz-gpu
       - test-cloudxr
       - test-teleop-ros2
     outputs:
@@ -387,6 +462,7 @@ jobs:
       (github.event_name != 'pull_request'
         || github.event.pull_request.head.repo.full_name == github.repository)
       && needs.build-ubuntu.result == 'success'
+      && needs.test-viz-gpu.result == 'success'
       && needs.test-cloudxr.result == 'success'
       && needs.test-teleop-ros2.result == 'success'
 

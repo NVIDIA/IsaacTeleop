@@ -61,6 +61,7 @@ endif()
 option(BUILD_EXAMPLES "Build examples" ON)
 option(BUILD_EXAMPLE_TELEOP_ROS2 "Build only the teleop_ros2 example (e.g. for Docker)" OFF)
 option(BUILD_TESTING "Build unit tests" ON)
+option(BUILD_VIZ "Build Televiz visualization module" ON)
 option(ENABLE_EXPERIMENTAL_WINDOWS_BUILD "Enable experimental Windows build support (source code only)" OFF)
 
 # Note: This is used to check if the CloudXR bundle is available to be bundled with Isaac Teleop.
@@ -122,6 +123,12 @@ add_subdirectory(src/core)
 
 # Build retargeters (pure Python, sibling of src/core)
 add_subdirectory(src/retargeters)
+
+# Build Televiz visualization module (sibling of src/core).
+# src/viz/CMakeLists.txt orchestrates its own sub-modules and tests.
+if(BUILD_VIZ)
+    add_subdirectory(src/viz)
+endif()
 
 # Build examples if requested
 if(BUILD_EXAMPLES)
