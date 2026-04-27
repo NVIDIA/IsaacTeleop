@@ -251,6 +251,11 @@ class SharpaHandRetargeter(BaseRetargeter):
         self._finger_qpos_start = self._FREEFLYER_NQ
         self._finger_qpos_end = self._robot.model.nq
 
+        # Precomputed lookup: finger joint name -> output index
+        self._hand_joint_name_to_idx = {
+            name: idx for idx, name in enumerate(self._hand_joint_names)
+        }
+
         super().__init__(name=name)
 
     # ------------------------------------------------------------------
@@ -293,6 +298,7 @@ class SharpaHandRetargeter(BaseRetargeter):
         if not joint_valid[wrist_idx]:
             for i in range(len(self._hand_joint_names)):
                 output_group[i] = 0.0
+            self._qpos_prev = None
             return
 
         # Extract MANO-ordered positions and orientations from OpenXR
@@ -334,8 +340,8 @@ class SharpaHandRetargeter(BaseRetargeter):
         # Extract finger joint angles and write to output
         finger_angles = qpos[self._finger_qpos_start : self._finger_qpos_end]
         for i, jname in enumerate(self._finger_joint_names):
-            if jname in self._hand_joint_names:
-                out_idx = self._hand_joint_names.index(jname)
+            out_idx = self._hand_joint_name_to_idx.get(jname)
+            if out_idx is not None:
                 output_group[out_idx] = float(finger_angles[i])
 
     # ------------------------------------------------------------------

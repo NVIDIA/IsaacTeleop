@@ -38,32 +38,6 @@ from isaacteleop.retargeting_engine.tensor_types import (
 from scipy.spatial.transform import Rotation, Slerp
 
 
-def _optional_type_for_device(device: str):
-    """Return the appropriate OptionalType for a device name string."""
-    if "hand" in device:
-        return OptionalType(HandInput())
-    elif "controller" in device:
-        return OptionalType(ControllerInput())
-    raise ValueError(f"Unknown device: {device}")
-
-
-def _resolve_active_input(inputs: RetargeterIO, primary: str, fallback: Optional[str]):
-    """Pick the first non-absent input, preferring *primary*.
-
-    Returns:
-        Tuple of (device_name, tensor_group) for the active input, or
-        (primary, absent_group) when both are absent.
-    """
-    inp = inputs[primary]
-    if not inp.is_none:
-        return primary, inp
-    if fallback is not None:
-        fb = inputs[fallback]
-        if not fb.is_none:
-            return fallback, fb
-    return primary, inp  # both absent — caller handles is_none
-
-
 @dataclass
 class Se3RetargeterConfig:
     """Configuration for SE3 retargeters."""
@@ -71,12 +45,6 @@ class Se3RetargeterConfig:
     input_device: str = (
         "hand_right"  # "hand_left", "hand_right", "controller_left", "controller_right"
     )
-
-    # When set, the retargeter accepts both input_device (primary) and
-    # fallback_device as optional inputs.  The primary device is used when
-    # present; the fallback is tried only when the primary is absent.
-    fallback_device: Optional[str] = None
-
     zero_out_xy_rotation: bool = True
     use_wrist_rotation: bool = False
     use_wrist_position: bool = True
@@ -217,15 +185,12 @@ class Se3AbsRetargeter(BaseRetargeter):
         self._target_offset_pos = np.array(xyz, dtype=np.float64)
 
     def input_spec(self) -> RetargeterIOType:
-        spec: RetargeterIOType = {}
-        spec[self._config.input_device] = _optional_type_for_device(
-            self._config.input_device
-        )
-        if self._config.fallback_device is not None:
-            spec[self._config.fallback_device] = _optional_type_for_device(
-                self._config.fallback_device
-            )
-        return spec
+        if "hand" in self._config.input_device:
+            return {self._config.input_device: OptionalType(HandInput())}
+        elif "controller" in self._config.input_device:
+            return {self._config.input_device: OptionalType(ControllerInput())}
+        else:
+            raise ValueError(f"Unknown input device: {self._config.input_device}")
 
     def output_spec(self) -> RetargeterIOType:
         return {
@@ -248,9 +213,8 @@ class Se3AbsRetargeter(BaseRetargeter):
             )
 
         ee_pose = outputs["ee_pose"]
-        device_name, inp = _resolve_active_input(
-            inputs, self._config.input_device, self._config.fallback_device
-        )
+        device_name = self._config.input_device
+        inp = inputs[device_name]
         if inp.is_none:
             ee_pose[0] = self._last_pose
             return
@@ -356,15 +320,12 @@ class Se3RelRetargeter(BaseRetargeter):
         self._first_frame = True
 
     def input_spec(self) -> RetargeterIOType:
-        spec: RetargeterIOType = {}
-        spec[self._config.input_device] = _optional_type_for_device(
-            self._config.input_device
-        )
-        if self._config.fallback_device is not None:
-            spec[self._config.fallback_device] = _optional_type_for_device(
-                self._config.fallback_device
-            )
-        return spec
+        if "hand" in self._config.input_device:
+            return {self._config.input_device: OptionalType(HandInput())}
+        elif "controller" in self._config.input_device:
+            return {self._config.input_device: OptionalType(ControllerInput())}
+        else:
+            raise ValueError(f"Unknown input device: {self._config.input_device}")
 
     def output_spec(self) -> RetargeterIOType:
         return {
@@ -390,9 +351,8 @@ class Se3RelRetargeter(BaseRetargeter):
             self._first_frame = True
 
         ee_delta = outputs["ee_delta"]
-        device_name, inp = _resolve_active_input(
-            inputs, self._config.input_device, self._config.fallback_device
-        )
+        device_name = self._config.input_device
+        inp = inputs[device_name]
         if inp.is_none:
             ee_delta[0] = np.zeros(6, dtype=np.float32)
             return
