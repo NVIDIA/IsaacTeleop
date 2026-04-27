@@ -449,6 +449,15 @@ class SharpaBiManualRetargeter(BaseRetargeter):
                 self._output_indices_right.append(i)
                 self._right_indices.append(right_joint_names.index(jname))
 
+        mapped = len(self._output_indices_left) + len(self._output_indices_right)
+        if mapped != len(target_joint_names):
+            known = set(left_joint_names) | set(right_joint_names)
+            missing = [n for n in target_joint_names if n not in known]
+            raise ValueError(
+                f"target_joint_names contains {len(missing)} name(s) not found "
+                f"in left or right joint lists: {missing}"
+            )
+
     def input_spec(self) -> RetargeterIOType:
         """Define input collections for both hands."""
         return {

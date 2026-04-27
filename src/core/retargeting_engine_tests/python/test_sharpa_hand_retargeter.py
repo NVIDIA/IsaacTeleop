@@ -31,10 +31,16 @@ from isaacteleop.retargeting_engine.tensor_types import (
     NUM_HAND_JOINTS,
 )
 
-from isaacteleop.retargeters import (
-    SharpaHandRetargeter,
-    SharpaHandRetargeterConfig,
-)
+try:
+    from isaacteleop.retargeters import (
+        SharpaHandRetargeter,
+        SharpaHandRetargeterConfig,
+    )
+except ModuleNotFoundError:
+    pytest.skip(
+        "SharpaHandRetargeter requires retargeters extras (pinocchio, pink)",
+        allow_module_level=True,
+    )
 
 # ---------------------------------------------------------------------------
 # Paths
