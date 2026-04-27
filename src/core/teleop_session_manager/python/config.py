@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -10,8 +10,9 @@ These classes provide a clean, declarative way to configure teleop sessions.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, List, Optional
+from typing import TYPE_CHECKING, Any, List, Optional, Union
 
 from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
     GraphExecutable,
@@ -21,7 +22,15 @@ from isaacteleop.retargeting_engine.tensor_types import BoolType
 from .teleop_state_manager_types import teleop_control_states
 
 if TYPE_CHECKING:
+    from isaacteleop.deviceio_session import McapRecordingConfig, McapReplayConfig
     from teleopcore.oxr import OpenXRSessionHandles
+
+
+class SessionMode(Enum):
+    """Determines whether the teleop session runs live or replays from an MCAP file."""
+
+    LIVE = "live"
+    REPLAY = "replay"
 
 
 @dataclass
@@ -60,6 +69,9 @@ class TeleopSessionConfig:
     Attributes:
         app_name: Name of the OpenXR application
         pipeline: Main retargeting pipeline.
+        mode: Whether to run a live OpenXR session or replay from an MCAP file.
+            Defaults to ``SessionMode.LIVE``. When ``REPLAY``, ``mcap_config`` is required
+            and OpenXR/plugin initialization is skipped.
         teleop_control_pipeline: Optional control pipeline whose outputs are
             decoded into ComputeContext.execution_events before running ``pipeline``.
             Expected outputs:
@@ -73,6 +85,14 @@ class TeleopSessionConfig:
             instead of creating its own OpenXR session via OpenXRSession.create().
             Construct with ``OpenXRSessionHandles(instance, session, space, proc_addr)``
             where each argument is a ``uint64`` handle value.
+        mcap_config: MCAP configuration — ``McapRecordingConfig`` for live
+            recording, ``McapReplayConfig`` for replay.  **Required** when
+            ``mode`` is ``SessionMode.REPLAY``; optional in ``LIVE`` mode.
+            TeleopSession always auto-populates tracker names from the
+            pipeline's discovered DeviceIO sources (using each source's
+            ``name`` as the MCAP channel name).  Any ``tracker_names``
+            explicitly provided in the config are **appended** after the
+            auto-discovered sources.
 
     Example (auto-discovery):
         # Source creates its own tracker automatically!
@@ -112,14 +132,19 @@ class TeleopSessionConfig:
 
     app_name: str
     pipeline: GraphExecutable
+    mode: SessionMode = SessionMode.LIVE
     teleop_control_pipeline: Optional[GraphExecutable] = None
     trackers: List[Any] = field(default_factory=list)
     plugins: List[PluginConfig] = field(default_factory=list)
     verbose: bool = True
     oxr_handles: Optional[OpenXRSessionHandles] = None
+    mcap_config: Optional[Union[McapRecordingConfig, McapReplayConfig]] = None
 
     def __post_init__(self) -> None:
-        """Validate optional teleop control pipeline output contract."""
+        """Validate configuration consistency."""
+        if self.mode == SessionMode.REPLAY and self.mcap_config is None:
+            raise ValueError("mcap_config is required when mode is SessionMode.REPLAY")
+
         if self.teleop_control_pipeline is None:
             return
 
