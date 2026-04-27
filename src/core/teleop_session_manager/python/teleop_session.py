@@ -494,8 +494,14 @@ class TeleopSession:
         self.plugin_contexts = []
 
         if self.config.mode == SessionMode.REPLAY:
+            mcap_config = self.config.mcap_config
+            if not mcap_config.get_tracker_names():
+                mcap_config = deviceio.McapReplayConfig(
+                    mcap_config.filename,
+                    [(source.get_tracker(), source.name) for source in self._sources],
+                )
             self.deviceio_session = self._exit_stack.enter_context(
-                deviceio.ReplaySession.run(self.config.mcap_config)
+                deviceio.ReplaySession.run(mcap_config)
             )
         else:
             # Collect trackers from source nodes and config

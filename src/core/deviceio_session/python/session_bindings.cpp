@@ -70,8 +70,21 @@ PYBIND11_MODULE(_deviceio_session, m)
                      }
                      return config;
                  }),
-             py::arg("filename"), py::arg("tracker_names"))
-        .def_readwrite("filename", &core::McapReplayConfig::filename);
+             py::arg("filename"),
+             py::arg("tracker_names") = std::vector<std::pair<std::shared_ptr<core::ITracker>, std::string>>{})
+        .def_readwrite("filename", &core::McapReplayConfig::filename)
+        .def(
+            "get_tracker_names",
+            [](const core::McapReplayConfig& c)
+            {
+                py::list result;
+                for (const auto& [tracker, name] : c.tracker_names)
+                {
+                    result.append(py::make_tuple(py::cast(tracker), name));
+                }
+                return result;
+            },
+            "Return the list of (tracker, channel_name) pairs.");
 
     // ---- DeviceIOSession (live) ----
     py::class_<core::PyDeviceIOSession, core::ITrackerSession, std::unique_ptr<core::PyDeviceIOSession>>(

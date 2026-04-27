@@ -1504,6 +1504,69 @@ class TestReplayModePlugins:
                 session.__exit__(None, None, None)
 
 
+class TestReplayModeAutoPopulate:
+    """Tests that replay mode auto-populates tracker names from pipeline sources."""
+
+    def test_auto_populates_when_tracker_names_empty(self):
+        """Empty get_tracker_names() triggers auto-populate from pipeline sources."""
+        mcap_config = MagicMock()
+        mcap_config.filename = "recording.mcap"
+        mcap_config.get_tracker_names.return_value = []
+
+        head_source = MockHeadSource(name="head")
+        hands_source = MockHandsSource(name="hands")
+        pipeline = MockPipeline(leaf_nodes=[head_source, hands_source])
+
+        config = TeleopSessionConfig(
+            app_name="test",
+            pipeline=pipeline,
+            mode=SessionMode.REPLAY,
+            mcap_config=mcap_config,
+        )
+
+        with mock_replay_dependencies() as mocks:
+            with patch("isaacteleop.deviceio.McapReplayConfig") as mock_replay_cls:
+                mock_replay_cls.return_value = MagicMock()
+                session = TeleopSession(config)
+                session.__enter__()
+                try:
+                    mock_replay_cls.assert_called_once_with(
+                        "recording.mcap",
+                        [
+                            (head_source.get_tracker(), "head"),
+                            (hands_source.get_tracker(), "hands"),
+                        ],
+                    )
+                    mocks.create_replay.assert_called_once_with(
+                        mock_replay_cls.return_value
+                    )
+                finally:
+                    session.__exit__(None, None, None)
+
+    def test_passes_through_when_tracker_names_present(self):
+        """Non-empty get_tracker_names() passes the original config through."""
+        mcap_config = MagicMock()
+        mcap_config.get_tracker_names.return_value = [("tracker", "ch")]
+
+        head_source = MockHeadSource(name="head")
+        pipeline = MockPipeline(leaf_nodes=[head_source])
+
+        config = TeleopSessionConfig(
+            app_name="test",
+            pipeline=pipeline,
+            mode=SessionMode.REPLAY,
+            mcap_config=mcap_config,
+        )
+
+        with mock_replay_dependencies() as mocks:
+            session = TeleopSession(config)
+            session.__enter__()
+            try:
+                mocks.create_replay.assert_called_once_with(mcap_config)
+            finally:
+                session.__exit__(None, None, None)
+
+
 # ============================================================================
 # Live mode with MCAP recording
 # ============================================================================
@@ -1652,6 +1715,46 @@ class TestMcapConfigGetTrackerNames:
         """get_tracker_names() works with a single tracker."""
         head = self.deviceio.HeadTracker()
         config = self.deviceio.McapRecordingConfig("out.mcap", [(head, "tracking")])
+
+        result = config.get_tracker_names()
+        assert len(result) == 1
+        assert result[0][0] is head
+        assert result[0][1] == "tracking"
+
+
+class TestMcapReplayConfigGetTrackerNames:
+    """Tests for McapReplayConfig.get_tracker_names() (requires compiled C++ bindings)."""
+
+    @pytest.fixture(autouse=True)
+    def _import_deviceio(self):
+        self.deviceio = pytest.importorskip("isaacteleop.deviceio")
+
+    def test_get_tracker_names_returns_pairs(self):
+        """get_tracker_names() returns the (tracker, name) pairs passed at construction."""
+        hand = self.deviceio.HandTracker()
+        head = self.deviceio.HeadTracker()
+        config = self.deviceio.McapReplayConfig(
+            "out.mcap", [(hand, "hands"), (head, "head")]
+        )
+
+        result = config.get_tracker_names()
+        assert len(result) == 2
+        assert result[0][0] is hand
+        assert result[0][1] == "hands"
+        assert result[1][0] is head
+        assert result[1][1] == "head"
+
+    def test_get_tracker_names_empty_by_default(self):
+        """McapReplayConfig constructed with only a filename has empty tracker_names."""
+        config = self.deviceio.McapReplayConfig("out.mcap")
+
+        result = config.get_tracker_names()
+        assert result == []
+
+    def test_get_tracker_names_single_tracker(self):
+        """get_tracker_names() works with a single tracker."""
+        head = self.deviceio.HeadTracker()
+        config = self.deviceio.McapReplayConfig("out.mcap", [(head, "tracking")])
 
         result = config.get_tracker_names()
         assert len(result) == 1
