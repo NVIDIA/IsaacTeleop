@@ -36,6 +36,12 @@ TEST_CASE("VkContext destroy on uninitialized context is a no-op", "[unit][vk_co
     CHECK_FALSE(ctx.is_initialized());
 }
 
+TEST_CASE("VkContext::Config defaults to auto-pick (index = -1)", "[unit][vk_context]")
+{
+    VkContext::Config cfg{};
+    CHECK(cfg.physical_device_index == -1);
+}
+
 // ===================================================================
 // GPU integration tests
 // ===================================================================
@@ -124,4 +130,80 @@ TEST_CASE("VkContext double-init throws", "[gpu][vk_context]")
     VkContext ctx;
     ctx.init(VkContext::Config{});
     CHECK_THROWS_AS(ctx.init(VkContext::Config{}), std::logic_error);
+}
+
+// ===================================================================
+// Physical device enumeration + explicit selection
+// ===================================================================
+
+TEST_CASE("enumerate_physical_devices returns at least one device", "[gpu][vk_context]")
+{
+    if (!core::viz::testing::is_gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
+
+    const auto devices = VkContext::enumerate_physical_devices();
+    REQUIRE_FALSE(devices.empty());
+
+    for (uint32_t i = 0; i < devices.size(); ++i)
+    {
+        const auto& info = devices[i];
+        CHECK(info.index == i);
+        CHECK_FALSE(info.name.empty());
+        // At least one device on this machine must meet our requirements
+        // (the GPU runner has NVIDIA + extensions); this is checked below.
+    }
+
+    // Auto-pick path expects at least one suitable device.
+    bool any_suitable = false;
+    for (const auto& info : devices)
+    {
+        if (info.meets_requirements)
+        {
+            any_suitable = true;
+            break;
+        }
+    }
+    CHECK(any_suitable);
+}
+
+TEST_CASE("VkContext init with explicit physical_device_index = 0 succeeds", "[gpu][vk_context]")
+{
+    if (!core::viz::testing::is_gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
+
+    const auto devices = VkContext::enumerate_physical_devices();
+    REQUIRE_FALSE(devices.empty());
+    if (!devices[0].meets_requirements)
+    {
+        SKIP("Device at index 0 does not meet Televiz requirements");
+    }
+
+    VkContext::Config cfg{};
+    cfg.physical_device_index = 0;
+    VkContext ctx;
+    ctx.init(cfg);
+    CHECK(ctx.is_initialized());
+
+    // Verify we got the device we asked for: compare deviceID/vendorID.
+    VkPhysicalDeviceProperties props;
+    vkGetPhysicalDeviceProperties(ctx.physical_device(), &props);
+    CHECK(props.vendorID == devices[0].vendor_id);
+    CHECK(props.deviceID == devices[0].device_id);
+}
+
+TEST_CASE("VkContext init with out-of-range physical_device_index throws", "[gpu][vk_context]")
+{
+    if (!core::viz::testing::is_gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
+
+    VkContext::Config cfg{};
+    cfg.physical_device_index = 9999;
+    VkContext ctx;
+    CHECK_THROWS_AS(ctx.init(cfg), std::out_of_range);
 }

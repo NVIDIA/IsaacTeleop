@@ -151,7 +151,7 @@ void VkContext::init(const Config& config)
         throw std::logic_error("VkContext::init: already initialized");
     }
     create_instance(config);
-    select_physical_device();
+    select_physical_device(config);
     create_logical_device(config);
     initialized_ = true;
 }
@@ -253,7 +253,7 @@ void VkContext::create_instance(const Config& config)
     }
 }
 
-void VkContext::select_physical_device()
+void VkContext::select_physical_device(const Config& config)
 {
     uint32_t count = 0;
     vkEnumeratePhysicalDevices(instance_, &count, nullptr);
@@ -265,26 +265,51 @@ void VkContext::select_physical_device()
     std::vector<VkPhysicalDevice> devices(count);
     vkEnumeratePhysicalDevices(instance_, &count, devices.data());
 
-    int best_score = -1;
-    VkPhysicalDevice best_device = VK_NULL_HANDLE;
-    for (VkPhysicalDevice candidate : devices)
+    if (config.physical_device_index >= 0)
     {
-        const int s = score_physical_device(candidate);
-        if (s > best_score)
+        // Explicit index: pick that device, validate it meets requirements.
+        const auto requested = static_cast<uint32_t>(config.physical_device_index);
+        if (requested >= count)
         {
-            best_score = s;
-            best_device = candidate;
+            throw std::out_of_range("VkContext: physical_device_index " + std::to_string(requested) +
+                                    " is out of range (only " + std::to_string(count) + " device(s) available)");
         }
+        if (score_physical_device(devices[requested]) < 0)
+        {
+            VkPhysicalDeviceProperties props;
+            vkGetPhysicalDeviceProperties(devices[requested], &props);
+            throw std::runtime_error("VkContext: physical device at index " + std::to_string(requested) + " (" +
+                                     props.deviceName +
+                                     ") does not meet Televiz requirements "
+                                     "(need API 1.2+, graphics+compute queue, external memory extensions)");
+        }
+        physical_device_ = devices[requested];
     }
-
-    if (best_device == VK_NULL_HANDLE || best_score < 0)
+    else
     {
-        throw std::runtime_error(
-            "No suitable Vulkan physical device found "
-            "(need API 1.2+, graphics+compute queue, external memory extensions)");
+        // Auto-pick: best suitable device by score.
+        int best_score = -1;
+        VkPhysicalDevice best_device = VK_NULL_HANDLE;
+        for (VkPhysicalDevice candidate : devices)
+        {
+            const int s = score_physical_device(candidate);
+            if (s > best_score)
+            {
+                best_score = s;
+                best_device = candidate;
+            }
+        }
+
+        if (best_device == VK_NULL_HANDLE || best_score < 0)
+        {
+            throw std::runtime_error(
+                "No suitable Vulkan physical device found "
+                "(need API 1.2+, graphics+compute queue, external memory extensions)");
+        }
+
+        physical_device_ = best_device;
     }
 
-    physical_device_ = best_device;
     queue_family_index_ = find_graphics_compute_queue_family(physical_device_);
 }
 
@@ -322,6 +347,57 @@ void VkContext::create_logical_device(const Config& config)
     }
 
     vkGetDeviceQueue(device_, queue_family_index_, 0, &queue_);
+}
+
+std::vector<PhysicalDeviceInfo> VkContext::enumerate_physical_devices()
+{
+    std::vector<PhysicalDeviceInfo> result;
+
+    // Create a minimal temporary instance just to enumerate devices.
+    VkApplicationInfo app_info{};
+    app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+    app_info.pApplicationName = "viz_enumerate_probe";
+    app_info.apiVersion = kApiVersion;
+
+    VkInstanceCreateInfo create_info{};
+    create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+    create_info.pApplicationInfo = &app_info;
+
+    VkInstance instance = VK_NULL_HANDLE;
+    if (vkCreateInstance(&create_info, nullptr, &instance) != VK_SUCCESS)
+    {
+        return result; // Vulkan loader missing or instance creation failed.
+    }
+
+    uint32_t count = 0;
+    vkEnumeratePhysicalDevices(instance, &count, nullptr);
+    if (count == 0)
+    {
+        vkDestroyInstance(instance, nullptr);
+        return result;
+    }
+
+    std::vector<VkPhysicalDevice> devices(count);
+    vkEnumeratePhysicalDevices(instance, &count, devices.data());
+
+    result.reserve(count);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        VkPhysicalDeviceProperties props;
+        vkGetPhysicalDeviceProperties(devices[i], &props);
+
+        PhysicalDeviceInfo info;
+        info.index = i;
+        info.name = props.deviceName;
+        info.vendor_id = props.vendorID;
+        info.device_id = props.deviceID;
+        info.is_discrete = (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU);
+        info.meets_requirements = (score_physical_device(devices[i]) >= 0);
+        result.push_back(std::move(info));
+    }
+
+    vkDestroyInstance(instance, nullptr);
+    return result;
 }
 
 } // namespace core::viz
