@@ -63,11 +63,13 @@ module.exports = merge(common, {
       // (http://<host>:8080). Sentinels per webpack-dev-server:
       //   hostname '0.0.0.0' -> window.location.hostname
       //   port     0         -> window.location.port
-      //   protocol 'auto'    -> ws for http, wss for https
+      //   protocol 'auto:'   -> ws for http, wss for https (must include the colon
+      //     so the dev-server client matches the same as URL#protocol, not the
+      //     string "auto" which the browser WebSocket API rejects)
       webSocketURL: {
         hostname: '0.0.0.0',
         port: 0,
-        protocol: 'auto',
+        protocol: 'auto:',
         pathname: '/ws',
       },
     },

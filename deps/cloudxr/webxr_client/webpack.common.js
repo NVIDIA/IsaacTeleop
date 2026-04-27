@@ -102,17 +102,29 @@ module.exports = {
       patterns: [
         ...(webxrAssetsPackagePath
           ? [
-              'meta-quest-touch-plus',
-              'meta-quest-touch-plus-v2',
-              'oculus-touch-v2',
-              'oculus-touch-v3',
-              'pico-4u',
-              'generic-hand',
-              'generic-trigger-squeeze-thumbstick',
-            ].map(profile => ({
-              from: path.join(path.dirname(webxrAssetsPackagePath), 'dist', 'profiles', profile),
-              to: `npm/@webxr-input-profiles/assets@${WEBXR_ASSETS_VERSION}/dist/profiles/${profile}`,
-            }))
+              {
+                from: path.join(
+                  path.dirname(webxrAssetsPackagePath),
+                  'dist',
+                  'profiles',
+                  'profilesList.json'
+                ),
+                to: `npm/@webxr-input-profiles/assets@${WEBXR_ASSETS_VERSION}/dist/profiles/profilesList.json`,
+                toType: 'file',
+              },
+              ...[
+                'meta-quest-touch-plus',
+                'meta-quest-touch-plus-v2',
+                'oculus-touch-v2',
+                'oculus-touch-v3',
+                'pico-4u',
+                'generic-hand',
+                'generic-trigger-squeeze-thumbstick',
+              ].map(profile => ({
+                from: path.join(path.dirname(webxrAssetsPackagePath), 'dist', 'profiles', profile),
+                to: `npm/@webxr-input-profiles/assets@${WEBXR_ASSETS_VERSION}/dist/profiles/${profile}`,
+              })),
+            ]
           : []),
         {
           from: 'public',
