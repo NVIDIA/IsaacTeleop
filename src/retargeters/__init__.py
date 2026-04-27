@@ -12,10 +12,14 @@ Available Retargeters:
     - DexBiManualRetargeter: Bimanual version of DexHandRetargeter
     - TriHandMotionControllerRetargeter: Maps VR controller inputs to G1 TriHand joints
     - TriHandBiManualMotionControllerRetargeter: Bimanual version of TriHandMotionControllerRetargeter
+    - TriHandHybridRetargeter: Maps controller OR hand tracking to G1 TriHand joints
+    - TriHandBiManualHybridRetargeter: Bimanual version of TriHandHybridRetargeter
     - LocomotionFixedRootCmdRetargeter: Fixed root command (standing still)
     - LocomotionRootCmdRetargeter: Locomotion from controller inputs
     - FootPedalRootCmdRetargeter: Root command from 3-axis foot pedal (horizontal/vertical + rudder)
     - GripperRetargeter: Pinch-based gripper control
+    - SharpaHandRetargeter: Pinocchio/Pink IK-based retargeting for Sharpa hand
+    - SharpaBiManualRetargeter: Bimanual version of SharpaHandRetargeter
     - Se3AbsRetargeter: Absolute EE pose control
     - Se3RelRetargeter: Relative EE delta control
     - TensorReorderer: Reorders and flattens multiple inputs into a single tensor
@@ -55,6 +59,22 @@ _LAZY_IMPORTS: dict[str, tuple[str, str, str | None]] = {
     "TriHandMotionControllerConfig": (
         ".G1.trihand_motion_controller",
         "TriHandMotionControllerConfig",
+        None,
+    ),
+    # .G1.trihand_hybrid_retargeter
+    "TriHandHybridRetargeter": (
+        ".G1.trihand_hybrid_retargeter",
+        "TriHandHybridRetargeter",
+        None,
+    ),
+    "TriHandBiManualHybridRetargeter": (
+        ".G1.trihand_hybrid_retargeter",
+        "TriHandBiManualHybridRetargeter",
+        None,
+    ),
+    "TriHandHybridConfig": (
+        ".G1.trihand_hybrid_retargeter",
+        "TriHandHybridConfig",
         None,
     ),
     # .locomotion_retargeter
@@ -100,6 +120,22 @@ _LAZY_IMPORTS: dict[str, tuple[str, str, str | None]] = {
         "Se3RetargeterConfig",
         "retargeters-lite",
     ),
+    # .sharpa_hand_retargeter  (requires retargeters extra: pinocchio, pink)
+    "SharpaHandRetargeter": (
+        ".sharpa_hand_retargeter",
+        "SharpaHandRetargeter",
+        "retargeters",
+    ),
+    "SharpaBiManualRetargeter": (
+        ".sharpa_hand_retargeter",
+        "SharpaBiManualRetargeter",
+        "retargeters",
+    ),
+    "SharpaHandRetargeterConfig": (
+        ".sharpa_hand_retargeter",
+        "SharpaHandRetargeterConfig",
+        "retargeters",
+    ),
     # .tensor_reorderer
     "TensorReorderer": (".tensor_reorderer", "TensorReorderer", None),
 }
@@ -134,6 +170,10 @@ __all__ = [
     "TriHandMotionControllerRetargeter",
     "TriHandBiManualMotionControllerRetargeter",
     "TriHandMotionControllerConfig",
+    # Hybrid motion controller + hand tracking retargeters
+    "TriHandHybridRetargeter",
+    "TriHandBiManualHybridRetargeter",
+    "TriHandHybridConfig",
     "FootPedalRootCmdRetargeter",
     "FootPedalRootCmdRetargeterConfig",
     # Locomotion retargeters
@@ -147,6 +187,10 @@ __all__ = [
     "Se3AbsRetargeter",
     "Se3RelRetargeter",
     "Se3RetargeterConfig",
+    # Sharpa hand retargeters (require retargeters extra)
+    "SharpaHandRetargeter",
+    "SharpaBiManualRetargeter",
+    "SharpaHandRetargeterConfig",
     # Utility retargeters
     "TensorReorderer",
 ]
