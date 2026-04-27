@@ -21,11 +21,49 @@
 
 export type ControlPanelPosition = 'left' | 'center' | 'right';
 
+/**
+ * Loads a per-project-path setting from localStorage (key `cxr.isaac.<key>|<teleopPath>`).
+ * `parse` should return `undefined` for unrecognized input so `fallback` wins.
+ */
+export function loadPerProject<T>(
+  key: string,
+  teleopPath: string,
+  parse: (raw: string) => T | undefined,
+  fallback: T,
+): T {
+  try {
+    const stored = localStorage.getItem(`cxr.isaac.${key}|${teleopPath}`);
+    if (stored !== null) {
+      const parsed = parse(stored);
+      if (parsed !== undefined) return parsed;
+    }
+  } catch {
+    /* localStorage unavailable */
+  }
+  return fallback;
+}
+
+/** Generic per-project-path localStorage save. See {@link loadPerProject}. */
+export function savePerProject<T>(
+  key: string,
+  teleopPath: string,
+  value: T,
+  serialize: (v: T) => string = String,
+): void {
+  try {
+    localStorage.setItem(`cxr.isaac.${key}|${teleopPath}`, serialize(value));
+  } catch {
+    /* localStorage unavailable */
+  }
+}
+
 /** React UI options (e.g. in-XR control panel position). */
 export interface ReactUIConfig {
   controlPanelPosition?: ControlPanelPosition;
   /** When true, the control panel is hidden at immersive XR enter (small “show control panel” control only). */
   panelHiddenAtStart?: boolean;
+  /** Active teleop project path (a key path in `TELEOP_PROJECTS`). */
+  teleopPath: string;
 }
 
 const CONTROL_PANEL_POSITIONS: readonly ControlPanelPosition[] = ['left', 'center', 'right'];
