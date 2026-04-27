@@ -72,6 +72,39 @@ distance, radians for angles. Poses are `position (x,y,z)` +
 ROS/TF frames should convert at the application layer (Televiz does not
 bridge to TF).
 
+### Code Style
+
+Follows IsaacTeleop conventions throughout:
+
+- **Namespace:** All Televiz symbols live in `namespace core::viz`.
+  Internal helpers go in `core::viz::detail`.
+- **Type names:** `PascalCase` (`VizSession`, `QuadLayer`, `VizBuffer`,
+  `Pose3D`).
+- **Method/function names:** `snake_case` (`begin_frame`, `add_layer`,
+  `get_oxr_handles`, `set_pose`).
+- **Variable / field names:** `snake_case` (`window_width`, `app_name`,
+  `required_extensions`).
+- **Private member names:** trailing underscore (`instance_`, `device_`,
+  `layers_`).
+- **Constants and enum values:** `kPascalCase` (`kRGBA8`, `kWorldLocked`,
+  `kRunning`).
+- **Format:** Allman braces, 120 columns, 4-space indent, left pointer
+  alignment (`int* p`). Enforced by `clang-format` in CI.
+- **License:** SPDX header on every new file:
+  ```cpp
+  // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  // SPDX-License-Identifier: Apache-2.0
+  ```
+  (Use `#` for CMake / Python.)
+- **Headers:** `#pragma once`. External-facing include path:
+  `#include <viz/foo.hpp>`. Internal `.cpp` files include their own
+  header as `#include "inc/viz/foo.hpp"` (path under `cpp/`).
+- **Python:** snake_case throughout. The Python API mirrors C++ method
+  names exactly (no naming gap between languages). Ruff enforces lint
+  and format.
+- **Testing:** Catch2 v3 with tags (`[unit]`, `[gpu]`, `[xr]`). pytest
+  + uv for Python.
+
 ---
 
 ## Architecture
@@ -180,44 +213,59 @@ through shared code.
 Public types, defined in `viz_types.hpp`:
 
 ```cpp
-struct Resolution {
+namespace core::viz
+{
+
+struct Resolution
+{
     uint32_t width;
     uint32_t height;
 };
 
-struct Pose3D {
+struct Pose3D
+{
     struct { float x, y, z; } position;            // meters
     struct { float x, y, z, w; } orientation;      // quaternion
 };
 
-struct Fov {
+struct Fov
+{
     float angle_left;     // radians from forward axis, negative = left
     float angle_right;    // radians
     float angle_up;       // radians
     float angle_down;     // radians
 };
+
+} // namespace core::viz
 ```
 
 OpenXR types (`XrPosef`, `XrFovf`) are converted to these at the Televiz
-boundary. Consumers never see OpenXR headers.
+boundary in `core::viz::detail`. Consumers never see OpenXR headers.
 
 ### VizBuffer
 
 A lightweight, non-owning reference to a 2D pixel buffer on GPU:
 
 ```cpp
-enum class PixelFormat {
+namespace core::viz
+{
+
+enum class PixelFormat
+{
     kRGBA8,     // 4-channel uint8 color (Phase 1)
     kD32F,      // single-channel float32 depth (Phase 2)
 };
 
-struct VizBuffer {
+struct VizBuffer
+{
     void* data;              // CUDA device pointer
     uint32_t width;
     uint32_t height;
     PixelFormat format;
     size_t pitch;            // Row pitch in bytes (0 = tightly packed)
 };
+
+} // namespace core::viz
 ```
 
 `VizBuffer` has no ownership semantics — it does not allocate or free
@@ -245,19 +293,33 @@ display target, and layer registry. Session lifecycle follows the state
 machine below.
 
 ```cpp
-enum class DisplayMode {
+namespace core::viz
+{
+
+enum class DisplayMode
+{
     kXR,           // OpenXR graphics-bound session
     kWindow,       // GLFW windowed mono (tiling layout)
     kOffscreen,    // No display; readback() only
 };
 
-class VizSession {
+class VizSession
+{
 public:
-    struct Config {
+    struct Config
+    {
         DisplayMode mode;
-        uint32_t window_width;      // Window and offscreen modes
+        uint32_t window_width;                  // Window and offscreen modes
         uint32_t window_height;
-        std::string app_name = "televiz";   // Used by OpenXR
+        std::string app_name = "televiz";       // Used by OpenXR
+
+        // Additional OpenXR instance extensions to enable. Used when Televiz
+        // hosts the XR session and other components (e.g. TeleopSession
+        // trackers) need their own extensions. Televiz already enables its
+        // own required extensions (VULKAN_ENABLE2, COMPOSITION_LAYER_DEPTH,
+        // CONVERT_TIMESPEC_TIME). Pass tracker extensions here.
+        // Example: {"XR_EXT_hand_tracking", "XR_EXT_eye_gaze_interaction"}
+        std::vector<std::string> required_extensions;
     };
 
     // Creates session with its own Vulkan context + display target.
@@ -270,12 +332,12 @@ public:
     // forwarded args and registers it. Works for built-in types (QuadLayer,
     // ProjectionLayer, OverlayLayer) and any user-defined LayerBase subclass.
     //
-    //   auto* cam  = session.addLayer<QuadLayer>(QuadLayer::Config{...});
-    //   auto* mesh = session.addLayer<MyMeshLayer>(my_renderer, ...);
-    template<typename L, typename... Args>
-    L* addLayer(Args&&... args);
+    //   auto* cam  = session->add_layer<QuadLayer>(QuadLayer::Config{...});
+    //   auto* mesh = session->add_layer<MyMeshLayer>(my_renderer, ...);
+    template <typename L, typename... Args>
+    L* add_layer(Args&&... args);
 
-    void removeLayer(LayerBase* layer);
+    void remove_layer(LayerBase* layer);
 
     // Frame loop — two API levels:
     //
@@ -288,46 +350,53 @@ public:
     //
     // 2. Explicit control (advanced — when the app needs FrameInfo before
     //    submitting, or wants to inject work between wait and present):
-    //    beginFrame: XR: xrWaitFrame (blocking), xrBeginFrame, xrLocateViews.
-    //                Window: vsync wait. Offscreen: immediate return.
-    //    endFrame:   composite + present.
+    //    begin_frame: XR: xrWaitFrame (blocking), xrBeginFrame, xrLocateViews.
+    //                 Window: vsync wait. Offscreen: immediate return.
+    //    end_frame:   composite + present.
     //    Python bindings release the GIL during blocking portions.
-    FrameInfo beginFrame();
-    void endFrame();
+    FrameInfo begin_frame();
+    void end_frame();
 
     // Session state.
-    SessionState getState() const;
+    SessionState get_state() const;
 
     // Runtime queries.
-    Resolution getRecommendedResolution() const;
-    FrameTimingStats getFrameTimingStats() const;
+    Resolution get_recommended_resolution() const;
+    FrameTimingStats get_frame_timing_stats() const;
 
     // Readback (kOffscreen only). Returns the last composited frame as
-    // a VizBuffer (CUDA device pointer). Valid until next endFrame().
+    // a VizBuffer (CUDA device pointer). Valid until next render() / end_frame().
     VizBuffer readback(cudaStream_t stream = 0);
 
     // Handle access for external renderer integration and session sharing.
-    VkDevice getVkDevice() const;
-    VkPhysicalDevice getVkPhysicalDevice() const;
-    uint32_t getVkQueueFamilyIndex() const;
-    VkRenderPass getRenderPass() const;          // For custom layer pipelines
-    OpenXRSessionHandles getOxrHandles() const;  // XR mode only
+    VkDevice get_vk_device() const;
+    VkPhysicalDevice get_vk_physical_device() const;
+    uint32_t get_vk_queue_family_index() const;
+    VkRenderPass get_render_pass() const;             // For custom layer pipelines
+    OpenXRSessionHandles get_oxr_handles() const;     // XR mode only
 };
+
+} // namespace core::viz
 ```
 
 ### FrameInfo
 
-Returned by `beginFrame()`. Per-frame state for content producers:
+Returned by `render()` and `begin_frame()`. Per-frame state for content producers:
 
 ```cpp
-struct ViewInfo {
+namespace core::viz
+{
+
+struct ViewInfo
+{
     float view_matrix[16];          // Column-major 4x4
     float projection_matrix[16];
     Fov fov;
     Pose3D pose;
 };
 
-struct FrameInfo {
+struct FrameInfo
+{
     uint64_t frame_index;
     int64_t predicted_display_time; // XR time (ns). 0 in window/offscreen.
     float delta_time;               // Seconds since last frame
@@ -336,7 +405,8 @@ struct FrameInfo {
     Resolution resolution;
 };
 
-struct FrameTimingStats {
+struct FrameTimingStats
+{
     float render_fps;
     float target_fps;
     uint64_t missed_frames;
@@ -344,6 +414,8 @@ struct FrameTimingStats {
     float gpu_time_ms;
     uint32_t stale_layers;          // Layers that missed stale_timeout
 };
+
+} // namespace core::viz
 ```
 
 **Time spaces:** `predicted_display_time` is OpenXR monotonic time in ns.
@@ -365,7 +437,11 @@ compositor calls during the render pass. Developers can subclass
 the built-in layer types.
 
 ```cpp
-class LayerBase {
+namespace core::viz
+{
+
+class LayerBase
+{
 public:
     virtual ~LayerBase() = default;
 
@@ -377,18 +453,20 @@ public:
                         const RenderTarget& target) = 0;
 
     // Common properties.
-    const std::string& getName() const;
-    bool isVisible() const;
-    void setVisible(bool visible);
+    const std::string& get_name() const;
+    bool is_visible() const;
+    void set_visible(bool visible);
 };
+
+} // namespace core::viz
 ```
 
 **Custom layers:** Create a `VkPipeline` compatible with Televiz's render
-pass (via `VizSession::getRenderPass()`), subclass `LayerBase`, implement
-`record()`, register via `VizSession::addLayer()`. The compositor
-iterates layers **in insertion order** and calls `record()` for each
-visible layer. This is the pull model, generalized — any Vulkan drawing
-code works as long as it's render-pass-compatible.
+pass (via `VizSession::get_render_pass()`), subclass `LayerBase`,
+implement `record()`, register via `VizSession::add_layer()`. The
+compositor iterates layers **in insertion order** and calls `record()`
+for each visible layer. This is the pull model, generalized — any Vulkan
+drawing code works as long as it's render-pass-compatible.
 
 ### QuadLayer
 
@@ -396,33 +474,39 @@ A 2D image placed in 3D space. The most common layer type for camera
 feeds. Built-in textured-quad rendering + CUDA interop.
 
 ```cpp
-enum class PlacementMode {
+namespace core::viz
+{
+
+enum class PlacementMode
+{
     kWorldLocked,   // Fixed pose in stage space
     kHeadLocked,    // Follows headset exactly (HUD-style)
     kLazyLocked,    // Follows headset with damping
     kCustom,        // Application-provided callback
 };
 
-struct LazyLockConfig {
+struct LazyLockConfig
+{
     float look_away_angle = 45.0f;      // Degrees; reposition when user looks away
     float reposition_distance = 0.5f;   // Meters; reposition when user walks away
     float reposition_delay = 0.5f;      // Seconds before repositioning starts
     float transition_duration = 0.3f;   // Seconds for smooth reposition
 };
 
-using PlacementCallback = std::function<Pose3D(
-    const Pose3D& head_pose, float delta_time)>;
+using PlacementCallback = std::function<Pose3D(const Pose3D& head_pose, float delta_time)>;
 
-class QuadLayer : public LayerBase {
+class QuadLayer : public LayerBase
+{
 public:
-    struct Config {
+    struct Config
+    {
         std::string name;
         float width_meters;
         float height_meters;
         PlacementMode placement = PlacementMode::kWorldLocked;
-        LazyLockConfig lazy_lock;            // Used when placement == kLazyLocked
+        LazyLockConfig lazy_lock;             // Used when placement == kLazyLocked
         PlacementCallback placement_callback; // REQUIRED when placement == kCustom
-        float stale_timeout = 2.0f;          // Seconds before showing placeholder
+        float stale_timeout = 2.0f;           // Seconds before showing placeholder
     };
 
     // Mode A: fire-and-forget. Copies from the VizBuffer into the layer's
@@ -434,27 +518,29 @@ public:
     // interop back buffer. Allocates on first call; reuses when dimensions
     // match; reallocates when they change. Producer writes into buf.data,
     // then calls release().
-    VizBuffer acquire(uint32_t width, uint32_t height,
-                      PixelFormat format = PixelFormat::kRGBA8);
+    VizBuffer acquire(uint32_t width, uint32_t height, PixelFormat format = PixelFormat::kRGBA8);
     void release(cudaStream_t stream = 0);
 
-    void setPose(const Pose3D& pose);
-    void setSize(float width_meters, float height_meters);
+    void set_pose(const Pose3D& pose);
+    void set_size(float width_meters, float height_meters);
 
     // LayerBase override (internal).
-    void record(VkCommandBuffer cmd, const std::vector<ViewInfo>& views,
+    void record(VkCommandBuffer cmd,
+                const std::vector<ViewInfo>& views,
                 const RenderTarget& target) override;
 };
+
+} // namespace core::viz
 ```
 
 **Placement modes:**
 
-- `kWorldLocked` — fixed pose in stage space (set via `setPose`).
+- `kWorldLocked` — fixed pose in stage space (set via `set_pose`).
 - `kHeadLocked` — pose tracks headset every frame.
 - `kLazyLocked` — follows headset with configurable damping
   (`LazyLockConfig`). Parameters match the existing camera_streamer UX.
 - `kCustom` — application provides `Config::placement_callback`.
-  Required at `addLayer` time; invalid config throws.
+  Required at `add_layer` time; invalid config throws.
 
 In **window and offscreen** modes, placement is ignored. Layers tile in
 insertion order as a row-major grid sized to fit the display resolution,
@@ -476,19 +562,26 @@ A full stereo RGBD view. Supports push (color + depth VizBuffers) and
 pull (custom `record()` subclass).
 
 ```cpp
-class ProjectionLayer : public LayerBase {
+namespace core::viz
+{
+
+class ProjectionLayer : public LayerBase
+{
 public:
-    struct Config {
+    struct Config
+    {
         std::string name;
     };
 
     // Push: submit pre-rendered color + depth.
-    void submit(const VizBuffer& color, const VizBuffer& depth,
-                cudaStream_t stream = 0);
+    void submit(const VizBuffer& color, const VizBuffer& depth, cudaStream_t stream = 0);
 
-    void record(VkCommandBuffer cmd, const std::vector<ViewInfo>& views,
+    void record(VkCommandBuffer cmd,
+                const std::vector<ViewInfo>& views,
                 const RenderTarget& target) override;
 };
+
+} // namespace core::viz
 ```
 
 Use cases: nvblox 3D reconstruction, depth-enhanced camera rendering.
@@ -499,20 +592,28 @@ A 2D image composited in screen space after all world-space content. No
 depth testing.
 
 ```cpp
-class OverlayLayer : public LayerBase {
+namespace core::viz
+{
+
+class OverlayLayer : public LayerBase
+{
 public:
-    struct Config {
+    struct Config
+    {
         std::string name;
         float x, y;                 // Normalized screen position [0,1]
         float width, height;        // Normalized screen size [0,1]
     };
 
     void submit(const VizBuffer& image, cudaStream_t stream = 0);
-    void setRect(float x, float y, float width, float height);
+    void set_rect(float x, float y, float width, float height);
 
-    void record(VkCommandBuffer cmd, const std::vector<ViewInfo>& views,
+    void record(VkCommandBuffer cmd,
+                const std::vector<ViewInfo>& views,
                 const RenderTarget& target) override;
 };
+
+} // namespace core::viz
 ```
 
 Use cases: telemetry HUD, connection status, battery indicators.
@@ -531,7 +632,7 @@ Use cases: telemetry HUD, connection status, battery indicators.
 | **Use case** | External sources, CuPy, remote decode | Tight integration, NVDEC direct output |
 
 Both modes are valid in states `kReady` and `kRunning` (submitting before
-the first `beginFrame` is fine — content appears in the first rendered
+the first `begin_frame` is fine — content appears in the first rendered
 frame).
 
 ### Double Buffering and Synchronization
@@ -543,7 +644,7 @@ Sync flow for Mode A:
 
 1. `submit` enqueues `cudaMemcpyAsync` on the producer's stream.
 2. The stream signals an exported semaphore when the copy completes.
-3. At `endFrame`, the compositor checks if the semaphore has fired.
+3. At `end_frame`, the compositor checks if the semaphore has fired.
 4. If yes: atomically swap front/back. The Vulkan submit waits on the
    imported semaphore before sampling the texture.
 5. If no (producer hasn't finished): render the old front buffer
@@ -563,9 +664,10 @@ underlying interop buffer if `width`/`height`/`format` differ from the
 current buffer. Allocation is not free — avoid changing dimensions every
 frame.
 
-**Timing with `beginFrame`/`endFrame`:** `acquire`/`release` and
-`beginFrame`/`endFrame` are independent lifecycles. The compositor picks
-up whatever is latest at `endFrame`. Multi-threaded producers can write
+**Timing with `begin_frame`/`end_frame`:** `acquire`/`release` and
+`begin_frame`/`end_frame` are independent lifecycles. The compositor
+picks up whatever is latest at `end_frame`. Multi-threaded producers
+can write
 on a separate thread at their own rate.
 
 ### Pull Model = Custom Layers
@@ -581,7 +683,11 @@ D32_SFLOAT, 1 sample, 1 subpass), then record draw commands into the
 provided `VkCommandBuffer`. No buffer copies, no shared Vulkan context.
 
 ```cpp
-struct RenderTarget {
+namespace core::viz
+{
+
+struct RenderTarget
+{
     VkImage color_image;
     VkImageView color_view;
     VkImage depth_image;
@@ -592,6 +698,8 @@ struct RenderTarget {
     VkFormat color_format;          // VK_FORMAT_R8G8B8A8_SRGB
     VkFormat depth_format;          // VK_FORMAT_D32_SFLOAT
 };
+
+} // namespace core::viz
 ```
 
 ---
@@ -599,14 +707,20 @@ struct RenderTarget {
 ## Session State Machine
 
 ```cpp
-enum class SessionState {
+namespace core::viz
+{
+
+enum class SessionState
+{
     kUninitialized,  // Before create()
     kReady,          // Vulkan + display initialized. Layers and content can be added.
     kRunning,        // Frame loop active.
-    kStopping,       // XR: session stopping. endFrame submits empty frames.
+    kStopping,       // XR: session stopping. end_frame submits empty frames.
     kLost,           // XR: session lost. Must destroy and recreate.
     kDestroyed,      // After destroy(). No operations valid.
 };
+
+} // namespace core::viz
 ```
 
 ### OpenXR Session State Mapping
@@ -630,7 +744,7 @@ explicit `destroy()`.
 
 ### API Behavior by State
 
-| State | `render()` / `beginFrame()` | `endFrame()` | `addLayer()` | `submit()` |
+| State | `render()` / `begin_frame()` | `end_frame()` | `add_layer()` | `submit()` |
 |---|---|---|---|---|
 | kReady | Transitions to kRunning, returns first frame | — | Valid | Valid |
 | kRunning | Returns FrameInfo normally | Composites + presents | Valid | Valid |
@@ -639,9 +753,9 @@ explicit `destroy()`.
 
 ### XR Event Handling
 
-OpenXR events are polled inside `beginFrame()`. Session state transitions
-are driven by the runtime; VizSession updates its own state accordingly.
-The application observes state via `getState()` and
+OpenXR events are polled inside `begin_frame()`. Session state
+transitions are driven by the runtime; VizSession updates its own state
+accordingly. The application observes state via `get_state()` and
 `FrameInfo::should_render`.
 
 For `kLost`: the application destroys and recreates the VizSession.
@@ -657,50 +771,74 @@ needed.
 `isaacteleop.viz` — follows the pattern of `isaacteleop.oxr`,
 `isaacteleop.mcap`, `isaacteleop.schema`.
 
-### Session Ownership (Option A now, Option B future)
+### Session Ownership
 
 IsaacTeleop's existing `OpenXRSession` creates a **headless** OpenXR
-session for device tracking (hand tracking, headset pose) — no Vulkan
-binding, cannot render. Televiz needs a **graphics-bound** XR session.
+session for device tracking — no Vulkan binding, cannot render. Televiz
+needs a **graphics-bound** XR session for rendering.
 
-| Option | Description | Status |
-|--------|-------------|--------|
-| **A: Separate sessions** | Televiz creates its own graphics session. OXR keeps its headless session. | Phase 1 — confirmed working with CloudXR. |
-| **B: Televiz owns, trackers attach** | Televiz creates session. Trackers attach via `oxr_handles`. | Future — single CloudXR connection. |
-| **C: Extended OXR module** | OXR creates graphics-bound session, passes handles to Televiz. | Alternative future. |
+**Televiz always creates its own graphics-bound session.** When both
+Televiz and TeleopSession are used together, the application has two
+choices:
 
-Option B uses `TeleopSessionConfig`'s existing `oxr_handles` field.
-Televiz exposes `VizSession::getOxrHandles()` for this purpose already —
-no TeleopSession changes needed to migrate:
+| Pattern | When to use | How |
+|---------|-------------|-----|
+| **Unified (recommended)** | Both Televiz and TeleopSession active. Single CloudXR connection, synchronized timing. | Pass `viz_session.get_oxr_handles()` to `TeleopSessionConfig.oxr_handles`. TeleopSession skips creating its own session and attaches its trackers to Televiz's. |
+| **Separate** | Debugging, isolation, or running TeleopSession alone (no rendering). | Don't pass `oxr_handles`. TeleopSession creates its own headless session. |
+
+The unified pattern requires that Televiz's OpenXR instance has the
+extensions trackers need (e.g. `XR_EXT_hand_tracking`). The application
+declares these in `VizSession::Config::required_extensions`. Televiz
+already enables its own rendering extensions automatically.
 
 ```python
-# Option A (Phase 1): separate sessions
-viz_session = isaacteleop.viz.VizSession.create(viz_config)
-teleop_config = TeleopSessionConfig(pipeline=pipeline)
-
-# Option B (future): unified session
-viz_session = isaacteleop.viz.VizSession.create(viz_config)
+# Unified (recommended): single XR session shared between rendering and trackers.
+viz_session = isaacteleop.viz.VizSession.create(viz.Config(
+    mode=viz.DisplayMode.XR,
+    required_extensions=[
+        "XR_EXT_hand_tracking",   # for hand trackers
+        # ... other tracker extensions as needed
+    ],
+))
 teleop_config = TeleopSessionConfig(
     pipeline=pipeline,
     oxr_handles=viz_session.get_oxr_handles(),  # trackers share viz session
 )
+
+# Separate (fallback): two sessions, two CloudXR connections.
+# Works the same — just don't pass oxr_handles to TeleopSession.
 ```
+
+**Future alternative — Option C: Extended OXR module.** OXR could
+optionally create the graphics-bound session itself and pass Vulkan
+handles to Televiz. Considered but not pursued: requires OXR module
+changes; current path is simpler.
 
 ### Application-Level Integration
 
 Televiz integrates alongside `TeleopSession`, not inside it. Both run in
-the application loop:
+the application loop. The unified-session pattern (recommended) shares
+Televiz's XR session with TeleopSession's trackers:
 
 ```python
 import isaacteleop.viz as viz
 from isaacteleop import TeleopSession, TeleopSessionConfig
 
-viz_session = viz.VizSession.create(viz.Config(mode=viz.DisplayMode.XR))
+# Televiz creates the graphics-bound session, with extensions trackers need.
+viz_session = viz.VizSession.create(viz.Config(
+    mode=viz.DisplayMode.XR,
+    required_extensions=["XR_EXT_hand_tracking"],
+))
 cam_layer = viz_session.add_layer(viz.QuadLayer.Config(
     name="front_cam", width_meters=1.0, height_meters=0.5625,
     placement=viz.PlacementMode.LAZY_LOCKED))
 
-teleop_config = TeleopSessionConfig(app_name="teleop", pipeline=pipeline)
+# TeleopSession reuses Televiz's session — single CloudXR connection.
+teleop_config = TeleopSessionConfig(
+    app_name="teleop",
+    pipeline=pipeline,
+    oxr_handles=viz_session.get_oxr_handles(),
+)
 with TeleopSession(teleop_config) as teleop:
     while running:
         teleop.step()
@@ -729,16 +867,23 @@ while running:
 
 ### Independent State Machines
 
-TeleopSession and VizSession are **not** coupled:
+TeleopSession and VizSession are **independent components** with their
+own state machines:
 
 - **Different lifecycles:** VizSession tracks XR session + Vulkan device
   state. TeleopSession tracks device connections and retargeting.
-- **Different failure modes:** VizSession can go `kLost` (XR session
-  lost) while TeleopSession continues; a tracker can disconnect while
-  VizSession keeps rendering.
 - **Independent deployment:** Either can run without the other.
+- **Independent failure modes:** Trackers can disconnect while
+  VizSession keeps rendering. A retargeting pipeline error doesn't
+  affect rendering.
 
-The application loop is the coordination point.
+In the **unified-session pattern**, the underlying OpenXR session is
+shared. If the XR session is lost (`VizSession.kLost`), trackers also
+lose their session — the application must destroy and recreate both. In
+the **separate-session pattern**, XR session loss in one is independent
+of the other.
+
+The application loop is the coordination point in either pattern.
 
 ---
 
@@ -751,7 +896,7 @@ submitted as one `XrCompositionLayerProjection` with depth. Per frame:
 xrWaitFrame → xrBeginFrame → xrLocateViews → acquire swapchain →
   begin render pass →
     for each layer in insertion order:
-      if layer.isVisible(): layer.record(cmd, views, target)
+      if layer.is_visible(): layer.record(cmd, views, target)
   end render pass →
   vkCmdBlitImage intermediate → swapchain image →
 xrEndFrame
@@ -775,10 +920,10 @@ runtime reprojection.
 Content producers need resolution, FOV, and timing. Televiz exposes:
 
 - **Session-level (stable):** recommended per-eye resolution, view
-  count, display refresh rate via `getRecommendedResolution()`.
+  count, display refresh rate via `get_recommended_resolution()`.
 - **Per-frame (`FrameInfo`):** per-eye pose + FOV + view + projection
   matrices, `predicted_display_time`, `should_render`, `delta_time`.
-- **Performance stats (polled):** `getFrameTimingStats()` — render FPS,
+- **Performance stats (polled):** `get_frame_timing_stats()` — render FPS,
   target FPS, missed frames, frame times, stale layer count.
 
 ---
@@ -850,8 +995,9 @@ stream (`0`) is used if omitted.
 
 ### GIL and errors
 
-- `begin_frame()` releases the GIL during blocking wait (xrWaitFrame /
-  vsync). All other APIs hold the GIL — they are fast, non-blocking.
+- `render()` and `begin_frame()` release the GIL during blocking wait
+  (xrWaitFrame / vsync). All other APIs hold the GIL — they are fast,
+  non-blocking.
 - `end_frame()` holds the GIL; GPU submission is non-blocking from the
   CPU side.
 - Vulkan/OpenXR errors map to Python exceptions (`RuntimeError` with
@@ -871,7 +1017,7 @@ stream (`0`) is used if omitted.
 | kOffscreen | Standalone | None | Free-running | readback() only | CI, integration tests |
 
 kOffscreen is the simplest mode: Vulkan device + offscreen framebuffer,
-no GLFW, no OpenXR, no swapchain, no display server. `endFrame()`
+no GLFW, no OpenXR, no swapchain, no display server. `end_frame()`
 composites into the intermediate framebuffer but does not present.
 `readback()` returns the composited frame as a `VizBuffer` for
 pixel-level verification.
@@ -889,39 +1035,199 @@ src/
     ├── CMakeLists.txt
     ├── cpp/
     │   ├── CMakeLists.txt     # Catch2, catch_discover_tests
-    │   ├── test_state_machine.cpp
-    │   ├── test_layer_mgmt.cpp
-    │   ├── test_placement.cpp
-    │   ├── test_viz_buffer.cpp
-    │   ├── test_vk_context.cpp      # GPU required
-    │   ├── test_cuda_interop.cpp    # GPU required
-    │   └── test_quad_render.cpp     # GPU required (kOffscreen + readback)
+    │   ├── test_helpers.hpp   # Fixtures, pixel comparison, GPU detection
+    │   ├── test_viz_buffer.cpp     # [unit]
+    │   ├── test_viz_types.cpp      # [unit]
+    │   ├── test_state_machine.cpp  # [unit]
+    │   ├── test_layer_mgmt.cpp     # [unit]
+    │   ├── test_placement.cpp      # [unit]
+    │   ├── test_vk_context.cpp     # [gpu]
+    │   ├── test_cuda_interop.cpp   # [gpu]
+    │   └── test_quad_render.cpp    # [gpu] kOffscreen + readback
     └── python/
         ├── CMakeLists.txt     # add_test with uv run pytest
         ├── pyproject.toml     # [tool.pytest.ini_options]
+        ├── conftest.py        # GPU detection fixture
         ├── test_viz_session.py
         ├── test_quad_layer.py
-        └── test_offscreen_render.py # GPU required
+        └── test_offscreen_render.py
 ```
 
 **C++ tests (Catch2):** `TEST_CASE` / `SECTION` / `CHECK` pattern
 matching existing `schema_tests` and `mcap_tests`. Linked against
-`viz_core` + `Catch2::Catch2WithMain`.
+`viz_core` + `Catch2::Catch2WithMain`. `catch_discover_tests` registers
+each `TEST_CASE` as a CTest test.
 
 **Python tests (pytest):** Import from `isaacteleop.viz` namespace.
 `PYTHONPATH` set to build's `python_package/` tree by CMake.
 
-**GPU tests:** require a GPU but no display. Marked in docstrings.
-Pattern:
+### Test Tags
 
+Catch2 tags categorize tests by infrastructure requirements. CTest can
+filter via labels; CI configurations select what to run.
+
+| Tag | Meaning | When to run |
+|-----|---------|-------------|
+| `[unit]` | Pure C++ logic. No GPU, no Vulkan, no I/O. | Always — fast, runs everywhere. |
+| `[gpu]` | Requires Vulkan-capable GPU (and CUDA for interop tests). | GPU CI, dev machines. Skipped gracefully on no-GPU systems. |
+| `[xr]` | Requires OpenXR runtime + headset. | Manual only in Phase 1. |
+| `[slow]` | Long-running tests (>1s typical). | Optional in CI. |
+
+Tags are listed in `TEST_CASE` declarations:
+```cpp
+TEST_CASE("VizBuffer construction", "[unit][viz_buffer]") { ... }
+TEST_CASE("VkContext creates device", "[gpu][vk_context]") { ... }
+```
+
+Run subsets via Catch2 directly or CTest:
+```sh
+./viz_tests "[unit]"               # Unit tests only
+./viz_tests "[gpu]"                # GPU tests only
+./viz_tests "[unit] | [gpu]"       # Both
+ctest -L unit                      # Via CTest labels (when wired)
+```
+
+### GPU Detection and Skipping
+
+Tests tagged `[gpu]` use a shared fixture that probes for Vulkan
+availability and skips gracefully when no GPU is present (CI on
+CPU-only runners, machines without drivers, etc.).
+
+```cpp
+// test_helpers.hpp
+namespace core::viz::testing
+{
+
+bool is_gpu_available();   // Tries minimal vkCreateInstance + device enum
+
+struct GpuFixture
+{
+    core::viz::VkContext vk;
+
+    GpuFixture()
+    {
+        if (!is_gpu_available())
+        {
+            SKIP("No Vulkan-capable GPU available");
+        }
+        vk.init(core::viz::VkContext::Config{});
+    }
+};
+
+} // namespace core::viz::testing
+```
+
+Usage:
+```cpp
+TEST_CASE_METHOD(core::viz::testing::GpuFixture,
+                 "VkContext exposes valid device",
+                 "[gpu][vk_context]")
+{
+    CHECK(vk.device() != VK_NULL_HANDLE);
+    CHECK(vk.physical_device() != VK_NULL_HANDLE);
+}
+```
+
+`SKIP()` is a Catch2 v3 macro that marks the test skipped (not failed).
+CI sees "skipped" rather than "failed" on no-GPU environments.
+
+For Python tests, `conftest.py` provides equivalent fixtures:
 ```python
-def test_quad_render():
-    """Integration test — requires GPU."""
+import pytest
+
+def gpu_available() -> bool: ...
+
+@pytest.fixture
+def viz_session_offscreen():
+    if not gpu_available():
+        pytest.skip("No Vulkan-capable GPU available")
     session = viz.VizSession.create(viz.Config(
-        mode=viz.DisplayMode.OFFSCREEN, window_width=256, window_height=256))
+        mode=viz.DisplayMode.OFFSCREEN, window_width=64, window_height=64))
+    yield session
+    session.destroy()
+```
+
+### Test Helpers
+
+Shared utilities in `test_helpers.hpp`:
+
+```cpp
+namespace core::viz::testing
+{
+
+// True if a Vulkan-capable GPU + driver is present.
+bool is_gpu_available();
+
+// True if running on CI (CI=true env var). Used to skip flaky/slow tests.
+bool is_on_ci();
+
+// Fill a VizBuffer with a known test pattern (for round-trip tests).
+void fill_test_pattern(VizBuffer buf, uint32_t seed = 0);
+
+// Pixel-level comparison with tolerance (sRGB roundtrip introduces small
+// errors). Returns true if all pixels are within `tolerance` per channel.
+bool pixels_match(const VizBuffer& actual,
+                  const VizBuffer& expected,
+                  uint8_t tolerance = 2);
+
+} // namespace core::viz::testing
+```
+
+`pixels_match` defaults tolerance to `2` because the
+`R8G8B8A8_SRGB` → linear → render → `R8G8B8A8_SRGB` round-trip has a
+~1 LSB rounding error that's not a real failure.
+
+### Test Data Conventions
+
+- **Sizes:** Use small framebuffers for unit tests (`64x64` to `256x256`).
+  No need to test at 4K stereo when verifying compositor logic.
+- **No external assets:** Generate test patterns programmatically
+  (gradients, color blocks, checkerboards). Avoids file-loading
+  dependencies.
+- **Deterministic:** Seed any random patterns. The same test must
+  produce the same output every run.
+
+### Example Test Patterns
+
+**Unit test (no GPU):**
+```cpp
+TEST_CASE("VizBuffer pitch defaults to packed", "[unit][viz_buffer]")
+{
+    core::viz::VizBuffer buf{nullptr, 1920, 1080, core::viz::PixelFormat::kRGBA8, 0};
+    CHECK(core::viz::effective_pitch(buf) == 1920 * 4);
+}
+```
+
+**GPU integration test (Catch2):**
+```cpp
+TEST_CASE_METHOD(core::viz::testing::GpuFixture,
+                 "QuadLayer round-trip pattern",
+                 "[gpu][quad_layer]")
+{
+    auto session = VizSession::create({.mode = DisplayMode::kOffscreen,
+                                       .window_width = 64,
+                                       .window_height = 64});
+    auto* layer = session->add_layer<QuadLayer>(QuadLayer::Config{
+        .name = "test", .width_meters = 1.0f, .height_meters = 1.0f});
+
+    VizBuffer expected = layer->acquire(64, 64, PixelFormat::kRGBA8);
+    core::viz::testing::fill_test_pattern(expected);
+    layer->release();
+
+    session->render();
+    auto result = session->readback();
+    CHECK(core::viz::testing::pixels_match(result, expected, /*tolerance=*/2));
+}
+```
+
+**Python GPU test:**
+```python
+def test_quad_render(viz_session_offscreen):
+    """Integration test — requires GPU."""
+    session = viz_session_offscreen
     layer = session.add_layer(viz.QuadLayer.Config(
         name="test", width_meters=1.0, height_meters=1.0))
-    layer.submit(test_image)
+    layer.submit(test_pattern_cupy_array())
     session.render()
     result = session.readback()
     assert pixels_match(result, expected)
@@ -954,23 +1260,37 @@ endif()
 
 ## Examples
 
-### `examples/viz/camera_planes/` — Phase 1
+### `examples/camera_viz/` — Phase 1
 
-Replaces the Holoscan camera_streamer for 2D planes. Camera capture
-(V4L2, OAK-D, ZED) and GStreamer RTP code reused from the existing
-camera_streamer — extracted from Holoscan operators into standalone
-modules. Televiz renders each feed as a QuadLayer. Supports local and
-remote sources, XR and windowed display. YAML config for camera layout
-and plane placement.
+Drop-in replacement for the existing `examples/camera_streamer/` — same
+camera sources, same RTP transport, same YAML config schema, but with
+the entire Holoscan / HoloHub / GXF stack removed. Architecture:
 
-### `examples/viz/reconstruction_viz/` — Phase 2
+- **Camera capture** (V4L2, OAK-D, ZED) and **GStreamer RTP** code
+  extracted from the current `camera_streamer/operators/` into
+  standalone Python/C++ modules (no Holoscan operator framework).
+- **NVENC/NVDEC** wrappers extracted from `NvStreamEncoderOp` /
+  `NvStreamDecoderOp` C++ ops into standalone CUDA modules.
+- **Application loop** in Python: drive `VizSession.render()` in a
+  while loop; producers feed CUDA buffers via `submit()`.
+- **Stale-content** handling and **frame combining** are no longer
+  needed — Televiz handles them per-layer (built-in stale detection +
+  double buffering).
+- **YAML config** schema preserved (camera sources + display section
+  with XR plane placement / lock_mode / lazy params).
+- **Display modes**: monitor (`kWindow`) and XR (`kXR`) — same
+  user-facing CLI as `camera_streamer`.
+
+This is the validation milestone for Phase 1.
+
+### `examples/reconstruction_viz/` — Phase 2
 
 nvblox_renderer integration. A custom `LayerBase` subclass wraps
 `MeshVisualizer::render(cmd, view_proj, x, y, w, h)` — zero-copy, via
 Televiz's render pass. Optional QuadLayers for raw camera feeds
 alongside the reconstruction.
 
-### Combined teleop visualization — Phase 2
+### `examples/teleop_viz/` — Phase 2
 
 Multi-camera QuadLayers + nvblox custom layer + telemetry OverlayLayers
 + IsaacTeleop session for hand tracking and retargeting visualization.
@@ -994,12 +1314,16 @@ Multi-camera QuadLayers + nvblox custom layer + telemetry OverlayLayers
 
 ## Resolved Questions
 
-1. **CloudXR dual-session:** Confirmed — one headless + one
-   graphics-bound session works. Proceed with Option A.
+1. **Session ownership:** Televiz hosts the graphics-bound XR session.
+   Application shares it with TeleopSession via `oxr_handles` (unified
+   pattern, recommended) or runs them as separate sessions (fallback).
+   Single CloudXR connection in unified mode.
 2. **XR swapchain usage:** Intermediate framebuffer → `vkCmdBlitImage`
    to swapchain.
 3. **Stereo layout:** SBS. `VK_KHR_multiview` deferred.
-4. **OXR module changes for unified session:** Not needed for Phase 1.
+4. **Tracker extension declaration:** Application passes tracker
+   extensions to `VizSession::Config::required_extensions`. No
+   TeleopSession code changes needed.
 5. **CUDA-Vulkan interop:** Dual-mode via `VizBuffer`
    (`submit` + `acquire`/`release`).
 6. **Pixel format:** `kRGBA8` only (`kD32F` for depth in Phase 2).
@@ -1018,9 +1342,10 @@ Multi-camera QuadLayers + nvblox custom layer + telemetry OverlayLayers
 - **`setOpacity` on layers:** Producers can bake alpha into textures.
   Alpha compositing between layers is a niche feature.
 - **Explicit layer priority:** Insertion order is sufficient for now.
-- **`createWithXrSession` constructor:** Session injection path for
-  hypothetical Option C. Televiz always creates its session; Option B
-  migration uses `getOxrHandles()` which already exists.
+- **`createWithXrSession` constructor:** Session injection path for the
+  hypothetical Option C (extended OXR module). Televiz always creates
+  its session; the unified-session pattern uses `get_oxr_handles()` which
+  already exists.
 
 ---
 
@@ -1042,8 +1367,10 @@ replace Holoscan in the camera streaming stack.
 **Session and compositor:**
 
 - `VizSession` — lifecycle, frame loop (`render()` convenience +
-  `beginFrame`/`endFrame` explicit), layer registry, display modes
-  (kXR, kWindow, kOffscreen), state machine
+  `begin_frame`/`end_frame` explicit), layer registry, display modes
+  (kXR, kWindow, kOffscreen), state machine. `Config::required_extensions`
+  for tracker integration. `get_oxr_handles()` returns handles for
+  unified-session pattern with TeleopSession.
 - `VizCompositor` — single render pass, SBS stereo,
   `vkCmdBlitImage` to swapchain (or readback in offscreen)
 
@@ -1056,7 +1383,7 @@ replace Holoscan in the camera streaming stack.
 **Layer types:**
 
 - `LayerBase` — extensible abstract base with virtual `record()`.
-  Custom layers via `addLayer()`.
+  Custom layers via `add_layer()`.
 - `QuadLayer` — 2D image in 3D space, `submit` / `acquire`+`release`,
   placement modes (world/head/lazy/custom), `LazyLockConfig`, stale
   detection. Callback required in Config when `placement == kCustom`.
@@ -1087,7 +1414,8 @@ replace Holoscan in the camera streaming stack.
 
 **Validation:**
 
-- Camera plane streaming example replacing the Holoscan camera_streamer
+- `examples/camera_viz/` — drop-in Holoscan-free replacement for
+  `examples/camera_streamer/`
 
 **Out of scope for Phase 1:**
 
@@ -1111,5 +1439,5 @@ replace Holoscan in the camera streaming stack.
   (eliminates intermediate framebuffer copy).
 - XR quad layers for head-locked overlays (runtime reprojection).
 - Adaptive quality.
-- Option B unified-session migration (Televiz session shared with
-  TeleopSession trackers via `oxr_handles`).
+- Possible: extended OXR module (Option C) if symmetric ownership is
+  ever needed.

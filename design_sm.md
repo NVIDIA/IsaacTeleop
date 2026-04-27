@@ -123,12 +123,11 @@ loop:
 ```python
 session = isaacteleop.viz.VizSession.create(config)  # XR, window, or offscreen
 
-# Push: submit content as CUDA pointers.
+# Push: submit content as CUDA pointers / VizBuffers.
 cam_layer = session.add_layer(viz.QuadLayer.Config(...))
 
-# Pull: register a callback that receives a Vulkan render target.
-recon_layer = session.add_layer(viz.ProjectionLayer.Config(...))
-recon_layer.set_render_callback(my_nvblox_render_fn)
+# Pull: a custom Vulkan-rendering layer (e.g., wrapping nvblox MeshVisualizer).
+custom_layer = session.add_layer(MyMeshLayerSubclass(my_renderer))
 
 while running:
     cam_layer.submit(camera_frame)  # CuPy array or VizBuffer
@@ -241,10 +240,14 @@ Vulkan for rendering.
 
 ### Recommendation
 
-Start with **Option A** — zero changes to existing modules, immediate
-development. Migrate to **Option B** once stable, using TeleopSession's
-existing `oxr_handles` config to pass Televiz's session to device trackers.
-This gives a single CloudXR connection with no TeleopSession code changes.
+Use **Option B** — Televiz hosts the graphics-bound session and passes
+its `oxr_handles` to TeleopSession via the existing config field. Single
+CloudXR connection, no TeleopSession code changes. The application
+declares any tracker extensions in `VizSession::Config::required_extensions`.
+
+Option A (separate sessions) remains a valid fallback for debugging,
+isolation, or when running TeleopSession standalone (no rendering) /
+Televiz standalone (no tracking).
 
 ---
 
@@ -257,14 +260,25 @@ It integrates at the **application level** alongside `TeleopSession` — not
 inside it. TeleopSession manages device tracking and retargeting;
 Televiz manages rendering. Both run in the same loop:
 
+Unified-session pattern (recommended):
+
 ```python
 import isaacteleop.viz as viz
 from isaacteleop import TeleopSession, TeleopSessionConfig
 
-viz_session = viz.VizSession.create(viz.Config(mode=viz.DisplayMode.XR))
+# Televiz creates the graphics-bound session, with extensions trackers need.
+viz_session = viz.VizSession.create(viz.Config(
+    mode=viz.DisplayMode.XR,
+    required_extensions=["XR_EXT_hand_tracking"],
+))
 cam_layer = viz_session.add_layer(viz.QuadLayer.Config(name="front_cam", ...))
 
-teleop_config = TeleopSessionConfig(app_name="teleop", pipeline=pipeline)
+# TeleopSession reuses Televiz's session via oxr_handles.
+teleop_config = TeleopSessionConfig(
+    app_name="teleop",
+    pipeline=pipeline,
+    oxr_handles=viz_session.get_oxr_handles(),
+)
 with TeleopSession(teleop_config) as teleop:
     while running:
         teleop.step()
@@ -272,16 +286,8 @@ with TeleopSession(teleop_config) as teleop:
         viz_session.render()
 ```
 
-In the future unified-session mode (Option B), Televiz can pass its
-graphics-bound session to TeleopSession via the existing `oxr_handles`
-config — no TeleopSession changes needed:
-
-```python
-teleop_config = TeleopSessionConfig(
-    pipeline=pipeline,
-    oxr_handles=viz_session.get_oxr_handles(),
-)
-```
+For separate-session pattern, omit `oxr_handles` — TeleopSession creates
+its own headless session.
 
 ---
 
