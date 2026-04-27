@@ -88,12 +88,11 @@ class TeleopSessionConfig:
         mcap_config: MCAP configuration — ``McapRecordingConfig`` for live
             recording, ``McapReplayConfig`` for replay.  **Required** when
             ``mode`` is ``SessionMode.REPLAY``; optional in ``LIVE`` mode.
-            In both cases, when ``tracker_names`` is empty
-            (e.g. ``McapRecordingConfig("out.mcap")`` or
-            ``McapReplayConfig("recording.mcap")``), TeleopSession
-            auto-populates it from the pipeline's discovered DeviceIO sources,
-            using each source's ``name`` as the MCAP channel name. When
-            ``tracker_names`` is explicitly provided, it is used as-is.
+            TeleopSession always auto-populates tracker names from the
+            pipeline's discovered DeviceIO sources (using each source's
+            ``name`` as the MCAP channel name).  Any ``tracker_names``
+            explicitly provided in the config are **appended** after the
+            auto-discovered sources.
 
     Example (auto-discovery):
         # Source creates its own tracker automatically!

@@ -493,13 +493,25 @@ class TeleopSession:
         self.plugin_managers = []
         self.plugin_contexts = []
 
-        if self.config.mode == SessionMode.REPLAY:
-            mcap_config = self.config.mcap_config
-            if not mcap_config.get_tracker_names():
+        # Auto-populate mcap_config from pipeline sources if recording or replaying.
+        mcap_config = None
+        if self.config.mcap_config is not None:
+            mcap_tracker_names = [
+                (source.get_tracker(), source.name) for source in self._sources
+            ]
+            mcap_tracker_names.extend(self.config.mcap_config.get_tracker_names())
+            if self.config.mode == SessionMode.REPLAY:
                 mcap_config = deviceio.McapReplayConfig(
-                    mcap_config.filename,
-                    [(source.get_tracker(), source.name) for source in self._sources],
+                    self.config.mcap_config.filename,
+                    mcap_tracker_names,
                 )
+            else:
+                mcap_config = deviceio.McapRecordingConfig(
+                    self.config.mcap_config.filename,
+                    mcap_tracker_names,
+                )
+
+        if self.config.mode == SessionMode.REPLAY:
             self.deviceio_session = self._exit_stack.enter_context(
                 deviceio.ReplaySession.run(mcap_config)
             )
@@ -522,15 +534,6 @@ class TeleopSession:
                     oxr.OpenXRSession(self.config.app_name, required_extensions)
                 )
                 handles = self._oxr_session.get_handles()
-
-            # Auto-populate MCAP tracker names from discovered sources
-            # when the user provided only a filename.
-            mcap_config = self.config.mcap_config
-            if mcap_config is not None and not mcap_config.get_tracker_names():
-                mcap_config = deviceio.McapRecordingConfig(
-                    mcap_config.filename,
-                    [(source.get_tracker(), source.name) for source in self._sources],
-                )
 
             # Create DeviceIO session with all trackers
             self.deviceio_session = self._exit_stack.enter_context(

@@ -1341,6 +1341,7 @@ def mock_replay_dependencies(mock_pm=None):
         - create_replay: the mock replacing ReplaySession.run
         - create_live: the mock replacing DeviceIOSession.run
         - oxr_cls: the mock replacing OpenXRSession
+        - replay_config_cls: the mock replacing McapReplayConfig
     """
     mock_dio_session = MockDeviceIOSession()
 
@@ -1356,13 +1357,20 @@ def mock_replay_dependencies(mock_pm=None):
             return_value=MagicMock(),
         ) as create_live,
         patch("isaacteleop.oxr.OpenXRSession", return_value=MagicMock()) as oxr_cls,
+        patch(
+            "isaacteleop.deviceio.DeviceIOSession.get_required_extensions",
+            return_value=[],
+        ),
         patch("isaacteleop.plugin_manager.PluginManager", return_value=mock_pm),
+        patch("isaacteleop.deviceio.McapReplayConfig") as replay_config_cls,
     ):
+        replay_config_cls.return_value = MagicMock()
         ns = MagicMock()
         ns.replay_session = mock_dio_session
         ns.create_replay = create_replay
         ns.create_live = create_live
         ns.oxr_cls = oxr_cls
+        ns.replay_config_cls = replay_config_cls
         yield ns
 
 
@@ -1412,16 +1420,20 @@ class TestReplayModeSessionEnter:
         )
 
     def test_calls_create_replay_session(self):
-        """DeviceIOSession.replay is called with the mcap_config."""
+        """ReplaySession.run is called in replay mode."""
         config = self._make_replay_config()
 
         with mock_replay_dependencies() as mocks:
-            session = TeleopSession(config)
-            session.__enter__()
-            try:
-                mocks.create_replay.assert_called_once_with(config.mcap_config)
-            finally:
-                session.__exit__(None, None, None)
+            with patch("isaacteleop.deviceio.McapReplayConfig") as mock_replay_cls:
+                mock_replay_cls.return_value = MagicMock()
+                session = TeleopSession(config)
+                session.__enter__()
+                try:
+                    mocks.create_replay.assert_called_once_with(
+                        mock_replay_cls.return_value
+                    )
+                finally:
+                    session.__exit__(None, None, None)
 
     def test_skips_oxr_session_creation(self):
         """OpenXRSession is NOT instantiated in replay mode."""
@@ -1543,10 +1555,11 @@ class TestReplayModeAutoPopulate:
                 finally:
                     session.__exit__(None, None, None)
 
-    def test_passes_through_when_tracker_names_present(self):
-        """Non-empty get_tracker_names() passes the original config through."""
+    def test_merges_sources_with_explicit_tracker_names(self):
+        """Explicit get_tracker_names() are appended after auto-discovered sources."""
         mcap_config = MagicMock()
-        mcap_config.get_tracker_names.return_value = [("tracker", "ch")]
+        mcap_config.filename = "recording.mcap"
+        mcap_config.get_tracker_names.return_value = [("extra_tracker", "extra")]
 
         head_source = MockHeadSource(name="head")
         pipeline = MockPipeline(leaf_nodes=[head_source])
@@ -1559,12 +1572,23 @@ class TestReplayModeAutoPopulate:
         )
 
         with mock_replay_dependencies() as mocks:
-            session = TeleopSession(config)
-            session.__enter__()
-            try:
-                mocks.create_replay.assert_called_once_with(mcap_config)
-            finally:
-                session.__exit__(None, None, None)
+            with patch("isaacteleop.deviceio.McapReplayConfig") as mock_replay_cls:
+                mock_replay_cls.return_value = MagicMock()
+                session = TeleopSession(config)
+                session.__enter__()
+                try:
+                    mock_replay_cls.assert_called_once_with(
+                        "recording.mcap",
+                        [
+                            (head_source.get_tracker(), "head"),
+                            ("extra_tracker", "extra"),
+                        ],
+                    )
+                    mocks.create_replay.assert_called_once_with(
+                        mock_replay_cls.return_value
+                    )
+                finally:
+                    session.__exit__(None, None, None)
 
 
 # ============================================================================
@@ -1579,6 +1603,7 @@ def mock_live_dependencies_with_args():
     Yields a namespace with:
         - create_live: the mock replacing DeviceIOSession.run (inspect call_args)
         - dio_session: the mock DeviceIO session returned by DeviceIOSession.run
+        - recording_config_cls: the mock replacing McapRecordingConfig
     """
     mock_dio_session = MockDeviceIOSession()
 
@@ -1595,10 +1620,13 @@ def mock_live_dependencies_with_args():
             return_value=[],
         ),
         patch("isaacteleop.plugin_manager.PluginManager", return_value=MagicMock()),
+        patch("isaacteleop.deviceio.McapRecordingConfig") as recording_config_cls,
     ):
+        recording_config_cls.return_value = MagicMock()
         ns = MagicMock()
         ns.create_live = create_live
         ns.dio_session = mock_dio_session
+        ns.recording_config_cls = recording_config_cls
         yield ns
 
 
@@ -1641,26 +1669,26 @@ class TestLiveModeWithMcapRecording:
         )
 
         with mock_live_dependencies_with_args() as mocks:
-            with patch("isaacteleop.deviceio.McapRecordingConfig") as mock_mcap_cls:
-                session = TeleopSession(config)
-                session.__enter__()
-                try:
-                    mock_mcap_cls.assert_called_once_with(
-                        "test.mcap",
-                        [
-                            (head_source.get_tracker(), "head"),
-                            (hands_source.get_tracker(), "hands"),
-                        ],
-                    )
-                    actual_mcap = mocks.create_live.call_args[0][2]
-                    assert actual_mcap is mock_mcap_cls.return_value
-                finally:
-                    session.__exit__(None, None, None)
+            session = TeleopSession(config)
+            session.__enter__()
+            try:
+                mocks.recording_config_cls.assert_called_once_with(
+                    "test.mcap",
+                    [
+                        (head_source.get_tracker(), "head"),
+                        (hands_source.get_tracker(), "hands"),
+                    ],
+                )
+                actual_mcap = mocks.create_live.call_args[0][2]
+                assert actual_mcap is mocks.recording_config_cls.return_value
+            finally:
+                session.__exit__(None, None, None)
 
-    def test_mcap_passes_through_when_tracker_names_present(self):
-        """Non-empty get_tracker_names() passes the original config through."""
+    def test_mcap_merges_sources_with_explicit_tracker_names(self):
+        """Explicit get_tracker_names() are appended after auto-discovered sources."""
         mcap_config = MagicMock()
-        mcap_config.get_tracker_names.return_value = [("tracker", "ch")]
+        mcap_config.filename = "test.mcap"
+        mcap_config.get_tracker_names.return_value = [("extra_tracker", "extra")]
 
         head_source = MockHeadSource(name="head")
         pipeline = MockPipeline(leaf_nodes=[head_source])
@@ -1676,8 +1704,15 @@ class TestLiveModeWithMcapRecording:
             session = TeleopSession(config)
             session.__enter__()
             try:
+                mocks.recording_config_cls.assert_called_once_with(
+                    "test.mcap",
+                    [
+                        (head_source.get_tracker(), "head"),
+                        ("extra_tracker", "extra"),
+                    ],
+                )
                 actual_mcap = mocks.create_live.call_args[0][2]
-                assert actual_mcap is mcap_config
+                assert actual_mcap is mocks.recording_config_cls.return_value
             finally:
                 session.__exit__(None, None, None)
 
