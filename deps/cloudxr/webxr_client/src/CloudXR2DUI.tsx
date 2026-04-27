@@ -152,6 +152,8 @@ export class CloudXR2DUI {
   private mediaPortInput!: HTMLInputElement;
   /** Dropdown for controller model visibility (show / hide) */
   private controllerModelVisibilitySelect!: HTMLSelectElement;
+  /** Skip client CloudXR `render` (headless: client blit off; tracking on) */
+  private headlessInput!: HTMLInputElement;
   /** Breadcrumb subtitle in header (e.g. "for Real Robot › GEAR › Dexmate"). */
   private teleopModeSubtitle!: HTMLElement;
   /** Hierarchical project selector in header */
@@ -243,12 +245,20 @@ export class CloudXR2DUI {
   /** Loads per-project-path settings (falling back to registry defaults) into their form controls. */
   private applyPerProjectSettings(): void {
     const settings = getProjectSettings(this.teleopPath);
+    const boolFromStorage = (raw: string) =>
+      raw === 'true' ? true : raw === 'false' ? false : undefined;
     const panelHidden = loadPerProject<boolean>(
       'panelHiddenAtStart', this.teleopPath,
-      raw => (raw === 'true' ? true : raw === 'false' ? false : undefined),
+      boolFromStorage,
       settings.panelHiddenAtStart ?? false,
     );
     this.panelHiddenAtStartSelect.value = String(panelHidden);
+    const headless = loadPerProject<boolean>(
+      'headless', this.teleopPath,
+      boolFromStorage,
+      settings.headless ?? false,
+    );
+    this.headlessInput.checked = headless;
   }
 
   /**
@@ -256,15 +266,14 @@ export class CloudXR2DUI {
    * teleop application, so users can tell at a glance which fields switch when
    * they change the active project. No hover text: the UI runs on VR headsets
    * where hover is not reliable, so the marker itself must be self-describing.
-   * When a second per-project field lands, factor these into a
-   * PER_PROJECT_FIELDS registry (see TeleopProjects.ts) and loop.
    */
   private decoratePerProjectLabels(): void {
-    const label = this.panelHiddenAtStartSelect.labels?.[0];
-    if (!label) return;
     const marker = ' (saved per teleop application)';
-    if (label.textContent?.includes(marker)) return;
-    label.appendChild(document.createTextNode(marker));
+    for (const el of [this.panelHiddenAtStartSelect, this.headlessInput]) {
+      const label = el.labels?.[0];
+      if (!label || label.textContent?.includes(marker)) continue;
+      label.appendChild(document.createTextNode(marker));
+    }
   }
 
   /** Builds the hierarchical dropdown options from the project registry. */
@@ -316,6 +325,11 @@ export class CloudXR2DUI {
     if (panelHidden !== undefined) {
       this.panelHiddenAtStartSelect.value = panelHidden;
       savePerProject('panelHiddenAtStart', this.teleopPath, panelHidden);
+    }
+    const headlessSeed = seeds['headless'];
+    if (headlessSeed === 'true' || headlessSeed === 'false') {
+      this.headlessInput.checked = headlessSeed === 'true';
+      savePerProject('headless', this.teleopPath, headlessSeed);
     }
   }
 
@@ -376,6 +390,7 @@ export class CloudXR2DUI {
     this.controllerModelVisibilitySelect = this.getElement<HTMLSelectElement>(
       'controllerModelVisibility'
     );
+    this.headlessInput = this.getElement<HTMLInputElement>('cloudxrHeadless');
     this.teleopModeSubtitle = this.getElement<HTMLElement>('teleopModeSubtitle');
     this.teleopProjectSelect = this.getElement<HTMLSelectElement>('teleopProjectSelect');
   }
@@ -425,6 +440,7 @@ export class CloudXR2DUI {
       enableTexSubImage2D: false,
       useQuestColorWorkaround: false,
       hideControllerModel: false,
+      headless: false,
       teleopPath: DEFAULT_TELEOP_PATH,
     };
   }
@@ -571,6 +587,10 @@ export class CloudXR2DUI {
     addListener(this.mediaPortInput, 'input', updateConfig);
     addListener(this.mediaPortInput, 'change', updateConfig);
     addListener(this.controllerModelVisibilitySelect, 'change', updateConfig);
+    addListener(this.headlessInput, 'change', () => {
+      savePerProject('headless', this.teleopPath, this.headlessInput.checked ? 'true' : 'false');
+      this.updateConfiguration();
+    });
 
     addListener(this.deviceProfileSelect, 'change', () => {
       this.applyDeviceProfileToForm(resolveDeviceProfileId(this.deviceProfileSelect.value));
@@ -745,6 +765,7 @@ export class CloudXR2DUI {
         return !isNaN(v) ? v : undefined;
       })(),
       hideControllerModel: this.controllerModelVisibilitySelect.value === 'hide',
+      headless: this.headlessInput.checked,
       panelHiddenAtStart: this.panelHiddenAtStartSelect.value === 'true',
       teleopPath: this.teleopPath,
     };

@@ -88,6 +88,9 @@ interface CloudXRComponentProps {
     /** Window size for pose-to-render latency rolling average. Default: 20 */
     poseToRenderWindow?: number;
   };
+
+  /** When true, skip WebGL rendering. */
+  headless?: boolean;
 }
 
 // React component that integrates CloudXR with Three.js/WebXR
@@ -103,6 +106,7 @@ export default function CloudXRComponent({
   onRenderPerformanceMetrics,
   onStreamingPerformanceMetrics,
   metricsSettings = {},
+  headless = false,
 }: CloudXRComponentProps) {
   const threeRenderer: WebGLRenderer = useThree().gl;
   const { session } = useXR();
@@ -380,13 +384,15 @@ export default function CloudXRComponent({
       // Access the current WebXR XRFrame
       const xrFrame = state.gl.xr.getFrame();
       if (xrFrame) {
-        // Get THREE WebXRManager from the the useFrame state.
+        // Get THREE WebXRManager from the useFrame state.
         const webXRManager = state.gl.xr;
 
         if (!cxrSessionRef || !cxrSessionRef.current) {
           console.debug('Skipping frame, no session yet');
-          // Clear the framebuffer as we've set autoClear to false.
-          threeRenderer.clear();
+          if (!headless) {
+            // Clear the framebuffer as we've set autoClear to false.
+            threeRenderer.clear();
+          }
           return;
         }
 
@@ -396,8 +402,10 @@ export default function CloudXRComponent({
         // If the CloudXR session is not connected, skip the frame.
         if (cxrSession.state !== CloudXR.SessionState.Connected) {
           console.debug('Skipping frame, session not connected, state:', cxrSession.state);
-          // Clear the framebuffer as we've set autoClear to false.
-          threeRenderer.clear();
+          if (!headless) {
+            // Clear the framebuffer as we've set autoClear to false.
+            threeRenderer.clear();
+          }
           return;
         }
 
@@ -405,14 +413,14 @@ export default function CloudXRComponent({
         const timestamp: DOMHighResTimeStamp = state.clock.elapsedTime * 1000;
 
         try {
-          // Send the tracking state (including viewer pose and hand/controller data) to the server, this will trigger server-side rendering for frame.
+          // Send the tracking state (including viewer pose and hand/controller data) to the server;
+          // that triggers server-side rendering for the frame.
           cxrSession.sendTrackingStateToServer(timestamp, xrFrame);
 
-          // Get the WebXR layer from THREE WebXRManager.
-          let layer: XRWebGLLayer = webXRManager.getBaseLayer() as XRWebGLLayer;
-
-          // Render the current streamed CloudXR frame (not the frame that was just sent to the server).
-          cxrSession.render(timestamp, xrFrame, layer);
+          if (!headless) {
+            const layer: XRWebGLLayer = webXRManager.getBaseLayer() as XRWebGLLayer;
+            cxrSession.render(timestamp, xrFrame, layer);
+          }
         } catch (error) {
           // Handle deferred exceptions from callbacks or render errors
           const errorMessage = error instanceof Error ? error.message : String(error);

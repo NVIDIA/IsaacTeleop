@@ -683,6 +683,14 @@ limitations under the License.
                 </div>
 
                 <div class="config-section">
+                    <label for="cloudxrHeadless" class="input-label">Headless</label>
+                    <div class="config-text">
+                        <input type="checkbox" id="cloudxrHeadless" class="config-input" style="width: auto; margin-right: 0.5em" aria-label="Headless: skip per-frame CloudXR and canvas render">
+                        <span>Per frame: skip all render code in WebXR client.</span>
+                    </div>
+                </div>
+
+                <div class="config-section">
                     <label class="input-label">Proxy Configuration</label>
                     <label for="proxyUrl" class="input-label">Proxy URL</label>
                     <input id="proxyUrl" class="ui-input config-input" type="text" placeholder="" spellcheck="false">

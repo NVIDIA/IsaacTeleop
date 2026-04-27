@@ -18,6 +18,11 @@
 /** Per-project settings that override ancestor defaults. */
 export interface TeleopProjectSettings {
   panelHiddenAtStart?: boolean;
+  /**
+   * When true, the WebXR client runs headless (no local WebGL / CloudXR frame blit)
+   * for this teleop application. Omitted on a node means inherit; treat undefined after merge as false.
+   */
+  headless?: boolean;
 }
 
 /**
@@ -73,21 +78,21 @@ export function saveStoredTeleopPath(path: string): void {
 export const TELEOP_PROJECTS: TeleopProjectRegistry = {
   sim: {
     label: 'Simulation',
-    settings: { panelHiddenAtStart: false },
+    settings: { panelHiddenAtStart: false, headless: false },
     children: {
       isaacsim: { label: 'IsaacSim' },
     },
   },
   real: {
     label: 'Real Robot',
-    settings: { panelHiddenAtStart: true },
+    settings: { panelHiddenAtStart: true, headless: false },
     children: {
       ros: { label: 'ROS' },
       isaacros: { label: 'IsaacROS' },
       gear: {
         label: 'GEAR',
         children: {
-          dexmate: { label: 'Dexmate' },
+          dexmate: { label: 'Dexmate', settings: { headless: true } },
           g1_sonic: { label: 'G1 SONIC' },
           g1_homie: { label: 'G1 HOMIE' },
         },
