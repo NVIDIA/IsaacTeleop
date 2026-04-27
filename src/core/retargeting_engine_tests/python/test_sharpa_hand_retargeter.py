@@ -31,16 +31,19 @@ from isaacteleop.retargeting_engine.tensor_types import (
     NUM_HAND_JOINTS,
 )
 
+_HAS_PINOCCHIO = True
 try:
     from isaacteleop.retargeters import (
         SharpaHandRetargeter,
         SharpaHandRetargeterConfig,
     )
 except ModuleNotFoundError:
-    pytest.skip(
-        "SharpaHandRetargeter requires retargeters extras (pinocchio, pink)",
-        allow_module_level=True,
-    )
+    _HAS_PINOCCHIO = False
+
+_requires_pinocchio = pytest.mark.skipif(
+    not _HAS_PINOCCHIO,
+    reason="requires pinocchio (pip install 'isaacteleop[retargeters]')",
+)
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -209,6 +212,7 @@ EXPECTED_FINGER_JOINTS = [
 # ===========================================================================
 
 
+@_requires_pinocchio
 class TestSharpaHandRetargeter:
     @pytest.fixture()
     def retargeter(self):

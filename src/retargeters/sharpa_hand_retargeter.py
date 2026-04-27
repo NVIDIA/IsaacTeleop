@@ -198,7 +198,20 @@ class SharpaHandRetargeter(BaseRetargeter):
         if config.hand_joint_names is None:
             self._hand_joint_names = list(self._finger_joint_names)
         else:
-            self._hand_joint_names = list(config.hand_joint_names)
+            override = list(config.hand_joint_names)
+            if len(override) != len(set(override)):
+                seen: set[str] = set()
+                dupes = [n for n in override if n in seen or seen.add(n)]  # type: ignore[func-returns-value]
+                raise ValueError(f"hand_joint_names contains duplicates: {dupes}")
+            finger_set = set(self._finger_joint_names)
+            unknown = [n for n in override if n not in finger_set]
+            if unknown:
+                raise ValueError(
+                    f"hand_joint_names contains names not found in the MJCF "
+                    f"model's finger joints: {unknown}. "
+                    f"Valid names: {self._finger_joint_names}"
+                )
+            self._hand_joint_names = override
 
         # Build side-resolved Sharpa→MANO mapping
         self._target_to_source: dict[str, tuple[str, float, float]] = {
@@ -304,14 +317,15 @@ class SharpaHandRetargeter(BaseRetargeter):
         # Extract MANO-ordered positions and orientations from OpenXR
         mano_positions = np.zeros((21, 3), dtype=np.float64)
         mano_quats_wxyz = np.zeros((21, 4), dtype=np.float64)
-        # Default to identity quaternion (wxyz)
         mano_quats_wxyz[:, 0] = 1.0
+        mano_valid = np.zeros(21, dtype=bool)
 
         for mano_idx, xr_idx in enumerate(_OPENXR_TO_MANO_INDICES):
             if joint_valid[xr_idx]:
                 mano_positions[mano_idx] = joint_positions[xr_idx]
                 xyzw = joint_orientations[xr_idx]
                 mano_quats_wxyz[mano_idx] = [xyzw[3], xyzw[0], xyzw[1], xyzw[2]]
+                mano_valid[mano_idx] = True
 
         # Build initial qpos with wrist pose
         wrist_pos = mano_positions[0]
@@ -330,11 +344,19 @@ class SharpaHandRetargeter(BaseRetargeter):
             qpos[:3] = wrist_pos
             qpos[3:7] = wrist_xyzw
 
-        # Set frame task targets from MANO joints
-        self._set_frame_tasks_target(mano_positions, mano_quats_wxyz)
+        # Set frame task targets from valid MANO joints only
+        active_tasks = self._set_frame_tasks_target(
+            mano_positions, mano_quats_wxyz, mano_valid
+        )
+
+        if not active_tasks:
+            for i in range(len(self._hand_joint_names)):
+                output_group[i] = 0.0
+            self._qpos_prev = None
+            return
 
         # Solve IK
-        qpos = self._solve_ik(qpos)
+        qpos = self._solve_ik(qpos, active_tasks)
         self._qpos_prev = qpos.copy()
 
         # Extract finger joint angles and write to output
@@ -352,13 +374,28 @@ class SharpaHandRetargeter(BaseRetargeter):
         self,
         mano_positions: np.ndarray,
         mano_quats_wxyz: np.ndarray,
-    ) -> None:
-        """Set IK frame task targets from MANO joint data."""
+        mano_valid: np.ndarray,
+    ) -> dict[str, FrameTask]:
+        """Set IK frame task targets from MANO joint data.
+
+        Only tasks whose corresponding MANO source joint is valid are
+        updated and returned. Invalid joints are skipped so they don't
+        pull the IK solution toward bogus default positions.
+
+        Returns:
+            Dict of robot-frame-name to :class:`FrameTask` for the valid
+            subset that should be passed to the solver.
+        """
         base_idx = MANO_JOINTS_ORDER.index("wrist")
         base_pos = mano_positions[base_idx].copy()
 
+        active_tasks: dict[str, FrameTask] = {}
+
         for robot_frame, (mano_joint, _, _) in self._target_to_source.items():
             src_idx = MANO_JOINTS_ORDER.index(mano_joint)
+
+            if not mano_valid[src_idx]:
+                continue
 
             # Position: scaled relative to wrist
             target_pos = (
@@ -378,16 +415,24 @@ class SharpaHandRetargeter(BaseRetargeter):
             task = self._frame_tasks[robot_frame]
             task.transform_target_to_world.translation = target_pos.copy()
             task.transform_target_to_world.rotation = target_rot.copy()
+            active_tasks[robot_frame] = task
 
-    def _solve_ik(self, qpos: np.ndarray) -> np.ndarray:
-        """Run iterative Pink IK solver with convergence checking."""
+        return active_tasks
+
+    def _solve_ik(
+        self, qpos: np.ndarray, active_tasks: dict[str, FrameTask]
+    ) -> np.ndarray:
+        """Run iterative Pink IK solver with convergence checking.
+
+        Args:
+            qpos: Initial joint configuration (FreeFlyer + finger DOFs).
+            active_tasks: Only the frame tasks with valid tracking targets.
+        """
         self._configuration.q = qpos.copy()
-        tasks = list(self._frame_tasks.values())
+        tasks = list(active_tasks.values())
 
-        prev_errors: dict[str, float] = {
-            name: float(np.inf) for name in self._frame_tasks
-        }
-        converged: dict[str, bool] = {name: False for name in self._frame_tasks}
+        prev_errors: dict[str, float] = {name: float(np.inf) for name in active_tasks}
+        converged: dict[str, bool] = {name: False for name in active_tasks}
 
         for _ in range(self._max_iter):
             vel = solve_ik(
@@ -400,7 +445,7 @@ class SharpaHandRetargeter(BaseRetargeter):
             )
             self._configuration.integrate_inplace(vel, self._dt)
 
-            for name, task in self._frame_tasks.items():
+            for name, task in active_tasks.items():
                 err = float(np.linalg.norm(task.compute_error(self._configuration)[:3]))
                 if abs(err - prev_errors[name]) < self._convergence_threshold:
                     converged[name] = True
