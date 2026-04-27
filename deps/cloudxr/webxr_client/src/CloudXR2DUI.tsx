@@ -32,9 +32,18 @@
  */
 
 import {
+  getGridValidationError,
+  getGridValidationMessageForConnect,
+  getResolutionValidationError,
+  getResolutionValidationMessageForConnect,
+  validateDepthReprojectionGrid,
+  validatePerEyeResolution,
+} from '@nvidia/cloudxr';
+
+import {
+  type DeviceProfileId,
   getDeviceProfile,
   resolveDeviceProfileId,
-  type DeviceProfileId,
 } from '@helpers/DeviceProfiles';
 import {
   ControlPanelPosition,
@@ -49,14 +58,6 @@ import {
   setSelectValueIfAvailable,
   setupCertificateAcceptanceLink,
 } from '@helpers/utils';
-import {
-  getGridValidationError,
-  getGridValidationMessageForConnect,
-  getResolutionValidationError,
-  getResolutionValidationMessageForConnect,
-  validateDepthReprojectionGrid,
-  validatePerEyeResolution,
-} from '@nvidia/cloudxr';
 
 /** Full config: CloudXR connection settings + React UI options. */
 type AppConfig = CloudXRConfig & ReactUIConfig;
@@ -215,7 +216,11 @@ export class CloudXR2DUI {
       const v = seeds[paramKey];
       if (v === undefined) continue;
       element.value = v;
-      try { localStorage.setItem(storageKey, v); } catch (_) { /* quota */ }
+      try {
+        localStorage.setItem(storageKey, v);
+      } catch (_) {
+        /* quota */
+      }
     }
   }
 
@@ -537,9 +542,7 @@ export class CloudXR2DUI {
       reprojectionGridCols,
       reprojectionGridRows
     );
-    const combinedConnectMessage = [connectMessage, gridConnectMessage]
-      .filter(Boolean)
-      .join('\n');
+    const combinedConnectMessage = [connectMessage, gridConnectMessage].filter(Boolean).join('\n');
     if (combinedConnectMessage) {
       this.validationMessageText.textContent = combinedConnectMessage;
       this.validationMessageBox.className = 'validation-message-box show';

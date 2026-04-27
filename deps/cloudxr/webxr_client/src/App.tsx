@@ -30,7 +30,18 @@
  * and disconnect when in XR mode.
  */
 
+import * as CloudXR from '@nvidia/cloudxr';
+import { getResolutionValidationError } from '@nvidia/cloudxr';
+import { computed, signal } from '@preact/signals-react';
+import { Canvas } from '@react-three/fiber';
+import { setPreferredColorScheme } from '@react-three/uikit';
+import { createXRStore, noEvents, PointerEvents, useXR, XR, XROrigin } from '@react-three/xr';
+import type { XRDevice } from 'iwer';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { v5 } from 'uuid';
+
 import { checkCapabilities } from '@helpers/BrowserCapabilities';
+import { HeadsetControlChannel } from '@helpers/controlChannel';
 import { getDeviceProfile, resolveDeviceProfileId } from '@helpers/DeviceProfiles';
 import { loadIWERIfNeeded } from '@helpers/LoadIWER';
 import { overridePressureObserver } from '@helpers/overridePressureObserver';
@@ -38,19 +49,9 @@ import { kPerformanceOptions } from '@helpers/PerformanceProfiles';
 import CloudXRComponent from '@helpers/react/CloudXRComponent';
 import { SimpleEnvironment } from '@helpers/react/SimpleEnvironment';
 import { getControlPanelPositionVector } from '@helpers/react/utils';
-import * as CloudXR from '@nvidia/cloudxr';
-import { getResolutionValidationError } from '@nvidia/cloudxr';
-import { signal, computed } from '@preact/signals-react';
-import { Canvas } from '@react-three/fiber';
-import { setPreferredColorScheme } from '@react-three/uikit';
-import { XR, createXRStore, noEvents, PointerEvents, XROrigin, useXR } from '@react-three/xr';
-import type { XRDevice } from 'iwer';
-import { useState, useMemo, useEffect, useRef } from 'react';
 
-import { v5 } from 'uuid';
 import { CloudXR2DUI } from './CloudXR2DUI';
 import CloudXR3DUI from './CloudXRUI';
-import { HeadsetControlChannel } from '@helpers/controlChannel';
 
 // Performance metrics signals - raw numeric data, one per callback cadence.
 // Signals update their value without triggering React re-renders.
@@ -82,7 +83,6 @@ const CONTROL_PANEL_LAYOUT = {
 overridePressureObserver();
 
 setPreferredColorScheme('dark');
-
 
 const TELEOP_CHANNEL_UUID: Uint8Array = v5('teleop_command', v5.DNS, new Uint8Array(16));
 
@@ -118,8 +118,7 @@ function buildOobHubWsUrlFromQuery(searchParams: URLSearchParams): string | null
   const portStr = searchParams.get('port')?.trim();
   if (!serverIP || portStr === undefined || portStr === '') return null;
   if (!/^\d{1,5}$/.test(portStr)) return null;
-  const host =
-    serverIP.includes(':') && !serverIP.startsWith('[') ? `[${serverIP}]` : serverIP;
+  const host = serverIP.includes(':') && !serverIP.startsWith('[') ? `[${serverIP}]` : serverIP;
   return `wss://${host}:${portStr}/oob/v1/ws`;
 }
 
@@ -337,10 +336,7 @@ function App() {
     ui.initialize(Object.keys(urlSeeds).length > 0 ? urlSeeds : undefined);
     const doConnect = async () => {
       const config = ui.getConfiguration();
-      const resolutionError = getResolutionValidationError(
-        config.perEyeWidth,
-        config.perEyeHeight
-      );
+      const resolutionError = getResolutionValidationError(config.perEyeWidth, config.perEyeHeight);
       if (resolutionError) {
         ui.updateConnectButtonState();
         return;
@@ -560,7 +556,6 @@ function App() {
     }, 1000);
   };
 
-
   const handleResetTeleop = async () => {
     console.info('Reset Teleop pressed');
 
@@ -674,7 +669,9 @@ function App() {
     });
     channel.connect();
 
-    return () => { channel.dispose(); };
+    return () => {
+      channel.dispose();
+    };
   }, [cloudXR2DUI]);
 
   // Countdown configuration handlers (0-5 seconds)
@@ -735,9 +732,7 @@ function App() {
           const uuidHex = Array.from(ch.uuid as Uint8Array)
             .map((b: number) => b.toString(16).padStart(2, '0'))
             .join('');
-          console.info(
-            `  [${i}] uuid=${uuidHex} status=${ch.status}`
-          );
+          console.info(`  [${i}] uuid=${uuidHex} status=${ch.status}`);
         });
 
         const channel = findChannelByUuid(channels, TELEOP_CHANNEL_UUID);
