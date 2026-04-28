@@ -38,16 +38,20 @@ inline bool is_gpu_available()
 // vkCreateInstance/vkDestroyInstance cycles in a single process; sharing
 // one VkContext across [gpu] tests keeps us under the threshold.
 // Callers must check is_gpu_available() first.
+//
+// Heap-allocated and intentionally leaked: vkDestroyDevice/Instance can
+// crash if the Vulkan loader's own statics are torn down first
+// (destruction-order fiasco at process exit). The OS reclaims all
+// resources when the test binary exits.
 inline viz::VkContext& shared_vk_context()
 {
-    static viz::VkContext ctx;
-    static const bool initialized = [&]()
+    static viz::VkContext* const ctx = []()
     {
-        ctx.init(viz::VkContext::Config{});
-        return true;
+        auto* p = new viz::VkContext();
+        p->init(viz::VkContext::Config{});
+        return p;
     }();
-    (void)initialized;
-    return ctx;
+    return *ctx;
 }
 
 // Catch2 fixture exposing the shared VkContext as `vk`. Skips on
