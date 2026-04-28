@@ -114,19 +114,4 @@ void FrameSync::reset()
     check_vk(vkResetFences(ctx_->device(), 1, &in_flight_fence_), "vkResetFences");
 }
 
-VkFence FrameSync::in_flight_fence() const noexcept
-{
-    return in_flight_fence_;
-}
-
-VkSemaphore FrameSync::image_available_semaphore() const noexcept
-{
-    return image_available_;
-}
-
-VkSemaphore FrameSync::render_complete_semaphore() const noexcept
-{
-    return render_complete_;
-}
-
 } // namespace viz

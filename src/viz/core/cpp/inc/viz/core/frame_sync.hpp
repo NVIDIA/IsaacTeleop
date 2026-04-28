@@ -51,9 +51,18 @@ public:
     // next frame.
     void reset();
 
-    VkFence in_flight_fence() const noexcept;
-    VkSemaphore image_available_semaphore() const noexcept;
-    VkSemaphore render_complete_semaphore() const noexcept;
+    VkFence in_flight_fence() const noexcept
+    {
+        return in_flight_fence_;
+    }
+    VkSemaphore image_available_semaphore() const noexcept
+    {
+        return image_available_;
+    }
+    VkSemaphore render_complete_semaphore() const noexcept
+    {
+        return render_complete_;
+    }
 
 private:
     explicit FrameSync(const VkContext& ctx);

@@ -312,49 +312,4 @@ void RenderTarget::create_framebuffer()
     check_vk(vkCreateFramebuffer(device, &info, nullptr, &framebuffer_), "vkCreateFramebuffer");
 }
 
-VkRenderPass RenderTarget::render_pass() const noexcept
-{
-    return render_pass_;
-}
-
-VkFramebuffer RenderTarget::framebuffer() const noexcept
-{
-    return framebuffer_;
-}
-
-VkImage RenderTarget::color_image() const noexcept
-{
-    return color_image_;
-}
-
-VkImageView RenderTarget::color_image_view() const noexcept
-{
-    return color_view_;
-}
-
-VkFormat RenderTarget::color_format() const noexcept
-{
-    return color_format_;
-}
-
-VkImage RenderTarget::depth_image() const noexcept
-{
-    return depth_image_;
-}
-
-VkImageView RenderTarget::depth_image_view() const noexcept
-{
-    return depth_view_;
-}
-
-VkFormat RenderTarget::depth_format() const noexcept
-{
-    return depth_format_;
-}
-
-Resolution RenderTarget::resolution() const noexcept
-{
-    return resolution_;
-}
-
 } // namespace viz

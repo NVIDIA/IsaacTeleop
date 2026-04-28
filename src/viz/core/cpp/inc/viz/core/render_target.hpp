@@ -55,18 +55,45 @@ public:
     RenderTarget& operator=(RenderTarget&&) = delete;
 
     // Vulkan handle accessors for the compositor / custom layers.
-    VkRenderPass render_pass() const noexcept;
-    VkFramebuffer framebuffer() const noexcept;
+    VkRenderPass render_pass() const noexcept
+    {
+        return render_pass_;
+    }
+    VkFramebuffer framebuffer() const noexcept
+    {
+        return framebuffer_;
+    }
 
-    VkImage color_image() const noexcept;
-    VkImageView color_image_view() const noexcept;
-    VkFormat color_format() const noexcept;
+    VkImage color_image() const noexcept
+    {
+        return color_image_;
+    }
+    VkImageView color_image_view() const noexcept
+    {
+        return color_view_;
+    }
+    VkFormat color_format() const noexcept
+    {
+        return color_format_;
+    }
 
-    VkImage depth_image() const noexcept;
-    VkImageView depth_image_view() const noexcept;
-    VkFormat depth_format() const noexcept;
+    VkImage depth_image() const noexcept
+    {
+        return depth_image_;
+    }
+    VkImageView depth_image_view() const noexcept
+    {
+        return depth_view_;
+    }
+    VkFormat depth_format() const noexcept
+    {
+        return depth_format_;
+    }
 
-    Resolution resolution() const noexcept;
+    Resolution resolution() const noexcept
+    {
+        return resolution_;
+    }
 
 private:
     explicit RenderTarget(const VkContext& ctx);
