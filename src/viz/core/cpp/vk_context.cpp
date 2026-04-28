@@ -76,6 +76,38 @@ bool device_supports_extensions(VkPhysicalDevice device, const std::vector<const
     return true;
 }
 
+// Same check as above but for std::vector<std::string> input (avoids forcing
+// callers to materialize a vector<const char*> just for the check).
+bool device_supports_extensions(VkPhysicalDevice device, const std::vector<std::string>& required)
+{
+    if (required.empty())
+    {
+        return true;
+    }
+    uint32_t count = 0;
+    vkEnumerateDeviceExtensionProperties(device, nullptr, &count, nullptr);
+    std::vector<VkExtensionProperties> available(count);
+    vkEnumerateDeviceExtensionProperties(device, nullptr, &count, available.data());
+
+    for (const auto& req : required)
+    {
+        bool found = false;
+        for (const auto& ext : available)
+        {
+            if (req == ext.extensionName)
+            {
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 uint32_t find_graphics_compute_queue_family(VkPhysicalDevice device)
 {
     uint32_t count = 0;
@@ -150,10 +182,21 @@ void VkContext::init(const Config& config)
     {
         throw std::logic_error("VkContext::init: already initialized");
     }
-    create_instance(config);
-    select_physical_device(config);
-    create_logical_device(config);
-    initialized_ = true;
+    // Roll back any partial state if a later step throws so the context is
+    // left in a clean uninitialized state (no leaked instance/device handles)
+    // and is safe to retry init() on.
+    try
+    {
+        create_instance(config);
+        select_physical_device(config);
+        create_logical_device(config);
+        initialized_ = true;
+    }
+    catch (...)
+    {
+        destroy();
+        throw;
+    }
 }
 
 void VkContext::destroy()
@@ -265,6 +308,14 @@ void VkContext::select_physical_device(const Config& config)
     std::vector<VkPhysicalDevice> devices(count);
     vkEnumeratePhysicalDevices(instance_, &count, devices.data());
 
+    // A device is "suitable" iff it passes the always-required check
+    // (score >= 0) AND supports any caller-requested device extensions.
+    // Validating caller extensions here surfaces a clear error / lets
+    // auto-pick skip the device, instead of failing later inside
+    // vkCreateDevice with a generic VK_ERROR_EXTENSION_NOT_PRESENT.
+    auto is_suitable = [&](VkPhysicalDevice d)
+    { return score_physical_device(d) >= 0 && device_supports_extensions(d, config.device_extensions); };
+
     if (config.physical_device_index >= 0)
     {
         // Explicit index: pick that device, validate it meets requirements.
@@ -274,24 +325,29 @@ void VkContext::select_physical_device(const Config& config)
             throw std::out_of_range("VkContext: physical_device_index " + std::to_string(requested) +
                                     " is out of range (only " + std::to_string(count) + " device(s) available)");
         }
-        if (score_physical_device(devices[requested]) < 0)
+        if (!is_suitable(devices[requested]))
         {
             VkPhysicalDeviceProperties props;
             vkGetPhysicalDeviceProperties(devices[requested], &props);
             throw std::runtime_error("VkContext: physical device at index " + std::to_string(requested) + " (" +
                                      props.deviceName +
                                      ") does not meet Televiz requirements "
-                                     "(need API 1.2+, graphics+compute queue, external memory extensions)");
+                                     "(need API 1.2+, graphics+compute queue, "
+                                     "required + caller-requested extensions)");
         }
         physical_device_ = devices[requested];
     }
     else
     {
-        // Auto-pick: best suitable device by score.
+        // Auto-pick: highest-scoring suitable device.
         int best_score = -1;
         VkPhysicalDevice best_device = VK_NULL_HANDLE;
         for (VkPhysicalDevice candidate : devices)
         {
+            if (!is_suitable(candidate))
+            {
+                continue;
+            }
             const int s = score_physical_device(candidate);
             if (s > best_score)
             {
@@ -300,11 +356,12 @@ void VkContext::select_physical_device(const Config& config)
             }
         }
 
-        if (best_device == VK_NULL_HANDLE || best_score < 0)
+        if (best_device == VK_NULL_HANDLE)
         {
             throw std::runtime_error(
                 "No suitable Vulkan physical device found "
-                "(need API 1.2+, graphics+compute queue, external memory extensions)");
+                "(need API 1.2+, graphics+compute queue, "
+                "required + caller-requested extensions)");
         }
 
         physical_device_ = best_device;

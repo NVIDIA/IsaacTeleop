@@ -12,40 +12,32 @@
 namespace core::viz::testing
 {
 
-// True if a Vulkan-capable GPU is reachable (any physical device exposed
-// via vkEnumeratePhysicalDevices). Result is cached on first call so it's
-// safe and cheap to call from many tests.
+// True if a Televiz-suitable Vulkan device is reachable. Result is cached
+// on first call so it's safe and cheap to call from many tests.
 //
 // Returns false (instead of throwing) when:
 //   - No Vulkan loader is available
 //   - vkCreateInstance fails
 //   - No physical devices are enumerated
+//   - No enumerated device meets VkContext's requirements (API 1.2+,
+//     graphics+compute queue, external memory extensions). This last case
+//     covers e.g. CI machines with only the llvmpipe software fallback.
 //
 // Tests tagged [gpu] should call this and SKIP() if it returns false, so
-// CI runners without a GPU report tests as skipped rather than failed.
+// CI runners without a suitable GPU report tests as skipped rather than failed.
 inline bool is_gpu_available()
 {
     static const bool cached = []() -> bool
     {
-        VkApplicationInfo app_info{};
-        app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-        app_info.pApplicationName = "viz_tests_probe";
-        app_info.apiVersion = VK_API_VERSION_1_2;
-
-        VkInstanceCreateInfo create_info{};
-        create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-        create_info.pApplicationInfo = &app_info;
-
-        VkInstance instance = VK_NULL_HANDLE;
-        if (vkCreateInstance(&create_info, nullptr, &instance) != VK_SUCCESS)
+        const auto devices = core::viz::VkContext::enumerate_physical_devices();
+        for (const auto& info : devices)
         {
-            return false;
+            if (info.meets_requirements)
+            {
+                return true;
+            }
         }
-
-        uint32_t count = 0;
-        vkEnumeratePhysicalDevices(instance, &count, nullptr);
-        vkDestroyInstance(instance, nullptr);
-        return count > 0;
+        return false;
     }();
     return cached;
 }

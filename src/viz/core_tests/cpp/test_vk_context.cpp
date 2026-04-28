@@ -206,4 +206,29 @@ TEST_CASE("VkContext init with out-of-range physical_device_index throws", "[gpu
     cfg.physical_device_index = 9999;
     VkContext ctx;
     CHECK_THROWS_AS(ctx.init(cfg), std::out_of_range);
+
+    // Failed init must leave the context fully uninitialized: no handles
+    // leaked, safe to retry init() with a different config.
+    CHECK_FALSE(ctx.is_initialized());
+    CHECK(ctx.instance() == VK_NULL_HANDLE);
+    CHECK(ctx.device() == VK_NULL_HANDLE);
+
+    VkContext::Config cfg_ok{};
+    CHECK_NOTHROW(ctx.init(cfg_ok));
+    CHECK(ctx.is_initialized());
+}
+
+TEST_CASE("VkContext init throws when caller-requested device extension is unsupported", "[gpu][vk_context]")
+{
+    if (!core::viz::testing::is_gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
+
+    // Non-existent extension name; no real device supports this.
+    VkContext::Config cfg{};
+    cfg.device_extensions = { "VK_FAKE_definitely_not_a_real_extension" };
+    VkContext ctx;
+    CHECK_THROWS_AS(ctx.init(cfg), std::runtime_error);
+    CHECK_FALSE(ctx.is_initialized());
 }
