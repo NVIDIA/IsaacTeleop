@@ -12,19 +12,9 @@
 namespace viz::testing
 {
 
-// True if a Televiz-suitable Vulkan device is reachable. Result is cached
-// on first call so it's safe and cheap to call from many tests.
-//
-// Returns false (instead of throwing) when:
-//   - No Vulkan loader is available
-//   - vkCreateInstance fails
-//   - No physical devices are enumerated
-//   - No enumerated device meets VkContext's requirements (API 1.2+,
-//     graphics+compute queue, external memory extensions). This last case
-//     covers e.g. CI machines with only the llvmpipe software fallback.
-//
-// Tests tagged [gpu] should call this and SKIP() if it returns false, so
-// CI runners without a suitable GPU report tests as skipped rather than failed.
+// True iff a Televiz-suitable Vulkan device is reachable. Cached after
+// the first call. [gpu] tests should SKIP when this is false so CI
+// runners without a suitable GPU report skipped rather than failed.
 inline bool is_gpu_available()
 {
     static const bool cached = []() -> bool
@@ -42,23 +32,12 @@ inline bool is_gpu_available()
     return cached;
 }
 
-// Process-wide shared VkContext for tests that just need a working Vulkan
-// device. Lazy-initialized on first access; lives until process exit.
+// Process-wide shared VkContext, lazy-initialized on first call.
 //
-// Why shared: the NVIDIA Linux Vulkan driver has a deterministic resource
-// leak — after roughly 12 vkCreateInstance/vkDestroyInstance cycles in a
-// single process, the NVIDIA ICD stops being enumerated by
-// vkEnumeratePhysicalDevices and the loader falls back to llvmpipe only.
-// Reproduced on driver 535+ across L40 and RTX 6000 Ada. Sharing one
-// VkContext across the test suite keeps us well under the threshold.
-//
-// Tests that explicitly verify the init/destroy lifecycle (e.g.
-// "VkContext destroy is idempotent") still create their own local
-// VkContext — they're testing those code paths and only do 1-2 cycles
-// each, well within budget.
-//
-// Callers MUST verify is_gpu_available() returns true before calling this;
-// otherwise init() will throw on a runner without a suitable device.
+// NVIDIA's Linux Vulkan driver drops the NVIDIA ICD after ~12
+// vkCreateInstance/vkDestroyInstance cycles in a single process; sharing
+// one VkContext across [gpu] tests keeps us under the threshold.
+// Callers must check is_gpu_available() first.
 inline viz::VkContext& shared_vk_context()
 {
     static viz::VkContext ctx;
@@ -71,20 +50,9 @@ inline viz::VkContext& shared_vk_context()
     return ctx;
 }
 
-// Catch2 fixture for tests that need a Vulkan context.
-// Skips the test cleanly when no GPU is available, otherwise binds `vk`
-// to the shared process-wide VkContext (see shared_vk_context above).
-//
-// Usage:
-//     TEST_CASE_METHOD(viz::testing::GpuFixture,
-//                      "VkContext exposes valid handles",
-//                      "[gpu][vk_context]")
-//     {
-//         CHECK(vk.device() != VK_NULL_HANDLE);
-//     }
-//
-// Do NOT call vk.destroy() from a test using GpuFixture — the context is
-// shared with subsequent tests in the same process.
+// Catch2 fixture exposing the shared VkContext as `vk`. Skips on
+// GPU-less machines. Do NOT call vk.destroy() — the context is shared
+// across tests.
 struct GpuFixture
 {
     viz::VkContext& vk;
