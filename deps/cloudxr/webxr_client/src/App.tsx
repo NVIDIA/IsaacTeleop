@@ -351,7 +351,7 @@ function App() {
     // URL query params override localStorage so bookmarked links always win.
     const urlSeeds: Record<string, string> = {};
     const p = new URLSearchParams(window.location.search);
-    for (const key of ['serverIP', 'port', 'codec', 'panelHiddenAtStart']) {
+    for (const key of ['serverIP', 'port', 'codec', 'panelHiddenAtStart', 'headless']) {
       const v = p.get(key);
       if (v !== null) urlSeeds[key] = v;
     }
