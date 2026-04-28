@@ -18,9 +18,10 @@ namespace core
 // ReplayFullBodyTrackerPicoImpl
 // ============================================================================
 
-ReplayFullBodyTrackerPicoImpl::ReplayFullBodyTrackerPicoImpl(mcap::McapReader& reader, std::string_view base_name)
+ReplayFullBodyTrackerPicoImpl::ReplayFullBodyTrackerPicoImpl(std::unique_ptr<mcap::McapReader> reader,
+                                                             std::string_view base_name)
     : mcap_viewers_(std::make_unique<FullBodyMcapViewers>(
-          reader,
+          std::move(reader),
           base_name,
           std::vector<std::string>(FullBodyPicoRecordingTraits::replay_channels.begin(),
                                    FullBodyPicoRecordingTraits::replay_channels.end())))

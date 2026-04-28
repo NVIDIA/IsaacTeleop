@@ -18,9 +18,9 @@ namespace core
 // ReplayHandTrackerImpl
 // ============================================================================
 
-ReplayHandTrackerImpl::ReplayHandTrackerImpl(mcap::McapReader& reader, std::string_view base_name)
+ReplayHandTrackerImpl::ReplayHandTrackerImpl(std::unique_ptr<mcap::McapReader> reader, std::string_view base_name)
     : mcap_viewers_(
-          std::make_unique<HandMcapViewers>(reader,
+          std::make_unique<HandMcapViewers>(std::move(reader),
                                             base_name,
                                             std::vector<std::string>(HandRecordingTraits::replay_channels.begin(),
                                                                      HandRecordingTraits::replay_channels.end())))

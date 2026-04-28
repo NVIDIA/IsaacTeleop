@@ -63,6 +63,13 @@ std::unique_ptr<mcap::McapWriter> open_writer(const std::string& path)
     return writer;
 }
 
+std::unique_ptr<mcap::McapReader> open_reader(const std::string& path)
+{
+    auto reader = std::make_unique<mcap::McapReader>();
+    REQUIRE(reader->open(path).ok());
+    return reader;
+}
+
 using HeadChannels = core::McapTrackerChannels<core::HeadPoseRecord, core::HeadPose>;
 using HeadViewers = core::McapTrackerViewers<core::HeadPoseRecord>;
 
@@ -283,10 +290,7 @@ TEST_CASE("McapTrackerViewers: reads records from a single channel", "[mcap][tra
         writer->close();
     }
 
-    mcap::McapReader reader;
-    REQUIRE(reader.open(path).ok());
-
-    HeadViewers viewers(reader, "tracking", { "head" });
+    HeadViewers viewers(open_reader(path), "tracking", { "head" });
 
     auto record1 = viewers.read(0);
     REQUIRE(record1.has_value());
@@ -304,7 +308,6 @@ TEST_CASE("McapTrackerViewers: reads records from a single channel", "[mcap][tra
     CHECK(record2->timestamp->sample_time_raw_device_clock() == 84);
 
     CHECK_FALSE(viewers.read(0).has_value());
-    reader.close();
 }
 
 TEST_CASE("McapTrackerViewers: multi-channel reads filter by index", "[mcap][tracker_viewers]")
@@ -324,10 +327,7 @@ TEST_CASE("McapTrackerViewers: multi-channel reads filter by index", "[mcap][tra
         writer->close();
     }
 
-    mcap::McapReader reader;
-    REQUIRE(reader.open(path).ok());
-
-    HeadViewers viewers(reader, "tracking", { "left", "right" });
+    HeadViewers viewers(open_reader(path), "tracking", { "left", "right" });
 
     auto left1 = viewers.read(0);
     REQUIRE(left1.has_value());
@@ -343,7 +343,6 @@ TEST_CASE("McapTrackerViewers: multi-channel reads filter by index", "[mcap][tra
 
     CHECK_FALSE(viewers.read(0).has_value());
     CHECK_FALSE(viewers.read(1).has_value());
-    reader.close();
 }
 
 TEST_CASE("McapTrackerViewers: read subset of written channels", "[mcap][tracker_viewers]")
@@ -364,10 +363,7 @@ TEST_CASE("McapTrackerViewers: read subset of written channels", "[mcap][tracker
         writer->close();
     }
 
-    mcap::McapReader reader;
-    REQUIRE(reader.open(path).ok());
-
-    HeadViewers viewers(reader, "tracking", { "right" });
+    HeadViewers viewers(open_reader(path), "tracking", { "right" });
 
     auto r1 = viewers.read(0);
     REQUIRE(r1.has_value());
@@ -379,7 +375,6 @@ TEST_CASE("McapTrackerViewers: read subset of written channels", "[mcap][tracker
     REQUIRE(r2->data);
 
     CHECK_FALSE(viewers.read(0).has_value());
-    reader.close();
 }
 
 TEST_CASE("McapTrackerViewers: out-of-range channel_index throws", "[mcap][tracker_viewers]")
@@ -396,12 +391,8 @@ TEST_CASE("McapTrackerViewers: out-of-range channel_index throws", "[mcap][track
         writer->close();
     }
 
-    mcap::McapReader reader;
-    REQUIRE(reader.open(path).ok());
-
-    HeadViewers viewers(reader, "tracking", { "head" });
+    HeadViewers viewers(open_reader(path), "tracking", { "head" });
     CHECK_THROWS_AS(viewers.read(99), std::out_of_range);
-    reader.close();
 }
 
 TEST_CASE("McapTrackerViewers: handles null data records", "[mcap][tracker_viewers]")
@@ -416,10 +407,7 @@ TEST_CASE("McapTrackerViewers: handles null data records", "[mcap][tracker_viewe
         writer->close();
     }
 
-    mcap::McapReader reader;
-    REQUIRE(reader.open(path).ok());
-
-    HeadViewers viewers(reader, "tracking", { "head" });
+    HeadViewers viewers(open_reader(path), "tracking", { "head" });
 
     auto record = viewers.read(0);
     REQUIRE(record.has_value());
@@ -428,5 +416,4 @@ TEST_CASE("McapTrackerViewers: handles null data records", "[mcap][tracker_viewe
     CHECK(record->timestamp->sample_time_raw_device_clock() == 10);
 
     CHECK_FALSE(viewers.read(0).has_value());
-    reader.close();
 }

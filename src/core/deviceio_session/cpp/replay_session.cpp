@@ -3,7 +3,6 @@
 
 #include "inc/deviceio_session/replay_session.hpp"
 
-#include <mcap/reader.hpp>
 #include <oxr_utils/os_time.hpp>
 #include <replay_trackers/replay_deviceio_factory.hpp>
 
@@ -15,15 +14,9 @@ namespace core
 
 ReplaySession::ReplaySession(const McapReplayConfig& config)
 {
-    mcap_reader_ = std::make_unique<mcap::McapReader>();
-    auto status = mcap_reader_->open(config.filename);
-    if (!status.ok())
-    {
-        throw std::runtime_error("ReplaySession: failed to open MCAP file '" + config.filename + "': " + status.message);
-    }
     std::cout << "ReplaySession: reading from " << config.filename << std::endl;
 
-    ReplayDeviceIOFactory factory(*mcap_reader_, config.tracker_names);
+    ReplayDeviceIOFactory factory(config.filename, config.tracker_names);
     for (const auto& [tracker_ptr, name] : config.tracker_names)
     {
         if (!tracker_ptr)
@@ -33,8 +26,6 @@ ReplaySession::ReplaySession(const McapReplayConfig& config)
         tracker_impls_.emplace(tracker_ptr, factory.create_tracker_impl(*tracker_ptr));
     }
 }
-
-ReplaySession::~ReplaySession() = default;
 
 std::unique_ptr<ReplaySession> ReplaySession::run(const McapReplayConfig& config)
 {

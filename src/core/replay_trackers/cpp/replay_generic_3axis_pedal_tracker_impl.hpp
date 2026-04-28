@@ -19,7 +19,7 @@ using PedalMcapViewers = McapTrackerViewers<Generic3AxisPedalOutputRecord>;
 class ReplayGeneric3AxisPedalTrackerImpl : public IGeneric3AxisPedalTrackerImpl
 {
 public:
-    ReplayGeneric3AxisPedalTrackerImpl(mcap::McapReader& reader, std::string_view base_name);
+    ReplayGeneric3AxisPedalTrackerImpl(std::unique_ptr<mcap::McapReader> reader, std::string_view base_name);
 
     ReplayGeneric3AxisPedalTrackerImpl(const ReplayGeneric3AxisPedalTrackerImpl&) = delete;
     ReplayGeneric3AxisPedalTrackerImpl& operator=(const ReplayGeneric3AxisPedalTrackerImpl&) = delete;

@@ -14,8 +14,10 @@
 #include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
+#include <mcap/reader.hpp>
 
 #include <cassert>
+#include <memory>
 #include <stdexcept>
 #include <string>
 
@@ -24,6 +26,18 @@ namespace core
 
 namespace
 {
+
+std::unique_ptr<mcap::McapReader> open_reader(const std::string& filename)
+{
+    auto reader = std::make_unique<mcap::McapReader>();
+    auto status = reader->open(filename);
+    if (!status.ok())
+    {
+        throw std::runtime_error("ReplayDeviceIOFactory: failed to open MCAP file '" + filename + "': " + status.message);
+    }
+    return reader;
+}
+
 
 std::unique_ptr<ITrackerImpl> try_create_head_impl(ReplayDeviceIOFactory& factory, const ITracker& tracker)
 {
@@ -64,9 +78,9 @@ inline const TryCreateFn k_tracker_dispatch[] = {
 
 } // namespace
 
-ReplayDeviceIOFactory::ReplayDeviceIOFactory(mcap::McapReader& reader,
+ReplayDeviceIOFactory::ReplayDeviceIOFactory(std::string filename,
                                              const std::vector<std::pair<const ITracker*, std::string>>& tracker_names)
-    : reader_(reader)
+    : filename_(std::move(filename))
 {
     for (const auto& [tracker, name] : tracker_names)
     {
@@ -101,29 +115,29 @@ std::string_view ReplayDeviceIOFactory::get_name(const ITracker* tracker) const
 
 std::unique_ptr<IHeadTrackerImpl> ReplayDeviceIOFactory::create_head_tracker_impl(const HeadTracker* tracker)
 {
-    return std::make_unique<ReplayHeadTrackerImpl>(reader_, get_name(tracker));
+    return std::make_unique<ReplayHeadTrackerImpl>(open_reader(filename_), get_name(tracker));
 }
 
 std::unique_ptr<IHandTrackerImpl> ReplayDeviceIOFactory::create_hand_tracker_impl(const HandTracker* tracker)
 {
-    return std::make_unique<ReplayHandTrackerImpl>(reader_, get_name(tracker));
+    return std::make_unique<ReplayHandTrackerImpl>(open_reader(filename_), get_name(tracker));
 }
 
 std::unique_ptr<IControllerTrackerImpl> ReplayDeviceIOFactory::create_controller_tracker_impl(const ControllerTracker* tracker)
 {
-    return std::make_unique<ReplayControllerTrackerImpl>(reader_, get_name(tracker));
+    return std::make_unique<ReplayControllerTrackerImpl>(open_reader(filename_), get_name(tracker));
 }
 
 std::unique_ptr<IFullBodyTrackerPicoImpl> ReplayDeviceIOFactory::create_full_body_tracker_pico_impl(
     const FullBodyTrackerPico* tracker)
 {
-    return std::make_unique<ReplayFullBodyTrackerPicoImpl>(reader_, get_name(tracker));
+    return std::make_unique<ReplayFullBodyTrackerPicoImpl>(open_reader(filename_), get_name(tracker));
 }
 
 std::unique_ptr<IGeneric3AxisPedalTrackerImpl> ReplayDeviceIOFactory::create_generic_3axis_pedal_tracker_impl(
     const Generic3AxisPedalTracker* tracker)
 {
-    return std::make_unique<ReplayGeneric3AxisPedalTrackerImpl>(reader_, get_name(tracker));
+    return std::make_unique<ReplayGeneric3AxisPedalTrackerImpl>(open_reader(filename_), get_name(tracker));
 }
 
 } // namespace core

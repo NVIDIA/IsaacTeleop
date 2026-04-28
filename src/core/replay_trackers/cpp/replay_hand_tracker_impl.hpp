@@ -19,7 +19,7 @@ using HandMcapViewers = McapTrackerViewers<HandPoseRecord>;
 class ReplayHandTrackerImpl : public IHandTrackerImpl
 {
 public:
-    ReplayHandTrackerImpl(mcap::McapReader& reader, std::string_view base_name);
+    ReplayHandTrackerImpl(std::unique_ptr<mcap::McapReader> reader, std::string_view base_name);
 
     ReplayHandTrackerImpl(const ReplayHandTrackerImpl&) = delete;
     ReplayHandTrackerImpl& operator=(const ReplayHandTrackerImpl&) = delete;
