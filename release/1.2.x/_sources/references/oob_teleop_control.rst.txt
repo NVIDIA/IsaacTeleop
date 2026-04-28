@@ -357,3 +357,114 @@ Environment variables
      - Default video codec for headset bookmarks
    * - ``TELEOP_CLIENT_PANEL_HIDDEN_AT_START``
      - Hide control panel on load (``true`` / ``false``)
+
+USB-local mode
+--------------
+
+``--usb-local`` routes teleop signalling, the web client, and WebRTC media
+over the USB cable on the headset's loopback via ``adb reverse``. Add it to
+``--setup-oob``:
+
+.. code-block:: bash
+
+   python -m isaacteleop.cloudxr --accept-eula --setup-oob --usb-local
+
+On startup the launcher:
+
+1. Pre-flights: ``adb`` on PATH, ``coturn`` installed, exactly one device
+   connected, headset has at least one non-loopback IP (Wi-Fi up — see
+   troubleshooting below for why this is required even though no packets
+   traverse the network).
+2. Resolves the WebXR static directory from
+   ``TELEOP_WEB_CLIENT_STATIC_DIR`` (default ``~/.cloudxr/static-client``)
+   and downloads ``index.html`` / ``bundle.js`` from
+   ``https://nvidia.github.io/IsaacTeleop/client/`` if either is missing.
+3. Serves that directory over HTTPS on 127.0.0.1:8080 with the same PEM
+   the WSS proxy uses (Python ``http.server`` in a daemon thread).
+4. ``adb reverse`` for 8080 (static UI), 48322 (WSS), 49100 (backend),
+   3478 (coturn TURN).
+5. Starts coturn locally on 127.0.0.1:3478 for WebRTC ICE relay.
+6. Launches the teleop URL on the headset and auto-clicks CONNECT via CDP.
+
+Required apt packages: ``adb`` (``android-tools-adb``) and ``coturn``.
+No Node.js / ``npm`` is required at runtime.
+
+Troubleshooting
+---------------
+
+Teleop client error: "No local connection candidates" (0xC0F2220F)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Cause:** Chromium's WebRTC ``rtc::NetworkManager`` excludes loopback
+interfaces when enumerating networks for ICE. If the only active network
+on the headset is ``lo``, ICE gathering hangs at ``gathering`` forever —
+no local candidates are emitted and no error fires — until the CloudXR
+session times out with this code.
+
+**Fix:** Connect the headset to any Wi-Fi network. It does not need
+internet access — a phone hotspot with no data plan is sufficient. The
+packets still route over USB (kernel short-circuits loopback regardless
+of source interface); the Wi-Fi interface just needs to *exist* so
+WebRTC's enumeration is non-empty.
+
+The ``--usb-local`` launcher now pre-flights this via
+``adb shell ip -o -4 addr show`` and refuses to start if no non-loopback
+interface is present.
+
+CDP: startButton marked failed / not actionable
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Cause:** The web client's capability check (``App.tsx``) sets the button
+label to ``CONNECT (capability check failed)`` and disables it when a
+required feature is missing (WebGL2, ``requestVideoFrameCallback``,
+immersive-VR support). ADB automation detects this and aborts instead of
+clicking a dead button.
+
+**Fix:** Open the teleop URL on the headset manually and read the
+``errorMessageBox`` — it names the specific missing capability. Common
+causes: launched in WebLayer instead of Meta Quest Browser (no WebXR
+support → IWER fallback silently activates); WebGL2 disabled by device
+policy.
+
+``coturn`` not found / TURN server failed to start
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Cause:** ``--usb-local`` requires coturn to relay WebRTC media between
+the headset (TCP via adb reverse) and the CloudXR backend (UDP on
+loopback).
+
+**Fix:** ``sudo apt-get install -y coturn``. The launcher starts its own
+``turnserver`` process on 127.0.0.1:3478; no systemd service is needed
+(and may conflict — stop the system ``coturn.service`` if enabled).
+
+Inspect ``/tmp/coturn-cloudxr-3478.log`` for bind errors or credential
+mismatches; the launcher truncates this file on every start so only the
+current session's output is present.
+
+Tab not found within timeout
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Cause:** The headset's default URL handler is something other than Meta
+Quest Browser (e.g. WebLayer on Meta Quest) and did not open the teleop
+URL in a browser with remote-debugging exposed.
+
+**Fix:** Open ``chrome://inspect#devices`` on this PC, inspect the
+headset tab manually, and click CONNECT. Or set a different default
+browser on the headset.
+
+WebXR static download fails (offline / proxy)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Cause:** The launcher fetches ``index.html`` / ``bundle.js`` from
+``https://nvidia.github.io/IsaacTeleop/client/`` into the static dir on
+first run.  Behind a proxy or with no internet, this fails and
+``--usb-local`` aborts.
+
+**Fix:** Pre-stage the files (any way you like — ``curl``, container
+build step, internal mirror) into the static dir, then re-run.  The
+launcher only downloads when a file is missing or empty.  Override the
+target directory via ``TELEOP_WEB_CLIENT_STATIC_DIR``.
+
+**Fix:** Set the SDK versions in ``deps/cloudxr/.env`` (copy from
+``.env.default``) so the download script can resolve the right version,
+or stage ``nvidia-cloudxr-<version>.tgz`` in ``deps/cloudxr/`` manually.

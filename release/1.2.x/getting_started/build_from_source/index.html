@@ -259,10 +259,10 @@
 <div class="version-switcher">
   <label for="version-select" class="version-switcher__label">Version</label>
   <select id="version-select" class="version-switcher__select" onchange="location = this.value;">
-    <option value="index.html" selected>release/1.2.x</option>
     <option value="../../../../main/getting_started/build_from_source/index.html" >main</option>
     <option value="../../../1.0.x/index.html" >release/1.0.x</option>
     <option value="../../../1.1.x/index.html" >release/1.1.x</option>
+    <option value="index.html" selected>release/1.2.x</option>
     <option value="../../../../v1.0.193/index.html" >v1.0.193</option>
     <option value="../../../../v1.0.191/index.html" >v1.0.191</option>
   </select>
@@ -442,6 +442,14 @@ examples. The instructions align with the project’s CMake configuration and th
 the list of dependencies. On <strong>Ubuntu</strong>, install build tools and clang-format:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt-get<span class="w"> </span>update
 sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>build-essential<span class="w"> </span>cmake<span class="w"> </span>libx11-dev<span class="w"> </span>clang-format-14<span class="w"> </span>ccache<span class="w"> </span>patchelf
+</pre></div>
+</div>
+<p>Runtime-only dependencies (needed to actually run teleop, not to build):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># adb — required for OOB teleop (``--setup-oob``) to talk to the headset over USB.</span>
+<span class="c1"># coturn — required for USB-local mode (``--usb-local``); runs a local TURN server</span>
+<span class="c1">#          so WebRTC ICE can relay traffic from the headset to the CloudXR backend</span>
+<span class="c1">#          over the USB cable.</span>
+sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>android-tools-adb<span class="w"> </span>coturn
 </pre></div>
 </div>
 <p>Our build system uses <a class="reference external" href="https://docs.astral.sh/uv/" rel="noopener noreferrer" target="_blank">uv</a> for Python version and dependency management. Install <a class="reference external" href="https://docs.astral.sh/uv/" rel="noopener noreferrer" target="_blank">uv</a> if not already installed:</p>
