@@ -5,7 +5,7 @@
 
 #include <cstdint>
 
-namespace core::viz
+namespace viz
 {
 
 // Display resolution in pixels. Used by VizSession::Config and FrameInfo.
@@ -49,4 +49,19 @@ struct Fov
     float angle_down = 0.0f;
 };
 
-} // namespace core::viz
+// Per-view rendering parameters for one frame. Layers receive a vector of
+// these (one per eye in XR; a single identity-pose entry in window/offscreen
+// modes) and use them to position their content in 3D space.
+//
+// Matrices are column-major 4x4 to match OpenGL/GLSL convention (and for
+// trivial mapping into glm::mat4 / GLSL `mat4` uniforms). Default-constructed
+// matrices are identity.
+struct ViewInfo
+{
+    float view_matrix[16] = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 };
+    float projection_matrix[16] = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 };
+    Fov fov{};
+    Pose3D pose{};
+};
+
+} // namespace viz

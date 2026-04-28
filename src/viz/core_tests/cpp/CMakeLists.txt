@@ -4,6 +4,8 @@
 cmake_minimum_required(VERSION 3.20)
 
 add_executable(viz_core_tests
+    test_frame_sync.cpp
+    test_render_target.cpp
     test_viz_buffer.cpp
     test_viz_types.cpp
     test_vk_context.cpp

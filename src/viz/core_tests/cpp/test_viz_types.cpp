@@ -6,9 +6,9 @@
 #include <catch2/catch_test_macros.hpp>
 #include <viz/core/viz_types.hpp>
 
-using core::viz::Fov;
-using core::viz::Pose3D;
-using core::viz::Resolution;
+using viz::Fov;
+using viz::Pose3D;
+using viz::Resolution;
 
 TEST_CASE("Resolution default-constructed is zero", "[unit][viz_types]")
 {

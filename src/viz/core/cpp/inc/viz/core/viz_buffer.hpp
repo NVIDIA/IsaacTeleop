@@ -6,7 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace core::viz
+namespace viz
 {
 
 // Pixel formats supported by Televiz layers.
@@ -57,4 +57,4 @@ constexpr size_t effective_pitch(const VizBuffer& buf) noexcept
     return buf.pitch != 0 ? buf.pitch : static_cast<size_t>(buf.width) * bytes_per_pixel(buf.format);
 }
 
-} // namespace core::viz
+} // namespace viz

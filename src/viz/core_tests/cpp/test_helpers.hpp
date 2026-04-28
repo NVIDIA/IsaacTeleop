@@ -9,7 +9,7 @@
 
 #include <cstdint>
 
-namespace core::viz::testing
+namespace viz::testing
 {
 
 // True if a Televiz-suitable Vulkan device is reachable. Result is cached
@@ -29,7 +29,7 @@ inline bool is_gpu_available()
 {
     static const bool cached = []() -> bool
     {
-        const auto devices = core::viz::VkContext::enumerate_physical_devices();
+        const auto devices = viz::VkContext::enumerate_physical_devices();
         for (const auto& info : devices)
         {
             if (info.meets_requirements)
@@ -46,7 +46,7 @@ inline bool is_gpu_available()
 // Skips the test cleanly when no GPU is available.
 //
 // Usage:
-//     TEST_CASE_METHOD(core::viz::testing::GpuFixture,
+//     TEST_CASE_METHOD(viz::testing::GpuFixture,
 //                      "VkContext exposes valid handles",
 //                      "[gpu][vk_context]")
 //     {
@@ -54,7 +54,7 @@ inline bool is_gpu_available()
 //     }
 struct GpuFixture
 {
-    core::viz::VkContext vk;
+    viz::VkContext vk;
 
     GpuFixture()
     {
@@ -62,8 +62,8 @@ struct GpuFixture
         {
             SKIP("No Vulkan-capable GPU available");
         }
-        vk.init(core::viz::VkContext::Config{});
+        vk.init(viz::VkContext::Config{});
     }
 };
 
-} // namespace core::viz::testing
+} // namespace viz::testing

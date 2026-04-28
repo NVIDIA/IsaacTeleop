@@ -12,7 +12,7 @@
 
 #include <stdexcept>
 
-using core::viz::VkContext;
+using viz::VkContext;
 
 // ===================================================================
 // Pure unit tests (no GPU required)
@@ -46,7 +46,7 @@ TEST_CASE("VkContext::Config defaults to auto-pick (index = -1)", "[unit][vk_con
 // GPU integration tests
 // ===================================================================
 
-TEST_CASE_METHOD(core::viz::testing::GpuFixture, "VkContext exposes valid Vulkan handles after init", "[gpu][vk_context]")
+TEST_CASE_METHOD(viz::testing::GpuFixture, "VkContext exposes valid Vulkan handles after init", "[gpu][vk_context]")
 {
     CHECK(vk.is_initialized());
     CHECK(vk.instance() != VK_NULL_HANDLE);
@@ -56,16 +56,14 @@ TEST_CASE_METHOD(core::viz::testing::GpuFixture, "VkContext exposes valid Vulkan
     CHECK(vk.queue_family_index() != UINT32_MAX);
 }
 
-TEST_CASE_METHOD(core::viz::testing::GpuFixture, "VkContext physical device supports API 1.2 or newer", "[gpu][vk_context]")
+TEST_CASE_METHOD(viz::testing::GpuFixture, "VkContext physical device supports API 1.2 or newer", "[gpu][vk_context]")
 {
     VkPhysicalDeviceProperties props;
     vkGetPhysicalDeviceProperties(vk.physical_device(), &props);
     CHECK(props.apiVersion >= VK_API_VERSION_1_2);
 }
 
-TEST_CASE_METHOD(core::viz::testing::GpuFixture,
-                 "VkContext queue family supports graphics+compute+transfer",
-                 "[gpu][vk_context]")
+TEST_CASE_METHOD(viz::testing::GpuFixture, "VkContext queue family supports graphics+compute+transfer", "[gpu][vk_context]")
 {
     uint32_t count = 0;
     vkGetPhysicalDeviceQueueFamilyProperties(vk.physical_device(), &count, nullptr);
@@ -83,7 +81,7 @@ TEST_CASE_METHOD(core::viz::testing::GpuFixture,
 
 TEST_CASE("VkContext destroy is idempotent", "[gpu][vk_context]")
 {
-    if (!core::viz::testing::is_gpu_available())
+    if (!viz::testing::is_gpu_available())
     {
         SKIP("No Vulkan-capable GPU available");
     }
@@ -104,7 +102,7 @@ TEST_CASE("VkContext destroy is idempotent", "[gpu][vk_context]")
 
 TEST_CASE("VkContext init+destroy+init creates a fresh context", "[gpu][vk_context]")
 {
-    if (!core::viz::testing::is_gpu_available())
+    if (!viz::testing::is_gpu_available())
     {
         SKIP("No Vulkan-capable GPU available");
     }
@@ -122,7 +120,7 @@ TEST_CASE("VkContext init+destroy+init creates a fresh context", "[gpu][vk_conte
 
 TEST_CASE("VkContext double-init throws", "[gpu][vk_context]")
 {
-    if (!core::viz::testing::is_gpu_available())
+    if (!viz::testing::is_gpu_available())
     {
         SKIP("No Vulkan-capable GPU available");
     }
@@ -138,7 +136,7 @@ TEST_CASE("VkContext double-init throws", "[gpu][vk_context]")
 
 TEST_CASE("enumerate_physical_devices returns at least one device", "[gpu][vk_context]")
 {
-    if (!core::viz::testing::is_gpu_available())
+    if (!viz::testing::is_gpu_available())
     {
         SKIP("No Vulkan-capable GPU available");
     }
@@ -170,7 +168,7 @@ TEST_CASE("enumerate_physical_devices returns at least one device", "[gpu][vk_co
 
 TEST_CASE("VkContext init with explicit physical_device_index = 0 succeeds", "[gpu][vk_context]")
 {
-    if (!core::viz::testing::is_gpu_available())
+    if (!viz::testing::is_gpu_available())
     {
         SKIP("No Vulkan-capable GPU available");
     }
@@ -197,7 +195,7 @@ TEST_CASE("VkContext init with explicit physical_device_index = 0 succeeds", "[g
 
 TEST_CASE("VkContext init with out-of-range physical_device_index throws", "[gpu][vk_context]")
 {
-    if (!core::viz::testing::is_gpu_available())
+    if (!viz::testing::is_gpu_available())
     {
         SKIP("No Vulkan-capable GPU available");
     }
@@ -220,7 +218,7 @@ TEST_CASE("VkContext init with out-of-range physical_device_index throws", "[gpu
 
 TEST_CASE("VkContext init throws when caller-requested device extension is unsupported", "[gpu][vk_context]")
 {
-    if (!core::viz::testing::is_gpu_available())
+    if (!viz::testing::is_gpu_available())
     {
         SKIP("No Vulkan-capable GPU available");
     }

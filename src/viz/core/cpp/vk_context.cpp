@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-namespace core::viz
+namespace viz
 {
 
 namespace
@@ -457,4 +457,4 @@ std::vector<PhysicalDeviceInfo> VkContext::enumerate_physical_devices()
     return result;
 }
 
-} // namespace core::viz
+} // namespace viz
