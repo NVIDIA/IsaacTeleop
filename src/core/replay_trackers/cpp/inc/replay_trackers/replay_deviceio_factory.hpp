@@ -10,11 +10,6 @@
 #include <utility>
 #include <vector>
 
-namespace mcap
-{
-class McapReader;
-} // namespace mcap
-
 namespace core
 {
 
@@ -34,14 +29,14 @@ class IHeadTrackerImpl;
 /**
  * @brief Factory for replay (MCAP-backed) tracker implementations.
  *
- * Counterpart to LiveDeviceIOFactory. Instead of OpenXR handles, takes an
- * McapReader and constructs Replay*TrackerImpl instances that read recorded
- * data from the MCAP file.
+ * Opens a fresh McapReader per tracker impl so each tracker has its own
+ * FileReader buffer; crossing an MCAP chunk boundary in one tracker cannot
+ * overwrite another tracker's pre-fetched message data pointer.
  */
 class ReplayDeviceIOFactory
 {
 public:
-    ReplayDeviceIOFactory(mcap::McapReader& reader,
+    ReplayDeviceIOFactory(std::string filename,
                           const std::vector<std::pair<const ITracker*, std::string>>& tracker_names);
 
     /** Create tracker impl from a tracker instance using dynamic dispatch. */
@@ -57,7 +52,7 @@ public:
 private:
     std::string_view get_name(const ITracker* tracker) const;
 
-    mcap::McapReader& reader_;
+    std::string filename_;
     std::unordered_map<const ITracker*, std::string> name_map_;
 };
 

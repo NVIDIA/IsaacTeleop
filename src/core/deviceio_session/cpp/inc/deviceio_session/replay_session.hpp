@@ -12,12 +12,6 @@
 #include <utility>
 #include <vector>
 
-// Forward declaration -- mcap::McapReader is an implementation detail of ReplaySession.
-namespace mcap
-{
-class McapReader;
-} // namespace mcap
-
 namespace core
 {
 
@@ -45,9 +39,6 @@ public:
     // Static factory - Open an MCAP file and create replay tracker implementations.
     static std::unique_ptr<ReplaySession> run(const McapReplayConfig& config);
 
-    // Destructor defined in .cpp where mcap::McapReader is fully defined
-    ~ReplaySession();
-
     /**
      * @brief Advances replay by one frame, feeding the next recorded sample to
      *        each tracker implementation.
@@ -69,9 +60,6 @@ public:
 private:
     explicit ReplaySession(const McapReplayConfig& config);
 
-    // mcap_reader_ declared before tracker_impls_ so impls (which may hold raw
-    // pointers into the reader) are destroyed first in reverse declaration order.
-    std::unique_ptr<mcap::McapReader> mcap_reader_;
     std::unordered_map<const ITracker*, std::unique_ptr<ITrackerImpl>> tracker_impls_;
 };
 

@@ -18,10 +18,10 @@ namespace core
 // ReplayGeneric3AxisPedalTrackerImpl
 // ============================================================================
 
-ReplayGeneric3AxisPedalTrackerImpl::ReplayGeneric3AxisPedalTrackerImpl(mcap::McapReader& reader,
+ReplayGeneric3AxisPedalTrackerImpl::ReplayGeneric3AxisPedalTrackerImpl(std::unique_ptr<mcap::McapReader> reader,
                                                                        std::string_view base_name)
     : mcap_viewers_(
-          std::make_unique<PedalMcapViewers>(reader,
+          std::make_unique<PedalMcapViewers>(std::move(reader),
                                              base_name,
                                              std::vector<std::string>(PedalRecordingTraits::replay_channels.begin(),
                                                                       PedalRecordingTraits::replay_channels.end())))

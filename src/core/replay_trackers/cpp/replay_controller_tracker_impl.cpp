@@ -18,9 +18,10 @@ namespace core
 // ReplayControllerTrackerImpl
 // ============================================================================
 
-ReplayControllerTrackerImpl::ReplayControllerTrackerImpl(mcap::McapReader& reader, std::string_view base_name)
+ReplayControllerTrackerImpl::ReplayControllerTrackerImpl(std::unique_ptr<mcap::McapReader> reader,
+                                                         std::string_view base_name)
     : mcap_viewers_(std::make_unique<ControllerMcapViewers>(
-          reader,
+          std::move(reader),
           base_name,
           std::vector<std::string>(
               ControllerRecordingTraits::replay_channels.begin(), ControllerRecordingTraits::replay_channels.end())))

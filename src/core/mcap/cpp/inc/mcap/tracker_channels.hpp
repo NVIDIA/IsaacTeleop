@@ -8,8 +8,10 @@
 #include <mcap/writer.hpp>
 #include <schema/timestamp_generated.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <deque>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -116,14 +118,14 @@ private:
  * @tparam RecordT The FlatBuffer record wrapper stored in MCAP (e.g. HeadPoseRecord).
  *                 Must expose NativeTableType with UnPackTo().
  *
- * Read-side counterpart to McapTrackerChannels. Takes an externally-owned
- * McapReader& and a list of sub-channel names, creating one LinearMessageView
- * per channel. Each LinearMessageView is a lightweight, non-owning view that
- * reads directly from the McapReader's data source without copying message data.
- * Callers pull deserialized records one at a time via read(channel_index).
+ * Read-side counterpart to McapTrackerChannels. Owns an McapReader and iterates
+ * all registered sub-channels through a single LinearMessageView. Each message
+ * is deserialized (FlatBuffer UnPack) before the iterator advances, because the
+ * underlying FileReader buffer is only valid until the next read() call.
  *
- * MCAP message data pointers are only valid until the iterator advances,
- * so read() fully deserializes each record before stepping the iterator forward.
+ * When the iterator yields a message for a channel other than the one requested
+ * by the caller, the deserialized record is buffered in the corresponding
+ * ChannelBuffer and returned on a subsequent read() for that channel index.
  */
 template <typename RecordT>
 class McapTrackerViewers
@@ -136,18 +138,30 @@ public:
     McapTrackerViewers(McapTrackerViewers&&) = delete;
     McapTrackerViewers& operator=(McapTrackerViewers&&) = delete;
 
-    McapTrackerViewers(mcap::McapReader& reader, std::string_view base_name, const std::vector<std::string>& sub_channels)
-        : reader_(&reader)
+    McapTrackerViewers(std::unique_ptr<mcap::McapReader> reader,
+                       std::string_view base_name,
+                       const std::vector<std::string>& sub_channels)
+        : reader_(std::move(reader))
     {
         for (const auto& sub : sub_channels)
         {
-            std::string topic = mcap_topic(base_name, sub);
-            auto on_problem = [topic](const mcap::Status& s)
-            { throw std::runtime_error("McapTrackerViewers [" + topic + "]: " + s.message); };
-            mcap::ReadMessageOptions options;
-            options.topicFilter = [topic](std::string_view t) { return t == topic; };
-            channels_.push_back(std::make_unique<ChannelView>(reader_->readMessages(on_problem, options)));
+            channels_.push_back({ mcap_topic(base_name, sub), {} });
         }
+
+        auto on_problem = [](const mcap::Status& s) { throw std::runtime_error("McapTrackerViewers:" + s.message); };
+
+        mcap::ReadMessageOptions options;
+        options.topicFilter = [this](std::string_view t)
+        {
+            for (const auto& ch : channels_)
+            {
+                if (ch.topic == t)
+                    return true;
+            }
+            return false;
+        };
+
+        tracker_view_ = std::make_unique<TrackerView>(reader_->readMessages(on_problem, options));
     }
 
     /**
@@ -164,43 +178,82 @@ public:
                                     " but only " + std::to_string(channels_.size()) + " channels registered");
         }
 
-        auto& ch = *channels_[channel_index];
-        if (ch.it == ch.view.end())
+        // Return a previously buffered record if one was stashed while
+        // advancing the shared iterator on behalf of a different channel.
+        if (!channels_[channel_index].buffer.empty())
         {
-            return std::nullopt;
+            auto result = std::move(channels_[channel_index].buffer.front());
+            channels_[channel_index].buffer.pop_front();
+            return result;
         }
 
-        flatbuffers::Verifier verifier(reinterpret_cast<const uint8_t*>(ch.it->message.data), ch.it->message.dataSize);
-        if (!verifier.VerifyBuffer<RecordT>())
+        while (tracker_view_->it != tracker_view_->view.end())
         {
-            throw std::runtime_error("McapTrackerViewers: corrupt FlatBuffer in channel " + std::to_string(channel_index) +
-                                     " at sequence " + std::to_string(ch.it->message.sequence));
+            const auto& msg_view = *(tracker_view_->it);
+            size_t idx = find_channel_idx(msg_view.channel->topic);
+            NativeRecordT record = deserialize(msg_view.message, idx);
+
+            ++(tracker_view_->it);
+
+            // The requested channel; return the record.
+            if (idx == channel_index)
+            {
+                return record;
+            }
+            // Not the requested channel; stash for a future read(idx) call.
+            channels_[idx].buffer.push_back(std::move(record));
         }
 
-        auto* fb_record = flatbuffers::GetRoot<RecordT>(ch.it->message.data);
-        NativeRecordT record;
-        fb_record->UnPackTo(&record);
-
-        ++ch.it;
-        return record;
+        return std::nullopt;
     }
 
 private:
-    // ChannelView stores an iterator (`it`) that points into its own `view`.
-    // Held via unique_ptr so that vector reallocation never moves the object,
-    // keeping the self-referential iterator valid.
-    struct ChannelView
+    struct ChannelBuffer
+    {
+        std::string topic;
+        std::deque<NativeRecordT> buffer;
+    };
+
+    struct TrackerView
     {
         mcap::LinearMessageView view;
         mcap::LinearMessageView::Iterator it;
 
-        explicit ChannelView(mcap::LinearMessageView&& v) : view(std::move(v)), it(view.begin())
+        explicit TrackerView(mcap::LinearMessageView&& v) : view(std::move(v)), it(view.begin())
         {
         }
     };
 
-    mcap::McapReader* reader_;
-    std::vector<std::unique_ptr<ChannelView>> channels_;
+    size_t find_channel_idx(const std::string& topic) const
+    {
+        for (size_t i = 0; i < channels_.size(); ++i)
+        {
+            if (channels_[i].topic == topic)
+            {
+                return i;
+            }
+        }
+        throw std::runtime_error("McapTrackerViewers: unexpected topic '" + topic + "'");
+    }
+
+    NativeRecordT deserialize(const mcap::Message& msg, size_t channel_index) const
+    {
+        flatbuffers::Verifier verifier(reinterpret_cast<const uint8_t*>(msg.data), msg.dataSize);
+        if (!verifier.VerifyBuffer<RecordT>())
+        {
+            throw std::runtime_error("McapTrackerViewers: corrupt FlatBuffer in channel " +
+                                     std::to_string(channel_index) + " at sequence " + std::to_string(msg.sequence));
+        }
+
+        auto* fb_record = flatbuffers::GetRoot<RecordT>(msg.data);
+        NativeRecordT record;
+        fb_record->UnPackTo(&record);
+        return record;
+    }
+
+    std::unique_ptr<mcap::McapReader> reader_;
+    std::vector<ChannelBuffer> channels_;
+    std::unique_ptr<TrackerView> tracker_view_;
 };
 
 } // namespace core

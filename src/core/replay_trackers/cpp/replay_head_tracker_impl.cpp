@@ -18,9 +18,9 @@ namespace core
 // ReplayHeadTrackerImpl
 // ============================================================================
 
-ReplayHeadTrackerImpl::ReplayHeadTrackerImpl(mcap::McapReader& reader, std::string_view base_name)
+ReplayHeadTrackerImpl::ReplayHeadTrackerImpl(std::unique_ptr<mcap::McapReader> reader, std::string_view base_name)
     : mcap_viewers_(
-          std::make_unique<HeadMcapViewers>(reader,
+          std::make_unique<HeadMcapViewers>(std::move(reader),
                                             base_name,
                                             std::vector<std::string>(HeadRecordingTraits::replay_channels.begin(),
                                                                      HeadRecordingTraits::replay_channels.end())))
