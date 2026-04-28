@@ -38,6 +38,13 @@ Test directories follow the same per-module pattern:
 sub-module sub-directories. Sub-module `CMakeLists.txt` files build the
 actual libraries.
 
+The whole module is gated by **`BUILD_VIZ`** (default `ON`) at the top
+level. Downstream Dockerfiles / CI jobs that only need a subset of
+IsaacTeleop (e.g. `examples/teleop_ros2/Dockerfile`) and don't want to
+pull in the Vulkan dev dependency should pass `-DBUILD_VIZ=OFF` to
+`cmake`. Build runners that DO build viz must install Vulkan headers +
+loader: `libvulkan-dev` on Linux, LunarG SDK on Windows.
+
 ## Code conventions
 
 - **C++ namespace:** all Televiz symbols in `core::viz`. Internal helpers
