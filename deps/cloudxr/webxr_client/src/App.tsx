@@ -38,6 +38,7 @@ import { kPerformanceOptions } from '@helpers/PerformanceProfiles';
 import CloudXRComponent from '@helpers/react/CloudXRComponent';
 import { SimpleEnvironment } from '@helpers/react/SimpleEnvironment';
 import { getControlPanelPositionVector } from '@helpers/react/utils';
+import { SuppressWebGLRendererWhenHeadless } from './SuppressWebGLRendererWhenHeadless';
 import {
   DEFAULT_TELEOP_PATH,
   loadStoredTeleopPath,
@@ -350,7 +351,7 @@ function App() {
     // URL query params override localStorage so bookmarked links always win.
     const urlSeeds: Record<string, string> = {};
     const p = new URLSearchParams(window.location.search);
-    for (const key of ['serverIP', 'port', 'codec', 'panelHiddenAtStart']) {
+    for (const key of ['serverIP', 'port', 'codec', 'panelHiddenAtStart', 'headless']) {
       const v = p.get(key);
       if (v !== null) urlSeeds[key] = v;
     }
@@ -851,6 +852,7 @@ function App() {
           e.preventDefault();
         }}
       >
+        <SuppressWebGLRendererWhenHeadless headless={!!config?.headless} />
         <PointerEvents batchEvents={false} />
         <XR store={store}>
           <SimpleEnvironment />
@@ -871,33 +873,36 @@ function App() {
                 onServerAddress={setServerAddress}
                 onRenderPerformanceMetrics={handleRenderPerformanceMetrics}
                 onStreamingPerformanceMetrics={handleStreamingPerformanceMetrics}
+                headless={!!config.headless}
               />
-              <CloudXR3DUI
-                onStartTeleop={handleStartTeleop}
-                onDisconnect={handleDisconnect}
-                onResetTeleop={handleResetTeleop}
-                isXRMode={isXRMode}
-                panelHiddenAtStart={config.panelHiddenAtStart ?? false}
-                serverAddress={serverAddress || config.serverIP}
-                sessionStatus={sessionStatus}
-                playLabel={
-                  isTeleopRunning
-                    ? 'Running'
-                    : isCountingDown
-                      ? `Starting in ${countdownRemaining} sec...`
-                      : 'Play'
-                }
-                playInProgress={isCountingDown || isTeleopRunning}
-                countdownSeconds={countdownDuration}
-                onCountdownIncrease={handleIncreaseCountdown}
-                onCountdownDecrease={handleDecreaseCountdown}
-                countdownDisabled={isCountingDown}
-                position={controlPanelPositionVector}
-                rotation={[0, 0, 0]}
-                renderFpsText={renderFpsText}
-                streamingFpsText={streamingFpsText}
-                poseToRenderText={poseToRenderText}
-              />
+              {!config.headless && (
+                <CloudXR3DUI
+                  onStartTeleop={handleStartTeleop}
+                  onDisconnect={handleDisconnect}
+                  onResetTeleop={handleResetTeleop}
+                  isXRMode={isXRMode}
+                  panelHiddenAtStart={config.panelHiddenAtStart ?? false}
+                  serverAddress={serverAddress || config.serverIP}
+                  sessionStatus={sessionStatus}
+                  playLabel={
+                    isTeleopRunning
+                      ? 'Running'
+                      : isCountingDown
+                        ? `Starting in ${countdownRemaining} sec...`
+                        : 'Play'
+                  }
+                  playInProgress={isCountingDown || isTeleopRunning}
+                  countdownSeconds={countdownDuration}
+                  onCountdownIncrease={handleIncreaseCountdown}
+                  onCountdownDecrease={handleDecreaseCountdown}
+                  countdownDisabled={isCountingDown}
+                  position={controlPanelPositionVector}
+                  rotation={[0, 0, 0]}
+                  renderFpsText={renderFpsText}
+                  streamingFpsText={streamingFpsText}
+                  poseToRenderText={poseToRenderText}
+                />
+              )}
             </>
           )}
         </XR>

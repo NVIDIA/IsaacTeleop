@@ -62,6 +62,8 @@ export interface ReactUIConfig {
   controlPanelPosition?: ControlPanelPosition;
   /** When true, the control panel is hidden at immersive XR enter (small “show control panel” control only). */
   panelHiddenAtStart?: boolean;
+  /** When true, all WebGL rendering is skipped. */
+  headless?: boolean;
   /** Active teleop project path (a key path in `TELEOP_PROJECTS`). */
   teleopPath: string;
 }
