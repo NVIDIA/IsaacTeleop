@@ -154,3 +154,25 @@ target_compile_definitions(mcap_interface INTERFACE
 )
 add_library(mcap::mcap ALIAS mcap_interface)
 message(STATUS "MCAP interface library configured")
+
+# ==============================================================================
+# GLM (Vulkan/GLSL math)
+# ==============================================================================
+# Header-only math library used by the viz module for matrix / vector / quaternion
+# math (world-lock, head-lock, lazy-lock layer placement; view & projection
+# composition; quaternion slerp). Conventions match GLSL/Vulkan (column-major,
+# default precision float). Memory layout is POD-compatible with raw float[]:
+# `glm::value_ptr(mat)` returns `float*` for direct upload to Vulkan/CUDA buffers.
+if(BUILD_VIZ)
+    message(STATUS "Fetching glm from GitHub...")
+    FetchContent_Declare(
+        glm
+        GIT_REPOSITORY https://github.com/g-truc/glm.git
+        GIT_TAG        1.0.1
+        GIT_SHALLOW    TRUE
+    )
+    set(GLM_BUILD_LIBRARY OFF CACHE BOOL "Build glm as header-only" FORCE)
+    set(GLM_BUILD_TESTS OFF CACHE BOOL "Skip glm test suite" FORCE)
+    FetchContent_MakeAvailable(glm)
+    message(STATUS "glm 1.0.1 fetched (header-only)")
+endif()

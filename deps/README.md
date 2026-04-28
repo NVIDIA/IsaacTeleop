@@ -40,6 +40,28 @@ uses Docker Compose to setup the entire system with 3 different containers:
 2. Web server that hosts the CloudXR Web XR app
 3. WebSocket SSL proxy
 
+## System Dependencies
+
+These are not fetched by CMake — they must be installed on the build
+machine and are located via `find_package`.
+
+### Vulkan SDK / loader
+- **Locator**: `find_package(Vulkan REQUIRED)`
+- **Required by**: `viz/core/` when `BUILD_VIZ=ON` (also `examples/camera_streamer`).
+- **Linux**: `apt-get install libvulkan-dev` (provides headers + `libvulkan.so.1`).
+- **Windows**: install the LunarG Vulkan SDK and ensure `VULKAN_SDK` env var is set.
+  CI uses `humbletim/install-vulkan-sdk@v1.2`.
+- **Min version**: 1.2 (Televiz checks `VK_API_VERSION_1_2` at device select time).
+- **License**: Apache 2.0 (loader); per-vendor for ICD drivers.
+
+### CUDA Toolkit (optional, used by examples)
+- **Locator**: `find_package(CUDAToolkit REQUIRED)`
+- **Required by**: `examples/camera_streamer/` only today; `viz` adds CUDA
+  dependency in M3 (CUDA-Vulkan interop). CI must have CUDA installed for the
+  GPU test runner to exercise these paths.
+- **Min version**: 12.0
+- **License**: NVIDIA EULA
+
 ## Third-Party Dependencies
 
 ### OpenXR SDK
@@ -62,6 +84,16 @@ uses Docker Compose to setup the entire system with 3 different containers:
 - **Purpose**: C++/Python bindings for Isaac Teleop Python API
 - **Build**: Header-only library
 - **License**: BSD-style
+
+### GLM
+- **Source**: https://github.com/g-truc/glm.git
+- **Version**: 1.0.1
+- **Purpose**: Vulkan/GLSL math (`vec`, `mat`, `quat`, slerp / lookAt /
+  perspective) used by the `viz` module for view & projection composition,
+  pose math, and world/head/lazy-locked layer placement. Fetched only when
+  `BUILD_VIZ=ON`.
+- **Build**: Header-only library
+- **License**: MIT
 
 ## Adding New Dependencies
 

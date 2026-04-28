@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
+
 #include <cstdint>
 
 namespace viz
@@ -16,26 +19,16 @@ struct Resolution
 };
 
 // 3D pose in OpenXR stage space: right-handed, Y-up, meters for distance,
-// orientation as quaternion. Default-constructed is identity.
+// orientation as a unit quaternion. Default-constructed is identity.
+//
+// Memory layout note: glm::vec3 is `float[3]`, glm::quat is `float[4]` in
+// (w, x, y, z) order — matching glm's constructor argument order, NOT
+// XrQuaternionf's (x, y, z, w) wire order. Conversions at the OpenXR
+// boundary (in viz_xr) handle the swizzle.
 struct Pose3D
 {
-    struct Position
-    {
-        float x = 0.0f;
-        float y = 0.0f;
-        float z = 0.0f;
-    };
-
-    struct Orientation
-    {
-        float x = 0.0f;
-        float y = 0.0f;
-        float z = 0.0f;
-        float w = 1.0f;
-    };
-
-    Position position{};
-    Orientation orientation{};
+    glm::vec3 position{ 0.0f, 0.0f, 0.0f };
+    glm::quat orientation{ 1.0f, 0.0f, 0.0f, 0.0f }; // w, x, y, z (identity)
 };
 
 // Per-eye field of view in radians, measured from the forward axis.
@@ -53,13 +46,13 @@ struct Fov
 // these (one per eye in XR; a single identity-pose entry in window/offscreen
 // modes) and use them to position their content in 3D space.
 //
-// Matrices are column-major 4x4 to match OpenGL/GLSL convention (and for
-// trivial mapping into glm::mat4 / GLSL `mat4` uniforms). Default-constructed
-// matrices are identity.
+// Matrices are glm::mat4 (column-major float[16] under the hood, GLSL-
+// compatible). For Vulkan / CUDA upload use glm::value_ptr(mat) to get a
+// raw float* — no copy needed.
 struct ViewInfo
 {
-    float view_matrix[16] = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 };
-    float projection_matrix[16] = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 };
+    glm::mat4 view_matrix{ 1.0f }; // identity
+    glm::mat4 projection_matrix{ 1.0f }; // identity
     Fov fov{};
     Pose3D pose{};
 };

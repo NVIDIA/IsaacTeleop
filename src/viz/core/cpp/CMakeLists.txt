@@ -27,6 +27,7 @@ target_include_directories(viz_core
 target_link_libraries(viz_core
     PUBLIC
         Vulkan::Vulkan
+        glm::glm
 )
 
 # Aliased as viz::core (consumers say viz::core, not viz::viz_core).
