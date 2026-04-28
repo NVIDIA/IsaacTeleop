@@ -24,7 +24,7 @@ cmake_minimum_required(VERSION 3.20)
 add_subdirectory(core)
 
 # Layers: LayerBase abstract interface (header-only today; concrete layer
-# types land in M2.2 and beyond).
+# types are added as they ship).
 add_subdirectory(layers)
 
 # Python bindings (stub today; pybind11 module added later).

@@ -57,7 +57,7 @@ machine and are located via `find_package`.
 ### CUDA Toolkit (optional, used by examples)
 - **Locator**: `find_package(CUDAToolkit REQUIRED)`
 - **Required by**: `examples/camera_streamer/` only today; `viz` adds CUDA
-  dependency in M3 (CUDA-Vulkan interop). CI must have CUDA installed for the
+  dependency once CUDA-Vulkan interop lands; CI must have CUDA installed for
   GPU test runner to exercise these paths.
 - **Min version**: 12.0
 - **License**: NVIDIA EULA

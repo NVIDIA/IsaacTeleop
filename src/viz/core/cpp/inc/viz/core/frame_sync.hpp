@@ -25,9 +25,9 @@ class VkContext;
 // The fence is created in the signaled state so the first wait()/reset()
 // pair is a no-op (matches the "next frame after no previous frame" case).
 //
-// M2 uses 1-frame-in-flight; M4/M5 will keep one FrameSync per slot when we
-// move to N-buffered swapchain rendering. The class is intentionally a thin
-// wrapper to make that future scaling trivial.
+// Today this represents one frame in flight; the class is a thin wrapper so
+// that scaling to N-buffered swapchain rendering (one FrameSync per slot)
+// remains a trivial change when display backends are added.
 class FrameSync
 {
 public:

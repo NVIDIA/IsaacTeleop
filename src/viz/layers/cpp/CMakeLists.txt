@@ -4,9 +4,9 @@
 cmake_minimum_required(VERSION 3.20)
 
 # LayerBase abstract interface and (later) concrete layer types
-# (QuadLayer, ProjectionLayer, OverlayLayer). Today header-only — promoted
-# to STATIC when the first .cpp lands (M2.2 ColoredQuadLayer test helper
-# lives in viz/layers_tests/, not here).
+# (QuadLayer, ProjectionLayer, OverlayLayer). Header-only today — promoted
+# to STATIC when the first .cpp lands. Test-only helper layers
+# (e.g. ColoredQuadLayer) live in viz/layers_tests/, not here.
 add_library(viz_layers INTERFACE)
 
 target_sources(viz_layers

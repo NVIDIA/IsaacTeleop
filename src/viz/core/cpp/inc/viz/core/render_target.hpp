@@ -36,8 +36,8 @@ public:
     struct Config
     {
         Resolution resolution{};
-        // Color format is fixed at RGBA8_SRGB for M2 — matches PixelFormat::kRGBA8.
-        // Future: configurable when more layer pixel formats land.
+        // Color format is fixed at RGBA8_SRGB today — matches PixelFormat::kRGBA8.
+        // Configurable when additional layer pixel formats are introduced.
     };
 
     // Creates a fully-initialized render target. Throws std::runtime_error
