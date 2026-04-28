@@ -6,6 +6,7 @@
 #include <viz/core/viz_types.hpp>
 #include <vulkan/vulkan.h>
 
+#include <atomic>
 #include <string>
 #include <vector>
 
@@ -52,12 +53,19 @@ public:
 
     const std::string& name() const noexcept;
 
+    // Visibility flag is atomic so it can be toggled from any thread (UI
+    // callback, Python control loop, hot-key handler) without racing the
+    // compositor's per-frame is_visible() check on the render thread. Uses
+    // relaxed ordering — the flag itself is the only state being published,
+    // there's no other memory to synchronize through it. A toggle that
+    // races a frame may be observed by the next frame instead of this one,
+    // which is the desired semantics.
     bool is_visible() const noexcept;
     void set_visible(bool visible) noexcept;
 
 private:
     std::string name_;
-    bool visible_ = true;
+    std::atomic<bool> visible_{ true };
 };
 
 inline LayerBase::LayerBase(std::string name) : name_(std::move(name))
@@ -71,12 +79,12 @@ inline const std::string& LayerBase::name() const noexcept
 
 inline bool LayerBase::is_visible() const noexcept
 {
-    return visible_;
+    return visible_.load(std::memory_order_relaxed);
 }
 
 inline void LayerBase::set_visible(bool visible) noexcept
 {
-    visible_ = visible;
+    visible_.store(visible, std::memory_order_relaxed);
 }
 
 } // namespace viz
