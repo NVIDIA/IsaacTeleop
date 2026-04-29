@@ -196,3 +196,31 @@ TEST_CASE("Multiple frames advance frame_index and avoid leaking sync state", "[
         CHECK(info.frame_index == i);
     }
 }
+
+TEST_CASE("begin_frame / end_frame must be paired", "[gpu][viz_session]")
+{
+    if (!gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
+
+    VizSession::Config cfg{};
+    cfg.window_width = 32;
+    cfg.window_height = 32;
+    auto session = VizSession::create(cfg);
+
+    // end_frame without begin_frame: error.
+    CHECK_THROWS_AS(session->end_frame(), std::logic_error);
+
+    // begin -> begin: the second begin throws because a frame is still
+    // in progress.
+    (void)session->begin_frame();
+    CHECK_THROWS_AS(session->begin_frame(), std::logic_error);
+
+    // The first begin is still in progress; close it cleanly.
+    session->end_frame();
+
+    // After a clean pair, a new begin/end cycle should succeed.
+    CHECK_NOTHROW(session->begin_frame());
+    CHECK_NOTHROW(session->end_frame());
+}

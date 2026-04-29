@@ -126,7 +126,6 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers, const std::vec
     // Wait for the previous frame's GPU work to complete before reusing
     // the command buffer / fence (1 frame in flight today).
     frame_sync_->wait();
-    frame_sync_->reset();
 
     check_vk(vkResetCommandBuffer(command_buffer_, 0), "vkResetCommandBuffer");
 
@@ -161,6 +160,12 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers, const std::vec
 
     vkCmdEndRenderPass(command_buffer_);
     check_vk(vkEndCommandBuffer(command_buffer_), "vkEndCommandBuffer");
+
+    // Reset the fence immediately before submit. If anything between
+    // wait() and here threw (a layer's record(), a Vulkan API failure
+    // during recording), the fence stays signaled from the previous
+    // frame and the next render() doesn't deadlock on wait().
+    frame_sync_->reset();
 
     VkSubmitInfo submit{};
     submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;

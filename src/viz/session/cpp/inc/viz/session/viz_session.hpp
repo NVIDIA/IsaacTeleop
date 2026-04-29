@@ -100,6 +100,13 @@ public:
     // Layer management. Insertion order is render order. Returns a raw
     // pointer to the layer for content updates / set_visible(). The
     // session owns the layer's lifetime.
+    //
+    // Threading: add_layer / remove_layer must be called from the same
+    // thread that drives the frame loop (render() / begin_frame() /
+    // end_frame()). Concurrent or re-entrant mutation during a frame
+    // (including from inside a layer's record() callback) is undefined
+    // behavior. The only thread-safe layer mutation is
+    // LayerBase::set_visible(), which uses an atomic flag.
     template <typename L, typename... Args>
     L* add_layer(Args&&... args)
     {
@@ -110,6 +117,7 @@ public:
     }
 
     // Removes a layer by pointer. No-op if `layer` is not registered.
+    // See add_layer for threading contract.
     void remove_layer(LayerBase* layer);
 
     // Convenience frame loop: wait + composite + (in window/XR) present.
@@ -169,6 +177,7 @@ private:
     uint64_t frame_index_ = 0;
     std::chrono::steady_clock::time_point last_frame_time_{};
     bool first_frame_ = true;
+    bool frame_in_progress_ = false;
     FrameInfo current_frame_info_{};
     FrameTimingStats timing_stats_{};
 };

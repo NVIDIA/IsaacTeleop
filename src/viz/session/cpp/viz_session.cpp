@@ -47,6 +47,11 @@ VizSession::~VizSession()
 
 void VizSession::init()
 {
+    // Reject unsupported display modes before allocating any Vulkan
+    // state — saves a wasted vkCreateInstance + device on a config we
+    // know we can't support yet.
+    check_offscreen_only(config_.mode, "create");
+
     try
     {
         // Acquire / create the Vulkan context.
@@ -65,8 +70,6 @@ void VizSession::init()
             ctx_ptr_ = owned_ctx_.get();
         }
 
-        // Compositor (kOffscreen only; window/XR backends add display targets).
-        check_offscreen_only(config_.mode, "create");
 
         VizCompositor::Config c_cfg{};
         c_cfg.resolution = { config_.window_width, config_.window_height };
@@ -112,6 +115,12 @@ FrameInfo VizSession::begin_frame()
     {
         throw std::runtime_error("VizSession: begin_frame called on destroyed/lost session");
     }
+    if (frame_in_progress_)
+    {
+        throw std::logic_error(
+            "VizSession: begin_frame called while a frame is already in "
+            "progress (missing end_frame for previous begin_frame)");
+    }
     if (state_ == SessionState::kReady)
     {
         state_ = SessionState::kRunning;
@@ -136,17 +145,39 @@ FrameInfo VizSession::begin_frame()
     // Single identity view in window/offscreen; XR backend extends to per-eye.
     current_frame_info_.views.assign(1, ViewInfo{});
 
+    // Set last so any earlier throw leaves the flag false and the next
+    // begin_frame() can proceed normally.
+    frame_in_progress_ = true;
+
     return current_frame_info_;
 }
 
 void VizSession::end_frame()
 {
+    if (!frame_in_progress_)
+    {
+        throw std::logic_error("VizSession: end_frame called without a matching begin_frame");
+    }
     if (state_ != SessionState::kRunning)
     {
         // No-op in non-running states (matches the design: kStopping
         // submits an empty frame; kReady never enters end_frame).
+        // Still clear the in-progress flag so the pairing contract holds.
+        frame_in_progress_ = false;
         return;
     }
+
+    // Always clear the in-progress flag, even if the render call below
+    // throws — leaving it true would lock out all subsequent begin_frame()
+    // calls for the rest of the session.
+    struct ClearGuard
+    {
+        bool* flag;
+        ~ClearGuard()
+        {
+            *flag = false;
+        }
+    } guard{ &frame_in_progress_ };
 
     // Build a raw-pointer view of the layer registry for the compositor —
     // avoids forcing the compositor to know about std::unique_ptr.
