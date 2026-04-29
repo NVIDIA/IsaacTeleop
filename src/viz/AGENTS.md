@@ -25,9 +25,16 @@ sibling `<sub-module>_tests/` directory:
 - **`viz/layers/`** — `LayerBase` and concrete layers (`QuadLayer`, etc.).
   Library: `viz_layers` (INTERFACE / header-only today; promoted to
   STATIC when the first concrete layer ships). Depends on `viz_core`.
-- **`viz/session/`** — `VizSession`, `VizCompositor`, `FrameInfo`, display
-  backends (offscreen, GLFW window). Library: `viz_session`. Depends on
-  `viz_core`, `viz_layers`.
+  Test-only fixture layers (`ClearRectLayer`, future `ColoredQuadLayer`)
+  live in `viz/layers_tests/cpp/inc/viz/layers/testing/` and are exposed
+  via the `viz::layers_testing` static library — used by other test
+  binaries (e.g. `viz_session_tests`) to compose into a `VizSession`.
+- **`viz/session/`** — `VizSession`, `VizCompositor`, `FrameInfo`,
+  `FrameTimingStats`, `SessionState`, display backends (today: offscreen
+  only; window/XR added by their respective backends). Library:
+  `viz_session`. Depends on `viz_core`, `viz_layers`. Public API for the
+  whole module — applications interact with Televiz through
+  `VizSession::create()`.
 - **`viz/xr/`** — OpenXR backend (instance/session, swapchain wrapping,
   frame loop, type conversion). Library: `viz_xr`. **Optional** behind
   `BUILD_VIZ_XR`. Depends on `viz_core` + OpenXR.
