@@ -17,10 +17,14 @@ sibling `<sub-module>_tests/` directory:
 
 - **`viz/core/`** — foundational types + Vulkan/CUDA infrastructure.
   Library: `viz_core`. Today: `VkContext`, `VizBuffer`, `Pose3D`, `Fov`,
-  `Resolution`, `PixelFormat`. Future: `cuda_texture`, `render_target`,
-  `frame_sync`.
+  `Resolution`, `ViewInfo`, `PixelFormat`, `RenderTarget`, `FrameSync`.
+  Future: `cuda_texture`. Math types (`glm::vec3`, `glm::quat`,
+  `glm::mat4`) come from GLM 1.0.1 (FetchContent in
+  `deps/third_party/`); use `glm::value_ptr(mat)` to get a raw `float*`
+  for Vulkan / CUDA upload (POD-equivalent layout, no copy).
 - **`viz/layers/`** — `LayerBase` and concrete layers (`QuadLayer`, etc.).
-  Library: `viz_layers`. Depends on `viz_core`.
+  Library: `viz_layers` (INTERFACE / header-only today; promoted to
+  STATIC when the first concrete layer ships). Depends on `viz_core`.
 - **`viz/session/`** — `VizSession`, `VizCompositor`, `FrameInfo`, display
   backends (offscreen, GLFW window). Library: `viz_session`. Depends on
   `viz_core`, `viz_layers`.
@@ -38,17 +42,21 @@ Test directories follow the same per-module pattern:
 sub-module sub-directories. Sub-module `CMakeLists.txt` files build the
 actual libraries.
 
-The whole module is gated by **`BUILD_VIZ`** (default `ON`) at the top
-level. Downstream Dockerfiles / CI jobs that only need a subset of
-IsaacTeleop (e.g. `examples/teleop_ros2/Dockerfile`) and don't want to
-pull in the Vulkan dev dependency should pass `-DBUILD_VIZ=OFF` to
-`cmake`. Build runners that DO build viz must install Vulkan headers +
-loader: `libvulkan-dev` on Linux, LunarG SDK on Windows.
+The whole module is gated by **`BUILD_VIZ`** (default `OFF`) at the top
+level — viz requires Vulkan headers/loader, so it's opt-in to keep the
+default build path lightweight (matches the convention used by
+`BUILD_PLUGIN_OAK_CAMERA`, which also pulls in extra system deps).
+Build paths that ship viz (the wheel CI on Linux + Windows) pass
+`-DBUILD_VIZ=ON` explicitly. Lean Dockerfiles
+(`examples/teleop_ros2/Dockerfile`) get viz-free builds for free.
+
+When `BUILD_VIZ=ON` you must have Vulkan headers + loader installed:
+`libvulkan-dev` on Linux, LunarG SDK on Windows.
 
 ## Code conventions
 
-- **C++ namespace:** all Televiz symbols in `core::viz`. Internal helpers
-  in `core::viz::detail`. Test infrastructure in `core::viz::testing`.
+- **C++ namespace:** all Televiz symbols in `viz`. Internal helpers
+  in `viz::detail`. Test infrastructure in `viz::testing`.
   This is shared across all sub-modules — no per-module nested namespace.
 - **Naming:** types `PascalCase`, methods/functions/variables
   `snake_case` (matches `src/core/`). Private members use trailing
@@ -75,7 +83,7 @@ loader: `libvulkan-dev` on Linux, LunarG SDK on Windows.
 - C++ tests: **Catch2 v3**, `TEST_CASE("name", "[tag][tag]")`, linked
   against `Catch2::Catch2WithMain`.
 - Tag conventions: **`[unit]`** (no GPU), **`[gpu]`** (Vulkan/CUDA
-  required, must skip cleanly via `core::viz::testing::is_gpu_available`
+  required, must skip cleanly via `viz::testing::is_gpu_available`
   when no GPU), **`[xr]`** (OpenXR runtime required, manual-only).
 - `catch_discover_tests(<target> ADD_TAGS_AS_LABELS)` — exposes Catch2
   tags as CTest labels. CI uses `ctest -L unit` and `ctest -L gpu` for
@@ -106,8 +114,8 @@ the package step globs `viz_*_tests` and the runner loops over them.
 
 - **Public API surface (in `viz_core`, `viz_layers`, `viz_session`)
   must not expose OpenXR types.** Convert `XrPosef`/`XrFovf` to
-  `core::viz::Pose3D`/`Fov` at the boundary. The conversion lives in
-  `core::viz::detail` inside `viz_xr` (where OpenXR headers are
+  `viz::Pose3D`/`Fov` at the boundary. The conversion lives in
+  `viz::detail` inside `viz_xr` (where OpenXR headers are
   available). This keeps `BUILD_VIZ_XR=OFF` viable for window/offscreen
   builds without requiring OpenXR headers.
 - **Vulkan types are exposed** in the public API where functionally

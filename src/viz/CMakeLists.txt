@@ -23,6 +23,10 @@ cmake_minimum_required(VERSION 3.20)
 # Core: Vulkan/CUDA infrastructure and foundational types.
 add_subdirectory(core)
 
+# Layers: LayerBase abstract interface (header-only today; concrete layer
+# types are added as they ship).
+add_subdirectory(layers)
+
 # Python bindings (stub today; pybind11 module added later).
 if(BUILD_PYTHON_BINDINGS)
     add_subdirectory(python)

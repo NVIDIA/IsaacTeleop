@@ -82,7 +82,6 @@ RUN --mount=type=cache,target=/opt/isaacteleop/build,id=isaacteleop-teleop-ros2-
         -DBUILD_TESTING=OFF \
         -DBUILD_PLUGINS=ON \
         -DBUILD_PLUGIN_OAK_CAMERA=OFF \
-        -DBUILD_VIZ=OFF \
         -DENABLE_CLANG_FORMAT_CHECK=OFF \
         -DISAAC_TELEOP_PYTHON_VERSION=${PYTHON_VERSION} \
     && cmake --build build --config Release -j$(nproc) \

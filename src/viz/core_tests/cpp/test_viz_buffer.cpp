@@ -8,10 +8,10 @@
 
 #include <cstddef>
 
-using core::viz::bytes_per_pixel;
-using core::viz::effective_pitch;
-using core::viz::PixelFormat;
-using core::viz::VizBuffer;
+using viz::bytes_per_pixel;
+using viz::effective_pitch;
+using viz::PixelFormat;
+using viz::VizBuffer;
 
 TEST_CASE("VizBuffer default construction is zero/null", "[unit][viz_buffer]")
 {

@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-namespace core::viz
+namespace viz
 {
 
 // Read-only info about a Vulkan physical device.
@@ -119,4 +119,4 @@ private:
     VkQueue queue_ = VK_NULL_HANDLE;
 };
 
-} // namespace core::viz
+} // namespace viz
