@@ -12,6 +12,7 @@ add_library(viz_core STATIC
     frame_sync.cpp
     render_target.cpp
     vk_context.cpp
+    inc/viz/core/device_image.hpp
     inc/viz/core/frame_sync.hpp
     inc/viz/core/host_image.hpp
     inc/viz/core/render_target.hpp
