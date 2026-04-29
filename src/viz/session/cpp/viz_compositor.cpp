@@ -175,7 +175,7 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers, const std::vec
     frame_sync_->wait();
 }
 
-std::vector<uint8_t> VizCompositor::readback_to_host()
+HostImage VizCompositor::readback_to_host()
 {
     const uint32_t w = config_.resolution.width;
     const uint32_t h = config_.resolution.height;
@@ -233,7 +233,7 @@ std::vector<uint8_t> VizCompositor::readback_to_host()
     check_vk(vkQueueSubmit(ctx_->queue(), 1, &submit, frame_sync_->in_flight_fence()), "vkQueueSubmit(readback)");
     frame_sync_->wait();
 
-    std::vector<uint8_t> result(byte_size);
+    HostImage result(config_.resolution, PixelFormat::kRGBA8);
     void* mapped = nullptr;
     check_vk(vkMapMemory(ctx_->device(), memory, 0, byte_size, 0, &mapped), "vkMapMemory(staging)");
     std::memcpy(result.data(), mapped, byte_size);

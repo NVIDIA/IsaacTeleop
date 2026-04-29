@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <viz/core/host_image.hpp>
 #include <viz/core/viz_types.hpp>
 #include <viz/core/vk_context.hpp>
 #include <viz/layers/layer_base.hpp>
@@ -132,12 +133,14 @@ public:
         return timing_stats_;
     }
 
-    // Read the most recent composited frame as host-side RGBA8 bytes
-    // (width * height * 4). Defined in kOffscreen; throws in kWindow /
-    // kXr (use the swapchain present path there). Test / debug grade —
-    // the production CUDA-pointer readback returning a VizBuffer ships
-    // with CUDA-Vulkan interop.
-    std::vector<uint8_t> readback_to_host();
+    // Read the most recent composited frame as a host-side image.
+    // Returns a HostImage owning RGBA8 pixels; call HostImage::view()
+    // to get a VizBuffer (MemorySpace::kHost) for image helpers, or
+    // HostImage::data() for raw byte access. Defined in kOffscreen;
+    // throws in kWindow / kXr (use the swapchain present path there).
+    // Test / debug grade — the production CUDA-pointer readback
+    // returning a device-space VizBuffer ships with CUDA-Vulkan interop.
+    HostImage readback_to_host();
 
     // Vulkan handle accessors for external renderers and custom layers
     // that need to build pipelines against the compositor's render pass.

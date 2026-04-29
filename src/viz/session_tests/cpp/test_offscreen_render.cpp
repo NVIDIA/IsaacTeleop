@@ -12,14 +12,15 @@
 // in this milestone, exercised in one test.
 
 #include <catch2/catch_test_macros.hpp>
+#include <viz/core/host_image.hpp>
 #include <viz/core/vk_context.hpp>
 #include <viz/layers/testing/clear_rect_layer.hpp>
 #include <viz/session/viz_session.hpp>
 
 #include <cstdint>
-#include <vector>
 
 using viz::DisplayMode;
+using viz::HostImage;
 using viz::VizSession;
 using viz::testing::ClearRectLayer;
 
@@ -54,10 +55,11 @@ struct Rgba
     uint8_t a;
 };
 
-Rgba pixel_at(const std::vector<uint8_t>& fb, uint32_t width, uint32_t x, uint32_t y)
+Rgba pixel_at(const HostImage& img, uint32_t x, uint32_t y)
 {
-    const size_t i = (static_cast<size_t>(y) * width + x) * 4;
-    return Rgba{ fb[i], fb[i + 1], fb[i + 2], fb[i + 3] };
+    const size_t i = (static_cast<size_t>(y) * img.resolution().width + x) * 4;
+    const uint8_t* p = img.data() + i;
+    return Rgba{ p[0], p[1], p[2], p[3] };
 }
 
 } // namespace
@@ -104,18 +106,28 @@ TEST_CASE("Offscreen session renders layer pixels through to readback", "[gpu][v
     CHECK(info.views.size() == 1);
     CHECK(session->get_state() == viz::SessionState::kRunning);
 
-    auto pixels = session->readback_to_host();
-    REQUIRE(pixels.size() == static_cast<size_t>(kSide) * kSide * 4);
+    auto image = session->readback_to_host();
+    REQUIRE(image.resolution().width == kSide);
+    REQUIRE(image.resolution().height == kSide);
+    REQUIRE(image.format() == viz::PixelFormat::kRGBA8);
+    REQUIRE(image.size_bytes() == static_cast<size_t>(kSide) * kSide * 4);
+
+    // The view exposes the same bytes as a VizBuffer (kHost).
+    const viz::VizBuffer view = image.view();
+    CHECK(view.space == viz::MemorySpace::kHost);
+    CHECK(view.data == image.data());
+    CHECK(view.width == kSide);
+    CHECK(view.height == kSide);
 
     // Top half: session clear color (blue).
-    const Rgba top = pixel_at(pixels, kSide, kSide / 2, kHalfHeight / 2);
+    const Rgba top = pixel_at(image, kSide / 2, kHalfHeight / 2);
     CHECK(top.r == 0);
     CHECK(top.g == 0);
     CHECK(top.b == 255);
     CHECK(top.a == 255);
 
     // Bottom half: layer color (red).
-    const Rgba bot = pixel_at(pixels, kSide, kSide / 2, kHalfHeight + kHalfHeight / 2);
+    const Rgba bot = pixel_at(image, kSide / 2, kHalfHeight + kHalfHeight / 2);
     CHECK(bot.r == 255);
     CHECK(bot.g == 0);
     CHECK(bot.b == 0);
@@ -153,9 +165,9 @@ TEST_CASE("Hidden layer does not contribute to the framebuffer", "[gpu][viz_sess
     layer->set_visible(false);
 
     session->render();
-    auto pixels = session->readback_to_host();
+    auto image = session->readback_to_host();
 
-    const Rgba center = pixel_at(pixels, kSide, kSide / 2, kSide / 2);
+    const Rgba center = pixel_at(image, kSide / 2, kSide / 2);
     // Compositor's clear color (green) survives because the only layer
     // is hidden — confirms the dispatch loop honors is_visible().
     CHECK(center.r == 0);

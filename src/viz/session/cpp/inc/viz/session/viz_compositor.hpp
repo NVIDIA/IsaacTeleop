@@ -4,6 +4,7 @@
 #pragma once
 
 #include <viz/core/frame_sync.hpp>
+#include <viz/core/host_image.hpp>
 #include <viz/core/render_target.hpp>
 #include <viz/core/viz_types.hpp>
 #include <vulkan/vulkan.h>
@@ -52,12 +53,14 @@ public:
     // Throws std::runtime_error on Vulkan failure.
     void render(const std::vector<LayerBase*>& layers, const std::vector<ViewInfo>& views);
 
-    // Read the most recent frame's color attachment back to a host buffer.
-    // Returns tightly-packed RGBA8 bytes (width * height * 4). The session
-    // is expected to have called render() at least once; pixels are
-    // undefined otherwise. Used by tests / debug tooling — production
-    // (CUDA-pointer) readback lands with CUDA-Vulkan interop.
-    std::vector<uint8_t> readback_to_host();
+    // Read the most recent frame's color attachment back to a host
+    // buffer. Returns a HostImage owning tightly-packed RGBA8 bytes;
+    // call HostImage::view() to obtain a VizBuffer view suitable for
+    // image helpers. The caller must have called render() at least
+    // once; pixels are undefined otherwise. Used by tests / debug
+    // tooling — production (CUDA-pointer) readback ships with
+    // CUDA-Vulkan interop.
+    HostImage readback_to_host();
 
     // Accessors for layers / external code that needs to build pipelines
     // against the compositor's render pass.

@@ -19,21 +19,34 @@ enum class PixelFormat
     kD32F, // single-channel float32 depth
 };
 
-// Lightweight, non-owning reference to a 2D pixel buffer on GPU.
+// Where a VizBuffer's data pointer lives. Producer-consumer paths (CUDA
+// interop, Python __cuda_array_interface__, Vulkan VkBuffer mapping)
+// require the device space; host-readback / debug helpers use the host
+// space. Caller must respect the space — there is no runtime check.
+enum class MemorySpace
+{
+    kDevice, // CUDA device memory (default; what production layer interop expects)
+    kHost, // CPU memory (test-grade readback, debug helpers)
+};
+
+// Lightweight, non-owning reference to a 2D pixel buffer.
 //
-// VizBuffer carries no ownership semantics: it does not allocate or free
-// memory. For Mode B submission (acquire/release), the layer owns the
-// underlying interop buffer; VizBuffer is a view into it.
+// Carries no ownership: it does not allocate or free memory. For Mode B
+// submission (acquire/release), the layer owns the underlying interop
+// buffer; VizBuffer is a view into it. For host readback, HostImage owns
+// the bytes and exposes a VizBuffer view via HostImage::view().
 //
-// In Python, VizBuffer exposes __cuda_array_interface__ so CuPy can wrap
-// it zero-copy.
+// In Python, VizBuffer with space == kDevice exposes
+// __cuda_array_interface__ so CuPy can wrap it zero-copy. Host buffers
+// expose __array_interface__ (NumPy) instead.
 struct VizBuffer
 {
-    void* data = nullptr; // CUDA device pointer
+    void* data = nullptr;
     uint32_t width = 0;
     uint32_t height = 0;
     PixelFormat format = PixelFormat::kRGBA8;
     size_t pitch = 0; // Row pitch in bytes (0 = tightly packed)
+    MemorySpace space = MemorySpace::kDevice;
 };
 
 // Returns the number of bytes per pixel for the given format.

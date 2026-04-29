@@ -10,6 +10,7 @@
 
 using viz::bytes_per_pixel;
 using viz::effective_pitch;
+using viz::MemorySpace;
 using viz::PixelFormat;
 using viz::VizBuffer;
 
@@ -21,6 +22,8 @@ TEST_CASE("VizBuffer default construction is zero/null", "[unit][viz_buffer]")
     CHECK(buf.height == 0);
     CHECK(buf.format == PixelFormat::kRGBA8);
     CHECK(buf.pitch == 0);
+    // Production interop default: device memory.
+    CHECK(buf.space == MemorySpace::kDevice);
 }
 
 TEST_CASE("VizBuffer aggregate construction preserves fields", "[unit][viz_buffer]")

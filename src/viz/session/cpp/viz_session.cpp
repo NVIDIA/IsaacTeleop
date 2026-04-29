@@ -193,7 +193,7 @@ Resolution VizSession::get_recommended_resolution() const noexcept
     return compositor_ ? compositor_->resolution() : Resolution{ config_.window_width, config_.window_height };
 }
 
-std::vector<uint8_t> VizSession::readback_to_host()
+HostImage VizSession::readback_to_host()
 {
     check_offscreen_only(config_.mode, "readback_to_host");
     if (!compositor_)
