@@ -10,8 +10,8 @@
 # 1) Local tarball: place cloudxr-web-sdk-${CXR_WEB_SDK_VERSION}.tar.gz in deps/cloudxr/.
 #    The tarball must extract to the same layout as the NGC release: root must contain
 #    isaac/ and nvidia-cloudxr-${CXR_WEB_SDK_VERSION}.tgz (optionally inside a single top-level directory).
-# 2) Public NGC: downloads via wget from the public NGC resource API (no NGC CLI needed).
-# 3) Private NGC: requires ngc CLI; downloads from private NGC org.
+# 2) Public NGC: downloads via curl from the public NGC resource API.
+# 3) Private NGC: downloads via curl from the private NGC resource API; requires NGC_API_KEY.
 
 set -Eeuo pipefail
 
@@ -89,14 +89,14 @@ install_from_local_tarball() {
 }
 
 # -----------------------------------------------------------------------------
-# Public NGC: download via wget from the public NGC resource API
+# Public NGC: download via curl from the public NGC resource API
 # Resource: nvidia/cloudxr-js/${CXR_WEB_SDK_VERSION}
 # -----------------------------------------------------------------------------
 install_from_public_ngc() {
     local NGC_URL="https://api.ngc.nvidia.com/v2/resources/org/nvidia/cloudxr-js/${CXR_WEB_SDK_VERSION}/files?redirect=true&path=${SDK_FILE}"
 
-    if ! command -v wget &> /dev/null; then
-        echo -e "${RED}Error: wget not found. Please install it first.${NC}"
+    if ! command -v curl &> /dev/null; then
+        echo -e "${RED}Error: curl not found. Please install it first.${NC}"
         echo -e "To use a local SDK instead, place $SDK_FILE in deps/cloudxr/"
         return 1
     fi
@@ -109,8 +109,8 @@ install_from_public_ngc() {
     mkdir -p "$CXR_DEPLOYMENT_DIR"
 
     echo -e "${YELLOW}Downloading CloudXR Web SDK from NGC...${NC}"
-    if ! wget --content-disposition \
-        --output-document "$CXR_DEPLOYMENT_DIR/$SDK_FILE" \
+    if ! curl --fail --location \
+        --output "$CXR_DEPLOYMENT_DIR/$SDK_FILE" \
         "$NGC_URL"; then
         echo -e "${RED}Error: Failed to download CloudXR Web SDK from NGC${NC}"
         rm -f "$CXR_DEPLOYMENT_DIR/$SDK_FILE"
@@ -122,33 +122,43 @@ install_from_public_ngc() {
 }
 
 # -----------------------------------------------------------------------------
-# NGC: resource path and download/install logic
+# Private NGC: download via curl from the private NGC resource API
 # Resource: 0566138804516934/cloudxr-dev/cloudxr-js:${CXR_WEB_SDK_VERSION}
+# Requires NGC_API_KEY for Bearer-token auth.
 # -----------------------------------------------------------------------------
 install_from_private_ngc() {
     local NGC_ORG="0566138804516934"
-    local SDK_RESOURCE="${NGC_ORG}/cloudxr-dev/cloudxr-js:${CXR_WEB_SDK_VERSION}"
-    local SDK_DOWNLOAD_DIR="$GIT_ROOT/deps/cloudxr/.sdk-download"
-    local DOWNLOADED_TAR_BALL="$SDK_DOWNLOAD_DIR/cloudxr-js_v${CXR_WEB_SDK_VERSION}/$SDK_FILE"
+    local NGC_TEAM="cloudxr-dev"
+    local NGC_RESOURCE="cloudxr-js"
+    local NGC_URL="https://api.ngc.nvidia.com/v2/org/${NGC_ORG}/team/${NGC_TEAM}/resources/${NGC_RESOURCE}/versions/${CXR_WEB_SDK_VERSION}/files/${SDK_FILE}"
 
-    mkdir -p "$SDK_DOWNLOAD_DIR"
-
-    echo -e "${YELLOW}[1/3] Downloading CloudXR Web SDK from NGC...${NC}"
-    cd "$SDK_DOWNLOAD_DIR"
-    ngc registry resource download-version \
-        --org "$NGC_ORG" \
-        --team no-team \
-        --file "$SDK_FILE" \
-        "$SDK_RESOURCE"
-
-    local DOWNLOADED_DIR="$(basename "$(find . -mindepth 1 -maxdepth 1 -type d -name 'cloudxr-js_v*' -print -quit)")"
-    if [ -z "$DOWNLOADED_DIR" ]; then
-        echo -e "${RED}Error: Failed to find downloaded SDK directory${NC}"
+    if [ -z "${NGC_API_KEY:-}" ]; then
+        echo -e "${RED}Error: NGC_API_KEY is not set; cannot download from private NGC${NC}"
         return 1
     fi
 
-    echo -e "Moving $DOWNLOADED_TAR_BALL to $GIT_ROOT/deps/cloudxr"
-    mv "$DOWNLOADED_TAR_BALL" "$GIT_ROOT/deps/cloudxr"
+    if ! command -v curl &> /dev/null; then
+        echo -e "${RED}Error: curl not found. Please install it first.${NC}"
+        return 1
+    fi
+
+    echo -e "${GREEN}=================================================${NC}"
+    echo -e "${GREEN}Downloading CloudXR Web SDK from private NGC${NC}"
+    echo -e "${GREEN}=================================================${NC}"
+    echo ""
+
+    mkdir -p "$CXR_DEPLOYMENT_DIR"
+
+    echo -e "${YELLOW}Downloading CloudXR Web SDK from private NGC...${NC}"
+    if ! curl --fail --location \
+        -H "Authorization: Bearer $NGC_API_KEY" \
+        -H "Content-Type: application/json" \
+        --output "$CXR_DEPLOYMENT_DIR/$SDK_FILE" \
+        "$NGC_URL"; then
+        echo -e "${RED}Error: Failed to download CloudXR Web SDK from private NGC${NC}"
+        rm -f "$CXR_DEPLOYMENT_DIR/$SDK_FILE"
+        return 1
+    fi
 
     echo -e "${GREEN}✓ CloudXR Web SDK installed successfully${NC}"
     echo ""

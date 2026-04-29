@@ -9,8 +9,8 @@
 #
 # Three ways to obtain the SDK (tried in order):
 # 1) Local tarball: place CloudXR-<VERSION>-Linux-<ARCH>-sdk.tar.gz in deps/cloudxr/.
-# 2) Public NGC: downloads via wget from the public NGC resource API (no NGC CLI needed).
-# 3) Private NGC: requires ngc CLI; downloads from private NGC org.
+# 2) Public NGC: downloads via curl from the public NGC resource API.
+# 3) Private NGC: downloads via curl from the private NGC resource API; requires NGC_API_KEY.
 
 set -Eeuo pipefail
 
@@ -79,14 +79,14 @@ install_from_local_tarball() {
 }
 
 # -----------------------------------------------------------------------------
-# Public NGC: download via wget from the public NGC resource API
+# Public NGC: download via curl from the public NGC resource API
 # Resource: nvidia/cloudxr-runtime-for-isaac-teleop/${CXR_RUNTIME_SDK_VERSION}
 # -----------------------------------------------------------------------------
 install_from_public_ngc() {
     local NGC_URL="https://api.ngc.nvidia.com/v2/resources/org/nvidia/cloudxr-runtime-for-isaac-teleop/${CXR_RUNTIME_SDK_VERSION}/files?redirect=true&path=${SDK_FILE}"
 
-    if ! command -v wget &> /dev/null; then
-        echo -e "${RED}Error: wget not found. Please install it first.${NC}"
+    if ! command -v curl &> /dev/null; then
+        echo -e "${RED}Error: curl not found. Please install it first.${NC}"
         echo -e "To use a local SDK instead, place $SDK_FILE in deps/cloudxr/"
         return 1
     fi
@@ -99,8 +99,8 @@ install_from_public_ngc() {
     mkdir -p "$CXR_DEPLOYMENT_DIR"
 
     echo -e "${YELLOW}Downloading CloudXR Runtime SDK from NGC...${NC}"
-    if ! wget --content-disposition \
-        --output-document "$CXR_DEPLOYMENT_DIR/$SDK_FILE" \
+    if ! curl --fail --location \
+        --output "$CXR_DEPLOYMENT_DIR/$SDK_FILE" \
         "$NGC_URL"; then
         echo -e "${RED}Error: Failed to download CloudXR Runtime SDK from NGC${NC}"
         rm -f "$CXR_DEPLOYMENT_DIR/$SDK_FILE"
@@ -112,34 +112,45 @@ install_from_public_ngc() {
 }
 
 # -----------------------------------------------------------------------------
-# NGC: resource path and download/install logic
-# Resource: 0566138804516934/cloudxr-dev/cloudxr-runtime-binary:${NGC_VERSION}
+# Private NGC: download via curl from the private NGC resource API
+# Resource: 0566138804516934/cloudxr-dev/cloudxr-runtime-binary:${VERSION}-public
+# Requires NGC_API_KEY for Bearer-token auth.
 # -----------------------------------------------------------------------------
 install_from_private_ngc() {
     local NGC_ORG="0566138804516934"
+    local NGC_TEAM="cloudxr-dev"
+    local NGC_RESOURCE="cloudxr-runtime-binary"
     local NGC_VERSION="${CXR_RUNTIME_SDK_VERSION}-public"
     local NGC_SDK_FILE="CloudXR-external-${CXR_RUNTIME_SDK_VERSION}-Linux-${ARCH}-sdk.tar.gz"
-    local SDK_RESOURCE="${NGC_ORG}/cloudxr-dev/cloudxr-runtime-binary:${NGC_VERSION}"
-    local SDK_DOWNLOAD_DIR="$GIT_ROOT/deps/cloudxr/.sdk-download"
-    local DOWNLOADED_TAR_BALL="$SDK_DOWNLOAD_DIR/cloudxr-runtime-binary_v${NGC_VERSION}/$NGC_SDK_FILE"
+    local NGC_URL="https://api.ngc.nvidia.com/v2/org/${NGC_ORG}/team/${NGC_TEAM}/resources/${NGC_RESOURCE}/versions/${NGC_VERSION}/files/${NGC_SDK_FILE}"
 
-    mkdir -p "$SDK_DOWNLOAD_DIR"
-
-    echo -e "${YELLOW}[1/2] Downloading CloudXR Runtime SDK from NGC...${NC}"
-    cd "$SDK_DOWNLOAD_DIR"
-    ngc registry resource download-version \
-        --org "$NGC_ORG" \
-        --team no-team \
-        --file "$NGC_SDK_FILE" \
-        "$SDK_RESOURCE"
-
-    if [ ! -f "$DOWNLOADED_TAR_BALL" ]; then
-        echo -e "${RED}Error: Expected $DOWNLOADED_TAR_BALL not found${NC}"
+    if [ -z "${NGC_API_KEY:-}" ]; then
+        echo -e "${RED}Error: NGC_API_KEY is not set; cannot download from private NGC${NC}"
         return 1
     fi
 
-    echo -e "${YELLOW}[2/2] Installing SDK to deps/cloudxr/...${NC}"
-    mv "$DOWNLOADED_TAR_BALL" "$CXR_DEPLOYMENT_DIR/$SDK_FILE"
+    if ! command -v curl &> /dev/null; then
+        echo -e "${RED}Error: curl not found. Please install it first.${NC}"
+        return 1
+    fi
+
+    echo -e "${GREEN}=================================================${NC}"
+    echo -e "${GREEN}Downloading CloudXR Runtime SDK from private NGC${NC}"
+    echo -e "${GREEN}=================================================${NC}"
+    echo ""
+
+    mkdir -p "$CXR_DEPLOYMENT_DIR"
+
+    echo -e "${YELLOW}Downloading CloudXR Runtime SDK from private NGC...${NC}"
+    if ! curl --fail --location \
+        -H "Authorization: Bearer $NGC_API_KEY" \
+        -H "Content-Type: application/json" \
+        --output "$CXR_DEPLOYMENT_DIR/$SDK_FILE" \
+        "$NGC_URL"; then
+        echo -e "${RED}Error: Failed to download CloudXR Runtime SDK from private NGC${NC}"
+        rm -f "$CXR_DEPLOYMENT_DIR/$SDK_FILE"
+        return 1
+    fi
 
     echo -e "${GREEN}✓ CloudXR Runtime SDK installed successfully${NC}"
     echo ""

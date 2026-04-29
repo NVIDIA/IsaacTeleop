@@ -50,7 +50,7 @@ jobs:
       id: cloudxr-sdk
       uses: ./.github/actions/setup-cloudxr-sdk
       with:
-        ngc-cli-api-key: ${{ secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY }}
+        ngc-api-key: ${{ secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY }}
 
     # Hunter cache - caches depthai dependencies (OpenSSL, CURL, etc.)
     - name: Cache Hunter packages
