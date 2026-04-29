@@ -22,13 +22,13 @@ from isaacteleop.cloudxr.oob_teleop_adb import (
     require_headset_non_loopback_network,
 )
 from isaacteleop.cloudxr.oob_teleop_env import (
-    USB_BACKEND_PORT,
     USB_HOST,
-    USB_TURN_PORT,
-    USB_UI_PORT,
     WSS_PROXY_DEFAULT_PORT,
     print_oob_hub_startup_banner,
     resolve_lan_host_for_oob,
+    usb_backend_port,
+    usb_turn_port,
+    usb_ui_port,
 )
 
 
@@ -74,8 +74,10 @@ def _parse_args() -> argparse.Namespace:
             "(127.0.0.1) via adb reverse.  Requires --setup-oob.  Orchestrates "
             "adb reverse for WSS proxy "
             f"({WSS_PROXY_DEFAULT_PORT}/tcp), CloudXR backend "
-            f"({USB_BACKEND_PORT}/tcp), coturn ({USB_TURN_PORT}/tcp), and "
-            f"HTTPS static WebXR UI on port {USB_UI_PORT}.  Files live under "
+            f"({usb_backend_port()}/tcp; override via USB_BACKEND_PORT env), "
+            f"coturn ({usb_turn_port()}/tcp; override via USB_TURN_PORT env), "
+            f"and HTTPS static WebXR UI on port {usb_ui_port()} "
+            "(override via USB_UI_PORT env).  Files live under "
             "TELEOP_WEB_CLIENT_STATIC_DIR or ~/.cloudxr/static-client; missing "
             "index.html / bundle.js are downloaded from nvidia.github.io/IsaacTeleop/client/.  "
             "The launcher serves them with the same PEM as the WSS proxy.  "

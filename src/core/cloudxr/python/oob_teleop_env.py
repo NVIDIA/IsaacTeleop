@@ -46,13 +46,15 @@ CHROME_INSPECT_DEVICES_URL = "chrome://inspect/#devices"
 # "USB-local" means: the headset reaches the PC over loopback (127.0.0.1) via
 # ``adb reverse``.  Static assets live under ``TELEOP_WEB_CLIENT_STATIC_DIR`` or
 # default ``~/.cloudxr/static-client`` (downloaded from NVIDIA GitHub Pages if missing).
-# Python serves them over HTTPS on :USB_UI_PORT with the same PEM as the WSS proxy.
+# Python serves them over HTTPS on the resolved USB UI port (:func:`usb_ui_port`,
+# default 8080; override via the ``USB_UI_PORT`` env var) with the same PEM as
+# the WSS proxy.
 # ---------------------------------------------------------------------------
 
 USB_HOST = "127.0.0.1"  # serverIP seen by the headset (its own localhost)
-USB_UI_PORT = 8080  # HTTPS static WebXR UI (loopback)
-USB_BACKEND_PORT = 49100  # CloudXR backend (native client direct connection)
-USB_TURN_PORT = 3478  # coturn TURN server port (adb reverse'd to headset)
+USB_UI_DEFAULT_PORT = 8080  # HTTPS static WebXR UI (loopback)
+USB_BACKEND_DEFAULT_PORT = 49100  # CloudXR backend (webrtc client direct connection)
+USB_TURN_DEFAULT_PORT = 3478  # coturn TURN server port (adb reverse'd to headset)
 USB_TURN_USER = "cloudxr"  # TURN username
 USB_TURN_CREDENTIAL = "cloudxrpass"  # TURN credential
 
@@ -200,10 +202,16 @@ def start_usb_local_https_server(
     *,
     cert_file: Path,
     key_file: Path,
-    port: int = USB_UI_PORT,
+    port: int | None = None,
     ready_timeout: float = 15.0,
 ) -> tuple[threading.Thread, http.server.ThreadingHTTPServer]:
-    """Serve *static_root* over HTTPS on loopback using the same PEM as the WSS proxy."""
+    """Serve *static_root* over HTTPS on loopback using the same PEM as the WSS proxy.
+
+    When *port* is ``None`` (the default) the bind port is resolved via
+    :func:`usb_ui_port` (env-overridable through ``USB_UI_PORT``).
+    """
+    if port is None:
+        port = usb_ui_port()
     handler_cls = _usb_local_static_handler_class(static_root)
     httpd = http.server.ThreadingHTTPServer(("127.0.0.1", port), handler_cls)
     httpd.daemon_threads = True
@@ -275,6 +283,48 @@ def wss_proxy_port() -> int:
     if raw:
         return parse_env_port("PROXY_PORT", raw)
     return WSS_PROXY_DEFAULT_PORT
+
+
+def usb_ui_port() -> int:
+    """TCP port for the USB-local WebXR static HTTPS server.
+
+    Reads the ``USB_UI_PORT`` environment variable if set, else falls back to
+    :data:`USB_UI_DEFAULT_PORT` (8080).  Override this when something else on
+    the host needs port 8080 (e.g. a Viser/Meshcat viewer running alongside).
+    """
+    raw = os.environ.get("USB_UI_PORT", "").strip()
+    if raw:
+        return parse_env_port("USB_UI_PORT", raw)
+    return USB_UI_DEFAULT_PORT
+
+
+def usb_backend_port() -> int:
+    """TCP port for the USB-local CloudXR backend (native client direct connection).
+
+    Reads the ``USB_BACKEND_PORT`` environment variable if set, else falls
+    back to :data:`USB_BACKEND_DEFAULT_PORT` (49100).  This port is exposed
+    to the headset via ``adb reverse``; override only when a host process
+    already owns 49100.
+    """
+    raw = os.environ.get("USB_BACKEND_PORT", "").strip()
+    if raw:
+        return parse_env_port("USB_BACKEND_PORT", raw)
+    return USB_BACKEND_DEFAULT_PORT
+
+
+def usb_turn_port() -> int:
+    """TCP/UDP port for the USB-local coturn TURN server.
+
+    Reads the ``USB_TURN_PORT`` environment variable if set, else falls back
+    to :data:`USB_TURN_DEFAULT_PORT` (3478).  coturn binds this on
+    127.0.0.1 and ``adb reverse`` exposes it to the headset for WebRTC
+    ICE relay.  Override only when 3478 is occupied (e.g. by a system
+    coturn that wasn't masked).
+    """
+    raw = os.environ.get("USB_TURN_PORT", "").strip()
+    if raw:
+        return parse_env_port("USB_TURN_PORT", raw)
+    return USB_TURN_DEFAULT_PORT
 
 
 def guess_lan_ipv4() -> str | None:
@@ -390,6 +440,9 @@ def print_oob_hub_startup_banner(
             on loopback; WebXR UI from ``TELEOP_WEB_CLIENT_STATIC_DIR`` (HTTPS, same PEM as WSS).
     """
     port = wss_proxy_port()
+    ui_port = usb_ui_port()
+    backend_port = usb_backend_port()
+    turn_port = usb_turn_port()
     token = os.environ.get("CONTROL_TOKEN") or None
 
     if not lan_host:
@@ -399,7 +452,7 @@ def print_oob_hub_startup_banner(
     if usb_local:
         web_base = (
             os.environ.get("TELEOP_WEB_CLIENT_BASE", "").strip()
-            or f"https://localhost:{USB_UI_PORT}"
+            or f"https://localhost:{ui_port}"
         )
     else:
         web_base = DEFAULT_WEB_CLIENT_ORIGIN
@@ -409,7 +462,7 @@ def print_oob_hub_startup_banner(
         # No mediaAddress: it's a NAT-override that bypasses ICE and would
         # short-circuit the TURN-relayed media path. Let the SDK discover
         # the media endpoint through ICE via coturn.
-        stream_cfg["turnServer"] = f"turn:{USB_HOST}:{USB_TURN_PORT}?transport=tcp"
+        stream_cfg["turnServer"] = f"turn:{USB_HOST}:{turn_port}?transport=tcp"
         stream_cfg["turnUsername"] = USB_TURN_USER
         stream_cfg["turnCredential"] = USB_TURN_CREDENTIAL
         stream_cfg["iceRelayOnly"] = True
@@ -447,10 +500,10 @@ def print_oob_hub_startup_banner(
     if usb_local:
         print(
             "  USB-local mode: adb reverse active for ports "
-            f"{USB_UI_PORT}/tcp (WebXR static UI — HTTPS), "
+            f"{ui_port}/tcp (WebXR static UI — HTTPS), "
             f"{port}/tcp (WSS), "
-            f"{USB_BACKEND_PORT}/tcp (backend), "
-            f"{USB_TURN_PORT}/tcp (TURN relay — coturn)."
+            f"{backend_port}/tcp (backend), "
+            f"{turn_port}/tcp (TURN relay — coturn)."
         )
         print(
             "  The launcher has started the WebXR static HTTPS server + coturn automatically "

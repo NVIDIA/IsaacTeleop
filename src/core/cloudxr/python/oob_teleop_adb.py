@@ -314,10 +314,10 @@ def build_teleop_url(*, resolved_port: int, usb_local: bool = False) -> str:
     if usb_local:
         from .oob_teleop_env import (  # noqa: PLC0415
             USB_HOST,
-            USB_UI_PORT,
-            USB_TURN_PORT,
             USB_TURN_USER,
             USB_TURN_CREDENTIAL,
+            usb_turn_port,
+            usb_ui_port,
         )
 
         stream_cfg: dict = {
@@ -326,14 +326,14 @@ def build_teleop_url(*, resolved_port: int, usb_local: bool = False) -> str:
             # No mediaAddress: it's a NAT-override that bypasses ICE and would
             # short-circuit the TURN-relayed media path. Let the SDK discover
             # the media endpoint through ICE via coturn.
-            "turnServer": f"turn:{USB_HOST}:{USB_TURN_PORT}?transport=tcp",
+            "turnServer": f"turn:{USB_HOST}:{usb_turn_port()}?transport=tcp",
             "turnUsername": USB_TURN_USER,
             "turnCredential": USB_TURN_CREDENTIAL,
             "iceRelayOnly": True,
             **client_ui_fields_from_env(),
         }
         ovr = web_client_base_override_from_env()
-        web_base = ovr if ovr else f"https://localhost:{USB_UI_PORT}"
+        web_base = ovr if ovr else f"https://localhost:{usb_ui_port()}"
     else:
         stream_cfg = {
             "serverIP": resolve_lan_host_for_oob(),
@@ -502,18 +502,21 @@ def setup_adb_reverse_ports() -> None:
     Reverse-maps headset loopback ports to the PC so the headset can reach
     the WebXR static HTTPS server, WSS proxy, and CloudXR backend over USB.
 
-    Ports reversed: :data:`~.oob_teleop_env.USB_UI_PORT` (8080, the static
-    HTTPS server started by
-    :func:`~.oob_teleop_env.start_usb_local_https_server`), the WSS proxy
-    port (resolved via :func:`~.oob_teleop_env.wss_proxy_port`), and
-    :data:`~.oob_teleop_env.USB_BACKEND_PORT` (49100).
+    Ports reversed: the USB UI port (resolved via
+    :func:`~.oob_teleop_env.usb_ui_port`, default 8080; override via the
+    ``USB_UI_PORT`` env var) — the static HTTPS server started by
+    :func:`~.oob_teleop_env.start_usb_local_https_server` — the WSS proxy
+    port (resolved via :func:`~.oob_teleop_env.wss_proxy_port`), and the
+    CloudXR backend port (resolved via
+    :func:`~.oob_teleop_env.usb_backend_port`, default 49100; override via
+    the ``USB_BACKEND_PORT`` env var).
 
     Raises:
         subprocess.CalledProcessError: If any ``adb reverse`` call fails.
     """
-    from .oob_teleop_env import USB_UI_PORT, USB_BACKEND_PORT, wss_proxy_port  # noqa: PLC0415
+    from .oob_teleop_env import usb_backend_port, usb_ui_port, wss_proxy_port  # noqa: PLC0415
 
-    ports = [USB_UI_PORT, wss_proxy_port(), USB_BACKEND_PORT]
+    ports = [usb_ui_port(), wss_proxy_port(), usb_backend_port()]
     for port in ports:
         subprocess.run(
             ["adb", "reverse", f"tcp:{port}", f"tcp:{port}"],
@@ -527,9 +530,9 @@ def setup_adb_reverse_ports() -> None:
 
 def teardown_adb_reverse_ports() -> None:
     """Remove the ``adb reverse`` rules set by :func:`setup_adb_reverse_ports`."""
-    from .oob_teleop_env import USB_UI_PORT, USB_BACKEND_PORT, wss_proxy_port  # noqa: PLC0415
+    from .oob_teleop_env import usb_backend_port, usb_ui_port, wss_proxy_port  # noqa: PLC0415
 
-    ports = [USB_UI_PORT, wss_proxy_port(), USB_BACKEND_PORT]
+    ports = [usb_ui_port(), wss_proxy_port(), usb_backend_port()]
     for port in ports:
         subprocess.run(
             ["adb", "reverse", "--remove", f"tcp:{port}"],
@@ -610,7 +613,9 @@ def start_coturn(turn_port: int, user: str, credential: str) -> subprocess.Popen
     headset (via adb reverse) and the CloudXR backend (UDP on PC loopback).
 
     Args:
-        turn_port: TCP/UDP port for coturn (default :data:`~.oob_teleop_env.USB_TURN_PORT`).
+        turn_port: TCP/UDP port for coturn (resolved via
+            :func:`~.oob_teleop_env.usb_turn_port`, default 3478; override via
+            the ``USB_TURN_PORT`` env var).
         user: TURN username.
         credential: TURN credential (password).
 

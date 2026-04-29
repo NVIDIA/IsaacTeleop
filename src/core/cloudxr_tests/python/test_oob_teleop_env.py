@@ -13,6 +13,9 @@ import pytest
 from cloudxr_py_test_ns.oob_teleop_env import (
     TELEOP_WEB_CLIENT_BASE_ENV,
     TELEOP_WEB_CLIENT_STATIC_DIR_ENV,
+    USB_BACKEND_DEFAULT_PORT,
+    USB_TURN_DEFAULT_PORT,
+    USB_UI_DEFAULT_PORT,
     WSS_PROXY_DEFAULT_PORT,
     build_headset_bookmark_url,
     client_ui_fields_from_env,
@@ -21,6 +24,9 @@ from cloudxr_py_test_ns.oob_teleop_env import (
     print_oob_hub_startup_banner,
     require_usb_local_webxr_static_dir,
     resolve_lan_host_for_oob,
+    usb_backend_port,
+    usb_turn_port,
+    usb_ui_port,
     web_client_base_override_from_env,
     wss_proxy_port,
 )
@@ -31,6 +37,9 @@ from cloudxr_py_test_ns.oob_teleop_hub import OOB_WS_PATH
 def clear_teleop_env(monkeypatch: pytest.MonkeyPatch) -> None:
     keys = (
         "PROXY_PORT",
+        "USB_UI_PORT",
+        "USB_BACKEND_PORT",
+        "USB_TURN_PORT",
         "TELEOP_STREAM_SERVER_IP",
         "TELEOP_STREAM_PORT",
         "TELEOP_CLIENT_CODEC",
@@ -53,6 +62,63 @@ def test_wss_proxy_port_from_env(
 ) -> None:
     monkeypatch.setenv("PROXY_PORT", "50000")
     assert wss_proxy_port() == 50000
+
+
+def test_usb_ui_port_default(clear_teleop_env: None) -> None:
+    assert usb_ui_port() == USB_UI_DEFAULT_PORT
+
+
+def test_usb_ui_port_from_env(
+    clear_teleop_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("USB_UI_PORT", "8081")
+    assert usb_ui_port() == 8081
+
+
+def test_usb_ui_port_invalid_env_raises(
+    clear_teleop_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("USB_UI_PORT", "not-a-port")
+    with pytest.raises(ValueError, match="USB_UI_PORT"):
+        usb_ui_port()
+
+
+def test_usb_backend_port_default(clear_teleop_env: None) -> None:
+    assert usb_backend_port() == USB_BACKEND_DEFAULT_PORT
+
+
+def test_usb_backend_port_from_env(
+    clear_teleop_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("USB_BACKEND_PORT", "49200")
+    assert usb_backend_port() == 49200
+
+
+def test_usb_backend_port_invalid_env_raises(
+    clear_teleop_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("USB_BACKEND_PORT", "not-a-port")
+    with pytest.raises(ValueError, match="USB_BACKEND_PORT"):
+        usb_backend_port()
+
+
+def test_usb_turn_port_default(clear_teleop_env: None) -> None:
+    assert usb_turn_port() == USB_TURN_DEFAULT_PORT
+
+
+def test_usb_turn_port_from_env(
+    clear_teleop_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("USB_TURN_PORT", "5349")
+    assert usb_turn_port() == 5349
+
+
+def test_usb_turn_port_invalid_env_raises(
+    clear_teleop_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("USB_TURN_PORT", "not-a-port")
+    with pytest.raises(ValueError, match="USB_TURN_PORT"):
+        usb_turn_port()
 
 
 def test_web_client_base_override_from_env(

@@ -534,24 +534,32 @@ async def run(
             log.info("WSS proxy listening on port %d", resolved_port)
 
             # ------------------------------------------------------------------
-            # USB-local: HTTPS static client (:oob_teleop_env.USB_UI_PORT) +
-            # adb reverse (WSS / backend / TURN) + coturn. Assets are ensured in
+            # USB-local: HTTPS static client (:func:`oob_teleop_env.usb_ui_port`,
+            # default 8080; override via ``USB_UI_PORT`` env) + adb reverse
+            # (WSS / backend / TURN) + coturn. Assets are ensured in
             # require_usb_local_webxr_static_dir (also called from launcher).
             # ------------------------------------------------------------------
             _usb_coturn_proc = None
             _usb_https_thread = None
             _usb_https_httpd = None
+            _usb_turn_port_resolved: int | None = None
 
             if usb_local:
                 from .oob_teleop_env import (  # noqa: PLC0415
-                    USB_TURN_PORT,
                     USB_TURN_USER,
                     USB_TURN_CREDENTIAL,
-                    USB_UI_PORT,
                     require_usb_local_webxr_static_dir,
                     start_usb_local_https_server,
                     stop_usb_local_https_server,
+                    usb_turn_port,
+                    usb_ui_port,
                 )
+
+                # Resolve once so the coturn bind, adb reverse, and shutdown
+                # paths all agree (env vars are read at process start; pinning
+                # to a local also avoids re-reading on the cleanup path after
+                # the env may have been mutated).
+                _usb_turn_port_resolved = usb_turn_port()
                 from .oob_teleop_adb import (  # noqa: PLC0415
                     setup_adb_reverse_ports,
                     teardown_adb_reverse_ports,
@@ -566,7 +574,7 @@ async def run(
                     static_root,
                     cert_file=cert_paths.cert_file,
                     key_file=cert_paths.key_file,
-                    port=USB_UI_PORT,
+                    port=usb_ui_port(),
                 )
 
                 # 2. adb reverse for TCP ports (WebXR UI, WSS proxy, backend)
@@ -582,7 +590,7 @@ async def run(
 
                 # 3. coturn TURN server (ICE relay required for WebRTC)
                 _usb_coturn_proc = start_coturn(
-                    USB_TURN_PORT, USB_TURN_USER, USB_TURN_CREDENTIAL
+                    _usb_turn_port_resolved, USB_TURN_USER, USB_TURN_CREDENTIAL
                 )
                 if _usb_coturn_proc is None:
                     print(
@@ -593,9 +601,10 @@ async def run(
 
                 # 4. adb reverse for TURN port (headset → PC coturn)
                 try:
-                    setup_adb_reverse_turn(USB_TURN_PORT)
+                    setup_adb_reverse_turn(_usb_turn_port_resolved)
                     log.info(
-                        "USB-local: adb reverse TURN active (port %d)", USB_TURN_PORT
+                        "USB-local: adb reverse TURN active (port %d)",
+                        _usb_turn_port_resolved,
                     )
                 except subprocess.CalledProcessError as exc:
                     log.warning("USB-local: adb reverse TURN setup failed: %s", exc)
@@ -631,7 +640,8 @@ async def run(
                         pass
                 if usb_local:
                     stop_coturn(_usb_coturn_proc)
-                    teardown_adb_reverse_turn(USB_TURN_PORT)
+                    if _usb_turn_port_resolved is not None:
+                        teardown_adb_reverse_turn(_usb_turn_port_resolved)
                     teardown_adb_reverse_ports()
                     stop_usb_local_https_server(_usb_https_thread, _usb_https_httpd)
                     log.info("USB-local: cleanup complete")

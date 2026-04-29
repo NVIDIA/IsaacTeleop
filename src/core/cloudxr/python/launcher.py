@@ -93,14 +93,13 @@ class CloudXRLauncher:
                 does not exist, the user is prompted on stdin.
             setup_oob: Enable the OOB teleop control hub and USB
                 adb automation in the WSS proxy.
-            usb_local: Route teleop traffic over USB on headset loopback
-                via ``adb reverse`` (requires *setup_oob*).  Sets up
-                ``adb reverse`` for WSS proxy, CloudXR backend, and
-                coturn TURN ports, and starts coturn locally for WebRTC
-                ICE relay.  WebXR static files use ``TELEOP_WEB_CLIENT_STATIC_DIR`` or
-                ``~/.cloudxr/static-client``; missing ``index.html`` / ``bundle.js`` are
-                fetched from GitHub Pages.  Python serves them over HTTPS on port 8080
-                with the same PEM as the WSS proxy.
+            usb_local: Route teleop traffic over USB headset loopback via
+                ``adb reverse`` (requires *setup_oob*); also starts coturn
+                for WebRTC ICE relay and serves WebXR static files
+                (``TELEOP_WEB_CLIENT_STATIC_DIR`` or ``~/.cloudxr/static-client``,
+                fetched from GitHub Pages if missing) over HTTPS.  Ports
+                are overridable via ``USB_UI_PORT`` / ``USB_BACKEND_PORT``
+                / ``USB_TURN_PORT``.
 
         Raises:
             RuntimeError: If the EULA is not accepted or the runtime
