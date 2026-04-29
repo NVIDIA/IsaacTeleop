@@ -204,6 +204,11 @@ jobs:
         # job already covered [unit] tests on a CPU-only runner; here we focus
         # on the GPU paths that genuinely need Vulkan/CUDA at runtime.
         #
+        # --allow-running-no-tests makes "no [gpu] tests in this binary" a
+        # success rather than a Catch2 exit-code-2 failure. Some binaries
+        # (e.g. viz_layers_tests today) only have [unit] tests; that's
+        # expected, not a regression.
+        #
         # We retry once on failure: the self-hosted GPU runner is shared with
         # test-cloudxr / test-teleop-ros2, and concurrent Vulkan/CUDA usage
         # can transiently make vkEnumeratePhysicalDevices return no suitable
@@ -211,12 +216,12 @@ jobs:
         # without masking real regressions (a true bug would fail twice).
         run_one() {
           local bin=$1
-          if ./"${bin}" "[gpu]" --reporter compact; then
+          if ./"${bin}" "[gpu]" --reporter compact --allow-running-no-tests; then
             return 0
           fi
           echo "::warning::${bin} [gpu] failed on first attempt; retrying after 5s"
           sleep 5
-          ./"${bin}" "[gpu]" --reporter compact
+          ./"${bin}" "[gpu]" --reporter compact --allow-running-no-tests
         }
         failures=0
         for test_bin in viz_*_tests; do
