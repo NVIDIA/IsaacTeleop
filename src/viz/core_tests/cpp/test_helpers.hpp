@@ -8,6 +8,7 @@
 #include <vulkan/vulkan.h>
 
 #include <cstdint>
+#include <cstdlib>
 
 namespace viz::testing
 {
@@ -47,10 +48,11 @@ inline viz::VkContext*& shared_vk_context_ptr() noexcept
 // one VkContext across [gpu] tests keeps us under the threshold.
 // Callers must check is_gpu_available() first.
 //
-// Lifetime is managed by main() (see test_main.cpp): created lazily on
-// first use, explicitly destroyed via shutdown_shared_vk_context() after
-// Catch2's run finishes — never via static destruction, which races the
-// Vulkan loader teardown and NVIDIA driver background threads at exit.
+// Cleanup is done via std::atexit registered on first init, NOT via a
+// static destructor — atexit runs in LIFO order before any shared
+// library is unloaded, so vkDestroyInstance fires while the Vulkan
+// loader and NVIDIA driver are still fully alive. Static destruction
+// order races them and segfaults intermittently at process exit.
 inline viz::VkContext& shared_vk_context()
 {
     auto*& ptr = detail::shared_vk_context_ptr();
@@ -58,17 +60,15 @@ inline viz::VkContext& shared_vk_context()
     {
         ptr = new viz::VkContext();
         ptr->init(viz::VkContext::Config{});
+        std::atexit(
+            []() noexcept
+            {
+                auto*& p = detail::shared_vk_context_ptr();
+                delete p;
+                p = nullptr;
+            });
     }
     return *ptr;
-}
-
-// Tear down the shared VkContext if it was created. Called from main()
-// after Catch2's session ends. Idempotent and noexcept.
-inline void shutdown_shared_vk_context() noexcept
-{
-    auto*& ptr = detail::shared_vk_context_ptr();
-    delete ptr;
-    ptr = nullptr;
 }
 
 // Catch2 fixture exposing the shared VkContext as `vk`. Skips on
