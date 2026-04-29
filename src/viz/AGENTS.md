@@ -97,6 +97,38 @@ When `BUILD_VIZ=ON` you must have Vulkan headers + loader installed:
   selection.
 - GPU tests **must** use `GpuFixture` or call `is_gpu_available()` and
   `SKIP()` if false. Never assume a GPU is present.
+
+### Required test patterns
+
+Beyond happy-path coverage, every new feature MUST add tests for:
+
+1. **Invalid input rejection** — assert public APIs throw on bad config
+   (zero dimensions, uninitialized dependencies, unsupported modes)
+   *before* any resource is allocated. Helps catch the
+   "validate-then-allocate" failure mode.
+2. **State-machine invariants** — for any class with implicit state
+   (begin/end pairs, init/destroy lifecycles, lock/unlock), explicitly
+   test every invalid transition: double-begin, end-without-begin,
+   destroy-then-use, etc. Expect throw, no silent no-op (no-op masks
+   real bugs in caller code).
+3. **Exception recovery** — for any per-frame / per-iteration loop
+   that includes user code (layer record(), callbacks), inject an
+   exception via `viz::testing::ThrowingLayer` (or equivalent) and
+   verify the *next* call still works. Catches fence-deadlock,
+   leaked-flag, and partial-state bugs that only surface on retry.
+4. **Idempotent destroy** — `destroy()` / cleanup methods must be
+   safe to call twice (and after partial init failure). Test it.
+
+### Test fixtures
+
+Test-only `LayerBase` subclasses and helpers live in
+`viz/layers_tests/cpp/inc/viz/layers/testing/` and ship via the
+`viz::layers_testing` static library. Other test executables link
+that library to compose fixtures. Today:
+- `ClearRectLayer` — paints a rect via `vkCmdClearAttachments` (no
+  shaders); used to verify compositor dispatch produces real pixels.
+- `ThrowingLayer` — throws from `record()` on a configurable schedule;
+  used for exception-recovery tests.
 - Test files live alongside the code they test, in
   `<sub-module>_tests/cpp/`. One executable per sub-module
   (`viz_core_tests`, `viz_layers_tests`, ...). Do **not** dump tests

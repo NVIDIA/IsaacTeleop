@@ -15,14 +15,17 @@
 #include <viz/core/host_image.hpp>
 #include <viz/core/vk_context.hpp>
 #include <viz/layers/testing/clear_rect_layer.hpp>
+#include <viz/layers/testing/throwing_layer.hpp>
 #include <viz/session/viz_session.hpp>
 
 #include <cstdint>
+#include <stdexcept>
 
 using viz::DisplayMode;
 using viz::HostImage;
 using viz::VizSession;
 using viz::testing::ClearRectLayer;
+using viz::testing::ThrowingLayer;
 
 namespace
 {
@@ -195,6 +198,79 @@ TEST_CASE("Multiple frames advance frame_index and avoid leaking sync state", "[
         const auto info = session->render();
         CHECK(info.frame_index == i);
     }
+}
+
+TEST_CASE("Session recovers from a layer that throws and renders the next frame", "[gpu][viz_session]")
+{
+    if (!gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
+
+    constexpr uint32_t kSide = 32;
+
+    VizSession::Config cfg{};
+    cfg.window_width = kSide;
+    cfg.window_height = kSide;
+    cfg.clear_color[0] = 0.0f;
+    cfg.clear_color[1] = 0.0f;
+    cfg.clear_color[2] = 1.0f; // blue
+    cfg.clear_color[3] = 1.0f;
+
+    auto session = VizSession::create(cfg);
+    auto* thrower = session->add_layer<ThrowingLayer>(ThrowingLayer::Config{ 0, "boom" });
+
+    // First render: layer throws, render() should propagate but leave
+    // the session usable. If the fence reset happens before this throw
+    // (the bug we fixed), the next render() would deadlock on wait().
+    CHECK_THROWS_AS(session->render(), std::runtime_error);
+    CHECK(thrower->call_count() == 1);
+
+    // Disable the throwing layer and render again. Must NOT deadlock
+    // and must produce the configured clear color.
+    thrower->set_visible(false);
+    CHECK_NOTHROW(session->render());
+
+    auto image = session->readback_to_host();
+    const uint8_t* center = image.data() + (kSide * (kSide / 2) + kSide / 2) * 4;
+    CHECK(center[0] == 0); // R
+    CHECK(center[1] == 0); // G
+    CHECK(center[2] == 255); // B (blue)
+    CHECK(center[3] == 255); // A
+}
+
+TEST_CASE("Layer that throws does not corrupt the layer registry", "[gpu][viz_session]")
+{
+    if (!gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
+
+    VizSession::Config cfg{};
+    cfg.window_width = 32;
+    cfg.window_height = 32;
+    auto session = VizSession::create(cfg);
+
+    // Three layers; the middle one throws on the 2nd record() call.
+    auto* a = session->add_layer<ClearRectLayer>(ClearRectLayer::Config{ 0, 0, 32, 32, { 1, 0, 0, 1 }, "A" });
+    auto* mid = session->add_layer<ThrowingLayer>(ThrowingLayer::Config{ 1, "mid-boom", "M" });
+    auto* c = session->add_layer<ClearRectLayer>(ClearRectLayer::Config{ 0, 0, 32, 32, { 0, 1, 0, 1 }, "C" });
+    REQUIRE(a != nullptr);
+    REQUIRE(mid != nullptr);
+    REQUIRE(c != nullptr);
+
+    // First frame: all three layers run successfully (M's throw_after = 1).
+    CHECK_NOTHROW(session->render());
+    CHECK(mid->call_count() == 1);
+
+    // Second frame: M throws. Session is still usable; remove M.
+    CHECK_THROWS_AS(session->render(), std::runtime_error);
+    CHECK(mid->call_count() == 2);
+
+    session->remove_layer(mid);
+
+    // Third frame: A and C remain, no throw, no deadlock.
+    CHECK_NOTHROW(session->render());
 }
 
 TEST_CASE("begin_frame / end_frame must be paired", "[gpu][viz_session]")

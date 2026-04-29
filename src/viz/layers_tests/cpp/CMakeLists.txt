@@ -9,6 +9,7 @@ cmake_minimum_required(VERSION 3.20)
 add_library(viz_layers_testing STATIC
     clear_rect_layer.cpp
     inc/viz/layers/testing/clear_rect_layer.hpp
+    inc/viz/layers/testing/throwing_layer.hpp
 )
 
 target_include_directories(viz_layers_testing
@@ -27,6 +28,7 @@ add_library(viz::layers_testing ALIAS viz_layers_testing)
 # Test executable for the layers_testing fixtures themselves.
 add_executable(viz_layers_tests
     test_clear_rect_layer.cpp
+    test_throwing_layer.cpp
 )
 
 target_link_libraries(viz_layers_tests PRIVATE
