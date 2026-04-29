@@ -11,23 +11,6 @@
 namespace viz
 {
 
-// Lifecycle states for a VizSession. The full set covers XR; window /
-// offscreen modes only transition through:
-//   kUninitialized -> kReady -> kRunning -> kDestroyed
-//
-// XR adds kStopping (session stopping per OpenXR runtime) and kLost
-// (session lost — must destroy and recreate). See the design doc for the
-// full OpenXR-state-to-VizSession-state mapping.
-enum class SessionState
-{
-    kUninitialized, // Before create()
-    kReady, // Vulkan + display initialized; layers can be added
-    kRunning, // Frame loop active
-    kStopping, // XR only: session is stopping; end_frame submits empty
-    kLost, // XR only: session lost; must destroy and recreate
-    kDestroyed, // After destroy(); no operations valid
-};
-
 // Per-frame state surfaced to the caller of render() / begin_frame().
 // Layers should not depend on this directly — it's plumbing for the
 // application's frame loop (logging, stale-content detection, XR pose
