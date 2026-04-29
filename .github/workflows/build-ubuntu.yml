@@ -233,13 +233,19 @@ jobs:
         fi
 
   test-cloudxr:
-    runs-on: [self-hosted, linux, gpu, "${{ matrix.arch }}"]
+    runs-on:
+      - "${{ matrix.runner_label }}"
     needs: build-ubuntu
 
     strategy:
       matrix:
         python_version: ['3.10', '3.11', '3.12', '3.13']
         arch: ['x64', 'arm64']
+        include:
+          - arch: x64
+            runner_label: linux-amd64-gpu-l4-latest-1
+          - arch: arm64
+            runner_label: linux-arm64-gpu-l4-latest-1
 
     steps:
     - name: Checkout code
