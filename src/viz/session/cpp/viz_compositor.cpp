@@ -72,6 +72,7 @@ void VizCompositor::init()
         frame_sync_ = FrameSync::create(*ctx_);
         create_command_pool();
         create_command_buffer();
+        create_readback_staging();
     }
     catch (...)
     {
@@ -91,6 +92,17 @@ void VizCompositor::destroy()
     {
         return;
     }
+    if (readback_buffer_ != VK_NULL_HANDLE)
+    {
+        vkDestroyBuffer(device, readback_buffer_, nullptr);
+        readback_buffer_ = VK_NULL_HANDLE;
+    }
+    if (readback_memory_ != VK_NULL_HANDLE)
+    {
+        vkFreeMemory(device, readback_memory_, nullptr);
+        readback_memory_ = VK_NULL_HANDLE;
+    }
+    readback_byte_size_ = 0;
     if (command_pool_ != VK_NULL_HANDLE)
     {
         // Pool destruction frees all command buffers allocated from it.
@@ -119,6 +131,52 @@ void VizCompositor::create_command_buffer()
     info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     info.commandBufferCount = 1;
     check_vk(vkAllocateCommandBuffers(ctx_->device(), &info, &command_buffer_), "vkAllocateCommandBuffers");
+}
+
+void VizCompositor::create_readback_staging()
+{
+    // Sized to one tightly-packed RGBA8 frame at the configured
+    // resolution. destroy() owns cleanup; readback_to_host() never
+    // allocates per call.
+    readback_byte_size_ = static_cast<VkDeviceSize>(config_.resolution.width) * config_.resolution.height *
+                          bytes_per_pixel(PixelFormat::kRGBA8);
+
+    VkBufferCreateInfo bi{};
+    bi.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bi.size = readback_byte_size_;
+    bi.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    check_vk(vkCreateBuffer(ctx_->device(), &bi, nullptr, &readback_buffer_), "vkCreateBuffer(readback staging)");
+
+    VkMemoryRequirements reqs;
+    vkGetBufferMemoryRequirements(ctx_->device(), readback_buffer_, &reqs);
+
+    VkMemoryAllocateInfo ai{};
+    ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    ai.allocationSize = reqs.size;
+    ai.memoryTypeIndex = find_memory_type(ctx_->physical_device(), reqs.memoryTypeBits,
+                                          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    check_vk(vkAllocateMemory(ctx_->device(), &ai, nullptr, &readback_memory_), "vkAllocateMemory(readback staging)");
+    check_vk(vkBindBufferMemory(ctx_->device(), readback_buffer_, readback_memory_, 0),
+             "vkBindBufferMemory(readback staging)");
+}
+
+void VizCompositor::submit_or_signal_fence(const VkSubmitInfo& info, const char* what)
+{
+    const VkResult r = vkQueueSubmit(ctx_->queue(), 1, &info, frame_sync_->in_flight_fence());
+    if (r == VK_SUCCESS)
+    {
+        return;
+    }
+    // Real submit failed; the fence is still unsignaled. Best-effort
+    // signal it via an empty no-op submit so the next wait() throws
+    // (or returns) instead of deadlocking on UINT64_MAX. If this also
+    // fails the original error still propagates and the caller should
+    // destroy + recreate the session.
+    VkSubmitInfo empty{};
+    empty.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    (void)vkQueueSubmit(ctx_->queue(), 1, &empty, frame_sync_->in_flight_fence());
+    throw std::runtime_error(std::string("VizCompositor: ") + what + " failed: VkResult=" + std::to_string(r));
 }
 
 void VizCompositor::render(const std::vector<LayerBase*>& layers, const std::vector<ViewInfo>& views)
@@ -171,7 +229,7 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers, const std::vec
     submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit.commandBufferCount = 1;
     submit.pCommandBuffers = &command_buffer_;
-    check_vk(vkQueueSubmit(ctx_->queue(), 1, &submit, frame_sync_->in_flight_fence()), "vkQueueSubmit");
+    submit_or_signal_fence(submit, "vkQueueSubmit");
 
     // Wait for completion before returning so readback / next frame sees
     // a consistent state. With 1 frame in flight this is the natural
@@ -182,32 +240,11 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers, const std::vec
 
 HostImage VizCompositor::readback_to_host()
 {
+    // Reuses the staging buffer allocated at init() — no per-call alloc,
+    // no cleanup-on-throw concerns. Buffer lifetime tracks the
+    // compositor's; destroy() frees it.
     const uint32_t w = config_.resolution.width;
     const uint32_t h = config_.resolution.height;
-    const VkDeviceSize byte_size = static_cast<VkDeviceSize>(w) * h * 4;
-
-    // Host-visible staging buffer. Allocated each call — readback is a
-    // test-grade path; production (CUDA-pointer) readback lands with
-    // CUDA-Vulkan interop and avoids the host bounce entirely.
-    VkBufferCreateInfo bi{};
-    bi.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bi.size = byte_size;
-    bi.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-    bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    VkBuffer buffer = VK_NULL_HANDLE;
-    check_vk(vkCreateBuffer(ctx_->device(), &bi, nullptr, &buffer), "vkCreateBuffer(staging)");
-
-    VkMemoryRequirements reqs;
-    vkGetBufferMemoryRequirements(ctx_->device(), buffer, &reqs);
-
-    VkMemoryAllocateInfo ai{};
-    ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    ai.allocationSize = reqs.size;
-    ai.memoryTypeIndex = find_memory_type(ctx_->physical_device(), reqs.memoryTypeBits,
-                                          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    VkDeviceMemory memory = VK_NULL_HANDLE;
-    check_vk(vkAllocateMemory(ctx_->device(), &ai, nullptr, &memory), "vkAllocateMemory(staging)");
-    check_vk(vkBindBufferMemory(ctx_->device(), buffer, memory, 0), "vkBindBufferMemory(staging)");
 
     // Record + submit a single copy. The render pass already transitioned
     // the color image to TRANSFER_SRC_OPTIMAL, so no barrier is needed.
@@ -225,8 +262,8 @@ HostImage VizCompositor::readback_to_host()
     region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     region.imageSubresource.layerCount = 1;
     region.imageExtent = { w, h, 1 };
-    vkCmdCopyImageToBuffer(
-        command_buffer_, render_target_->color_image(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, buffer, 1, &region);
+    vkCmdCopyImageToBuffer(command_buffer_, render_target_->color_image(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                           readback_buffer_, 1, &region);
 
     check_vk(vkEndCommandBuffer(command_buffer_), "vkEndCommandBuffer(readback)");
 
@@ -235,17 +272,15 @@ HostImage VizCompositor::readback_to_host()
     submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit.commandBufferCount = 1;
     submit.pCommandBuffers = &command_buffer_;
-    check_vk(vkQueueSubmit(ctx_->queue(), 1, &submit, frame_sync_->in_flight_fence()), "vkQueueSubmit(readback)");
+    submit_or_signal_fence(submit, "vkQueueSubmit(readback)");
     frame_sync_->wait();
 
     HostImage result(config_.resolution, PixelFormat::kRGBA8);
     void* mapped = nullptr;
-    check_vk(vkMapMemory(ctx_->device(), memory, 0, byte_size, 0, &mapped), "vkMapMemory(staging)");
-    std::memcpy(result.data(), mapped, byte_size);
-    vkUnmapMemory(ctx_->device(), memory);
+    check_vk(vkMapMemory(ctx_->device(), readback_memory_, 0, readback_byte_size_, 0, &mapped), "vkMapMemory(readback)");
+    std::memcpy(result.data(), mapped, readback_byte_size_);
+    vkUnmapMemory(ctx_->device(), readback_memory_);
 
-    vkDestroyBuffer(ctx_->device(), buffer, nullptr);
-    vkFreeMemory(ctx_->device(), memory, nullptr);
     return result;
 }
 

@@ -73,6 +73,16 @@ private:
 
     void create_command_pool();
     void create_command_buffer();
+    void create_readback_staging();
+
+    // vkQueueSubmit wrapper that recovers the fence if submit fails.
+    // After frame_sync_->reset(), the fence is unsignaled; if the real
+    // submit then fails, the next frame_sync_->wait() would deadlock
+    // forever on UINT64_MAX. On submit failure we attempt an empty
+    // no-op submit so the fence gets signaled, converting "silent
+    // hang" into "throw on next call" — the caller can then destroy +
+    // recreate the session.
+    void submit_or_signal_fence(const VkSubmitInfo& info, const char* what);
 
     const VkContext* ctx_ = nullptr;
     Config config_{};
@@ -82,6 +92,14 @@ private:
 
     VkCommandPool command_pool_ = VK_NULL_HANDLE;
     VkCommandBuffer command_buffer_ = VK_NULL_HANDLE;
+
+    // Pre-allocated host-visible staging buffer for readback_to_host.
+    // Created once at init() (sized to the configured resolution),
+    // reused on every readback, freed in destroy(). Avoids per-call
+    // allocation churn and removes the leak-on-throw concern entirely.
+    VkBuffer readback_buffer_ = VK_NULL_HANDLE;
+    VkDeviceMemory readback_memory_ = VK_NULL_HANDLE;
+    VkDeviceSize readback_byte_size_ = 0;
 };
 
 } // namespace viz
