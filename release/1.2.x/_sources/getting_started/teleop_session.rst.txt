@@ -78,16 +78,26 @@ The main configuration object:
 
    @dataclass
    class TeleopSessionConfig:
-       app_name: str                                       # OpenXR application name
-       pipeline: Any                                       # Connected retargeting pipeline
-       trackers: List[Any] = []                            # Tracker instances (optional)
-       plugins: List[PluginConfig] = []                    # Plugin configurations (optional)
-       verbose: bool = True                                # Print progress info
-       oxr_handles: Optional[OpenXRSessionHandles] = None  # External OpenXR handles (optional)
+       app_name: str                            # OpenXR application name
+       pipeline: Any                            # Connected retargeting pipeline
+       mode: SessionMode = SessionMode.LIVE     # LIVE or REPLAY
+       trackers: List[Any] = []                 # Tracker instances (optional)
+       plugins: List[PluginConfig] = []         # Plugin configurations (optional)
+       verbose: bool = True                     # Print progress info
+       oxr_handles: Optional[...] = None        # External OpenXR handles (optional)
+       mcap_config: Optional[...] = None        # Required for REPLAY, optional for LIVE
 
-When ``oxr_handles`` is provided, ``TeleopSession`` uses the supplied handles
-instead of creating its own OpenXR session. The caller is responsible for the
-external session's lifetime. Construct handles with
+When ``mode`` is ``SessionMode.REPLAY``, ``TeleopSession`` skips OpenXR
+session creation and reads tracking data from the MCAP file specified in
+``mcap_config`` (a ``McapReplayConfig``).  ``mcap_config`` is **required** in
+replay mode — omitting it raises ``ValueError``.  In the default ``LIVE``
+mode, ``mcap_config`` is optional; passing an ``McapRecordingConfig`` enables
+recording to disk.  See :doc:`/references/mcap_record_replay` for full
+details.
+
+When ``oxr_handles`` is provided (live mode), ``TeleopSession`` uses the
+supplied handles instead of creating its own OpenXR session. The caller is
+responsible for the external session's lifetime. Construct handles with
 ``OpenXRSessionHandles(instance, session, space, proc_addr)`` where each
 argument is a ``uint64`` handle value.
 

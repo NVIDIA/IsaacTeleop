@@ -336,6 +336,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../references/build.html">Build System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../device/index.html">Device Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/retargeting.html">Retargeting Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/license.html">License</a></li>
 </ul>
@@ -458,17 +459,26 @@ following issue for progress: <a class="github reference external" href="https:/
 <p>The main configuration object:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@dataclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">TeleopSessionConfig</span><span class="p">:</span>
-    <span class="n">app_name</span><span class="p">:</span> <span class="nb">str</span>                                       <span class="c1"># OpenXR application name</span>
-    <span class="n">pipeline</span><span class="p">:</span> <span class="n">Any</span>                                       <span class="c1"># Connected retargeting pipeline</span>
-    <span class="n">trackers</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>                            <span class="c1"># Tracker instances (optional)</span>
-    <span class="n">plugins</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">PluginConfig</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>                    <span class="c1"># Plugin configurations (optional)</span>
-    <span class="n">verbose</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>                                <span class="c1"># Print progress info</span>
-    <span class="n">oxr_handles</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">OpenXRSessionHandles</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># External OpenXR handles (optional)</span>
+    <span class="n">app_name</span><span class="p">:</span> <span class="nb">str</span>                            <span class="c1"># OpenXR application name</span>
+    <span class="n">pipeline</span><span class="p">:</span> <span class="n">Any</span>                            <span class="c1"># Connected retargeting pipeline</span>
+    <span class="n">mode</span><span class="p">:</span> <span class="n">SessionMode</span> <span class="o">=</span> <span class="n">SessionMode</span><span class="o">.</span><span class="n">LIVE</span>     <span class="c1"># LIVE or REPLAY</span>
+    <span class="n">trackers</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>                 <span class="c1"># Tracker instances (optional)</span>
+    <span class="n">plugins</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">PluginConfig</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>         <span class="c1"># Plugin configurations (optional)</span>
+    <span class="n">verbose</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>                     <span class="c1"># Print progress info</span>
+    <span class="n">oxr_handles</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>        <span class="c1"># External OpenXR handles (optional)</span>
+    <span class="n">mcap_config</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>        <span class="c1"># Required for REPLAY, optional for LIVE</span>
 </pre></div>
 </div>
-<p>When <code class="docutils literal notranslate"><span class="pre">oxr_handles</span></code> is provided, <code class="docutils literal notranslate"><span class="pre">TeleopSession</span></code> uses the supplied handles
-instead of creating its own OpenXR session. The caller is responsible for the
-external session’s lifetime. Construct handles with
+<p>When <code class="docutils literal notranslate"><span class="pre">mode</span></code> is <code class="docutils literal notranslate"><span class="pre">SessionMode.REPLAY</span></code>, <code class="docutils literal notranslate"><span class="pre">TeleopSession</span></code> skips OpenXR
+session creation and reads tracking data from the MCAP file specified in
+<code class="docutils literal notranslate"><span class="pre">mcap_config</span></code> (a <code class="docutils literal notranslate"><span class="pre">McapReplayConfig</span></code>).  <code class="docutils literal notranslate"><span class="pre">mcap_config</span></code> is <strong>required</strong> in
+replay mode — omitting it raises <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>.  In the default <code class="docutils literal notranslate"><span class="pre">LIVE</span></code>
+mode, <code class="docutils literal notranslate"><span class="pre">mcap_config</span></code> is optional; passing an <code class="docutils literal notranslate"><span class="pre">McapRecordingConfig</span></code> enables
+recording to disk.  See <a class="reference internal" href="../references/mcap_record_replay.html"><span class="doc">MCAP Recording &amp; Replay</span></a> for full
+details.</p>
+<p>When <code class="docutils literal notranslate"><span class="pre">oxr_handles</span></code> is provided (live mode), <code class="docutils literal notranslate"><span class="pre">TeleopSession</span></code> uses the
+supplied handles instead of creating its own OpenXR session. The caller is
+responsible for the external session’s lifetime. Construct handles with
 <code class="docutils literal notranslate"><span class="pre">OpenXRSessionHandles(instance,</span> <span class="pre">session,</span> <span class="pre">space,</span> <span class="pre">proc_addr)</span></code> where each
 argument is a <code class="docutils literal notranslate"><span class="pre">uint64</span></code> handle value.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">teleopcore.oxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">OpenXRSessionHandles</span>

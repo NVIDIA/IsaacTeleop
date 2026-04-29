@@ -60,6 +60,7 @@ Table of Contents
    references/build
    device/index
    references/retargeting
+   references/mcap_record_replay
    references/oob_teleop_control
    references/license
 
