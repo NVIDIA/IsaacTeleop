@@ -32,26 +32,43 @@ inline bool is_gpu_available()
     return cached;
 }
 
+namespace detail
+{
+inline viz::VkContext*& shared_vk_context_ptr() noexcept
+{
+    static viz::VkContext* p = nullptr;
+    return p;
+}
+} // namespace detail
+
 // Process-wide shared VkContext, lazy-initialized on first call.
-//
 // NVIDIA's Linux Vulkan driver drops the NVIDIA ICD after ~12
 // vkCreateInstance/vkDestroyInstance cycles in a single process; sharing
 // one VkContext across [gpu] tests keeps us under the threshold.
 // Callers must check is_gpu_available() first.
 //
-// Heap-allocated and intentionally leaked: vkDestroyDevice/Instance can
-// crash if the Vulkan loader's own statics are torn down first
-// (destruction-order fiasco at process exit). The OS reclaims all
-// resources when the test binary exits.
+// Lifetime is managed by main() (see test_main.cpp): created lazily on
+// first use, explicitly destroyed via shutdown_shared_vk_context() after
+// Catch2's run finishes — never via static destruction, which races the
+// Vulkan loader teardown and NVIDIA driver background threads at exit.
 inline viz::VkContext& shared_vk_context()
 {
-    static viz::VkContext* const ctx = []()
+    auto*& ptr = detail::shared_vk_context_ptr();
+    if (!ptr)
     {
-        auto* p = new viz::VkContext();
-        p->init(viz::VkContext::Config{});
-        return p;
-    }();
-    return *ctx;
+        ptr = new viz::VkContext();
+        ptr->init(viz::VkContext::Config{});
+    }
+    return *ptr;
+}
+
+// Tear down the shared VkContext if it was created. Called from main()
+// after Catch2's session ends. Idempotent and noexcept.
+inline void shutdown_shared_vk_context() noexcept
+{
+    auto*& ptr = detail::shared_vk_context_ptr();
+    delete ptr;
+    ptr = nullptr;
 }
 
 // Catch2 fixture exposing the shared VkContext as `vk`. Skips on
