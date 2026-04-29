@@ -543,8 +543,6 @@ inline void HandVisualizer::teardown() noexcept
         vkDestroyPipelineLayout(m_dev, m_pipe_layout, nullptr);
     if (m_pipeline)
         vkDestroyPipeline(m_dev, m_pipeline, nullptr);
-    if (m_cmd_pool)
-        vkDestroyCommandPool(m_dev, m_cmd_pool, nullptr);
     if (m_dev)
         vkDestroyDevice(m_dev, nullptr);
     if (m_surface)
@@ -1038,6 +1036,14 @@ inline void HandVisualizer::createVertexBuffer()
 // ---------------------------------------------------------------------------
 inline void HandVisualizer::destroySwapchainResources()
 {
+    // Command buffers are allocated from m_cmd_pool sized to the swapchain
+    // image count, so the pool's lifetime is tied to the swapchain.
+    if (m_cmd_pool)
+    {
+        vkDestroyCommandPool(m_dev, m_cmd_pool, nullptr);
+        m_cmd_pool = VK_NULL_HANDLE;
+        m_cmd_bufs.clear();
+    }
     for (auto fb : m_framebuffers)
         if (fb)
             vkDestroyFramebuffer(m_dev, fb, nullptr);
