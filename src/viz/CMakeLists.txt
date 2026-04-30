@@ -27,6 +27,10 @@ add_subdirectory(core)
 # types are added as they ship).
 add_subdirectory(layers)
 
+# Session: VizSession + VizCompositor + frame info — the orchestration
+# layer that drives the per-frame loop and manages the layer registry.
+add_subdirectory(session)
+
 # Python bindings (stub today; pybind11 module added later).
 if(BUILD_PYTHON_BINDINGS)
     add_subdirectory(python)
@@ -35,4 +39,6 @@ endif()
 # Tests for each sub-module live in <module>_tests/ siblings.
 if(BUILD_TESTING)
     add_subdirectory(core_tests)
+    add_subdirectory(layers_tests)
+    add_subdirectory(session_tests)
 endif()
