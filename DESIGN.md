@@ -76,8 +76,8 @@ bridge to TF).
 
 Follows IsaacTeleop conventions throughout:
 
-- **Namespace:** All Televiz symbols live in `namespace core::viz`.
-  Internal helpers go in `core::viz::detail`.
+- **Namespace:** All Televiz symbols live in `namespace viz`.
+  Internal helpers go in `viz::detail`.
 - **Type names:** `PascalCase` (`VizSession`, `QuadLayer`, `VizBuffer`,
   `Pose3D`).
 - **Method/function names:** `snake_case` (`begin_frame`, `add_layer`,
@@ -96,9 +96,12 @@ Follows IsaacTeleop conventions throughout:
   // SPDX-License-Identifier: Apache-2.0
   ```
   (Use `#` for CMake / Python.)
-- **Headers:** `#pragma once`. External-facing include path:
-  `#include <viz/foo.hpp>`. Internal `.cpp` files include their own
-  header as `#include "inc/viz/foo.hpp"` (path under `cpp/`).
+- **Headers:** `#pragma once`. Includes use the nested-path convention
+  reflecting the directory structure: `<viz/core/...>`,
+  `<viz/layers/...>`, `<viz/session/...>`, `<viz/xr/...>`. The C++
+  namespace `viz` is shared across all sub-modules. Library
+  aliases drop the redundant `viz_` prefix: `viz::core`, `viz::layers`,
+  `viz::session`, `viz::xr`.
 - **Python:** snake_case throughout. The Python API mirrors C++ method
   names exactly (no naming gap between languages). Ruff enforces lint
   and format.
@@ -122,52 +125,121 @@ framework.
 
 ### Module Layout
 
+Televiz mirrors `src/core/`: it's a peer container of sub-modules, each
+with its own static library and a sibling `<sub-module>_tests/` directory
+where applicable. Each sub-module has a clear API boundary, can be built
+optionally, and contributes to the same Python wheel via `viz/python/`.
+
+**Sub-modules:**
+
+| Sub-module | Library | Depends on | Purpose |
+|------------|---------|------------|---------|
+| `viz/core/` | `viz_core` | Vulkan, CUDA | Foundational types (`VizBuffer`, `Pose3D`, `Fov`, `Resolution`, `PixelFormat`) and Vulkan/CUDA infrastructure (`vk_context`, `cuda_texture`, `render_target`, `frame_sync`). |
+| `viz/layers/` | `viz_layers` | `viz_core` | `LayerBase` and built-in layer types: `QuadLayer`, `ProjectionLayer`, `OverlayLayer`. |
+| `viz/session/` | `viz_session` | `viz_core`, `viz_layers` | `VizSession`, `VizCompositor`, `FrameInfo`, display backends (offscreen, GLFW window). |
+| `viz/xr/` | `viz_xr` | `viz_core`, OpenXR | OpenXR backend (instance/session, swapchain wrapping, frame loop, type conversion). Optional: `BUILD_VIZ_XR` (default ON when OpenXR available). |
+| `viz/python/` | `_viz.so` | `viz_session` (+ `viz_xr` if enabled) | Pybind11 bindings, exposed as `isaacteleop.viz`. |
+| `viz/shaders/` | — | glslangValidator | GLSL → SPIR-V at build time. |
+
+**Tests:**
+
+| Test dir | Tests for | Notes |
+|----------|-----------|-------|
+| `viz/core_tests/` | `viz_core` | `[unit]`: types, buffer; `[gpu]`: vk_context, cuda interop |
+| `viz/layers_tests/` | `viz_layers` | `[unit]`: layer registry, placement math; `[gpu]`: render verification |
+| `viz/session_tests/` | `viz_session` | `[unit]`: state machine; `[gpu]`: offscreen render + readback |
+| `viz/xr_tests/` | `viz_xr` | `[xr]`: manual only (requires runtime + headset) |
+
+**Include paths** mirror the on-disk nesting (sub-modules are children
+of `viz/`, not peers):
+
+- `<viz/core/vk_context.hpp>`, `<viz/core/viz_buffer.hpp>`
+- `<viz/layers/quad_layer.hpp>`
+- `<viz/session/viz_session.hpp>`
+- `<viz/xr/xr_backend.hpp>`
+
+C++ namespace stays `viz` across all sub-modules. CMake library
+aliases follow the same nesting: `viz::core`, `viz::layers`,
+`viz::session`, `viz::xr` (real target names use underscores —
+`viz_core`, etc. — since `::` is reserved for aliases).
+
+**File-name conventions** within a sub-module carry implicit grouping:
+
+- `vk_*`, `cuda_*` — Vulkan / CUDA infrastructure
+- `*_layer` — `LayerBase` subclasses
+- `viz_*` — top-level public types
+- `frame_*` — per-frame state types
+- `xr_*` — OpenXR specifics
+
+**Layout** (only `viz/core/` is implemented today; other sub-modules and
+tests are added as they ship):
+
 ```
-IsaacTeleop/
-└── src/
-    ├── viz/                                # Module source
-    │   ├── CMakeLists.txt                  # adds cpp/, python/
-    │   ├── cpp/
-    │   │   ├── CMakeLists.txt              # static lib viz_core
-    │   │   ├── inc/viz/                    # public headers
-    │   │   │   ├── viz_session.hpp
-    │   │   │   ├── viz_compositor.hpp
-    │   │   │   ├── viz_buffer.hpp
-    │   │   │   ├── viz_types.hpp           # Fov, Pose3D, Resolution
-    │   │   │   ├── layers/
-    │   │   │   │   ├── layer_base.hpp
-    │   │   │   │   ├── quad_layer.hpp
-    │   │   │   │   ├── projection_layer.hpp   (Phase 2)
-    │   │   │   │   └── overlay_layer.hpp      (Phase 2)
-    │   │   │   └── core/
-    │   │   │       ├── vk_context.hpp
-    │   │   │       ├── cuda_texture.hpp
-    │   │   │       ├── render_target.hpp
-    │   │   │       ├── frame_sync.hpp
-    │   │   │       └── frame_info.hpp
-    │   │   ├── viz_session.cpp
-    │   │   ├── viz_compositor.cpp
-    │   │   ├── quad_layer.cpp
-    │   │   ├── vk_context.cpp
-    │   │   ├── cuda_texture.cpp
-    │   │   ├── render_target.cpp
-    │   │   └── frame_sync.cpp
-    │   ├── shaders/
-    │   │   ├── textured_quad.vert
-    │   │   └── textured_quad.frag
-    │   └── python/
-    │       ├── CMakeLists.txt              # pybind11 → _viz
-    │       ├── viz_bindings.cpp
-    │       └── viz_init.py
-    └── viz_tests/                          # Sibling test dir (convention)
-        ├── CMakeLists.txt
-        ├── cpp/
-        │   ├── CMakeLists.txt              # Catch2 v3, catch_discover_tests
-        │   └── test_*.cpp
-        └── python/
-            ├── CMakeLists.txt              # add_test with uv run pytest
-            ├── pyproject.toml
-            └── test_*.py
+IsaacTeleop/src/viz/
+├── CMakeLists.txt                  # orchestrator
+├── core/
+│   ├── CMakeLists.txt
+│   └── cpp/
+│       ├── CMakeLists.txt          # static lib viz_core (alias viz::core)
+│       ├── inc/viz/core/
+│       │   ├── vk_context.hpp
+│       │   ├── cuda_texture.hpp    (later)
+│       │   ├── render_target.hpp   (later)
+│       │   ├── frame_sync.hpp      (later)
+│       │   ├── viz_buffer.hpp
+│       │   └── viz_types.hpp
+│       ├── vk_context.cpp
+│       ├── cuda_texture.cpp        (later)
+│       ├── render_target.cpp       (later)
+│       └── frame_sync.cpp          (later)
+├── layers/                         # added with first layer
+│   ├── CMakeLists.txt
+│   └── cpp/
+│       ├── CMakeLists.txt          # static lib viz_layers (alias viz::layers)
+│       ├── inc/viz/layers/
+│       │   ├── layer_base.hpp
+│       │   ├── quad_layer.hpp
+│       │   ├── projection_layer.hpp
+│       │   └── overlay_layer.hpp
+│       └── *.cpp
+├── session/                        # added with VizSession
+│   ├── CMakeLists.txt
+│   └── cpp/
+│       ├── CMakeLists.txt          # static lib viz_session (alias viz::session)
+│       ├── inc/viz/session/
+│       │   ├── viz_session.hpp
+│       │   ├── viz_compositor.hpp
+│       │   └── frame_info.hpp
+│       └── *.cpp
+├── xr/                             # optional, BUILD_VIZ_XR
+│   ├── CMakeLists.txt
+│   └── cpp/
+│       ├── CMakeLists.txt          # static lib viz_xr (alias viz::xr)
+│       ├── inc/viz/xr/
+│       │   ├── xr_backend.hpp
+│       │   ├── xr_swapchain.hpp
+│       │   ├── xr_frame.hpp
+│       │   └── xr_types.hpp
+│       └── *.cpp
+├── shaders/                        # added with first shader
+│   ├── CMakeLists.txt
+│   ├── textured_quad.vert
+│   └── textured_quad.frag
+├── python/
+│   ├── CMakeLists.txt              # pybind11 → _viz (filled later)
+│   ├── viz_bindings.cpp
+│   └── viz_init.py
+├── core_tests/
+│   ├── CMakeLists.txt
+│   └── cpp/
+│       ├── CMakeLists.txt          # Catch2, catch_discover_tests
+│       ├── test_helpers.hpp
+│       ├── test_viz_buffer.cpp
+│       ├── test_viz_types.cpp
+│       └── test_vk_context.cpp
+├── layers_tests/                   # added with viz/layers/
+├── session_tests/                  # added with viz/session/
+└── xr_tests/                       # added with viz/xr/ (manual)
 ```
 
 ### Why an intermediate framebuffer?
@@ -213,7 +285,7 @@ through shared code.
 Public types, defined in `viz_types.hpp`:
 
 ```cpp
-namespace core::viz
+namespace viz
 {
 
 struct Resolution
@@ -224,8 +296,8 @@ struct Resolution
 
 struct Pose3D
 {
-    struct { float x, y, z; } position;            // meters
-    struct { float x, y, z, w; } orientation;      // quaternion
+    glm::vec3 position{0.0f};                      // meters
+    glm::quat orientation{1.0f, 0.0f, 0.0f, 0.0f}; // unit quat (w, x, y, z)
 };
 
 struct Fov
@@ -236,18 +308,25 @@ struct Fov
     float angle_down;     // radians
 };
 
-} // namespace core::viz
+} // namespace viz
 ```
 
 OpenXR types (`XrPosef`, `XrFovf`) are converted to these at the Televiz
-boundary in `core::viz::detail`. Consumers never see OpenXR headers.
+boundary in `viz::detail`. Consumers never see OpenXR headers.
 
-### VizBuffer
+### VizBuffer / HostImage / DeviceImage
 
-A lightweight, non-owning reference to a 2D pixel buffer on GPU:
+The image-data surface in Televiz separates **shape** (one type) from
+**ownership + memory space** (two types):
+
+| Type | Role | Owns? | Memory space |
+|---|---|---|---|
+| `VizBuffer` | image-shape view (data ptr + dims + format + pitch) | No | `kDevice` *(default)* or `kHost` |
+| `HostImage` | owning host bytes, exposes a `VizBuffer view()` | Yes | `kHost` |
+| `DeviceImage` | owning device memory + CUDA-Vulkan interop primitives, exposes a `VizBuffer view()` | Yes | `kDevice` |
 
 ```cpp
-namespace core::viz
+namespace viz
 {
 
 enum class PixelFormat
@@ -256,24 +335,45 @@ enum class PixelFormat
     kD32F,      // single-channel float32 depth (Phase 2)
 };
 
+enum class MemorySpace
+{
+    kDevice,    // CUDA device memory (default; production layer interop)
+    kHost,      // CPU memory (test-grade readback, debug helpers)
+};
+
 struct VizBuffer
 {
-    void* data;              // CUDA device pointer
+    void* data;
     uint32_t width;
     uint32_t height;
     PixelFormat format;
     size_t pitch;            // Row pitch in bytes (0 = tightly packed)
+    MemorySpace space;       // Where data lives; default kDevice
 };
 
-} // namespace core::viz
+} // namespace viz
 ```
 
-`VizBuffer` has no ownership semantics — it does not allocate or free
-memory. For `acquire`/`release`, the layer owns the interop buffer;
-`VizBuffer` is a view into it.
+`VizBuffer` carries no ownership: the producer (layer / external
+renderer / `HostImage` / `DeviceImage`) owns the underlying memory;
+`VizBuffer` is a typed view over it. The `space` field is documentary
+— callers must match it to the API they're calling (CUDA expects
+`kDevice`, CPU helpers expect `kHost`); there is no runtime check.
 
-In Python, `VizBuffer` exposes `__cuda_array_interface__` so CuPy can
-wrap it zero-copy: `cupy.asarray(buf)`.
+`HostImage` and `DeviceImage` are the owning counterparts. Use them
+when Televiz needs to allocate (offscreen readback → `HostImage`;
+mode-B `acquire`/`release` interop → `DeviceImage`). Both expose
+`view()` returning a `VizBuffer` of the matching `space`, so the same
+helpers (`save_to_png`, image-diff, Python interop) take a single
+`VizBuffer` and work for both. Callers that are handed memory by
+someone else (mode-A `submit(VizBuffer)`, external renderer hand-off)
+work with bare `VizBuffer` views directly.
+
+In Python:
+- `VizBuffer.space == kDevice` exposes `__cuda_array_interface__` →
+  `cupy.asarray(buf)`
+- `VizBuffer.space == kHost` exposes `__array_interface__` →
+  `numpy.asarray(buf)`
 
 For RGBD content (Phase 2):
 
@@ -284,6 +384,16 @@ struct VizBufferPair {            // Phase 2, ProjectionLayer
 };
 ```
 
+#### Implementation status
+
+- `VizBuffer` (with `MemorySpace`): shipped.
+- `HostImage`: shipped — used by `VizSession::readback_to_host()` and
+  `VizCompositor::readback_to_host()` for test/debug pixel inspection.
+- `DeviceImage`: forward-declared today. Full implementation
+  (CUDA-Vulkan interop with `VK_KHR_external_memory_fd`,
+  `cudaExternalMemory_t`, paired acquire/release semaphores) ships
+  alongside CUDA-Vulkan interop.
+
 ---
 
 ## VizSession API
@@ -293,7 +403,7 @@ display target, and layer registry. Session lifecycle follows the state
 machine below.
 
 ```cpp
-namespace core::viz
+namespace viz
 {
 
 enum class DisplayMode
@@ -376,7 +486,7 @@ public:
     OpenXRSessionHandles get_oxr_handles() const;     // XR mode only
 };
 
-} // namespace core::viz
+} // namespace viz
 ```
 
 ### FrameInfo
@@ -384,13 +494,13 @@ public:
 Returned by `render()` and `begin_frame()`. Per-frame state for content producers:
 
 ```cpp
-namespace core::viz
+namespace viz
 {
 
 struct ViewInfo
 {
-    float view_matrix[16];          // Column-major 4x4
-    float projection_matrix[16];
+    glm::mat4 view_matrix;          // GLSL-compatible column-major
+    glm::mat4 projection_matrix;
     Fov fov;
     Pose3D pose;
 };
@@ -415,7 +525,7 @@ struct FrameTimingStats
     uint32_t stale_layers;          // Layers that missed stale_timeout
 };
 
-} // namespace core::viz
+} // namespace viz
 ```
 
 **Time spaces:** `predicted_display_time` is OpenXR monotonic time in ns.
@@ -437,7 +547,7 @@ compositor calls during the render pass. Developers can subclass
 the built-in layer types.
 
 ```cpp
-namespace core::viz
+namespace viz
 {
 
 class LayerBase
@@ -458,7 +568,7 @@ public:
     void set_visible(bool visible);
 };
 
-} // namespace core::viz
+} // namespace viz
 ```
 
 **Custom layers:** Create a `VkPipeline` compatible with Televiz's render
@@ -474,7 +584,7 @@ A 2D image placed in 3D space. The most common layer type for camera
 feeds. Built-in textured-quad rendering + CUDA interop.
 
 ```cpp
-namespace core::viz
+namespace viz
 {
 
 enum class PlacementMode
@@ -530,7 +640,7 @@ public:
                 const RenderTarget& target) override;
 };
 
-} // namespace core::viz
+} // namespace viz
 ```
 
 **Placement modes:**
@@ -562,7 +672,7 @@ A full stereo RGBD view. Supports push (color + depth VizBuffers) and
 pull (custom `record()` subclass).
 
 ```cpp
-namespace core::viz
+namespace viz
 {
 
 class ProjectionLayer : public LayerBase
@@ -581,7 +691,7 @@ public:
                 const RenderTarget& target) override;
 };
 
-} // namespace core::viz
+} // namespace viz
 ```
 
 Use cases: nvblox 3D reconstruction, depth-enhanced camera rendering.
@@ -592,7 +702,7 @@ A 2D image composited in screen space after all world-space content. No
 depth testing.
 
 ```cpp
-namespace core::viz
+namespace viz
 {
 
 class OverlayLayer : public LayerBase
@@ -613,7 +723,7 @@ public:
                 const RenderTarget& target) override;
 };
 
-} // namespace core::viz
+} // namespace viz
 ```
 
 Use cases: telemetry HUD, connection status, battery indicators.
@@ -683,7 +793,7 @@ D32_SFLOAT, 1 sample, 1 subpass), then record draw commands into the
 provided `VkCommandBuffer`. No buffer copies, no shared Vulkan context.
 
 ```cpp
-namespace core::viz
+namespace viz
 {
 
 struct RenderTarget
@@ -699,7 +809,7 @@ struct RenderTarget
     VkFormat depth_format;          // VK_FORMAT_D32_SFLOAT
 };
 
-} // namespace core::viz
+} // namespace viz
 ```
 
 ---
@@ -707,7 +817,7 @@ struct RenderTarget
 ## Session State Machine
 
 ```cpp
-namespace core::viz
+namespace viz
 {
 
 enum class SessionState
@@ -720,7 +830,7 @@ enum class SessionState
     kDestroyed,      // After destroy(). No operations valid.
 };
 
-} // namespace core::viz
+} // namespace viz
 ```
 
 ### OpenXR Session State Mapping
@@ -1095,14 +1205,14 @@ CPU-only runners, machines without drivers, etc.).
 
 ```cpp
 // test_helpers.hpp
-namespace core::viz::testing
+namespace viz::testing
 {
 
 bool is_gpu_available();   // Tries minimal vkCreateInstance + device enum
 
 struct GpuFixture
 {
-    core::viz::VkContext vk;
+    viz::VkContext vk;
 
     GpuFixture()
     {
@@ -1110,16 +1220,16 @@ struct GpuFixture
         {
             SKIP("No Vulkan-capable GPU available");
         }
-        vk.init(core::viz::VkContext::Config{});
+        vk.init(viz::VkContext::Config{});
     }
 };
 
-} // namespace core::viz::testing
+} // namespace viz::testing
 ```
 
 Usage:
 ```cpp
-TEST_CASE_METHOD(core::viz::testing::GpuFixture,
+TEST_CASE_METHOD(viz::testing::GpuFixture,
                  "VkContext exposes valid device",
                  "[gpu][vk_context]")
 {
@@ -1152,7 +1262,7 @@ def viz_session_offscreen():
 Shared utilities in `test_helpers.hpp`:
 
 ```cpp
-namespace core::viz::testing
+namespace viz::testing
 {
 
 // True if a Vulkan-capable GPU + driver is present.
@@ -1170,7 +1280,7 @@ bool pixels_match(const VizBuffer& actual,
                   const VizBuffer& expected,
                   uint8_t tolerance = 2);
 
-} // namespace core::viz::testing
+} // namespace viz::testing
 ```
 
 `pixels_match` defaults tolerance to `2` because the
@@ -1193,14 +1303,14 @@ bool pixels_match(const VizBuffer& actual,
 ```cpp
 TEST_CASE("VizBuffer pitch defaults to packed", "[unit][viz_buffer]")
 {
-    core::viz::VizBuffer buf{nullptr, 1920, 1080, core::viz::PixelFormat::kRGBA8, 0};
-    CHECK(core::viz::effective_pitch(buf) == 1920 * 4);
+    viz::VizBuffer buf{nullptr, 1920, 1080, viz::PixelFormat::kRGBA8, 0};
+    CHECK(viz::effective_pitch(buf) == 1920 * 4);
 }
 ```
 
 **GPU integration test (Catch2):**
 ```cpp
-TEST_CASE_METHOD(core::viz::testing::GpuFixture,
+TEST_CASE_METHOD(viz::testing::GpuFixture,
                  "QuadLayer round-trip pattern",
                  "[gpu][quad_layer]")
 {
@@ -1211,12 +1321,12 @@ TEST_CASE_METHOD(core::viz::testing::GpuFixture,
         .name = "test", .width_meters = 1.0f, .height_meters = 1.0f});
 
     VizBuffer expected = layer->acquire(64, 64, PixelFormat::kRGBA8);
-    core::viz::testing::fill_test_pattern(expected);
+    viz::testing::fill_test_pattern(expected);
     layer->release();
 
     session->render();
     auto result = session->readback();
-    CHECK(core::viz::testing::pixels_match(result, expected, /*tolerance=*/2));
+    CHECK(viz::testing::pixels_match(result, expected, /*tolerance=*/2));
 }
 ```
 
@@ -1235,6 +1345,59 @@ def test_quad_render(viz_session_offscreen):
 
 **XR tests:** Manual testing with CloudXR + headset. Not automated in
 Phase 1.
+
+### Failure-mode audit checklist
+
+Lessons distilled from real bugs caught in code review (the M2.2
+fence-reset, frame-pairing, and validate-then-allocate misses). For
+every new public function, walk this list before submitting a PR:
+
+1. **Validate inputs first, allocate second.** All preconditions
+   (mode supported? config sane? dependencies initialized?) must be
+   checked before any resource is acquired (`vkCreate*`, `cudaMalloc`,
+   heap allocation). A failed validation should leave the system
+   unchanged.
+
+2. **Exception safety on every mutation.** For each
+   "acquire/reset/begin → ... → release/submit/end" pattern, ask:
+   *what happens if the middle code throws?* Move the reset adjacent
+   to the matching release where possible, or use an RAII guard, or
+   catch + revert. Never leave a fence unsignaled, a flag stuck, or
+   a Vulkan handle dangling on a failure path.
+
+3. **State-machine hygiene.** When introducing any state field
+   (explicit enum or implicit boolean like `frame_in_progress`),
+   enumerate every transition — including invalid ones — and decide
+   whether to throw, no-op, or assert. Silent no-ops mask real bugs
+   in caller code; prefer throw for invalid transitions in test /
+   debug paths.
+
+4. **Idempotent destroy.** `destroy()` and equivalent cleanup paths
+   must be safe to call twice and after partial init failure. Test
+   it.
+
+5. **Threading contract documented.** Every public mutation method
+   must document whether it's thread-safe. Default to "single-
+   threaded; must be called from the frame thread" unless explicitly
+   designed for cross-thread use (and then it needs an atomic /
+   mutex / lock-free queue).
+
+6. **Test the failure paths.** Beyond happy-path coverage, every
+   feature ships with at least:
+   - **invalid-input rejection** test (no GPU needed),
+   - **state-machine invalid-transition** test (begin/begin,
+     end/end, etc.),
+   - **exception recovery** test (inject a throw mid-loop, verify
+     next iteration works) — `viz::testing::ThrowingLayer` is the
+     canonical pattern,
+   - **idempotent destroy** test.
+
+CI helps but does not replace this audit:
+- **clang-format** + **CodeRabbit** catch some of #1, #2, #3.
+- **AddressSanitizer / UBSAN** in CI catches lifetime / leak bugs
+  (#1 / #4 partially) — see the `test-viz-sanitizers` workflow job.
+- **Test patterns above** catch #2 / #3 / #6 — these are the
+  developer's responsibility to write up-front.
 
 ---
 
@@ -1347,6 +1510,14 @@ Multi-camera QuadLayers + nvblox custom layer + telemetry OverlayLayers
   its session; the unified-session pattern uses `get_oxr_handles()` which
   already exists.
 
+### Architecture Improvements / Known Limitations
+
+- **Multi-GPU Device Matching**: Currently `vk_context` prefers NVIDIA GPUs but may mismatch with the active CUDA device. Must query the Vulkan physical device's UUID (`VkPhysicalDeviceIDProperties`) and match it with the active CUDA device UUID (`cudaDeviceGetProp::uuid`) to avoid P2P overhead or failures.
+- **Dynamic Resolution Reallocation**: Rapid dimension changes in `submit`/`acquire` trigger `VkImage` and `cudaExternalMemory_t` reallocation, causing stutter. A future improvement should over-allocate and update viewport/scissor/UVs, only reallocating if the new frame exceeds capacity.
+- **Hardcoded Pixel Formats (NV12 vs. RGBA8)**: `VizBuffer` currently forces `kRGBA8`, making hardware decoders (NVDEC) convert from NV12/YUV upstream. Future phases should support Vulkan YCbCr samplers to allow zero-cost color-space conversion in the shader.
+- **Error Granularity in Python**: Generic `RuntimeError` makes programmatic recovery hard. We should introduce a richer exception hierarchy in pybind11 (e.g., `VulkanError`, `CudaInteropError`, `InvalidStateError`).
+- **Asynchronous Readback**: The `readback()` method maps the intermediate framebuffer synchronously. If production video recording is ever needed, it will require asynchronous PBO readback via a ring-buffer of `VkBuffer` objects.
+
 ---
 
 ## Implementation Phases
@@ -1402,7 +1573,7 @@ replace Holoscan in the camera streaming stack.
 
 **Build:**
 
-- CMakeLists under `src/viz/` and `src/viz_tests/`, wired into root
+- CMakeLists under each `src/viz/<sub-module>/`, wired into root
 - FetchContent for GLFW, GLM, pybind11
 - Optional OpenXR SDK (`BUILD_XR=ON`)
 
