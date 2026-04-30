@@ -5,6 +5,43 @@
 
 set -euo pipefail
 
+# ============================================================================
+# DEPRECATION WARNING
+# ============================================================================
+RED=$'\033[1;31m'
+YELLOW=$'\033[1;33m'
+CYAN=$'\033[1;36m'
+RESET=$'\033[0m'
+
+cat <<EOF >&2
+
+${RED}################################################################################
+#                                                                              #
+#                          ##  DEPRECATION WARNING  ##                         #
+#                                                                              #
+################################################################################${RESET}
+
+${YELLOW}This script (run_cloudxr_via_docker.sh) is DEPRECATED and will be REMOVED
+in a future release.${RESET}
+
+  Tracking issue:
+    ${CYAN}https://github.com/NVIDIA/IsaacTeleop/issues/362${RESET}
+
+If you rely on this script, please comment on the issue above with your
+use case and feedback so we can provide you with a smooth migration path.
+
+${RED}################################################################################${RESET}
+
+EOF
+
+# Require interactive acknowledgment before continuing.
+if [ -t 0 ]; then
+    printf "${YELLOW}Press any key to acknowledge and continue, or Ctrl-C to abort...${RESET}\n"
+    read -r -n 1 -s
+    printf "\n"
+fi
+# ============================================================================
+
 # Make sure to run this script from the root of the repository.
 GIT_ROOT=$(git rev-parse --show-toplevel)
 cd "$GIT_ROOT" || exit 1
