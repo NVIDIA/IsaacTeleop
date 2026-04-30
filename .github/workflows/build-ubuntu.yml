@@ -19,6 +19,33 @@ permissions:
   contents: read
 
 jobs:
+  detect-changes:
+    # Lightweight gating job: emits a `web` output consumed by build-webapp
+    # and test-cloudxr-web-e2e so PRs that don't touch the web stack skip
+    # the GPU-runner E2E pipeline. On push/tag events (main, release/*,
+    # v*) we always set web=true so protected branches retain full coverage.
+    runs-on: ubuntu-22.04
+    outputs:
+      web: ${{ steps.filter.outputs.web || 'true' }}
+    steps:
+      - name: Filter web paths
+        # paths-filter@v3 uses the GitHub API on pull_request events and
+        # does not need a prior actions/checkout. Skipped on non-PR events
+        # so the `|| 'true'` fallback above takes effect.
+        if: github.event_name == 'pull_request'
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            web:
+              - 'deps/cloudxr/webxr_client/**'
+              - 'deps/cloudxr/docker-compose.test-e2e.yaml'
+              - 'deps/cloudxr/Dockerfile.runtime'
+              - 'tests/web_e2e/**'
+              - 'scripts/run_test_e2e_with_web.sh'
+              - '.github/workflows/build-ubuntu.yml'
+              - '.github/actions/setup-cloudxr-sdk/**'
+
   build-ubuntu:
     # Pin to 22.04 so the wheel is built with GCC 11's libstdc++. The resulting wheel
     # then runs on both Ubuntu 22.04 and 24.04 (24.04's libstdc++ is backward compatible).
@@ -466,7 +493,10 @@ jobs:
   build-webapp:
     # GitHub-hosted runner is sufficient: the webxr_client build is pure
     # Node/Webpack and produces an artifact consumed by test-cloudxr-web-e2e.
+    # Skipped on PRs that don't touch the web stack — see detect-changes.
     runs-on: ubuntu-22.04
+    needs: detect-changes
+    if: needs.detect-changes.outputs.web == 'true'
 
     steps:
     - name: Checkout code
@@ -507,10 +537,13 @@ jobs:
     # GPU runner required: the CloudXR runtime needs an NVIDIA GPU even when
     # only one E2E spec is running. Single matrix entry — the web client
     # behavior is independent of the matrix dims used by other test jobs.
-    runs-on: [self-hosted, linux, gpu, x64]
+    # Skipped on PRs that don't touch the web stack — see detect-changes.
+    runs-on: [self-hosted, linux, gpu]
     needs:
+      - detect-changes
       - build-ubuntu
       - build-webapp
+    if: needs.detect-changes.outputs.web == 'true'
 
     steps:
     - name: Checkout code
