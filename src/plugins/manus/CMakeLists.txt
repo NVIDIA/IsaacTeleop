@@ -1,19 +1,23 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 include(GNUInstallDirs)
 
 option(MANUS_ADD_SDK_TO_BUILD_RPATH "Add Manus SDK lib dir to BUILD_RPATH for plugin and tools" ON)
 
-if(NOT DEFINED MANUS_SDK_ROOT AND DEFINED ENV{MANUS_SDK_ROOT})
-  set(MANUS_SDK_ROOT "$ENV{MANUS_SDK_ROOT}" CACHE PATH "Path to Manus SDK root containing include/ and lib/" FORCE)
-else()
-  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ManusSDK")
-    set(_MANUS_DEFAULT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/ManusSDK")
+set(_MANUS_DEFAULT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/ManusSDK")
+
+if(NOT DEFINED MANUS_SDK_ROOT)
+  if(DEFINED ENV{MANUS_SDK_ROOT})
+    set(MANUS_SDK_ROOT "$ENV{MANUS_SDK_ROOT}" CACHE PATH "Path to Manus SDK root containing include/ and lib/" FORCE)
   else()
-    set(_MANUS_DEFAULT_ROOT "${CMAKE_SOURCE_DIR}/ManusSDK")
+    set(MANUS_SDK_ROOT "${_MANUS_DEFAULT_ROOT}" CACHE PATH "Path to Manus SDK root containing include/ and lib/")
   endif()
-  set(MANUS_SDK_ROOT "${_MANUS_DEFAULT_ROOT}" CACHE PATH "Path to Manus SDK root containing include/ and lib/")
+elseif(NOT EXISTS "${MANUS_SDK_ROOT}/include/ManusSDK.h")
+  if(EXISTS "${_MANUS_DEFAULT_ROOT}/include/ManusSDK.h")
+    message(STATUS "Cached MANUS_SDK_ROOT='${MANUS_SDK_ROOT}' is invalid; falling back to local default '${_MANUS_DEFAULT_ROOT}'")
+    set(MANUS_SDK_ROOT "${_MANUS_DEFAULT_ROOT}" CACHE PATH "Path to Manus SDK root containing include/ and lib/" FORCE)
+  endif()
 endif()
 
 set(MANUS_SDK_INCLUDE_DIR "${MANUS_SDK_ROOT}/include" CACHE PATH "Manus SDK include path" FORCE)
