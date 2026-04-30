@@ -1,0 +1,1078 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>CloudXR Runtime &#8212; Isaac Teleop Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=55c26ed414f5f8a31ebb" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=55c26ed414f5f8a31ebb" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/nvidia-sphinx-theme.css?v=933278ad" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=e662b523" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../_static/scripts/fontawesome.js?digest=55c26ed414f5f8a31ebb"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=55c26ed414f5f8a31ebb" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=55c26ed414f5f8a31ebb" />
+
+
+
+    <script src="../_static/documentation_options.js?v=8a870ebc"></script>
+    <script src="../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'references/cloudxr';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+
+    <link rel="icon" href="../_static/favicon.ico"/>
+
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Out-of-Band Teleop Control" href="oob_teleop_control.html" />
+    <link rel="prev" title="Retargeting Interface" href="retargeting.html" />
+
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="1.2.x" />
+  
+    
+    <script src="../_static/searchtools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script src="../searchindex.js"></script>
+  
+
+
+  </head>
+
+  <body data-default-mode="">
+
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="Isaac Teleop Documentation - Home"/>
+    <img src="../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="Isaac Teleop Documentation - Home"/>
+  
+  
+    <p class="title logo__title">Isaac Teleop Documentation</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="Isaac Teleop Documentation - Home"/>
+    <img src="../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="Isaac Teleop Documentation - Home"/>
+  
+  
+    <p class="title logo__title">Isaac Teleop Documentation</p>
+  
+</a>
+
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item"><!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+</div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/IsaacTeleop" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://docs.nvidia.com/cloudxr-sdk" title="CloudXR" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/CloudXR-6.1-green.svg" class="icon-link-image" alt="CloudXR"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://isaac-sim.github.io/IsaacLab" title="Isaac Lab" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacLab-3.0-silver.svg" class="icon-link-image" alt="Isaac Lab"/></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        <div class="sidebar-primary-item">
+
+
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Table of Contents">
+  <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Isaac Teleop</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/ecosystem.html">Ecosystem</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/quick_start.html">Quick Start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/build_from_source/index.html">Build from Source</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/teleop_session.html">Teleop Session</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/teleop_control_state_machine.html">Teleop Control State Machine</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/contributing.html">Contributing</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="requirements.html">System Requirements</a></li>
+<li class="toctree-l1"><a class="reference internal" href="build.html">Build System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../device/index.html">Device Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="retargeting.html">Retargeting Interface</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">CloudXR Runtime</a></li>
+<li class="toctree-l1"><a class="reference internal" href="oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="license.html">License</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">CloudXR Runtime</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="cloudxr-runtime">
+<h1>CloudXR Runtime<a class="headerlink" href="#cloudxr-runtime" title="Link to this heading">#</a></h1>
+<p>The <strong>CloudXR runtime</strong> and its <strong>WSS TLS proxy</strong> are what actually stream
+pose data between the XR headset and Isaac Teleop.  They can be started
+two ways, both on top of the same code path:</p>
+<ul class="simple">
+<li><p><strong>CLI</strong> — <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr</span></code> from a dedicated terminal.</p></li>
+<li><p><strong>Python API</strong> — <code class="xref py py-class docutils literal notranslate"><span class="pre">CloudXRLauncher</span></code>, for embedding the runtime
+inside an existing Python application (for example an Isaac Sim or
+Isaac Lab script) so no second terminal is required.</p></li>
+</ul>
+<p>This page is the reference for both.  For a first-time walkthrough with
+screenshots, start at <a class="reference internal" href="../getting_started/quick_start.html"><span class="doc">Quick Start</span></a>; come back
+here when you need the programmatic API, a full list of environment
+variables, or troubleshooting detail.</p>
+<section id="architecture">
+<h2>Architecture<a class="headerlink" href="#architecture" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 75.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Component</p></th>
+<th class="head"><p>What it does</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><strong>CloudXR runtime</strong></p></td>
+<td><p>Native service (<code class="docutils literal notranslate"><span class="pre">libcloudxr.so</span></code>) wrapped by
+<code class="docutils literal notranslate"><span class="pre">isaacteleop.cloudxr.runtime</span></code>.  Handles the OpenXR side of the
+connection, WebRTC signaling, encode, and streaming.  Run as an
+isolated subprocess in its own process group so that host
+applications that have already initialized CUDA (e.g. Isaac Sim)
+do not collide with the runtime’s GPU context.</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>WSS TLS proxy</strong></p></td>
+<td><p>Python <code class="docutils literal notranslate"><span class="pre">asyncio</span></code> server that terminates TLS in front of the
+runtime so the WebXR client can speak <code class="docutils literal notranslate"><span class="pre">wss://</span></code> from a headset
+browser.  Runs in a background thread with its own event loop
+when started via <code class="xref py py-class docutils literal notranslate"><span class="pre">CloudXRLauncher</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>Bootstrap</strong></p></td>
+<td><p>EULA check, env-config resolution, SDK-file staging, and cleanup
+of stale sentinel files from a prior run.  Performed once during
+construction before the subprocess is spawned.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Both front-ends (CLI and <code class="xref py py-class docutils literal notranslate"><span class="pre">CloudXRLauncher</span></code>) construct the
+launcher, block until the runtime signals readiness, then hold the
+process open.  The CLI’s only added job is to print a status banner and
+sleep on a signal.</p>
+</section>
+<section id="two-ways-to-run">
+<h2>Two ways to run<a class="headerlink" href="#two-ways-to-run" title="Link to this heading">#</a></h2>
+<section id="command-line">
+<h3>Command line<a class="headerlink" href="#command-line" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+</pre></div>
+</div>
+<p>Flags:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 32.0%" />
+<col style="width: 68.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Flag</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--cloudxr-install-dir</span> <span class="pre">PATH</span></code></p></td>
+<td><p>CloudXR install directory.  Default: <code class="docutils literal notranslate"><span class="pre">~/.cloudxr</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--cloudxr-env-config</span> <span class="pre">PATH</span></code></p></td>
+<td><p>Optional <code class="docutils literal notranslate"><span class="pre">KEY=value</span></code> file whose entries override the default
+CloudXR environment variables.  See <a class="reference internal" href="#environment-variables">Environment variables</a>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--accept-eula</span></code></p></td>
+<td><p>Accept the NVIDIA CloudXR EULA non-interactively (CI,
+containers, unattended scripts).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--setup-oob</span></code></p></td>
+<td><p>Enable the OOB teleop control hub and USB-adb headset
+automation.  See <a class="reference internal" href="oob_teleop_control.html"><span class="doc">Out-of-Band Teleop Control</span></a>.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="python-api">
+<h3>Python API<a class="headerlink" href="#python-api" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.cloudxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">CloudXRLauncher</span>
+
+<span class="k">with</span> <span class="n">CloudXRLauncher</span><span class="p">(</span><span class="n">accept_eula</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">as</span> <span class="n">launcher</span><span class="p">:</span>
+    <span class="c1"># runtime + WSS proxy are running</span>
+    <span class="o">...</span>
+</pre></div>
+</div>
+<p>The CLI above is a thin wrapper around this class; every flag maps
+directly to a constructor argument.</p>
+</section>
+</section>
+<section id="cloudxrlauncher">
+<h2><code class="docutils literal notranslate"><span class="pre">CloudXRLauncher</span></code><a class="headerlink" href="#cloudxrlauncher" title="Link to this heading">#</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">CloudXRLauncher</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">install_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;~/.cloudxr&quot;</span><span class="p">,</span>
+        <span class="n">env_config</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">accept_eula</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">setup_oob</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span> <span class="o">...</span>
+</pre></div>
+</div>
+<p>The launcher starts work immediately in <code class="docutils literal notranslate"><span class="pre">__init__</span></code>: it resolves env
+configuration, verifies the EULA, cleans up any stale sentinel files,
+spawns the runtime subprocess, waits up to <strong>30 seconds</strong> for readiness,
+and then starts the WSS proxy thread.  Construction therefore returns
+either with a fully running runtime or with a <code class="xref py py-class docutils literal notranslate"><span class="pre">RuntimeError</span></code>.</p>
+<section id="constructor-arguments">
+<h3>Constructor arguments<a class="headerlink" href="#constructor-arguments" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 22.0%" />
+<col style="width: 78.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Argument</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">install_dir</span></code></p></td>
+<td><p>CloudXR install directory.  Used to resolve the run directory
+(<code class="docutils literal notranslate"><span class="pre">&lt;install_dir&gt;/run</span></code>) and log directory
+(<code class="docutils literal notranslate"><span class="pre">&lt;install_dir&gt;/logs</span></code>).  The path is expanded (<code class="docutils literal notranslate"><span class="pre">~</span></code>) and made
+absolute.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">env_config</span></code></p></td>
+<td><p>Optional path to a <code class="docutils literal notranslate"><span class="pre">KEY=value</span></code> env file.  Values undergo
+<code class="docutils literal notranslate"><span class="pre">$VAR</span></code> and <code class="docutils literal notranslate"><span class="pre">~</span></code> expansion.  Keys that are reserved by the
+runtime (<code class="docutils literal notranslate"><span class="pre">XR_RUNTIME_JSON</span></code>, <code class="docutils literal notranslate"><span class="pre">XRT_NO_STDIN</span></code>,
+<code class="docutils literal notranslate"><span class="pre">NV_CXR_RUNTIME_DIR</span></code>, <code class="docutils literal notranslate"><span class="pre">NV_CXR_OUTPUT_DIR</span></code>) are ignored with a
+warning.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">accept_eula</span></code></p></td>
+<td><p>If <code class="docutils literal notranslate"><span class="pre">True</span></code>, accept the CloudXR EULA non-interactively and write
+the acceptance marker.  If <code class="docutils literal notranslate"><span class="pre">False</span></code> and the marker is absent,
+the user is prompted on stdin; a non-TTY stdin causes the prompt
+to fail and <code class="xref py py-class docutils literal notranslate"><span class="pre">RuntimeError</span></code> is raised.  CI, containers,
+and any unattended caller should pass <code class="docutils literal notranslate"><span class="pre">True</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">setup_oob</span></code></p></td>
+<td><p>Enable the OOB teleop control hub in the WSS proxy.  See
+<a class="reference internal" href="oob_teleop_control.html"><span class="doc">Out-of-Band Teleop Control</span></a> for details.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="methods-and-properties">
+<h3>Methods and properties<a class="headerlink" href="#methods-and-properties" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 28.0%" />
+<col style="width: 72.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Member</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">stop()</span> <span class="pre">-&gt;</span> <span class="pre">None</span></code></p></td>
+<td><p>Signal the WSS proxy to shut down and terminate the runtime
+process group (SIGTERM, then SIGKILL after 10 s).  Safe to call
+multiple times, including when nothing is running.  Raises
+<code class="xref py py-class docutils literal notranslate"><span class="pre">RuntimeError</span></code> only if termination fails; the process
+handle is retained so callers can retry or inspect it.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">health_check()</span> <span class="pre">-&gt;</span> <span class="pre">None</span></code></p></td>
+<td><p>Raise <code class="xref py py-class docutils literal notranslate"><span class="pre">RuntimeError</span></code> if the runtime subprocess has
+exited, or if the WSS proxy thread has stopped.  Returns
+silently when both are alive.  Call periodically from an
+embedding app to notice a crashed runtime.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">wss_log_path</span></code> (property)</p></td>
+<td><p><code class="xref py py-class docutils literal notranslate"><span class="pre">pathlib.Path</span></code> to the current WSS proxy log file, or
+<code class="docutils literal notranslate"><span class="pre">None</span></code> if the proxy has not been started yet.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">__enter__</span></code> / <code class="docutils literal notranslate"><span class="pre">__exit__</span></code></p></td>
+<td><p>Context-manager protocol.  <code class="docutils literal notranslate"><span class="pre">__exit__</span></code> calls <code class="xref py py-meth docutils literal notranslate"><span class="pre">stop()</span></code>.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="at-exit-cleanup">
+<h3>At-exit cleanup<a class="headerlink" href="#at-exit-cleanup" title="Link to this heading">#</a></h3>
+<p>The launcher registers <code class="xref py py-meth docutils literal notranslate"><span class="pre">stop()</span></code> with <code class="xref py py-mod docutils literal notranslate"><span class="pre">atexit</span></code> on first
+successful construction, so the runtime is stopped even if the
+embedding process exits abnormally (unhandled exception, SystemExit).
+An explicit <code class="xref py py-meth docutils literal notranslate"><span class="pre">stop()</span></code> call, or exiting a <code class="docutils literal notranslate"><span class="pre">with</span></code> block, still runs
+cleanup immediately — the <code class="docutils literal notranslate"><span class="pre">atexit</span></code> hook is a safety net, not a
+substitute.</p>
+</section>
+<section id="error-semantics">
+<h3>Error semantics<a class="headerlink" href="#error-semantics" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 75.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><code class="docutils literal notranslate"><span class="pre">RuntimeError</span></code> from</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">__init__</span></code></p></td>
+<td><p>EULA refused, or runtime did not reach readiness within
+<code class="docutils literal notranslate"><span class="pre">RUNTIME_STARTUP_TIMEOUT_SEC</span></code> (30 s).  Any partial state is
+torn down before raising and the exception message includes a
+diagnostic tail from the runtime stderr log and the most recent
+<code class="docutils literal notranslate"><span class="pre">cxr_server</span></code> log.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">stop()</span></code></p></td>
+<td><p>The runtime process group did not exit after SIGTERM and
+SIGKILL.  The <code class="docutils literal notranslate"><span class="pre">Popen</span></code> handle is retained so the caller can
+retry or inspect it.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">health_check()</span></code></p></td>
+<td><p>Runtime subprocess exited, or WSS proxy thread stopped.  Call
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">stop()</span></code> to clean up the surviving component before
+constructing a new launcher.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<section id="integration-pattern">
+<h2>Integration pattern<a class="headerlink" href="#integration-pattern" title="Link to this heading">#</a></h2>
+<section id="minimal">
+<h3>Minimal<a class="headerlink" href="#minimal" title="Link to this heading">#</a></h3>
+<p>The simplest embedding is a <code class="docutils literal notranslate"><span class="pre">with</span></code> block around the code that needs
+the runtime:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.cloudxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">CloudXRLauncher</span>
+
+<span class="k">with</span> <span class="n">CloudXRLauncher</span><span class="p">(</span><span class="n">accept_eula</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">as</span> <span class="n">launcher</span><span class="p">:</span>
+    <span class="n">run_teleop_session</span><span class="p">()</span>  <span class="c1"># your app&#39;s main work</span>
+</pre></div>
+</div>
+<p>On exit (normal or exception) the runtime subprocess and WSS proxy are
+torn down.</p>
+</section>
+<section id="realistic-embedding">
+<h3>Realistic embedding<a class="headerlink" href="#realistic-embedding" title="Link to this heading">#</a></h3>
+<p>A longer-running application typically wants to (a) detect a crashed
+runtime during the session, (b) respond to SIGINT/SIGTERM cleanly, and
+(c) guarantee teardown even if the signal handler never fires.  The
+pattern below mirrors what <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr</span></code> does
+internally:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">signal</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.cloudxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">CloudXRLauncher</span>
+
+<span class="n">launcher</span> <span class="o">=</span> <span class="n">CloudXRLauncher</span><span class="p">(</span>
+    <span class="n">install_dir</span><span class="o">=</span><span class="s2">&quot;~/.cloudxr&quot;</span><span class="p">,</span>
+    <span class="n">env_config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">accept_eula</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="k">try</span><span class="p">:</span>
+    <span class="n">stop</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_on_signal</span><span class="p">(</span><span class="n">sig</span><span class="p">,</span> <span class="n">frame</span><span class="p">):</span>
+        <span class="k">nonlocal</span> <span class="n">stop</span>
+        <span class="n">stop</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="n">signal</span><span class="o">.</span><span class="n">signal</span><span class="p">(</span><span class="n">signal</span><span class="o">.</span><span class="n">SIGINT</span><span class="p">,</span> <span class="n">_on_signal</span><span class="p">)</span>
+    <span class="n">signal</span><span class="o">.</span><span class="n">signal</span><span class="p">(</span><span class="n">signal</span><span class="o">.</span><span class="n">SIGTERM</span><span class="p">,</span> <span class="n">_on_signal</span><span class="p">)</span>
+
+    <span class="k">while</span> <span class="ow">not</span> <span class="n">stop</span><span class="p">:</span>
+        <span class="n">launcher</span><span class="o">.</span><span class="n">health_check</span><span class="p">()</span>  <span class="c1"># raises if runtime or proxy died</span>
+        <span class="n">do_one_tick_of_your_app</span><span class="p">()</span>
+        <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.1</span><span class="p">)</span>
+<span class="k">finally</span><span class="p">:</span>
+    <span class="n">launcher</span><span class="o">.</span><span class="n">stop</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>Notes:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">health_check()</span></code> is cheap (it polls a <code class="docutils literal notranslate"><span class="pre">Popen</span></code> and checks a thread
+flag); calling it every tick is fine.</p></li>
+<li><p>The <code class="docutils literal notranslate"><span class="pre">finally</span></code> clause is redundant with the <code class="xref py py-mod docutils literal notranslate"><span class="pre">atexit</span></code> hook under
+normal exits, but keeps teardown deterministic for embedders that
+rely on ordered shutdown.</p></li>
+<li><p>Construction is synchronous and blocks the calling thread for up to
+30 s while waiting for the runtime to become ready.  Do not call it
+from inside a running asyncio event loop — use
+<code class="xref py py-func docutils literal notranslate"><span class="pre">asyncio.to_thread()</span></code> (or construct before the loop starts).
+The WSS proxy itself runs on its own thread with an independent
+event loop.</p></li>
+</ul>
+</section>
+</section>
+<section id="files-and-logs">
+<h2>Files and logs<a class="headerlink" href="#files-and-logs" title="Link to this heading">#</a></h2>
+<p>Everything the runtime persists lives under <code class="docutils literal notranslate"><span class="pre">install_dir</span></code> (default
+<code class="docutils literal notranslate"><span class="pre">~/.cloudxr</span></code>):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>~/.cloudxr/
+├── openxr_cloudxr.json         # OpenXR runtime manifest (staged from the SDK)
+├── libopenxr_cloudxr.so        # OpenXR runtime library (staged from the SDK)
+├── run/
+│   ├── cloudxr.env             # final KEY=value env, source this in other terminals
+│   ├── eula_accepted           # EULA acceptance marker
+│   ├── runtime_started         # sentinel — created once the runtime is ready
+│   ├── ipc_cloudxr             # UNIX socket used between Monado and CloudXR
+│   ├── monado.pid              # Monado PID (for stale-process cleanup)
+│   └── cloudxr.pid             # CloudXR native service PID
+└── logs/
+    ├── runtime_stderr.log      # Python + Vulkan/GPU init diagnostics
+    ├── cxr_server.&lt;ts&gt;.log     # native CloudXR server log (one per run)
+    └── wss.&lt;ts&gt;.log            # WSS proxy log (one per run)
+</pre></div>
+</div>
+<section id="sourcing-the-env-file">
+<h3>Sourcing the env file<a class="headerlink" href="#sourcing-the-env-file" title="Link to this heading">#</a></h3>
+<p>To run another process (e.g. Isaac Sim) against this runtime from a
+different terminal, source the env file:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">source</span><span class="w"> </span>~/.cloudxr/run/cloudxr.env
+</pre></div>
+</div>
+<p>This sets <code class="docutils literal notranslate"><span class="pre">XR_RUNTIME_JSON</span></code>, <code class="docutils literal notranslate"><span class="pre">NV_CXR_RUNTIME_DIR</span></code>,
+<code class="docutils literal notranslate"><span class="pre">NV_CXR_OUTPUT_DIR</span></code>, and the user-configurable CloudXR variables so
+an OpenXR client finds the CloudXR runtime.</p>
+</section>
+<section id="stale-runtime-cleanup">
+<h3>Stale-runtime cleanup<a class="headerlink" href="#stale-runtime-cleanup" title="Link to this heading">#</a></h3>
+<p>If the previous runtime crashed without cleaning up, the sentinel
+files may still be present.  On startup the launcher:</p>
+<ol class="arabic simple">
+<li><p>Looks for <code class="docutils literal notranslate"><span class="pre">run/ipc_cloudxr</span></code>.  If present, uses <code class="docutils literal notranslate"><span class="pre">fuser</span> <span class="pre">-k</span> <span class="pre">-TERM</span></code>
+to ask any process still holding the socket to exit.</p></li>
+<li><p>Removes <code class="docutils literal notranslate"><span class="pre">run/ipc_cloudxr</span></code>, <code class="docutils literal notranslate"><span class="pre">run/runtime_started</span></code>,
+<code class="docutils literal notranslate"><span class="pre">run/monado.pid</span></code>, and <code class="docutils literal notranslate"><span class="pre">run/cloudxr.pid</span></code>.</p></li>
+<li><p>Starts the new runtime in a fresh process group.</p></li>
+</ol>
+<p>If construction still fails with “runtime failed to start within 30 s”,
+check <code class="docutils literal notranslate"><span class="pre">logs/runtime_stderr.log</span></code> and the newest <code class="docutils literal notranslate"><span class="pre">logs/cxr_server.*.log</span></code>.</p>
+</section>
+</section>
+<section id="environment-variables">
+<h2>Environment variables<a class="headerlink" href="#environment-variables" title="Link to this heading">#</a></h2>
+<section id="runtime">
+<h3>Runtime<a class="headerlink" href="#runtime" title="Link to this heading">#</a></h3>
+<p>These control the CloudXR runtime itself.  Defaults come from
+<code class="xref py py-class docutils literal notranslate"><span class="pre">EnvConfig</span></code>; override via <code class="docutils literal notranslate"><span class="pre">--cloudxr-env-config</span></code> (CLI) or
+<code class="docutils literal notranslate"><span class="pre">env_config=</span></code> (API).</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 22.0%" />
+<col style="width: 48.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Variable</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">NV_CXR_FILE_LOGGING</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>Redirect runtime stdout/stderr to files under <code class="docutils literal notranslate"><span class="pre">logs/</span></code>.  Set
+<code class="docutils literal notranslate"><span class="pre">false</span></code> to keep native output on the terminal (useful for
+debugging; disables <code class="docutils literal notranslate"><span class="pre">runtime_stderr.log</span></code>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">NV_CXR_ENABLE_PUSH_DEVICES</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>Enable OpenXR push-device extensions used by Isaac Teleop.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">NV_CXR_ENABLE_TENSOR_DATA</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>Enable tensor-data streaming channel.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">NV_DEVICE_PROFILE</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">auto-webrtc</span></code></p></td>
+<td><p>CloudXR device profile.  See the CloudXR SDK docs for valid
+values.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">CXR_INSTALL_DIR</span></code></p></td>
+<td><p><em>(from ``install_dir``)</em></p></td>
+<td><p>Resolved automatically; subprocesses inherit it to locate the
+run/log directories.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The following are resolved by the launcher from <code class="docutils literal notranslate"><span class="pre">install_dir</span></code> and
+<strong>cannot</strong> be overridden from the env file (they are silently dropped
+with a warning if you try):</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">XR_RUNTIME_JSON</span></code> — path to the staged <code class="docutils literal notranslate"><span class="pre">openxr_cloudxr.json</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">XRT_NO_STDIN</span></code> — always <code class="docutils literal notranslate"><span class="pre">true</span></code>; disables Monado stdin.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">NV_CXR_RUNTIME_DIR</span></code> — the <code class="docutils literal notranslate"><span class="pre">run/</span></code> directory under <code class="docutils literal notranslate"><span class="pre">install_dir</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">NV_CXR_OUTPUT_DIR</span></code> — the <code class="docutils literal notranslate"><span class="pre">logs/</span></code> directory under <code class="docutils literal notranslate"><span class="pre">install_dir</span></code>.</p></li>
+</ul>
+</section>
+<section id="ld-library-path">
+<h3><code class="docutils literal notranslate"><span class="pre">LD_LIBRARY_PATH</span></code><a class="headerlink" href="#ld-library-path" title="Link to this heading">#</a></h3>
+<p>The launcher prepends the bundled SDK directory to <code class="docutils literal notranslate"><span class="pre">LD_LIBRARY_PATH</span></code>
+before spawning the subprocess so that <code class="docutils literal notranslate"><span class="pre">libcloudxr.so</span></code> and
+<code class="docutils literal notranslate"><span class="pre">libopenxr_cloudxr.so</span></code> are found.  The runtime also loads
+<code class="docutils literal notranslate"><span class="pre">libcloudxr.so</span></code> with <code class="docutils literal notranslate"><span class="pre">RTLD_DEEPBIND</span></code> to prevent symbol conflicts
+with host applications that have already loaded an incompatible
+OpenSSL.</p>
+</section>
+<section id="wss-proxy-and-oob">
+<h3>WSS proxy and OOB<a class="headerlink" href="#wss-proxy-and-oob" title="Link to this heading">#</a></h3>
+<p>The WSS proxy and OOB hub honor their own environment variables
+(<code class="docutils literal notranslate"><span class="pre">PROXY_PORT</span></code>, <code class="docutils literal notranslate"><span class="pre">CONTROL_TOKEN</span></code>, <code class="docutils literal notranslate"><span class="pre">TELEOP_STREAM_SERVER_IP</span></code>, …).
+Those are documented with the hub they configure; see
+<a class="reference internal" href="oob_teleop_control.html"><span class="doc">Out-of-Band Teleop Control</span></a>.</p>
+</section>
+</section>
+<section id="eula">
+<h2>EULA<a class="headerlink" href="#eula" title="Link to this heading">#</a></h2>
+<p>The first run prompts the user to accept the <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/deps/cloudxr/CLOUDXR_LICENSE" rel="noopener noreferrer" target="_blank">NVIDIA CloudXR EULA</a>.
+Acceptance is recorded at <code class="docutils literal notranslate"><span class="pre">~/.cloudxr/run/eula_accepted</span></code> and
+remembered across runs.</p>
+<p>To bypass the prompt:</p>
+<ul class="simple">
+<li><p>CLI: <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr</span> <span class="pre">--accept-eula</span></code>.</p></li>
+<li><p>API: <code class="docutils literal notranslate"><span class="pre">CloudXRLauncher(accept_eula=True)</span></code>.</p></li>
+</ul>
+<p>For non-interactive environments (CI, containers, child processes
+without a controlling TTY) <code class="docutils literal notranslate"><span class="pre">accept_eula=True</span></code> is required; the
+interactive prompt will otherwise raise <code class="xref py py-class docutils literal notranslate"><span class="pre">RuntimeError</span></code> via
+<code class="docutils literal notranslate"><span class="pre">SystemExit</span></code> on EOF.</p>
+<p>See <a class="reference internal" href="license.html"><span class="doc">License</span></a> for the full license text and licensing notes.</p>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
+<section id="runtime-did-not-start-within-30-s">
+<h3>Runtime did not start within 30 s<a class="headerlink" href="#runtime-did-not-start-within-30-s" title="Link to this heading">#</a></h3>
+<p><code class="xref py py-class docutils literal notranslate"><span class="pre">CloudXRLauncher</span></code> raises <code class="docutils literal notranslate"><span class="pre">RuntimeError:</span> <span class="pre">CloudXR</span> <span class="pre">runtime</span> <span class="pre">failed</span>
+<span class="pre">to</span> <span class="pre">start</span> <span class="pre">within</span> <span class="pre">30s</span></code>.  The exception message already includes a tail
+of <code class="docutils literal notranslate"><span class="pre">logs/runtime_stderr.log</span></code> and the newest
+<code class="docutils literal notranslate"><span class="pre">logs/cxr_server.*.log</span></code>; those are the first files to inspect.</p>
+<p>Common causes:</p>
+<ul class="simple">
+<li><p>No compatible GPU / Vulkan loader available in the subprocess.
+Check <code class="docutils literal notranslate"><span class="pre">runtime_stderr.log</span></code> for Vulkan errors.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">LD_LIBRARY_PATH</span></code> pulled in an incompatible OpenSSL (host apps like
+Isaac Sim sometimes do this).  The launcher loads <code class="docutils literal notranslate"><span class="pre">libcloudxr.so</span></code>
+with <code class="docutils literal notranslate"><span class="pre">RTLD_DEEPBIND</span></code> to mitigate; confirm your environment hasn’t
+disabled that.</p></li>
+<li><p>The previous runtime is still alive holding <code class="docutils literal notranslate"><span class="pre">run/ipc_cloudxr</span></code>.
+The launcher tries <code class="docutils literal notranslate"><span class="pre">fuser</span> <span class="pre">-k</span> <span class="pre">-TERM</span></code> automatically; if <code class="docutils literal notranslate"><span class="pre">fuser</span></code> is
+not on <code class="docutils literal notranslate"><span class="pre">PATH</span></code>, install <code class="docutils literal notranslate"><span class="pre">psmisc</span></code> or terminate the stale process
+manually.</p></li>
+</ul>
+</section>
+<section id="eula-prompt-hangs-in-a-non-interactive-context">
+<h3>EULA prompt hangs in a non-interactive context<a class="headerlink" href="#eula-prompt-hangs-in-a-non-interactive-context" title="Link to this heading">#</a></h3>
+<p>If no <code class="docutils literal notranslate"><span class="pre">eula_accepted</span></code> marker exists and stdin is not a TTY, the
+launcher raises <code class="docutils literal notranslate"><span class="pre">RuntimeError:</span> <span class="pre">CloudXR</span> <span class="pre">EULA</span> <span class="pre">was</span> <span class="pre">not</span> <span class="pre">accepted</span></code>.  Pass
+<code class="docutils literal notranslate"><span class="pre">accept_eula=True</span></code> (or <code class="docutils literal notranslate"><span class="pre">--accept-eula</span></code>) for unattended runs.</p>
+</section>
+<section id="runtime-dies-mid-session">
+<h3>Runtime dies mid-session<a class="headerlink" href="#runtime-dies-mid-session" title="Link to this heading">#</a></h3>
+<p><code class="xref py py-meth docutils literal notranslate"><span class="pre">health_check()</span></code> will raise
+<code class="docutils literal notranslate"><span class="pre">RuntimeError:</span> <span class="pre">CloudXR</span> <span class="pre">runtime</span> <span class="pre">process</span> <span class="pre">exited</span> <span class="pre">unexpectedly</span></code>.  The
+runtime’s exit code is not surfaced directly; read
+<code class="docutils literal notranslate"><span class="pre">logs/cxr_server.&lt;ts&gt;.log</span></code> from the aborted run for the cause.  Call
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">stop()</span></code> to clean up the surviving WSS thread before constructing
+a new launcher.</p>
+</section>
+<section id="wss-proxy-thread-stopped-unexpectedly">
+<h3>WSS proxy thread stopped unexpectedly<a class="headerlink" href="#wss-proxy-thread-stopped-unexpectedly" title="Link to this heading">#</a></h3>
+<p><code class="xref py py-meth docutils literal notranslate"><span class="pre">health_check()</span></code> reports <code class="docutils literal notranslate"><span class="pre">RuntimeError:</span> <span class="pre">CloudXR</span> <span class="pre">WSS</span> <span class="pre">proxy</span> <span class="pre">thread</span>
+<span class="pre">stopped</span> <span class="pre">unexpectedly</span></code>.  The thread logs its traceback via the
+<code class="docutils literal notranslate"><span class="pre">isaacteleop.cloudxr.launcher</span></code> logger and writes request-level
+details to <code class="docutils literal notranslate"><span class="pre">logs/wss.&lt;ts&gt;.log</span></code>.  Enable Python logging at <code class="docutils literal notranslate"><span class="pre">INFO</span></code> or
+<code class="docutils literal notranslate"><span class="pre">DEBUG</span></code> on that logger to capture the startup exception.</p>
+</section>
+</section>
+<section id="see-also">
+<h2>See also<a class="headerlink" href="#see-also" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="../getting_started/quick_start.html"><span class="doc">Quick Start</span></a> — end-to-end first-run tutorial.</p></li>
+<li><p><a class="reference internal" href="oob_teleop_control.html"><span class="doc">Out-of-Band Teleop Control</span></a> — OOB control hub sharing the WSS TLS port.</p></li>
+<li><p><a class="reference internal" href="license.html"><span class="doc">License</span></a> — EULA text and Isaac Teleop / CloudXR licensing.</p></li>
+</ul>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="retargeting.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Retargeting Interface</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="oob_teleop_control.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Out-of-Band Teleop Control</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+
+
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#architecture">Architecture</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#two-ways-to-run">Two ways to run</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#command-line">Command line</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#python-api">Python API</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cloudxrlauncher"><code class="docutils literal notranslate"><span class="pre">CloudXRLauncher</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#constructor-arguments">Constructor arguments</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#methods-and-properties">Methods and properties</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#at-exit-cleanup">At-exit cleanup</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#error-semantics">Error semantics</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#integration-pattern">Integration pattern</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#minimal">Minimal</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#realistic-embedding">Realistic embedding</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#files-and-logs">Files and logs</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#sourcing-the-env-file">Sourcing the env file</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#stale-runtime-cleanup">Stale-runtime cleanup</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#environment-variables">Environment variables</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#runtime">Runtime</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ld-library-path"><code class="docutils literal notranslate"><span class="pre">LD_LIBRARY_PATH</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#wss-proxy-and-oob">WSS proxy and OOB</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#eula">EULA</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#runtime-did-not-start-within-30-s">Runtime did not start within 30 s</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#eula-prompt-hangs-in-a-non-interactive-context">EULA prompt hangs in a non-interactive context</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#runtime-dies-mid-session">Runtime dies mid-session</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#wss-proxy-thread-stopped-unexpectedly">WSS proxy thread stopped unexpectedly</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#see-also">See also</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=55c26ed414f5f8a31ebb"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=55c26ed414f5f8a31ebb"></script>
+
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+<a class="footer-brand logo" href="https://www.nvidia.com">
+  <img src="../_static/nvidia-logo-horiz-rgb-1c-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA"/>
+  <img src="../_static/nvidia-logo-horiz-rgb-1c-wht-for-screen.svg" class="logo__image only-dark" alt="NVIDIA"/>
+</a></div>
+      
+        <div class="footer-item">
+
+<div class="footer-links">
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">Privacy Policy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Your Privacy Choices</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/">Terms of Service</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/accessibility/">Accessibility</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/company-policies/">Corporate Policies</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/product-security/">Product Security</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/contact/">Contact</a>
+  
+  
+  
+</div>
+</div>
+      
+        <div class="footer-item">
+
+
+
+
+  <p class="copyright">
+    
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on April 23, 2026.
+      <br/>
+    
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+  </body>
+</html>
