@@ -104,6 +104,15 @@ public:
     uint32_t queue_family_index() const noexcept;
     VkQueue queue() const noexcept;
 
+    // CUDA device id matched to the chosen Vulkan physical device by
+    // UUID at init() time. Useful for callers that need to ensure
+    // their thread is on the right CUDA device before issuing CUDA
+    // calls — cudaSetDevice is per-host-thread, so a CudaTexture /
+    // DeviceImage created on a worker thread must call
+    // cudaSetDevice(ctx.cuda_device_id()) before any CUDA API. Returns
+    // -1 before init() has run.
+    int cuda_device_id() const noexcept;
+
     // Enumerates all Vulkan-capable physical devices and returns their
     // properties. Useful for picking a specific GPU index on multi-GPU
     // machines before calling init().
@@ -126,6 +135,7 @@ private:
     VkDevice device_ = VK_NULL_HANDLE;
     uint32_t queue_family_index_ = UINT32_MAX;
     VkQueue queue_ = VK_NULL_HANDLE;
+    int cuda_device_id_ = -1;
 };
 
 } // namespace viz

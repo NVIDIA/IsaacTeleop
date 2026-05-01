@@ -116,11 +116,25 @@ void DeviceImage::init()
 
 void DeviceImage::destroy()
 {
+    // Pin CUDA device for this thread so the CUDA frees below land on
+    // the right device even if destroy() runs on a thread that never
+    // ran VkContext::init(). Best-effort — destructor must not throw.
+    if (ctx_ != nullptr && ctx_->cuda_device_id() >= 0)
+    {
+        (void)cudaSetDevice(ctx_->cuda_device_id());
+    }
+
     // CUDA side first; CUDA holds a dup'd handle on the underlying
     // memory, so the VkDeviceMemory must outlive the CUDA mapping.
+    // cudaDeviceSynchronize ensures any caller-issued async CUDA work
+    // (e.g. cudaMemcpy2DToArrayAsync) has retired before we free the
+    // array — otherwise CUDA may UAF its own staging.
+    if (cuda_mipmapped_array_ != nullptr || cuda_external_memory_ != nullptr)
+    {
+        (void)cudaDeviceSynchronize();
+    }
     if (cuda_mipmapped_array_ != nullptr)
     {
-        // Failure here is best-effort cleanup; we don't throw from dtor.
         (void)cudaFreeMipmappedArray(cuda_mipmapped_array_);
         cuda_mipmapped_array_ = nullptr;
         cuda_array_ = nullptr;
@@ -148,6 +162,9 @@ void DeviceImage::destroy()
     {
         return;
     }
+    // Wait for all GPU work to retire before tearing down Vulkan
+    // resources.
+    (void)vkDeviceWaitIdle(device);
     if (command_pool_ != VK_NULL_HANDLE)
     {
         vkDestroyCommandPool(device, command_pool_, nullptr);
@@ -273,6 +290,12 @@ void DeviceImage::create_vk_image_view()
 
 void DeviceImage::import_to_cuda()
 {
+    // cudaSetDevice is per-host-thread; VkContext set it on the init
+    // thread, but DeviceImage::create() may run on a different one.
+    // Re-pin here so cudaImportExternalMemory / GetMappedMipmappedArray
+    // talk to the same physical GPU as Vulkan.
+    check_cuda(cudaSetDevice(ctx_->cuda_device_id()), "cudaSetDevice");
+
     VkMemoryRequirements reqs;
     vkGetImageMemoryRequirements(ctx_->device(), image_, &reqs);
 
@@ -341,6 +364,21 @@ void DeviceImage::run_one_shot_layout_transition(VkImageLayout old_layout,
     VkCommandBuffer cmd = VK_NULL_HANDLE;
     check_vk(vkAllocateCommandBuffers(device, &alloc, &cmd), "vkAllocateCommandBuffers(transition)");
 
+    // RAII: free the command buffer on every exit path (including
+    // exceptions from the check_vk calls below). The pool would
+    // eventually reclaim it on destroy(), but a retry loop after a
+    // transient queue submit failure would leak one cmd per attempt.
+    struct CmdGuard
+    {
+        VkDevice device;
+        VkCommandPool pool;
+        VkCommandBuffer cmd;
+        ~CmdGuard()
+        {
+            vkFreeCommandBuffers(device, pool, 1, &cmd);
+        }
+    } guard{ device, command_pool_, cmd };
+
     VkCommandBufferBeginInfo begin{};
     begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -371,8 +409,6 @@ void DeviceImage::run_one_shot_layout_transition(VkImageLayout old_layout,
     submit.pCommandBuffers = &cmd;
     check_vk(vkQueueSubmit(ctx_->queue(), 1, &submit, VK_NULL_HANDLE), "vkQueueSubmit(transition)");
     check_vk(vkQueueWaitIdle(ctx_->queue()), "vkQueueWaitIdle(transition)");
-
-    vkFreeCommandBuffers(device, command_pool_, 1, &cmd);
 }
 
 } // namespace viz

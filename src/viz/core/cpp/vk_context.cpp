@@ -216,6 +216,7 @@ void VkContext::destroy()
     physical_device_ = VK_NULL_HANDLE;
     queue_ = VK_NULL_HANDLE;
     queue_family_index_ = UINT32_MAX;
+    cuda_device_id_ = -1;
     validation_enabled_ = false;
     initialized_ = false;
 }
@@ -248,6 +249,11 @@ uint32_t VkContext::queue_family_index() const noexcept
 VkQueue VkContext::queue() const noexcept
 {
     return queue_;
+}
+
+int VkContext::cuda_device_id() const noexcept
+{
+    return cuda_device_id_;
 }
 
 void VkContext::create_instance(const Config& config)
@@ -447,6 +453,7 @@ void VkContext::match_cuda_device_to_vulkan()
             {
                 throw std::runtime_error(std::string("VkContext: cudaSetDevice failed: ") + cudaGetErrorString(err));
             }
+            cuda_device_id_ = i;
             return;
         }
     }
