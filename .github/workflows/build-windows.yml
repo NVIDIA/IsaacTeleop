@@ -69,14 +69,23 @@ jobs:
         version: 1.3.290.0
         cache: true
 
+    # CUDA Toolkit needed at link time for viz_core (device_image links
+    # cudart). Jimver action works correctly on Windows (the arm64
+    # /x86_64/ hardcoding bug is Linux-only); runs NVIDIA's silent
+    # network installer and sets CUDA_PATH so find_package(CUDAToolkit)
+    # locates the install.
+    - name: Install CUDA Toolkit
+      uses: Jimver/cuda-toolkit@v0.2.19
+      with:
+        cuda: '12.4.0'
+        method: 'network'
+        sub-packages: '["nvcc", "cudart"]'
+
     - name: Configure CMake
       # Note:
       # sccache does not work with VSBuild, so we use Ninja generator here.
       # -G Ninja would pickup mingw64 by default on Windows, so we explicitly set the compiler to cl.exe
       # Force embedded debug info (Z7) to avoid PDB contention whenever debug info is generated.
-      # BUILD_VIZ is OFF on Windows: viz_core links CUDAToolkit (cudart) and the Windows
-      # runner doesn't have CUDA installed. No Windows-XR consumer today, so flip it back on
-      # only when we add CUDA install to this job.
       run: >
         cmake -B build -G Ninja
         -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
@@ -87,7 +96,7 @@ jobs:
         -DCMAKE_CXX_COMPILER="cl.exe"
         -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
         -DBUILD_PLUGIN_OAK_CAMERA=ON
-        -DBUILD_VIZ=OFF
+        -DBUILD_VIZ=ON
 
     - name: Build
       run: cmake --build build --parallel
