@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Pinned commit on jiwenc-nv/v2d:retargeter that the [grounding] extra
+# (Sharpa retargeter) is built against. Edit this single line to upgrade
+# the bundled robotic_grounding; rerun scripts/setup_v2d_src.sh after.
+#
+# See docs/source/references/grounding_extra.rst for the end-to-end flow.
+
+27657fbbc85af946eaf58484aaf0bf6fead215e3

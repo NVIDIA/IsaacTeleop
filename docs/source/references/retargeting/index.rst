@@ -308,4 +308,10 @@ If the built-in retargeters do not cover your use case, you can implement a cust
    ``IDeviceIOSource`` subclass for custom input devices.
 
 See the `retargeters README <https://github.com/NVIDIA/IsaacTeleop/blob/main/src/retargeters/README.md>`_
-and :doc:`Contributing Guide <../getting_started/contributing>` for details.
+and :doc:`Contributing Guide <../../getting_started/contributing>` for details.
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Retargeter setup guides
+
+   sharpa

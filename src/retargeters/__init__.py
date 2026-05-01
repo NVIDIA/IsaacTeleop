@@ -16,6 +16,8 @@ Available Retargeters:
     - LocomotionRootCmdRetargeter: Locomotion from controller inputs
     - FootPedalRootCmdRetargeter: Root command from 3-axis foot pedal (horizontal/vertical + rudder)
     - GripperRetargeter: Pinch-based gripper control
+    - SharpaHandRetargeter: Pinocchio/Pink IK-based retargeting for Sharpa hand
+    - SharpaBiManualRetargeter: Bimanual version of SharpaHandRetargeter
     - Se3AbsRetargeter: Absolute EE pose control
     - Se3RelRetargeter: Relative EE delta control
     - TensorReorderer: Reorders and flattens multiple inputs into a single tensor
@@ -100,6 +102,23 @@ _LAZY_IMPORTS: dict[str, tuple[str, str, str | None]] = {
         "Se3RetargeterConfig",
         "retargeters-lite",
     ),
+    # .sharpa_hand_retargeter  (requires grounding extra: robotic_grounding,
+    # which transitively pulls pinocchio, pink, etc.)
+    "SharpaHandRetargeter": (
+        ".sharpa_hand_retargeter",
+        "SharpaHandRetargeter",
+        "grounding",
+    ),
+    "SharpaBiManualRetargeter": (
+        ".sharpa_hand_retargeter",
+        "SharpaBiManualRetargeter",
+        "grounding",
+    ),
+    "SharpaHandRetargeterConfig": (
+        ".sharpa_hand_retargeter",
+        "SharpaHandRetargeterConfig",
+        "grounding",
+    ),
     # .tensor_reorderer
     "TensorReorderer": (".tensor_reorderer", "TensorReorderer", None),
 }
@@ -147,6 +166,10 @@ __all__ = [
     "Se3AbsRetargeter",
     "Se3RelRetargeter",
     "Se3RetargeterConfig",
+    # Sharpa hand retargeters (require grounding extra: robotic_grounding)
+    "SharpaHandRetargeter",
+    "SharpaBiManualRetargeter",
+    "SharpaHandRetargeterConfig",
     # Utility retargeters
     "TensorReorderer",
 ]
