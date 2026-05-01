@@ -119,16 +119,6 @@ jobs:
           echo "No viz test binaries found under build/src/viz/"
           exit 1
         fi
-        # Bundle libcudart.so.12 alongside the binaries so test-viz-gpu
-        # runners (which have the NVIDIA driver but not the CUDA Toolkit)
-        # can resolve it via LD_LIBRARY_PATH=. without installing the
-        # toolkit. Mirrors the auditwheel approach used for the wheel.
-        CUDART_PATH="${CUDA_PATH:-/usr/local/cuda}/lib64/libcudart.so.12"
-        if [[ ! -f "$CUDART_PATH" ]]; then
-          echo "libcudart.so.12 not found at $CUDART_PATH"
-          exit 1
-        fi
-        cp -v "$CUDART_PATH" viz-tests-pkg/
         tar -cvzf viz-tests.tar.gz -C viz-tests-pkg .
 
     - name: Upload viz test binaries (Release, py3.11 only)
@@ -202,6 +192,14 @@ jobs:
         arch: ['x64', 'arm64']
 
     steps:
+    # Sparse checkout so the local composite action below
+    # (.github/actions/setup-cuda) is available; we don't need source.
+    - name: Checkout (sparse — actions only)
+      uses: actions/checkout@v6
+      with:
+        sparse-checkout: .github
+        sparse-checkout-cone-mode: false
+
     - name: Download viz test binaries
       uses: actions/download-artifact@v7
       with:
@@ -214,14 +212,19 @@ jobs:
         tar -xzvf viz-tests.tar.gz -C viz-tests
         chmod +x viz-tests/viz_*_tests
 
+    # GPU runners have the NVIDIA driver (libcuda.so.1) but not the
+    # CUDA Toolkit. viz_core links libcudart.so.12 (toolkit-side) so
+    # we need the toolkit installed here too. The cuda-cudart apt
+    # package's postinst drops /etc/ld.so.conf.d/cuda-*.conf, so
+    # libcudart lands on the standard ld.so search path — no
+    # LD_LIBRARY_PATH gymnastics needed.
+    - name: Install CUDA toolkit
+      uses: ./.github/actions/setup-cuda
+
     - name: Run viz [gpu] tests
       run: |
         set -euo pipefail
         cd viz-tests
-        # libcudart.so.12 is bundled in the artifact next to the binaries —
-        # GPU runners have the NVIDIA driver (libcuda.so.1) but not the
-        # full CUDA Toolkit, so cudart has to come with us.
-        export LD_LIBRARY_PATH="${PWD}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
         # Run [gpu]-tagged tests for every viz_*_tests binary. The build-ubuntu
         # job already covered [unit] tests on a CPU-only runner; here we focus
         # on the GPU paths that genuinely need Vulkan/CUDA at runtime.
