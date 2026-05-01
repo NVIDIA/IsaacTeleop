@@ -1,0 +1,96 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: Setup robotic_grounding source bundle
+description: |
+  Clone jiwenc-nv/v2d:retargeter at the SHA pinned in deps/v2d/version.txt
+  and copy `robotic_grounding/` into deps/v2d/src/robotic_grounding/. The
+  Teleop wheel build (src/core/python/CMakeLists.txt) then bundles that
+  subtree alongside isaacteleop, so `pip install isaacteleop[grounding]`
+  on the resulting wheel works without a separate robotic_grounding install.
+
+  Forks without V2D_RETARGETER_TOKEN no-op cleanly: the action exits
+  without populating deps/v2d/src/, the wheel build skips bundling, and
+  Sharpa retargeter tests skip via the `_HAS_PINOCCHIO` guard.
+
+inputs:
+  github-token:
+    description: PAT with read access to jiwenc-nv/v2d. Empty on forks; action no-ops then.
+    required: false
+    default: ''
+
+outputs:
+  bundled:
+    description: '"true" if deps/v2d/src/robotic_grounding/ was populated, else "false".'
+    value: ${{ steps.locate.outputs.bundled }}
+
+runs:
+  using: composite
+  steps:
+    - name: Skip on forks (no token)
+      if: inputs.github-token == ''
+      shell: bash
+      run: |
+        echo "::warning::V2D_RETARGETER_TOKEN is empty; skipping robotic_grounding source fetch."
+        echo "Sharpa retargeter tests will skip via the _HAS_PINOCCHIO guard."
+
+    - name: Read pinned V2D ref
+      id: pin
+      if: inputs.github-token != ''
+      shell: bash
+      run: |
+        if [ ! -f deps/v2d/version.txt ]; then
+          echo "::error::deps/v2d/version.txt is missing; cannot pin V2D commit."
+          exit 1
+        fi
+        SHA=$(grep -vE '^\s*(#|$)' deps/v2d/version.txt | head -1 | tr -d '[:space:]')
+        if [ -z "$SHA" ]; then
+          echo "::error::deps/v2d/version.txt contains no SHA."
+          exit 1
+        fi
+        echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+        echo "Pinned V2D ref: ${SHA}"
+
+    - name: Cache robotic_grounding source bundle
+      id: cache
+      if: inputs.github-token != ''
+      uses: actions/cache@v5
+      with:
+        path: deps/v2d/src
+        # Source bundle is pure files; cache key only depends on V2D SHA.
+        key: v2d-src-${{ steps.pin.outputs.sha }}
+
+    - name: Clone robotic_grounding source
+      if: inputs.github-token != '' && steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        V2D_REF: ${{ steps.pin.outputs.sha }}
+      run: |
+        set -euo pipefail
+        rm -rf /tmp/v2d deps/v2d/src
+        mkdir -p deps/v2d/src
+
+        # Whole retargeter branch is ~25 MB so a normal clone is fine.
+        gh repo clone jiwenc-nv/v2d /tmp/v2d -- --branch retargeter
+        git -C /tmp/v2d checkout "${V2D_REF}"
+
+        cp -a \
+          /tmp/v2d/robotic_grounding/source/robotic_grounding/robotic_grounding \
+          deps/v2d/src/robotic_grounding
+        find deps/v2d/src/robotic_grounding -type d -name __pycache__ \
+          -exec rm -rf {} + 2>/dev/null || true
+
+        rm -rf /tmp/v2d
+
+    - name: Locate bundle
+      id: locate
+      shell: bash
+      run: |
+        if [ -f deps/v2d/src/robotic_grounding/__init__.py ]; then
+          echo "bundled=true" >> "$GITHUB_OUTPUT"
+          echo "robotic_grounding/ source present at deps/v2d/src/robotic_grounding/"
+        else
+          echo "bundled=false" >> "$GITHUB_OUTPUT"
+          echo "::warning::deps/v2d/src/robotic_grounding/ is missing; wheel build will skip [grounding]."
+        fi
