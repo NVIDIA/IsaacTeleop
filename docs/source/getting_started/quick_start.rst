@@ -30,6 +30,14 @@ to clone the repository for a couple quick samples to run.
 
 In a new terminal, install the package from PyPI (or from a local wheel if you built from source):
 
+On Ubuntu systems, install the system package needed when the ``nlopt`` Python dependency builds
+from source (for example on Linux ``aarch64`` where a pre-built wheel may not be available):
+
+.. code-block:: bash
+
+   sudo apt-get update
+   sudo apt-get install -y libnlopt-dev
+
 .. code-block:: bash
 
    # From PyPI

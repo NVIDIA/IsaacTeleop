@@ -23,6 +23,8 @@ Prerequisites
 - **C++20** compatible compiler
 - **Python** 3.10, 3.11, 3.12, or 3.13 (default 3.11; see ``ISAAC_TELEOP_PYTHON_VERSION`` in root ``CMakeLists.txt``)
 - **uv** for Python dependency management and managed Python
+- **NLopt development headers** (``libnlopt-dev`` on Ubuntu) when Python installs ``nlopt``
+  from source
 - **Internet connection** for downloading dependencies via CMake FetchContent
 
 .. _one-time-setup:
@@ -36,7 +38,7 @@ the list of dependencies. On **Ubuntu**, install build tools and clang-format:
 .. code-block:: bash
 
    sudo apt-get update
-   sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache patchelf
+   sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache patchelf libnlopt-dev
 
 Runtime-only dependencies (needed to actually run teleop, not to build):
 
