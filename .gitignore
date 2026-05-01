@@ -50,3 +50,11 @@ dist/
 
 # SPDX report
 project.spdx
+
+# robotic_grounding source bundle (cloned locally / in CI from
+# jiwenc-nv/v2d:retargeter; never committed -- repopulated deterministically
+# from deps/v2d/version.txt). The Teleop wheel build copies this subtree
+# into the wheel staging dir so [grounding] users get robotic_grounding
+# without a separate install. V2D source must NOT be tracked here.
+deps/v2d/src/
+deps/v2d/wheels/

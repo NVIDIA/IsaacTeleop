@@ -4,6 +4,31 @@
 # Python wheel packaging (combines OXR, DEVICEIO, MCAP, PluginManager, and Schema modules).
 
 
+# Opt-in: bundle deps/v2d/src/robotic_grounding/ into the wheel so
+# `pip install isaacteleop[grounding]` resolves the Sharpa retargeter.
+# Populate the source via scripts/setup_v2d_src.sh first; then configure
+# with -DBUNDLE_ROBOTIC_GROUNDING=TRUE. Default OFF -- forks / OSS builds
+# produce a wheel without robotic_grounding, and Sharpa imports skip.
+option(BUNDLE_ROBOTIC_GROUNDING "Bundle V2D's robotic_grounding into the wheel" OFF)
+
+set(ROBOTIC_GROUNDING_SRC "${CMAKE_SOURCE_DIR}/deps/v2d/src/robotic_grounding")
+if(BUNDLE_ROBOTIC_GROUNDING)
+    if(NOT EXISTS "${ROBOTIC_GROUNDING_SRC}/__init__.py")
+        message(FATAL_ERROR
+            "BUNDLE_ROBOTIC_GROUNDING=TRUE but ${ROBOTIC_GROUNDING_SRC}/ "
+            "is missing. Run scripts/setup_v2d_src.sh first.")
+    endif()
+    # Entries injected into pyproject.toml.in's `packages = [...]`.
+    set(ROBOTIC_GROUNDING_PACKAGES_BLOCK
+        "    \"robotic_grounding\",\n    \"robotic_grounding.retarget\",\n")
+    set(ROBOTIC_GROUNDING_PACKAGE_DATA_BLOCK
+        "robotic_grounding = [\"assets/xmls/sharpawave/*.xml\"]")
+    message(STATUS "[grounding] bundling robotic_grounding/ from ${ROBOTIC_GROUNDING_SRC}")
+else()
+    set(ROBOTIC_GROUNDING_PACKAGES_BLOCK "")
+    set(ROBOTIC_GROUNDING_PACKAGE_DATA_BLOCK "")
+endif()
+
 # Generate pyproject.toml from template with ISAAC_TELEOP_PYPROJECT_VERSION
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/pyproject.toml.in"
@@ -43,9 +68,24 @@ add_custom_target(python_package ALL
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-cloudxr.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-retargeters.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-retargeters-lite.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-grounding.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
     DEPENDS deviceio_trackers_py deviceio_session_py oxr_py plugin_manager_py schema_py retargeting_engine_python retargeters_python retargeting_engine_ui_python teleop_session_manager_python cloudxr_python
     COMMENT "Preparing Python package structure"
 )
+
+# When deps/v2d/src/robotic_grounding/ is populated (script or CI action),
+# stage it into the wheel staging dir so the resulting Teleop wheel ships
+# robotic_grounding alongside isaacteleop.
+if(BUNDLE_ROBOTIC_GROUNDING)
+    add_custom_command(TARGET python_package POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E rm -rf
+            "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/robotic_grounding"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${ROBOTIC_GROUNDING_SRC}"
+            "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/robotic_grounding"
+        COMMENT "Bundling robotic_grounding/ into wheel staging dir for [grounding] extra"
+    )
+endif()
 
 # Generate Python type stubs (.pyi) for IDE intellisense
 # Uses the same Python version that built the .so files (via uv --python)

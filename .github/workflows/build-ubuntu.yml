@@ -52,6 +52,22 @@ jobs:
       with:
         ngc-api-key: ${{ secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY }}
 
+    # robotic_grounding source bundle for the [grounding] extra (Sharpa retargeter).
+    # Disabled on release branches (and PRs targeting them) to keep release
+    # artifacts free of V2D source: V2D is private/pre-release and shouldn't
+    # ship with anything stamped as a release. Also no-ops on forks that
+    # lack V2D_RETARGETER_TOKEN. In every disabled case the wheel build skips
+    # bundling robotic_grounding/, and Sharpa tests skip via the
+    # _HAS_PINOCCHIO guard. Must run BEFORE `Configure CMake` so the wheel
+    # staging step in src/core/python/CMakeLists.txt picks up
+    # deps/v2d/src/robotic_grounding/.
+    - name: Setup robotic_grounding source bundle
+      id: setup-v2d-src
+      if: ${{ !startsWith(github.ref_name, 'release/') && !startsWith(github.base_ref, 'release/') }}
+      uses: ./.github/actions/setup-v2d-src
+      with:
+        github-token: ${{ secrets.V2D_RETARGETER_TOKEN }}
+
     # Hunter cache - caches depthai dependencies (OpenSSL, CURL, etc.)
     - name: Cache Hunter packages
       uses: actions/cache@v5
@@ -83,7 +99,8 @@ jobs:
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DBUILD_PLUGIN_OAK_CAMERA=ON \
           -DBUILD_VIZ=ON \
-          -DENABLE_CLOUDXR_BUNDLE_CHECK=ON
+          -DENABLE_CLOUDXR_BUNDLE_CHECK=ON \
+          -DBUNDLE_ROBOTIC_GROUNDING=${{ steps.setup-v2d-src.outputs.bundled || 'false' }}
 
     - name: Build
       run: cmake --build build --parallel 4
@@ -150,6 +167,26 @@ jobs:
         rm -f install/wheels/*.whl
         mv install/wheels-repaired/*.whl install/wheels/
         rmdir install/wheels-repaired || true
+
+    # Belt-and-suspenders against leaking V2D source via the public CI
+    # artifact. The Teleop wheel build bundles robotic_grounding/ into the
+    # wheel when V2D_RETARGETER_TOKEN was set. Strip those entries here so
+    # the wheel uploaded to a public GitHub Actions artifact never contains
+    # V2D code, regardless of which matrix entry / branch built it.
+    # Internal consumers who need the bundled wheel can rebuild locally
+    # from source via scripts/setup_v2d_src.sh + cmake.
+    - name: Strip robotic_grounding from wheel artifacts (Release only)
+      if: matrix.build_type == 'Release'
+      run: |
+        set -euo pipefail
+        shopt -s nullglob
+        wheels=(install/wheels/*.whl)
+        if (( ${#wheels[@]} == 0 )); then
+          echo "No wheels found; nothing to strip."
+          exit 0
+        fi
+        uv run --python ${{ matrix.python_version }} \
+          python scripts/strip_robotic_grounding_from_wheel.py "${wheels[@]}"
 
     - name: Create tarball to preserve permissions
       if: matrix.build_type == 'Release'
