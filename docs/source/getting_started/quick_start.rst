@@ -72,6 +72,12 @@ You should see output similar to:
    Also take note of the ``source /home/dev/.cloudxr/run/cloudxr.env`` path it mentioned in the
    output. You will need to source it in step :ref:`load-cloudxr-environment-variables`.
 
+.. tip::
+
+   To embed the CloudXR runtime inside an existing Python application (instead of running it in a
+   dedicated terminal), or for the full list of environment variables, log locations, and
+   troubleshooting steps, see :doc:`../references/cloudxr`.
+
 CloudXR Configurations (Optional)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
