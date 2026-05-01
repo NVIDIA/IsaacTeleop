@@ -4,9 +4,9 @@
 CloudXR Runtime
 ===============
 
-The **CloudXR runtime** and its **WSS TLS proxy** are what actually stream
-pose data between the XR headset and Isaac Teleop.  They can be started
-two ways, both on top of the same code path:
+The **CloudXR runtime** is what actually stream sensor data and visual data
+between various I/O devices (e.g. XR headset, gloves, etc) and Isaac Teleop.
+They can be started two ways, both on top of the same code path:
 
 - **CLI** — ``python -m isaacteleop.cloudxr`` from a dedicated terminal.
 - **Python API** — :class:`CloudXRLauncher`, for embedding the runtime
@@ -17,37 +17,6 @@ This page is the reference for both.  For a first-time walkthrough with
 screenshots, start at :doc:`../getting_started/quick_start`; come back
 here when you need the programmatic API, a full list of environment
 variables, or troubleshooting detail.
-
-Architecture
-------------
-
-.. list-table::
-   :header-rows: 1
-   :widths: 25 75
-
-   * - Component
-     - What it does
-   * - **CloudXR runtime**
-     - Native service (``libcloudxr.so``) wrapped by
-       ``isaacteleop.cloudxr.runtime``.  Handles the OpenXR side of the
-       connection, WebRTC signaling, encode, and streaming.  Run as an
-       isolated subprocess in its own process group so that host
-       applications that have already initialized CUDA (e.g. Isaac Sim)
-       do not collide with the runtime's GPU context.
-   * - **WSS TLS proxy**
-     - Python ``asyncio`` server that terminates TLS in front of the
-       runtime so the WebXR client can speak ``wss://`` from a headset
-       browser.  Runs in a background thread with its own event loop
-       when started via :class:`CloudXRLauncher`.
-   * - **Bootstrap**
-     - EULA check, env-config resolution, SDK-file staging, and cleanup
-       of stale sentinel files from a prior run.  Performed once during
-       construction before the subprocess is spawned.
-
-Both front-ends (CLI and :class:`CloudXRLauncher`) construct the
-launcher, block until the runtime signals readiness, then hold the
-process open.  The CLI's only added job is to print a status banner and
-sleep on a signal.
 
 Two ways to run
 ---------------

@@ -58,7 +58,7 @@
 
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Out-of-Band Teleop Control" href="oob_teleop_control.html" />
+    <link rel="next" title="MCAP Recording &amp; Replay" href="mcap_record_replay.html" />
     <link rel="prev" title="Retargeting Interface" href="retargeting.html" />
 
 
@@ -337,6 +337,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../device/index.html">Device Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="retargeting.html">Retargeting Interface</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">CloudXR Runtime</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
 <li class="toctree-l1"><a class="reference internal" href="oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="license.html">License</a></li>
 </ul>
@@ -392,9 +393,9 @@
                   
   <section id="cloudxr-runtime">
 <h1>CloudXR Runtime<a class="headerlink" href="#cloudxr-runtime" title="Link to this heading">#</a></h1>
-<p>The <strong>CloudXR runtime</strong> and its <strong>WSS TLS proxy</strong> are what actually stream
-pose data between the XR headset and Isaac Teleop.  They can be started
-two ways, both on top of the same code path:</p>
+<p>The <strong>CloudXR runtime</strong> is what actually stream sensor data and visual data
+between various I/O devices (e.g. XR headset, gloves, etc) and Isaac Teleop.
+They can be started two ways, both on top of the same code path:</p>
 <ul class="simple">
 <li><p><strong>CLI</strong> — <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr</span></code> from a dedicated terminal.</p></li>
 <li><p><strong>Python API</strong> — <code class="xref py py-class docutils literal notranslate"><span class="pre">CloudXRLauncher</span></code>, for embedding the runtime
@@ -405,46 +406,6 @@ Isaac Lab script) so no second terminal is required.</p></li>
 screenshots, start at <a class="reference internal" href="../getting_started/quick_start.html"><span class="doc">Quick Start</span></a>; come back
 here when you need the programmatic API, a full list of environment
 variables, or troubleshooting detail.</p>
-<section id="architecture">
-<h2>Architecture<a class="headerlink" href="#architecture" title="Link to this heading">#</a></h2>
-<div class="pst-scrollable-table-container"><table class="table">
-<colgroup>
-<col style="width: 25.0%" />
-<col style="width: 75.0%" />
-</colgroup>
-<thead>
-<tr class="row-odd"><th class="head"><p>Component</p></th>
-<th class="head"><p>What it does</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p><strong>CloudXR runtime</strong></p></td>
-<td><p>Native service (<code class="docutils literal notranslate"><span class="pre">libcloudxr.so</span></code>) wrapped by
-<code class="docutils literal notranslate"><span class="pre">isaacteleop.cloudxr.runtime</span></code>.  Handles the OpenXR side of the
-connection, WebRTC signaling, encode, and streaming.  Run as an
-isolated subprocess in its own process group so that host
-applications that have already initialized CUDA (e.g. Isaac Sim)
-do not collide with the runtime’s GPU context.</p></td>
-</tr>
-<tr class="row-odd"><td><p><strong>WSS TLS proxy</strong></p></td>
-<td><p>Python <code class="docutils literal notranslate"><span class="pre">asyncio</span></code> server that terminates TLS in front of the
-runtime so the WebXR client can speak <code class="docutils literal notranslate"><span class="pre">wss://</span></code> from a headset
-browser.  Runs in a background thread with its own event loop
-when started via <code class="xref py py-class docutils literal notranslate"><span class="pre">CloudXRLauncher</span></code>.</p></td>
-</tr>
-<tr class="row-even"><td><p><strong>Bootstrap</strong></p></td>
-<td><p>EULA check, env-config resolution, SDK-file staging, and cleanup
-of stale sentinel files from a prior run.  Performed once during
-construction before the subprocess is spawned.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<p>Both front-ends (CLI and <code class="xref py py-class docutils literal notranslate"><span class="pre">CloudXRLauncher</span></code>) construct the
-launcher, block until the runtime signals readiness, then hold the
-process open.  The CLI’s only added job is to print a status banner and
-sleep on a signal.</p>
-</section>
 <section id="two-ways-to-run">
 <h2>Two ways to run<a class="headerlink" href="#two-ways-to-run" title="Link to this heading">#</a></h2>
 <section id="command-line">
@@ -912,11 +873,11 @@ details to <code class="docutils literal notranslate"><span class="pre">logs/wss
       </div>
     </a>
     <a class="right-next"
-       href="oob_teleop_control.html"
+       href="mcap_record_replay.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Out-of-Band Teleop Control</p>
+        <p class="prev-next-title">MCAP Recording &amp; Replay</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -941,7 +902,6 @@ details to <code class="docutils literal notranslate"><span class="pre">logs/wss
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#architecture">Architecture</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#two-ways-to-run">Two ways to run</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#command-line">Command line</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#python-api">Python API</a></li>
@@ -1061,7 +1021,7 @@ details to <code class="docutils literal notranslate"><span class="pre">logs/wss
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on April 23, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on May 01, 2026.
       <br/>
     
   </p>
