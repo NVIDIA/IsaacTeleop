@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 dex-retargeting>=0.4.6,<0.6.0
 scipy>=1.15.0
 pyyaml>=6.0.3
@@ -6,3 +9,8 @@ torch>=2.7.0
 # nlopt: architecture-specific so x86_64 can use pre-built wheels; arm builds from sdist
 nlopt==2.6.2; platform_machine == "aarch64" or platform_machine == "arm64"
 nlopt>=2.6.2; platform_machine != "aarch64" and platform_machine != "arm64"
+
+# NOTE: The Sharpa retargeter's Pinocchio/Pink/daqp/loop-rate-limiters deps live
+# in `requirements-grounding.txt`, transitively via the `robotic_grounding`
+# wheel. They were briefly listed here while sharpa_hand_retargeter.py imported
+# pinocchio/pink directly; that is no longer the case.

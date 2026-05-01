@@ -21,6 +21,18 @@ test = [
     "numpy",
     "scipy",
 ]
+# Mirrors src/core/python/requirements-grounding.txt. The Sharpa unit test
+# imports robotic_grounding (staged into PYTHONPATH from the wheel build);
+# its runtime deps come from this extra.
+grounding = [
+    "numpy",
+    "scipy",
+    "torch>=2.7.0",
+    "pin>=2.7",
+    "pin-pink>=4.0",
+    "loop-rate-limiters",
+    "daqp",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
