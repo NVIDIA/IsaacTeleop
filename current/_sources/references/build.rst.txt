@@ -116,7 +116,7 @@ uv or Python version
 
 ``cmake/SetupPython.cmake`` requires **uv** and uses ``ISAAC_TELEOP_PYTHON_VERSION``. Install uv as
 in :ref:`One time setup <one-time-setup>` and pass ``-DISAAC_TELEOP_PYTHON_VERSION=3.10`` (or 3.11,
-3.12, 3.13) if you need a specific version.
+3.12) if you need a specific version.
 
 Reference
 ---------
