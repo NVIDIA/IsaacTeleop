@@ -28,6 +28,24 @@ to clone the repository for a couple quick samples to run.
 2. Install the ``isaacteleop`` pip package
 ------------------------------------------
 
+.. important::
+
+   Install into an isolated Python environment to avoid polluting your system Python. Activate
+   your environment of choice (``venv``, ``conda``, ``uv``, etc.) before running the command
+   below.
+
+.. dropdown:: New to Python environments?
+
+   If you don't already have a preferred workflow, here is a minimal setup using `uv`_:
+
+   .. code-block:: bash
+
+      uv venv
+      source .venv/bin/activate
+
+   Run ``deactivate`` to exit the environment when you're done. Feel free to use other tools
+   if you prefer — for example `conda`_ or the standard library `venv module`_.
+
 In a new terminal, install the package from PyPI (or from a local wheel if you built from source):
 
 .. code-block:: bash
@@ -355,3 +373,6 @@ More Information
 .. _`Teleoperation and Imitation Learning with Isaac Lab Mimic`: https://isaac-sim.github.io/IsaacLab/develop/source/overview/imitation-learning/teleop_imitation.html#teleoperation-imitation-learning
 .. _`CloudXR network setup`: https://docs.nvidia.com/cloudxr-sdk/latest/requirement/network_setup.html#ports-and-firewalls
 .. _`Isaac ROS`: https://nvidia-isaac-ros.github.io
+.. _`uv`: https://docs.astral.sh/uv/getting-started/installation/
+.. _`conda`: https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html
+.. _`venv module`: https://docs.python.org/3/library/venv.html
