@@ -6,7 +6,31 @@
 
 #include <stdexcept>
 #include <string>
-#include <unistd.h>
+
+// Posix close() lives in <unistd.h> on Linux/macOS; Windows uses _close()
+// from <io.h>. The fd-close path is unreachable at runtime on Windows
+// (vkGetMemoryFdKHR isn't available there — import_to_cuda throws before
+// memory_fd_ is ever assigned), but the code still has to compile under
+// MSVC for the experimental Windows build.
+#ifdef _WIN32
+#    include <io.h>
+namespace
+{
+inline int close_fd(int fd) noexcept
+{
+    return ::_close(fd);
+}
+} // namespace
+#else
+#    include <unistd.h>
+namespace
+{
+inline int close_fd(int fd) noexcept
+{
+    return ::close(fd);
+}
+} // namespace
+#endif
 
 namespace viz
 {
@@ -149,7 +173,7 @@ void DeviceImage::destroy()
         // CUDA dups the fd internally on import, so we close our copy.
         // If import failed before our explicit close, fd_ may still
         // hold our copy — close it here.
-        ::close(memory_fd_);
+        close_fd(memory_fd_);
         memory_fd_ = -1;
     }
 
@@ -308,7 +332,7 @@ void DeviceImage::import_to_cuda()
     check_cuda(cudaImportExternalMemory(&cuda_external_memory_, &ext_desc), "cudaImportExternalMemory");
 
     // CUDA dup'd the fd internally; close ours so we don't double-free.
-    ::close(memory_fd_);
+    close_fd(memory_fd_);
     memory_fd_ = -1;
 
     cudaExternalMemoryMipmappedArrayDesc array_desc{};
