@@ -74,6 +74,9 @@ jobs:
       # sccache does not work with VSBuild, so we use Ninja generator here.
       # -G Ninja would pickup mingw64 by default on Windows, so we explicitly set the compiler to cl.exe
       # Force embedded debug info (Z7) to avoid PDB contention whenever debug info is generated.
+      # BUILD_VIZ is OFF on Windows: viz_core links CUDAToolkit (cudart) and the Windows
+      # runner doesn't have CUDA installed. No Windows-XR consumer today, so flip it back on
+      # only when we add CUDA install to this job.
       run: >
         cmake -B build -G Ninja
         -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
@@ -84,7 +87,7 @@ jobs:
         -DCMAKE_CXX_COMPILER="cl.exe"
         -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
         -DBUILD_PLUGIN_OAK_CAMERA=ON
-        -DBUILD_VIZ=ON
+        -DBUILD_VIZ=OFF
 
     - name: Build
       run: cmake --build build --parallel
