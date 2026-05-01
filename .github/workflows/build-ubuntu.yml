@@ -192,14 +192,6 @@ jobs:
         arch: ['x64', 'arm64']
 
     steps:
-    # Sparse checkout so the local composite action below
-    # (.github/actions/setup-cuda) is available; we don't need source.
-    - name: Checkout (sparse — actions only)
-      uses: actions/checkout@v6
-      with:
-        sparse-checkout: .github
-        sparse-checkout-cone-mode: false
-
     - name: Download viz test binaries
       uses: actions/download-artifact@v7
       with:
@@ -212,14 +204,9 @@ jobs:
         tar -xzvf viz-tests.tar.gz -C viz-tests
         chmod +x viz-tests/viz_*_tests
 
-    # GPU runners have the NVIDIA driver (libcuda.so.1) but not the
-    # CUDA Toolkit. viz_core links libcudart.so.12 (toolkit-side) so
-    # we need the toolkit installed here too. The cuda-cudart apt
-    # package's postinst drops /etc/ld.so.conf.d/cuda-*.conf, so
-    # libcudart lands on the standard ld.so search path — no
-    # LD_LIBRARY_PATH gymnastics needed.
-    - name: Install CUDA toolkit
-      uses: ./.github/actions/setup-cuda
+    # No CUDA Toolkit install on the GPU runner — viz_core static-links
+    # libcudart_static, so the binaries only need the NVIDIA driver
+    # (libcuda.so.1) which the runner already has.
 
     - name: Run viz [gpu] tests
       run: |
