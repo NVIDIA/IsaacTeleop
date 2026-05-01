@@ -1,0 +1,202 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Manually-triggered release workflow.
+#
+# Run from a release/X.Y.x branch via the Actions UI. The workflow:
+#   1. Validates the branch is release/X.Y.x and that VERSION matches.
+#   2. Computes the patch number the same way CMake does (commits since
+#      the last change to VERSION).
+#   3. Verifies no v* tag already exists at HEAD and the computed tag name
+#      isn't already taken on another commit.
+#   4. Verifies the most recent Build Ubuntu run on this commit was green.
+#   5. Pushes vX.Y.PATCH (annotated) using a PAT so build-ubuntu.yml fires
+#      on the tag and runs the release publish chain.
+#   6. Creates a draft GitHub release with auto-generated notes.
+#
+# Access is gated by environment: release (admin reviewers required).
+
+name: Release Tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_ci_check:
+        description: "Skip the 'latest Build Ubuntu run on this SHA was green' check. Use only if you know what you're doing."
+        type: boolean
+        default: false
+
+concurrency:
+  group: release-tag-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release-tag:
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      actions: read
+
+    steps:
+    - name: Validate ref is a release branch
+      run: |
+        set -euo pipefail
+        if [[ ! "${GITHUB_REF}" =~ ^refs/heads/release/([0-9]+)\.([0-9]+)\.x$ ]]; then
+          echo "::error::This workflow may only run from a release/X.Y.x branch (got: ${GITHUB_REF})."
+          exit 1
+        fi
+        echo "BRANCH_MAJOR=${BASH_REMATCH[1]}" >> "${GITHUB_ENV}"
+        echo "BRANCH_MINOR=${BASH_REMATCH[2]}" >> "${GITHUB_ENV}"
+
+    - name: Checkout (full history)
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.RELEASE_SYNC_TOKEN }}
+
+    - name: Validate VERSION matches branch
+      run: |
+        set -euo pipefail
+        version_content="$(tr -d '[:space:]' < VERSION)"
+        if [[ ! "${version_content}" =~ ^([0-9]+)\.([0-9]+)\.x$ ]]; then
+          echo "::error::VERSION must be MAJOR.MINOR.x format (got: '${version_content}')."
+          exit 1
+        fi
+        if [[ "${BASH_REMATCH[1]}" != "${BRANCH_MAJOR}" || "${BASH_REMATCH[2]}" != "${BRANCH_MINOR}" ]]; then
+          echo "::error::VERSION (${version_content}) does not match branch release/${BRANCH_MAJOR}.${BRANCH_MINOR}.x."
+          exit 1
+        fi
+
+    - name: Compute patch number and tag
+      id: compute
+      run: |
+        set -euo pipefail
+        version_commit="$(git rev-list -n 1 HEAD -- VERSION)"
+        if [[ -z "${version_commit}" ]]; then
+          echo "::error::Could not locate the commit that last modified VERSION."
+          exit 1
+        fi
+        patch="$(git rev-list --count "${version_commit}..HEAD")"
+        if ! [[ "${patch}" =~ ^[0-9]+$ ]]; then
+          echo "::error::Computed patch is not a number: '${patch}'."
+          exit 1
+        fi
+        tag="v${BRANCH_MAJOR}.${BRANCH_MINOR}.${patch}"
+        sha="$(git rev-parse HEAD)"
+        echo "Computed release tag: ${tag} at ${sha}"
+        echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+        echo "patch=${patch}" >> "${GITHUB_OUTPUT}"
+        echo "sha=${sha}" >> "${GITHUB_OUTPUT}"
+
+    - name: Check no existing tag at HEAD (idempotent re-run is allowed)
+      id: head-tag-check
+      run: |
+        set -euo pipefail
+        tag="${{ steps.compute.outputs.tag }}"
+        sha="${{ steps.compute.outputs.sha }}"
+        existing_at_head="$(git tag --points-at "${sha}" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true)"
+        if [[ -z "${existing_at_head}" ]]; then
+          echo "head_already_tagged=false" >> "${GITHUB_OUTPUT}"
+          exit 0
+        fi
+        # Allow idempotent re-run when the existing tag matches what we'd compute.
+        if echo "${existing_at_head}" | grep -qx "${tag}"; then
+          echo "::notice::HEAD is already tagged ${tag}; skipping tag push, will still ensure draft release exists."
+          echo "head_already_tagged=true" >> "${GITHUB_OUTPUT}"
+          exit 0
+        fi
+        echo "::error::HEAD already has a release tag (${existing_at_head}) different from the computed tag (${tag}). Refusing to tag the same commit twice."
+        exit 1
+
+    - name: Check computed tag is not taken on a different commit
+      if: steps.head-tag-check.outputs.head_already_tagged == 'false'
+      run: |
+        set -euo pipefail
+        tag="${{ steps.compute.outputs.tag }}"
+        if git rev-parse --verify --quiet "refs/tags/${tag}" >/dev/null; then
+          existing_sha="$(git rev-list -n 1 "refs/tags/${tag}")"
+          echo "::error::Tag ${tag} already exists on a different commit (${existing_sha}). Resolve manually."
+          exit 1
+        fi
+
+    - name: Verify latest Build Ubuntu run on this SHA was green
+      if: ${{ !inputs.skip_ci_check }}
+      env:
+        GH_TOKEN: ${{ github.token }}
+        SHA: ${{ steps.compute.outputs.sha }}
+      run: |
+        set -euo pipefail
+        # Find the most recent completed Build Ubuntu run for this commit.
+        run_json="$(gh run list \
+          --workflow build-ubuntu.yml \
+          --commit "${SHA}" \
+          --status completed \
+          --limit 1 \
+          --json conclusion,databaseId,headSha,event)"
+        count="$(jq 'length' <<< "${run_json}")"
+        if [[ "${count}" -eq 0 ]]; then
+          echo "::error::No completed Build Ubuntu run found for ${SHA}. Push the branch and let CI finish before tagging, or set skip_ci_check=true."
+          exit 1
+        fi
+        conclusion="$(jq -r '.[0].conclusion' <<< "${run_json}")"
+        run_id="$(jq -r '.[0].databaseId' <<< "${run_json}")"
+        if [[ "${conclusion}" != "success" ]]; then
+          echo "::error::Latest Build Ubuntu run on ${SHA} concluded '${conclusion}' (run id ${run_id}). Refusing to tag."
+          exit 1
+        fi
+        echo "Build Ubuntu run ${run_id} on ${SHA} was successful."
+
+    - name: Configure git identity
+      if: steps.head-tag-check.outputs.head_already_tagged == 'false'
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+    - name: Create and push annotated tag
+      if: steps.head-tag-check.outputs.head_already_tagged == 'false'
+      run: |
+        set -euo pipefail
+        tag="${{ steps.compute.outputs.tag }}"
+        git tag -a "${tag}" -m "Release ${tag}"
+        # Pushed via RELEASE_SYNC_TOKEN (set on the actions/checkout step) so the
+        # tag push triggers build-ubuntu.yml; GITHUB_TOKEN-pushed tags would not.
+        git push origin "${tag}"
+        echo "Pushed ${tag}; this will trigger build-ubuntu.yml on the tag ref."
+
+    - name: Create or refresh draft GitHub release
+      env:
+        GH_TOKEN: ${{ secrets.RELEASE_SYNC_TOKEN }}
+      run: |
+        set -euo pipefail
+        tag="${{ steps.compute.outputs.tag }}"
+        # Find the previous tag on the same X.Y line for note generation.
+        prev_tag="$(git tag --list "v${BRANCH_MAJOR}.${BRANCH_MINOR}.*" --sort=-v:refname \
+          | grep -vx "${tag}" | head -1 || true)"
+        notes_args=()
+        if [[ -n "${prev_tag}" ]]; then
+          notes_args+=(--notes-start-tag "${prev_tag}")
+        fi
+        if gh release view "${tag}" >/dev/null 2>&1; then
+          echo "::notice::Release ${tag} already exists; leaving as-is."
+        else
+          gh release create "${tag}" \
+            --draft \
+            --title "${tag}" \
+            --generate-notes "${notes_args[@]}"
+          echo "Draft release ${tag} created."
+        fi
+
+    - name: Summary
+      run: |
+        {
+          echo "### Release Tag Summary"
+          echo ""
+          echo "- Branch: \`${GITHUB_REF#refs/heads/}\`"
+          echo "- Commit: \`${{ steps.compute.outputs.sha }}\`"
+          echo "- Computed tag: \`${{ steps.compute.outputs.tag }}\`"
+          echo "- Already tagged at HEAD: \`${{ steps.head-tag-check.outputs.head_already_tagged }}\`"
+        } >> "${GITHUB_STEP_SUMMARY}"
