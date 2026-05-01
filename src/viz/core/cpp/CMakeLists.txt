@@ -3,12 +3,18 @@
 
 cmake_minimum_required(VERSION 3.20)
 
-# Vulkan is required for vk_context.
+# Vulkan is always required for vk_context / render_target / etc.
 find_package(Vulkan REQUIRED)
 
+# CUDA Toolkit provides the CUDA-Vulkan interop runtime APIs
+# (cudaImportExternalMemory, cudaExternalMemoryGetMappedMipmappedArray)
+# used by cuda_texture / device_image. Required when BUILD_VIZ=ON.
+find_package(CUDAToolkit REQUIRED)
+
 # Foundational types and Vulkan/CUDA primitives shared by all viz sub-modules.
-# Static lib; consumed in-tree via viz::viz_core.
+# Static lib; consumed in-tree via viz::core.
 add_library(viz_core STATIC
+    device_image.cpp
     frame_sync.cpp
     render_target.cpp
     vk_context.cpp
@@ -30,6 +36,7 @@ target_link_libraries(viz_core
     PUBLIC
         Vulkan::Vulkan
         glm::glm
+        CUDA::cudart
 )
 
 # Aliased as viz::core (consumers say viz::core, not viz::viz_core).

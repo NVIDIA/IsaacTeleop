@@ -43,6 +43,14 @@ struct PhysicalDeviceInfo
 //   - A queue family with graphics + compute + transfer flags
 //
 // VkContext owns the Vulkan handles and tears them down on destruction.
+//
+// CUDA-Vulkan device matching: as part of init(), VkContext queries
+// the chosen physical device's UUID and calls cudaSetDevice() on the
+// matching CUDA device. This is required for CUDA-Vulkan interop
+// (cudaImportExternalMemory) to succeed on multi-GPU machines, and
+// it makes VkContext the single chokepoint for "which GPU is Televiz
+// on" — every viz_core type that touches CUDA can assume the current
+// CUDA device matches the Vulkan one.
 class VkContext
 {
 public:
@@ -109,6 +117,7 @@ private:
     void create_instance(const Config& config);
     void select_physical_device(const Config& config);
     void create_logical_device(const Config& config);
+    void match_cuda_device_to_vulkan();
 
     bool initialized_ = false;
     bool validation_enabled_ = false;

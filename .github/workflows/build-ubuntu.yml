@@ -39,13 +39,25 @@ jobs:
     - name: Install Apt dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache libvulkan-dev
+        sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache libvulkan-dev glslang-tools
 
     - name: Install patchelf (Release only)
       if: ${{ matrix.build_type == 'Release' }}
       run: |
         sudo apt-get update
         sudo apt-get install -y patchelf
+
+    # CUDA toolkit needed at link time for viz_core (cuda_texture +
+    # device_image link libcudart). The wheel itself excludes
+    # libcuda.so.1 via auditwheel; runtime CUDA is the consumer's
+    # responsibility.
+    - name: Install CUDA toolkit
+      uses: Jimver/cuda-toolkit@v0.2.19
+      with:
+        cuda: '12.4.0'
+        method: 'network'
+        sub-packages: '["nvcc", "cudart"]'
+
     - name: Setup CloudXR SDK
       id: cloudxr-sdk
       uses: ./.github/actions/setup-cloudxr-sdk
@@ -262,7 +274,14 @@ jobs:
     - name: Install Apt dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache libvulkan-dev
+        sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache libvulkan-dev glslang-tools
+
+    - name: Install CUDA toolkit
+      uses: Jimver/cuda-toolkit@v0.2.19
+      with:
+        cuda: '12.4.0'
+        method: 'network'
+        sub-packages: '["nvcc", "cudart"]'
 
     - name: Cache ccache
       uses: actions/cache@v5

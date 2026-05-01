@@ -31,6 +31,10 @@ add_subdirectory(layers)
 # layer that drives the per-frame loop and manages the layer registry.
 add_subdirectory(session)
 
+# Shaders: GLSL sources compiled to SPIR-V at build time and embedded
+# as C arrays. Header-only INTERFACE library viz::shaders.
+add_subdirectory(shaders)
+
 # Python bindings (stub today; pybind11 module added later).
 if(BUILD_PYTHON_BINDINGS)
     add_subdirectory(python)
@@ -41,4 +45,5 @@ if(BUILD_TESTING)
     add_subdirectory(core_tests)
     add_subdirectory(layers_tests)
     add_subdirectory(session_tests)
+    add_subdirectory(shaders_tests)
 endif()
