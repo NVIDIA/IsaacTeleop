@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <cuda_runtime.h>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -190,6 +191,7 @@ void VkContext::init(const Config& config)
         create_instance(config);
         select_physical_device(config);
         create_logical_device(config);
+        match_cuda_device_to_vulkan();
         initialized_ = true;
     }
     catch (...)
@@ -214,6 +216,7 @@ void VkContext::destroy()
     physical_device_ = VK_NULL_HANDLE;
     queue_ = VK_NULL_HANDLE;
     queue_family_index_ = UINT32_MAX;
+    cuda_device_id_ = -1;
     validation_enabled_ = false;
     initialized_ = false;
 }
@@ -246,6 +249,11 @@ uint32_t VkContext::queue_family_index() const noexcept
 VkQueue VkContext::queue() const noexcept
 {
     return queue_;
+}
+
+int VkContext::cuda_device_id() const noexcept
+{
+    return cuda_device_id_;
 }
 
 void VkContext::create_instance(const Config& config)
@@ -404,6 +412,54 @@ void VkContext::create_logical_device(const Config& config)
     }
 
     vkGetDeviceQueue(device_, queue_family_index_, 0, &queue_);
+}
+
+void VkContext::match_cuda_device_to_vulkan()
+{
+    // Read the Vulkan physical device's UUID, then find the CUDA
+    // device with the same UUID and make it current. Required so
+    // every viz_core type that imports Vulkan memory into CUDA
+    // (e.g. DeviceImage::cudaImportExternalMemory) operates on the
+    // same physical GPU. On multi-GPU machines Vulkan and CUDA
+    // default to different devices and interop fails with
+    // cudaErrorUnknown.
+    VkPhysicalDeviceIDProperties id_props{};
+    id_props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES;
+    VkPhysicalDeviceProperties2 props2{};
+    props2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+    props2.pNext = &id_props;
+    vkGetPhysicalDeviceProperties2(physical_device_, &props2);
+
+    int cuda_count = 0;
+    cudaError_t err = cudaGetDeviceCount(&cuda_count);
+    if (err != cudaSuccess || cuda_count == 0)
+    {
+        throw std::runtime_error(
+            "VkContext: no CUDA devices visible — CUDA-Vulkan interop requires "
+            "a working CUDA driver");
+    }
+    for (int i = 0; i < cuda_count; ++i)
+    {
+        cudaDeviceProp prop{};
+        err = cudaGetDeviceProperties(&prop, i);
+        if (err != cudaSuccess)
+        {
+            continue;
+        }
+        if (std::memcmp(prop.uuid.bytes, id_props.deviceUUID, VK_UUID_SIZE) == 0)
+        {
+            err = cudaSetDevice(i);
+            if (err != cudaSuccess)
+            {
+                throw std::runtime_error(std::string("VkContext: cudaSetDevice failed: ") + cudaGetErrorString(err));
+            }
+            cuda_device_id_ = i;
+            return;
+        }
+    }
+    throw std::runtime_error(
+        "VkContext: no CUDA device matches the Vulkan physical device's UUID — "
+        "CUDA-Vulkan interop requires same-GPU operation");
 }
 
 std::vector<PhysicalDeviceInfo> VkContext::enumerate_physical_devices()

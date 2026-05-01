@@ -17,11 +17,19 @@ sibling `<sub-module>_tests/` directory:
 
 - **`viz/core/`** — foundational types + Vulkan/CUDA infrastructure.
   Library: `viz_core`. Today: `VkContext`, `VizBuffer`, `Pose3D`, `Fov`,
-  `Resolution`, `ViewInfo`, `PixelFormat`, `RenderTarget`, `FrameSync`.
-  Future: `cuda_texture`. Math types (`glm::vec3`, `glm::quat`,
+  `Resolution`, `ViewInfo`, `PixelFormat`, `RenderTarget`, `FrameSync`,
+  `HostImage`, `DeviceImage`. `HostImage` / `DeviceImage` are the
+  symmetric pair of owning 2D pixel buffers (CPU bytes vs CUDA-Vulkan
+  interop) — both expose `VizBuffer view()` so generic helpers branch
+  on `VizBuffer::space`. Math types (`glm::vec3`, `glm::quat`,
   `glm::mat4`) come from GLM 1.0.1 (FetchContent in
   `deps/third_party/`); use `glm::value_ptr(mat)` to get a raw `float*`
   for Vulkan / CUDA upload (POD-equivalent layout, no copy).
+  CUDA-Vulkan interop requires CUDA Toolkit at link time
+  (`CUDAToolkit::cudart`). `VkContext::init()` matches the current
+  CUDA device to the chosen Vulkan physical device by UUID — every
+  viz_core type can assume CUDA and Vulkan are talking to the same
+  GPU without re-doing the match.
 - **`viz/layers/`** — `LayerBase` and concrete layers (`QuadLayer`, etc.).
   Library: `viz_layers` (INTERFACE / header-only today; promoted to
   STATIC when the first concrete layer ships). Depends on `viz_core`.
@@ -39,11 +47,18 @@ sibling `<sub-module>_tests/` directory:
   frame loop, type conversion). Library: `viz_xr`. **Optional** behind
   `BUILD_VIZ_XR`. Depends on `viz_core` + OpenXR.
 - **`viz/python/`** — pybind11 module `_viz`, exposed as `isaacteleop.viz`.
-- **`viz/shaders/`** — GLSL → SPIR-V at build time.
+- **`viz/shaders/`** — GLSL → SPIR-V at build time. Library: `viz_shaders`
+  (INTERFACE — exposes generated headers `viz/shaders/<name>.spv.h`,
+  each containing an `inline constexpr alignas(uint32_t) unsigned char`
+  byte array + a `Size` constant). Compilation runs `glslangValidator`
+  (system-installed; CI gets `glslang-tools` apt package). Add new
+  shader programs by dropping `<name>.vert` / `<name>.frag` in
+  `viz/shaders/cpp/` and calling `compile_shader(<name>.vert kVarName)`
+  in the local CMakeLists.
 
 Test directories follow the same per-module pattern:
 `viz/core_tests/`, `viz/layers_tests/`, `viz/session_tests/`,
-`viz/xr_tests/`.
+`viz/shaders_tests/`, `viz/xr_tests/`.
 
 `src/viz/CMakeLists.txt` is an **orchestrator only** — it adds the
 sub-module sub-directories. Sub-module `CMakeLists.txt` files build the
@@ -57,8 +72,17 @@ Build paths that ship viz (the wheel CI on Linux + Windows) pass
 `-DBUILD_VIZ=ON` explicitly. Lean Dockerfiles
 (`examples/teleop_ros2/Dockerfile`) get viz-free builds for free.
 
-When `BUILD_VIZ=ON` you must have Vulkan headers + loader installed:
-`libvulkan-dev` on Linux, LunarG SDK on Windows.
+When `BUILD_VIZ=ON` the build machine must have:
+- **Vulkan headers + loader**: `libvulkan-dev` on Linux, LunarG SDK on
+  Windows.
+- **CUDA Toolkit** (cudart for link, nvcc not strictly required today
+  but expected to be needed for kernels in M3b+): apt
+  `nvidia-cuda-toolkit` or the official NVIDIA installer / CI action
+  (`Jimver/cuda-toolkit`). The wheel excludes `libcuda.so.1` —
+  consumers supply it via NVIDIA driver.
+- **glslangValidator** for shader compilation: `glslang-tools` apt
+  package on Linux, `brew install glslang` on macOS, ships with the
+  Vulkan SDK on Windows.
 
 ## Code conventions
 

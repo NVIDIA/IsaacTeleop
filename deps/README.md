@@ -54,13 +54,23 @@ machine and are located via `find_package`.
 - **Min version**: 1.2 (Televiz checks `VK_API_VERSION_1_2` at device select time).
 - **License**: Apache 2.0 (loader); per-vendor for ICD drivers.
 
-### CUDA Toolkit (optional, used by examples)
+### CUDA Toolkit
 - **Locator**: `find_package(CUDAToolkit REQUIRED)`
-- **Required by**: `examples/camera_streamer/` only today; `viz` adds CUDA
-  dependency once CUDA-Vulkan interop lands; CI must have CUDA installed for
-  GPU test runner to exercise these paths.
+- **Required by**: `viz/core/` (`CudaTexture`, `DeviceImage` link to
+  `CUDA::cudart`) when `BUILD_VIZ=ON`; also `examples/camera_streamer/`.
 - **Min version**: 12.0
+- **CI**: installed via `Jimver/cuda-toolkit@v0.2.x` action with
+  `nvcc` + `cudart` sub-packages.
 - **License**: NVIDIA EULA
+
+### glslangValidator (shader compiler)
+- **Locator**: `find_program(GLSLANG_VALIDATOR glslangValidator REQUIRED)`
+- **Required by**: `viz/shaders/` to compile `.vert` / `.frag` GLSL
+  into SPIR-V at build time.
+- **Linux**: `apt-get install glslang-tools`
+- **Windows**: ships with the LunarG Vulkan SDK
+- **macOS**: `brew install glslang`
+- **License**: BSD-3 / Khronos
 
 ## Third-Party Dependencies
 

@@ -39,13 +39,21 @@ jobs:
     - name: Install Apt dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache libvulkan-dev
+        sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache libvulkan-dev glslang-tools
 
     - name: Install patchelf (Release only)
       if: ${{ matrix.build_type == 'Release' }}
       run: |
         sudo apt-get update
         sudo apt-get install -y patchelf
+
+    # CUDA toolkit needed at link time for viz_core (device_image
+    # links libcudart). The wheel itself excludes libcuda.so.1 via
+    # auditwheel; runtime CUDA is the consumer's responsibility.
+    # Custom action handles both x86_64 and ARM64 (sbsa) repos.
+    - name: Install CUDA toolkit
+      uses: ./.github/actions/setup-cuda
+
     - name: Setup CloudXR SDK
       id: cloudxr-sdk
       uses: ./.github/actions/setup-cloudxr-sdk
@@ -196,6 +204,10 @@ jobs:
         tar -xzvf viz-tests.tar.gz -C viz-tests
         chmod +x viz-tests/viz_*_tests
 
+    # No CUDA Toolkit install on the GPU runner — viz_core static-links
+    # libcudart_static, so the binaries only need the NVIDIA driver
+    # (libcuda.so.1) which the runner already has.
+
     - name: Run viz [gpu] tests
       run: |
         set -euo pipefail
@@ -262,7 +274,10 @@ jobs:
     - name: Install Apt dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache libvulkan-dev
+        sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache libvulkan-dev glslang-tools
+
+    - name: Install CUDA toolkit
+      uses: ./.github/actions/setup-cuda
 
     - name: Cache ccache
       uses: actions/cache@v5

@@ -69,6 +69,18 @@ jobs:
         version: 1.3.290.0
         cache: true
 
+    # CUDA Toolkit needed at link time for viz_core (device_image links
+    # cudart). Jimver action works correctly on Windows (the arm64
+    # /x86_64/ hardcoding bug is Linux-only); runs NVIDIA's silent
+    # network installer and sets CUDA_PATH so find_package(CUDAToolkit)
+    # locates the install.
+    - name: Install CUDA Toolkit
+      uses: Jimver/cuda-toolkit@v0.2.19
+      with:
+        cuda: '12.4.0'
+        method: 'network'
+        sub-packages: '["nvcc", "cudart"]'
+
     - name: Configure CMake
       # Note:
       # sccache does not work with VSBuild, so we use Ninja generator here.

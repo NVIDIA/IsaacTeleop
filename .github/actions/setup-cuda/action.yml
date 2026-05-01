@@ -1,0 +1,42 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: Setup CUDA Toolkit
+description: Install CUDA Toolkit (cudart + nvcc) via NVIDIA's apt repository.
+  Architecture-aware (x86_64 / sbsa) so it works on both ubuntu-22.04 and
+  ubuntu-22.04-arm runners. Replaces the Jimver/cuda-toolkit action, which
+  hardcodes /x86_64/ in the repo URL and fails on ARM runners.
+
+inputs:
+  cuda-version:
+    description: 'CUDA major-minor version (e.g. "12-4" for 12.4)'
+    required: false
+    default: '12-4'
+
+runs:
+  using: composite
+  steps:
+    - name: Install CUDA toolkit (apt)
+      shell: bash
+      run: |
+        set -euo pipefail
+        ARCH=$(dpkg --print-architecture)
+        case "$ARCH" in
+          amd64) CUDA_ARCH=x86_64 ;;
+          arm64) CUDA_ARCH=sbsa ;;
+          *) echo "setup-cuda: unsupported arch '$ARCH'" >&2; exit 1 ;;
+        esac
+        REPO_URL="https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/${CUDA_ARCH}"
+        TMPDIR=$(mktemp -d)
+        wget -q -O "${TMPDIR}/cuda-keyring.deb" "${REPO_URL}/cuda-keyring_1.1-1_all.deb"
+        sudo dpkg -i "${TMPDIR}/cuda-keyring.deb"
+        rm -rf "${TMPDIR}"
+        sudo apt-get update -y
+        sudo apt-get install -y --no-install-recommends \
+          cuda-nvcc-${{ inputs.cuda-version }} \
+          cuda-cudart-dev-${{ inputs.cuda-version }}
+        # Expose to subsequent steps. CMake's find_package(CUDAToolkit)
+        # picks up CUDA_PATH or finds nvcc via PATH.
+        CUDA_VERSION_DOTTED="$(echo '${{ inputs.cuda-version }}' | tr '-' '.')"
+        echo "CUDA_PATH=/usr/local/cuda-${CUDA_VERSION_DOTTED}" >> "$GITHUB_ENV"
+        echo "/usr/local/cuda-${CUDA_VERSION_DOTTED}/bin" >> "$GITHUB_PATH"
