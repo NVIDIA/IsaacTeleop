@@ -22,27 +22,20 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const webpack = require('webpack');
 
-// Build identity: surfaced by the in-app overlay (open with ?showVersion=1)
-// so we can tell which build a user is actually running on gh-pages.
-const PKG_VERSION = require('./package.json').version;
-const TELEOP_VERSION = (() => {
+function git(cmd) {
   try {
-    return fs.readFileSync(path.resolve(__dirname, '../../../VERSION'), 'utf8').trim();
-  } catch {
-    return '';
-  }
-})();
-function gitOrEmpty(args) {
-  try {
-    return execSync(`git ${args}`, { stdio: ['ignore', 'pipe', 'ignore'] })
-      .toString()
-      .trim();
+    return execSync(`git ${cmd}`, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
   } catch {
     return '';
   }
 }
-const CLIENT_GIT_REF = process.env.CLIENT_GIT_REF || gitOrEmpty('rev-parse --abbrev-ref HEAD') || 'unknown';
-const CLIENT_GIT_SHA = (process.env.CLIENT_GIT_SHA || gitOrEmpty('rev-parse HEAD') || 'unknown').slice(0, 12);
+let TELEOP_VERSION = '';
+try {
+  TELEOP_VERSION = fs.readFileSync(path.resolve(__dirname, '../../../VERSION'), 'utf8').trim();
+} catch {}
+const PKG_VERSION = require('./package.json').version;
+const CLIENT_GIT_REF = process.env.CLIENT_GIT_REF || git('rev-parse --abbrev-ref HEAD') || 'unknown';
+const CLIENT_GIT_SHA = (process.env.CLIENT_GIT_SHA || git('rev-parse HEAD') || 'unknown').slice(0, 12);
 const CLIENT_BUILD_TIME = new Date().toISOString();
 
 // WebXR input profile assets are used by default when @webxr-input-profiles/assets is installed.

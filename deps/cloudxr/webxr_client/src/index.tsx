@@ -36,7 +36,6 @@ function startApp() {
     console.error('3d-ui container not found');
   }
 
-  // Independent of the React tree so it stays visible across XR mode toggles.
   mountBuildInfoOverlayIfRequested();
 }
 
