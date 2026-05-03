@@ -138,15 +138,43 @@ jobs:
           name: webapp
           path: ./webapp
 
-      - name: Place web app under subpath
+      # Mirrors the docs multi-version layout: each ref lands at
+      # client/<slug>/ (slashes in the ref are replaced with "-"). We never
+      # write directly to `client/` so a push to a release branch can no
+      # longer overwrite the canonical /client/ URL with an older build.
+      # `client/index.html` is rewritten as a thin redirect to ./main/ so
+      # bookmarks of `/client/` keep working.
+      - name: Place web app under versioned subpath
         run: |
+          set -euo pipefail
           if [ "${{ github.event_name }}" = 'pull_request' ]; then
+            # PR previews live under preview/pr-<N>/ and are pinned to the PR,
+            # so they don't need the multi-version layout.
             CLIENT_DIR=./docs/build/current/client
+            mkdir -p "$CLIENT_DIR"
+            cp -r ./webapp/. "$CLIENT_DIR/"
           else
-            CLIENT_DIR=./docs/build/client
+            slug="${GITHUB_REF_NAME//\//-}"
+            CLIENT_BASE=./docs/build/client
+            mkdir -p "$CLIENT_BASE/$slug"
+            cp -r ./webapp/. "$CLIENT_BASE/$slug/"
+            cat > "$CLIENT_BASE/index.html" <<'HTML'
+          <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+          <!-- SPDX-License-Identifier: Apache-2.0 -->
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Redirecting to the latest Isaac Teleop web client</title>
+              <meta charset="utf-8">
+              <meta http-equiv="refresh" content="0; url=./main/">
+            </head>
+            <body>
+              <p>Redirecting to <a href="./main/">the latest Isaac Teleop web client</a>.</p>
+            </body>
+          </html>
+          HTML
+            echo "Deployed web client to /client/$slug/"
           fi
-          mkdir -p "$CLIENT_DIR"
-          cp -r ./webapp/. "$CLIENT_DIR/"
 
       - name: Deploy to gh-pages (main branch)
         if: github.event_name == 'push' && needs.check-repo.outputs.is-deploy-branch == 'true'

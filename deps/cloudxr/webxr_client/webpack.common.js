@@ -16,9 +16,34 @@
  */
 
 const path = require('path');
+const fs = require('fs');
+const { execSync } = require('child_process');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const webpack = require('webpack');
+
+// Build identity: surfaced by the in-app overlay (open with ?showVersion=1)
+// so we can tell which build a user is actually running on gh-pages.
+const PKG_VERSION = require('./package.json').version;
+const TELEOP_VERSION = (() => {
+  try {
+    return fs.readFileSync(path.resolve(__dirname, '../../../VERSION'), 'utf8').trim();
+  } catch {
+    return '';
+  }
+})();
+function gitOrEmpty(args) {
+  try {
+    return execSync(`git ${args}`, { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim();
+  } catch {
+    return '';
+  }
+}
+const CLIENT_GIT_REF = process.env.CLIENT_GIT_REF || gitOrEmpty('rev-parse --abbrev-ref HEAD') || 'unknown';
+const CLIENT_GIT_SHA = (process.env.CLIENT_GIT_SHA || gitOrEmpty('rev-parse HEAD') || 'unknown').slice(0, 12);
+const CLIENT_BUILD_TIME = new Date().toISOString();
 
 // WebXR input profile assets are used by default when @webxr-input-profiles/assets is installed.
 // Set USE_LOCAL_WEBXR_ASSETS=0 to skip bundling local assets (build needs internet at runtime to load assets).
@@ -95,6 +120,11 @@ module.exports = {
     // Inject environment variables
     new webpack.DefinePlugin({
       'process.env.WEBXR_ASSETS_VERSION': JSON.stringify(WEBXR_ASSETS_VERSION),
+      'process.env.CLIENT_TELEOP_VERSION': JSON.stringify(TELEOP_VERSION),
+      'process.env.CLIENT_SDK_VERSION': JSON.stringify(PKG_VERSION),
+      'process.env.CLIENT_GIT_REF': JSON.stringify(CLIENT_GIT_REF),
+      'process.env.CLIENT_GIT_SHA': JSON.stringify(CLIENT_GIT_SHA),
+      'process.env.CLIENT_BUILD_TIME': JSON.stringify(CLIENT_BUILD_TIME),
     }),
 
     // Copies WebXR input profile assets when available; always copies public and favicon

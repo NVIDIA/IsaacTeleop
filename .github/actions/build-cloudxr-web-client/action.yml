@@ -53,6 +53,11 @@ runs:
       working-directory: deps/cloudxr/webxr_client
       env:
         SDK_VERSION: ${{ steps.sdk-version.outputs.version }}
+        # Plumbed into the bundle via webpack DefinePlugin and surfaced by the
+        # in-app build-info overlay (append ?showVersion=1 to the URL) so we
+        # can tell at a glance which deployed version a user is running.
+        CLIENT_GIT_REF: ${{ github.ref_name }}
+        CLIENT_GIT_SHA: ${{ github.sha }}
       run: |
         npm install "../nvidia-cloudxr-${SDK_VERSION}.tgz"
         USE_LOCAL_WEBXR_ASSETS=0 npm run build
