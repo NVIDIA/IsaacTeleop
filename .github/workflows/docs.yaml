@@ -8,8 +8,14 @@
 #   the preview manually via the `/preview-docs` slash command — see
 #   docs-preview-on-demand.yaml.
 #
-# PR: docs always built; web client (npm) built with public SDK for all, or private SDK only for allowlisted authors.
-# Main/release (push): key used → private NGC for SDK.
+# Builds are gated on changed paths via the `changes` job: docs are only
+# rebuilt when docs/** changes, the web client is only rebuilt when
+# webxr_client/.env.default/build action changes. Touching this workflow
+# rebuilds both. gh-pages `keep_files: true` preserves the previously
+# deployed copy of whichever artifact is skipped.
+# Web client (npm) builds with public SDK for all PRs by default, or private
+# SDK if the PR author is on ALLOWED_CLOUDXR_JS_PR_AUTHORS. Main/release
+# (push) always uses the private NGC SDK key.
 # Allowlist for CXR.js SDK on PRs: Repo Settings → Variables → ALLOWED_CLOUDXR_JS_PR_AUTHORS (comma-separated GitHub logins).
 
 name: Build & deploy docs
@@ -24,6 +30,7 @@ on:
     paths:
       - "docs/**"
       - ".github/workflows/docs.yaml"
+      - ".github/actions/build-cloudxr-web-client/**"
       - "deps/cloudxr/webxr_client/**"
       - "deps/cloudxr/.env.default"
 
@@ -64,10 +71,68 @@ jobs:
           esac
         fi
 
+  # Skip the heavy npm/Sphinx builds when the relevant inputs didn't change.
+  # gh-pages keeps the previously deployed artifacts (`keep_files: true`), so
+  # not rebuilding here just means the existing version stays live.
+  changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    permissions: {}
+    outputs:
+      docs: ${{ steps.filter.outputs.docs }}
+      webapp: ${{ steps.filter.outputs.webapp }}
+    steps:
+      - name: Checkout (with history)
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - id: filter
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          # Resolve the base commit to diff against. PRs compare to the
+          # merge-base with the target branch; pushes compare to the previous
+          # tip. New branches / force pushes have no usable base, so we treat
+          # everything as changed.
+          if [ "$EVENT" = 'pull_request' ]; then
+            git fetch --no-tags --depth=1 origin "$BASE_REF"
+            base="$(git merge-base FETCH_HEAD HEAD || true)"
+          else
+            base="$BEFORE"
+            if [ -z "$base" ] || [ "$base" = '0000000000000000000000000000000000000000' ]; then
+              base=""
+            fi
+          fi
+          if [ -n "$base" ]; then
+            files="$(git diff --name-only "$base" HEAD)"
+          else
+            files="$(git ls-tree -r --name-only HEAD)"
+          fi
+          docs=false
+          webapp=false
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            case "$f" in
+              docs/*|.github/workflows/docs.yaml)
+                docs=true ;;
+            esac
+            case "$f" in
+              deps/cloudxr/webxr_client/*|deps/cloudxr/.env.default|.github/actions/build-cloudxr-web-client/*|.github/workflows/docs.yaml)
+                webapp=true ;;
+            esac
+          done <<< "$files"
+          echo "docs=$docs" >> "$GITHUB_OUTPUT"
+          echo "webapp=$webapp" >> "$GITHUB_OUTPUT"
+          echo "::notice::changes: docs=$docs webapp=$webapp (base=${base:-<none>})"
+
   build-docs:
     name: Build Docs
     runs-on: ubuntu-latest
-    needs: [check-repo]
+    needs: [check-repo, changes]
+    if: needs.changes.outputs.docs == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -101,7 +166,8 @@ jobs:
   build-app:
     name: Build Teleop Web App
     runs-on: ubuntu-latest
-    needs: [check-repo]
+    needs: [check-repo, changes]
+    if: needs.changes.outputs.webapp == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -121,18 +187,29 @@ jobs:
   deploy-docs:
     name: Deploy docs
     runs-on: ubuntu-latest
-    needs: [check-repo, build-docs, build-app]
-    if: needs.check-repo.outputs.is-canonical-repo == 'true' && (needs.check-repo.outputs.is-deploy-branch == 'true' || github.event_name == 'pull_request')
+    needs: [check-repo, changes, build-docs, build-app]
+    # Run as long as at least one upstream build succeeded (we tolerate
+    # skips, since a skipped build means "reuse what's already on
+    # gh-pages") and neither failed.
+    if: >-
+      always()
+      && needs.check-repo.outputs.is-canonical-repo == 'true'
+      && (needs.check-repo.outputs.is-deploy-branch == 'true' || github.event_name == 'pull_request')
+      && needs.build-docs.result != 'failure' && needs.build-docs.result != 'cancelled'
+      && needs.build-app.result != 'failure'  && needs.build-app.result != 'cancelled'
+      && (needs.build-docs.result == 'success' || needs.build-app.result == 'success')
     permissions:
       contents: write  # push to gh-pages
     steps:
       - name: Download docs artifact
+        if: needs.build-docs.result == 'success'
         uses: actions/download-artifact@v7
         with:
           name: docs-html
           path: ./docs/build
 
       - name: Download web app artifact
+        if: needs.build-app.result == 'success'
         uses: actions/download-artifact@v7
         with:
           name: webapp
@@ -145,6 +222,7 @@ jobs:
       # `client/index.html` is rewritten as a thin redirect to ./main/ so
       # bookmarks of `/client/` keep working.
       - name: Place web app under versioned subpath
+        if: needs.build-app.result == 'success'
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = 'pull_request' ]; then
