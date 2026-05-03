@@ -55,7 +55,10 @@ export function mountBuildInfoOverlayIfRequested(): void {
     'background:rgba(0,0,0,0.78)',
     'border:1px solid #76b900',
     'border-radius:4px',
-    'pointer-events:auto',
+    // Click-through so the overlay never blocks UI interactions in the
+    // 2D page or the underlying canvas.
+    'pointer-events:none',
+    'user-select:text',
     'max-width:360px',
     'word-break:break-all',
   ].join(';');
@@ -64,7 +67,5 @@ export function mountBuildInfoOverlayIfRequested(): void {
     `${BUILD_INFO.gitRef}@${BUILD_INFO.gitSha}\n` +
     `built ${BUILD_INFO.buildTime}`;
   el.style.whiteSpace = 'pre';
-  el.title = 'Click to dismiss';
-  el.addEventListener('click', () => el.remove());
   document.body.appendChild(el);
 }
