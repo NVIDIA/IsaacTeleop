@@ -33,7 +33,10 @@ let TELEOP_VERSION = '';
 try {
   TELEOP_VERSION = fs.readFileSync(path.resolve(__dirname, '../../../VERSION'), 'utf8').trim();
 } catch {}
-const PKG_VERSION = require('./package.json').version;
+// Source of truth for the CloudXR SDK is deps/cloudxr/.env.default's
+// CXR_WEB_SDK_VERSION (also controls which tarball `npm install`
+// consumes); package.json.version is just a local-dev fallback.
+const CLIENT_SDK_VERSION = process.env.SDK_VERSION || require('./package.json').version;
 const CLIENT_GIT_REF = process.env.CLIENT_GIT_REF || git('rev-parse --abbrev-ref HEAD') || 'unknown';
 const CLIENT_GIT_SHA = (process.env.CLIENT_GIT_SHA || git('rev-parse HEAD') || 'unknown').slice(0, 12);
 const CLIENT_BUILD_TIME = new Date().toISOString();
@@ -114,7 +117,7 @@ module.exports = {
     new webpack.DefinePlugin({
       'process.env.WEBXR_ASSETS_VERSION': JSON.stringify(WEBXR_ASSETS_VERSION),
       'process.env.CLIENT_TELEOP_VERSION': JSON.stringify(TELEOP_VERSION),
-      'process.env.CLIENT_SDK_VERSION': JSON.stringify(PKG_VERSION),
+      'process.env.CLIENT_SDK_VERSION': JSON.stringify(CLIENT_SDK_VERSION),
       'process.env.CLIENT_GIT_REF': JSON.stringify(CLIENT_GIT_REF),
       'process.env.CLIENT_GIT_SHA': JSON.stringify(CLIENT_GIT_SHA),
       'process.env.CLIENT_BUILD_TIME': JSON.stringify(CLIENT_BUILD_TIME),
