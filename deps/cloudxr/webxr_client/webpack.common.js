@@ -16,9 +16,30 @@
  */
 
 const path = require('path');
+const fs = require('fs');
+const { execSync } = require('child_process');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const webpack = require('webpack');
+
+function git(cmd) {
+  try {
+    return execSync(`git ${cmd}`, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+  } catch {
+    return '';
+  }
+}
+let TELEOP_VERSION = '';
+try {
+  TELEOP_VERSION = fs.readFileSync(path.resolve(__dirname, '../../../VERSION'), 'utf8').trim();
+} catch {}
+// Source of truth for the CloudXR SDK is deps/cloudxr/.env.default's
+// CXR_WEB_SDK_VERSION (also controls which tarball `npm install`
+// consumes); package.json.version is just a local-dev fallback.
+const CLIENT_SDK_VERSION = process.env.SDK_VERSION || require('./package.json').version;
+const CLIENT_GIT_REF = process.env.CLIENT_GIT_REF || git('rev-parse --abbrev-ref HEAD') || 'unknown';
+const CLIENT_GIT_SHA = (process.env.CLIENT_GIT_SHA || git('rev-parse HEAD') || 'unknown').slice(0, 12);
+const CLIENT_BUILD_TIME = new Date().toISOString();
 
 // WebXR input profile assets are used by default when @webxr-input-profiles/assets is installed.
 // Set USE_LOCAL_WEBXR_ASSETS=0 to skip bundling local assets (build needs internet at runtime to load assets).
@@ -95,6 +116,11 @@ module.exports = {
     // Inject environment variables
     new webpack.DefinePlugin({
       'process.env.WEBXR_ASSETS_VERSION': JSON.stringify(WEBXR_ASSETS_VERSION),
+      'process.env.CLIENT_TELEOP_VERSION': JSON.stringify(TELEOP_VERSION),
+      'process.env.CLIENT_SDK_VERSION': JSON.stringify(CLIENT_SDK_VERSION),
+      'process.env.CLIENT_GIT_REF': JSON.stringify(CLIENT_GIT_REF),
+      'process.env.CLIENT_GIT_SHA': JSON.stringify(CLIENT_GIT_SHA),
+      'process.env.CLIENT_BUILD_TIME': JSON.stringify(CLIENT_BUILD_TIME),
     }),
 
     // Copies WebXR input profile assets when available; always copies public and favicon

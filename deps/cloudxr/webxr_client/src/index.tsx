@@ -19,6 +19,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 
 import App from './App';
+import { mountBuildInfoOverlayIfRequested } from './BuildInfoOverlay';
 
 // Start the React app immediately in the 3d-ui container
 function startApp() {
@@ -34,6 +35,8 @@ function startApp() {
   } else {
     console.error('3d-ui container not found');
   }
+
+  mountBuildInfoOverlayIfRequested();
 }
 
 // Initialize the app when DOM is ready
