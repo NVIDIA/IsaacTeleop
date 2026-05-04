@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <viz/core/viz_buffer.hpp>
+#include <viz/core/viz_buffer.hpp> // PixelFormat — used in API signatures
 #include <viz/core/viz_types.hpp>
 #include <vulkan/vulkan.h>
 
@@ -19,12 +19,17 @@ class VkContext;
 // (optimal tiling, sampled + transfer-dst); the backing VkDeviceMemory
 // is exported via VK_KHR_external_memory_fd and imported into CUDA as
 // a cudaArray_t. CUDA writes via cuda_array(); Vulkan samples via
-// vk_image(). Symmetric counterpart to HostImage; both expose
-// VizBuffer view() so helpers branch on VizBuffer::space.
+// vk_image().
 //
-// Synchronization is heavyweight today (cudaDeviceSynchronize +
-// vkQueueWaitIdle); paired acquire / release semaphores arrive with
-// QuadLayer. CUDA/Vulkan device matching is handled by VkContext.
+// Conceptually paired with HostImage (CPU bytes vs GPU interop bytes),
+// but they don't share a view() return type: a cudaArray_t is opaque
+// tiled GPU memory and is NOT a CUDA device pointer, so wrapping it
+// as a VizBuffer would lie about that type's contract. Callers consume
+// DeviceImage via discrete accessors instead.
+//
+// Synchronization today is heavyweight (cudaDeviceSynchronize +
+// vkQueueWaitIdle); fine-grained acquire / release semaphores ship
+// later. CUDA / Vulkan device matching is handled by VkContext.
 class DeviceImage
 {
 public:
@@ -39,11 +44,6 @@ public:
     DeviceImage& operator=(const DeviceImage&) = delete;
     DeviceImage(DeviceImage&&) = delete;
     DeviceImage& operator=(DeviceImage&&) = delete;
-
-    // VizBuffer view (kDevice). `data` is the cudaArray_t cast to
-    // void*; it's an opaque CUDA handle, not a raw device pointer —
-    // use cuda_array() with cudaMemcpy2DToArrayAsync to write.
-    VizBuffer view() const noexcept;
 
     // CUDA write target. Lifetime tied to this DeviceImage.
     cudaArray_t cuda_array() const noexcept

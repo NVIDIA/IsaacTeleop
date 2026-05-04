@@ -16,12 +16,18 @@ single sub-module. Each sub-module is its own static library with its own
 sibling `<sub-module>_tests/` directory:
 
 - **`viz/core/`** — foundational types + Vulkan/CUDA infrastructure.
-  Library: `viz_core`. Today: `VkContext`, `VizBuffer`, `Pose3D`, `Fov`,
-  `Resolution`, `ViewInfo`, `PixelFormat`, `RenderTarget`, `FrameSync`,
-  `HostImage`, `DeviceImage`. `HostImage` / `DeviceImage` are the
-  symmetric pair of owning 2D pixel buffers (CPU bytes vs CUDA-Vulkan
-  interop) — both expose `VizBuffer view()` so generic helpers branch
-  on `VizBuffer::space`. Math types (`glm::vec3`, `glm::quat`,
+  Library: `viz_core`. Today: `VkContext`, `VizBuffer`, `VizCudaArray`,
+  `Pose3D`, `Fov`, `Resolution`, `ViewInfo`, `PixelFormat`,
+  `RenderTarget`, `FrameSync`, `HostImage`, `DeviceImage`. `HostImage`
+  owns CPU bytes and exposes a `VizBuffer view()`; `DeviceImage` owns
+  CUDA-Vulkan interop memory and is consumed via discrete accessors
+  (`cuda_array()`, `vk_image()`, etc.) — there is no `view()` because
+  `cudaArray_t` is opaque tiled memory, not a CUDA device pointer,
+  and putting it inside `VizBuffer.data` would lie about that type's
+  contract. Two image-shape view types accordingly:
+  `VizBuffer` for linear pointer-backed memory (CPU bytes / CUDA
+  device pointer; exposes `__cuda_array_interface__` / `__array_interface__`
+  in Python), and `VizCudaArray` for opaque tiled CUDA arrays. Math types (`glm::vec3`, `glm::quat`,
   `glm::mat4`) come from GLM 1.0.1 (FetchContent in
   `deps/third_party/`); use `glm::value_ptr(mat)` to get a raw `float*`
   for Vulkan / CUDA upload (POD-equivalent layout, no copy).
@@ -30,13 +36,15 @@ sibling `<sub-module>_tests/` directory:
   CUDA device to the chosen Vulkan physical device by UUID — every
   viz_core type can assume CUDA and Vulkan are talking to the same
   GPU without re-doing the match.
-- **`viz/layers/`** — `LayerBase` and concrete layers (`QuadLayer`, etc.).
-  Library: `viz_layers` (INTERFACE / header-only today; promoted to
-  STATIC when the first concrete layer ships). Depends on `viz_core`.
-  Test-only fixture layers (`ClearRectLayer`, future `ColoredQuadLayer`)
-  live in `viz/layers_tests/cpp/inc/viz/layers/testing/` and are exposed
-  via the `viz::layers_testing` static library — used by other test
-  binaries (e.g. `viz_session_tests`) to compose into a `VizSession`.
+- **`viz/layers/`** — `LayerBase` and concrete layers. Library:
+  `viz_layers` (STATIC). Depends on `viz_core` + `viz_shaders`. Today:
+  `QuadLayer` (textured fullscreen quad, CUDA-fed via `DeviceImage`,
+  Mode A `submit()` / Mode B `acquire()`+`release()`). Pipelines built
+  per-layer using the driver-side `VkPipelineCache` from `VkContext`.
+  Test-only fixture layers (`ClearRectLayer`, `ThrowingLayer`) live in
+  `viz/layers_tests/cpp/inc/viz/layers/testing/` and are exposed via
+  the `viz::layers_testing` static library — used by `viz_session_tests`
+  to compose into a `VizSession`.
 - **`viz/session/`** — `VizSession`, `VizCompositor`, `FrameInfo`,
   `FrameTimingStats`, `SessionState`, display backends (today: offscreen
   only; window/XR added by their respective backends). Library:
@@ -75,11 +83,10 @@ Build paths that ship viz (the wheel CI on Linux + Windows) pass
 When `BUILD_VIZ=ON` the build machine must have:
 - **Vulkan headers + loader**: `libvulkan-dev` on Linux, LunarG SDK on
   Windows.
-- **CUDA Toolkit** (cudart for link, nvcc not strictly required today
-  but expected to be needed for kernels in M3b+): apt
-  `nvidia-cuda-toolkit` or the official NVIDIA installer / CI action
-  (`Jimver/cuda-toolkit`). The wheel excludes `libcuda.so.1` —
-  consumers supply it via NVIDIA driver.
+- **CUDA Toolkit** (cudart for link; nvcc once we ship CUDA kernels):
+  apt `nvidia-cuda-toolkit` or the official NVIDIA installer /
+  CI action (`Jimver/cuda-toolkit`). The wheel excludes
+  `libcuda.so.1` — consumers supply it via NVIDIA driver.
 - **glslangValidator** for shader compilation: `glslang-tools` apt
   package on Linux, `brew install glslang` on macOS, ships with the
   Vulkan SDK on Windows.

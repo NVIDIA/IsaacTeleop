@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Samples a combined image sampler at descriptor binding 0. Used by
-// QuadLayer (ships in M3b) to display a CUDA-fed texture as a quad.
+// QuadLayer to display a CUDA-fed texture as a fullscreen quad.
 
 #version 450
 

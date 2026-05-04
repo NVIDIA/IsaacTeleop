@@ -5,8 +5,10 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
+#include <viz/core/viz_buffer.hpp> // PixelFormat — used by VizCudaArray
 
 #include <cstdint>
+#include <cuda_runtime.h>
 
 namespace viz
 {
@@ -16,6 +18,20 @@ struct Resolution
 {
     uint32_t width = 0;
     uint32_t height = 0;
+};
+
+// Non-owning view over a CUDA cudaArray_t (opaque tiled GPU memory).
+// Sibling of VizBuffer for the texture-shaped backing store that
+// CUDA-Vulkan interop requires for optimal sampling. Distinct from
+// VizBuffer because cudaArray_t is an opaque handle, not a pointer:
+// different calling conventions (cudaMemcpy2DToArray, surface-object
+// kernels) and no Python __cuda_array_interface__.
+struct VizCudaArray
+{
+    cudaArray_t array = nullptr;
+    uint32_t width = 0;
+    uint32_t height = 0;
+    PixelFormat format = PixelFormat::kRGBA8;
 };
 
 // 3D pose in OpenXR stage space: right-handed, Y-up, meters for distance,

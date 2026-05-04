@@ -25,14 +25,17 @@ target_link_libraries(viz_layers_testing
 
 add_library(viz::layers_testing ALIAS viz_layers_testing)
 
-# Test executable for the layers_testing fixtures themselves.
+# Test executable for the layers_testing fixtures themselves and for
+# the production layers in viz::layers (QuadLayer, ...).
 add_executable(viz_layers_tests
     test_clear_rect_layer.cpp
+    test_quad_layer.cpp
     test_throwing_layer.cpp
 )
 
 target_link_libraries(viz_layers_tests PRIVATE
     viz::layers_testing
+    viz::layers
     Catch2::Catch2WithMain
 )
 

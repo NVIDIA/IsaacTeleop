@@ -2,15 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // [gpu] tests for DeviceImage: verify Vulkan handle creation, the
-// CUDA cudaArray_t is usable from a cudaMemcpy2DToArray call, the
-// VizBuffer view exposes the right shape with MemorySpace::kDevice,
-// and a round-trip copy preserves pixel values.
+// CUDA cudaArray_t is usable from a cudaMemcpy2DToArray call, and a
+// round-trip copy preserves pixel values.
 
 #include "test_helpers.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <viz/core/device_image.hpp>
-#include <viz/core/viz_buffer.hpp>
 #include <viz/core/vk_context.hpp>
 
 #include <cstdint>
@@ -19,10 +17,8 @@
 #include <vector>
 
 using viz::DeviceImage;
-using viz::MemorySpace;
 using viz::PixelFormat;
 using viz::Resolution;
-using viz::VizBuffer;
 
 namespace
 {
@@ -78,20 +74,6 @@ TEST_CASE_METHOD(viz::testing::GpuFixture, "DeviceImage destroy is idempotent", 
     img->destroy();
 }
 
-TEST_CASE_METHOD(viz::testing::GpuFixture, "DeviceImage::view exposes a kDevice VizBuffer", "[gpu][device_image]")
-{
-    auto img = DeviceImage::create(vk, Resolution{ 16, 16 }, PixelFormat::kRGBA8);
-    const VizBuffer v = img->view();
-    CHECK(v.space == MemorySpace::kDevice);
-    CHECK(v.width == 16);
-    CHECK(v.height == 16);
-    CHECK(v.format == PixelFormat::kRGBA8);
-    CHECK(v.pitch == static_cast<size_t>(16) * 4);
-    // .data points at the cudaArray_t handle (NOT a raw device pointer);
-    // sanity that it's non-null when the image is alive.
-    CHECK(v.data != nullptr);
-}
-
 TEST_CASE_METHOD(viz::testing::GpuFixture, "DeviceImage round-trip preserves pixel pattern", "[gpu][device_image]")
 {
     constexpr uint32_t kSide = 64;
@@ -105,9 +87,8 @@ TEST_CASE_METHOD(viz::testing::GpuFixture, "DeviceImage round-trip preserves pix
                                 cudaMemcpyHostToDevice) == cudaSuccess);
     REQUIRE(cudaDeviceSynchronize() == cudaSuccess);
 
-    // Read it back via CUDA — verifies the data took. (M3b's milestone
-    // test will read back via Vulkan sampling; that's the real round-
-    // trip but requires a graphics pipeline we don't have yet.)
+    // Read back via CUDA — verifies the data made it. The Vulkan-
+    // sampling round-trip is covered by viz_session_tests.
     std::vector<uint8_t> dst(kBytes);
     REQUIRE(cudaMemcpy2DFromArray(dst.data(), kSide * 4, img->cuda_array(), 0, 0, kSide * 4, kSide,
                                   cudaMemcpyDeviceToHost) == cudaSuccess);

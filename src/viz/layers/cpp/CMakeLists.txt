@@ -3,25 +3,25 @@
 
 cmake_minimum_required(VERSION 3.20)
 
-# LayerBase abstract interface and (later) concrete layer types
-# (QuadLayer, ProjectionLayer, OverlayLayer). Header-only today — promoted
-# to STATIC when the first .cpp lands. Test-only helper layers
-# (e.g. ColoredQuadLayer) live in viz/layers_tests/, not here.
-add_library(viz_layers INTERFACE)
-
-target_sources(viz_layers
-    INTERFACE
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc/viz/layers/layer_base.hpp>
+# LayerBase abstract interface and concrete layer types. Promoted to
+# STATIC now that QuadLayer ships. Test-only helper layers
+# (ClearRectLayer, ThrowingLayer) live in viz/layers_tests/, not here.
+add_library(viz_layers STATIC
+    quad_layer.cpp
+    inc/viz/layers/layer_base.hpp
+    inc/viz/layers/quad_layer.hpp
 )
 
 target_include_directories(viz_layers
-    INTERFACE
+    PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
 )
 
 target_link_libraries(viz_layers
-    INTERFACE
+    PUBLIC
         viz::core
+    PRIVATE
+        viz::shaders
 )
 
 # Aliased as viz::layers.

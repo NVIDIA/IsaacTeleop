@@ -44,13 +44,9 @@ struct PhysicalDeviceInfo
 //
 // VkContext owns the Vulkan handles and tears them down on destruction.
 //
-// CUDA-Vulkan device matching: as part of init(), VkContext queries
-// the chosen physical device's UUID and calls cudaSetDevice() on the
-// matching CUDA device. This is required for CUDA-Vulkan interop
-// (cudaImportExternalMemory) to succeed on multi-GPU machines, and
-// it makes VkContext the single chokepoint for "which GPU is Televiz
-// on" — every viz_core type that touches CUDA can assume the current
-// CUDA device matches the Vulkan one.
+// init() also matches the current CUDA device to the chosen Vulkan
+// physical device by UUID, so every viz_core type that touches CUDA
+// can assume the two APIs are on the same GPU.
 class VkContext
 {
 public:
@@ -104,13 +100,14 @@ public:
     uint32_t queue_family_index() const noexcept;
     VkQueue queue() const noexcept;
 
-    // CUDA device id matched to the chosen Vulkan physical device by
-    // UUID at init() time. Useful for callers that need to ensure
-    // their thread is on the right CUDA device before issuing CUDA
-    // calls — cudaSetDevice is per-host-thread, so a CudaTexture /
-    // DeviceImage created on a worker thread must call
-    // cudaSetDevice(ctx.cuda_device_id()) before any CUDA API. Returns
-    // -1 before init() has run.
+    // Process-wide VkPipelineCache for driver-side compiled-state
+    // reuse across pipeline creations. VK_NULL_HANDLE before init().
+    VkPipelineCache pipeline_cache() const noexcept;
+
+    // CUDA device id matched to the chosen Vulkan physical device.
+    // Layers created on worker threads should
+    // cudaSetDevice(ctx.cuda_device_id()) before any CUDA call —
+    // cudaSetDevice is per-host-thread. Returns -1 before init().
     int cuda_device_id() const noexcept;
 
     // Enumerates all Vulkan-capable physical devices and returns their
@@ -127,6 +124,7 @@ private:
     void select_physical_device(const Config& config);
     void create_logical_device(const Config& config);
     void match_cuda_device_to_vulkan();
+    void create_pipeline_cache();
 
     bool initialized_ = false;
     bool validation_enabled_ = false;
@@ -135,6 +133,7 @@ private:
     VkDevice device_ = VK_NULL_HANDLE;
     uint32_t queue_family_index_ = UINT32_MAX;
     VkQueue queue_ = VK_NULL_HANDLE;
+    VkPipelineCache pipeline_cache_ = VK_NULL_HANDLE;
     int cuda_device_id_ = -1;
 };
 

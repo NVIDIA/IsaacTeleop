@@ -18,8 +18,7 @@ void check_offscreen_only(DisplayMode mode, const char* what)
     {
         throw std::runtime_error(std::string("VizSession: ") + what +
                                  " is not implemented for the requested DisplayMode "
-                                 "(only kOffscreen ships in this milestone; "
-                                 "kWindow / kXr arrive with their respective backends)");
+                                 "(only kOffscreen is currently supported)");
     }
 }
 
@@ -257,6 +256,11 @@ uint32_t VizSession::get_vk_queue_family_index() const noexcept
 VkRenderPass VizSession::get_render_pass() const noexcept
 {
     return compositor_ ? compositor_->render_pass() : VK_NULL_HANDLE;
+}
+
+const VkContext* VizSession::get_vk_context() const noexcept
+{
+    return ctx_ptr_;
 }
 
 } // namespace viz

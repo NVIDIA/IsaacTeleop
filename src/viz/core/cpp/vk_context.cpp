@@ -192,6 +192,7 @@ void VkContext::init(const Config& config)
         select_physical_device(config);
         create_logical_device(config);
         match_cuda_device_to_vulkan();
+        create_pipeline_cache();
         initialized_ = true;
     }
     catch (...)
@@ -203,6 +204,12 @@ void VkContext::init(const Config& config)
 
 void VkContext::destroy()
 {
+    // Destroy device-owned objects (pipeline cache) before the device.
+    if (pipeline_cache_ != VK_NULL_HANDLE && device_ != VK_NULL_HANDLE)
+    {
+        vkDestroyPipelineCache(device_, pipeline_cache_, nullptr);
+        pipeline_cache_ = VK_NULL_HANDLE;
+    }
     if (device_ != VK_NULL_HANDLE)
     {
         vkDestroyDevice(device_, nullptr);
@@ -216,6 +223,7 @@ void VkContext::destroy()
     physical_device_ = VK_NULL_HANDLE;
     queue_ = VK_NULL_HANDLE;
     queue_family_index_ = UINT32_MAX;
+    pipeline_cache_ = VK_NULL_HANDLE;
     cuda_device_id_ = -1;
     validation_enabled_ = false;
     initialized_ = false;
@@ -249,6 +257,11 @@ uint32_t VkContext::queue_family_index() const noexcept
 VkQueue VkContext::queue() const noexcept
 {
     return queue_;
+}
+
+VkPipelineCache VkContext::pipeline_cache() const noexcept
+{
+    return pipeline_cache_;
 }
 
 int VkContext::cuda_device_id() const noexcept
@@ -414,15 +427,25 @@ void VkContext::create_logical_device(const Config& config)
     vkGetDeviceQueue(device_, queue_family_index_, 0, &queue_);
 }
 
+void VkContext::create_pipeline_cache()
+{
+    // Empty cache; the driver populates it as pipelines are created.
+    // Not persisted across runs — purely in-process reuse.
+    VkPipelineCacheCreateInfo info{};
+    info.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+    const VkResult result = vkCreatePipelineCache(device_, &info, nullptr, &pipeline_cache_);
+    if (result != VK_SUCCESS)
+    {
+        throw std::runtime_error("vkCreatePipelineCache failed: VkResult=" + std::to_string(result));
+    }
+}
+
 void VkContext::match_cuda_device_to_vulkan()
 {
-    // Read the Vulkan physical device's UUID, then find the CUDA
-    // device with the same UUID and make it current. Required so
-    // every viz_core type that imports Vulkan memory into CUDA
-    // (e.g. DeviceImage::cudaImportExternalMemory) operates on the
-    // same physical GPU. On multi-GPU machines Vulkan and CUDA
-    // default to different devices and interop fails with
-    // cudaErrorUnknown.
+    // Find the CUDA device whose UUID matches the chosen Vulkan
+    // physical device and make it current. Required so CUDA-Vulkan
+    // interop on multi-GPU machines doesn't pick a different GPU
+    // than Vulkan.
     VkPhysicalDeviceIDProperties id_props{};
     id_props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES;
     VkPhysicalDeviceProperties2 props2{};

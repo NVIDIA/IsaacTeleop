@@ -157,6 +157,10 @@ public:
     uint32_t get_vk_queue_family_index() const noexcept;
     VkRenderPass get_render_pass() const noexcept;
 
+    // The VkContext driving this session, used by layers that build
+    // their own pipelines. nullptr before create() / after destroy().
+    const VkContext* get_vk_context() const noexcept;
+
 private:
     explicit VizSession(const Config& config);
     void init();

@@ -7,11 +7,9 @@
 #include <stdexcept>
 #include <string>
 
-// Posix close() lives in <unistd.h> on Linux/macOS; Windows uses _close()
-// from <io.h>. The fd-close path is unreachable at runtime on Windows
-// (vkGetMemoryFdKHR isn't available there — import_to_cuda throws before
-// memory_fd_ is ever assigned), but the code still has to compile under
-// MSVC for the experimental Windows build.
+// Posix close() vs Windows _close() shim — the fd-close path is
+// dead on Windows (vkGetMemoryFdKHR isn't available there) but
+// still has to compile under MSVC.
 #ifdef _WIN32
 #    include <io.h>
 namespace
@@ -140,19 +138,15 @@ void DeviceImage::init()
 
 void DeviceImage::destroy()
 {
-    // Pin CUDA device for this thread so the CUDA frees below land on
-    // the right device even if destroy() runs on a thread that never
-    // ran VkContext::init(). Best-effort — destructor must not throw.
+    // Pin CUDA device on the destroying thread (best-effort; we
+    // can't throw out of a destructor).
     if (ctx_ != nullptr && ctx_->cuda_device_id() >= 0)
     {
         (void)cudaSetDevice(ctx_->cuda_device_id());
     }
 
-    // CUDA side first; CUDA holds a dup'd handle on the underlying
-    // memory, so the VkDeviceMemory must outlive the CUDA mapping.
-    // cudaDeviceSynchronize ensures any caller-issued async CUDA work
-    // (e.g. cudaMemcpy2DToArrayAsync) has retired before we free the
-    // array — otherwise CUDA may UAF its own staging.
+    // CUDA side first — VkDeviceMemory must outlive the CUDA
+    // mapping. Sync drains any caller-issued async work first.
     if (cuda_mipmapped_array_ != nullptr || cuda_external_memory_ != nullptr)
     {
         (void)cudaDeviceSynchronize();
@@ -170,9 +164,8 @@ void DeviceImage::destroy()
     }
     if (memory_fd_ >= 0)
     {
-        // CUDA dups the fd internally on import, so we close our copy.
-        // If import failed before our explicit close, fd_ may still
-        // hold our copy — close it here.
+        // CUDA dup'd the fd on import; close ours. Also handles the
+        // import-failed-before-close case.
         close_fd(memory_fd_);
         memory_fd_ = -1;
     }
@@ -212,18 +205,6 @@ void DeviceImage::destroy()
     current_layout_ = VK_IMAGE_LAYOUT_UNDEFINED;
 }
 
-VizBuffer DeviceImage::view() const noexcept
-{
-    VizBuffer b;
-    b.data = static_cast<void*>(cuda_array_);
-    b.width = resolution_.width;
-    b.height = resolution_.height;
-    b.format = format_;
-    b.pitch = static_cast<size_t>(resolution_.width) * bytes_per_pixel(format_);
-    b.space = MemorySpace::kDevice;
-    return b;
-}
-
 void DeviceImage::create_vk_image_with_external_memory()
 {
     const VkDevice device = ctx_->device();
@@ -241,11 +222,9 @@ void DeviceImage::create_vk_image_with_external_memory()
     info.imageType = VK_IMAGE_TYPE_2D;
     info.format = vk_format_;
     info.extent = { resolution_.width, resolution_.height, 1 };
-    info.mipLevels = 1; // Single level — when minification moiré shows up in
-                        // XR distance views, expose mipLevels via Config and
-                        // generate the chain via vkCmdBlitImage pre-render.
-                        // Anisotropic filtering on the sampler is the cheaper
-                        // first line of defense.
+    info.mipLevels = 1; // Single level. If XR distance views show
+                        // moiré, expose mipLevels via Config and
+                        // generate via vkCmdBlitImage pre-render.
     info.arrayLayers = 1;
     info.samples = VK_SAMPLE_COUNT_1_BIT;
     info.tiling = VK_IMAGE_TILING_OPTIMAL;
@@ -258,10 +237,8 @@ void DeviceImage::create_vk_image_with_external_memory()
     VkMemoryRequirements reqs;
     vkGetImageMemoryRequirements(device, image_, &reqs);
 
-    // Memory backing the image: device-local + exportable as POSIX fd.
-    // No VkMemoryDedicatedAllocateInfo / cudaExternalMemoryDedicated —
-    // a generic allocation works for sampled 2D images and avoids the
-    // dedicated-allocation extension wiring.
+    // Device-local + exportable as POSIX fd. Generic allocation
+    // (no VkMemoryDedicatedAllocateInfo) suffices for sampled 2D.
     VkExportMemoryAllocateInfo export_info{};
     export_info.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO;
     export_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
@@ -314,10 +291,8 @@ void DeviceImage::create_vk_image_view()
 
 void DeviceImage::import_to_cuda()
 {
-    // cudaSetDevice is per-host-thread; VkContext set it on the init
-    // thread, but DeviceImage::create() may run on a different one.
-    // Re-pin here so cudaImportExternalMemory / GetMappedMipmappedArray
-    // talk to the same physical GPU as Vulkan.
+    // cudaSetDevice is per-host-thread; VkContext sets it on the
+    // init thread, re-pin here for worker-thread create() callers.
     check_cuda(cudaSetDevice(ctx_->cuda_device_id()), "cudaSetDevice");
 
     VkMemoryRequirements reqs;
