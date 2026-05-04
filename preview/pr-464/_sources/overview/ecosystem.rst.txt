@@ -199,8 +199,8 @@ directly. Each device name in the tables above links to the corresponding manufa
 .. _`Pico 4 Ultra`: https://www.picoxr.com/products/pico4-ultra
 .. _`Pico Motion Tracker`: https://www.picoxr.com/global/products/pico-motion-tracker
 .. _`Manus Gloves`: https://www.manus-meta.com/products/quantum-metagloves
-.. _`Logitech Rudder Pedals`: https://www.logitechg.com/products/flight/flight-rudder-pedals.945-000028.html
-.. _`OAK-D Camera`: https://www.luxonis.com/products/oak-d
+.. _`Logitech Rudder Pedals`: https://www.logitechg.com/en-us/products/flight/flight-simulator-rudder-pedals.html
+.. _`OAK-D Camera`: https://shop.luxonis.com/products/oak-d
 .. _`3D Space Mouse`: https://3dconnexion.com/us/spacemouse/
 
 .. Other references
