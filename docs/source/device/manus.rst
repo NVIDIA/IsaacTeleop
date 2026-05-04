@@ -29,11 +29,11 @@ Prerequisites
 - **Manus SDK** for Linux — downloaded automatically by the install script.
 - **System dependencies** — the install script installs required packages automatically.
 
-Installation
-------------
+The Manus plugin cannot be installed via normal ``pip`` packaging; **build Isaac Teleop
+from source first** by following the :doc:`build_from_source/index` guide under Getting Started.
 
 Automated (recommended)
-~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
 
 The install script handles SDK download, dependency installation, and building:
 
@@ -52,7 +52,7 @@ The script will:
 Manual
 ~~~~~~
 
-If you prefer to install manually:
+If you prefer to install manually, follow these steps after building the repository from source:
 
 1. Download the MANUS Core SDK from
    `MANUS Downloads <https://docs.manus-meta.com/3.1.1/Resources/>`_.
