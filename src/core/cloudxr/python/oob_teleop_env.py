@@ -26,7 +26,7 @@ log = logging.getLogger("oob-teleop-env")
 
 WSS_PROXY_DEFAULT_PORT = 48322
 
-DEFAULT_WEB_CLIENT_ORIGIN = "https://nvidia.github.io/IsaacTeleop/client/"
+DEFAULT_WEB_CLIENT_ORIGIN = "https://nvidia.github.io/IsaacTeleop/client/main/"
 
 # Published WebXR client files (same origin as ``DEFAULT_WEB_CLIENT_ORIGIN``).
 USB_LOCAL_STATIC_INDEX_URL = urljoin(DEFAULT_WEB_CLIENT_ORIGIN, "index.html")
