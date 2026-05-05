@@ -723,9 +723,10 @@ previously saved settings:</p>
 <td><p>Hide control panel on load (<code class="docutils literal notranslate"><span class="pre">true</span></code> / <code class="docutils literal notranslate"><span class="pre">false</span></code>)</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">TELEOP_CLIENT_ROUTE</span></code></p></td>
-<td><p>HashRouter fragment appended to the bookmark URL. Default
-<code class="docutils literal notranslate"><span class="pre">/real/gear/dexmate</span></code>; set empty to suppress entirely. A leading
-<code class="docutils literal notranslate"><span class="pre">#</span></code> is stripped automatically.</p></td>
+<td><p>HashRouter fragment appended to the bookmark URL. Default empty
+(no fragment — the WebXR client picks its own landing route). Set
+to e.g. <code class="docutils literal notranslate"><span class="pre">/real/gear/dexmate</span></code> to force a specific route. A
+leading <code class="docutils literal notranslate"><span class="pre">#</span></code> is stripped automatically.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ANDROID_SERIAL</span></code></p></td>
 <td><p>Pin a specific adb device when more than one is connected. The
