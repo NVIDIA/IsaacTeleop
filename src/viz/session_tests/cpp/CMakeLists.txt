@@ -6,7 +6,9 @@ cmake_minimum_required(VERSION 3.20)
 add_executable(viz_session_tests
     test_offscreen_render.cpp
     test_quad_milestone.cpp
+    test_tile_layout.cpp
     test_viz_session.cpp
+    test_window_primitives.cpp
 )
 
 target_link_libraries(viz_session_tests PRIVATE

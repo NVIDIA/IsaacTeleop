@@ -176,3 +176,24 @@ if(BUILD_VIZ)
     FetchContent_MakeAvailable(glm)
     message(STATUS "glm 1.0.1 fetched (header-only)")
 endif()
+
+# ==============================================================================
+# GLFW (window + Vulkan surface for kWindow)
+# ==============================================================================
+# Owns GLFWwindow + VkSurfaceKHR for VizSession's kWindow display backend.
+# Static build to avoid runtime .so dependency.
+if(BUILD_VIZ)
+    message(STATUS "Fetching GLFW from GitHub...")
+    FetchContent_Declare(
+        glfw
+        GIT_REPOSITORY https://github.com/glfw/glfw.git
+        GIT_TAG        3.4
+        GIT_SHALLOW    TRUE
+    )
+    set(GLFW_BUILD_DOCS OFF CACHE BOOL "Skip GLFW docs" FORCE)
+    set(GLFW_BUILD_TESTS OFF CACHE BOOL "Skip GLFW tests" FORCE)
+    set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "Skip GLFW examples" FORCE)
+    set(GLFW_INSTALL OFF CACHE BOOL "Skip GLFW install target" FORCE)
+    FetchContent_MakeAvailable(glfw)
+    message(STATUS "GLFW 3.4 fetched")
+endif()
