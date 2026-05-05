@@ -185,6 +185,34 @@ def require_headset_non_loopback_network() -> None:
     )
 
 
+async def monitor_headset_wifi(*, poll_seconds: float = 5.0) -> None:
+    """Log a one-shot warning when the headset loses its non-loopback interface.
+
+    WebRTC needs at least one non-loopback interface on the headset side; if
+    WiFi drops mid-session, ICE silently stops gathering candidates. Polling
+    ``ip addr show`` over adb is cheap and lets us call out the cause without
+    waiting for the user to puzzle out an opaque connection-stuck error.
+    """
+    had = bool(headset_non_loopback_interfaces())
+    while True:
+        try:
+            await asyncio.sleep(poll_seconds)
+        except asyncio.CancelledError:
+            return
+        ifaces = headset_non_loopback_interfaces()
+        has = bool(ifaces)
+        if had and not has:
+            log.warning(
+                "Headset network interface dropped — WebRTC will fail until it reconnects"
+            )
+            print(
+                "\n\033[33m[runtime] Headset WiFi dropped. Reconnect any WiFi "
+                "(internet not required); WebRTC will recover.\033[0m\n",
+                file=sys.stderr,
+            )
+        had = has
+
+
 def headset_wakefulness() -> str:
     """Return ``mWakefulness`` from ``adb shell dumpsys power``, or ``""`` on failure.
 
@@ -826,6 +854,58 @@ def _tail_file(path: str, lines: int) -> str:
             return "".join(f.readlines()[-lines:]).rstrip()
     except OSError:
         return ""
+
+
+async def watch_coturn(
+    proc_box: list[subprocess.Popen | None],
+    *,
+    turn_port: int,
+    user: str,
+    credential: str,
+    poll_seconds: float = 2.0,
+) -> None:
+    """Restart coturn once if it dies mid-session; surface its log on the way out.
+
+    Stores the (possibly replaced) handle back in ``proc_box[0]`` so the
+    caller's cleanup teardown stops the live process. After one restart a
+    second death is left for ``stop_coturn`` to log — chasing further
+    restarts usually masks a config / port-binding bug we want visible.
+    """
+    restarted = False
+    while True:
+        try:
+            await asyncio.sleep(poll_seconds)
+        except asyncio.CancelledError:
+            return
+        proc = proc_box[0]
+        if proc is None or proc.poll() is None:
+            continue
+        rc = proc.returncode
+        log_path = f"/tmp/coturn-cloudxr-{turn_port}.log"
+        log.warning(
+            "coturn died (rc=%d). Tail of %s:\n%s",
+            rc,
+            log_path,
+            _tail_file(log_path, 20),
+        )
+        if restarted:
+            print(
+                "\n\033[33m[runtime] coturn died again — leaving down. "
+                f"Inspect {log_path} for the cause.\033[0m\n",
+                file=sys.stderr,
+            )
+            return
+        restarted = True
+        new_proc = start_coturn(turn_port, user, credential)
+        proc_box[0] = new_proc
+        if new_proc is None:
+            print(
+                "\n\033[33m[runtime] coturn died and could not be restarted "
+                "— WebRTC will fail with no relay candidates.\033[0m\n",
+                file=sys.stderr,
+            )
+            return
+        log.info("coturn restarted (pid=%d)", new_proc.pid)
 
 
 def stop_coturn(proc: subprocess.Popen | None) -> None:

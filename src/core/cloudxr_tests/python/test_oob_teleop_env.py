@@ -293,3 +293,105 @@ def test_print_oob_hub_startup_banner(
     assert "OOB TELEOP" in out
     assert "10.0.0.1" in out
     assert OOB_WS_PATH in out
+
+
+# Host preflight (H5) ------------------------------------------------------
+
+
+from unittest.mock import MagicMock, patch  # noqa: E402
+
+from cloudxr_py_test_ns.oob_teleop_env import (  # noqa: E402
+    _ufw_unallowed_ports,
+    print_host_preflight_warnings,
+)
+
+
+@patch("cloudxr_py_test_ns.oob_teleop_env.subprocess.run")
+def test_ufw_unallowed_ports_inactive_returns_none(mock_run: MagicMock) -> None:
+    mock_run.return_value = MagicMock(returncode=0, stdout="Status: inactive\n")
+    assert _ufw_unallowed_ports([48322]) is None
+
+
+@patch(
+    "cloudxr_py_test_ns.oob_teleop_env.subprocess.run", side_effect=FileNotFoundError()
+)
+def test_ufw_unallowed_ports_no_ufw_returns_none(mock_run: MagicMock) -> None:
+    assert _ufw_unallowed_ports([48322]) is None
+
+
+@patch("cloudxr_py_test_ns.oob_teleop_env.subprocess.run")
+def test_ufw_unallowed_ports_active_with_allow(mock_run: MagicMock) -> None:
+    mock_run.return_value = MagicMock(
+        returncode=0,
+        stdout=(
+            "Status: active\n\n"
+            "To                         Action      From\n"
+            "--                         ------      ----\n"
+            "48322/tcp                  ALLOW       Anywhere\n"
+        ),
+    )
+    assert _ufw_unallowed_ports([48322]) == []
+
+
+@patch("cloudxr_py_test_ns.oob_teleop_env.subprocess.run")
+def test_ufw_unallowed_ports_active_missing_allow(mock_run: MagicMock) -> None:
+    mock_run.return_value = MagicMock(
+        returncode=0,
+        stdout=(
+            "Status: active\n\n"
+            "To                         Action      From\n"
+            "22/tcp                     ALLOW       Anywhere\n"
+        ),
+    )
+    assert _ufw_unallowed_ports([48322]) == [48322]
+
+
+def test_print_host_preflight_warnings_clean(capsys) -> None:
+    with (
+        patch("cloudxr_py_test_ns.oob_teleop_env._port_in_use", return_value=False),
+        patch(
+            "cloudxr_py_test_ns.oob_teleop_env._ufw_unallowed_ports", return_value=None
+        ),
+    ):
+        print_host_preflight_warnings(usb_local=False)
+    assert capsys.readouterr().out == ""
+
+
+def test_print_host_preflight_warnings_busy_port(capsys) -> None:
+    with (
+        patch("cloudxr_py_test_ns.oob_teleop_env._port_in_use", return_value=True),
+        patch(
+            "cloudxr_py_test_ns.oob_teleop_env._ufw_unallowed_ports", return_value=None
+        ),
+    ):
+        print_host_preflight_warnings(usb_local=False)
+    out = capsys.readouterr().out
+    assert "already in use" in out
+    assert "PROXY_PORT" in out
+
+
+def test_print_host_preflight_warnings_ufw_blocks(capsys) -> None:
+    with (
+        patch("cloudxr_py_test_ns.oob_teleop_env._port_in_use", return_value=False),
+        patch(
+            "cloudxr_py_test_ns.oob_teleop_env._ufw_unallowed_ports",
+            return_value=[48322],
+        ),
+    ):
+        print_host_preflight_warnings(usb_local=False)
+    out = capsys.readouterr().out
+    assert "ufw" in out
+    assert "sudo ufw allow 48322/tcp" in out
+
+
+def test_print_host_preflight_warnings_skips_ufw_in_usb_local(capsys) -> None:
+    with (
+        patch("cloudxr_py_test_ns.oob_teleop_env._port_in_use", return_value=False),
+        patch(
+            "cloudxr_py_test_ns.oob_teleop_env._ufw_unallowed_ports",
+            return_value=[48322],
+        ) as mock_ufw,
+    ):
+        print_host_preflight_warnings(usb_local=True)
+    assert mock_ufw.call_count == 0
+    assert capsys.readouterr().out == ""

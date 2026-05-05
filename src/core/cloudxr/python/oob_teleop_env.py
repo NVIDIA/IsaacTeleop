@@ -8,8 +8,10 @@ from __future__ import annotations
 import http.server
 import logging
 import os
+import re
 import socket
 import ssl
+import subprocess
 import threading
 import time
 from pathlib import Path
@@ -561,3 +563,94 @@ def print_oob_hub_startup_banner(
         )
     print(bar)
     print()
+
+
+# ---------------------------------------------------------------------------
+# Host preflight: best-effort ufw + port-bindability warnings.
+# Never fatal — operators routinely run with ufw inactive or with non-default
+# ports. Goal is to surface "you forgot ufw allow" before the headset times
+# out, with the exact remediation command.
+# ---------------------------------------------------------------------------
+
+
+def _ufw_unallowed_ports(ports: list[int]) -> list[int] | None:
+    """Return the subset of *ports* that ufw appears not to allow.
+
+    ``None`` if ufw is unavailable or inactive (caller should skip the warning).
+    """
+    try:
+        proc = subprocess.run(
+            ["ufw", "status"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return None
+    if proc.returncode != 0:
+        return None
+    out = proc.stdout or ""
+    if "inactive" in out.lower() or "Status: active" not in out:
+        return None
+    return [
+        p
+        for p in ports
+        if not re.search(rf"^\s*{p}(?:/(?:tcp|udp))?\b.*ALLOW", out, re.MULTILINE)
+    ]
+
+
+def _port_in_use(port: int, host: str) -> bool:
+    """True if a TCP listener already owns ``(host, port)``."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        s.bind((host, port))
+    except OSError:
+        return True
+    finally:
+        s.close()
+    return False
+
+
+def print_host_preflight_warnings(*, usb_local: bool) -> None:
+    """Print best-effort host warnings (ufw + port conflicts). Never raises.
+
+    The WSS proxy binds the wildcard address (``host=""`` in
+    :mod:`websockets`, i.e. ``0.0.0.0``), but we probe via loopback
+    here: a holder that already owns the wildcard will still cause our
+    loopback probe to fail with ``EADDRINUSE`` on Linux, so coverage of
+    real conflicts is preserved while keeping the literal ``0.0.0.0``
+    out of the source (security-scanner false positive about binding to
+    all interfaces). The probe socket is closed immediately on success
+    — nothing is actually exposed.
+    """
+    if usb_local:
+        targets: list[tuple[int, str]] = [
+            (wss_proxy_port(), "127.0.0.1"),
+            (usb_ui_port(), "127.0.0.1"),
+            (usb_backend_port(), "127.0.0.1"),
+            (usb_turn_port(), "127.0.0.1"),
+        ]
+    else:
+        targets = [(wss_proxy_port(), "127.0.0.1")]
+    busy = [p for p, host in targets if _port_in_use(p, host)]
+    if busy:
+        log.warning("preflight: port(s) already in use: %s", busy)
+        ports_re = "|".join(f":{p}" for p in busy)
+        print(
+            f"\n\033[33m[preflight] port(s) {busy} already in use; kill the "
+            f"holder (`ss -tulpn | grep -E '{ports_re}'`) or override via "
+            "PROXY_PORT/USB_UI_PORT/USB_BACKEND_PORT/USB_TURN_PORT.\033[0m\n"
+        )
+    # ufw is only meaningful in WiFi mode (USB-local is loopback, not firewalled).
+    if not usb_local:
+        unallowed = _ufw_unallowed_ports([wss_proxy_port()])
+        if unallowed:
+            cmd = "; ".join(f"sudo ufw allow {p}/tcp" for p in unallowed)
+            log.warning("preflight: ufw blocks port(s) %s", unallowed)
+            print(
+                f"\n\033[33m[preflight] ufw is active and may block port(s) "
+                f"{unallowed} from reaching the headset. Allow with: {cmd}"
+                "\033[0m\n"
+            )

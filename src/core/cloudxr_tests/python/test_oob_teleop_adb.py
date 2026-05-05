@@ -329,3 +329,87 @@ def test_setup_adb_reverse_turn_offline_short_circuits(
 
     with pytest.raises(OobAdbError, match="offline"):
         setup_adb_reverse_turn(3478)
+
+
+# WiFi-drop monitor (H6) -----------------------------------------------------
+
+
+import asyncio  # noqa: E402
+
+from cloudxr_py_test_ns.oob_teleop_adb import monitor_headset_wifi  # noqa: E402
+
+
+async def test_monitor_headset_wifi_warns_on_drop(capsys) -> None:
+    # Sequence: had ifaces → still ifaces → drops → still dropped.
+    seq = [
+        [("wlan0", "10.0.0.1")],
+        [("wlan0", "10.0.0.1")],
+        [],
+        [],
+    ]
+    with patch(
+        "cloudxr_py_test_ns.oob_teleop_adb.headset_non_loopback_interfaces",
+        side_effect=lambda: seq.pop(0) if seq else [],
+    ):
+        task = asyncio.create_task(monitor_headset_wifi(poll_seconds=0.001))
+        await asyncio.sleep(0.05)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+    out = capsys.readouterr().err
+    assert "Headset WiFi dropped" in out
+
+
+async def test_monitor_headset_wifi_silent_when_steady(capsys) -> None:
+    with patch(
+        "cloudxr_py_test_ns.oob_teleop_adb.headset_non_loopback_interfaces",
+        return_value=[("wlan0", "10.0.0.1")],
+    ):
+        task = asyncio.create_task(monitor_headset_wifi(poll_seconds=0.001))
+        await asyncio.sleep(0.02)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+    assert capsys.readouterr().err == ""
+
+
+# Coturn watchdog (H7) -------------------------------------------------------
+
+
+from cloudxr_py_test_ns.oob_teleop_adb import watch_coturn  # noqa: E402
+
+
+async def test_watch_coturn_restarts_once_then_gives_up(capsys) -> None:
+    dead_proc = MagicMock()
+    dead_proc.poll.return_value = 1
+    dead_proc.returncode = 1
+    proc_box = [dead_proc]
+    new_proc = MagicMock(pid=4242)
+    new_proc.poll.return_value = 1  # also dead, triggers give-up
+    new_proc.returncode = 1
+
+    with (
+        patch(
+            "cloudxr_py_test_ns.oob_teleop_adb.start_coturn", return_value=new_proc
+        ) as mock_start,
+        patch(
+            "cloudxr_py_test_ns.oob_teleop_adb._tail_file", return_value="<log tail>"
+        ),
+    ):
+        task = asyncio.create_task(
+            watch_coturn(
+                proc_box,
+                turn_port=3478,
+                user="u",
+                credential="c",
+                poll_seconds=0.001,
+            )
+        )
+        await asyncio.wait_for(task, timeout=1.0)
+    assert mock_start.call_count == 1
+    assert proc_box[0] is new_proc
+    assert "died again" in capsys.readouterr().err

@@ -539,7 +539,11 @@ async def run(
             # (WSS / backend / TURN) + coturn. Assets are ensured in
             # require_usb_local_webxr_static_dir (also called from launcher).
             # ------------------------------------------------------------------
-            _usb_coturn_proc = None
+            # The coturn handle lives in a 1-element list so the watchdog
+            # (H7) can replace it after a mid-session restart while keeping
+            # cleanup pointing at whatever's currently live.
+            _usb_coturn_proc_box: list = [None]
+            _usb_coturn_watch_task: asyncio.Task | None = None
             _usb_https_thread = None
             _usb_https_httpd = None
             _usb_turn_port_resolved: int | None = None
@@ -567,6 +571,7 @@ async def run(
                     teardown_adb_reverse_turn,
                     start_coturn,
                     stop_coturn,
+                    watch_coturn,
                 )
 
                 static_root = require_usb_local_webxr_static_dir()
@@ -589,14 +594,24 @@ async def run(
                     )
 
                 # 3. coturn TURN server (ICE relay required for WebRTC)
-                _usb_coturn_proc = start_coturn(
+                _usb_coturn_proc_box[0] = start_coturn(
                     _usb_turn_port_resolved, USB_TURN_USER, USB_TURN_CREDENTIAL
                 )
-                if _usb_coturn_proc is None:
+                if _usb_coturn_proc_box[0] is None:
                     print(
                         "\n\033[33mUSB-local: coturn not running — WebRTC will "
                         "fail. Install with: sudo apt install coturn\033[0m\n",
                         file=sys.stderr,
+                    )
+                else:
+                    _usb_coturn_watch_task = asyncio.create_task(
+                        watch_coturn(
+                            _usb_coturn_proc_box,
+                            turn_port=_usb_turn_port_resolved,
+                            user=USB_TURN_USER,
+                            credential=USB_TURN_CREDENTIAL,
+                        ),
+                        name="cloudxr-coturn-watchdog",
                     )
 
                 # 4. adb reverse for TURN port (headset → PC coturn)
@@ -614,7 +629,13 @@ async def run(
                     )
 
             oob_monitor_task: asyncio.Task | None = None
+            wifi_monitor_task: asyncio.Task | None = None
             if setup_oob:
+                from .oob_teleop_adb import monitor_headset_wifi  # noqa: PLC0415
+
+                wifi_monitor_task = asyncio.create_task(
+                    monitor_headset_wifi(), name="cloudxr-headset-wifi-monitor"
+                )
                 log.info("Starting OOB ADB+CDP automation")
                 try:
                     oob_monitor_task = await run_oob_connect(
@@ -636,14 +657,20 @@ async def run(
             try:
                 await stop_future
             finally:
-                if oob_monitor_task is not None:
-                    oob_monitor_task.cancel()
+                for task in (
+                    oob_monitor_task,
+                    wifi_monitor_task,
+                    _usb_coturn_watch_task,
+                ):
+                    if task is None:
+                        continue
+                    task.cancel()
                     try:
-                        await oob_monitor_task
+                        await task
                     except (asyncio.CancelledError, Exception):
                         pass
                 if usb_local:
-                    stop_coturn(_usb_coturn_proc)
+                    stop_coturn(_usb_coturn_proc_box[0])
                     if _usb_turn_port_resolved is not None:
                         teardown_adb_reverse_turn(_usb_turn_port_resolved)
                     teardown_adb_reverse_ports()

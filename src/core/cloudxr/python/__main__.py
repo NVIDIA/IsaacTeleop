@@ -24,6 +24,7 @@ from isaacteleop.cloudxr.oob_teleop_adb import (
 from isaacteleop.cloudxr.oob_teleop_env import (
     USB_HOST,
     WSS_PROXY_DEFAULT_PORT,
+    print_host_preflight_warnings,
     print_oob_hub_startup_banner,
     resolve_lan_host_for_oob,
     usb_backend_port,
@@ -120,6 +121,7 @@ def main() -> None:
             except OobAdbError as exc:
                 print(f"\n\033[31m{exc}\033[0m\n", file=sys.stderr)
                 raise SystemExit(1) from exc
+        print_host_preflight_warnings(usb_local=args.usb_local)
 
     with CloudXRLauncher(
         install_dir=args.cloudxr_install_dir,
