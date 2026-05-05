@@ -581,10 +581,10 @@ async def run(
                 try:
                     setup_adb_reverse_ports()
                     log.info("USB-local: adb reverse TCP ports active")
-                except subprocess.CalledProcessError as exc:
+                except (OobAdbError, subprocess.CalledProcessError) as exc:
                     log.warning("USB-local: adb reverse TCP setup failed: %s", exc)
                     print(
-                        f"\n\033[33mUSB-local: adb reverse failed — {exc}\033[0m\n",
+                        f"\n\033[33mUSB-local: adb reverse failed.\n{exc}\033[0m\n",
                         file=sys.stderr,
                     )
 
@@ -594,8 +594,8 @@ async def run(
                 )
                 if _usb_coturn_proc is None:
                     print(
-                        "\n\033[33mUSB-local: coturn not found — install with: "
-                        "sudo apt install coturn\033[0m\n",
+                        "\n\033[33mUSB-local: coturn not running — WebRTC will "
+                        "fail. Install with: sudo apt install coturn\033[0m\n",
                         file=sys.stderr,
                     )
 
@@ -606,8 +606,12 @@ async def run(
                         "USB-local: adb reverse TURN active (port %d)",
                         _usb_turn_port_resolved,
                     )
-                except subprocess.CalledProcessError as exc:
+                except (OobAdbError, subprocess.CalledProcessError) as exc:
                     log.warning("USB-local: adb reverse TURN setup failed: %s", exc)
+                    print(
+                        f"\n\033[33mUSB-local: adb reverse TURN failed.\n{exc}\033[0m\n",
+                        file=sys.stderr,
+                    )
 
             oob_monitor_task: asyncio.Task | None = None
             if setup_oob:

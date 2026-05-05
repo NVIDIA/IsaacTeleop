@@ -121,9 +121,15 @@ def headset_non_loopback_interfaces() -> list[tuple[str, str]]:
             timeout=5,
             check=False,
         )
-    except (FileNotFoundError, subprocess.TimeoutExpired):
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        log.warning("headset_non_loopback_interfaces: %s", exc)
         return []
     if proc.returncode != 0:
+        log.warning(
+            "headset_non_loopback_interfaces: adb rc=%d %s",
+            proc.returncode,
+            (proc.stderr or proc.stdout or "").strip(),
+        )
         return []
     out: list[tuple[str, str]] = []
     for line in proc.stdout.splitlines():
@@ -192,9 +198,15 @@ def headset_wakefulness() -> str:
             timeout=5,
             check=False,
         )
-    except (FileNotFoundError, subprocess.TimeoutExpired):
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        log.warning("headset_wakefulness: %s", exc)
         return ""
     if proc.returncode != 0:
+        log.warning(
+            "headset_wakefulness: adb rc=%d %s",
+            proc.returncode,
+            (proc.stderr or proc.stdout or "").strip(),
+        )
         return ""
     m = re.search(r"mWakefulness=(\w+)", proc.stdout or "")
     return m.group(1) if m else ""
@@ -249,6 +261,73 @@ def assert_headset_awake(*, timeout: float = 15.0) -> None:
         "Headset still appears asleep after %.0fs (wakefulness=%s); continuing anyway.",
         timeout,
         wake or "?",
+    )
+
+
+def adb_device_state() -> str:
+    """Return ``adb get-state`` (lowercased), or ``""`` if adb is unreachable."""
+    try:
+        proc = subprocess.run(
+            ["adb", "get-state"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return ""
+    out = proc.stdout if proc.returncode == 0 else (proc.stderr or proc.stdout or "")
+    return out.strip().lower()
+
+
+def assert_adb_device_online() -> None:
+    """Raise :exc:`OobAdbError` if the headset isn't in ``device`` state right now.
+
+    Run before adb operations to convert a stale-preflight failure (USB
+    jiggle, revoked debugging, headset reboot) into an actionable error.
+    Auto-retries once via ``adb reconnect`` for transient ``offline`` —
+    the most common cause is a brief USB renumeration that the daemon
+    sorts out on its own when nudged.
+    """
+    state = adb_device_state()
+    if state == "device":
+        return
+    # Single auto-recovery attempt for transient `offline` (USB renumeration).
+    # `adb reconnect` is fast (~ms) and preserves existing reverse rules.
+    if "offline" in state:
+        log.warning("adb device offline — attempting `adb reconnect`")
+        try:
+            subprocess.run(
+                ["adb", "reconnect"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
+        time.sleep(0.5)
+        state = adb_device_state()
+        if state == "device":
+            log.info("adb device recovered after reconnect")
+            return
+    if not state:
+        raise OobAdbError(
+            "adb is not responding. Try `adb kill-server`, then reconnect the USB cable."
+        )
+    if "unauthorized" in state:
+        raise OobAdbError(
+            "Headset adb is unauthorized. Unlock the headset and accept the "
+            "USB-debugging RSA prompt; verify with `adb devices`."
+        )
+    if "offline" in state:
+        raise OobAdbError(
+            "Headset is `offline` to adb (reconnect attempted). "
+            "Reconnect the USB cable; if that doesn't help, "
+            "`adb kill-server && adb start-server`."
+        )
+    raise OobAdbError(
+        f"adb state `{state}`, expected `device`. Reconnect the USB cable."
     )
 
 
@@ -361,9 +440,18 @@ def _adb_getprop(prop: str) -> str:
             timeout=5,
             check=False,
         )
-    except (FileNotFoundError, subprocess.TimeoutExpired):
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        log.warning("getprop %s: %s", prop, exc)
         return ""
-    return (proc.stdout or "").strip() if proc.returncode == 0 else ""
+    if proc.returncode != 0:
+        log.warning(
+            "getprop %s: rc=%d %s",
+            prop,
+            proc.returncode,
+            (proc.stderr or proc.stdout or "").strip(),
+        )
+        return ""
+    return (proc.stdout or "").strip()
 
 
 def _adb_pkg_installed(package: str) -> bool:
@@ -384,9 +472,16 @@ def _adb_pkg_installed(package: str) -> bool:
             timeout=5,
             check=False,
         )
-    except (FileNotFoundError, subprocess.TimeoutExpired):
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        log.warning("pm list packages %s: %s", package, exc)
         return False
     if proc.returncode != 0:
+        log.warning(
+            "pm list packages %s: rc=%d %s",
+            package,
+            proc.returncode,
+            (proc.stderr or proc.stdout or "").strip(),
+        )
         return False
     target = f"package:{package}"
     return any(line.strip() == target for line in (proc.stdout or "").splitlines())
@@ -458,6 +553,11 @@ def run_adb_headset_bookmark(
 
     Returns ``(exit_code, diagnostic)``.
     """
+    try:
+        assert_adb_device_online()
+    except OobAdbError as exc:
+        return 99, str(exc)
+
     url = build_teleop_url(resolved_port=resolved_port, usb_local=usb_local)
     package = headset_browser_package()
     if package:
@@ -512,19 +612,27 @@ def setup_adb_reverse_ports() -> None:
     the ``USB_BACKEND_PORT`` env var).
 
     Raises:
-        subprocess.CalledProcessError: If any ``adb reverse`` call fails.
+        OobAdbError: device offline / unauthorized, or an ``adb reverse`` call failed.
     """
     from .oob_teleop_env import usb_backend_port, usb_ui_port, wss_proxy_port  # noqa: PLC0415
 
+    assert_adb_device_online()
     ports = [usb_ui_port(), wss_proxy_port(), usb_backend_port()]
     for port in ports:
-        subprocess.run(
-            ["adb", "reverse", f"tcp:{port}", f"tcp:{port}"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            check=True,
-        )
+        try:
+            subprocess.run(
+                ["adb", "reverse", f"tcp:{port}", f"tcp:{port}"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=True,
+            )
+        except subprocess.CalledProcessError as exc:
+            detail = (exc.stderr or exc.stdout or "").strip() or "(no adb output)"
+            raise OobAdbError(
+                f"adb reverse tcp:{port} failed: {detail}. "
+                "Reconnect the USB cable and verify `adb devices`."
+            ) from exc
         log.info("adb reverse tcp:%d -> tcp:%d (PC)", port, port)
 
 
@@ -552,15 +660,23 @@ def setup_adb_reverse_turn(turn_port: int) -> None:
     without WiFi.
 
     Raises:
-        subprocess.CalledProcessError: If the ``adb reverse`` call fails.
+        OobAdbError: device offline / unauthorized, or the ``adb reverse`` call failed.
     """
-    subprocess.run(
-        ["adb", "reverse", f"tcp:{turn_port}", f"tcp:{turn_port}"],
-        capture_output=True,
-        text=True,
-        timeout=10,
-        check=True,
-    )
+    assert_adb_device_online()
+    try:
+        subprocess.run(
+            ["adb", "reverse", f"tcp:{turn_port}", f"tcp:{turn_port}"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or exc.stdout or "").strip() or "(no adb output)"
+        raise OobAdbError(
+            f"adb reverse tcp:{turn_port} (TURN) failed: {detail}. "
+            "Reconnect the USB cable and verify `adb devices`."
+        ) from exc
     log.info("adb reverse tcp:%d (TURN) -> tcp:%d (PC coturn)", turn_port, turn_port)
 
 
@@ -577,26 +693,32 @@ def teardown_adb_reverse_turn(turn_port: int) -> None:
 
 
 def coturn_binary_path() -> str | None:
-    """Return the path to the ``turnserver`` binary, or ``None`` if not found."""
-    # Prefer PATH lookup; fall back to the common Debian/Ubuntu package path.
-    return shutil.which("turnserver") or (
-        "/usr/bin/turnserver" if os.path.exists("/usr/bin/turnserver") else None
-    )
+    """Return the path to the coturn TURN-server binary, or ``None`` if not found."""
+    # Debian's `coturn` package installs `turnserver`, but some containers
+    # and source builds expose `coturn` — probe both.
+    for name in ("turnserver", "coturn"):
+        path = shutil.which(name) or (
+            f"/usr/bin/{name}" if os.path.exists(f"/usr/bin/{name}") else None
+        )
+        if path:
+            return path
+    return None
 
 
 def require_coturn_available() -> None:
     """Fail fast if coturn is not installed.
 
-    Raises :class:`OobAdbError` with install instructions when
-    ``turnserver`` is not on PATH and not at the default Debian/Ubuntu
-    location.  Call this early (before starting the launcher) in
-    ``--usb-local`` mode so the user gets a clear error instead of a
-    silent WebRTC-gather-timeout later.
+    Raises :class:`OobAdbError` with install instructions when neither
+    ``turnserver`` nor ``coturn`` is on PATH and not at the default
+    Debian/Ubuntu location.  Call this early (before starting the
+    launcher) in ``--usb-local`` mode so the user gets a clear error
+    instead of a silent WebRTC-gather-timeout later.
     """
     if coturn_binary_path() is not None:
         return
     raise OobAdbError(
-        "--usb-local requires coturn (TURN server) but `turnserver` was not found.\n\n"
+        "--usb-local requires coturn (TURN server) but neither `turnserver` "
+        "nor `coturn` was found on PATH or in /usr/bin.\n\n"
         "Install it with:\n"
         "    sudo apt-get install -y coturn\n\n"
         "coturn runs locally (no systemd service needed — the launcher starts its "
@@ -627,7 +749,8 @@ def start_coturn(turn_port: int, user: str, credential: str) -> subprocess.Popen
     coturn_bin = coturn_binary_path()
     if coturn_bin is None:
         log.warning(
-            "coturn: `turnserver` not on PATH — install with `sudo apt-get install coturn`"
+            "coturn: neither `turnserver` nor `coturn` on PATH — "
+            "install with `sudo apt-get install coturn`"
         )
         return None
 
@@ -756,7 +879,15 @@ def _discover_devtools_socket() -> str | None:
             timeout=10,
             check=False,
         )
-    except (FileNotFoundError, subprocess.TimeoutExpired):
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        log.warning("_discover_devtools_socket: %s", exc)
+        return None
+    if proc.returncode != 0:
+        log.warning(
+            "_discover_devtools_socket: adb rc=%d %s",
+            proc.returncode,
+            (proc.stderr or proc.stdout or "").strip(),
+        )
         return None
     candidates: list[str] = []
     for line in proc.stdout.splitlines():
@@ -777,6 +908,7 @@ def _discover_devtools_socket() -> str | None:
 
 
 def _adb_forward_cdp(socket_name: str, local_port: int) -> None:
+    assert_adb_device_online()
     subprocess.run(
         ["adb", "forward", f"tcp:{local_port}", f"localabstract:{socket_name}"],
         capture_output=True,
