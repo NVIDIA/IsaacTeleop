@@ -16,33 +16,12 @@
 namespace viz::testing
 {
 
-// True iff a Televiz-suitable Vulkan device is reachable. Cached after
-// the first call. [gpu] tests should SKIP when this is false so CI
-// runners without a suitable GPU report skipped rather than failed.
-inline bool is_gpu_available()
-{
-    static const bool cached = []() -> bool
-    {
-        const auto devices = viz::VkContext::enumerate_physical_devices();
-        for (const auto& info : devices)
-        {
-            if (info.meets_requirements)
-            {
-                return true;
-            }
-        }
-        return false;
-    }();
-    return cached;
-}
-
 // True iff at least one GPU is reachable from BOTH Vulkan AND CUDA
-// — the same UUID-overlap constraint VkContext::init() enforces.
-// Tests that exercise CUDA-Vulkan interop (DeviceImage, QuadLayer,
-// the milestone end-to-end) should gate on this rather than
-// is_gpu_available() so machines that have Vulkan and CUDA on
-// *different* GPUs cleanly skip rather than throw at init time.
-inline bool is_cuda_vulkan_interop_available()
+// with matching UUIDs — the same constraint VkContext::init() enforces.
+// [gpu] tests SKIP when this returns false so CI runners without a
+// suitable GPU report skipped rather than failed. Cached after the
+// first call.
+inline bool is_gpu_available()
 {
     static const bool cached = []() -> bool
     {

@@ -29,15 +29,10 @@ using viz::VizSession;
 using viz::testing::ClearRectLayer;
 using viz::testing::ThrowingLayer;
 
+using viz::testing::is_gpu_available;
+
 namespace
 {
-
-// ClearRectLayer doesn't touch CUDA, so the Vulkan-only probe is
-// the right gate here.
-inline bool gpu_available()
-{
-    return viz::testing::is_gpu_available();
-}
 
 // RGBA8 byte at (x, y) in a tightly-packed row-major framebuffer.
 struct Rgba
@@ -59,7 +54,7 @@ Rgba pixel_at(const HostImage& img, uint32_t x, uint32_t y)
 
 TEST_CASE("Offscreen session renders layer pixels through to readback", "[gpu][viz_session]")
 {
-    if (!gpu_available())
+    if (!is_gpu_available())
     {
         SKIP("No Vulkan-capable GPU available");
     }
@@ -129,7 +124,7 @@ TEST_CASE("Offscreen session renders layer pixels through to readback", "[gpu][v
 
 TEST_CASE("Hidden layer does not contribute to the framebuffer", "[gpu][viz_session]")
 {
-    if (!gpu_available())
+    if (!is_gpu_available())
     {
         SKIP("No Vulkan-capable GPU available");
     }
@@ -170,7 +165,7 @@ TEST_CASE("Hidden layer does not contribute to the framebuffer", "[gpu][viz_sess
 
 TEST_CASE("Multiple frames advance frame_index and avoid leaking sync state", "[gpu][viz_session]")
 {
-    if (!gpu_available())
+    if (!is_gpu_available())
     {
         SKIP("No Vulkan-capable GPU available");
     }
@@ -192,7 +187,7 @@ TEST_CASE("Multiple frames advance frame_index and avoid leaking sync state", "[
 
 TEST_CASE("Session recovers from a layer that throws and renders the next frame", "[gpu][viz_session]")
 {
-    if (!gpu_available())
+    if (!is_gpu_available())
     {
         SKIP("No Vulkan-capable GPU available");
     }
@@ -231,7 +226,7 @@ TEST_CASE("Session recovers from a layer that throws and renders the next frame"
 
 TEST_CASE("Layer that throws does not corrupt the layer registry", "[gpu][viz_session]")
 {
-    if (!gpu_available())
+    if (!is_gpu_available())
     {
         SKIP("No Vulkan-capable GPU available");
     }
@@ -265,7 +260,7 @@ TEST_CASE("Layer that throws does not corrupt the layer registry", "[gpu][viz_se
 
 TEST_CASE("begin_frame / end_frame must be paired", "[gpu][viz_session]")
 {
-    if (!gpu_available())
+    if (!is_gpu_available())
     {
         SKIP("No Vulkan-capable GPU available");
     }

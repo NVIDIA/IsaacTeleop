@@ -368,8 +368,6 @@ void DeviceImage::create_interop_semaphores()
 {
     const VkDevice device = ctx_->device();
 
-    // VK_KHR_external_semaphore_fd entry point — required to bridge
-    // Vulkan timeline semaphores to CUDA.
     auto vkGetSemaphoreFdKHR =
         reinterpret_cast<PFN_vkGetSemaphoreFdKHR>(vkGetDeviceProcAddr(device, "vkGetSemaphoreFdKHR"));
     if (vkGetSemaphoreFdKHR == nullptr)
@@ -379,47 +377,42 @@ void DeviceImage::create_interop_semaphores()
             "(VK_KHR_external_semaphore_fd not enabled?)");
     }
 
-    auto create_one = [&](VkSemaphore& vk_sem, cudaExternalSemaphore_t& cuda_sem, const char* name)
+    // Timeline semaphore (initial value 0) exported via OPAQUE_FD and
+    // imported into CUDA. CUDA dups the fd internally; we close ours
+    // after the import.
+    VkSemaphoreTypeCreateInfo type_info{};
+    type_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+    type_info.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+    type_info.initialValue = 0;
+
+    VkExportSemaphoreCreateInfo export_info{};
+    export_info.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO;
+    export_info.pNext = &type_info;
+    export_info.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
+
+    VkSemaphoreCreateInfo info{};
+    info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    info.pNext = &export_info;
+    check_vk(vkCreateSemaphore(device, &info, nullptr, &cuda_done_writing_), "vkCreateSemaphore");
+
+    int fd = -1;
+    VkSemaphoreGetFdInfoKHR fd_info{};
+    fd_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR;
+    fd_info.semaphore = cuda_done_writing_;
+    fd_info.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
+    check_vk(vkGetSemaphoreFdKHR(device, &fd_info, &fd), "vkGetSemaphoreFdKHR");
+
+    cudaExternalSemaphoreHandleDesc ext_desc{};
+    ext_desc.type = cudaExternalSemaphoreHandleTypeTimelineSemaphoreFd;
+    ext_desc.handle.fd = fd;
+    const cudaError_t err = cudaImportExternalSemaphore(&cuda_cuda_done_writing_, &ext_desc);
+    if (err != cudaSuccess)
     {
-        // Timeline semaphore (initial value 0) exported via OPAQUE_FD.
-        VkSemaphoreTypeCreateInfo type_info{};
-        type_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
-        type_info.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
-        type_info.initialValue = 0;
-
-        VkExportSemaphoreCreateInfo export_info{};
-        export_info.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO;
-        export_info.pNext = &type_info;
-        export_info.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
-
-        VkSemaphoreCreateInfo info{};
-        info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-        info.pNext = &export_info;
-        check_vk(vkCreateSemaphore(device, &info, nullptr, &vk_sem), "vkCreateSemaphore");
-
-        // Export as POSIX fd; import into CUDA. CUDA dups the fd
-        // internally so we close ours after import.
-        int fd = -1;
-        VkSemaphoreGetFdInfoKHR fd_info{};
-        fd_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR;
-        fd_info.semaphore = vk_sem;
-        fd_info.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
-        check_vk(vkGetSemaphoreFdKHR(device, &fd_info, &fd), "vkGetSemaphoreFdKHR");
-
-        cudaExternalSemaphoreHandleDesc ext_desc{};
-        ext_desc.type = cudaExternalSemaphoreHandleTypeTimelineSemaphoreFd;
-        ext_desc.handle.fd = fd;
-        const cudaError_t err = cudaImportExternalSemaphore(&cuda_sem, &ext_desc);
-        if (err != cudaSuccess)
-        {
-            close_fd(fd);
-            throw std::runtime_error(std::string("DeviceImage: cudaImportExternalSemaphore(") + name +
-                                     ") failed: " + cudaGetErrorString(err));
-        }
         close_fd(fd);
-    };
-
-    create_one(cuda_done_writing_, cuda_cuda_done_writing_, "cuda_done_writing");
+        throw std::runtime_error(std::string("DeviceImage: cudaImportExternalSemaphore(cuda_done_writing) failed: ") +
+                                 cudaGetErrorString(err));
+    }
+    close_fd(fd);
 }
 
 void DeviceImage::cuda_signal_write_done(cudaStream_t stream)

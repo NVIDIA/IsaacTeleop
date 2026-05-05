@@ -31,10 +31,12 @@ enum class MemorySpace
 
 // Lightweight, non-owning reference to a 2D pixel buffer.
 //
-// Carries no ownership: it does not allocate or free memory. For Mode B
-// submission (acquire/release), the layer owns the underlying interop
-// buffer; VizBuffer is a view into it. For host readback, HostImage owns
-// the bytes and exposes a VizBuffer view via HostImage::view().
+// Carries no ownership: it does not allocate or free memory. Producers
+// fill VizBuffer with a pointer to memory they own (CUDA device buffer,
+// host array) and pass it to QuadLayer::submit(); the layer copies the
+// pixels into one of its internal interop slots. For host readback,
+// HostImage owns the bytes and exposes a VizBuffer view via
+// HostImage::view().
 //
 // In Python, VizBuffer with space == kDevice exposes
 // __cuda_array_interface__ so CuPy can wrap it zero-copy. Host buffers

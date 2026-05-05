@@ -25,15 +25,7 @@ using viz::Resolution;
 using viz::VizBuffer;
 using viz::VkContext;
 
-// Read each test as `if (!gpu_available()) SKIP(...)`.
-using viz::testing::is_cuda_vulkan_interop_available;
-namespace
-{
-inline bool gpu_available()
-{
-    return is_cuda_vulkan_interop_available();
-}
-} // namespace
+using viz::testing::is_gpu_available;
 
 // The arg-shape checks (format, resolution, render_pass) run before
 // the VkContext::is_initialized() check, so these unit tests can
@@ -69,7 +61,7 @@ TEST_CASE("QuadLayer ctor rejects null render pass", "[unit][quad_layer]")
 
 TEST_CASE("QuadLayer creates valid Vulkan + CUDA handles for every mailbox slot", "[gpu][quad_layer]")
 {
-    if (!gpu_available())
+    if (!is_gpu_available())
     {
         SKIP("No Vulkan-capable GPU available");
     }
@@ -98,7 +90,7 @@ TEST_CASE("QuadLayer creates valid Vulkan + CUDA handles for every mailbox slot"
 
 TEST_CASE("QuadLayer destroy is idempotent", "[gpu][quad_layer]")
 {
-    if (!gpu_available())
+    if (!is_gpu_available())
     {
         SKIP("No Vulkan-capable GPU available");
     }
@@ -116,7 +108,7 @@ TEST_CASE("QuadLayer destroy is idempotent", "[gpu][quad_layer]")
 
 TEST_CASE("QuadLayer::submit throws after destroy", "[gpu][quad_layer]")
 {
-    if (!gpu_available())
+    if (!is_gpu_available())
     {
         SKIP("No Vulkan-capable GPU available");
     }
@@ -142,7 +134,7 @@ TEST_CASE("QuadLayer::submit throws after destroy", "[gpu][quad_layer]")
 
 TEST_CASE("QuadLayer::submit rejects mismatched dimensions / format / space", "[gpu][quad_layer]")
 {
-    if (!gpu_available())
+    if (!is_gpu_available())
     {
         SKIP("No Vulkan-capable GPU available");
     }
@@ -201,7 +193,7 @@ TEST_CASE("QuadLayer::submit rejects mismatched dimensions / format / space", "[
 
 TEST_CASE("QuadLayer submit accepts a non-default CUDA stream", "[gpu][quad_layer]")
 {
-    if (!gpu_available())
+    if (!is_gpu_available())
     {
         SKIP("No Vulkan-capable GPU available");
     }
@@ -248,7 +240,7 @@ TEST_CASE("QuadLayer submit accepts a non-default CUDA stream", "[gpu][quad_laye
 
 TEST_CASE("QuadLayer back-to-back submits cycle through mailbox slots", "[gpu][quad_layer]")
 {
-    if (!gpu_available())
+    if (!is_gpu_available())
     {
         SKIP("No Vulkan-capable GPU available");
     }
@@ -305,7 +297,7 @@ TEST_CASE("QuadLayer back-to-back submits cycle through mailbox slots", "[gpu][q
 
 TEST_CASE("QuadLayer visibility toggle is independent of pipeline state", "[gpu][quad_layer]")
 {
-    if (!gpu_available())
+    if (!is_gpu_available())
     {
         SKIP("No Vulkan-capable GPU available");
     }

@@ -33,17 +33,10 @@ using viz::QuadLayer;
 using viz::Resolution;
 using viz::VizSession;
 
+using viz::testing::is_gpu_available;
+
 namespace
 {
-
-// Forwards to the canonical viz::testing helper. CUDA-Vulkan
-// interop tests should gate on this rather than is_gpu_available()
-// (Vulkan-only) so machines that have Vulkan and CUDA on different
-// GPUs cleanly skip.
-inline bool gpu_available()
-{
-    return viz::testing::is_cuda_vulkan_interop_available();
-}
 
 // 4 quadrants, each a different {0, 255}-only color. Round-trip-exact
 // through Vulkan's sRGB attachment encoding because both endpoints of
@@ -139,7 +132,7 @@ struct CudaFreeGuard
 
 TEST_CASE("QuadLayer submit() round-trips CUDA pixels to readback", "[gpu][quad_layer][milestone]")
 {
-    if (!gpu_available())
+    if (!is_gpu_available())
     {
         SKIP("No Vulkan-capable GPU available");
     }
@@ -199,7 +192,7 @@ TEST_CASE("QuadLayer submit() round-trips CUDA pixels to readback", "[gpu][quad_
 
 TEST_CASE("QuadLayer multi-frame submit/render/readback loop stays correct", "[gpu][quad_layer][milestone]")
 {
-    if (!gpu_available())
+    if (!is_gpu_available())
     {
         SKIP("No Vulkan-capable GPU available");
     }
@@ -269,13 +262,13 @@ TEST_CASE("QuadLayer multi-frame submit/render/readback loop stays correct", "[g
 
 TEST_CASE("QuadLayer round-trips midtone RGBA values exactly", "[gpu][quad_layer][milestone]")
 {
-    // The {0, 255}-only Mode A / Mode B tests don't exercise the
-    // sRGB color-space round-trip — those endpoints map to themselves
-    // through any gamma curve. Here we use mid-range bytes so the
-    // path is only exact when the storage UNORM image is sampled
-    // through an SRGB view (decode at sample) and the SRGB color
-    // attachment encodes on write. Net of decode+encode is identity.
-    if (!gpu_available())
+    // The {0, 255}-only round-trip tests don't exercise the sRGB
+    // color-space round-trip — those endpoints map to themselves
+    // through any gamma curve. Mid-range bytes are only exact when
+    // the storage UNORM image is sampled through an SRGB view
+    // (decode at sample) and the SRGB color attachment encodes on
+    // write. Net of decode+encode is identity.
+    if (!is_gpu_available())
     {
         SKIP("No Vulkan-capable GPU available");
     }
@@ -333,7 +326,7 @@ TEST_CASE("QuadLayer round-trips midtone RGBA values exactly", "[gpu][quad_layer
 TEST_CASE("QuadLayer with no submit yet renders the clear color", "[gpu][quad_layer][milestone]")
 {
     // Pins the kSlotNone short-circuit in record() / get_wait_semaphores().
-    if (!gpu_available())
+    if (!is_gpu_available())
     {
         SKIP("No Vulkan-capable GPU available");
     }
@@ -372,7 +365,7 @@ TEST_CASE("QuadLayer with no submit yet renders the clear color", "[gpu][quad_la
 TEST_CASE("QuadLayer re-renders the same publish when no new submit arrives", "[gpu][quad_layer][milestone]")
 {
     // Pins: record() keeps in_use_ stable across frames if latest_ doesn't change.
-    if (!gpu_available())
+    if (!is_gpu_available())
     {
         SKIP("No Vulkan-capable GPU available");
     }
@@ -426,7 +419,7 @@ TEST_CASE("QuadLayer re-renders the same publish when no new submit arrives", "[
 TEST_CASE("QuadLayer fast producer: render samples only the latest publish", "[gpu][quad_layer][milestone]")
 {
     // Pins the core mailbox guarantee — intermediate publishes are dropped.
-    if (!gpu_available())
+    if (!is_gpu_available())
     {
         SKIP("No Vulkan-capable GPU available");
     }
