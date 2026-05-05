@@ -41,6 +41,7 @@ public:
     const RenderTarget& render_target() const override;
     void record_post_render_pass(VkCommandBuffer cmd, const Frame& frame) override;
     void end_frame(const Frame& frame) override;
+    void abort_frame(const Frame& frame) override;
 
     void poll_events() override;
     bool should_close() const override;
@@ -63,6 +64,17 @@ private:
     // so the loop can't spin).
     std::chrono::nanoseconds frame_period_{ 0 };
     std::chrono::steady_clock::time_point next_frame_deadline_{};
+
+    // Set by abort_frame and by acquire-time OUT_OF_DATE; consumed
+    // at the top of the next begin_frame, which forces a swapchain
+    // recreate before doing anything else.
+    bool needs_recreate_ = false;
+
+    // Recreate swapchain + RT at the current window framebuffer size.
+    // Skips the size-match check that resize() applies, because
+    // OUT_OF_DATE fires for non-size reasons too (monitor reconfig,
+    // format change).
+    void force_recreate();
 };
 
 } // namespace viz

@@ -90,6 +90,15 @@ public:
     {
     }
 
+    // Called instead of end_frame when the frame is being abandoned
+    // due to exception. Backends MUST NOT present (the binary
+    // signal_after_render semaphore may be unsignaled), but should
+    // make the next begin_frame recover — typically by marking the
+    // swapchain dirty so it gets recreated.
+    virtual void abort_frame(const Frame& /*frame*/)
+    {
+    }
+
     virtual void poll_events()
     {
     }

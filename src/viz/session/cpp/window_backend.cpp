@@ -151,11 +151,20 @@ std::optional<DisplayBackend::Frame> WindowBackend::begin_frame(int64_t /*predic
         std::this_thread::sleep_until(next_frame_deadline_);
     }
 
+    // Drain a deferred recreate (set by abort_frame or a prior
+    // OUT_OF_DATE acquire) before touching the swapchain.
+    if (needs_recreate_)
+    {
+        needs_recreate_ = false;
+        force_recreate();
+    }
+
     auto acquired = swapchain_->acquire_next_image();
     if (!acquired.has_value())
     {
-        // OUT_OF_DATE: swapchain unusable, recreate now.
-        resize(Resolution{});
+        // OUT_OF_DATE: swapchain is unusable regardless of size —
+        // can fire on monitor reconfig / format change too.
+        force_recreate();
         return std::nullopt;
     }
 
@@ -220,6 +229,16 @@ void WindowBackend::end_frame(const Frame& frame)
     (void)swapchain_->present(image_index, frame.signal_after_render);
 }
 
+void WindowBackend::abort_frame(const Frame& /*frame*/)
+{
+    // The acquired image's render_done semaphore may be unsignaled
+    // (exception fired before our submit). Don't present — that
+    // would block on a semaphore that never signals. Defer a swapchain
+    // recreate to the next begin_frame; it retires all images
+    // including the one we held.
+    needs_recreate_ = true;
+}
+
 void WindowBackend::poll_events()
 {
     if (window_)
@@ -253,6 +272,24 @@ void WindowBackend::resize(Resolution /*hint*/)
     }
     const Resolution current = swapchain_->extent();
     if (target.width == current.width && target.height == current.height)
+    {
+        return;
+    }
+    swapchain_->recreate(target);
+    render_target_->resize(swapchain_->extent());
+}
+
+void WindowBackend::force_recreate()
+{
+    // No size-match guard. Used when the WSI demands a recreate
+    // (OUT_OF_DATE) or after an aborted frame, where the swapchain
+    // is unusable independent of the framebuffer extent.
+    if (swapchain_ == nullptr || ctx_ == nullptr || window_ == nullptr || render_target_ == nullptr)
+    {
+        return;
+    }
+    const Resolution target = window_->framebuffer_size();
+    if (target.width == 0 || target.height == 0)
     {
         return;
     }

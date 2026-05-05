@@ -67,9 +67,14 @@ public:
         // Layers render on top of this. Defaults to opaque black.
         float clear_color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 
-        // Optional pre-built Vulkan context. If null, the session creates
-        // its own VkContext. Pass an externally-owned ctx (heap or static)
-        // when sharing the device with another component.
+        // Optional pre-built Vulkan context. If null, the session
+        // creates its own VkContext. The caller-supplied context
+        // MUST already have the backend's required extensions
+        // enabled — VK_KHR_swapchain (+ surface extensions) for
+        // kWindow, OpenXR-Vulkan extensions for kXr. VizSession does
+        // NOT retroactively enable them; backend init will fail late
+        // if they're missing. The physical device must also support
+        // present on the eventual surface in kWindow mode.
         VkContext* external_context = nullptr;
 
         // OpenXR instance extensions to enable beyond Televiz's required

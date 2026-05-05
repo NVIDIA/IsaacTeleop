@@ -147,10 +147,13 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
         return;
     }
 
-    // RAII: if anything between here and the explicit end_frame below
-    // throws, we still call end_frame() so the backend can release
-    // its acquired image (otherwise it leaks for the swapchain's
-    // lifetime). end_frame() in catch is best-effort — swallow.
+    // RAII: if we unwind before the explicit end_frame below, call
+    // abort_frame instead. We must NOT call end_frame on the
+    // exception path — its present would wait on signal_after_render,
+    // which our submit may have never signaled (e.g., if recording
+    // threw before vkQueueSubmit). abort_frame is the backend's
+    // "drop this frame, recover next" hook (window backend marks
+    // the swapchain dirty for recreate; offscreen no-ops).
     struct FrameGuard
     {
         DisplayBackend* backend;
@@ -162,7 +165,7 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
             {
                 try
                 {
-                    backend->end_frame(*frame);
+                    backend->abort_frame(*frame);
                 }
                 catch (...)
                 {

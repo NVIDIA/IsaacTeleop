@@ -76,9 +76,16 @@ std::unique_ptr<Swapchain> Swapchain::create(const VkContext& ctx, VkSurfaceKHR 
     }
 
     // Validate the chosen queue family supports presentation on this
-    // surface — required by Vulkan spec for vkQueuePresentKHR. NVIDIA
-    // Linux always reports yes on the universal queue; throw loudly
-    // if a stranger setup hits us.
+    // surface — required by Vulkan spec for vkQueuePresentKHR.
+    //
+    // KNOWN LIMITATION: VkContext picks the physical device before
+    // the surface exists, so we can only fail here rather than route
+    // around it. On a multi-GPU host where the Vulkan-preferred
+    // device isn't the one connected to the display, this throws
+    // and the caller has to pick a different physical_device_index.
+    // Proper fix is a presentation-support callback through
+    // VkContext::Config (e.g., glfwGetPhysicalDevicePresentationSupport)
+    // — deferred until a real multi-GPU user reports this.
     VkBool32 present_supported = VK_FALSE;
     check_vk(vkGetPhysicalDeviceSurfaceSupportKHR(ctx.physical_device(), ctx.queue_family_index(), surface,
                                                   &present_supported),
