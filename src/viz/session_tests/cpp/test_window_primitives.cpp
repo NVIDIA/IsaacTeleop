@@ -1,24 +1,36 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-// GPU + display tests for GlfwWindow and Swapchain. Skip cleanly when
-// no display is available (CI without Xvfb, headless containers).
+// GPU + display tests for GlfwWindow, Swapchain, and the VizSession
+// kWindow render loop. Skip cleanly when no display is available
+// (CI without Xvfb, headless containers).
 
 #include "test_helpers.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <viz/core/vk_context.hpp>
+#include <viz/layers/quad_layer.hpp>
 #include <viz/session/glfw_window.hpp>
 #include <viz/session/swapchain.hpp>
+#include <viz/session/viz_session.hpp>
 
+#include <array>
+#include <cstdint>
+#include <cuda_runtime.h>
 #include <stdexcept>
+#include <string>
+#include <vector>
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+using viz::DisplayMode;
 using viz::GlfwWindow;
+using viz::PixelFormat;
+using viz::QuadLayer;
 using viz::Resolution;
 using viz::Swapchain;
+using viz::VizSession;
 using viz::VkContext;
 using viz::testing::is_gpu_available;
 
@@ -174,4 +186,82 @@ TEST_CASE("Swapchain destroy is idempotent", "[gpu][window]")
     auto sc = Swapchain::create(ctx, win->surface(), Resolution{ 320, 240 });
     sc->destroy();
     sc->destroy();
+}
+
+TEST_CASE("VizSession kWindow renders multiple QuadLayers without errors", "[gpu][window]")
+{
+    if (!is_gpu_available() || !window_environment_available())
+    {
+        SKIP("No GPU or no display");
+    }
+
+    constexpr uint32_t kWindowW = 320;
+    constexpr uint32_t kWindowH = 240;
+    constexpr uint32_t kQuadW = 64;
+    constexpr uint32_t kQuadH = 64;
+
+    VizSession::Config cfg{};
+    cfg.mode = DisplayMode::kWindow;
+    cfg.window_width = kWindowW;
+    cfg.window_height = kWindowH;
+    cfg.app_name = "viz-window-integration-test";
+
+    auto session = VizSession::create(cfg);
+    REQUIRE(session != nullptr);
+    REQUIRE(session->get_state() == viz::SessionState::kReady);
+
+    const auto* ctx = session->get_vk_context();
+    const VkRenderPass render_pass = session->get_render_pass();
+
+    // Three QuadLayers — exercises the row-major tile grid (cols=2,
+    // rows=2 with one empty cell). Each is fed a solid-color CUDA
+    // buffer once at setup; render loop just composites + presents.
+    struct Rgba
+    {
+        uint8_t r, g, b, a;
+    };
+    const std::array<Rgba, 3> palette = { { { 255, 0, 0, 255 }, { 0, 255, 0, 255 }, { 0, 0, 255, 255 } } };
+    std::vector<void*> dev_buffers;
+    dev_buffers.reserve(palette.size());
+    for (size_t i = 0; i < palette.size(); ++i)
+    {
+        std::vector<Rgba> host(static_cast<size_t>(kQuadW) * kQuadH, palette[i]);
+        void* dev = nullptr;
+        REQUIRE(cudaMalloc(&dev, host.size() * sizeof(Rgba)) == cudaSuccess);
+        dev_buffers.push_back(dev);
+        REQUIRE(cudaMemcpy(dev, host.data(), host.size() * sizeof(Rgba), cudaMemcpyHostToDevice) == cudaSuccess);
+
+        QuadLayer::Config layer_cfg;
+        layer_cfg.name = "tile_layer_" + std::to_string(i);
+        layer_cfg.resolution = { kQuadW, kQuadH };
+        auto* layer = session->add_layer<QuadLayer>(*ctx, render_pass, layer_cfg);
+
+        viz::VizBuffer src{};
+        src.data = dev;
+        src.width = kQuadW;
+        src.height = kQuadH;
+        src.format = PixelFormat::kRGBA8;
+        src.pitch = static_cast<size_t>(kQuadW) * 4;
+        src.space = viz::MemorySpace::kDevice;
+        layer->submit(src);
+    }
+
+    // Run a few frames. We can't readback in kWindow (the swapchain
+    // present path doesn't have a host-readable buffer), so the test
+    // verifies: no exceptions thrown, frame_index advances, validation
+    // layers (debug build) report no errors.
+    constexpr uint32_t kFrames = 8;
+    for (uint32_t i = 0; i < kFrames; ++i)
+    {
+        const auto info = session->render();
+        CHECK(info.frame_index == i);
+        CHECK(info.resolution.width == kWindowW);
+        CHECK(info.resolution.height == kWindowH);
+    }
+
+    session.reset();
+    for (void* dev : dev_buffers)
+    {
+        cudaFree(dev);
+    }
 }
