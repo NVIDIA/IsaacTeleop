@@ -126,13 +126,23 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
     // Wait for previous frame (1 frame in flight).
     frame_sync_->wait();
 
-    // Reset before begin_frame: a prior frame that threw mid-recording
-    // leaves the command buffer in RECORDING state with stale
-    // framebuffer references. begin_frame may destroy/recreate the
-    // render target (deferred from abort_frame, or OUT_OF_DATE), and
-    // Vulkan forbids destroying a framebuffer while a recording
-    // command buffer references it.
-    check_vk(vkResetCommandBuffer(command_buffer_, 0), "vkResetCommandBuffer");
+    // RAII: leave the command buffer in INITIAL state on every exit
+    // path (success or throw). VizSession::pump_events() runs between
+    // render() calls and may destroy framebuffer attachments, which
+    // Vulkan forbids while any cmd buffer that references them is in
+    // RECORDING / EXECUTABLE / PENDING state. The trailing fence wait
+    // below guarantees we're never PENDING when this destructor runs.
+    struct CmdResetGuard
+    {
+        VkCommandBuffer cmd;
+        ~CmdResetGuard()
+        {
+            if (cmd != VK_NULL_HANDLE)
+            {
+                (void)vkResetCommandBuffer(cmd, 0);
+            }
+        }
+    } cmd_guard{ command_buffer_ };
 
     // Snapshot visible layers ONCE — is_visible() is atomic; reading
     // it twice could record a draw without the matching wait (or vice
@@ -300,12 +310,14 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
     frame_sync_->reset();
     submit_or_signal_fence(submit, "vkQueueSubmit");
 
+    // Drain before end_frame: if end_frame throws, the cmd buffer is
+    // EXECUTABLE (resettable by CmdResetGuard) instead of PENDING.
+    // QuadLayer's mailbox also relies on this synchronous-frame
+    // contract — see quad_layer.hpp.
+    frame_sync_->wait();
+
     backend_->end_frame(*frame);
     frame_guard.released = true;
-
-    // Drain before returning. QuadLayer's mailbox relies on this
-    // synchronous-frame contract — see quad_layer.hpp.
-    frame_sync_->wait();
 }
 
 HostImage VizCompositor::readback_to_host()
