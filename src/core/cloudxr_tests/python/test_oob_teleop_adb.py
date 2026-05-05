@@ -403,13 +403,22 @@ async def test_monitor_headset_wifi_warns_on_drop(capsys) -> None:
         side_effect=lambda: seq.pop(0) if seq else [],
     ):
         task = asyncio.create_task(monitor_headset_wifi(poll_seconds=0.001))
-        await asyncio.sleep(0.05)
+        # Poll for the warning rather than racing a fixed sleep budget. On
+        # Windows, asyncio.sleep resolution (~15ms timer tick) plus to_thread
+        # dispatch makes the two loop iterations needed to detect the drop
+        # blow past a 50ms budget.
+        out = ""
+        for _ in range(200):  # up to ~2s
+            await asyncio.sleep(0.01)
+            out += capsys.readouterr().err
+            if "Headset Wi-Fi dropped" in out:
+                break
         task.cancel()
         try:
             await task
         except asyncio.CancelledError:
             pass
-    out = capsys.readouterr().err
+    out += capsys.readouterr().err
     assert "Headset Wi-Fi dropped" in out
     # Reason should be spelled out so operators don't think USB-local removed the WiFi requirement.
     assert "required even in USB-local mode" in out
