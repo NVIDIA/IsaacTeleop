@@ -357,6 +357,28 @@ Environment variables
      - Default video codec for headset bookmarks
    * - ``TELEOP_CLIENT_PANEL_HIDDEN_AT_START``
      - Hide control panel on load (``true`` / ``false``)
+   * - ``TELEOP_CLIENT_ROUTE``
+     - HashRouter fragment appended to the bookmark URL. Default
+       ``/real/gear/dexmate``; set empty to suppress entirely. A leading
+       ``#`` is stripped automatically.
+   * - ``ANDROID_SERIAL``
+     - Pin a specific adb device when more than one is connected. The
+       launcher refuses to start with multiple devices unless this is
+       set; the value must match a serial currently in ``device`` state
+       (per ``adb devices``). This is the standard adb env var — every
+       ``adb`` subprocess inherits it, so no code path needs ``-s
+       <serial>``.
+   * - ``USB_UI_PORT``
+     - HTTPS static WebXR UI port in ``--usb-local`` mode (default
+       ``8080``). The launcher serves the prebuilt client on
+       ``https://127.0.0.1:<port>`` and ``adb reverse``-maps the same
+       port to the headset.
+   * - ``USB_BACKEND_PORT``
+     - CloudXR backend port the headset reaches via ``adb reverse`` in
+       ``--usb-local`` mode (default ``49100``).
+   * - ``USB_TURN_PORT``
+     - coturn TURN-server port for WebRTC ICE relay in ``--usb-local``
+       mode (default ``3478``). ``adb reverse``-mapped to the headset.
 
 USB-local mode
 --------------
@@ -395,21 +417,27 @@ Troubleshooting
 Teleop client error: "No local connection candidates" (0xC0F2220F)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Cause:** Chromium's WebRTC ``rtc::NetworkManager`` excludes loopback
-interfaces when enumerating networks for ICE. If the only active network
-on the headset is ``lo``, ICE gathering hangs at ``gathering`` forever —
-no local candidates are emitted and no error fires — until the CloudXR
+**Cause:** Wi-Fi must stay associated on the headset throughout the
+session, even in ``--usb-local`` mode. No teleop traffic actually flows
+over Wi-Fi — every byte goes over the USB cable via ``adb reverse`` —
+but Chromium's WebRTC ``rtc::NetworkManager`` excludes loopback
+interfaces when enumerating networks for ICE. If the only active
+network on the headset is ``lo``, ICE gathering hangs at ``gathering``
+forever (no local candidates emitted, no error fires) until the CloudXR
 session times out with this code.
 
-**Fix:** Connect the headset to any Wi-Fi network. It does not need
-internet access — a phone hotspot with no data plan is sufficient. The
-packets still route over USB (kernel short-circuits loopback regardless
-of source interface); the Wi-Fi interface just needs to *exist* so
+**Fix:** Associate the headset with any Wi-Fi network and retry.
+Internet is **not** required — a phone hotspot with no SIM works, an
+open AP you never authenticate to works. The packets still route over
+USB (the kernel short-circuits loopback regardless of source
+interface); the Wi-Fi interface just needs to *exist* with an IP so
 WebRTC's enumeration is non-empty.
 
-The ``--usb-local`` launcher now pre-flights this via
+The ``--usb-local`` launcher pre-flights this via
 ``adb shell ip -o -4 addr show`` and refuses to start if no non-loopback
-interface is present.
+interface is present. A runtime monitor also watches for mid-session
+Wi-Fi drops and prints a yellow warning so the cause is obvious without
+having to puzzle out a frozen WebRTC connection.
 
 CDP: startButton marked failed / not actionable
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

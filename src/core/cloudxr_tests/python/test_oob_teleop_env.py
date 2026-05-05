@@ -44,6 +44,7 @@ def clear_teleop_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "TELEOP_STREAM_PORT",
         "TELEOP_CLIENT_CODEC",
         "TELEOP_CLIENT_PANEL_HIDDEN_AT_START",
+        "TELEOP_CLIENT_ROUTE",
         "TELEOP_WEB_CLIENT_BASE",
         "TELEOP_PROXY_HOST",
         "CONTROL_TOKEN",
@@ -179,6 +180,51 @@ def test_build_headset_bookmark_url_requires_server_ip() -> None:
             web_client_base="https://h.test/",
             stream_config={"port": 48322},
         )
+
+
+def test_build_headset_bookmark_url_default_route(clear_teleop_env: None) -> None:
+    u = build_headset_bookmark_url(
+        web_client_base="https://h.test/",
+        stream_config={"serverIP": "10.0.0.1", "port": 48322},
+    )
+    assert urlparse(u).fragment == "/real/gear/dexmate"
+
+
+def test_build_headset_bookmark_url_route_override(
+    clear_teleop_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TELEOP_CLIENT_ROUTE", "/sim/cube")
+    u = build_headset_bookmark_url(
+        web_client_base="https://h.test/",
+        stream_config={"serverIP": "10.0.0.1", "port": 48322},
+    )
+    assert urlparse(u).fragment == "/sim/cube"
+
+
+def test_build_headset_bookmark_url_route_strips_leading_hash(
+    clear_teleop_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Operators may write ``#/foo`` out of habit; we should produce ``#/foo``,
+    # not ``##/foo``.
+    monkeypatch.setenv("TELEOP_CLIENT_ROUTE", "#/foo/bar")
+    u = build_headset_bookmark_url(
+        web_client_base="https://h.test/",
+        stream_config={"serverIP": "10.0.0.1", "port": 48322},
+    )
+    assert urlparse(u).fragment == "/foo/bar"
+    assert "##" not in u
+
+
+def test_build_headset_bookmark_url_route_empty_suppresses_fragment(
+    clear_teleop_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TELEOP_CLIENT_ROUTE", "")
+    u = build_headset_bookmark_url(
+        web_client_base="https://h.test/",
+        stream_config={"serverIP": "10.0.0.1", "port": 48322},
+    )
+    assert urlparse(u).fragment == ""
+    assert "#" not in u
 
 
 def test_client_ui_fields_from_env_empty(clear_teleop_env: None) -> None:

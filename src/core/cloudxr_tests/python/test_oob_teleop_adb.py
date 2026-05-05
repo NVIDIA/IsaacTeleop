@@ -23,6 +23,12 @@ from cloudxr_py_test_ns.oob_teleop_adb import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _clear_adb_device_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make device-selection tests independent of the developer's shell env."""
+    monkeypatch.delenv("ANDROID_SERIAL", raising=False)
+
+
 @pytest.mark.parametrize(
     "diag,needle",
     [
@@ -95,6 +101,51 @@ def test_assert_exactly_one_adb_device_two_raises(mock_run: MagicMock) -> None:
         stderr="",
     )
     with pytest.raises(OobAdbError, match="Too many"):
+        assert_exactly_one_adb_device()
+
+
+@patch("cloudxr_py_test_ns.oob_teleop_adb.subprocess.run")
+def test_assert_exactly_one_adb_device_pin_via_android_serial(
+    mock_run: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Two devices, but ANDROID_SERIAL pins one — accept and proceed.
+    mock_run.return_value = MagicMock(
+        returncode=0,
+        stdout="List of devices attached\nABC123\tdevice\nDEF456\tdevice\n\n",
+        stderr="",
+    )
+    monkeypatch.setenv("ANDROID_SERIAL", "DEF456")
+    assert_exactly_one_adb_device()
+
+
+@patch("cloudxr_py_test_ns.oob_teleop_adb.subprocess.run")
+def test_assert_exactly_one_adb_device_pin_unknown_serial_raises(
+    mock_run: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Operator pinned a serial that is not actually connected — error
+    # surfaces the ones that are, so they can fix the typo.
+    mock_run.return_value = MagicMock(
+        returncode=0,
+        stdout="List of devices attached\nABC123\tdevice\nDEF456\tdevice\n\n",
+        stderr="",
+    )
+    monkeypatch.setenv("ANDROID_SERIAL", "GHI789")
+    with pytest.raises(OobAdbError, match="not currently in `device` state"):
+        assert_exactly_one_adb_device()
+
+
+@patch("cloudxr_py_test_ns.oob_teleop_adb.subprocess.run")
+def test_assert_exactly_one_too_many_hints_at_android_serial(
+    mock_run: MagicMock,
+) -> None:
+    # The "too many devices" error must mention ANDROID_SERIAL so the
+    # operator knows the disambiguation knob exists.
+    mock_run.return_value = MagicMock(
+        returncode=0,
+        stdout="List of devices attached\nABC123\tdevice\nDEF456\tdevice\n\n",
+        stderr="",
+    )
+    with pytest.raises(OobAdbError, match="ANDROID_SERIAL"):
         assert_exactly_one_adb_device()
 
 
@@ -359,7 +410,9 @@ async def test_monitor_headset_wifi_warns_on_drop(capsys) -> None:
         except asyncio.CancelledError:
             pass
     out = capsys.readouterr().err
-    assert "Headset WiFi dropped" in out
+    assert "Headset Wi-Fi dropped" in out
+    # Reason should be spelled out so operators don't think USB-local removed the WiFi requirement.
+    assert "required even in USB-local mode" in out
 
 
 async def test_monitor_headset_wifi_silent_when_steady(capsys) -> None:
@@ -381,6 +434,26 @@ async def test_monitor_headset_wifi_silent_when_steady(capsys) -> None:
 
 
 from cloudxr_py_test_ns.oob_teleop_adb import watch_coturn  # noqa: E402
+
+
+from cloudxr_py_test_ns.oob_teleop_adb import _teleop_error_hint  # noqa: E402
+
+
+@pytest.mark.parametrize(
+    "banner,needle",
+    [
+        ("CloudXR session stopped (0xC0F2220F)", "ICE candidates"),
+        ("No local connection candidates", "ICE candidates"),
+        ("wss connection close 1006", "WSS dropped"),
+        ("something unrelated", ""),
+    ],
+)
+def test_teleop_error_hint(banner: str, needle: str) -> None:
+    hint = _teleop_error_hint(banner)
+    if needle:
+        assert needle.lower() in hint.lower()
+    else:
+        assert hint == ""
 
 
 async def test_watch_coturn_restarts_once_then_gives_up(capsys) -> None:

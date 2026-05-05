@@ -12,6 +12,7 @@ import re
 import socket
 import ssl
 import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -35,6 +36,12 @@ USB_LOCAL_STATIC_BUNDLE_URL = urljoin(DEFAULT_WEB_CLIENT_ORIGIN, "bundle.js")
 _USB_LOCAL_ASSET_MAX_BYTES = 32 * 1024 * 1024
 
 TELEOP_WEB_CLIENT_BASE_ENV = "TELEOP_WEB_CLIENT_BASE"
+
+# Hash-router fragment appended to the bookmark URL (``#/real/gear/dexmate`` by default).
+# The WebXR client uses HashRouter, so the fragment selects the route. Override via
+# ``TELEOP_CLIENT_ROUTE``; set to an empty string to suppress the fragment entirely.
+TELEOP_CLIENT_ROUTE_ENV = "TELEOP_CLIENT_ROUTE"
+DEFAULT_TELEOP_CLIENT_ROUTE = "/real/gear/dexmate"
 
 # Directory with prebuilt WebXR assets (``index.html`` + ``bundle.js``). Optional for ``--usb-local``:
 # defaults to ``~/.cloudxr/static-client``; missing files are fetched from published URLs.
@@ -374,6 +381,24 @@ def client_ui_fields_from_env() -> dict:
     return out
 
 
+def teleop_client_route_from_env() -> str:
+    """Return the HashRouter fragment to append to the headset bookmark URL.
+
+    Default: :data:`DEFAULT_TELEOP_CLIENT_ROUTE` (``/real/gear/dexmate``).
+    Override via ``TELEOP_CLIENT_ROUTE``; set the env var to an empty
+    string to suppress the fragment entirely. A leading ``#`` in the
+    override is stripped (the URL builder always emits exactly one).
+    Returns ``""`` to mean "no fragment".
+    """
+    raw = os.environ.get(TELEOP_CLIENT_ROUTE_ENV)
+    if raw is None:
+        return DEFAULT_TELEOP_CLIENT_ROUTE
+    val = raw.strip()
+    if not val:
+        return ""
+    return val.lstrip("#")
+
+
 def build_headset_bookmark_url(
     *,
     web_client_base: str,
@@ -384,6 +409,9 @@ def build_headset_bookmark_url(
 
     The client derives ``wss://{serverIP}:{port}/oob/v1/ws`` from ``serverIP`` + ``port`` in the query
     when ``oobEnable=1``.
+
+    A HashRouter fragment is appended at the end (default
+    ``#/real/gear/dexmate``; override via ``TELEOP_CLIENT_ROUTE``).
     """
     cfg = stream_config or {}
     if not cfg.get("serverIP") or cfg.get("port") is None:
@@ -415,7 +443,11 @@ def build_headset_bookmark_url(
     q = urlencode(params)
     base = web_client_base.rstrip("/")
     sep = "&" if "?" in base else "?"
-    return f"{base}{sep}{q}"
+    url = f"{base}{sep}{q}"
+    route = teleop_client_route_from_env()
+    if route:
+        url = f"{url}#{route}"
+    return url
 
 
 def resolve_lan_host_for_oob() -> str:
@@ -428,6 +460,18 @@ def resolve_lan_host_for_oob() -> str:
             "(or fix routing so guess_lan_ipv4() works)."
         )
     return h
+
+
+def oob_progress(stage: str, msg: str) -> None:
+    """One-line progress update for ``--setup-oob`` / ``--usb-local`` steps.
+
+    Goes to stderr in dim cyan so the operator can see *where* the launcher
+    is in its sequence of steps without these lines competing with the
+    success banner (stdout) or error prints (red). Distinct from
+    ``log.info``, which writes to log files only and is invisible at the
+    terminal.
+    """
+    print(f"\033[36m[{stage}]\033[0m {msg}", file=sys.stderr, flush=True)
 
 
 def print_oob_hub_startup_banner(
@@ -535,6 +579,23 @@ def print_oob_hub_startup_banner(
             f"           ({TELEOP_WEB_CLIENT_BASE_ENV} overrides the WebXR origin; "
             "query still targets this streaming host.)"
         )
+    route = teleop_client_route_from_env()
+    route_src = (
+        f"from {TELEOP_CLIENT_ROUTE_ENV}"
+        if os.environ.get(TELEOP_CLIENT_ROUTE_ENV) is not None
+        else "default"
+    )
+    if route:
+        print(
+            f"           Client route: \033[36m#{route}\033[0m  "
+            f"({route_src}; override via {TELEOP_CLIENT_ROUTE_ENV}, "
+            f"set empty to suppress)"
+        )
+    else:
+        print(
+            f"           Client route: \033[36m<none>\033[0m  "
+            f"(suppressed via {TELEOP_CLIENT_ROUTE_ENV}=)"
+        )
     print()
     print("  Step 2 — Accept cert + click CONNECT (CDP automation)")
     print("           CDP automation will accept the self-signed certificate and click")
@@ -602,14 +663,12 @@ def _ufw_unallowed_ports(ports: list[int]) -> list[int] | None:
 
 def _port_in_use(port: int, host: str) -> bool:
     """True if a TCP listener already owns ``(host, port)``."""
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    try:
-        s.bind((host, port))
-    except OSError:
-        return True
-    finally:
-        s.close()
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            s.bind((host, port))
+        except OSError:
+            return True
     return False
 
 

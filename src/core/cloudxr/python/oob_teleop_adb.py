@@ -28,6 +28,7 @@ import os
 import re
 import shlex
 import shutil
+import socket
 import subprocess
 import sys
 import time
@@ -37,6 +38,7 @@ from .oob_teleop_env import (
     parse_env_port,
     build_headset_bookmark_url,
     client_ui_fields_from_env,
+    oob_progress,
     resolve_lan_host_for_oob,
     web_client_base_override_from_env,
 )
@@ -106,6 +108,34 @@ def require_adb_on_path() -> None:
     )
 
 
+def _run_adb(label: str, args: list[str], *, timeout: float = 5.0) -> str | None:
+    """Run *args* (an adb invocation); return stdout on rc==0, else log.warning + None.
+
+    The label fronts every warning so a tail of the log identifies which
+    helper failed without needing the raw command.
+    """
+    try:
+        proc = subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        log.warning("%s: %s", label, exc)
+        return None
+    if proc.returncode != 0:
+        log.warning(
+            "%s: rc=%d %s",
+            label,
+            proc.returncode,
+            (proc.stderr or proc.stdout or "").strip(),
+        )
+        return None
+    return proc.stdout or ""
+
+
 def headset_non_loopback_interfaces() -> list[tuple[str, str]]:
     """Return ``(iface, ipv4)`` for each non-loopback interface with an address.
 
@@ -113,26 +143,14 @@ def headset_non_loopback_interfaces() -> list[tuple[str, str]]:
     an empty list when the command fails (no device, adb broken, etc.) — the
     caller decides whether that's fatal.
     """
-    try:
-        proc = subprocess.run(
-            ["adb", "shell", "ip", "-o", "-4", "addr", "show"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=False,
-        )
-    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
-        log.warning("headset_non_loopback_interfaces: %s", exc)
-        return []
-    if proc.returncode != 0:
-        log.warning(
-            "headset_non_loopback_interfaces: adb rc=%d %s",
-            proc.returncode,
-            (proc.stderr or proc.stdout or "").strip(),
-        )
+    text = _run_adb(
+        "ip addr show",
+        ["adb", "shell", "ip", "-o", "-4", "addr", "show"],
+    )
+    if text is None:
         return []
     out: list[tuple[str, str]] = []
-    for line in proc.stdout.splitlines():
+    for line in text.splitlines():
         # Example: "20: wlan0    inet 10.0.0.42/24 brd 10.0.0.255 scope global wlan0"
         parts = line.split()
         if len(parts) < 4:
@@ -168,15 +186,15 @@ def require_headset_non_loopback_network() -> None:
     ifaces = headset_non_loopback_interfaces()
     if not ifaces:
         raise OobAdbError(
-            "--usb-local: the headset has no non-loopback network interface "
-            "with an IP address.\n\n"
-            "Chromium's WebRTC needs at least one non-loopback interface to "
-            "enumerate ICE sockets, even when all traffic routes over USB "
-            "via adb reverse. Without it, ICE hangs and the session errors "
-            'out with "No local connection candidates" (0xC0F2220F).\n\n'
-            "Fix: connect the headset to any Wi-Fi network (it does not need "
-            "internet access — a phone hotspot with no data plan works). "
-            "Then retry."
+            "--usb-local requires Wi-Fi associated on the headset throughout the session.\n\n"
+            "No teleop traffic actually flows over Wi-Fi — every byte goes over the USB\n"
+            "cable via adb reverse. But Chromium's WebRTC excludes loopback interfaces\n"
+            "during ICE candidate enumeration, so a non-loopback IP must exist on the\n"
+            "headset or ICE hangs and the session errors out with\n"
+            '"No local connection candidates" (0xC0F2220F).\n\n'
+            "Fix: associate the headset with any Wi-Fi network and retry. Internet is\n"
+            "NOT required — a phone hotspot with no SIM works, an open AP you never\n"
+            "authenticate to works. The interface just needs to exist with an IP."
         )
     log.info(
         "USB-local: headset has %d non-loopback interface(s): %s",
@@ -206,8 +224,11 @@ async def monitor_headset_wifi(*, poll_seconds: float = 5.0) -> None:
                 "Headset network interface dropped — WebRTC will fail until it reconnects"
             )
             print(
-                "\n\033[33m[runtime] Headset WiFi dropped. Reconnect any WiFi "
-                "(internet not required); WebRTC will recover.\033[0m\n",
+                "\n\033[33m[runtime] Headset Wi-Fi dropped — required even in "
+                "USB-local mode. No traffic flows over Wi-Fi (everything goes "
+                "over the USB cable via adb reverse), but Chromium's WebRTC "
+                "needs a non-loopback interface for ICE. Reconnect any network "
+                "(no internet needed); WebRTC will recover.\033[0m\n",
                 file=sys.stderr,
             )
         had = has
@@ -218,25 +239,10 @@ def headset_wakefulness() -> str:
 
     Typical values: ``Awake`` | ``Asleep`` | ``Dreaming`` | ``Dozing``.
     """
-    try:
-        proc = subprocess.run(
-            ["adb", "shell", "dumpsys", "power"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=False,
-        )
-    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
-        log.warning("headset_wakefulness: %s", exc)
+    text = _run_adb("dumpsys power", ["adb", "shell", "dumpsys", "power"])
+    if text is None:
         return ""
-    if proc.returncode != 0:
-        log.warning(
-            "headset_wakefulness: adb rc=%d %s",
-            proc.returncode,
-            (proc.stderr or proc.stdout or "").strip(),
-        )
-        return ""
-    m = re.search(r"mWakefulness=(\w+)", proc.stdout or "")
+    m = re.search(r"mWakefulness=(\w+)", text)
     return m.group(1) if m else ""
 
 
@@ -360,7 +366,18 @@ def assert_adb_device_online() -> None:
 
 
 def assert_exactly_one_adb_device() -> None:
-    """Fail unless exactly one device is in ``device`` state."""
+    """Pin a single adb device for the rest of this process.
+
+    Resolution order:
+
+    1. ``ANDROID_SERIAL`` (the standard adb env var) names the serial to
+       use. We confirm it is currently in ``device`` state; subsequent
+       ``adb`` invocations inherit ``ANDROID_SERIAL`` from the
+       environment automatically, so no callsite needs ``-s``.
+    2. No env var: exactly one device must be in ``device`` state. More
+       than one is fatal — the operator must either unplug the extras or
+       set ``ANDROID_SERIAL=<serial>`` to disambiguate.
+    """
     try:
         proc = subprocess.run(
             ["adb", "devices"],
@@ -401,13 +418,31 @@ def assert_exactly_one_adb_device() -> None:
             "Plug in the USB cable, enable USB debugging on the headset, and check `adb devices`. "
             "Or omit --setup-oob and open the teleop URL on the headset yourself."
         )
+
+    # If the operator pinned a specific device, validate it is ready and stop.
+    # ANDROID_SERIAL is already inherited by every `adb` subprocess we spawn,
+    # so we don't need to re-export it — just confirm the serial is online.
+    requested = os.environ.get("ANDROID_SERIAL", "").strip()
+    if requested:
+        if requested not in ready:
+            listed = ", ".join(ready) if ready else "(none ready)"
+            raise OobAdbError(
+                f"ANDROID_SERIAL={requested!r} is not currently in `device` state.\n\n"
+                f"Devices ready right now: {listed}\n\n"
+                f"Either unset ANDROID_SERIAL (to use the single-device default), "
+                f"or set it to one of the serials above."
+            )
+        log.info("adb device pinned via ANDROID_SERIAL=%s", requested)
+        return
+
     if len(ready) > 1:
         listed = ", ".join(ready)
         raise OobAdbError(
             "Too many adb devices for --setup-oob.\n\n"
             f"Currently connected: {listed}\n\n"
-            "Unplug extras so only one headset is connected, then retry. "
-            "Or omit --setup-oob and open the teleop URL manually."
+            "Unplug extras so only one headset is connected, OR set "
+            "ANDROID_SERIAL=<serial> to pin the one you want, then retry. "
+            "(Or omit --setup-oob and open the teleop URL manually.)"
         )
 
 
@@ -460,26 +495,8 @@ def build_teleop_url(*, resolved_port: int, usb_local: bool = False) -> str:
 
 def _adb_getprop(prop: str) -> str:
     """Read an Android system property via adb. Returns "" on failure."""
-    try:
-        proc = subprocess.run(
-            ["adb", "shell", "getprop", prop],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=False,
-        )
-    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
-        log.warning("getprop %s: %s", prop, exc)
-        return ""
-    if proc.returncode != 0:
-        log.warning(
-            "getprop %s: rc=%d %s",
-            prop,
-            proc.returncode,
-            (proc.stderr or proc.stdout or "").strip(),
-        )
-        return ""
-    return (proc.stdout or "").strip()
+    text = _run_adb(f"getprop {prop}", ["adb", "shell", "getprop", prop])
+    return text.strip() if text is not None else ""
 
 
 def _adb_pkg_installed(package: str) -> bool:
@@ -492,27 +509,14 @@ def _adb_pkg_installed(package: str) -> bool:
     """
     if not package:
         return False
-    try:
-        proc = subprocess.run(
-            ["adb", "shell", "pm", "list", "packages", package],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=False,
-        )
-    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
-        log.warning("pm list packages %s: %s", package, exc)
-        return False
-    if proc.returncode != 0:
-        log.warning(
-            "pm list packages %s: rc=%d %s",
-            package,
-            proc.returncode,
-            (proc.stderr or proc.stdout or "").strip(),
-        )
+    text = _run_adb(
+        f"pm list packages {package}",
+        ["adb", "shell", "pm", "list", "packages", package],
+    )
+    if text is None:
         return False
     target = f"package:{package}"
-    return any(line.strip() == target for line in (proc.stdout or "").splitlines())
+    return any(line.strip() == target for line in text.splitlines())
 
 
 def _first_installed_pkg(candidates: tuple[str, ...]) -> str | None:
@@ -622,6 +626,33 @@ def run_adb_headset_bookmark(
 # ---------------------------------------------------------------------------
 # USB-local mode: adb reverse port-forwarding + coturn TURN relay
 # ---------------------------------------------------------------------------
+
+
+def verify_adb_reverse_rules(expected_ports: list[int]) -> list[int]:
+    """Return the subset of *expected_ports* that are NOT installed on the device.
+
+    Reads ``adb reverse --list`` after ``setup_adb_reverse_*`` to spot-check
+    the rules actually landed: an ``adb reverse`` call may report success
+    (rc=0) but the rule can still be evicted by a competing adbd, by the
+    device transitioning ``offline`` immediately after, or by a stale daemon.
+    A non-empty return value means the headset cannot reach those ports.
+    """
+    text = _run_adb("adb reverse --list", ["adb", "reverse", "--list"])
+    if text is None:
+        # adb itself unreachable: callers can't distinguish "rule missing"
+        # from "couldn't ask" — surface both as "all expected missing" so
+        # the warning fires loudly.
+        return list(expected_ports)
+    listed: set[int] = set()
+    for line in text.splitlines():
+        # Format: "UsbFfs tcp:8080 tcp:8080" — middle column is the device-side port.
+        parts = line.split()
+        if len(parts) < 3:
+            continue
+        m = re.match(r"^tcp:(\d+)$", parts[1])
+        if m:
+            listed.add(int(m.group(1)))
+    return [p for p in expected_ports if p not in listed]
 
 
 def setup_adb_reverse_ports() -> None:
@@ -847,6 +878,26 @@ simple-log
     return proc
 
 
+def verify_coturn_listening(turn_port: int, *, timeout: float = 1.0) -> bool:
+    """Confirm coturn is accepting TCP connections on ``127.0.0.1:turn_port``.
+
+    ``start_coturn`` returns a live :class:`subprocess.Popen` if the
+    process is still alive 0.5 s after fork, but that is not the same as
+    "actually serving TURN" — coturn can be in the middle of binding,
+    fail to bind one of its many sockets, or be running with a config
+    error that disables auth threads. A 1-second TCP connect is a cheap
+    end-to-end probe that the listener exists from the same loopback the
+    headset will use (via ``adb reverse``).
+    """
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(timeout)
+            s.connect(("127.0.0.1", turn_port))
+        return True
+    except OSError:
+        return False
+
+
 def _tail_file(path: str, lines: int) -> str:
     """Return the last *lines* lines of *path* (empty string on read failure)."""
     try:
@@ -951,26 +1002,15 @@ def _discover_devtools_socket() -> str | None:
     teleop page is most likely to live there rather than an unrelated
     WebView from another app).
     """
-    try:
-        proc = subprocess.run(
-            ["adb", "shell", "cat", "/proc/net/unix"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            check=False,
-        )
-    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
-        log.warning("_discover_devtools_socket: %s", exc)
-        return None
-    if proc.returncode != 0:
-        log.warning(
-            "_discover_devtools_socket: adb rc=%d %s",
-            proc.returncode,
-            (proc.stderr or proc.stdout or "").strip(),
-        )
+    text = _run_adb(
+        "/proc/net/unix scan",
+        ["adb", "shell", "cat", "/proc/net/unix"],
+        timeout=10.0,
+    )
+    if text is None:
         return None
     candidates: list[str] = []
-    for line in proc.stdout.splitlines():
+    for line in text.splitlines():
         for token in line.split():
             m = _DEVTOOLS_SOCKET_RE.fullmatch(token)
             if m:
@@ -1018,6 +1058,144 @@ def _cdp_list_tabs(local_port: int) -> list[dict]:
     except Exception as exc:
         log.debug("CDP: failed to list tabs on port %d: %s", local_port, exc)
         return []
+
+
+def _close_stale_teleop_tabs() -> int:
+    """Close any pre-existing teleop tabs in the headset browser before opening a new one.
+
+    Symptom this guards against: a previous session ends with a WebXR
+    error (``requestSession`` rejection, WebRTC ICE failure, etc.) but
+    Chromium does not tear down the session — the tab is left holding
+    XR resources, and a fresh ``requestSession()`` in the next tab is
+    silently blocked. Closing stale tabs first gives the new page a
+    clean XR system to acquire.
+
+    Tabs are matched on the ``oobEnable=`` query parameter (every URL we
+    generate via :func:`~.oob_teleop_env.build_headset_bookmark_url` sets
+    it), so unrelated tabs the operator may have open are left alone.
+
+    No-op when the browser is not running (no DevTools socket on the
+    device). All failures are logged and treated as non-fatal — falling
+    back to "let ``am start`` open the new page anyway" is no worse than
+    today's behaviour.
+
+    Returns the number of tabs successfully closed.
+    """
+    socket_name = _discover_devtools_socket()
+    if not socket_name:
+        return 0
+    try:
+        _adb_forward_cdp(socket_name, _CDP_LOCAL_PORT)
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or exc.stdout or "").strip() or "(no adb output)"
+        log.warning(
+            "stale-tab cleanup: adb forward rc=%d: %s",
+            exc.returncode,
+            detail,
+        )
+        return 0
+    except OobAdbError as exc:
+        log.warning("stale-tab cleanup: adb forward failed: %s", exc)
+        return 0
+    closed = 0
+    try:
+        for tab in _cdp_list_tabs(_CDP_LOCAL_PORT):
+            url = tab.get("url") or ""
+            tab_id = tab.get("id")
+            if not tab_id or "oobEnable=" not in url:
+                continue
+            try:
+                with urllib.request.urlopen(
+                    f"http://localhost:{_CDP_LOCAL_PORT}/json/close/{tab_id}",
+                    timeout=3,
+                ) as resp:
+                    resp.read()
+                closed += 1
+                log.info("stale-tab cleanup: closed tab id=%s url=%s", tab_id, url)
+            except Exception as exc:
+                log.warning(
+                    "stale-tab cleanup: failed to close tab id=%s: %s", tab_id, exc
+                )
+    finally:
+        _adb_forward_remove(_CDP_LOCAL_PORT)
+    return closed
+
+
+async def _cdp_dump_ice_diagnostics(ws_url: str) -> None:
+    """One-shot snapshot of what the SDK actually sees for ICE on the live page.
+
+    The CloudXR SDK reads :py:data:`iceTransportPolicy` from two sources:
+
+    1. ``SessionOptions.iceServers.iceTransportPolicy`` (what App.tsx sets
+       from ``?iceRelayOnly=1``), and
+    2. ``localStorage.general.iceTransportPolicy`` (a SDK-internal cache).
+
+    When the headset session fails with "no response from media server"
+    despite our URL forcing relay-only, the most useful evidence is which
+    of those the SDK actually applied. This dump pulls both, plus the
+    page's full URL (so we can confirm the query string survived
+    ``am start`` → page load → React hydration), and prints them as a
+    single ``[setup-oob] ICE diagnostics`` line.
+
+    Best-effort: any failure is logged but not raised — diagnostics
+    must never break the connect flow.
+    """
+    from websockets.asyncio.client import connect as ws_connect  # noqa: PLC0415
+
+    _seq = 0
+
+    async def send(ws, method: str, params: dict | None = None) -> dict:
+        nonlocal _seq
+        _seq += 1
+        req_id = _seq
+        await ws.send(
+            json.dumps({"id": req_id, "method": method, "params": params or {}})
+        )
+        while True:
+            msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=5.0))
+            if msg.get("id") == req_id:
+                return msg.get("result", {})
+
+    try:
+        async with ws_connect(ws_url) as ws:
+            r = await send(
+                ws,
+                "Runtime.evaluate",
+                {
+                    "expression": """JSON.stringify({
+                        url: window.location.href,
+                        search: window.location.search,
+                        ls_iceTransportPolicy: localStorage.getItem('general.iceTransportPolicy'),
+                        ls_turnInfo: localStorage.getItem('general.turnInfo'),
+                        urlSearchParams: (function() {
+                            const p = new URLSearchParams(window.location.search);
+                            return {
+                                oobEnable: p.get('oobEnable'),
+                                iceRelayOnly: p.get('iceRelayOnly'),
+                                turnServer: p.get('turnServer'),
+                                turnUsername: p.get('turnUsername'),
+                                hasCredential: p.get('turnCredential') ? 'yes' : 'no',
+                            };
+                        })(),
+                    })""",
+                    "returnByValue": True,
+                },
+            )
+    except Exception as exc:
+        log.warning("ICE diag: CDP evaluate failed (%s)", exc)
+        return
+
+    val = (r.get("result") or {}).get("value")
+    if not val:
+        log.warning("ICE diag: empty result from page")
+        return
+
+    log.info("ICE diag: %s", val)
+    print(
+        f"\n\033[36m[setup-oob] ICE diagnostics (paste into bug reports):\033[0m\n  {val}\n",
+        file=sys.stderr,
+        flush=True,
+    )
 
 
 async def _cdp_session_click_connect(ws_url: str) -> None:
@@ -1316,6 +1494,20 @@ async def run_oob_connect(
     """
     deadline = time.monotonic() + timeout
 
+    # --- Step 0: close any stale teleop tabs from a prior session -----------
+    # An errored WebXR session in an old tab can hold XR resources and
+    # block the new tab's requestSession(). Cleaning up first gives us a
+    # known-good starting state.
+    closed = await asyncio.to_thread(_close_stale_teleop_tabs)
+    if closed:
+        oob_progress(
+            "setup-oob",
+            f"closed {closed} stale teleop tab(s) from a prior session",
+        )
+        # Brief pause so the browser actually releases WebXR / media
+        # resources before the new page tries to acquire them.
+        await asyncio.sleep(1.0)
+
     # --- Step 1: launch browser with the teleop URL --------------------------
     rc, diag = await asyncio.to_thread(
         run_adb_headset_bookmark, resolved_port=resolved_port, usb_local=usb_local
@@ -1324,6 +1516,10 @@ async def run_oob_connect(
         hint = adb_automation_failure_hint(diag)
         raise OobAdbError(oob_adb_automation_message(rc, diag, hint))
     log.info("ADB: am start completed")
+    oob_progress(
+        "setup-oob",
+        "headset browser launched — discovering DevTools socket ...",
+    )
 
     # --- Step 2: wait for DevTools socket ------------------------------------
     socket_name = None
@@ -1349,7 +1545,11 @@ async def run_oob_connect(
     try:
         _adb_forward_cdp(socket_name, _CDP_LOCAL_PORT)
     except subprocess.CalledProcessError as exc:
-        raise OobAdbError(f"CDP: adb forward failed: {exc}") from exc
+        detail = (exc.stderr or exc.stdout or "").strip() or "(no adb output)"
+        raise OobAdbError(
+            f"CDP: adb forward tcp:{_CDP_LOCAL_PORT} -> @{socket_name} "
+            f"failed (rc={exc.returncode}): {detail}"
+        ) from exc
 
     try:
         # --- Step 3: find the teleop tab -------------------------------------
@@ -1378,6 +1578,12 @@ async def run_oob_connect(
         log.info("CDP: %d tab(s) before navigation", len(tabs_url_before))
 
         ws_url: str | None = None
+        am_start_retried = False
+        # Re-fire am start once if we don't see the tab in the first half
+        # of the deadline. Cold-launch can swallow the first VIEW intent
+        # (browser was being woken up), and a second intent reliably
+        # navigates an already-warm tab.
+        retry_at = time.monotonic() + (timeout / 2)
         while ws_url is None and time.monotonic() < deadline:
             await asyncio.sleep(1.0)
             for tab in _cdp_list_tabs(_CDP_LOCAL_PORT):
@@ -1405,18 +1611,72 @@ async def run_oob_connect(
                         old_url or "<new>",
                     )
                     break
+                # Case C: existing tab whose URL was already our teleop URL
+                # at snapshot time and hasn't changed since. Happens when
+                # the browser navigated between cleanup and snapshot — am
+                # start fired, the tab landed on our URL, /json/list returned,
+                # and now there's no diff to detect. The ``oobEnable=`` query
+                # param is unique to URLs we generate, so matching it here
+                # won't grab an unrelated tab.
+                if "oobEnable=" in current_url:
+                    ws_url = tab["webSocketDebuggerUrl"]
+                    log.info(
+                        "CDP: existing teleop tab %r url=%s (snapshot already current)",
+                        tab.get("title"),
+                        current_url,
+                    )
+                    break
+
+            if ws_url is not None:
+                break
+
+            if not am_start_retried and time.monotonic() >= retry_at:
+                am_start_retried = True
+                log.warning(
+                    "CDP: tab not found after %.1fs — re-firing am start (cold-launch race)",
+                    timeout / 2,
+                )
+                oob_progress(
+                    "setup-oob",
+                    "tab not found yet — re-firing am start (browser may have "
+                    "swallowed the first intent on cold launch) ...",
+                )
+                try:
+                    rc, diag = await asyncio.to_thread(
+                        run_adb_headset_bookmark,
+                        resolved_port=resolved_port,
+                        usb_local=usb_local,
+                    )
+                    if rc != 0:
+                        log.warning("CDP: am start re-fire rc=%d: %s", rc, diag)
+                except Exception as exc:
+                    log.warning("CDP: am start re-fire raised: %s", exc)
 
         if ws_url is None:
             raise OobAdbError(
-                "CDP: browser tab for the teleop page not found within timeout.\n"
+                "CDP: browser tab for the teleop page not found within timeout "
+                "(am start was re-fired once mid-way and still no match).\n"
                 "The page may not have loaded — open the teleop URL on the headset manually "
                 "and tap CONNECT."
             )
+
+        oob_progress(
+            "setup-oob",
+            "teleop tab found — accepting cert, waiting for CONNECT button, "
+            "then auto-clicking it ...",
+        )
 
         # --- Step 4: cert interstitial + bring to front + readiness + click --
         # _cdp_session_click_connect polls the DOM for document.readyState +
         # #startButton (up to 10s) so no fixed page-init sleep is needed here.
         await _cdp_session_click_connect(ws_url)
+
+        # --- Step 4b: dump what the SDK actually sees for ICE config ---------
+        # Runs once, post-click, so the SDK has had a moment to apply config
+        # and we know the page is past the cert interstitial. Tells us
+        # whether iceRelayOnly survived the URL → SDK round trip — the
+        # answer to "why isn't the headset using TURN" usually lives here.
+        await _cdp_dump_ice_diagnostics(ws_url)
 
         # --- Step 5: background monitor for mid-stream error banners ---------
         # Keep the adb forward alive; the monitor tears it down on exit.
@@ -1430,6 +1690,19 @@ async def run_oob_connect(
         # of it to the monitor task must clean the forward up here.
         _adb_forward_remove(_CDP_LOCAL_PORT)
         raise
+
+
+def _teleop_error_hint(banner: str) -> str:
+    """Map known headset error banners to actionable host-side hints, or ``""``."""
+    b = banner.lower()
+    if "0xc0f2220f" in b or "no local connection candidates" in b:
+        return (
+            "no ICE candidates: typically TURN unreachable, headset WiFi off, "
+            "or host firewall. Verify coturn is running and `ufw allow` the proxy port."
+        )
+    if "wss" in b and ("close" in b or "1006" in b):
+        return "WSS dropped: check the proxy port is reachable from the headset."
+    return ""
 
 
 async def _monitor_teleop_error_banner(ws_url: str, local_port: int) -> None:
@@ -1490,10 +1763,12 @@ async def _monitor_teleop_error_banner(ws_url: str, local_port: int) -> None:
                 banner = (r.get("result") or {}).get("value") or ""
                 if banner and banner != last_banner:
                     log.warning("Teleop client error: %s", banner)
+                    extra = _teleop_error_hint(banner)
                     # Mirror to stderr so the operator sees mid-stream errors
                     # in the console, not only in the server log file.
                     print(
-                        f"\n\033[33mTeleop client error: {banner}\033[0m\n",
+                        f"\n\033[33mTeleop client error: {banner}\033[0m\n"
+                        + (f"\033[33m  → {extra}\033[0m\n" if extra else ""),
                         file=sys.stderr,
                         flush=True,
                     )

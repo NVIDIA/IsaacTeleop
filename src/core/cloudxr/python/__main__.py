@@ -24,6 +24,7 @@ from isaacteleop.cloudxr.oob_teleop_adb import (
 from isaacteleop.cloudxr.oob_teleop_env import (
     USB_HOST,
     WSS_PROXY_DEFAULT_PORT,
+    oob_progress,
     print_host_preflight_warnings,
     print_oob_hub_startup_banner,
     resolve_lan_host_for_oob,
@@ -101,6 +102,17 @@ def main() -> None:
         raise SystemExit(1)
 
     if args.setup_oob:
+        oob_progress(
+            "setup-oob",
+            "preflight: checking adb on PATH, single headset connected, "
+            "headset awake"
+            + (
+                ", coturn installed, headset has non-loopback IP"
+                if args.usb_local
+                else ""
+            )
+            + " ...",
+        )
         require_adb_on_path()
         if not args.usb_local:
             resolve_lan_host_for_oob()
@@ -122,6 +134,7 @@ def main() -> None:
                 print(f"\n\033[31m{exc}\033[0m\n", file=sys.stderr)
                 raise SystemExit(1) from exc
         print_host_preflight_warnings(usb_local=args.usb_local)
+        oob_progress("setup-oob", "preflight OK — starting CloudXR runtime + WSS proxy")
 
     with CloudXRLauncher(
         install_dir=args.cloudxr_install_dir,
