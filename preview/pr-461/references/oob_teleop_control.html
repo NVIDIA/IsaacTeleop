@@ -764,6 +764,13 @@ the WSS proxy uses (Python <code class="docutils literal notranslate"><span clas
 <li><p>Starts coturn locally on 127.0.0.1:3478 for WebRTC ICE relay.</p></li>
 <li><p>Launches the teleop URL on the headset and auto-clicks CONNECT via CDP.</p></li>
 </ol>
+<p>Optional: pass <code class="docutils literal notranslate"><span class="pre">--clear-headset-cache</span></code> to wipe localStorage / IndexedDB /
+cookies / HTTP cache for the teleop UI origin before the session starts.
+The SDK and WebXR client both cache settings (e.g.
+<code class="docutils literal notranslate"><span class="pre">general.iceTransportPolicy</span></code> for ICE transport policy,
+<code class="docutils literal notranslate"><span class="pre">cxr.isaac.teleopPath</span></code> for the last-used project) in localStorage, and a
+stale value can silently win over a fresh URL param. Requires the headset
+browser to already be running (otherwise a no-op).</p>
 <p>Required apt packages: <code class="docutils literal notranslate"><span class="pre">adb</span></code> (<code class="docutils literal notranslate"><span class="pre">android-tools-adb</span></code>) and <code class="docutils literal notranslate"><span class="pre">coturn</span></code>.
 No Node.js / <code class="docutils literal notranslate"><span class="pre">npm</span></code> is required at runtime.</p>
 </section>
