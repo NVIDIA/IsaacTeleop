@@ -408,10 +408,16 @@ void VkContext::create_logical_device(const Config& config)
     }
 
     VkPhysicalDeviceFeatures device_features{};
-    // No special features needed yet; extend as the renderer requires them.
+
+    // Enable the Vulkan 1.2 timeline semaphore feature so DeviceImage
+    // can use VK_SEMAPHORE_TYPE_TIMELINE for CUDA-Vulkan interop.
+    VkPhysicalDeviceVulkan12Features features12{};
+    features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+    features12.timelineSemaphore = VK_TRUE;
 
     VkDeviceCreateInfo device_info{};
     device_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    device_info.pNext = &features12;
     device_info.queueCreateInfoCount = 1;
     device_info.pQueueCreateInfos = &queue_info;
     device_info.enabledExtensionCount = static_cast<uint32_t>(extensions.size());

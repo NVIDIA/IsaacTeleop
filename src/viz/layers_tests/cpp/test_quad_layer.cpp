@@ -6,6 +6,8 @@
 // lives in viz_session_tests where the full VizSession pipeline is
 // available.
 
+#include "test_helpers.hpp"
+
 #include <catch2/catch_test_macros.hpp>
 #include <viz/core/render_target.hpp>
 #include <viz/core/viz_buffer.hpp>
@@ -23,36 +25,14 @@ using viz::Resolution;
 using viz::VizBuffer;
 using viz::VkContext;
 
+// Read each test as `if (!gpu_available()) SKIP(...)`.
+using viz::testing::is_cuda_vulkan_interop_available;
 namespace
 {
-
-// Vulkan + CUDA both need to be reachable for these [gpu] tests
-// (QuadLayer hits cudaImportExternalMemory via DeviceImage on
-// construction). Vulkan-only check would falsely pass on machines
-// without CUDA.
-bool gpu_available()
+inline bool gpu_available()
 {
-    static const bool cached = []()
-    {
-        bool has_vulkan_device = false;
-        for (const auto& info : VkContext::enumerate_physical_devices())
-        {
-            if (info.meets_requirements)
-            {
-                has_vulkan_device = true;
-                break;
-            }
-        }
-        if (!has_vulkan_device)
-        {
-            return false;
-        }
-        int cuda_count = 0;
-        return cudaGetDeviceCount(&cuda_count) == cudaSuccess && cuda_count > 0;
-    }();
-    return cached;
+    return is_cuda_vulkan_interop_available();
 }
-
 } // namespace
 
 // The arg-shape checks (format, resolution, render_pass) run before
@@ -214,6 +194,93 @@ TEST_CASE("QuadLayer::submit rejects mismatched dimensions / format / space", "[
         src.space = viz::MemorySpace::kDevice;
         CHECK_THROWS_AS(layer.submit(src), std::invalid_argument);
     }
+}
+
+TEST_CASE("QuadLayer Mode B state machine rejects misuse", "[gpu][quad_layer]")
+{
+    if (!gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
+    VkContext ctx;
+    ctx.init({});
+    auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 32, 32 } });
+
+    QuadLayer::Config cfg;
+    cfg.resolution = { 32, 32 };
+    QuadLayer layer(ctx, target->render_pass(), cfg);
+
+    // release() before acquire() → reject.
+    CHECK_THROWS_AS(layer.release(), std::logic_error);
+
+    // First acquire() succeeds.
+    REQUIRE_NOTHROW(layer.acquire());
+
+    // Second acquire() before release() → reject.
+    CHECK_THROWS_AS(layer.acquire(), std::logic_error);
+
+    // submit() while acquire is in flight → reject.
+    viz::VizBuffer src{};
+    src.data = reinterpret_cast<void*>(uintptr_t{ 0x1 });
+    src.width = 32;
+    src.height = 32;
+    src.format = PixelFormat::kRGBA8;
+    src.space = viz::MemorySpace::kDevice;
+    CHECK_THROWS_AS(layer.submit(src), std::logic_error);
+
+    // Release the outstanding acquire so the layer's destructor
+    // doesn't leave the state machine asymmetric.
+    REQUIRE_NOTHROW(layer.release());
+
+    // After release, release() again → reject.
+    CHECK_THROWS_AS(layer.release(), std::logic_error);
+}
+
+TEST_CASE("QuadLayer submit accepts a non-default CUDA stream", "[gpu][quad_layer]")
+{
+    if (!gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
+    VkContext ctx;
+    ctx.init({});
+    auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 32, 32 } });
+
+    QuadLayer::Config cfg;
+    cfg.resolution = { 32, 32 };
+    QuadLayer layer(ctx, target->render_pass(), cfg);
+
+    cudaStream_t stream = nullptr;
+    REQUIRE(cudaStreamCreate(&stream) == cudaSuccess);
+    struct StreamGuard
+    {
+        cudaStream_t s;
+        ~StreamGuard()
+        {
+            cudaStreamDestroy(s);
+        }
+    } guard{ stream };
+
+    void* dev_ptr = nullptr;
+    REQUIRE(cudaMalloc(&dev_ptr, static_cast<size_t>(32) * 32 * 4) == cudaSuccess);
+    struct CudaFree
+    {
+        void* p;
+        ~CudaFree()
+        {
+            cudaFree(p);
+        }
+    } cuda_free{ dev_ptr };
+
+    viz::VizBuffer src{};
+    src.data = dev_ptr;
+    src.width = 32;
+    src.height = 32;
+    src.format = PixelFormat::kRGBA8;
+    src.pitch = static_cast<size_t>(32) * 4;
+    src.space = viz::MemorySpace::kDevice;
+    REQUIRE_NOTHROW(layer.submit(src, stream));
+    REQUIRE(cudaStreamSynchronize(stream) == cudaSuccess);
 }
 
 TEST_CASE("QuadLayer Mode B acquire returns a populated VizCudaArray view", "[gpu][quad_layer]")

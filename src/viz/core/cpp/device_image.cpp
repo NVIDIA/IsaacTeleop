@@ -127,6 +127,7 @@ void DeviceImage::init()
         create_vk_image_with_external_memory();
         create_vk_image_view();
         import_to_cuda();
+        create_interop_semaphores();
         transition_to_shader_read();
     }
     catch (...)
@@ -147,9 +148,20 @@ void DeviceImage::destroy()
 
     // CUDA side first — VkDeviceMemory must outlive the CUDA
     // mapping. Sync drains any caller-issued async work first.
-    if (cuda_mipmapped_array_ != nullptr || cuda_external_memory_ != nullptr)
+    if (cuda_mipmapped_array_ != nullptr || cuda_external_memory_ != nullptr || cuda_vk_done_reading_ != nullptr ||
+        cuda_cuda_done_writing_ != nullptr)
     {
         (void)cudaDeviceSynchronize();
+    }
+    if (cuda_vk_done_reading_ != nullptr)
+    {
+        (void)cudaDestroyExternalSemaphore(cuda_vk_done_reading_);
+        cuda_vk_done_reading_ = nullptr;
+    }
+    if (cuda_cuda_done_writing_ != nullptr)
+    {
+        (void)cudaDestroyExternalSemaphore(cuda_cuda_done_writing_);
+        cuda_cuda_done_writing_ = nullptr;
     }
     if (cuda_mipmapped_array_ != nullptr)
     {
@@ -182,6 +194,16 @@ void DeviceImage::destroy()
     // Wait for all GPU work to retire before tearing down Vulkan
     // resources.
     (void)vkDeviceWaitIdle(device);
+    if (vk_done_reading_ != VK_NULL_HANDLE)
+    {
+        vkDestroySemaphore(device, vk_done_reading_, nullptr);
+        vk_done_reading_ = VK_NULL_HANDLE;
+    }
+    if (cuda_done_writing_ != VK_NULL_HANDLE)
+    {
+        vkDestroySemaphore(device, cuda_done_writing_, nullptr);
+        cuda_done_writing_ = VK_NULL_HANDLE;
+    }
     if (command_pool_ != VK_NULL_HANDLE)
     {
         vkDestroyCommandPool(device, command_pool_, nullptr);
@@ -320,6 +342,118 @@ void DeviceImage::import_to_cuda()
     check_cuda(cudaExternalMemoryGetMappedMipmappedArray(&cuda_mipmapped_array_, cuda_external_memory_, &array_desc),
                "cudaExternalMemoryGetMappedMipmappedArray");
     check_cuda(cudaGetMipmappedArrayLevel(&cuda_array_, cuda_mipmapped_array_, 0), "cudaGetMipmappedArrayLevel");
+}
+
+void DeviceImage::create_interop_semaphores()
+{
+    const VkDevice device = ctx_->device();
+
+    // VK_KHR_external_semaphore_fd entry point — required to bridge
+    // Vulkan timeline semaphores to CUDA.
+    auto vkGetSemaphoreFdKHR =
+        reinterpret_cast<PFN_vkGetSemaphoreFdKHR>(vkGetDeviceProcAddr(device, "vkGetSemaphoreFdKHR"));
+    if (vkGetSemaphoreFdKHR == nullptr)
+    {
+        throw std::runtime_error(
+            "DeviceImage: vkGetSemaphoreFdKHR not available "
+            "(VK_KHR_external_semaphore_fd not enabled?)");
+    }
+
+    auto create_one = [&](VkSemaphore& vk_sem, cudaExternalSemaphore_t& cuda_sem, const char* name)
+    {
+        // Timeline semaphore (initial value 0) exported via OPAQUE_FD.
+        VkSemaphoreTypeCreateInfo type_info{};
+        type_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+        type_info.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+        type_info.initialValue = 0;
+
+        VkExportSemaphoreCreateInfo export_info{};
+        export_info.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO;
+        export_info.pNext = &type_info;
+        export_info.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
+
+        VkSemaphoreCreateInfo info{};
+        info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        info.pNext = &export_info;
+        check_vk(vkCreateSemaphore(device, &info, nullptr, &vk_sem), "vkCreateSemaphore");
+
+        // Export as POSIX fd; import into CUDA. CUDA dups the fd
+        // internally so we close ours after import.
+        int fd = -1;
+        VkSemaphoreGetFdInfoKHR fd_info{};
+        fd_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR;
+        fd_info.semaphore = vk_sem;
+        fd_info.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
+        check_vk(vkGetSemaphoreFdKHR(device, &fd_info, &fd), "vkGetSemaphoreFdKHR");
+
+        cudaExternalSemaphoreHandleDesc ext_desc{};
+        ext_desc.type = cudaExternalSemaphoreHandleTypeTimelineSemaphoreFd;
+        ext_desc.handle.fd = fd;
+        const cudaError_t err = cudaImportExternalSemaphore(&cuda_sem, &ext_desc);
+        if (err != cudaSuccess)
+        {
+            close_fd(fd);
+            throw std::runtime_error(std::string("DeviceImage: cudaImportExternalSemaphore(") + name +
+                                     ") failed: " + cudaGetErrorString(err));
+        }
+        close_fd(fd);
+    };
+
+    create_one(vk_done_reading_, cuda_vk_done_reading_, "vk_done_reading");
+    create_one(cuda_done_writing_, cuda_cuda_done_writing_, "cuda_done_writing");
+}
+
+void DeviceImage::commit_cuda_done_writing(uint64_t value) noexcept
+{
+    // Monotonic-max update: out-of-order commits don't regress the
+    // public value. Sequential producers degenerate to a plain store.
+    uint64_t cur = cuda_done_writing_value_.load(std::memory_order_acquire);
+    while (value > cur && !cuda_done_writing_value_.compare_exchange_weak(
+                              cur, value, std::memory_order_acq_rel, std::memory_order_acquire))
+    {
+    }
+}
+
+void DeviceImage::commit_vk_done_reading(uint64_t value) noexcept
+{
+    uint64_t cur = vk_done_reading_value_.load(std::memory_order_acquire);
+    while (value > cur && !vk_done_reading_value_.compare_exchange_weak(
+                              cur, value, std::memory_order_acq_rel, std::memory_order_acquire))
+    {
+    }
+}
+
+void DeviceImage::cuda_wait_for_vk_read(cudaStream_t stream)
+{
+    // Wait target is whatever Vulkan has committed so far; the wait
+    // is harmless if the value is already reached (timeline >= N
+    // succeeds immediately when counter is at N).
+    cudaExternalSemaphoreWaitParams params{};
+    params.params.fence.value = vk_done_reading_value_.load(std::memory_order_acquire);
+    const cudaError_t err = cudaWaitExternalSemaphoresAsync(&cuda_vk_done_reading_, &params, 1, stream);
+    if (err != cudaSuccess)
+    {
+        throw std::runtime_error(std::string("DeviceImage: cudaWaitExternalSemaphoresAsync(vk_done_reading) failed: ") +
+                                 cudaGetErrorString(err));
+    }
+}
+
+void DeviceImage::cuda_signal_write_done(cudaStream_t stream)
+{
+    const uint64_t reserved = reserve_cuda_done_writing();
+    cudaExternalSemaphoreSignalParams params{};
+    params.params.fence.value = reserved;
+    const cudaError_t err = cudaSignalExternalSemaphoresAsync(&cuda_cuda_done_writing_, &params, 1, stream);
+    if (err != cudaSuccess)
+    {
+        // Don't commit — the public value stays at the previously
+        // committed signal. The reservation itself is wasted but
+        // harmless (next reservation gets reserved+1 and the
+        // consumer's next wait targets that).
+        throw std::runtime_error(std::string("DeviceImage: cudaSignalExternalSemaphoresAsync(cuda_done_writing) failed: ") +
+                                 cudaGetErrorString(err));
+    }
+    commit_cuda_done_writing(reserved);
 }
 
 void DeviceImage::transition_to_shader_read()

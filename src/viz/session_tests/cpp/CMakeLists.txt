@@ -13,6 +13,7 @@ target_link_libraries(viz_session_tests PRIVATE
     viz::session
     viz::layers
     viz::layers_testing
+    viz::test_support
     Catch2::Catch2WithMain
 )
 

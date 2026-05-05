@@ -11,6 +11,8 @@
 // VizSession + LayerBase dispatch + readback path. Everything that ships
 // in this milestone, exercised in one test.
 
+#include "test_helpers.hpp"
+
 #include <catch2/catch_test_macros.hpp>
 #include <viz/core/host_image.hpp>
 #include <viz/core/vk_context.hpp>
@@ -30,23 +32,11 @@ using viz::testing::ThrowingLayer;
 namespace
 {
 
-// Same NVIDIA-driver-leak workaround as viz_core_tests: any [gpu] test
-// that creates a VkContext should check this first and SKIP if the
-// runner has no suitable GPU.
-bool gpu_available()
+// ClearRectLayer doesn't touch CUDA, so the Vulkan-only probe is
+// the right gate here.
+inline bool gpu_available()
 {
-    static const bool cached = []()
-    {
-        for (const auto& info : viz::VkContext::enumerate_physical_devices())
-        {
-            if (info.meets_requirements)
-            {
-                return true;
-            }
-        }
-        return false;
-    }();
-    return cached;
+    return viz::testing::is_gpu_available();
 }
 
 // RGBA8 byte at (x, y) in a tightly-packed row-major framebuffer.

@@ -36,6 +36,7 @@ add_executable(viz_layers_tests
 target_link_libraries(viz_layers_tests PRIVATE
     viz::layers_testing
     viz::layers
+    viz::test_support
     Catch2::Catch2WithMain
 )
 

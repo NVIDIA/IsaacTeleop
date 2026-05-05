@@ -10,6 +10,8 @@
 // sRGB / UNORM gamma curve because the curve endpoints map to
 // themselves.
 
+#include "test_helpers.hpp"
+
 #include <catch2/catch_test_macros.hpp>
 #include <viz/core/host_image.hpp>
 #include <viz/core/viz_buffer.hpp>
@@ -17,8 +19,9 @@
 #include <viz/layers/quad_layer.hpp>
 #include <viz/session/viz_session.hpp>
 
+#include <algorithm>
+#include <array>
 #include <cstdint>
-#include <cstring>
 #include <cuda_runtime.h>
 #include <vector>
 
@@ -32,31 +35,13 @@ using viz::VizSession;
 namespace
 {
 
-// Vulkan + CUDA both need to be reachable for these tests. The
-// canonical `viz::testing::is_gpu_available()` only probes Vulkan;
-// it can falsely pass on a Vulkan-only machine and the CUDA-Vulkan
-// interop calls below would then crash rather than skip.
-bool gpu_available()
+// Forwards to the canonical viz::testing helper. CUDA-Vulkan
+// interop tests should gate on this rather than is_gpu_available()
+// (Vulkan-only) so machines that have Vulkan and CUDA on different
+// GPUs cleanly skip.
+inline bool gpu_available()
 {
-    static const bool cached = []()
-    {
-        bool has_vulkan_device = false;
-        for (const auto& info : viz::VkContext::enumerate_physical_devices())
-        {
-            if (info.meets_requirements)
-            {
-                has_vulkan_device = true;
-                break;
-            }
-        }
-        if (!has_vulkan_device)
-        {
-            return false;
-        }
-        int cuda_count = 0;
-        return cudaGetDeviceCount(&cuda_count) == cudaSuccess && cuda_count > 0;
-    }();
-    return cached;
+    return viz::testing::is_cuda_vulkan_interop_available();
 }
 
 // 4 quadrants, each a different {0, 255}-only color. Round-trip-exact
@@ -255,4 +240,74 @@ TEST_CASE("QuadLayer Mode B: acquire/release writes round-trip to readback", "[g
     REQUIRE(image.resolution().width == kSide);
     REQUIRE(image.resolution().height == kSide);
     check_quadrant_pattern(image, kSide);
+}
+
+TEST_CASE("QuadLayer multi-frame submit/render/readback loop stays correct", "[gpu][quad_layer][milestone]")
+{
+    if (!gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
+
+    constexpr uint32_t kSide = 64;
+    constexpr int kFrames = 16;
+
+    VizSession::Config cfg{};
+    cfg.mode = DisplayMode::kOffscreen;
+    cfg.window_width = kSide;
+    cfg.window_height = kSide;
+
+    auto session = VizSession::create(cfg);
+    REQUIRE(session != nullptr);
+    const auto* ctx = session->get_vk_context();
+    REQUIRE(ctx != nullptr);
+
+    QuadLayer::Config layer_cfg;
+    layer_cfg.name = "milestone_quad_multiframe";
+    layer_cfg.resolution = { kSide, kSide };
+    auto* layer = session->add_layer<QuadLayer>(*ctx, session->get_render_pass(), layer_cfg);
+    REQUIRE(layer != nullptr);
+
+    void* device_ptr = nullptr;
+    REQUIRE(cudaMalloc(&device_ptr, static_cast<size_t>(kSide) * kSide * 4) == cudaSuccess);
+    CudaFreeGuard guard{ device_ptr };
+
+    // Each frame fills with a different solid-color palette entry
+    // (channels in {0, 255} for sRGB-exact round-trip). Heavy sync
+    // would have serialized producer and consumer; timeline
+    // semaphores let them pipeline. Either way frame N's readback
+    // must contain frame N's color, not a stale or torn frame.
+    const std::array<Rgba, 4> palette = { {
+        { 255, 0, 0, 255 },
+        { 0, 255, 0, 255 },
+        { 0, 0, 255, 255 },
+        { 255, 255, 255, 255 },
+    } };
+
+    std::vector<Rgba> host_buf(static_cast<size_t>(kSide) * kSide);
+    for (int frame = 0; frame < kFrames; ++frame)
+    {
+        const Rgba expected = palette[frame % palette.size()];
+        std::fill(host_buf.begin(), host_buf.end(), expected);
+        REQUIRE(cudaMemcpy(device_ptr, host_buf.data(), host_buf.size() * sizeof(Rgba), cudaMemcpyHostToDevice) ==
+                cudaSuccess);
+
+        viz::VizBuffer src{};
+        src.data = device_ptr;
+        src.width = kSide;
+        src.height = kSide;
+        src.format = PixelFormat::kRGBA8;
+        src.pitch = static_cast<size_t>(kSide) * 4;
+        src.space = viz::MemorySpace::kDevice;
+        layer->submit(src);
+
+        session->render();
+
+        const auto image = session->readback_to_host();
+        const auto sample = pixel_at(image, kSide / 2, kSide / 2);
+        CHECK(sample.r == expected.r);
+        CHECK(sample.g == expected.g);
+        CHECK(sample.b == expected.b);
+        CHECK(sample.a == expected.a);
+    }
 }

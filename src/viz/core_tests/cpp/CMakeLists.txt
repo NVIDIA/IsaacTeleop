@@ -3,6 +3,20 @@
 
 cmake_minimum_required(VERSION 3.20)
 
+# Header-only INTERFACE library exposing test_helpers.hpp:
+# is_gpu_available(), is_cuda_vulkan_interop_available(),
+# shared_vk_context(), GpuFixture. Used by all viz_*_tests so the
+# probes have one canonical implementation.
+add_library(viz_test_support INTERFACE)
+target_include_directories(viz_test_support INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+)
+target_link_libraries(viz_test_support INTERFACE
+    viz::core
+    Catch2::Catch2
+)
+add_library(viz::test_support ALIAS viz_test_support)
+
 add_executable(viz_core_tests
     test_device_image.cpp
     test_frame_sync.cpp
@@ -15,7 +29,7 @@ add_executable(viz_core_tests
 )
 
 target_link_libraries(viz_core_tests PRIVATE
-    viz::core
+    viz::test_support
     Catch2::Catch2WithMain
 )
 

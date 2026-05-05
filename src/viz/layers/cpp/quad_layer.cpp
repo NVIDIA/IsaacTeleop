@@ -170,9 +170,17 @@ void require_alive(const std::unique_ptr<DeviceImage>& device_image, const char*
 
 } // namespace
 
-void QuadLayer::submit(const VizBuffer& src)
+void QuadLayer::submit(const VizBuffer& src, cudaStream_t stream)
 {
     require_alive(device_image_, "submit");
+    // Single-producer-thread contract (see header): a load suffices
+    // because submit / acquire / release don't race against each
+    // other — only against the render thread's record(), which
+    // doesn't mutate this flag.
+    if (acquired_.load(std::memory_order_acquire))
+    {
+        throw std::logic_error("QuadLayer::submit called while a Mode B acquire() is in flight");
+    }
     if (src.space != MemorySpace::kDevice)
     {
         throw std::invalid_argument("QuadLayer::submit: src must be MemorySpace::kDevice");
@@ -190,35 +198,42 @@ void QuadLayer::submit(const VizBuffer& src)
         throw std::invalid_argument("QuadLayer::submit: src.data is null");
     }
 
-    // cudaSetDevice is per-host-thread; pin to ctx's device so a
-    // worker-thread caller still hits the right GPU.
+    // Pin the calling thread to ctx's CUDA device.
     check_cuda(cudaSetDevice(ctx_->cuda_device_id()), "cudaSetDevice");
 
-    // Wait for the prior frame's Vulkan sampling to retire before we
-    // overwrite the texture. Heavy-handed; will be replaced with
-    // CUDA-Vulkan binary semaphores when fine-grained sync matters.
-    check_vk(vkDeviceWaitIdle(ctx_->device()), "vkDeviceWaitIdle(submit)");
+    // wait → copy → signal, all on `stream`. With a non-default
+    // stream the caller can interleave their own work on the same
+    // stream and the signal will correctly land after it.
+    device_image_->cuda_wait_for_vk_read(stream);
 
     const size_t row_bytes = static_cast<size_t>(src.width) * bytes_per_pixel(src.format);
     const size_t src_pitch = (src.pitch == 0) ? row_bytes : src.pitch;
-
     check_cuda(cudaMemcpy2DToArrayAsync(device_image_->cuda_array(), 0, 0, src.data, src_pitch, row_bytes, src.height,
-                                        cudaMemcpyDeviceToDevice, /*stream=*/0),
+                                        cudaMemcpyDeviceToDevice, stream),
                "cudaMemcpy2DToArrayAsync");
-    check_cuda(cudaDeviceSynchronize(), "cudaDeviceSynchronize");
+
+    device_image_->cuda_signal_write_done(stream);
 }
 
-VizCudaArray QuadLayer::acquire()
+VizCudaArray QuadLayer::acquire(cudaStream_t stream)
 {
     require_alive(device_image_, "acquire");
-    // Pin the calling thread to ctx's CUDA device before the caller
-    // issues any CUDA work on the returned array. Mirrors submit /
-    // release; cudaSetDevice is per-host-thread so a worker-thread
-    // caller would otherwise hit whatever device CUDA defaulted to.
+    // Single-producer-thread contract: a load+store pair is safe.
+    // Catches double-acquire as programmer error on this thread.
+    if (acquired_.load(std::memory_order_acquire))
+    {
+        throw std::logic_error("QuadLayer::acquire called while a previous acquire() is still in flight");
+    }
     check_cuda(cudaSetDevice(ctx_->cuda_device_id()), "cudaSetDevice");
-    // Wait for the prior frame's Vulkan reads to retire before
-    // exposing the writable handle.
-    check_vk(vkDeviceWaitIdle(ctx_->device()), "vkDeviceWaitIdle(acquire)");
+
+    // Queue the wait on `stream` so the caller's first cuda* call
+    // afterwards is correctly ordered after the previous render.
+    // Only flip acquired_ AFTER the wait has been queued so a wait
+    // failure doesn't leave the state machine in the "acquired but
+    // not actually wired" state.
+    device_image_->cuda_wait_for_vk_read(stream);
+    acquired_.store(true, std::memory_order_release);
+
     VizCudaArray view{};
     view.array = device_image_->cuda_array();
     view.width = config_.resolution.width;
@@ -227,18 +242,75 @@ VizCudaArray QuadLayer::acquire()
     return view;
 }
 
-void QuadLayer::release()
+void QuadLayer::release(cudaStream_t stream)
 {
     require_alive(device_image_, "release");
+    if (!acquired_.load(std::memory_order_acquire))
+    {
+        throw std::logic_error("QuadLayer::release called without a prior acquire()");
+    }
     check_cuda(cudaSetDevice(ctx_->cuda_device_id()), "cudaSetDevice");
-    // Drain caller-issued CUDA writes (any stream) before the next
-    // render() samples the texture.
-    check_cuda(cudaDeviceSynchronize(), "cudaDeviceSynchronize");
+    // Signal first so the cuda_done_writing counter advances only
+    // after the signal is actually queued. If the signal call
+    // throws, leave acquired_=true so the caller can retry release()
+    // or call destroy(); the state machine stays consistent.
+    device_image_->cuda_signal_write_done(stream);
+    acquired_.store(false, std::memory_order_release);
+}
+
+std::vector<LayerBase::WaitSemaphore> QuadLayer::get_wait_semaphores() const
+{
+    if (!device_image_)
+    {
+        return {};
+    }
+    // Wait for cuda_done_writing >= the value CUDA last committed.
+    return {
+        WaitSemaphore{
+            device_image_->cuda_done_writing(),
+            device_image_->cuda_done_writing_value(),
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        },
+    };
+}
+
+std::vector<LayerBase::SignalSemaphore> QuadLayer::get_signal_semaphores()
+{
+    if (!device_image_)
+    {
+        return {};
+    }
+    // Reserve a vk_done_reading value but DON'T commit yet — only
+    // commit_pending_signals() (called by VizCompositor after a
+    // successful vkQueueSubmit) advances the public timeline value.
+    pending_vk_signal_value_ = device_image_->reserve_vk_done_reading();
+    return {
+        SignalSemaphore{
+            device_image_->vk_done_reading(),
+            pending_vk_signal_value_,
+        },
+    };
+}
+
+void QuadLayer::commit_pending_signals()
+{
+    if (!device_image_ || pending_vk_signal_value_ == 0)
+    {
+        return;
+    }
+    device_image_->commit_vk_done_reading(pending_vk_signal_value_);
+    pending_vk_signal_value_ = 0;
 }
 
 void QuadLayer::record(VkCommandBuffer cmd, const std::vector<ViewInfo>& /*views*/, const RenderTarget& target)
 {
     require_alive(device_image_, "record");
+    if (acquired_.load(std::memory_order_acquire))
+    {
+        throw std::logic_error(
+            "QuadLayer::record called while a Mode B acquire() is in flight; "
+            "caller must release() before render()");
+    }
     const Resolution res = target.resolution();
 
     VkViewport viewport{};

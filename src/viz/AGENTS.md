@@ -20,14 +20,15 @@ sibling `<sub-module>_tests/` directory:
   `Pose3D`, `Fov`, `Resolution`, `ViewInfo`, `PixelFormat`,
   `RenderTarget`, `FrameSync`, `HostImage`, `DeviceImage`. `HostImage`
   owns CPU bytes and exposes a `VizBuffer view()`; `DeviceImage` owns
-  CUDA-Vulkan interop memory and is consumed via discrete accessors
-  (`cuda_array()`, `vk_image()`, etc.) — there is no `view()` because
-  `cudaArray_t` is opaque tiled memory, not a CUDA device pointer,
-  and putting it inside `VizBuffer.data` would lie about that type's
-  contract. Two image-shape view types accordingly:
-  `VizBuffer` for linear pointer-backed memory (CPU bytes / CUDA
-  device pointer; exposes `__cuda_array_interface__` / `__array_interface__`
-  in Python), and `VizCudaArray` for opaque tiled CUDA arrays. Math types (`glm::vec3`, `glm::quat`,
+  CUDA-Vulkan interop memory (VkImage + cudaArray_t) plus a pair of
+  timeline semaphores (`vk_done_reading` / `cuda_done_writing`) that
+  layers expose to the compositor for fine-grained sync. Consumed via
+  discrete accessors — no `view()` because `cudaArray_t` is opaque
+  tiled memory, not a CUDA device pointer. Two image-shape view types
+  accordingly: `VizBuffer` for linear pointer-backed memory (CPU bytes
+  / CUDA device pointer; exposes `__cuda_array_interface__` /
+  `__array_interface__` in Python), and `VizCudaArray` for opaque
+  tiled CUDA arrays. Math types (`glm::vec3`, `glm::quat`,
   `glm::mat4`) come from GLM 1.0.1 (FetchContent in
   `deps/third_party/`); use `glm::value_ptr(mat)` to get a raw `float*`
   for Vulkan / CUDA upload (POD-equivalent layout, no copy).

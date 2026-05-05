@@ -51,6 +51,47 @@ public:
     //           draws into; const so layers cannot modify the target.
     virtual void record(VkCommandBuffer cmd, const std::vector<ViewInfo>& views, const RenderTarget& target) = 0;
 
+    // Per-frame submit-info wiring for layers that synchronize
+    // against CUDA (or other external) producers via Vulkan timeline
+    // semaphores. VizCompositor concatenates these across all visible
+    // layers and feeds them to vkQueueSubmit (with a chained
+    // VkTimelineSemaphoreSubmitInfo for the values).
+    // Default: empty (no external sync).
+    struct WaitSemaphore
+    {
+        VkSemaphore semaphore = VK_NULL_HANDLE;
+        uint64_t value = 0;
+        VkPipelineStageFlags wait_stage = 0;
+    };
+    struct SignalSemaphore
+    {
+        VkSemaphore semaphore = VK_NULL_HANDLE;
+        uint64_t value = 0;
+    };
+
+    virtual std::vector<WaitSemaphore> get_wait_semaphores() const
+    {
+        return {};
+    }
+
+    // Returns the signal semaphores VizCompositor should signal at
+    // submit time. The layer reserves a timeline value here but does
+    // NOT commit it yet — commit_pending_signals() is called only
+    // after vkQueueSubmit succeeds, so a failed submit doesn't
+    // poison the public timeline value.
+    virtual std::vector<SignalSemaphore> get_signal_semaphores()
+    {
+        return {};
+    }
+
+    // Called by VizCompositor after a successful vkQueueSubmit so
+    // the layer can advance its internal "last committed signal"
+    // state to the values reserved by get_signal_semaphores().
+    // No-op by default.
+    virtual void commit_pending_signals()
+    {
+    }
+
     const std::string& name() const noexcept;
 
     // Visibility flag is atomic so it can be toggled from any thread (UI
