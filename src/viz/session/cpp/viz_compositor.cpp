@@ -126,6 +126,14 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
     // Wait for previous frame (1 frame in flight).
     frame_sync_->wait();
 
+    // Reset before begin_frame: a prior frame that threw mid-recording
+    // leaves the command buffer in RECORDING state with stale
+    // framebuffer references. begin_frame may destroy/recreate the
+    // render target (deferred from abort_frame, or OUT_OF_DATE), and
+    // Vulkan forbids destroying a framebuffer while a recording
+    // command buffer references it.
+    check_vk(vkResetCommandBuffer(command_buffer_, 0), "vkResetCommandBuffer");
+
     // Snapshot visible layers ONCE — is_visible() is atomic; reading
     // it twice could record a draw without the matching wait (or vice
     // versa) and race the producer's CUDA copy.
@@ -189,8 +197,6 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
         }
         tiles = tile_layout(aspects, rt_extent, /*padding=*/0);
     }
-
-    check_vk(vkResetCommandBuffer(command_buffer_, 0), "vkResetCommandBuffer");
 
     VkCommandBufferBeginInfo begin{};
     begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;

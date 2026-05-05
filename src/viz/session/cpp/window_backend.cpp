@@ -153,19 +153,28 @@ std::optional<DisplayBackend::Frame> WindowBackend::begin_frame(int64_t /*predic
     }
 
     // Drain a deferred recreate (set by abort_frame or a prior
-    // OUT_OF_DATE acquire) before touching the swapchain.
+    // OUT_OF_DATE acquire) before touching the swapchain. Only
+    // clear the flag once the recreate actually ran — a minimized
+    // window leaves it pending so the next frame retries.
     if (needs_recreate_)
     {
+        if (!force_recreate())
+        {
+            return std::nullopt;
+        }
         needs_recreate_ = false;
-        force_recreate();
     }
 
     auto acquired = swapchain_->acquire_next_image();
     if (!acquired.has_value())
     {
         // OUT_OF_DATE: swapchain is unusable regardless of size —
-        // can fire on monitor reconfig / format change too.
-        force_recreate();
+        // can fire on monitor reconfig / format change too. If the
+        // window is minimized we can't recreate now; defer.
+        if (!force_recreate())
+        {
+            needs_recreate_ = true;
+        }
         return std::nullopt;
     }
 
@@ -279,22 +288,23 @@ void WindowBackend::resize(Resolution /*hint*/)
     render_target_->resize(swapchain_->extent());
 }
 
-void WindowBackend::force_recreate()
+bool WindowBackend::force_recreate()
 {
     // No size-match guard. Used when the WSI demands a recreate
     // (OUT_OF_DATE) or after an aborted frame, where the swapchain
     // is unusable independent of the framebuffer extent.
     if (swapchain_ == nullptr || ctx_ == nullptr || window_ == nullptr || render_target_ == nullptr)
     {
-        return;
+        return false;
     }
     const Resolution target = window_->framebuffer_size();
     if (target.width == 0 || target.height == 0)
     {
-        return;
+        return false;
     }
     swapchain_->recreate(target);
     render_target_->resize(swapchain_->extent());
+    return true;
 }
 
 Resolution WindowBackend::current_extent() const

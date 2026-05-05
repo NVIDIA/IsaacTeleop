@@ -73,8 +73,9 @@ private:
     // Recreate swapchain + RT at the current window framebuffer size.
     // Skips the size-match check that resize() applies, because
     // OUT_OF_DATE fires for non-size reasons too (monitor reconfig,
-    // format change).
-    void force_recreate();
+    // format change). Returns false if the recreate cannot run (e.g.
+    // minimized window) so the caller can keep the dirty flag set.
+    bool force_recreate();
 };
 
 } // namespace viz
