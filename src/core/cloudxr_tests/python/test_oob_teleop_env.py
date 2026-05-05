@@ -187,7 +187,9 @@ def test_build_headset_bookmark_url_default_route(clear_teleop_env: None) -> Non
         web_client_base="https://h.test/",
         stream_config={"serverIP": "10.0.0.1", "port": 48322},
     )
-    assert urlparse(u).fragment == "/real/gear/dexmate"
+    # No fragment by default — the WebXR client picks its own landing route.
+    assert urlparse(u).fragment == ""
+    assert "#" not in u
 
 
 def test_build_headset_bookmark_url_route_override(
@@ -441,3 +443,17 @@ def test_print_host_preflight_warnings_skips_ufw_in_usb_local(capsys) -> None:
         print_host_preflight_warnings(usb_local=True)
     assert mock_ufw.call_count == 0
     assert capsys.readouterr().out == ""
+
+
+def test_print_host_preflight_warnings_busy_port_usb_local_raises(capsys) -> None:
+    # In --usb-local, every required loopback port is correctness-critical:
+    # a busy port means streaming can't work, so we fail fast instead of
+    # warn-and-continue.
+    with (
+        patch("cloudxr_py_test_ns.oob_teleop_env._port_in_use", return_value=True),
+        patch(
+            "cloudxr_py_test_ns.oob_teleop_env._ufw_unallowed_ports", return_value=None
+        ),
+        pytest.raises(RuntimeError, match="USB-local: required port"),
+    ):
+        print_host_preflight_warnings(usb_local=True)

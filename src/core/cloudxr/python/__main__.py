@@ -140,7 +140,11 @@ def main() -> None:
             except OobAdbError as exc:
                 print(f"\n\033[31m{exc}\033[0m\n", file=sys.stderr)
                 raise SystemExit(1) from exc
-        print_host_preflight_warnings(usb_local=args.usb_local)
+        try:
+            print_host_preflight_warnings(usb_local=args.usb_local)
+        except RuntimeError as exc:
+            print(f"\n\033[31m{exc}\033[0m\n", file=sys.stderr)
+            raise SystemExit(1) from exc
         oob_progress("setup-oob", "preflight OK")
 
     with CloudXRLauncher(

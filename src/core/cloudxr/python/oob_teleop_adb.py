@@ -1071,6 +1071,18 @@ def _adb_forward_remove(local_port: int) -> None:
     )
 
 
+def teardown_adb_forward_cdp() -> None:
+    """Remove the ``adb forward`` rule used for CDP, if present.
+
+    The adb server (a long-lived daemon) owns forward rules — they
+    survive a hard kill of *our* process. Calling this at startup
+    clears any stale rule from a previous run that didn't get to do
+    its own cleanup. ``--remove`` is a no-op when the rule doesn't
+    exist, so the call is safe regardless of state.
+    """
+    _adb_forward_remove(_CDP_LOCAL_PORT)
+
+
 def _cdp_list_tabs(local_port: int) -> list[dict]:
     try:
         with urllib.request.urlopen(

@@ -550,92 +550,112 @@ async def run(
             _usb_https_httpd = None
             _usb_turn_port_resolved: int | None = None
 
-            if usb_local:
-                from .oob_teleop_env import (  # noqa: PLC0415
-                    USB_TURN_USER,
-                    USB_TURN_CREDENTIAL,
-                    require_usb_local_webxr_static_dir,
-                    start_usb_local_https_server,
-                    stop_usb_local_https_server,
-                    usb_backend_port,
-                    usb_turn_port,
-                    usb_ui_port,
-                )
+            oob_monitor_task: asyncio.Task | None = None
+            wifi_monitor_task: asyncio.Task | None = None
+            stream_watch_task: asyncio.Task | None = None
 
-                # Resolve once so the coturn bind, adb reverse, and shutdown
-                # paths all agree (env vars are read at process start; pinning
-                # to a local also avoids re-reading on the cleanup path after
-                # the env may have been mutated).
-                _usb_turn_port_resolved = usb_turn_port()
-                from .oob_teleop_adb import (  # noqa: PLC0415
-                    setup_adb_reverse_ports,
-                    teardown_adb_reverse_ports,
-                    setup_adb_reverse_turn,
-                    teardown_adb_reverse_turn,
-                    start_coturn,
-                    stop_coturn,
-                    verify_adb_reverse_rules,
-                    verify_coturn_listening,
-                    watch_coturn,
-                )
+            # USB-local setup is fail-fast: every step (HTTPS UI, adb reverse,
+            # coturn, adb reverse for TURN) is required for the headset to
+            # stream over loopback. A soft warn-and-continue would just delay
+            # the inevitable "screen stays black" failure by 30s. Any raise
+            # below propagates to the outer ``finally`` which tears down
+            # whatever we'd already started (cleanup helpers are None-safe).
+            try:
+                if usb_local:
+                    from .oob_teleop_env import (  # noqa: PLC0415
+                        USB_TURN_USER,
+                        USB_TURN_CREDENTIAL,
+                        require_usb_local_webxr_static_dir,
+                        start_usb_local_https_server,
+                        stop_usb_local_https_server,
+                        usb_backend_port,
+                        usb_turn_port,
+                        usb_ui_port,
+                    )
 
-                oob_progress(
-                    "usb-local",
-                    f"HTTPS static UI on https://localhost:{usb_ui_port()} ...",
-                )
-                static_root = require_usb_local_webxr_static_dir()
-                _usb_https_thread, _usb_https_httpd = start_usb_local_https_server(
-                    static_root,
-                    cert_file=cert_paths.cert_file,
-                    key_file=cert_paths.key_file,
-                    port=usb_ui_port(),
-                )
+                    # Resolve once so the coturn bind, adb reverse, and shutdown
+                    # paths all agree (env vars are read at process start; pinning
+                    # to a local also avoids re-reading on the cleanup path after
+                    # the env may have been mutated).
+                    _usb_turn_port_resolved = usb_turn_port()
+                    from .oob_teleop_adb import (  # noqa: PLC0415
+                        setup_adb_reverse_ports,
+                        teardown_adb_reverse_ports,
+                        setup_adb_reverse_turn,
+                        teardown_adb_reverse_turn,
+                        start_coturn,
+                        stop_coturn,
+                        verify_adb_reverse_rules,
+                        verify_coturn_listening,
+                        watch_coturn,
+                    )
 
-                # 2. adb reverse for TCP ports (WebXR UI, WSS proxy, backend)
-                _expected_tcp_ports = [
-                    usb_ui_port(),
-                    wss_proxy_port(),
-                    usb_backend_port(),
-                ]
-                oob_progress("usb-local", f"adb reverse: TCP {_expected_tcp_ports} ...")
-                try:
-                    setup_adb_reverse_ports()
-                except (OobAdbError, subprocess.CalledProcessError) as exc:
-                    log.warning("USB-local: adb reverse TCP setup failed: %s", exc)
-                    print(
-                        f"\n\033[33mUSB-local: adb reverse failed.\n{exc}\033[0m\n",
-                        file=sys.stderr,
+                    # Pre-cleanup: a previous run that was hard-killed (Ctrl-C
+                    # mid-cleanup, kill -9) leaves adb reverse rules behind on
+                    # the device — the adb server holds them across our process
+                    # life. ``--remove`` is a no-op if the rule doesn't exist,
+                    # so this is safe to run unconditionally and only touches
+                    # the four ports we own.
+                    teardown_adb_reverse_ports()
+                    teardown_adb_reverse_turn(_usb_turn_port_resolved)
+
+                    oob_progress(
+                        "usb-local",
+                        f"HTTPS static UI on https://localhost:{usb_ui_port()} ...",
                     )
-                missing = verify_adb_reverse_rules(_expected_tcp_ports)
-                if missing:
-                    log.warning(
-                        "USB-local: adb reverse rules missing for ports %s", missing
+                    static_root = require_usb_local_webxr_static_dir()
+                    _usb_https_thread, _usb_https_httpd = start_usb_local_https_server(
+                        static_root,
+                        cert_file=cert_paths.cert_file,
+                        key_file=cert_paths.key_file,
+                        port=usb_ui_port(),
                     )
-                    print(
-                        f"\n\033[33mUSB-local: adb reverse rules NOT present for "
-                        f"ports {missing} — re-plug the USB cable.\033[0m\n",
-                        file=sys.stderr,
+
+                    # 2. adb reverse for TCP ports (WebXR UI, WSS proxy, backend)
+                    _expected_tcp_ports = [
+                        usb_ui_port(),
+                        wss_proxy_port(),
+                        usb_backend_port(),
+                    ]
+                    oob_progress(
+                        "usb-local", f"adb reverse: TCP {_expected_tcp_ports} ..."
                     )
-                else:
+                    try:
+                        setup_adb_reverse_ports()
+                    except (OobAdbError, subprocess.CalledProcessError) as exc:
+                        raise RuntimeError(
+                            f"USB-local: adb reverse TCP setup failed: {exc}\n"
+                            "Re-plug the USB cable and retry."
+                        ) from exc
+                    missing = verify_adb_reverse_rules(_expected_tcp_ports)
+                    if missing:
+                        raise RuntimeError(
+                            f"USB-local: adb reverse rules NOT present for "
+                            f"ports {missing} — re-plug the USB cable and retry."
+                        )
                     oob_progress(
                         "usb-local", f"verified: adb reverse TCP {_expected_tcp_ports}"
                     )
 
-                # 3. coturn TURN server (ICE relay required for WebRTC)
-                oob_progress(
-                    "usb-local",
-                    f"coturn TURN on 127.0.0.1:{_usb_turn_port_resolved} ...",
-                )
-                _usb_coturn_proc_box[0] = start_coturn(
-                    _usb_turn_port_resolved, USB_TURN_USER, USB_TURN_CREDENTIAL
-                )
-                if _usb_coturn_proc_box[0] is None:
-                    print(
-                        "\n\033[33mUSB-local: coturn not running — WebRTC will fail. "
-                        "Install: sudo apt install coturn\033[0m\n",
-                        file=sys.stderr,
+                    # 3. coturn TURN server (ICE relay required for WebRTC)
+                    oob_progress(
+                        "usb-local",
+                        f"coturn TURN on 127.0.0.1:{_usb_turn_port_resolved} ...",
                     )
-                elif verify_coturn_listening(_usb_turn_port_resolved):
+                    _usb_coturn_proc_box[0] = start_coturn(
+                        _usb_turn_port_resolved, USB_TURN_USER, USB_TURN_CREDENTIAL
+                    )
+                    if _usb_coturn_proc_box[0] is None:
+                        raise RuntimeError(
+                            "USB-local: coturn failed to start — WebRTC will fail. "
+                            "Install: sudo apt install coturn"
+                        )
+                    if not verify_coturn_listening(_usb_turn_port_resolved):
+                        raise RuntimeError(
+                            f"USB-local: coturn pid {_usb_coturn_proc_box[0].pid} "
+                            f"alive but NOT listening on :{_usb_turn_port_resolved}; "
+                            f"see /tmp/coturn-cloudxr-{_usb_turn_port_resolved}.log"
+                        )
                     oob_progress(
                         "usb-local",
                         f"verified: coturn TCP 127.0.0.1:{_usb_turn_port_resolved}",
@@ -649,117 +669,99 @@ async def run(
                         ),
                         name="cloudxr-coturn-watchdog",
                     )
-                else:
-                    # Process is up but not bound: don't spawn the watchdog
-                    # (polling a non-listener for "did it die" is pointless),
-                    # but keep the rest of the flow alive so the operator
-                    # still sees the fallback URL + log path.
-                    log.warning(
-                        "USB-local: coturn process up but not accepting TCP on :%d",
-                        _usb_turn_port_resolved,
-                    )
-                    print(
-                        f"\n\033[33mUSB-local: coturn pid {_usb_coturn_proc_box[0].pid} "
-                        f"alive but NOT listening on :{_usb_turn_port_resolved}; "
-                        f"see /tmp/coturn-cloudxr-{_usb_turn_port_resolved}.log\033[0m\n",
-                        file=sys.stderr,
-                    )
 
-                # 4. adb reverse for TURN port (headset → PC coturn)
-                oob_progress(
-                    "usb-local", f"adb reverse: TURN {_usb_turn_port_resolved} ..."
-                )
-                try:
-                    setup_adb_reverse_turn(_usb_turn_port_resolved)
-                except (OobAdbError, subprocess.CalledProcessError) as exc:
-                    log.warning("USB-local: adb reverse TURN setup failed: %s", exc)
-                    print(
-                        f"\n\033[33mUSB-local: adb reverse TURN failed.\n{exc}\033[0m\n",
-                        file=sys.stderr,
+                    # 4. adb reverse for TURN port (headset → PC coturn)
+                    oob_progress(
+                        "usb-local", f"adb reverse: TURN {_usb_turn_port_resolved} ..."
                     )
-                missing_turn = verify_adb_reverse_rules([_usb_turn_port_resolved])
-                if missing_turn:
-                    log.warning(
-                        "USB-local: TURN adb reverse rule missing (port %d)",
-                        _usb_turn_port_resolved,
-                    )
-                    print(
-                        f"\n\033[33mUSB-local: adb reverse TURN rule NOT present "
-                        f"for {_usb_turn_port_resolved} — re-plug USB.\033[0m\n",
-                        file=sys.stderr,
-                    )
-                else:
+                    try:
+                        setup_adb_reverse_turn(_usb_turn_port_resolved)
+                    except (OobAdbError, subprocess.CalledProcessError) as exc:
+                        raise RuntimeError(
+                            f"USB-local: adb reverse TURN setup failed: {exc}\n"
+                            "Re-plug the USB cable and retry."
+                        ) from exc
+                    missing_turn = verify_adb_reverse_rules([_usb_turn_port_resolved])
+                    if missing_turn:
+                        raise RuntimeError(
+                            f"USB-local: adb reverse TURN rule NOT present "
+                            f"for {_usb_turn_port_resolved} — re-plug the USB cable and retry."
+                        )
                     oob_progress(
                         "usb-local",
                         f"verified: adb reverse TURN {_usb_turn_port_resolved}",
                     )
 
-            oob_monitor_task: asyncio.Task | None = None
-            wifi_monitor_task: asyncio.Task | None = None
-            stream_watch_task: asyncio.Task | None = None
-            if setup_oob:
-                from .oob_teleop_adb import (  # noqa: PLC0415
-                    build_teleop_url,
-                    monitor_headset_wifi,
-                )
-
-                wifi_monitor_task = asyncio.create_task(
-                    monitor_headset_wifi(), name="cloudxr-headset-wifi-monitor"
-                )
-                log.info("Starting OOB ADB+CDP automation")
-                oob_progress(
-                    "setup-oob", "opening teleop page on headset + clicking CONNECT ..."
-                )
-                try:
-                    oob_monitor_task = await run_oob_connect(
-                        resolved_port=resolved_port, usb_local=usb_local
+                if setup_oob:
+                    from .oob_teleop_adb import (  # noqa: PLC0415
+                        build_teleop_url,
+                        monitor_headset_wifi,
+                        teardown_adb_forward_cdp,
                     )
-                    log.info("OOB automation completed — CONNECT clicked")
-                    oob_progress("setup-oob", "CONNECT dispatched — session active")
 
-                    # One-shot: print once when the headset's onStreamStarted
-                    # flows back through the hub, then the task exits.
-                    if hub is not None:
+                    # Pre-cleanup: same rationale as the reverse rules above —
+                    # the CDP forward (tcp:9223 → headset chrome devtools) is
+                    # held by the adb server, so a hard kill of a previous
+                    # run leaves it bound. ``--remove`` is a no-op when absent.
+                    teardown_adb_forward_cdp()
 
-                        async def _announce_streaming():
-                            cid, since = await hub.wait_for_streaming()
-                            ts = time.strftime("%H:%M:%S", time.localtime(since))
-                            oob_progress(
-                                "setup-oob",
-                                f"streaming confirmed at {ts} — headset {cid[:8]} sending poses + receiving frames",
-                            )
-
-                        stream_watch_task = asyncio.create_task(
-                            _announce_streaming(), name="cloudxr-stream-watch"
-                        )
-                except Exception as err:
-                    is_oob = isinstance(err, OobAdbError)
-                    log.warning(
-                        "OOB automation failed (non-fatal): %s",
-                        err,
-                        exc_info=not is_oob,
+                    wifi_monitor_task = asyncio.create_task(
+                        monitor_headset_wifi(), name="cloudxr-headset-wifi-monitor"
+                    )
+                    log.info("Starting OOB ADB+CDP automation")
+                    oob_progress(
+                        "setup-oob",
+                        "opening teleop page on headset + clicking CONNECT ...",
                     )
                     try:
-                        fallback_url = build_teleop_url(
+                        oob_monitor_task = await run_oob_connect(
                             resolved_port=resolved_port, usb_local=usb_local
                         )
-                    except Exception:
-                        fallback_url = ""
-                    msg = (
-                        str(err)
-                        if is_oob
-                        else (
-                            "OOB automation error — tap CONNECT on the headset manually."
-                        )
-                    )
-                    suffix = (
-                        f"\n  Open this URL on the headset and tap CONNECT:\n  {fallback_url}"
-                        if fallback_url
-                        else ""
-                    )
-                    print(f"\n\033[33m{msg}{suffix}\033[0m\n", file=sys.stderr)
+                        log.info("OOB automation completed — CONNECT clicked")
+                        oob_progress("setup-oob", "CONNECT dispatched — session active")
 
-            try:
+                        # One-shot: print once when the headset's onStreamStarted
+                        # flows back through the hub, then the task exits.
+                        if hub is not None:
+
+                            async def _announce_streaming():
+                                cid, since = await hub.wait_for_streaming()
+                                ts = time.strftime("%H:%M:%S", time.localtime(since))
+                                oob_progress(
+                                    "setup-oob",
+                                    f"streaming confirmed at {ts} — headset {cid[:8]} sending poses + receiving frames",
+                                )
+
+                            stream_watch_task = asyncio.create_task(
+                                _announce_streaming(), name="cloudxr-stream-watch"
+                            )
+                    except Exception as err:
+                        is_oob = isinstance(err, OobAdbError)
+                        log.warning(
+                            "OOB automation failed (non-fatal): %s",
+                            err,
+                            exc_info=not is_oob,
+                        )
+                        try:
+                            fallback_url = build_teleop_url(
+                                resolved_port=resolved_port, usb_local=usb_local
+                            )
+                        except Exception:
+                            fallback_url = ""
+                        msg = (
+                            str(err)
+                            if is_oob
+                            else (
+                                "OOB automation error — tap CONNECT on the headset manually."
+                            )
+                        )
+                        suffix = (
+                            f"\n  Open this URL on the headset and tap CONNECT:\n  {fallback_url}"
+                            if fallback_url
+                            else ""
+                        )
+                        print(f"\n\033[33m{msg}{suffix}\033[0m\n", file=sys.stderr)
+
                 await stop_future
             finally:
                 for task in (

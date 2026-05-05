@@ -358,9 +358,10 @@ Environment variables
    * - ``TELEOP_CLIENT_PANEL_HIDDEN_AT_START``
      - Hide control panel on load (``true`` / ``false``)
    * - ``TELEOP_CLIENT_ROUTE``
-     - HashRouter fragment appended to the bookmark URL. Default
-       ``/real/gear/dexmate``; set empty to suppress entirely. A leading
-       ``#`` is stripped automatically.
+     - HashRouter fragment appended to the bookmark URL. Default empty
+       (no fragment — the WebXR client picks its own landing route). Set
+       to e.g. ``/real/gear/dexmate`` to force a specific route. A
+       leading ``#`` is stripped automatically.
    * - ``ANDROID_SERIAL``
      - Pin a specific adb device when more than one is connected. The
        launcher refuses to start with multiple devices unless this is

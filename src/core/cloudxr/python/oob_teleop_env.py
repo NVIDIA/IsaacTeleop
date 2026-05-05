@@ -37,11 +37,12 @@ _USB_LOCAL_ASSET_MAX_BYTES = 32 * 1024 * 1024
 
 TELEOP_WEB_CLIENT_BASE_ENV = "TELEOP_WEB_CLIENT_BASE"
 
-# Hash-router fragment appended to the bookmark URL (``#/real/gear/dexmate`` by default).
-# The WebXR client uses HashRouter, so the fragment selects the route. Override via
-# ``TELEOP_CLIENT_ROUTE``; set to an empty string to suppress the fragment entirely.
+# Hash-router fragment appended to the bookmark URL (no fragment by default).
+# The WebXR client uses HashRouter, so the fragment selects the route. Set
+# ``TELEOP_CLIENT_ROUTE`` to a path like ``/real/gear/dexmate`` to land the
+# headset on a specific route; leave unset (or empty) for the client default.
 TELEOP_CLIENT_ROUTE_ENV = "TELEOP_CLIENT_ROUTE"
-DEFAULT_TELEOP_CLIENT_ROUTE = "/real/gear/dexmate"
+DEFAULT_TELEOP_CLIENT_ROUTE = ""
 
 # Directory with prebuilt WebXR assets (``index.html`` + ``bundle.js``). Optional for ``--usb-local``:
 # defaults to ``~/.cloudxr/static-client``; missing files are fetched from published URLs.
@@ -384,10 +385,11 @@ def client_ui_fields_from_env() -> dict:
 def teleop_client_route_from_env() -> str:
     """Return the HashRouter fragment to append to the headset bookmark URL.
 
-    Default: :data:`DEFAULT_TELEOP_CLIENT_ROUTE` (``/real/gear/dexmate``).
-    Override via ``TELEOP_CLIENT_ROUTE``; set the env var to an empty
-    string to suppress the fragment entirely. A leading ``#`` in the
-    override is stripped (the URL builder always emits exactly one).
+    Default: :data:`DEFAULT_TELEOP_CLIENT_ROUTE` (empty — no fragment, the
+    WebXR client picks its own landing route). Set ``TELEOP_CLIENT_ROUTE``
+    to a path like ``/real/gear/dexmate`` to force a specific route; an
+    explicit empty value also suppresses the fragment. A leading ``#`` in
+    the override is stripped (the URL builder always emits exactly one).
     Returns ``""`` to mean "no fragment".
     """
     raw = os.environ.get(TELEOP_CLIENT_ROUTE_ENV)
@@ -410,8 +412,9 @@ def build_headset_bookmark_url(
     The client derives ``wss://{serverIP}:{port}/oob/v1/ws`` from ``serverIP`` + ``port`` in the query
     when ``oobEnable=1``.
 
-    A HashRouter fragment is appended at the end (default
-    ``#/real/gear/dexmate``; override via ``TELEOP_CLIENT_ROUTE``).
+    A HashRouter fragment is appended at the end when ``TELEOP_CLIENT_ROUTE``
+    is set (e.g. ``#/real/gear/dexmate``); by default no fragment is added
+    and the WebXR client picks its own landing route.
     """
     cfg = stream_config or {}
     if not cfg.get("serverIP") or cfg.get("port") is None:
@@ -588,13 +591,14 @@ def print_oob_hub_startup_banner(
     if route:
         print(
             f"           Client route: \033[36m#{route}\033[0m  "
-            f"({route_src}; override via {TELEOP_CLIENT_ROUTE_ENV}, "
+            f"({route_src}; change via {TELEOP_CLIENT_ROUTE_ENV}, "
             f"set empty to suppress)"
         )
     else:
         print(
             f"           Client route: \033[36m<none>\033[0m  "
-            f"(suppressed via {TELEOP_CLIENT_ROUTE_ENV}=)"
+            f"(default; set {TELEOP_CLIENT_ROUTE_ENV}=/real/gear/dexmate "
+            "to land on a specific route)"
         )
     print()
     print("  Step 2 — Accept cert + click CONNECT (CDP automation)")
@@ -706,7 +710,18 @@ def ss_listeners_on_port(port: int) -> list[str]:
 
 
 def print_host_preflight_warnings(*, usb_local: bool) -> None:
-    """Print best-effort host warnings (ufw + port conflicts). Never raises.
+    """Best-effort host preflight (port conflicts + ufw).
+
+    In ``--usb-local`` mode this is fail-fast: a port conflict on any of
+    the four required loopback ports (WSS / UI / backend / TURN) raises
+    :class:`RuntimeError` so the launcher exits before sinking time into
+    a setup that can't possibly stream. In WiFi mode the same port-busy
+    case stays warn-only — the WSS bind will fail loudly on its own with
+    ``EADDRINUSE`` and there's no usb-local-style multi-port surface.
+
+    ufw findings are always warn-only (best-effort: ``status`` parsing
+    can yield false positives on permissive rulesets), and ufw is only
+    checked in WiFi mode (USB-local is loopback, not firewalled).
 
     The WSS proxy binds the wildcard address (``host=""`` in
     :mod:`websockets`, i.e. ``0.0.0.0``), but we probe via loopback
@@ -728,12 +743,20 @@ def print_host_preflight_warnings(*, usb_local: bool) -> None:
         targets = [(wss_proxy_port(), "127.0.0.1")]
     busy = [p for p, host in targets if _port_in_use(p, host)]
     if busy:
-        log.warning("preflight: port(s) already in use: %s", busy)
         ports_re = "|".join(f":{p}" for p in busy)
+        if usb_local:
+            log.error("preflight: port(s) already in use: %s", busy)
+            raise RuntimeError(
+                f"USB-local: required port(s) {busy} already in use — cannot proceed.\n"
+                f"Kill the holder (`ss -tulpn | grep -E '{ports_re}'`) or override "
+                "via PROXY_PORT / USB_UI_PORT / USB_BACKEND_PORT / USB_TURN_PORT, "
+                "then retry."
+            )
+        log.warning("preflight: port(s) already in use: %s", busy)
         print(
             f"\n\033[33m[preflight] port(s) {busy} already in use; kill the "
             f"holder (`ss -tulpn | grep -E '{ports_re}'`) or override via "
-            "PROXY_PORT/USB_UI_PORT/USB_BACKEND_PORT/USB_TURN_PORT.\033[0m\n"
+            "PROXY_PORT.\033[0m\n"
         )
     # ufw is only meaningful in WiFi mode (USB-local is loopback, not firewalled).
     if not usb_local:
