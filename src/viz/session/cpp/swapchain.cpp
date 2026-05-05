@@ -87,8 +87,8 @@ std::unique_ptr<Swapchain> Swapchain::create(const VkContext& ctx, VkSurfaceKHR 
     // VkContext::Config (e.g., glfwGetPhysicalDevicePresentationSupport)
     // — deferred until a real multi-GPU user reports this.
     VkBool32 present_supported = VK_FALSE;
-    check_vk(vkGetPhysicalDeviceSurfaceSupportKHR(ctx.physical_device(), ctx.queue_family_index(), surface,
-                                                  &present_supported),
+    check_vk(vkGetPhysicalDeviceSurfaceSupportKHR(
+                 ctx.physical_device(), ctx.queue_family_index(), surface, &present_supported),
              "vkGetPhysicalDeviceSurfaceSupportKHR");
     if (!present_supported)
     {
@@ -206,8 +206,8 @@ void Swapchain::create_semaphores()
     sem_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     for (size_t i = 0; i < images_.size(); ++i)
     {
-        check_vk(vkCreateSemaphore(device, &sem_info, nullptr, &image_available_[i]),
-                 "vkCreateSemaphore(image_available)");
+        check_vk(
+            vkCreateSemaphore(device, &sem_info, nullptr, &image_available_[i]), "vkCreateSemaphore(image_available)");
         check_vk(vkCreateSemaphore(device, &sem_info, nullptr, &render_done_[i]), "vkCreateSemaphore(render_done)");
     }
 }
@@ -320,8 +320,7 @@ std::optional<Swapchain::AcquiredImage> Swapchain::acquire_next_image()
     }
     const VkSemaphore sem = image_available_[frame_slot_];
     uint32_t image_index = 0;
-    const VkResult r =
-        vkAcquireNextImageKHR(ctx_->device(), swapchain_, UINT64_MAX, sem, VK_NULL_HANDLE, &image_index);
+    const VkResult r = vkAcquireNextImageKHR(ctx_->device(), swapchain_, UINT64_MAX, sem, VK_NULL_HANDLE, &image_index);
     // OUT_OF_DATE: caller must recreate. SUBOPTIMAL: image is valid,
     // pass it through and let the WSI scale on present.
     if (r == VK_ERROR_OUT_OF_DATE_KHR)

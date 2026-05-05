@@ -26,7 +26,9 @@ public:
     // Creates the window + surface. Throws std::runtime_error if
     // GLFW init fails (no display, missing libs) — call sites should
     // catch and SKIP if running headless.
-    static std::unique_ptr<GlfwWindow> create(VkInstance instance, uint32_t width, uint32_t height,
+    static std::unique_ptr<GlfwWindow> create(VkInstance instance,
+                                              uint32_t width,
+                                              uint32_t height,
                                               const std::string& title);
 
     // Process-wide refcounted glfwInit/Terminate. Pair these around

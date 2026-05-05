@@ -18,8 +18,7 @@ void check_vk(VkResult r, const char* what)
 {
     if (r != VK_SUCCESS)
     {
-        throw std::runtime_error(std::string("OffscreenBackend: ") + what + " failed: VkResult=" +
-                                 std::to_string(r));
+        throw std::runtime_error(std::string("OffscreenBackend: ") + what + " failed: VkResult=" + std::to_string(r));
     }
 }
 
@@ -135,8 +134,7 @@ HostImage OffscreenBackend::readback_to_host()
 
     HostImage result(extent_, PixelFormat::kRGBA8);
     void* mapped = nullptr;
-    check_vk(vkMapMemory(ctx_->device(), readback_memory_, 0, readback_byte_size_, 0, &mapped),
-             "vkMapMemory(readback)");
+    check_vk(vkMapMemory(ctx_->device(), readback_memory_, 0, readback_byte_size_, 0, &mapped), "vkMapMemory(readback)");
     std::memcpy(result.data(), mapped, readback_byte_size_);
     vkUnmapMemory(ctx_->device(), readback_memory_);
     return result;
@@ -160,20 +158,17 @@ void OffscreenBackend::create_readback_staging()
     VkMemoryAllocateInfo ai{};
     ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     ai.allocationSize = reqs.size;
-    ai.memoryTypeIndex =
-        find_memory_type(ctx_->physical_device(), reqs.memoryTypeBits,
-                         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    ai.memoryTypeIndex = find_memory_type(ctx_->physical_device(), reqs.memoryTypeBits,
+                                          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
     check_vk(vkAllocateMemory(ctx_->device(), &ai, nullptr, &readback_memory_), "vkAllocateMemory(readback)");
-    check_vk(vkBindBufferMemory(ctx_->device(), readback_buffer_, readback_memory_, 0),
-             "vkBindBufferMemory(readback)");
+    check_vk(vkBindBufferMemory(ctx_->device(), readback_buffer_, readback_memory_, 0), "vkBindBufferMemory(readback)");
 
     // Dedicated cmd pool — never races the compositor's per-frame buffer.
     VkCommandPoolCreateInfo pi{};
     pi.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     pi.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     pi.queueFamilyIndex = ctx_->queue_family_index();
-    check_vk(vkCreateCommandPool(ctx_->device(), &pi, nullptr, &readback_command_pool_),
-             "vkCreateCommandPool(readback)");
+    check_vk(vkCreateCommandPool(ctx_->device(), &pi, nullptr, &readback_command_pool_), "vkCreateCommandPool(readback)");
     VkCommandBufferAllocateInfo ai2{};
     ai2.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     ai2.commandPool = readback_command_pool_;

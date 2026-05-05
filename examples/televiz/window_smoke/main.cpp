@@ -13,11 +13,10 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cuda_runtime.h>
 #include <memory>
 #include <stdexcept>
 #include <vector>
-
-#include <cuda_runtime.h>
 
 namespace
 {
@@ -148,9 +147,8 @@ int main()
             if (info.frame_index > 0 && info.frame_index % 60 == 0)
             {
                 const auto stats = session->get_frame_timing_stats();
-                std::printf("frame %llu: %.1f fps (%.2f ms/frame)\n",
-                            static_cast<unsigned long long>(info.frame_index), stats.render_fps,
-                            stats.avg_frame_time_ms);
+                std::printf("frame %llu: %.1f fps (%.2f ms/frame)\n", static_cast<unsigned long long>(info.frame_index),
+                            stats.render_fps, stats.avg_frame_time_ms);
                 std::fflush(stdout);
             }
         }

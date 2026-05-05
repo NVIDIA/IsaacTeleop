@@ -61,8 +61,7 @@ void GlfwWindow::release() noexcept
     }
 }
 
-std::unique_ptr<GlfwWindow> GlfwWindow::create(VkInstance instance, uint32_t width, uint32_t height,
-                                               const std::string& title)
+std::unique_ptr<GlfwWindow> GlfwWindow::create(VkInstance instance, uint32_t width, uint32_t height, const std::string& title)
 {
     if (instance == VK_NULL_HANDLE)
     {

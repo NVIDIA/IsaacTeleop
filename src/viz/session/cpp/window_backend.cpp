@@ -197,8 +197,7 @@ void WindowBackend::record_post_render_pass(VkCommandBuffer cmd, const Frame& fr
     const VkImage swap_image = swapchain_->image_at(image_index);
 
     transition_image(cmd, swap_image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0,
-                     VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                     VK_PIPELINE_STAGE_TRANSFER_BIT);
+                     VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 
     const Resolution intermediate_extent{ render_target_->resolution() };
     const Resolution sc_extent = swapchain_->extent();

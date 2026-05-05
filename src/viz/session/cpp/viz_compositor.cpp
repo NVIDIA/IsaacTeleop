@@ -21,8 +21,7 @@ void check_vk(VkResult result, const char* what)
 {
     if (result != VK_SUCCESS)
     {
-        throw std::runtime_error(std::string("VizCompositor: ") + what + " failed: VkResult=" +
-                                 std::to_string(result));
+        throw std::runtime_error(std::string("VizCompositor: ") + what + " failed: VkResult=" + std::to_string(result));
     }
 }
 
