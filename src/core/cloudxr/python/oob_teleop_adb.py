@@ -211,13 +211,16 @@ async def monitor_headset_wifi(*, poll_seconds: float = 5.0) -> None:
     ``ip addr show`` over adb is cheap and lets us call out the cause without
     waiting for the user to puzzle out an opaque connection-stuck error.
     """
-    had = bool(headset_non_loopback_interfaces())
+    # headset_non_loopback_interfaces() shells out to `adb`, which is sync;
+    # run off-loop so the event loop isn't blocked for the duration of the
+    # subprocess (up to a few hundred ms).
+    had = bool(await asyncio.to_thread(headset_non_loopback_interfaces))
     while True:
         try:
             await asyncio.sleep(poll_seconds)
         except asyncio.CancelledError:
             return
-        ifaces = headset_non_loopback_interfaces()
+        ifaces = await asyncio.to_thread(headset_non_loopback_interfaces)
         has = bool(ifaces)
         if had and not has:
             log.warning(
@@ -779,6 +782,36 @@ def require_coturn_available() -> None:
     )
 
 
+def require_turn_port_free(port: int) -> None:
+    """Fail fast if anything else is already listening on TCP/UDP *port*.
+
+    Why: a system-wide ``coturn`` (or any other service) bound to
+    ``0.0.0.0:port`` can coexist with our ``127.0.0.1:port`` bind via
+    ``SO_REUSEADDR``, so the standard bind-conflict probe in
+    :func:`~.oob_teleop_env.print_host_preflight_warnings` misses it.
+    But the system listener has different credentials and possibly an
+    overlapping relay-port range, so headset traffic over adb-reverse
+    can still end up at the wrong daemon (or our daemon's relay
+    allocations collide with theirs). Cleanest is to refuse to start.
+    Skipped silently when ``ss`` is unavailable.
+    """
+    from .oob_teleop_env import ss_listeners_on_port  # noqa: PLC0415
+
+    listeners = ss_listeners_on_port(port)
+    if not listeners:
+        return
+    formatted = "\n  ".join(listeners)
+    raise OobAdbError(
+        f"--usb-local: TCP/UDP port {port} is already in use:\n  {formatted}\n\n"
+        "A pre-existing TURN server (or any service) on this port can coexist "
+        "with our 127.0.0.1 bind via SO_REUSEADDR but will collide on the "
+        "relay-port range and credentials, so coturn won't be the authoritative "
+        "listener for the adb-reverse path.\n\n"
+        "Stop the conflicting service (e.g. `sudo systemctl stop coturn`) "
+        "or set USB_TURN_PORT to a different unused port and retry."
+    )
+
+
 def start_coturn(turn_port: int, user: str, credential: str) -> subprocess.Popen | None:
     """Start a coturn TURN server for USB-local ICE relay.
 
@@ -1123,6 +1156,11 @@ async def _cdp_clear_origin_storage(ws_url: str, origins: list[str]) -> int:
     cleared = 0
     try:
         async with ws_connect(ws_url) as ws:
+            # Storage.clearDataForOrigin with storageTypes="all" already covers
+            # cookies + appcache + cache_storage + service_workers for the
+            # given origin, so we don't follow up with browser-wide
+            # Network.clearBrowserCache / clearBrowserCookies (those would
+            # nuke unrelated tabs the operator may have open).
             for origin in origins:
                 try:
                     await send(
@@ -1134,12 +1172,6 @@ async def _cdp_clear_origin_storage(ws_url: str, origins: list[str]) -> int:
                     log.info("cache clear: cleared all storage for %s", origin)
                 except Exception as exc:
                     log.warning("cache clear: %s failed (%s)", origin, exc)
-            try:
-                await send(ws, "Network.clearBrowserCache")
-                await send(ws, "Network.clearBrowserCookies")
-                log.info("cache clear: also cleared HTTP cache + cookies")
-            except Exception as exc:
-                log.warning("cache clear: HTTP cache/cookies failed (%s)", exc)
     except Exception as exc:
         log.warning("cache clear: CDP session failed (%s)", exc)
     return cleared
@@ -1148,13 +1180,14 @@ async def _cdp_clear_origin_storage(ws_url: str, origins: list[str]) -> int:
 def clear_headset_browser_cache(*, usb_local: bool) -> int:
     """Sync wrapper around :func:`_cdp_clear_origin_storage` for the teleop UI origin.
 
-    USB-local clears ``https://127.0.0.1:<usb_ui_port>``; WiFi clears the
+    USB-local clears both ``https://localhost:<port>`` (the bookmark host
+    used by ``build_teleop_url``) and ``https://127.0.0.1:<port>`` (the
+    same listener but a different Chromium origin); WiFi clears the
     published client origin (or ``TELEOP_WEB_CLIENT_BASE`` override).
     Returns 0 if the browser isn't running. Never raises.
     """
     from .oob_teleop_env import (  # noqa: PLC0415
         DEFAULT_WEB_CLIENT_ORIGIN,
-        USB_HOST,
         usb_ui_port,
         web_client_base_override_from_env,
     )
@@ -1184,10 +1217,15 @@ def clear_headset_browser_cache(*, usb_local: bool) -> int:
             return 0
 
         # Origins we own. Trim trailing slash because Storage.clearDataForOrigin
-        # is strict about exact origin (scheme://host[:port], no path).
+        # is strict about exact origin (scheme://host[:port], no path). Chromium
+        # treats ``localhost`` and ``127.0.0.1`` as separate origins, so clear
+        # both: the bookmark uses ``localhost`` (per build_teleop_url) but
+        # ``127.0.0.1`` may have stale state from earlier development.
         origins: list[str] = []
         if usb_local:
-            origins.append(f"https://{USB_HOST}:{usb_ui_port()}")
+            ui_port = usb_ui_port()
+            origins.append(f"https://localhost:{ui_port}")
+            origins.append(f"https://127.0.0.1:{ui_port}")
         else:
             origin_base = (
                 web_client_base_override_from_env() or DEFAULT_WEB_CLIENT_ORIGIN

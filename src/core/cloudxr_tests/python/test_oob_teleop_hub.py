@@ -188,6 +188,77 @@ async def test_client_metrics_stored_in_snapshot() -> None:
 
 
 @pytest.mark.asyncio
+async def test_stream_status_updates_snapshot() -> None:
+    hub = OOBControlHub()
+    ws = QueueWS()
+    task = asyncio.create_task(hub.handle_connection(ws))
+
+    await ws.inject(json.dumps({"type": "register", "payload": {"role": "headset"}}))
+    await asyncio.sleep(0)
+
+    # Snapshot before any streamStatus: defaults to streaming=False, since=None.
+    snap = await hub.get_snapshot()
+    assert snap["headsets"][0]["streaming"] is False
+    assert snap["headsets"][0]["streamingSince"] is None
+
+    # Rising edge sets the timestamp.
+    await ws.inject(
+        json.dumps({"type": "streamStatus", "payload": {"streaming": True}})
+    )
+    await asyncio.sleep(0)
+    snap = await hub.get_snapshot()
+    assert snap["headsets"][0]["streaming"] is True
+    first_since = snap["headsets"][0]["streamingSince"]
+    assert isinstance(first_since, int) and first_since > 0
+
+    # Repeat True must NOT reset the timestamp (only rising edges count).
+    await asyncio.sleep(0.005)
+    await ws.inject(
+        json.dumps({"type": "streamStatus", "payload": {"streaming": True}})
+    )
+    await asyncio.sleep(0)
+    snap = await hub.get_snapshot()
+    assert snap["headsets"][0]["streamingSince"] == first_since
+
+    # Falling edge clears the timestamp.
+    await ws.inject(
+        json.dumps({"type": "streamStatus", "payload": {"streaming": False}})
+    )
+    await asyncio.sleep(0)
+    snap = await hub.get_snapshot()
+    assert snap["headsets"][0]["streaming"] is False
+    assert snap["headsets"][0]["streamingSince"] is None
+
+    await ws.end_stream()
+    await task
+
+
+@pytest.mark.asyncio
+async def test_wait_for_streaming_returns_on_rising_edge() -> None:
+    hub = OOBControlHub()
+    ws = QueueWS()
+    task = asyncio.create_task(hub.handle_connection(ws))
+
+    await ws.inject(json.dumps({"type": "register", "payload": {"role": "headset"}}))
+    await asyncio.sleep(0)
+
+    waiter = asyncio.create_task(hub.wait_for_streaming(poll_seconds=0.01))
+    # Give the waiter a chance to start polling without a True yet.
+    await asyncio.sleep(0.02)
+    assert not waiter.done()
+
+    await ws.inject(
+        json.dumps({"type": "streamStatus", "payload": {"streaming": True}})
+    )
+    client_id, since = await asyncio.wait_for(waiter, timeout=1.0)
+    assert isinstance(client_id, str) and client_id
+    assert isinstance(since, float) and since > 0
+
+    await ws.end_stream()
+    await task
+
+
+@pytest.mark.asyncio
 async def test_unknown_message_type_returns_error() -> None:
     hub = OOBControlHub()
     ws = QueueWS()

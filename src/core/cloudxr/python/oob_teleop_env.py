@@ -672,6 +672,39 @@ def _port_in_use(port: int, host: str) -> bool:
     return False
 
 
+def ss_listeners_on_port(port: int) -> list[str]:
+    """Return one trimmed ``ss -tulpn`` line per TCP/UDP listener on *port*.
+
+    Why: a wildcard listener (``0.0.0.0:port``) can coexist with a loopback
+    bind via ``SO_REUSEADDR``, so :func:`_port_in_use` misses it. Parsing
+    ``ss`` output catches every listener regardless of bound address.
+    Empty list when ``ss`` is unavailable (minimal containers, BSD, etc.) —
+    callers must treat that as "couldn't ask", not "definitely free".
+    """
+    try:
+        proc = subprocess.run(
+            ["ss", "-tulpn"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return []
+    if proc.returncode != 0:
+        return []
+    out: list[str] = []
+    for line in (proc.stdout or "").splitlines():
+        cols = line.split()
+        if len(cols) < 5:
+            continue
+        # Local-Address:Port is column 5 (index 4); bracketed IPv6 like ``[::]:3478``
+        # also ends in ``:<port>``.
+        if cols[4].endswith(f":{port}"):
+            out.append(line.strip())
+    return out
+
+
 def print_host_preflight_warnings(*, usb_local: bool) -> None:
     """Print best-effort host warnings (ufw + port conflicts). Never raises.
 

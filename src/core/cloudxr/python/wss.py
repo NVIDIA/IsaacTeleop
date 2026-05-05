@@ -13,6 +13,7 @@ import shutil
 import ssl
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -634,23 +635,11 @@ async def run(
                         "Install: sudo apt install coturn\033[0m\n",
                         file=sys.stderr,
                     )
-                else:
-                    if verify_coturn_listening(_usb_turn_port_resolved):
-                        oob_progress(
-                            "usb-local",
-                            f"verified: coturn TCP 127.0.0.1:{_usb_turn_port_resolved}",
-                        )
-                    else:
-                        log.warning(
-                            "USB-local: coturn process up but not accepting TCP on :%d",
-                            _usb_turn_port_resolved,
-                        )
-                        print(
-                            f"\n\033[33mUSB-local: coturn pid {_usb_coturn_proc_box[0].pid} "
-                            f"alive but NOT listening on :{_usb_turn_port_resolved}; "
-                            f"see /tmp/coturn-cloudxr-{_usb_turn_port_resolved}.log\033[0m\n",
-                            file=sys.stderr,
-                        )
+                elif verify_coturn_listening(_usb_turn_port_resolved):
+                    oob_progress(
+                        "usb-local",
+                        f"verified: coturn TCP 127.0.0.1:{_usb_turn_port_resolved}",
+                    )
                     _usb_coturn_watch_task = asyncio.create_task(
                         watch_coturn(
                             _usb_coturn_proc_box,
@@ -659,6 +648,21 @@ async def run(
                             credential=USB_TURN_CREDENTIAL,
                         ),
                         name="cloudxr-coturn-watchdog",
+                    )
+                else:
+                    # Process is up but not bound: don't spawn the watchdog
+                    # (polling a non-listener for "did it die" is pointless),
+                    # but keep the rest of the flow alive so the operator
+                    # still sees the fallback URL + log path.
+                    log.warning(
+                        "USB-local: coturn process up but not accepting TCP on :%d",
+                        _usb_turn_port_resolved,
+                    )
+                    print(
+                        f"\n\033[33mUSB-local: coturn pid {_usb_coturn_proc_box[0].pid} "
+                        f"alive but NOT listening on :{_usb_turn_port_resolved}; "
+                        f"see /tmp/coturn-cloudxr-{_usb_turn_port_resolved}.log\033[0m\n",
+                        file=sys.stderr,
                     )
 
                 # 4. adb reverse for TURN port (headset → PC coturn)
@@ -692,6 +696,7 @@ async def run(
 
             oob_monitor_task: asyncio.Task | None = None
             wifi_monitor_task: asyncio.Task | None = None
+            stream_watch_task: asyncio.Task | None = None
             if setup_oob:
                 from .oob_teleop_adb import (  # noqa: PLC0415
                     build_teleop_url,
@@ -711,6 +716,22 @@ async def run(
                     )
                     log.info("OOB automation completed — CONNECT clicked")
                     oob_progress("setup-oob", "CONNECT dispatched — session active")
+
+                    # One-shot: print once when the headset's onStreamStarted
+                    # flows back through the hub, then the task exits.
+                    if hub is not None:
+
+                        async def _announce_streaming():
+                            cid, since = await hub.wait_for_streaming()
+                            ts = time.strftime("%H:%M:%S", time.localtime(since))
+                            oob_progress(
+                                "setup-oob",
+                                f"streaming confirmed at {ts} — headset {cid[:8]} sending poses + receiving frames",
+                            )
+
+                        stream_watch_task = asyncio.create_task(
+                            _announce_streaming(), name="cloudxr-stream-watch"
+                        )
                 except Exception as err:
                     is_oob = isinstance(err, OobAdbError)
                     log.warning(
@@ -744,6 +765,7 @@ async def run(
                 for task in (
                     oob_monitor_task,
                     wifi_monitor_task,
+                    stream_watch_task,
                     _usb_coturn_watch_task,
                 ):
                     if task is None:

@@ -70,6 +70,10 @@ export class HeadsetControlChannel {
   private disposed = false;
   private metricsTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  // Last value passed to sendStreamStatus; replayed on every (re)connect so
+  // the hub stays in sync after a WS drop and so we don't lose an event
+  // fired before the WS finished its handshake.
+  private lastStreamStatus: boolean | null = null;
 
   constructor(private readonly opts: ControlChannelOptions) {}
 
@@ -77,6 +81,16 @@ export class HeadsetControlChannel {
   connect(): void {
     if (this.disposed) return;
     this._openWebSocket();
+  }
+
+  /** Forward CloudXR streaming state to the hub; cached so reconnect re-syncs. */
+  sendStreamStatus(streaming: boolean): void {
+    if (this.disposed) return;
+    this.lastStreamStatus = streaming;
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    this.ws.send(
+      JSON.stringify({ type: 'streamStatus', payload: { streaming } })
+    );
   }
 
   /** Close the channel permanently. Safe to call multiple times. */
@@ -125,6 +139,9 @@ export class HeadsetControlChannel {
           },
         })
       );
+      if (this.lastStreamStatus !== null) {
+        this.sendStreamStatus(this.lastStreamStatus);
+      }
       this.opts.onConnectionChange?.(true);
       this._startMetricsTimer();
     };

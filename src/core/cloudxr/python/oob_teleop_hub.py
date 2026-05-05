@@ -32,6 +32,10 @@ class _HeadsetState:
     registered_at: float
     device_label: str | None = None
     metrics_by_cadence: dict = field(default_factory=dict)
+    # Updated by streamStatus messages; streaming_since is set on the rising
+    # edge only (so a repeated True doesn't reset the timestamp).
+    streaming: bool = False
+    streaming_since: float | None = None
 
 
 class OOBControlHub:
@@ -104,6 +108,12 @@ class OOBControlHub:
                 {
                     "clientId": s.client_id,
                     "connected": True,
+                    "streaming": s.streaming,
+                    "streamingSince": (
+                        int(s.streaming_since * 1000)
+                        if s.streaming_since is not None
+                        else None
+                    ),
                     "deviceLabel": s.device_label,
                     "registeredAt": int(s.registered_at * 1000),
                     "metricsByCadence": s.metrics_by_cadence,
@@ -116,6 +126,17 @@ class OOBControlHub:
                 "config": dict(self._stream_config),
                 "headsets": headsets,
             }
+
+    async def wait_for_streaming(
+        self, *, poll_seconds: float = 1.0
+    ) -> tuple[str, float]:
+        """Block until any headset reports ``streaming=True``; return ``(clientId, since)``."""
+        while True:
+            async with self._lock:
+                for s in self._headsets.values():
+                    if s.streaming and s.streaming_since is not None:
+                        return s.client_id, s.streaming_since
+            await asyncio.sleep(poll_seconds)
 
     def check_token(self, token: str | None) -> bool:
         """Return True if token satisfies the hub's auth requirement."""
@@ -207,6 +228,8 @@ class OOBControlHub:
     async def _dispatch_headset(self, ws: Any, msg_type: str, payload: dict) -> None:
         if msg_type == "clientMetrics":
             await self._handle_client_metrics(ws, payload)
+        elif msg_type == "streamStatus":
+            await self._handle_stream_status(ws, payload)
         else:
             await self._send_error(
                 ws, "BAD_REQUEST", f"Unknown message type: {msg_type}"
@@ -253,6 +276,22 @@ class OOBControlHub:
         push_payload = {"configVersion": version, "config": config_snapshot}
         for headset in targets:
             await self._send(headset.ws, "config", push_payload)
+
+    async def _handle_stream_status(self, ws: Any, payload: dict) -> None:
+        """Wire format: ``{"streaming": true|false}``. Rising edge stamps ``streaming_since``."""
+        streaming = bool(payload.get("streaming", False))
+        async with self._lock:
+            state = self._headsets.get(ws)
+            if state is None:
+                return
+            if streaming and not state.streaming:
+                state.streaming_since = time.time()
+            elif not streaming:
+                state.streaming_since = None
+            state.streaming = streaming
+            log.info(
+                "Headset %s streamStatus: streaming=%s", state.client_id, streaming
+            )
 
     async def _handle_client_metrics(self, ws: Any, payload: dict) -> None:
         async with self._lock:

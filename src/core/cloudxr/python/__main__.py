@@ -21,6 +21,7 @@ from isaacteleop.cloudxr.oob_teleop_adb import (
     require_adb_on_path,
     require_coturn_available,
     require_headset_non_loopback_network,
+    require_turn_port_free,
 )
 from isaacteleop.cloudxr.oob_teleop_env import (
     USB_HOST,
@@ -126,6 +127,7 @@ def main() -> None:
             # silently time out on WebRTC ICE later.
             try:
                 require_coturn_available()
+                require_turn_port_free(usb_turn_port())
             except OobAdbError as exc:
                 print(f"\n\033[31m{exc}\033[0m\n", file=sys.stderr)
                 raise SystemExit(1) from exc

@@ -472,10 +472,16 @@ function App() {
     };
   }, [cloudXR2DUI, store]);
 
-  // CloudXR status change handler
+  // Held in a ref so handleStatusChange can forward streaming state without
+  // re-rendering when the channel attaches.
+  const controlChannelRef = useRef<HeadsetControlChannel | null>(null);
+
+  // Only ``(true, 'Connected')`` corresponds to onStreamStarted; everything
+  // else is "not streaming" — pre-stream errors as well as stop/disconnect.
   const handleStatusChange = (connected: boolean, status: string) => {
     setIsConnected(connected);
     setSessionStatus(status);
+    controlChannelRef.current?.sendStreamStatus(connected && status === 'Connected');
   };
 
   // Render performance metrics callback handler - updates raw data signal
@@ -701,8 +707,12 @@ function App() {
       },
     });
     channel.connect();
+    controlChannelRef.current = channel;
 
-    return () => { channel.dispose(); };
+    return () => {
+      controlChannelRef.current = null;
+      channel.dispose();
+    };
   }, [cloudXR2DUI]);
 
   // Countdown configuration handlers (0-5 seconds)
