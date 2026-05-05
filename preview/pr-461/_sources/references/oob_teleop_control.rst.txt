@@ -64,7 +64,7 @@ parameters — ``oobEnable``, ``serverIP``, and ``port``:
 
 .. code-block:: text
 
-   https://nvidia.github.io/IsaacTeleop/client/?oobEnable=1&serverIP=<HOST_IP>&port=48322
+   https://nvidia.github.io/IsaacTeleop/client/main/?oobEnable=1&serverIP=<HOST_IP>&port=48322
 
 Replace ``<HOST_IP>`` with the streaming host's LAN IP. The ``port`` must
 match the proxy port (default 48322).
@@ -312,7 +312,7 @@ The WebXR client connects to the hub when the page URL contains
 
 .. code-block:: text
 
-   https://nvidia.github.io/IsaacTeleop/client/?oobEnable=1&serverIP=10.0.0.1&port=48322
+   https://nvidia.github.io/IsaacTeleop/client/main/?oobEnable=1&serverIP=10.0.0.1&port=48322
 
 The client builds ``wss://{serverIP}:{port}/oob/v1/ws`` and:
 
@@ -400,7 +400,7 @@ On startup the launcher:
 2. Resolves the WebXR static directory from
    ``TELEOP_WEB_CLIENT_STATIC_DIR`` (default ``~/.cloudxr/static-client``)
    and downloads ``index.html`` / ``bundle.js`` from
-   ``https://nvidia.github.io/IsaacTeleop/client/`` if either is missing.
+   ``https://nvidia.github.io/IsaacTeleop/client/main/`` if either is missing.
 3. Serves that directory over HTTPS on 127.0.0.1:8080 with the same PEM
    the WSS proxy uses (Python ``http.server`` in a daemon thread).
 4. ``adb reverse`` for 8080 (static UI), 48322 (WSS), 49100 (backend),
@@ -493,7 +493,7 @@ WebXR static download fails (offline / proxy)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Cause:** The launcher fetches ``index.html`` / ``bundle.js`` from
-``https://nvidia.github.io/IsaacTeleop/client/`` into the static dir on
+``https://nvidia.github.io/IsaacTeleop/client/main/`` into the static dir on
 first run.  Behind a proxy or with no internet, this fails and
 ``--usb-local`` aborts.
 
