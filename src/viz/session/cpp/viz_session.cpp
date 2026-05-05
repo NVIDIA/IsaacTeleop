@@ -126,6 +126,20 @@ void VizSession::remove_layer(LayerBase* layer)
     layers_.erase(it, layers_.end());
 }
 
+void VizSession::pump_events()
+{
+    if (!backend_)
+    {
+        return;
+    }
+    backend_->poll_events();
+    if (backend_->consume_resized())
+    {
+        // Hint ignored — backend reads its own framebuffer size.
+        backend_->resize(Resolution{});
+    }
+}
+
 FrameInfo VizSession::begin_frame()
 {
     if (state_ == SessionState::kDestroyed || state_ == SessionState::kLost)
@@ -138,6 +152,7 @@ FrameInfo VizSession::begin_frame()
             "VizSession: begin_frame called while a frame is already in "
             "progress (missing end_frame for previous begin_frame)");
     }
+    pump_events();
     if (state_ == SessionState::kReady)
     {
         state_ = SessionState::kRunning;
@@ -206,15 +221,7 @@ void VizSession::end_frame()
 
 FrameInfo VizSession::render()
 {
-    if (backend_)
-    {
-        backend_->poll_events();
-        if (backend_->consume_resized())
-        {
-            // Hint ignored — backend reads its own framebuffer size.
-            backend_->resize(Resolution{});
-        }
-    }
+    // begin_frame() now pumps events itself; no need to do it twice.
     auto info = begin_frame();
     end_frame();
     return info;

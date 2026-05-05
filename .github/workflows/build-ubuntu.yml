@@ -39,7 +39,9 @@ jobs:
     - name: Install Apt dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache libvulkan-dev glslang-tools
+        sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache libvulkan-dev glslang-tools \
+          libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxext-dev libxkbcommon-dev \
+          libwayland-dev wayland-protocols
 
     - name: Install patchelf (Release only)
       if: ${{ matrix.build_type == 'Release' }}
@@ -274,7 +276,9 @@ jobs:
     - name: Install Apt dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache libvulkan-dev glslang-tools
+        sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache libvulkan-dev glslang-tools \
+          libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxext-dev libxkbcommon-dev \
+          libwayland-dev wayland-protocols
 
     - name: Install CUDA toolkit
       uses: ./.github/actions/setup-cuda

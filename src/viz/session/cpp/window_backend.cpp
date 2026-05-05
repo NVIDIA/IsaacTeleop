@@ -56,17 +56,21 @@ WindowBackend::~WindowBackend()
 
 std::vector<std::string> WindowBackend::required_instance_extensions() const
 {
-    // glfwInit/Terminate around the query; GlfwWindow refcounts init
-    // separately for the actual window creation.
-    if (glfwInit() != GLFW_TRUE)
+    // RAII through the refcounted init shared with GlfwWindow so
+    // concurrent windows / repeated calls don't race glfwTerminate.
+    GlfwWindow::retain();
+    struct ReleaseGuard
     {
-        throw std::runtime_error("WindowBackend: glfwInit failed — no display available");
-    }
+        ~ReleaseGuard()
+        {
+            GlfwWindow::release();
+        }
+    } guard;
+
     uint32_t count = 0;
     const char** raw = glfwGetRequiredInstanceExtensions(&count);
     if (raw == nullptr)
     {
-        glfwTerminate();
         throw std::runtime_error("WindowBackend: no Vulkan loader visible to GLFW");
     }
     std::vector<std::string> out;
@@ -75,7 +79,6 @@ std::vector<std::string> WindowBackend::required_instance_extensions() const
     {
         out.emplace_back(raw[i]);
     }
-    glfwTerminate();
     return out;
 }
 

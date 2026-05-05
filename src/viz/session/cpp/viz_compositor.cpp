@@ -147,6 +147,30 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
         return;
     }
 
+    // RAII: if anything between here and the explicit end_frame below
+    // throws, we still call end_frame() so the backend can release
+    // its acquired image (otherwise it leaks for the swapchain's
+    // lifetime). end_frame() in catch is best-effort — swallow.
+    struct FrameGuard
+    {
+        DisplayBackend* backend;
+        const DisplayBackend::Frame* frame;
+        bool released = false;
+        ~FrameGuard()
+        {
+            if (!released && backend != nullptr && frame != nullptr)
+            {
+                try
+                {
+                    backend->end_frame(*frame);
+                }
+                catch (...)
+                {
+                }
+            }
+        }
+    } frame_guard{ backend_, &*frame };
+
     const RenderTarget& rt = backend_->render_target();
     const Resolution rt_extent = rt.resolution();
 
@@ -267,6 +291,7 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
     submit_or_signal_fence(submit, "vkQueueSubmit");
 
     backend_->end_frame(*frame);
+    frame_guard.released = true;
 
     // Drain before returning. QuadLayer's mailbox relies on this
     // synchronous-frame contract — see quad_layer.hpp.

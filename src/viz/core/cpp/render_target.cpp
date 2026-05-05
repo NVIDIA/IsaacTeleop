@@ -154,13 +154,39 @@ void RenderTarget::resize(Resolution new_size)
     {
         return;
     }
+    const Resolution old_size = resolution_;
     destroy_attachments();
     resolution_ = new_size;
     Config c{};
     c.resolution = new_size;
-    create_color_image(c);
-    create_depth_image(c);
-    create_framebuffer();
+    try
+    {
+        create_color_image(c);
+        create_depth_image(c);
+        create_framebuffer();
+    }
+    catch (...)
+    {
+        // Restore the old attachments so the object stays usable.
+        // If the restore itself fails, drop everything — caller has
+        // to recreate the render target.
+        destroy_attachments();
+        resolution_ = old_size;
+        try
+        {
+            Config old_c{};
+            old_c.resolution = old_size;
+            create_color_image(old_c);
+            create_depth_image(old_c);
+            create_framebuffer();
+        }
+        catch (...)
+        {
+            destroy_attachments();
+            resolution_ = Resolution{};
+        }
+        throw;
+    }
 }
 
 void RenderTarget::create_color_image(const Config& config)

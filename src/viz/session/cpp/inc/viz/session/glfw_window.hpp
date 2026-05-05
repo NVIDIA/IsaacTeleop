@@ -29,6 +29,13 @@ public:
     static std::unique_ptr<GlfwWindow> create(VkInstance instance, uint32_t width, uint32_t height,
                                               const std::string& title);
 
+    // Process-wide refcounted glfwInit/Terminate. Pair these around
+    // any GLFW query (e.g. glfwGetRequiredInstanceExtensions) made
+    // outside a live GlfwWindow. retain() throws on init failure;
+    // release() must always be called on success paths.
+    static void retain();
+    static void release() noexcept;
+
     ~GlfwWindow();
     void destroy();
 

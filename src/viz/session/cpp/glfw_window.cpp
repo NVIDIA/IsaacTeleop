@@ -18,7 +18,7 @@ namespace
 {
 
 // Process-wide refcount so glfwInit/Terminate stay balanced across
-// concurrent GlfwWindows.
+// concurrent GlfwWindows and external retain/release callers.
 std::mutex& glfw_init_mutex()
 {
     static std::mutex m;
@@ -31,7 +31,9 @@ uint32_t& glfw_init_count()
     return n;
 }
 
-void retain_glfw()
+} // namespace
+
+void GlfwWindow::retain()
 {
     std::lock_guard<std::mutex> lock(glfw_init_mutex());
     if (glfw_init_count() == 0)
@@ -46,7 +48,7 @@ void retain_glfw()
     ++glfw_init_count();
 }
 
-void release_glfw() noexcept
+void GlfwWindow::release() noexcept
 {
     std::lock_guard<std::mutex> lock(glfw_init_mutex());
     if (glfw_init_count() == 0)
@@ -58,8 +60,6 @@ void release_glfw() noexcept
         glfwTerminate();
     }
 }
-
-} // namespace
 
 std::unique_ptr<GlfwWindow> GlfwWindow::create(VkInstance instance, uint32_t width, uint32_t height,
                                                const std::string& title)
@@ -73,7 +73,7 @@ std::unique_ptr<GlfwWindow> GlfwWindow::create(VkInstance instance, uint32_t wid
         throw std::invalid_argument("GlfwWindow::create: width/height must be non-zero");
     }
 
-    retain_glfw();
+    GlfwWindow::retain();
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // Vulkan, not GL
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
@@ -81,7 +81,7 @@ std::unique_ptr<GlfwWindow> GlfwWindow::create(VkInstance instance, uint32_t wid
     GLFWwindow* w = glfwCreateWindow(static_cast<int>(width), static_cast<int>(height), title.c_str(), nullptr, nullptr);
     if (w == nullptr)
     {
-        release_glfw();
+        GlfwWindow::release();
         const char* desc = nullptr;
         glfwGetError(&desc);
         throw std::runtime_error(std::string("GlfwWindow: glfwCreateWindow failed: ") +
@@ -93,7 +93,7 @@ std::unique_ptr<GlfwWindow> GlfwWindow::create(VkInstance instance, uint32_t wid
     if (r != VK_SUCCESS)
     {
         glfwDestroyWindow(w);
-        release_glfw();
+        GlfwWindow::release();
         throw std::runtime_error("GlfwWindow: glfwCreateWindowSurface failed: VkResult=" + std::to_string(r));
     }
 
@@ -124,7 +124,7 @@ void GlfwWindow::destroy()
     {
         glfwDestroyWindow(window_);
         window_ = nullptr;
-        release_glfw();
+        GlfwWindow::release();
     }
 }
 

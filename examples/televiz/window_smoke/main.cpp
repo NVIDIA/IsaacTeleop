@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <memory>
 #include <stdexcept>
 #include <vector>
 
@@ -26,22 +27,56 @@ struct Rgba
     uint8_t r, g, b, a;
 };
 
-// Allocates a CUDA device buffer filled with a solid RGBA color.
-// Returned pointer is owned by the caller; cudaFree it when done.
-void* make_solid_color_buffer(uint32_t width, uint32_t height, Rgba color)
+// RAII wrapper around a cudaMalloc'd buffer.
+struct CudaDeviceBuffer
+{
+    void* ptr = nullptr;
+    CudaDeviceBuffer() = default;
+    explicit CudaDeviceBuffer(size_t bytes)
+    {
+        if (cudaMalloc(&ptr, bytes) != cudaSuccess)
+        {
+            ptr = nullptr;
+            throw std::runtime_error("cudaMalloc failed");
+        }
+    }
+    ~CudaDeviceBuffer()
+    {
+        if (ptr != nullptr)
+        {
+            cudaFree(ptr);
+        }
+    }
+    CudaDeviceBuffer(const CudaDeviceBuffer&) = delete;
+    CudaDeviceBuffer& operator=(const CudaDeviceBuffer&) = delete;
+    CudaDeviceBuffer(CudaDeviceBuffer&& o) noexcept : ptr(o.ptr)
+    {
+        o.ptr = nullptr;
+    }
+    CudaDeviceBuffer& operator=(CudaDeviceBuffer&& o) noexcept
+    {
+        if (this != &o)
+        {
+            if (ptr != nullptr)
+            {
+                cudaFree(ptr);
+            }
+            ptr = o.ptr;
+            o.ptr = nullptr;
+        }
+        return *this;
+    }
+};
+
+CudaDeviceBuffer make_solid_color_buffer(uint32_t width, uint32_t height, Rgba color)
 {
     std::vector<Rgba> host(static_cast<size_t>(width) * height, color);
-    void* dev = nullptr;
-    if (cudaMalloc(&dev, host.size() * sizeof(Rgba)) != cudaSuccess)
+    CudaDeviceBuffer buf(host.size() * sizeof(Rgba));
+    if (cudaMemcpy(buf.ptr, host.data(), host.size() * sizeof(Rgba), cudaMemcpyHostToDevice) != cudaSuccess)
     {
-        throw std::runtime_error("cudaMalloc failed");
-    }
-    if (cudaMemcpy(dev, host.data(), host.size() * sizeof(Rgba), cudaMemcpyHostToDevice) != cudaSuccess)
-    {
-        cudaFree(dev);
         throw std::runtime_error("cudaMemcpy failed");
     }
-    return dev;
+    return buf;
 }
 
 void submit_solid(viz::QuadLayer& layer, void* dev_ptr, uint32_t w, uint32_t h)
@@ -76,66 +111,56 @@ int main()
     cfg.clear_color[2] = 0.1f;
     cfg.clear_color[3] = 1.0f;
 
-    std::unique_ptr<viz::VizSession> session;
     try
     {
-        session = viz::VizSession::create(cfg);
+        auto session = viz::VizSession::create(cfg);
+        const viz::VkContext* ctx = session->get_vk_context();
+        const VkRenderPass render_pass = session->get_render_pass();
+
+        const std::array<Rgba, 4> palette = { {
+            { 220, 60, 60, 255 }, // red
+            { 60, 220, 60, 255 }, // green
+            { 60, 100, 220, 255 }, // blue
+            { 220, 220, 220, 255 }, // white
+        } };
+
+        // RAII: buffers freed on scope exit (normal or exception).
+        // Outlive the session — submit() copies into the mailbox, so
+        // the device pointers can be freed any time after.
+        std::vector<CudaDeviceBuffer> device_buffers;
+        device_buffers.reserve(palette.size());
+        for (size_t i = 0; i < palette.size(); ++i)
+        {
+            viz::QuadLayer::Config layer_cfg;
+            layer_cfg.name = "smoke_quad_" + std::to_string(i);
+            layer_cfg.resolution = { kQuadW, kQuadH };
+            auto* layer = session->add_layer<viz::QuadLayer>(*ctx, render_pass, layer_cfg);
+
+            device_buffers.push_back(make_solid_color_buffer(kQuadW, kQuadH, palette[i]));
+            submit_solid(*layer, device_buffers.back().ptr, kQuadW, kQuadH);
+        }
+
+        // Print fps once per second (60 frames at 60Hz) so resize /
+        // move stalls show up as drops in the terminal output.
+        while (!session->should_close())
+        {
+            const auto info = session->render();
+            if (info.frame_index > 0 && info.frame_index % 60 == 0)
+            {
+                const auto stats = session->get_frame_timing_stats();
+                std::printf("frame %llu: %.1f fps (%.2f ms/frame)\n",
+                            static_cast<unsigned long long>(info.frame_index), stats.render_fps,
+                            stats.avg_frame_time_ms);
+                std::fflush(stdout);
+            }
+        }
+
+        session.reset(); // tear down before buffers go out of scope
     }
     catch (const std::exception& e)
     {
-        std::fprintf(stderr, "VizSession::create failed: %s\n", e.what());
+        std::fprintf(stderr, "viz_window_smoke: %s\n", e.what());
         return EXIT_FAILURE;
-    }
-
-    const viz::VkContext* ctx = session->get_vk_context();
-    const VkRenderPass render_pass = session->get_render_pass();
-
-    // Four QuadLayers, one per palette entry. Each is a 256x256 solid
-    // color CUDA texture; the compositor tiles them 2x2 in the window.
-    const std::array<Rgba, 4> palette = { {
-        { 220, 60, 60, 255 }, // red
-        { 60, 220, 60, 255 }, // green
-        { 60, 100, 220, 255 }, // blue
-        { 220, 220, 220, 255 }, // white
-    } };
-
-    std::vector<void*> device_buffers;
-    device_buffers.reserve(palette.size());
-    for (size_t i = 0; i < palette.size(); ++i)
-    {
-        viz::QuadLayer::Config layer_cfg;
-        layer_cfg.name = "smoke_quad_" + std::to_string(i);
-        layer_cfg.resolution = { kQuadW, kQuadH };
-        auto* layer = session->add_layer<viz::QuadLayer>(*ctx, render_pass, layer_cfg);
-
-        void* dev = make_solid_color_buffer(kQuadW, kQuadH, palette[i]);
-        device_buffers.push_back(dev);
-        submit_solid(*layer, dev, kQuadW, kQuadH);
-    }
-
-    // Run until the user closes the window. Print FPS once per second
-    // (every 60 frames at FIFO/60Hz) so resize / move stalls show up
-    // as visible drops in the terminal output.
-    while (!session->should_close())
-    {
-        const auto info = session->render();
-        if (info.frame_index > 0 && info.frame_index % 60 == 0)
-        {
-            const auto stats = session->get_frame_timing_stats();
-            std::printf("frame %llu: %.1f fps (%.2f ms/frame)\n",
-                        static_cast<unsigned long long>(info.frame_index), stats.render_fps, stats.avg_frame_time_ms);
-            std::fflush(stdout);
-        }
-    }
-
-    // Tear down the session before freeing CUDA buffers — the layers
-    // hold no references to the user-owned device pointers (submit()
-    // copies into the layer's mailbox), but draining the device on
-    // session destroy keeps the order clean.
-    session.reset();
-    for (void* dev : device_buffers)
-    {
-        cudaFree(dev);
     }
     return EXIT_SUCCESS;
 }

@@ -164,6 +164,9 @@ private:
 
     const VkContext& ctx() const noexcept;
     void update_timing_stats(float frame_time_seconds);
+    // Poll backend events + handle resize. Called by render() and
+    // begin_frame() so explicit-loop users get the same behavior.
+    void pump_events();
 
     Config config_{};
 
