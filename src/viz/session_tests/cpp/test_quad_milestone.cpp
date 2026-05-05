@@ -32,18 +32,29 @@ using viz::VizSession;
 namespace
 {
 
+// Vulkan + CUDA both need to be reachable for these tests. The
+// canonical `viz::testing::is_gpu_available()` only probes Vulkan;
+// it can falsely pass on a Vulkan-only machine and the CUDA-Vulkan
+// interop calls below would then crash rather than skip.
 bool gpu_available()
 {
     static const bool cached = []()
     {
+        bool has_vulkan_device = false;
         for (const auto& info : viz::VkContext::enumerate_physical_devices())
         {
             if (info.meets_requirements)
             {
-                return true;
+                has_vulkan_device = true;
+                break;
             }
         }
-        return false;
+        if (!has_vulkan_device)
+        {
+            return false;
+        }
+        int cuda_count = 0;
+        return cudaGetDeviceCount(&cuda_count) == cudaSuccess && cuda_count > 0;
     }();
     return cached;
 }

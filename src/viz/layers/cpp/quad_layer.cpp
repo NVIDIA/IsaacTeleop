@@ -49,24 +49,28 @@ VkShaderModule create_shader_module(VkDevice device, const unsigned char* spv, s
 QuadLayer::QuadLayer(const VkContext& ctx, VkRenderPass render_pass, Config config)
     : LayerBase(config.name), ctx_(&ctx), render_pass_(render_pass), config_(std::move(config))
 {
-    if (!ctx.is_initialized())
+    // Config-only checks first (cheapest, no Vulkan), then the
+    // argument-shape check on render_pass, then the context-state
+    // check. Ordered cheap-first so unit tests can exercise each
+    // path by varying just the relevant argument with an
+    // uninitialized VkContext.
+    if (config_.format != PixelFormat::kRGBA8)
     {
-        throw std::invalid_argument("QuadLayer: VkContext is not initialized");
-    }
-    if (render_pass == VK_NULL_HANDLE)
-    {
-        throw std::invalid_argument("QuadLayer: render_pass must be non-null");
+        // textured_quad samples color; depth (kD32F) would create
+        // a depth-aspect view that can't be sampled as color.
+        throw std::invalid_argument("QuadLayer: only PixelFormat::kRGBA8 is supported");
     }
     if (config_.resolution.width == 0 || config_.resolution.height == 0)
     {
         throw std::invalid_argument("QuadLayer: resolution must be non-zero");
     }
-    if (config_.format != PixelFormat::kRGBA8)
+    if (render_pass == VK_NULL_HANDLE)
     {
-        // The textured_quad pipeline samples a color image; depth
-        // (kD32F) would create a depth-aspect view that can't be
-        // sampled as color.
-        throw std::invalid_argument("QuadLayer: only PixelFormat::kRGBA8 is supported");
+        throw std::invalid_argument("QuadLayer: render_pass must be non-null");
+    }
+    if (!ctx.is_initialized())
+    {
+        throw std::invalid_argument("QuadLayer: VkContext is not initialized");
     }
     init();
 }
@@ -148,8 +152,27 @@ PixelFormat QuadLayer::format() const noexcept
     return config_.format;
 }
 
+namespace
+{
+
+// Guard for public methods that touch resources owned by init(): once
+// destroy() has run, device_image_ is the canonical "alive" signal
+// (it's the first thing init() builds and the last thing destroy()
+// resets). Throwing logic_error converts use-after-destroy from a
+// silent null-deref into a clean failure callers can catch in tests.
+void require_alive(const std::unique_ptr<DeviceImage>& device_image, const char* what)
+{
+    if (!device_image)
+    {
+        throw std::logic_error(std::string("QuadLayer::") + what + " called after destroy()");
+    }
+}
+
+} // namespace
+
 void QuadLayer::submit(const VizBuffer& src)
 {
+    require_alive(device_image_, "submit");
     if (src.space != MemorySpace::kDevice)
     {
         throw std::invalid_argument("QuadLayer::submit: src must be MemorySpace::kDevice");
@@ -187,6 +210,12 @@ void QuadLayer::submit(const VizBuffer& src)
 
 VizCudaArray QuadLayer::acquire()
 {
+    require_alive(device_image_, "acquire");
+    // Pin the calling thread to ctx's CUDA device before the caller
+    // issues any CUDA work on the returned array. Mirrors submit /
+    // release; cudaSetDevice is per-host-thread so a worker-thread
+    // caller would otherwise hit whatever device CUDA defaulted to.
+    check_cuda(cudaSetDevice(ctx_->cuda_device_id()), "cudaSetDevice");
     // Wait for the prior frame's Vulkan reads to retire before
     // exposing the writable handle.
     check_vk(vkDeviceWaitIdle(ctx_->device()), "vkDeviceWaitIdle(acquire)");
@@ -200,6 +229,7 @@ VizCudaArray QuadLayer::acquire()
 
 void QuadLayer::release()
 {
+    require_alive(device_image_, "release");
     check_cuda(cudaSetDevice(ctx_->cuda_device_id()), "cudaSetDevice");
     // Drain caller-issued CUDA writes (any stream) before the next
     // render() samples the texture.
@@ -208,6 +238,7 @@ void QuadLayer::release()
 
 void QuadLayer::record(VkCommandBuffer cmd, const std::vector<ViewInfo>& /*views*/, const RenderTarget& target)
 {
+    require_alive(device_image_, "record");
     const Resolution res = target.resolution();
 
     VkViewport viewport{};

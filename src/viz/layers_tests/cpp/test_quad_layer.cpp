@@ -26,53 +26,64 @@ using viz::VkContext;
 namespace
 {
 
-// Inline gpu-available check — same pattern as session_tests.
+// Vulkan + CUDA both need to be reachable for these [gpu] tests
+// (QuadLayer hits cudaImportExternalMemory via DeviceImage on
+// construction). Vulkan-only check would falsely pass on machines
+// without CUDA.
 bool gpu_available()
 {
     static const bool cached = []()
     {
+        bool has_vulkan_device = false;
         for (const auto& info : VkContext::enumerate_physical_devices())
         {
             if (info.meets_requirements)
             {
-                return true;
+                has_vulkan_device = true;
+                break;
             }
         }
-        return false;
+        if (!has_vulkan_device)
+        {
+            return false;
+        }
+        int cuda_count = 0;
+        return cudaGetDeviceCount(&cuda_count) == cudaSuccess && cuda_count > 0;
     }();
     return cached;
 }
 
 } // namespace
 
-TEST_CASE("QuadLayer ctor rejects zero dimensions early", "[unit][quad_layer]")
-{
-    // No GPU needed — VkContext::is_initialized() check fires before
-    // the dimension check. We pass a default-constructed (uninit)
-    // context; ctor rejects that with std::invalid_argument first.
-    VkContext ctx;
-    QuadLayer::Config cfg;
-    cfg.resolution = { 0, 64 };
-    CHECK_THROWS_AS(QuadLayer(ctx, /*render_pass=*/VK_NULL_HANDLE, cfg), std::invalid_argument);
-}
-
-TEST_CASE("QuadLayer ctor rejects null render pass even with valid context probe", "[unit][quad_layer]")
-{
-    // Same uninit-context path: validates the early-exit ordering.
-    VkContext ctx;
-    QuadLayer::Config cfg;
-    cfg.resolution = { 64, 64 };
-    CHECK_THROWS_AS(QuadLayer(ctx, VK_NULL_HANDLE, cfg), std::invalid_argument);
-}
+// The arg-shape checks (format, resolution, render_pass) run before
+// the VkContext::is_initialized() check, so these unit tests can
+// exercise each rejection path with a default-constructed VkContext.
+//
+// Per-test ordering: a test passes a config that's valid for every
+// earlier check and triggers only the named check.
 
 TEST_CASE("QuadLayer ctor rejects non-RGBA8 pixel format", "[unit][quad_layer]")
 {
-    // The textured_quad pipeline samples color; kD32F would create
-    // a depth-aspect view that can't be sampled as color.
     VkContext ctx;
     QuadLayer::Config cfg;
     cfg.resolution = { 64, 64 };
     cfg.format = PixelFormat::kD32F;
+    CHECK_THROWS_AS(QuadLayer(ctx, VK_NULL_HANDLE, cfg), std::invalid_argument);
+}
+
+TEST_CASE("QuadLayer ctor rejects zero dimensions", "[unit][quad_layer]")
+{
+    VkContext ctx;
+    QuadLayer::Config cfg;
+    cfg.resolution = { 0, 64 };
+    CHECK_THROWS_AS(QuadLayer(ctx, VK_NULL_HANDLE, cfg), std::invalid_argument);
+}
+
+TEST_CASE("QuadLayer ctor rejects null render pass", "[unit][quad_layer]")
+{
+    VkContext ctx;
+    QuadLayer::Config cfg;
+    cfg.resolution = { 64, 64 };
     CHECK_THROWS_AS(QuadLayer(ctx, VK_NULL_HANDLE, cfg), std::invalid_argument);
 }
 
@@ -116,6 +127,34 @@ TEST_CASE("QuadLayer destroy is idempotent", "[gpu][quad_layer]")
 
     layer.destroy();
     layer.destroy(); // second call must be a no-op
+}
+
+TEST_CASE("QuadLayer public methods throw after destroy", "[gpu][quad_layer]")
+{
+    if (!gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
+    VkContext ctx;
+    ctx.init({});
+    auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 32, 32 } });
+
+    QuadLayer::Config cfg;
+    cfg.resolution = { 32, 32 };
+    QuadLayer layer(ctx, target->render_pass(), cfg);
+    layer.destroy();
+
+    // submit / acquire / release / record must throw cleanly rather
+    // than dereferencing the released device_image_ / pipeline_.
+    viz::VizBuffer src{};
+    src.width = 32;
+    src.height = 32;
+    src.format = PixelFormat::kRGBA8;
+    src.space = viz::MemorySpace::kDevice;
+    src.data = reinterpret_cast<void*>(uintptr_t{ 0x1 }); // never dereferenced
+    CHECK_THROWS_AS(layer.submit(src), std::logic_error);
+    CHECK_THROWS_AS(layer.acquire(), std::logic_error);
+    CHECK_THROWS_AS(layer.release(), std::logic_error);
 }
 
 TEST_CASE("QuadLayer::submit rejects mismatched dimensions / format / space", "[gpu][quad_layer]")
