@@ -44,20 +44,30 @@ VkShaderModule create_shader_module(VkDevice device, const unsigned char* spv, s
     return mod;
 }
 
+// Once destroy() has run, slots_[0] is the canonical "alive" signal
+// (it's the first thing init() builds and the last thing destroy()
+// resets). Throwing logic_error converts use-after-destroy from a
+// silent null-deref into a clean failure callers can catch in tests.
+void require_alive(const std::unique_ptr<DeviceImage>& slot0, const char* what)
+{
+    if (!slot0)
+    {
+        throw std::logic_error(std::string("QuadLayer::") + what + " called after destroy()");
+    }
+}
+
 } // namespace
 
 QuadLayer::QuadLayer(const VkContext& ctx, VkRenderPass render_pass, Config config)
     : LayerBase(config.name), ctx_(&ctx), render_pass_(render_pass), config_(std::move(config))
 {
-    // Config-only checks first (cheapest, no Vulkan), then the
-    // argument-shape check on render_pass, then the context-state
-    // check. Ordered cheap-first so unit tests can exercise each
-    // path by varying just the relevant argument with an
-    // uninitialized VkContext.
+    // Cheap-first config checks, then argument shape, then context
+    // state. Tests can exercise each path by varying just the
+    // relevant argument with an uninitialized VkContext.
     if (config_.format != PixelFormat::kRGBA8)
     {
-        // textured_quad samples color; depth (kD32F) would create
-        // a depth-aspect view that can't be sampled as color.
+        // textured_quad samples color; depth (kD32F) would create a
+        // depth-aspect view that can't be sampled as color.
         throw std::invalid_argument("QuadLayer: only PixelFormat::kRGBA8 is supported");
     }
     if (config_.resolution.width == 0 || config_.resolution.height == 0)
@@ -84,14 +94,17 @@ void QuadLayer::init()
 {
     try
     {
-        device_image_ = DeviceImage::create(*ctx_, config_.resolution, config_.format);
+        for (auto& slot : slots_)
+        {
+            slot = DeviceImage::create(*ctx_, config_.resolution, config_.format);
+        }
         create_sampler();
         create_descriptor_set_layout();
         create_pipeline_layout();
         create_pipeline();
         create_descriptor_pool();
-        allocate_descriptor_set();
-        update_descriptor_set();
+        allocate_descriptor_sets();
+        update_descriptor_sets();
     }
     catch (...)
     {
@@ -109,15 +122,18 @@ void QuadLayer::destroy()
     const VkDevice device = ctx_->device();
     if (device == VK_NULL_HANDLE)
     {
-        device_image_.reset();
+        for (auto& slot : slots_)
+        {
+            slot.reset();
+        }
         return;
     }
     if (descriptor_pool_ != VK_NULL_HANDLE)
     {
-        // descriptor_set_ is freed implicitly with the pool.
+        // descriptor_sets_ are freed implicitly with the pool.
         vkDestroyDescriptorPool(device, descriptor_pool_, nullptr);
         descriptor_pool_ = VK_NULL_HANDLE;
-        descriptor_set_ = VK_NULL_HANDLE;
+        descriptor_sets_.fill(VK_NULL_HANDLE);
     }
     if (pipeline_ != VK_NULL_HANDLE)
     {
@@ -139,7 +155,12 @@ void QuadLayer::destroy()
         vkDestroySampler(device, sampler_, nullptr);
         sampler_ = VK_NULL_HANDLE;
     }
-    device_image_.reset();
+    for (auto& slot : slots_)
+    {
+        slot.reset();
+    }
+    latest_.store(kSlotNone, std::memory_order_release);
+    in_use_.store(kSlotNone, std::memory_order_release);
 }
 
 Resolution QuadLayer::resolution() const noexcept
@@ -152,48 +173,33 @@ PixelFormat QuadLayer::format() const noexcept
     return config_.format;
 }
 
-namespace
+const DeviceImage* QuadLayer::device_image(uint32_t slot) const noexcept
 {
-
-// Guard for public methods that touch resources owned by init(): once
-// destroy() has run, device_image_ is the canonical "alive" signal
-// (it's the first thing init() builds and the last thing destroy()
-// resets). Throwing logic_error converts use-after-destroy from a
-// silent null-deref into a clean failure callers can catch in tests.
-void require_alive(const std::unique_ptr<DeviceImage>& device_image, const char* what)
-{
-    if (!device_image)
+    if (slot >= kSlotCount)
     {
-        throw std::logic_error(std::string("QuadLayer::") + what + " called after destroy()");
+        return nullptr;
     }
+    return slots_[slot].get();
 }
 
-} // namespace
-
-namespace
+uint8_t QuadLayer::pick_free_slot(uint8_t latest, uint8_t in_use) const noexcept
 {
-
-const char* state_name(QuadLayer::ProducerState s) noexcept
-{
-    switch (s)
+    // With kSlotCount=3, at most 2 slots are "claimed" (latest +
+    // in_use). At least one of {0, 1, 2} is always free.
+    static_assert(kSlotCount == 3, "pick_free_slot assumes 3 slots");
+    for (uint8_t i = 0; i < kSlotCount; ++i)
     {
-    case QuadLayer::ProducerState::kIdle:
-        return "Idle";
-    case QuadLayer::ProducerState::kSubmitting:
-        return "Submitting";
-    case QuadLayer::ProducerState::kAcquired:
-        return "Acquired";
+        if (i != latest && i != in_use)
+        {
+            return i;
+        }
     }
-    return "?";
+    return 0; // unreachable for kSlotCount >= 2
 }
-
-} // namespace
 
 void QuadLayer::submit(const VizBuffer& src, cudaStream_t stream)
 {
-    require_alive(device_image_, "submit");
-    // Validate inputs first so a bad-arg call doesn't burn the state
-    // CAS and force a retry.
+    require_alive(slots_[0], "submit");
     if (src.space != MemorySpace::kDevice)
     {
         throw std::invalid_argument("QuadLayer::submit: src must be MemorySpace::kDevice");
@@ -211,160 +217,51 @@ void QuadLayer::submit(const VizBuffer& src, cudaStream_t stream)
         throw std::invalid_argument("QuadLayer::submit: src.data is null");
     }
 
-    // Transition Idle -> Submitting. Render's record() will reject
-    // while we're in this state, so it can't sample the texture
-    // mid-memcpy.
-    ProducerState expected = ProducerState::kIdle;
-    if (!producer_state_.compare_exchange_strong(
-            expected, ProducerState::kSubmitting, std::memory_order_acq_rel, std::memory_order_acquire))
-    {
-        throw std::logic_error(std::string("QuadLayer::submit: producer state is ") + state_name(expected) +
-                               ", expected Idle");
-    }
-    // RAII: restore Idle on every exit (success or exception). This
-    // is critical — a partially-queued submit must not leave the
-    // state stuck so the next render() permanently rejects.
-    struct StateGuard
-    {
-        std::atomic<ProducerState>& state;
-        ~StateGuard()
-        {
-            state.store(ProducerState::kIdle, std::memory_order_release);
-        }
-    } guard{ producer_state_ };
+    // Pick a free slot — neither the most recent publish nor the
+    // slot the renderer is currently using. With 3 slots there's
+    // always one free, so this is wait-free.
+    const uint8_t latest = latest_.load(std::memory_order_acquire);
+    const uint8_t in_use = in_use_.load(std::memory_order_acquire);
+    const uint8_t slot = pick_free_slot(latest, in_use);
+    DeviceImage& image = *slots_[slot];
 
     check_cuda(cudaSetDevice(ctx_->cuda_device_id()), "cudaSetDevice");
-    // wait -> copy -> signal, all on `stream`. With a non-default
-    // stream the caller can interleave their own work on the same
-    // stream and the signal will correctly land after it.
-    device_image_->cuda_wait_for_vk_read(stream);
-
+    // Async copy on `stream`. Caller's prior work on the same stream
+    // is naturally ordered before this; signal lands after the copy
+    // completes on the GPU.
     const size_t row_bytes = static_cast<size_t>(src.width) * bytes_per_pixel(src.format);
     const size_t src_pitch = (src.pitch == 0) ? row_bytes : src.pitch;
-    check_cuda(cudaMemcpy2DToArrayAsync(device_image_->cuda_array(), 0, 0, src.data, src_pitch, row_bytes, src.height,
+    check_cuda(cudaMemcpy2DToArrayAsync(image.cuda_array(), 0, 0, src.data, src_pitch, row_bytes, src.height,
                                         cudaMemcpyDeviceToDevice, stream),
                "cudaMemcpy2DToArrayAsync");
+    image.cuda_signal_write_done(stream);
 
-    device_image_->cuda_signal_write_done(stream);
-}
-
-VizCudaArray QuadLayer::acquire(cudaStream_t stream)
-{
-    require_alive(device_image_, "acquire");
-
-    // Transition Idle -> Acquired with CAS. Held until release().
-    ProducerState expected = ProducerState::kIdle;
-    if (!producer_state_.compare_exchange_strong(
-            expected, ProducerState::kAcquired, std::memory_order_acq_rel, std::memory_order_acquire))
-    {
-        throw std::logic_error(std::string("QuadLayer::acquire: producer state is ") + state_name(expected) +
-                               ", expected Idle");
-    }
-
-    check_cuda(cudaSetDevice(ctx_->cuda_device_id()), "cudaSetDevice");
-    // Queue the wait on `stream` so the caller's first cuda* call
-    // afterwards is correctly ordered after the previous render. If
-    // queuing fails, roll back to Idle so the state machine stays
-    // consistent.
-    try
-    {
-        device_image_->cuda_wait_for_vk_read(stream);
-    }
-    catch (...)
-    {
-        producer_state_.store(ProducerState::kIdle, std::memory_order_release);
-        throw;
-    }
-
-    VizCudaArray view{};
-    view.array = device_image_->cuda_array();
-    view.width = config_.resolution.width;
-    view.height = config_.resolution.height;
-    view.format = config_.format;
-    return view;
-}
-
-void QuadLayer::release(cudaStream_t stream)
-{
-    require_alive(device_image_, "release");
-    const ProducerState cur = producer_state_.load(std::memory_order_acquire);
-    if (cur != ProducerState::kAcquired)
-    {
-        throw std::logic_error(std::string("QuadLayer::release: producer state is ") + state_name(cur) +
-                               ", expected Acquired");
-    }
-    check_cuda(cudaSetDevice(ctx_->cuda_device_id()), "cudaSetDevice");
-    // Signal first; advance state only after the signal has been
-    // queued. If signaling throws, leave the state at kAcquired so
-    // the caller can retry release() or call destroy() — never strand
-    // the state machine with a missing signal.
-    device_image_->cuda_signal_write_done(stream);
-    producer_state_.store(ProducerState::kIdle, std::memory_order_release);
-}
-
-std::vector<LayerBase::WaitSemaphore> QuadLayer::get_wait_semaphores() const
-{
-    if (!device_image_)
-    {
-        return {};
-    }
-    // Wait for cuda_done_writing >= the value CUDA last committed.
-    return {
-        WaitSemaphore{
-            device_image_->cuda_done_writing(),
-            device_image_->cuda_done_writing_value(),
-            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-        },
-    };
-}
-
-std::vector<LayerBase::SignalSemaphore> QuadLayer::get_signal_semaphores()
-{
-    if (!device_image_)
-    {
-        return {};
-    }
-    // Invariant: the previous frame's reservation must have been
-    // committed (commit_pending_signals) before we reserve another.
-    // Reserving twice without commit would orphan the first
-    // reservation — a real vk_done_reading signal would land but the
-    // public value never advances to it, so future CUDA waits target
-    // a stale value.
-    if (pending_vk_signal_value_ != 0)
-    {
-        throw std::logic_error(
-            "QuadLayer::get_signal_semaphores: previous reservation has not been committed "
-            "(VizCompositor invariant violated)");
-    }
-    pending_vk_signal_value_ = device_image_->reserve_vk_done_reading();
-    return {
-        SignalSemaphore{
-            device_image_->vk_done_reading(),
-            pending_vk_signal_value_,
-        },
-    };
-}
-
-void QuadLayer::commit_pending_signals()
-{
-    if (!device_image_ || pending_vk_signal_value_ == 0)
-    {
-        return;
-    }
-    device_image_->commit_vk_done_reading(pending_vk_signal_value_);
-    pending_vk_signal_value_ = 0;
+    // Publish. The renderer's next record() will atomic-exchange
+    // this into in_use_; the previous latest_ slot becomes free.
+    // memory_order_release pairs with the renderer's acquire load.
+    latest_.store(slot, std::memory_order_release);
 }
 
 void QuadLayer::record(VkCommandBuffer cmd, const std::vector<ViewInfo>& /*views*/, const RenderTarget& target)
 {
-    require_alive(device_image_, "record");
-    const ProducerState cur = producer_state_.load(std::memory_order_acquire);
-    if (cur != ProducerState::kIdle)
+    require_alive(slots_[0], "record");
+
+    // Promote latest_ to in_use_. The previous in_use_ slot becomes
+    // free for the next submit(). If no frame has been published yet
+    // (latest_ == kSlotNone), we leave in_use_ as-is — if it's also
+    // kSlotNone, we skip the draw and the framebuffer keeps its
+    // clear value.
+    const uint8_t latest = latest_.load(std::memory_order_acquire);
+    if (latest != kSlotNone)
     {
-        throw std::logic_error(std::string("QuadLayer::record: producer state is ") + state_name(cur) +
-                               " (a submit() or acquire() is in flight); caller must serialize "
-                               "producer and render or wait for the producer call to return");
+        in_use_.store(latest, std::memory_order_release);
     }
+    const uint8_t cur = in_use_.load(std::memory_order_acquire);
+    if (cur == kSlotNone)
+    {
+        return;
+    }
+
     const Resolution res = target.resolution();
 
     VkViewport viewport{};
@@ -382,11 +279,37 @@ void QuadLayer::record(VkCommandBuffer cmd, const std::vector<ViewInfo>& /*views
     vkCmdSetScissor(cmd, 0, 1, &scissor);
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0, 1, &descriptor_set_, 0, nullptr);
+    vkCmdBindDescriptorSets(
+        cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0, 1, &descriptor_sets_[cur], 0, nullptr);
 
     // 3 vertices, no vertex buffer — vertex shader emits a fullscreen
     // triangle from gl_VertexIndex.
     vkCmdDraw(cmd, 3, 1, 0, 0);
+}
+
+std::vector<LayerBase::WaitSemaphore> QuadLayer::get_wait_semaphores() const
+{
+    // VizCompositor calls record() first (which promotes latest_ ->
+    // in_use_), then this. So in_use_ is the slot the draw will
+    // sample, and that's what we need the GPU to wait on.
+    const uint8_t cur = in_use_.load(std::memory_order_acquire);
+    if (cur == kSlotNone || !slots_[cur])
+    {
+        return {};
+    }
+    const DeviceImage& image = *slots_[cur];
+    const uint64_t value = image.cuda_done_writing_value();
+    if (value == 0)
+    {
+        return {};
+    }
+    return {
+        WaitSemaphore{
+            image.cuda_done_writing(),
+            value,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        },
+    };
 }
 
 void QuadLayer::create_sampler()
@@ -546,43 +469,49 @@ void QuadLayer::create_descriptor_pool()
 {
     VkDescriptorPoolSize pool_size{};
     pool_size.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    pool_size.descriptorCount = 1;
+    pool_size.descriptorCount = kSlotCount;
 
     VkDescriptorPoolCreateInfo info{};
     info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    info.maxSets = 1;
+    info.maxSets = kSlotCount;
     info.poolSizeCount = 1;
     info.pPoolSizes = &pool_size;
     check_vk(vkCreateDescriptorPool(ctx_->device(), &info, nullptr, &descriptor_pool_), "vkCreateDescriptorPool");
 }
 
-void QuadLayer::allocate_descriptor_set()
+void QuadLayer::allocate_descriptor_sets()
 {
+    std::array<VkDescriptorSetLayout, kSlotCount> layouts{};
+    layouts.fill(descriptor_set_layout_);
+
     VkDescriptorSetAllocateInfo info{};
     info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     info.descriptorPool = descriptor_pool_;
-    info.descriptorSetCount = 1;
-    info.pSetLayouts = &descriptor_set_layout_;
-    check_vk(vkAllocateDescriptorSets(ctx_->device(), &info, &descriptor_set_), "vkAllocateDescriptorSets");
+    info.descriptorSetCount = kSlotCount;
+    info.pSetLayouts = layouts.data();
+    check_vk(vkAllocateDescriptorSets(ctx_->device(), &info, descriptor_sets_.data()), "vkAllocateDescriptorSets");
 }
 
-void QuadLayer::update_descriptor_set()
+void QuadLayer::update_descriptor_sets()
 {
-    VkDescriptorImageInfo image_info{};
-    image_info.sampler = sampler_;
-    image_info.imageView = device_image_->vk_image_view();
-    image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    // One write per slot, each pointing at the slot's own image view.
+    std::array<VkDescriptorImageInfo, kSlotCount> image_infos{};
+    std::array<VkWriteDescriptorSet, kSlotCount> writes{};
+    for (uint32_t i = 0; i < kSlotCount; ++i)
+    {
+        image_infos[i].sampler = sampler_;
+        image_infos[i].imageView = slots_[i]->vk_image_view();
+        image_infos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-    VkWriteDescriptorSet write{};
-    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write.dstSet = descriptor_set_;
-    write.dstBinding = 0;
-    write.dstArrayElement = 0;
-    write.descriptorCount = 1;
-    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    write.pImageInfo = &image_info;
-
-    vkUpdateDescriptorSets(ctx_->device(), 1, &write, 0, nullptr);
+        writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[i].dstSet = descriptor_sets_[i];
+        writes[i].dstBinding = 0;
+        writes[i].dstArrayElement = 0;
+        writes[i].descriptorCount = 1;
+        writes[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writes[i].pImageInfo = &image_infos[i];
+    }
+    vkUpdateDescriptorSets(ctx_->device(), kSlotCount, writes.data(), 0, nullptr);
 }
 
 } // namespace viz

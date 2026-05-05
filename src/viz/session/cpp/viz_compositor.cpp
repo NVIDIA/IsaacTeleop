@@ -206,10 +206,10 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers, const std::vec
     rp.pClearValues = clears.data();
 
     // Snapshot the visible-layer set ONCE per frame. is_visible() is
-    // an atomic flag; sampling it multiple times across record /
-    // semaphore-collect / commit phases would let a mid-frame toggle
-    // record draws but skip semaphore wiring (or vice versa), which
-    // desyncs the cuda_done_writing / vk_done_reading counters.
+    // an atomic flag; sampling it twice across record / wait-collect
+    // would let a mid-frame toggle record draws but skip the
+    // matching cuda_done_writing wait (or vice versa), which would
+    // race the producer's CUDA copy.
     std::vector<LayerBase*> visible_layers;
     visible_layers.reserve(layers.size());
     for (LayerBase* layer : layers)
@@ -237,16 +237,13 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers, const std::vec
     // frame and the next render() doesn't deadlock on wait().
     frame_sync_->reset();
 
-    // Collect layer-provided wait/signal timeline semaphores. Each
-    // visible layer contributes; flatten into the arrays
-    // vkQueueSubmit expects (with a chained
-    // VkTimelineSemaphoreSubmitInfo for the per-semaphore counter
-    // values).
+    // Collect layer-provided wait timeline semaphores. Each visible
+    // layer contributes; flatten into the arrays vkQueueSubmit
+    // expects (with a chained VkTimelineSemaphoreSubmitInfo for the
+    // per-semaphore counter values).
     std::vector<VkSemaphore> wait_semaphores;
     std::vector<uint64_t> wait_values;
     std::vector<VkPipelineStageFlags> wait_stages;
-    std::vector<VkSemaphore> signal_semaphores;
-    std::vector<uint64_t> signal_values;
     for (LayerBase* layer : visible_layers)
     {
         for (const auto& w : layer->get_wait_semaphores())
@@ -258,22 +255,12 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers, const std::vec
                 wait_stages.push_back(w.wait_stage);
             }
         }
-        for (const auto& s : layer->get_signal_semaphores())
-        {
-            if (s.semaphore != VK_NULL_HANDLE)
-            {
-                signal_semaphores.push_back(s.semaphore);
-                signal_values.push_back(s.value);
-            }
-        }
     }
 
     VkTimelineSemaphoreSubmitInfo timeline{};
     timeline.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
     timeline.waitSemaphoreValueCount = static_cast<uint32_t>(wait_values.size());
     timeline.pWaitSemaphoreValues = wait_values.empty() ? nullptr : wait_values.data();
-    timeline.signalSemaphoreValueCount = static_cast<uint32_t>(signal_values.size());
-    timeline.pSignalSemaphoreValues = signal_values.empty() ? nullptr : signal_values.data();
 
     VkSubmitInfo submit{};
     submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -283,19 +270,7 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers, const std::vec
     submit.waitSemaphoreCount = static_cast<uint32_t>(wait_semaphores.size());
     submit.pWaitSemaphores = wait_semaphores.empty() ? nullptr : wait_semaphores.data();
     submit.pWaitDstStageMask = wait_stages.empty() ? nullptr : wait_stages.data();
-    submit.signalSemaphoreCount = static_cast<uint32_t>(signal_semaphores.size());
-    submit.pSignalSemaphores = signal_semaphores.empty() ? nullptr : signal_semaphores.data();
     submit_or_signal_fence(submit, "vkQueueSubmit");
-
-    // Submit succeeded (submit_or_signal_fence throws on real failure).
-    // Tell each visible layer to commit the timeline values it just
-    // reserved. Use the snapshotted visible_layers — visibility may
-    // have toggled since collect_semaphores; we MUST commit exactly
-    // the set we reserved from.
-    for (LayerBase* layer : visible_layers)
-    {
-        layer->commit_pending_signals();
-    }
 
     // Wait for completion before returning so readback / next frame sees
     // a consistent state. With 1 frame in flight this is the natural

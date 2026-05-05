@@ -67,7 +67,7 @@ TEST_CASE("QuadLayer ctor rejects null render pass", "[unit][quad_layer]")
     CHECK_THROWS_AS(QuadLayer(ctx, VK_NULL_HANDLE, cfg), std::invalid_argument);
 }
 
-TEST_CASE("QuadLayer creates valid Vulkan + CUDA handles", "[gpu][quad_layer]")
+TEST_CASE("QuadLayer creates valid Vulkan + CUDA handles for every mailbox slot", "[gpu][quad_layer]")
 {
     if (!gpu_available())
     {
@@ -86,9 +86,14 @@ TEST_CASE("QuadLayer creates valid Vulkan + CUDA handles", "[gpu][quad_layer]")
     CHECK(layer.resolution().width == 64);
     CHECK(layer.resolution().height == 64);
     CHECK(layer.format() == PixelFormat::kRGBA8);
-    REQUIRE(layer.device_image() != nullptr);
-    CHECK(layer.device_image()->vk_image() != VK_NULL_HANDLE);
-    CHECK(layer.device_image()->cuda_array() != nullptr);
+    for (uint32_t i = 0; i < QuadLayer::kSlotCount; ++i)
+    {
+        REQUIRE(layer.device_image(i) != nullptr);
+        CHECK(layer.device_image(i)->vk_image() != VK_NULL_HANDLE);
+        CHECK(layer.device_image(i)->cuda_array() != nullptr);
+    }
+    // Out-of-range slot returns nullptr without crashing.
+    CHECK(layer.device_image(QuadLayer::kSlotCount) == nullptr);
 }
 
 TEST_CASE("QuadLayer destroy is idempotent", "[gpu][quad_layer]")
@@ -109,7 +114,7 @@ TEST_CASE("QuadLayer destroy is idempotent", "[gpu][quad_layer]")
     layer.destroy(); // second call must be a no-op
 }
 
-TEST_CASE("QuadLayer public methods throw after destroy", "[gpu][quad_layer]")
+TEST_CASE("QuadLayer::submit throws after destroy", "[gpu][quad_layer]")
 {
     if (!gpu_available())
     {
@@ -124,8 +129,8 @@ TEST_CASE("QuadLayer public methods throw after destroy", "[gpu][quad_layer]")
     QuadLayer layer(ctx, target->render_pass(), cfg);
     layer.destroy();
 
-    // submit / acquire / release / record must throw cleanly rather
-    // than dereferencing the released device_image_ / pipeline_.
+    // submit must throw cleanly rather than dereferencing the
+    // released slot DeviceImages / pipeline.
     viz::VizBuffer src{};
     src.width = 32;
     src.height = 32;
@@ -133,8 +138,6 @@ TEST_CASE("QuadLayer public methods throw after destroy", "[gpu][quad_layer]")
     src.space = viz::MemorySpace::kDevice;
     src.data = reinterpret_cast<void*>(uintptr_t{ 0x1 }); // never dereferenced
     CHECK_THROWS_AS(layer.submit(src), std::logic_error);
-    CHECK_THROWS_AS(layer.acquire(), std::logic_error);
-    CHECK_THROWS_AS(layer.release(), std::logic_error);
 }
 
 TEST_CASE("QuadLayer::submit rejects mismatched dimensions / format / space", "[gpu][quad_layer]")
@@ -196,84 +199,6 @@ TEST_CASE("QuadLayer::submit rejects mismatched dimensions / format / space", "[
     }
 }
 
-TEST_CASE("QuadLayer producer state machine rejects misuse", "[gpu][quad_layer]")
-{
-    if (!gpu_available())
-    {
-        SKIP("No Vulkan-capable GPU available");
-    }
-    VkContext ctx;
-    ctx.init({});
-    auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 32, 32 } });
-
-    QuadLayer::Config cfg;
-    cfg.resolution = { 32, 32 };
-    QuadLayer layer(ctx, target->render_pass(), cfg);
-
-    // release() while Idle → reject.
-    CHECK_THROWS_AS(layer.release(), std::logic_error);
-
-    // First acquire() takes Idle → Acquired.
-    REQUIRE_NOTHROW(layer.acquire());
-
-    // Second acquire() while Acquired → reject.
-    CHECK_THROWS_AS(layer.acquire(), std::logic_error);
-
-    // submit() while Acquired → reject.
-    void* dev_ptr = nullptr;
-    REQUIRE(cudaMalloc(&dev_ptr, static_cast<size_t>(32) * 32 * 4) == cudaSuccess);
-    struct CudaFree
-    {
-        void* p;
-        ~CudaFree()
-        {
-            cudaFree(p);
-        }
-    } cuda_free{ dev_ptr };
-
-    viz::VizBuffer src{};
-    src.data = dev_ptr;
-    src.width = 32;
-    src.height = 32;
-    src.format = PixelFormat::kRGBA8;
-    src.space = viz::MemorySpace::kDevice;
-    CHECK_THROWS_AS(layer.submit(src), std::logic_error);
-
-    // record() while Acquired → reject (covers the Mode B-vs-render
-    // race the state machine guards against). Use a throwaway cmd
-    // buffer; record's checks fire before any vk command is issued.
-    VkCommandPoolCreateInfo pool_info{};
-    pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    pool_info.queueFamilyIndex = ctx.queue_family_index();
-    VkCommandPool pool = VK_NULL_HANDLE;
-    REQUIRE(vkCreateCommandPool(ctx.device(), &pool_info, nullptr, &pool) == VK_SUCCESS);
-    struct PoolGuard
-    {
-        VkDevice d;
-        VkCommandPool p;
-        ~PoolGuard()
-        {
-            vkDestroyCommandPool(d, p, nullptr);
-        }
-    } pool_guard{ ctx.device(), pool };
-
-    VkCommandBufferAllocateInfo cb_alloc{};
-    cb_alloc.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    cb_alloc.commandPool = pool;
-    cb_alloc.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    cb_alloc.commandBufferCount = 1;
-    VkCommandBuffer cb = VK_NULL_HANDLE;
-    REQUIRE(vkAllocateCommandBuffers(ctx.device(), &cb_alloc, &cb) == VK_SUCCESS);
-    std::vector<viz::ViewInfo> views(1);
-    CHECK_THROWS_AS(layer.record(cb, views, *target), std::logic_error);
-
-    // Releasing returns Idle.
-    REQUIRE_NOTHROW(layer.release());
-
-    // After release, release() again → reject (Idle, expected Acquired).
-    CHECK_THROWS_AS(layer.release(), std::logic_error);
-}
-
 TEST_CASE("QuadLayer submit accepts a non-default CUDA stream", "[gpu][quad_layer]")
 {
     if (!gpu_available())
@@ -321,7 +246,7 @@ TEST_CASE("QuadLayer submit accepts a non-default CUDA stream", "[gpu][quad_laye
     REQUIRE(cudaStreamSynchronize(stream) == cudaSuccess);
 }
 
-TEST_CASE("QuadLayer Mode B acquire returns a populated VizCudaArray view", "[gpu][quad_layer]")
+TEST_CASE("QuadLayer back-to-back submits cycle through mailbox slots", "[gpu][quad_layer]")
 {
     if (!gpu_available())
     {
@@ -335,18 +260,47 @@ TEST_CASE("QuadLayer Mode B acquire returns a populated VizCudaArray view", "[gp
     cfg.resolution = { 32, 32 };
     QuadLayer layer(ctx, target->render_pass(), cfg);
 
-    const viz::VizCudaArray a = layer.acquire();
-    layer.release();
-    CHECK(a.array != nullptr);
-    CHECK(a.width == 32);
-    CHECK(a.height == 32);
-    CHECK(a.format == PixelFormat::kRGBA8);
+    void* dev_ptr = nullptr;
+    REQUIRE(cudaMalloc(&dev_ptr, static_cast<size_t>(32) * 32 * 4) == cudaSuccess);
+    struct CudaFree
+    {
+        void* p;
+        ~CudaFree()
+        {
+            cudaFree(p);
+        }
+    } cuda_free{ dev_ptr };
 
-    // Single-buffer today: the second acquire returns a view onto
-    // the same cudaArray_t.
-    const viz::VizCudaArray b = layer.acquire();
-    layer.release();
-    CHECK(a.array == b.array);
+    viz::VizBuffer src{};
+    src.data = dev_ptr;
+    src.width = 32;
+    src.height = 32;
+    src.format = PixelFormat::kRGBA8;
+    src.pitch = static_cast<size_t>(32) * 4;
+    src.space = viz::MemorySpace::kDevice;
+
+    // Without an intervening render(), in_use_ stays kSlotNone, so
+    // every submit() is free to pick any slot that isn't latest_.
+    // We expect each submit's cuda_done_writing counter to advance
+    // monotonically on whichever slot it landed on.
+    uint64_t total_signals_before = 0;
+    for (uint32_t i = 0; i < QuadLayer::kSlotCount; ++i)
+    {
+        total_signals_before += layer.device_image(i)->cuda_done_writing_value();
+    }
+    constexpr uint32_t kSubmits = 8;
+    for (uint32_t i = 0; i < kSubmits; ++i)
+    {
+        REQUIRE_NOTHROW(layer.submit(src));
+    }
+    REQUIRE(cudaDeviceSynchronize() == cudaSuccess);
+
+    uint64_t total_signals_after = 0;
+    for (uint32_t i = 0; i < QuadLayer::kSlotCount; ++i)
+    {
+        total_signals_after += layer.device_image(i)->cuda_done_writing_value();
+    }
+    CHECK(total_signals_after - total_signals_before == kSubmits);
 }
 
 TEST_CASE("QuadLayer visibility toggle is independent of pipeline state", "[gpu][quad_layer]")

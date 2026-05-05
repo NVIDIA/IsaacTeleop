@@ -29,17 +29,12 @@ class VkContext;
 // as a VizBuffer would lie about that type's contract. Callers consume
 // DeviceImage via discrete accessors instead.
 //
-// Producer-consumer synchronization uses two timeline semaphores
-// exported from Vulkan and imported into CUDA. Each carries a
-// monotonic counter — wait(N) succeeds whenever the counter reaches
-// N — so we don't need a first-signal handshake and waits don't
-// consume signals:
-//   - vk_done_reading_:    Vulkan increments after sampling. CUDA
-//                          waits for the latest known value before
-//                          its next write.
-//   - cuda_done_writing_:  CUDA increments after filling. Vulkan
-//                          waits for the latest known value before
-//                          sampling.
+// Producer→consumer synchronization is one-way: a Vulkan timeline
+// semaphore exported to CUDA. CUDA increments cuda_done_writing
+// after filling; Vulkan waits for the latest known value before
+// sampling. The reverse direction is the producer's problem to solve
+// at a higher level (e.g. QuadLayer's mailbox owns enough buffers
+// that producer writes never collide with in-flight Vulkan reads).
 // CUDA / Vulkan device matching is handled by VkContext.
 class DeviceImage
 {
@@ -77,64 +72,27 @@ public:
         return vk_format_;
     }
 
-    // Timeline semaphore handles. The compositor / a layer's
-    // get_wait_semaphores() pair these with the values returned by
-    // the *_value() and reserve_*() methods below.
-    VkSemaphore vk_done_reading() const noexcept
-    {
-        return vk_done_reading_;
-    }
+    // Timeline semaphore handle. Vulkan waits on this with the
+    // value returned by cuda_done_writing_value() before sampling.
     VkSemaphore cuda_done_writing() const noexcept
     {
         return cuda_done_writing_;
     }
 
-    // Reserve/commit pair for safe timeline counter management.
-    //
-    //   reserve_*():   atomically allocates the next monotonic value
-    //                  and returns it. Caller is now responsible for
-    //                  enqueuing a Vulkan/CUDA signal at that value.
-    //   *_value():     last value the caller successfully committed.
-    //                  Used by the OPPOSITE side as the wait target
-    //                  (e.g. CUDA waits for vk_done_reading >=
-    //                   vk_done_reading_value()).
-    //   commit_*(v):   call AFTER the signal has been queued
-    //                  successfully. Advances the public value via
-    //                  monotonic max so out-of-order commits don't
-    //                  regress it.
-    //
-    // The reserve/commit split exists so a failed signal (cuda or
-    // vk submit returning non-success) does NOT poison the public
-    // timeline value with a value that was never signaled.
+    // Latest value CUDA has signaled successfully. Vulkan uses this
+    // as the wait target. Advanced by cuda_signal_write_done() only
+    // after the underlying cudaSignalExternalSemaphoresAsync returns
+    // success, so a failed signal never poisons the timeline.
     uint64_t cuda_done_writing_value() const noexcept
     {
         return cuda_done_writing_value_.load(std::memory_order_acquire);
     }
-    uint64_t vk_done_reading_value() const noexcept
-    {
-        return vk_done_reading_value_.load(std::memory_order_acquire);
-    }
-    uint64_t reserve_cuda_done_writing() noexcept
-    {
-        return cuda_done_writing_next_.fetch_add(1, std::memory_order_acq_rel) + 1;
-    }
-    uint64_t reserve_vk_done_reading() noexcept
-    {
-        return vk_done_reading_next_.fetch_add(1, std::memory_order_acq_rel) + 1;
-    }
-    void commit_cuda_done_writing(uint64_t value) noexcept;
-    void commit_vk_done_reading(uint64_t value) noexcept;
 
-    // CUDA-side primitives. Queue a wait / signal on `stream`
-    // (defaults to the default stream). The wait targets the latest
-    // committed vk_done_reading value at call time; the signal
-    // reserves a new cuda_done_writing value, queues the signal,
-    // and commits the value on success.
-    //
-    // Throws std::runtime_error if the underlying CUDA API fails;
-    // failure leaves the public state un-advanced so the next call
-    // is consistent with the GPU's actual semaphore state.
-    void cuda_wait_for_vk_read(cudaStream_t stream);
+    // CUDA-side primitive. Reserves the next monotonic value, queues
+    // the signal on `stream`, and commits the value on success.
+    // Throws std::runtime_error on cuda*Async failure; failure leaves
+    // the public counter un-advanced so the next call is consistent
+    // with the GPU's actual semaphore state.
     void cuda_signal_write_done(cudaStream_t stream);
 
     Resolution resolution() const noexcept
@@ -186,19 +144,15 @@ private:
     cudaMipmappedArray_t cuda_mipmapped_array_ = nullptr;
     cudaArray_t cuda_array_ = nullptr; // Level-0 view, non-owning.
 
-    // Producer-consumer timeline semaphores exported via
-    // VK_KHR_external_semaphore_fd and imported into CUDA. Each side
-    // tracks two atomic counters (next reservation, last committed)
-    // so a failed signal can't leave the public value pointing at
-    // something that was never signaled.
-    VkSemaphore vk_done_reading_ = VK_NULL_HANDLE;
+    // Producer→consumer timeline semaphore exported via
+    // VK_KHR_external_semaphore_fd and imported into CUDA. Two atomic
+    // counters (next reservation, last committed) so a failed
+    // cudaSignal can't leave the public value pointing at something
+    // that was never signaled.
     VkSemaphore cuda_done_writing_ = VK_NULL_HANDLE;
-    cudaExternalSemaphore_t cuda_vk_done_reading_ = nullptr;
     cudaExternalSemaphore_t cuda_cuda_done_writing_ = nullptr;
     std::atomic<uint64_t> cuda_done_writing_next_{ 0 };
     std::atomic<uint64_t> cuda_done_writing_value_{ 0 };
-    std::atomic<uint64_t> vk_done_reading_next_{ 0 };
-    std::atomic<uint64_t> vk_done_reading_value_{ 0 };
 };
 
 } // namespace viz

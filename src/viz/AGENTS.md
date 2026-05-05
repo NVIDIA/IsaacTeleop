@@ -16,32 +16,40 @@ single sub-module. Each sub-module is its own static library with its own
 sibling `<sub-module>_tests/` directory:
 
 - **`viz/core/`** — foundational types + Vulkan/CUDA infrastructure.
-  Library: `viz_core`. Today: `VkContext`, `VizBuffer`, `VizCudaArray`,
-  `Pose3D`, `Fov`, `Resolution`, `ViewInfo`, `PixelFormat`,
-  `RenderTarget`, `FrameSync`, `HostImage`, `DeviceImage`. `HostImage`
-  owns CPU bytes and exposes a `VizBuffer view()`; `DeviceImage` owns
-  CUDA-Vulkan interop memory (VkImage + cudaArray_t) plus a pair of
-  timeline semaphores (`vk_done_reading` / `cuda_done_writing`) that
-  layers expose to the compositor for fine-grained sync. Consumed via
-  discrete accessors — no `view()` because `cudaArray_t` is opaque
-  tiled memory, not a CUDA device pointer. Two image-shape view types
-  accordingly: `VizBuffer` for linear pointer-backed memory (CPU bytes
-  / CUDA device pointer; exposes `__cuda_array_interface__` /
-  `__array_interface__` in Python), and `VizCudaArray` for opaque
-  tiled CUDA arrays. Math types (`glm::vec3`, `glm::quat`,
-  `glm::mat4`) come from GLM 1.0.1 (FetchContent in
-  `deps/third_party/`); use `glm::value_ptr(mat)` to get a raw `float*`
-  for Vulkan / CUDA upload (POD-equivalent layout, no copy).
-  CUDA-Vulkan interop requires CUDA Toolkit at link time
-  (`CUDAToolkit::cudart`). `VkContext::init()` matches the current
-  CUDA device to the chosen Vulkan physical device by UUID — every
-  viz_core type can assume CUDA and Vulkan are talking to the same
-  GPU without re-doing the match.
+  Library: `viz_core`. Today: `VkContext`, `VizBuffer`, `Pose3D`,
+  `Fov`, `Resolution`, `ViewInfo`, `PixelFormat`, `RenderTarget`,
+  `FrameSync`, `HostImage`, `DeviceImage`. `HostImage` owns CPU bytes
+  and exposes a `VizBuffer view()`; `DeviceImage` owns CUDA-Vulkan
+  interop memory (VkImage + cudaArray_t) plus one timeline semaphore
+  (`cuda_done_writing`) that layers expose to the compositor for
+  fine-grained producer→consumer sync. The reverse direction (consumer
+  done reading) is handled at the layer level by buffering enough
+  slots that the producer never targets a still-in-flight read.
+  Consumed via discrete accessors — no `view()` because `cudaArray_t`
+  is opaque tiled memory, not a CUDA device pointer. `VizBuffer`
+  covers linear pointer-backed memory (CPU bytes / CUDA device
+  pointer; exposes `__cuda_array_interface__` / `__array_interface__`
+  in Python). Math types (`glm::vec3`, `glm::quat`, `glm::mat4`) come
+  from GLM 1.0.1 (FetchContent in `deps/third_party/`); use
+  `glm::value_ptr(mat)` to get a raw `float*` for Vulkan / CUDA upload
+  (POD-equivalent layout, no copy). CUDA-Vulkan interop requires CUDA
+  Toolkit at link time (`CUDAToolkit::cudart`). `VkContext::init()`
+  matches the current CUDA device to the chosen Vulkan physical
+  device by UUID — every viz_core type can assume CUDA and Vulkan
+  are talking to the same GPU without re-doing the match.
 - **`viz/layers/`** — `LayerBase` and concrete layers. Library:
   `viz_layers` (STATIC). Depends on `viz_core` + `viz_shaders`. Today:
-  `QuadLayer` (textured fullscreen quad, CUDA-fed via `DeviceImage`,
-  Mode A `submit()` / Mode B `acquire()`+`release()`). Pipelines built
-  per-layer using the driver-side `VkPipelineCache` from `VkContext`.
+  `QuadLayer` (textured fullscreen quad, CUDA-fed via a 3-slot
+  mailbox of `DeviceImage`s; producer side is `submit(VizBuffer)` and
+  the renderer always samples the most recently published slot).
+  Pipelines built per-layer using the driver-side `VkPipelineCache`
+  from `VkContext`. **Deferred:** a zero-copy `acquire`/`release`
+  variant for producers that can write directly into a tiled
+  `cudaArray_t` (NVDEC, custom CUDA kernels). The mailbox internals
+  already track slot ownership, so the addition is local to
+  `QuadLayer`; revisit when a real producer demands it. Open design
+  questions are captured under "Future: zero-copy acquire/release"
+  in `DESIGN.md`.
   Test-only fixture layers (`ClearRectLayer`, `ThrowingLayer`) live in
   `viz/layers_tests/cpp/inc/viz/layers/testing/` and are exposed via
   the `viz::layers_testing` static library — used by `viz_session_tests`

@@ -174,15 +174,9 @@ void DeviceImage::destroy()
 
     // CUDA side first — VkDeviceMemory must outlive the CUDA
     // mapping. Sync drains any caller-issued async work first.
-    if (cuda_mipmapped_array_ != nullptr || cuda_external_memory_ != nullptr || cuda_vk_done_reading_ != nullptr ||
-        cuda_cuda_done_writing_ != nullptr)
+    if (cuda_mipmapped_array_ != nullptr || cuda_external_memory_ != nullptr || cuda_cuda_done_writing_ != nullptr)
     {
         (void)cudaDeviceSynchronize();
-    }
-    if (cuda_vk_done_reading_ != nullptr)
-    {
-        (void)cudaDestroyExternalSemaphore(cuda_vk_done_reading_);
-        cuda_vk_done_reading_ = nullptr;
     }
     if (cuda_cuda_done_writing_ != nullptr)
     {
@@ -220,11 +214,6 @@ void DeviceImage::destroy()
     // Wait for all GPU work to retire before tearing down Vulkan
     // resources.
     (void)vkDeviceWaitIdle(device);
-    if (vk_done_reading_ != VK_NULL_HANDLE)
-    {
-        vkDestroySemaphore(device, vk_done_reading_, nullptr);
-        vk_done_reading_ = VK_NULL_HANDLE;
-    }
     if (cuda_done_writing_ != VK_NULL_HANDLE)
     {
         vkDestroySemaphore(device, cuda_done_writing_, nullptr);
@@ -430,61 +419,32 @@ void DeviceImage::create_interop_semaphores()
         close_fd(fd);
     };
 
-    create_one(vk_done_reading_, cuda_vk_done_reading_, "vk_done_reading");
     create_one(cuda_done_writing_, cuda_cuda_done_writing_, "cuda_done_writing");
-}
-
-void DeviceImage::commit_cuda_done_writing(uint64_t value) noexcept
-{
-    // Monotonic-max update: out-of-order commits don't regress the
-    // public value. Sequential producers degenerate to a plain store.
-    uint64_t cur = cuda_done_writing_value_.load(std::memory_order_acquire);
-    while (value > cur && !cuda_done_writing_value_.compare_exchange_weak(
-                              cur, value, std::memory_order_acq_rel, std::memory_order_acquire))
-    {
-    }
-}
-
-void DeviceImage::commit_vk_done_reading(uint64_t value) noexcept
-{
-    uint64_t cur = vk_done_reading_value_.load(std::memory_order_acquire);
-    while (value > cur && !vk_done_reading_value_.compare_exchange_weak(
-                              cur, value, std::memory_order_acq_rel, std::memory_order_acquire))
-    {
-    }
-}
-
-void DeviceImage::cuda_wait_for_vk_read(cudaStream_t stream)
-{
-    // Wait target is whatever Vulkan has committed so far; the wait
-    // is harmless if the value is already reached (timeline >= N
-    // succeeds immediately when counter is at N).
-    cudaExternalSemaphoreWaitParams params{};
-    params.params.fence.value = vk_done_reading_value_.load(std::memory_order_acquire);
-    const cudaError_t err = cudaWaitExternalSemaphoresAsync(&cuda_vk_done_reading_, &params, 1, stream);
-    if (err != cudaSuccess)
-    {
-        throw std::runtime_error(std::string("DeviceImage: cudaWaitExternalSemaphoresAsync(vk_done_reading) failed: ") +
-                                 cudaGetErrorString(err));
-    }
 }
 
 void DeviceImage::cuda_signal_write_done(cudaStream_t stream)
 {
-    const uint64_t reserved = reserve_cuda_done_writing();
+    // Reserve the next monotonic value, queue the signal, advance
+    // the public counter only on success. Monotonic-max via CAS so
+    // out-of-order commits from concurrent producers never regress.
+    const uint64_t reserved = cuda_done_writing_next_.fetch_add(1, std::memory_order_acq_rel) + 1;
     cudaExternalSemaphoreSignalParams params{};
     params.params.fence.value = reserved;
     const cudaError_t err = cudaSignalExternalSemaphoresAsync(&cuda_cuda_done_writing_, &params, 1, stream);
     if (err != cudaSuccess)
     {
-        // Don't commit — the public value stays at the previously
+        // Don't advance — the public value stays at the previously
         // committed signal. The reservation itself is wasted but
         // harmless (next reservation gets reserved+1 and the
         // consumer's next wait targets that).
         throw std::runtime_error(std::string("DeviceImage: cudaSignalExternalSemaphoresAsync(cuda_done_writing) failed: ") +
                                  cudaGetErrorString(err));
     }
-    commit_cuda_done_writing(reserved);
+    uint64_t cur = cuda_done_writing_value_.load(std::memory_order_acquire);
+    while (reserved > cur && !cuda_done_writing_value_.compare_exchange_weak(
+                                 cur, reserved, std::memory_order_acq_rel, std::memory_order_acquire))
+    {
+    }
 }
 
 void DeviceImage::transition_to_shader_read()

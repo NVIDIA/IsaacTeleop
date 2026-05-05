@@ -1,14 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-// End-to-end CUDA-Vulkan interop through VizSession, exercised twice:
-// once via Mode A (submit copies caller's CUDA buffer in) and once
-// via Mode B (acquire / fill / release writes the layer's cudaArray_t
-// directly). Both paths must produce the same readback pixels.
+// End-to-end CUDA-Vulkan interop through VizSession: producer writes
+// pixels into a caller-owned CUDA buffer, QuadLayer::submit() copies
+// them into one of the mailbox slots, the next render() samples that
+// slot, readback_to_host() pulls the framebuffer back out.
 //
 // Pattern: 4 quadrants of {0, 255}-only RGBA — exact through any
 // sRGB / UNORM gamma curve because the curve endpoints map to
-// themselves.
+// themselves. A separate midtone test covers the gamma round-trip.
 
 #include "test_helpers.hpp"
 
@@ -137,7 +137,7 @@ struct CudaFreeGuard
 
 } // namespace
 
-TEST_CASE("QuadLayer Mode A: submit() round-trips CUDA pixels to readback", "[gpu][quad_layer][milestone]")
+TEST_CASE("QuadLayer submit() round-trips CUDA pixels to readback", "[gpu][quad_layer][milestone]")
 {
     if (!gpu_available())
     {
@@ -197,52 +197,6 @@ TEST_CASE("QuadLayer Mode A: submit() round-trips CUDA pixels to readback", "[gp
     check_quadrant_pattern(image, kSide);
 }
 
-TEST_CASE("QuadLayer Mode B: acquire/release writes round-trip to readback", "[gpu][quad_layer][milestone]")
-{
-    if (!gpu_available())
-    {
-        SKIP("No Vulkan-capable GPU available");
-    }
-
-    constexpr uint32_t kSide = 64;
-
-    VizSession::Config cfg{};
-    cfg.mode = DisplayMode::kOffscreen;
-    cfg.window_width = kSide;
-    cfg.window_height = kSide;
-
-    auto session = VizSession::create(cfg);
-    REQUIRE(session != nullptr);
-    const auto* ctx = session->get_vk_context();
-    REQUIRE(ctx != nullptr);
-    const VkRenderPass render_pass = session->get_render_pass();
-    REQUIRE(render_pass != VK_NULL_HANDLE);
-
-    QuadLayer::Config layer_cfg;
-    layer_cfg.name = "milestone_quad_mode_b";
-    layer_cfg.resolution = { kSide, kSide };
-    auto* layer = session->add_layer<QuadLayer>(*ctx, render_pass, layer_cfg);
-    REQUIRE(layer != nullptr);
-
-    // Mode B: write directly into the layer's tiled CUDA-Vulkan
-    // image — no caller-owned device buffer, no CUDA-to-CUDA copy.
-    const auto host_pattern = build_host_pattern(kSide);
-    const viz::VizCudaArray view = layer->acquire();
-    REQUIRE(view.array != nullptr);
-    REQUIRE(view.width == kSide);
-    REQUIRE(view.height == kSide);
-    REQUIRE(cudaMemcpy2DToArray(view.array, 0, 0, host_pattern.data(), kSide * sizeof(Rgba), kSide * sizeof(Rgba),
-                                kSide, cudaMemcpyHostToDevice) == cudaSuccess);
-    layer->release();
-
-    session->render();
-
-    const auto image = session->readback_to_host();
-    REQUIRE(image.resolution().width == kSide);
-    REQUIRE(image.resolution().height == kSide);
-    check_quadrant_pattern(image, kSide);
-}
-
 TEST_CASE("QuadLayer multi-frame submit/render/readback loop stays correct", "[gpu][quad_layer][milestone]")
 {
     if (!gpu_available())
@@ -274,10 +228,10 @@ TEST_CASE("QuadLayer multi-frame submit/render/readback loop stays correct", "[g
     CudaFreeGuard guard{ device_ptr };
 
     // Each frame fills with a different solid-color palette entry
-    // (channels in {0, 255} for sRGB-exact round-trip). Heavy sync
-    // would have serialized producer and consumer; timeline
-    // semaphores let them pipeline. Either way frame N's readback
-    // must contain frame N's color, not a stale or torn frame.
+    // (channels in {0, 255} for sRGB-exact round-trip). With the
+    // 3-slot mailbox the producer's submit and the renderer's draw
+    // pipeline naturally; frame N's readback must still contain
+    // frame N's color, not a stale or torn frame.
     const std::array<Rgba, 4> palette = { {
         { 255, 0, 0, 255 },
         { 0, 255, 0, 255 },
