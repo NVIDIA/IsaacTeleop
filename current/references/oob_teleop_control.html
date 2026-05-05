@@ -439,7 +439,7 @@ page access and CloudXR streaming)</p></li>
 <p>If the adb automation fails (e.g. headset not paired), you can manually open
 the client URL on the headset browser with <strong>all three</strong> required query
 parameters — <code class="docutils literal notranslate"><span class="pre">oobEnable</span></code>, <code class="docutils literal notranslate"><span class="pre">serverIP</span></code>, and <code class="docutils literal notranslate"><span class="pre">port</span></code>:</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>https://nvidia.github.io/IsaacTeleop/client/?oobEnable=1&amp;serverIP=&lt;HOST_IP&gt;&amp;port=48322
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>https://nvidia.github.io/IsaacTeleop/client/main/?oobEnable=1&amp;serverIP=&lt;HOST_IP&gt;&amp;port=48322
 </pre></div>
 </div>
 <p>Replace <code class="docutils literal notranslate"><span class="pre">&lt;HOST_IP&gt;</span></code> with the streaming host’s LAN IP. The <code class="docutils literal notranslate"><span class="pre">port</span></code> must
@@ -663,7 +663,7 @@ Pass it as:</p>
 <h2>Web client integration<a class="headerlink" href="#web-client-integration" title="Link to this heading">#</a></h2>
 <p>The WebXR client connects to the hub when the page URL contains
 <code class="docutils literal notranslate"><span class="pre">oobEnable=1</span></code> plus <code class="docutils literal notranslate"><span class="pre">serverIP</span></code> and <code class="docutils literal notranslate"><span class="pre">port</span></code>:</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>https://nvidia.github.io/IsaacTeleop/client/?oobEnable=1&amp;serverIP=10.0.0.1&amp;port=48322
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>https://nvidia.github.io/IsaacTeleop/client/main/?oobEnable=1&amp;serverIP=10.0.0.1&amp;port=48322
 </pre></div>
 </div>
 <p>The client builds <code class="docutils literal notranslate"><span class="pre">wss://{serverIP}:{port}/oob/v1/ws</span></code> and:</p>
@@ -722,6 +722,34 @@ previously saved settings:</p>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">TELEOP_CLIENT_PANEL_HIDDEN_AT_START</span></code></p></td>
 <td><p>Hide control panel on load (<code class="docutils literal notranslate"><span class="pre">true</span></code> / <code class="docutils literal notranslate"><span class="pre">false</span></code>)</p></td>
 </tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">TELEOP_CLIENT_ROUTE</span></code></p></td>
+<td><p>HashRouter fragment appended to the bookmark URL. Default empty
+(no fragment — the WebXR client picks its own landing route). Set
+to e.g. <code class="docutils literal notranslate"><span class="pre">/real/gear/dexmate</span></code> to force a specific route. A
+leading <code class="docutils literal notranslate"><span class="pre">#</span></code> is stripped automatically.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ANDROID_SERIAL</span></code></p></td>
+<td><p>Pin a specific adb device when more than one is connected. The
+launcher refuses to start with multiple devices unless this is
+set; the value must match a serial currently in <code class="docutils literal notranslate"><span class="pre">device</span></code> state
+(per <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">devices</span></code>). This is the standard adb env var — every
+<code class="docutils literal notranslate"><span class="pre">adb</span></code> subprocess inherits it, so no code path needs <code class="docutils literal notranslate"><span class="pre">-s</span>
+<span class="pre">&lt;serial&gt;</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">USB_UI_PORT</span></code></p></td>
+<td><p>HTTPS static WebXR UI port in <code class="docutils literal notranslate"><span class="pre">--usb-local</span></code> mode (default
+<code class="docutils literal notranslate"><span class="pre">8080</span></code>). The launcher serves the prebuilt client on
+<code class="docutils literal notranslate"><span class="pre">https://127.0.0.1:&lt;port&gt;</span></code> and <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">reverse</span></code>-maps the same
+port to the headset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">USB_BACKEND_PORT</span></code></p></td>
+<td><p>CloudXR backend port the headset reaches via <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">reverse</span></code> in
+<code class="docutils literal notranslate"><span class="pre">--usb-local</span></code> mode (default <code class="docutils literal notranslate"><span class="pre">49100</span></code>).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">USB_TURN_PORT</span></code></p></td>
+<td><p>coturn TURN-server port for WebRTC ICE relay in <code class="docutils literal notranslate"><span class="pre">--usb-local</span></code>
+mode (default <code class="docutils literal notranslate"><span class="pre">3478</span></code>). <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">reverse</span></code>-mapped to the headset.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -743,7 +771,7 @@ traverse the network).</p></li>
 <li><p>Resolves the WebXR static directory from
 <code class="docutils literal notranslate"><span class="pre">TELEOP_WEB_CLIENT_STATIC_DIR</span></code> (default <code class="docutils literal notranslate"><span class="pre">~/.cloudxr/static-client</span></code>)
 and downloads <code class="docutils literal notranslate"><span class="pre">index.html</span></code> / <code class="docutils literal notranslate"><span class="pre">bundle.js</span></code> from
-<code class="docutils literal notranslate"><span class="pre">https://nvidia.github.io/IsaacTeleop/client/</span></code> if either is missing.</p></li>
+<code class="docutils literal notranslate"><span class="pre">https://nvidia.github.io/IsaacTeleop/client/main/</span></code> if either is missing.</p></li>
 <li><p>Serves that directory over HTTPS on 127.0.0.1:8080 with the same PEM
 the WSS proxy uses (Python <code class="docutils literal notranslate"><span class="pre">http.server</span></code> in a daemon thread).</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">reverse</span></code> for 8080 (static UI), 48322 (WSS), 49100 (backend),
@@ -751,6 +779,14 @@ the WSS proxy uses (Python <code class="docutils literal notranslate"><span clas
 <li><p>Starts coturn locally on 127.0.0.1:3478 for WebRTC ICE relay.</p></li>
 <li><p>Launches the teleop URL on the headset and auto-clicks CONNECT via CDP.</p></li>
 </ol>
+<p>In <code class="docutils literal notranslate"><span class="pre">--usb-local</span></code> mode the launcher also wipes localStorage / IndexedDB /
+cookies / HTTP cache for the teleop UI origin (<code class="docutils literal notranslate"><span class="pre">https://127.0.0.1:&lt;usb_ui_port&gt;</span></code>)
+before the session starts — the SDK and WebXR client both cache settings
+(e.g. <code class="docutils literal notranslate"><span class="pre">general.iceTransportPolicy</span></code> for ICE transport policy,
+<code class="docutils literal notranslate"><span class="pre">cxr.isaac.teleopPath</span></code> for the last-used project) in localStorage, and a
+stale value can silently win over a fresh URL param. The origin is owned
+by the launcher so clearing it has no collateral effect; the step is a
+no-op when the headset browser isn’t running yet.</p>
 <p>Required apt packages: <code class="docutils literal notranslate"><span class="pre">adb</span></code> (<code class="docutils literal notranslate"><span class="pre">android-tools-adb</span></code>) and <code class="docutils literal notranslate"><span class="pre">coturn</span></code>.
 No Node.js / <code class="docutils literal notranslate"><span class="pre">npm</span></code> is required at runtime.</p>
 </section>
@@ -758,19 +794,25 @@ No Node.js / <code class="docutils literal notranslate"><span class="pre">npm</s
 <h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
 <section id="teleop-client-error-no-local-connection-candidates-0xc0f2220f">
 <h3>Teleop client error: “No local connection candidates” (0xC0F2220F)<a class="headerlink" href="#teleop-client-error-no-local-connection-candidates-0xc0f2220f" title="Link to this heading">#</a></h3>
-<p><strong>Cause:</strong> Chromium’s WebRTC <code class="docutils literal notranslate"><span class="pre">rtc::NetworkManager</span></code> excludes loopback
-interfaces when enumerating networks for ICE. If the only active network
-on the headset is <code class="docutils literal notranslate"><span class="pre">lo</span></code>, ICE gathering hangs at <code class="docutils literal notranslate"><span class="pre">gathering</span></code> forever —
-no local candidates are emitted and no error fires — until the CloudXR
+<p><strong>Cause:</strong> Wi-Fi must stay associated on the headset throughout the
+session, even in <code class="docutils literal notranslate"><span class="pre">--usb-local</span></code> mode. No teleop traffic actually flows
+over Wi-Fi — every byte goes over the USB cable via <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">reverse</span></code> —
+but Chromium’s WebRTC <code class="docutils literal notranslate"><span class="pre">rtc::NetworkManager</span></code> excludes loopback
+interfaces when enumerating networks for ICE. If the only active
+network on the headset is <code class="docutils literal notranslate"><span class="pre">lo</span></code>, ICE gathering hangs at <code class="docutils literal notranslate"><span class="pre">gathering</span></code>
+forever (no local candidates emitted, no error fires) until the CloudXR
 session times out with this code.</p>
-<p><strong>Fix:</strong> Connect the headset to any Wi-Fi network. It does not need
-internet access — a phone hotspot with no data plan is sufficient. The
-packets still route over USB (kernel short-circuits loopback regardless
-of source interface); the Wi-Fi interface just needs to <em>exist</em> so
+<p><strong>Fix:</strong> Associate the headset with any Wi-Fi network and retry.
+Internet is <strong>not</strong> required — a phone hotspot with no SIM works, an
+open AP you never authenticate to works. The packets still route over
+USB (the kernel short-circuits loopback regardless of source
+interface); the Wi-Fi interface just needs to <em>exist</em> with an IP so
 WebRTC’s enumeration is non-empty.</p>
-<p>The <code class="docutils literal notranslate"><span class="pre">--usb-local</span></code> launcher now pre-flights this via
+<p>The <code class="docutils literal notranslate"><span class="pre">--usb-local</span></code> launcher pre-flights this via
 <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">shell</span> <span class="pre">ip</span> <span class="pre">-o</span> <span class="pre">-4</span> <span class="pre">addr</span> <span class="pre">show</span></code> and refuses to start if no non-loopback
-interface is present.</p>
+interface is present. A runtime monitor also watches for mid-session
+Wi-Fi drops and prints a yellow warning so the cause is obvious without
+having to puzzle out a frozen WebRTC connection.</p>
 </section>
 <section id="cdp-startbutton-marked-failed-not-actionable">
 <h3>CDP: startButton marked failed / not actionable<a class="headerlink" href="#cdp-startbutton-marked-failed-not-actionable" title="Link to this heading">#</a></h3>
@@ -809,7 +851,7 @@ browser on the headset.</p>
 <section id="webxr-static-download-fails-offline-proxy">
 <h3>WebXR static download fails (offline / proxy)<a class="headerlink" href="#webxr-static-download-fails-offline-proxy" title="Link to this heading">#</a></h3>
 <p><strong>Cause:</strong> The launcher fetches <code class="docutils literal notranslate"><span class="pre">index.html</span></code> / <code class="docutils literal notranslate"><span class="pre">bundle.js</span></code> from
-<code class="docutils literal notranslate"><span class="pre">https://nvidia.github.io/IsaacTeleop/client/</span></code> into the static dir on
+<code class="docutils literal notranslate"><span class="pre">https://nvidia.github.io/IsaacTeleop/client/main/</span></code> into the static dir on
 first run.  Behind a proxy or with no internet, this fails and
 <code class="docutils literal notranslate"><span class="pre">--usb-local</span></code> aborts.</p>
 <p><strong>Fix:</strong> Pre-stage the files (any way you like — <code class="docutils literal notranslate"><span class="pre">curl</span></code>, container
@@ -982,7 +1024,7 @@ or stage <code class="docutils literal notranslate"><span class="pre">nvidia-clo
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on May 03, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on May 05, 2026.
       <br/>
     
   </p>

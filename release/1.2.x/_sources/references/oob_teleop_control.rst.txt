@@ -64,7 +64,7 @@ parameters — ``oobEnable``, ``serverIP``, and ``port``:
 
 .. code-block:: text
 
-   https://nvidia.github.io/IsaacTeleop/client/?oobEnable=1&serverIP=<HOST_IP>&port=48322
+   https://nvidia.github.io/IsaacTeleop/client/main/?oobEnable=1&serverIP=<HOST_IP>&port=48322
 
 Replace ``<HOST_IP>`` with the streaming host's LAN IP. The ``port`` must
 match the proxy port (default 48322).
@@ -312,7 +312,7 @@ The WebXR client connects to the hub when the page URL contains
 
 .. code-block:: text
 
-   https://nvidia.github.io/IsaacTeleop/client/?oobEnable=1&serverIP=10.0.0.1&port=48322
+   https://nvidia.github.io/IsaacTeleop/client/main/?oobEnable=1&serverIP=10.0.0.1&port=48322
 
 The client builds ``wss://{serverIP}:{port}/oob/v1/ws`` and:
 
@@ -357,6 +357,29 @@ Environment variables
      - Default video codec for headset bookmarks
    * - ``TELEOP_CLIENT_PANEL_HIDDEN_AT_START``
      - Hide control panel on load (``true`` / ``false``)
+   * - ``TELEOP_CLIENT_ROUTE``
+     - HashRouter fragment appended to the bookmark URL. Default empty
+       (no fragment — the WebXR client picks its own landing route). Set
+       to e.g. ``/real/gear/dexmate`` to force a specific route. A
+       leading ``#`` is stripped automatically.
+   * - ``ANDROID_SERIAL``
+     - Pin a specific adb device when more than one is connected. The
+       launcher refuses to start with multiple devices unless this is
+       set; the value must match a serial currently in ``device`` state
+       (per ``adb devices``). This is the standard adb env var — every
+       ``adb`` subprocess inherits it, so no code path needs ``-s
+       <serial>``.
+   * - ``USB_UI_PORT``
+     - HTTPS static WebXR UI port in ``--usb-local`` mode (default
+       ``8080``). The launcher serves the prebuilt client on
+       ``https://127.0.0.1:<port>`` and ``adb reverse``-maps the same
+       port to the headset.
+   * - ``USB_BACKEND_PORT``
+     - CloudXR backend port the headset reaches via ``adb reverse`` in
+       ``--usb-local`` mode (default ``49100``).
+   * - ``USB_TURN_PORT``
+     - coturn TURN-server port for WebRTC ICE relay in ``--usb-local``
+       mode (default ``3478``). ``adb reverse``-mapped to the headset.
 
 USB-local mode
 --------------
@@ -378,13 +401,22 @@ On startup the launcher:
 2. Resolves the WebXR static directory from
    ``TELEOP_WEB_CLIENT_STATIC_DIR`` (default ``~/.cloudxr/static-client``)
    and downloads ``index.html`` / ``bundle.js`` from
-   ``https://nvidia.github.io/IsaacTeleop/client/`` if either is missing.
+   ``https://nvidia.github.io/IsaacTeleop/client/main/`` if either is missing.
 3. Serves that directory over HTTPS on 127.0.0.1:8080 with the same PEM
    the WSS proxy uses (Python ``http.server`` in a daemon thread).
 4. ``adb reverse`` for 8080 (static UI), 48322 (WSS), 49100 (backend),
    3478 (coturn TURN).
 5. Starts coturn locally on 127.0.0.1:3478 for WebRTC ICE relay.
 6. Launches the teleop URL on the headset and auto-clicks CONNECT via CDP.
+
+In ``--usb-local`` mode the launcher also wipes localStorage / IndexedDB /
+cookies / HTTP cache for the teleop UI origin (``https://127.0.0.1:<usb_ui_port>``)
+before the session starts — the SDK and WebXR client both cache settings
+(e.g. ``general.iceTransportPolicy`` for ICE transport policy,
+``cxr.isaac.teleopPath`` for the last-used project) in localStorage, and a
+stale value can silently win over a fresh URL param. The origin is owned
+by the launcher so clearing it has no collateral effect; the step is a
+no-op when the headset browser isn't running yet.
 
 Required apt packages: ``adb`` (``android-tools-adb``) and ``coturn``.
 No Node.js / ``npm`` is required at runtime.
@@ -395,21 +427,27 @@ Troubleshooting
 Teleop client error: "No local connection candidates" (0xC0F2220F)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Cause:** Chromium's WebRTC ``rtc::NetworkManager`` excludes loopback
-interfaces when enumerating networks for ICE. If the only active network
-on the headset is ``lo``, ICE gathering hangs at ``gathering`` forever —
-no local candidates are emitted and no error fires — until the CloudXR
+**Cause:** Wi-Fi must stay associated on the headset throughout the
+session, even in ``--usb-local`` mode. No teleop traffic actually flows
+over Wi-Fi — every byte goes over the USB cable via ``adb reverse`` —
+but Chromium's WebRTC ``rtc::NetworkManager`` excludes loopback
+interfaces when enumerating networks for ICE. If the only active
+network on the headset is ``lo``, ICE gathering hangs at ``gathering``
+forever (no local candidates emitted, no error fires) until the CloudXR
 session times out with this code.
 
-**Fix:** Connect the headset to any Wi-Fi network. It does not need
-internet access — a phone hotspot with no data plan is sufficient. The
-packets still route over USB (kernel short-circuits loopback regardless
-of source interface); the Wi-Fi interface just needs to *exist* so
+**Fix:** Associate the headset with any Wi-Fi network and retry.
+Internet is **not** required — a phone hotspot with no SIM works, an
+open AP you never authenticate to works. The packets still route over
+USB (the kernel short-circuits loopback regardless of source
+interface); the Wi-Fi interface just needs to *exist* with an IP so
 WebRTC's enumeration is non-empty.
 
-The ``--usb-local`` launcher now pre-flights this via
+The ``--usb-local`` launcher pre-flights this via
 ``adb shell ip -o -4 addr show`` and refuses to start if no non-loopback
-interface is present.
+interface is present. A runtime monitor also watches for mid-session
+Wi-Fi drops and prints a yellow warning so the cause is obvious without
+having to puzzle out a frozen WebRTC connection.
 
 CDP: startButton marked failed / not actionable
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -456,7 +494,7 @@ WebXR static download fails (offline / proxy)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Cause:** The launcher fetches ``index.html`` / ``bundle.js`` from
-``https://nvidia.github.io/IsaacTeleop/client/`` into the static dir on
+``https://nvidia.github.io/IsaacTeleop/client/main/`` into the static dir on
 first run.  Behind a proxy or with no internet, this fails and
 ``--usb-local`` aborts.
 
