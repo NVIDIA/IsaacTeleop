@@ -629,23 +629,17 @@ def run_adb_headset_bookmark(
 
 
 def verify_adb_reverse_rules(expected_ports: list[int]) -> list[int]:
-    """Return the subset of *expected_ports* that are NOT installed on the device.
+    """Return ports from *expected_ports* that are not in ``adb reverse --list``.
 
-    Reads ``adb reverse --list`` after ``setup_adb_reverse_*`` to spot-check
-    the rules actually landed: an ``adb reverse`` call may report success
-    (rc=0) but the rule can still be evicted by a competing adbd, by the
-    device transitioning ``offline`` immediately after, or by a stale daemon.
-    A non-empty return value means the headset cannot reach those ports.
+    rc=0 from ``adb reverse`` doesn't guarantee the rule survived — a competing
+    adbd or transient ``offline`` can evict it moments later. If adb is itself
+    unreachable, treat all expected as missing so the warning fires.
     """
     text = _run_adb("adb reverse --list", ["adb", "reverse", "--list"])
     if text is None:
-        # adb itself unreachable: callers can't distinguish "rule missing"
-        # from "couldn't ask" — surface both as "all expected missing" so
-        # the warning fires loudly.
         return list(expected_ports)
     listed: set[int] = set()
     for line in text.splitlines():
-        # Format: "UsbFfs tcp:8080 tcp:8080" — middle column is the device-side port.
         parts = line.split()
         if len(parts) < 3:
             continue
@@ -879,15 +873,10 @@ simple-log
 
 
 def verify_coturn_listening(turn_port: int, *, timeout: float = 1.0) -> bool:
-    """Confirm coturn is accepting TCP connections on ``127.0.0.1:turn_port``.
+    """Confirm coturn is accepting TCP on ``127.0.0.1:turn_port``.
 
-    ``start_coturn`` returns a live :class:`subprocess.Popen` if the
-    process is still alive 0.5 s after fork, but that is not the same as
-    "actually serving TURN" — coturn can be in the middle of binding,
-    fail to bind one of its many sockets, or be running with a config
-    error that disables auth threads. A 1-second TCP connect is a cheap
-    end-to-end probe that the listener exists from the same loopback the
-    headset will use (via ``adb reverse``).
+    ``start_coturn`` checks the process is alive 0.5 s after fork — that
+    is not the same as "listener bound". A short TCP connect closes the gap.
     """
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -1061,25 +1050,11 @@ def _cdp_list_tabs(local_port: int) -> list[dict]:
 
 
 def _close_stale_teleop_tabs() -> int:
-    """Close any pre-existing teleop tabs in the headset browser before opening a new one.
+    """Close any pre-existing teleop tabs (matched on ``oobEnable=``) before opening a new one.
 
-    Symptom this guards against: a previous session ends with a WebXR
-    error (``requestSession`` rejection, WebRTC ICE failure, etc.) but
-    Chromium does not tear down the session — the tab is left holding
-    XR resources, and a fresh ``requestSession()`` in the next tab is
-    silently blocked. Closing stale tabs first gives the new page a
-    clean XR system to acquire.
-
-    Tabs are matched on the ``oobEnable=`` query parameter (every URL we
-    generate via :func:`~.oob_teleop_env.build_headset_bookmark_url` sets
-    it), so unrelated tabs the operator may have open are left alone.
-
-    No-op when the browser is not running (no DevTools socket on the
-    device). All failures are logged and treated as non-fatal — falling
-    back to "let ``am start`` open the new page anyway" is no worse than
-    today's behaviour.
-
-    Returns the number of tabs successfully closed.
+    Why: an errored prior session can leave a tab holding XR resources,
+    silently blocking ``requestSession()`` in the next tab. Best-effort —
+    no-op if the browser isn't running. Returns the number closed.
     """
     socket_name = _discover_devtools_socket()
     if not socket_name:
@@ -1121,24 +1096,13 @@ def _close_stale_teleop_tabs() -> int:
     return closed
 
 
-async def _cdp_dump_ice_diagnostics(ws_url: str) -> None:
-    """One-shot snapshot of what the SDK actually sees for ICE on the live page.
+async def _cdp_clear_origin_storage(ws_url: str, origins: list[str]) -> int:
+    """Clear localStorage / IndexedDB / cookies / cache for *origins* via CDP.
 
-    The CloudXR SDK reads :py:data:`iceTransportPolicy` from two sources:
-
-    1. ``SessionOptions.iceServers.iceTransportPolicy`` (what App.tsx sets
-       from ``?iceRelayOnly=1``), and
-    2. ``localStorage.general.iceTransportPolicy`` (a SDK-internal cache).
-
-    When the headset session fails with "no response from media server"
-    despite our URL forcing relay-only, the most useful evidence is which
-    of those the SDK actually applied. This dump pulls both, plus the
-    page's full URL (so we can confirm the query string survived
-    ``am start`` → page load → React hydration), and prints them as a
-    single ``[setup-oob] ICE diagnostics`` line.
-
-    Best-effort: any failure is logged but not raised — diagnostics
-    must never break the connect flow.
+    Why: stale ``general.iceTransportPolicy`` / ``general.turnInfo`` /
+    ``cxr.isaac.*`` in localStorage can silently override fresh URL config.
+    Per-origin (not everything) so unrelated headset state isn't nuked.
+    Best-effort. Returns number of origins cleared.
     """
     from websockets.asyncio.client import connect as ws_connect  # noqa: PLC0415
 
@@ -1156,46 +1120,92 @@ async def _cdp_dump_ice_diagnostics(ws_url: str) -> None:
             if msg.get("id") == req_id:
                 return msg.get("result", {})
 
+    cleared = 0
     try:
         async with ws_connect(ws_url) as ws:
-            r = await send(
-                ws,
-                "Runtime.evaluate",
-                {
-                    "expression": """JSON.stringify({
-                        url: window.location.href,
-                        search: window.location.search,
-                        ls_iceTransportPolicy: localStorage.getItem('general.iceTransportPolicy'),
-                        ls_turnInfo: localStorage.getItem('general.turnInfo'),
-                        urlSearchParams: (function() {
-                            const p = new URLSearchParams(window.location.search);
-                            return {
-                                oobEnable: p.get('oobEnable'),
-                                iceRelayOnly: p.get('iceRelayOnly'),
-                                turnServer: p.get('turnServer'),
-                                turnUsername: p.get('turnUsername'),
-                                hasCredential: p.get('turnCredential') ? 'yes' : 'no',
-                            };
-                        })(),
-                    })""",
-                    "returnByValue": True,
-                },
-            )
+            for origin in origins:
+                try:
+                    await send(
+                        ws,
+                        "Storage.clearDataForOrigin",
+                        {"origin": origin, "storageTypes": "all"},
+                    )
+                    cleared += 1
+                    log.info("cache clear: cleared all storage for %s", origin)
+                except Exception as exc:
+                    log.warning("cache clear: %s failed (%s)", origin, exc)
+            try:
+                await send(ws, "Network.clearBrowserCache")
+                await send(ws, "Network.clearBrowserCookies")
+                log.info("cache clear: also cleared HTTP cache + cookies")
+            except Exception as exc:
+                log.warning("cache clear: HTTP cache/cookies failed (%s)", exc)
     except Exception as exc:
-        log.warning("ICE diag: CDP evaluate failed (%s)", exc)
-        return
+        log.warning("cache clear: CDP session failed (%s)", exc)
+    return cleared
 
-    val = (r.get("result") or {}).get("value")
-    if not val:
-        log.warning("ICE diag: empty result from page")
-        return
 
-    log.info("ICE diag: %s", val)
-    print(
-        f"\n\033[36m[setup-oob] ICE diagnostics (paste into bug reports):\033[0m\n  {val}\n",
-        file=sys.stderr,
-        flush=True,
+def clear_headset_browser_cache(*, usb_local: bool) -> int:
+    """Sync wrapper around :func:`_cdp_clear_origin_storage` for the teleop UI origin.
+
+    USB-local clears ``https://127.0.0.1:<usb_ui_port>``; WiFi clears the
+    published client origin (or ``TELEOP_WEB_CLIENT_BASE`` override).
+    Returns 0 if the browser isn't running. Never raises.
+    """
+    from .oob_teleop_env import (  # noqa: PLC0415
+        DEFAULT_WEB_CLIENT_ORIGIN,
+        USB_HOST,
+        usb_ui_port,
+        web_client_base_override_from_env,
     )
+
+    socket_name = _discover_devtools_socket()
+    if not socket_name:
+        log.info("cache clear: headset browser not running, nothing to clear")
+        return 0
+    try:
+        _adb_forward_cdp(socket_name, _CDP_LOCAL_PORT)
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or exc.stdout or "").strip() or "(no adb output)"
+        log.warning("cache clear: adb forward rc=%d: %s", exc.returncode, detail)
+        return 0
+    except OobAdbError as exc:
+        log.warning("cache clear: adb forward failed: %s", exc)
+        return 0
+
+    try:
+        tabs = _cdp_list_tabs(_CDP_LOCAL_PORT)
+        ws_url = next(
+            (t["webSocketDebuggerUrl"] for t in tabs if t.get("webSocketDebuggerUrl")),
+            None,
+        )
+        if not ws_url:
+            log.warning("cache clear: no debuggable tab to talk to")
+            return 0
+
+        # Origins we own. Trim trailing slash because Storage.clearDataForOrigin
+        # is strict about exact origin (scheme://host[:port], no path).
+        origins: list[str] = []
+        if usb_local:
+            origins.append(f"https://{USB_HOST}:{usb_ui_port()}")
+        else:
+            origin_base = (
+                web_client_base_override_from_env() or DEFAULT_WEB_CLIENT_ORIGIN
+            )
+            # DEFAULT_WEB_CLIENT_ORIGIN has trailing slash + path; reduce to origin.
+            from urllib.parse import urlparse  # noqa: PLC0415
+
+            parsed = urlparse(origin_base)
+            if parsed.scheme and parsed.netloc:
+                origins.append(f"{parsed.scheme}://{parsed.netloc}")
+
+        if not origins:
+            log.warning("cache clear: no origins to clear (override misconfigured?)")
+            return 0
+
+        return asyncio.run(_cdp_clear_origin_storage(ws_url, origins))
+    finally:
+        _adb_forward_remove(_CDP_LOCAL_PORT)
 
 
 async def _cdp_session_click_connect(ws_url: str) -> None:
@@ -1670,13 +1680,6 @@ async def run_oob_connect(
         # _cdp_session_click_connect polls the DOM for document.readyState +
         # #startButton (up to 10s) so no fixed page-init sleep is needed here.
         await _cdp_session_click_connect(ws_url)
-
-        # --- Step 4b: dump what the SDK actually sees for ICE config ---------
-        # Runs once, post-click, so the SDK has had a moment to apply config
-        # and we know the page is past the cert interstitial. Tells us
-        # whether iceRelayOnly survived the URL → SDK round trip — the
-        # answer to "why isn't the headset using TURN" usually lives here.
-        await _cdp_dump_ice_diagnostics(ws_url)
 
         # --- Step 5: background monitor for mid-stream error banners ---------
         # Keep the adb forward alive; the monitor tears it down on exit.

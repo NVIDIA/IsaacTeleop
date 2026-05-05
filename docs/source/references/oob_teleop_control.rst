@@ -408,6 +408,15 @@ On startup the launcher:
 5. Starts coturn locally on 127.0.0.1:3478 for WebRTC ICE relay.
 6. Launches the teleop URL on the headset and auto-clicks CONNECT via CDP.
 
+In ``--usb-local`` mode the launcher also wipes localStorage / IndexedDB /
+cookies / HTTP cache for the teleop UI origin (``https://127.0.0.1:<usb_ui_port>``)
+before the session starts — the SDK and WebXR client both cache settings
+(e.g. ``general.iceTransportPolicy`` for ICE transport policy,
+``cxr.isaac.teleopPath`` for the last-used project) in localStorage, and a
+stale value can silently win over a fresh URL param. The origin is owned
+by the launcher so clearing it has no collateral effect; the step is a
+no-op when the headset browser isn't running yet.
+
 Required apt packages: ``adb`` (``android-tools-adb``) and ``coturn``.
 No Node.js / ``npm`` is required at runtime.
 

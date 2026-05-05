@@ -17,6 +17,7 @@ from isaacteleop.cloudxr.oob_teleop_adb import (
     OobAdbError,
     assert_exactly_one_adb_device,
     assert_headset_awake,
+    clear_headset_browser_cache,
     require_adb_on_path,
     require_coturn_available,
     require_headset_non_loopback_network,
@@ -101,18 +102,22 @@ def main() -> None:
         )
         raise SystemExit(1)
 
+    if args.usb_local:
+        # Always wipe stale localStorage / cookies in USB-local mode: the
+        # SDK and WebXR client cache settings (general.iceTransportPolicy,
+        # cxr.isaac.teleopPath, ...) that can override fresh URL params
+        # from a new --setup-oob run. The origin (127.0.0.1:<usb_ui_port>)
+        # is owned by us, so clearing it has no collateral effect.
+        oob_progress("usb-local", "clearing headset browser cache ...")
+        cleared = clear_headset_browser_cache(usb_local=True)
+        if cleared:
+            oob_progress("usb-local", f"cleared cache for {cleared} origin(s)")
+        else:
+            oob_progress("usb-local", "no cache cleared (browser not running)")
+
     if args.setup_oob:
-        oob_progress(
-            "setup-oob",
-            "preflight: checking adb on PATH, single headset connected, "
-            "headset awake"
-            + (
-                ", coturn installed, headset has non-loopback IP"
-                if args.usb_local
-                else ""
-            )
-            + " ...",
-        )
+        extras = ", coturn, headset non-loopback IP" if args.usb_local else ""
+        oob_progress("setup-oob", f"preflight: adb, single headset, awake{extras} ...")
         require_adb_on_path()
         if not args.usb_local:
             resolve_lan_host_for_oob()
@@ -134,7 +139,7 @@ def main() -> None:
                 print(f"\n\033[31m{exc}\033[0m\n", file=sys.stderr)
                 raise SystemExit(1) from exc
         print_host_preflight_warnings(usb_local=args.usb_local)
-        oob_progress("setup-oob", "preflight OK — starting CloudXR runtime + WSS proxy")
+        oob_progress("setup-oob", "preflight OK")
 
     with CloudXRLauncher(
         install_dir=args.cloudxr_install_dir,
