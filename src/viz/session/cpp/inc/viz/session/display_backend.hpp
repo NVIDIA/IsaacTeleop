@@ -84,8 +84,11 @@ public:
     {
     }
 
-    // Called after submit success (and the trailing fence wait, so
-    // the GPU is idle).
+    // Called after a successful submit AND the in-flight fence wait,
+    // so the GPU has finished this frame's command buffer and
+    // signal_after_render is signaled. Safe to vkQueuePresentKHR
+    // here. On any throw between submit and this call, abort_frame
+    // is called instead.
     virtual void end_frame(const Frame& /*frame*/)
     {
     }
