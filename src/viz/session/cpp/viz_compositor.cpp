@@ -275,7 +275,8 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers, const std::vec
     // Wait for completion before returning so readback / next frame sees
     // a consistent state. With 1 frame in flight this is the natural
     // synchronization point; multi-buffered swapchain rendering moves
-    // this wait to the start of the next frame.
+    // this wait to the start of the next frame. QuadLayer's mailbox
+    // depends on this — see quad_layer.hpp.
     frame_sync_->wait();
 }
 

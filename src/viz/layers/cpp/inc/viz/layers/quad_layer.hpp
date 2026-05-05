@@ -42,6 +42,10 @@ class VkContext;
 // at least one slot free for the producer to write — it never
 // collides with a buffer the renderer is currently sampling.
 //
+// Correctness depends on VizCompositor::render() being synchronous
+// (frame_sync_->wait() at end of frame). Multi-frame-in-flight
+// would require in_use_ to become per-in-flight-frame.
+//
 // Memory cost: ~width*height*bpp*3 bytes (e.g. 24 MB at 1080p RGBA8).
 //
 // Fullscreen-blit / kRGBA8 only. Placement transforms and other

@@ -329,3 +329,161 @@ TEST_CASE("QuadLayer round-trips midtone RGBA values exactly", "[gpu][quad_layer
     CHECK(std::abs(int(sample.b) - int(kExpected.b)) <= 1);
     CHECK(sample.a == kExpected.a);
 }
+
+TEST_CASE("QuadLayer with no submit yet renders the clear color", "[gpu][quad_layer][milestone]")
+{
+    // Pins the kSlotNone short-circuit in record() / get_wait_semaphores().
+    if (!gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
+
+    constexpr uint32_t kSide = 64;
+    VizSession::Config cfg{};
+    cfg.mode = DisplayMode::kOffscreen;
+    cfg.window_width = kSide;
+    cfg.window_height = kSide;
+    // Distinctive non-default clear so a coincidental black draw can't pass.
+    cfg.clear_color[0] = 0.0f;
+    cfg.clear_color[1] = 1.0f;
+    cfg.clear_color[2] = 0.0f;
+    cfg.clear_color[3] = 1.0f;
+
+    auto session = VizSession::create(cfg);
+    REQUIRE(session != nullptr);
+    const auto* ctx = session->get_vk_context();
+    REQUIRE(ctx != nullptr);
+
+    QuadLayer::Config layer_cfg;
+    layer_cfg.name = "milestone_quad_no_submit";
+    layer_cfg.resolution = { kSide, kSide };
+    auto* layer = session->add_layer<QuadLayer>(*ctx, session->get_render_pass(), layer_cfg);
+    REQUIRE(layer != nullptr);
+
+    session->render();
+    const auto image = session->readback_to_host();
+    const auto sample = pixel_at(image, kSide / 2, kSide / 2);
+    CHECK(sample.r == 0);
+    CHECK(sample.g == 255);
+    CHECK(sample.b == 0);
+    CHECK(sample.a == 255);
+}
+
+TEST_CASE("QuadLayer re-renders the same publish when no new submit arrives", "[gpu][quad_layer][milestone]")
+{
+    // Pins: record() keeps in_use_ stable across frames if latest_ doesn't change.
+    if (!gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
+
+    constexpr uint32_t kSide = 64;
+    VizSession::Config cfg{};
+    cfg.mode = DisplayMode::kOffscreen;
+    cfg.window_width = kSide;
+    cfg.window_height = kSide;
+
+    auto session = VizSession::create(cfg);
+    REQUIRE(session != nullptr);
+    const auto* ctx = session->get_vk_context();
+    REQUIRE(ctx != nullptr);
+
+    QuadLayer::Config layer_cfg;
+    layer_cfg.name = "milestone_quad_resubmit_none";
+    layer_cfg.resolution = { kSide, kSide };
+    auto* layer = session->add_layer<QuadLayer>(*ctx, session->get_render_pass(), layer_cfg);
+    REQUIRE(layer != nullptr);
+
+    constexpr Rgba kColor = { 255, 0, 255, 255 };
+    std::vector<Rgba> host_buf(static_cast<size_t>(kSide) * kSide, kColor);
+    void* device_ptr = nullptr;
+    REQUIRE(cudaMalloc(&device_ptr, host_buf.size() * sizeof(Rgba)) == cudaSuccess);
+    CudaFreeGuard guard{ device_ptr };
+    REQUIRE(cudaMemcpy(device_ptr, host_buf.data(), host_buf.size() * sizeof(Rgba), cudaMemcpyHostToDevice) ==
+            cudaSuccess);
+
+    viz::VizBuffer src{};
+    src.data = device_ptr;
+    src.width = kSide;
+    src.height = kSide;
+    src.format = PixelFormat::kRGBA8;
+    src.pitch = static_cast<size_t>(kSide) * 4;
+    src.space = viz::MemorySpace::kDevice;
+    layer->submit(src);
+
+    for (int i = 0; i < 2; ++i)
+    {
+        session->render();
+        const auto image = session->readback_to_host();
+        const auto sample = pixel_at(image, kSide / 2, kSide / 2);
+        CHECK(sample.r == kColor.r);
+        CHECK(sample.g == kColor.g);
+        CHECK(sample.b == kColor.b);
+        CHECK(sample.a == kColor.a);
+    }
+}
+
+TEST_CASE("QuadLayer fast producer: render samples only the latest publish", "[gpu][quad_layer][milestone]")
+{
+    // Pins the core mailbox guarantee — intermediate publishes are dropped.
+    if (!gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
+
+    constexpr uint32_t kSide = 64;
+    VizSession::Config cfg{};
+    cfg.mode = DisplayMode::kOffscreen;
+    cfg.window_width = kSide;
+    cfg.window_height = kSide;
+
+    auto session = VizSession::create(cfg);
+    REQUIRE(session != nullptr);
+    const auto* ctx = session->get_vk_context();
+    REQUIRE(ctx != nullptr);
+
+    QuadLayer::Config layer_cfg;
+    layer_cfg.name = "milestone_quad_fast_producer";
+    layer_cfg.resolution = { kSide, kSide };
+    auto* layer = session->add_layer<QuadLayer>(*ctx, session->get_render_pass(), layer_cfg);
+    REQUIRE(layer != nullptr);
+
+    void* device_ptr = nullptr;
+    REQUIRE(cudaMalloc(&device_ptr, static_cast<size_t>(kSide) * kSide * 4) == cudaSuccess);
+    CudaFreeGuard guard{ device_ptr };
+
+    // Five back-to-back submits, no intervening render. The last one must win.
+    const std::array<Rgba, 5> palette = { {
+        { 255, 0, 0, 255 },
+        { 0, 255, 0, 255 },
+        { 0, 0, 255, 255 },
+        { 255, 255, 0, 255 },
+        { 0, 255, 255, 255 },
+    } };
+
+    std::vector<Rgba> host_buf(static_cast<size_t>(kSide) * kSide);
+    for (const auto& color : palette)
+    {
+        std::fill(host_buf.begin(), host_buf.end(), color);
+        REQUIRE(cudaMemcpy(device_ptr, host_buf.data(), host_buf.size() * sizeof(Rgba), cudaMemcpyHostToDevice) ==
+                cudaSuccess);
+
+        viz::VizBuffer src{};
+        src.data = device_ptr;
+        src.width = kSide;
+        src.height = kSide;
+        src.format = PixelFormat::kRGBA8;
+        src.pitch = static_cast<size_t>(kSide) * 4;
+        src.space = viz::MemorySpace::kDevice;
+        layer->submit(src);
+    }
+
+    session->render();
+    const auto image = session->readback_to_host();
+    const auto sample = pixel_at(image, kSide / 2, kSide / 2);
+    const auto expected = palette.back();
+    CHECK(sample.r == expected.r);
+    CHECK(sample.g == expected.g);
+    CHECK(sample.b == expected.b);
+    CHECK(sample.a == expected.a);
+}

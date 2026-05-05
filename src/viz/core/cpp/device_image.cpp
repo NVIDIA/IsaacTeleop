@@ -424,27 +424,21 @@ void DeviceImage::create_interop_semaphores()
 
 void DeviceImage::cuda_signal_write_done(cudaStream_t stream)
 {
-    // Reserve the next monotonic value, queue the signal, advance
-    // the public counter only on success. Monotonic-max via CAS so
-    // out-of-order commits from concurrent producers never regress.
+    // Reserve, signal, commit on success. Failed signal leaves _value_
+    // at the last successfully signaled value (consumer keeps a valid
+    // wait target; failed frame is dropped). Single producer per
+    // DeviceImage → reserved is always > _value_, so a release store
+    // suffices.
     const uint64_t reserved = cuda_done_writing_next_.fetch_add(1, std::memory_order_acq_rel) + 1;
     cudaExternalSemaphoreSignalParams params{};
     params.params.fence.value = reserved;
     const cudaError_t err = cudaSignalExternalSemaphoresAsync(&cuda_cuda_done_writing_, &params, 1, stream);
     if (err != cudaSuccess)
     {
-        // Don't advance — the public value stays at the previously
-        // committed signal. The reservation itself is wasted but
-        // harmless (next reservation gets reserved+1 and the
-        // consumer's next wait targets that).
         throw std::runtime_error(std::string("DeviceImage: cudaSignalExternalSemaphoresAsync(cuda_done_writing) failed: ") +
                                  cudaGetErrorString(err));
     }
-    uint64_t cur = cuda_done_writing_value_.load(std::memory_order_acquire);
-    while (reserved > cur && !cuda_done_writing_value_.compare_exchange_weak(
-                                 cur, reserved, std::memory_order_acq_rel, std::memory_order_acquire))
-    {
-    }
+    cuda_done_writing_value_.store(reserved, std::memory_order_release);
 }
 
 void DeviceImage::transition_to_shader_read()
