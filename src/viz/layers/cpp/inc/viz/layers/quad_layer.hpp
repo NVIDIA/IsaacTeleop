@@ -31,9 +31,12 @@ class VkContext;
 //   - acquire() / release():   Mode B. Caller writes our tiled
 //                              CUDA memory directly. Zero copy.
 //
-// Sync today is heavyweight (vkDeviceWaitIdle + cudaDeviceSynchronize
-// inside submit / release). Fullscreen-blit / kRGBA8 only — placement
-// and other formats land with the XR backend.
+// Producer / consumer sync uses the timeline semaphores DeviceImage
+// owns: submit / acquire / release queue async waits + signals on a
+// caller-provided cudaStream_t; VizCompositor waits on the cuda
+// signal before sampling and signals back when sampling is done.
+// No host-side blocking. Fullscreen-blit / kRGBA8 only — placement
+// transforms and other formats land with the XR backend.
 class QuadLayer : public LayerBase
 {
 public:
@@ -108,6 +111,22 @@ public:
         return device_image_.get();
     }
 
+    // Producer-side state machine. submit() transitions
+    //   kIdle -> kSubmitting -> kIdle (RAII guard).
+    // acquire() transitions kIdle -> kAcquired; release() returns
+    //   to kIdle. record() (on the render thread) rejects unless
+    //   the state is kIdle, so a Mode A submit in flight or a Mode B
+    //   acquire-without-release can't race with sampling.
+    // Single producer thread (CAS on transitions catches misuse on
+    // that thread), multiple readers (render thread loads with
+    // acquire ordering).
+    enum class ProducerState : std::uint8_t
+    {
+        kIdle = 0,
+        kSubmitting,
+        kAcquired,
+    };
+
 private:
     void init();
 
@@ -132,12 +151,7 @@ private:
     VkDescriptorPool descriptor_pool_ = VK_NULL_HANDLE;
     VkDescriptorSet descriptor_set_ = VK_NULL_HANDLE; // freed with the pool
 
-    // Mode B state machine: true between acquire() and release().
-    // Single-writer (the producer thread calling submit / acquire
-    // / release sequentially), multi-reader (the render thread's
-    // record() loads it). Atomic with release/acquire ordering so
-    // the renderer observes producer-side state consistently.
-    std::atomic<bool> acquired_{ false };
+    std::atomic<ProducerState> producer_state_{ ProducerState::kIdle };
 
     // Reserved-but-not-yet-committed signal value the compositor's
     // submit will signal vk_done_reading with. Captured by

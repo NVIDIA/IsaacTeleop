@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <cstdlib>
 #include <cuda_runtime.h>
 #include <vector>
 
@@ -310,4 +311,67 @@ TEST_CASE("QuadLayer multi-frame submit/render/readback loop stays correct", "[g
         CHECK(sample.b == expected.b);
         CHECK(sample.a == expected.a);
     }
+}
+
+TEST_CASE("QuadLayer round-trips midtone RGBA values exactly", "[gpu][quad_layer][milestone]")
+{
+    // The {0, 255}-only Mode A / Mode B tests don't exercise the
+    // sRGB color-space round-trip — those endpoints map to themselves
+    // through any gamma curve. Here we use mid-range bytes so the
+    // path is only exact when the storage UNORM image is sampled
+    // through an SRGB view (decode at sample) and the SRGB color
+    // attachment encodes on write. Net of decode+encode is identity.
+    if (!gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
+
+    constexpr uint32_t kSide = 64;
+    VizSession::Config cfg{};
+    cfg.mode = DisplayMode::kOffscreen;
+    cfg.window_width = kSide;
+    cfg.window_height = kSide;
+
+    auto session = VizSession::create(cfg);
+    REQUIRE(session != nullptr);
+    const auto* ctx = session->get_vk_context();
+    REQUIRE(ctx != nullptr);
+
+    QuadLayer::Config layer_cfg;
+    layer_cfg.name = "milestone_quad_midtone";
+    layer_cfg.resolution = { kSide, kSide };
+    auto* layer = session->add_layer<QuadLayer>(*ctx, session->get_render_pass(), layer_cfg);
+    REQUIRE(layer != nullptr);
+
+    // A non-trivial midtone (~50% gray, mixed channels). With the
+    // wrong color-space wiring this would shift by ~5–20% per channel.
+    constexpr Rgba kExpected = { 64, 128, 200, 255 };
+
+    std::vector<Rgba> host_buf(static_cast<size_t>(kSide) * kSide, kExpected);
+    void* device_ptr = nullptr;
+    REQUIRE(cudaMalloc(&device_ptr, host_buf.size() * sizeof(Rgba)) == cudaSuccess);
+    CudaFreeGuard guard{ device_ptr };
+    REQUIRE(cudaMemcpy(device_ptr, host_buf.data(), host_buf.size() * sizeof(Rgba), cudaMemcpyHostToDevice) ==
+            cudaSuccess);
+    REQUIRE(cudaDeviceSynchronize() == cudaSuccess);
+
+    viz::VizBuffer src{};
+    src.data = device_ptr;
+    src.width = kSide;
+    src.height = kSide;
+    src.format = PixelFormat::kRGBA8;
+    src.pitch = static_cast<size_t>(kSide) * 4;
+    src.space = viz::MemorySpace::kDevice;
+    layer->submit(src);
+
+    session->render();
+
+    const auto image = session->readback_to_host();
+    const auto sample = pixel_at(image, kSide / 2, kSide / 2);
+    // Round-trip should be exact; allow ±1 LSB for any quantization
+    // edge case on the Vulkan->host blit path.
+    CHECK(std::abs(int(sample.r) - int(kExpected.r)) <= 1);
+    CHECK(std::abs(int(sample.g) - int(kExpected.g)) <= 1);
+    CHECK(std::abs(int(sample.b) - int(kExpected.b)) <= 1);
+    CHECK(sample.a == kExpected.a);
 }

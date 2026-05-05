@@ -51,7 +51,11 @@ TEST_CASE_METHOD(viz::testing::GpuFixture, "DeviceImage creates valid Vulkan + C
     REQUIRE(img != nullptr);
     CHECK(img->vk_image() != VK_NULL_HANDLE);
     CHECK(img->vk_image_view() != VK_NULL_HANDLE);
-    CHECK(img->vk_format() == VK_FORMAT_R8G8B8A8_UNORM);
+    // vk_format() returns the SRGB sampling view format. Storage is
+    // UNORM (CUDA writes raw bytes), but sampling decodes through SRGB
+    // so arbitrary byte values round-trip exactly through the
+    // sRGB->linear->sRGB pipeline. See device_image.cpp comments.
+    CHECK(img->vk_format() == VK_FORMAT_R8G8B8A8_SRGB);
     CHECK(img->cuda_array() != nullptr);
     CHECK(img->resolution().width == 64);
     CHECK(img->resolution().height == 64);

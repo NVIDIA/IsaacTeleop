@@ -196,7 +196,7 @@ TEST_CASE("QuadLayer::submit rejects mismatched dimensions / format / space", "[
     }
 }
 
-TEST_CASE("QuadLayer Mode B state machine rejects misuse", "[gpu][quad_layer]")
+TEST_CASE("QuadLayer producer state machine rejects misuse", "[gpu][quad_layer]")
 {
     if (!gpu_available())
     {
@@ -210,29 +210,67 @@ TEST_CASE("QuadLayer Mode B state machine rejects misuse", "[gpu][quad_layer]")
     cfg.resolution = { 32, 32 };
     QuadLayer layer(ctx, target->render_pass(), cfg);
 
-    // release() before acquire() → reject.
+    // release() while Idle → reject.
     CHECK_THROWS_AS(layer.release(), std::logic_error);
 
-    // First acquire() succeeds.
+    // First acquire() takes Idle → Acquired.
     REQUIRE_NOTHROW(layer.acquire());
 
-    // Second acquire() before release() → reject.
+    // Second acquire() while Acquired → reject.
     CHECK_THROWS_AS(layer.acquire(), std::logic_error);
 
-    // submit() while acquire is in flight → reject.
+    // submit() while Acquired → reject.
+    void* dev_ptr = nullptr;
+    REQUIRE(cudaMalloc(&dev_ptr, static_cast<size_t>(32) * 32 * 4) == cudaSuccess);
+    struct CudaFree
+    {
+        void* p;
+        ~CudaFree()
+        {
+            cudaFree(p);
+        }
+    } cuda_free{ dev_ptr };
+
     viz::VizBuffer src{};
-    src.data = reinterpret_cast<void*>(uintptr_t{ 0x1 });
+    src.data = dev_ptr;
     src.width = 32;
     src.height = 32;
     src.format = PixelFormat::kRGBA8;
     src.space = viz::MemorySpace::kDevice;
     CHECK_THROWS_AS(layer.submit(src), std::logic_error);
 
-    // Release the outstanding acquire so the layer's destructor
-    // doesn't leave the state machine asymmetric.
+    // record() while Acquired → reject (covers the Mode B-vs-render
+    // race the state machine guards against). Use a throwaway cmd
+    // buffer; record's checks fire before any vk command is issued.
+    VkCommandPoolCreateInfo pool_info{};
+    pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    pool_info.queueFamilyIndex = ctx.queue_family_index();
+    VkCommandPool pool = VK_NULL_HANDLE;
+    REQUIRE(vkCreateCommandPool(ctx.device(), &pool_info, nullptr, &pool) == VK_SUCCESS);
+    struct PoolGuard
+    {
+        VkDevice d;
+        VkCommandPool p;
+        ~PoolGuard()
+        {
+            vkDestroyCommandPool(d, p, nullptr);
+        }
+    } pool_guard{ ctx.device(), pool };
+
+    VkCommandBufferAllocateInfo cb_alloc{};
+    cb_alloc.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    cb_alloc.commandPool = pool;
+    cb_alloc.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    cb_alloc.commandBufferCount = 1;
+    VkCommandBuffer cb = VK_NULL_HANDLE;
+    REQUIRE(vkAllocateCommandBuffers(ctx.device(), &cb_alloc, &cb) == VK_SUCCESS);
+    std::vector<viz::ViewInfo> views(1);
+    CHECK_THROWS_AS(layer.record(cb, views, *target), std::logic_error);
+
+    // Releasing returns Idle.
     REQUIRE_NOTHROW(layer.release());
 
-    // After release, release() again → reject.
+    // After release, release() again → reject (Idle, expected Acquired).
     CHECK_THROWS_AS(layer.release(), std::logic_error);
 }
 

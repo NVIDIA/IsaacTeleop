@@ -66,15 +66,33 @@ uint32_t find_memory_type(VkPhysicalDevice physical_device, uint32_t type_bits, 
     throw std::runtime_error("DeviceImage: no Vulkan memory type matching requested properties");
 }
 
-VkFormat to_vk_format(PixelFormat format)
+// Storage-side Vulkan format for the underlying VkImage / VkDeviceMemory.
+// We keep the storage UNORM and create a separate SRGB sampling view
+// (image is created with VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT) so:
+//   - CUDA writes raw bytes (no implicit gamma transform).
+//   - Vulkan samples through the SRGB view → sampler decodes
+//     sRGB -> linear.
+//   - Fragment writes linear -> sRGB encode at the attachment.
+// Net effect: arbitrary RGBA byte values round-trip exactly through
+// CUDA -> Vulkan -> readback.
+VkFormat to_vk_storage_format(PixelFormat format)
 {
     switch (format)
     {
     case PixelFormat::kRGBA8:
-        // UNORM (not SRGB) so CUDA writes round-trip without an
-        // implicit sRGB encode on the Vulkan side. Color management
-        // is the layer's concern.
         return VK_FORMAT_R8G8B8A8_UNORM;
+    case PixelFormat::kD32F:
+        return VK_FORMAT_D32_SFLOAT;
+    }
+    throw std::runtime_error("DeviceImage: unsupported PixelFormat");
+}
+
+VkFormat to_vk_view_format(PixelFormat format)
+{
+    switch (format)
+    {
+    case PixelFormat::kRGBA8:
+        return VK_FORMAT_R8G8B8A8_SRGB;
     case PixelFormat::kD32F:
         return VK_FORMAT_D32_SFLOAT;
     }
@@ -105,13 +123,21 @@ std::unique_ptr<DeviceImage> DeviceImage::create(const VkContext& ctx, Resolutio
     {
         throw std::invalid_argument("DeviceImage: resolution must be non-zero");
     }
+    if (format != PixelFormat::kRGBA8)
+    {
+        // kD32F is reserved for ProjectionLayer's depth path. The
+        // CUDA-Vulkan interop contract for a depth image (sample
+        // semantics, layout transitions, color-space view) is not
+        // worked out yet, so refuse to half-build it.
+        throw std::invalid_argument("DeviceImage: only PixelFormat::kRGBA8 is supported");
+    }
     std::unique_ptr<DeviceImage> img(new DeviceImage(ctx, resolution, format));
     img->init();
     return img;
 }
 
 DeviceImage::DeviceImage(const VkContext& ctx, Resolution resolution, PixelFormat format)
-    : ctx_(&ctx), resolution_(resolution), format_(format), vk_format_(to_vk_format(format))
+    : ctx_(&ctx), resolution_(resolution), format_(format), vk_format_(to_vk_view_format(format))
 {
 }
 
@@ -242,7 +268,12 @@ void DeviceImage::create_vk_image_with_external_memory()
     info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     info.pNext = &ext_image_info;
     info.imageType = VK_IMAGE_TYPE_2D;
-    info.format = vk_format_;
+    // Storage in linear-space format (UNORM); we'll attach the SRGB
+    // view in create_vk_image_view(). VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT
+    // is what allows view format != image format among compatible
+    // formats (UNORM <-> SRGB are in the same compatibility class).
+    info.flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
+    info.format = to_vk_storage_format(format_);
     info.extent = { resolution_.width, resolution_.height, 1 };
     info.mipLevels = 1; // Single level. If XR distance views show
                         // moiré, expose mipLevels via Config and

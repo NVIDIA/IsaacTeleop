@@ -170,17 +170,30 @@ void require_alive(const std::unique_ptr<DeviceImage>& device_image, const char*
 
 } // namespace
 
+namespace
+{
+
+const char* state_name(QuadLayer::ProducerState s) noexcept
+{
+    switch (s)
+    {
+    case QuadLayer::ProducerState::kIdle:
+        return "Idle";
+    case QuadLayer::ProducerState::kSubmitting:
+        return "Submitting";
+    case QuadLayer::ProducerState::kAcquired:
+        return "Acquired";
+    }
+    return "?";
+}
+
+} // namespace
+
 void QuadLayer::submit(const VizBuffer& src, cudaStream_t stream)
 {
     require_alive(device_image_, "submit");
-    // Single-producer-thread contract (see header): a load suffices
-    // because submit / acquire / release don't race against each
-    // other — only against the render thread's record(), which
-    // doesn't mutate this flag.
-    if (acquired_.load(std::memory_order_acquire))
-    {
-        throw std::logic_error("QuadLayer::submit called while a Mode B acquire() is in flight");
-    }
+    // Validate inputs first so a bad-arg call doesn't burn the state
+    // CAS and force a retry.
     if (src.space != MemorySpace::kDevice)
     {
         throw std::invalid_argument("QuadLayer::submit: src must be MemorySpace::kDevice");
@@ -198,10 +211,30 @@ void QuadLayer::submit(const VizBuffer& src, cudaStream_t stream)
         throw std::invalid_argument("QuadLayer::submit: src.data is null");
     }
 
-    // Pin the calling thread to ctx's CUDA device.
-    check_cuda(cudaSetDevice(ctx_->cuda_device_id()), "cudaSetDevice");
+    // Transition Idle -> Submitting. Render's record() will reject
+    // while we're in this state, so it can't sample the texture
+    // mid-memcpy.
+    ProducerState expected = ProducerState::kIdle;
+    if (!producer_state_.compare_exchange_strong(
+            expected, ProducerState::kSubmitting, std::memory_order_acq_rel, std::memory_order_acquire))
+    {
+        throw std::logic_error(std::string("QuadLayer::submit: producer state is ") + state_name(expected) +
+                               ", expected Idle");
+    }
+    // RAII: restore Idle on every exit (success or exception). This
+    // is critical — a partially-queued submit must not leave the
+    // state stuck so the next render() permanently rejects.
+    struct StateGuard
+    {
+        std::atomic<ProducerState>& state;
+        ~StateGuard()
+        {
+            state.store(ProducerState::kIdle, std::memory_order_release);
+        }
+    } guard{ producer_state_ };
 
-    // wait → copy → signal, all on `stream`. With a non-default
+    check_cuda(cudaSetDevice(ctx_->cuda_device_id()), "cudaSetDevice");
+    // wait -> copy -> signal, all on `stream`. With a non-default
     // stream the caller can interleave their own work on the same
     // stream and the signal will correctly land after it.
     device_image_->cuda_wait_for_vk_read(stream);
@@ -218,21 +251,30 @@ void QuadLayer::submit(const VizBuffer& src, cudaStream_t stream)
 VizCudaArray QuadLayer::acquire(cudaStream_t stream)
 {
     require_alive(device_image_, "acquire");
-    // Single-producer-thread contract: a load+store pair is safe.
-    // Catches double-acquire as programmer error on this thread.
-    if (acquired_.load(std::memory_order_acquire))
-    {
-        throw std::logic_error("QuadLayer::acquire called while a previous acquire() is still in flight");
-    }
-    check_cuda(cudaSetDevice(ctx_->cuda_device_id()), "cudaSetDevice");
 
+    // Transition Idle -> Acquired with CAS. Held until release().
+    ProducerState expected = ProducerState::kIdle;
+    if (!producer_state_.compare_exchange_strong(
+            expected, ProducerState::kAcquired, std::memory_order_acq_rel, std::memory_order_acquire))
+    {
+        throw std::logic_error(std::string("QuadLayer::acquire: producer state is ") + state_name(expected) +
+                               ", expected Idle");
+    }
+
+    check_cuda(cudaSetDevice(ctx_->cuda_device_id()), "cudaSetDevice");
     // Queue the wait on `stream` so the caller's first cuda* call
-    // afterwards is correctly ordered after the previous render.
-    // Only flip acquired_ AFTER the wait has been queued so a wait
-    // failure doesn't leave the state machine in the "acquired but
-    // not actually wired" state.
-    device_image_->cuda_wait_for_vk_read(stream);
-    acquired_.store(true, std::memory_order_release);
+    // afterwards is correctly ordered after the previous render. If
+    // queuing fails, roll back to Idle so the state machine stays
+    // consistent.
+    try
+    {
+        device_image_->cuda_wait_for_vk_read(stream);
+    }
+    catch (...)
+    {
+        producer_state_.store(ProducerState::kIdle, std::memory_order_release);
+        throw;
+    }
 
     VizCudaArray view{};
     view.array = device_image_->cuda_array();
@@ -245,17 +287,19 @@ VizCudaArray QuadLayer::acquire(cudaStream_t stream)
 void QuadLayer::release(cudaStream_t stream)
 {
     require_alive(device_image_, "release");
-    if (!acquired_.load(std::memory_order_acquire))
+    const ProducerState cur = producer_state_.load(std::memory_order_acquire);
+    if (cur != ProducerState::kAcquired)
     {
-        throw std::logic_error("QuadLayer::release called without a prior acquire()");
+        throw std::logic_error(std::string("QuadLayer::release: producer state is ") + state_name(cur) +
+                               ", expected Acquired");
     }
     check_cuda(cudaSetDevice(ctx_->cuda_device_id()), "cudaSetDevice");
-    // Signal first so the cuda_done_writing counter advances only
-    // after the signal is actually queued. If the signal call
-    // throws, leave acquired_=true so the caller can retry release()
-    // or call destroy(); the state machine stays consistent.
+    // Signal first; advance state only after the signal has been
+    // queued. If signaling throws, leave the state at kAcquired so
+    // the caller can retry release() or call destroy() — never strand
+    // the state machine with a missing signal.
     device_image_->cuda_signal_write_done(stream);
-    acquired_.store(false, std::memory_order_release);
+    producer_state_.store(ProducerState::kIdle, std::memory_order_release);
 }
 
 std::vector<LayerBase::WaitSemaphore> QuadLayer::get_wait_semaphores() const
@@ -280,9 +324,18 @@ std::vector<LayerBase::SignalSemaphore> QuadLayer::get_signal_semaphores()
     {
         return {};
     }
-    // Reserve a vk_done_reading value but DON'T commit yet — only
-    // commit_pending_signals() (called by VizCompositor after a
-    // successful vkQueueSubmit) advances the public timeline value.
+    // Invariant: the previous frame's reservation must have been
+    // committed (commit_pending_signals) before we reserve another.
+    // Reserving twice without commit would orphan the first
+    // reservation — a real vk_done_reading signal would land but the
+    // public value never advances to it, so future CUDA waits target
+    // a stale value.
+    if (pending_vk_signal_value_ != 0)
+    {
+        throw std::logic_error(
+            "QuadLayer::get_signal_semaphores: previous reservation has not been committed "
+            "(VizCompositor invariant violated)");
+    }
     pending_vk_signal_value_ = device_image_->reserve_vk_done_reading();
     return {
         SignalSemaphore{
@@ -305,11 +358,12 @@ void QuadLayer::commit_pending_signals()
 void QuadLayer::record(VkCommandBuffer cmd, const std::vector<ViewInfo>& /*views*/, const RenderTarget& target)
 {
     require_alive(device_image_, "record");
-    if (acquired_.load(std::memory_order_acquire))
+    const ProducerState cur = producer_state_.load(std::memory_order_acquire);
+    if (cur != ProducerState::kIdle)
     {
-        throw std::logic_error(
-            "QuadLayer::record called while a Mode B acquire() is in flight; "
-            "caller must release() before render()");
+        throw std::logic_error(std::string("QuadLayer::record: producer state is ") + state_name(cur) +
+                               " (a submit() or acquire() is in flight); caller must serialize "
+                               "producer and render or wait for the producer call to return");
     }
     const Resolution res = target.resolution();
 
