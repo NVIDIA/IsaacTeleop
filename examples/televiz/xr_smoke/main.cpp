@@ -59,12 +59,13 @@ struct CudaDeviceBuffer
     CudaDeviceBuffer& operator=(const CudaDeviceBuffer&) = delete;
 };
 
-// Animate a gradient + a vertical stripe whose x position depends on
-// frame_index. CPU compute (small image, runs once per frame); copies
-// to device for QuadLayer::submit.
-void fill_animated_pattern(std::vector<Rgba>& host, uint32_t w, uint32_t h, uint64_t frame_index)
+// Static gradient + a single vertical stripe down the middle. Filled
+// once at startup; the QuadLayer mailbox holds it across every render.
+// Removes per-frame CPU + host->device cost so the fps measurement
+// reflects the runtime / GPU / xrWaitFrame pacing, not pattern updates.
+void fill_static_pattern(std::vector<Rgba>& host, uint32_t w, uint32_t h)
 {
-    const uint32_t stripe_x = static_cast<uint32_t>((frame_index * 4) % w);
+    const uint32_t stripe_center = w / 2;
     const uint32_t stripe_half = w / 32;
     for (uint32_t y = 0; y < h; ++y)
     {
@@ -73,7 +74,7 @@ void fill_animated_pattern(std::vector<Rgba>& host, uint32_t w, uint32_t h, uint
             const uint8_t r = static_cast<uint8_t>((x * 255u) / w);
             const uint8_t g = static_cast<uint8_t>((y * 255u) / h);
             const uint8_t b = 64;
-            const bool in_stripe = (x + w - stripe_x) % w < stripe_half * 2;
+            const bool in_stripe = x >= stripe_center - stripe_half && x < stripe_center + stripe_half;
             host[y * w + x] = in_stripe ? Rgba{ 255, 255, 255, 255 } : Rgba{ r, g, b, 255 };
         }
     }
@@ -150,6 +151,17 @@ int main()
         CudaDeviceBuffer device_buffer(static_cast<size_t>(kQuadW) * kQuadH * sizeof(Rgba));
         std::vector<Rgba> host_pattern(static_cast<size_t>(kQuadW) * kQuadH);
 
+        // Fill + submit ONCE at startup. The mailbox holds the latest
+        // publish across every subsequent render, so the per-frame loop
+        // does no CPU pixel work and no host->device copy.
+        fill_static_pattern(host_pattern, kQuadW, kQuadH);
+        if (cudaMemcpy(device_buffer.ptr, host_pattern.data(), host_pattern.size() * sizeof(Rgba),
+                       cudaMemcpyHostToDevice) != cudaSuccess)
+        {
+            throw std::runtime_error("cudaMemcpy(host->device) failed");
+        }
+        submit_pattern(*layer, device_buffer.ptr, kQuadW, kQuadH);
+
         std::printf("viz_xr_smoke: session up, awaiting runtime READY...\n");
         std::fflush(stdout);
 
@@ -159,22 +171,6 @@ int main()
         while (!g_stop.load(std::memory_order_acquire) && !session->should_close())
         {
             const auto info = session->begin_frame();
-
-            // Refresh the quad's content from CUDA. On first frame and
-            // every 4 frames thereafter — limits the host->device copy
-            // cost for a smoke test (mailbox holds the latest publish
-            // until the next submit anyway).
-            if (info.frame_index % 4 == 0)
-            {
-                fill_animated_pattern(host_pattern, kQuadW, kQuadH, info.frame_index);
-                if (cudaMemcpy(device_buffer.ptr, host_pattern.data(), host_pattern.size() * sizeof(Rgba),
-                               cudaMemcpyHostToDevice) != cudaSuccess)
-                {
-                    throw std::runtime_error("cudaMemcpy(host->device) failed");
-                }
-                submit_pattern(*layer, device_buffer.ptr, kQuadW, kQuadH);
-            }
-
             session->end_frame();
 
             if (!announced_running && info.frame_index > 0)
