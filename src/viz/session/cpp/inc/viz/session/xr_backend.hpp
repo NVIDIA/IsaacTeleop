@@ -45,7 +45,10 @@ public:
         // Seconds to keep polling xrGetSystem when the runtime returns
         // XR_ERROR_FORM_FACTOR_UNAVAILABLE (no HMD yet). Useful for
         // CloudXR / streaming runtimes where the headset connects after
-        // the app starts. 0 = fail fast on first failure.
+        // the app starts.
+        //   0  → fail fast on first failure (default; tests / CI)
+        //   >0 → bounded wait
+        //   <0 → wait forever (Ctrl-C to break)
         int system_wait_seconds = 0;
         // Underlying session config (reference space type, blend mode).
         OpenXrSession::Config session_config{};

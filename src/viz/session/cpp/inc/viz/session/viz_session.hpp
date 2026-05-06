@@ -87,9 +87,10 @@ public:
         // kXr-only: seconds to keep polling xrGetSystem when no HMD is
         // currently connected (XR_ERROR_FORM_FACTOR_UNAVAILABLE).
         // Streaming runtimes like CloudXR start up before the headset
-        // client connects and return UNAVAILABLE in the meantime; set
-        // to a generous value (30-60s) to wait for the client. 0 =
-        // fail fast on first failure (good for tests / CI).
+        // client connects and return UNAVAILABLE in the meantime.
+        //   0  → fail fast on first failure (default; tests / CI)
+        //   >0 → wait that many seconds, then throw
+        //   <0 → wait forever (Ctrl-C to break)
         int xr_system_wait_seconds = 0;
     };
 

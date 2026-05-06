@@ -59,8 +59,12 @@ OpenXrInstance::OpenXrInstance(const std::string& app_name,
         // connect — common enough that we expose system_wait_seconds
         // to keep retrying. Other failures (loader / extension issues)
         // throw immediately even within the wait window.
+        //   system_wait_seconds < 0  → poll forever (Ctrl-C to break)
+        //   system_wait_seconds = 0  → fail fast on first failure
+        //   system_wait_seconds > 0  → bounded deadline
         constexpr auto kPollInterval = std::chrono::milliseconds(200);
         constexpr auto kLogEvery = std::chrono::seconds(3);
+        const bool wait_forever = system_wait_seconds < 0;
         const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(system_wait_seconds);
         auto last_log = std::chrono::steady_clock::now();
         bool announced = false;
@@ -80,7 +84,7 @@ OpenXrInstance::OpenXrInstance(const std::string& app_name,
                 throw std::runtime_error(std::string("OpenXrInstance: xrGetSystem failed: XrResult=") + std::to_string(r));
             }
             const auto now = std::chrono::steady_clock::now();
-            if (now >= deadline)
+            if (!wait_forever && now >= deadline)
             {
                 throw std::runtime_error(
                     "OpenXrInstance: xrGetSystem timed out waiting for HMD "
@@ -89,9 +93,16 @@ OpenXrInstance::OpenXrInstance(const std::string& app_name,
             }
             if (!announced || (now - last_log) >= kLogEvery)
             {
-                const auto remaining = std::chrono::duration_cast<std::chrono::seconds>(deadline - now).count();
-                std::fprintf(stderr, "OpenXrInstance: waiting for HMD to connect (%llds remaining)...\n",
-                             static_cast<long long>(remaining));
+                if (wait_forever)
+                {
+                    std::fprintf(stderr, "OpenXrInstance: waiting for HMD to connect...\n");
+                }
+                else
+                {
+                    const auto remaining = std::chrono::duration_cast<std::chrono::seconds>(deadline - now).count();
+                    std::fprintf(stderr, "OpenXrInstance: waiting for HMD to connect (%llds remaining)...\n",
+                                 static_cast<long long>(remaining));
+                }
                 std::fflush(stderr);
                 announced = true;
                 last_log = now;
