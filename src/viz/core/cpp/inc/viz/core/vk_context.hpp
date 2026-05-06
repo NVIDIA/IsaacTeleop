@@ -110,6 +110,14 @@ public:
     // cudaSetDevice is per-host-thread. Returns -1 before init().
     int cuda_device_id() const noexcept;
 
+    // True if samplerAnisotropy was enabled at vkCreateDevice time.
+    // Set during init() iff the physical device advertises support.
+    bool sampler_anisotropy_enabled() const noexcept;
+    // Device's max anisotropy ratio (limits.maxSamplerAnisotropy).
+    // Typically 16 on modern NVIDIA / AMD; 1 on fallback drivers.
+    // Returns 1.0f when sampler_anisotropy_enabled() is false.
+    float max_sampler_anisotropy() const noexcept;
+
     // Enumerates all Vulkan-capable physical devices and returns their
     // properties. Useful for picking a specific GPU index on multi-GPU
     // machines before calling init().
@@ -135,6 +143,8 @@ private:
     VkQueue queue_ = VK_NULL_HANDLE;
     VkPipelineCache pipeline_cache_ = VK_NULL_HANDLE;
     int cuda_device_id_ = -1;
+    bool sampler_anisotropy_enabled_ = false;
+    float max_sampler_anisotropy_ = 1.0f;
 };
 
 } // namespace viz

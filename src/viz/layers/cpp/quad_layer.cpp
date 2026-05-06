@@ -343,8 +343,21 @@ void QuadLayer::create_sampler()
     info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    info.anisotropyEnable = VK_FALSE; // enable later when XR distance views need it
-    info.maxAnisotropy = 1.0f;
+    // Anisotropic on top of trilinear: handles directional content
+    // (high-frequency stripes, blinds) where one axis aliases harder
+    // than the other. Requires the samplerAnisotropy device feature
+    // (enabled in VkContext when supported); device limit is 16x on
+    // NVIDIA / AMD, 1x on fallback drivers.
+    if (ctx_->sampler_anisotropy_enabled())
+    {
+        info.anisotropyEnable = VK_TRUE;
+        info.maxAnisotropy = ctx_->max_sampler_anisotropy() < 16.0f ? ctx_->max_sampler_anisotropy() : 16.0f;
+    }
+    else
+    {
+        info.anisotropyEnable = VK_FALSE;
+        info.maxAnisotropy = 1.0f;
+    }
     info.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
     info.unnormalizedCoordinates = VK_FALSE;
     info.compareEnable = VK_FALSE;

@@ -269,6 +269,16 @@ int VkContext::cuda_device_id() const noexcept
     return cuda_device_id_;
 }
 
+bool VkContext::sampler_anisotropy_enabled() const noexcept
+{
+    return sampler_anisotropy_enabled_;
+}
+
+float VkContext::max_sampler_anisotropy() const noexcept
+{
+    return max_sampler_anisotropy_;
+}
+
 void VkContext::create_instance(const Config& config)
 {
     VkApplicationInfo app_info{};
@@ -408,6 +418,24 @@ void VkContext::create_logical_device(const Config& config)
     }
 
     VkPhysicalDeviceFeatures device_features{};
+
+    // Enable samplerAnisotropy if the device supports it. Mipmap +
+    // trilinear handles uniform minification; anisotropy handles
+    // directional content (high-frequency stripes etc.) where one
+    // axis aliases harder than the other. NVIDIA + AMD always
+    // advertise this; software / fallback drivers may not.
+    {
+        VkPhysicalDeviceFeatures supported{};
+        vkGetPhysicalDeviceFeatures(physical_device_, &supported);
+        if (supported.samplerAnisotropy)
+        {
+            device_features.samplerAnisotropy = VK_TRUE;
+            sampler_anisotropy_enabled_ = true;
+            VkPhysicalDeviceProperties props{};
+            vkGetPhysicalDeviceProperties(physical_device_, &props);
+            max_sampler_anisotropy_ = props.limits.maxSamplerAnisotropy;
+        }
+    }
 
     // Enable the Vulkan 1.2 timeline semaphore feature so DeviceImage
     // can use VK_SEMAPHORE_TYPE_TIMELINE for CUDA-Vulkan interop.
