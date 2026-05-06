@@ -6,7 +6,7 @@
 #include <viz/core/frame_sync.hpp>
 #include <viz/core/host_image.hpp>
 #include <viz/core/viz_types.hpp>
-#include <vulkan/vulkan.h>
+#include <viz/core/vk.hpp>
 
 #include <memory>
 #include <vector>
@@ -54,21 +54,20 @@ private:
     VizCompositor(const VkContext& ctx, DisplayBackend& backend, const Config& config);
     void init();
 
-    void create_command_pool();
-    void create_command_buffer();
+    void create_command_pool_and_buffer();
 
     // vkQueueSubmit wrapper. On failure, posts an empty submit so the
     // fence still gets signaled — converts "silent deadlock on next
     // wait" into "throw on next call".
-    void submit_or_signal_fence(const VkSubmitInfo& info, const char* what);
+    void submit_or_signal_fence(const vk::SubmitInfo& info, const char* what);
 
     const VkContext* ctx_ = nullptr;
     DisplayBackend* backend_ = nullptr;
     Config config_{};
 
     std::unique_ptr<FrameSync> frame_sync_;
-    VkCommandPool command_pool_ = VK_NULL_HANDLE;
-    VkCommandBuffer command_buffer_ = VK_NULL_HANDLE;
+    vk::raii::CommandPool command_pool_{ nullptr };
+    vk::raii::CommandBuffers command_buffers_{ nullptr };
 };
 
 } // namespace viz
