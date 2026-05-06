@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <cuda_runtime.h>
 #include <memory>
+#include <mutex>
 #include <string>
 
 namespace viz
@@ -60,6 +61,25 @@ public:
         std::string name = "QuadLayer";
         Resolution resolution{};
         PixelFormat format = PixelFormat::kRGBA8;
+
+        // 3D placement (kXr only). Quad is rendered as a textured
+        // rectangle in the reference space at this pose, scaled to
+        // placement_size_meters. Default-constructed pose = origin
+        // looking down -Z (OpenXR forward).
+        //
+        // placement_size_meters == (0, 0) (default): "fullscreen
+        // mode" — render as a fullscreen-NDC blit (current legacy
+        // behavior; both eyes see the same texture in stereo). Use
+        // this when you want the quad to fill the viewport.
+        //
+        // placement_size_meters != (0, 0): "3D placed mode" — render
+        // as a textured rectangle of the given size at placement_pose.
+        // Per-eye MVP from the backend's view + projection matrices.
+        //
+        // In window/offscreen modes the placement is ignored entirely
+        // (per ViewInfo::is_xr) — the quad always renders fullscreen.
+        Pose3D placement_pose{};
+        glm::vec2 placement_size_meters{ 0.0f, 0.0f };
     };
 
     // Builds the 3 DeviceImages + pipeline up front. Throws
@@ -101,6 +121,14 @@ public:
 
     Resolution resolution() const noexcept;
     PixelFormat format() const noexcept;
+
+    // Runtime placement update. Thread-safe relative to record() —
+    // the new pose is read on the next record() call and applied to
+    // that frame's MVP. No sync vs the producer-side submit() (they
+    // touch disjoint state).
+    void set_pose(const Pose3D& pose) noexcept;
+    Pose3D get_pose() const noexcept;
+    glm::vec2 placement_size_meters() const noexcept;
 
     // Diagnostic accessor; nullptr for slots beyond kSlotCount.
     const DeviceImage* device_image(uint32_t slot) const noexcept;
@@ -154,6 +182,15 @@ private:
     //               published slot. record() updates this.
     std::atomic<uint8_t> latest_{ kSlotNone };
     std::atomic<uint8_t> in_use_{ kSlotNone };
+
+    // Live placement pose. Mutated under pose_mutex_ via set_pose;
+    // read in record() under the same lock. record() runs on the
+    // render thread and contention is minimal (tiny critical section,
+    // mat4 copy at most). placement_size_meters_ is set once at
+    // construction from Config; set_pose can't change the size today.
+    mutable std::mutex pose_mutex_;
+    Pose3D placement_pose_{};
+    glm::vec2 placement_size_meters_{ 0.0f, 0.0f };
 };
 
 } // namespace viz

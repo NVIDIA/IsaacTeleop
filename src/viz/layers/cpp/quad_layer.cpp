@@ -1,12 +1,16 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include <viz/core/render_target.hpp>
 #include <viz/core/vk_context.hpp>
 #include <viz/layers/quad_layer.hpp>
 #include <viz/shaders/textured_quad.frag.spv.h>
 #include <viz/shaders/textured_quad.vert.spv.h>
 
+#include <cstdint>
+#include <cstring>
 #include <cuda_runtime.h>
 #include <stdexcept>
 #include <string>
@@ -82,6 +86,12 @@ QuadLayer::QuadLayer(const VkContext& ctx, VkRenderPass render_pass, Config conf
     {
         throw std::invalid_argument("QuadLayer: VkContext is not initialized");
     }
+    if (config_.placement_size_meters.x < 0.0f || config_.placement_size_meters.y < 0.0f)
+    {
+        throw std::invalid_argument("QuadLayer: placement_size_meters must be non-negative");
+    }
+    placement_pose_ = config_.placement_pose;
+    placement_size_meters_ = config_.placement_size_meters;
     init();
 }
 
@@ -275,15 +285,80 @@ void QuadLayer::record(VkCommandBuffer cmd, const std::vector<ViewInfo>& views, 
     vkCmdBindDescriptorSets(
         cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0, 1, &descriptor_sets_[cur], 0, nullptr);
 
+    // Snapshot the live placement under the lock so set_pose() can run
+    // concurrently without tearing the mat4 read.
+    Pose3D placement_pose;
+    glm::vec2 placement_size;
+    {
+        std::lock_guard<std::mutex> lk(pose_mutex_);
+        placement_pose = placement_pose_;
+        placement_size = placement_size_meters_;
+    }
+    const bool placement_active = placement_size.x > 0.0f && placement_size.y > 0.0f;
+
+    // Push constant layout matches textured_quad.vert: mat4 mvp + int mode.
+    // Stored as a flat byte buffer so we can issue one vkCmdPushConstants
+    // per view without per-eye reallocation.
+    struct PushConstants
+    {
+        float mvp[16];
+        int32_t mode;
+    };
+    static_assert(sizeof(PushConstants) == sizeof(float) * 16 + sizeof(int32_t),
+                  "PushConstants layout must match shader push_constant block");
+
     // 1 view in window/offscreen, 2 in XR stereo. Compositor pre-bound
-    // the layer's scissor; we bind viewport per view and draw.
+    // the layer's scissor; we bind viewport per view, push constants,
+    // then draw.
     for (const auto& view : views)
     {
         bind_view_viewport(cmd, view);
-        // 3 vertices, no vertex buffer — vertex shader emits a
-        // fullscreen triangle from gl_VertexIndex.
-        vkCmdDraw(cmd, 3, 1, 0, 0);
+
+        PushConstants pc{};
+        const bool use_mvp = view.is_xr && placement_active;
+        if (use_mvp)
+        {
+            // Model: translate to placement position, rotate by placement
+            // orientation, scale to placement_size. Negative Y flips the
+            // texture vertically to match Vulkan clip-space Y-down — the
+            // same trick xr_plane_renderer uses.
+            glm::mat4 model = glm::translate(glm::mat4(1.0f), placement_pose.position);
+            model *= glm::mat4_cast(placement_pose.orientation);
+            model = glm::scale(model, glm::vec3(placement_size.x, -placement_size.y, 1.0f));
+
+            const glm::mat4 mvp = view.projection_matrix * view.view_matrix * model;
+            std::memcpy(pc.mvp, &mvp[0][0], sizeof(pc.mvp));
+            pc.mode = 1;
+            vkCmdPushConstants(cmd, pipeline_layout_, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
+            vkCmdDraw(cmd, 4, 1, 0, 0); // triangle strip, 2 triangles
+        }
+        else
+        {
+            // Fullscreen pass: shader ignores MVP; mode=0 selects the
+            // gl_VertexIndex-derived oversized triangle.
+            pc.mode = 0;
+            vkCmdPushConstants(cmd, pipeline_layout_, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
+            vkCmdDraw(cmd, 3, 1, 0, 0);
+        }
     }
+}
+
+void QuadLayer::set_pose(const Pose3D& pose) noexcept
+{
+    std::lock_guard<std::mutex> lk(pose_mutex_);
+    placement_pose_ = pose;
+}
+
+Pose3D QuadLayer::get_pose() const noexcept
+{
+    std::lock_guard<std::mutex> lk(pose_mutex_);
+    return placement_pose_;
+}
+
+glm::vec2 QuadLayer::placement_size_meters() const noexcept
+{
+    std::lock_guard<std::mutex> lk(pose_mutex_);
+    return placement_size_meters_;
 }
 
 std::vector<LayerBase::WaitSemaphore> QuadLayer::get_wait_semaphores() const
@@ -351,11 +426,19 @@ void QuadLayer::create_descriptor_set_layout()
 
 void QuadLayer::create_pipeline_layout()
 {
+    // Push constants: mat4 mvp + int32 mode = 68 bytes, well under
+    // the spec's 128-byte minimum guarantee.
+    VkPushConstantRange pc_range{};
+    pc_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    pc_range.offset = 0;
+    pc_range.size = sizeof(float) * 16 + sizeof(int32_t);
+
     VkPipelineLayoutCreateInfo info{};
     info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     info.setLayoutCount = 1;
     info.pSetLayouts = &descriptor_set_layout_;
-    info.pushConstantRangeCount = 0;
+    info.pushConstantRangeCount = 1;
+    info.pPushConstantRanges = &pc_range;
     check_vk(vkCreatePipelineLayout(ctx_->device(), &info, nullptr, &pipeline_layout_), "vkCreatePipelineLayout");
 }
 
@@ -402,7 +485,10 @@ void QuadLayer::create_pipeline()
 
     VkPipelineInputAssemblyStateCreateInfo input_assembly{};
     input_assembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-    input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    // TRIANGLE_STRIP works for both render modes (see textured_quad.vert):
+    //   3 verts → 1 triangle (fullscreen pass; same as TRIANGLE_LIST)
+    //   4 verts → 2 triangles (3D placed quad)
+    input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
 
     // Viewport / scissor are dynamic so one pipeline works across
     // resolutions.

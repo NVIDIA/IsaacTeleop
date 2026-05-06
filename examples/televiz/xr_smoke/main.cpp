@@ -146,6 +146,16 @@ int main()
         viz::QuadLayer::Config layer_cfg;
         layer_cfg.name = "xr_smoke_quad";
         layer_cfg.resolution = { kQuadW, kQuadH };
+        // 3D placement: 1.0 m wide square plane, 1.5 m in front of the
+        // origin (OpenXR LOCAL space: forward = -Z). With this set, the
+        // quad renders as a real plane in space — the user can lean
+        // around it, walk closer, etc. In window/offscreen modes the
+        // backend's is_xr=false makes QuadLayer fall back to fullscreen.
+        layer_cfg.placement_pose = viz::Pose3D{
+            glm::vec3(0.0f, 0.0f, -1.5f), // 1.5 m forward
+            glm::quat(1.0f, 0.0f, 0.0f, 0.0f), // identity orientation (facing toward viewer)
+        };
+        layer_cfg.placement_size_meters = glm::vec2(1.0f, 1.0f);
         auto* layer = session->add_layer<viz::QuadLayer>(*ctx, render_pass, layer_cfg);
 
         CudaDeviceBuffer device_buffer(static_cast<size_t>(kQuadW) * kQuadH * sizeof(Rgba));

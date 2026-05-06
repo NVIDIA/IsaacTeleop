@@ -71,6 +71,13 @@ struct ViewInfo
     // in XR stereo it's the eye's subImage.imageRect; in offscreen
     // it's the full target.
     Rect2D viewport{};
+    // True when view_matrix / projection_matrix carry real per-eye XR
+    // data (kXr backend). False for window/offscreen, which leave
+    // matrices at identity. Layers that support 3D placement (e.g.
+    // QuadLayer with non-zero placement_size_meters) gate their MVP
+    // path on this — non-XR backends fall back to fullscreen rendering
+    // regardless of the layer's pose configuration.
+    bool is_xr = false;
 };
 
 } // namespace viz

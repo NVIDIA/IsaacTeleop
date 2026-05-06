@@ -6,9 +6,13 @@
 #include <viz/xr/openxr_instance.hpp>
 
 #define XR_USE_GRAPHICS_API_VULKAN
+#include <glm/ext/matrix_clip_space.hpp>
+#include <glm/ext/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include <openxr/openxr_platform.h>
 
 #include <algorithm>
+#include <cmath>
 #include <stdexcept>
 #include <string>
 
@@ -206,14 +210,57 @@ void XrBackend::create_swapchains()
 
 void XrBackend::create_intermediate()
 {
-    // Phase 1: monoscopic render at view 0's recommended resolution;
-    // both eyes blit from the same intermediate. Use the COLOR
-    // attachment format of the RT's render pass — RT picks its own.
-    const auto& v0 = session_->view_configuration_views()[0];
+    // Wide side-by-side intermediate: each view renders into its own
+    // half (or N-th if more views exist). record_post_render_pass
+    // splits the result and blits per-view region into per-view
+    // swapchain images. This lets QuadLayer iterate views with
+    // per-eye MVPs and produce real stereo content (with parallax).
+    // For QuadLayer in fullscreen mode the per-view loop also runs
+    // but each iteration just blits the texture into its half — the
+    // result still matches the previous mono-into-stereo behavior.
+    const auto& views = session_->view_configuration_views();
+    uint32_t total_w = 0;
+    uint32_t max_h = 0;
+    for (const auto& v : views)
+    {
+        total_w += v.recommendedImageRectWidth;
+        max_h = std::max(max_h, v.recommendedImageRectHeight);
+    }
     RenderTarget::Config rt_cfg{};
-    rt_cfg.resolution = Resolution{ v0.recommendedImageRectWidth, v0.recommendedImageRectHeight };
+    rt_cfg.resolution = Resolution{ total_w, max_h };
     render_target_ = RenderTarget::create(*ctx_, rt_cfg);
 }
+
+namespace
+{
+// Convert XrPosef to a glm::mat4 representing the eye-to-world
+// transform (i.e., the inverse is the view matrix used for rendering).
+glm::mat4 pose_to_world_matrix(const XrPosef& pose)
+{
+    const glm::quat q(pose.orientation.w, pose.orientation.x, pose.orientation.y, pose.orientation.z);
+    const glm::vec3 p(pose.position.x, pose.position.y, pose.position.z);
+    return glm::translate(glm::mat4(1.0f), p) * glm::mat4_cast(q);
+}
+
+// Build the per-eye projection matrix from XR's signed-angle FOV.
+// Conventions follow xr_plane_renderer (holohub):
+//   - frustumRH_ZO = right-handed view, [0, 1] depth (Vulkan)
+//   - bottom = nearZ * tan(angleUp), top = nearZ * tan(angleDown):
+//     swapped because XR is Y-up and Vulkan clip is Y-down — the
+//     swap effectively flips Y in the projection so XR-world +Y ends
+//     up at Vulkan-clip -Y (top of screen).
+glm::mat4 fov_to_projection_matrix(const XrFovf& fov, float near_z, float far_z)
+{
+    const float left = near_z * std::tan(fov.angleLeft);
+    const float right = near_z * std::tan(fov.angleRight);
+    const float bottom = near_z * std::tan(fov.angleUp);
+    const float top = near_z * std::tan(fov.angleDown);
+    return glm::frustumRH_ZO(left, right, bottom, top, near_z, far_z);
+}
+
+constexpr float kNearZ = 0.05f;
+constexpr float kFarZ = 100.0f;
+} // namespace
 
 std::optional<DisplayBackend::Frame> XrBackend::begin_frame(int64_t /*ignored*/)
 {
@@ -269,13 +316,31 @@ std::optional<DisplayBackend::Frame> XrBackend::begin_frame(int64_t /*ignored*/)
     }
     frame_renderable_ = true;
 
-    // Single canonical view spanning the whole intermediate. The
-    // intermediate is monoscopic in Phase 1; per-eye composition
-    // happens at xrEndFrame via two ProjectionViews (built in
-    // end_frame) that both reference our blits below.
+    // Per-eye views populated from xrLocateViews. Each view gets its
+    // own region of the wide intermediate (left half for view 0, right
+    // half for view 1, ...) and its own view + projection matrices.
+    // QuadLayer iterates views and either renders fullscreen per-eye
+    // (legacy mode) or uses the MVP for true 3D placement.
+    const auto& view_cfgs = session_->view_configuration_views();
     Frame f{};
-    f.views.assign(1, ViewInfo{});
-    f.views[0].viewport = Rect2D{ 0, 0, render_target_->resolution().width, render_target_->resolution().height };
+    f.views.assign(view_swapchains_.size(), ViewInfo{});
+    int32_t x_offset = 0;
+    for (size_t i = 0; i < view_swapchains_.size(); ++i)
+    {
+        const auto& vc = view_cfgs[i];
+        const XrView& xv = last_views_[i];
+        ViewInfo& vi = f.views[i];
+        vi.viewport = Rect2D{ x_offset, 0, vc.recommendedImageRectWidth, vc.recommendedImageRectHeight };
+        vi.view_matrix = glm::inverse(pose_to_world_matrix(xv.pose));
+        vi.projection_matrix = fov_to_projection_matrix(xv.fov, kNearZ, kFarZ);
+        vi.fov = Fov{ xv.fov.angleLeft, xv.fov.angleRight, xv.fov.angleUp, xv.fov.angleDown };
+        vi.pose = Pose3D{
+            glm::vec3(xv.pose.position.x, xv.pose.position.y, xv.pose.position.z),
+            glm::quat(xv.pose.orientation.w, xv.pose.orientation.x, xv.pose.orientation.y, xv.pose.orientation.z),
+        };
+        vi.is_xr = true;
+        x_offset += static_cast<int32_t>(vc.recommendedImageRectWidth);
+    }
     f.wait_before_render = VK_NULL_HANDLE;
     f.signal_after_render = VK_NULL_HANDLE;
     f.backend_token = static_cast<uint64_t>(last_frame_state_.predictedDisplayTime);
@@ -291,30 +356,36 @@ const RenderTarget& XrBackend::render_target() const
     return *render_target_;
 }
 
-void XrBackend::record_post_render_pass(VkCommandBuffer cmd, const Frame& /*frame*/)
+void XrBackend::record_post_render_pass(VkCommandBuffer cmd, const Frame& frame)
 {
     if (!frame_renderable_ || !render_target_)
     {
         return;
     }
     const VkImage src = render_target_->color_image();
-    const Resolution src_extent = render_target_->resolution();
 
-    // Blit the same intermediate to every per-eye swapchain image.
-    // RT's color attachment is in TRANSFER_SRC_OPTIMAL after the render
-    // pass's final layout. Each XR swapchain image arrives in an
-    // unspecified layout (per spec: contents undefined post-acquire),
-    // so we transition UNDEFINED -> TRANSFER_DST -> COLOR_ATTACHMENT.
-    for (const auto& sw : view_swapchains_)
+    // Wide intermediate split-blit: each per-eye region of the source
+    // (left half → eye 0, right half → eye 1, ...) goes to its own
+    // swapchain image. The src rect comes from frame.views[i].viewport
+    // — same offsets QuadLayer used to render into per-eye regions.
+    // RT is in TRANSFER_SRC_OPTIMAL after the render pass's final
+    // layout. Each XR swapchain image arrives in an unspecified
+    // layout, so we transition UNDEFINED → TRANSFER_DST → COLOR_ATTACHMENT.
+    for (size_t i = 0; i < view_swapchains_.size(); ++i)
     {
+        const auto& sw = view_swapchains_[i];
         const VkImage dst = sw.images[sw.current_image_index];
+        const Rect2D src_rect = (i < frame.views.size()) ? frame.views[i].viewport : Rect2D{ 0, 0, sw.width, sw.height };
+
         transition_image(cmd, dst, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0,
                          VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 
         VkImageBlit region{};
         region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         region.srcSubresource.layerCount = 1;
-        region.srcOffsets[1] = { static_cast<int32_t>(src_extent.width), static_cast<int32_t>(src_extent.height), 1 };
+        region.srcOffsets[0] = { src_rect.x, src_rect.y, 0 };
+        region.srcOffsets[1] = { src_rect.x + static_cast<int32_t>(src_rect.width),
+                                 src_rect.y + static_cast<int32_t>(src_rect.height), 1 };
         region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         region.dstSubresource.layerCount = 1;
         region.dstOffsets[1] = { static_cast<int32_t>(sw.width), static_cast<int32_t>(sw.height), 1 };
