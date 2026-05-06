@@ -61,4 +61,3 @@ TEST_CASE("OpenXrSession constructs against a graphics-bound VkContext", "[xr][v
         session.poll_events();
     }
 }
-

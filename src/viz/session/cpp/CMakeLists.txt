@@ -13,6 +13,7 @@ add_library(viz_session STATIC
     viz_compositor.cpp
     viz_session.cpp
     window_backend.cpp
+    xr_backend.cpp
     inc/viz/session/display_backend.hpp
     inc/viz/session/display_mode.hpp
     inc/viz/session/frame_info.hpp
@@ -23,6 +24,7 @@ add_library(viz_session STATIC
     inc/viz/session/viz_compositor.hpp
     inc/viz/session/viz_session.hpp
     inc/viz/session/window_backend.hpp
+    inc/viz/session/xr_backend.hpp
 )
 
 target_include_directories(viz_session
@@ -34,6 +36,7 @@ target_link_libraries(viz_session
     PUBLIC
         viz::core
         viz::layers
+        viz::xr
         glfw
 )
 
