@@ -33,8 +33,8 @@ vk::SurfaceFormatKHR pick_surface_format(const std::vector<vk::SurfaceFormatKHR>
             return f;
         }
     }
-    return formats.empty() ? vk::SurfaceFormatKHR{ vk::Format::eUndefined, vk::ColorSpaceKHR::eSrgbNonlinear }
-                           : formats[0];
+    return formats.empty() ? vk::SurfaceFormatKHR{ vk::Format::eUndefined, vk::ColorSpaceKHR::eSrgbNonlinear } :
+                             formats[0];
 }
 
 vk::Extent2D clamp_extent(const vk::SurfaceCapabilitiesKHR& caps, Resolution preferred)
@@ -251,8 +251,7 @@ std::optional<Swapchain::AcquiredImage> Swapchain::acquire_next_image()
     }
     if (r != vk::Result::eSuccess && r != vk::Result::eSuboptimalKHR)
     {
-        throw std::runtime_error("Swapchain::acquire_next_image: VkResult=" +
-                                 std::to_string(static_cast<int>(r)));
+        throw std::runtime_error("Swapchain::acquire_next_image: VkResult=" + std::to_string(static_cast<int>(r)));
     }
     return AcquiredImage{ image_index, static_cast<VkImage>(images_[image_index]), *sem, *render_done_[frame_slot_] };
 }
@@ -275,8 +274,8 @@ bool Swapchain::present(uint32_t image_index, VkSemaphore render_done)
     // raii::Queue::presentKHR throws on the OUT_OF_DATE / SUBOPTIMAL
     // result codes that we want to handle as flow control. Fall through
     // to the C entry point so the result code is observable.
-    const vk::Result r = static_cast<vk::Result>(
-        vkQueuePresentKHR(ctx_->queue(), reinterpret_cast<const VkPresentInfoKHR*>(&info)));
+    const vk::Result r =
+        static_cast<vk::Result>(vkQueuePresentKHR(ctx_->queue(), reinterpret_cast<const VkPresentInfoKHR*>(&info)));
     // Advance the slot regardless — next frame needs fresh semaphores.
     if (!images_.empty())
     {

@@ -115,14 +115,13 @@ HostImage OffscreenBackend::readback_to_host()
         .imageSubresource = { .aspectMask = vk::ImageAspectFlagBits::eColor, .layerCount = 1 },
         .imageExtent = { extent_.width, extent_.height, 1 },
     };
-    cmd.copyImageToBuffer(vk::Image{ render_target_->color_image() }, vk::ImageLayout::eTransferSrcOptimal,
-                          *readback_buffer_, region);
+    cmd.copyImageToBuffer(
+        vk::Image{ render_target_->color_image() }, vk::ImageLayout::eTransferSrcOptimal, *readback_buffer_, region);
 
     cmd.end();
 
     const vk::CommandBuffer cmd_handle = *cmd;
-    ctx_->raii_queue().submit(vk::SubmitInfo{ .commandBufferCount = 1, .pCommandBuffers = &cmd_handle },
-                              VK_NULL_HANDLE);
+    ctx_->raii_queue().submit(vk::SubmitInfo{ .commandBufferCount = 1, .pCommandBuffers = &cmd_handle }, VK_NULL_HANDLE);
     ctx_->raii_queue().waitIdle();
 
     HostImage result(extent_, PixelFormat::kRGBA8);
@@ -138,12 +137,11 @@ void OffscreenBackend::create_readback_staging()
         static_cast<vk::DeviceSize>(extent_.width) * extent_.height * bytes_per_pixel(PixelFormat::kRGBA8);
 
     const auto& device = ctx_->raii_device();
-    readback_buffer_ = vk::raii::Buffer{ device,
-                                         vk::BufferCreateInfo{
-                                             .size = readback_byte_size_,
-                                             .usage = vk::BufferUsageFlagBits::eTransferDst,
-                                             .sharingMode = vk::SharingMode::eExclusive,
-                                         } };
+    readback_buffer_ = vk::raii::Buffer{ device, vk::BufferCreateInfo{
+                                                     .size = readback_byte_size_,
+                                                     .usage = vk::BufferUsageFlagBits::eTransferDst,
+                                                     .sharingMode = vk::SharingMode::eExclusive,
+                                                 } };
 
     const auto reqs = readback_buffer_.getMemoryRequirements();
     readback_memory_ = vk::raii::DeviceMemory{
@@ -158,19 +156,16 @@ void OffscreenBackend::create_readback_staging()
     readback_buffer_.bindMemory(*readback_memory_, 0);
 
     // Dedicated cmd pool — never races the compositor's per-frame buffer.
-    readback_command_pool_ = vk::raii::CommandPool{
-        device, vk::CommandPoolCreateInfo{
-                    .flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
-                    .queueFamilyIndex = ctx_->queue_family_index(),
-                }
-    };
-    readback_command_buffers_ = vk::raii::CommandBuffers{
-        device, vk::CommandBufferAllocateInfo{
-                    .commandPool = *readback_command_pool_,
-                    .level = vk::CommandBufferLevel::ePrimary,
-                    .commandBufferCount = 1,
-                }
-    };
+    readback_command_pool_ =
+        vk::raii::CommandPool{ device, vk::CommandPoolCreateInfo{
+                                           .flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
+                                           .queueFamilyIndex = ctx_->queue_family_index(),
+                                       } };
+    readback_command_buffers_ = vk::raii::CommandBuffers{ device, vk::CommandBufferAllocateInfo{
+                                                                      .commandPool = *readback_command_pool_,
+                                                                      .level = vk::CommandBufferLevel::ePrimary,
+                                                                      .commandBufferCount = 1,
+                                                                  } };
 }
 
 } // namespace viz

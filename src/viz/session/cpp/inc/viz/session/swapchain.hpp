@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include <viz/core/vk.hpp>
 #include <viz/core/viz_types.hpp>
+#include <viz/core/vk.hpp>
 
 #include <cstdint>
 #include <memory>

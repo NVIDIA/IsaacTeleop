@@ -27,12 +27,10 @@ void check_cuda(cudaError_t result, const char* what)
 
 vk::raii::ShaderModule create_shader_module(const vk::raii::Device& device, const unsigned char* spv, size_t size)
 {
-    return vk::raii::ShaderModule{
-        device, vk::ShaderModuleCreateInfo{
-                    .codeSize = size,
-                    .pCode = reinterpret_cast<const uint32_t*>(spv),
-                }
-    };
+    return vk::raii::ShaderModule{ device, vk::ShaderModuleCreateInfo{
+                                               .codeSize = size,
+                                               .pCode = reinterpret_cast<const uint32_t*>(spv),
+                                           } };
 }
 
 // Once destroy() has run, slots_[0] is the canonical "alive" signal
@@ -274,25 +272,23 @@ std::vector<LayerBase::WaitSemaphore> QuadLayer::get_wait_semaphores() const
 
 void QuadLayer::create_sampler()
 {
-    sampler_ = vk::raii::Sampler{
-        ctx_->raii_device(),
-        vk::SamplerCreateInfo{
-            .magFilter = vk::Filter::eLinear,
-            .minFilter = vk::Filter::eLinear,
-            .mipmapMode = vk::SamplerMipmapMode::eNearest,
-            .addressModeU = vk::SamplerAddressMode::eClampToEdge,
-            .addressModeV = vk::SamplerAddressMode::eClampToEdge,
-            .addressModeW = vk::SamplerAddressMode::eClampToEdge,
-            .anisotropyEnable = VK_FALSE, // enable later when XR distance views need it
-            .maxAnisotropy = 1.0f,
-            .compareEnable = VK_FALSE,
-            .compareOp = vk::CompareOp::eAlways,
-            .minLod = 0.0f,
-            .maxLod = 0.0f,
-            .borderColor = vk::BorderColor::eIntOpaqueBlack,
-            .unnormalizedCoordinates = VK_FALSE,
-        }
-    };
+    sampler_ = vk::raii::Sampler{ ctx_->raii_device(), vk::SamplerCreateInfo{
+                                                           .magFilter = vk::Filter::eLinear,
+                                                           .minFilter = vk::Filter::eLinear,
+                                                           .mipmapMode = vk::SamplerMipmapMode::eNearest,
+                                                           .addressModeU = vk::SamplerAddressMode::eClampToEdge,
+                                                           .addressModeV = vk::SamplerAddressMode::eClampToEdge,
+                                                           .addressModeW = vk::SamplerAddressMode::eClampToEdge,
+                                                           .anisotropyEnable = VK_FALSE, // enable later when XR
+                                                                                         // distance views need it
+                                                           .maxAnisotropy = 1.0f,
+                                                           .compareEnable = VK_FALSE,
+                                                           .compareOp = vk::CompareOp::eAlways,
+                                                           .minLod = 0.0f,
+                                                           .maxLod = 0.0f,
+                                                           .borderColor = vk::BorderColor::eIntOpaqueBlack,
+                                                           .unnormalizedCoordinates = VK_FALSE,
+                                                       } };
 }
 
 void QuadLayer::create_descriptor_set_layout()
@@ -334,8 +330,7 @@ void QuadLayer::create_pipeline()
 
     const std::array<vk::PipelineShaderStageCreateInfo, 2> stages{
         vk::PipelineShaderStageCreateInfo{ .stage = vk::ShaderStageFlagBits::eVertex, .module = *vert, .pName = "main" },
-        vk::PipelineShaderStageCreateInfo{
-            .stage = vk::ShaderStageFlagBits::eFragment, .module = *frag, .pName = "main" },
+        vk::PipelineShaderStageCreateInfo{ .stage = vk::ShaderStageFlagBits::eFragment, .module = *frag, .pName = "main" },
     };
 
     const vk::PipelineVertexInputStateCreateInfo vertex_input{};
@@ -377,24 +372,22 @@ void QuadLayer::create_pipeline()
         .pDynamicStates = dynamic_states.data(),
     };
 
-    pipeline_ = vk::raii::Pipeline{
-        device, ctx_->raii_pipeline_cache(),
-        vk::GraphicsPipelineCreateInfo{
-            .stageCount = static_cast<uint32_t>(stages.size()),
-            .pStages = stages.data(),
-            .pVertexInputState = &vertex_input,
-            .pInputAssemblyState = &input_assembly,
-            .pViewportState = &viewport_state,
-            .pRasterizationState = &rasterizer,
-            .pMultisampleState = &multisample,
-            .pDepthStencilState = &depth_stencil,
-            .pColorBlendState = &color_blend,
-            .pDynamicState = &dynamic,
-            .layout = *pipeline_layout_,
-            .renderPass = render_pass_,
-            .subpass = 0,
-        }
-    };
+    pipeline_ = vk::raii::Pipeline{ device, ctx_->raii_pipeline_cache(),
+                                    vk::GraphicsPipelineCreateInfo{
+                                        .stageCount = static_cast<uint32_t>(stages.size()),
+                                        .pStages = stages.data(),
+                                        .pVertexInputState = &vertex_input,
+                                        .pInputAssemblyState = &input_assembly,
+                                        .pViewportState = &viewport_state,
+                                        .pRasterizationState = &rasterizer,
+                                        .pMultisampleState = &multisample,
+                                        .pDepthStencilState = &depth_stencil,
+                                        .pColorBlendState = &color_blend,
+                                        .pDynamicState = &dynamic,
+                                        .layout = *pipeline_layout_,
+                                        .renderPass = render_pass_,
+                                        .subpass = 0,
+                                    } };
 }
 
 void QuadLayer::create_descriptor_pool()

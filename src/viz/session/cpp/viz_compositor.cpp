@@ -68,26 +68,22 @@ void VizCompositor::destroy()
 
 void VizCompositor::create_command_pool_and_buffer()
 {
-    command_pool_ = vk::raii::CommandPool{
-        ctx_->raii_device(), vk::CommandPoolCreateInfo{
-                                 .flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
-                                 .queueFamilyIndex = ctx_->queue_family_index(),
-                             }
-    };
-    command_buffers_ = vk::raii::CommandBuffers{
-        ctx_->raii_device(), vk::CommandBufferAllocateInfo{
-                                 .commandPool = *command_pool_,
-                                 .level = vk::CommandBufferLevel::ePrimary,
-                                 .commandBufferCount = 1,
-                             }
-    };
+    command_pool_ =
+        vk::raii::CommandPool{ ctx_->raii_device(), vk::CommandPoolCreateInfo{
+                                                        .flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
+                                                        .queueFamilyIndex = ctx_->queue_family_index(),
+                                                    } };
+    command_buffers_ = vk::raii::CommandBuffers{ ctx_->raii_device(), vk::CommandBufferAllocateInfo{
+                                                                          .commandPool = *command_pool_,
+                                                                          .level = vk::CommandBufferLevel::ePrimary,
+                                                                          .commandBufferCount = 1,
+                                                                      } };
 }
 
 void VizCompositor::submit_or_signal_fence(const vk::SubmitInfo& info, const char* what)
 {
-    const vk::Result r =
-        static_cast<vk::Result>(vkQueueSubmit(ctx_->queue(), 1, reinterpret_cast<const VkSubmitInfo*>(&info),
-                                              frame_sync_->in_flight_fence()));
+    const vk::Result r = static_cast<vk::Result>(
+        vkQueueSubmit(ctx_->queue(), 1, reinterpret_cast<const VkSubmitInfo*>(&info), frame_sync_->in_flight_fence()));
     if (r == vk::Result::eSuccess)
     {
         return;
@@ -197,14 +193,15 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
     clears[0].color = *reinterpret_cast<const vk::ClearColorValue*>(&config_.clear_color);
     clears[1].depthStencil = vk::ClearDepthStencilValue{ 1.0f, 0 };
 
-    cmd.beginRenderPass(vk::RenderPassBeginInfo{
-                            .renderPass = rt.render_pass(),
-                            .framebuffer = rt.framebuffer(),
-                            .renderArea = vk::Rect2D{ vk::Offset2D{ 0, 0 }, vk::Extent2D{ rt_extent.width, rt_extent.height } },
-                            .clearValueCount = static_cast<uint32_t>(clears.size()),
-                            .pClearValues = clears.data(),
-                        },
-                        vk::SubpassContents::eInline);
+    cmd.beginRenderPass(
+        vk::RenderPassBeginInfo{
+            .renderPass = rt.render_pass(),
+            .framebuffer = rt.framebuffer(),
+            .renderArea = vk::Rect2D{ vk::Offset2D{ 0, 0 }, vk::Extent2D{ rt_extent.width, rt_extent.height } },
+            .clearValueCount = static_cast<uint32_t>(clears.size()),
+            .pClearValues = clears.data(),
+        },
+        vk::SubpassContents::eInline);
 
     // Per-layer: pre-bind scissor (tile.outer); per-layer ViewInfo
     // gets viewport = tile.content. Layer record() takes raw
