@@ -454,10 +454,10 @@ void DeviceImage::run_one_shot_layout_transition(VkImageLayout old_layout,
                         {}, {}, {}, { barrier });
     cmd.end();
 
-    const VkCommandBuffer raw = *cmd;
+    const vk::CommandBuffer cmd_handle = *cmd;
     ctx_->raii_queue().submit({ vk::SubmitInfo{
                                   .commandBufferCount = 1,
-                                  .pCommandBuffers = reinterpret_cast<const vk::CommandBuffer*>(&raw),
+                                  .pCommandBuffers = &cmd_handle,
                               } },
                               VK_NULL_HANDLE);
     ctx_->raii_queue().waitIdle();

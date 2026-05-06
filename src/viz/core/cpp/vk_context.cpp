@@ -268,20 +268,18 @@ void VkContext::create_instance(const Config& config)
     if (validation_enabled_)
     {
         instance_extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        instance_extensions.push_back(VK_EXT_VALIDATION_FEATURES_EXTENSION_NAME);
     }
 
     const vk::ValidationFeatureEnableEXT enables[] = {
         vk::ValidationFeatureEnableEXT::eBestPractices,
         vk::ValidationFeatureEnableEXT::eSynchronizationValidation,
     };
-    const vk::ValidationFeaturesEXT validation_features{
-        .enabledValidationFeatureCount = static_cast<uint32_t>(std::size(enables)),
-        .pEnabledValidationFeatures = enables,
-    };
 
-    // Catches errors emitted during instance creation itself.
+    // Plain create-info (no pNext) — same struct serves both the
+    // chained create-time messenger and the persistent post-create
+    // messenger, since neither needs further chained structures.
     const vk::DebugUtilsMessengerCreateInfoEXT debug_create_info{
-        .pNext = validation_enabled_ ? &validation_features : nullptr,
         .messageSeverity =
             vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError,
         .messageType = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
@@ -292,8 +290,7 @@ void VkContext::create_instance(const Config& config)
         .pfnUserCallback = reinterpret_cast<vk::PFN_DebugUtilsMessengerCallbackEXT>(debug_messenger_callback),
     };
 
-    const vk::InstanceCreateInfo create_info{
-        .pNext = validation_enabled_ ? &debug_create_info : nullptr,
+    const vk::InstanceCreateInfo base_info{
         .pApplicationInfo = &app_info,
         .enabledLayerCount = static_cast<uint32_t>(layers.size()),
         .ppEnabledLayerNames = layers.data(),
@@ -301,11 +298,29 @@ void VkContext::create_instance(const Config& config)
         .ppEnabledExtensionNames = instance_extensions.data(),
     };
 
-    instance_ = vk::raii::Instance{ context_, create_info };
-
     if (validation_enabled_)
     {
+        // Instance pNext chain:
+        //   InstanceCreateInfo
+        //     → DebugUtilsMessengerCreateInfoEXT (catches errors emitted
+        //                                         during vkCreateInstance)
+        //     → ValidationFeaturesEXT (best-practices + sync validation;
+        //                              valid as pNext of InstanceCreateInfo,
+        //                              NOT of DebugUtilsMessengerCreateInfoEXT).
+        vk::StructureChain<vk::InstanceCreateInfo, vk::DebugUtilsMessengerCreateInfoEXT, vk::ValidationFeaturesEXT> chain{
+            base_info,
+            debug_create_info,
+            vk::ValidationFeaturesEXT{
+                .enabledValidationFeatureCount = static_cast<uint32_t>(std::size(enables)),
+                .pEnabledValidationFeatures = enables,
+            },
+        };
+        instance_ = vk::raii::Instance{ context_, chain.get<vk::InstanceCreateInfo>() };
         debug_messenger_ = vk::raii::DebugUtilsMessengerEXT{ instance_, debug_create_info };
+    }
+    else
+    {
+        instance_ = vk::raii::Instance{ context_, base_info };
     }
 }
 

@@ -18,12 +18,13 @@
 // own their dispatcher automatically — no VULKAN_HPP_DEFAULT_DISPATCHER
 // initialization needed.
 //
-// VULKAN_HPP_NO_CONSTRUCTORS removes vulkan-hpp's hand-written
-// constructors so structs become aggregates, enabling C++20
-// designated initializers (`vk::ImageCreateInfo{.format = ..., ...}`).
-// Builder methods like setFormat() still work; we just lose the
-// positional parameter-list constructors (which we wouldn't use anyway).
-#define VULKAN_HPP_NO_CONSTRUCTORS
+// VULKAN_HPP_NO_CONSTRUCTORS is defined as a project-wide compile
+// flag in viz_core's CMakeLists (PUBLIC propagation), not here —
+// otherwise the macro would only take effect for TUs that happen to
+// include this header before vulkan.hpp. The compile flag enforces
+// it everywhere, removing vulkan-hpp's hand-written constructors so
+// structs are aggregates and C++20 designated initializers work
+// (`vk::ImageCreateInfo{.format = ..., ...}`).
 
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_raii.hpp>

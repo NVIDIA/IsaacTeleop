@@ -51,4 +51,10 @@ target_link_libraries(viz_core
 )
 
 # Aliased as viz::core (consumers say viz::core, not viz::viz_core).
+# Defined PUBLIC so every consumer of viz_core (and transitively
+# every Televiz Vulkan TU) sees vulkan-hpp's structs as aggregates,
+# regardless of include order. Defining it only inside vk.hpp would
+# silently break if another header included vulkan.hpp first.
+target_compile_definitions(viz_core PUBLIC VULKAN_HPP_NO_CONSTRUCTORS)
+
 add_library(viz::core ALIAS viz_core)
