@@ -106,20 +106,25 @@ int main(int argc, char** argv)
         std::vector<uint8_t> chunk(kChunkBytes);
         while (!session->should_close())
         {
-            // Top up the decoder until it has at least one queued frame
-            // (or the file ends). Bound the inner loop so a malformed
-            // file can't trap us.
-            for (int safety = 0; safety < 256 && player.queued_frame_count() == 0 && file; ++safety)
+            // Top up the decoder until it has at least one queued frame.
+            // Bound the inner loop so a malformed file can't trap us.
+            // EOF handling: a read that hits EOF can return PARTIAL
+            // bytes and still leave the stream in a failed state, so
+            // we always rewind after a failed read regardless of how
+            // many bytes came back.
+            for (int safety = 0; safety < 256 && player.queued_frame_count() == 0; ++safety)
             {
                 file.read(reinterpret_cast<char*>(chunk.data()), chunk.size());
                 const auto got = static_cast<size_t>(file.gcount());
-                if (got == 0)
+                if (got > 0)
+                {
+                    player.feed(chunk.data(), got);
+                }
+                if (!file)
                 {
                     file.clear();
                     file.seekg(0);
-                    continue; // loop the stream
                 }
-                player.feed(chunk.data(), got);
             }
 
             if (auto next = player.try_pop())
