@@ -16,23 +16,22 @@
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
-#include <fstream>
 #include <memory>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace
 {
 
-constexpr size_t kChunkBytes = 64 * 1024;
-
 struct Video
 {
     std::string path;
-    std::ifstream file;
     // Heap-allocated because NvdecPlayer's CUDA device id isn't
     // known until after VizSession is created (multi-GPU systems
-    // require matching the Vulkan-chosen device).
+    // require matching the Vulkan-chosen device). The player owns
+    // its own worker thread that reads the file + decodes; main
+    // only needs try_pop().
     std::unique_ptr<viz_smoke::NvdecPlayer> player;
     viz::QuadLayer* layer = nullptr;
     // Most recently submitted frame; held alive across one render cycle
@@ -60,23 +59,6 @@ void submit_to_layer(viz::QuadLayer& layer, const viz_smoke::DecodedFrame& f, cu
     src.pitch = static_cast<size_t>(f.width) * 4;
     src.space = viz::MemorySpace::kDevice;
     layer.submit(src, stream);
-}
-
-// Drain one chunk of the file and feed it. Rewinds on EOF (a read
-// that hits EOF can return partial bytes AND fail the stream).
-void feed_one_chunk(Video& v, std::vector<uint8_t>& chunk)
-{
-    v.file.read(reinterpret_cast<char*>(chunk.data()), chunk.size());
-    const auto got = static_cast<size_t>(v.file.gcount());
-    if (got > 0)
-    {
-        v.player->feed(chunk.data(), got);
-    }
-    if (!v.file)
-    {
-        v.file.clear();
-        v.file.seekg(0);
-    }
 }
 
 } // namespace
@@ -128,11 +110,6 @@ int main(int argc, char** argv)
         {
             auto v = std::make_unique<Video>();
             v->path = p;
-            v->file.open(v->path, std::ios::binary);
-            if (!v->file)
-            {
-                throw std::runtime_error("cannot open " + v->path);
-            }
             videos.push_back(std::move(v));
         }
         std::printf("lod_bias = %.2f, static = %d\n", lod_bias, static_mode ? 1 : 0);
@@ -155,16 +132,29 @@ int main(int argc, char** argv)
         const int cuda_device_id = ctx->cuda_device_id();
         std::printf("vulkan + cuda device id = %d\n", cuda_device_id);
 
-        // Now construct players on the right device + prime first frames.
-        std::vector<uint8_t> chunk(kChunkBytes);
+        // Each player owns a worker thread that reads its file and
+        // produces decoded RGBA8 frames into its queue. Spawning all
+        // 9 in parallel lets cuvidMapVideoFrame's blocking waits run
+        // concurrently across decoders instead of serializing on the
+        // main thread.
         for (auto& v : videos)
         {
-            v->player = std::make_unique<viz_smoke::NvdecPlayer>(cuda_device_id);
-            for (int safety = 0; safety < 4096 && v->player->queued_frame_count() == 0 && v->file; ++safety)
+            v->player = std::make_unique<viz_smoke::NvdecPlayer>(cuda_device_id, v->path);
+        }
+
+        // Wait for each worker to produce its first frame so we know
+        // a decoder is healthy before adding the layer.
+        for (auto& v : videos)
+        {
+            for (int safety = 0; safety < 10000; ++safety)
             {
-                feed_one_chunk(*v, chunk);
+                v->first_frame = v->player->try_pop();
+                if (v->first_frame != nullptr)
+                {
+                    break;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
-            v->first_frame = v->player->try_pop();
             if (v->first_frame == nullptr)
             {
                 throw std::runtime_error("never produced a decoded frame for " + v->path);
@@ -197,20 +187,16 @@ int main(int argc, char** argv)
         while (!session->should_close())
         {
             const auto now = std::chrono::steady_clock::now();
-            // Top up each decoder so try_pop has something queued, but
-            // only consume + submit a new frame when the per-video
-            // presentation deadline has elapsed. The QuadLayer mailbox
-            // keeps the previously submitted frame visible across the
-            // intervening render iterations. --static skips both —
-            // the first-frame submit done above is the only submit.
+            // Workers populate the queues asynchronously. Main only
+            // pops + submits when the per-video presentation deadline
+            // has elapsed; the QuadLayer mailbox keeps the previously
+            // submitted frame visible between presentations. --static
+            // skips this entirely — the first-frame submit above is
+            // the only submit, the mailbox shows it forever.
             if (!static_mode)
             {
                 for (auto& v : videos)
                 {
-                    for (int safety = 0; safety < 256 && v->player->queued_frame_count() == 0; ++safety)
-                    {
-                        feed_one_chunk(*v, chunk);
-                    }
                     if (now >= v->next_present)
                     {
                         if (auto next = v->player->try_pop())

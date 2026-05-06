@@ -3,12 +3,17 @@
 
 #pragma once
 
+#include <atomic>
+#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <cuda.h>
 #include <deque>
 #include <memory>
+#include <mutex>
 #include <nppdefs.h>
+#include <string>
+#include <thread>
 #include <vector>
 
 class NvDecoder;
@@ -48,21 +53,24 @@ public:
     // matched to Vulkan via UUID — VkContext::cuda_device_id().
     // Mismatch makes cudaSignalExternalSemaphoresAsync fail with
     // "invalid argument" on the QuadLayer's external semaphore.
-    explicit NvdecPlayer(int cuda_device_id);
+    //
+    // file_path is opened by an internal worker thread that reads
+    // the bitstream in chunks, drives NvDecoder, and produces
+    // RGBA8 frames into the output queue. The main thread only
+    // needs try_pop() — concurrent decoders run cuvidMapVideoFrame
+    // in parallel instead of serially on one thread.
+    NvdecPlayer(int cuda_device_id, std::string file_path);
     ~NvdecPlayer();
 
     NvdecPlayer(const NvdecPlayer&) = delete;
     NvdecPlayer& operator=(const NvdecPlayer&) = delete;
-
-    // Push a chunk of H.264 bytes (Annex B or MP4-mode — NvDecoder's
-    // parser handles either). Drains all decoded frames into the queue.
-    void feed(const uint8_t* data, size_t size);
 
     // Pop the next display-order frame, or nullptr if the queue is empty.
     std::unique_ptr<DecodedFrame> try_pop();
 
     size_t queued_frame_count() const noexcept
     {
+        std::lock_guard<std::mutex> lock(mutex_);
         return queue_.size();
     }
 
@@ -86,16 +94,28 @@ public:
     void release_buffer(uint8_t* p, uint32_t w, uint32_t h) noexcept;
 
 private:
+    void worker_loop(int cuda_device_id);
+
     // Cap to bound memory if a B-frame group is larger than typical.
     // 8 buffers at 1080p RGBA8 = 64 MB per stream, ample for any
     // realistic GOP.
     static constexpr size_t kPoolMax = 8;
+    // Cap the producer side from running too far ahead of the
+    // renderer. Without this the worker would happily decode the
+    // entire file into memory.
+    static constexpr size_t kQueueMax = 4;
 
     CUdevice device_ = 0;
     CUcontext ctx_ = nullptr;
     cudaStream_t stream_ = nullptr;
     NppStreamContext npp_ctx_{};
     std::unique_ptr<NvDecoder> decoder_;
+
+    std::string file_path_;
+    std::thread worker_;
+    mutable std::mutex mutex_;
+    std::condition_variable cv_;
+    bool stop_ = false;
 
     std::deque<std::unique_ptr<DecodedFrame>> queue_;
 
