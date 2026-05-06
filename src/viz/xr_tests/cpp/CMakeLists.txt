@@ -4,6 +4,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 add_executable(viz_xr_tests
+    test_openxr_instance.cpp
     test_xr_runtime.cpp
 )
 
