@@ -212,6 +212,20 @@ void NvdecPlayer::feed(const uint8_t* data, size_t size)
     }
 }
 
+double NvdecPlayer::frame_period_seconds() const noexcept
+{
+    if (!decoder_)
+    {
+        return 0.0;
+    }
+    const auto fmt = decoder_->GetVideoFormatInfo();
+    if (fmt.frame_rate.numerator == 0 || fmt.frame_rate.denominator == 0)
+    {
+        return 0.0;
+    }
+    return static_cast<double>(fmt.frame_rate.denominator) / static_cast<double>(fmt.frame_rate.numerator);
+}
+
 std::unique_ptr<DecodedFrame> NvdecPlayer::try_pop()
 {
     if (queue_.empty())

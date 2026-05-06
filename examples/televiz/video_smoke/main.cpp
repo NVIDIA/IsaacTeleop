@@ -11,6 +11,7 @@
 #include <viz/layers/quad_layer.hpp>
 #include <viz/session/viz_session.hpp>
 
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -38,6 +39,12 @@ struct Video
     // First decoded frame, captured during prime() before the session
     // exists. Submitted on the first render iteration.
     std::unique_ptr<viz_smoke::DecodedFrame> first_frame;
+    // Presentation pacing: only pop a new frame from the player's
+    // queue when the source's frame period has elapsed. Prevents
+    // 25 fps content from playing back at 60 fps just because the
+    // window backend is rendering at monitor refresh.
+    std::chrono::nanoseconds frame_period{ 0 };
+    std::chrono::steady_clock::time_point next_present{};
 };
 
 void submit_to_layer(viz::QuadLayer& layer, const viz_smoke::DecodedFrame& f)
@@ -142,6 +149,7 @@ int main(int argc, char** argv)
 
         // One QuadLayer per input, in argv order. Compositor tiles
         // row-major in insertion order.
+        const auto t0 = std::chrono::steady_clock::now();
         for (size_t i = 0; i < videos.size(); ++i)
         {
             viz::QuadLayer::Config layer_cfg;
@@ -150,21 +158,45 @@ int main(int argc, char** argv)
             videos[i]->layer = session->add_layer<viz::QuadLayer>(*ctx, render_pass, layer_cfg);
             submit_to_layer(*videos[i]->layer, *videos[i]->first_frame);
             videos[i]->in_flight = std::move(videos[i]->first_frame);
+
+            // Pull source FPS from the H.264 VUI; fall back to 30 if
+            // the encoder didn't emit timing_info.
+            const double period = videos[i]->player.frame_period_seconds();
+            videos[i]->frame_period =
+                std::chrono::nanoseconds(static_cast<int64_t>((period > 0.0 ? period : 1.0 / 30.0) * 1e9));
+            videos[i]->next_present = t0 + videos[i]->frame_period;
+            std::printf("video %zu: %s @ %.3f fps\n", i, videos[i]->path.c_str(), period > 0.0 ? 1.0 / period : 30.0);
         }
+        std::fflush(stdout);
 
         while (!session->should_close())
         {
-            // Top up each decoder, then submit any newly available frame.
+            const auto now = std::chrono::steady_clock::now();
+            // Top up each decoder so try_pop has something queued, but
+            // only consume + submit a new frame when the per-video
+            // presentation deadline has elapsed. The QuadLayer mailbox
+            // keeps the previously submitted frame visible across the
+            // intervening render iterations.
             for (auto& v : videos)
             {
                 for (int safety = 0; safety < 256 && v->player.queued_frame_count() == 0; ++safety)
                 {
                     feed_one_chunk(*v, chunk);
                 }
-                if (auto next = v->player.try_pop())
+                if (now >= v->next_present)
                 {
-                    submit_to_layer(*v->layer, *next);
-                    v->in_flight = std::move(next);
+                    if (auto next = v->player.try_pop())
+                    {
+                        submit_to_layer(*v->layer, *next);
+                        v->in_flight = std::move(next);
+                    }
+                    v->next_present += v->frame_period;
+                    // Don't accumulate debt if we fell behind (e.g.
+                    // window was hidden / frozen). Snap to wall clock.
+                    if (v->next_present < now)
+                    {
+                        v->next_present = now + v->frame_period;
+                    }
                 }
             }
 

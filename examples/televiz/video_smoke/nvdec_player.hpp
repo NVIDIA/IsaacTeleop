@@ -55,6 +55,12 @@ public:
         return queue_.size();
     }
 
+    // Source frame period in seconds, read from the H.264 VUI on the
+    // first decoded frame. Returns 0 if unspecified (variable frame
+    // rate, or the encoder didn't emit timing_info) — caller should
+    // fall back to a default cadence in that case.
+    double frame_period_seconds() const noexcept;
+
 private:
     CUdevice device_ = 0;
     CUcontext ctx_ = nullptr;
