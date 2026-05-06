@@ -14,37 +14,30 @@ namespace viz
 namespace
 {
 
-void check_vk(VkResult r, const char* what)
-{
-    if (r != VK_SUCCESS)
-    {
-        throw std::runtime_error(std::string("Swapchain: ") + what + " failed: VkResult=" + std::to_string(r));
-    }
-}
-
 // Pick a surface format. Prefer B8G8R8A8_SRGB (common Linux default,
 // matches our intermediate framebuffer's sRGB color space). Fall back
 // to any *_SRGB format. Else accept whatever the runtime offers first.
-VkSurfaceFormatKHR pick_surface_format(const std::vector<VkSurfaceFormatKHR>& formats)
+vk::SurfaceFormatKHR pick_surface_format(const std::vector<vk::SurfaceFormatKHR>& formats)
 {
     for (const auto& f : formats)
     {
-        if (f.format == VK_FORMAT_B8G8R8A8_SRGB && f.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+        if (f.format == vk::Format::eB8G8R8A8Srgb && f.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear)
         {
             return f;
         }
     }
     for (const auto& f : formats)
     {
-        if (f.format == VK_FORMAT_R8G8B8A8_SRGB && f.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+        if (f.format == vk::Format::eR8G8B8A8Srgb && f.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear)
         {
             return f;
         }
     }
-    return formats.empty() ? VkSurfaceFormatKHR{ VK_FORMAT_UNDEFINED, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR } : formats[0];
+    return formats.empty() ? vk::SurfaceFormatKHR{ vk::Format::eUndefined, vk::ColorSpaceKHR::eSrgbNonlinear }
+                           : formats[0];
 }
 
-VkExtent2D clamp_extent(const VkSurfaceCapabilitiesKHR& caps, Resolution preferred)
+vk::Extent2D clamp_extent(const vk::SurfaceCapabilitiesKHR& caps, Resolution preferred)
 {
     // Surface may dictate the extent (currentExtent != UINT32_MAX);
     // otherwise we pick within minImageExtent..maxImageExtent.
@@ -52,7 +45,7 @@ VkExtent2D clamp_extent(const VkSurfaceCapabilitiesKHR& caps, Resolution preferr
     {
         return caps.currentExtent;
     }
-    VkExtent2D e{ preferred.width, preferred.height };
+    vk::Extent2D e{ preferred.width, preferred.height };
     e.width = std::clamp(e.width, caps.minImageExtent.width, caps.maxImageExtent.width);
     e.height = std::clamp(e.height, caps.minImageExtent.height, caps.maxImageExtent.height);
     return e;
@@ -86,10 +79,8 @@ std::unique_ptr<Swapchain> Swapchain::create(const VkContext& ctx, VkSurfaceKHR 
     // Proper fix is a presentation-support callback through
     // VkContext::Config (e.g., glfwGetPhysicalDevicePresentationSupport)
     // — deferred until a real multi-GPU user reports this.
-    VkBool32 present_supported = VK_FALSE;
-    check_vk(vkGetPhysicalDeviceSurfaceSupportKHR(
-                 ctx.physical_device(), ctx.queue_family_index(), surface, &present_supported),
-             "vkGetPhysicalDeviceSurfaceSupportKHR");
+    const bool present_supported =
+        ctx.raii_physical_device().getSurfaceSupportKHR(ctx.queue_family_index(), vk::SurfaceKHR{ surface });
     if (!present_supported)
     {
         throw std::runtime_error("Swapchain::create: chosen queue family does not support present on this surface");
@@ -113,22 +104,14 @@ void Swapchain::init(Resolution preferred_size, VkSwapchainKHR old_swapchain)
 {
     try
     {
-        const VkPhysicalDevice phys = ctx_->physical_device();
-        const VkDevice device = ctx_->device();
+        const auto& phys = ctx_->raii_physical_device();
+        const vk::SurfaceKHR surface{ surface_ };
 
-        VkSurfaceCapabilitiesKHR caps{};
-        check_vk(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(phys, surface_, &caps),
-                 "vkGetPhysicalDeviceSurfaceCapabilitiesKHR");
+        const vk::SurfaceCapabilitiesKHR caps = phys.getSurfaceCapabilitiesKHR(surface);
+        const std::vector<vk::SurfaceFormatKHR> formats = phys.getSurfaceFormatsKHR(surface);
 
-        uint32_t format_count = 0;
-        vkGetPhysicalDeviceSurfaceFormatsKHR(phys, surface_, &format_count, nullptr);
-        std::vector<VkSurfaceFormatKHR> formats(format_count);
-        if (format_count > 0)
-        {
-            vkGetPhysicalDeviceSurfaceFormatsKHR(phys, surface_, &format_count, formats.data());
-        }
-        const VkSurfaceFormatKHR chosen = pick_surface_format(formats);
-        if (chosen.format == VK_FORMAT_UNDEFINED)
+        const vk::SurfaceFormatKHR chosen = pick_surface_format(formats);
+        if (chosen.format == vk::Format::eUndefined)
         {
             throw std::runtime_error("Swapchain::init: surface reports no formats");
         }
@@ -143,223 +126,169 @@ void Swapchain::init(Resolution preferred_size, VkSwapchainKHR old_swapchain)
             image_count = std::min(image_count, caps.maxImageCount);
         }
 
-        VkSwapchainCreateInfoKHR info{};
-        info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-        info.surface = surface_;
-        info.minImageCount = image_count;
-        info.imageFormat = format_;
-        info.imageColorSpace = color_space_;
-        info.imageExtent = extent_;
-        info.imageArrayLayers = 1;
-        // TRANSFER_DST: we blit the intermediate framebuffer into the
-        // swapchain image. No COLOR_ATTACHMENT — we never render
-        // directly into swapchain images.
-        info.imageUsage = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-        info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        info.preTransform = caps.currentTransform;
-        info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-
         // Prefer MAILBOX (no compositor sync stalls); FIFO is the
         // universal fallback. App throttles its own render rate.
-        VkPresentModeKHR present_mode = VK_PRESENT_MODE_FIFO_KHR;
-        uint32_t pm_count = 0;
-        vkGetPhysicalDeviceSurfacePresentModesKHR(phys, surface_, &pm_count, nullptr);
-        std::vector<VkPresentModeKHR> available_modes(pm_count);
-        if (pm_count > 0)
+        vk::PresentModeKHR present_mode = vk::PresentModeKHR::eFifo;
+        for (auto m : phys.getSurfacePresentModesKHR(surface))
         {
-            vkGetPhysicalDeviceSurfacePresentModesKHR(phys, surface_, &pm_count, available_modes.data());
-        }
-        for (VkPresentModeKHR m : available_modes)
-        {
-            if (m == VK_PRESENT_MODE_MAILBOX_KHR)
+            if (m == vk::PresentModeKHR::eMailbox)
             {
                 present_mode = m;
                 break;
             }
         }
-        info.presentMode = present_mode;
-        info.clipped = VK_TRUE;
-        info.oldSwapchain = old_swapchain;
 
-        check_vk(vkCreateSwapchainKHR(device, &info, nullptr, &swapchain_), "vkCreateSwapchainKHR");
+        const vk::SwapchainCreateInfoKHR info{
+            .surface = surface,
+            .minImageCount = image_count,
+            .imageFormat = format_,
+            .imageColorSpace = color_space_,
+            .imageExtent = extent_,
+            .imageArrayLayers = 1,
+            // TRANSFER_DST: we blit the intermediate framebuffer into
+            // the swapchain image. No COLOR_ATTACHMENT — we never
+            // render directly into swapchain images.
+            .imageUsage = vk::ImageUsageFlagBits::eTransferDst,
+            .imageSharingMode = vk::SharingMode::eExclusive,
+            .preTransform = caps.currentTransform,
+            .compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque,
+            .presentMode = present_mode,
+            .clipped = VK_TRUE,
+            .oldSwapchain = vk::SwapchainKHR{ old_swapchain },
+        };
 
-        uint32_t actual = 0;
-        vkGetSwapchainImagesKHR(device, swapchain_, &actual, nullptr);
-        images_.resize(actual);
-        vkGetSwapchainImagesKHR(device, swapchain_, &actual, images_.data());
+        swapchain_ = vk::raii::SwapchainKHR{ ctx_->raii_device(), info };
+        images_ = swapchain_.getImages();
 
         create_semaphores();
     }
     catch (...)
     {
-        destroy_swapchain_only();
+        // Drain and reset partially-built state so retry is sane.
+        if (*ctx_->raii_device() != VK_NULL_HANDLE)
+        {
+            (void)ctx_->raii_device().waitIdle();
+        }
+        image_available_.clear();
+        render_done_.clear();
+        swapchain_ = nullptr;
+        images_.clear();
+        extent_ = vk::Extent2D{ 0, 0 };
+        frame_slot_ = 0;
         throw;
     }
 }
 
 void Swapchain::create_semaphores()
 {
-    const VkDevice device = ctx_->device();
-    image_available_.resize(images_.size(), VK_NULL_HANDLE);
-    render_done_.resize(images_.size(), VK_NULL_HANDLE);
-    VkSemaphoreCreateInfo sem_info{};
-    sem_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    image_available_.reserve(images_.size());
+    render_done_.reserve(images_.size());
+    const vk::SemaphoreCreateInfo sem_info{};
     for (size_t i = 0; i < images_.size(); ++i)
     {
-        check_vk(
-            vkCreateSemaphore(device, &sem_info, nullptr, &image_available_[i]), "vkCreateSemaphore(image_available)");
-        check_vk(vkCreateSemaphore(device, &sem_info, nullptr, &render_done_[i]), "vkCreateSemaphore(render_done)");
+        image_available_.emplace_back(ctx_->raii_device(), sem_info);
+        render_done_.emplace_back(ctx_->raii_device(), sem_info);
     }
-}
-
-void Swapchain::destroy_semaphores()
-{
-    if (ctx_ == nullptr)
-    {
-        return;
-    }
-    const VkDevice device = ctx_->device();
-    if (device == VK_NULL_HANDLE)
-    {
-        image_available_.clear();
-        render_done_.clear();
-        return;
-    }
-    for (VkSemaphore s : image_available_)
-    {
-        if (s != VK_NULL_HANDLE)
-        {
-            vkDestroySemaphore(device, s, nullptr);
-        }
-    }
-    image_available_.clear();
-    for (VkSemaphore s : render_done_)
-    {
-        if (s != VK_NULL_HANDLE)
-        {
-            vkDestroySemaphore(device, s, nullptr);
-        }
-    }
-    render_done_.clear();
-}
-
-void Swapchain::destroy_swapchain_only()
-{
-    if (ctx_ == nullptr)
-    {
-        return;
-    }
-    const VkDevice device = ctx_->device();
-    if (device != VK_NULL_HANDLE)
-    {
-        // Drain so we don't destroy semaphores still referenced by the queue.
-        (void)vkDeviceWaitIdle(device);
-    }
-    destroy_semaphores();
-    if (swapchain_ != VK_NULL_HANDLE && device != VK_NULL_HANDLE)
-    {
-        vkDestroySwapchainKHR(device, swapchain_, nullptr);
-        swapchain_ = VK_NULL_HANDLE;
-    }
-    images_.clear();
-    extent_ = VkExtent2D{ 0, 0 };
-    frame_slot_ = 0;
 }
 
 void Swapchain::destroy()
 {
-    destroy_swapchain_only();
+    if (ctx_ != nullptr && *ctx_->raii_device() != VK_NULL_HANDLE)
+    {
+        // Drain so we don't destroy semaphores still referenced by the queue.
+        (void)ctx_->raii_device().waitIdle();
+    }
+    image_available_.clear();
+    render_done_.clear();
+    swapchain_ = nullptr;
+    images_.clear();
+    extent_ = vk::Extent2D{ 0, 0 };
+    frame_slot_ = 0;
     surface_ = VK_NULL_HANDLE;
     ctx_ = nullptr;
 }
 
 void Swapchain::recreate(Resolution preferred_size)
 {
-    if (swapchain_ == VK_NULL_HANDLE)
+    if (*swapchain_ == VK_NULL_HANDLE)
     {
         init(preferred_size);
         return;
     }
 
-    const VkDevice device = ctx_->device();
-    (void)vkDeviceWaitIdle(device);
+    (void)ctx_->raii_device().waitIdle();
 
-    // Hand the old swapchain to vkCreateSwapchainKHR via oldSwapchain
-    // so the driver can recycle resources. Keep the old handle alive
-    // until init() succeeds; destroy it after.
-    VkSwapchainKHR old = swapchain_;
-    swapchain_ = VK_NULL_HANDLE;
-    destroy_semaphores();
+    // Release the old swapchain only after the new one is created
+    // (init passes the old handle as oldSwapchain so the driver can
+    // recycle resources). On success, the local `old` raii object
+    // destroys the original handle as it goes out of scope.
+    vk::raii::SwapchainKHR old = std::move(swapchain_);
+    swapchain_ = vk::raii::SwapchainKHR{ nullptr };
+    image_available_.clear();
+    render_done_.clear();
     images_.clear();
-    extent_ = VkExtent2D{ 0, 0 };
+    extent_ = vk::Extent2D{ 0, 0 };
     frame_slot_ = 0;
 
-    try
-    {
-        init(preferred_size, old);
-    }
-    catch (...)
-    {
-        if (old != VK_NULL_HANDLE)
-        {
-            vkDestroySwapchainKHR(device, old, nullptr);
-        }
-        throw;
-    }
-
-    // Success: the new swapchain has assumed ownership of any
-    // recyclable resources. Destroy the old handle now.
-    vkDestroySwapchainKHR(device, old, nullptr);
+    init(preferred_size, *old);
 }
 
 std::optional<Swapchain::AcquiredImage> Swapchain::acquire_next_image()
 {
-    if (swapchain_ == VK_NULL_HANDLE || image_available_.empty())
+    if (*swapchain_ == VK_NULL_HANDLE || image_available_.empty())
     {
         return std::nullopt;
     }
-    const VkSemaphore sem = image_available_[frame_slot_];
-    uint32_t image_index = 0;
-    const VkResult r = vkAcquireNextImageKHR(ctx_->device(), swapchain_, UINT64_MAX, sem, VK_NULL_HANDLE, &image_index);
+    const auto& sem = image_available_[frame_slot_];
+    const auto result = swapchain_.acquireNextImage(UINT64_MAX, *sem, VK_NULL_HANDLE);
+    const vk::Result r = result.first;
+    const uint32_t image_index = result.second;
     // OUT_OF_DATE: caller must recreate. SUBOPTIMAL: image is valid,
     // pass it through and let the WSI scale on present.
-    if (r == VK_ERROR_OUT_OF_DATE_KHR)
+    if (r == vk::Result::eErrorOutOfDateKHR)
     {
         return std::nullopt;
     }
-    if (r != VK_SUCCESS && r != VK_SUBOPTIMAL_KHR)
+    if (r != vk::Result::eSuccess && r != vk::Result::eSuboptimalKHR)
     {
-        throw std::runtime_error("Swapchain::acquire_next_image: VkResult=" + std::to_string(r));
+        throw std::runtime_error("Swapchain::acquire_next_image: VkResult=" +
+                                 std::to_string(static_cast<int>(r)));
     }
-    return AcquiredImage{ image_index, images_[image_index], sem, render_done_[frame_slot_] };
+    return AcquiredImage{ image_index, static_cast<VkImage>(images_[image_index]), *sem, *render_done_[frame_slot_] };
 }
 
 bool Swapchain::present(uint32_t image_index, VkSemaphore render_done)
 {
-    if (swapchain_ == VK_NULL_HANDLE)
+    if (*swapchain_ == VK_NULL_HANDLE)
     {
         return false;
     }
-    VkPresentInfoKHR info{};
-    info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    info.waitSemaphoreCount = (render_done != VK_NULL_HANDLE) ? 1 : 0;
-    info.pWaitSemaphores = (render_done != VK_NULL_HANDLE) ? &render_done : nullptr;
-    info.swapchainCount = 1;
-    info.pSwapchains = &swapchain_;
-    info.pImageIndices = &image_index;
-    const VkResult r = vkQueuePresentKHR(ctx_->queue(), &info);
+    const vk::Semaphore wait_sem{ render_done };
+    const vk::SwapchainKHR sc = *swapchain_;
+    const vk::PresentInfoKHR info{
+        .waitSemaphoreCount = (render_done != VK_NULL_HANDLE) ? 1u : 0u,
+        .pWaitSemaphores = (render_done != VK_NULL_HANDLE) ? &wait_sem : nullptr,
+        .swapchainCount = 1,
+        .pSwapchains = &sc,
+        .pImageIndices = &image_index,
+    };
+    // raii::Queue::presentKHR throws on the OUT_OF_DATE / SUBOPTIMAL
+    // result codes that we want to handle as flow control. Fall through
+    // to the C entry point so the result code is observable.
+    const vk::Result r = static_cast<vk::Result>(
+        vkQueuePresentKHR(ctx_->queue(), reinterpret_cast<const VkPresentInfoKHR*>(&info)));
     // Advance the slot regardless — next frame needs fresh semaphores.
     if (!images_.empty())
     {
         frame_slot_ = (frame_slot_ + 1) % static_cast<uint32_t>(images_.size());
     }
-    if (r == VK_ERROR_OUT_OF_DATE_KHR)
+    if (r == vk::Result::eErrorOutOfDateKHR)
     {
         return false;
     }
-    if (r != VK_SUCCESS && r != VK_SUBOPTIMAL_KHR)
+    if (r != vk::Result::eSuccess && r != vk::Result::eSuboptimalKHR)
     {
-        throw std::runtime_error("Swapchain::present: VkResult=" + std::to_string(r));
+        throw std::runtime_error("Swapchain::present: VkResult=" + std::to_string(static_cast<int>(r)));
     }
     return true;
 }

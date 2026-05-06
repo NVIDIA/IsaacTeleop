@@ -3,8 +3,8 @@
 
 #pragma once
 
+#include <viz/core/vk.hpp>
 #include <viz/core/viz_types.hpp>
-#include <vulkan/vulkan.h>
 
 #include <cstdint>
 #include <memory>
@@ -58,11 +58,11 @@ public:
     }
     VkFormat format() const noexcept
     {
-        return format_;
+        return static_cast<VkFormat>(format_);
     }
     VkSwapchainKHR handle() const noexcept
     {
-        return swapchain_;
+        return *swapchain_;
     }
     uint32_t image_count() const noexcept
     {
@@ -71,7 +71,7 @@ public:
     // Look up a swapchain image by acquired index; VK_NULL_HANDLE if out of range.
     VkImage image_at(uint32_t index) const noexcept
     {
-        return index < images_.size() ? images_[index] : VK_NULL_HANDLE;
+        return index < images_.size() ? static_cast<VkImage>(images_[index]) : VK_NULL_HANDLE;
     }
 
 private:
@@ -79,22 +79,20 @@ private:
     // old_swapchain is passed as VkSwapchainCreateInfoKHR::oldSwapchain
     // so the driver recycles resources. VK_NULL_HANDLE on first create.
     void init(Resolution preferred_size, VkSwapchainKHR old_swapchain = VK_NULL_HANDLE);
-    void destroy_swapchain_only();
     void create_semaphores();
-    void destroy_semaphores();
 
     const VkContext* ctx_ = nullptr;
-    VkSurfaceKHR surface_ = VK_NULL_HANDLE;
-    VkSwapchainKHR swapchain_ = VK_NULL_HANDLE;
-    VkFormat format_ = VK_FORMAT_UNDEFINED;
-    VkColorSpaceKHR color_space_ = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-    VkExtent2D extent_{};
-    std::vector<VkImage> images_; // not owned (swapchain owns)
+    VkSurfaceKHR surface_ = VK_NULL_HANDLE; // not owned (GlfwWindow / XR backend owns)
+    vk::raii::SwapchainKHR swapchain_{ nullptr };
+    vk::Format format_ = vk::Format::eUndefined;
+    vk::ColorSpaceKHR color_space_ = vk::ColorSpaceKHR::eSrgbNonlinear;
+    vk::Extent2D extent_{};
+    std::vector<vk::Image> images_; // not owned (swapchain owns)
 
     // Per-image-slot semaphore ring so an in-flight image never tries
     // to reuse a semaphore another in-flight image still consumes.
-    std::vector<VkSemaphore> image_available_;
-    std::vector<VkSemaphore> render_done_;
+    std::vector<vk::raii::Semaphore> image_available_;
+    std::vector<vk::raii::Semaphore> render_done_;
     uint32_t frame_slot_ = 0;
 };
 
