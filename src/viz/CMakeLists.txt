@@ -15,7 +15,7 @@ cmake_minimum_required(VERSION 3.20)
 #   core     — Vulkan + CUDA infrastructure, foundational types
 #   layers   — LayerBase + concrete layer types (added with first layer)
 #   session  — VizSession, VizCompositor, frame info (added with first session)
-#   xr       — OpenXR backend (optional, BUILD_VIZ_XR)
+#   xr       — OpenXR backend (graphics-bound XR session)
 #   python   — pybind11 module
 #   shaders  — GLSL → SPIR-V at build time
 # ==============================================================================
@@ -32,11 +32,11 @@ add_subdirectory(layers)
 add_subdirectory(session)
 
 # XR: OpenXR-bound graphics session + XrBackend (DisplayBackend impl).
-# Optional — gated on BUILD_VIZ_XR because it needs the OpenXR runtime
-# (e.g. CloudXR) to be present at runtime.
-if(BUILD_VIZ_XR)
-    add_subdirectory(xr)
-endif()
+# OpenXR is foundational to IsaacTeleop (the loader is always fetched
+# in deps/third_party); viz_xr links against it unconditionally when
+# BUILD_VIZ is on. The graphics-bound XR session only contacts a
+# runtime at runtime, so there's no build-time gate to add.
+add_subdirectory(xr)
 
 # Shaders: GLSL sources compiled to SPIR-V at build time and embedded
 # as C arrays. Header-only INTERFACE library viz::shaders.
@@ -53,7 +53,5 @@ if(BUILD_TESTING)
     add_subdirectory(layers_tests)
     add_subdirectory(session_tests)
     add_subdirectory(shaders_tests)
-    if(BUILD_VIZ_XR)
-        add_subdirectory(xr_tests)
-    endif()
+    add_subdirectory(xr_tests)
 endif()
