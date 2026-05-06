@@ -2,3 +2,4 @@
 # SPDX-License-Identifier: Apache-2.0
 
 add_subdirectory(window_smoke)
+add_subdirectory(video_smoke)
