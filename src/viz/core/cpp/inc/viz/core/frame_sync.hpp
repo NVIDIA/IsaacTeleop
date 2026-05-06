@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <vulkan/vulkan.h>
+#include <viz/core/vk.hpp>
 
 #include <memory>
 
@@ -31,8 +31,6 @@ class VkContext;
 class FrameSync
 {
 public:
-    // Creates the three sync objects. Throws std::runtime_error on Vulkan
-    // failure or std::invalid_argument if ctx is not initialized.
     static std::unique_ptr<FrameSync> create(const VkContext& ctx);
 
     ~FrameSync();
@@ -53,15 +51,15 @@ public:
 
     VkFence in_flight_fence() const noexcept
     {
-        return in_flight_fence_;
+        return *in_flight_fence_;
     }
     VkSemaphore image_available_semaphore() const noexcept
     {
-        return image_available_;
+        return *image_available_;
     }
     VkSemaphore render_complete_semaphore() const noexcept
     {
-        return render_complete_;
+        return *render_complete_;
     }
 
 private:
@@ -70,9 +68,9 @@ private:
 
     const VkContext* ctx_ = nullptr;
 
-    VkFence in_flight_fence_ = VK_NULL_HANDLE;
-    VkSemaphore image_available_ = VK_NULL_HANDLE;
-    VkSemaphore render_complete_ = VK_NULL_HANDLE;
+    vk::raii::Fence in_flight_fence_{ nullptr };
+    vk::raii::Semaphore image_available_{ nullptr };
+    vk::raii::Semaphore render_complete_{ nullptr };
 };
 
 } // namespace viz
