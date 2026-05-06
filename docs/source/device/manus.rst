@@ -30,7 +30,7 @@ Prerequisites
 - **System dependencies** — the install script installs required packages automatically.
 
 The Manus plugin cannot be installed via normal ``pip`` packaging; **build Isaac Teleop
-from source first** by following the :doc:`build_from_source/index` guide under Getting Started.
+from source first** by following the :doc:`../getting_started/build_from_source/index` guide under Getting Started.
 
 Automated (recommended)
 ~~~~~~~~~~~~~~~~~~~~~~~
