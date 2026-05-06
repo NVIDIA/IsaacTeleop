@@ -6,6 +6,7 @@
 #include <viz/core/frame_sync.hpp>
 #include <viz/core/host_image.hpp>
 #include <viz/core/viz_types.hpp>
+#include <viz/session/display_backend.hpp>
 #include <vulkan/vulkan.h>
 
 #include <memory>
@@ -39,10 +40,16 @@ public:
     VizCompositor(VizCompositor&&) = delete;
     VizCompositor& operator=(VizCompositor&&) = delete;
 
-    // Records and submits one frame. Synchronous (waits for GPU
-    // completion before returning). QuadLayer's mailbox depends on
-    // that — see quad_layer.hpp.
-    void render(const std::vector<LayerBase*>& layers);
+    // Records and submits one frame against the backend Frame
+    // already acquired by VizSession::begin_frame. Synchronous
+    // (waits for GPU completion before returning). QuadLayer's
+    // mailbox depends on that — see quad_layer.hpp.
+    //
+    // Calls backend.end_frame on success, backend.abort_frame on
+    // any throw between record and end_frame. The Frame lifecycle
+    // (begin_frame/abort_frame on early bail) is managed by the
+    // caller (VizSession), not the compositor.
+    void render(const DisplayBackend::Frame& frame, const std::vector<LayerBase*>& layers);
 
     // Forwards to backend; convenience for VizSession.
     HostImage readback_to_host();

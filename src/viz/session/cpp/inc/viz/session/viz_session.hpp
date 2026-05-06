@@ -8,6 +8,7 @@
 #include <viz/core/viz_types.hpp>
 #include <viz/core/vk_context.hpp>
 #include <viz/layers/layer_base.hpp>
+#include <viz/session/display_backend.hpp>
 #include <viz/session/display_mode.hpp>
 #include <viz/session/frame_info.hpp>
 #include <viz/session/viz_compositor.hpp>
@@ -213,6 +214,13 @@ private:
     bool frame_in_progress_ = false;
     FrameInfo current_frame_info_{};
     FrameTimingStats timing_stats_{};
+
+    // Backend Frame acquired in begin_frame, consumed in end_frame.
+    // nullopt means the backend skipped this frame (e.g. XR session
+    // not running, window minimized) — end_frame becomes a no-op.
+    // Always cleared by end_frame; cleared via abort_frame in
+    // destroy() if a frame was in progress when teardown ran.
+    std::optional<DisplayBackend::Frame> cached_frame_;
 };
 
 } // namespace viz
