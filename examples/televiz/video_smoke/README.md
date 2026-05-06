@@ -21,6 +21,8 @@ cmake --build build --target viz_video_smoke -j
 
 ```sh
 ./build/examples/televiz/video_smoke/viz_video_smoke path/to/video.h264
+# Or two (or more) side-by-side via row-major tiling:
+./build/examples/televiz/video_smoke/viz_video_smoke a.h264 b.h264
 ```
 
 The example expects a raw H.264 Annex B elementary stream. Convert from MP4 /

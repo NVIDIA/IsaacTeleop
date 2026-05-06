@@ -1,8 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-// Plays an H.264 file into a Televiz QuadLayer:
-//   ./viz_video_smoke /path/to/video.h264
+// Plays one or more H.264 files into a Televiz window. Multiple inputs
+// tile row-major (compositor's tile_layout handles aspect-fit):
+//   ./viz_video_smoke /path/to/a.h264 [/path/to/b.h264 ...]
 
 #include "nvdec_player.hpp"
 
@@ -24,6 +25,21 @@ namespace
 
 constexpr size_t kChunkBytes = 64 * 1024;
 
+struct Video
+{
+    std::string path;
+    std::ifstream file;
+    viz_smoke::NvdecPlayer player;
+    viz::QuadLayer* layer = nullptr;
+    // Most recently submitted frame; held alive across one render cycle
+    // so QuadLayer::submit's async cudaMemcpy can complete before the
+    // ~DecodedFrame cudaFree.
+    std::unique_ptr<viz_smoke::DecodedFrame> in_flight;
+    // First decoded frame, captured during prime() before the session
+    // exists. Submitted on the first render iteration.
+    std::unique_ptr<viz_smoke::DecodedFrame> first_frame;
+};
+
 void submit_to_layer(viz::QuadLayer& layer, const viz_smoke::DecodedFrame& f)
 {
     viz::VizBuffer src{};
@@ -36,23 +52,21 @@ void submit_to_layer(viz::QuadLayer& layer, const viz_smoke::DecodedFrame& f)
     layer.submit(src);
 }
 
-// Block until the decoder produces at least one queued frame OR
-// the stream ends. NvDecoder needs to see SPS/PPS + an IDR before
-// it can emit anything, which can take many NAL units.
-std::unique_ptr<viz_smoke::DecodedFrame> prime_first_frame(std::ifstream& f, viz_smoke::NvdecPlayer& player)
+// Drain one chunk of the file and feed it. Rewinds on EOF (a read
+// that hits EOF can return partial bytes AND fail the stream).
+void feed_one_chunk(Video& v, std::vector<uint8_t>& chunk)
 {
-    std::vector<uint8_t> chunk(kChunkBytes);
-    while (player.queued_frame_count() == 0 && f)
+    v.file.read(reinterpret_cast<char*>(chunk.data()), chunk.size());
+    const auto got = static_cast<size_t>(v.file.gcount());
+    if (got > 0)
     {
-        f.read(reinterpret_cast<char*>(chunk.data()), chunk.size());
-        const auto got = static_cast<size_t>(f.gcount());
-        if (got == 0)
-        {
-            break;
-        }
-        player.feed(chunk.data(), got);
+        v.player.feed(chunk.data(), got);
     }
-    return player.try_pop();
+    if (!v.file)
+    {
+        v.file.clear();
+        v.file.seekg(0);
+    }
 }
 
 } // namespace
@@ -62,8 +76,8 @@ int main(int argc, char** argv)
     if (argc < 2)
     {
         std::fprintf(stderr,
-                     "usage: %s <video.h264>\n"
-                     "  Input must be raw H.264 Annex B. To convert from MP4:\n"
+                     "usage: %s <video.h264> [<video.h264> ...]\n"
+                     "  Each input must be raw H.264 Annex B. To convert from MP4:\n"
                      "    ffmpeg -i in.mp4 -c:v copy -bsf:v h264_mp4toannexb -f h264 out.h264\n",
                      argv[0]);
         return EXIT_FAILURE;
@@ -71,75 +85,95 @@ int main(int argc, char** argv)
 
     try
     {
-        std::ifstream file(argv[1], std::ios::binary);
-        if (!file)
+        const int n = argc - 1;
+        std::vector<std::unique_ptr<Video>> videos;
+        videos.reserve(n);
+        for (int i = 0; i < n; ++i)
         {
-            throw std::runtime_error(std::string("cannot open ") + argv[1]);
+            auto v = std::make_unique<Video>();
+            v->path = argv[i + 1];
+            v->file.open(v->path, std::ios::binary);
+            if (!v->file)
+            {
+                throw std::runtime_error("cannot open " + v->path);
+            }
+            videos.push_back(std::move(v));
         }
-        viz_smoke::NvdecPlayer player;
 
-        auto first = prime_first_frame(file, player);
-        if (first == nullptr)
+        // Prime each player to its first frame so we know the resolutions
+        // before sizing the window + layers.
+        std::vector<uint8_t> chunk(kChunkBytes);
+        for (auto& v : videos)
         {
-            throw std::runtime_error("never produced a decoded frame; bad input?");
+            for (int safety = 0; safety < 4096 && v->player.queued_frame_count() == 0 && v->file; ++safety)
+            {
+                feed_one_chunk(*v, chunk);
+            }
+            v->first_frame = v->player.try_pop();
+            if (v->first_frame == nullptr)
+            {
+                throw std::runtime_error("never produced a decoded frame for " + v->path);
+            }
+        }
+
+        // Open the window wide enough to hold all videos side-by-side at
+        // their native heights. tile_layout handles letterbox if user
+        // resizes or aspects differ.
+        uint32_t total_w = 0;
+        uint32_t max_h = 0;
+        for (const auto& v : videos)
+        {
+            total_w += v->first_frame->width;
+            if (v->first_frame->height > max_h)
+            {
+                max_h = v->first_frame->height;
+            }
         }
 
         viz::VizSession::Config cfg{};
         cfg.mode = viz::DisplayMode::kWindow;
-        cfg.window_width = first->width;
-        cfg.window_height = first->height;
+        cfg.window_width = total_w;
+        cfg.window_height = max_h;
         cfg.app_name = "viz_video_smoke";
 
         auto session = viz::VizSession::create(cfg);
-        viz::QuadLayer::Config layer_cfg;
-        layer_cfg.name = "video";
-        layer_cfg.resolution = { first->width, first->height };
-        auto* layer =
-            session->add_layer<viz::QuadLayer>(*session->get_vk_context(), session->get_render_pass(), layer_cfg);
+        const viz::VkContext* ctx = session->get_vk_context();
+        const VkRenderPass render_pass = session->get_render_pass();
 
-        submit_to_layer(*layer, *first);
-        // Hold the most recently submitted buffer alive across one full
-        // render cycle. QuadLayer::submit issues an async cudaMemcpy from
-        // it that must complete before cudaFree (in ~DecodedFrame).
-        std::unique_ptr<viz_smoke::DecodedFrame> in_flight = std::move(first);
+        // One QuadLayer per input, in argv order. Compositor tiles
+        // row-major in insertion order.
+        for (size_t i = 0; i < videos.size(); ++i)
+        {
+            viz::QuadLayer::Config layer_cfg;
+            layer_cfg.name = "video_" + std::to_string(i);
+            layer_cfg.resolution = { videos[i]->first_frame->width, videos[i]->first_frame->height };
+            videos[i]->layer = session->add_layer<viz::QuadLayer>(*ctx, render_pass, layer_cfg);
+            submit_to_layer(*videos[i]->layer, *videos[i]->first_frame);
+            videos[i]->in_flight = std::move(videos[i]->first_frame);
+        }
 
-        std::vector<uint8_t> chunk(kChunkBytes);
         while (!session->should_close())
         {
-            // Top up the decoder until it has at least one queued frame.
-            // Bound the inner loop so a malformed file can't trap us.
-            // EOF handling: a read that hits EOF can return PARTIAL
-            // bytes and still leave the stream in a failed state, so
-            // we always rewind after a failed read regardless of how
-            // many bytes came back.
-            for (int safety = 0; safety < 256 && player.queued_frame_count() == 0; ++safety)
+            // Top up each decoder, then submit any newly available frame.
+            for (auto& v : videos)
             {
-                file.read(reinterpret_cast<char*>(chunk.data()), chunk.size());
-                const auto got = static_cast<size_t>(file.gcount());
-                if (got > 0)
+                for (int safety = 0; safety < 256 && v->player.queued_frame_count() == 0; ++safety)
                 {
-                    player.feed(chunk.data(), got);
+                    feed_one_chunk(*v, chunk);
                 }
-                if (!file)
+                if (auto next = v->player.try_pop())
                 {
-                    file.clear();
-                    file.seekg(0);
+                    submit_to_layer(*v->layer, *next);
+                    v->in_flight = std::move(next);
                 }
-            }
-
-            if (auto next = player.try_pop())
-            {
-                submit_to_layer(*layer, *next);
-                in_flight = std::move(next);
             }
 
             const auto info = session->render();
             if (info.frame_index > 0 && info.frame_index % 60 == 0)
             {
                 const auto stats = session->get_frame_timing_stats();
-                std::printf("frame %llu: %.1f fps (%.2f ms/frame, decoded queue=%zu)\n",
-                            static_cast<unsigned long long>(info.frame_index), stats.render_fps,
-                            stats.avg_frame_time_ms, player.queued_frame_count());
+                std::printf("frame %llu: %.1f fps (%.2f ms/frame)\n", static_cast<unsigned long long>(info.frame_index),
+                            stats.render_fps, stats.avg_frame_time_ms);
                 std::fflush(stdout);
             }
         }
