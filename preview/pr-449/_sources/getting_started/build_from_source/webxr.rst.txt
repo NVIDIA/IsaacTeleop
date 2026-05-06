@@ -6,7 +6,7 @@ Build WebXR Client
 
 .. tip::
 
-   A prebuilt CloudXR web client is available at https://nvidia.github.io/IsaacTeleop/client/.
+   A prebuilt CloudXR web client is available at https://nvidia.github.io/IsaacTeleop/client/main/.
    You only need to build from source if you want to customize the client.
 
 The Isaac Teleop WebXR client is built with React, Three.js, and WebXR. It streams VR/AR content
