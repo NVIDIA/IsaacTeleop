@@ -114,10 +114,10 @@ DecodedFrame& DecodedFrame::operator=(DecodedFrame&& o) noexcept
     return *this;
 }
 
-NvdecPlayer::NvdecPlayer()
+NvdecPlayer::NvdecPlayer(int cuda_device_id)
 {
     check_cu(cuInit(0), "cuInit");
-    check_cu(cuDeviceGet(&device_, 0), "cuDeviceGet");
+    check_cu(cuDeviceGet(&device_, cuda_device_id), "cuDeviceGet");
     check_cu(cuDevicePrimaryCtxRetain(&ctx_, device_), "cuDevicePrimaryCtxRetain");
 
     try
@@ -130,7 +130,7 @@ NvdecPlayer::NvdecPlayer()
         // for stream creation with runtime API for signal causes
         // cudaSignalExternalSemaphoresAsync to fail with
         // "invalid argument".
-        check_cuda(cudaSetDevice(0), "cudaSetDevice");
+        check_cuda(cudaSetDevice(cuda_device_id), "cudaSetDevice");
 
         // Per-player non-blocking stream so multiple players don't
         // serialize their NPP / kernel / upload work on the default
@@ -140,15 +140,17 @@ NvdecPlayer::NvdecPlayer()
         // NPP stream context — populated once at construction so
         // feed() doesn't pay cudaGetDeviceProperties per frame.
         cudaDeviceProp props{};
-        cudaGetDeviceProperties(&props, 0);
+        cudaGetDeviceProperties(&props, cuda_device_id);
         npp_ctx_.hStream = stream_;
-        npp_ctx_.nCudaDeviceId = 0;
+        npp_ctx_.nCudaDeviceId = cuda_device_id;
         npp_ctx_.nMultiProcessorCount = props.multiProcessorCount;
         npp_ctx_.nMaxThreadsPerMultiProcessor = props.maxThreadsPerMultiProcessor;
         npp_ctx_.nMaxThreadsPerBlock = props.maxThreadsPerBlock;
         npp_ctx_.nSharedMemPerBlock = props.sharedMemPerBlock;
-        cudaDeviceGetAttribute(&npp_ctx_.nCudaDevAttrComputeCapabilityMajor, cudaDevAttrComputeCapabilityMajor, 0);
-        cudaDeviceGetAttribute(&npp_ctx_.nCudaDevAttrComputeCapabilityMinor, cudaDevAttrComputeCapabilityMinor, 0);
+        cudaDeviceGetAttribute(
+            &npp_ctx_.nCudaDevAttrComputeCapabilityMajor, cudaDevAttrComputeCapabilityMajor, cuda_device_id);
+        cudaDeviceGetAttribute(
+            &npp_ctx_.nCudaDevAttrComputeCapabilityMinor, cudaDevAttrComputeCapabilityMinor, cuda_device_id);
         cudaStreamGetFlags(stream_, &npp_ctx_.nStreamFlags);
 
         // NvDecoder pushes its own ctx internally for its driver

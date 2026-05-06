@@ -30,7 +30,10 @@ struct Video
 {
     std::string path;
     std::ifstream file;
-    viz_smoke::NvdecPlayer player;
+    // Heap-allocated because NvdecPlayer's CUDA device id isn't
+    // known until after VizSession is created (multi-GPU systems
+    // require matching the Vulkan-chosen device).
+    std::unique_ptr<viz_smoke::NvdecPlayer> player;
     viz::QuadLayer* layer = nullptr;
     // Most recently submitted frame; held alive across one render cycle
     // so QuadLayer::submit's async cudaMemcpy can complete before the
@@ -67,7 +70,7 @@ void feed_one_chunk(Video& v, std::vector<uint8_t>& chunk)
     const auto got = static_cast<size_t>(v.file.gcount());
     if (got > 0)
     {
-        v.player.feed(chunk.data(), got);
+        v.player->feed(chunk.data(), got);
     }
     if (!v.file)
     {
@@ -134,45 +137,39 @@ int main(int argc, char** argv)
         }
         std::printf("lod_bias = %.2f, static = %d\n", lod_bias, static_mode ? 1 : 0);
 
-        // Prime each player to its first frame so we know the resolutions
-        // before sizing the window + layers.
-        std::vector<uint8_t> chunk(kChunkBytes);
-        for (auto& v : videos)
-        {
-            for (int safety = 0; safety < 4096 && v->player.queued_frame_count() == 0 && v->file; ++safety)
-            {
-                feed_one_chunk(*v, chunk);
-            }
-            v->first_frame = v->player.try_pop();
-            if (v->first_frame == nullptr)
-            {
-                throw std::runtime_error("never produced a decoded frame for " + v->path);
-            }
-        }
-
-        // Open the window wide enough to hold all videos side-by-side at
-        // their native heights. tile_layout handles letterbox if user
-        // resizes or aspects differ.
-        uint32_t total_w = 0;
-        uint32_t max_h = 0;
-        for (const auto& v : videos)
-        {
-            total_w += v->first_frame->width;
-            if (v->first_frame->height > max_h)
-            {
-                max_h = v->first_frame->height;
-            }
-        }
-
+        // Open the window first so we can read VkContext::cuda_device_id
+        // and use it for the players. On multi-GPU systems Vulkan may
+        // pick a non-zero device; the QuadLayer's external semaphore is
+        // imported into THAT device's primary CUDA context, and player
+        // streams must match or cudaSignalExternalSemaphoresAsync fails.
+        // Default size = 1920x1080; user can resize.
         viz::VizSession::Config cfg{};
         cfg.mode = viz::DisplayMode::kWindow;
-        cfg.window_width = total_w;
-        cfg.window_height = max_h;
+        cfg.window_width = 1920;
+        cfg.window_height = 1080;
         cfg.app_name = "viz_video_smoke";
 
         auto session = viz::VizSession::create(cfg);
         const viz::VkContext* ctx = session->get_vk_context();
         const VkRenderPass render_pass = session->get_render_pass();
+        const int cuda_device_id = ctx->cuda_device_id();
+        std::printf("vulkan + cuda device id = %d\n", cuda_device_id);
+
+        // Now construct players on the right device + prime first frames.
+        std::vector<uint8_t> chunk(kChunkBytes);
+        for (auto& v : videos)
+        {
+            v->player = std::make_unique<viz_smoke::NvdecPlayer>(cuda_device_id);
+            for (int safety = 0; safety < 4096 && v->player->queued_frame_count() == 0 && v->file; ++safety)
+            {
+                feed_one_chunk(*v, chunk);
+            }
+            v->first_frame = v->player->try_pop();
+            if (v->first_frame == nullptr)
+            {
+                throw std::runtime_error("never produced a decoded frame for " + v->path);
+            }
+        }
 
         // One QuadLayer per input, in argv order. Compositor tiles
         // row-major in insertion order.
@@ -184,12 +181,12 @@ int main(int argc, char** argv)
             layer_cfg.resolution = { videos[i]->first_frame->width, videos[i]->first_frame->height };
             layer_cfg.mip_lod_bias = lod_bias;
             videos[i]->layer = session->add_layer<viz::QuadLayer>(*ctx, render_pass, layer_cfg);
-            submit_to_layer(*videos[i]->layer, *videos[i]->first_frame, videos[i]->player.stream());
+            submit_to_layer(*videos[i]->layer, *videos[i]->first_frame, videos[i]->player->stream());
             videos[i]->in_flight = std::move(videos[i]->first_frame);
 
             // Pull source FPS from the H.264 VUI; fall back to 30 if
             // the encoder didn't emit timing_info.
-            const double period = videos[i]->player.frame_period_seconds();
+            const double period = videos[i]->player->frame_period_seconds();
             videos[i]->frame_period =
                 std::chrono::nanoseconds(static_cast<int64_t>((period > 0.0 ? period : 1.0 / 30.0) * 1e9));
             videos[i]->next_present = t0 + videos[i]->frame_period;
@@ -210,15 +207,15 @@ int main(int argc, char** argv)
             {
                 for (auto& v : videos)
                 {
-                    for (int safety = 0; safety < 256 && v->player.queued_frame_count() == 0; ++safety)
+                    for (int safety = 0; safety < 256 && v->player->queued_frame_count() == 0; ++safety)
                     {
                         feed_one_chunk(*v, chunk);
                     }
                     if (now >= v->next_present)
                     {
-                        if (auto next = v->player.try_pop())
+                        if (auto next = v->player->try_pop())
                         {
-                            submit_to_layer(*v->layer, *next, v->player.stream());
+                            submit_to_layer(*v->layer, *next, v->player->stream());
                             v->in_flight = std::move(next);
                         }
                         v->next_present += v->frame_period;

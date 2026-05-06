@@ -44,7 +44,11 @@ struct DecodedFrame
 class NvdecPlayer
 {
 public:
-    NvdecPlayer();
+    // cuda_device_id MUST match the CUDA device that VkContext
+    // matched to Vulkan via UUID — VkContext::cuda_device_id().
+    // Mismatch makes cudaSignalExternalSemaphoresAsync fail with
+    // "invalid argument" on the QuadLayer's external semaphore.
+    explicit NvdecPlayer(int cuda_device_id);
     ~NvdecPlayer();
 
     NvdecPlayer(const NvdecPlayer&) = delete;
