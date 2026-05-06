@@ -729,8 +729,13 @@ export class CloudXR2DUI {
         this.getDefaultConfiguration().maxStreamingBitrateMbps,
       codec:
         (this.codecSelect.value as 'h264' | 'h265' | 'av1') || this.getDefaultConfiguration().codec,
-      immersiveMode:
-        (this.immersiveSelect.value as 'ar' | 'vr') || this.getDefaultConfiguration().immersiveMode,
+      // Headless mode turns off the client's CloudXR frame blit but keeps tracking; the WebXR
+      // session must be immersive-vr. immersive-ar uses passthrough semantics that do not match
+      // that pipeline, so we ignore the AR/VR dropdown whenever headless is checked.
+      immersiveMode: this.headlessInput.checked
+        ? 'vr'
+        : (this.immersiveSelect.value as 'ar' | 'vr') ||
+          this.getDefaultConfiguration().immersiveMode,
       deviceProfileId: resolveDeviceProfileId(this.deviceProfileSelect.value),
       serverType: this.serverTypeSelect.value || this.getDefaultConfiguration().serverType,
       proxyUrl: this.proxyUrlInput.value || this.getDefaultConfiguration().proxyUrl,
@@ -765,6 +770,7 @@ export class CloudXR2DUI {
         return !isNaN(v) ? v : undefined;
       })(),
       hideControllerModel: this.controllerModelVisibilitySelect.value === 'hide',
+      // See immersiveMode above: when true, callers must start an immersive-vr WebXR session.
       headless: this.headlessInput.checked,
       panelHiddenAtStart: this.panelHiddenAtStartSelect.value === 'true',
       teleopPath: this.teleopPath,

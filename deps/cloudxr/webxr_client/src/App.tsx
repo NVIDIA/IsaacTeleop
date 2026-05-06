@@ -366,10 +366,13 @@ function App() {
         ui.updateConnectButtonState();
         return;
       }
-      // Start XR session
-      if (config.immersiveMode === 'ar') {
+      // CloudXR2DUI.updateConfiguration already sets immersiveMode to 'vr' when headless is on.
+      // Repeat the rule here so session entry stays correct even if config were stale or built
+      // elsewhere; immersive-ar is wrong for headless (no passthrough blit path).
+      const immersiveMode: 'ar' | 'vr' = config.headless ? 'vr' : config.immersiveMode;
+      if (immersiveMode === 'ar') {
         await store.enterAR();
-      } else if (config.immersiveMode === 'vr') {
+      } else if (immersiveMode === 'vr') {
         await store.enterVR();
       } else {
         setErrorMessage('Unrecognized immersive mode');
