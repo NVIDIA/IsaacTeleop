@@ -31,6 +31,13 @@ add_subdirectory(layers)
 # layer that drives the per-frame loop and manages the layer registry.
 add_subdirectory(session)
 
+# XR: OpenXR-bound graphics session + XrBackend (DisplayBackend impl).
+# Optional — gated on BUILD_VIZ_XR because it needs the OpenXR runtime
+# (e.g. CloudXR) to be present at runtime.
+if(BUILD_VIZ_XR)
+    add_subdirectory(xr)
+endif()
+
 # Shaders: GLSL sources compiled to SPIR-V at build time and embedded
 # as C arrays. Header-only INTERFACE library viz::shaders.
 add_subdirectory(shaders)
@@ -46,4 +53,7 @@ if(BUILD_TESTING)
     add_subdirectory(layers_tests)
     add_subdirectory(session_tests)
     add_subdirectory(shaders_tests)
+    if(BUILD_VIZ_XR)
+        add_subdirectory(xr_tests)
+    endif()
 endif()
