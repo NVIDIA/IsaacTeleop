@@ -5,6 +5,7 @@
 #include <viz/session/offscreen_backend.hpp>
 #include <viz/session/viz_session.hpp>
 #include <viz/session/window_backend.hpp>
+#include <viz/session/xr_backend.hpp>
 
 #include <algorithm>
 #include <stdexcept>
@@ -31,7 +32,12 @@ std::unique_ptr<DisplayBackend> make_backend(const VizSession::Config& cfg)
         return std::make_unique<WindowBackend>(wc);
     }
     case DisplayMode::kXr:
-        throw std::runtime_error("VizSession: kXr is not yet implemented");
+    {
+        XrBackend::Config xc{};
+        xc.app_name = cfg.app_name;
+        xc.extra_xr_extensions = cfg.required_extensions;
+        return std::make_unique<XrBackend>(std::move(xc));
+    }
     }
     throw std::runtime_error("VizSession: unknown DisplayMode");
 }
@@ -69,6 +75,18 @@ void VizSession::init()
         VkContext::Config vk_cfg{};
         vk_cfg.instance_extensions = backend_->required_instance_extensions();
         vk_cfg.device_extensions = backend_->required_device_extensions();
+
+        // kXr two-phase init: XrBackend's ctor already created the
+        // OpenXrInstance, so we can hand the raw XR handles to VkContext
+        // before it builds its instance/device. VkContext takes the
+        // xrCreateVulkanInstanceKHR / xrCreateVulkanDeviceKHR path,
+        // which lets the OpenXR runtime interpose on Vulkan creation.
+        if (config_.mode == DisplayMode::kXr)
+        {
+            auto* xr = static_cast<XrBackend*>(backend_.get());
+            vk_cfg.xr_instance = xr->xr_instance_handle();
+            vk_cfg.xr_system_id = xr->xr_system_id();
+        }
 
         if (config_.external_context != nullptr)
         {
@@ -261,6 +279,28 @@ HostImage VizSession::readback_to_host()
 bool VizSession::should_close() const noexcept
 {
     return backend_ ? backend_->should_close() : false;
+}
+
+std::optional<core::OpenXRSessionHandles> VizSession::get_oxr_handles() const noexcept
+{
+    if (config_.mode != DisplayMode::kXr || !backend_)
+    {
+        return std::nullopt;
+    }
+    auto* xr = static_cast<XrBackend*>(backend_.get());
+    const auto h = xr->oxr_handles();
+    if (h.instance == XR_NULL_HANDLE || h.session == XR_NULL_HANDLE)
+    {
+        // Backend created but session not yet established (init failed
+        // or hasn't run); nothing useful to share.
+        return std::nullopt;
+    }
+    core::OpenXRSessionHandles out{};
+    out.instance = h.instance;
+    out.session = h.session;
+    out.space = h.reference_space;
+    out.xrGetInstanceProcAddr = h.xrGetInstanceProcAddr;
+    return out;
 }
 
 const VkContext& VizSession::ctx() const noexcept

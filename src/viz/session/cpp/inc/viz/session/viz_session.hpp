@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <oxr_utils/oxr_session_handles.hpp>
 #include <viz/core/host_image.hpp>
 #include <viz/core/viz_types.hpp>
 #include <viz/core/vk_context.hpp>
@@ -13,6 +14,7 @@
 
 #include <chrono>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -162,6 +164,14 @@ public:
     // kOffscreen / kXr. Drives application loops:
     //   while (!session.should_close()) session.render();
     bool should_close() const noexcept;
+
+    // OpenXR session handles for app-side TeleopSession sharing.
+    // Returns the underlying XrInstance / XrSession / reference space
+    // plus the loader-level xrGetInstanceProcAddr so a downstream
+    // consumer (e.g. TeleopSession) can use the same OpenXR session
+    // without re-creating one. Returns nullopt outside of kXr mode
+    // and before init / after destroy.
+    std::optional<core::OpenXRSessionHandles> get_oxr_handles() const noexcept;
 
 private:
     explicit VizSession(const Config& config);

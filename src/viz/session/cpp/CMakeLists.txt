@@ -37,6 +37,7 @@ target_link_libraries(viz_session
         viz::core
         viz::layers
         viz::xr
+        oxr::oxr_utils
         glfw
 )
 
