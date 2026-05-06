@@ -144,6 +144,16 @@ bool NvdecPlayer::feed(const uint8_t* data, size_t size)
             break;
         }
 
+        // Read the H.264 VUI's video_full_range_flag once. H.264
+        // defaults to limited range when the flag is absent (Annex E),
+        // so unset → BT.709 limited; set → BT.601 full.
+        if (!color_range_detected_)
+        {
+            const auto fmt = decoder_->GetVideoFormatInfo();
+            use_full_range_ = fmt.video_signal_description.video_full_range_flag != 0;
+            color_range_detected_ = true;
+        }
+
         const int w = decoder_->GetWidth();
         const int h = decoder_->GetHeight();
         const int pitch = decoder_->GetDeviceFramePitch();
@@ -160,7 +170,14 @@ bool NvdecPlayer::feed(const uint8_t* data, size_t size)
                                      cudaGetErrorString(alloc_err));
         }
 
-        nv12_to_rgba_fullrange_bt601(nv12, nv12 + luma_size, pitch, rgba, w * 4, w, h, /*stream=*/0);
+        if (use_full_range_)
+        {
+            nv12_to_rgba_fullrange_bt601(nv12, nv12 + luma_size, pitch, rgba, w * 4, w, h, /*stream=*/0);
+        }
+        else
+        {
+            nv12_to_rgba_limited_bt709(nv12, nv12 + luma_size, pitch, rgba, w * 4, w, h, /*stream=*/0);
+        }
         const cudaError_t kernel_err = cudaGetLastError();
         decoder_->UnlockFrame(&nv12);
         if (kernel_err != cudaSuccess)

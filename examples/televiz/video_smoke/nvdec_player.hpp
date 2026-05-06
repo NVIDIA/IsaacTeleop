@@ -78,6 +78,13 @@ private:
     std::unique_ptr<NvDecoder> decoder_;
 
     std::deque<std::unique_ptr<OwnedRgba>> ready_;
+
+    // VUI-driven choice of NV12->RGBA kernel. Read once after the
+    // first decoded frame; the bitstream's color signaling shouldn't
+    // change mid-stream in any sane file. Default = limited BT.709
+    // (the H.264 default per the spec) until we know otherwise.
+    bool color_range_detected_ = false;
+    bool use_full_range_ = false;
 };
 
 } // namespace viz_smoke
