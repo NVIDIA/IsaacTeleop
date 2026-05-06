@@ -7,8 +7,11 @@
 #define XR_USE_GRAPHICS_API_VULKAN
 #include <openxr/openxr_platform.h>
 
+#include <chrono>
+#include <cstdio>
 #include <cstring>
 #include <stdexcept>
+#include <thread>
 
 namespace viz
 {
@@ -26,7 +29,9 @@ void check(XrResult r, const char* what)
 
 } // namespace
 
-OpenXrInstance::OpenXrInstance(const std::string& app_name, const std::vector<std::string>& extra_extensions)
+OpenXrInstance::OpenXrInstance(const std::string& app_name,
+                               const std::vector<std::string>& extra_extensions,
+                               int system_wait_seconds)
 {
     std::vector<const char*> exts;
     exts.reserve(1 + extra_extensions.size());
@@ -48,7 +53,51 @@ OpenXrInstance::OpenXrInstance(const std::string& app_name, const std::vector<st
     sys_info.formFactor = XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY;
     try
     {
-        check(xrGetSystem(instance_, &sys_info, &system_id_), "xrGetSystem");
+        // Poll xrGetSystem; XR_ERROR_FORM_FACTOR_UNAVAILABLE means the
+        // runtime is up but no headset is currently connected. CloudXR /
+        // streaming runtimes return this between app start and client
+        // connect — common enough that we expose system_wait_seconds
+        // to keep retrying. Other failures (loader / extension issues)
+        // throw immediately even within the wait window.
+        constexpr auto kPollInterval = std::chrono::milliseconds(200);
+        constexpr auto kLogEvery = std::chrono::seconds(3);
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(system_wait_seconds);
+        auto last_log = std::chrono::steady_clock::now();
+        bool announced = false;
+        while (true)
+        {
+            const XrResult r = xrGetSystem(instance_, &sys_info, &system_id_);
+            if (XR_SUCCEEDED(r))
+            {
+                if (announced)
+                {
+                    std::fprintf(stderr, "OpenXrInstance: HMD connected.\n");
+                }
+                break;
+            }
+            if (r != XR_ERROR_FORM_FACTOR_UNAVAILABLE)
+            {
+                throw std::runtime_error(std::string("OpenXrInstance: xrGetSystem failed: XrResult=") + std::to_string(r));
+            }
+            const auto now = std::chrono::steady_clock::now();
+            if (now >= deadline)
+            {
+                throw std::runtime_error(
+                    "OpenXrInstance: xrGetSystem timed out waiting for HMD "
+                    "(XR_ERROR_FORM_FACTOR_UNAVAILABLE) after " +
+                    std::to_string(system_wait_seconds) + "s");
+            }
+            if (!announced || (now - last_log) >= kLogEvery)
+            {
+                const auto remaining = std::chrono::duration_cast<std::chrono::seconds>(deadline - now).count();
+                std::fprintf(stderr, "OpenXrInstance: waiting for HMD to connect (%llds remaining)...\n",
+                             static_cast<long long>(remaining));
+                std::fflush(stderr);
+                announced = true;
+                last_log = now;
+            }
+            std::this_thread::sleep_for(kPollInterval);
+        }
     }
     catch (...)
     {

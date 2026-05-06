@@ -115,6 +115,10 @@ int main()
     cfg.clear_color[1] = 0.05f;
     cfg.clear_color[2] = 0.05f;
     cfg.clear_color[3] = 1.0f;
+    // CloudXR / streaming runtimes return XR_ERROR_FORM_FACTOR_UNAVAILABLE
+    // until a headset client connects. Wait up to 60s so the user can
+    // start the CloudXR client after launching this binary.
+    cfg.xr_system_wait_seconds = 60;
 
     std::unique_ptr<viz::VizSession> session;
     try

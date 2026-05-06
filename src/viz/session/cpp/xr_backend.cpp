@@ -65,7 +65,8 @@ XrBackend::XrBackend(Config config) : config_(std::move(config))
     // Create the OpenXR instance immediately — VkContext needs the raw
     // handles in its Config to take the XR-bound init path. Session,
     // swapchains, and intermediate are deferred to init().
-    xr_instance_ = std::make_unique<OpenXrInstance>(config_.app_name, config_.extra_xr_extensions);
+    xr_instance_ =
+        std::make_unique<OpenXrInstance>(config_.app_name, config_.extra_xr_extensions, config_.system_wait_seconds);
 }
 
 XrBackend::~XrBackend()

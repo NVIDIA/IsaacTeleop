@@ -83,6 +83,14 @@ public:
         // set. Used in kXr mode by the XR backend (no effect in
         // kOffscreen / kWindow today).
         std::vector<std::string> required_extensions;
+
+        // kXr-only: seconds to keep polling xrGetSystem when no HMD is
+        // currently connected (XR_ERROR_FORM_FACTOR_UNAVAILABLE).
+        // Streaming runtimes like CloudXR start up before the headset
+        // client connects and return UNAVAILABLE in the meantime; set
+        // to a generous value (30-60s) to wait for the client. 0 =
+        // fail fast on first failure (good for tests / CI).
+        int xr_system_wait_seconds = 0;
     };
 
     static std::unique_ptr<VizSession> create(const Config& config);

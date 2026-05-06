@@ -36,6 +36,7 @@ std::unique_ptr<DisplayBackend> make_backend(const VizSession::Config& cfg)
         XrBackend::Config xc{};
         xc.app_name = cfg.app_name;
         xc.extra_xr_extensions = cfg.required_extensions;
+        xc.system_wait_seconds = cfg.xr_system_wait_seconds;
         return std::make_unique<XrBackend>(std::move(xc));
     }
     }

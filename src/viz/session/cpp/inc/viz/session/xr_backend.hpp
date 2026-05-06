@@ -42,6 +42,11 @@ public:
         std::string app_name = "Televiz";
         // Extra OpenXR instance extensions on top of XR_KHR_VULKAN_ENABLE2.
         std::vector<std::string> extra_xr_extensions;
+        // Seconds to keep polling xrGetSystem when the runtime returns
+        // XR_ERROR_FORM_FACTOR_UNAVAILABLE (no HMD yet). Useful for
+        // CloudXR / streaming runtimes where the headset connects after
+        // the app starts. 0 = fail fast on first failure.
+        int system_wait_seconds = 0;
         // Underlying session config (reference space type, blend mode).
         OpenXrSession::Config session_config{};
     };
