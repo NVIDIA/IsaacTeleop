@@ -11,8 +11,10 @@ find_package(Vulkan REQUIRED)
 
 add_library(viz_xr STATIC
     openxr_instance.cpp
+    openxr_session.cpp
     xr_runtime.cpp
     inc/viz/xr/openxr_instance.hpp
+    inc/viz/xr/openxr_session.hpp
     inc/viz/xr/xr_runtime.hpp
 )
 
