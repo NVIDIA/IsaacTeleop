@@ -16,7 +16,9 @@ namespace
 // Find a memory type matching `type_bits` (bitfield from
 // VkMemoryRequirements::memoryTypeBits) that has all required `properties`.
 // Throws if no match (callers should request DEVICE_LOCAL for attachments).
-uint32_t find_memory_type(vk::PhysicalDevice physical_device, uint32_t type_bits, vk::MemoryPropertyFlags properties)
+uint32_t find_memory_type(const vk::raii::PhysicalDevice& physical_device,
+                          uint32_t type_bits,
+                          vk::MemoryPropertyFlags properties)
 {
     const auto mem_props = physical_device.getMemoryProperties();
     for (uint32_t i = 0; i < mem_props.memoryTypeCount; ++i)

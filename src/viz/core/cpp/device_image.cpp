@@ -44,7 +44,9 @@ void check_cuda(cudaError_t result, const char* what)
     }
 }
 
-uint32_t find_memory_type(vk::PhysicalDevice physical_device, uint32_t type_bits, vk::MemoryPropertyFlags properties)
+uint32_t find_memory_type(const vk::raii::PhysicalDevice& physical_device,
+                          uint32_t type_bits,
+                          vk::MemoryPropertyFlags properties)
 {
     const auto mem_props = physical_device.getMemoryProperties();
     for (uint32_t i = 0; i < mem_props.memoryTypeCount; ++i)
@@ -217,49 +219,49 @@ void DeviceImage::create_vk_image_with_external_memory()
 
     // Optimal tiling — CUDA accesses the image via cudaArray_t, not
     // raw memory, so opaque GPU layout is fine.
-    vk::StructureChain<vk::ImageCreateInfo, vk::ExternalMemoryImageCreateInfo> image_chain{
-        vk::ImageCreateInfo{
-            // Storage in linear-space format (UNORM); SRGB view
-            // attached in create_vk_image_view().
-            // VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT is what allows view
-            // format != image format among compatible formats
-            // (UNORM <-> SRGB are in the same compatibility class).
-            .flags = vk::ImageCreateFlagBits::eMutableFormat,
-            .imageType = vk::ImageType::e2D,
-            .format = static_cast<vk::Format>(to_vk_storage_format(format_)),
-            .extent = { resolution_.width, resolution_.height, 1 },
-            // Single level. If XR distance views show moiré, expose
-            // mipLevels via Config and generate via vkCmdBlitImage
-            // pre-render.
-            .mipLevels = 1,
-            .arrayLayers = 1,
-            .samples = vk::SampleCountFlagBits::e1,
-            .tiling = vk::ImageTiling::eOptimal,
-            .usage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst |
-                     vk::ImageUsageFlagBits::eTransferSrc,
-            .sharingMode = vk::SharingMode::eExclusive,
-            .initialLayout = vk::ImageLayout::eUndefined,
-        },
-        vk::ExternalMemoryImageCreateInfo{
-            .handleTypes = vk::ExternalMemoryHandleTypeFlagBits::eOpaqueFd,
-        },
+    //
+    // Storage in linear-space format (UNORM); SRGB view attached in
+    // create_vk_image_view(). VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT
+    // allows view format != image format among compatible formats
+    // (UNORM <-> SRGB are in the same compatibility class).
+    const vk::ImageCreateInfo image_info{
+        .flags = vk::ImageCreateFlagBits::eMutableFormat,
+        .imageType = vk::ImageType::e2D,
+        .format = static_cast<vk::Format>(to_vk_storage_format(format_)),
+        .extent = { resolution_.width, resolution_.height, 1 },
+        // Single level. If XR distance views show moiré, expose
+        // mipLevels via Config and generate via vkCmdBlitImage
+        // pre-render.
+        .mipLevels = 1,
+        .arrayLayers = 1,
+        .samples = vk::SampleCountFlagBits::e1,
+        .tiling = vk::ImageTiling::eOptimal,
+        .usage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst |
+                 vk::ImageUsageFlagBits::eTransferSrc,
+        .sharingMode = vk::SharingMode::eExclusive,
+        .initialLayout = vk::ImageLayout::eUndefined,
     };
+    const vk::ExternalMemoryImageCreateInfo image_external_info{
+        .handleTypes = vk::ExternalMemoryHandleTypeFlagBits::eOpaqueFd,
+    };
+    vk::StructureChain<vk::ImageCreateInfo, vk::ExternalMemoryImageCreateInfo> image_chain{ image_info,
+                                                                                            image_external_info };
     image_ = vk::raii::Image{ device, image_chain.get<vk::ImageCreateInfo>() };
 
     const auto reqs = image_.getMemoryRequirements();
 
     // Device-local + exportable as POSIX fd. Generic allocation
     // (no VkMemoryDedicatedAllocateInfo) suffices for sampled 2D.
-    vk::StructureChain<vk::MemoryAllocateInfo, vk::ExportMemoryAllocateInfo> alloc_chain{
-        vk::MemoryAllocateInfo{
-            .allocationSize = reqs.size,
-            .memoryTypeIndex = find_memory_type(
-                ctx_->raii_physical_device(), reqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal),
-        },
-        vk::ExportMemoryAllocateInfo{
-            .handleTypes = vk::ExternalMemoryHandleTypeFlagBits::eOpaqueFd,
-        },
+    const vk::MemoryAllocateInfo alloc_info{
+        .allocationSize = reqs.size,
+        .memoryTypeIndex = find_memory_type(
+            ctx_->raii_physical_device(), reqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal),
     };
+    const vk::ExportMemoryAllocateInfo alloc_external_info{
+        .handleTypes = vk::ExternalMemoryHandleTypeFlagBits::eOpaqueFd,
+    };
+    vk::StructureChain<vk::MemoryAllocateInfo, vk::ExportMemoryAllocateInfo> alloc_chain{ alloc_info,
+                                                                                          alloc_external_info };
     memory_ = vk::raii::DeviceMemory{ device, alloc_chain.get<vk::MemoryAllocateInfo>() };
     image_.bindMemory(*memory_, 0);
 
@@ -337,15 +339,16 @@ void DeviceImage::create_interop_semaphores()
 
     // Timeline semaphore (initial value 0) exported via OPAQUE_FD and
     // imported into CUDA.
+    const vk::SemaphoreCreateInfo sem_info{};
+    const vk::ExportSemaphoreCreateInfo sem_export_info{
+        .handleTypes = vk::ExternalSemaphoreHandleTypeFlagBits::eOpaqueFd,
+    };
+    const vk::SemaphoreTypeCreateInfo sem_type_info{
+        .semaphoreType = vk::SemaphoreType::eTimeline,
+        .initialValue = 0,
+    };
     vk::StructureChain<vk::SemaphoreCreateInfo, vk::ExportSemaphoreCreateInfo, vk::SemaphoreTypeCreateInfo> sem_chain{
-        vk::SemaphoreCreateInfo{},
-        vk::ExportSemaphoreCreateInfo{
-            .handleTypes = vk::ExternalSemaphoreHandleTypeFlagBits::eOpaqueFd,
-        },
-        vk::SemaphoreTypeCreateInfo{
-            .semaphoreType = vk::SemaphoreType::eTimeline,
-            .initialValue = 0,
-        },
+        sem_info, sem_export_info, sem_type_info
     };
     cuda_done_writing_ = vk::raii::Semaphore{ device, sem_chain.get<vk::SemaphoreCreateInfo>() };
 
