@@ -3,6 +3,9 @@
 
 #include <viz/core/vk_context.hpp>
 
+#define XR_USE_GRAPHICS_API_VULKAN
+#include <openxr/openxr_platform.h>
+
 #include <algorithm>
 #include <cstring>
 #include <cuda_runtime.h>
@@ -188,9 +191,18 @@ void VkContext::init(const Config& config)
     // and is safe to retry init() on.
     try
     {
-        create_instance(config);
-        select_physical_device(config);
-        create_logical_device(config);
+        if (config.xr_instance != nullptr)
+        {
+            create_instance_xr(config);
+            select_physical_device_xr(config);
+            create_logical_device_xr(config);
+        }
+        else
+        {
+            create_instance(config);
+            select_physical_device(config);
+            create_logical_device(config);
+        }
         match_cuda_device_to_vulkan();
         create_pipeline_cache();
         initialized_ = true;
@@ -540,6 +552,161 @@ std::vector<PhysicalDeviceInfo> VkContext::enumerate_physical_devices()
 
     vkDestroyInstance(instance, nullptr);
     return result;
+}
+
+namespace
+{
+
+template <typename T>
+T load_xr_proc(XrInstance xr_instance, const char* name)
+{
+    PFN_xrVoidFunction fn = nullptr;
+    if (XR_FAILED(xrGetInstanceProcAddr(xr_instance, name, &fn)) || fn == nullptr)
+    {
+        throw std::runtime_error(std::string("VkContext: xrGetInstanceProcAddr(") + name + ") failed");
+    }
+    return reinterpret_cast<T>(fn);
+}
+
+void check_xr(XrResult r, const char* what)
+{
+    if (XR_FAILED(r))
+    {
+        throw std::runtime_error(std::string("VkContext: ") + what + " failed: XrResult=" + std::to_string(r));
+    }
+}
+
+} // namespace
+
+void VkContext::create_instance_xr(const Config& config)
+{
+    auto xr_instance = static_cast<XrInstance>(config.xr_instance);
+    auto xr_system = static_cast<XrSystemId>(config.xr_system_id);
+
+    auto xrGetVulkanGraphicsRequirements2KHR =
+        load_xr_proc<PFN_xrGetVulkanGraphicsRequirements2KHR>(xr_instance, "xrGetVulkanGraphicsRequirements2KHR");
+    auto xrCreateVulkanInstanceKHR =
+        load_xr_proc<PFN_xrCreateVulkanInstanceKHR>(xr_instance, "xrCreateVulkanInstanceKHR");
+
+    XrGraphicsRequirementsVulkan2KHR reqs{ XR_TYPE_GRAPHICS_REQUIREMENTS_VULKAN2_KHR };
+    check_xr(xrGetVulkanGraphicsRequirements2KHR(xr_instance, xr_system, &reqs), "xrGetVulkanGraphicsRequirements2KHR");
+
+    VkApplicationInfo app{};
+    app.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+    app.pApplicationName = "Televiz";
+    app.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+    app.pEngineName = "Televiz";
+    app.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+    app.apiVersion = kApiVersion;
+
+    std::vector<const char*> instance_exts;
+    for (const auto& s : config.instance_extensions)
+    {
+        instance_exts.push_back(s.c_str());
+    }
+
+    std::vector<const char*> layers;
+    if (config.enable_validation && is_validation_layer_available())
+    {
+        layers.push_back("VK_LAYER_KHRONOS_validation");
+        validation_enabled_ = true;
+    }
+
+    VkInstanceCreateInfo vk_info{};
+    vk_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+    vk_info.pApplicationInfo = &app;
+    vk_info.enabledExtensionCount = static_cast<uint32_t>(instance_exts.size());
+    vk_info.ppEnabledExtensionNames = instance_exts.empty() ? nullptr : instance_exts.data();
+    vk_info.enabledLayerCount = static_cast<uint32_t>(layers.size());
+    vk_info.ppEnabledLayerNames = layers.empty() ? nullptr : layers.data();
+
+    XrVulkanInstanceCreateInfoKHR xr_vk_info{ XR_TYPE_VULKAN_INSTANCE_CREATE_INFO_KHR };
+    xr_vk_info.systemId = xr_system;
+    xr_vk_info.pfnGetInstanceProcAddr = vkGetInstanceProcAddr;
+    xr_vk_info.vulkanCreateInfo = &vk_info;
+    xr_vk_info.vulkanAllocator = nullptr;
+
+    VkResult vk_result = VK_SUCCESS;
+    check_xr(xrCreateVulkanInstanceKHR(xr_instance, &xr_vk_info, &instance_, &vk_result), "xrCreateVulkanInstanceKHR");
+    if (vk_result != VK_SUCCESS)
+    {
+        throw std::runtime_error("VkContext: xrCreateVulkanInstanceKHR returned VkResult=" + std::to_string(vk_result));
+    }
+}
+
+void VkContext::select_physical_device_xr(const Config& config)
+{
+    auto xr_instance = static_cast<XrInstance>(config.xr_instance);
+    auto xr_system = static_cast<XrSystemId>(config.xr_system_id);
+
+    auto xrGetVulkanGraphicsDevice2KHR =
+        load_xr_proc<PFN_xrGetVulkanGraphicsDevice2KHR>(xr_instance, "xrGetVulkanGraphicsDevice2KHR");
+
+    XrVulkanGraphicsDeviceGetInfoKHR info{ XR_TYPE_VULKAN_GRAPHICS_DEVICE_GET_INFO_KHR };
+    info.systemId = xr_system;
+    info.vulkanInstance = instance_;
+    check_xr(xrGetVulkanGraphicsDevice2KHR(xr_instance, &info, &physical_device_), "xrGetVulkanGraphicsDevice2KHR");
+
+    if (!device_supports_extensions(physical_device_, kRequiredDeviceExtensions))
+    {
+        throw std::runtime_error("VkContext: OpenXR-selected device lacks required CUDA-interop extensions");
+    }
+    queue_family_index_ = find_graphics_compute_queue_family(physical_device_);
+    if (queue_family_index_ == UINT32_MAX)
+    {
+        throw std::runtime_error("VkContext: OpenXR-selected device has no suitable queue family");
+    }
+}
+
+void VkContext::create_logical_device_xr(const Config& config)
+{
+    auto xr_instance = static_cast<XrInstance>(config.xr_instance);
+    auto xr_system = static_cast<XrSystemId>(config.xr_system_id);
+
+    auto xrCreateVulkanDeviceKHR = load_xr_proc<PFN_xrCreateVulkanDeviceKHR>(xr_instance, "xrCreateVulkanDeviceKHR");
+
+    const float queue_priority = 1.0f;
+    VkDeviceQueueCreateInfo queue_info{};
+    queue_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    queue_info.queueFamilyIndex = queue_family_index_;
+    queue_info.queueCount = 1;
+    queue_info.pQueuePriorities = &queue_priority;
+
+    std::vector<const char*> extensions(kRequiredDeviceExtensions);
+    for (const auto& s : config.device_extensions)
+    {
+        extensions.push_back(s.c_str());
+    }
+
+    VkPhysicalDeviceFeatures features{};
+
+    VkPhysicalDeviceVulkan12Features features12{};
+    features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+    features12.timelineSemaphore = VK_TRUE;
+
+    VkDeviceCreateInfo device_info{};
+    device_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    device_info.pNext = &features12;
+    device_info.queueCreateInfoCount = 1;
+    device_info.pQueueCreateInfos = &queue_info;
+    device_info.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+    device_info.ppEnabledExtensionNames = extensions.data();
+    device_info.pEnabledFeatures = &features;
+
+    XrVulkanDeviceCreateInfoKHR xr_dev_info{ XR_TYPE_VULKAN_DEVICE_CREATE_INFO_KHR };
+    xr_dev_info.systemId = xr_system;
+    xr_dev_info.pfnGetInstanceProcAddr = vkGetInstanceProcAddr;
+    xr_dev_info.vulkanPhysicalDevice = physical_device_;
+    xr_dev_info.vulkanCreateInfo = &device_info;
+    xr_dev_info.vulkanAllocator = nullptr;
+
+    VkResult vk_result = VK_SUCCESS;
+    check_xr(xrCreateVulkanDeviceKHR(xr_instance, &xr_dev_info, &device_, &vk_result), "xrCreateVulkanDeviceKHR");
+    if (vk_result != VK_SUCCESS)
+    {
+        throw std::runtime_error("VkContext: xrCreateVulkanDeviceKHR returned VkResult=" + std::to_string(vk_result));
+    }
+    vkGetDeviceQueue(device_, queue_family_index_, 0, &queue_);
 }
 
 } // namespace viz

@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <openxr/openxr.h>
 #include <vulkan/vulkan.h>
 
 #include <cstdint>
@@ -69,6 +70,12 @@ public:
         //                 enumerate_physical_devices() to discover available
         //                 indices.
         int physical_device_index = -1;
+
+        // When set, init() uses xrCreateVulkanInstanceKHR /
+        // xrGetVulkanGraphicsDevice2KHR / xrCreateVulkanDeviceKHR
+        // and ignores physical_device_index. Both fields together.
+        XrInstance xr_instance = XR_NULL_HANDLE;
+        XrSystemId xr_system_id = XR_NULL_SYSTEM_ID;
     };
 
     VkContext() = default;
@@ -123,6 +130,9 @@ private:
     void create_instance(const Config& config);
     void select_physical_device(const Config& config);
     void create_logical_device(const Config& config);
+    void create_instance_xr(const Config& config);
+    void select_physical_device_xr(const Config& config);
+    void create_logical_device_xr(const Config& config);
     void match_cuda_device_to_vulkan();
     void create_pipeline_cache();
 
