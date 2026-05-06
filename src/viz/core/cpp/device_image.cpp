@@ -66,21 +66,21 @@ uint32_t find_memory_type(VkPhysicalDevice physical_device, uint32_t type_bits, 
     throw std::runtime_error("DeviceImage: no Vulkan memory type matching requested properties");
 }
 
-// Storage-side Vulkan format for the underlying VkImage / VkDeviceMemory.
-// We keep the storage UNORM and create a separate SRGB sampling view
-// (image is created with VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT) so:
-//   - CUDA writes raw bytes (no implicit gamma transform).
-//   - Vulkan samples through the SRGB view → sampler decodes
-//     sRGB -> linear.
-//   - Fragment writes linear -> sRGB encode at the attachment.
-// Net effect: arbitrary RGBA byte values round-trip exactly through
-// CUDA -> Vulkan -> readback.
+// Storage and view formats are both SRGB for kRGBA8. Storing as
+// SRGB makes vkCmdBlitImage do its filtering in linear space (the
+// hardware sRGB-decodes texels before averaging and re-encodes
+// before writing); UNORM storage would average raw gamma-encoded
+// bytes, producing colorimetrically wrong mips with visible
+// aliasing on high-frequency content like fine stripes / blinds.
+// CUDA still writes raw bytes — display-space content is already
+// sRGB-encoded, so the byte values are interpreted correctly when
+// the view sRGB-decodes them at sample time.
 VkFormat to_vk_storage_format(PixelFormat format)
 {
     switch (format)
     {
     case PixelFormat::kRGBA8:
-        return VK_FORMAT_R8G8B8A8_UNORM;
+        return VK_FORMAT_R8G8B8A8_SRGB;
     case PixelFormat::kD32F:
         return VK_FORMAT_D32_SFLOAT;
     }
@@ -280,11 +280,7 @@ void DeviceImage::create_vk_image_with_external_memory()
     info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     info.pNext = &ext_image_info;
     info.imageType = VK_IMAGE_TYPE_2D;
-    // Storage in linear-space format (UNORM); we'll attach the SRGB
-    // view in create_vk_image_view(). VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT
-    // is what allows view format != image format among compatible
-    // formats (UNORM <-> SRGB are in the same compatibility class).
-    info.flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
+    info.flags = 0;
     info.format = to_vk_storage_format(format_);
     info.extent = { resolution_.width, resolution_.height, 1 };
     info.mipLevels = mip_levels_;
