@@ -70,13 +70,6 @@ public:
         // Backend-private bookkeeping round-tripped to record_post_* /
         // end_frame (e.g. swapchain image_index).
         uint64_t backend_token = 0;
-
-        // OpenXR predicted display time for this frame, in the runtime's
-        // clock (XrTime). 0 for non-XR backends. Set by XR's xrWaitFrame
-        // and threaded into FrameInfo so app code can locate spaces /
-        // align animations to display time. Required for xrEndFrame on
-        // the way back out (XrBackend keeps its own copy).
-        int64_t predicted_display_time = 0;
     };
 
     // Acquire the next frame target. nullopt = skip this frame.

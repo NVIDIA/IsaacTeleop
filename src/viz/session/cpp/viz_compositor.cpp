@@ -121,7 +121,7 @@ void VizCompositor::submit_or_signal_fence(const VkSubmitInfo& info, const char*
     throw std::runtime_error(std::string("VizCompositor: ") + what + " failed: VkResult=" + std::to_string(r));
 }
 
-void VizCompositor::render(const DisplayBackend::Frame& frame, const std::vector<LayerBase*>& layers)
+void VizCompositor::render(const std::vector<LayerBase*>& layers)
 {
     // Wait for previous frame (1 frame in flight).
     frame_sync_->wait();
@@ -157,14 +157,20 @@ void VizCompositor::render(const DisplayBackend::Frame& frame, const std::vector
         }
     }
 
+    auto frame = backend_->begin_frame(/*predicted_display_time=*/0);
+    if (!frame.has_value())
+    {
+        // Backend skipped this frame; fence stays signaled, next call won't deadlock.
+        return;
+    }
+
     // RAII: if we unwind before the explicit end_frame below, call
     // abort_frame instead. We must NOT call end_frame on the
     // exception path — its present would wait on signal_after_render,
     // which our submit may have never signaled (e.g., if recording
     // threw before vkQueueSubmit). abort_frame is the backend's
     // "drop this frame, recover next" hook (window backend marks
-    // the swapchain dirty for recreate; XR releases swapchain images
-    // and submits an empty xrEndFrame; offscreen no-ops).
+    // the swapchain dirty for recreate; offscreen no-ops).
     struct FrameGuard
     {
         DisplayBackend* backend;
@@ -183,7 +189,7 @@ void VizCompositor::render(const DisplayBackend::Frame& frame, const std::vector
                 }
             }
         }
-    } frame_guard{ backend_, &frame };
+    } frame_guard{ backend_, &*frame };
 
     const RenderTarget& rt = backend_->render_target();
     const Resolution rt_extent = rt.resolution();
@@ -230,7 +236,7 @@ void VizCompositor::render(const DisplayBackend::Frame& frame, const std::vector
         const VkRect2D viewport_rect = tiles[i].content;
         vkCmdSetScissor(command_buffer_, 0, 1, &scissor_rect);
 
-        std::vector<ViewInfo> layer_views = frame.views;
+        std::vector<ViewInfo> layer_views = frame->views;
         if (layer_views.empty())
         {
             layer_views.push_back(ViewInfo{});
@@ -242,7 +248,7 @@ void VizCompositor::render(const DisplayBackend::Frame& frame, const std::vector
     vkCmdEndRenderPass(command_buffer_);
 
     // Backend-specific post-render commands (blit + transitions etc.).
-    backend_->record_post_render_pass(command_buffer_, frame);
+    backend_->record_post_render_pass(command_buffer_, *frame);
 
     check_vk(vkEndCommandBuffer(command_buffer_), "vkEndCommandBuffer");
 
@@ -263,18 +269,18 @@ void VizCompositor::render(const DisplayBackend::Frame& frame, const std::vector
             }
         }
     }
-    if (frame.wait_before_render != VK_NULL_HANDLE)
+    if (frame->wait_before_render != VK_NULL_HANDLE)
     {
-        wait_semaphores.push_back(frame.wait_before_render);
+        wait_semaphores.push_back(frame->wait_before_render);
         wait_values.push_back(0);
-        wait_stages.push_back(frame.wait_stage);
+        wait_stages.push_back(frame->wait_stage);
     }
 
     std::vector<VkSemaphore> signal_semaphores;
     std::vector<uint64_t> signal_values;
-    if (frame.signal_after_render != VK_NULL_HANDLE)
+    if (frame->signal_after_render != VK_NULL_HANDLE)
     {
-        signal_semaphores.push_back(frame.signal_after_render);
+        signal_semaphores.push_back(frame->signal_after_render);
         signal_values.push_back(0);
     }
 
@@ -310,7 +316,7 @@ void VizCompositor::render(const DisplayBackend::Frame& frame, const std::vector
     // contract — see quad_layer.hpp.
     frame_sync_->wait();
 
-    backend_->end_frame(frame);
+    backend_->end_frame(*frame);
     frame_guard.released = true;
 }
 

@@ -279,9 +279,6 @@ std::optional<DisplayBackend::Frame> XrBackend::begin_frame(int64_t /*ignored*/)
     f.wait_before_render = VK_NULL_HANDLE;
     f.signal_after_render = VK_NULL_HANDLE;
     f.backend_token = static_cast<uint64_t>(last_frame_state_.predictedDisplayTime);
-    // Surface the runtime's pacing target so app code (FrameInfo
-    // consumers) can locate spaces / drive animations to display time.
-    f.predicted_display_time = static_cast<int64_t>(last_frame_state_.predictedDisplayTime);
     return f;
 }
 

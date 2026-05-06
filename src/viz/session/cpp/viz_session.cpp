@@ -122,24 +122,6 @@ void VizSession::init()
 
 void VizSession::destroy()
 {
-    // If teardown happens with a frame still in progress (app threw
-    // between begin_frame and end_frame, or simply destroys the
-    // session mid-frame), abort it so the backend's protocol stays
-    // balanced (XR's xrBeginFrame/xrEndFrame pairing in particular).
-    if (frame_in_progress_ && cached_frame_ && backend_)
-    {
-        try
-        {
-            backend_->abort_frame(*cached_frame_);
-        }
-        catch (...)
-        {
-            // Quiet — destroy must not throw.
-        }
-    }
-    cached_frame_.reset();
-    frame_in_progress_ = false;
-
     layers_.clear();
     // Order: compositor (holds backend ref) -> backend -> context.
     compositor_.reset();
@@ -208,39 +190,12 @@ FrameInfo VizSession::begin_frame()
     last_frame_time_ = now;
 
     current_frame_info_.frame_index = frame_index_;
+    current_frame_info_.predicted_display_time = 0; // XR-only; 0 in offscreen
+    current_frame_info_.should_render = (state_ == SessionState::kRunning);
     current_frame_info_.resolution = compositor_ ? compositor_->resolution() : Resolution{};
-
-    // Acquire next frame from the backend. For kXr this BLOCKS in
-    // xrWaitFrame — pacing happens here, at the API's stated start
-    // of frame, so the app can read predicted_display_time and time
-    // its work between begin_frame and end_frame to display.
-    cached_frame_.reset();
-    if (backend_ && state_ == SessionState::kRunning)
-    {
-        cached_frame_ = backend_->begin_frame(/*predicted_display_time hint*/ 0);
-    }
-
-    if (cached_frame_)
-    {
-        current_frame_info_.predicted_display_time = cached_frame_->predicted_display_time;
-        current_frame_info_.should_render = true;
-        // Surface real per-view info (XR: 2 entries with eye viewports;
-        // window/offscreen: 1 entry filling the intermediate).
-        current_frame_info_.views = cached_frame_->views;
-        if (current_frame_info_.views.empty())
-        {
-            current_frame_info_.views.assign(1, ViewInfo{});
-        }
-    }
-    else
-    {
-        // Backend skipped this frame (XR session not yet running,
-        // window minimized, etc.). end_frame becomes a no-op for
-        // this frame.
-        current_frame_info_.predicted_display_time = 0;
-        current_frame_info_.should_render = false;
-        current_frame_info_.views.assign(1, ViewInfo{});
-    }
+    // Public FrameInfo carries a single identity entry as a hint;
+    // backends populate the actual per-view info inside render().
+    current_frame_info_.views.assign(1, ViewInfo{});
 
     frame_in_progress_ = true;
     return current_frame_info_;
@@ -252,39 +207,32 @@ void VizSession::end_frame()
     {
         throw std::logic_error("VizSession: end_frame called without a matching begin_frame");
     }
-
-    // Always clear frame_in_progress_ + cached_frame_ on exit, even
-    // if compositor.render throws (its own FrameGuard already calls
-    // backend.abort_frame inside that case — we just need to release
-    // the slot here).
-    struct EndFrameGuard
-    {
-        bool* in_progress;
-        std::optional<DisplayBackend::Frame>* cached;
-        ~EndFrameGuard()
-        {
-            *in_progress = false;
-            cached->reset();
-        }
-    } guard{ &frame_in_progress_, &cached_frame_ };
-
     if (state_ != SessionState::kRunning)
     {
+        frame_in_progress_ = false;
         return;
     }
 
-    if (cached_frame_)
+    struct ClearGuard
     {
-        std::vector<LayerBase*> raw_layers;
-        raw_layers.reserve(layers_.size());
-        for (const auto& l : layers_)
+        bool* flag;
+        ~ClearGuard()
         {
-            raw_layers.push_back(l.get());
+            *flag = false;
         }
-        compositor_->render(*cached_frame_, raw_layers);
+    } guard{ &frame_in_progress_ };
+
+    std::vector<LayerBase*> raw_layers;
+    raw_layers.reserve(layers_.size());
+    for (const auto& l : layers_)
+    {
+        raw_layers.push_back(l.get());
     }
-    // No cached frame = backend skipped (XR no-render / window minimized).
-    // Compositor.render is not called; nothing to submit.
+
+    if (current_frame_info_.should_render)
+    {
+        compositor_->render(raw_layers);
+    }
 
     update_timing_stats(current_frame_info_.delta_time);
     ++frame_index_;
