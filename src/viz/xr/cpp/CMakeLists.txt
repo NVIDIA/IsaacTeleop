@@ -3,18 +3,10 @@
 
 cmake_minimum_required(VERSION 3.20)
 
-# OpenXR loader — fetched at the project root via FetchContent
-# (deps/third_party/CMakeLists.txt) and aliased as OpenXR::OpenXR by
-# src/core/oxr/cpp/CMakeLists.txt.
 if(NOT TARGET openxr_loader)
-    message(FATAL_ERROR
-        "viz_xr: openxr_loader target not found. BUILD_VIZ_XR requires "
-        "the project-level OpenXR FetchContent step in deps/third_party.")
+    message(FATAL_ERROR "viz_xr: openxr_loader target missing (project FetchContent).")
 endif()
 
-# OpenXR backend for Televiz. Owns the graphics-bound XrInstance +
-# XrSession and the XR swapchains; consumed by viz_session via the
-# DisplayBackend interface.
 add_library(viz_xr STATIC
     xr_runtime.cpp
     inc/viz/xr/xr_runtime.hpp

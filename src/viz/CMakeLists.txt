@@ -31,11 +31,7 @@ add_subdirectory(layers)
 # layer that drives the per-frame loop and manages the layer registry.
 add_subdirectory(session)
 
-# XR: OpenXR-bound graphics session + XrBackend (DisplayBackend impl).
-# OpenXR is foundational to IsaacTeleop (the loader is always fetched
-# in deps/third_party); viz_xr links against it unconditionally when
-# BUILD_VIZ is on. The graphics-bound XR session only contacts a
-# runtime at runtime, so there's no build-time gate to add.
+# XR: OpenXR-bound graphics session + XrBackend.
 add_subdirectory(xr)
 
 # Shaders: GLSL sources compiled to SPIR-V at build time and embedded
