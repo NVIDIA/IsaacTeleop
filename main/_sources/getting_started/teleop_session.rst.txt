@@ -86,6 +86,7 @@ The main configuration object:
        verbose: bool = True                     # Print progress info
        oxr_handles: Optional[...] = None        # External OpenXR handles (optional)
        mcap_config: Optional[...] = None        # Required for REPLAY, optional for LIVE
+       retargeting_execution: RetargetingExecutionConfig = ...
 
 When ``mode`` is ``SessionMode.REPLAY``, ``TeleopSession`` skips OpenXR
 session creation and reads tracking data from the MCAP file specified in
@@ -113,6 +114,182 @@ argument is a ``uint64`` handle value.
        pipeline=pipeline,
        oxr_handles=handles,  # Skip internal OpenXR session creation
    )
+
+Retargeting execution
+"""""""""""""""""""""
+
+``TeleopSession.step()`` runs retargeting synchronously by default: each call
+updates DeviceIO, polls trackers, merges caller-provided inputs, runs optional
+control logic, runs the main retarget pipeline, and returns the current frame's
+``RetargeterIO`` before ``step()`` completes.
+
+Set ``retargeting_execution=RetargetingExecutionConfig(mode="pipelined")`` to
+opt into background retargeting. In pipelined mode, the application still calls
+``step()`` once per simulation frame and supplies any external inputs, graph
+time, or explicit execution events. IsaacTeleop owns one retarget worker thread.
+After the first seed frame, that worker runs the normal synchronous step body
+end-to-end.
+
+Per application frame in pipelined mode, ``step()`` submits the current request
+and returns the latest completed ``RetargeterIO``. On a normal hit this is often
+the previous application frame's output. If that returned output came from
+request N-1, then ``session.last_context`` also comes from N-1: tracker data,
+control messages, execution events, outputs, and context stay self-consistent
+for the completed frame that is returned. Use ``mode="sync"`` when the
+application needs exact current-frame sample/compute/return behavior.
+
+The return type is unchanged; inspect ``session.last_step_info`` for age and
+timing metadata such as ``returned_frame_id``, ``submitted_frame_id``,
+``returned_age_frames``, ``compute_duration_s``, ``ran_synchronously``, and
+``dropped_submissions``. ``dropped_submissions`` is per-step; accumulate it in
+the application when you need a run-wide total. ``frame_deadline_miss`` is a
+per-step flag for outputs more than one submitted frame old, meaning the worker
+missed the normal pipelined target of having a result ready for the next
+application frame. Consumers that want totals should accumulate it.
+
+``last_step_info`` fields:
+
+- ``returned_frame_id`` / ``submitted_frame_id``: frame identifiers for the
+  output returned and the request submitted by this call.
+- ``returned_age_frames`` / ``returned_age_s``: how old the returned output is.
+- ``compute_duration_s``: worker compute time for the returned output.
+- ``ran_synchronously``: the returned output was computed on the application
+  thread during this ``step()`` call. This is true in ``mode="sync"`` and for
+  the pipelined seed frame.
+- ``dropped_submissions``: unstarted pending requests replaced by this call;
+  accumulate this field for a run-wide total.
+- ``frame_deadline_miss``: returned output is more than one submitted frame old.
+- ``worker_exception``: worker failure surfaced on this step, when present.
+
+Because pipelined mode reuses completed frames, caller-provided external inputs
+and returned outputs must be snapshot-copyable. ``TensorGroup.create_snapshot()``
+handles standard scalar, array, and common DLPack-backed tensor cases; custom
+opaque values should provide an equivalent ``create_snapshot()`` hook or run
+with ``mode="sync"``. Pipelined mode returns a new snapshot of the cached
+output on each ``step()`` call. Sync mode returns the pipeline result directly,
+matching the historical ownership behavior.
+
+.. code-block:: python
+
+   from isaacteleop.teleop_session_manager import RetargetingExecutionConfig
+
+   config = TeleopSessionConfig(
+       app_name="MyApp",
+       pipeline=pipeline,
+       retargeting_execution=RetargetingExecutionConfig(mode="pipelined"),
+   )
+
+Key pipelined options:
+
+These options affect pipelined mode only. In ``mode="sync"``, ``step()`` always
+runs and returns the current frame directly.
+
+- ``pacing=ImmediatePacingConfig()`` starts retarget work as soon as the worker
+  receives a request. This is the default pacing when pipelined mode is enabled.
+- ``pacing=DeadlinePacingConfig(safety_margin_s=0.015)`` delays worker
+  requests toward the predicted next application frame using recent cadence and
+  compute-spike estimates. This prepares results just in time for simulation
+  consumption while preserving the pipelined submit-current/return-latest
+  contract. The safety margin is the main tuning knob.
+
+Pacing changes when the worker begins a submitted step request. It does not
+change the one-worker/one-pending-request correctness model. Unstarted paced
+work is coalesced so newer submissions replace older delayed requests.
+
+``TeleopSession.step()`` is intended to be called by one application loop
+thread. IsaacTeleop runs the retarget work on one background worker in
+pipelined mode, but public session state such as ``frame_count``,
+``last_context``, and ``last_step_info`` belongs to the application thread.
+
+.. code-block:: python
+
+   from isaacteleop.teleop_session_manager import (
+       DeadlinePacingConfig,
+       RetargetingExecutionConfig,
+   )
+
+   config = TeleopSessionConfig(
+       app_name="MyApp",
+       pipeline=pipeline,
+       retargeting_execution=RetargetingExecutionConfig(
+           mode="pipelined",
+           pacing=DeadlinePacingConfig(safety_margin_s=0.015),
+       ),
+   )
+
+Deadline pacing tuning
+""""""""""""""""""""""
+
+``DeadlinePacingConfig`` predicts the next application-frame deadline
+from recent ``step()`` submissions, estimates retarget compute cost, and starts
+the worker at roughly:
+
+``predicted_next_step_time - estimated_retarget_cost - safety_margin_s``.
+
+The goal is to avoid starting too early, which uses older inputs, while still
+finishing before the application asks for the next action. If accumulated
+``session.last_step_info.frame_deadline_miss`` counts rise, make the schedule
+more conservative. If misses stay low but outputs use unnecessarily old inputs,
+make the schedule less conservative.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Field
+     - Default
+     - What it changes
+     - When to tune it
+   * - ``safety_margin_s``
+     - ``0.015``
+     - Starts work this much earlier than the predicted deadline.
+     - Tune this first. Increase it when ``frame_deadline_miss`` counts rise;
+       decrease it when misses are near zero and you want more recent inputs.
+   * - ``spike_guard_percentile``
+     - ``0.90``
+     - Chooses how conservative the compute-spike estimate is.
+     - Raise it for rare slow retarget spikes; lower it for more recent inputs
+       on stable workloads.
+   * - ``spike_guard_window``
+     - ``60``
+     - Controls how many recent retarget durations feed the spike estimate.
+     - Increase it when spikes repeat in bursts; decrease it when old spikes
+       make the worker start early for too long.
+   * - ``frame_period_adaptation``
+     - ``0.2``
+     - Controls how quickly the predicted application cadence follows changes.
+     - Raise it when app frame rate changes quickly; lower it when cadence is
+       stable but jittery.
+   * - ``compute_cost_adaptation``
+     - ``0.25``
+     - Controls how quickly the estimated retarget cost follows recent compute
+       time.
+     - Raise it when retarget cost changes by mode/task; lower it when single
+       slow frames cause overreaction.
+   * - ``startup_frame_period_s``
+     - ``0.022``
+     - Initial frame-period guess before enough samples exist.
+     - Rarely tune. Match it to expected app cadence only if startup behavior
+       matters.
+   * - ``startup_compute_cost_s``
+     - ``0.005``
+     - Initial retarget-cost guess before enough samples exist.
+     - Rarely tune. Increase it only if the first few retargets are heavy.
+
+Practical tuning:
+
+- Light, stable load with near-zero misses: try
+  ``DeadlinePacingConfig(safety_margin_s=0.005)`` to ``0.010``. This
+  starts retargeting later so inputs are more recent.
+- Typical interactive XR load: keep ``safety_margin_s=0.015``. This is the
+  default balance between input recency and spike tolerance.
+- Heavy retargeting or occasional compute spikes: try
+  ``safety_margin_s=0.025`` to ``0.040``. If misses still come in bursts, also
+  try ``spike_guard_percentile=0.95`` or ``spike_guard_window=120``.
+- Variable app frame rate: try ``frame_period_adaptation=0.35`` to ``0.50`` so
+  the predicted deadline catches up faster.
+- Task modes that change retarget cost abruptly: try
+  ``compute_cost_adaptation=0.40`` to ``0.60`` so the compute estimate catches
+  up faster.
 
 PluginConfig
 ^^^^^^^^^^^^
@@ -144,13 +321,18 @@ Methods
 """""""
 
 - ``step(*, external_inputs=None, graph_time=None, execution_events=None) -> Dict[str, TensorGroup]``
-  -- Execute one step: updates the DeviceIO session, polls tracker data, merges
-  any caller-provided ``external_inputs``, and executes the retargeting pipeline.
+  -- Execute one step. In default sync mode, all work completes before
+  ``step()`` returns. In pipelined mode, the first call seeds an initial output,
+  then later calls submit DeviceIO update, tracker polling, ``external_inputs``
+  merge, and retargeting work to the worker before returning the latest
+  completed output; unstarted pending work may be replaced by a newer
+  submission.
   ``graph_time`` can be provided explicitly; when omitted, monotonic time is used
   for both sim/real time. If ``execution_events`` is provided, it is injected into
   ``ComputeContext`` and ``teleop_control_pipeline`` is skipped for that step.
-  Raises ``ValueError`` if required external inputs are missing or collide with
-  DeviceIO source names.
+  Extra top-level external inputs and extra per-leaf keys are ignored. Raises
+  ``ValueError`` if required external inputs are missing or collide with DeviceIO
+  source names.
 - ``get_external_input_specs() -> Dict[str, RetargeterIOType]`` -- Return the
   input specifications for all external (non-DeviceIO) leaf nodes that require
   caller-provided inputs in ``step()``.
@@ -187,6 +369,10 @@ Properties
 - ``config: TeleopSessionConfig`` -- The configuration object
 - ``oxr_session: Optional[OpenXRSession]`` -- The internal OpenXR session, or
   ``None`` when using external handles (read-only)
+- ``last_context: Optional[ComputeContext]`` -- Context corresponding to the
+  most recent returned output
+- ``last_step_info: RetargetingStepInfo`` -- Age and timing metadata for
+  the most recent returned output
 
 Helper Functions
 ^^^^^^^^^^^^^^^^
