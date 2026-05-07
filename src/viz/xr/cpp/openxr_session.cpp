@@ -290,6 +290,12 @@ bool OpenXrSession::locate_views(XrTime predicted_display_time, XrViewState* out
 
 bool OpenXrSession::locate_view_space(XrTime predicted_display_time, XrSpaceLocation* out_location)
 {
+    // Head pose is documented as optional / non-fatal: callers (e.g.
+    // XrBackend::begin_frame) keep going on failure with head_pose_valid
+    // = false. Swallow XR_FAILED here — throwing across xrBeginFrame
+    // would unbalance the OpenXR protocol if the caller hasn't installed
+    // its own scope guard. Tracking-loss (validity flags clear) is
+    // similarly reported as `false` rather than thrown.
     *out_location = XrSpaceLocation{ XR_TYPE_SPACE_LOCATION };
     if (!session_running_ || view_space_ == XR_NULL_HANDLE)
     {
@@ -298,7 +304,7 @@ bool OpenXrSession::locate_view_space(XrTime predicted_display_time, XrSpaceLoca
     const XrResult r = xrLocateSpace(view_space_, reference_space_, predicted_display_time, out_location);
     if (XR_FAILED(r))
     {
-        throw std::runtime_error("OpenXrSession: xrLocateSpace(view) failed: XrResult=" + std::to_string(r));
+        return false;
     }
     constexpr XrSpaceLocationFlags kRequired =
         XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;

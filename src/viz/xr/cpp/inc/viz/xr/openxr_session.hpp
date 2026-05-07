@@ -150,11 +150,12 @@ public:
     bool locate_views(XrTime predicted_display_time, XrViewState* out_view_state, std::vector<XrView>* out_views);
 
     // Locate the VIEW reference space (head center) in the session's
-    // reference space at predicted_display_time. Returns false if the
-    // runtime can't track the head (out_location set with cleared
-    // POSITION_VALID / ORIENTATION_VALID flags). Cheap — runtime just
-    // returns the cached pose for the requested time. Throws on hard
-    // xrLocateSpace failure.
+    // reference space at predicted_display_time. Returns false on any
+    // failure — tracking loss (validity flags clear) AND hard xrLocateSpace
+    // errors (XR_FAILED). Never throws. The non-throwing contract matters
+    // because XrBackend calls this between xrBeginFrame and xrEndFrame —
+    // an exception would unbalance the OpenXR protocol. Apps wanting
+    // strictness should locate via OxrHandles::view_space themselves.
     bool locate_view_space(XrTime predicted_display_time, XrSpaceLocation* out_location);
 
     // layers may be empty (submits a blank frame, valid per spec).

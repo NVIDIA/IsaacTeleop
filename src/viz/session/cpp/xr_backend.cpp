@@ -140,6 +140,51 @@ void XrBackend::destroy()
     ctx_ = nullptr;
 }
 
+void XrBackend::release_acquired_swapchains() noexcept
+{
+    auto release_one = [](ViewSwapchain& sw) noexcept
+    {
+        if (!sw.acquired)
+        {
+            return;
+        }
+        XrSwapchainImageReleaseInfo info{ XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
+        (void)xrReleaseSwapchainImage(sw.handle, &info);
+        sw.acquired = false;
+    };
+    for (auto& sw : view_swapchains_)
+    {
+        release_one(sw);
+    }
+    for (auto& sw : depth_swapchains_)
+    {
+        release_one(sw);
+    }
+}
+
+void XrBackend::abort_in_flight_frame() noexcept
+{
+    // Idempotent and exception-proof: clear frame_began_ BEFORE the
+    // xrEndFrame call so a throw in the runtime can't recursively
+    // re-enter via a destructor (or another abort path).
+    if (!frame_began_ || session_ == nullptr)
+    {
+        return;
+    }
+    release_acquired_swapchains();
+    frame_began_ = false;
+    frame_renderable_ = false;
+    try
+    {
+        session_->end_frame(last_frame_state_.predictedDisplayTime, {});
+    }
+    catch (...)
+    {
+        // Best-effort. If the runtime is in a bad state we can't fix it
+        // from here; the caller is typically already unwinding.
+    }
+}
+
 void XrBackend::destroy_swapchains()
 {
     for (auto& sw : view_swapchains_)
@@ -364,17 +409,32 @@ std::optional<DisplayBackend::Frame> XrBackend::begin_frame(int64_t /*ignored*/)
     frame_began_ = true;
     frame_renderable_ = false;
 
+    // From here on, an exception MUST balance xrBeginFrame with an
+    // empty xrEndFrame and release any swapchains we acquired. The
+    // compositor's outer FrameGuard only exists once we return a Frame,
+    // so until then this local guard owns the protocol balance.
+    // Dismiss right before returning the frame.
+    struct InFlightGuard
+    {
+        XrBackend* self;
+        bool dismissed = false;
+        ~InFlightGuard()
+        {
+            if (!dismissed && self != nullptr)
+            {
+                self->abort_in_flight_frame();
+            }
+        }
+    } in_flight_guard{ this };
+
     if (!last_frame_state_.shouldRender)
     {
         // Runtime is asking us to skip rendering this frame (e.g. headset
-        // blacked out / app not focused). Still must call xrEndFrame to
-        // balance xrBeginFrame; do that path through abort_frame on the
-        // FrameGuard. Returning nullopt also causes VizCompositor to skip
-        // the submit — backend will get end_frame via the no-frame path
-        // (caller doesn't pair end_frame on nullopt). We need to call
-        // xrEndFrame ourselves before returning nullopt.
-        session_->end_frame(last_frame_state_.predictedDisplayTime, {});
+        // blacked out / app not focused). Submit an empty xrEndFrame to
+        // balance xrBeginFrame, dismiss the guard, return nullopt.
+        in_flight_guard.dismissed = true;
         frame_began_ = false;
+        session_->end_frame(last_frame_state_.predictedDisplayTime, {});
         return std::nullopt;
     }
 
@@ -382,23 +442,24 @@ std::optional<DisplayBackend::Frame> XrBackend::begin_frame(int64_t /*ignored*/)
     {
         // Runtime can't locate views (tracking lost). Submit an empty
         // frame to keep the protocol balanced.
-        session_->end_frame(last_frame_state_.predictedDisplayTime, {});
+        in_flight_guard.dismissed = true;
         frame_began_ = false;
+        session_->end_frame(last_frame_state_.predictedDisplayTime, {});
         return std::nullopt;
     }
 
     // Locate the VIEW reference space — head pose at predicted_display_time.
     // Optional from a rendering standpoint (per-eye matrices already in
     // last_views_), but exposed via Frame::head_pose for layers / apps
-    // doing head-locked placement. Tracking-loss here is non-fatal: we
-    // proceed with head_pose_valid=false and let consumers decide.
+    // doing head-locked placement. Tracking-loss returns false; the
+    // method itself doesn't throw on XR_FAILED.
     XrSpaceLocation head_loc{ XR_TYPE_SPACE_LOCATION };
     const bool head_ok = session_->locate_view_space(last_frame_state_.predictedDisplayTime, &head_loc);
 
     // Acquire+wait one image from each per-view swapchain (color +
-    // optional depth). Same image-index lockstep across color/depth
-    // for a given eye keeps the composition layer's color/depth
-    // sub-images temporally consistent.
+    // optional depth). `acquired` is set as each wait succeeds so the
+    // in_flight_guard releases ONLY what got acquired if a later wait
+    // throws (e.g. depth eye 0 fails after color eye 0/1 succeed).
     auto acquire_pair = [](ViewSwapchain& sw, const char* what_a, const char* what_w)
     {
         XrSwapchainImageAcquireInfo acquire_info{ XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO };
@@ -406,6 +467,7 @@ std::optional<DisplayBackend::Frame> XrBackend::begin_frame(int64_t /*ignored*/)
         XrSwapchainImageWaitInfo wait_info{ XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO };
         wait_info.timeout = XR_INFINITE_DURATION;
         check_xr(xrWaitSwapchainImage(sw.handle, &wait_info), what_w);
+        sw.acquired = true;
     };
     for (auto& sw : view_swapchains_)
     {
@@ -454,6 +516,9 @@ std::optional<DisplayBackend::Frame> XrBackend::begin_frame(int64_t /*ignored*/)
     f.wait_before_render = VK_NULL_HANDLE;
     f.signal_after_render = VK_NULL_HANDLE;
     f.backend_token = static_cast<uint64_t>(last_frame_state_.predictedDisplayTime);
+    // Frame is fully built and the swapchains are acquired — hand the
+    // protocol-balance baton off to the compositor's FrameGuard.
+    in_flight_guard.dismissed = true;
     return f;
 }
 
@@ -600,14 +665,26 @@ void XrBackend::end_frame(const Frame& /*frame*/)
 
     // Release the swapchain images we acquired in begin_frame
     // (color + optional depth, in the same order they were acquired).
+    // Clear `acquired` as we go so a later abort_frame doesn't double-
+    // release if end_frame throws partway through.
     for (auto& sw : view_swapchains_)
     {
+        if (!sw.acquired)
+        {
+            continue;
+        }
         XrSwapchainImageReleaseInfo release_info{ XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
+        sw.acquired = false;
         check_xr(xrReleaseSwapchainImage(sw.handle, &release_info), "xrReleaseSwapchainImage");
     }
     for (auto& sw : depth_swapchains_)
     {
+        if (!sw.acquired)
+        {
+            continue;
+        }
         XrSwapchainImageReleaseInfo release_info{ XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
+        sw.acquired = false;
         check_xr(xrReleaseSwapchainImage(sw.handle, &release_info), "xrReleaseSwapchainImage(depth)");
     }
 
@@ -680,36 +757,11 @@ void XrBackend::abort_frame(const Frame& /*frame*/)
     // Compositor's submit threw before / during recording. The frame
     // was begun (xrBeginFrame happened in begin_frame) so we MUST
     // submit some xrEndFrame to balance the protocol — otherwise the
-    // runtime gets stuck. Release any swapchain images we acquired
-    // and submit empty layers.
-    if (!frame_began_)
-    {
-        return;
-    }
-    if (frame_renderable_)
-    {
-        for (auto& sw : view_swapchains_)
-        {
-            XrSwapchainImageReleaseInfo release_info{ XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
-            (void)xrReleaseSwapchainImage(sw.handle, &release_info);
-        }
-        for (auto& sw : depth_swapchains_)
-        {
-            XrSwapchainImageReleaseInfo release_info{ XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
-            (void)xrReleaseSwapchainImage(sw.handle, &release_info);
-        }
-    }
-    try
-    {
-        session_->end_frame(last_frame_state_.predictedDisplayTime, {});
-    }
-    catch (...)
-    {
-        // Swallow — abort_frame mustn't throw (called from a frame
-        // guard's destructor in the compositor).
-    }
-    frame_began_ = false;
-    frame_renderable_ = false;
+    // runtime gets stuck. Per-swapchain `acquired` flags drive the
+    // release so partial-acquire state (e.g. color acquired, depth
+    // never made it) gets cleaned up correctly. Idempotent: a frame
+    // already aborted by the in-flight guard is a no-op.
+    abort_in_flight_frame();
 }
 
 void XrBackend::poll_events()

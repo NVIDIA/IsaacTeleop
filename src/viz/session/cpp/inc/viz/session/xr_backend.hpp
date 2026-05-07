@@ -104,6 +104,13 @@ private:
     // Per-view OpenXR swapchain. Bundle, not a class — see decision
     // notes in the M5 design discussion: this state is tightly coupled
     // to XrBackend's frame loop and has no independent lifetime.
+    //
+    // `acquired` tracks whether xrAcquireSwapchainImage / WaitSwapchainImage
+    // succeeded for this frame. Set true after a successful wait, false
+    // after release. Lets abort_frame / the in-flight scope guard release
+    // ONLY the swapchains that actually got acquired — partial
+    // acquisition (e.g. depth eye 0 throws after color eye 0/1 succeed)
+    // no longer leaks acquired-but-unreleased images.
     struct ViewSwapchain
     {
         XrSwapchain handle = XR_NULL_HANDLE;
@@ -111,6 +118,7 @@ private:
         uint32_t current_image_index = 0;
         uint32_t width = 0;
         uint32_t height = 0;
+        bool acquired = false;
     };
 
     int64_t pick_swapchain_format() const;
@@ -119,6 +127,16 @@ private:
     void create_depth_swapchains();
     void destroy_swapchains();
     void create_intermediate();
+
+    // Release any swapchains marked `acquired` (clears the flag). Safe
+    // on partially-acquired state (used by abort_frame and the
+    // begin_frame scope guard for cleanup on exception).
+    void release_acquired_swapchains() noexcept;
+    // Submit an empty xrEndFrame to balance an outstanding xrBeginFrame.
+    // Idempotent: marks frame_began_ = false BEFORE the runtime call so
+    // re-entry via stacked unwinds is impossible. Swallows runtime
+    // errors (caller may already be unwinding).
+    void abort_in_flight_frame() noexcept;
 
     Config config_;
     const VkContext* ctx_ = nullptr;

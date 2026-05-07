@@ -30,8 +30,18 @@ void main()
     if (pc.mode == 0)
     {
         // Fullscreen oversized triangle.
+        //
+        // gl_Position.z = 1.0 (Vulkan far plane in [0,1]) — head-locked
+        // / fullscreen content has no meaningful 3D position. Writing
+        // z = 0 would tell CloudXR everything is at the near plane,
+        // which is worse than no depth (reprojection would squash to
+        // inches from the user's face). Pinning depth at far makes
+        // reprojection a no-op for these pixels — the correct semantic
+        // for a head-locked overlay. Pipeline depth compare is
+        // LESS_OR_EQUAL so 1.0 ≤ 1.0 (the cleared depth) still passes
+        // and fullscreen still renders.
         v_uv = vec2((gl_VertexIndex << 1) & 2, gl_VertexIndex & 2);
-        gl_Position = vec4(v_uv * 2.0 - 1.0, 0.0, 1.0);
+        gl_Position = vec4(v_uv * 2.0 - 1.0, 1.0, 1.0);
     }
     else
     {
