@@ -38,6 +38,9 @@ import { kPerformanceOptions } from '@helpers/PerformanceProfiles';
 import CloudXRComponent from '@helpers/react/CloudXRComponent';
 import { SimpleEnvironment } from '@helpers/react/SimpleEnvironment';
 import { getControlPanelPositionVector } from '@helpers/react/utils';
+import {
+  logImmersiveXRSessionToConsole
+} from '@helpers/webxrModeDebugText';
 import { SuppressWebGLRendererWhenHeadless } from './SuppressWebGLRendererWhenHeadless';
 import {
   DEFAULT_TELEOP_PATH,
@@ -157,6 +160,8 @@ function App() {
   const [countdownRemaining, setCountdownRemaining] = useState(0);
   const [isTeleopRunning, setIsTeleopRunning] = useState(false);
   const countdownTimerRef = useRef<number | null>(null);
+  /** Avoid repeating immersive session dumps on every XR store tick. */
+  const immersiveSessionDumpLoggedRef = useRef(false);
   const [countdownDuration, setCountdownDuration] = useState<number>(() => {
     try {
       const saved = localStorage.getItem(COUNTDOWN_STORAGE_KEY);
@@ -181,19 +186,19 @@ function App() {
   // Note: React Three Fiber's emulation is disabled (emulate: false) to avoid conflicts
   useEffect(() => {
     const loadIWER = async () => {
-      const { supportsImmersive, iwerLoaded: wasIwerLoaded } = await loadIWERIfNeeded();
-      if (!supportsImmersive) {
-        setErrorMessage('Immersive mode not supported');
-        setIwerLoaded(false);
-        setCapabilitiesValid(false);
-        capabilitiesCheckedRef.current = false; // Reset check flag on failure
-        return;
-      }
+        const { supportsImmersive, iwerLoaded: wasIwerLoaded } = await loadIWERIfNeeded();
+        if (!supportsImmersive) {
+          setErrorMessage('Immersive mode not supported');
+          setIwerLoaded(false);
+          setCapabilitiesValid(false);
+          capabilitiesCheckedRef.current = false; // Reset check flag on failure
+          return;
+        }
       // IWER loaded successfully, now we can proceed with capability checks
-      setIwerLoaded(true);
+        setIwerLoaded(true);
       // Store whether IWER was loaded for status message display later
-      if (wasIwerLoaded) {
-        sessionStorage.setItem('iwerWasLoaded', 'true');
+        if (wasIwerLoaded) {
+          sessionStorage.setItem('iwerWasLoaded', 'true');
       }
     };
 
@@ -448,10 +453,17 @@ function App() {
           console.warn(`[Body Tracking] Enabled features: ${enabledFeatures.join(', ')}`);
         }
 
+        // One dump per immersive session: session.mode is authoritative (immersive-vr vs immersive-ar).
+        if (session && !immersiveSessionDumpLoggedRef.current) {
+          immersiveSessionDumpLoggedRef.current = true;
+          logImmersiveXRSessionToConsole(session, xrState.mode);
+        }
+
         if (cloudXR2DUI) {
           cloudXR2DUI.setStartButtonState(true, 'CONNECT (XR session active)');
         }
       } else {
+        immersiveSessionDumpLoggedRef.current = false;
         // XR session ended
         setIsXRMode(false);
         if (cloudXR2DUI) {
