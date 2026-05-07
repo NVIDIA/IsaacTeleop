@@ -38,6 +38,7 @@ src/plugins/haptikos/
 ```bash
 cd ../../..  # Navigate to TeleopCore root
 cmake -S . -B build
+cd build
 make haptikos_hands_plugin
 ```
 
