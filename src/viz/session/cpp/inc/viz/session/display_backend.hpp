@@ -55,6 +55,13 @@ public:
     // Allocate device resources. Throws on failure.
     virtual void init(const VkContext& ctx, Resolution preferred_size) = 0;
 
+    // True for the kXr backend. Compositor uses this to gate XR-specific
+    // paths (skip tile_layout, don't override view[0].viewport).
+    virtual bool is_xr() const noexcept
+    {
+        return false;
+    }
+
     struct Frame
     {
         // Per-view info: 1 entry for window/offscreen, 2 for XR stereo.

@@ -38,11 +38,6 @@ public:
         // seated case is the common one for teleop dashboards.
         XrReferenceSpaceType reference_space_type = XR_REFERENCE_SPACE_TYPE_LOCAL;
 
-        // OPAQUE = VR headset (full immersion). ADDITIVE/ALPHA_BLEND
-        // = AR passthrough. Default OPAQUE; stereo HMDs report
-        // OPAQUE first in xrEnumerateEnvironmentBlendModes.
-        XrEnvironmentBlendMode environment_blend_mode = XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
-
         // Reverse-Z near/far in meters. Used both to build per-eye
         // projection matrices and to populate XrCompositionLayerDepthInfoKHR
         // when depth submission is enabled. Defaults pick a safe headset
@@ -92,9 +87,16 @@ public:
     {
         return view_configuration_type_;
     }
+    // Env blend mode is RUNTIME-PICKED, not config-driven: at construction
+    // we call xrEnumerateEnvironmentBlendModes and store the runtime's
+    // first-advertised mode (its preference). On a passthrough-enabled
+    // Quest with CloudXR this is ALPHA_BLEND; on a pure-VR HMD it's
+    // OPAQUE; on HoloLens-style optical see-through it's ADDITIVE.
+    // Trusts the runtime instead of forcing a mode and crashing on
+    // headsets that don't support it.
     XrEnvironmentBlendMode environment_blend_mode() const noexcept
     {
-        return config_.environment_blend_mode;
+        return environment_blend_mode_;
     }
     float near_z() const noexcept
     {
@@ -165,6 +167,7 @@ private:
     void create_session(const VkContext& vk);
     void create_reference_space(XrReferenceSpaceType type);
     void enumerate_view_configuration();
+    void enumerate_environment_blend_mode();
 
     void handle_session_state_change(XrSessionState new_state);
 
@@ -177,6 +180,7 @@ private:
 
     XrViewConfigurationType view_configuration_type_ = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
     std::vector<XrViewConfigurationView> view_configuration_views_;
+    XrEnvironmentBlendMode environment_blend_mode_ = XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
 
     XrSessionState state_ = XR_SESSION_STATE_UNKNOWN;
     bool session_running_ = false;

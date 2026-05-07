@@ -6,6 +6,7 @@
 #include <viz/core/render_target.hpp>
 #include <viz/core/vk_context.hpp>
 #include <viz/layers/quad_layer.hpp>
+#include <viz/session/viz_session.hpp>
 #include <viz/shaders/textured_quad.frag.spv.h>
 #include <viz/shaders/textured_quad.vert.spv.h>
 
@@ -310,12 +311,13 @@ void QuadLayer::record(VkCommandBuffer cmd, const std::vector<ViewInfo>& views, 
     // 1 view in window/offscreen, 2 in XR stereo. Compositor pre-bound
     // the layer's scissor; we bind viewport per view, push constants,
     // then draw.
+    const bool xr_mode = session() != nullptr && session()->is_xr_mode();
     for (const auto& view : views)
     {
         bind_view_viewport(cmd, view);
 
         PushConstants pc{};
-        const bool use_mvp = view.is_xr && placement_active;
+        const bool use_mvp = xr_mode && placement_active;
         if (use_mvp)
         {
             // Model: translate to placement position, rotate by placement

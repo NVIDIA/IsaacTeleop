@@ -12,8 +12,10 @@
 // Exits cleanly when the runtime asks the session to exit (user removes
 // HMD, runtime sends LOSS_PENDING, etc.) or on Ctrl-C.
 //
-// Bails out with a friendly message and EXIT_SUCCESS if no XR runtime
-// is reachable — this is meant to be runnable on any dev machine.
+// Bails out with EXIT_SUCCESS only when no OpenXR runtime is configured
+// on the host (xrCreateInstance fails). Any other failure during session
+// creation — Vulkan setup, session/swapchain errors, programming bugs —
+// returns EXIT_FAILURE so real problems surface during development.
 
 #include <viz/core/vk_context.hpp>
 #include <viz/layers/quad_layer.hpp>
@@ -27,6 +29,7 @@
 #include <cstdlib>
 #include <cuda_runtime.h>
 #include <stdexcept>
+#include <string_view>
 #include <vector>
 
 namespace
@@ -116,21 +119,16 @@ int main()
     viz::VizSession::Config cfg{};
     cfg.mode = viz::DisplayMode::kXr;
     cfg.app_name = "viz_xr_smoke";
-    // Fully transparent background — the runtime composites passthrough
-    // (camera feed) wherever our render writes alpha=0. The placed quad
-    // writes alpha=1 inside its geometry; everything else stays at the
-    // clear color's alpha=0, so passthrough shows through everywhere
-    // except the quad.
+    // Fully transparent background. On a passthrough-capable runtime
+    // (env blend mode = ALPHA_BLEND), the camera feed shows through
+    // wherever we write alpha=0 — the placed quad writes alpha=1
+    // inside its geometry, everything else stays at the clear color's
+    // alpha=0. On a pure-VR runtime (OPAQUE), alpha is ignored and
+    // background reads as black; the quad still renders correctly.
     cfg.clear_color[0] = 0.0f;
     cfg.clear_color[1] = 0.0f;
     cfg.clear_color[2] = 0.0f;
     cfg.clear_color[3] = 0.0f;
-    // Ask the runtime to alpha-blend our layer over the camera passthrough.
-    // Requires the runtime to advertise this mode in
-    // xrEnumerateEnvironmentBlendModes — Quest+CloudXR with passthrough
-    // enabled does. If the runtime doesn't support it, xrEndFrame throws
-    // and the session bails.
-    cfg.xr_environment_blend_mode = viz::VizSession::Config::XrBlendMode::kAlphaBlend;
     // CloudXR / streaming runtimes return XR_ERROR_FORM_FACTOR_UNAVAILABLE
     // until a headset client connects. Negative = wait forever — start
     // this binary, then connect the CloudXR client at any time. Ctrl-C
@@ -144,13 +142,25 @@ int main()
     }
     catch (const std::exception& e)
     {
-        // No runtime / no HMD / driver mismatch: keep the example
-        // friendly and exit success so CI can run it as a smoke check.
-        std::fprintf(stderr,
-                     "viz_xr_smoke: no usable OpenXR runtime / HMD (%s). "
-                     "Skipping (this is expected on dev machines without a headset).\n",
-                     e.what());
-        return EXIT_SUCCESS;
+        // The XR wrapper raises std::runtime_error for every failure, so
+        // we discriminate by message. The ONLY case that legitimately
+        // means "skip this run" is the OpenXR loader failing to create
+        // an instance (no runtime configured on the host) — message
+        // signature "xrCreateInstance failed". Everything else (Vulkan
+        // setup, session creation, validation layer asserts, programming
+        // errors) is a real failure that should not be silenced.
+        const std::string_view msg(e.what());
+        const bool no_runtime = msg.find("xrCreateInstance failed") != std::string_view::npos;
+        if (no_runtime)
+        {
+            std::fprintf(stderr,
+                         "viz_xr_smoke: no OpenXR runtime reachable (%s). Skipping (expected on dev "
+                         "machines without an OpenXR loader).\n",
+                         e.what());
+            return EXIT_SUCCESS;
+        }
+        std::fprintf(stderr, "viz_xr_smoke: VizSession::create failed: %s\n", e.what());
+        return EXIT_FAILURE;
     }
 
     try
@@ -165,7 +175,8 @@ int main()
         // origin (OpenXR LOCAL space: forward = -Z). With this set, the
         // quad renders as a real plane in space — the user can lean
         // around it, walk closer, etc. In window/offscreen modes the
-        // backend's is_xr=false makes QuadLayer fall back to fullscreen.
+        // QuadLayer falls back to fullscreen rendering when its session
+        // isn't kXr.
         layer_cfg.placement_pose = viz::Pose3D{
             glm::vec3(0.0f, 0.0f, -1.5f), // 1.5 m forward
             glm::quat(1.0f, 0.0f, 0.0f, 0.0f), // identity orientation (facing toward viewer)

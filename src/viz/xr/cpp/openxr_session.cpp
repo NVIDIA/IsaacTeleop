@@ -8,8 +8,10 @@
 #define XR_USE_GRAPHICS_API_VULKAN
 #include <openxr/openxr_platform.h>
 
+#include <cstdio>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace viz
 {
@@ -50,6 +52,7 @@ OpenXrSession::OpenXrSession(const OpenXrInstance& instance, const VkContext& vk
     try
     {
         enumerate_view_configuration();
+        enumerate_environment_blend_mode();
         create_session(vk);
         create_reference_space(config_.reference_space_type);
     }
@@ -116,6 +119,47 @@ void OpenXrSession::enumerate_view_configuration()
     check_xr(xrEnumerateViewConfigurationViews(
                  instance_, system_id_, view_configuration_type_, count, &count, view_configuration_views_.data()),
              "xrEnumerateViewConfigurationViews(data)");
+}
+
+void OpenXrSession::enumerate_environment_blend_mode()
+{
+    // Pick the runtime's first-advertised mode. The OpenXR spec says
+    // xrEnumerateEnvironmentBlendModes returns modes in the runtime's
+    // preference order, so element 0 is "what this hardware/configuration
+    // is best at": ALPHA_BLEND on a passthrough Quest, OPAQUE on a
+    // pure-VR HMD, ADDITIVE on optical see-through. Trusting that
+    // means the same binary works across all three categories without
+    // a config knob.
+    uint32_t count = 0;
+    check_xr(xrEnumerateEnvironmentBlendModes(instance_, system_id_, view_configuration_type_, 0, &count, nullptr),
+             "xrEnumerateEnvironmentBlendModes(count)");
+    if (count == 0)
+    {
+        throw std::runtime_error("OpenXrSession: runtime advertises zero environment blend modes");
+    }
+    std::vector<XrEnvironmentBlendMode> modes(count);
+    check_xr(
+        xrEnumerateEnvironmentBlendModes(instance_, system_id_, view_configuration_type_, count, &count, modes.data()),
+        "xrEnumerateEnvironmentBlendModes(data)");
+    environment_blend_mode_ = modes.front();
+    // One log line so "why is there no passthrough?" is debuggable
+    // without attaching a tracer.
+    const char* mode_str = "UNKNOWN";
+    switch (environment_blend_mode_)
+    {
+    case XR_ENVIRONMENT_BLEND_MODE_OPAQUE:
+        mode_str = "OPAQUE (VR)";
+        break;
+    case XR_ENVIRONMENT_BLEND_MODE_ADDITIVE:
+        mode_str = "ADDITIVE (optical see-through)";
+        break;
+    case XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND:
+        mode_str = "ALPHA_BLEND (camera passthrough)";
+        break;
+    default:
+        break;
+    }
+    std::fprintf(stderr, "OpenXrSession: env blend mode = %s\n", mode_str);
 }
 
 void OpenXrSession::create_session(const VkContext& vk)
@@ -253,9 +297,13 @@ void OpenXrSession::begin_frame()
 {
     XrFrameBeginInfo info{ XR_TYPE_FRAME_BEGIN_INFO };
     const XrResult r = xrBeginFrame(session_, &info);
-    // XR_FRAME_DISCARDED is non-fatal — runtime is asking us to skip
-    // submission for this frame. Caller still pairs with end_frame
-    // (with empty layers) to keep the protocol balanced.
+    // XR_FRAME_DISCARDED is non-fatal. Per OpenXR 1.0 spec §11.7.2
+    // (xrBeginFrame): "If xrBeginFrame returns XR_FRAME_DISCARDED, the
+    // application has missed the opportunity for this frame to be
+    // presented; however, it must still call xrEndFrame to balance the
+    // call to xrBeginFrame." So we treat it the same as XR_SUCCESS at
+    // the binding layer — caller is expected to pair with xrEndFrame
+    // (empty layers are fine).
     if (r != XR_SUCCESS && r != XR_FRAME_DISCARDED)
     {
         throw std::runtime_error("OpenXrSession: xrBeginFrame failed: XrResult=" + std::to_string(r));
@@ -316,7 +364,7 @@ void OpenXrSession::end_frame(XrTime predicted_display_time,
 {
     XrFrameEndInfo info{ XR_TYPE_FRAME_END_INFO };
     info.displayTime = predicted_display_time;
-    info.environmentBlendMode = config_.environment_blend_mode;
+    info.environmentBlendMode = environment_blend_mode_;
     info.layerCount = static_cast<uint32_t>(layers.size());
     info.layers = layers.empty() ? nullptr : layers.data();
     const XrResult r = xrEndFrame(session_, &info);

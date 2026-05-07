@@ -1,16 +1,23 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-// Unit tests for VizSession lifecycle that don't require a GPU.
+// VizSession config + lifecycle tests. Most are [unit] (config-only,
+// no GPU); the XR-only-guard test is [gpu] because exercising the
+// guard requires constructing a VizSession via create(), which
+// needs Vulkan.
+
+#include "test_helpers.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <viz/session/viz_session.hpp>
 
+#include <chrono>
 #include <stdexcept>
 
 using viz::DisplayMode;
 using viz::SessionState;
 using viz::VizSession;
+using viz::testing::is_gpu_available;
 
 TEST_CASE("VizSession::create rejects zero window dimensions", "[unit][viz_session]")
 {
@@ -29,43 +36,39 @@ TEST_CASE("VizSession::Config defaults are sensible", "[unit][viz_session]")
     CHECK(cfg.external_context == nullptr);
     CHECK(cfg.required_extensions.empty());
     // M5 closure: XR-specific config defaults.
-    CHECK(cfg.xr_environment_blend_mode == VizSession::Config::XrBlendMode::kOpaque);
     CHECK(cfg.xr_near_z == 0.05f);
     CHECK(cfg.xr_far_z == 100.0f);
     CHECK(cfg.gpu_timing == false);
     CHECK(cfg.xr_system_wait_seconds == 0);
 }
 
-// Test C — XrBlendMode wrapper enum values must equal XrEnvironmentBlendMode
-// (1, 2, 3) so the static_cast in viz_session.cpp::make_backend stays
-// correct as the OpenXR header version moves under us.
-TEST_CASE("XrBlendMode wrapper values match OpenXR's enum 1:1", "[unit][viz_session]")
-{
-    using XrBlendMode = VizSession::Config::XrBlendMode;
-    CHECK(static_cast<int32_t>(XrBlendMode::kOpaque) == 1);
-    CHECK(static_cast<int32_t>(XrBlendMode::kAdditive) == 2);
-    CHECK(static_cast<int32_t>(XrBlendMode::kAlphaBlend) == 3);
-}
-
 // Test C — VizSession's XR-only methods refuse to operate in non-XR
-// modes. Catches the "someone called this in offscreen mode and got
-// undefined behavior" class of bug.
-TEST_CASE("VizSession XR-only methods reject non-kXr modes", "[unit][viz_session]")
+// modes. Constructs a real kOffscreen session so we exercise the guards
+// on a live object (VizSession's ctor is private; only create() builds
+// one, which needs Vulkan — hence [gpu]). Skips cleanly without a GPU.
+TEST_CASE("VizSession XR-only methods reject non-kXr modes", "[gpu][viz_session]")
 {
+    if (!is_gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
+
     VizSession::Config cfg{};
     cfg.mode = DisplayMode::kOffscreen;
+    cfg.window_width = 64;
+    cfg.window_height = 64;
 
-    // We can't actually create() the session without a GPU, so test the
-    // error surface directly: the methods are declared as throwing
-    // logic_error on non-XR modes regardless of init state.
-    auto* uninit = static_cast<VizSession*>(nullptr);
-    (void)uninit; // silence unused-warn when the static-section path returns
+    auto session = VizSession::create(cfg);
+    REQUIRE(session != nullptr);
 
-    // These checks run pre-create — has_xr_time_conversion is noexcept
-    // and returns false; the conversion methods throw on misuse.
-    // (Conversion methods need an instance to invoke, but their
-    // contract — "throws in non-kXr" — is structural.)
-    SUCCEED();
+    // has_xr_time_conversion is noexcept and must return false outside kXr.
+    CHECK_FALSE(session->has_xr_time_conversion());
+
+    // Both conversion methods document a std::logic_error on non-kXr.
+    // Asserting both directions catches a regression where one direction
+    // gets the guard but not the other.
+    CHECK_THROWS_AS(session->xr_time_to_steady_clock(0), std::logic_error);
+    CHECK_THROWS_AS(session->steady_clock_to_xr_time(std::chrono::steady_clock::now()), std::logic_error);
 }
 
 TEST_CASE("SessionState enum exposes the full lifecycle set", "[unit][viz_session]")

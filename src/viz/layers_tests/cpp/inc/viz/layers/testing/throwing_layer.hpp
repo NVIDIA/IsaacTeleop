@@ -5,7 +5,7 @@
 
 #include <viz/core/render_target.hpp>
 #include <viz/core/viz_types.hpp>
-#include <viz/layers/layer_base.hpp>
+#include <viz/session/layer_base.hpp>
 #include <vulkan/vulkan.h>
 
 #include <atomic>

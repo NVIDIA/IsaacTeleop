@@ -186,12 +186,27 @@ void VkContext::init(const Config& config)
     {
         throw std::logic_error("VkContext::init: already initialized");
     }
+    // Validate the XR pair before branching: both set → XR-bound init,
+    // both unset → standalone. Partial config (one of the two left at
+    // its default) silently took the XR path before and failed inside
+    // xrCreateVulkanInstanceKHR with a cryptic XrResult — reject it
+    // here with a clear message instead.
+    const bool xr_inst_set = config.xr_instance != XR_NULL_HANDLE;
+    const bool xr_sys_set = config.xr_system_id != XR_NULL_SYSTEM_ID;
+    if (xr_inst_set != xr_sys_set)
+    {
+        throw std::invalid_argument(
+            "VkContext::init: xr_instance and xr_system_id must be set together "
+            "(both for XR-bound init, neither for standalone)");
+    }
+    const bool xr_path = xr_inst_set;
+
     // Roll back any partial state if a later step throws so the context is
     // left in a clean uninitialized state (no leaked instance/device handles)
     // and is safe to retry init() on.
     try
     {
-        if (config.xr_instance != nullptr)
+        if (xr_path)
         {
             create_instance_xr(config);
             select_physical_device_xr(config);
@@ -590,6 +605,27 @@ void VkContext::create_instance_xr(const Config& config)
 
     XrGraphicsRequirementsVulkan2KHR reqs{ XR_TYPE_GRAPHICS_REQUIREMENTS_VULKAN2_KHR };
     check_xr(xrGetVulkanGraphicsRequirements2KHR(xr_instance, xr_system, &reqs), "xrGetVulkanGraphicsRequirements2KHR");
+
+    // Validate the requested Vulkan API version falls inside the runtime's
+    // advertised range. Failing inside vkCreateInstance with a cryptic
+    // VK_ERROR_INCOMPATIBLE_DRIVER (or worse — undefined behavior) is
+    // hard to debug; throwing here with a clear message is cheap.
+    // XrVersion encoding is monotonic so direct uint64 comparison works.
+    {
+        const XrVersion requested =
+            XR_MAKE_VERSION(VK_API_VERSION_MAJOR(kApiVersion), VK_API_VERSION_MINOR(kApiVersion), 0);
+        if (requested < reqs.minApiVersionSupported || requested > reqs.maxApiVersionSupported)
+        {
+            throw std::runtime_error(std::string("VkContext: requested Vulkan API ") +
+                                     std::to_string(VK_API_VERSION_MAJOR(kApiVersion)) + "." +
+                                     std::to_string(VK_API_VERSION_MINOR(kApiVersion)) +
+                                     " is outside the OpenXR runtime's supported range [" +
+                                     std::to_string(XR_VERSION_MAJOR(reqs.minApiVersionSupported)) + "." +
+                                     std::to_string(XR_VERSION_MINOR(reqs.minApiVersionSupported)) + ", " +
+                                     std::to_string(XR_VERSION_MAJOR(reqs.maxApiVersionSupported)) + "." +
+                                     std::to_string(XR_VERSION_MINOR(reqs.maxApiVersionSupported)) + "]");
+        }
+    }
 
     VkApplicationInfo app{};
     app.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;

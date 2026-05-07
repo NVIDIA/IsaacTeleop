@@ -66,6 +66,11 @@ public:
     void init(const VkContext& ctx, Resolution preferred_size) override;
     void destroy();
 
+    bool is_xr() const noexcept override
+    {
+        return true;
+    }
+
     std::optional<Frame> begin_frame(int64_t /*ignored*/) override;
     const RenderTarget& render_target() const override;
     void record_post_render_pass(VkCommandBuffer cmd, const Frame& frame) override;

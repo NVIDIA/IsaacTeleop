@@ -7,9 +7,9 @@
 #include <viz/core/host_image.hpp>
 #include <viz/core/viz_types.hpp>
 #include <viz/core/vk_context.hpp>
-#include <viz/layers/layer_base.hpp>
 #include <viz/session/display_mode.hpp>
 #include <viz/session/frame_info.hpp>
+#include <viz/session/layer_base.hpp>
 #include <viz/session/viz_compositor.hpp>
 
 #include <chrono>
@@ -93,25 +93,6 @@ public:
         //   <0 → wait forever (Ctrl-C to break)
         int xr_system_wait_seconds = 0;
 
-        // kXr-only: how the runtime composites our frame against the
-        // environment. Values mirror XrEnvironmentBlendMode 1:1 — kept
-        // as a wrapper enum so consumers don't have to pull <openxr/openxr.h>
-        // into Window/Offscreen builds. kOpaque (full VR) is the
-        // default; kAlphaBlend enables passthrough — alpha=0 pixels in
-        // our render show through to the camera feed, alpha=1 pixels
-        // composite over it. XrBackend automatically sets the
-        // projection layer's TEXTURE_SOURCE_ALPHA flag for non-opaque
-        // modes. Runtime must advertise the chosen mode in
-        // xrEnumerateEnvironmentBlendModes — otherwise xrEndFrame
-        // throws.
-        enum class XrBlendMode : int32_t
-        {
-            kOpaque = 1, // XR_ENVIRONMENT_BLEND_MODE_OPAQUE
-            kAdditive = 2, // XR_ENVIRONMENT_BLEND_MODE_ADDITIVE
-            kAlphaBlend = 3, // XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND
-        };
-        XrBlendMode xr_environment_blend_mode = XrBlendMode::kOpaque;
-
         // kXr-only: reverse-Z near/far in meters. Drive both per-eye
         // projection matrices and XrCompositionLayerDepthInfoKHR's
         // nearZ/farZ — the runtime uses both for reprojection, so they
@@ -153,6 +134,7 @@ public:
     {
         auto layer = std::make_unique<L>(std::forward<Args>(args)...);
         L* raw = layer.get();
+        raw->attach_to_session_(this);
         layers_.push_back(std::move(layer));
         return raw;
     }
@@ -207,6 +189,14 @@ public:
     // kOffscreen / kXr. Drives application loops:
     //   while (!session.should_close()) session.render();
     bool should_close() const noexcept;
+
+    // True iff the session was created in DisplayMode::kXr. Layers
+    // gate XR-specific behavior (MVP vs fullscreen) on this via
+    // session()->is_xr_mode().
+    bool is_xr_mode() const noexcept
+    {
+        return config_.mode == DisplayMode::kXr;
+    }
 
     // OpenXR session handles for app-side TeleopSession sharing.
     // Returns the underlying XrInstance / XrSession / reference space

@@ -38,8 +38,10 @@ std::unique_ptr<DisplayBackend> make_backend(const VizSession::Config& cfg)
         xc.app_name = cfg.app_name;
         xc.extra_xr_extensions = cfg.required_extensions;
         xc.system_wait_seconds = cfg.xr_system_wait_seconds;
-        // Wrapper enum values match XrEnvironmentBlendMode 1:1.
-        xc.session_config.environment_blend_mode = static_cast<XrEnvironmentBlendMode>(cfg.xr_environment_blend_mode);
+        // Env blend mode is picked by OpenXrSession from the runtime's
+        // advertised list (see OpenXrSession::enumerate_environment_blend_mode).
+        // Same binary runs on passthrough Quest (ALPHA_BLEND), pure-VR
+        // HMDs (OPAQUE), or optical see-through (ADDITIVE).
         xc.session_config.near_z = cfg.xr_near_z;
         xc.session_config.far_z = cfg.xr_far_z;
         return std::make_unique<XrBackend>(std::move(xc));

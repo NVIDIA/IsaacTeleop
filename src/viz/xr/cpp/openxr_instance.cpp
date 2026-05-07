@@ -14,6 +14,7 @@
 #include <ctime>
 #include <stdexcept>
 #include <thread>
+#include <unordered_set>
 
 namespace viz
 {
@@ -35,14 +36,13 @@ OpenXrInstance::OpenXrInstance(const std::string& app_name,
                                const std::vector<std::string>& extra_extensions,
                                int system_wait_seconds)
 {
-    // Discover what the runtime offers — we want to opt in to
-    // XR_KHR_composition_layer_depth when it's available so CloudXR
-    // (and other reprojecting runtimes) can use depth for warping;
-    // and XR_KHR_convert_timespec_time so apps can correlate XrTime
-    // with steady_clock-based sensor timestamps. Other extensions
-    // remain caller-controlled via extra_extensions.
-    bool runtime_has_depth_layer = false;
-    bool runtime_has_time_conversion = false;
+    // Enumerate every extension the runtime advertises ONCE, into a
+    // set we can membership-test against. Used both to opt-in to
+    // optional extensions (depth / time conversion) and to validate
+    // the caller's extra_extensions list before xrCreateInstance —
+    // unsupported extras throw with a clear message instead of
+    // failing inside xrCreateInstance with a cryptic error code.
+    std::unordered_set<std::string> available_exts;
     {
         uint32_t count = 0;
         if (xrEnumerateInstanceExtensionProperties(nullptr, 0, &count, nullptr) == XR_SUCCESS && count > 0)
@@ -50,35 +50,49 @@ OpenXrInstance::OpenXrInstance(const std::string& app_name,
             std::vector<XrExtensionProperties> available(count, XrExtensionProperties{ XR_TYPE_EXTENSION_PROPERTIES });
             if (xrEnumerateInstanceExtensionProperties(nullptr, count, &count, available.data()) == XR_SUCCESS)
             {
+                available_exts.reserve(available.size());
                 for (const auto& ext : available)
                 {
-                    if (std::strcmp(ext.extensionName, XR_KHR_COMPOSITION_LAYER_DEPTH_EXTENSION_NAME) == 0)
-                    {
-                        runtime_has_depth_layer = true;
-                    }
-                    else if (std::strcmp(ext.extensionName, XR_KHR_CONVERT_TIMESPEC_TIME_EXTENSION_NAME) == 0)
-                    {
-                        runtime_has_time_conversion = true;
-                    }
+                    available_exts.emplace(ext.extensionName);
                 }
             }
         }
     }
+    const bool runtime_has_depth_layer = available_exts.count(XR_KHR_COMPOSITION_LAYER_DEPTH_EXTENSION_NAME) > 0;
+    const bool runtime_has_time_conversion = available_exts.count(XR_KHR_CONVERT_TIMESPEC_TIME_EXTENSION_NAME) > 0;
 
+    // Build a deduplicated, validated request list. Required extensions
+    // (XR_KHR_vulkan_enable2) come first; optional ones we auto-enable
+    // come next iff the runtime supports them; extra_extensions come
+    // last and are validated against available_exts — passing an
+    // unsupported one is treated as a hard error since the caller
+    // explicitly asked for it.
     std::vector<const char*> exts;
-    exts.reserve(3 + extra_extensions.size());
-    exts.push_back(XR_KHR_VULKAN_ENABLE2_EXTENSION_NAME);
+    std::unordered_set<std::string> requested;
+    auto add_unique = [&](const char* name)
+    {
+        if (requested.emplace(name).second)
+        {
+            exts.push_back(name);
+        }
+    };
+    add_unique(XR_KHR_VULKAN_ENABLE2_EXTENSION_NAME);
     if (runtime_has_depth_layer)
     {
-        exts.push_back(XR_KHR_COMPOSITION_LAYER_DEPTH_EXTENSION_NAME);
+        add_unique(XR_KHR_COMPOSITION_LAYER_DEPTH_EXTENSION_NAME);
     }
     if (runtime_has_time_conversion)
     {
-        exts.push_back(XR_KHR_CONVERT_TIMESPEC_TIME_EXTENSION_NAME);
+        add_unique(XR_KHR_CONVERT_TIMESPEC_TIME_EXTENSION_NAME);
     }
     for (const auto& e : extra_extensions)
     {
-        exts.push_back(e.c_str());
+        if (available_exts.count(e) == 0)
+        {
+            throw std::runtime_error(std::string("OpenXrInstance: requested extension '") + e +
+                                     "' is not advertised by the runtime");
+        }
+        add_unique(e.c_str());
     }
 
     XrInstanceCreateInfo info{ XR_TYPE_INSTANCE_CREATE_INFO };

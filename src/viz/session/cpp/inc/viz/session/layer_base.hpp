@@ -15,6 +15,7 @@ namespace viz
 {
 
 class RenderTarget;
+class VizSession;
 
 // Standard mapping from ViewInfo::viewport to vkCmdSetViewport: origin
 // top-left, depth 0..1, no y-flip. Layers call this once per view in
@@ -113,6 +114,18 @@ public:
 
     const std::string& name() const noexcept;
 
+    // Non-owning back-pointer to the session this layer was attached to
+    // via VizSession::add_layer. Null before attach (layers may be
+    // constructed standalone in tests). Layers reach through this for
+    // session-immutable state — display mode, XR handles, time
+    // conversion. The session destroys its layers before destroying
+    // itself, so this pointer is valid for the lifetime of any record()
+    // call invoked through the session.
+    const VizSession* session() const noexcept
+    {
+        return session_;
+    }
+
     // Visibility flag is atomic so it can be toggled from any thread (UI
     // callback, Python control loop, hot-key handler) without racing the
     // compositor's per-frame is_visible() check on the render thread. Uses
@@ -124,8 +137,15 @@ public:
     void set_visible(bool visible) noexcept;
 
 private:
+    friend class VizSession;
+    void attach_to_session_(VizSession* session) noexcept
+    {
+        session_ = session;
+    }
+
     std::string name_;
     std::atomic<bool> visible_{ true };
+    VizSession* session_ = nullptr;
 };
 
 inline LayerBase::LayerBase(std::string name) : name_(std::move(name))

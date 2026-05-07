@@ -6,7 +6,7 @@
 #include <viz/core/device_image.hpp>
 #include <viz/core/viz_buffer.hpp>
 #include <viz/core/viz_types.hpp>
-#include <viz/layers/layer_base.hpp>
+#include <viz/session/layer_base.hpp>
 #include <vulkan/vulkan.h>
 
 #include <array>
@@ -76,8 +76,8 @@ public:
         // as a textured rectangle of the given size at placement_pose.
         // Per-eye MVP from the backend's view + projection matrices.
         //
-        // In window/offscreen modes the placement is ignored entirely
-        // (per ViewInfo::is_xr) — the quad always renders fullscreen.
+        // In window/offscreen modes the placement is ignored — the
+        // quad always renders fullscreen.
         Pose3D placement_pose{};
         glm::vec2 placement_size_meters{ 0.0f, 0.0f };
     };

@@ -431,20 +431,24 @@ std::optional<DisplayBackend::Frame> XrBackend::begin_frame(int64_t /*ignored*/)
     {
         // Runtime is asking us to skip rendering this frame (e.g. headset
         // blacked out / app not focused). Submit an empty xrEndFrame to
-        // balance xrBeginFrame, dismiss the guard, return nullopt.
-        in_flight_guard.dismissed = true;
-        frame_began_ = false;
+        // balance xrBeginFrame. Order is critical: dismiss / clear state
+        // ONLY after end_frame returns success. If end_frame throws, the
+        // in_flight_guard still runs and abort_in_flight_frame retries
+        // (with try/catch), so state is consistent on every path.
         session_->end_frame(last_frame_state_.predictedDisplayTime, {});
+        frame_began_ = false;
+        in_flight_guard.dismissed = true;
         return std::nullopt;
     }
 
     if (!session_->locate_views(last_frame_state_.predictedDisplayTime, &last_view_state_, &last_views_))
     {
         // Runtime can't locate views (tracking lost). Submit an empty
-        // frame to keep the protocol balanced.
-        in_flight_guard.dismissed = true;
-        frame_began_ = false;
+        // frame to keep the protocol balanced. Same ordering as above:
+        // end_frame first, then dismiss.
         session_->end_frame(last_frame_state_.predictedDisplayTime, {});
+        frame_began_ = false;
+        in_flight_guard.dismissed = true;
         return std::nullopt;
     }
 
@@ -457,17 +461,20 @@ std::optional<DisplayBackend::Frame> XrBackend::begin_frame(int64_t /*ignored*/)
     const bool head_ok = session_->locate_view_space(last_frame_state_.predictedDisplayTime, &head_loc);
 
     // Acquire+wait one image from each per-view swapchain (color +
-    // optional depth). `acquired` is set as each wait succeeds so the
-    // in_flight_guard releases ONLY what got acquired if a later wait
-    // throws (e.g. depth eye 0 fails after color eye 0/1 succeed).
+    // optional depth). `acquired` is flipped immediately after the
+    // acquire call returns success — the spec requires every acquire
+    // to be paired with a release regardless of whether the wait ran.
+    // Setting acquired=true between acquire and wait means a wait
+    // that throws still leaves the runtime accounting consistent for
+    // the in_flight_guard's release pass.
     auto acquire_pair = [](ViewSwapchain& sw, const char* what_a, const char* what_w)
     {
         XrSwapchainImageAcquireInfo acquire_info{ XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO };
         check_xr(xrAcquireSwapchainImage(sw.handle, &acquire_info, &sw.current_image_index), what_a);
+        sw.acquired = true;
         XrSwapchainImageWaitInfo wait_info{ XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO };
         wait_info.timeout = XR_INFINITE_DURATION;
         check_xr(xrWaitSwapchainImage(sw.handle, &wait_info), what_w);
-        sw.acquired = true;
     };
     for (auto& sw : view_swapchains_)
     {
@@ -501,7 +508,6 @@ std::optional<DisplayBackend::Frame> XrBackend::begin_frame(int64_t /*ignored*/)
             glm::vec3(xv.pose.position.x, xv.pose.position.y, xv.pose.position.z),
             glm::quat(xv.pose.orientation.w, xv.pose.orientation.x, xv.pose.orientation.y, xv.pose.orientation.z),
         };
-        vi.is_xr = true;
         x_offset += static_cast<int32_t>(vc.recommendedImageRectWidth);
     }
     if (head_ok)
@@ -665,8 +671,9 @@ void XrBackend::end_frame(const Frame& /*frame*/)
 
     // Release the swapchain images we acquired in begin_frame
     // (color + optional depth, in the same order they were acquired).
-    // Clear `acquired` as we go so a later abort_frame doesn't double-
-    // release if end_frame throws partway through.
+    // Clear `acquired` ONLY after release returns success — if release
+    // throws, abort_frame's release pass should still see the image
+    // as acquired and retry.
     for (auto& sw : view_swapchains_)
     {
         if (!sw.acquired)
@@ -674,8 +681,8 @@ void XrBackend::end_frame(const Frame& /*frame*/)
             continue;
         }
         XrSwapchainImageReleaseInfo release_info{ XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
-        sw.acquired = false;
         check_xr(xrReleaseSwapchainImage(sw.handle, &release_info), "xrReleaseSwapchainImage");
+        sw.acquired = false;
     }
     for (auto& sw : depth_swapchains_)
     {
@@ -684,8 +691,8 @@ void XrBackend::end_frame(const Frame& /*frame*/)
             continue;
         }
         XrSwapchainImageReleaseInfo release_info{ XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
-        sw.acquired = false;
         check_xr(xrReleaseSwapchainImage(sw.handle, &release_info), "xrReleaseSwapchainImage(depth)");
+        sw.acquired = false;
     }
 
     // Per-eye depth_info (chained via .next on each ProjectionView).

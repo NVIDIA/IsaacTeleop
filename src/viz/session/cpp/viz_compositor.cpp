@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <viz/core/vk_context.hpp>
-#include <viz/layers/layer_base.hpp>
 #include <viz/session/display_backend.hpp>
+#include <viz/session/layer_base.hpp>
 #include <viz/session/tile_layout.hpp>
 #include <viz/session/viz_compositor.hpp>
 
@@ -218,13 +218,12 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
     const RenderTarget& rt = backend_->render_target();
     const Resolution rt_extent = rt.resolution();
 
-    // XR mode: per-eye viewports + per-eye matrices live in frame->views
-    // already (set by XrBackend::begin_frame). The compositor's tile_layout
-    // / per-layer-scissor / view[0]-viewport-override design is for window
-    // mode multi-layer letterboxing — applying it in XR clips per-eye
-    // renders into a single centered tile and corrupts the stereo layout.
-    // Skip both in XR mode; layers iterate frame->views as-is.
-    const bool xr_mode = !frame->views.empty() && frame->views[0].is_xr;
+    // XR mode: per-eye viewports + matrices live in frame->views already
+    // (set by XrBackend::begin_frame). tile_layout / per-layer scissor /
+    // view[0] viewport override are for window-mode multi-layer
+    // letterboxing — applying them in XR clips both eyes into a single
+    // centered tile. Skip in XR mode; layers iterate frame->views as-is.
+    const bool xr_mode = backend_->is_xr();
 
     // Per-layer aspect-fit tiles (window/offscreen only).
     std::vector<TileSlot> tiles;

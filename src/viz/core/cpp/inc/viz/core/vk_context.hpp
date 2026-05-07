@@ -73,7 +73,10 @@ public:
 
         // When set, init() uses xrCreateVulkanInstanceKHR /
         // xrGetVulkanGraphicsDevice2KHR / xrCreateVulkanDeviceKHR
-        // and ignores physical_device_index. Both fields together.
+        // and ignores physical_device_index. BOTH fields must be set
+        // together (XR-bound init) or BOTH left at their defaults
+        // (standalone init); init() rejects partial config with
+        // std::invalid_argument.
         XrInstance xr_instance = XR_NULL_HANDLE;
         XrSystemId xr_system_id = XR_NULL_SYSTEM_ID;
     };
