@@ -5,6 +5,7 @@ cmake_minimum_required(VERSION 3.20)
 
 add_executable(viz_session_tests
     test_offscreen_render.cpp
+    test_perf_audit.cpp
     test_quad_milestone.cpp
     test_tile_layout.cpp
     test_viz_session.cpp

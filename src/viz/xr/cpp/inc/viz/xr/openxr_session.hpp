@@ -42,6 +42,16 @@ public:
         // = AR passthrough. Default OPAQUE; stereo HMDs report
         // OPAQUE first in xrEnumerateEnvironmentBlendModes.
         XrEnvironmentBlendMode environment_blend_mode = XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
+
+        // Reverse-Z near/far in meters. Used both to build per-eye
+        // projection matrices and to populate XrCompositionLayerDepthInfoKHR
+        // when depth submission is enabled. Defaults pick a safe headset
+        // range (5 cm ↔ 100 m). If you change near_z, every layer using
+        // the per-eye projection inherits the change automatically.
+        // TODO: read recommended range from XR_EXT_view_configuration_depth_range
+        // when the runtime advertises it.
+        float near_z = 0.05f;
+        float far_z = 100.0f;
     };
 
     // Throws std::invalid_argument on bad inputs; std::runtime_error
@@ -68,6 +78,16 @@ public:
     {
         return reference_space_;
     }
+    // VIEW reference space — the user's head, with the pose returned by
+    // xrLocateSpace(view_space, reference_space, time) representing the
+    // head-center in the chosen reference frame. Useful for head-locked
+    // / lazy-lock placement; locate_view_space() is the convenience
+    // wrapper. Apps can also pass this through OxrHandles and locate
+    // at arbitrary XrTimes (e.g. for sensor-time-correlated queries).
+    XrSpace view_space() const noexcept
+    {
+        return view_space_;
+    }
     XrViewConfigurationType view_configuration_type() const noexcept
     {
         return view_configuration_type_;
@@ -75,6 +95,14 @@ public:
     XrEnvironmentBlendMode environment_blend_mode() const noexcept
     {
         return config_.environment_blend_mode;
+    }
+    float near_z() const noexcept
+    {
+        return config_.near_z;
+    }
+    float far_z() const noexcept
+    {
+        return config_.far_z;
     }
 
     // Per-view dimensions/sample counts, indexed 0..view_count()-1.
@@ -121,6 +149,14 @@ public:
     // resized but with zero poses — caller should skip rendering).
     bool locate_views(XrTime predicted_display_time, XrViewState* out_view_state, std::vector<XrView>* out_views);
 
+    // Locate the VIEW reference space (head center) in the session's
+    // reference space at predicted_display_time. Returns false if the
+    // runtime can't track the head (out_location set with cleared
+    // POSITION_VALID / ORIENTATION_VALID flags). Cheap — runtime just
+    // returns the cached pose for the requested time. Throws on hard
+    // xrLocateSpace failure.
+    bool locate_view_space(XrTime predicted_display_time, XrSpaceLocation* out_location);
+
     // layers may be empty (submits a blank frame, valid per spec).
     void end_frame(XrTime predicted_display_time, const std::vector<const XrCompositionLayerBaseHeader*>& layers);
 
@@ -136,6 +172,7 @@ private:
     XrSystemId system_id_ = XR_NULL_SYSTEM_ID;
     XrSession session_ = XR_NULL_HANDLE;
     XrSpace reference_space_ = XR_NULL_HANDLE;
+    XrSpace view_space_ = XR_NULL_HANDLE;
 
     XrViewConfigurationType view_configuration_type_ = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
     std::vector<XrViewConfigurationView> view_configuration_views_;

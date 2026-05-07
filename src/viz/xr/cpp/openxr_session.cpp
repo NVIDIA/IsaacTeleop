@@ -57,6 +57,11 @@ OpenXrSession::OpenXrSession(const OpenXrInstance& instance, const VkContext& vk
     {
         // Roll back any partial state so the destructor only sees what
         // it expects. Order is reverse of construction.
+        if (view_space_ != XR_NULL_HANDLE)
+        {
+            xrDestroySpace(view_space_);
+            view_space_ = XR_NULL_HANDLE;
+        }
         if (reference_space_ != XR_NULL_HANDLE)
         {
             xrDestroySpace(reference_space_);
@@ -73,6 +78,11 @@ OpenXrSession::OpenXrSession(const OpenXrInstance& instance, const VkContext& vk
 
 OpenXrSession::~OpenXrSession()
 {
+    if (view_space_ != XR_NULL_HANDLE)
+    {
+        xrDestroySpace(view_space_);
+        view_space_ = XR_NULL_HANDLE;
+    }
     if (reference_space_ != XR_NULL_HANDLE)
     {
         xrDestroySpace(reference_space_);
@@ -130,6 +140,15 @@ void OpenXrSession::create_reference_space(XrReferenceSpaceType type)
     info.poseInReferenceSpace.orientation = XrQuaternionf{ 0.0f, 0.0f, 0.0f, 1.0f };
     info.poseInReferenceSpace.position = XrVector3f{ 0.0f, 0.0f, 0.0f };
     check_xr(xrCreateReferenceSpace(session_, &info, &reference_space_), "xrCreateReferenceSpace");
+
+    // Always create the VIEW space alongside — it's the canonical handle
+    // for "where is the head" queries, locating against reference_space_.
+    // Cheap: a reference space is just a handle, no swapchain-style work.
+    XrReferenceSpaceCreateInfo view_info{ XR_TYPE_REFERENCE_SPACE_CREATE_INFO };
+    view_info.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_VIEW;
+    view_info.poseInReferenceSpace.orientation = XrQuaternionf{ 0.0f, 0.0f, 0.0f, 1.0f };
+    view_info.poseInReferenceSpace.position = XrVector3f{ 0.0f, 0.0f, 0.0f };
+    check_xr(xrCreateReferenceSpace(session_, &view_info, &view_space_), "xrCreateReferenceSpace(view)");
 }
 
 void OpenXrSession::poll_events()
@@ -267,6 +286,23 @@ bool OpenXrSession::locate_views(XrTime predicted_display_time, XrViewState* out
     // zero/identity and rendering with them would put content at origin.
     constexpr XrViewStateFlags kRequired = XR_VIEW_STATE_POSITION_VALID_BIT | XR_VIEW_STATE_ORIENTATION_VALID_BIT;
     return (out_view_state->viewStateFlags & kRequired) == kRequired;
+}
+
+bool OpenXrSession::locate_view_space(XrTime predicted_display_time, XrSpaceLocation* out_location)
+{
+    *out_location = XrSpaceLocation{ XR_TYPE_SPACE_LOCATION };
+    if (!session_running_ || view_space_ == XR_NULL_HANDLE)
+    {
+        return false;
+    }
+    const XrResult r = xrLocateSpace(view_space_, reference_space_, predicted_display_time, out_location);
+    if (XR_FAILED(r))
+    {
+        throw std::runtime_error("OpenXrSession: xrLocateSpace(view) failed: XrResult=" + std::to_string(r));
+    }
+    constexpr XrSpaceLocationFlags kRequired =
+        XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
+    return (out_location->locationFlags & kRequired) == kRequired;
 }
 
 void OpenXrSession::end_frame(XrTime predicted_display_time,

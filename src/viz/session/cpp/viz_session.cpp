@@ -6,6 +6,7 @@
 #include <viz/session/viz_session.hpp>
 #include <viz/session/window_backend.hpp>
 #include <viz/session/xr_backend.hpp>
+#include <viz/xr/openxr_instance.hpp>
 
 #include <algorithm>
 #include <stdexcept>
@@ -37,6 +38,10 @@ std::unique_ptr<DisplayBackend> make_backend(const VizSession::Config& cfg)
         xc.app_name = cfg.app_name;
         xc.extra_xr_extensions = cfg.required_extensions;
         xc.system_wait_seconds = cfg.xr_system_wait_seconds;
+        // Wrapper enum values match XrEnvironmentBlendMode 1:1.
+        xc.session_config.environment_blend_mode = static_cast<XrEnvironmentBlendMode>(cfg.xr_environment_blend_mode);
+        xc.session_config.near_z = cfg.xr_near_z;
+        xc.session_config.far_z = cfg.xr_far_z;
         return std::make_unique<XrBackend>(std::move(xc));
     }
     }
@@ -109,6 +114,7 @@ void VizSession::init()
         VizCompositor::Config c_cfg{};
         c_cfg.clear_color = { { config_.clear_color[0], config_.clear_color[1], config_.clear_color[2],
                                 config_.clear_color[3] } };
+        c_cfg.gpu_timing = config_.gpu_timing;
         compositor_ = VizCompositor::create(*ctx_ptr_, *backend_, c_cfg);
 
         state_ = SessionState::kReady;
@@ -302,6 +308,53 @@ std::optional<core::OpenXRSessionHandles> VizSession::get_oxr_handles() const no
     out.space = h.reference_space;
     out.xrGetInstanceProcAddr = h.xrGetInstanceProcAddr;
     return out;
+}
+
+bool VizSession::has_xr_time_conversion() const noexcept
+{
+    if (config_.mode != DisplayMode::kXr || !backend_)
+    {
+        return false;
+    }
+    const auto* xr = static_cast<const XrBackend*>(backend_.get());
+    const auto* xi = xr->xr_instance();
+    return xi != nullptr && xi->has_time_conversion();
+}
+
+std::chrono::steady_clock::time_point VizSession::xr_time_to_steady_clock(int64_t xr_time) const
+{
+    if (config_.mode != DisplayMode::kXr || !backend_)
+    {
+        throw std::logic_error("VizSession::xr_time_to_steady_clock: only valid in kXr mode");
+    }
+    const auto* xr = static_cast<const XrBackend*>(backend_.get());
+    const auto* xi = xr->xr_instance();
+    if (xi == nullptr)
+    {
+        throw std::logic_error("VizSession::xr_time_to_steady_clock: XR instance not initialized");
+    }
+    return xi->xr_time_to_steady_clock(static_cast<XrTime>(xr_time));
+}
+
+int64_t VizSession::steady_clock_to_xr_time(std::chrono::steady_clock::time_point t) const
+{
+    if (config_.mode != DisplayMode::kXr || !backend_)
+    {
+        throw std::logic_error("VizSession::steady_clock_to_xr_time: only valid in kXr mode");
+    }
+    const auto* xr = static_cast<const XrBackend*>(backend_.get());
+    const auto* xi = xr->xr_instance();
+    if (xi == nullptr)
+    {
+        throw std::logic_error("VizSession::steady_clock_to_xr_time: XR instance not initialized");
+    }
+    return static_cast<int64_t>(xi->steady_clock_to_xr_time(t));
+}
+
+const VizCompositor::GpuFrameTiming& VizSession::get_gpu_timing() const noexcept
+{
+    static constexpr VizCompositor::GpuFrameTiming kZero{};
+    return compositor_ ? compositor_->last_gpu_timing() : kZero;
 }
 
 const VkContext& VizSession::ctx() const noexcept

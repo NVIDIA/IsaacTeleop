@@ -84,9 +84,21 @@ public:
         XrInstance instance = XR_NULL_HANDLE;
         XrSession session = XR_NULL_HANDLE;
         XrSpace reference_space = XR_NULL_HANDLE;
+        // VIEW reference space — locate against reference_space at any
+        // XrTime to get the head pose. Apps doing head-locked / lazy-lock
+        // placement use this instead of computing pose from per-eye views.
+        XrSpace view_space = XR_NULL_HANDLE;
         PFN_xrGetInstanceProcAddr xrGetInstanceProcAddr = nullptr;
     };
     OxrHandles oxr_handles() const noexcept;
+
+    // Underlying OpenXrInstance — exposed for time-conversion forwarding
+    // and (eventually) richer extension queries. May be null between
+    // ctor and session creation; never null in steady state.
+    const OpenXrInstance* xr_instance() const noexcept
+    {
+        return xr_instance_.get();
+    }
 
 private:
     // Per-view OpenXR swapchain. Bundle, not a class — see decision
@@ -102,7 +114,9 @@ private:
     };
 
     int64_t pick_swapchain_format() const;
+    int64_t pick_depth_swapchain_format() const;
     void create_swapchains();
+    void create_depth_swapchains();
     void destroy_swapchains();
     void create_intermediate();
 
@@ -114,7 +128,15 @@ private:
     std::unique_ptr<RenderTarget> render_target_;
 
     int64_t swapchain_format_ = 0; // VkFormat as int64 (XR's typing)
+    int64_t depth_swapchain_format_ = 0; // 0 = depth submission disabled
     std::vector<ViewSwapchain> view_swapchains_;
+    // Per-eye depth swapchains, present iff XR_KHR_composition_layer_depth
+    // is available on the runtime. Same dimensions as the color swapchains;
+    // per frame we copy the intermediate's depth attachment into them and
+    // chain XrCompositionLayerDepthInfoKHR into each ProjectionView.next
+    // for CloudXR-style server-side reprojection.
+    std::vector<ViewSwapchain> depth_swapchains_;
+    bool depth_layer_enabled_ = false;
 
     // Per-frame state captured in begin_frame, consumed in
     // end_frame / abort_frame. Only valid when frame_began_ == true.

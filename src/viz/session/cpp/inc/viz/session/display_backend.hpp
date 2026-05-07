@@ -61,6 +61,15 @@ public:
         // Compositor overrides per-layer viewport rects via tile_layout.
         std::vector<ViewInfo> views;
 
+        // Head pose at predicted_display_time, expressed in the reference
+        // space (LOCAL by default). Identity in window/offscreen modes.
+        // Layers needing head-locked placement use this directly. Apps
+        // wanting head pose at arbitrary times should locate the VIEW
+        // space (exposed via XrBackend::oxr_handles().view_space) at
+        // their chosen XrTime.
+        Pose3D head_pose{};
+        bool head_pose_valid = false;
+
         // Binary semaphores threaded into the compositor's submit.
         // VK_NULL_HANDLE means none needed (kOffscreen).
         VkSemaphore wait_before_render = VK_NULL_HANDLE;
@@ -68,7 +77,7 @@ public:
         VkSemaphore signal_after_render = VK_NULL_HANDLE;
 
         // Backend-private bookkeeping round-tripped to record_post_* /
-        // end_frame (e.g. swapchain image_index).
+        // end_frame (e.g. swapchain image_index, predicted_display_time).
         uint64_t backend_token = 0;
     };
 

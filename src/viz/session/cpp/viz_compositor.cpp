@@ -60,6 +60,25 @@ void VizCompositor::init()
         frame_sync_ = FrameSync::create(*ctx_);
         create_command_pool();
         create_command_buffer();
+        if (config_.gpu_timing)
+        {
+            // Cache the device's timestamp_period (ns per tick) so we
+            // can convert query results to milliseconds. Skip query-pool
+            // creation if the device reports period 0 (timestamps not
+            // supported); last_gpu_timing_ stays zeroed in that case.
+            VkPhysicalDeviceProperties props{};
+            vkGetPhysicalDeviceProperties(ctx_->physical_device(), &props);
+            timestamp_period_ns_ = props.limits.timestampPeriod;
+            if (timestamp_period_ns_ > 0.0f)
+            {
+                VkQueryPoolCreateInfo qpci{};
+                qpci.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+                qpci.queryType = VK_QUERY_TYPE_TIMESTAMP;
+                qpci.queryCount = 4;
+                check_vk(vkCreateQueryPool(ctx_->device(), &qpci, nullptr, &gpu_timestamp_pool_),
+                         "vkCreateQueryPool(timestamps)");
+            }
+        }
     }
     catch (...)
     {
@@ -85,6 +104,11 @@ void VizCompositor::destroy()
         vkDestroyCommandPool(device, command_pool_, nullptr);
         command_pool_ = VK_NULL_HANDLE;
         command_buffer_ = VK_NULL_HANDLE;
+    }
+    if (gpu_timestamp_pool_ != VK_NULL_HANDLE)
+    {
+        vkDestroyQueryPool(device, gpu_timestamp_pool_, nullptr);
+        gpu_timestamp_pool_ = VK_NULL_HANDLE;
     }
     frame_sync_.reset();
 }
@@ -221,6 +245,16 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
     begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     check_vk(vkBeginCommandBuffer(command_buffer_, &begin), "vkBeginCommandBuffer");
 
+    // Reset + write timestamp 0 (cmd-buffer-begin). Query pool is
+    // implicitly reset across vkBeginCommandBuffer / vkEndCommandBuffer
+    // boundaries on most drivers, but vkCmdResetQueryPool is the
+    // spec-compliant way. Cheap.
+    if (gpu_timestamp_pool_ != VK_NULL_HANDLE)
+    {
+        vkCmdResetQueryPool(command_buffer_, gpu_timestamp_pool_, 0, 4);
+        vkCmdWriteTimestamp(command_buffer_, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, gpu_timestamp_pool_, 0);
+    }
+
     std::array<VkClearValue, 2> clears{};
     clears[0].color = config_.clear_color;
     clears[1].depthStencil = { 1.0f, 0 };
@@ -265,8 +299,27 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
 
     vkCmdEndRenderPass(command_buffer_);
 
+    // Timestamp 1: after render-pass (color/depth attachment writes done).
+    if (gpu_timestamp_pool_ != VK_NULL_HANDLE)
+    {
+        vkCmdWriteTimestamp(command_buffer_, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, gpu_timestamp_pool_, 1);
+    }
+
     // Backend-specific post-render commands (blit + transitions etc.).
     backend_->record_post_render_pass(command_buffer_, *frame);
+
+    // Timestamp 2: after backend's post-render-pass work. Difference
+    // (ts2 - ts1) is what kXr's per-eye blits cost.
+    if (gpu_timestamp_pool_ != VK_NULL_HANDLE)
+    {
+        vkCmdWriteTimestamp(command_buffer_, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, gpu_timestamp_pool_, 2);
+    }
+
+    // Timestamp 3: cmd-buffer-end (total wall time = ts3 - ts0).
+    if (gpu_timestamp_pool_ != VK_NULL_HANDLE)
+    {
+        vkCmdWriteTimestamp(command_buffer_, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, gpu_timestamp_pool_, 3);
+    }
 
     check_vk(vkEndCommandBuffer(command_buffer_), "vkEndCommandBuffer");
 
@@ -333,6 +386,29 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
     // QuadLayer's mailbox also relies on this synchronous-frame
     // contract — see quad_layer.hpp.
     frame_sync_->wait();
+
+    // Read timestamps after the GPU has finished the cmd buffer.
+    // 64-bit results so the tick math stays exact for ~292-year ranges.
+    if (gpu_timestamp_pool_ != VK_NULL_HANDLE)
+    {
+        uint64_t ts[4] = { 0, 0, 0, 0 };
+        const VkResult r = vkGetQueryPoolResults(ctx_->device(), gpu_timestamp_pool_, 0, 4, sizeof(ts), ts,
+                                                 sizeof(uint64_t), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
+        if (r == VK_SUCCESS)
+        {
+            const auto delta_ms = [this](uint64_t a, uint64_t b)
+            {
+                if (b <= a)
+                {
+                    return 0.0f;
+                }
+                return static_cast<float>(static_cast<double>(b - a) * timestamp_period_ns_ / 1e6);
+            };
+            last_gpu_timing_.render_pass_ms = delta_ms(ts[0], ts[1]);
+            last_gpu_timing_.post_pass_ms = delta_ms(ts[1], ts[2]);
+            last_gpu_timing_.total_ms = delta_ms(ts[0], ts[3]);
+        }
+    }
 
     backend_->end_frame(*frame);
     frame_guard.released = true;

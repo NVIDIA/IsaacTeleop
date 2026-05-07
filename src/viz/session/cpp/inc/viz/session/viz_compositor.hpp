@@ -27,6 +27,27 @@ public:
     struct Config
     {
         VkClearColorValue clear_color{ { 0.0f, 0.0f, 0.0f, 1.0f } };
+        // Opt in to GPU timestamp queries around the render pass and the
+        // backend's post-render commands (blit / copy / layout transitions).
+        // Adds ~4 vkCmdWriteTimestamp calls + one vkGetQueryPoolResults
+        // per frame — overhead is in the noise (microseconds) but disabled
+        // by default so production builds don't pay for it. Results
+        // available via last_gpu_timing() AFTER the frame's fence wait.
+        bool gpu_timing = false;
+    };
+
+    // Per-frame GPU work timing (milliseconds). Populated when Config::
+    // gpu_timing is enabled; values from the most recent completed frame.
+    // Zeroed on init, untouched if gpu_timing is disabled.
+    //   total_ms      = total command-buffer wall time on the GPU
+    //   render_pass_ms = vkCmdBeginRenderPass → vkCmdEndRenderPass
+    //   post_pass_ms  = backend's record_post_render_pass (blit + transitions
+    //                   in kXr; near-zero in kOffscreen / kWindow)
+    struct GpuFrameTiming
+    {
+        float total_ms = 0.0f;
+        float render_pass_ms = 0.0f;
+        float post_pass_ms = 0.0f;
     };
 
     static std::unique_ptr<VizCompositor> create(const VkContext& ctx, DisplayBackend& backend, const Config& config);
@@ -50,6 +71,13 @@ public:
     VkRenderPass render_pass() const noexcept;
     Resolution resolution() const noexcept;
 
+    // Most recent GPU timestamp deltas. Zeroed unless Config::gpu_timing
+    // was enabled and at least one render() call has completed.
+    const GpuFrameTiming& last_gpu_timing() const noexcept
+    {
+        return last_gpu_timing_;
+    }
+
 private:
     VizCompositor(const VkContext& ctx, DisplayBackend& backend, const Config& config);
     void init();
@@ -69,6 +97,13 @@ private:
     std::unique_ptr<FrameSync> frame_sync_;
     VkCommandPool command_pool_ = VK_NULL_HANDLE;
     VkCommandBuffer command_buffer_ = VK_NULL_HANDLE;
+
+    // GPU-timestamp infrastructure (Config::gpu_timing). 4 timestamps
+    // per frame: 0=cmd-buffer-begin, 1=after-render-pass, 2=after-post-
+    // pass, 3=cmd-buffer-end. Only allocated when gpu_timing is enabled.
+    VkQueryPool gpu_timestamp_pool_ = VK_NULL_HANDLE;
+    float timestamp_period_ns_ = 0.0f;
+    GpuFrameTiming last_gpu_timing_{};
 };
 
 } // namespace viz

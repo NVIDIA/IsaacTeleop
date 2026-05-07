@@ -104,6 +104,21 @@ void XrBackend::init(const VkContext& ctx, Resolution /*preferred_size*/)
         session_ = std::make_unique<OpenXrSession>(*xr_instance_, ctx, config_.session_config);
         swapchain_format_ = pick_swapchain_format();
         create_swapchains();
+        // Depth submission is opt-in: only when the runtime advertised
+        // XR_KHR_composition_layer_depth AND offers a usable depth
+        // format. CloudXR uses depth for server-side reprojection;
+        // runtimes without the extension just receive the projection
+        // layer with no depth_info.
+        depth_layer_enabled_ = xr_instance_->has_depth_composition_layer();
+        if (depth_layer_enabled_)
+        {
+            depth_swapchain_format_ = pick_depth_swapchain_format();
+            depth_layer_enabled_ = depth_swapchain_format_ != 0;
+        }
+        if (depth_layer_enabled_)
+        {
+            create_depth_swapchains();
+        }
         create_intermediate();
     }
     catch (...)
@@ -137,6 +152,16 @@ void XrBackend::destroy_swapchains()
         sw.images.clear();
     }
     view_swapchains_.clear();
+    for (auto& sw : depth_swapchains_)
+    {
+        if (sw.handle != XR_NULL_HANDLE)
+        {
+            (void)xrDestroySwapchain(sw.handle);
+            sw.handle = XR_NULL_HANDLE;
+        }
+        sw.images.clear();
+    }
+    depth_swapchains_.clear();
 }
 
 int64_t XrBackend::pick_swapchain_format() const
@@ -170,6 +195,65 @@ int64_t XrBackend::pick_swapchain_format() const
     // Fall back: take whatever the runtime offers first. Rendering may
     // look wrong (no sRGB encode) but the protocol stays valid.
     return formats.front();
+}
+
+int64_t XrBackend::pick_depth_swapchain_format() const
+{
+    // Must match RenderTarget::depth_format() exactly — vkCmdCopyImage
+    // requires identical formats for depth aspects (no blit fallback
+    // for D/S formats). RenderTarget defaults to D32_SFLOAT; if the
+    // runtime doesn't offer it we return 0 and depth submission is
+    // disabled (projection layer goes out without depth_info).
+    uint32_t count = 0;
+    if (xrEnumerateSwapchainFormats(session_->session(), 0, &count, nullptr) != XR_SUCCESS || count == 0)
+    {
+        return 0;
+    }
+    std::vector<int64_t> formats(count);
+    if (xrEnumerateSwapchainFormats(session_->session(), count, &count, formats.data()) != XR_SUCCESS)
+    {
+        return 0;
+    }
+    if (std::find(formats.begin(), formats.end(), static_cast<int64_t>(VK_FORMAT_D32_SFLOAT)) != formats.end())
+    {
+        return VK_FORMAT_D32_SFLOAT;
+    }
+    return 0;
+}
+
+void XrBackend::create_depth_swapchains()
+{
+    const auto& views = session_->view_configuration_views();
+    depth_swapchains_.assign(views.size(), ViewSwapchain{});
+    for (size_t i = 0; i < views.size(); ++i)
+    {
+        XrSwapchainCreateInfo info{ XR_TYPE_SWAPCHAIN_CREATE_INFO };
+        info.usageFlags = XR_SWAPCHAIN_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | XR_SWAPCHAIN_USAGE_TRANSFER_DST_BIT;
+        info.format = depth_swapchain_format_;
+        info.sampleCount = 1;
+        info.width = views[i].recommendedImageRectWidth;
+        info.height = views[i].recommendedImageRectHeight;
+        info.faceCount = 1;
+        info.arraySize = 1;
+        info.mipCount = 1;
+        check_xr(xrCreateSwapchain(session_->session(), &info, &depth_swapchains_[i].handle), "xrCreateSwapchain(depth)");
+        depth_swapchains_[i].width = info.width;
+        depth_swapchains_[i].height = info.height;
+
+        uint32_t img_count = 0;
+        check_xr(xrEnumerateSwapchainImages(depth_swapchains_[i].handle, 0, &img_count, nullptr),
+                 "xrEnumerateSwapchainImages(depth count)");
+        std::vector<XrSwapchainImageVulkan2KHR> vk_images(
+            img_count, XrSwapchainImageVulkan2KHR{ XR_TYPE_SWAPCHAIN_IMAGE_VULKAN2_KHR });
+        check_xr(xrEnumerateSwapchainImages(depth_swapchains_[i].handle, img_count, &img_count,
+                                            reinterpret_cast<XrSwapchainImageBaseHeader*>(vk_images.data())),
+                 "xrEnumerateSwapchainImages(depth data)");
+        depth_swapchains_[i].images.reserve(img_count);
+        for (const auto& vi : vk_images)
+        {
+            depth_swapchains_[i].images.push_back(vi.image);
+        }
+    }
 }
 
 void XrBackend::create_swapchains()
@@ -258,8 +342,6 @@ glm::mat4 fov_to_projection_matrix(const XrFovf& fov, float near_z, float far_z)
     return glm::frustumRH_ZO(left, right, bottom, top, near_z, far_z);
 }
 
-constexpr float kNearZ = 0.05f;
-constexpr float kFarZ = 100.0f;
 } // namespace
 
 std::optional<DisplayBackend::Frame> XrBackend::begin_frame(int64_t /*ignored*/)
@@ -305,14 +387,33 @@ std::optional<DisplayBackend::Frame> XrBackend::begin_frame(int64_t /*ignored*/)
         return std::nullopt;
     }
 
-    // Acquire+wait one image from each per-view swapchain.
-    for (auto& sw : view_swapchains_)
+    // Locate the VIEW reference space — head pose at predicted_display_time.
+    // Optional from a rendering standpoint (per-eye matrices already in
+    // last_views_), but exposed via Frame::head_pose for layers / apps
+    // doing head-locked placement. Tracking-loss here is non-fatal: we
+    // proceed with head_pose_valid=false and let consumers decide.
+    XrSpaceLocation head_loc{ XR_TYPE_SPACE_LOCATION };
+    const bool head_ok = session_->locate_view_space(last_frame_state_.predictedDisplayTime, &head_loc);
+
+    // Acquire+wait one image from each per-view swapchain (color +
+    // optional depth). Same image-index lockstep across color/depth
+    // for a given eye keeps the composition layer's color/depth
+    // sub-images temporally consistent.
+    auto acquire_pair = [](ViewSwapchain& sw, const char* what_a, const char* what_w)
     {
         XrSwapchainImageAcquireInfo acquire_info{ XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO };
-        check_xr(xrAcquireSwapchainImage(sw.handle, &acquire_info, &sw.current_image_index), "xrAcquireSwapchainImage");
+        check_xr(xrAcquireSwapchainImage(sw.handle, &acquire_info, &sw.current_image_index), what_a);
         XrSwapchainImageWaitInfo wait_info{ XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO };
         wait_info.timeout = XR_INFINITE_DURATION;
-        check_xr(xrWaitSwapchainImage(sw.handle, &wait_info), "xrWaitSwapchainImage");
+        check_xr(xrWaitSwapchainImage(sw.handle, &wait_info), what_w);
+    };
+    for (auto& sw : view_swapchains_)
+    {
+        acquire_pair(sw, "xrAcquireSwapchainImage(color)", "xrWaitSwapchainImage(color)");
+    }
+    for (auto& sw : depth_swapchains_)
+    {
+        acquire_pair(sw, "xrAcquireSwapchainImage(depth)", "xrWaitSwapchainImage(depth)");
     }
     frame_renderable_ = true;
 
@@ -332,7 +433,7 @@ std::optional<DisplayBackend::Frame> XrBackend::begin_frame(int64_t /*ignored*/)
         ViewInfo& vi = f.views[i];
         vi.viewport = Rect2D{ x_offset, 0, vc.recommendedImageRectWidth, vc.recommendedImageRectHeight };
         vi.view_matrix = glm::inverse(pose_to_world_matrix(xv.pose));
-        vi.projection_matrix = fov_to_projection_matrix(xv.fov, kNearZ, kFarZ);
+        vi.projection_matrix = fov_to_projection_matrix(xv.fov, session_->near_z(), session_->far_z());
         vi.fov = Fov{ xv.fov.angleLeft, xv.fov.angleRight, xv.fov.angleUp, xv.fov.angleDown };
         vi.pose = Pose3D{
             glm::vec3(xv.pose.position.x, xv.pose.position.y, xv.pose.position.z),
@@ -340,6 +441,15 @@ std::optional<DisplayBackend::Frame> XrBackend::begin_frame(int64_t /*ignored*/)
         };
         vi.is_xr = true;
         x_offset += static_cast<int32_t>(vc.recommendedImageRectWidth);
+    }
+    if (head_ok)
+    {
+        f.head_pose = Pose3D{
+            glm::vec3(head_loc.pose.position.x, head_loc.pose.position.y, head_loc.pose.position.z),
+            glm::quat(head_loc.pose.orientation.w, head_loc.pose.orientation.x, head_loc.pose.orientation.y,
+                      head_loc.pose.orientation.z),
+        };
+        f.head_pose_valid = true;
     }
     f.wait_before_render = VK_NULL_HANDLE;
     f.signal_after_render = VK_NULL_HANDLE;
@@ -355,6 +465,37 @@ const RenderTarget& XrBackend::render_target() const
     }
     return *render_target_;
 }
+
+namespace
+{
+// Image barrier helper that takes the aspect mask explicitly — the
+// shared transition_image at file scope hardcodes COLOR_BIT, which
+// is wrong for depth attachments.
+void transition_image_aspect(VkCommandBuffer cmd,
+                             VkImage image,
+                             VkImageAspectFlags aspect,
+                             VkImageLayout old_layout,
+                             VkImageLayout new_layout,
+                             VkAccessFlags src_access,
+                             VkAccessFlags dst_access,
+                             VkPipelineStageFlags src_stage,
+                             VkPipelineStageFlags dst_stage)
+{
+    VkImageMemoryBarrier b{};
+    b.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    b.oldLayout = old_layout;
+    b.newLayout = new_layout;
+    b.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    b.image = image;
+    b.subresourceRange.aspectMask = aspect;
+    b.subresourceRange.levelCount = 1;
+    b.subresourceRange.layerCount = 1;
+    b.srcAccessMask = src_access;
+    b.dstAccessMask = dst_access;
+    vkCmdPipelineBarrier(cmd, src_stage, dst_stage, 0, 0, nullptr, 0, nullptr, 1, &b);
+}
+} // namespace
 
 void XrBackend::record_post_render_pass(VkCommandBuffer cmd, const Frame& frame)
 {
@@ -398,6 +539,49 @@ void XrBackend::record_post_render_pass(VkCommandBuffer cmd, const Frame& frame)
                          VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_COLOR_ATTACHMENT_READ_BIT,
                          VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
     }
+
+    // Per-eye depth copy for XR_KHR_composition_layer_depth. Same
+    // per-eye region split as color, but vkCmdCopyImage (not blit —
+    // depth/stencil isn't blittable) since formats and dimensions
+    // match (RT uses D32_SFLOAT, depth swapchain enforced D32_SFLOAT
+    // in pick_depth_swapchain_format, and the per-eye region matches
+    // recommendedImageRect). CloudXR consumes this for server-side
+    // reprojection / late-stage warp.
+    if (depth_layer_enabled_)
+    {
+        const VkImage depth_src = render_target_->depth_image();
+        for (size_t i = 0; i < depth_swapchains_.size(); ++i)
+        {
+            const auto& sw = depth_swapchains_[i];
+            const VkImage dst = sw.images[sw.current_image_index];
+            const Rect2D src_rect =
+                (i < frame.views.size()) ? frame.views[i].viewport : Rect2D{ 0, 0, sw.width, sw.height };
+
+            transition_image_aspect(cmd, dst, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+                                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0, VK_ACCESS_TRANSFER_WRITE_BIT,
+                                    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+
+            VkImageCopy region{};
+            region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+            region.srcSubresource.layerCount = 1;
+            region.srcOffset = { src_rect.x, src_rect.y, 0 };
+            region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+            region.dstSubresource.layerCount = 1;
+            region.dstOffset = { 0, 0, 0 };
+            region.extent = { sw.width, sw.height, 1 };
+            vkCmdCopyImage(cmd, depth_src, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst,
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+            // Spec for XR_KHR_composition_layer_depth doesn't mandate
+            // a specific layout at xrEndFrame, but DEPTH_STENCIL_READ_ONLY
+            // is the conventional "runtime samples this" layout and
+            // matches what Monado / CloudXR expect.
+            transition_image_aspect(cmd, dst, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                    VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT,
+                                    VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+        }
+    }
     (void)check_vk; // suppress unused-warning if no other VK errors get checked here
 }
 
@@ -414,11 +598,41 @@ void XrBackend::end_frame(const Frame& /*frame*/)
         return;
     }
 
-    // Release the swapchain images we acquired in begin_frame.
+    // Release the swapchain images we acquired in begin_frame
+    // (color + optional depth, in the same order they were acquired).
     for (auto& sw : view_swapchains_)
     {
         XrSwapchainImageReleaseInfo release_info{ XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
         check_xr(xrReleaseSwapchainImage(sw.handle, &release_info), "xrReleaseSwapchainImage");
+    }
+    for (auto& sw : depth_swapchains_)
+    {
+        XrSwapchainImageReleaseInfo release_info{ XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
+        check_xr(xrReleaseSwapchainImage(sw.handle, &release_info), "xrReleaseSwapchainImage(depth)");
+    }
+
+    // Per-eye depth_info (chained via .next on each ProjectionView).
+    // Stored alongside proj_views so pointers stay valid through
+    // xrEndFrame. min/maxDepth are the swapchain value range (Vulkan
+    // [0,1]); near/farZ must match the projection matrix kNearZ/kFarZ
+    // since the runtime uses them to reconstruct world-space depth.
+    std::vector<XrCompositionLayerDepthInfoKHR> depth_infos;
+    if (depth_layer_enabled_)
+    {
+        depth_infos.assign(
+            depth_swapchains_.size(), XrCompositionLayerDepthInfoKHR{ XR_TYPE_COMPOSITION_LAYER_DEPTH_INFO_KHR });
+        for (size_t i = 0; i < depth_swapchains_.size(); ++i)
+        {
+            depth_infos[i].subImage.swapchain = depth_swapchains_[i].handle;
+            depth_infos[i].subImage.imageRect.offset = { 0, 0 };
+            depth_infos[i].subImage.imageRect.extent = { static_cast<int32_t>(depth_swapchains_[i].width),
+                                                         static_cast<int32_t>(depth_swapchains_[i].height) };
+            depth_infos[i].subImage.imageArrayIndex = 0;
+            depth_infos[i].minDepth = 0.0f;
+            depth_infos[i].maxDepth = 1.0f;
+            depth_infos[i].nearZ = session_->near_z();
+            depth_infos[i].farZ = session_->far_z();
+        }
     }
 
     // Build per-eye projection views. Each references its own
@@ -435,10 +649,19 @@ void XrBackend::end_frame(const Frame& /*frame*/)
         proj_views[i].subImage.imageRect.extent = { static_cast<int32_t>(view_swapchains_[i].width),
                                                     static_cast<int32_t>(view_swapchains_[i].height) };
         proj_views[i].subImage.imageArrayIndex = 0;
+        if (depth_layer_enabled_ && i < depth_infos.size())
+        {
+            proj_views[i].next = &depth_infos[i];
+        }
     }
 
     XrCompositionLayerProjection projection_layer{ XR_TYPE_COMPOSITION_LAYER_PROJECTION };
-    projection_layer.layerFlags = 0;
+    // Non-opaque env blend modes (passthrough / additive) need the
+    // runtime to honor our alpha channel; otherwise the projection
+    // layer is treated as fully opaque and passthrough never shows.
+    // Premultiplied bit not set — our shaders write straight alpha.
+    const bool is_passthrough = session_->environment_blend_mode() != XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
+    projection_layer.layerFlags = is_passthrough ? XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT : 0;
     projection_layer.space = session_->reference_space();
     projection_layer.viewCount = static_cast<uint32_t>(proj_views.size());
     projection_layer.views = proj_views.data();
@@ -466,6 +689,11 @@ void XrBackend::abort_frame(const Frame& /*frame*/)
     if (frame_renderable_)
     {
         for (auto& sw : view_swapchains_)
+        {
+            XrSwapchainImageReleaseInfo release_info{ XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
+            (void)xrReleaseSwapchainImage(sw.handle, &release_info);
+        }
+        for (auto& sw : depth_swapchains_)
         {
             XrSwapchainImageReleaseInfo release_info{ XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
             (void)xrReleaseSwapchainImage(sw.handle, &release_info);
@@ -517,6 +745,7 @@ XrBackend::OxrHandles XrBackend::oxr_handles() const noexcept
     {
         h.session = session_->session();
         h.reference_space = session_->reference_space();
+        h.view_space = session_->view_space();
     }
     return h;
 }

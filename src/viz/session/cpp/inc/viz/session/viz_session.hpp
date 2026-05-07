@@ -92,6 +92,40 @@ public:
         //   >0 → wait that many seconds, then throw
         //   <0 → wait forever (Ctrl-C to break)
         int xr_system_wait_seconds = 0;
+
+        // kXr-only: how the runtime composites our frame against the
+        // environment. Values mirror XrEnvironmentBlendMode 1:1 — kept
+        // as a wrapper enum so consumers don't have to pull <openxr/openxr.h>
+        // into Window/Offscreen builds. kOpaque (full VR) is the
+        // default; kAlphaBlend enables passthrough — alpha=0 pixels in
+        // our render show through to the camera feed, alpha=1 pixels
+        // composite over it. XrBackend automatically sets the
+        // projection layer's TEXTURE_SOURCE_ALPHA flag for non-opaque
+        // modes. Runtime must advertise the chosen mode in
+        // xrEnumerateEnvironmentBlendModes — otherwise xrEndFrame
+        // throws.
+        enum class XrBlendMode : int32_t
+        {
+            kOpaque = 1, // XR_ENVIRONMENT_BLEND_MODE_OPAQUE
+            kAdditive = 2, // XR_ENVIRONMENT_BLEND_MODE_ADDITIVE
+            kAlphaBlend = 3, // XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND
+        };
+        XrBlendMode xr_environment_blend_mode = XrBlendMode::kOpaque;
+
+        // kXr-only: reverse-Z near/far in meters. Drive both per-eye
+        // projection matrices and XrCompositionLayerDepthInfoKHR's
+        // nearZ/farZ — the runtime uses both for reprojection, so they
+        // MUST match each other. Defaults span 5 cm ↔ 100 m which works
+        // for typical headset content; bring near_z down for hand-held
+        // UI / tight-clearance use cases.
+        float xr_near_z = 0.05f;
+        float xr_far_z = 100.0f;
+
+        // Opt in to GPU-side timestamp queries around each render
+        // (render-pass time, post-pass time, total cmd-buffer time).
+        // Available via get_gpu_timing(). Off by default — enable for
+        // perf measurement and benches; production builds shouldn't pay.
+        bool gpu_timing = false;
     };
 
     static std::unique_ptr<VizSession> create(const Config& config);
@@ -181,6 +215,20 @@ public:
     // without re-creating one. Returns nullopt outside of kXr mode
     // and before init / after destroy.
     std::optional<core::OpenXRSessionHandles> get_oxr_handles() const noexcept;
+
+    // XR_KHR_convert_timespec_time conversion (kXr only). Useful for
+    // correlating XrTime values (e.g. predicted_display_time) with
+    // sensor-side capture timestamps captured in steady_clock.
+    // has_xr_time_conversion() returns false outside kXr mode and on
+    // runtimes that don't advertise the extension. The convert calls
+    // throw in those cases; check first.
+    bool has_xr_time_conversion() const noexcept;
+    std::chrono::steady_clock::time_point xr_time_to_steady_clock(int64_t xr_time) const;
+    int64_t steady_clock_to_xr_time(std::chrono::steady_clock::time_point t) const;
+
+    // Most recent GPU timestamp deltas (zeroed unless Config::gpu_timing
+    // was enabled and at least one render() has completed).
+    const VizCompositor::GpuFrameTiming& get_gpu_timing() const noexcept;
 
 private:
     explicit VizSession(const Config& config);

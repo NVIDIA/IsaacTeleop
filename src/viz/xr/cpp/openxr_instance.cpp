@@ -5,11 +5,13 @@
 #include <vulkan/vulkan.h>
 
 #define XR_USE_GRAPHICS_API_VULKAN
+#define XR_USE_TIMESPEC
 #include <openxr/openxr_platform.h>
 
 #include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <ctime>
 #include <stdexcept>
 #include <thread>
 
@@ -33,9 +35,47 @@ OpenXrInstance::OpenXrInstance(const std::string& app_name,
                                const std::vector<std::string>& extra_extensions,
                                int system_wait_seconds)
 {
+    // Discover what the runtime offers — we want to opt in to
+    // XR_KHR_composition_layer_depth when it's available so CloudXR
+    // (and other reprojecting runtimes) can use depth for warping;
+    // and XR_KHR_convert_timespec_time so apps can correlate XrTime
+    // with steady_clock-based sensor timestamps. Other extensions
+    // remain caller-controlled via extra_extensions.
+    bool runtime_has_depth_layer = false;
+    bool runtime_has_time_conversion = false;
+    {
+        uint32_t count = 0;
+        if (xrEnumerateInstanceExtensionProperties(nullptr, 0, &count, nullptr) == XR_SUCCESS && count > 0)
+        {
+            std::vector<XrExtensionProperties> available(count, XrExtensionProperties{ XR_TYPE_EXTENSION_PROPERTIES });
+            if (xrEnumerateInstanceExtensionProperties(nullptr, count, &count, available.data()) == XR_SUCCESS)
+            {
+                for (const auto& ext : available)
+                {
+                    if (std::strcmp(ext.extensionName, XR_KHR_COMPOSITION_LAYER_DEPTH_EXTENSION_NAME) == 0)
+                    {
+                        runtime_has_depth_layer = true;
+                    }
+                    else if (std::strcmp(ext.extensionName, XR_KHR_CONVERT_TIMESPEC_TIME_EXTENSION_NAME) == 0)
+                    {
+                        runtime_has_time_conversion = true;
+                    }
+                }
+            }
+        }
+    }
+
     std::vector<const char*> exts;
-    exts.reserve(1 + extra_extensions.size());
+    exts.reserve(3 + extra_extensions.size());
     exts.push_back(XR_KHR_VULKAN_ENABLE2_EXTENSION_NAME);
+    if (runtime_has_depth_layer)
+    {
+        exts.push_back(XR_KHR_COMPOSITION_LAYER_DEPTH_EXTENSION_NAME);
+    }
+    if (runtime_has_time_conversion)
+    {
+        exts.push_back(XR_KHR_CONVERT_TIMESPEC_TIME_EXTENSION_NAME);
+    }
     for (const auto& e : extra_extensions)
     {
         exts.push_back(e.c_str());
@@ -48,6 +88,24 @@ OpenXrInstance::OpenXrInstance(const std::string& app_name,
     info.enabledExtensionCount = static_cast<uint32_t>(exts.size());
     info.enabledExtensionNames = exts.data();
     check(xrCreateInstance(&info, &instance_), "xrCreateInstance");
+    has_depth_composition_layer_ = runtime_has_depth_layer;
+
+    // Resolve timespec-conversion entry points if the extension was enabled.
+    // Both PFNs must resolve cleanly; if either fails we leave time
+    // conversion disabled rather than half-working.
+    if (runtime_has_time_conversion)
+    {
+        PFN_xrVoidFunction to_time_fn = nullptr;
+        PFN_xrVoidFunction from_time_fn = nullptr;
+        if (xrGetInstanceProcAddr(instance_, "xrConvertTimespecTimeToTimeKHR", &to_time_fn) == XR_SUCCESS &&
+            xrGetInstanceProcAddr(instance_, "xrConvertTimeToTimespecTimeKHR", &from_time_fn) == XR_SUCCESS &&
+            to_time_fn != nullptr && from_time_fn != nullptr)
+        {
+            xr_convert_timespec_time_to_time_ = to_time_fn;
+            xr_convert_time_to_timespec_time_ = from_time_fn;
+            has_time_conversion_ = true;
+        }
+    }
 
     XrSystemGetInfo sys_info{ XR_TYPE_SYSTEM_GET_INFO };
     sys_info.formFactor = XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY;
@@ -125,6 +183,46 @@ OpenXrInstance::~OpenXrInstance()
         xrDestroyInstance(instance_);
         instance_ = XR_NULL_HANDLE;
     }
+}
+
+std::chrono::steady_clock::time_point OpenXrInstance::xr_time_to_steady_clock(XrTime time) const
+{
+    if (!has_time_conversion_)
+    {
+        throw std::runtime_error(
+            "OpenXrInstance::xr_time_to_steady_clock: XR_KHR_convert_timespec_time not available on this runtime");
+    }
+    timespec ts{};
+    auto fn = reinterpret_cast<PFN_xrConvertTimeToTimespecTimeKHR>(xr_convert_time_to_timespec_time_);
+    const XrResult r = fn(instance_, time, &ts);
+    if (XR_FAILED(r))
+    {
+        throw std::runtime_error("OpenXrInstance: xrConvertTimeToTimespecTimeKHR failed: XrResult=" + std::to_string(r));
+    }
+    // CLOCK_MONOTONIC = std::chrono::steady_clock on Linux per spec.
+    return std::chrono::steady_clock::time_point{ std::chrono::seconds{ ts.tv_sec } +
+                                                  std::chrono::nanoseconds{ ts.tv_nsec } };
+}
+
+XrTime OpenXrInstance::steady_clock_to_xr_time(std::chrono::steady_clock::time_point t) const
+{
+    if (!has_time_conversion_)
+    {
+        throw std::runtime_error(
+            "OpenXrInstance::steady_clock_to_xr_time: XR_KHR_convert_timespec_time not available on this runtime");
+    }
+    const auto duration = t.time_since_epoch();
+    const auto secs = std::chrono::duration_cast<std::chrono::seconds>(duration);
+    const auto nsecs = std::chrono::duration_cast<std::chrono::nanoseconds>(duration - secs);
+    timespec ts{ static_cast<time_t>(secs.count()), static_cast<long>(nsecs.count()) };
+    XrTime out = 0;
+    auto fn = reinterpret_cast<PFN_xrConvertTimespecTimeToTimeKHR>(xr_convert_timespec_time_to_time_);
+    const XrResult r = fn(instance_, &ts, &out);
+    if (XR_FAILED(r))
+    {
+        throw std::runtime_error("OpenXrInstance: xrConvertTimespecTimeToTimeKHR failed: XrResult=" + std::to_string(r));
+    }
+    return out;
 }
 
 } // namespace viz

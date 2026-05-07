@@ -247,7 +247,11 @@ void RenderTarget::create_depth_image(const Config& config)
     info.arrayLayers = 1;
     info.samples = VK_SAMPLE_COUNT_1_BIT;
     info.tiling = VK_IMAGE_TILING_OPTIMAL;
-    info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    // TRANSFER_SRC so XR backends can copy depth out for
+    // XR_KHR_composition_layer_depth (CloudXR uses depth for server-
+    // side reprojection). Other backends never read depth — the bit
+    // is harmless for them.
+    info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
     info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     check_vk(vkCreateImage(device, &info, nullptr, &depth_image_), "vkCreateImage(depth)");
@@ -291,15 +295,18 @@ void RenderTarget::create_render_pass()
     attachments[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     attachments[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     attachments[0].finalLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-    // Depth: clear on load, dontCare on store (we never read it back).
+    // Depth: clear on load, store (XR backends copy it out for
+    // XR_KHR_composition_layer_depth submission). finalLayout =
+    // TRANSFER_SRC so the post-render-pass copy doesn't need an
+    // extra layout barrier — mirrors the color attachment.
     attachments[1].format = depth_format_;
     attachments[1].samples = VK_SAMPLE_COUNT_1_BIT;
     attachments[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    attachments[1].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachments[1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     attachments[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     attachments[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     attachments[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    attachments[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    attachments[1].finalLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 
     VkAttachmentReference color_ref{};
     color_ref.attachment = 0;

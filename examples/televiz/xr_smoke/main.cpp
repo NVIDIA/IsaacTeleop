@@ -59,14 +59,18 @@ struct CudaDeviceBuffer
     CudaDeviceBuffer& operator=(const CudaDeviceBuffer&) = delete;
 };
 
-// Static gradient + a single vertical stripe down the middle. Filled
-// once at startup; the QuadLayer mailbox holds it across every render.
-// Removes per-frame CPU + host->device cost so the fps measurement
-// reflects the runtime / GPU / xrWaitFrame pacing, not pattern updates.
-void fill_static_pattern(std::vector<Rgba>& host, uint32_t w, uint32_t h)
+// Gradient + an animated vertical stripe. The stripe sweeps left→right
+// each frame so a human watching the headset gets an obvious motion
+// reference for smoothness — judder shows up immediately as a stutter
+// in the stripe's travel. Re-filled host-side every frame; cost is
+// trivial for 1024×1024 RGBA8.
+void fill_animated_pattern(std::vector<Rgba>& host, uint32_t w, uint32_t h, uint64_t frame_index)
 {
-    const uint32_t stripe_center = w / 2;
-    const uint32_t stripe_half = w / 32;
+    // ~2 second cycle at 60 Hz (120 frames per sweep). Modulate stripe
+    // position; everything else stays put so the gradient anchors the eye.
+    const uint32_t cycle_frames = 120;
+    const uint32_t stripe_center = static_cast<uint32_t>((frame_index % cycle_frames) * w / cycle_frames);
+    const uint32_t stripe_half = w / 64;
     for (uint32_t y = 0; y < h; ++y)
     {
         for (uint32_t x = 0; x < w; ++x)
@@ -74,7 +78,8 @@ void fill_static_pattern(std::vector<Rgba>& host, uint32_t w, uint32_t h)
             const uint8_t r = static_cast<uint8_t>((x * 255u) / w);
             const uint8_t g = static_cast<uint8_t>((y * 255u) / h);
             const uint8_t b = 64;
-            const bool in_stripe = x >= stripe_center - stripe_half && x < stripe_center + stripe_half;
+            const bool in_stripe =
+                x + stripe_half >= stripe_center && x < stripe_center + stripe_half && stripe_center >= stripe_half;
             host[y * w + x] = in_stripe ? Rgba{ 255, 255, 255, 255 } : Rgba{ r, g, b, 255 };
         }
     }
@@ -111,11 +116,21 @@ int main()
     viz::VizSession::Config cfg{};
     cfg.mode = viz::DisplayMode::kXr;
     cfg.app_name = "viz_xr_smoke";
-    // Quiet dark background so the gradient quad reads cleanly.
-    cfg.clear_color[0] = 0.05f;
-    cfg.clear_color[1] = 0.05f;
-    cfg.clear_color[2] = 0.05f;
-    cfg.clear_color[3] = 1.0f;
+    // Fully transparent background — the runtime composites passthrough
+    // (camera feed) wherever our render writes alpha=0. The placed quad
+    // writes alpha=1 inside its geometry; everything else stays at the
+    // clear color's alpha=0, so passthrough shows through everywhere
+    // except the quad.
+    cfg.clear_color[0] = 0.0f;
+    cfg.clear_color[1] = 0.0f;
+    cfg.clear_color[2] = 0.0f;
+    cfg.clear_color[3] = 0.0f;
+    // Ask the runtime to alpha-blend our layer over the camera passthrough.
+    // Requires the runtime to advertise this mode in
+    // xrEnumerateEnvironmentBlendModes — Quest+CloudXR with passthrough
+    // enabled does. If the runtime doesn't support it, xrEndFrame throws
+    // and the session bails.
+    cfg.xr_environment_blend_mode = viz::VizSession::Config::XrBlendMode::kAlphaBlend;
     // CloudXR / streaming runtimes return XR_ERROR_FORM_FACTOR_UNAVAILABLE
     // until a headset client connects. Negative = wait forever — start
     // this binary, then connect the CloudXR client at any time. Ctrl-C
@@ -161,25 +176,28 @@ int main()
         CudaDeviceBuffer device_buffer(static_cast<size_t>(kQuadW) * kQuadH * sizeof(Rgba));
         std::vector<Rgba> host_pattern(static_cast<size_t>(kQuadW) * kQuadH);
 
-        // Fill + submit ONCE at startup. The mailbox holds the latest
-        // publish across every subsequent render, so the per-frame loop
-        // does no CPU pixel work and no host->device copy.
-        fill_static_pattern(host_pattern, kQuadW, kQuadH);
-        if (cudaMemcpy(device_buffer.ptr, host_pattern.data(), host_pattern.size() * sizeof(Rgba),
-                       cudaMemcpyHostToDevice) != cudaSuccess)
-        {
-            throw std::runtime_error("cudaMemcpy(host->device) failed");
-        }
-        submit_pattern(*layer, device_buffer.ptr, kQuadW, kQuadH);
-
         std::printf("viz_xr_smoke: session up, awaiting runtime READY...\n");
         std::fflush(stdout);
 
         const auto start_time = std::chrono::steady_clock::now();
         bool announced_running = false;
+        uint64_t loop_counter = 0;
 
         while (!g_stop.load(std::memory_order_acquire) && !session->should_close())
         {
+            // Re-fill + re-submit each frame so the stripe animates.
+            // Cheap: 4 MB H2D + 4 MB on-CPU fill at 60 Hz. The stripe
+            // motion is the smoothness gauge — judder shows up as a
+            // stutter in its sweep across the quad.
+            fill_animated_pattern(host_pattern, kQuadW, kQuadH, loop_counter);
+            if (cudaMemcpy(device_buffer.ptr, host_pattern.data(), host_pattern.size() * sizeof(Rgba),
+                           cudaMemcpyHostToDevice) != cudaSuccess)
+            {
+                throw std::runtime_error("cudaMemcpy(host->device) failed");
+            }
+            submit_pattern(*layer, device_buffer.ptr, kQuadW, kQuadH);
+            ++loop_counter;
+
             const auto info = session->begin_frame();
             session->end_frame();
 

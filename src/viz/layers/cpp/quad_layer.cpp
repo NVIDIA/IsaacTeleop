@@ -509,10 +509,17 @@ void QuadLayer::create_pipeline()
     multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
     // Depth disabled — fullscreen blits don't need it.
+    // Depth on so XR backends can submit XrCompositionLayerDepthInfoKHR
+    // alongside the projection layer (CloudXR uses depth for server-
+    // side reprojection). LESS_OR_EQUAL keeps last-wins semantics for
+    // overlapping layers when multiple QuadLayers stack at z = 0
+    // (fullscreen mode); meaningful for true depth-sort once 3D-placed
+    // QuadLayers are in active use.
     VkPipelineDepthStencilStateCreateInfo depth_stencil{};
     depth_stencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-    depth_stencil.depthTestEnable = VK_FALSE;
-    depth_stencil.depthWriteEnable = VK_FALSE;
+    depth_stencil.depthTestEnable = VK_TRUE;
+    depth_stencil.depthWriteEnable = VK_TRUE;
+    depth_stencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
 
     VkPipelineColorBlendAttachmentState blend_attachment{};
     blend_attachment.blendEnable = VK_FALSE;

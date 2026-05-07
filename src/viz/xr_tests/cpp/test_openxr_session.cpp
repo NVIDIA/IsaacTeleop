@@ -61,3 +61,54 @@ TEST_CASE("OpenXrSession constructs against a graphics-bound VkContext", "[xr][v
         session.poll_events();
     }
 }
+
+// Test C — invariant: VIEW reference space + near/far Z plumbing.
+// VIEW space is created unconditionally alongside reference_space.
+// Locate against reference_space; runtime may report invalid pose
+// before tracking is up, but the call itself must not throw.
+TEST_CASE("OpenXrSession exposes VIEW space and propagates near/far Z config", "[xr][viz_xr]")
+{
+    std::unique_ptr<viz::OpenXrInstance> inst;
+    try
+    {
+        inst = std::make_unique<viz::OpenXrInstance>("viz_xr_test_view_space", std::vector<std::string>{});
+    }
+    catch (const std::runtime_error& e)
+    {
+        SKIP(std::string("no OpenXR runtime / HMD: ") + e.what());
+    }
+
+    viz::VkContext vk;
+    viz::VkContext::Config vkcfg{};
+    vkcfg.xr_instance = inst->instance();
+    vkcfg.xr_system_id = inst->system_id();
+    try
+    {
+        vk.init(vkcfg);
+    }
+    catch (const std::runtime_error& e)
+    {
+        SKIP(std::string("XR-bound VkContext init failed: ") + e.what());
+    }
+
+    viz::OpenXrSession::Config sess_cfg{};
+    sess_cfg.near_z = 0.1f;
+    sess_cfg.far_z = 250.0f;
+    viz::OpenXrSession session(*inst, vk, sess_cfg);
+
+    // VIEW space exists from construction (independent of session-running state).
+    REQUIRE(session.view_space() != XR_NULL_HANDLE);
+    // near/far Z round-trip through the config.
+    CHECK(session.near_z() == 0.1f);
+    CHECK(session.far_z() == 250.0f);
+
+    // locate_view_space() must not throw at any session state. Returns
+    // false (with cleared validity flags) when the runtime can't track
+    // the head — typical before the runtime reaches Ready.
+    XrSpaceLocation loc{ XR_TYPE_SPACE_LOCATION };
+    const bool valid = session.locate_view_space(/*time=*/0, &loc);
+    INFO("locate_view_space returned " << (valid ? "valid" : "invalid") << ", flags=0x" << std::hex << loc.locationFlags);
+    // Validity is hardware-dependent; the structural check is that the
+    // call doesn't throw and the location struct is at least zeroed.
+    SUCCEED();
+}
