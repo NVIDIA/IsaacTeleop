@@ -6,6 +6,18 @@
 #include <viz/xr/openxr_instance.hpp>
 
 #define XR_USE_GRAPHICS_API_VULKAN
+// On Windows, openxr_platform.h's XR_USE_PLATFORM_WIN32 sections reference
+// LARGE_INTEGER and IUnknown — types only declared after <Windows.h> +
+// <Unknwn.h> (the latter is NOT pulled in by Windows.h when
+// WIN32_LEAN_AND_MEAN is set, which oxr_utils enables transitively).
+// Mirror the include order oxr_time.hpp uses so this TU still compiles
+// when oxr_utils' INTERFACE defines reach us via viz_session's link to
+// oxr::oxr_utils. Skipped on non-Win32 — the platform header gates
+// those sections behind XR_USE_PLATFORM_WIN32 which only oxr_utils sets.
+#if defined(XR_USE_PLATFORM_WIN32)
+#    include <Unknwn.h>
+#    include <Windows.h>
+#endif
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -21,14 +33,6 @@ namespace viz
 
 namespace
 {
-
-void check_vk(VkResult r, const char* what)
-{
-    if (r != VK_SUCCESS)
-    {
-        throw std::runtime_error(std::string("XrBackend: ") + what + " failed: VkResult=" + std::to_string(r));
-    }
-}
 
 void check_xr(XrResult r, const char* what)
 {
@@ -653,7 +657,6 @@ void XrBackend::record_post_render_pass(VkCommandBuffer cmd, const Frame& frame)
                                     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
         }
     }
-    (void)check_vk; // suppress unused-warning if no other VK errors get checked here
 }
 
 void XrBackend::end_frame(const Frame& /*frame*/)
