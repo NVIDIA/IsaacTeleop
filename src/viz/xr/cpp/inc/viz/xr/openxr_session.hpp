@@ -14,37 +14,27 @@ namespace viz
 class OpenXrInstance;
 class VkContext;
 
-// Owns an XrSession bound to a Vulkan device, plus the reference
-// space used to locate the head/views each frame.
+// XrSession bound to a Vulkan device, plus reference + VIEW spaces.
+// poll_events() drives the OpenXR state machine each frame;
+// session_running() is true in SYNCHRONIZED/VISIBLE/FOCUSED — the only
+// states where xrWaitFrame/xrBeginFrame are valid.
 //
-// Lifecycle: constructed once VkContext is initialized via the
-// XR-bound path. Drives the OpenXR session state machine via
-// poll_events() — the renderer should call poll_events() each frame
-// before deciding whether to render. session_running() returns true
-// in the SYNCHRONIZED/VISIBLE/FOCUSED states (the only states where
-// xrWaitFrame/xrBeginFrame are valid).
-//
-// Threading: single-threaded. wait_frame/begin_frame/locate_views/
-// end_frame must all be called from the same thread (the render
-// thread). poll_events should also run on that thread (OpenXR is
-// not thread-safe per session).
+// Threading: single-threaded. All frame-loop methods (wait_frame,
+// begin_frame, locate_views, end_frame, poll_events) must run on the
+// same thread (OpenXR is not thread-safe per session).
 class OpenXrSession
 {
 public:
     struct Config
     {
-        // STAGE = room-scale, requires recenter / guardian setup.
-        // LOCAL = head-centered seated. Default LOCAL since the
-        // seated case is the common one for teleop dashboards.
+        // LOCAL = seated/head-centered (default, fits teleop dashboards).
+        // STAGE = room-scale; requires recenter / guardian setup.
         XrReferenceSpaceType reference_space_type = XR_REFERENCE_SPACE_TYPE_LOCAL;
 
-        // Reverse-Z near/far in meters. Used both to build per-eye
-        // projection matrices and to populate XrCompositionLayerDepthInfoKHR
-        // when depth submission is enabled. Defaults pick a safe headset
-        // range (5 cm ↔ 100 m). If you change near_z, every layer using
-        // the per-eye projection inherits the change automatically.
-        // TODO: read recommended range from XR_EXT_view_configuration_depth_range
-        // when the runtime advertises it.
+        // Reverse-Z near/far in meters. Drives per-eye projection AND
+        // XrCompositionLayerDepthInfoKHR (must match — runtime uses
+        // both for reprojection).
+        // TODO: read from XR_EXT_view_configuration_depth_range.
         float near_z = 0.05f;
         float far_z = 100.0f;
     };
@@ -52,12 +42,7 @@ public:
     // Throws std::invalid_argument on bad inputs; std::runtime_error
     // on any xrXxx failure.
     OpenXrSession(const OpenXrInstance& instance, const VkContext& vk, const Config& config);
-    // Convenience overload using the default Config (kept separate
-    // from a `= Config{}` default arg because the latter requires
-    // Config's member initializers to be visible at the constructor
-    // declaration site, which they aren't yet — Config is a nested
-    // type still being defined).
-    OpenXrSession(const OpenXrInstance& instance, const VkContext& vk);
+    OpenXrSession(const OpenXrInstance& instance, const VkContext& vk); // default Config
     ~OpenXrSession();
 
     OpenXrSession(const OpenXrSession&) = delete;
@@ -73,12 +58,8 @@ public:
     {
         return reference_space_;
     }
-    // VIEW reference space — the user's head, with the pose returned by
-    // xrLocateSpace(view_space, reference_space, time) representing the
-    // head-center in the chosen reference frame. Useful for head-locked
-    // / lazy-lock placement; locate_view_space() is the convenience
-    // wrapper. Apps can also pass this through OxrHandles and locate
-    // at arbitrary XrTimes (e.g. for sensor-time-correlated queries).
+    // VIEW reference space (head). Locate against reference_space at
+    // any XrTime to get head pose; `locate_view_space` wraps it.
     XrSpace view_space() const noexcept
     {
         return view_space_;
@@ -87,13 +68,10 @@ public:
     {
         return view_configuration_type_;
     }
-    // Env blend mode is RUNTIME-PICKED, not config-driven: at construction
-    // we call xrEnumerateEnvironmentBlendModes and store the runtime's
-    // first-advertised mode (its preference). On a passthrough-enabled
-    // Quest with CloudXR this is ALPHA_BLEND; on a pure-VR HMD it's
-    // OPAQUE; on HoloLens-style optical see-through it's ADDITIVE.
-    // Trusts the runtime instead of forcing a mode and crashing on
-    // headsets that don't support it.
+    // Picked by the runtime at construction (first advertised mode):
+    // ALPHA_BLEND on passthrough HMDs, OPAQUE on pure-VR, ADDITIVE on
+    // optical see-through. Trusting the runtime keeps the same binary
+    // working across all three.
     XrEnvironmentBlendMode environment_blend_mode() const noexcept
     {
         return environment_blend_mode_;
@@ -117,50 +95,39 @@ public:
         return static_cast<uint32_t>(view_configuration_views_.size());
     }
 
-    // Pumps the event queue; updates session_running()/exit_requested()
-    // and drives the auto begin/end on READY/STOPPING transitions.
-    // Idempotent and cheap — call every frame.
+    // Drains the event queue, updates running/exit flags, drives the
+    // auto begin/end on READY/STOPPING. Idempotent; call every frame.
     void poll_events();
 
-    // True when the session is in a state where xrWaitFrame is valid
-    // (SYNCHRONIZED, VISIBLE, or FOCUSED).
+    // True in SYNCHRONIZED/VISIBLE/FOCUSED — the only states where
+    // xrWaitFrame/xrBeginFrame are valid.
     bool session_running() const noexcept
     {
         return session_running_;
     }
 
-    // True after the runtime requests session exit (XR_SESSION_STATE_EXITING)
-    // or the session is lost. Renderer should stop and tear down.
+    // True after the runtime requests EXITING / signals LOSS_PENDING.
     bool exit_requested() const noexcept
     {
         return exit_requested_;
     }
 
-    // Frame loop primitives. wait_frame/locate_views return false
-    // (and skip) if the session isn't ready for rendering.
-    //
-    // Throws std::runtime_error on hard xrXxx failures (transport
-    // errors, lost session). XR_FRAME_DISCARDED on begin_frame is
-    // surfaced as predictedDisplayPeriod == 0 in the next state —
-    // app should still call end_frame to keep the protocol balanced.
+    // Frame-loop primitives. Throws std::runtime_error on hard XR
+    // failures. XR_FRAME_DISCARDED on begin_frame is non-fatal —
+    // pair with end_frame to keep the protocol balanced.
     bool wait_frame(XrFrameState* out_state);
     void begin_frame();
 
-    // Locates the views in the reference space at predicted_display_time.
-    // Returns false if the runtime can't locate (out_views is left
-    // resized but with zero poses — caller should skip rendering).
+    // Locate views in the reference space. Returns false on tracking
+    // loss (out_views resized to zero poses); throws on hard failures.
     bool locate_views(XrTime predicted_display_time, XrViewState* out_view_state, std::vector<XrView>* out_views);
 
-    // Locate the VIEW reference space (head center) in the session's
-    // reference space at predicted_display_time. Returns false on any
-    // failure — tracking loss (validity flags clear) AND hard xrLocateSpace
-    // errors (XR_FAILED). Never throws. The non-throwing contract matters
-    // because XrBackend calls this between xrBeginFrame and xrEndFrame —
-    // an exception would unbalance the OpenXR protocol. Apps wanting
-    // strictness should locate via OxrHandles::view_space themselves.
-    bool locate_view_space(XrTime predicted_display_time, XrSpaceLocation* out_location);
+    // Head pose at predicted_display_time. Never throws — XrBackend
+    // calls this between xrBeginFrame and xrEndFrame, where a throw
+    // would unbalance the protocol. Returns false on any failure.
+    bool locate_view_space(XrTime predicted_display_time, XrSpaceLocation* out_location) const;
 
-    // layers may be empty (submits a blank frame, valid per spec).
+    // layers may be empty (blank frame; valid per spec).
     void end_frame(XrTime predicted_display_time, const std::vector<const XrCompositionLayerBaseHeader*>& layers);
 
 private:

@@ -17,7 +17,6 @@ namespace viz
 namespace
 {
 
-// Factory: instantiate the backend matching the requested mode.
 std::unique_ptr<DisplayBackend> make_backend(const VizSession::Config& cfg)
 {
     switch (cfg.mode)
@@ -38,10 +37,7 @@ std::unique_ptr<DisplayBackend> make_backend(const VizSession::Config& cfg)
         xc.app_name = cfg.app_name;
         xc.extra_xr_extensions = cfg.required_extensions;
         xc.system_wait_seconds = cfg.xr_system_wait_seconds;
-        // Env blend mode is picked by OpenXrSession from the runtime's
-        // advertised list (see OpenXrSession::enumerate_environment_blend_mode).
-        // Same binary runs on passthrough Quest (ALPHA_BLEND), pure-VR
-        // HMDs (OPAQUE), or optical see-through (ADDITIVE).
+        // Env blend mode chosen at runtime from what the system advertises.
         xc.session_config.near_z = cfg.xr_near_z;
         xc.session_config.far_z = cfg.xr_far_z;
         return std::make_unique<XrBackend>(std::move(xc));
@@ -74,8 +70,8 @@ VizSession::~VizSession()
 
 void VizSession::init()
 {
-    // Backend first — it dictates the required Vulkan extensions and
-    // rejects unsupported modes before any Vulkan work.
+    // Backend first — it dictates Vulkan extensions and rejects
+    // unsupported modes before any Vulkan work.
     backend_ = make_backend(config_);
 
     try
@@ -84,11 +80,9 @@ void VizSession::init()
         vk_cfg.instance_extensions = backend_->required_instance_extensions();
         vk_cfg.device_extensions = backend_->required_device_extensions();
 
-        // kXr two-phase init: XrBackend's ctor already created the
-        // OpenXrInstance, so we can hand the raw XR handles to VkContext
-        // before it builds its instance/device. VkContext takes the
-        // xrCreateVulkanInstanceKHR / xrCreateVulkanDeviceKHR path,
-        // which lets the OpenXR runtime interpose on Vulkan creation.
+        // kXr: hand XrInstance + systemId to VkContext so it takes the
+        // xrCreateVulkan*KHR path — lets the runtime interpose on
+        // instance/device creation.
         if (config_.mode == DisplayMode::kXr)
         {
             auto* xr = static_cast<XrBackend*>(backend_.get());
@@ -131,7 +125,7 @@ void VizSession::init()
 void VizSession::destroy()
 {
     layers_.clear();
-    // Order: compositor (holds backend ref) -> backend -> context.
+    // compositor holds a backend ref; backend uses the context: tear down in this order.
     compositor_.reset();
     backend_.reset();
     if (owned_ctx_)
@@ -201,8 +195,7 @@ FrameInfo VizSession::begin_frame()
     current_frame_info_.predicted_display_time = 0; // XR-only; 0 in offscreen
     current_frame_info_.should_render = (state_ == SessionState::kRunning);
     current_frame_info_.resolution = compositor_ ? compositor_->resolution() : Resolution{};
-    // Public FrameInfo carries a single identity entry as a hint;
-    // backends populate the actual per-view info inside render().
+    // Identity placeholder; backends fill per-view info inside render().
     current_frame_info_.views.assign(1, ViewInfo{});
 
     frame_in_progress_ = true;
@@ -248,7 +241,6 @@ void VizSession::end_frame()
 
 FrameInfo VizSession::render()
 {
-    // begin_frame() now pumps events itself; no need to do it twice.
     auto info = begin_frame();
     end_frame();
     return info;
@@ -300,8 +292,7 @@ std::optional<core::OpenXRSessionHandles> VizSession::get_oxr_handles() const no
     const auto h = xr->oxr_handles();
     if (h.instance == XR_NULL_HANDLE || h.session == XR_NULL_HANDLE)
     {
-        // Backend created but session not yet established (init failed
-        // or hasn't run); nothing useful to share.
+        // Backend exists but XR session not yet established.
         return std::nullopt;
     }
     core::OpenXRSessionHandles out{};
@@ -357,6 +348,31 @@ const VizCompositor::GpuFrameTiming& VizSession::get_gpu_timing() const noexcept
 {
     static constexpr VizCompositor::GpuFrameTiming kZero{};
     return compositor_ ? compositor_->last_gpu_timing() : kZero;
+}
+
+std::optional<Pose3D> VizSession::head_pose_now() const
+{
+    if (config_.mode != DisplayMode::kXr || !backend_)
+    {
+        throw std::logic_error("VizSession::head_pose_now: only valid in kXr mode");
+    }
+    const auto* xr = static_cast<const XrBackend*>(backend_.get());
+    const auto* xi = xr->xr_instance();
+    const auto* sess = xr->xr_session();
+    if (xi == nullptr || sess == nullptr || !xi->has_time_conversion())
+    {
+        return std::nullopt;
+    }
+    const XrTime now = xi->steady_clock_to_xr_time(std::chrono::steady_clock::now());
+    XrSpaceLocation loc{ XR_TYPE_SPACE_LOCATION };
+    if (!sess->locate_view_space(now, &loc))
+    {
+        return std::nullopt;
+    }
+    return Pose3D{
+        glm::vec3(loc.pose.position.x, loc.pose.position.y, loc.pose.position.z),
+        glm::quat(loc.pose.orientation.w, loc.pose.orientation.x, loc.pose.orientation.y, loc.pose.orientation.z),
+    };
 }
 
 const VkContext& VizSession::ctx() const noexcept

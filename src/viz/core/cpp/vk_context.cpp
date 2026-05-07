@@ -3,8 +3,7 @@
 
 #include <viz/core/vk_context.hpp>
 
-#define XR_USE_GRAPHICS_API_VULKAN
-#include <openxr/openxr_platform.h>
+#include <viz/core/openxr_platform_compat.hpp>
 
 #include <algorithm>
 #include <cstring>

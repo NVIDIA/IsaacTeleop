@@ -15,17 +15,9 @@
 namespace viz::testing
 {
 
-// Test fixture layer: clears a rectangular region of the active
-// framebuffer to a configured RGBA color via vkCmdClearAttachments.
-//
-// Used to verify the compositor's layer-dispatch + render-pass plumbing
-// without bringing in shaders, graphics pipelines, or vertex buffers
-// (those land with the first real graphics layer alongside CUDA-Vulkan
-// interop). Exercises the same in-pass command-recording surface that
-// real layers use.
-//
-// Coordinates are in framebuffer pixels with origin top-left; w/h
-// default to the full target if both are zero.
+// Test layer: clears a rect to RGBA via vkCmdClearAttachments. Used to
+// exercise the compositor's record path without shaders / pipelines.
+// Origin top-left; w=h=0 means full target.
 class ClearRectLayer final : public LayerBase
 {
 public:
@@ -33,8 +25,8 @@ public:
     {
         int32_t x = 0;
         int32_t y = 0;
-        uint32_t w = 0; // 0 means "full width of target"
-        uint32_t h = 0; // 0 means "full height of target"
+        uint32_t w = 0; // 0 = full target width
+        uint32_t h = 0; // 0 = full target height
         std::array<float, 4> rgba{ 1.0f, 1.0f, 1.0f, 1.0f };
         std::string name = "ClearRectLayer";
     };

@@ -41,20 +41,13 @@ enum class SessionState
     kDestroyed, // After destroy(); no operations valid
 };
 
-// VizSession: the central object. Owns the Vulkan context, the
-// compositor, and the layer registry. One VizSession per display
-// surface (one window, one XR session, or one offscreen target).
+// VizSession: owns the Vulkan context, compositor, and layer registry.
+// One per display surface (window / XR session / offscreen target).
 //
-// Frame loop, two API levels:
-//   - render() — convenience for "wait + composite + present" in one
-//     call. Returns the FrameInfo for the just-rendered frame.
-//   - begin_frame() / end_frame() — explicit pair for callers that need
-//     FrameInfo before submitting (e.g. to make per-frame decisions
-//     about what to render).
-//
-// State machine: kUninitialized -> kReady (after create) -> kRunning
-// (after first render/begin_frame) -> kDestroyed (after destroy).
-// XR-only states (kStopping, kLost) ship with the XR backend.
+// Frame loop:
+//   render()                      — wait + composite + present in one call.
+//   begin_frame() / end_frame()   — explicit pair when the caller needs
+//                                   FrameInfo before submitting.
 class VizSession
 {
 public:
@@ -69,43 +62,30 @@ public:
         // Layers render on top of this. Defaults to opaque black.
         float clear_color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 
-        // Optional pre-built Vulkan context. If null, the session
-        // creates its own VkContext. The caller-supplied context
-        // MUST already have the backend's required extensions
-        // enabled — VK_KHR_swapchain (+ surface extensions) for
-        // kWindow, OpenXR-Vulkan extensions for kXr. VizSession does
-        // NOT retroactively enable them; backend init will fail late
-        // if they're missing. The physical device must also support
-        // present on the eventual surface in kWindow mode.
+        // Optional pre-built Vulkan context. If non-null, MUST already
+        // have the backend's extensions enabled (VK_KHR_swapchain +
+        // surface for kWindow, OpenXR-Vulkan for kXr) — backend init
+        // doesn't retroactively enable them.
         VkContext* external_context = nullptr;
 
-        // OpenXR instance extensions to enable beyond Televiz's required
-        // set. Used in kXr mode by the XR backend (no effect in
-        // kOffscreen / kWindow today).
+        // Extra OpenXR instance extensions (kXr only).
         std::vector<std::string> required_extensions;
 
-        // kXr-only: seconds to keep polling xrGetSystem when no HMD is
-        // currently connected (XR_ERROR_FORM_FACTOR_UNAVAILABLE).
-        // Streaming runtimes like CloudXR start up before the headset
-        // client connects and return UNAVAILABLE in the meantime.
-        //   0  → fail fast on first failure (default; tests / CI)
-        //   >0 → wait that many seconds, then throw
-        //   <0 → wait forever (Ctrl-C to break)
+        // kXr-only: poll xrGetSystem on FORM_FACTOR_UNAVAILABLE.
+        //   0  → fail fast (default; CI / tests).
+        //   >0 → bounded wait, then throw.
+        //   <0 → wait forever (Ctrl-C to break).
         int xr_system_wait_seconds = 0;
 
-        // kXr-only: reverse-Z near/far in meters. Drive both per-eye
-        // projection matrices and XrCompositionLayerDepthInfoKHR's
-        // nearZ/farZ — the runtime uses both for reprojection, so they
-        // MUST match each other. Defaults span 5 cm ↔ 100 m which works
-        // for typical headset content; bring near_z down for hand-held
-        // UI / tight-clearance use cases.
+        // kXr-only: reverse-Z near/far in meters. Drives per-eye
+        // projection matrices AND XrCompositionLayerDepthInfoKHR; the
+        // two MUST match for runtime reprojection.
         float xr_near_z = 0.05f;
         float xr_far_z = 100.0f;
 
-        // Opt in to GPU-side timestamp queries around each render
-        // (render-pass time, post-pass time, total cmd-buffer time).
-        // Available via get_gpu_timing(). Off by default — enable for
-        // perf measurement and benches; production builds shouldn't pay.
+        // Opt-in GPU timestamp queries (render-pass, post-pass, total).
+        // Off by default — production builds shouldn't pay. Read via
+        // get_gpu_timing().
         bool gpu_timing = false;
     };
 
@@ -119,16 +99,10 @@ public:
     VizSession(VizSession&&) = delete;
     VizSession& operator=(VizSession&&) = delete;
 
-    // Layer management. Insertion order is render order. Returns a raw
-    // pointer to the layer for content updates / set_visible(). The
-    // session owns the layer's lifetime.
-    //
-    // Threading: add_layer / remove_layer must be called from the same
-    // thread that drives the frame loop (render() / begin_frame() /
-    // end_frame()). Concurrent or re-entrant mutation during a frame
-    // (including from inside a layer's record() callback) is undefined
-    // behavior. The only thread-safe layer mutation is
-    // LayerBase::set_visible(), which uses an atomic flag.
+    // Insertion order = render order. Returns a non-owning pointer for
+    // content updates / set_visible(). The session owns the layer's
+    // lifetime. add_layer / remove_layer must run on the same thread
+    // as the frame loop; only LayerBase::set_visible() is atomic.
     template <typename L, typename... Args>
     L* add_layer(Args&&... args)
     {
@@ -139,18 +113,15 @@ public:
         return raw;
     }
 
-    // Removes a layer by pointer. No-op if `layer` is not registered.
-    // See add_layer for threading contract.
+    // No-op if `layer` isn't registered. Same threading contract as
+    // add_layer.
     void remove_layer(LayerBase* layer);
 
-    // Convenience frame loop: wait + composite + (in window/XR) present.
-    // Returns the FrameInfo for the just-rendered frame.
+    // wait + composite + present in one call.
     FrameInfo render();
 
-    // Explicit frame-loop pair. begin_frame returns FrameInfo for the
-    // upcoming frame; end_frame composites + presents. Application code
-    // can inspect FrameInfo (e.g. `should_render`, `views`) between
-    // begin_frame and end_frame to decide what to draw.
+    // Explicit frame-loop pair: inspect FrameInfo between calls to
+    // decide what to draw.
     FrameInfo begin_frame();
     void end_frame();
 
@@ -164,60 +135,43 @@ public:
         return timing_stats_;
     }
 
-    // Read the most recent composited frame as a host-side image.
-    // Returns a HostImage owning RGBA8 pixels; call HostImage::view()
-    // to get a VizBuffer (MemorySpace::kHost) for image helpers, or
-    // HostImage::data() for raw byte access. Defined in kOffscreen;
-    // throws in kWindow / kXr (use the swapchain present path there).
-    // Test / debug grade — the production CUDA-pointer readback
-    // returning a device-space VizBuffer ships with CUDA-Vulkan interop.
+    // Most-recent frame as host RGBA8. kOffscreen only; kWindow/kXr
+    // throw — use the swapchain present path there.
     HostImage readback_to_host();
 
-    // Vulkan handle accessors for external renderers and custom layers
-    // that need to build pipelines against the compositor's render pass.
+    // Vulkan handles for layers building their own pipelines.
     VkDevice get_vk_device() const noexcept;
     VkPhysicalDevice get_vk_physical_device() const noexcept;
     uint32_t get_vk_queue_family_index() const noexcept;
     VkRenderPass get_render_pass() const noexcept;
-
-    // The VkContext driving this session, used by layers that build
-    // their own pipelines. nullptr before create() / after destroy().
     const VkContext* get_vk_context() const noexcept;
 
-    // True when the underlying display target has been asked to close
-    // (user clicked the window close button, etc.). Always false in
-    // kOffscreen / kXr. Drives application loops:
-    //   while (!session.should_close()) session.render();
+    // True when the display target has been asked to close (window-X
+    // clicked, etc.). Always false in kOffscreen / kXr.
     bool should_close() const noexcept;
 
-    // True iff the session was created in DisplayMode::kXr. Layers
-    // gate XR-specific behavior (MVP vs fullscreen) on this via
-    // session()->is_xr_mode().
     bool is_xr_mode() const noexcept
     {
         return config_.mode == DisplayMode::kXr;
     }
 
-    // OpenXR session handles for app-side TeleopSession sharing.
-    // Returns the underlying XrInstance / XrSession / reference space
-    // plus the loader-level xrGetInstanceProcAddr so a downstream
-    // consumer (e.g. TeleopSession) can use the same OpenXR session
-    // without re-creating one. Returns nullopt outside of kXr mode
-    // and before init / after destroy.
+    // OpenXR handles for downstream consumers (e.g. TeleopSession)
+    // that need to share this session. nullopt outside kXr.
     std::optional<core::OpenXRSessionHandles> get_oxr_handles() const noexcept;
 
-    // XR_KHR_convert_timespec_time conversion (kXr only). Useful for
-    // correlating XrTime values (e.g. predicted_display_time) with
-    // sensor-side capture timestamps captured in steady_clock.
-    // has_xr_time_conversion() returns false outside kXr mode and on
-    // runtimes that don't advertise the extension. The convert calls
-    // throw in those cases; check first.
+    // XR_KHR_convert_timespec_time forwarding (kXr only). Throws on
+    // non-kXr or when the extension isn't enabled — check has_*()
+    // first if unsure.
     bool has_xr_time_conversion() const noexcept;
     std::chrono::steady_clock::time_point xr_time_to_steady_clock(int64_t xr_time) const;
     int64_t steady_clock_to_xr_time(std::chrono::steady_clock::time_point t) const;
 
-    // Most recent GPU timestamp deltas (zeroed unless Config::gpu_timing
-    // was enabled and at least one render() has completed).
+    // Current head pose in the reference space (kXr only). Throws on
+    // non-kXr. Returns nullopt without time-conversion or on tracking loss.
+    std::optional<Pose3D> head_pose_now() const;
+
+    // Most recent GPU timestamp deltas. Zeros unless gpu_timing was
+    // enabled and at least one render() has completed.
     const VizCompositor::GpuFrameTiming& get_gpu_timing() const noexcept;
 
 private:

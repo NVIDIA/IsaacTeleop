@@ -6,11 +6,7 @@
 
 #include <algorithm>
 
-// [xr]-tagged: a configured OpenXR runtime must be reachable on the
-// host. CTest filters these out of the default `-L unit` job; CI runs
-// them on hosts with a runtime configured (CloudXR / Monado / SteamVR).
-// Both tests SKIP when no loader is reachable so a misconfigured dev
-// machine doesn't see a hard failure.
+// [xr]: needs a reachable OpenXR runtime. SKIPs cleanly otherwise.
 
 TEST_CASE("OpenXR loader is linked and queryable", "[xr][viz_xr]")
 {

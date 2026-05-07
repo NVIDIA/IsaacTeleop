@@ -19,18 +19,13 @@ namespace viz
 
 class VkContext;
 
-// Abstract presentation target. VizSession instantiates one per
-// DisplayMode; VizCompositor drives it.
+// Abstract presentation target — one per DisplayMode. Owns the
+// intermediate RenderTarget plus mode-specific resources (window
+// swapchain / readback staging / XR session). RT's render pass stays
+// compat-stable across resize so layer pipelines remain valid.
 //
-// Backends own the intermediate RenderTarget plus any mode-specific
-// resources (window+swapchain, readback staging, XR session). The
-// RT's render pass stays compatibility-stable across resize so layer
-// pipelines built against it remain valid.
-//
-// Per-frame: begin_frame -> compositor renders into render_target()
-// -> record_post_render_pass (backend's blit/transitions) -> compositor
-// submits with the backend's wait/signal semaphores -> end_frame
-// (present / no-op).
+// Per frame: begin_frame → compositor renders into render_target() →
+// record_post_render_pass (blit/transitions) → submit → end_frame.
 class DisplayBackend
 {
 public:
@@ -68,14 +63,9 @@ public:
         // Compositor overrides per-layer viewport rects via tile_layout.
         std::vector<ViewInfo> views;
 
-        // Head pose at predicted_display_time, expressed in the reference
-        // space (LOCAL by default). Identity in window/offscreen modes.
-        // Layers needing head-locked placement use this directly. Apps
-        // wanting head pose at arbitrary times should locate the VIEW
-        // space (exposed via XrBackend::oxr_handles().view_space) at
-        // their chosen XrTime.
-        Pose3D head_pose{};
-        bool head_pose_valid = false;
+        // Head pose at predicted_display_time in the session's reference
+        // space. nullopt on tracking loss or non-XR modes.
+        std::optional<Pose3D> head_pose;
 
         // Binary semaphores threaded into the compositor's submit.
         // VK_NULL_HANDLE means none needed (kOffscreen).

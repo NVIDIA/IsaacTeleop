@@ -17,11 +17,9 @@ namespace viz
 class RenderTarget;
 class VizSession;
 
-// Standard mapping from ViewInfo::viewport to vkCmdSetViewport: origin
-// top-left, depth 0..1, no y-flip. Layers call this once per view in
-// record() before issuing draws. Layer authors should NOT bind scissor
-// — the compositor pre-binds it for tile isolation in window mode and
-// per-eye composition layers in XR.
+// Maps ViewInfo::viewport → vkCmdSetViewport (origin top-left, depth
+// [0,1], no y-flip). Layers call this once per view before drawing.
+// Layer authors must NOT bind scissor — compositor pre-binds it.
 inline void bind_view_viewport(VkCommandBuffer cmd, const ViewInfo& view)
 {
     VkViewport vp{};
@@ -34,25 +32,10 @@ inline void bind_view_viewport(VkCommandBuffer cmd, const ViewInfo& view)
     vkCmdSetViewport(cmd, 0, 1, &vp);
 }
 
-// Abstract base class for content rendered by Televiz's compositor.
-//
-// A layer represents one piece of GPU content drawn into the active render
-// pass. The compositor calls record() with the active command buffer (after
-// vkCmdBeginRenderPass) and the per-view parameters; subclasses bind their
-// pipeline / descriptor sets and issue draw calls.
-//
-// Subclassing contract:
-//   - record() may issue any draws that fit inside the active render pass
-//     (RGBA8_SRGB color + D32_SFLOAT depth, single-sample). It MUST NOT
-//     end / re-begin the render pass and MUST NOT submit work itself.
-//   - The compositor calls record() once per frame in insertion order and
-//     skips invisible layers (is_visible() == false).
-//   - Subclasses may safely cache per-target Vulkan resources keyed off the
-//     RenderTarget handle, but must rebuild them if the target changes
-//     (e.g. resolution change).
-//
-// LayerBase has no virtual init/destroy; resource lifetime is the
-// subclass's concern. The compositor only ever calls record().
+// Abstract layer drawn into the compositor's render pass (RGBA8_SRGB
+// color + D32_SFLOAT depth, single-sample). record() issues draw calls;
+// it must NOT end the render pass or submit. Resource lifetime is the
+// subclass's concern — compositor only ever calls record().
 class LayerBase
 {
 public:
@@ -62,34 +45,15 @@ public:
     LayerBase(const LayerBase&) = delete;
     LayerBase& operator=(const LayerBase&) = delete;
 
-    // Issue draw commands inside the currently-active render pass.
-    //   cmd:    command buffer with render pass active and the layer's
-    //           SCISSOR pre-bound by the compositor.
-    //   views:  per-view parameters (1 in window/offscreen, 2 in XR stereo).
-    //           Each entry's `viewport` is the rect this layer must draw
-    //           into for that view — bind it via vkCmdSetViewport (use
-    //           viz::bind_view_viewport) before drawing.
-    //   target: framebuffer handles. Read-only.
-    //
-    // Contract:
-    //   - DO    bind viewport per view via vkCmdSetViewport.
-    //   - DO NOT bind scissor — the compositor sets it. Overriding scissor
-    //           breaks tile isolation in window mode and per-eye comp
-    //           layers in XR.
+    // Issue draws inside the active render pass.
+    //   views:  1 entry in window/offscreen, 2 in kXr stereo. Each
+    //           entry's viewport is this layer's rect for that view —
+    //           bind it via viz::bind_view_viewport.
+    //   DO NOT bind scissor; compositor pre-binds it.
     virtual void record(VkCommandBuffer cmd, const std::vector<ViewInfo>& views, const RenderTarget& target) = 0;
 
-    // Per-frame wait wiring for layers that synchronize against CUDA
-    // (or other external) producers via a Vulkan timeline semaphore.
-    // VizCompositor concatenates these across all visible layers and
-    // feeds them into vkQueueSubmit (with a chained
-    // VkTimelineSemaphoreSubmitInfo for the values).
-    // Default: empty (no external sync).
-    //
-    // No signal semaphores: layers that need producer↔consumer
-    // ping-pong solve it at the layer level (e.g. QuadLayer's mailbox
-    // owns enough buffers that producer writes never collide with
-    // in-flight Vulkan reads, so the compositor never has to signal
-    // back to the producer).
+    // Timeline waits to thread into vkQueueSubmit (e.g. CUDA-Vulkan
+    // producer fences). Compositor concatenates across visible layers.
     struct WaitSemaphore
     {
         VkSemaphore semaphore = VK_NULL_HANDLE;
@@ -102,11 +66,7 @@ public:
         return {};
     }
 
-    // Optional aspect ratio (width / height) hint for window-mode tiling.
-    // The compositor uses this to compute the layer's content rect inside
-    // its tile so content keeps its aspect when the tile doesn't match.
-    // Returning nullopt means "no preferred aspect — fill the tile". XR
-    // mode ignores this (per-eye viewports come from the OpenXR runtime).
+    // Window-mode aspect-fit hint. nullopt = fill the tile; kXr ignores.
     virtual std::optional<float> aspect_ratio() const noexcept
     {
         return std::nullopt;
@@ -114,25 +74,17 @@ public:
 
     const std::string& name() const noexcept;
 
-    // Non-owning back-pointer to the session this layer was attached to
-    // via VizSession::add_layer. Null before attach (layers may be
-    // constructed standalone in tests). Layers reach through this for
-    // session-immutable state — display mode, XR handles, time
-    // conversion. The session destroys its layers before destroying
-    // itself, so this pointer is valid for the lifetime of any record()
-    // call invoked through the session.
+    // Non-owning back-pointer set by VizSession::add_layer. Null before
+    // attach (layers may be constructed standalone for tests). Layers
+    // reach through this for display mode, XR handles, time conversion.
     const VizSession* session() const noexcept
     {
         return session_;
     }
 
-    // Visibility flag is atomic so it can be toggled from any thread (UI
-    // callback, Python control loop, hot-key handler) without racing the
-    // compositor's per-frame is_visible() check on the render thread. Uses
-    // relaxed ordering — the flag itself is the only state being published,
-    // there's no other memory to synchronize through it. A toggle that
-    // races a frame may be observed by the next frame instead of this one,
-    // which is the desired semantics.
+    // Atomic so toggles from any thread don't race the per-frame
+    // is_visible() check. Relaxed: a toggle that races a frame may be
+    // observed on the next frame instead — desired semantics.
     bool is_visible() const noexcept;
     void set_visible(bool visible) noexcept;
 

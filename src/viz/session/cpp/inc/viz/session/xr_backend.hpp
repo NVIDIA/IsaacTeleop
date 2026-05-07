@@ -18,22 +18,13 @@ namespace viz
 class OpenXrInstance;
 
 // OpenXR display backend. Owns the OpenXrInstance + OpenXrSession +
-// per-view XrSwapchain handles, plus a single intermediate RenderTarget
-// the compositor writes into.
+// per-view XrSwapchain handles, plus one wide intermediate RenderTarget
+// the compositor writes into; record_post_render_pass blits per-eye
+// regions into per-eye swapchain images.
 //
-// Phase 1 = monoscopic-into-stereo: the compositor renders ONE image
-// at one eye's recommended resolution into the intermediate; we blit
-// it into BOTH eyes' XR swapchain images and submit one composition
-// layer with two ProjectionViews (one per eye, each with its own
-// pose / FOV from xrLocateViews, both subImages pointing at their
-// own swapchain). True per-eye rendering (parallax, ProjectionLayer
-// with depth) lands with Phase 2 — at that point the intermediate
-// becomes per-view and record_post_render_pass blits view-by-view.
-//
-// Two-phase init: XrBackend's constructor creates the OpenXrInstance
-// (so VkContext can use it for xrCreateVulkanInstanceKHR/DeviceKHR),
-// and init() creates the session + swapchains + RT after VkContext
-// is ready. VizSession orchestrates the order.
+// Two-phase init: ctor creates OpenXrInstance (so VkContext can use the
+// XR-bound vulkan creation path), init() creates the session +
+// swapchains + RT once VkContext is ready. VizSession orchestrates.
 class XrBackend final : public DisplayBackend
 {
 public:
@@ -57,9 +48,8 @@ public:
     explicit XrBackend(Config config);
     ~XrBackend() override;
 
-    // For VkContext::Config — VkContext's XR-bound init path needs
-    // the raw XR handles. Available after construction (XrInstance is
-    // created by the ctor); session-level handles are nullptr until init().
+    // Raw XR handles for VkContext::Config's XR-bound init path. Both
+    // available after ctor; session-level state isn't ready until init().
     XrInstance xr_instance_handle() const noexcept;
     XrSystemId xr_system_id() const noexcept;
 
@@ -81,41 +71,36 @@ public:
     bool should_close() const override;
     Resolution current_extent() const override;
 
-    // OpenXR session handles for app-side TeleopSession sharing. The
-    // returned xrGetInstanceProcAddr is the loader-level entry, valid
-    // for the lifetime of this backend.
+    // OpenXR handles for app-side session sharing (e.g. TeleopSession).
+    // xrGetInstanceProcAddr is the loader-level entry, valid for the
+    // backend's lifetime. view_space is the head's reference space —
+    // locate it against reference_space at any XrTime to get head pose.
     struct OxrHandles
     {
         XrInstance instance = XR_NULL_HANDLE;
         XrSession session = XR_NULL_HANDLE;
         XrSpace reference_space = XR_NULL_HANDLE;
-        // VIEW reference space — locate against reference_space at any
-        // XrTime to get the head pose. Apps doing head-locked / lazy-lock
-        // placement use this instead of computing pose from per-eye views.
         XrSpace view_space = XR_NULL_HANDLE;
         PFN_xrGetInstanceProcAddr xrGetInstanceProcAddr = nullptr;
     };
     OxrHandles oxr_handles() const noexcept;
 
-    // Underlying OpenXrInstance — exposed for time-conversion forwarding
-    // and (eventually) richer extension queries. May be null between
-    // ctor and session creation; never null in steady state.
+    // Underlying wrappers — VizSession reaches in for time conversion
+    // and head-pose forwarding. Null before init() / after destroy().
     const OpenXrInstance* xr_instance() const noexcept
     {
         return xr_instance_.get();
     }
+    const OpenXrSession* xr_session() const noexcept
+    {
+        return session_.get();
+    }
 
 private:
-    // Per-view OpenXR swapchain. Bundle, not a class — see decision
-    // notes in the M5 design discussion: this state is tightly coupled
-    // to XrBackend's frame loop and has no independent lifetime.
-    //
-    // `acquired` tracks whether xrAcquireSwapchainImage / WaitSwapchainImage
-    // succeeded for this frame. Set true after a successful wait, false
-    // after release. Lets abort_frame / the in-flight scope guard release
-    // ONLY the swapchains that actually got acquired — partial
-    // acquisition (e.g. depth eye 0 throws after color eye 0/1 succeed)
-    // no longer leaks acquired-but-unreleased images.
+    // Per-view OpenXR swapchain. `acquired` is set immediately after
+    // xrAcquireSwapchainImage success (before wait); cleared after
+    // release. Lets abort/cleanup release ONLY images we actually got,
+    // even on partial-acquire mid-loop.
     struct ViewSwapchain
     {
         XrSwapchain handle = XR_NULL_HANDLE;
@@ -133,14 +118,11 @@ private:
     void destroy_swapchains();
     void create_intermediate();
 
-    // Release any swapchains marked `acquired` (clears the flag). Safe
-    // on partially-acquired state (used by abort_frame and the
-    // begin_frame scope guard for cleanup on exception).
+    // Release every swapchain currently flagged `acquired`.
     void release_acquired_swapchains() noexcept;
     // Submit an empty xrEndFrame to balance an outstanding xrBeginFrame.
-    // Idempotent: marks frame_began_ = false BEFORE the runtime call so
-    // re-entry via stacked unwinds is impossible. Swallows runtime
-    // errors (caller may already be unwinding).
+    // Idempotent. Clears frame_began_ before the runtime call so a
+    // stacked unwind can't re-enter; swallows runtime errors.
     void abort_in_flight_frame() noexcept;
 
     Config config_;
@@ -153,21 +135,19 @@ private:
     int64_t swapchain_format_ = 0; // VkFormat as int64 (XR's typing)
     int64_t depth_swapchain_format_ = 0; // 0 = depth submission disabled
     std::vector<ViewSwapchain> view_swapchains_;
-    // Per-eye depth swapchains, present iff XR_KHR_composition_layer_depth
-    // is available on the runtime. Same dimensions as the color swapchains;
-    // per frame we copy the intermediate's depth attachment into them and
-    // chain XrCompositionLayerDepthInfoKHR into each ProjectionView.next
-    // for CloudXR-style server-side reprojection.
+    // Per-eye depth swapchains, allocated only when the runtime supports
+    // XR_KHR_composition_layer_depth. record_post_render_pass copies the
+    // intermediate's depth into them and end_frame chains them via
+    // XrCompositionLayerDepthInfoKHR for runtime reprojection.
     std::vector<ViewSwapchain> depth_swapchains_;
     bool depth_layer_enabled_ = false;
 
-    // Per-frame state captured in begin_frame, consumed in
-    // end_frame / abort_frame. Only valid when frame_began_ == true.
+    // Per-frame state — valid only while frame_began_ == true.
     XrFrameState last_frame_state_{ XR_TYPE_FRAME_STATE };
     XrViewState last_view_state_{ XR_TYPE_VIEW_STATE };
     std::vector<XrView> last_views_;
     bool frame_began_ = false;
-    bool frame_renderable_ = false; // false iff shouldRender=0 or locate failed
+    bool frame_renderable_ = false; // false on shouldRender=0 / locate failure
 };
 
 } // namespace viz

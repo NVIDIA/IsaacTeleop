@@ -5,23 +5,11 @@
 #include <viz/session/xr_backend.hpp>
 #include <viz/xr/openxr_instance.hpp>
 
-#define XR_USE_GRAPHICS_API_VULKAN
-// On Windows, openxr_platform.h's XR_USE_PLATFORM_WIN32 sections reference
-// LARGE_INTEGER and IUnknown — types only declared after <Windows.h> +
-// <Unknwn.h> (the latter is NOT pulled in by Windows.h when
-// WIN32_LEAN_AND_MEAN is set, which oxr_utils enables transitively).
-// Mirror the include order oxr_time.hpp uses so this TU still compiles
-// when oxr_utils' INTERFACE defines reach us via viz_session's link to
-// oxr::oxr_utils. Skipped on non-Win32 — the platform header gates
-// those sections behind XR_USE_PLATFORM_WIN32 which only oxr_utils sets.
-#if defined(XR_USE_PLATFORM_WIN32)
-#    include <Unknwn.h>
-#    include <Windows.h>
-#endif
+#include <viz/core/openxr_platform_compat.hpp>
+
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
-#include <openxr/openxr_platform.h>
 
 #include <algorithm>
 #include <cmath>
@@ -70,9 +58,9 @@ void transition_image(VkCommandBuffer cmd,
 
 XrBackend::XrBackend(Config config) : config_(std::move(config))
 {
-    // Create the OpenXR instance immediately — VkContext needs the raw
+    // Create the OpenXR instance up front — VkContext needs the raw
     // handles in its Config to take the XR-bound init path. Session,
-    // swapchains, and intermediate are deferred to init().
+    // swapchains, RT come later in init().
     xr_instance_ =
         std::make_unique<OpenXrInstance>(config_.app_name, config_.extra_xr_extensions, config_.system_wait_seconds);
 }
@@ -108,11 +96,8 @@ void XrBackend::init(const VkContext& ctx, Resolution /*preferred_size*/)
         session_ = std::make_unique<OpenXrSession>(*xr_instance_, ctx, config_.session_config);
         swapchain_format_ = pick_swapchain_format();
         create_swapchains();
-        // Depth submission is opt-in: only when the runtime advertised
-        // XR_KHR_composition_layer_depth AND offers a usable depth
-        // format. CloudXR uses depth for server-side reprojection;
-        // runtimes without the extension just receive the projection
-        // layer with no depth_info.
+        // Depth submission requires both the extension AND a usable
+        // depth format (D32_SFLOAT, matching RenderTarget's depth).
         depth_layer_enabled_ = xr_instance_->has_depth_composition_layer();
         if (depth_layer_enabled_)
         {
@@ -134,9 +119,8 @@ void XrBackend::init(const VkContext& ctx, Resolution /*preferred_size*/)
 
 void XrBackend::destroy()
 {
-    // Order matters: tear down rendering resources first, then session,
-    // then instance. The XR runtime owns the swapchain images so we
-    // only need to xrDestroySwapchain (not vkDestroyImage) for those.
+    // Order: rendering resources → session → instance. The runtime owns
+    // swapchain images, so xrDestroySwapchain is enough (no vkDestroyImage).
     render_target_.reset();
     destroy_swapchains();
     session_.reset();
@@ -168,9 +152,9 @@ void XrBackend::release_acquired_swapchains() noexcept
 
 void XrBackend::abort_in_flight_frame() noexcept
 {
-    // Idempotent and exception-proof: clear frame_began_ BEFORE the
-    // xrEndFrame call so a throw in the runtime can't recursively
-    // re-enter via a destructor (or another abort path).
+    // Clear frame_began_ BEFORE end_frame so a throw can't recurse via
+    // another abort path. Best-effort: if the runtime rejects this
+    // empty endFrame too, swallow — caller is already unwinding.
     if (!frame_began_ || session_ == nullptr)
     {
         return;
@@ -184,8 +168,6 @@ void XrBackend::abort_in_flight_frame() noexcept
     }
     catch (...)
     {
-        // Best-effort. If the runtime is in a bad state we can't fix it
-        // from here; the caller is typically already unwinding.
     }
 }
 
@@ -215,9 +197,7 @@ void XrBackend::destroy_swapchains()
 
 int64_t XrBackend::pick_swapchain_format() const
 {
-    // Enumerate runtime-supported formats and prefer sRGB-class color
-    // formats matching the intermediate RT (which renders in linear
-    // and presents through an SRGB color attachment).
+    // Prefer sRGB color formats — matches the intermediate RT.
     uint32_t count = 0;
     check_xr(xrEnumerateSwapchainFormats(session_->session(), 0, &count, nullptr), "xrEnumerateSwapchainFormats(count)");
     if (count == 0)
@@ -241,18 +221,15 @@ int64_t XrBackend::pick_swapchain_format() const
             return pref;
         }
     }
-    // Fall back: take whatever the runtime offers first. Rendering may
-    // look wrong (no sRGB encode) but the protocol stays valid.
+    // No preferred format available; take what the runtime offers.
     return formats.front();
 }
 
 int64_t XrBackend::pick_depth_swapchain_format() const
 {
-    // Must match RenderTarget::depth_format() exactly — vkCmdCopyImage
-    // requires identical formats for depth aspects (no blit fallback
-    // for D/S formats). RenderTarget defaults to D32_SFLOAT; if the
-    // runtime doesn't offer it we return 0 and depth submission is
-    // disabled (projection layer goes out without depth_info).
+    // Must match RenderTarget::depth_format(): vkCmdCopyImage requires
+    // identical formats for depth (no blit fallback for D/S). Returning
+    // 0 disables depth submission.
     uint32_t count = 0;
     if (xrEnumerateSwapchainFormats(session_->session(), 0, &count, nullptr) != XR_SUCCESS || count == 0)
     {
@@ -343,14 +320,10 @@ void XrBackend::create_swapchains()
 
 void XrBackend::create_intermediate()
 {
-    // Wide side-by-side intermediate: each view renders into its own
-    // half (or N-th if more views exist). record_post_render_pass
-    // splits the result and blits per-view region into per-view
-    // swapchain images. This lets QuadLayer iterate views with
-    // per-eye MVPs and produce real stereo content (with parallax).
-    // For QuadLayer in fullscreen mode the per-view loop also runs
-    // but each iteration just blits the texture into its half — the
-    // result still matches the previous mono-into-stereo behavior.
+    // Wide side-by-side intermediate (sum of per-view widths × max height).
+    // Layers iterate frame.views, each rendering into its assigned x-offset
+    // region; record_post_render_pass blits each region to its eye's
+    // swapchain image.
     const auto& views = session_->view_configuration_views();
     uint32_t total_w = 0;
     uint32_t max_h = 0;
@@ -366,8 +339,7 @@ void XrBackend::create_intermediate()
 
 namespace
 {
-// Convert XrPosef to a glm::mat4 representing the eye-to-world
-// transform (i.e., the inverse is the view matrix used for rendering).
+// XrPosef → eye-to-world matrix. Inverse is the view matrix.
 glm::mat4 pose_to_world_matrix(const XrPosef& pose)
 {
     const glm::quat q(pose.orientation.w, pose.orientation.x, pose.orientation.y, pose.orientation.z);
@@ -375,13 +347,9 @@ glm::mat4 pose_to_world_matrix(const XrPosef& pose)
     return glm::translate(glm::mat4(1.0f), p) * glm::mat4_cast(q);
 }
 
-// Build the per-eye projection matrix from XR's signed-angle FOV.
-// Conventions follow xr_plane_renderer (holohub):
-//   - frustumRH_ZO = right-handed view, [0, 1] depth (Vulkan)
-//   - bottom = nearZ * tan(angleUp), top = nearZ * tan(angleDown):
-//     swapped because XR is Y-up and Vulkan clip is Y-down — the
-//     swap effectively flips Y in the projection so XR-world +Y ends
-//     up at Vulkan-clip -Y (top of screen).
+// Per-eye projection from XR's signed-angle FOV. frustumRH_ZO gives
+// right-handed view + [0,1] depth (Vulkan). top/bottom are swapped
+// (angleUp → bottom) so XR-world +Y maps to Vulkan-clip −Y.
 glm::mat4 fov_to_projection_matrix(const XrFovf& fov, float near_z, float far_z)
 {
     const float left = near_z * std::tan(fov.angleLeft);
@@ -431,28 +399,29 @@ std::optional<DisplayBackend::Frame> XrBackend::begin_frame(int64_t /*ignored*/)
         }
     } in_flight_guard{ this };
 
-    if (!last_frame_state_.shouldRender)
+    // Skip-path xrEndFrame: clear flags + dismiss guard BEFORE the call so
+    // a throw propagates cleanly without abort_in_flight_frame retrying on
+    // a session that just rejected the first attempt. Matches the main
+    // end_frame ordering.
+    auto submit_empty_end_frame = [&]()
     {
-        // Runtime is asking us to skip rendering this frame (e.g. headset
-        // blacked out / app not focused). Submit an empty xrEndFrame to
-        // balance xrBeginFrame. Order is critical: dismiss / clear state
-        // ONLY after end_frame returns success. If end_frame throws, the
-        // in_flight_guard still runs and abort_in_flight_frame retries
-        // (with try/catch), so state is consistent on every path.
-        session_->end_frame(last_frame_state_.predictedDisplayTime, {});
         frame_began_ = false;
         in_flight_guard.dismissed = true;
+        session_->end_frame(last_frame_state_.predictedDisplayTime, {});
+    };
+
+    if (!last_frame_state_.shouldRender)
+    {
+        // Runtime asks us to skip rendering (headset blacked out, app
+        // not focused). Empty xrEndFrame to balance xrBeginFrame.
+        submit_empty_end_frame();
         return std::nullopt;
     }
 
     if (!session_->locate_views(last_frame_state_.predictedDisplayTime, &last_view_state_, &last_views_))
     {
-        // Runtime can't locate views (tracking lost). Submit an empty
-        // frame to keep the protocol balanced. Same ordering as above:
-        // end_frame first, then dismiss.
-        session_->end_frame(last_frame_state_.predictedDisplayTime, {});
-        frame_began_ = false;
-        in_flight_guard.dismissed = true;
+        // Tracking lost; submit empty frame to balance.
+        submit_empty_end_frame();
         return std::nullopt;
     }
 
@@ -464,13 +433,10 @@ std::optional<DisplayBackend::Frame> XrBackend::begin_frame(int64_t /*ignored*/)
     XrSpaceLocation head_loc{ XR_TYPE_SPACE_LOCATION };
     const bool head_ok = session_->locate_view_space(last_frame_state_.predictedDisplayTime, &head_loc);
 
-    // Acquire+wait one image from each per-view swapchain (color +
-    // optional depth). `acquired` is flipped immediately after the
-    // acquire call returns success — the spec requires every acquire
-    // to be paired with a release regardless of whether the wait ran.
-    // Setting acquired=true between acquire and wait means a wait
-    // that throws still leaves the runtime accounting consistent for
-    // the in_flight_guard's release pass.
+    // Acquire+wait per swapchain (color + optional depth). `acquired`
+    // is set immediately after acquire (not wait) — the spec requires
+    // every acquire to be released regardless of wait outcome, so a
+    // throwing wait must still surface to the cleanup pass.
     auto acquire_pair = [](ViewSwapchain& sw, const char* what_a, const char* what_w)
     {
         XrSwapchainImageAcquireInfo acquire_info{ XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO };
@@ -490,11 +456,8 @@ std::optional<DisplayBackend::Frame> XrBackend::begin_frame(int64_t /*ignored*/)
     }
     frame_renderable_ = true;
 
-    // Per-eye views populated from xrLocateViews. Each view gets its
-    // own region of the wide intermediate (left half for view 0, right
-    // half for view 1, ...) and its own view + projection matrices.
-    // QuadLayer iterates views and either renders fullscreen per-eye
-    // (legacy mode) or uses the MVP for true 3D placement.
+    // Per-eye ViewInfo: each gets its own region of the wide
+    // intermediate (x_offset accumulates) plus view+proj matrices.
     const auto& view_cfgs = session_->view_configuration_views();
     Frame f{};
     f.views.assign(view_swapchains_.size(), ViewInfo{});
@@ -521,13 +484,11 @@ std::optional<DisplayBackend::Frame> XrBackend::begin_frame(int64_t /*ignored*/)
             glm::quat(head_loc.pose.orientation.w, head_loc.pose.orientation.x, head_loc.pose.orientation.y,
                       head_loc.pose.orientation.z),
         };
-        f.head_pose_valid = true;
     }
     f.wait_before_render = VK_NULL_HANDLE;
     f.signal_after_render = VK_NULL_HANDLE;
     f.backend_token = static_cast<uint64_t>(last_frame_state_.predictedDisplayTime);
-    // Frame is fully built and the swapchains are acquired — hand the
-    // protocol-balance baton off to the compositor's FrameGuard.
+    // Hand protocol-balance off to the compositor's FrameGuard.
     in_flight_guard.dismissed = true;
     return f;
 }
@@ -543,9 +504,8 @@ const RenderTarget& XrBackend::render_target() const
 
 namespace
 {
-// Image barrier helper that takes the aspect mask explicitly — the
-// shared transition_image at file scope hardcodes COLOR_BIT, which
-// is wrong for depth attachments.
+// transition_image variant with an explicit aspect mask (the file-scope
+// helper hardcodes COLOR_BIT).
 void transition_image_aspect(VkCommandBuffer cmd,
                              VkImage image,
                              VkImageAspectFlags aspect,
@@ -608,20 +568,15 @@ void XrBackend::record_post_render_pass(VkCommandBuffer cmd, const Frame& frame)
         vkCmdBlitImage(cmd, src, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
                        &region, VK_FILTER_LINEAR);
 
-        // OpenXR expects the swapchain image in COLOR_ATTACHMENT_OPTIMAL
-        // when xrEndFrame samples it for compositing.
+        // OpenXR expects COLOR_ATTACHMENT_OPTIMAL at xrEndFrame.
         transition_image(cmd, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                          VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_COLOR_ATTACHMENT_READ_BIT,
                          VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
     }
 
-    // Per-eye depth copy for XR_KHR_composition_layer_depth. Same
-    // per-eye region split as color, but vkCmdCopyImage (not blit —
-    // depth/stencil isn't blittable) since formats and dimensions
-    // match (RT uses D32_SFLOAT, depth swapchain enforced D32_SFLOAT
-    // in pick_depth_swapchain_format, and the per-eye region matches
-    // recommendedImageRect). CloudXR consumes this for server-side
-    // reprojection / late-stage warp.
+    // Per-eye depth copy for XR_KHR_composition_layer_depth. Copy not
+    // blit — depth/stencil isn't blittable; src/dst formats are forced
+    // identical via pick_depth_swapchain_format.
     if (depth_layer_enabled_)
     {
         const VkImage depth_src = render_target_->depth_image();
@@ -647,10 +602,8 @@ void XrBackend::record_post_render_pass(VkCommandBuffer cmd, const Frame& frame)
             vkCmdCopyImage(cmd, depth_src, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst,
                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-            // Spec for XR_KHR_composition_layer_depth doesn't mandate
-            // a specific layout at xrEndFrame, but DEPTH_STENCIL_READ_ONLY
-            // is the conventional "runtime samples this" layout and
-            // matches what Monado / CloudXR expect.
+            // DEPTH_STENCIL_READ_ONLY is the conventional "runtime
+            // samples this" layout for the depth-info subImage.
             transition_image_aspect(cmd, dst, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                     VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT,
                                     VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -672,11 +625,9 @@ void XrBackend::end_frame(const Frame& /*frame*/)
         return;
     }
 
-    // Release the swapchain images we acquired in begin_frame
-    // (color + optional depth, in the same order they were acquired).
-    // Clear `acquired` ONLY after release returns success — if release
-    // throws, abort_frame's release pass should still see the image
-    // as acquired and retry.
+    // Release acquired swapchains. Clear `acquired` AFTER release —
+    // if release throws, abort_frame's pass needs to see them flagged
+    // and retry.
     for (auto& sw : view_swapchains_)
     {
         if (!sw.acquired)
@@ -698,11 +649,9 @@ void XrBackend::end_frame(const Frame& /*frame*/)
         sw.acquired = false;
     }
 
-    // Per-eye depth_info (chained via .next on each ProjectionView).
-    // Stored alongside proj_views so pointers stay valid through
-    // xrEndFrame. min/maxDepth are the swapchain value range (Vulkan
-    // [0,1]); near/farZ must match the projection matrix kNearZ/kFarZ
-    // since the runtime uses them to reconstruct world-space depth.
+    // Per-eye depth_info, chained via .next on each ProjectionView.
+    // Storage outlives xrEndFrame. nearZ/farZ MUST match the projection
+    // matrix; runtime uses them to reconstruct world-space depth.
     std::vector<XrCompositionLayerDepthInfoKHR> depth_infos;
     if (depth_layer_enabled_)
     {
@@ -722,9 +671,8 @@ void XrBackend::end_frame(const Frame& /*frame*/)
         }
     }
 
-    // Build per-eye projection views. Each references its own
-    // swapchain (rendering blitted into all of them) at the full
-    // recommended rect.
+    // Per-eye projection views referencing their own swapchain at the
+    // full recommended rect.
     std::vector<XrCompositionLayerProjectionView> proj_views(
         view_swapchains_.size(), XrCompositionLayerProjectionView{ XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW });
     for (size_t i = 0; i < view_swapchains_.size(); ++i)
@@ -743,10 +691,8 @@ void XrBackend::end_frame(const Frame& /*frame*/)
     }
 
     XrCompositionLayerProjection projection_layer{ XR_TYPE_COMPOSITION_LAYER_PROJECTION };
-    // Non-opaque env blend modes (passthrough / additive) need the
-    // runtime to honor our alpha channel; otherwise the projection
-    // layer is treated as fully opaque and passthrough never shows.
-    // Premultiplied bit not set — our shaders write straight alpha.
+    // Non-opaque env modes need the alpha-blend layer flag for the
+    // runtime to honor our alpha channel. Straight alpha (not premul).
     const bool is_passthrough = session_->environment_blend_mode() != XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
     projection_layer.layerFlags = is_passthrough ? XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT : 0;
     projection_layer.space = session_->reference_space();
@@ -756,14 +702,8 @@ void XrBackend::end_frame(const Frame& /*frame*/)
     const std::vector<const XrCompositionLayerBaseHeader*> layers = {
         reinterpret_cast<const XrCompositionLayerBaseHeader*>(&projection_layer),
     };
-    // Clear protocol-balance state BEFORE the xrEndFrame call. This is the
-    // single attempt that closes the begin/end pair; if it throws the
-    // compositor's outer FrameGuard runs abort_frame, which would
-    // otherwise see frame_began_=true and try a SECOND xrEndFrame on a
-    // session that just rejected the first one (likely fatal session
-    // loss — second call doubles the noise without helping). With the
-    // flag cleared first, abort_frame's early-return on !frame_began_
-    // makes the unwind a no-op and the original throw propagates cleanly.
+    // Clear flags BEFORE end_frame so a throw doesn't trigger a second
+    // xrEndFrame from the compositor's FrameGuard → abort_frame path.
     frame_began_ = false;
     frame_renderable_ = false;
     session_->end_frame(last_frame_state_.predictedDisplayTime, layers);
@@ -771,13 +711,7 @@ void XrBackend::end_frame(const Frame& /*frame*/)
 
 void XrBackend::abort_frame(const Frame& /*frame*/)
 {
-    // Compositor's submit threw before / during recording. The frame
-    // was begun (xrBeginFrame happened in begin_frame) so we MUST
-    // submit some xrEndFrame to balance the protocol — otherwise the
-    // runtime gets stuck. Per-swapchain `acquired` flags drive the
-    // release so partial-acquire state (e.g. color acquired, depth
-    // never made it) gets cleaned up correctly. Idempotent: a frame
-    // already aborted by the in-flight guard is a no-op.
+    // Idempotent — no-op if the in-flight guard already aborted.
     abort_in_flight_frame();
 }
 

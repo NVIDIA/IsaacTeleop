@@ -23,35 +23,21 @@ namespace viz
 
 class VkContext;
 
-// QuadLayer: renders a CUDA-fed 2D texture as a fullscreen quad.
+// QuadLayer: renders a CUDA-fed RGBA8 texture, either fullscreen
+// (window/offscreen — quad fills the layer's tile) or as a world-space
+// rectangle (kXr — Config::placement required).
 //
-// Owns kSlotCount=3 DeviceImages plus the graphics-pipeline state to
-// sample any of them (one VkSampler, one VkPipeline, one descriptor
-// set per slot). The slots form a mailbox:
-//
-//   submit() picks a "free" slot (one that is neither the most recent
-//   publish nor the slot the renderer is currently sampling), runs
-//   cudaMemcpyAsync into it, signals cuda_done_writing, and atomic-
-//   exchanges the "latest" pointer to it. The previous "latest" slot
-//   becomes free.
-//
-//   record() atomic-exchanges "latest" into "in_use" (taking it for
-//   this frame's draw); the previous "in_use" slot becomes free. The
-//   draw waits on cuda_done_writing of the slot it just took.
-//
-// Net result: producer can submit at any rate. The renderer always
-// samples the most recently completed publish, and there is always
-// at least one slot free for the producer to write — it never
-// collides with a buffer the renderer is currently sampling.
+// Mailbox: kSlotCount=3 DeviceImages. submit() picks a slot that's
+// neither the latest publish nor in use, copies pixels in, signals
+// cuda_done_writing, and atomic-exchanges latest. record() exchanges
+// latest into in_use and draws, waiting on the slot's semaphore.
+// Producer never collides with the slot the renderer is sampling;
+// renderer always sees the most recent completed publish.
 //
 // Correctness depends on VizCompositor::render() being synchronous
-// (frame_sync_->wait() at end of frame). Multi-frame-in-flight
-// would require in_use_ to become per-in-flight-frame.
+// (single frame in flight). Multi-frame would need per-frame in_use.
 //
-// Memory cost: ~width*height*bpp*3 bytes (e.g. 24 MB at 1080p RGBA8).
-//
-// Fullscreen-blit / kRGBA8 only. Placement transforms and other
-// formats land with the XR backend.
+// Memory: ~3 × width × height × bpp (24 MB at 1080p RGBA8).
 class QuadLayer : public LayerBase
 {
 public:
@@ -63,30 +49,18 @@ public:
         Resolution resolution{};
         PixelFormat format = PixelFormat::kRGBA8;
 
-        // 3D placement of the quad in the session's reference space
-        // (OpenXR LOCAL or STAGE, depending on session config).
+        // 3D placement in the session's reference space (OpenXR LOCAL
+        // or STAGE). size_meters is width × height; both components
+        // must be > 0 (validated at construction).
         struct Placement
         {
             Pose3D pose{};
-            // Width × height of the rendered rectangle in reference-
-            // space meters. Both components must be > 0; rejected at
-            // construction otherwise.
             glm::vec2 size_meters{ 0.0f, 0.0f };
         };
 
-        // Window / offscreen modes IGNORE this — those backends render
-        // a viewport-filling image (fullscreen NDC blit cropped to the
-        // layer's tile by the compositor's per-layer scissor).
-        //
-        // XR mode REQUIRES placement to be set. A fullscreen quad
-        // stretched across an eye region in stereo XR is "head-locked
-        // at far plane" — never the right thing for camera planes or
-        // HUDs. record() throws std::logic_error on XR + nullopt so
-        // the misuse surfaces on first frame.
-        //
-        // When set: rendered as a world-space rectangle of size
-        // (size_meters.x × size_meters.y) at pose, using each eye's
-        // view + projection.
+        // window/offscreen ignore this. kXr REQUIRES it: stretching a
+        // fullscreen quad across stereo eyes is never the right thing.
+        // record() throws std::logic_error on kXr + nullopt.
         std::optional<Placement> placement;
     };
 
@@ -98,43 +72,30 @@ public:
     ~QuadLayer() override;
     void destroy();
 
-    // Threading contract: submit() is the producer side; record() (+
-    // get_wait_semaphores) is the consumer side. They may run on
-    // separate threads. Multiple concurrent producers on the same
-    // QuadLayer are NOT supported — use one QuadLayer per producer.
+    // submit() = producer side, record() = consumer side; may run on
+    // separate threads. NOT safe with multiple concurrent producers
+    // (one QuadLayer per producer).
     //
-    // src.space must be kDevice and src dimensions/format must match
-    // the layer. The wait/copy/signal sequence runs on `stream`
-    // (default: the default stream); pass the producer's stream so
-    // the signal lands after the producer's prior writes on the same
-    // stream.
-    //
-    // Throws std::invalid_argument on validation failure;
-    // std::runtime_error on CUDA failure;
-    // std::logic_error if called after destroy().
+    // src.space must be kDevice; dims/format must match the layer.
+    // The copy + cuda_done_writing signal run on `stream` — pass the
+    // producer's stream so the signal lands after its prior writes.
     void submit(const VizBuffer& src, cudaStream_t stream = 0);
 
-    // Binds pipeline + per-slot descriptor + draws a 3-vertex
-    // fullscreen quad. Skips the draw if no frame has been published
-    // yet (kSlotNone — render target keeps its clear value).
+    // Skips the draw before the first submit (slot kSlotNone) — RT
+    // keeps its clear value.
     void record(VkCommandBuffer cmd, const std::vector<ViewInfo>& views, const RenderTarget& target) override;
 
-    // Layer-side timeline wait: VizCompositor waits on this slot's
-    // cuda_done_writing before the fragment shader samples it.
+    // Timeline wait on the in-use slot's cuda_done_writing.
     std::vector<LayerBase::WaitSemaphore> get_wait_semaphores() const override;
 
-    // resolution().width / resolution().height. Drives aspect-fit
-    // letterbox in window mode; XR mode ignores it.
+    // Drives aspect-fit letterbox in window mode; ignored in kXr.
     std::optional<float> aspect_ratio() const noexcept override;
 
     Resolution resolution() const noexcept;
     PixelFormat format() const noexcept;
 
-    // Runtime placement update. Thread-safe relative to record() —
-    // the new placement is read on the next record() call and applied
-    // to that frame's MVP. No sync vs the producer-side submit().
-    // Pass nullopt to switch to fullscreen mode at runtime (only
-    // meaningful in window/offscreen — XR record() will throw).
+    // Atomic placement swap, thread-safe vs record(). nullopt switches
+    // to fullscreen mode (kXr will throw on next record).
     void set_placement(std::optional<Config::Placement> placement) noexcept;
     std::optional<Config::Placement> placement() const noexcept;
 
@@ -174,27 +135,16 @@ private:
     VkPipeline pipeline_ = VK_NULL_HANDLE;
 
     VkDescriptorPool descriptor_pool_ = VK_NULL_HANDLE;
-    // One descriptor set per slot, each binding the corresponding
-    // DeviceImage's sRGB view. record() picks the one for in_use_.
+    // One descriptor set per slot — record() binds the one for in_use_.
     std::array<VkDescriptorSet, kSlotCount> descriptor_sets_{};
 
-    // Mailbox state. Both atomic so producer and renderer can
-    // touch them without locks.
-    //
-    //   latest_:    most recently published slot. submit() stores
-    //               here on success; record() exchanges it into
-    //               in_use_ at frame start. kSlotNone before the
-    //               first submit().
-    //   in_use_:    slot the renderer is currently drawing from.
-    //               kSlotNone before the first frame that finds a
-    //               published slot. record() updates this.
+    // Mailbox: latest_ = most recent publish, in_use_ = slot the renderer
+    // is sampling. Atomic so producer and renderer share without locks.
+    // Both kSlotNone until the first submit() / first sampling record().
     std::atomic<uint8_t> latest_{ kSlotNone };
     std::atomic<uint8_t> in_use_{ kSlotNone };
 
-    // Live placement. Mutated under placement_mutex_ via set_placement;
-    // read in record() under the same lock. record() runs on the
-    // render thread and contention is minimal (tiny critical section,
-    // optional<Placement> copy at most).
+    // Live placement; lock for set_placement / record() snapshot.
     mutable std::mutex placement_mutex_;
     std::optional<Config::Placement> placement_;
 };

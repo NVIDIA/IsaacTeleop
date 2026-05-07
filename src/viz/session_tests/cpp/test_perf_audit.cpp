@@ -1,21 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-// M5 closure tests A + B from the perf-audit list:
-//
-//   A. GPU-timestamp infrastructure — proves the compositor's opt-in
-//      timestamp queries populate sane values. Doesn't assert wall-clock
-//      bounds (CI hardware varies); checks structural invariants
-//      (fields populated, total >= sum-of-parts, monotonically positive).
-//
-//   B. Per-frame allocation audit — guards against regressions where a
-//      heap allocation lands on the render hot path. Tracks new/delete
-//      via a global counter, asserts steady-state allocations stay
-//      under a small ceiling.
-//
-// Both run against the offscreen backend (kOffscreen) so they're CI-
-// friendly; the same compositor + post-pass code runs under kXr, so
-// the regressions these catch apply to the XR path too.
+// Perf audit tests:
+//   A. GPU-timestamp infrastructure populates sane values when enabled.
+//   B. Render hot path stays under a per-frame allocation ceiling.
+// Run against kOffscreen for CI determinism; same code paths run on kXr.
 
 #include "test_helpers.hpp"
 
@@ -32,16 +21,9 @@ using viz::VizSession;
 using viz::testing::ClearRectLayer;
 using viz::testing::is_gpu_available;
 
-// ─── Allocation counter (Test B) ───────────────────────────────────────
-//
-// Global new/delete overrides for THIS test binary. The counter only
-// increments while AllocCounter::Scope is alive — Catch2 / fmt / spdlog
-// allocate freely outside the scope without polluting the count.
-//
-// Correctness: malloc/free pair-balance is unaffected; we just route
-// through the standard allocator. Multiple-binary setups would need
-// per-binary symbol resolution, but Catch2 builds one executable, so
-// these overrides apply only to viz_session_tests.
+// Global new/delete overrides for this test binary. Counter only
+// increments while AllocCounter::Scope is alive so Catch2 / logging
+// outside the measured window don't pollute the count.
 
 namespace
 {
@@ -143,8 +125,7 @@ TEST_CASE("VizCompositor populates GPU timestamps when gpu_timing is enabled", "
     auto session = VizSession::create(cfg);
     REQUIRE(session != nullptr);
 
-    // Need at least one drawing layer so the render-pass timestamp
-    // delta is non-trivial. ClearRectLayer issues vkCmdDraw calls.
+    // ClearRectLayer issues real draw calls so the render-pass delta is non-trivial.
     session->add_layer<ClearRectLayer>(ClearRectLayer::Config{
         /*x=*/0,
         /*y=*/0,
@@ -154,7 +135,7 @@ TEST_CASE("VizCompositor populates GPU timestamps when gpu_timing is enabled", "
         /*name=*/"timing_layer",
     });
 
-    // Pre-flight: timing values are zero before any render() runs.
+    // Pre-render: all zero.
     {
         const auto& t = session->get_gpu_timing();
         CHECK(t.total_ms == 0.0f);
@@ -162,7 +143,6 @@ TEST_CASE("VizCompositor populates GPU timestamps when gpu_timing is enabled", "
         CHECK(t.post_pass_ms == 0.0f);
     }
 
-    // Render a few frames to give the GPU a steady baseline.
     for (int i = 0; i < 5; ++i)
     {
         session->render();
@@ -171,26 +151,18 @@ TEST_CASE("VizCompositor populates GPU timestamps when gpu_timing is enabled", "
     const auto& t = session->get_gpu_timing();
     INFO("total=" << t.total_ms << "ms render_pass=" << t.render_pass_ms << "ms post_pass=" << t.post_pass_ms << "ms");
 
-    // Some hardware reports timestampPeriod==0 (timestamps disabled);
-    // in that case ALL fields stay zero — accept and move on.
+    // timestampPeriod==0 → device doesn't support timestamps. Accept.
     if (t.total_ms == 0.0f)
     {
         SUCCEED("Device does not support timestamp queries; deltas remain zero");
         return;
     }
 
-    // Structural invariants — independent of hardware speed:
-    // 1. Total time is positive.
     CHECK(t.total_ms > 0.0f);
-    // 2. Render-pass time is positive (we did issue draw calls).
     CHECK(t.render_pass_ms > 0.0f);
-    // 3. Post-pass time is non-negative (offscreen backend's post-pass
-    //    is empty; kXr's would be the per-eye blit).
     CHECK(t.post_pass_ms >= 0.0f);
-    // 4. Sum of parts can't exceed total wall time (within float slack).
     CHECK(t.render_pass_ms + t.post_pass_ms <= t.total_ms + 0.01f);
-    // 5. Sanity ceiling — anything above 1 second is a bug, not a slow GPU.
-    CHECK(t.total_ms < 1000.0f);
+    CHECK(t.total_ms < 1000.0f); // anything above 1s is a bug, not a slow GPU
 }
 
 TEST_CASE("VizCompositor leaves GPU timing zeroed when gpu_timing is disabled", "[gpu][viz_session][perf]")
@@ -243,17 +215,12 @@ TEST_CASE("Render hot path stays under per-frame allocation ceiling", "[gpu][viz
         /*name=*/"audit_layer",
     });
 
-    // Warmup: lazy initialization (descriptor sets, command buffers,
-    // first-frame fence priming) shouldn't be charged against steady-
-    // state. 3 frames is enough for the offscreen backend to settle.
+    // Warmup so first-frame lazy init isn't charged against steady state.
     for (int i = 0; i < 3; ++i)
     {
         session->render();
     }
 
-    // Steady-state measurement window. Counts only allocations that
-    // happen INSIDE the AllocCounter scope (Catch2 / logging traffic
-    // outside doesn't count).
     constexpr int kFrames = 10;
     int allocs = 0;
     {
@@ -266,16 +233,9 @@ TEST_CASE("Render hot path stays under per-frame allocation ceiling", "[gpu][viz
     }
     INFO("allocations during " << kFrames << " steady-state render() calls: " << allocs);
 
-    // Ceiling is empirical — current code path allocates a handful of
-    // small vectors per render() (visible_layers, wait/signal semaphores,
-    // tile_layout aspects). The exact number is platform-sensitive
-    // (allocator implementation, debug iterators, etc.); the bound here
-    // is generous on purpose. The test exists to flag changes of an
-    // ORDER OF MAGNITUDE — e.g. someone wires a per-frame std::string
-    // construction or a vector that grows unboundedly.
-    //
-    // If this assertion starts failing routinely, profile the diff and
-    // tighten the bound — don't just bump it.
+    // Generous ceiling — flags order-of-magnitude regressions, not
+    // single-allocation drift. If this fails routinely, profile the
+    // diff before bumping.
     constexpr int kMaxAllocsPerFrameCeiling = 64;
     CHECK(allocs <= kFrames * kMaxAllocsPerFrameCeiling);
 }

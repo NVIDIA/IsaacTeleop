@@ -4,14 +4,12 @@
 #include <viz/xr/openxr_instance.hpp>
 #include <vulkan/vulkan.h>
 
-#define XR_USE_GRAPHICS_API_VULKAN
 #define XR_USE_TIMESPEC
-#include <openxr/openxr_platform.h>
+#include <viz/core/openxr_platform_compat.hpp>
 
 #include <chrono>
 #include <cstdio>
 #include <cstring>
-#include <ctime>
 #include <stdexcept>
 #include <thread>
 #include <unordered_set>
@@ -36,12 +34,9 @@ OpenXrInstance::OpenXrInstance(const std::string& app_name,
                                const std::vector<std::string>& extra_extensions,
                                int system_wait_seconds)
 {
-    // Enumerate every extension the runtime advertises ONCE, into a
-    // set we can membership-test against. Used both to opt-in to
+    // Enumerate runtime-advertised extensions once. Used to opt-in to
     // optional extensions (depth / time conversion) and to validate
-    // the caller's extra_extensions list before xrCreateInstance —
-    // unsupported extras throw with a clear message instead of
-    // failing inside xrCreateInstance with a cryptic error code.
+    // caller-requested extras before xrCreateInstance.
     std::unordered_set<std::string> available_exts;
     {
         uint32_t count = 0;
@@ -61,12 +56,8 @@ OpenXrInstance::OpenXrInstance(const std::string& app_name,
     const bool runtime_has_depth_layer = available_exts.count(XR_KHR_COMPOSITION_LAYER_DEPTH_EXTENSION_NAME) > 0;
     const bool runtime_has_time_conversion = available_exts.count(XR_KHR_CONVERT_TIMESPEC_TIME_EXTENSION_NAME) > 0;
 
-    // Build a deduplicated, validated request list. Required extensions
-    // (XR_KHR_vulkan_enable2) come first; optional ones we auto-enable
-    // come next iff the runtime supports them; extra_extensions come
-    // last and are validated against available_exts — passing an
-    // unsupported one is treated as a hard error since the caller
-    // explicitly asked for it.
+    // Build the request list deduped: required → opt-in → caller extras.
+    // Caller extras are validated; passing an unsupported one is fatal.
     std::vector<const char*> exts;
     std::unordered_set<std::string> requested;
     auto add_unique = [&](const char* name)
@@ -104,9 +95,8 @@ OpenXrInstance::OpenXrInstance(const std::string& app_name,
     check(xrCreateInstance(&info, &instance_), "xrCreateInstance");
     has_depth_composition_layer_ = runtime_has_depth_layer;
 
-    // Resolve timespec-conversion entry points if the extension was enabled.
-    // Both PFNs must resolve cleanly; if either fails we leave time
-    // conversion disabled rather than half-working.
+    // Resolve PFNs only if both succeed — leave the feature off rather
+    // than half-working.
     if (runtime_has_time_conversion)
     {
         PFN_xrVoidFunction to_time_fn = nullptr;
@@ -125,15 +115,9 @@ OpenXrInstance::OpenXrInstance(const std::string& app_name,
     sys_info.formFactor = XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY;
     try
     {
-        // Poll xrGetSystem; XR_ERROR_FORM_FACTOR_UNAVAILABLE means the
-        // runtime is up but no headset is currently connected. CloudXR /
-        // streaming runtimes return this between app start and client
-        // connect — common enough that we expose system_wait_seconds
-        // to keep retrying. Other failures (loader / extension issues)
-        // throw immediately even within the wait window.
-        //   system_wait_seconds < 0  → poll forever (Ctrl-C to break)
-        //   system_wait_seconds = 0  → fail fast on first failure
-        //   system_wait_seconds > 0  → bounded deadline
+        // FORM_FACTOR_UNAVAILABLE = runtime up but HMD not connected yet
+        // (typical for streaming runtimes). Poll within the wait window;
+        // any other XrResult fails immediately.
         constexpr auto kPollInterval = std::chrono::milliseconds(200);
         constexpr auto kLogEvery = std::chrono::seconds(3);
         const bool wait_forever = system_wait_seconds < 0;

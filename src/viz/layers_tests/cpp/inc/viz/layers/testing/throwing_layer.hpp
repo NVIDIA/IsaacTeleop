@@ -17,15 +17,11 @@
 namespace viz::testing
 {
 
-// Test fixture layer that throws from record() on a configurable
-// schedule. Used to verify the compositor / session recover correctly
-// from layer-side exceptions (no fence deadlocks, no leaked Vulkan
-// state, layer registry intact).
-//
-// `throw_after_n_calls` = 0 means "throw on every call".
-// `throw_after_n_calls` = N (>= 1) means "succeed N times, then throw".
-// Once it has thrown, it keeps throwing on every subsequent call unless
-// reset via reset_call_count().
+// Test layer that throws from record() to verify compositor/session
+// recovery (no fence deadlock, no leaked state).
+//   throw_after_n_calls = 0  → throw on every call.
+//   throw_after_n_calls = N  → N successful calls, then throw forever
+//                              (reset_call_count() clears).
 class ThrowingLayer final : public LayerBase
 {
 public:

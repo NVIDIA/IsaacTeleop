@@ -8,8 +8,7 @@
 #include <stdexcept>
 #include <thread>
 
-// [xr]-tagged: needs an OpenXR runtime (CloudXR / SteamVR / Monado)
-// reachable on this host. CTest filters it out unless `-L xr` is used.
+// [xr]: needs a reachable OpenXR runtime + HMD. Filtered out by default.
 TEST_CASE("OpenXrInstance creates an instance and finds an HMD system", "[xr][viz_xr]")
 {
     try
@@ -24,11 +23,8 @@ TEST_CASE("OpenXrInstance creates an instance and finds an HMD system", "[xr][vi
     }
 }
 
-// Test C — XR_KHR_convert_timespec_time round-trip.
-// When the extension is advertised by the runtime, XrTime ↔ steady_clock
-// conversion must be reversible to within microsecond resolution
-// (CLOCK_MONOTONIC has nanosecond precision; we round to micros to
-// stay above any conversion noise).
+// XR_KHR_convert_timespec_time: XrTime ↔ steady_clock must round-trip
+// within microsecond resolution.
 TEST_CASE("OpenXrInstance time conversion round-trips when extension is available", "[xr][viz_xr]")
 {
     std::unique_ptr<viz::OpenXrInstance> inst;
@@ -46,27 +42,23 @@ TEST_CASE("OpenXrInstance time conversion round-trips when extension is availabl
         SKIP("Runtime does not advertise XR_KHR_convert_timespec_time");
     }
 
-    // Direction 1: now() → XrTime → time_point.
     const auto t0 = std::chrono::steady_clock::now();
     const XrTime xr = inst->steady_clock_to_xr_time(t0);
     REQUIRE(xr != 0);
     const auto t1 = inst->xr_time_to_steady_clock(xr);
 
-    // Round-trip drift should be sub-microsecond — both directions just
-    // (de)compose timespec, no additional clock reads. Allow 1 µs slack.
+    // Both directions just (de)compose timespec; 1 µs slack is generous.
     const auto drift = std::chrono::abs(t1 - t0);
     INFO("round-trip drift: " << std::chrono::duration_cast<std::chrono::nanoseconds>(drift).count() << " ns");
     CHECK(drift <= std::chrono::microseconds(1));
 
-    // Direction 2: monotonic forward progress.
     std::this_thread::sleep_for(std::chrono::milliseconds(2));
     const auto t2 = std::chrono::steady_clock::now();
     const XrTime xr2 = inst->steady_clock_to_xr_time(t2);
     CHECK(xr2 > xr);
 }
 
-// Calling the converters when the extension wasn't enabled must throw
-// (loud failure beats silent zero-on-bad-data).
+// Loud failure when the extension isn't enabled.
 TEST_CASE("OpenXrInstance time conversion throws when extension is unavailable", "[xr][viz_xr]")
 {
     std::unique_ptr<viz::OpenXrInstance> inst;

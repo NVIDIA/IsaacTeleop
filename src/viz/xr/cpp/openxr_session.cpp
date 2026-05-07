@@ -5,8 +5,7 @@
 #include <viz/xr/openxr_instance.hpp>
 #include <viz/xr/openxr_session.hpp>
 
-#define XR_USE_GRAPHICS_API_VULKAN
-#include <openxr/openxr_platform.h>
+#include <viz/core/openxr_platform_compat.hpp>
 
 #include <cstdio>
 #include <stdexcept>
@@ -93,9 +92,8 @@ OpenXrSession::~OpenXrSession()
     }
     if (session_ != XR_NULL_HANDLE)
     {
-        // Best-effort graceful shutdown if we never observed STOPPING
-        // (e.g. process is exiting before the runtime got to ask us).
-        // Quiet failures — destructor can't throw.
+        // Best-effort xrEndSession if we never observed STOPPING (e.g.
+        // process exit). Failures swallowed — dtor can't throw.
         if (session_running_)
         {
             (void)xrEndSession(session_);
@@ -123,13 +121,9 @@ void OpenXrSession::enumerate_view_configuration()
 
 void OpenXrSession::enumerate_environment_blend_mode()
 {
-    // Pick the runtime's first-advertised mode. The OpenXR spec says
-    // xrEnumerateEnvironmentBlendModes returns modes in the runtime's
-    // preference order, so element 0 is "what this hardware/configuration
-    // is best at": ALPHA_BLEND on a passthrough Quest, OPAQUE on a
-    // pure-VR HMD, ADDITIVE on optical see-through. Trusting that
-    // means the same binary works across all three categories without
-    // a config knob.
+    // OpenXR returns modes in the runtime's preference order; pick the
+    // first. ALPHA_BLEND on passthrough HMDs, OPAQUE on pure-VR,
+    // ADDITIVE on optical see-through.
     uint32_t count = 0;
     check_xr(xrEnumerateEnvironmentBlendModes(instance_, system_id_, view_configuration_type_, 0, &count, nullptr),
              "xrEnumerateEnvironmentBlendModes(count)");
@@ -142,8 +136,7 @@ void OpenXrSession::enumerate_environment_blend_mode()
         xrEnumerateEnvironmentBlendModes(instance_, system_id_, view_configuration_type_, count, &count, modes.data()),
         "xrEnumerateEnvironmentBlendModes(data)");
     environment_blend_mode_ = modes.front();
-    // One log line so "why is there no passthrough?" is debuggable
-    // without attaching a tracer.
+    // Log so "why is there no passthrough?" is one grep away.
     const char* mode_str = "UNKNOWN";
     switch (environment_blend_mode_)
     {
@@ -185,9 +178,7 @@ void OpenXrSession::create_reference_space(XrReferenceSpaceType type)
     info.poseInReferenceSpace.position = XrVector3f{ 0.0f, 0.0f, 0.0f };
     check_xr(xrCreateReferenceSpace(session_, &info, &reference_space_), "xrCreateReferenceSpace");
 
-    // Always create the VIEW space alongside — it's the canonical handle
-    // for "where is the head" queries, locating against reference_space_.
-    // Cheap: a reference space is just a handle, no swapchain-style work.
+    // VIEW space — head pose queries locate against reference_space.
     XrReferenceSpaceCreateInfo view_info{ XR_TYPE_REFERENCE_SPACE_CREATE_INFO };
     view_info.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_VIEW;
     view_info.poseInReferenceSpace.orientation = XrQuaternionf{ 0.0f, 0.0f, 0.0f, 1.0f };
@@ -252,12 +243,10 @@ void OpenXrSession::handle_session_state_change(XrSessionState new_state)
         }
         else
         {
-            // xrBeginSession failed. wait_frame() returns false when not
-            // running, so without surfacing this the app would loop on
-            // nullopt frames forever with no diagnostic. Log it AND set
-            // exit_requested_ so the app's frame loop's should_close()
-            // check breaks out cleanly. Throwing from poll_events would
-            // unbalance the begin_frame caller's protocol guard.
+            // wait_frame returns false when !running, so this would
+            // silently spin nullopt frames forever. Surface it as
+            // exit_requested_; throwing from poll_events would unbalance
+            // begin_frame's protocol guard.
             std::fprintf(
                 stderr, "OpenXrSession: xrBeginSession failed: XrResult=%d (requesting exit)\n", static_cast<int>(r));
             exit_requested_ = true;
@@ -267,7 +256,7 @@ void OpenXrSession::handle_session_state_change(XrSessionState new_state)
     case XR_SESSION_STATE_SYNCHRONIZED:
     case XR_SESSION_STATE_VISIBLE:
     case XR_SESSION_STATE_FOCUSED:
-        // Already running from READY; this is just a focus/visibility shift.
+        // Focus/visibility shift after READY — still running.
         session_running_ = true;
         break;
     case XR_SESSION_STATE_STOPPING:
@@ -307,13 +296,8 @@ void OpenXrSession::begin_frame()
 {
     XrFrameBeginInfo info{ XR_TYPE_FRAME_BEGIN_INFO };
     const XrResult r = xrBeginFrame(session_, &info);
-    // XR_FRAME_DISCARDED is non-fatal. Per OpenXR 1.0 spec §11.7.2
-    // (xrBeginFrame): "If xrBeginFrame returns XR_FRAME_DISCARDED, the
-    // application has missed the opportunity for this frame to be
-    // presented; however, it must still call xrEndFrame to balance the
-    // call to xrBeginFrame." So we treat it the same as XR_SUCCESS at
-    // the binding layer — caller is expected to pair with xrEndFrame
-    // (empty layers are fine).
+    // XR_FRAME_DISCARDED is non-fatal — per spec the app must still
+    // call xrEndFrame to balance. Treat as success here.
     if (r != XR_SUCCESS && r != XR_FRAME_DISCARDED)
     {
         throw std::runtime_error("OpenXrSession: xrBeginFrame failed: XrResult=" + std::to_string(r));
@@ -340,20 +324,16 @@ bool OpenXrSession::locate_views(XrTime predicted_display_time, XrViewState* out
     {
         return false;
     }
-    // Pose validity flags must be set; otherwise the returned poses are
-    // zero/identity and rendering with them would put content at origin.
+    // Validity flags must be set, else returned poses are zero/identity.
     constexpr XrViewStateFlags kRequired = XR_VIEW_STATE_POSITION_VALID_BIT | XR_VIEW_STATE_ORIENTATION_VALID_BIT;
     return (out_view_state->viewStateFlags & kRequired) == kRequired;
 }
 
-bool OpenXrSession::locate_view_space(XrTime predicted_display_time, XrSpaceLocation* out_location)
+bool OpenXrSession::locate_view_space(XrTime predicted_display_time, XrSpaceLocation* out_location) const
 {
-    // Head pose is documented as optional / non-fatal: callers (e.g.
-    // XrBackend::begin_frame) keep going on failure with head_pose_valid
-    // = false. Swallow XR_FAILED here — throwing across xrBeginFrame
-    // would unbalance the OpenXR protocol if the caller hasn't installed
-    // its own scope guard. Tracking-loss (validity flags clear) is
-    // similarly reported as `false` rather than thrown.
+    // Non-throwing: this runs between xrBeginFrame/xrEndFrame and a
+    // throw would unbalance the protocol. Tracking-loss + hard failures
+    // both surface as `false`.
     *out_location = XrSpaceLocation{ XR_TYPE_SPACE_LOCATION };
     if (!session_running_ || view_space_ == XR_NULL_HANDLE)
     {

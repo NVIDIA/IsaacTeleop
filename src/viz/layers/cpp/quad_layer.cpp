@@ -66,13 +66,10 @@ void require_alive(const std::unique_ptr<DeviceImage>& slot0, const char* what)
 QuadLayer::QuadLayer(const VkContext& ctx, VkRenderPass render_pass, Config config)
     : LayerBase(config.name), ctx_(&ctx), render_pass_(render_pass), config_(std::move(config))
 {
-    // Cheap-first config checks, then argument shape, then context
-    // state. Tests can exercise each path by varying just the
-    // relevant argument with an uninitialized VkContext.
+    // textured_quad's frag samples a color image; depth views aren't
+    // color-samplable.
     if (config_.format != PixelFormat::kRGBA8)
     {
-        // textured_quad samples color; depth (kD32F) would create a
-        // depth-aspect view that can't be sampled as color.
         throw std::invalid_argument("QuadLayer: only PixelFormat::kRGBA8 is supported");
     }
     if (config_.resolution.width == 0 || config_.resolution.height == 0)
@@ -289,32 +286,20 @@ void QuadLayer::record(VkCommandBuffer cmd, const std::vector<ViewInfo>& views, 
     vkCmdBindDescriptorSets(
         cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0, 1, &descriptor_sets_[cur], 0, nullptr);
 
-    // Snapshot the live placement under the lock so set_placement()
-    // can run concurrently without tearing the optional<Placement> read.
+    // Snapshot under lock so set_placement() can run concurrently.
     std::optional<Config::Placement> placement;
     {
         std::lock_guard<std::mutex> lk(placement_mutex_);
         placement = placement_;
     }
     const bool xr_mode = session() != nullptr && session()->is_xr_mode();
-
-    // Fullscreen mode (no MVP, NDC-cover triangle) is the right primitive
-    // for window/offscreen — the compositor's per-layer viewport+scissor
-    // crops it to the layer's tile. In XR stereo it's semantically wrong:
-    // stretching a texture across an eye region is "head-locked at far
-    // plane," never what camera planes or HUDs want. So in XR we require
-    // placement; throwing here surfaces the misuse on the first frame
-    // instead of letting it render wrong content silently.
     if (xr_mode && !placement.has_value())
     {
-        throw std::logic_error(
-            "QuadLayer: XR mode requires Config::placement to be set "
-            "(fullscreen quads in stereo XR are not supported)");
+        throw std::logic_error("QuadLayer: XR mode requires Config::placement to be set "
+                               "(fullscreen quads in stereo XR are not supported)");
     }
 
-    // Push constant layout matches textured_quad.vert: mat4 mvp + int mode.
-    // Stored as a flat byte buffer so we can issue one vkCmdPushConstants
-    // per view without per-eye reallocation.
+    // Layout mirrors textured_quad.vert.
     struct PushConstants
     {
         float mvp[16];
@@ -323,22 +308,17 @@ void QuadLayer::record(VkCommandBuffer cmd, const std::vector<ViewInfo>& views, 
     static_assert(sizeof(PushConstants) == sizeof(float) * 16 + sizeof(int32_t),
                   "PushConstants layout must match shader push_constant block");
 
-    // 1 view in window/offscreen, 2 in XR stereo. Compositor pre-bound
-    // the layer's scissor; we bind viewport per view, push constants,
-    // then draw.
+    // Compositor pre-binds the layer's scissor; we set per-view viewport.
     for (const auto& view : views)
     {
         bind_view_viewport(cmd, view);
 
         PushConstants pc{};
-        // After the xr_mode check above, xr_mode implies placement_active,
-        // so the MVP path is taken iff we're in XR.
+        // After the xr_mode check, xr_mode → placement is set.
         if (xr_mode)
         {
-            // Model: translate to placement.pose.position, rotate by
-            // placement.pose.orientation, scale to size_meters.
-            // Negative Y flips the texture vertically to match Vulkan
-            // clip-space Y-down — the same trick xr_plane_renderer uses.
+            // Model = translate(pose.position) * rotate(pose.orientation)
+            // * scale(size). Negative Y matches Vulkan clip-space Y-down.
             const Config::Placement& p = *placement;
             glm::mat4 model = glm::translate(glm::mat4(1.0f), p.pose.position);
             model *= glm::mat4_cast(p.pose.orientation);
@@ -352,8 +332,7 @@ void QuadLayer::record(VkCommandBuffer cmd, const std::vector<ViewInfo>& views, 
         }
         else
         {
-            // Fullscreen pass: shader ignores MVP; mode=0 selects the
-            // gl_VertexIndex-derived oversized triangle.
+            // mode=0: NDC-cover triangle, MVP unused.
             pc.mode = 0;
             vkCmdPushConstants(cmd, pipeline_layout_, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
             vkCmdDraw(cmd, 3, 1, 0, 0);
@@ -375,9 +354,8 @@ std::optional<QuadLayer::Config::Placement> QuadLayer::placement() const noexcep
 
 std::vector<LayerBase::WaitSemaphore> QuadLayer::get_wait_semaphores() const
 {
-    // VizCompositor calls record() first (which promotes latest_ ->
-    // in_use_), then this. So in_use_ is the slot the draw will
-    // sample, and that's what we need the GPU to wait on.
+    // Compositor calls record() first (promotes latest_ → in_use_),
+    // so in_use_ is the slot the draw will sample.
     const uint8_t cur = in_use_.load(std::memory_order_acquire);
     if (cur == kSlotNone || !slots_[cur])
     {
