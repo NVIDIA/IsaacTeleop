@@ -412,10 +412,14 @@ class DexHandRetargeter(BaseRetargeter):
             ref_value = target_pos[task_indices, :] - target_pos[origin_indices, :]
 
         # 4. Run optimizer
+        # ``dex_retargeting`` solves a QP-style optimization that does not
+        # require autograd; running under ``torch.no_grad()`` avoids the
+        # per-step grad-tracking overhead the previous ``enable_grad`` /
+        # ``inference_mode(False)`` context was incurring on every frame.
         try:
             import torch  # type: ignore
 
-            with torch.enable_grad(), torch.inference_mode(False):
+            with torch.no_grad():
                 return self._dex_hand.retarget(ref_value)  # type: ignore
         except Exception as e:
             logger.error(f"Error in retargeting: {e}")
