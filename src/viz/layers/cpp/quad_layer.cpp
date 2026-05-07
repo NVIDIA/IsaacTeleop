@@ -61,6 +61,27 @@ void require_alive(const std::unique_ptr<DeviceImage>& slot0, const char* what)
     }
 }
 
+// Mirrors textured_quad.vert's push_constant block.
+//   mode = 0 → NDC-cover triangle, mvp ignored.
+//   mode = 1 → 3D placed quad, mvp transforms local [-0.5, 0.5] to clip.
+struct QuadShaderData
+{
+    float mvp[16];
+    int32_t mode;
+};
+static_assert(sizeof(QuadShaderData) == sizeof(float) * 16 + sizeof(int32_t),
+              "QuadShaderData layout must match textured_quad.vert");
+
+// M = T(pose.position) · R(pose.orientation) · S(size.x, -size.y, 1).
+// Negative Y on the scale matches Vulkan clip-space Y-down.
+glm::mat4 placement_mvp(const QuadLayer::Config::Placement& p, const ViewInfo& view)
+{
+    glm::mat4 model = glm::translate(glm::mat4(1.0f), p.pose.position);
+    model *= glm::mat4_cast(p.pose.orientation);
+    model = glm::scale(model, glm::vec3(p.size_meters.x, -p.size_meters.y, 1.0f));
+    return view.projection_matrix * view.view_matrix * model;
+}
+
 } // namespace
 
 QuadLayer::QuadLayer(const VkContext& ctx, VkRenderPass render_pass, Config config)
@@ -295,48 +316,29 @@ void QuadLayer::record(VkCommandBuffer cmd, const std::vector<ViewInfo>& views, 
     const bool xr_mode = session() != nullptr && session()->is_xr_mode();
     if (xr_mode && !placement.has_value())
     {
-        throw std::logic_error("QuadLayer: XR mode requires Config::placement to be set "
-                               "(fullscreen quads in stereo XR are not supported)");
+        throw std::logic_error(
+            "QuadLayer: XR mode requires Config::placement to be set "
+            "(fullscreen quads in stereo XR are not supported)");
     }
 
-    // Layout mirrors textured_quad.vert.
-    struct PushConstants
-    {
-        float mvp[16];
-        int32_t mode;
-    };
-    static_assert(sizeof(PushConstants) == sizeof(float) * 16 + sizeof(int32_t),
-                  "PushConstants layout must match shader push_constant block");
+    // xr: 4-vertex triangle strip; else: 3-vertex NDC-cover triangle.
+    const uint32_t vertex_count = xr_mode ? 4u : 3u;
 
     // Compositor pre-binds the layer's scissor; we set per-view viewport.
     for (const auto& view : views)
     {
         bind_view_viewport(cmd, view);
 
-        PushConstants pc{};
-        // After the xr_mode check, xr_mode → placement is set.
+        QuadShaderData data{};
         if (xr_mode)
         {
-            // Model = translate(pose.position) * rotate(pose.orientation)
-            // * scale(size). Negative Y matches Vulkan clip-space Y-down.
-            const Config::Placement& p = *placement;
-            glm::mat4 model = glm::translate(glm::mat4(1.0f), p.pose.position);
-            model *= glm::mat4_cast(p.pose.orientation);
-            model = glm::scale(model, glm::vec3(p.size_meters.x, -p.size_meters.y, 1.0f));
-
-            const glm::mat4 mvp = view.projection_matrix * view.view_matrix * model;
-            std::memcpy(pc.mvp, &mvp[0][0], sizeof(pc.mvp));
-            pc.mode = 1;
-            vkCmdPushConstants(cmd, pipeline_layout_, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
-            vkCmdDraw(cmd, 4, 1, 0, 0); // triangle strip, 2 triangles
+            const glm::mat4 mvp = placement_mvp(*placement, view);
+            std::memcpy(data.mvp, &mvp[0][0], sizeof(data.mvp));
+            data.mode = 1;
         }
-        else
-        {
-            // mode=0: NDC-cover triangle, MVP unused.
-            pc.mode = 0;
-            vkCmdPushConstants(cmd, pipeline_layout_, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
-            vkCmdDraw(cmd, 3, 1, 0, 0);
-        }
+        // mode=0 (default): MVP unused.
+        vkCmdPushConstants(cmd, pipeline_layout_, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(data), &data);
+        vkCmdDraw(cmd, vertex_count, 1, 0, 0);
     }
 }
 

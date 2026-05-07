@@ -71,10 +71,11 @@ public:
     bool should_close() const override;
     Resolution current_extent() const override;
 
-    // OpenXR handles for app-side session sharing (e.g. TeleopSession).
-    // xrGetInstanceProcAddr is the loader-level entry, valid for the
-    // backend's lifetime. view_space is the head's reference space —
-    // locate it against reference_space at any XrTime to get head pose.
+    // Backend-internal handle bundle. VizSession::get_oxr_handles()
+    // converts this to core::OpenXRSessionHandles for cross-module
+    // sharing (drops view_space, renames reference_space → space).
+    // view_space is used internally by head_pose_now(): locate against
+    // reference_space at any XrTime to get the head pose.
     struct OxrHandles
     {
         XrInstance instance = XR_NULL_HANDLE;

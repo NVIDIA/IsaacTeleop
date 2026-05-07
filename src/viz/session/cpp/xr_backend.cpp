@@ -1,15 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-#include <viz/core/vk_context.hpp>
-#include <viz/session/xr_backend.hpp>
-#include <viz/xr/openxr_instance.hpp>
-
-#include <viz/core/openxr_platform_compat.hpp>
-
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
+#include <viz/core/openxr_platform_compat.hpp>
+#include <viz/core/vk_context.hpp>
+#include <viz/session/xr_backend.hpp>
+#include <viz/xr/openxr_instance.hpp>
 
 #include <algorithm>
 #include <cmath>

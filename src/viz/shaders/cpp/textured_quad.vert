@@ -17,7 +17,7 @@
 
 #version 450
 
-layout(push_constant) uniform PushConstants
+layout(push_constant) uniform QuadShaderData
 {
     mat4 mvp;
     int mode;
