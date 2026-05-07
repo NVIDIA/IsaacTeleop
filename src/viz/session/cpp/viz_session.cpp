@@ -6,7 +6,7 @@
 #include <viz/session/viz_session.hpp>
 #include <viz/session/window_backend.hpp>
 #include <viz/session/xr_backend.hpp>
-#include <viz/xr/openxr_instance.hpp>
+#include <viz/xr/openxr_session.hpp>
 
 #include <algorithm>
 #include <stdexcept>
@@ -310,8 +310,8 @@ bool VizSession::has_xr_time_conversion() const noexcept
         return false;
     }
     const auto* xr = static_cast<const XrBackend*>(backend_.get());
-    const auto* xi = xr->xr_instance();
-    return xi != nullptr && xi->has_time_conversion();
+    const auto* sess = xr->xr_session();
+    return sess != nullptr && sess->has_time_conversion();
 }
 
 std::chrono::steady_clock::time_point VizSession::xr_time_to_steady_clock(int64_t xr_time) const
@@ -321,12 +321,12 @@ std::chrono::steady_clock::time_point VizSession::xr_time_to_steady_clock(int64_
         throw std::logic_error("VizSession::xr_time_to_steady_clock: only valid in kXr mode");
     }
     const auto* xr = static_cast<const XrBackend*>(backend_.get());
-    const auto* xi = xr->xr_instance();
-    if (xi == nullptr)
+    const auto* sess = xr->xr_session();
+    if (sess == nullptr)
     {
-        throw std::logic_error("VizSession::xr_time_to_steady_clock: XR instance not initialized");
+        throw std::logic_error("VizSession::xr_time_to_steady_clock: XR session not initialized");
     }
-    return xi->xr_time_to_steady_clock(static_cast<XrTime>(xr_time));
+    return sess->xr_time_to_steady_clock(static_cast<XrTime>(xr_time));
 }
 
 int64_t VizSession::steady_clock_to_xr_time(std::chrono::steady_clock::time_point t) const
@@ -336,12 +336,12 @@ int64_t VizSession::steady_clock_to_xr_time(std::chrono::steady_clock::time_poin
         throw std::logic_error("VizSession::steady_clock_to_xr_time: only valid in kXr mode");
     }
     const auto* xr = static_cast<const XrBackend*>(backend_.get());
-    const auto* xi = xr->xr_instance();
-    if (xi == nullptr)
+    const auto* sess = xr->xr_session();
+    if (sess == nullptr)
     {
-        throw std::logic_error("VizSession::steady_clock_to_xr_time: XR instance not initialized");
+        throw std::logic_error("VizSession::steady_clock_to_xr_time: XR session not initialized");
     }
-    return static_cast<int64_t>(xi->steady_clock_to_xr_time(t));
+    return static_cast<int64_t>(sess->steady_clock_to_xr_time(t));
 }
 
 const VizCompositor::GpuFrameTiming& VizSession::get_gpu_timing() const noexcept
@@ -357,13 +357,12 @@ std::optional<Pose3D> VizSession::head_pose_now() const
         throw std::logic_error("VizSession::head_pose_now: only valid in kXr mode");
     }
     const auto* xr = static_cast<const XrBackend*>(backend_.get());
-    const auto* xi = xr->xr_instance();
     const auto* sess = xr->xr_session();
-    if (xi == nullptr || sess == nullptr || !xi->has_time_conversion())
+    if (sess == nullptr || !sess->has_time_conversion())
     {
         return std::nullopt;
     }
-    const XrTime now = xi->steady_clock_to_xr_time(std::chrono::steady_clock::now());
+    const XrTime now = sess->steady_clock_to_xr_time(std::chrono::steady_clock::now());
     XrSpaceLocation loc{ XR_TYPE_SPACE_LOCATION };
     if (!sess->locate_view_space(now, &loc))
     {

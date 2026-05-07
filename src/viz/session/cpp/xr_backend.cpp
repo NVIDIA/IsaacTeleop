@@ -7,7 +7,6 @@
 #include <viz/core/openxr_platform_compat.hpp>
 #include <viz/core/vk_context.hpp>
 #include <viz/session/xr_backend.hpp>
-#include <viz/xr/openxr_instance.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -56,11 +55,10 @@ void transition_image(VkCommandBuffer cmd,
 
 XrBackend::XrBackend(Config config) : config_(std::move(config))
 {
-    // Create the OpenXR instance up front — VkContext needs the raw
-    // handles in its Config to take the XR-bound init path. Session,
-    // swapchains, RT come later in init().
-    xr_instance_ =
-        std::make_unique<OpenXrInstance>(config_.app_name, config_.extra_xr_extensions, config_.system_wait_seconds);
+    // Stage 1: instance + system. VkContext's XR-bound init path reads
+    // back instance() + system_id() before stage 2 runs.
+    session_ =
+        std::make_unique<OpenXrSession>(config_.app_name, config_.extra_xr_extensions, config_.system_wait_seconds);
 }
 
 XrBackend::~XrBackend()
@@ -70,19 +68,19 @@ XrBackend::~XrBackend()
 
 XrInstance XrBackend::xr_instance_handle() const noexcept
 {
-    return xr_instance_ ? xr_instance_->instance() : XR_NULL_HANDLE;
+    return session_ ? session_->instance() : XR_NULL_HANDLE;
 }
 
 XrSystemId XrBackend::xr_system_id() const noexcept
 {
-    return xr_instance_ ? xr_instance_->system_id() : XR_NULL_SYSTEM_ID;
+    return session_ ? session_->system_id() : XR_NULL_SYSTEM_ID;
 }
 
 void XrBackend::init(const VkContext& ctx, Resolution /*preferred_size*/)
 {
-    if (!xr_instance_)
+    if (!session_)
     {
-        throw std::logic_error("XrBackend::init: OpenXrInstance was destroyed");
+        throw std::logic_error("XrBackend::init: OpenXrSession was destroyed");
     }
     if (!ctx.is_initialized())
     {
@@ -91,12 +89,12 @@ void XrBackend::init(const VkContext& ctx, Resolution /*preferred_size*/)
     ctx_ = &ctx;
     try
     {
-        session_ = std::make_unique<OpenXrSession>(*xr_instance_, ctx, config_.session_config);
+        session_->attach_graphics(ctx, config_.session_config);
         swapchain_format_ = pick_swapchain_format();
         create_swapchains();
         // Depth submission requires both the extension AND a usable
         // depth format (D32_SFLOAT, matching RenderTarget's depth).
-        depth_layer_enabled_ = xr_instance_->has_depth_composition_layer();
+        depth_layer_enabled_ = session_->has_depth_composition_layer();
         if (depth_layer_enabled_)
         {
             depth_swapchain_format_ = pick_depth_swapchain_format();
@@ -117,12 +115,11 @@ void XrBackend::init(const VkContext& ctx, Resolution /*preferred_size*/)
 
 void XrBackend::destroy()
 {
-    // Order: rendering resources → session → instance. The runtime owns
-    // swapchain images, so xrDestroySwapchain is enough (no vkDestroyImage).
+    // Order: rendering resources → session. Runtime owns swapchain
+    // images, so xrDestroySwapchain is enough (no vkDestroyImage).
     render_target_.reset();
     destroy_swapchains();
     session_.reset();
-    xr_instance_.reset();
     ctx_ = nullptr;
 }
 
@@ -734,19 +731,14 @@ Resolution XrBackend::current_extent() const
 XrBackend::OxrHandles XrBackend::oxr_handles() const noexcept
 {
     OxrHandles h{};
-    if (xr_instance_)
-    {
-        h.instance = xr_instance_->instance();
-        // The loader-level entry is populated from libopenxr_loader's
-        // exported xrGetInstanceProcAddr; static dispatch resolves it
-        // at link time.
-        h.xrGetInstanceProcAddr = ::xrGetInstanceProcAddr;
-    }
     if (session_)
     {
+        h.instance = session_->instance();
         h.session = session_->session();
         h.reference_space = session_->reference_space();
         h.view_space = session_->view_space();
+        // Loader-level entry, statically linked.
+        h.xrGetInstanceProcAddr = ::xrGetInstanceProcAddr;
     }
     return h;
 }

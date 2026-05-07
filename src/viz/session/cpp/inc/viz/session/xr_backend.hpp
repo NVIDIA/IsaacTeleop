@@ -15,16 +15,15 @@
 namespace viz
 {
 
-class OpenXrInstance;
-
-// OpenXR display backend. Owns the OpenXrInstance + OpenXrSession +
-// per-view XrSwapchain handles, plus one wide intermediate RenderTarget
-// the compositor writes into; record_post_render_pass blits per-eye
-// regions into per-eye swapchain images.
+// OpenXR display backend. Owns the OpenXrSession + per-view XrSwapchain
+// handles, plus one wide intermediate RenderTarget the compositor writes
+// into; record_post_render_pass blits per-eye regions into per-eye
+// swapchain images.
 //
-// Two-phase init: ctor creates OpenXrInstance (so VkContext can use the
-// XR-bound vulkan creation path), init() creates the session +
-// swapchains + RT once VkContext is ready. VizSession orchestrates.
+// Two-phase init mirrors OpenXrSession's stages: ctor creates the
+// XrInstance + system (so VkContext can use the XR-bound Vulkan
+// creation path), init() attaches graphics + creates swapchains + RT
+// once VkContext is ready. VizSession orchestrates.
 class XrBackend final : public DisplayBackend
 {
 public:
@@ -86,12 +85,8 @@ public:
     };
     OxrHandles oxr_handles() const noexcept;
 
-    // Underlying wrappers — VizSession reaches in for time conversion
-    // and head-pose forwarding. Null before init() / after destroy().
-    const OpenXrInstance* xr_instance() const noexcept
-    {
-        return xr_instance_.get();
-    }
+    // VizSession reaches in for time conversion and head-pose
+    // forwarding. Null after destroy().
     const OpenXrSession* xr_session() const noexcept
     {
         return session_.get();
@@ -129,7 +124,6 @@ private:
     Config config_;
     const VkContext* ctx_ = nullptr;
 
-    std::unique_ptr<OpenXrInstance> xr_instance_;
     std::unique_ptr<OpenXrSession> session_;
     std::unique_ptr<RenderTarget> render_target_;
 

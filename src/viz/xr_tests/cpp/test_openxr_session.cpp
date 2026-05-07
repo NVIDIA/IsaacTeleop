@@ -3,99 +3,178 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <viz/core/vk_context.hpp>
-#include <viz/xr/openxr_instance.hpp>
 #include <viz/xr/openxr_session.hpp>
 
+#include <chrono>
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <thread>
 
 // [xr]: needs a reachable OpenXR runtime + HMD. Filtered out by default.
-TEST_CASE("OpenXrSession constructs against a graphics-bound VkContext", "[xr][viz_xr]")
+
+// ── Stage 1: instance + system (no graphics) ──────────────────────────
+
+TEST_CASE("OpenXrSession stage 1 creates an instance and finds an HMD system", "[xr][viz_xr]")
 {
-    std::unique_ptr<viz::OpenXrInstance> inst;
     try
     {
-        inst = std::make_unique<viz::OpenXrInstance>("viz_xr_test_session", std::vector<std::string>{});
+        viz::OpenXrSession sess("viz_xr_test", {});
+        REQUIRE(sess.instance() != XR_NULL_HANDLE);
+        REQUIRE(sess.system_id() != XR_NULL_SYSTEM_ID);
+        REQUIRE_FALSE(sess.is_graphics_attached());
+    }
+    catch (const std::runtime_error& e)
+    {
+        SKIP(std::string("no OpenXR runtime / HMD: ") + e.what());
+    }
+}
+
+// XR_KHR_convert_timespec_time: XrTime ↔ steady_clock must round-trip
+// within microsecond resolution.
+TEST_CASE("OpenXrSession time conversion round-trips when extension is available", "[xr][viz_xr]")
+{
+    std::unique_ptr<viz::OpenXrSession> sess;
+    try
+    {
+        sess = std::make_unique<viz::OpenXrSession>("viz_xr_test_time_conv", std::vector<std::string>{});
     }
     catch (const std::runtime_error& e)
     {
         SKIP(std::string("no OpenXR runtime / HMD: ") + e.what());
     }
 
-    viz::VkContext vk;
-    viz::VkContext::Config cfg{};
-    cfg.xr_instance = inst->instance();
-    cfg.xr_system_id = inst->system_id();
+    if (!sess->has_time_conversion())
+    {
+        SKIP("Runtime does not advertise XR_KHR_convert_timespec_time");
+    }
+
+    const auto t0 = std::chrono::steady_clock::now();
+    const XrTime xr = sess->steady_clock_to_xr_time(t0);
+    REQUIRE(xr != 0);
+    const auto t1 = sess->xr_time_to_steady_clock(xr);
+
+    // Both directions just (de)compose timespec; 1 µs slack is generous.
+    const auto drift = std::chrono::abs(t1 - t0);
+    INFO("round-trip drift: " << std::chrono::duration_cast<std::chrono::nanoseconds>(drift).count() << " ns");
+    CHECK(drift <= std::chrono::microseconds(1));
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    const auto t2 = std::chrono::steady_clock::now();
+    const XrTime xr2 = sess->steady_clock_to_xr_time(t2);
+    CHECK(xr2 > xr);
+}
+
+// Loud failure when the extension isn't enabled.
+TEST_CASE("OpenXrSession time conversion throws when extension is unavailable", "[xr][viz_xr]")
+{
+    std::unique_ptr<viz::OpenXrSession> sess;
     try
     {
-        vk.init(cfg);
+        sess = std::make_unique<viz::OpenXrSession>("viz_xr_test_time_conv_disabled", std::vector<std::string>{});
     }
     catch (const std::runtime_error& e)
     {
-        SKIP(std::string("XR-bound VkContext init failed (no Vulkan-capable runtime?): ") + e.what());
+        SKIP(std::string("no OpenXR runtime / HMD: ") + e.what());
     }
 
-    viz::OpenXrSession session(*inst, vk);
-    REQUIRE(session.session() != XR_NULL_HANDLE);
-    REQUIRE(session.reference_space() != XR_NULL_HANDLE);
-    REQUIRE(session.view_count() == 2u); // stereo HMD
-    const auto& views = session.view_configuration_views();
+    if (sess->has_time_conversion())
+    {
+        SUCCEED("Runtime supports the extension; no negative test possible here");
+        return;
+    }
+
+    CHECK_THROWS_AS(sess->xr_time_to_steady_clock(0), std::runtime_error);
+    CHECK_THROWS_AS(sess->steady_clock_to_xr_time(std::chrono::steady_clock::now()), std::runtime_error);
+}
+
+// ── Stage 2: attach_graphics + session lifetime ───────────────────────
+
+namespace
+{
+
+// Build stage-1 OpenXrSession + XR-bound VkContext, or SKIP if either
+// piece isn't available on the host.
+std::pair<std::unique_ptr<viz::OpenXrSession>, std::unique_ptr<viz::VkContext>> make_stage1(const char* app_name)
+{
+    std::unique_ptr<viz::OpenXrSession> sess;
+    try
+    {
+        sess = std::make_unique<viz::OpenXrSession>(app_name, std::vector<std::string>{});
+    }
+    catch (const std::runtime_error& e)
+    {
+        SKIP(std::string("no OpenXR runtime / HMD: ") + e.what());
+    }
+
+    auto vk = std::make_unique<viz::VkContext>();
+    viz::VkContext::Config cfg{};
+    cfg.xr_instance = sess->instance();
+    cfg.xr_system_id = sess->system_id();
+    try
+    {
+        vk->init(cfg);
+    }
+    catch (const std::runtime_error& e)
+    {
+        SKIP(std::string("XR-bound VkContext init failed: ") + e.what());
+    }
+    return { std::move(sess), std::move(vk) };
+}
+
+} // namespace
+
+TEST_CASE("OpenXrSession attach_graphics constructs session + spaces + view config", "[xr][viz_xr]")
+{
+    auto [sess, vk] = make_stage1("viz_xr_test_attach");
+    sess->attach_graphics(*vk);
+
+    REQUIRE(sess->is_graphics_attached());
+    REQUIRE(sess->session() != XR_NULL_HANDLE);
+    REQUIRE(sess->reference_space() != XR_NULL_HANDLE);
+    REQUIRE(sess->view_count() == 2u); // stereo HMD
+    const auto& views = sess->view_configuration_views();
     CHECK(views[0].recommendedImageRectWidth > 0);
     CHECK(views[0].recommendedImageRectHeight > 0);
     CHECK(views[1].recommendedImageRectWidth > 0);
     CHECK(views[1].recommendedImageRectHeight > 0);
     // Not running yet — runtime needs STATE_READY before xrBeginSession.
-    CHECK_FALSE(session.session_running());
-    CHECK_FALSE(session.exit_requested());
+    CHECK_FALSE(sess->session_running());
+    CHECK_FALSE(sess->exit_requested());
 
     // Some runtimes only advance state once a frame is requested, so
     // we don't assert session_running here — construction is the test.
     for (int i = 0; i < 5; ++i)
     {
-        session.poll_events();
+        sess->poll_events();
     }
 }
 
 // VIEW space + near/far Z plumbing.
 TEST_CASE("OpenXrSession exposes VIEW space and propagates near/far Z config", "[xr][viz_xr]")
 {
-    std::unique_ptr<viz::OpenXrInstance> inst;
-    try
-    {
-        inst = std::make_unique<viz::OpenXrInstance>("viz_xr_test_view_space", std::vector<std::string>{});
-    }
-    catch (const std::runtime_error& e)
-    {
-        SKIP(std::string("no OpenXR runtime / HMD: ") + e.what());
-    }
-
-    viz::VkContext vk;
-    viz::VkContext::Config vkcfg{};
-    vkcfg.xr_instance = inst->instance();
-    vkcfg.xr_system_id = inst->system_id();
-    try
-    {
-        vk.init(vkcfg);
-    }
-    catch (const std::runtime_error& e)
-    {
-        SKIP(std::string("XR-bound VkContext init failed: ") + e.what());
-    }
-
+    auto [sess, vk] = make_stage1("viz_xr_test_view_space");
     viz::OpenXrSession::Config sess_cfg{};
     sess_cfg.near_z = 0.1f;
     sess_cfg.far_z = 250.0f;
-    viz::OpenXrSession session(*inst, vk, sess_cfg);
+    sess->attach_graphics(*vk, sess_cfg);
 
-    REQUIRE(session.view_space() != XR_NULL_HANDLE);
-    CHECK(session.near_z() == 0.1f);
-    CHECK(session.far_z() == 250.0f);
+    REQUIRE(sess->view_space() != XR_NULL_HANDLE);
+    CHECK(sess->near_z() == 0.1f);
+    CHECK(sess->far_z() == 250.0f);
 
     // Must not throw regardless of session state. Validity flag depends
     // on whether the runtime is tracking yet.
     XrSpaceLocation loc{ XR_TYPE_SPACE_LOCATION };
-    const bool valid = session.locate_view_space(/*time=*/0, &loc);
+    const bool valid = sess->locate_view_space(/*time=*/0, &loc);
     INFO("locate_view_space returned " << (valid ? "valid" : "invalid") << ", flags=0x" << std::hex << loc.locationFlags);
     SUCCEED();
+}
+
+// Double-attach is a programming error.
+TEST_CASE("OpenXrSession::attach_graphics is single-shot", "[xr][viz_xr]")
+{
+    auto [sess, vk] = make_stage1("viz_xr_test_double_attach");
+    sess->attach_graphics(*vk);
+    CHECK_THROWS_AS(sess->attach_graphics(*vk), std::logic_error);
 }

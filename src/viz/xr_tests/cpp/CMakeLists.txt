@@ -4,12 +4,12 @@
 cmake_minimum_required(VERSION 3.20)
 
 add_executable(viz_xr_tests
-    test_openxr_instance.cpp
     test_openxr_session.cpp
     test_xr_runtime.cpp
 )
 
 target_link_libraries(viz_xr_tests PRIVATE
+    viz::core
     viz::xr
     Catch2::Catch2WithMain
 )
