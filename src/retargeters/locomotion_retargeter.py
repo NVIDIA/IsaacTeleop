@@ -80,7 +80,10 @@ class LocomotionRootCmdRetargeterConfig:
     initial_hip_height: float = 0.72
     movement_scale: float = 0.5
     rotation_scale: float = 0.35
-    dt: float = 1.0 / 60.0  # Assumed time step if not provided externally
+    # First-frame fallback only; steady-state dt is derived from
+    # ``ComputeContext.graph_time`` so the integration is correct at any
+    # control rate (60/90/120 Hz), not just 60 Hz.
+    fallback_dt: float = 1.0 / 60.0
 
 
 class LocomotionRootCmdRetargeter(BaseRetargeter):
@@ -97,6 +100,7 @@ class LocomotionRootCmdRetargeter(BaseRetargeter):
         super().__init__(name=name)
         self._config = config
         self._hip_height = config.initial_hip_height
+        self._prev_real_time_ns: int | None = None
 
     def input_spec(self) -> RetargeterIOType:
         """Requires left and right controller inputs (Optional)."""
@@ -122,6 +126,7 @@ class LocomotionRootCmdRetargeter(BaseRetargeter):
         """Computes root command from controller inputs."""
         if context.execution_events.reset:
             self._hip_height = self._config.initial_hip_height
+            self._prev_real_time_ns = None
 
         left_thumbstick_x = 0.0
         left_thumbstick_y = 0.0
@@ -156,7 +161,15 @@ class LocomotionRootCmdRetargeter(BaseRetargeter):
 
         # Update hip height
         # Right stick Y controls height change (OpenXR up=+1 = raise, so add)
-        dt = self._config.dt
+        # Derive dt from the per-step real-time clock so the integration is
+        # correct at any control rate. The first frame after init/reset has no
+        # previous timestamp, so fall back to the configured nominal dt.
+        now_ns = context.graph_time.real_time_ns
+        if self._prev_real_time_ns is None:
+            dt = self._config.fallback_dt
+        else:
+            dt = max(0.0, (now_ns - self._prev_real_time_ns) / 1e9)
+        self._prev_real_time_ns = now_ns
         self._hip_height += right_thumbstick_y * dt * self._config.rotation_scale
         self._hip_height = max(0.4, min(1.0, self._hip_height))
 
