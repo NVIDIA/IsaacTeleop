@@ -15,6 +15,7 @@
 #include <cuda_runtime.h>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 
 namespace viz
@@ -62,24 +63,31 @@ public:
         Resolution resolution{};
         PixelFormat format = PixelFormat::kRGBA8;
 
-        // 3D placement (kXr only). Quad is rendered as a textured
-        // rectangle in the reference space at this pose, scaled to
-        // placement_size_meters. Default-constructed pose = origin
-        // looking down -Z (OpenXR forward).
+        // 3D placement of the quad in the session's reference space
+        // (OpenXR LOCAL or STAGE, depending on session config).
+        struct Placement
+        {
+            Pose3D pose{};
+            // Width × height of the rendered rectangle in reference-
+            // space meters. Both components must be > 0; rejected at
+            // construction otherwise.
+            glm::vec2 size_meters{ 0.0f, 0.0f };
+        };
+
+        // Window / offscreen modes IGNORE this — those backends render
+        // a viewport-filling image (fullscreen NDC blit cropped to the
+        // layer's tile by the compositor's per-layer scissor).
         //
-        // placement_size_meters == (0, 0) (default): "fullscreen
-        // mode" — render as a fullscreen-NDC blit (current legacy
-        // behavior; both eyes see the same texture in stereo). Use
-        // this when you want the quad to fill the viewport.
+        // XR mode REQUIRES placement to be set. A fullscreen quad
+        // stretched across an eye region in stereo XR is "head-locked
+        // at far plane" — never the right thing for camera planes or
+        // HUDs. record() throws std::logic_error on XR + nullopt so
+        // the misuse surfaces on first frame.
         //
-        // placement_size_meters != (0, 0): "3D placed mode" — render
-        // as a textured rectangle of the given size at placement_pose.
-        // Per-eye MVP from the backend's view + projection matrices.
-        //
-        // In window/offscreen modes the placement is ignored — the
-        // quad always renders fullscreen.
-        Pose3D placement_pose{};
-        glm::vec2 placement_size_meters{ 0.0f, 0.0f };
+        // When set: rendered as a world-space rectangle of size
+        // (size_meters.x × size_meters.y) at pose, using each eye's
+        // view + projection.
+        std::optional<Placement> placement;
     };
 
     // Builds the 3 DeviceImages + pipeline up front. Throws
@@ -123,12 +131,12 @@ public:
     PixelFormat format() const noexcept;
 
     // Runtime placement update. Thread-safe relative to record() —
-    // the new pose is read on the next record() call and applied to
-    // that frame's MVP. No sync vs the producer-side submit() (they
-    // touch disjoint state).
-    void set_pose(const Pose3D& pose) noexcept;
-    Pose3D get_pose() const noexcept;
-    glm::vec2 placement_size_meters() const noexcept;
+    // the new placement is read on the next record() call and applied
+    // to that frame's MVP. No sync vs the producer-side submit().
+    // Pass nullopt to switch to fullscreen mode at runtime (only
+    // meaningful in window/offscreen — XR record() will throw).
+    void set_placement(std::optional<Config::Placement> placement) noexcept;
+    std::optional<Config::Placement> placement() const noexcept;
 
     // Diagnostic accessor; nullptr for slots beyond kSlotCount.
     const DeviceImage* device_image(uint32_t slot) const noexcept;
@@ -183,14 +191,12 @@ private:
     std::atomic<uint8_t> latest_{ kSlotNone };
     std::atomic<uint8_t> in_use_{ kSlotNone };
 
-    // Live placement pose. Mutated under pose_mutex_ via set_pose;
+    // Live placement. Mutated under placement_mutex_ via set_placement;
     // read in record() under the same lock. record() runs on the
     // render thread and contention is minimal (tiny critical section,
-    // mat4 copy at most). placement_size_meters_ is set once at
-    // construction from Config; set_pose can't change the size today.
-    mutable std::mutex pose_mutex_;
-    Pose3D placement_pose_{};
-    glm::vec2 placement_size_meters_{ 0.0f, 0.0f };
+    // optional<Placement> copy at most).
+    mutable std::mutex placement_mutex_;
+    std::optional<Config::Placement> placement_;
 };
 
 } // namespace viz

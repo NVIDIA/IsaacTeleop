@@ -177,11 +177,13 @@ int main()
         // around it, walk closer, etc. In window/offscreen modes the
         // QuadLayer falls back to fullscreen rendering when its session
         // isn't kXr.
-        layer_cfg.placement_pose = viz::Pose3D{
-            glm::vec3(0.0f, 0.0f, -1.5f), // 1.5 m forward
-            glm::quat(1.0f, 0.0f, 0.0f, 0.0f), // identity orientation (facing toward viewer)
+        layer_cfg.placement = viz::QuadLayer::Config::Placement{
+            viz::Pose3D{
+                glm::vec3(0.0f, 0.0f, -1.5f), // 1.5 m forward
+                glm::quat(1.0f, 0.0f, 0.0f, 0.0f), // identity orientation (facing toward viewer)
+            },
+            glm::vec2(1.0f, 1.0f), // size_meters: 1 m × 1 m
         };
-        layer_cfg.placement_size_meters = glm::vec2(1.0f, 1.0f);
         auto* layer = session->add_layer<viz::QuadLayer>(*ctx, render_pass, layer_cfg);
 
         CudaDeviceBuffer device_buffer(static_cast<size_t>(kQuadW) * kQuadH * sizeof(Rgba));

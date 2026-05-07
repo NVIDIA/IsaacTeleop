@@ -250,8 +250,18 @@ void OpenXrSession::handle_session_state_change(XrSessionState new_state)
         {
             session_running_ = true;
         }
-        // Hard failure to begin is unusual; surface on next wait_frame
-        // attempt rather than throwing from event poll.
+        else
+        {
+            // xrBeginSession failed. wait_frame() returns false when not
+            // running, so without surfacing this the app would loop on
+            // nullopt frames forever with no diagnostic. Log it AND set
+            // exit_requested_ so the app's frame loop's should_close()
+            // check breaks out cleanly. Throwing from poll_events would
+            // unbalance the begin_frame caller's protocol guard.
+            std::fprintf(
+                stderr, "OpenXrSession: xrBeginSession failed: XrResult=%d (requesting exit)\n", static_cast<int>(r));
+            exit_requested_ = true;
+        }
         break;
     }
     case XR_SESSION_STATE_SYNCHRONIZED:

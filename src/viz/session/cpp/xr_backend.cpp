@@ -753,10 +753,17 @@ void XrBackend::end_frame(const Frame& /*frame*/)
     const std::vector<const XrCompositionLayerBaseHeader*> layers = {
         reinterpret_cast<const XrCompositionLayerBaseHeader*>(&projection_layer),
     };
-    session_->end_frame(last_frame_state_.predictedDisplayTime, layers);
-
+    // Clear protocol-balance state BEFORE the xrEndFrame call. This is the
+    // single attempt that closes the begin/end pair; if it throws the
+    // compositor's outer FrameGuard runs abort_frame, which would
+    // otherwise see frame_began_=true and try a SECOND xrEndFrame on a
+    // session that just rejected the first one (likely fatal session
+    // loss — second call doubles the noise without helping). With the
+    // flag cleared first, abort_frame's early-return on !frame_began_
+    // makes the unwind a no-op and the original throw propagates cleanly.
     frame_began_ = false;
     frame_renderable_ = false;
+    session_->end_frame(last_frame_state_.predictedDisplayTime, layers);
 }
 
 void XrBackend::abort_frame(const Frame& /*frame*/)

@@ -87,12 +87,15 @@ QuadLayer::QuadLayer(const VkContext& ctx, VkRenderPass render_pass, Config conf
     {
         throw std::invalid_argument("QuadLayer: VkContext is not initialized");
     }
-    if (config_.placement_size_meters.x < 0.0f || config_.placement_size_meters.y < 0.0f)
+    if (config_.placement.has_value())
     {
-        throw std::invalid_argument("QuadLayer: placement_size_meters must be non-negative");
+        const auto& ext = config_.placement->size_meters;
+        if (ext.x <= 0.0f || ext.y <= 0.0f)
+        {
+            throw std::invalid_argument("QuadLayer: Placement::size_meters must be > 0 in both components");
+        }
     }
-    placement_pose_ = config_.placement_pose;
-    placement_size_meters_ = config_.placement_size_meters;
+    placement_ = config_.placement;
     init();
 }
 
@@ -286,16 +289,28 @@ void QuadLayer::record(VkCommandBuffer cmd, const std::vector<ViewInfo>& views, 
     vkCmdBindDescriptorSets(
         cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0, 1, &descriptor_sets_[cur], 0, nullptr);
 
-    // Snapshot the live placement under the lock so set_pose() can run
-    // concurrently without tearing the mat4 read.
-    Pose3D placement_pose;
-    glm::vec2 placement_size;
+    // Snapshot the live placement under the lock so set_placement()
+    // can run concurrently without tearing the optional<Placement> read.
+    std::optional<Config::Placement> placement;
     {
-        std::lock_guard<std::mutex> lk(pose_mutex_);
-        placement_pose = placement_pose_;
-        placement_size = placement_size_meters_;
+        std::lock_guard<std::mutex> lk(placement_mutex_);
+        placement = placement_;
     }
-    const bool placement_active = placement_size.x > 0.0f && placement_size.y > 0.0f;
+    const bool xr_mode = session() != nullptr && session()->is_xr_mode();
+
+    // Fullscreen mode (no MVP, NDC-cover triangle) is the right primitive
+    // for window/offscreen — the compositor's per-layer viewport+scissor
+    // crops it to the layer's tile. In XR stereo it's semantically wrong:
+    // stretching a texture across an eye region is "head-locked at far
+    // plane," never what camera planes or HUDs want. So in XR we require
+    // placement; throwing here surfaces the misuse on the first frame
+    // instead of letting it render wrong content silently.
+    if (xr_mode && !placement.has_value())
+    {
+        throw std::logic_error(
+            "QuadLayer: XR mode requires Config::placement to be set "
+            "(fullscreen quads in stereo XR are not supported)");
+    }
 
     // Push constant layout matches textured_quad.vert: mat4 mvp + int mode.
     // Stored as a flat byte buffer so we can issue one vkCmdPushConstants
@@ -311,22 +326,23 @@ void QuadLayer::record(VkCommandBuffer cmd, const std::vector<ViewInfo>& views, 
     // 1 view in window/offscreen, 2 in XR stereo. Compositor pre-bound
     // the layer's scissor; we bind viewport per view, push constants,
     // then draw.
-    const bool xr_mode = session() != nullptr && session()->is_xr_mode();
     for (const auto& view : views)
     {
         bind_view_viewport(cmd, view);
 
         PushConstants pc{};
-        const bool use_mvp = xr_mode && placement_active;
-        if (use_mvp)
+        // After the xr_mode check above, xr_mode implies placement_active,
+        // so the MVP path is taken iff we're in XR.
+        if (xr_mode)
         {
-            // Model: translate to placement position, rotate by placement
-            // orientation, scale to placement_size. Negative Y flips the
-            // texture vertically to match Vulkan clip-space Y-down — the
-            // same trick xr_plane_renderer uses.
-            glm::mat4 model = glm::translate(glm::mat4(1.0f), placement_pose.position);
-            model *= glm::mat4_cast(placement_pose.orientation);
-            model = glm::scale(model, glm::vec3(placement_size.x, -placement_size.y, 1.0f));
+            // Model: translate to placement.pose.position, rotate by
+            // placement.pose.orientation, scale to size_meters.
+            // Negative Y flips the texture vertically to match Vulkan
+            // clip-space Y-down — the same trick xr_plane_renderer uses.
+            const Config::Placement& p = *placement;
+            glm::mat4 model = glm::translate(glm::mat4(1.0f), p.pose.position);
+            model *= glm::mat4_cast(p.pose.orientation);
+            model = glm::scale(model, glm::vec3(p.size_meters.x, -p.size_meters.y, 1.0f));
 
             const glm::mat4 mvp = view.projection_matrix * view.view_matrix * model;
             std::memcpy(pc.mvp, &mvp[0][0], sizeof(pc.mvp));
@@ -345,22 +361,16 @@ void QuadLayer::record(VkCommandBuffer cmd, const std::vector<ViewInfo>& views, 
     }
 }
 
-void QuadLayer::set_pose(const Pose3D& pose) noexcept
+void QuadLayer::set_placement(std::optional<Config::Placement> placement) noexcept
 {
-    std::lock_guard<std::mutex> lk(pose_mutex_);
-    placement_pose_ = pose;
+    std::lock_guard<std::mutex> lk(placement_mutex_);
+    placement_ = std::move(placement);
 }
 
-Pose3D QuadLayer::get_pose() const noexcept
+std::optional<QuadLayer::Config::Placement> QuadLayer::placement() const noexcept
 {
-    std::lock_guard<std::mutex> lk(pose_mutex_);
-    return placement_pose_;
-}
-
-glm::vec2 QuadLayer::placement_size_meters() const noexcept
-{
-    std::lock_guard<std::mutex> lk(pose_mutex_);
-    return placement_size_meters_;
+    std::lock_guard<std::mutex> lk(placement_mutex_);
+    return placement_;
 }
 
 std::vector<LayerBase::WaitSemaphore> QuadLayer::get_wait_semaphores() const
