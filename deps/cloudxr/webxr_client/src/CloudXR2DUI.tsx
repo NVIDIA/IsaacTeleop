@@ -259,6 +259,22 @@ export class CloudXR2DUI {
       settings.headless ?? false,
     );
     this.headlessInput.checked = headless;
+    this.applyHeadlessImmersiveDropdown();
+  }
+
+  /**
+   * Headless forces immersive-vr: grey out AR/VR and show VR only ({@link CloudXR2DUI.updateConfiguration} still coerces immersiveMode).
+   */
+  private applyHeadlessImmersiveDropdown(): void {
+    if (this.headlessInput.checked) {
+      this.immersiveSelect.value = 'vr';
+      this.immersiveSelect.disabled = true;
+      this.immersiveSelect.title =
+        'Headless requires VR (immersive-vr); AR passthrough is not available in this mode.';
+    } else {
+      this.immersiveSelect.disabled = false;
+      this.immersiveSelect.title = '';
+    }
   }
 
   /**
@@ -330,6 +346,7 @@ export class CloudXR2DUI {
     if (headlessSeed === 'true' || headlessSeed === 'false') {
       this.headlessInput.checked = headlessSeed === 'true';
       savePerProject('headless', this.teleopPath, headlessSeed);
+      this.applyHeadlessImmersiveDropdown();
     }
   }
 
@@ -589,6 +606,7 @@ export class CloudXR2DUI {
     addListener(this.controllerModelVisibilitySelect, 'change', updateConfig);
     addListener(this.headlessInput, 'change', () => {
       savePerProject('headless', this.teleopPath, this.headlessInput.checked ? 'true' : 'false');
+      this.applyHeadlessImmersiveDropdown();
       this.updateConfiguration();
     });
 
