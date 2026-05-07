@@ -9,6 +9,8 @@ These classes provide a clean, declarative way to configure teleop sessions.
 
 from __future__ import annotations
 
+import math
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -31,6 +33,234 @@ class SessionMode(Enum):
 
     LIVE = "live"
     REPLAY = "replay"
+
+
+class RetargetingExecutionMode(str, Enum):
+    """How :class:`TeleopSession` executes the main retargeting graph."""
+
+    SYNC = "sync"
+    PIPELINED = "pipelined"
+
+
+class RetargetingPacingMode(str, Enum):
+    """How the retarget worker schedules pipelined requests."""
+
+    IMMEDIATE = "immediate"
+    DEADLINE = "deadline"
+
+
+@dataclass(frozen=True)
+class PacingStartupState:
+    """Initial estimates the worker keeps for paced scheduling."""
+
+    submit_period_s: float = 0.0
+    compute_duration_s: float = 0.0
+    compute_sample_window: int = 1
+
+
+class _PacingBehavior:
+    """Default no-delay behavior shared by pacing configs."""
+
+    def startup_state(self) -> PacingStartupState:
+        return PacingStartupState()
+
+    def update_submit_period_s(
+        self,
+        current_estimate_s: float,
+        observed_period_s: float,
+    ) -> float:
+        return current_estimate_s
+
+    def update_compute_duration_s(
+        self,
+        current_estimate_s: float,
+        observed_duration_s: float,
+    ) -> float:
+        return current_estimate_s
+
+    def compute_delay_s(
+        self,
+        *,
+        submitted_time_s: float,
+        now_s: float,
+        submission_count: int,
+        submit_period_s: float,
+        compute_duration_s: float,
+        compute_duration_samples: Sequence[float],
+    ) -> float:
+        return 0.0
+
+
+@dataclass
+class ImmediatePacingConfig(_PacingBehavior):
+    """Start retarget work as soon as the worker receives a request."""
+
+    mode: RetargetingPacingMode | str = RetargetingPacingMode.IMMEDIATE
+
+    def __post_init__(self) -> None:
+        self.mode = RetargetingPacingMode(self.mode)
+        if self.mode != RetargetingPacingMode.IMMEDIATE:
+            raise ValueError("ImmediatePacingConfig mode must be 'immediate'")
+
+
+@dataclass
+class DeadlinePacingConfig(_PacingBehavior):
+    """Delay retarget work toward the predicted next application frame.
+
+    Tune :attr:`safety_margin_s` first. The adaptation and spike estimate fields
+    are for workloads whose frame cadence or retarget cost changes noticeably.
+    """
+
+    mode: RetargetingPacingMode | str = RetargetingPacingMode.DEADLINE
+    safety_margin_s: float = 0.015
+    frame_period_adaptation: float = 0.2
+    compute_cost_adaptation: float = 0.25
+    spike_guard_window: int = 60
+    spike_guard_percentile: float = 0.90
+    startup_frame_period_s: float = 0.022
+    startup_compute_cost_s: float = 0.005
+
+    def __post_init__(self) -> None:
+        self.mode = RetargetingPacingMode(self.mode)
+        self._validate()
+
+    def startup_state(self) -> PacingStartupState:
+        """Seed worker-side pacing estimates before runtime samples exist."""
+        return PacingStartupState(
+            submit_period_s=self.startup_frame_period_s,
+            compute_duration_s=self.startup_compute_cost_s,
+            compute_sample_window=self.spike_guard_window,
+        )
+
+    def update_submit_period_s(
+        self,
+        current_estimate_s: float,
+        observed_period_s: float,
+    ) -> float:
+        """Fold one observed app-frame period into the deadline estimate."""
+        if observed_period_s <= 0.0:
+            return current_estimate_s
+        return (
+            self.frame_period_adaptation * observed_period_s
+            + (1.0 - self.frame_period_adaptation) * current_estimate_s
+        )
+
+    def update_compute_duration_s(
+        self,
+        current_estimate_s: float,
+        observed_duration_s: float,
+    ) -> float:
+        """Fold one retarget duration into the cost estimate."""
+        return (
+            self.compute_cost_adaptation * observed_duration_s
+            + (1.0 - self.compute_cost_adaptation) * current_estimate_s
+        )
+
+    def compute_delay_s(
+        self,
+        *,
+        submitted_time_s: float,
+        now_s: float,
+        submission_count: int,
+        submit_period_s: float,
+        compute_duration_s: float,
+        compute_duration_samples: Sequence[float],
+    ) -> float:
+        """Delay work so DeviceIO polling happens near next use.
+
+        Deadline pacing is optional; the immediate default returns zero. This
+        mode starts later than immediate pacing to use more recent inputs, but
+        still reserves estimated compute time plus ``safety_margin_s`` so the
+        next application frame is less likely to miss the finished result.
+        """
+        if submission_count < 2:
+            return 0.0
+
+        target_start_s = (
+            submitted_time_s
+            + submit_period_s
+            - self._estimated_compute_duration_s(
+                compute_duration_s,
+                compute_duration_samples,
+            )
+            - self.safety_margin_s
+        )
+        return max(0.0, target_start_s - now_s)
+
+    def _estimated_compute_duration_s(
+        self,
+        compute_duration_s: float,
+        compute_duration_samples: Sequence[float],
+    ) -> float:
+        """Return the cost estimate used for spike-aware scheduling."""
+        if not compute_duration_samples:
+            return compute_duration_s
+
+        samples = sorted(compute_duration_samples)
+        index = min(
+            len(samples) - 1,
+            max(0, math.ceil(self.spike_guard_percentile * len(samples)) - 1),
+        )
+        return max(compute_duration_s, samples[index])
+
+    def _validate(self) -> None:
+        if self.mode != RetargetingPacingMode.DEADLINE:
+            raise ValueError("DeadlinePacingConfig mode must be 'deadline'")
+        if not (0.0 < self.frame_period_adaptation <= 1.0):
+            raise ValueError("frame_period_adaptation must be in (0, 1]")
+        if not (0.0 < self.compute_cost_adaptation <= 1.0):
+            raise ValueError("compute_cost_adaptation must be in (0, 1]")
+        if self.spike_guard_window <= 0:
+            raise ValueError("spike_guard_window must be positive")
+        if not (0.0 < self.spike_guard_percentile <= 1.0):
+            raise ValueError("spike_guard_percentile must be in (0, 1]")
+        if self.safety_margin_s < 0:
+            raise ValueError("safety_margin_s must be non-negative")
+        if self.startup_frame_period_s <= 0:
+            raise ValueError("startup_frame_period_s must be positive")
+        if self.startup_compute_cost_s < 0:
+            raise ValueError("startup_compute_cost_s must be non-negative")
+
+
+_RetargetingPacingConfig = ImmediatePacingConfig | DeadlinePacingConfig
+
+
+def _coerce_pacing_config(
+    pacing: _RetargetingPacingConfig | RetargetingPacingMode | str,
+) -> _RetargetingPacingConfig:
+    """Return a concrete pacing config from a config object or mode string."""
+    if isinstance(
+        pacing,
+        (ImmediatePacingConfig, DeadlinePacingConfig),
+    ):
+        return pacing
+
+    mode = RetargetingPacingMode(pacing)
+    if mode == RetargetingPacingMode.IMMEDIATE:
+        return ImmediatePacingConfig()
+    if mode == RetargetingPacingMode.DEADLINE:
+        return DeadlinePacingConfig()
+
+    raise ValueError(f"Unsupported pacing mode: {pacing}")
+
+
+@dataclass
+class RetargetingExecutionConfig:
+    """Configuration for synchronous vs. pipelined retarget step execution.
+
+    Pipelined mode keeps the public ``TeleopSession.step()`` return type as a
+    normal ``RetargeterIO`` dict, but returns the latest completed retarget
+    frame while submitting the current step request to a background worker.
+    """
+
+    mode: RetargetingExecutionMode | str = RetargetingExecutionMode.SYNC
+    pacing: _RetargetingPacingConfig | RetargetingPacingMode | str = field(
+        default_factory=ImmediatePacingConfig
+    )
+
+    def __post_init__(self) -> None:
+        self.mode = RetargetingExecutionMode(self.mode)
+        self.pacing = _coerce_pacing_config(self.pacing)
 
 
 @dataclass
@@ -93,6 +323,9 @@ class TeleopSessionConfig:
             ``name`` as the MCAP channel name).  Any ``tracker_names``
             explicitly provided in the config are **appended** after the
             auto-discovered sources.
+        retargeting_execution: Synchronous vs. pipelined execution settings for
+            the main retargeting pipeline. Defaults to synchronous exact-current-frame
+            behavior; set ``mode="pipelined"`` to opt into background execution.
 
     Example (auto-discovery):
         # Source creates its own tracker automatically!
@@ -139,6 +372,9 @@ class TeleopSessionConfig:
     verbose: bool = True
     oxr_handles: Optional[OpenXRSessionHandles] = None
     mcap_config: Optional[Union[McapRecordingConfig, McapReplayConfig]] = None
+    retargeting_execution: RetargetingExecutionConfig = field(
+        default_factory=RetargetingExecutionConfig
+    )
 
     def __post_init__(self) -> None:
         """Validate configuration consistency."""

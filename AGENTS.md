@@ -79,6 +79,7 @@ Optional context index: [`src/core/AGENTS.md`](src/core/AGENTS.md) (also on the 
 
 - **High-level** expectations: boundaries between layers, what to avoid, naming or structural conventions, CMake/include policy at a glance, “always / never” rules that stay true across refactors.
 - **Style of work**: how minimal to keep diffs, when to ask for clarification, how this subsystem should relate to OpenXR/schema/deviceio, etc.
+- For build-only requests, use the documented CMake flags and environment first (for example `-DISAAC_TELEOP_PYTHON_VERSION=...`) rather than patching build files to select options.
 
 **What does *not* belong in `AGENTS.md`**
 

@@ -11,6 +11,7 @@ from isaacteleop.retargeting_engine.interface import (
     TensorGroup,
     Tensor,
     TensorGroupType,
+    TensorType,
     UNSET_VALUE,
 )
 from isaacteleop.retargeting_engine.tensor_types import (
@@ -562,6 +563,43 @@ class TestTensorGroupCopy:
         tg = self._array_group()
         cp = tg.create_snapshot()
         assert not np.shares_memory(cp[0], tg[0])
+
+    def test_copy_dlpack_provider_uses_provider_copy_before_deepcopy(self):
+        """DLPack providers may not support deepcopy but can expose copy/clone hooks."""
+
+        class AnyValueType(TensorType):
+            def _check_instance_compatibility(self, other):
+                return True
+
+            def validate_value(self, value):
+                pass
+
+        class CopyOnlyDlpackValue:
+            def __init__(self, values):
+                self.values = list(values)
+
+            def __dlpack__(self):
+                raise RuntimeError("not needed by snapshot")
+
+            def __dlpack_device__(self):
+                return (1, 0)
+
+            def copy(self):
+                return CopyOnlyDlpackValue(self.values)
+
+            def __deepcopy__(self, memo):
+                raise TypeError("deepcopy is intentionally unsupported")
+
+        gt = TensorGroupType("dlpack_like", [AnyValueType("value")])
+        tg = TensorGroup(gt)
+        original = CopyOnlyDlpackValue([1.0, 2.0, 3.0])
+        tg[0] = original
+
+        cp = tg.create_snapshot()
+        cp[0].values[0] = 99.0
+
+        assert tg[0].values == [1.0, 2.0, 3.0]
+        assert cp[0].values == [99.0, 2.0, 3.0]
 
 
 class TestOptionalTensorGroupCopy:

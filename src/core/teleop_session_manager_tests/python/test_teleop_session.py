@@ -10,6 +10,8 @@ discovery, external input validation, step execution, session lifecycle,
 and plugin management.
 """
 
+import logging
+import threading
 import time
 import pytest
 from pathlib import Path
@@ -18,8 +20,13 @@ from contextlib import contextmanager
 
 from isaacteleop.retargeting_engine.interface import (
     BaseRetargeter,
+    ComputeContext,
+    ExecutionEvents,
+    ExecutionState,
+    GraphTime,
     TensorGroupType,
     TensorGroup,
+    TensorType,
 )
 from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
     RetargeterIO,
@@ -28,12 +35,27 @@ from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
 from isaacteleop.retargeting_engine.deviceio_source_nodes import IDeviceIOSource
 from isaacteleop.retargeting_engine.tensor_types import FloatType
 
+import isaacteleop.teleop_session_manager as teleop_session_manager
 from isaacteleop.teleop_session_manager.config import (
+    DeadlinePacingConfig,
+    ImmediatePacingConfig,
+    PluginConfig,
+    RetargetingExecutionConfig,
+    RetargetingExecutionMode,
     SessionMode,
     TeleopSessionConfig,
-    PluginConfig,
+)
+from isaacteleop.teleop_session_manager.async_retarget_runner import (
+    AsyncRetargetRunner,
+    AsyncRetargetRunnerStopped,
+    AsyncRetargetWorkerError,
+    RetargetFrame,
+    StepRequest,
 )
 from isaacteleop.teleop_session_manager.teleop_session import TeleopSession
+from isaacteleop.teleop_session_manager.teleop_state_manager_types import (
+    teleop_state_manager_output_spec,
+)
 
 
 # ============================================================================
@@ -258,6 +280,317 @@ class MockPipeline:
         return self.execute_pipeline(inputs, context)
 
 
+ASYNC_RESULT_TYPE = TensorGroupType("async_result", [FloatType("value")])
+
+
+class AnyValueType(TensorType):
+    """Tensor type for tests that need an opaque Python value."""
+
+    def _check_instance_compatibility(self, other: TensorType) -> bool:
+        return self.name == other.name
+
+    def validate_value(self, value) -> None:
+        pass
+
+
+OPAQUE_EXTERNAL_TYPE = TensorGroupType("opaque_external", [AnyValueType("value")])
+
+
+class UncopyableValue:
+    def __deepcopy__(self, memo):
+        raise TypeError("cannot pickle opaque value")
+
+
+def make_async_result(value: float) -> RetargeterIO:
+    tg = TensorGroup(ASYNC_RESULT_TYPE)
+    tg[0] = float(value)
+    return {"result": tg}
+
+
+def async_result_value(result: RetargeterIO) -> float:
+    return result["result"][0]
+
+
+class AnyExternalRetargeter(BaseRetargeter):
+    """External leaf that accepts an opaque test value."""
+
+    def __init__(self, name: str):
+        super().__init__(name)
+
+    def input_spec(self) -> RetargeterIOType:
+        return {"value": OPAQUE_EXTERNAL_TYPE}
+
+    def output_spec(self) -> RetargeterIOType:
+        return {"result": ASYNC_RESULT_TYPE}
+
+    def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
+        outputs["result"][0] = (
+            1.0 if isinstance(inputs["value"][0], UncopyableValue) else 0.0
+        )
+
+
+class CountingPipeline(MockPipeline):
+    """Pipeline that returns its call index and can sleep or fail per call."""
+
+    def __init__(self, *, sleep_s=0.0, fail_on_call=None):
+        super().__init__(leaf_nodes=[])
+        self.sleep_s = sleep_s
+        self.fail_on_call = fail_on_call
+        self.call_count = 0
+        self.max_active = 0
+        self.failed = threading.Event()
+        self._active = 0
+        self._lock = threading.Lock()
+
+    def execute_pipeline(self, inputs, context=None):
+        with self._lock:
+            call_idx = self.call_count
+            self.call_count += 1
+            self._active += 1
+            self.max_active = max(self.max_active, self._active)
+        try:
+            if self.sleep_s:
+                time.sleep(self.sleep_s)
+            if self.fail_on_call == call_idx:
+                self.failed.set()
+                raise RuntimeError("pipeline boom")
+            return make_async_result(call_idx)
+        finally:
+            with self._lock:
+                self._active -= 1
+
+
+class ExternalEchoPipeline(MockPipeline):
+    """Pipeline that echoes an external scalar after blocking its second call."""
+
+    def __init__(self):
+        self.leaf = MockExternalRetargeter("sim_state")
+        super().__init__(leaf_nodes=[self.leaf])
+        self.call_count = 0
+        self.second_started = threading.Event()
+        self.release_second = threading.Event()
+        self.second_done = threading.Event()
+
+    def execute_pipeline(self, inputs, context=None):
+        call_idx = self.call_count
+        self.call_count += 1
+        if call_idx == 1:
+            self.second_started.set()
+            self.release_second.wait(timeout=2.0)
+        value = inputs["sim_state"]["external_data"][0]
+        if call_idx == 1:
+            self.second_done.set()
+        return make_async_result(value)
+
+
+class ContextEchoPipeline(MockPipeline):
+    """Pipeline that blocks its second call, then echoes execution events."""
+
+    def __init__(self):
+        super().__init__(leaf_nodes=[])
+        self.call_count = 0
+        self.second_started = threading.Event()
+        self.release_second = threading.Event()
+        self.second_done = threading.Event()
+
+    def execute_pipeline(self, inputs, context=None):
+        call_idx = self.call_count
+        self.call_count += 1
+        if call_idx == 1:
+            self.second_started.set()
+            self.release_second.wait(timeout=2.0)
+        if context.execution_events.reset:
+            value = 1.0
+        elif context.execution_events.execution_state == ExecutionState.PAUSED:
+            value = 2.0
+        else:
+            value = 0.0
+        if call_idx == 1:
+            self.second_done.set()
+        return make_async_result(value)
+
+
+class FrameIdPipeline(MockPipeline):
+    """Pipeline that records and returns the frame id encoded in GraphTime."""
+
+    def __init__(self):
+        super().__init__(leaf_nodes=[])
+        self.executed_frame_ids: list[int] = []
+
+    def execute_pipeline(self, inputs, context=None):
+        frame_id = int(context.graph_time.sim_time_ns)
+        self.executed_frame_ids.append(frame_id)
+        return make_async_result(frame_id)
+
+
+class BlockingSecondCountingPipeline(CountingPipeline):
+    """Counting pipeline that holds its second call until released."""
+
+    def __init__(self):
+        super().__init__()
+        self.second_started = threading.Event()
+        self.release_second = threading.Event()
+
+    def execute_pipeline(self, inputs, context=None):
+        with self._lock:
+            call_idx = self.call_count
+            self.call_count += 1
+            self._active += 1
+            self.max_active = max(self.max_active, self._active)
+        try:
+            if call_idx == 1:
+                self.second_started.set()
+                self.release_second.wait(timeout=2.0)
+            return make_async_result(call_idx)
+        finally:
+            with self._lock:
+                self._active -= 1
+
+
+class ReusingOutputPipeline(MockPipeline):
+    """Pipeline that reuses one output object across calls.
+
+    This mirrors stateful retargeters that keep output buffers internally. The
+    async worker must snapshot before publishing, otherwise a later call can
+    mutate an older cached frame while the application is still returning it as
+    the latest completed output.
+    """
+
+    def __init__(self):
+        super().__init__(leaf_nodes=[])
+        self.outputs = make_async_result(-1.0)
+        self.second_started = threading.Event()
+        self.release_second = threading.Event()
+
+    def execute_pipeline(self, inputs, context=None):
+        frame_id = int(context.graph_time.sim_time_ns)
+        self.outputs["result"][0] = float(frame_id)
+        if frame_id == 2:
+            self.second_started.set()
+            self.release_second.wait(timeout=2.0)
+        return self.outputs
+
+
+class UncopyableOutputPipeline(MockPipeline):
+    """Pipeline whose output cannot be snapshot-copied."""
+
+    def __init__(self):
+        super().__init__(leaf_nodes=[])
+        self.group_type = TensorGroupType("opaque_result", [AnyValueType("value")])
+
+    def execute_pipeline(self, inputs, context=None):
+        group = TensorGroup(self.group_type)
+        group[0] = UncopyableValue()
+        return {"result": group}
+
+
+class BlockingControlPipeline(MockPipeline):
+    """Control pipeline that blocks its second automatic event decode."""
+
+    def __init__(
+        self,
+        *,
+        second_state: ExecutionState = ExecutionState.RUNNING,
+        second_reset: bool = False,
+    ):
+        super().__init__(leaf_nodes=[])
+        self.call_count = 0
+        self.second_started = threading.Event()
+        self.release_second = threading.Event()
+        self.second_state = second_state
+        self.second_reset = second_reset
+
+    def output_types(self) -> RetargeterIOType:
+        return teleop_state_manager_output_spec()
+
+    def execute_pipeline(self, inputs, context=None):
+        call_idx = self.call_count
+        self.call_count += 1
+        if call_idx == 1:
+            self.second_started.set()
+            self.release_second.wait(timeout=2.0)
+            return make_control_outputs(self.second_state, reset=self.second_reset)
+        return make_control_outputs(ExecutionState.RUNNING, reset=False)
+
+
+class ControlEventEchoPipeline(MockPipeline):
+    """Pipeline that encodes worker-decoded control events in its output."""
+
+    def execute_pipeline(self, inputs, context=None):
+        if context.execution_events.reset:
+            return make_async_result(1.0)
+        if context.execution_events.execution_state == ExecutionState.PAUSED:
+            return make_async_result(2.0)
+        return make_async_result(0.0)
+
+
+def make_external_scalar(value: float) -> RetargeterIO:
+    tg = TensorGroup(TensorGroupType("external_scalar", [FloatType("value")]))
+    tg[0] = float(value)
+    return {"external_data": tg}
+
+
+def make_opaque_external() -> RetargeterIO:
+    tg = TensorGroup(OPAQUE_EXTERNAL_TYPE)
+    tg[0] = UncopyableValue()
+    return {"value": tg}
+
+
+def make_control_outputs(state: ExecutionState, *, reset: bool) -> RetargeterIO:
+    outputs = {}
+    for name, group_type in teleop_state_manager_output_spec().items():
+        group = TensorGroup(group_type)
+        if name == "teleop_state":
+            for index, tensor_type in enumerate(group_type.types):
+                group[index] = tensor_type.name == state.value
+        else:
+            group[0] = reset
+        outputs[name] = group
+    return outputs
+
+
+def make_step_request(
+    frame_id: int,
+    *,
+    submitted_time_s: float | None = None,
+) -> StepRequest:
+    return StepRequest(
+        frame_id=frame_id,
+        external_inputs={},
+        graph_time=GraphTime(sim_time_ns=frame_id, real_time_ns=frame_id),
+        execution_events=ExecutionEvents(
+            reset=False,
+            execution_state=ExecutionState.RUNNING,
+        ),
+        submitted_time_s=(
+            time.monotonic() if submitted_time_s is None else submitted_time_s
+        ),
+    )
+
+
+def execute_pipeline_request(pipeline, request: StepRequest):
+    context = ComputeContext(
+        graph_time=request.graph_time
+        or GraphTime(sim_time_ns=request.frame_id, real_time_ns=request.frame_id),
+        execution_events=request.execution_events or ExecutionEvents(),
+    )
+    return pipeline.execute_pipeline(request.external_inputs or {}, context), context
+
+
+def make_async_runner(pipeline, config) -> AsyncRetargetRunner:
+    return AsyncRetargetRunner(
+        lambda request: execute_pipeline_request(pipeline, request),
+        config.retargeting_execution,
+    )
+
+
+class FailingPollSource(MockDeviceIOSource):
+    """Source whose first seed-frame poll fails before worker submission."""
+
+    def poll_tracker(self, deviceio_session):
+        raise RuntimeError("poll failed")
+
+
 # ============================================================================
 # Mock OpenXR Session
 # ============================================================================
@@ -420,14 +753,24 @@ def mock_session_dependencies(
 # ============================================================================
 
 
-def make_config(pipeline, plugins=None, trackers=None, app_name="TestApp"):
+def make_config(
+    pipeline,
+    plugins=None,
+    trackers=None,
+    app_name="TestApp",
+    teleop_control_pipeline=None,
+    retargeting_execution=None,
+):
     """Create a TeleopSessionConfig with sensible test defaults."""
     return TeleopSessionConfig(
         app_name=app_name,
         pipeline=pipeline,
+        teleop_control_pipeline=teleop_control_pipeline,
         trackers=trackers or [],
         plugins=plugins or [],
         verbose=False,
+        retargeting_execution=retargeting_execution
+        or RetargetingExecutionConfig(mode=RetargetingExecutionMode.SYNC),
     )
 
 
@@ -1008,6 +1351,35 @@ class TestStep:
                 # The pipeline should receive the external inputs
                 assert "sim_state" in pipeline.last_inputs
 
+    def test_default_sync_step_filters_unused_external_inputs(self):
+        """Default sync mode should ignore unused external leaves and per-leaf keys."""
+        ext = MockExternalRetargeter("sim_state")
+        pipeline = MockPipeline(leaf_nodes=[ext])
+
+        config = TeleopSessionConfig(
+            app_name="TestApp",
+            pipeline=pipeline,
+            verbose=False,
+        )
+        external_value = MagicMock()
+        external_data = {
+            "sim_state": {
+                "external_data": external_value,
+                "ignored_data": MagicMock(),
+            },
+            "bonus_data": {"external_data": MagicMock()},
+        }
+        with mock_session_dependencies():
+            session = TeleopSession(config)
+            with session:
+                session.step(external_inputs=external_data)
+
+                assert set(pipeline.last_inputs) == {"sim_state"}
+                assert set(pipeline.last_inputs["sim_state"]) == {"external_data"}
+                assert (
+                    pipeline.last_inputs["sim_state"]["external_data"] is external_value
+                )
+
     def test_step_with_mixed_sources(self):
         """step() with both DeviceIO sources and external inputs."""
         head = MockHeadSource()
@@ -1073,6 +1445,681 @@ class TestStep:
                 # Should not raise
                 session.step()
                 assert session.frame_count == 1
+
+
+class TestPipelinedRetargeting:
+    """Tests for TeleopSession-owned pipelined async retarget execution."""
+
+    def _pipelined_config(self, pipeline, **execution_kwargs):
+        return make_config(
+            pipeline,
+            retargeting_execution=RetargetingExecutionConfig(
+                mode=RetargetingExecutionMode.PIPELINED,
+                **execution_kwargs,
+            ),
+        )
+
+    def test_first_frame_runs_synchronously_and_returns_seed(self):
+        pipeline = CountingPipeline()
+        config = self._pipelined_config(pipeline)
+
+        with mock_session_dependencies():
+            with TeleopSession(config) as session:
+                result = session.step()
+
+                assert async_result_value(result) == 0.0
+                assert session.last_step_info.ran_synchronously is True
+                assert session.last_step_info.returned_frame_id == 0
+                assert session.last_step_info.submitted_frame_id == 0
+                assert session.last_step_info.returned_age_frames == 0
+
+    def test_default_pipelined_returns_latest_completed_result(self):
+        pipeline = BlockingSecondCountingPipeline()
+        config = self._pipelined_config(pipeline)
+
+        with mock_session_dependencies():
+            with TeleopSession(config) as session:
+                first = session.step()
+                second = session.step()
+
+                assert async_result_value(first) == 0.0
+                assert async_result_value(second) == 0.0
+                assert session.last_step_info.ran_synchronously is False
+                assert session.last_step_info.returned_frame_id == 0
+                assert session.last_step_info.submitted_frame_id == 1
+                assert session.last_step_info.returned_age_frames == 1
+                pipeline.release_second.set()
+
+    def test_reset_frame_is_not_forced_current_but_returned_frame_is_consistent(self):
+        pipeline = ContextEchoPipeline()
+        config = self._pipelined_config(
+            pipeline,
+            pacing=DeadlinePacingConfig(
+                frame_period_adaptation=0.01,
+                safety_margin_s=0.0,
+                startup_frame_period_s=0.25,
+                startup_compute_cost_s=0.0,
+            ),
+        )
+
+        with mock_session_dependencies():
+            with TeleopSession(config) as session:
+                assert (
+                    async_result_value(
+                        session.step(
+                            execution_events=ExecutionEvents(
+                                reset=False,
+                                execution_state=ExecutionState.RUNNING,
+                            )
+                        )
+                    )
+                    == 0.0
+                )
+                result = session.step(
+                    execution_events=ExecutionEvents(
+                        reset=True,
+                        execution_state=ExecutionState.RUNNING,
+                    )
+                )
+
+                assert async_result_value(result) == 0.0
+                assert session.last_step_info.ran_synchronously is False
+                assert session.last_context.execution_events.reset is False
+
+                assert pipeline.second_started.wait(timeout=1.0)
+                pipeline.release_second.set()
+                assert pipeline.second_done.wait(timeout=1.0)
+                assert session._async_runner is not None
+                assert session._async_runner.wait_for_frame(1, timeout_s=1.0)
+
+                result = session.step(
+                    execution_events=ExecutionEvents(
+                        reset=False,
+                        execution_state=ExecutionState.RUNNING,
+                    )
+                )
+
+                assert async_result_value(result) == 1.0
+                assert session.last_step_info.ran_synchronously is False
+                assert session.last_step_info.returned_frame_id == 1
+                assert session.last_step_info.submitted_frame_id == 2
+                assert session.last_context.execution_events.reset is True
+
+    def test_control_transition_frame_is_returned_with_its_context(self):
+        pipeline = ContextEchoPipeline()
+        config = self._pipelined_config(
+            pipeline,
+            pacing=DeadlinePacingConfig(
+                frame_period_adaptation=0.01,
+                safety_margin_s=0.0,
+                startup_frame_period_s=0.25,
+                startup_compute_cost_s=0.0,
+            ),
+        )
+
+        with mock_session_dependencies():
+            with TeleopSession(config) as session:
+                assert (
+                    async_result_value(
+                        session.step(
+                            execution_events=ExecutionEvents(
+                                reset=False,
+                                execution_state=ExecutionState.RUNNING,
+                            )
+                        )
+                    )
+                    == 0.0
+                )
+                result = session.step(
+                    execution_events=ExecutionEvents(
+                        reset=False,
+                        execution_state=ExecutionState.PAUSED,
+                    )
+                )
+
+                assert async_result_value(result) == 0.0
+                assert session.last_step_info.ran_synchronously is False
+                assert pipeline.second_started.wait(timeout=1.0)
+                pipeline.release_second.set()
+                assert pipeline.second_done.wait(timeout=1.0)
+                assert session._async_runner is not None
+                assert session._async_runner.wait_for_frame(1, timeout_s=1.0)
+
+                result = session.step(
+                    execution_events=ExecutionEvents(
+                        reset=False,
+                        execution_state=ExecutionState.RUNNING,
+                    )
+                )
+
+                assert async_result_value(result) == 2.0
+                assert session.last_step_info.ran_synchronously is False
+                assert session.last_step_info.returned_frame_id == 1
+                assert session.last_step_info.submitted_frame_id == 2
+                assert (
+                    session.last_context.execution_events.execution_state
+                    == ExecutionState.PAUSED
+                )
+
+    def test_automatic_control_pipeline_frame_is_not_forced_current(self):
+        pipeline = ControlEventEchoPipeline()
+        control_pipeline = BlockingControlPipeline(second_reset=True)
+        config = make_config(
+            pipeline,
+            teleop_control_pipeline=control_pipeline,
+            retargeting_execution=RetargetingExecutionConfig(
+                mode=RetargetingExecutionMode.PIPELINED,
+                pacing=DeadlinePacingConfig(
+                    frame_period_adaptation=0.01,
+                    safety_margin_s=0.0,
+                    startup_frame_period_s=0.25,
+                    startup_compute_cost_s=0.0,
+                ),
+            ),
+        )
+
+        with mock_session_dependencies():
+            with TeleopSession(config) as session:
+                assert async_result_value(session.step()) == 0.0
+                result = session.step()
+
+                assert async_result_value(result) == 0.0
+                assert session.last_step_info.ran_synchronously is False
+                assert control_pipeline.second_started.wait(timeout=2.0)
+
+                control_pipeline.release_second.set()
+                assert session._async_runner is not None
+                assert session._async_runner.wait_for_frame(1, timeout_s=2.0)
+                result = session.step()
+
+                assert async_result_value(result) == 1.0
+                assert session.last_step_info.ran_synchronously is False
+                assert session.last_step_info.returned_frame_id == 1
+                assert session.last_step_info.submitted_frame_id == 2
+                assert session.last_context.execution_events.reset is True
+
+    def test_worker_inputs_are_snapshotted(self):
+        pipeline = ExternalEchoPipeline()
+        config = self._pipelined_config(pipeline)
+        first_external = {"sim_state": make_external_scalar(1.0)}
+        second_external = {"sim_state": make_external_scalar(2.0)}
+
+        with mock_session_dependencies():
+            with TeleopSession(config) as session:
+                assert (
+                    async_result_value(session.step(external_inputs=first_external))
+                    == 1.0
+                )
+                previous_frame = session.step(external_inputs=second_external)
+                assert async_result_value(previous_frame) == 1.0
+
+                assert pipeline.second_started.wait(timeout=2.0)
+                second_external["sim_state"]["external_data"][0] = 99.0
+                pipeline.release_second.set()
+                assert pipeline.second_done.wait(timeout=2.0)
+                assert session._async_runner is not None
+                assert session._async_runner.wait_for_frame(1, timeout_s=2.0)
+
+                result = session.step(external_inputs=second_external)
+                assert async_result_value(result) == 2.0
+
+    def test_worker_context_is_snapshotted(self):
+        pipeline = ContextEchoPipeline()
+        config = self._pipelined_config(pipeline)
+        reusable_events = ExecutionEvents(
+            reset=False,
+            execution_state=ExecutionState.RUNNING,
+        )
+
+        with mock_session_dependencies():
+            with TeleopSession(config) as session:
+                assert (
+                    async_result_value(session.step(execution_events=reusable_events))
+                    == 0.0
+                )
+                previous_frame = session.step(execution_events=reusable_events)
+                assert async_result_value(previous_frame) == 0.0
+
+                assert pipeline.second_started.wait(timeout=2.0)
+                reusable_events.reset = True
+                reusable_events.execution_state = ExecutionState.PAUSED
+                pipeline.release_second.set()
+                assert pipeline.second_done.wait(timeout=2.0)
+                assert session._async_runner is not None
+                assert session._async_runner.wait_for_frame(1, timeout_s=2.0)
+
+                result = session.step(
+                    execution_events=ExecutionEvents(
+                        reset=False,
+                        execution_state=ExecutionState.RUNNING,
+                    )
+                )
+                assert async_result_value(result) == 0.0
+                assert session.last_context.execution_events.reset is False
+                assert (
+                    session.last_context.execution_events.execution_state
+                    == ExecutionState.RUNNING
+                )
+
+    def test_repeated_completed_outputs_are_snapshots(self):
+        pipeline = CountingPipeline()
+        config = self._pipelined_config(pipeline)
+
+        with mock_session_dependencies():
+            with TeleopSession(config) as session:
+                first = session.step()
+                first["result"][0] = 99.0
+
+                second = session.step()
+                assert async_result_value(second) == 0.0
+
+    def test_pipelined_uncopyable_outputs_fail_with_clear_error(self):
+        pipeline = UncopyableOutputPipeline()
+        config = self._pipelined_config(pipeline)
+
+        with mock_session_dependencies():
+            with pytest.raises(TypeError, match="snapshot-copyable"):
+                with TeleopSession(config) as session:
+                    session.step()
+
+    def test_sync_mode_allows_uncopyable_outputs(self):
+        pipeline = UncopyableOutputPipeline()
+        config = make_config(
+            pipeline,
+            retargeting_execution=RetargetingExecutionConfig(
+                mode=RetargetingExecutionMode.SYNC
+            ),
+        )
+
+        with mock_session_dependencies():
+            with TeleopSession(config) as session:
+                result = session.step()
+
+                assert isinstance(result["result"][0], UncopyableValue)
+
+    def test_sync_mode_allows_uncopyable_external_inputs(self):
+        pipeline = AnyExternalRetargeter("opaque")
+        config = make_config(
+            pipeline,
+            retargeting_execution=RetargetingExecutionConfig(
+                mode=RetargetingExecutionMode.SYNC
+            ),
+        )
+
+        with mock_session_dependencies():
+            with TeleopSession(config) as session:
+                result = session.step(
+                    external_inputs={"opaque": make_opaque_external()}
+                )
+
+                assert async_result_value(result) == 1.0
+
+    def test_pipelined_uncopyable_external_inputs_fail_before_worker(self):
+        pipeline = AnyExternalRetargeter("opaque")
+        config = self._pipelined_config(pipeline)
+
+        with mock_session_dependencies():
+            with pytest.raises(TypeError, match="snapshot-copyable"):
+                with TeleopSession(config) as session:
+                    session.step(external_inputs={"opaque": make_opaque_external()})
+
+    def test_pipelined_ignores_unused_per_leaf_external_inputs_before_snapshot(self):
+        pipeline = ExternalEchoPipeline()
+        config = self._pipelined_config(pipeline)
+        external = {"sim_state": make_external_scalar(3.0)}
+        external["sim_state"]["ignored_opaque"] = make_opaque_external()["value"]
+
+        with mock_session_dependencies():
+            with TeleopSession(config) as session:
+                result = session.step(external_inputs=external)
+
+                assert async_result_value(result) == 3.0
+
+    def test_worker_exception_surfaces_on_next_step(self):
+        pipeline = CountingPipeline(fail_on_call=1)
+        config = self._pipelined_config(pipeline)
+
+        with mock_session_dependencies():
+            with TeleopSession(config) as session:
+                assert async_result_value(session.step()) == 0.0
+                assert async_result_value(session.step()) == 0.0
+                assert pipeline.failed.wait(timeout=2.0)
+
+                with pytest.raises(RuntimeError, match="Async retarget worker failed"):
+                    session.step()
+                assert session.last_step_info.worker_exception is not None
+
+    def test_worker_exception_surfaces_on_context_exit(self):
+        pipeline = CountingPipeline(fail_on_call=1)
+        config = self._pipelined_config(pipeline)
+
+        with mock_session_dependencies():
+            with pytest.raises(AsyncRetargetWorkerError):
+                with TeleopSession(config) as session:
+                    assert async_result_value(session.step()) == 0.0
+                    assert async_result_value(session.step()) == 0.0
+                    assert pipeline.failed.wait(timeout=2.0)
+
+    def test_worker_exception_during_user_exception_is_logged(self, caplog):
+        pipeline = CountingPipeline(fail_on_call=1)
+        config = self._pipelined_config(pipeline)
+        caplog.set_level(
+            logging.ERROR,
+            logger="isaacteleop.teleop_session_manager.teleop_session",
+        )
+
+        with mock_session_dependencies():
+            with pytest.raises(ValueError, match="user boom"):
+                with TeleopSession(config) as session:
+                    assert async_result_value(session.step()) == 0.0
+                    assert async_result_value(session.step()) == 0.0
+                    assert pipeline.failed.wait(timeout=2.0)
+                    raise ValueError("user boom")
+
+        assert (
+            "Async retarget worker failed during TeleopSession cleanup" in caplog.text
+        )
+
+    def test_first_frame_worker_exception_surfaces(self):
+        pipeline = CountingPipeline(fail_on_call=0)
+        config = self._pipelined_config(pipeline)
+
+        with mock_session_dependencies():
+            with pytest.raises(RuntimeError, match="pipeline boom"):
+                with TeleopSession(config) as session:
+                    session.step()
+
+    def test_app_thread_runtime_error_is_not_labeled_worker_exception(self):
+        source = FailingPollSource("failing", tracker=object())
+        pipeline = MockPipeline(leaf_nodes=[source])
+        config = self._pipelined_config(pipeline)
+
+        with mock_session_dependencies():
+            with TeleopSession(config) as session:
+                with pytest.raises(RuntimeError, match="poll failed"):
+                    session.step()
+                assert session.last_step_info.worker_exception is None
+
+    def test_worker_never_executes_graph_concurrently(self):
+        pipeline = CountingPipeline(sleep_s=0.01)
+        config = self._pipelined_config(pipeline)
+
+        with mock_session_dependencies():
+            with TeleopSession(config) as session:
+                for _ in range(8):
+                    session.step()
+
+        assert pipeline.max_active == 1
+
+    def test_frame_deadline_miss_marks_outputs_more_than_one_frame_old(self):
+        pipeline = BlockingSecondCountingPipeline()
+        config = self._pipelined_config(pipeline)
+
+        with mock_session_dependencies():
+            with TeleopSession(config) as session:
+                assert async_result_value(session.step()) == 0.0
+                session.step()
+                assert pipeline.second_started.wait(timeout=1.0)
+
+                try:
+                    result = session.step()
+
+                    assert async_result_value(result) == 0.0
+                    assert session.last_step_info.returned_age_frames == 2
+                    assert session.last_step_info.frame_deadline_miss is True
+                finally:
+                    pipeline.release_second.set()
+
+    def test_deadline_pacing_uses_margin_and_cost_estimate(self):
+        pacing = DeadlinePacingConfig(
+            frame_period_adaptation=1.0,
+            compute_cost_adaptation=1.0,
+            spike_guard_window=4,
+            spike_guard_percentile=0.90,
+            safety_margin_s=0.015,
+            startup_frame_period_s=0.050,
+            startup_compute_cost_s=0.010,
+        )
+
+        sleep_s = pacing.compute_delay_s(
+            submitted_time_s=100.0,
+            now_s=100.020,
+            submission_count=2,
+            submit_period_s=0.050,
+            compute_duration_s=0.010,
+            compute_duration_samples=[0.004, 0.006, 0.012],
+        )
+
+        assert sleep_s == pytest.approx(0.003)
+
+    def test_deadline_pacing_uses_seed_for_first_worker_request(self):
+        pipeline = FrameIdPipeline()
+        config = self._pipelined_config(
+            pipeline,
+            pacing=DeadlinePacingConfig(
+                frame_period_adaptation=0.01,
+                safety_margin_s=0.0,
+                startup_frame_period_s=0.08,
+                startup_compute_cost_s=0.0,
+            ),
+        )
+        runner = make_async_runner(pipeline, config)
+        now_s = time.monotonic()
+        runner.publish_seed(
+            RetargetFrame(
+                frame_id=0,
+                outputs=make_async_result(0.0),
+                context=ComputeContext(
+                    graph_time=GraphTime(sim_time_ns=0, real_time_ns=0),
+                    execution_events=ExecutionEvents(
+                        reset=False,
+                        execution_state=ExecutionState.RUNNING,
+                    ),
+                ),
+                submitted_time_s=now_s,
+                started_time_s=now_s,
+                completed_time_s=now_s,
+                compute_duration_s=0.0,
+            )
+        )
+        runner.start()
+        try:
+            assert (
+                runner.submit(make_step_request(1, submitted_time_s=now_s + 0.001)) == 0
+            )
+            time.sleep(0.02)
+
+            assert pipeline.executed_frame_ids == []
+            latest = runner.latest()
+            assert latest is not None
+            assert latest.frame_id == 0
+
+            frame = runner.wait_for_frame(1, timeout_s=1.0)
+            assert frame is not None
+            assert frame.frame_id == 1
+        finally:
+            runner.stop(timeout_s=1.0)
+
+    def test_deadline_paced_unstarted_request_is_replaced_by_newer_submission(self):
+        pipeline = FrameIdPipeline()
+        config = self._pipelined_config(
+            pipeline,
+            pacing=DeadlinePacingConfig(
+                frame_period_adaptation=0.01,
+                safety_margin_s=0.0,
+                startup_frame_period_s=0.25,
+                startup_compute_cost_s=0.0,
+            ),
+        )
+        runner = make_async_runner(pipeline, config)
+        runner._submission_count = 1
+        runner.start()
+        try:
+            assert runner.submit(make_step_request(1)) == 0
+            time.sleep(0.05)
+            assert runner.submit(make_step_request(2)) == 1
+
+            frame = runner.wait_for_frame(2, timeout_s=1.0)
+
+            assert frame is not None
+            assert frame.frame_id == 2
+            assert pipeline.executed_frame_ids == [2]
+            assert runner.dropped_submissions == 1
+        finally:
+            runner.stop(timeout_s=1.0)
+
+    def test_deadline_pacing_submit_period_estimator_updates(self):
+        pipeline = CountingPipeline()
+        config = self._pipelined_config(
+            pipeline,
+            pacing=DeadlinePacingConfig(frame_period_adaptation=1.0),
+        )
+        runner = make_async_runner(pipeline, config)
+
+        with runner._cond:
+            runner._record_submission_locked(10.0)
+            runner._record_submission_locked(10.0005)
+            assert runner._submit_period_s == pytest.approx(0.0005)
+
+            runner._record_submission_locked(11.5005)
+            assert runner._submit_period_s == pytest.approx(1.5)
+
+    def test_published_frame_is_snapshotted_before_reused_output_mutates(self):
+        pipeline = ReusingOutputPipeline()
+        config = self._pipelined_config(pipeline)
+        runner = make_async_runner(pipeline, config)
+        runner.start()
+        try:
+            runner.submit(make_step_request(1))
+            first_frame = runner.wait_for_frame(1, timeout_s=1.0)
+            assert first_frame is not None
+            assert async_result_value(first_frame.outputs) == 1.0
+
+            runner.submit(make_step_request(2))
+            assert pipeline.second_started.wait(timeout=1.0)
+
+            latest = runner.latest()
+            assert latest is not None
+            assert latest.frame_id == 1
+            assert async_result_value(latest.outputs) == 1.0
+
+            pipeline.release_second.set()
+        finally:
+            pipeline.release_second.set()
+            runner.stop(timeout_s=1.0)
+
+    def test_submit_after_stop_raises(self):
+        pipeline = CountingPipeline()
+        config = self._pipelined_config(pipeline)
+        runner = make_async_runner(pipeline, config)
+        runner.start()
+        assert runner.stop(timeout_s=1.0) is True
+        assert runner.stop(timeout_s=1.0) is True
+
+        with pytest.raises(AsyncRetargetRunnerStopped, match="submission"):
+            runner.submit(make_step_request(1))
+
+    def test_runner_cannot_restart_after_stop(self):
+        pipeline = CountingPipeline()
+        config = self._pipelined_config(pipeline)
+        runner = make_async_runner(pipeline, config)
+        runner.start()
+        assert runner.stop(timeout_s=1.0) is True
+
+        with pytest.raises(AsyncRetargetRunnerStopped, match="restarted"):
+            runner.start()
+
+    def test_stop_timeout_reports_active_worker_and_later_stop_cleans_up(self):
+        pipeline = BlockingSecondCountingPipeline()
+        config = self._pipelined_config(pipeline)
+        runner = make_async_runner(pipeline, config)
+        runner.start()
+        try:
+            runner.submit(make_step_request(1))
+            assert runner.wait_for_frame(1, timeout_s=1.0) is not None
+            runner.submit(make_step_request(2))
+            assert pipeline.second_started.wait(timeout=1.0)
+
+            assert runner.stop(timeout_s=0.01) is False
+            assert runner._thread is not None
+
+            pipeline.release_second.set()
+            assert runner.stop(timeout_s=1.0) is True
+            assert runner._thread is None
+        finally:
+            pipeline.release_second.set()
+            runner.stop(timeout_s=1.0)
+
+    def test_wait_for_frame_returns_none_after_stop(self):
+        pipeline = CountingPipeline()
+        config = self._pipelined_config(pipeline)
+        runner = make_async_runner(pipeline, config)
+        runner.start()
+        try:
+            result = []
+
+            waiter = threading.Thread(
+                target=lambda: result.append(runner.wait_for_frame(10)),
+            )
+            waiter.start()
+            runner.stop(timeout_s=1.0)
+            waiter.join(timeout=1.0)
+
+            assert result == [None]
+        finally:
+            runner.stop(timeout_s=1.0)
+
+    def test_wait_for_frame_returns_already_published_frame_after_stop(self):
+        pipeline = CountingPipeline()
+        config = self._pipelined_config(pipeline)
+        runner = make_async_runner(pipeline, config)
+        runner.start()
+        try:
+            runner.submit(make_step_request(1))
+            frame = runner.wait_for_frame(1, timeout_s=1.0)
+            runner.stop(timeout_s=1.0)
+
+            assert frame is not None
+            assert runner.wait_for_frame(1, timeout_s=0.0) is frame
+        finally:
+            runner.stop(timeout_s=1.0)
+
+    def test_sync_mode_keeps_exact_current_frame_behavior(self):
+        pipeline = CountingPipeline()
+        config = make_config(
+            pipeline,
+            retargeting_execution=RetargetingExecutionConfig(
+                mode=RetargetingExecutionMode.SYNC
+            ),
+        )
+
+        with mock_session_dependencies():
+            with TeleopSession(config) as session:
+                assert async_result_value(session.step()) == 0.0
+                assert async_result_value(session.step()) == 1.0
+                assert session.last_step_info.returned_age_frames == 0
+                assert session.last_step_info.ran_synchronously is True
+
+    def test_execution_mode_is_latched_for_active_session_run(self):
+        pipeline = BlockingSecondCountingPipeline()
+        config = self._pipelined_config(pipeline)
+
+        with mock_session_dependencies():
+            with TeleopSession(config) as session:
+                assert async_result_value(session.step()) == 0.0
+                session.config.retargeting_execution.mode = (
+                    RetargetingExecutionMode.SYNC
+                )
+
+                try:
+                    result = session.step()
+
+                    assert async_result_value(result) == 0.0
+                    assert session.last_step_info.ran_synchronously is False
+                    assert session._async_runner is not None
+                    assert pipeline.second_started.wait(timeout=1.0)
+                finally:
+                    pipeline.release_second.set()
 
 
 class TestTrackerDataCollection:
@@ -1238,6 +2285,8 @@ class TestConfiguration:
         assert config.trackers == []
         assert config.plugins == []
         assert config.verbose is True
+        assert config.retargeting_execution.mode == RetargetingExecutionMode.SYNC
+        assert isinstance(config.retargeting_execution.pacing, ImmediatePacingConfig)
 
     def test_teleop_session_config_custom(self, tmp_path):
         """TeleopSessionConfig should accept custom values."""
@@ -1259,6 +2308,47 @@ class TestConfiguration:
         assert len(config.trackers) == 1
         assert len(config.plugins) == 1
         assert config.verbose is False
+
+    def test_retargeting_execution_config_accepts_pacing_config_objects(self):
+        """RetargetingExecutionConfig should preserve typed pacing configs."""
+        config = RetargetingExecutionConfig(
+            pacing=DeadlinePacingConfig(safety_margin_s=0.015),
+        )
+
+        assert isinstance(config.pacing, DeadlinePacingConfig)
+        assert config.pacing.safety_margin_s == 0.015
+
+    def test_retargeting_execution_config_default_pacing_is_immediate(self):
+        """RetargetingExecutionConfig should default to immediate pacing."""
+        config = RetargetingExecutionConfig()
+
+        assert isinstance(config.pacing, ImmediatePacingConfig)
+
+    def test_retargeting_execution_config_accepts_supported_pacing_mode_strings(self):
+        """Pacing mode strings should coerce to default pacing config objects."""
+        config = RetargetingExecutionConfig(pacing="deadline")
+
+        assert isinstance(config.pacing, DeadlinePacingConfig)
+
+    def test_retargeting_execution_config_rejects_removed_deadline_guarded_pacing(self):
+        """The old deadline_guarded spelling is no longer part of the public API."""
+        with pytest.raises(ValueError, match="deadline_guarded"):
+            RetargetingExecutionConfig(pacing="deadline_guarded")
+
+    def test_retargeting_execution_config_rejects_removed_fixed_delay_pacing(self):
+        """Fixed-delay pacing is no longer part of the public config surface."""
+        with pytest.raises(ValueError, match="fixed_delay"):
+            RetargetingExecutionConfig(pacing="fixed_delay")
+
+    def test_package_exports_concrete_pacing_configs_not_internal_union_alias(self):
+        """Users import concrete pacing configs; the union alias stays internal."""
+        assert hasattr(teleop_session_manager, "ImmediatePacingConfig")
+        assert hasattr(teleop_session_manager, "DeadlinePacingConfig")
+        assert hasattr(teleop_session_manager, "AsyncRetargetRunnerStopped")
+        assert not hasattr(teleop_session_manager, "DeadlineGuardedPacingConfig")
+        assert not hasattr(teleop_session_manager, "FixedDelayPacingConfig")
+        assert not hasattr(teleop_session_manager, "RetargetingMissPolicy")
+        assert not hasattr(teleop_session_manager, "RetargetingPacingConfig")
 
     def test_plugin_config_defaults(self, tmp_path):
         """PluginConfig should have enabled=True by default."""
@@ -1304,8 +2394,8 @@ class TestSessionReuse:
             with session:
                 assert session.frame_count == 0
 
-    def test_plugin_lists_accumulate(self, tmp_path):
-        """Plugin lists should accumulate if session is re-entered without reset."""
+    def test_plugin_lists_are_run_scoped(self, tmp_path):
+        """Plugin lists should contain only resources from the current session run."""
         pipeline = MockPipeline(leaf_nodes=[])
         mock_pm = MockPluginManager(plugin_names=["test_plugin"])
 
@@ -1322,8 +2412,6 @@ class TestSessionReuse:
             with session:
                 first_count = len(session.plugin_managers)
 
-        # Note: plugin_managers list is not cleared on re-entry
-        # This is expected behavior - users should create new sessions
         assert first_count == 1
 
 
@@ -1482,6 +2570,31 @@ class TestReplayModeSessionEnter:
                 assert session.deviceio_session is mocks.replay_session
             finally:
                 session.__exit__(None, None, None)
+
+    def test_replay_pipelined_mode_returns_latest_completed_result(self):
+        """Replay pipelined mode follows the same latest-completed contract."""
+        pipeline = BlockingSecondCountingPipeline()
+        config = TeleopSessionConfig(
+            app_name="test",
+            pipeline=pipeline,
+            mode=SessionMode.REPLAY,
+            mcap_config=MagicMock(),
+            retargeting_execution=RetargetingExecutionConfig(
+                mode=RetargetingExecutionMode.PIPELINED
+            ),
+        )
+
+        with mock_replay_dependencies():
+            with TeleopSession(config) as session:
+                assert async_result_value(session.step()) == 0.0
+                result = session.step()
+
+                assert async_result_value(result) == 0.0
+                assert session.last_step_info.ran_synchronously is False
+                assert session.last_step_info.returned_frame_id == 0
+                assert session.last_step_info.submitted_frame_id == 1
+                assert pipeline.second_started.wait(timeout=1.0)
+                pipeline.release_second.set()
 
 
 class TestReplayModePlugins:

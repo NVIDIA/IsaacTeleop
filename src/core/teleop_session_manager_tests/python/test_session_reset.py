@@ -28,7 +28,12 @@ from isaacteleop.retargeters import (
 )
 
 from isaacteleop.retargeting_engine.tensor_types import ControllerInput, HandInput
-from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
+from isaacteleop.teleop_session_manager import (
+    RetargetingExecutionConfig,
+    RetargetingExecutionMode,
+    TeleopSession,
+    TeleopSessionConfig,
+)
 
 
 # ============================================================================
@@ -79,6 +84,10 @@ def _running_events(*, reset: bool = False) -> ExecutionEvents:
     return ExecutionEvents(reset=reset, execution_state=ExecutionState.RUNNING)
 
 
+def _sync_retargeting() -> RetargetingExecutionConfig:
+    return RetargetingExecutionConfig(mode=RetargetingExecutionMode.SYNC)
+
+
 # ============================================================================
 # Tests
 # ============================================================================
@@ -99,6 +108,7 @@ class TestSessionResetLocomotion:
         config = TeleopSessionConfig(
             app_name="test_reset",
             pipeline=retargeter,
+            retargeting_execution=_sync_retargeting(),
         )
 
         with _mock_session_deps():
@@ -125,11 +135,37 @@ class TestSessionResetLocomotion:
                     "hip_height should be restored to initial after reset"
                 )
 
+    def test_default_sync_reset_returns_current_reset_state(self, retargeter):
+        """Default sync mode should return the reset frame's current state."""
+        config = TeleopSessionConfig(app_name="test_reset", pipeline=retargeter)
+
+        with _mock_session_deps():
+            with TeleopSession(config) as session:
+                ext = {"loco": _absent_controller_inputs()}
+
+                session.step(
+                    external_inputs=ext,
+                    execution_events=_running_events(),
+                )
+                retargeter._hip_height = 0.95
+
+                result = session.step(
+                    external_inputs=ext,
+                    execution_events=_running_events(reset=True),
+                )
+
+                cmd = np.from_dlpack(result["root_command"][0])
+                assert cmd[3] == pytest.approx(0.72)
+                assert session.last_step_info.returned_age_frames == 0
+                assert session.last_step_info.ran_synchronously is True
+                assert session.last_context.execution_events.reset is True
+
     def test_no_reset_preserves_state_via_session(self, retargeter):
         """Hip height stays mutated when reset is not signalled."""
         config = TeleopSessionConfig(
             app_name="test_no_reset",
             pipeline=retargeter,
+            retargeting_execution=_sync_retargeting(),
         )
 
         with _mock_session_deps():
@@ -169,6 +205,7 @@ class TestSessionResetGripper:
         config = TeleopSessionConfig(
             app_name="test_gripper_reset",
             pipeline=retargeter,
+            retargeting_execution=_sync_retargeting(),
         )
 
         with _mock_session_deps():
@@ -199,6 +236,7 @@ class TestSessionResetGripper:
         config = TeleopSessionConfig(
             app_name="test_gripper_no_reset",
             pipeline=retargeter,
+            retargeting_execution=_sync_retargeting(),
         )
 
         with _mock_session_deps():

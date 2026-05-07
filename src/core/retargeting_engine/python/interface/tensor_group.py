@@ -15,9 +15,66 @@ the required (non-optional) variant.
 """
 
 import copy as _copy
+import importlib
 from typing import List, Any
 from .tensor_group_type import TensorGroupType
 from .tensor import Tensor, UNSET_VALUE
+
+
+_SNAPSHOT_NOT_HANDLED = object()
+
+
+def _value_snapshot(value: Any) -> Any:
+    """Copy one tensor value for a TensorGroup snapshot.
+
+    Normal Python values still use ``deepcopy``. DLPack tensor providers are a
+    little different: some runtime arrays, notably simulation/GPU arrays, do
+    not support ``deepcopy`` but do provide framework copy/clone operations
+    that preserve device placement. Use those hooks before falling back to the
+    generic Python copier.
+    """
+
+    create_snapshot = getattr(value, "create_snapshot", None)
+    if callable(create_snapshot):
+        return create_snapshot()
+
+    if _supports_dlpack(value):
+        copied = _dlpack_value_snapshot(value)
+        if copied is not _SNAPSHOT_NOT_HANDLED:
+            return copied
+
+    return _copy.deepcopy(value)
+
+
+def _supports_dlpack(value: Any) -> bool:
+    """Return whether ``value`` looks like a DLPack tensor provider."""
+
+    return hasattr(value, "__dlpack__") and hasattr(value, "__dlpack_device__")
+
+
+def _dlpack_value_snapshot(value: Any) -> Any:
+    """Best-effort owned copy for common DLPack providers."""
+
+    # Warp arrays expose a module-level clone function rather than an array
+    # method. Import lazily so the retargeting engine does not require Warp just
+    # to construct scalar TensorGroups. Keep this behind importlib so mypy does
+    # not require optional framework stubs.
+    if type(value).__module__.split(".")[0] == "warp":
+        try:
+            wp = importlib.import_module("warp")
+            return wp.clone(value)
+        except Exception:
+            pass
+
+    for method_name in ("clone", "copy"):
+        method = getattr(value, method_name, None)
+        if callable(method):
+            try:
+                return method()
+            except TypeError:
+                continue
+
+    return _SNAPSHOT_NOT_HANDLED
 
 
 class OptionalTensorGroup:
@@ -130,16 +187,17 @@ class OptionalTensorGroup:
         """
         Return a new independent copy of this group.
 
-        Each tensor value is deep-copied (``copy.deepcopy``), producing a
-        fully independent snapshot regardless of the value type.  The
-        returned instance has the same concrete type as ``self``
-        (``TensorGroup`` or ``OptionalTensorGroup``).
+        Each tensor value is copied into an owned value. DLPack providers use
+        framework copy/clone hooks where available so device-backed arrays do
+        not have to support ``copy.deepcopy``. The returned instance has the
+        same concrete type as ``self`` (``TensorGroup`` or
+        ``OptionalTensorGroup``).
         """
         new_group = type(self)(self._group_type)
         if not self.is_none:
             for i, tensor in enumerate(self._tensors):
                 if tensor._value is not UNSET_VALUE:
-                    new_group[i] = _copy.deepcopy(tensor._value)
+                    new_group[i] = _value_snapshot(tensor._value)
         return new_group
 
 

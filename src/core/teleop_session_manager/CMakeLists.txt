@@ -9,6 +9,7 @@ set(TELEOP_SESSION_MANAGER_OUTPUT_DIR "${CMAKE_BINARY_DIR}/python_package/$<CONF
 # List of Python files to copy
 set(TELEOP_SESSION_MANAGER_PYTHON_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/python/__init__.py"
+    "${CMAKE_CURRENT_SOURCE_DIR}/python/async_retarget_runner.py"
     "${CMAKE_CURRENT_SOURCE_DIR}/python/config.py"
     "${CMAKE_CURRENT_SOURCE_DIR}/python/teleop_session.py"
     "${CMAKE_CURRENT_SOURCE_DIR}/python/helpers.py"

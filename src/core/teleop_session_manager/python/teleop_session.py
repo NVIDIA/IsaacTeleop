@@ -9,8 +9,10 @@ plugins, and retargeting engines, allowing users to focus on configuration
 rather than initialization code.
 """
 
+import logging
 import time
 from contextlib import ExitStack
+from dataclasses import dataclass
 from typing import Optional, Dict, Any, List, Set
 
 from isaacteleop.retargeting_engine.deviceio_source_nodes import IDeviceIOSource
@@ -32,10 +34,47 @@ import isaacteleop.oxr as oxr
 import isaacteleop.plugin_manager as pm
 
 from .config import (
+    RetargetingExecutionMode,
     SessionMode,
     TeleopSessionConfig,
 )
+from .async_retarget_runner import (
+    AsyncRetargetRunnerStopped,
+    AsyncRetargetWorkerError,
+    AsyncRetargetRunner,
+    RetargetFrame,
+    StepRequest,
+    snapshot_compute_context,
+    snapshot_retargeter_io,
+    snapshot_pipeline_inputs,
+)
 from .teleop_state_manager_types import teleop_control_states
+
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class RetargetingStepInfo:
+    """Age and timing metadata for the most recent ``step()`` return.
+
+    ``returned_frame_id`` and ``submitted_frame_id`` identify which completed
+    frame was returned and which request this call submitted. Pipelined callers
+    can use ``returned_age_frames`` to observe result age without implying any
+    current-frame wait. Counts such as ``dropped_submissions`` and
+    ``frame_deadline_miss`` are per-step so apps can accumulate them for
+    run-wide debug summaries.
+    """
+
+    returned_frame_id: int | None = None
+    submitted_frame_id: int | None = None
+    returned_age_frames: int | None = None
+    returned_age_s: float | None = None
+    compute_duration_s: float | None = None
+    dropped_submissions: int = 0
+    ran_synchronously: bool = False
+    frame_deadline_miss: bool = False
+    worker_exception: BaseException | None = None
 
 
 class TeleopSession:
@@ -133,6 +172,12 @@ class TeleopSession:
         self.frame_count: int = 0
         self.start_time: float = 0.0
         self._last_context: Optional[ComputeContext] = None
+        self._last_step_info = RetargetingStepInfo()
+        self._last_execution_state: Optional[ExecutionState] = None
+        self._async_runner: Optional[AsyncRetargetRunner] = None
+        self._active_retargeting_execution_mode: Optional[RetargetingExecutionMode] = (
+            None
+        )
         self._setup_complete: bool = False
         # Discover sources and external leaves from pipeline
         self._discover_sources()
@@ -146,6 +191,11 @@ class TeleopSession:
     def last_context(self) -> Optional[ComputeContext]:
         """Most recent ComputeContext produced by ``step()``, or ``None`` before first step."""
         return self._last_context
+
+    @property
+    def last_step_info(self) -> RetargetingStepInfo:
+        """Age and timing metadata for the most recent ``step()`` return."""
+        return self._last_step_info
 
     def _discover_sources(self) -> None:
         """Discover DeviceIO source modules and external leaf nodes from the pipeline.
@@ -240,8 +290,17 @@ class TeleopSession:
     ):
         """Execute a single step of the teleop session.
 
-        Updates DeviceIO session, polls tracker data, merges any caller-provided
-        external inputs, and executes the retargeting pipeline.
+        In sync mode, updates DeviceIO session, polls tracker data, merges any
+        caller-provided external inputs, and executes the retargeting pipeline
+        before returning. In pipelined mode after the seed frame, this call
+        submits that work to the retarget worker and returns the latest
+        completed output; an unstarted pending request may be replaced by a
+        newer submission.
+
+        ``TeleopSession.step()`` is single-caller application-loop API. The
+        async runner serializes retarget work internally, but session fields
+        such as ``frame_count`` and ``last_step_info`` are intentionally owned
+        by the application thread that calls ``step()``.
 
         Args:
             external_inputs: Optional dict mapping external leaf node names to their
@@ -249,6 +308,8 @@ class TeleopSession:
                 leaf nodes that require caller-provided inputs. Use get_external_input_specs()
                 to discover what external inputs are expected. Keys that do not correspond
                 to an external leaf node or a DeviceIO source name are silently ignored.
+                Within each external leaf, keys not declared by that leaf's input_spec()
+                are silently ignored.
                 Keys that collide with a DeviceIO source name are invalid and cause
                 validation to raise.
             graph_time: Optional ``GraphTime`` for this step. When omitted,
@@ -259,10 +320,10 @@ class TeleopSession:
 
         Returns:
             Dict[str, TensorGroup] - Output from the retargeting pipeline. The
-            returned reference points into the session's internal output buffers and
-            will be overwritten on the next call to step(). Consumers that need to
-            retain the result across steps must copy it themselves.
-            The per-step context is available via ``session.last_context``.
+            per-step context is available via ``session.last_context``. In
+            pipelined mode this is the latest completed retarget result, which
+            can be older than the current submitted frame; age/timing metadata is
+            available via ``session.last_step_info``.
 
         Raises:
             ValueError: If external leaves exist but external_inputs is missing or
@@ -272,29 +333,100 @@ class TeleopSession:
                 while updating the session. This is a fatal condition; the
                 application is expected to terminate rather than continue.
         """
-        # Validate external inputs required by main pipeline leaves.
-        self._validate_external_inputs(external_inputs)
-
-        # Check plugin health periodically
         if self.frame_count % 60 == 0:
             self._check_plugin_health()
 
-        # Update DeviceIO session (polls trackers)
-        self.deviceio_session.update()
+        execution_mode = (
+            self._active_retargeting_execution_mode
+            or self.config.retargeting_execution.mode
+        )
+        # Latch sync vs. pipelined for the active context-manager run. The
+        # config object is mutable, but switching modes while a worker is live
+        # could otherwise execute the same graph concurrently.
+        if execution_mode == RetargetingExecutionMode.PIPELINED:
+            return self._step_pipelined(
+                external_inputs=external_inputs,
+                graph_time=graph_time,
+                execution_events=execution_events,
+            )
 
-        # Build input dictionary from tracker data
+        return self._step_sync(
+            external_inputs=external_inputs,
+            graph_time=graph_time,
+            execution_events=execution_events,
+        )
+
+    def _build_step_request(
+        self,
+        *,
+        external_inputs: Optional[Dict[str, RetargeterIO]],
+        graph_time: Optional[GraphTime],
+        execution_events: Optional[ExecutionEvents],
+        snapshot_external_inputs: bool = True,
+    ) -> StepRequest:
+        """Snapshot caller-owned step arguments into a worker request.
+
+        The whole-step worker polls DeviceIO itself, so only explicit
+        ``external_inputs`` cross the thread boundary. Those inputs, along with
+        optional graph time and explicit execution events, are filtered to the
+        external leaf specs before optionally being copied here so the
+        application can safely reuse or mutate its objects after ``step()``
+        returns. Sync mode disables the snapshot and uses this same request
+        shape only to avoid duplicating the step execution path.
+        """
+        self._validate_external_inputs(external_inputs)
+        external_inputs = self._filter_external_inputs(external_inputs)
+        request_external_inputs = None
+        if external_inputs:
+            request_external_inputs = (
+                snapshot_pipeline_inputs(external_inputs)
+                if snapshot_external_inputs
+                else external_inputs
+            )
+
+        return StepRequest(
+            frame_id=self.frame_count,
+            external_inputs=request_external_inputs,
+            graph_time=GraphTime(
+                sim_time_ns=graph_time.sim_time_ns,
+                real_time_ns=graph_time.real_time_ns,
+            )
+            if graph_time is not None
+            else None,
+            execution_events=ExecutionEvents(
+                reset=bool(execution_events.reset),
+                execution_state=ExecutionState(execution_events.execution_state),
+            )
+            if execution_events is not None
+            else None,
+            submitted_time_s=time.monotonic(),
+        )
+
+    def _execute_step_request(
+        self,
+        request: StepRequest,
+    ) -> tuple[RetargeterIO, ComputeContext]:
+        """Execute one normal synchronous step for ``request``.
+
+        Pipelined mode deliberately moves this whole method to the worker
+        thread. Keeping DeviceIO polling, control decoding, and graph execution
+        together preserves the old synchronous ordering and avoids passing raw
+        DeviceIO source state across threads. Sync mode calls the same method
+        directly so the behavioral core stays in one place.
+        """
+        self.deviceio_session.update()
         pipeline_inputs = self._collect_tracker_data()
 
-        # Merge external inputs (for non-DeviceIO leaf nodes)
-        if external_inputs:
-            pipeline_inputs.update(external_inputs)
+        if request.external_inputs:
+            pipeline_inputs.update(request.external_inputs)
 
         now_ns = time.monotonic_ns()
+        graph_time = request.graph_time
         if graph_time is None:
             graph_time = GraphTime(sim_time_ns=now_ns, real_time_ns=now_ns)
 
+        execution_events = request.execution_events
         if execution_events is None and self.teleop_control_pipeline is not None:
-            # Filter pipeline_inputs to only control leaf inputs
             control_inputs = {
                 k: v
                 for k, v in pipeline_inputs.items()
@@ -311,19 +443,218 @@ class TeleopSession:
             )
 
         context = ComputeContext(
-            graph_time=graph_time,
-            execution_events=execution_events,
+            graph_time=GraphTime(
+                sim_time_ns=graph_time.sim_time_ns,
+                real_time_ns=graph_time.real_time_ns,
+            ),
+            execution_events=ExecutionEvents(
+                reset=bool(execution_events.reset),
+                execution_state=ExecutionState(execution_events.execution_state),
+            ),
         )
-        self._last_context = context
 
         # Filter pipeline_inputs to only main leaf inputs
         main_inputs = {
             k: v for k, v in pipeline_inputs.items() if k in self._main_leaf_names
         }
-        result = self.pipeline.execute_pipeline(main_inputs, context)
+        return self.pipeline.execute_pipeline(main_inputs, context), context
+
+    def _make_retarget_frame(
+        self,
+        request: StepRequest,
+        outputs: RetargeterIO,
+        context: ComputeContext,
+        *,
+        started_time_s: float,
+        completed_time_s: float,
+    ) -> RetargetFrame:
+        """Package one completed request as an owned cached frame.
+
+        The first pipelined call runs on the application thread as a seed frame
+        before the worker exists. It still enters the same latest-frame cache,
+        so it must follow the worker invariant: cached outputs/context are
+        owned by IsaacTeleop and can be returned later without aliasing
+        retargeter-owned reusable buffers.
+        """
+        return RetargetFrame(
+            frame_id=request.frame_id,
+            outputs=snapshot_retargeter_io(outputs),
+            context=snapshot_compute_context(context),
+            submitted_time_s=request.submitted_time_s,
+            started_time_s=started_time_s,
+            completed_time_s=completed_time_s,
+            compute_duration_s=completed_time_s - started_time_s,
+        )
+
+    def _step_sync(
+        self,
+        *,
+        external_inputs: Optional[Dict[str, RetargeterIO]],
+        graph_time: Optional[GraphTime],
+        execution_events: Optional[ExecutionEvents],
+    ) -> RetargeterIO:
+        """Execute retargeting synchronously for exact current-frame behavior.
+
+        This is both the escape hatch for users that cannot accept older-frame
+        actions and the reference behavior that pipelined mode overlaps with
+        the application loop.
+        """
+        request = self._build_step_request(
+            external_inputs=external_inputs,
+            graph_time=graph_time,
+            execution_events=execution_events,
+            snapshot_external_inputs=False,
+        )
+        started = time.monotonic()
+        result, context = self._execute_step_request(request)
+        completed = time.monotonic()
+
+        self._last_context = context
+        self._last_execution_state = context.execution_events.execution_state
+        self._last_step_info = RetargetingStepInfo(
+            returned_frame_id=request.frame_id,
+            submitted_frame_id=request.frame_id,
+            returned_age_frames=0,
+            returned_age_s=completed - request.submitted_time_s,
+            compute_duration_s=completed - started,
+            ran_synchronously=True,
+        )
 
         self.frame_count += 1
         return result
+
+    def _step_pipelined(
+        self,
+        *,
+        external_inputs: Optional[Dict[str, RetargeterIO]],
+        graph_time: Optional[GraphTime],
+        execution_events: Optional[ExecutionEvents],
+    ) -> RetargeterIO:
+        """Submit a full sync step and return the latest completed output.
+
+        Public ``step()`` remains a normal function returning ``RetargeterIO``.
+        In pipelined mode it acts as a small scheduler: submit the current
+        application-frame request, then return the latest completed frame.
+        """
+        if self._async_runner is None:
+            return self._step_pipelined_seed(
+                external_inputs=external_inputs,
+                graph_time=graph_time,
+                execution_events=execution_events,
+            )
+
+        runner = self._async_runner
+        try:
+            runner.raise_if_failed()
+            request = self._build_step_request(
+                external_inputs=external_inputs,
+                graph_time=graph_time,
+                execution_events=execution_events,
+            )
+
+            dropped = runner.submit(request)
+            frame = runner.latest()
+            if frame is None:
+                raise AsyncRetargetRunnerStopped(
+                    "Async retarget runner has no completed frame to return"
+                )
+            return self._return_pipelined_frame(
+                frame,
+                submitted_frame_id=request.frame_id,
+                dropped_submissions=dropped,
+                ran_synchronously=False,
+            )
+        except AsyncRetargetWorkerError as exc:
+            self._last_step_info = RetargetingStepInfo(worker_exception=exc)
+            raise
+
+    def _step_pipelined_seed(
+        self,
+        *,
+        external_inputs: Optional[Dict[str, RetargeterIO]],
+        graph_time: Optional[GraphTime],
+        execution_events: Optional[ExecutionEvents],
+    ) -> RetargeterIO:
+        """Run the first pipelined frame synchronously, then start the worker.
+
+        The first call has no previous action to return, so it runs exactly
+        once on the application thread. Publishing that seed frame lets later
+        calls use the latest-completed path without changing the public return
+        type.
+        """
+        request = self._build_step_request(
+            external_inputs=external_inputs,
+            graph_time=graph_time,
+            execution_events=execution_events,
+        )
+        started = time.monotonic()
+        outputs, context = self._execute_step_request(request)
+        completed = time.monotonic()
+        frame = self._make_retarget_frame(
+            request,
+            outputs,
+            context,
+            started_time_s=started,
+            completed_time_s=completed,
+        )
+
+        runner = self._ensure_async_runner()
+        runner.publish_seed(frame)
+        return self._return_pipelined_frame(
+            frame,
+            submitted_frame_id=request.frame_id,
+            dropped_submissions=0,
+            ran_synchronously=True,
+        )
+
+    def _ensure_async_runner(self) -> AsyncRetargetRunner:
+        """Create and start the pipelined retarget worker lazily.
+
+        The worker is session-scoped rather than construction-scoped because
+        DeviceIO/OpenXR resources only exist inside the context manager.
+        """
+        if self._async_runner is None:
+            self._async_runner = AsyncRetargetRunner(
+                self._execute_step_request,
+                self.config.retargeting_execution,
+            )
+            self._async_runner.start()
+        return self._async_runner
+
+    def _return_pipelined_frame(
+        self,
+        frame: RetargetFrame,
+        *,
+        submitted_frame_id: int,
+        dropped_submissions: int,
+        ran_synchronously: bool,
+    ) -> RetargeterIO:
+        """Publish metadata/context for a pipelined result and finish the step.
+
+        ``last_context`` must always describe the output returned from this
+        call, not the request just submitted. The returned output is copied so
+        user mutation cannot corrupt the cached latest frame; uncopyable
+        outputs should implement ``create_snapshot()`` or use sync mode.
+        """
+        returned_outputs = snapshot_retargeter_io(frame.outputs)
+        returned_context = snapshot_compute_context(frame.context)
+        now = time.monotonic()
+        returned_age_frames = submitted_frame_id - frame.frame_id
+        frame_deadline_miss = returned_age_frames > 1
+        self._last_context = returned_context
+        self._last_execution_state = returned_context.execution_events.execution_state
+        self._last_step_info = RetargetingStepInfo(
+            returned_frame_id=frame.frame_id,
+            submitted_frame_id=submitted_frame_id,
+            returned_age_frames=returned_age_frames,
+            returned_age_s=max(0.0, now - frame.submitted_time_s),
+            compute_duration_s=frame.compute_duration_s,
+            dropped_submissions=dropped_submissions,
+            ran_synchronously=ran_synchronously,
+            frame_deadline_miss=frame_deadline_miss,
+        )
+        self.frame_count += 1
+        return returned_outputs
 
     def _decode_teleop_control_events(
         self, control_outputs: RetargeterIO
@@ -444,6 +775,32 @@ class TeleopSession:
                     f"Expected keys: {expected_keys}. "
                     f"Use get_external_input_specs() to discover required inputs."
                 )
+
+    def _filter_external_inputs(
+        self,
+        external_inputs: Optional[Dict[str, RetargeterIO]],
+    ) -> Optional[Dict[str, RetargeterIO]]:
+        """Drop allowed-but-unused external leaf names and per-leaf input keys.
+
+        The public API has historically ignored extra external leaf names. This
+        filtering also keeps sync and pipelined mode aligned when callers pass
+        extra per-leaf values. Keep required input names, ignore extras.
+        """
+        if not external_inputs:
+            return None
+        leaves_by_name = {leaf.name: leaf for leaf in self._external_leaves}
+        filtered_inputs: Dict[str, RetargeterIO] = {}
+        for name, values in external_inputs.items():
+            leaf = leaves_by_name.get(name)
+            if leaf is None:
+                continue
+            expected_keys = set(leaf.input_spec().keys())
+            filtered_inputs[name] = {
+                input_name: value
+                for input_name, value in values.items()
+                if input_name in expected_keys
+            }
+        return filtered_inputs or None
 
     def _collect_tracker_data(self) -> Dict[str, Any]:
         """Collect raw tracking data from all sources and map to module names.
@@ -573,6 +930,10 @@ class TeleopSession:
         self.frame_count = 0
         self.start_time = time.time()
         self._last_context = None
+        self._last_step_info = RetargetingStepInfo()
+        self._last_execution_state = None
+        self._async_runner = None
+        self._active_retargeting_execution_mode = self.config.retargeting_execution.mode
 
         self._setup_complete = True
         return self
@@ -582,7 +943,30 @@ class TeleopSession:
         if not self._setup_complete:
             return False
 
-        # ExitStack automatically cleans up all managed contexts in reverse order
-        self._exit_stack.__exit__(exc_type, exc_val, exc_tb)
+        runner_error = None
+        if self._async_runner is not None:
+            runner = self._async_runner
+            runner.stop()
+            try:
+                runner.raise_if_failed(only_unreported=True)
+            except BaseException as err:
+                if exc_type is None:
+                    runner_error = err
+                else:
+                    logger.error(
+                        "Async retarget worker failed during TeleopSession cleanup",
+                        exc_info=(type(err), err, err.__traceback__),
+                    )
+            self._async_runner = None
+        self._active_retargeting_execution_mode = None
 
-        return exc_type is None  # Suppress exception only if we didn't have one
+        # ExitStack automatically cleans up all managed contexts in reverse order.
+        # Preserve TeleopSession's historical behavior of not suppressing
+        # exceptions from the user body, even if a child context manager would.
+        self._exit_stack.__exit__(exc_type, exc_val, exc_tb)
+        self._exit_stack = ExitStack()
+
+        if runner_error is not None:
+            raise runner_error
+
+        return False
