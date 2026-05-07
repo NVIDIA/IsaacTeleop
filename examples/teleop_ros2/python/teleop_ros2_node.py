@@ -14,6 +14,7 @@ published:
                        root_pose, finger_joints (retargeted TriHand angles),
                        controller_data, and TF transforms for left/right wrists
   - hand_teleop: ee_poses (from hand tracking wrist), hand (finger joint poses),
+                 finger_joints (retargeted Sharpa joint angles),
                  root_twist/root_pose (from foot pedal locomotion), and TF
                  transforms for left/right wrists
   - controller_raw: controller_data only
@@ -26,7 +27,7 @@ Topic names (remappable via ROS 2 remapping):
   - xr_teleop/root_pose (PoseStamped): root pose command (height only)
   - xr_teleop/controller_data (ByteMultiArray): msgpack-encoded controller data
   - xr_teleop/full_body (ByteMultiArray): msgpack-encoded full body tracking data
-  - xr_teleop/finger_joints (JointState): retargeted TriHand finger joint angles (controller_teleop only)
+  - xr_teleop/finger_joints (JointState): retargeted finger joint angles
 
 TF frames published in hand_teleop and controller_teleop modes (configurable via parameters):
   - world_frame -> right_wrist_frame
@@ -51,7 +52,7 @@ from geometry_msgs.msg import (
     TransformStamped,
     TwistStamped,
 )
-from rcl_interfaces.msg import ParameterDescriptor
+from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from std_msgs.msg import ByteMultiArray
@@ -226,24 +227,60 @@ def _make_transform(
     return tf
 
 
-def _resolve_finger_joint_names(
+def _resolve_joint_name_parameter(
     parameter_name: str,
-    names: Sequence[str],
+    names: List[str],
 ) -> List[str]:
-    if len(names) != _FINGER_JOINT_COUNT:
-        raise ValueError(
-            f"Parameter '{parameter_name}' must contain exactly "
-            f"{_FINGER_JOINT_COUNT} entries in TriHand order, got {len(names)}"
-        )
-
-    resolved_names = list(names)
-    for index, joint_name in enumerate(resolved_names, start=1):
+    for index, joint_name in enumerate(names, start=1):
         if not joint_name.strip():
             raise ValueError(
                 f"Parameter '{parameter_name}' entry {index} must be a non-empty string"
             )
 
+    return names
+
+
+def _resolve_trihand_joint_names(
+    parameter_name: str,
+    names: List[str],
+) -> List[str] | None:
+    resolved_names = _resolve_joint_name_parameter(parameter_name, names)
+    if not resolved_names:
+        return None
+    if len(resolved_names) != _FINGER_JOINT_COUNT:
+        raise ValueError(
+            f"Parameter '{parameter_name}' must contain exactly "
+            f"{_FINGER_JOINT_COUNT} entries in TriHand order for controller_teleop, "
+            f"got {len(resolved_names)}"
+        )
     return resolved_names
+
+
+def _resolve_sharpa_joint_names(
+    parameter_name: str,
+    names: List[str],
+) -> List[str] | None:
+    resolved_names = _resolve_joint_name_parameter(parameter_name, names)
+    return resolved_names or None
+
+
+def _resolve_sharpa_mjcf(filename: str) -> str:
+    try:
+        from importlib.resources import files
+    except ImportError as exc:  # pragma: no cover - Python 3.10+ has this.
+        raise ModuleNotFoundError(
+            "Sharpa hand teleop requires importlib.resources support"
+        ) from exc
+
+    try:
+        return str(
+            files("robotic_grounding") / "assets" / "xmls" / "sharpawave" / filename
+        )
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(
+            "hand_teleop requires robotic_grounding assets for Sharpa retargeting. "
+            "Install/use a build with isaacteleop[grounding] and bundled robotic_grounding."
+        ) from exc
 
 
 def _to_pose(position, orientation=None) -> Pose:
@@ -536,27 +573,32 @@ class TeleopRos2Node(Node):
         )
 
         finger_joint_name_constraints = (
-            f"Provide exactly {_FINGER_JOINT_COUNT} joint names matching the "
-            f"TriHand order {_TRIHAND_JOINT_NAMES}."
+            "Leave empty to use the selected mode's default joint names. "
+            "In controller_teleop, provide exactly "
+            f"{_FINGER_JOINT_COUNT} names matching the TriHand order "
+            f"{_TRIHAND_JOINT_NAMES}. In hand_teleop, provide Sharpa MJCF "
+            "joint names to reorder or select Sharpa output joints."
         )
         self.declare_parameter(
             "left_finger_joint_names",
-            list(_LEFT_FINGER_JOINT_NAMES),
+            [],
             ParameterDescriptor(
+                type=ParameterType.PARAMETER_STRING_ARRAY,
                 description=(
-                    "Published joint names for the left hand on "
-                    "xr_teleop/finger_joints. Defaults to the prefixed TriHand names."
+                    "Optional left-hand joint names for xr_teleop/finger_joints. "
+                    "Empty means the selected mode's default names."
                 ),
                 additional_constraints=finger_joint_name_constraints,
             ),
         )
         self.declare_parameter(
             "right_finger_joint_names",
-            list(_RIGHT_FINGER_JOINT_NAMES),
+            [],
             ParameterDescriptor(
+                type=ParameterType.PARAMETER_STRING_ARRAY,
                 description=(
-                    "Published joint names for the right hand on "
-                    "xr_teleop/finger_joints. Defaults to the prefixed TriHand names."
+                    "Optional right-hand joint names for xr_teleop/finger_joints. "
+                    "Empty means the selected mode's default names."
                 ),
                 additional_constraints=finger_joint_name_constraints,
             ),
@@ -651,13 +693,11 @@ class TeleopRos2Node(Node):
                 normalized_q = np.array(transform_rot_floats) / q_norm
                 self._transform_rot = Rotation.from_quat(normalized_q)
 
-        left_finger_joint_names = _resolve_finger_joint_names(
-            "left_finger_joint_names",
-            self.get_parameter("left_finger_joint_names").value,
-        )
-        right_finger_joint_names = _resolve_finger_joint_names(
-            "right_finger_joint_names",
-            self.get_parameter("right_finger_joint_names").value,
+        left_finger_joint_names, right_finger_joint_names = (
+            self._resolve_mode_finger_joint_names(
+                self.get_parameter("left_finger_joint_names").value,
+                self.get_parameter("right_finger_joint_names").value,
+            )
         )
 
         self._tf_broadcaster = TransformBroadcaster(self)
@@ -686,6 +726,29 @@ class TeleopRos2Node(Node):
             right_finger_joint_names,
         )
 
+    def _resolve_mode_finger_joint_names(
+        self,
+        left_names: List[str],
+        right_names: List[str],
+    ) -> tuple[List[str] | None, List[str] | None]:
+        if self._mode == "controller_teleop":
+            return (
+                _resolve_trihand_joint_names(
+                    "left_finger_joint_names",
+                    left_names,
+                ),
+                _resolve_trihand_joint_names(
+                    "right_finger_joint_names",
+                    right_names,
+                ),
+            )
+        if self._mode == "hand_teleop":
+            return (
+                _resolve_sharpa_joint_names("left_finger_joint_names", left_names),
+                _resolve_sharpa_joint_names("right_finger_joint_names", right_names),
+            )
+        return None, None
+
     def _build_controller_raw_config(self) -> TeleopSessionConfig:
         controllers = ControllersSource(name="controllers")
         pipeline = OutputCombiner(
@@ -707,9 +770,20 @@ class TeleopRos2Node(Node):
 
     def _build_controller_teleop_config(
         self,
-        left_finger_joint_names: Sequence[str],
-        right_finger_joint_names: Sequence[str],
+        left_finger_joint_names: Sequence[str] | None,
+        right_finger_joint_names: Sequence[str] | None,
     ) -> TeleopSessionConfig:
+        left_finger_joint_names = (
+            list(left_finger_joint_names)
+            if left_finger_joint_names is not None
+            else list(_LEFT_FINGER_JOINT_NAMES)
+        )
+        right_finger_joint_names = (
+            list(right_finger_joint_names)
+            if right_finger_joint_names is not None
+            else list(_RIGHT_FINGER_JOINT_NAMES)
+        )
+
         controllers = ControllersSource(name="controllers")
         locomotion = LocomotionRootCmdRetargeter(
             LocomotionRootCmdRetargeterConfig(), name="locomotion"
@@ -781,7 +855,23 @@ class TeleopRos2Node(Node):
             ),
         )
 
-    def _build_hand_teleop_config(self) -> TeleopSessionConfig:
+    def _build_hand_teleop_config(
+        self,
+        left_finger_joint_names: Sequence[str] | None,
+        right_finger_joint_names: Sequence[str] | None,
+    ) -> TeleopSessionConfig:
+        try:
+            from isaacteleop.retargeters import (
+                SharpaHandRetargeter,
+                SharpaHandRetargeterConfig,
+            )
+        except ModuleNotFoundError as exc:
+            raise ModuleNotFoundError(
+                "hand_teleop requires Sharpa retargeting dependencies. "
+                "Install/use a build with isaacteleop[grounding] and bundled "
+                "robotic_grounding."
+            ) from exc
+
         hands = HandsSource(name="hands")
         pedals = Generic3AxisPedalSource(
             name="pedals", collection_id=self._pedal_collection_id
@@ -792,11 +882,44 @@ class TeleopRos2Node(Node):
         )
         locomotion_connected = locomotion.connect({"pedals": pedals.output("pedals")})
 
+        left_hand_retargeter = SharpaHandRetargeter(
+            SharpaHandRetargeterConfig(
+                robot_asset_path=_resolve_sharpa_mjcf("left_sharpawave_nomesh.xml"),
+                hand_side="left",
+                hand_joint_names=(
+                    list(left_finger_joint_names)
+                    if left_finger_joint_names is not None
+                    else None
+                ),
+            ),
+            name="sharpa_left",
+        )
+        right_hand_retargeter = SharpaHandRetargeter(
+            SharpaHandRetargeterConfig(
+                robot_asset_path=_resolve_sharpa_mjcf("right_sharpawave_nomesh.xml"),
+                hand_side="right",
+                hand_joint_names=(
+                    list(right_finger_joint_names)
+                    if right_finger_joint_names is not None
+                    else None
+                ),
+            ),
+            name="sharpa_right",
+        )
+        left_hand_connected = left_hand_retargeter.connect(
+            {HandsSource.LEFT: hands.output(HandsSource.LEFT)}
+        )
+        right_hand_connected = right_hand_retargeter.connect(
+            {HandsSource.RIGHT: hands.output(HandsSource.RIGHT)}
+        )
+
         pipeline = OutputCombiner(
             {
                 "hand_left": hands.output(HandsSource.LEFT),
                 "hand_right": hands.output(HandsSource.RIGHT),
                 "root_command": locomotion_connected.output("root_command"),
+                "finger_joints_left": left_hand_connected.output("hand_joints"),
+                "finger_joints_right": right_hand_connected.output("hand_joints"),
             }
         )
 
@@ -813,8 +936,8 @@ class TeleopRos2Node(Node):
     def _build_session_config(
         self,
         mode: str,
-        left_finger_joint_names: Sequence[str],
-        right_finger_joint_names: Sequence[str],
+        left_finger_joint_names: Sequence[str] | None,
+        right_finger_joint_names: Sequence[str] | None,
     ) -> TeleopSessionConfig:
         if mode == "controller_teleop":
             return self._build_controller_teleop_config(
@@ -822,7 +945,10 @@ class TeleopRos2Node(Node):
                 right_finger_joint_names,
             )
         if mode == "hand_teleop":
-            return self._build_hand_teleop_config()
+            return self._build_hand_teleop_config(
+                left_finger_joint_names,
+                right_finger_joint_names,
+            )
         if mode == "controller_raw":
             return self._build_controller_raw_config()
         if mode == "full_body":
@@ -958,9 +1084,7 @@ class TeleopRos2Node(Node):
                                 pose_msg.pose.orientation.w = 1.0
                                 self._pub_root_pose.publish(pose_msg)
 
-                        if self._mode == "controller_teleop":
-                            left_ctrl = result["controller_left"]
-                            right_ctrl = result["controller_right"]
+                        if self._mode in ("controller_teleop", "hand_teleop"):
                             left_joints = result["finger_joints_left"]
                             right_joints = result["finger_joints_right"]
                             if not left_joints.is_none or not right_joints.is_none:

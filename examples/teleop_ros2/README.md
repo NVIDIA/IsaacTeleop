@@ -34,6 +34,13 @@ The default collection ID is `generic_3axis_pedal`. Override it with
 `--ros-args -p pedal_collection_id:=<your_collection_id>` when your pedal
 publisher uses a different ID.
 
+## Prerequisite: Sharpa Retargeting For `hand_teleop`
+
+`hand_teleop` retargets OpenXR hand tracking to Sharpa hand joint commands via
+`SharpaHandRetargeter`. It requires the `isaacteleop[grounding]` runtime
+dependencies and the bundled `robotic_grounding` package data that provides the
+Sharpa MJCF assets.
+
 ## Published Topics
 
 - `xr_teleop/hand` (`geometry_msgs/PoseArray`)
@@ -45,7 +52,7 @@ publisher uses a different ID.
 - `xr_teleop/root_pose` (`geometry_msgs/PoseStamped`)
 - `xr_teleop/controller_data` (`std_msgs/ByteMultiArray`, msgpack-encoded dictionary)
 - `xr_teleop/finger_joints` (`sensor_msgs/JointState`)
-  - Retargeted finger joint angles for the robot; contains joint names and position arrays corresponding to the robot finger joints (published in `controller_teleop` mode only)
+  - Retargeted finger joint angles for the robot; contains joint names and position arrays corresponding to the robot finger joints (TriHand in `controller_teleop`, Sharpa in `hand_teleop`)
 - `/tf` (`tf2_msgs/TFMessage`)
   - `world_frame` → `right_wrist_frame`: Right wrist transform (published in `controller_teleop` and `hand_teleop` modes)
   - `world_frame` → `left_wrist_frame`: Left wrist transform (published in `controller_teleop` and `hand_teleop` modes)
@@ -110,7 +117,7 @@ The `mode` parameter selects the teleoperation scenario and which topics are pub
 | Mode | Topics published |
 |------|------------------|
 | `controller_teleop` (default) | `ee_poses` (from controller aim pose), `root_twist`, `root_pose`, `finger_joints` (finger joints in joint space), `controller_data`, `tf` (from controller aim pose) |
-| `hand_teleop` | `ee_poses` (from hand tracking wrist), `hand` (finger joints only in pose space), `root_twist`, `root_pose`, `tf` (from hand tracking wrist); locomotion comes from the configured foot pedal collection |
+| `hand_teleop` | `ee_poses` (from hand tracking wrist), `hand` (finger joints in pose space), `finger_joints` (finger joints in joint space), `root_twist`, `root_pose`, `tf` (from hand tracking wrist); locomotion comes from the configured foot pedal collection |
 | `controller_raw` | `controller_data` only |
 | `full_body` | `full_body` and `controller_data` |
 
