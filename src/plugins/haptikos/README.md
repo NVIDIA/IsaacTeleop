@@ -36,14 +36,14 @@ src/plugins/haptikos/
 ####  Build the plugin
 
 ```bash
-cd build
-cmake ..
+cd ../../..  # Navigate to TeleopCore root
+cmake -S . -B build
 make haptikos_hands_plugin
 ```
 
 ####  Build the entire project
 ```bash
-cmake -B build -DENABLE_CLANG_FORMAT_CHECK=OFF
+cmake -B build -DENABLE_CLANG_FORMAT_CHECK=OFF #From Project root
 cmake --build build --parallel 4
 cmake --install build
 ```
