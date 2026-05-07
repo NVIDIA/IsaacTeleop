@@ -130,9 +130,10 @@ class DexHandRetargeter(BaseRetargeter):
         # Setup paths and configs
         self._prepare_configs()
 
-        # Initialize dex retargeting optimizer
+        # Initialize dex retargeting optimizer (use the internal load path so
+        # the user's config object is not mutated to point at our temp file).
         self._dex_hand = RetargetingConfig.load_from_file(
-            config.hand_retargeting_config
+            self._retargeting_config_path
         ).build()
 
         # The optimizer has parsed the YAML; the temp file is no longer needed.
@@ -311,12 +312,14 @@ class DexHandRetargeter(BaseRetargeter):
             self._config.hand_retargeting_config, local_urdf
         )
 
-        if temp_config:
-            self._config.hand_retargeting_config = temp_config
-            # Track for cleanup once the optimizer has consumed the file.
-            self._temp_config_path: Optional[str] = temp_config
-        else:
-            self._temp_config_path = None
+        # Resolve the load path internally rather than mutating the user's
+        # ``DexHandRetargeterConfig``: that object may be reused or inspected
+        # by the caller, and overwriting it with a path we are about to
+        # delete in ``_cleanup_temp_config`` would leave it dangling.
+        self._retargeting_config_path: str = (
+            temp_config or self._config.hand_retargeting_config
+        )
+        self._temp_config_path: Optional[str] = temp_config
 
     def _cleanup_temp_config(self) -> None:
         """Remove the temp YAML written by ``_update_yaml`` once the optimizer
