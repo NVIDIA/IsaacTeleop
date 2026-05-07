@@ -194,9 +194,17 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
     const RenderTarget& rt = backend_->render_target();
     const Resolution rt_extent = rt.resolution();
 
-    // Per-layer aspect-fit tiles; nullopt aspect = fill the tile.
+    // XR mode: per-eye viewports + per-eye matrices live in frame->views
+    // already (set by XrBackend::begin_frame). The compositor's tile_layout
+    // / per-layer-scissor / view[0]-viewport-override design is for window
+    // mode multi-layer letterboxing — applying it in XR clips per-eye
+    // renders into a single centered tile and corrupts the stereo layout.
+    // Skip both in XR mode; layers iterate frame->views as-is.
+    const bool xr_mode = !frame->views.empty() && frame->views[0].is_xr;
+
+    // Per-layer aspect-fit tiles (window/offscreen only).
     std::vector<TileSlot> tiles;
-    if (!visible_layers.empty())
+    if (!xr_mode && !visible_layers.empty())
     {
         const float fb_aspect = static_cast<float>(rt_extent.width) / static_cast<float>(rt_extent.height);
         std::vector<float> aspects;
@@ -228,20 +236,30 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
 
     vkCmdBeginRenderPass(command_buffer_, &rp, VK_SUBPASS_CONTENTS_INLINE);
 
-    // Per-layer: pre-bind scissor (tile.outer); per-layer ViewInfo
-    // gets viewport = tile.content.
+    // Per-layer: in window/offscreen mode we pre-bind scissor (tile.outer)
+    // and override view[0].viewport with the layer's tile.content for
+    // aspect-fit letterboxing. In XR mode neither applies — per-eye
+    // viewports already live in frame->views and clip-space culling
+    // confines draws to each eye's region.
+    if (xr_mode)
+    {
+        const VkRect2D rt_full{ { 0, 0 }, { rt_extent.width, rt_extent.height } };
+        vkCmdSetScissor(command_buffer_, 0, 1, &rt_full);
+    }
     for (size_t i = 0; i < visible_layers.size(); ++i)
     {
-        const VkRect2D scissor_rect = tiles[i].outer;
-        const VkRect2D viewport_rect = tiles[i].content;
-        vkCmdSetScissor(command_buffer_, 0, 1, &scissor_rect);
-
         std::vector<ViewInfo> layer_views = frame->views;
         if (layer_views.empty())
         {
             layer_views.push_back(ViewInfo{});
         }
-        layer_views[0].viewport = to_rect2d(viewport_rect);
+        if (!xr_mode)
+        {
+            const VkRect2D scissor_rect = tiles[i].outer;
+            const VkRect2D viewport_rect = tiles[i].content;
+            vkCmdSetScissor(command_buffer_, 0, 1, &scissor_rect);
+            layer_views[0].viewport = to_rect2d(viewport_rect);
+        }
         visible_layers[i]->record(command_buffer_, layer_views, rt);
     }
 
