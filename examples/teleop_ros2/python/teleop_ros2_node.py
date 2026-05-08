@@ -52,7 +52,7 @@ from geometry_msgs.msg import (
     TransformStamped,
     TwistStamped,
 )
-from rcl_interfaces.msg import ParameterDescriptor, ParameterType
+from rcl_interfaces.msg import ParameterDescriptor, ParameterType, ParameterValue
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from std_msgs.msg import ByteMultiArray
@@ -90,7 +90,13 @@ from isaacteleop.teleop_session_manager import (
 )
 from teleop_ros2_retargeters import JointNameAliasRetargeter
 
+
 _BODY_JOINT_NAMES = [e.name for e in BodyJointPicoIndex]
+_EMPTY_STRING_ARRAY_PARAMETER = ParameterValue(
+    type=ParameterType.PARAMETER_STRING_ARRAY,
+    string_array_value=[],
+)
+_SHARPA_FINGER_JOINT_COUNT = 22
 _TELEOP_MODES = ("controller_teleop", "hand_teleop", "controller_raw", "full_body")
 
 _TRIHAND_JOINT_NAMES = [
@@ -104,7 +110,6 @@ _TRIHAND_JOINT_NAMES = [
 ]
 _LEFT_FINGER_JOINT_NAMES = [f"left_{n}" for n in _TRIHAND_JOINT_NAMES]
 _RIGHT_FINGER_JOINT_NAMES = [f"right_{n}" for n in _TRIHAND_JOINT_NAMES]
-_SHARPA_FINGER_JOINT_COUNT = 22
 
 
 # Helper functions
@@ -590,7 +595,7 @@ class TeleopRos2Node(Node):
         )
         self.declare_parameter(
             "left_finger_joint_names",
-            [],
+            _EMPTY_STRING_ARRAY_PARAMETER,
             ParameterDescriptor(
                 type=ParameterType.PARAMETER_STRING_ARRAY,
                 description=(
@@ -602,7 +607,7 @@ class TeleopRos2Node(Node):
         )
         self.declare_parameter(
             "right_finger_joint_names",
-            [],
+            _EMPTY_STRING_ARRAY_PARAMETER,
             ParameterDescriptor(
                 type=ParameterType.PARAMETER_STRING_ARRAY,
                 description=(
