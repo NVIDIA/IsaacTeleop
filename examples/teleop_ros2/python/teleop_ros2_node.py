@@ -52,8 +52,9 @@ from geometry_msgs.msg import (
     TransformStamped,
     TwistStamped,
 )
-from rcl_interfaces.msg import ParameterDescriptor, ParameterType, ParameterValue
+from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 from rclpy.node import Node
+from rclpy.parameter import Parameter
 from sensor_msgs.msg import JointState
 from std_msgs.msg import ByteMultiArray
 from tf2_ros import TransformBroadcaster
@@ -92,10 +93,6 @@ from teleop_ros2_retargeters import JointNameAliasRetargeter
 
 
 _BODY_JOINT_NAMES = [e.name for e in BodyJointPicoIndex]
-_EMPTY_STRING_ARRAY_PARAMETER = ParameterValue(
-    type=ParameterType.PARAMETER_STRING_ARRAY,
-    string_array_value=[],
-)
 _SHARPA_FINGER_JOINT_COUNT = 22
 _TELEOP_MODES = ("controller_teleop", "hand_teleop", "controller_raw", "full_body")
 
@@ -231,6 +228,12 @@ def _make_transform(
     tf.transform.rotation.z = float(orientation[2])
     tf.transform.rotation.w = float(orientation[3])
     return tf
+
+
+def _make_unset_string_array_parameter_empty(node: Node, parameter: Parameter) -> None:
+    if parameter.type_ != Parameter.Type.NOT_SET:
+        return
+    node.set_parameters([Parameter(parameter.name, Parameter.Type.STRING_ARRAY, [])])
 
 
 def _maybe_alias_hand_joints(
@@ -593,9 +596,11 @@ class TeleopRos2Node(Node):
             "In modes that publish xr_teleop/finger_joints, provide ROS "
             "JointState name aliases matching the selected retargeter output count."
         )
-        self.declare_parameter(
+        # A bare [] default is inferred by rclpy as BYTE_ARRAY on Humble.
+        # Declare by type first, then initialize the unset default explicitly.
+        left_finger_joint_names_param = self.declare_parameter(
             "left_finger_joint_names",
-            _EMPTY_STRING_ARRAY_PARAMETER,
+            Parameter.Type.STRING_ARRAY,
             ParameterDescriptor(
                 type=ParameterType.PARAMETER_STRING_ARRAY,
                 description=(
@@ -605,9 +610,9 @@ class TeleopRos2Node(Node):
                 additional_constraints=finger_joint_name_constraints,
             ),
         )
-        self.declare_parameter(
+        right_finger_joint_names_param = self.declare_parameter(
             "right_finger_joint_names",
-            _EMPTY_STRING_ARRAY_PARAMETER,
+            Parameter.Type.STRING_ARRAY,
             ParameterDescriptor(
                 type=ParameterType.PARAMETER_STRING_ARRAY,
                 description=(
@@ -617,6 +622,8 @@ class TeleopRos2Node(Node):
                 additional_constraints=finger_joint_name_constraints,
             ),
         )
+        _make_unset_string_array_parameter_empty(self, left_finger_joint_names_param)
+        _make_unset_string_array_parameter_empty(self, right_finger_joint_names_param)
 
         rate_hz = self.get_parameter("rate_hz").get_parameter_value().double_value
         if rate_hz <= 0 or not math.isfinite(rate_hz):
