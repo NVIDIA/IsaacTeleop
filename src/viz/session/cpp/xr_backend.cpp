@@ -115,6 +115,10 @@ void XrBackend::init(const VkContext& ctx, Resolution /*preferred_size*/)
 
 void XrBackend::destroy()
 {
+    // Balance the frame protocol before teardown — releases any
+    // acquired swapchain images and posts an empty xrEndFrame if a
+    // begin_frame was in flight. No-op when nothing is pending.
+    abort_in_flight_frame();
     // Order: rendering resources → session. Runtime owns swapchain
     // images, so xrDestroySwapchain is enough (no vkDestroyImage).
     render_target_.reset();
