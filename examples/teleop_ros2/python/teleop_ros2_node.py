@@ -88,6 +88,7 @@ from isaacteleop.teleop_session_manager import (
     TeleopSession,
     TeleopSessionConfig,
 )
+from teleop_ros2_retargeters import JointNameAliasRetargeter
 
 _BODY_JOINT_NAMES = [e.name for e in BodyJointPicoIndex]
 _TELEOP_MODES = ("controller_teleop", "hand_teleop", "controller_raw", "full_body")
@@ -101,9 +102,9 @@ _TRIHAND_JOINT_NAMES = [
     "middle_proximal",
     "middle_distal",
 ]
-_FINGER_JOINT_COUNT = len(_TRIHAND_JOINT_NAMES)
 _LEFT_FINGER_JOINT_NAMES = [f"left_{n}" for n in _TRIHAND_JOINT_NAMES]
 _RIGHT_FINGER_JOINT_NAMES = [f"right_{n}" for n in _TRIHAND_JOINT_NAMES]
+_SHARPA_FINGER_JOINT_COUNT = 22
 
 
 # Helper functions
@@ -202,8 +203,8 @@ def _find_plugins_dirs(start: Path) -> List[Path]:
     return candidates
 
 
-def _joint_names_from_group(group: OptionalTensorGroup) -> List[str]:
-    return [tensor_type.name for tensor_type in group.group_type.types]
+def _joint_names_from_group_type(group_type) -> List[str]:
+    return [tensor_type.name for tensor_type in group_type.types]
 
 
 def _make_transform(
@@ -227,41 +228,37 @@ def _make_transform(
     return tf
 
 
-def _resolve_joint_name_parameter(
+def _maybe_alias_hand_joints(
+    connected_hand_retargeter,
+    input_joint_names: Sequence[str],
+    output_joint_names: Sequence[str] | None,
+    name: str,
+):
+    if output_joint_names is None:
+        return connected_hand_retargeter.output("hand_joints")
+
+    alias_retargeter = JointNameAliasRetargeter(
+        input_joint_names=input_joint_names,
+        output_joint_names=output_joint_names,
+        name=name,
+    )
+    alias_connected = alias_retargeter.connect(
+        {"hand_joints": connected_hand_retargeter.output("hand_joints")}
+    )
+    return alias_connected.output("hand_joints")
+
+
+def _resolve_finger_joint_name_aliases(
     parameter_name: str,
     names: List[str],
-) -> List[str]:
+) -> List[str] | None:
     for index, joint_name in enumerate(names, start=1):
         if not joint_name.strip():
             raise ValueError(
                 f"Parameter '{parameter_name}' entry {index} must be a non-empty string"
             )
 
-    return names
-
-
-def _resolve_trihand_joint_names(
-    parameter_name: str,
-    names: List[str],
-) -> List[str] | None:
-    resolved_names = _resolve_joint_name_parameter(parameter_name, names)
-    if not resolved_names:
-        return None
-    if len(resolved_names) != _FINGER_JOINT_COUNT:
-        raise ValueError(
-            f"Parameter '{parameter_name}' must contain exactly "
-            f"{_FINGER_JOINT_COUNT} entries in TriHand order for controller_teleop, "
-            f"got {len(resolved_names)}"
-        )
-    return resolved_names
-
-
-def _resolve_sharpa_joint_names(
-    parameter_name: str,
-    names: List[str],
-) -> List[str] | None:
-    resolved_names = _resolve_joint_name_parameter(parameter_name, names)
-    return resolved_names or None
+    return names or None
 
 
 def _resolve_sharpa_mjcf(filename: str) -> str:
@@ -296,6 +293,20 @@ def _to_pose(position, orientation=None) -> Pose:
         pose.orientation.z = float(orientation[2])
         pose.orientation.w = float(orientation[3])
     return pose
+
+
+def _validate_joint_name_alias_count(
+    parameter_name: str,
+    aliases: Sequence[str] | None,
+    expected_count: int,
+) -> None:
+    if aliases is None:
+        return
+    if len(aliases) != expected_count:
+        raise ValueError(
+            f"Parameter '{parameter_name}' must contain exactly {expected_count} "
+            f"joint name aliases, got {len(aliases)}"
+        )
 
 
 # Message builders
@@ -574,10 +585,8 @@ class TeleopRos2Node(Node):
 
         finger_joint_name_constraints = (
             "Leave empty to use the selected mode's default joint names. "
-            "In controller_teleop, provide exactly "
-            f"{_FINGER_JOINT_COUNT} names matching the TriHand order "
-            f"{_TRIHAND_JOINT_NAMES}. In hand_teleop, provide Sharpa MJCF "
-            "joint names to reorder or select Sharpa output joints."
+            "In modes that publish xr_teleop/finger_joints, provide ROS "
+            "JointState name aliases matching the selected retargeter output count."
         )
         self.declare_parameter(
             "left_finger_joint_names",
@@ -693,11 +702,13 @@ class TeleopRos2Node(Node):
                 normalized_q = np.array(transform_rot_floats) / q_norm
                 self._transform_rot = Rotation.from_quat(normalized_q)
 
-        left_finger_joint_names, right_finger_joint_names = (
-            self._resolve_mode_finger_joint_names(
-                self.get_parameter("left_finger_joint_names").value,
-                self.get_parameter("right_finger_joint_names").value,
-            )
+        self._left_finger_joint_name_aliases = _resolve_finger_joint_name_aliases(
+            "left_finger_joint_names",
+            self.get_parameter("left_finger_joint_names").value,
+        )
+        self._right_finger_joint_name_aliases = _resolve_finger_joint_name_aliases(
+            "right_finger_joint_names",
+            self.get_parameter("right_finger_joint_names").value,
         )
 
         self._tf_broadcaster = TransformBroadcaster(self)
@@ -720,34 +731,7 @@ class TeleopRos2Node(Node):
             JointState, "xr_teleop/finger_joints", 10
         )
 
-        self._config = self._build_session_config(
-            self._mode,
-            left_finger_joint_names,
-            right_finger_joint_names,
-        )
-
-    def _resolve_mode_finger_joint_names(
-        self,
-        left_names: List[str],
-        right_names: List[str],
-    ) -> tuple[List[str] | None, List[str] | None]:
-        if self._mode == "controller_teleop":
-            return (
-                _resolve_trihand_joint_names(
-                    "left_finger_joint_names",
-                    left_names,
-                ),
-                _resolve_trihand_joint_names(
-                    "right_finger_joint_names",
-                    right_names,
-                ),
-            )
-        if self._mode == "hand_teleop":
-            return (
-                _resolve_sharpa_joint_names("left_finger_joint_names", left_names),
-                _resolve_sharpa_joint_names("right_finger_joint_names", right_names),
-            )
-        return None, None
+        self._config = self._build_session_config(self._mode)
 
     def _build_controller_raw_config(self) -> TeleopSessionConfig:
         controllers = ControllersSource(name="controllers")
@@ -768,19 +752,25 @@ class TeleopRos2Node(Node):
             ),
         )
 
-    def _build_controller_teleop_config(
-        self,
-        left_finger_joint_names: Sequence[str] | None,
-        right_finger_joint_names: Sequence[str] | None,
-    ) -> TeleopSessionConfig:
+    def _build_controller_teleop_config(self) -> TeleopSessionConfig:
+        _validate_joint_name_alias_count(
+            "left_finger_joint_names",
+            self._left_finger_joint_name_aliases,
+            len(_LEFT_FINGER_JOINT_NAMES),
+        )
+        _validate_joint_name_alias_count(
+            "right_finger_joint_names",
+            self._right_finger_joint_name_aliases,
+            len(_RIGHT_FINGER_JOINT_NAMES),
+        )
         left_finger_joint_names = (
-            list(left_finger_joint_names)
-            if left_finger_joint_names is not None
+            list(self._left_finger_joint_name_aliases)
+            if self._left_finger_joint_name_aliases is not None
             else list(_LEFT_FINGER_JOINT_NAMES)
         )
         right_finger_joint_names = (
-            list(right_finger_joint_names)
-            if right_finger_joint_names is not None
+            list(self._right_finger_joint_name_aliases)
+            if self._right_finger_joint_name_aliases is not None
             else list(_RIGHT_FINGER_JOINT_NAMES)
         )
 
@@ -855,11 +845,18 @@ class TeleopRos2Node(Node):
             ),
         )
 
-    def _build_hand_teleop_config(
-        self,
-        left_finger_joint_names: Sequence[str] | None,
-        right_finger_joint_names: Sequence[str] | None,
-    ) -> TeleopSessionConfig:
+    def _build_hand_teleop_config(self) -> TeleopSessionConfig:
+        _validate_joint_name_alias_count(
+            "left_finger_joint_names",
+            self._left_finger_joint_name_aliases,
+            _SHARPA_FINGER_JOINT_COUNT,
+        )
+        _validate_joint_name_alias_count(
+            "right_finger_joint_names",
+            self._right_finger_joint_name_aliases,
+            _SHARPA_FINGER_JOINT_COUNT,
+        )
+
         try:
             from isaacteleop.retargeters import (
                 SharpaHandRetargeter,
@@ -886,11 +883,6 @@ class TeleopRos2Node(Node):
             SharpaHandRetargeterConfig(
                 robot_asset_path=_resolve_sharpa_mjcf("left_sharpawave_nomesh.xml"),
                 hand_side="left",
-                hand_joint_names=(
-                    list(left_finger_joint_names)
-                    if left_finger_joint_names is not None
-                    else None
-                ),
             ),
             name="sharpa_left",
         )
@@ -898,11 +890,6 @@ class TeleopRos2Node(Node):
             SharpaHandRetargeterConfig(
                 robot_asset_path=_resolve_sharpa_mjcf("right_sharpawave_nomesh.xml"),
                 hand_side="right",
-                hand_joint_names=(
-                    list(right_finger_joint_names)
-                    if right_finger_joint_names is not None
-                    else None
-                ),
             ),
             name="sharpa_right",
         )
@@ -912,14 +899,30 @@ class TeleopRos2Node(Node):
         right_hand_connected = right_hand_retargeter.connect(
             {HandsSource.RIGHT: hands.output(HandsSource.RIGHT)}
         )
+        left_finger_joints = _maybe_alias_hand_joints(
+            left_hand_connected,
+            _joint_names_from_group_type(
+                left_hand_retargeter.output_spec()["hand_joints"]
+            ),
+            self._left_finger_joint_name_aliases,
+            "sharpa_left_joint_aliases",
+        )
+        right_finger_joints = _maybe_alias_hand_joints(
+            right_hand_connected,
+            _joint_names_from_group_type(
+                right_hand_retargeter.output_spec()["hand_joints"]
+            ),
+            self._right_finger_joint_name_aliases,
+            "sharpa_right_joint_aliases",
+        )
 
         pipeline = OutputCombiner(
             {
                 "hand_left": hands.output(HandsSource.LEFT),
                 "hand_right": hands.output(HandsSource.RIGHT),
                 "root_command": locomotion_connected.output("root_command"),
-                "finger_joints_left": left_hand_connected.output("hand_joints"),
-                "finger_joints_right": right_hand_connected.output("hand_joints"),
+                "finger_joints_left": left_finger_joints,
+                "finger_joints_right": right_finger_joints,
             }
         )
 
@@ -933,22 +936,11 @@ class TeleopRos2Node(Node):
             ),
         )
 
-    def _build_session_config(
-        self,
-        mode: str,
-        left_finger_joint_names: Sequence[str] | None,
-        right_finger_joint_names: Sequence[str] | None,
-    ) -> TeleopSessionConfig:
+    def _build_session_config(self, mode: str) -> TeleopSessionConfig:
         if mode == "controller_teleop":
-            return self._build_controller_teleop_config(
-                left_finger_joint_names,
-                right_finger_joint_names,
-            )
+            return self._build_controller_teleop_config()
         if mode == "hand_teleop":
-            return self._build_hand_teleop_config(
-                left_finger_joint_names,
-                right_finger_joint_names,
-            )
+            return self._build_hand_teleop_config()
         if mode == "controller_raw":
             return self._build_controller_raw_config()
         if mode == "full_body":
@@ -1102,11 +1094,13 @@ class TeleopRos2Node(Node):
                                     else np.array([], dtype=np.float32)
                                 )
                                 finger_joints_msg.name = (
-                                    _joint_names_from_group(left_joints)
+                                    _joint_names_from_group_type(left_joints.group_type)
                                     if not left_joints.is_none
                                     else []
                                 ) + (
-                                    _joint_names_from_group(right_joints)
+                                    _joint_names_from_group_type(
+                                        right_joints.group_type
+                                    )
                                     if not right_joints.is_none
                                     else []
                                 )
