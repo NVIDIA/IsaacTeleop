@@ -61,6 +61,7 @@ RUN uv python install ${PYTHON_VERSION} --quiet \
 FROM base AS builder
 ARG ROS_DISTRO
 ARG PYTHON_VERSION
+ARG BUNDLE_ROBOTIC_GROUNDING=false
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -83,6 +84,7 @@ RUN --mount=type=cache,target=/opt/isaacteleop/build,id=isaacteleop-teleop-ros2-
         -DBUILD_PLUGINS=ON \
         -DBUILD_PLUGIN_OAK_CAMERA=OFF \
         -DENABLE_CLANG_FORMAT_CHECK=OFF \
+        -DBUNDLE_ROBOTIC_GROUNDING=${BUNDLE_ROBOTIC_GROUNDING} \
         -DISAAC_TELEOP_PYTHON_VERSION=${PYTHON_VERSION} \
     && cmake --build build --config Release -j$(nproc) \
     && cmake --install build --config Release

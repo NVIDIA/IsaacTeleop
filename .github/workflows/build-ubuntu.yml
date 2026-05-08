@@ -410,6 +410,13 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
+    - name: Setup robotic_grounding source bundle
+      id: setup-v2d-src
+      if: ${{ !startsWith(github.ref_name, 'release/') && !startsWith(github.base_ref, 'release/') }}
+      uses: ./.github/actions/setup-v2d-src
+      with:
+        github-token: ${{ secrets.V2D_RETARGETER_TOKEN }}
+
     - name: Set ROS Distro
       id: ros-distro
       run: |
@@ -424,6 +431,7 @@ jobs:
         docker build -f examples/teleop_ros2/Dockerfile \
           --build-arg ROS_DISTRO=${{ env.ROS_DISTRO }} \
           --build-arg PYTHON_VERSION=${{ matrix.python_version }} \
+          --build-arg BUNDLE_ROBOTIC_GROUNDING=${{ steps.setup-v2d-src.outputs.bundled || 'false' }} \
           -t teleop_ros2_ref:${{ env.ROS_DISTRO }} .
 
     - name: Verify application modes
