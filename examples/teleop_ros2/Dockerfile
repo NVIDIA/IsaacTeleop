@@ -111,18 +111,18 @@ WORKDIR /opt/isaacteleop/install/examples/teleop_ros2/python
 # Pre-install heavy Python dependencies so they are cached independently of C++ builds.
 # Copy requirements from the context, avoiding any files from the 'builder' stage.
 COPY src/core/python/requirements.txt \
-     src/core/python/requirements-retargeters.txt \
+     src/core/python/requirements-retargeters-lite.txt \
      src/core/python/requirements-grounding.txt \
      /tmp/
 RUN uv venv --python=${PYTHON_VERSION} && \
     uv pip install setuptools wheel && \
     uv pip install --no-build-isolation-package nlopt \
         -r /tmp/requirements.txt \
-        -r /tmp/requirements-retargeters.txt \
+        -r /tmp/requirements-retargeters-lite.txt \
         -r /tmp/requirements-grounding.txt \
-        msgpack msgpack-numpy && \
+        msgpack msgpack-numpy pyyaml && \
     rm /tmp/requirements.txt \
-       /tmp/requirements-retargeters.txt \
+       /tmp/requirements-retargeters-lite.txt \
        /tmp/requirements-grounding.txt
 
 COPY --from=builder /opt/isaacteleop/install /opt/isaacteleop/install

@@ -7,7 +7,13 @@ version = "0.1.0"
 description = "Isaac Teleop ROS2 Example"
 requires-python = ">=3.10,<3.14"
 dependencies = [
-    "isaacteleop[grounding,retargeters]",
+    "isaacteleop[grounding,retargeters-lite]",
     "msgpack",
     "msgpack-numpy",
+    "pyyaml>=6.0.3",
+    # robotic_grounding imports torch at module import time.
+    "torch>=2.7.0",
+    # robotic_grounding imports viser; pin the pre-yourdfpy version so Linux arm64 does not pull
+    # trimesh[easy] -> embreex, which has no aarch64 wheel.
+    "viser==0.1.0",
 ]
