@@ -3,3 +3,6 @@
 
 # Vendor Manus SDK (user-provided; do not commit)
 ManusSDK/
+
+# Downloaded SDK archive (kept locally to avoid re-downloading)
+MANUS_Core_*_SDK.zip

@@ -55,16 +55,22 @@ cd "$SCRIPT_DIR"
 if [ -f "$MANUS_SDK_ZIP" ]; then
     echo "SDK archive already exists. Skipping download."
 else
+    # Download to a .tmp path and rename on success so a partial/aborted
+    # download never leaves a file that looks complete on the next run.
+    MANUS_SDK_ZIP_TMP="${MANUS_SDK_ZIP}.tmp"
+    trap 'rm -f "$MANUS_SDK_ZIP_TMP"' EXIT
     if command -v curl &> /dev/null; then
         # -f: fail on HTTP errors (4xx/5xx), -L: follow redirects
-        curl -fL "$MANUS_SDK_URL" -o "$MANUS_SDK_ZIP"
+        curl -fL "$MANUS_SDK_URL" -o "$MANUS_SDK_ZIP_TMP"
     elif command -v wget &> /dev/null; then
         # --server-response prints HTTP status; wget already exits non-zero on errors
-        wget --server-response "$MANUS_SDK_URL" -O "$MANUS_SDK_ZIP"
+        wget --server-response "$MANUS_SDK_URL" -O "$MANUS_SDK_ZIP_TMP"
     else
         echo "Error: Neither curl nor wget found. Please install curl (apt-get install curl)."
         exit 1
     fi
+    mv "$MANUS_SDK_ZIP_TMP" "$MANUS_SDK_ZIP"
+    trap - EXIT
 fi
 
 # Verify archive integrity before extracting
@@ -122,10 +128,9 @@ else
     exit 1
 fi
 
-# Clean up extracted directory and zip file
+# Clean up extracted directory (keep zip for re-runs)
 echo "Cleaning up temporary files..."
 rm -rf "$EXTRACTED_DIR"
-rm -f "$MANUS_SDK_ZIP"
 echo ""
 
 # Build the plugin
