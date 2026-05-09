@@ -13,6 +13,7 @@ add_library(live_trackers STATIC
     live_full_body_tracker_pico_impl.cpp
     live_generic_3axis_pedal_tracker_impl.cpp
     live_frame_metadata_tracker_oak_impl.cpp
+    live_external_skeleton_tracker_impl.cpp
     inc/live_trackers/schema_tracker_base.hpp
     inc/live_trackers/schema_tracker.hpp
     inc/live_trackers/live_deviceio_factory.hpp
@@ -23,6 +24,7 @@ add_library(live_trackers STATIC
     live_full_body_tracker_pico_impl.hpp
     live_generic_3axis_pedal_tracker_impl.hpp
     live_frame_metadata_tracker_oak_impl.hpp
+    live_external_skeleton_tracker_impl.hpp
 )
 
 target_include_directories(live_trackers

@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: external_skeleton
+description: "Upper-body skeleton (arm gestures) from an external mocap suit, pushed via SchemaPusher"
+command: "./external_skeleton_plugin"
+version: "0.1.0"
+devices:
+  - path: "/skeleton/external"
+    type: "external_skeleton"
+    description: "14-joint upper-body skeleton from a third-party mocap device"

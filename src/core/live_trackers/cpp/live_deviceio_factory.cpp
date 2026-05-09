@@ -4,6 +4,7 @@
 #include "inc/live_trackers/live_deviceio_factory.hpp"
 
 #include "live_controller_tracker_impl.hpp"
+#include "live_external_skeleton_tracker_impl.hpp"
 #include "live_frame_metadata_tracker_oak_impl.hpp"
 #include "live_full_body_tracker_pico_impl.hpp"
 #include "live_generic_3axis_pedal_tracker_impl.hpp"
@@ -12,6 +13,7 @@
 #include "live_message_channel_tracker_impl.hpp"
 
 #include <deviceio_trackers/controller_tracker.hpp>
+#include <deviceio_trackers/external_skeleton_tracker.hpp>
 #include <deviceio_trackers/frame_metadata_tracker_oak.hpp>
 #include <deviceio_trackers/full_body_tracker_pico.hpp>
 #include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>
@@ -85,6 +87,12 @@ std::unique_ptr<ITrackerImpl> try_create_oak_impl(LiveDeviceIOFactory& factory, 
     return typed ? factory.create_frame_metadata_tracker_oak_impl(typed) : nullptr;
 }
 
+std::unique_ptr<ITrackerImpl> try_create_external_skeleton_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const ExternalSkeletonTracker*>(&tracker);
+    return typed ? factory.create_external_skeleton_tracker_impl(typed) : nullptr;
+}
+
 using CollectExtensionsFn = bool (*)(const ITracker&, std::set<std::string>&);
 using TryCreateFn = std::unique_ptr<ITrackerImpl> (*)(LiveDeviceIOFactory&, const ITracker&);
 
@@ -103,6 +111,7 @@ inline const TrackerDispatchEntry k_tracker_dispatch[] = {
     { &try_add_extensions<FullBodyTrackerPico, LiveFullBodyTrackerPicoImpl>, &try_create_full_body_pico_impl },
     { &try_add_extensions<Generic3AxisPedalTracker, LiveGeneric3AxisPedalTrackerImpl>, &try_create_generic_pedal_impl },
     { &try_add_extensions<FrameMetadataTrackerOak, LiveFrameMetadataTrackerOakImpl>, &try_create_oak_impl },
+    { &try_add_extensions<ExternalSkeletonTracker, LiveExternalSkeletonTrackerImpl>, &try_create_external_skeleton_impl },
 };
 
 } // namespace
@@ -253,6 +262,17 @@ std::unique_ptr<IFrameMetadataTrackerOakImpl> LiveDeviceIOFactory::create_frame_
         channels = LiveFrameMetadataTrackerOakImpl::create_mcap_channels(*writer_, get_name(tracker), tracker);
     }
     return std::make_unique<LiveFrameMetadataTrackerOakImpl>(handles_, tracker, std::move(channels));
+}
+
+std::unique_ptr<IExternalSkeletonTrackerImpl> LiveDeviceIOFactory::create_external_skeleton_tracker_impl(
+    const ExternalSkeletonTracker* tracker)
+{
+    std::unique_ptr<ExternalSkeletonMcapChannels> channels;
+    if (should_record(tracker))
+    {
+        channels = LiveExternalSkeletonTrackerImpl::create_mcap_channels(*writer_, get_name(tracker));
+    }
+    return std::make_unique<LiveExternalSkeletonTrackerImpl>(handles_, tracker, std::move(channels));
 }
 
 } // namespace core

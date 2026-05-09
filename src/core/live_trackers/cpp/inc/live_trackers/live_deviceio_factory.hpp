@@ -22,6 +22,8 @@ class ITracker;
 class ITrackerImpl;
 class ControllerTracker;
 class IControllerTrackerImpl;
+class ExternalSkeletonTracker;
+class IExternalSkeletonTrackerImpl;
 class FrameMetadataTrackerOak;
 class IFrameMetadataTrackerOakImpl;
 class MessageChannelTracker;
@@ -64,6 +66,8 @@ public:
         const Generic3AxisPedalTracker* tracker);
     std::unique_ptr<IFrameMetadataTrackerOakImpl> create_frame_metadata_tracker_oak_impl(
         const FrameMetadataTrackerOak* tracker);
+    std::unique_ptr<IExternalSkeletonTrackerImpl> create_external_skeleton_tracker_impl(
+        const ExternalSkeletonTracker* tracker);
 
 private:
     bool should_record(const ITracker* tracker) const;

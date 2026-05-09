@@ -12,6 +12,7 @@ add_library(deviceio_trackers STATIC
     generic_3axis_pedal_tracker.cpp
     frame_metadata_tracker_oak.cpp
     full_body_tracker_pico.cpp
+    external_skeleton_tracker.cpp
     inc/deviceio_trackers/head_tracker.hpp
     inc/deviceio_trackers/hand_tracker.hpp
     inc/deviceio_trackers/controller_tracker.hpp
@@ -19,6 +20,7 @@ add_library(deviceio_trackers STATIC
     inc/deviceio_trackers/full_body_tracker_pico.hpp
     inc/deviceio_trackers/generic_3axis_pedal_tracker.hpp
     inc/deviceio_trackers/frame_metadata_tracker_oak.hpp
+    inc/deviceio_trackers/external_skeleton_tracker.hpp
 )
 
 target_include_directories(deviceio_trackers

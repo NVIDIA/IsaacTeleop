@@ -1,0 +1,78 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+include "full_body.fbs";
+include "timestamp.fbs";
+
+namespace core;
+
+// Joint indices for an external skeleton (upper body + arms).
+//
+// This layout is intentionally vendor-neutral: it covers the joints commonly
+// shared by inertial mocap suits (Rokoko Smartsuit, Xsens / Movella MVN,
+// Sony mocopi, Noitom Perception Neuron) and optical systems (OptiTrack /
+// Vicon) when restricted to upper-body capture for arm-gesture teleop.
+//
+// Vendor backends should map their native joint hierarchy onto this layout
+// (or set is_valid=false on joints they do not provide).
+enum ExternalSkeletonJoint : uint8 {
+    ROOT = 0,
+    HIPS = 1,
+    SPINE = 2,
+    CHEST = 3,
+    NECK = 4,
+    HEAD = 5,
+    LEFT_SHOULDER = 6,
+    LEFT_UPPER_ARM = 7,
+    LEFT_LOWER_ARM = 8,
+    LEFT_HAND = 9,
+    RIGHT_SHOULDER = 10,
+    RIGHT_UPPER_ARM = 11,
+    RIGHT_LOWER_ARM = 12,
+    RIGHT_HAND = 13,
+
+    NUM_JOINTS = 14,
+}
+
+// Fixed-size array of 14 upper-body joints. Reuses BodyJointPose from
+// full_body.fbs so that downstream consumers can share retargeter helpers.
+struct ExternalSkeletonJoints {
+    joints: [BodyJointPose:14];
+}
+
+// Upper-body skeleton pose pushed by an external mocap plugin.
+//
+// All fields are always present when the parent Tracked/Record wrapper's
+// data is non-null. Per-joint validity is conveyed by BodyJointPose.is_valid;
+// `all_joint_poses_tracked` is a hint that all joints are currently being
+// tracked by the device (e.g. no occlusion / sensor dropout).
+table ExternalSkeletonPose {
+    joints: ExternalSkeletonJoints (id: 0);
+
+    // Quality flag mirroring the `allJointPosesTracked` semantics used by
+    // FullBodyPosePico: when false, consult per-joint is_valid flags.
+    all_joint_poses_tracked: bool (id: 1);
+
+    // Free-form vendor / device identifier (e.g. "rokoko-smartsuit-pro",
+    // "xsens-awinda", "mocopi", "synthetic"). Useful for retargeters and
+    // diagnostics; does not affect the joint layout above.
+    source_id: string (id: 2);
+}
+
+// Tracked wrapper for the in-memory tracker API (data is null when the
+// upstream plugin is not running or no sample has arrived yet).
+table ExternalSkeletonPoseTracked {
+    data: ExternalSkeletonPose (id: 0);
+}
+
+// MCAP recording wrapper.
+//
+// Record types are the root types written to MCAP channels by the McapRecorder.
+// Trackers serialize into Record types via their serialize() method, but the
+// public query API returns the inner data type directly.
+table ExternalSkeletonPoseRecord {
+    data: ExternalSkeletonPose (id: 0);
+    timestamp: DeviceDataTimestamp (id: 1);
+}
+
+root_type ExternalSkeletonPoseRecord;

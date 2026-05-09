@@ -149,6 +149,7 @@ if(BUILD_PLUGINS)
 
     add_subdirectory(src/plugins/controller_synthetic_hands)
     add_subdirectory(src/plugins/generic_3axis_pedal)
+    add_subdirectory(src/plugins/external_skeleton)
     add_subdirectory(src/plugins/manus)
     if(BUILD_PLUGIN_OAK_CAMERA)
         add_subdirectory(src/plugins/oak)
