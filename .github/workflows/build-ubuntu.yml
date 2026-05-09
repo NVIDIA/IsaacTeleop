@@ -505,7 +505,7 @@ jobs:
         fi
 
         # Run tests
-        for mode in controller_teleop controller_raw full_body; do
+        for mode in controller_teleop hand_teleop controller_raw full_body; do
           echo "Testing mode: $mode"
           LOG_FILE="${LOG_FILE_BASE}_${mode}.log"
           RUN_NAME="teleop-ros2-${PROJECT_NAME}-${mode//_/-}"
