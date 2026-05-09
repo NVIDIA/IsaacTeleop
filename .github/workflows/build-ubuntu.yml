@@ -514,6 +514,8 @@ jobs:
 
           rm -f "$LOG_FILE"
 
+          # This test overrides the image entrypoint, so keep uv's runtime
+          # resolver pointed at the locally built arm64 nlopt wheel.
           docker run -d \
             --name "$RUN_NAME" \
             --gpus all \
@@ -524,7 +526,7 @@ jobs:
             -e XR_RUNTIME_JSON="$CXR_HOST_VOLUME_PATH/.cloudxr/openxr_cloudxr.json" \
             -e PYTHONUNBUFFERED=1 \
             --entrypoint bash teleop_ros2_ref:${{ env.ROS_DISTRO }} -c \
-            "source /usr/local/bin/teleop-env-setup && exec uv run teleop_ros2_node.py --ros-args -p mode:=$mode -p use_mock_operators:=true" >/dev/null
+            "source /usr/local/bin/teleop-env-setup && exec uv run --find-links=/opt/nlopt-wheels teleop_ros2_node.py --ros-args -p mode:=$mode -p use_mock_operators:=true" >/dev/null
 
           deadline=$((SECONDS + READINESS_TIMEOUT_SEC))
           while [ "$SECONDS" -lt "$deadline" ]; do

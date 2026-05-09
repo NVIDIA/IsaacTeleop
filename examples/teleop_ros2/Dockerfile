@@ -56,7 +56,30 @@ RUN uv python install ${PYTHON_VERSION} --quiet \
     && uv python find ${PYTHON_VERSION}
 
 # -----------------------------------------------------------------------------
-# Stage 1: build and install
+# Stage 1: build an nlopt wheel for platforms PyPI does not cover
+# -----------------------------------------------------------------------------
+FROM base AS nlopt_wheel
+ARG PYTHON_VERSION
+ARG TARGETARCH
+
+WORKDIR /tmp/nlopt-python
+RUN mkdir -p /opt/nlopt-wheels && \
+    if [ "${TARGETARCH}" = "arm64" ]; then \
+        apt-get update && apt-get install -y --no-install-recommends \
+            build-essential \
+            cmake \
+            git \
+            pkg-config \
+        && rm -rf /var/lib/apt/lists/* \
+        && git clone --depth 1 --branch 2.10.0 https://github.com/DanielBok/nlopt-python.git . \
+        && git submodule update --init --recursive \
+        && uv venv --python=${PYTHON_VERSION} /tmp/nlopt-wheel-venv \
+        && VIRTUAL_ENV=/tmp/nlopt-wheel-venv uv pip install numpy setuptools wheel \
+        && /tmp/nlopt-wheel-venv/bin/python setup.py bdist_wheel -d /opt/nlopt-wheels; \
+    fi
+
+# -----------------------------------------------------------------------------
+# Stage 2: build and install
 # -----------------------------------------------------------------------------
 FROM base AS builder
 ARG ROS_DISTRO
@@ -101,28 +124,30 @@ exec "$@"
 EOF
 
 # -----------------------------------------------------------------------------
-# Stage 2: runtime image (install tree only)
+# Stage 3: runtime image (install tree only)
 # -----------------------------------------------------------------------------
 FROM base
 ARG PYTHON_VERSION
 
 WORKDIR /opt/isaacteleop/install/examples/teleop_ros2/python
 
+COPY --from=nlopt_wheel /opt/nlopt-wheels /opt/nlopt-wheels
+
 # Pre-install heavy Python dependencies so they are cached independently of C++ builds.
 # Copy requirements from the context, avoiding any files from the 'builder' stage.
 COPY src/core/python/requirements.txt \
-     src/core/python/requirements-retargeters-lite.txt \
+     src/core/python/requirements-retargeters.txt \
      src/core/python/requirements-grounding.txt \
      /tmp/
 RUN uv venv --python=${PYTHON_VERSION} && \
     uv pip install setuptools wheel && \
-    uv pip install --no-build-isolation-package nlopt \
+    uv pip install --find-links=/opt/nlopt-wheels --no-build-isolation-package nlopt \
         -r /tmp/requirements.txt \
-        -r /tmp/requirements-retargeters-lite.txt \
+        -r /tmp/requirements-retargeters.txt \
         -r /tmp/requirements-grounding.txt \
-        msgpack msgpack-numpy pyyaml && \
+        msgpack msgpack-numpy && \
     rm /tmp/requirements.txt \
-       /tmp/requirements-retargeters-lite.txt \
+       /tmp/requirements-retargeters.txt \
        /tmp/requirements-grounding.txt
 
 COPY --from=builder /opt/isaacteleop/install /opt/isaacteleop/install
@@ -135,6 +160,6 @@ ENV BASH_ENV=/usr/local/bin/teleop-env-setup
 RUN echo "source /usr/local/bin/teleop-env-setup" >> /etc/bash.bashrc
 
 # Pre-install Python dependencies so uv run doesn't download at every launch.
-RUN uv sync --no-dev
+RUN uv sync --no-dev --find-links=/opt/nlopt-wheels
 
 ENTRYPOINT ["/usr/local/bin/teleop-entrypoint", "uv", "run", "teleop_ros2_node.py"]
