@@ -39,15 +39,15 @@ publisher uses a different ID.
 `hand_teleop` retargets OpenXR hand tracking to Sharpa hand joint commands via
 the `hand_retargeter` parameter:
 
-- `hand_retargeter:=pink_ik` (default): uses `SharpaHandRetargeter`. It requires the
-  `isaacteleop[grounding]` runtime dependencies and the bundled
-  `robotic_grounding` package data that provides the Sharpa MJCF assets.
-- `hand_retargeter:=dexpilot`: uses `DexHandRetargeter` with DexPilot configs from
+- `hand_retargeter:=dexpilot` (default): uses `DexHandRetargeter` with DexPilot configs from
   `examples/teleop_ros2/configs/`. It requires `isaacteleop[retargeters]` and
   official standalone Sharpa Wave URDFs at:
   `examples/teleop_ros2/assets/urdf/sharpa_standalone/left_sharpa_wave.urdf`
   and
   `examples/teleop_ros2/assets/urdf/sharpa_standalone/right_sharpa_wave.urdf`.
+- `hand_retargeter:=pink_ik`: uses `SharpaHandRetargeter`. It requires the
+  `isaacteleop[grounding]` runtime dependencies and the bundled
+  `robotic_grounding` package data that provides the Sharpa MJCF assets.
 
 The Docker build fetches the pinned official Sharpa Wave URDFs and installs them
 at `/opt/isaacteleop/install/examples/teleop_ros2/assets/urdf/sharpa_standalone/`.

@@ -611,7 +611,7 @@ class TeleopRos2Node(Node):
         )
         self.declare_parameter(
             "hand_retargeter",
-            "pink_ik",
+            "dexpilot",
             ParameterDescriptor(
                 description=(
                     "Hand retargeter backend used by hand_teleop. "
