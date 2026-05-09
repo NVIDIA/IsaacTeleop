@@ -70,6 +70,8 @@ from isaacteleop.retargeting_engine.deviceio_source_nodes.pedals_source import (
 )
 from isaacteleop.retargeting_engine.interface import OptionalTensorGroup, OutputCombiner
 from isaacteleop.retargeters import (
+    DexHandRetargeter,
+    DexHandRetargeterConfig,
     FootPedalRootCmdRetargeter,
     FootPedalRootCmdRetargeterConfig,
     LocomotionRootCmdRetargeter,
@@ -93,7 +95,7 @@ from teleop_ros2_retargeters import JointNameAliasRetargeter
 
 
 _BODY_JOINT_NAMES = [e.name for e in BodyJointPicoIndex]
-_SHARPA_FINGER_JOINT_COUNT = 22
+_HAND_RETARGETERS = ("pink_ik", "dexpilot")
 _TELEOP_MODES = ("controller_teleop", "hand_teleop", "controller_raw", "full_body")
 
 _TRIHAND_JOINT_NAMES = [
@@ -107,6 +109,35 @@ _TRIHAND_JOINT_NAMES = [
 ]
 _LEFT_FINGER_JOINT_NAMES = [f"left_{n}" for n in _TRIHAND_JOINT_NAMES]
 _RIGHT_FINGER_JOINT_NAMES = [f"right_{n}" for n in _TRIHAND_JOINT_NAMES]
+
+_SHARPA_WAVE_JOINT_NAMES = [
+    "thumb_CMC_FE",
+    "thumb_CMC_AA",
+    "thumb_MCP_FE",
+    "thumb_MCP_AA",
+    "thumb_IP",
+    "index_MCP_FE",
+    "index_MCP_AA",
+    "index_PIP",
+    "index_DIP",
+    "middle_MCP_FE",
+    "middle_MCP_AA",
+    "middle_PIP",
+    "middle_DIP",
+    "ring_MCP_FE",
+    "ring_MCP_AA",
+    "ring_PIP",
+    "ring_DIP",
+    "pinky_CMC",
+    "pinky_MCP_FE",
+    "pinky_MCP_AA",
+    "pinky_PIP",
+    "pinky_DIP",
+]
+_SHARPA_FINGER_JOINT_COUNT = len(_SHARPA_WAVE_JOINT_NAMES)
+_LEFT_SHARPA_WAVE_JOINT_NAMES = [f"left_{n}" for n in _SHARPA_WAVE_JOINT_NAMES]
+_RIGHT_SHARPA_WAVE_JOINT_NAMES = [f"right_{n}" for n in _SHARPA_WAVE_JOINT_NAMES]
+_DEX_HANDTRACKING_TO_BASELINK_FRAME_TRANSFORM = (0, -1, 0, -1, 0, 0, 0, 0, -1)
 
 
 # Helper functions
@@ -285,6 +316,38 @@ def _resolve_sharpa_mjcf(filename: str) -> str:
         raise ModuleNotFoundError(
             "hand_teleop requires robotic_grounding assets for Sharpa retargeting. "
             "Install/use a build with isaacteleop[grounding] and bundled robotic_grounding."
+        ) from exc
+
+
+def _resolve_teleop_ros2_file(description: str, *parts: str) -> str:
+    path = Path(__file__).resolve().parents[1].joinpath(*parts)
+    if not path.is_file():
+        raise FileNotFoundError(f"{description} not found at: {path}")
+    return str(path)
+
+
+def _resolve_dex_sharpa_config(filename: str) -> str:
+    return _resolve_teleop_ros2_file(
+        "DexPilot Sharpa Wave retargeting config",
+        "configs",
+        filename,
+    )
+
+
+def _resolve_dex_sharpa_urdf(filename: str) -> str:
+    try:
+        return _resolve_teleop_ros2_file(
+            "Standalone Sharpa Wave URDF",
+            "assets",
+            "urdf",
+            "sharpa_standalone",
+            filename,
+        )
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(
+            f"{exc}. Place manually supplied or generated Sharpa Wave URDFs under "
+            "examples/teleop_ros2/assets/urdf/sharpa_standalone/ before using "
+            "hand_retargeter:=dexpilot."
         ) from exc
 
 
@@ -545,6 +608,16 @@ class TeleopRos2Node(Node):
                 )
             ),
         )
+        self.declare_parameter(
+            "hand_retargeter",
+            "pink_ik",
+            ParameterDescriptor(
+                description=(
+                    "Hand retargeter backend used by hand_teleop. "
+                    "Valid values: 'pink_ik' or 'dexpilot'."
+                )
+            ),
+        )
 
         self.declare_parameter(
             "transform_translation",
@@ -639,6 +712,16 @@ class TeleopRos2Node(Node):
             )
         self.get_logger().info(f"Mode: {mode}")
         self._mode: str = mode
+        self._hand_retargeter: str = (
+            self.get_parameter("hand_retargeter").get_parameter_value().string_value
+        )
+        if self._hand_retargeter not in _HAND_RETARGETERS:
+            raise ValueError(
+                f"Parameter 'hand_retargeter' must be one of {_HAND_RETARGETERS}, "
+                f"got {self._hand_retargeter!r}"
+            )
+        if self._mode == "hand_teleop":
+            self.get_logger().info(f"Hand retargeter: {self._hand_retargeter}")
 
         self._pedal_collection_id: str = (
             self.get_parameter("pedal_collection_id").get_parameter_value().string_value
@@ -869,18 +952,6 @@ class TeleopRos2Node(Node):
             _SHARPA_FINGER_JOINT_COUNT,
         )
 
-        try:
-            from isaacteleop.retargeters import (
-                SharpaHandRetargeter,
-                SharpaHandRetargeterConfig,
-            )
-        except ModuleNotFoundError as exc:
-            raise ModuleNotFoundError(
-                "hand_teleop requires Sharpa retargeting dependencies. "
-                "Install/use a build with isaacteleop[grounding] and bundled "
-                "robotic_grounding."
-            ) from exc
-
         hands = HandsSource(name="hands")
         pedals = Generic3AxisPedalSource(
             name="pedals", collection_id=self._pedal_collection_id
@@ -891,20 +962,69 @@ class TeleopRos2Node(Node):
         )
         locomotion_connected = locomotion.connect({"pedals": pedals.output("pedals")})
 
-        left_hand_retargeter = SharpaHandRetargeter(
-            SharpaHandRetargeterConfig(
-                robot_asset_path=_resolve_sharpa_mjcf("left_sharpawave_nomesh.xml"),
-                hand_side="left",
-            ),
-            name="sharpa_left",
-        )
-        right_hand_retargeter = SharpaHandRetargeter(
-            SharpaHandRetargeterConfig(
-                robot_asset_path=_resolve_sharpa_mjcf("right_sharpawave_nomesh.xml"),
-                hand_side="right",
-            ),
-            name="sharpa_right",
-        )
+        if self._hand_retargeter == "pink_ik":
+            try:
+                from isaacteleop.retargeters import (
+                    SharpaHandRetargeter,
+                    SharpaHandRetargeterConfig,
+                )
+            except ModuleNotFoundError as exc:
+                raise ModuleNotFoundError(
+                    "hand_teleop with hand_retargeter:=pink_ik requires Sharpa "
+                    "retargeting dependencies. Install/use a build with "
+                    "isaacteleop[grounding] and bundled robotic_grounding."
+                ) from exc
+
+            left_hand_retargeter = SharpaHandRetargeter(
+                SharpaHandRetargeterConfig(
+                    robot_asset_path=_resolve_sharpa_mjcf("left_sharpawave_nomesh.xml"),
+                    hand_side="left",
+                ),
+                name="sharpa_left",
+            )
+            right_hand_retargeter = SharpaHandRetargeter(
+                SharpaHandRetargeterConfig(
+                    robot_asset_path=_resolve_sharpa_mjcf(
+                        "right_sharpawave_nomesh.xml"
+                    ),
+                    hand_side="right",
+                ),
+                name="sharpa_right",
+            )
+            left_alias_name = "sharpa_left_joint_aliases"
+            right_alias_name = "sharpa_right_joint_aliases"
+        else:
+            left_hand_retargeter = DexHandRetargeter(
+                DexHandRetargeterConfig(
+                    hand_retargeting_config=_resolve_dex_sharpa_config(
+                        "sharpa_wave_left_dexpilot.yml"
+                    ),
+                    hand_urdf=_resolve_dex_sharpa_urdf("left_sharpa_wave.urdf"),
+                    hand_joint_names=_LEFT_SHARPA_WAVE_JOINT_NAMES,
+                    handtracking_to_baselink_frame_transform=(
+                        _DEX_HANDTRACKING_TO_BASELINK_FRAME_TRANSFORM
+                    ),
+                    hand_side="left",
+                ),
+                name="dex_sharpa_left",
+            )
+            right_hand_retargeter = DexHandRetargeter(
+                DexHandRetargeterConfig(
+                    hand_retargeting_config=_resolve_dex_sharpa_config(
+                        "sharpa_wave_right_dexpilot.yml"
+                    ),
+                    hand_urdf=_resolve_dex_sharpa_urdf("right_sharpa_wave.urdf"),
+                    hand_joint_names=_RIGHT_SHARPA_WAVE_JOINT_NAMES,
+                    handtracking_to_baselink_frame_transform=(
+                        _DEX_HANDTRACKING_TO_BASELINK_FRAME_TRANSFORM
+                    ),
+                    hand_side="right",
+                ),
+                name="dex_sharpa_right",
+            )
+            left_alias_name = "dex_sharpa_left_joint_aliases"
+            right_alias_name = "dex_sharpa_right_joint_aliases"
+
         left_hand_connected = left_hand_retargeter.connect(
             {HandsSource.LEFT: hands.output(HandsSource.LEFT)}
         )
@@ -917,7 +1037,7 @@ class TeleopRos2Node(Node):
                 left_hand_retargeter.output_spec()["hand_joints"]
             ),
             self._left_finger_joint_name_aliases,
-            "sharpa_left_joint_aliases",
+            left_alias_name,
         )
         right_finger_joints = _maybe_alias_hand_joints(
             right_hand_connected,
@@ -925,7 +1045,7 @@ class TeleopRos2Node(Node):
                 right_hand_retargeter.output_spec()["hand_joints"]
             ),
             self._right_finger_joint_name_aliases,
-            "sharpa_right_joint_aliases",
+            right_alias_name,
         )
 
         pipeline = OutputCombiner(

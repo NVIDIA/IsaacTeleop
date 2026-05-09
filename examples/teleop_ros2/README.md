@@ -34,12 +34,24 @@ The default collection ID is `generic_3axis_pedal`. Override it with
 `--ros-args -p pedal_collection_id:=<your_collection_id>` when your pedal
 publisher uses a different ID.
 
-## Prerequisite: Sharpa Retargeting For `hand_teleop`
+## Prerequisite: Hand Retargeting For `hand_teleop`
 
 `hand_teleop` retargets OpenXR hand tracking to Sharpa hand joint commands via
-`SharpaHandRetargeter`. It requires the `isaacteleop[grounding]` runtime
-dependencies and the bundled `robotic_grounding` package data that provides the
-Sharpa MJCF assets.
+the `hand_retargeter` parameter:
+
+- `hand_retargeter:=pink_ik` (default): uses `SharpaHandRetargeter`. It requires the
+  `isaacteleop[grounding]` runtime dependencies and the bundled
+  `robotic_grounding` package data that provides the Sharpa MJCF assets.
+- `hand_retargeter:=dexpilot`: uses `DexHandRetargeter` with DexPilot configs from
+  `examples/teleop_ros2/configs/`. It requires `isaacteleop[retargeters]` and
+  manually supplied or generated standalone Sharpa Wave URDFs at:
+  `examples/teleop_ros2/assets/urdf/sharpa_standalone/left_sharpa_wave.urdf`
+  and
+  `examples/teleop_ros2/assets/urdf/sharpa_standalone/right_sharpa_wave.urdf`.
+
+When running from the Docker image, that asset directory is installed at
+`/opt/isaacteleop/install/examples/teleop_ros2/assets/urdf/sharpa_standalone/`.
+These URDF assets are not fetched at runtime.
 
 ## Published Topics
 
@@ -52,7 +64,7 @@ Sharpa MJCF assets.
 - `xr_teleop/root_pose` (`geometry_msgs/PoseStamped`)
 - `xr_teleop/controller_data` (`std_msgs/ByteMultiArray`, msgpack-encoded dictionary)
 - `xr_teleop/finger_joints` (`sensor_msgs/JointState`)
-  - Retargeted finger joint angles for the robot; contains joint names and position arrays corresponding to the robot finger joints (TriHand in `controller_teleop`, Sharpa in `hand_teleop`)
+  - Retargeted finger joint angles for the robot; contains joint names and position arrays corresponding to the robot finger joints (TriHand in `controller_teleop`, selected Sharpa retargeter in `hand_teleop`)
 - `/tf` (`tf2_msgs/TFMessage`)
   - `world_frame` → `right_wrist_frame`: Right wrist transform (published in `controller_teleop` and `hand_teleop` modes)
   - `world_frame` → `left_wrist_frame`: Left wrist transform (published in `controller_teleop` and `hand_teleop` modes)
@@ -104,7 +116,7 @@ docker run --rm --net=host --ipc=host \
   -r xr_teleop/hand:=my_robot/hand -r xr_teleop/ee_poses:=my_robot/ee_poses
 ```
 
-Available parameters: `rate_hz`, `mode`, `pedal_collection_id`, `world_frame`, `right_wrist_frame`, `left_wrist_frame`, `left_finger_joint_names`, `right_finger_joint_names`. Use `ros2 param list /teleop_ros2_node` and `ros2 param describe /teleop_ros2_node <param>` (with the node running) for the full set.
+Available parameters: `rate_hz`, `mode`, `hand_retargeter`, `pedal_collection_id`, `world_frame`, `right_wrist_frame`, `left_wrist_frame`, `left_finger_joint_names`, `right_finger_joint_names`. Use `ros2 param list /teleop_ros2_node` and `ros2 param describe /teleop_ros2_node <param>` (with the node running) for the full set.
 
 By default, `left_finger_joint_names` and `right_finger_joint_names` use the selected mode's retargeter joint names. They can be overridden to publish robot-specific names on `xr_teleop/finger_joints`, but each override must provide the same number of names as the joints emitted by that mode's retargeter.
 

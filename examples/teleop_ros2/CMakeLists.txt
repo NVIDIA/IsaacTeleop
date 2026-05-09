@@ -11,3 +11,7 @@ install_python_example(DESTINATION examples/teleop_ros2/python
 install(FILES README.md Dockerfile
     DESTINATION examples/teleop_ros2
 )
+
+install(DIRECTORY configs assets
+    DESTINATION examples/teleop_ros2
+)
