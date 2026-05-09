@@ -79,7 +79,19 @@ RUN mkdir -p /opt/nlopt-wheels && \
     fi
 
 # -----------------------------------------------------------------------------
-# Stage 2: build and install
+# Stage 2: fetch Sharpa Wave URDF assets
+# -----------------------------------------------------------------------------
+FROM base AS sharpa_urdfs
+
+WORKDIR /tmp/teleop_ros2
+COPY examples/teleop_ros2/scripts/fetch_sharpa_wave_urdfs.py scripts/
+COPY examples/teleop_ros2/configs/sharpa_wave_left_dexpilot.yml \
+     examples/teleop_ros2/configs/sharpa_wave_right_dexpilot.yml \
+     configs/
+RUN python3 scripts/fetch_sharpa_wave_urdfs.py --output-dir /opt/sharpa-wave-urdfs
+
+# -----------------------------------------------------------------------------
+# Stage 3: build and install
 # -----------------------------------------------------------------------------
 FROM base AS builder
 ARG ROS_DISTRO
@@ -124,7 +136,7 @@ exec "$@"
 EOF
 
 # -----------------------------------------------------------------------------
-# Stage 3: runtime image (install tree only)
+# Stage 4: runtime image (install tree only)
 # -----------------------------------------------------------------------------
 FROM base
 ARG PYTHON_VERSION
@@ -151,6 +163,7 @@ RUN uv venv --python=${PYTHON_VERSION} && \
        /tmp/requirements-grounding.txt
 
 COPY --from=builder /opt/isaacteleop/install /opt/isaacteleop/install
+COPY --from=sharpa_urdfs /opt/sharpa-wave-urdfs/ /opt/isaacteleop/install/examples/teleop_ros2/assets/urdf/sharpa_standalone/
 COPY --from=builder /usr/local/bin/teleop-env-setup /usr/local/bin/teleop-env-setup
 COPY --from=builder /usr/local/bin/teleop-entrypoint /usr/local/bin/teleop-entrypoint
 

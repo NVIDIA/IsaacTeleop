@@ -44,14 +44,20 @@ the `hand_retargeter` parameter:
   `robotic_grounding` package data that provides the Sharpa MJCF assets.
 - `hand_retargeter:=dexpilot`: uses `DexHandRetargeter` with DexPilot configs from
   `examples/teleop_ros2/configs/`. It requires `isaacteleop[retargeters]` and
-  manually supplied or generated standalone Sharpa Wave URDFs at:
+  official standalone Sharpa Wave URDFs at:
   `examples/teleop_ros2/assets/urdf/sharpa_standalone/left_sharpa_wave.urdf`
   and
   `examples/teleop_ros2/assets/urdf/sharpa_standalone/right_sharpa_wave.urdf`.
 
-When running from the Docker image, that asset directory is installed at
-`/opt/isaacteleop/install/examples/teleop_ros2/assets/urdf/sharpa_standalone/`.
-These URDF assets are not fetched at runtime.
+The Docker build fetches the pinned official Sharpa Wave URDFs and installs them
+at `/opt/isaacteleop/install/examples/teleop_ros2/assets/urdf/sharpa_standalone/`.
+Source-tree users can populate the same local asset directory from the repo root:
+
+```bash
+python3 examples/teleop_ros2/scripts/fetch_sharpa_wave_urdfs.py
+```
+
+Robot assets are never downloaded by `teleop_ros2_node.py` at runtime.
 
 ## Published Topics
 

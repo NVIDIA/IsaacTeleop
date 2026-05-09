@@ -345,9 +345,10 @@ def _resolve_dex_sharpa_urdf(filename: str) -> str:
         )
     except FileNotFoundError as exc:
         raise FileNotFoundError(
-            f"{exc}. Place manually supplied or generated Sharpa Wave URDFs under "
-            "examples/teleop_ros2/assets/urdf/sharpa_standalone/ before using "
-            "hand_retargeter:=dexpilot."
+            f"{exc}. Populate the official Sharpa Wave URDFs with "
+            "examples/teleop_ros2/scripts/fetch_sharpa_wave_urdfs.py before using "
+            "hand_retargeter:=dexpilot, or use a Docker image built from "
+            "examples/teleop_ros2/Dockerfile."
         ) from exc
 
 
