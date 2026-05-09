@@ -6,9 +6,9 @@ scipy>=1.15.0
 pyyaml>=6.0.3
 torch>=2.7.0
 
-# nlopt: architecture-specific so x86_64 can use pre-built wheels; arm builds from sdist
-nlopt==2.6.2; platform_machine == "aarch64" or platform_machine == "arm64"
-nlopt>=2.6.2; platform_machine != "aarch64" and platform_machine != "arm64"
+# Do not pin Linux arm64 to nlopt==2.6.2 here: that forces dex-retargeting 0.4.x
+# and NumPy 1.x, which cannot coexist with Pinocchio 3.x in combined environments.
+nlopt>=2.6.2
 
 # NOTE: The Sharpa retargeter's Pinocchio/Pink/daqp/loop-rate-limiters deps live
 # in `requirements-grounding.txt`, transitively via the `robotic_grounding`

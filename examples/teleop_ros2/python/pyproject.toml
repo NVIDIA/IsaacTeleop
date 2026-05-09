@@ -10,6 +10,9 @@ dependencies = [
     "isaacteleop[grounding,retargeters]",
     "msgpack",
     "msgpack-numpy",
+    # The ROS node installs pink_ik and dexpilot together. Require nlopt>=2.8 so
+    # dex-retargeting resolves to 0.5.x, keeping the env on NumPy 2 / Pinocchio 3.
+    "nlopt>=2.8.0",
     # robotic_grounding imports viser; pin the pre-yourdfpy version so Linux arm64 does not pull
     # trimesh[easy] -> embreex, which has no aarch64 wheel.
     "viser==0.1.0",
