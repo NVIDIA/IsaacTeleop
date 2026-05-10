@@ -21,6 +21,7 @@ add_executable(viz_core_tests
     test_frame_sync.cpp
     test_host_image.cpp
     test_render_target.cpp
+    test_vk_hpp.cpp
     test_viz_buffer.cpp
     test_viz_types.cpp
     test_vk_context.cpp

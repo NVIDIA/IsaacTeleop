@@ -5,7 +5,7 @@
 
 #include <viz/core/viz_buffer.hpp> // PixelFormat — used in API signatures
 #include <viz/core/viz_types.hpp>
-#include <vulkan/vulkan.h>
+#include <viz/core/vk.hpp>
 
 #include <atomic>
 #include <cstdint>
@@ -61,11 +61,11 @@ public:
     // init; transition_to_*() below moves it back and forth.
     VkImage vk_image() const noexcept
     {
-        return image_;
+        return *image_;
     }
     VkImageView vk_image_view() const noexcept
     {
-        return image_view_;
+        return *image_view_;
     }
     VkFormat vk_format() const noexcept
     {
@@ -76,7 +76,7 @@ public:
     // value returned by cuda_done_writing_value() before sampling.
     VkSemaphore cuda_done_writing() const noexcept
     {
-        return cuda_done_writing_;
+        return *cuda_done_writing_;
     }
 
     // Latest value CUDA has signaled successfully. Vulkan uses this
@@ -132,10 +132,12 @@ private:
     VkFormat vk_format_ = VK_FORMAT_R8G8B8A8_UNORM;
     VkImageLayout current_layout_ = VK_IMAGE_LAYOUT_UNDEFINED;
 
-    VkImage image_ = VK_NULL_HANDLE;
-    VkDeviceMemory memory_ = VK_NULL_HANDLE;
-    VkImageView image_view_ = VK_NULL_HANDLE;
-    VkCommandPool command_pool_ = VK_NULL_HANDLE; // For layout transitions only.
+    // Declared parent-first so reverse-destruction is correct.
+    vk::raii::DeviceMemory memory_{ nullptr };
+    vk::raii::Image image_{ nullptr };
+    vk::raii::ImageView image_view_{ nullptr };
+    vk::raii::CommandPool command_pool_{ nullptr }; // for layout transitions only
+    vk::raii::Semaphore cuda_done_writing_{ nullptr };
 
     // CUDA dup's the fd internally on import; we close ours after.
     int memory_fd_ = -1;
@@ -144,12 +146,6 @@ private:
     cudaMipmappedArray_t cuda_mipmapped_array_ = nullptr;
     cudaArray_t cuda_array_ = nullptr; // Level-0 view, non-owning.
 
-    // Producer→consumer timeline semaphore exported via
-    // VK_KHR_external_semaphore_fd and imported into CUDA. Two atomic
-    // counters (next reservation, last committed) so a failed
-    // cudaSignal can't leave the public value pointing at something
-    // that was never signaled.
-    VkSemaphore cuda_done_writing_ = VK_NULL_HANDLE;
     cudaExternalSemaphore_t cuda_cuda_done_writing_ = nullptr;
     std::atomic<uint64_t> cuda_done_writing_next_{ 0 };
     std::atomic<uint64_t> cuda_done_writing_value_{ 0 };

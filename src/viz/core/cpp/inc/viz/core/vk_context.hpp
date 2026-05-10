@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <vulkan/vulkan.h>
+#include <viz/core/vk.hpp>
 
 #include <cstdint>
 #include <string>
@@ -28,31 +28,27 @@ struct PhysicalDeviceInfo
                                      // queue family, required extensions)
 };
 
-// Standalone Vulkan instance/device creation for Televiz.
+// Vulkan instance + device + queue + pipeline cache for Televiz.
 //
-// Today this is the standalone path only: enumerate physical devices directly,
-// pick one (auto or explicit), and create a logical device with a graphics +
-// compute + transfer queue. The OpenXR-negotiated path
-// (xrCreateVulkanInstanceKHR / xrCreateVulkanDeviceKHR) is added later when
-// XR rendering is implemented.
+// Standalone path today (raw enumeration + selection); the OpenXR-
+// negotiated path is added with the XR backend.
 //
 // The selected physical device must support:
 //   - Vulkan API 1.2 or newer
-//   - VK_KHR_external_memory + VK_KHR_external_memory_fd (CUDA-Vulkan interop)
-//   - VK_KHR_external_semaphore + VK_KHR_external_semaphore_fd (CUDA sync)
-//   - A queue family with graphics + compute + transfer flags
-//
-// VkContext owns the Vulkan handles and tears them down on destruction.
+//   - VK_KHR_external_memory + VK_KHR_external_memory_fd
+//   - VK_KHR_external_semaphore + VK_KHR_external_semaphore_fd
+//   - A graphics + compute + transfer queue family
 //
 // init() also matches the current CUDA device to the chosen Vulkan
-// physical device by UUID, so every viz_core type that touches CUDA
-// can assume the two APIs are on the same GPU.
+// physical device by UUID.
 class VkContext
 {
 public:
     struct Config
     {
-        // Enables VK_LAYER_KHRONOS_validation if available.
+        // Enables VK_LAYER_KHRONOS_validation if available, plus
+        // VK_EXT_debug_utils messenger and best-practices +
+        // synchronization validation features.
         bool enable_validation = false;
 
         // Additional instance/device extensions to enable beyond the
@@ -72,51 +68,53 @@ public:
     };
 
     VkContext() = default;
+    ~VkContext();
 
-    // Non-copyable, non-movable for now (owns Vulkan handles).
     VkContext(const VkContext&) = delete;
     VkContext& operator=(const VkContext&) = delete;
     VkContext(VkContext&&) = delete;
     VkContext& operator=(VkContext&&) = delete;
 
-    ~VkContext();
-
-    // Initializes Vulkan: instance + physical device selection + logical
-    // device + queue. Throws std::runtime_error on Vulkan failure or if no
-    // suitable physical device is found. Throws std::logic_error if the
-    // context is already initialized. Throws std::out_of_range if
-    // Config::physical_device_index is set but out of range.
     void init(const Config& config);
-
-    // Releases all Vulkan handles. Idempotent (safe to call multiple times,
-    // and on a non-initialized context).
     void destroy();
-
     bool is_initialized() const noexcept;
 
+    // Raw-handle getters — extracted from the owned vk::raii types.
+    // Use these at CUDA / OpenXR interop boundaries; pure-Vulkan
+    // consumers should prefer the raii getters below for chained
+    // child handles.
     VkInstance instance() const noexcept;
     VkPhysicalDevice physical_device() const noexcept;
     VkDevice device() const noexcept;
     uint32_t queue_family_index() const noexcept;
     VkQueue queue() const noexcept;
-
-    // Process-wide VkPipelineCache for driver-side compiled-state
-    // reuse across pipeline creations. VK_NULL_HANDLE before init().
     VkPipelineCache pipeline_cache() const noexcept;
 
-    // CUDA device id matched to the chosen Vulkan physical device.
-    // Layers created on worker threads should
-    // cudaSetDevice(ctx.cuda_device_id()) before any CUDA call —
-    // cudaSetDevice is per-host-thread. Returns -1 before init().
+    // raii getters for in-tree consumers constructing further
+    // vk::raii::* handles. References stay valid until destroy().
+    vk::raii::Instance const& raii_instance() const noexcept
+    {
+        return instance_;
+    }
+    vk::raii::PhysicalDevice const& raii_physical_device() const noexcept
+    {
+        return physical_device_;
+    }
+    vk::raii::Device const& raii_device() const noexcept
+    {
+        return device_;
+    }
+    vk::raii::Queue const& raii_queue() const noexcept
+    {
+        return queue_;
+    }
+    vk::raii::PipelineCache const& raii_pipeline_cache() const noexcept
+    {
+        return pipeline_cache_;
+    }
+
     int cuda_device_id() const noexcept;
 
-    // Enumerates all Vulkan-capable physical devices and returns their
-    // properties. Useful for picking a specific GPU index on multi-GPU
-    // machines before calling init().
-    //
-    // Creates a minimal temporary VkInstance internally and tears it down.
-    // Does not throw. Returns an empty vector if the Vulkan loader is
-    // unavailable, vkCreateInstance fails, or no devices are present.
     static std::vector<PhysicalDeviceInfo> enumerate_physical_devices();
 
 private:
@@ -128,13 +126,18 @@ private:
 
     bool initialized_ = false;
     bool validation_enabled_ = false;
-    VkInstance instance_ = VK_NULL_HANDLE;
-    VkPhysicalDevice physical_device_ = VK_NULL_HANDLE;
-    VkDevice device_ = VK_NULL_HANDLE;
-    uint32_t queue_family_index_ = UINT32_MAX;
-    VkQueue queue_ = VK_NULL_HANDLE;
-    VkPipelineCache pipeline_cache_ = VK_NULL_HANDLE;
     int cuda_device_id_ = -1;
+    uint32_t queue_family_index_ = UINT32_MAX;
+
+    // Declared parent-first so reverse-order destruction tears
+    // children down before parents (pipeline cache → device → ... → instance).
+    vk::raii::Context context_{};
+    vk::raii::Instance instance_{ nullptr };
+    vk::raii::DebugUtilsMessengerEXT debug_messenger_{ nullptr };
+    vk::raii::PhysicalDevice physical_device_{ nullptr };
+    vk::raii::Device device_{ nullptr };
+    vk::raii::Queue queue_{ nullptr };
+    vk::raii::PipelineCache pipeline_cache_{ nullptr };
 };
 
 } // namespace viz

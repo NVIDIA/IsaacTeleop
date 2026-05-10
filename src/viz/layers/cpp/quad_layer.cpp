@@ -17,14 +17,6 @@ namespace viz
 namespace
 {
 
-void check_vk(VkResult result, const char* what)
-{
-    if (result != VK_SUCCESS)
-    {
-        throw std::runtime_error(std::string("QuadLayer: ") + what + " failed: VkResult=" + std::to_string(result));
-    }
-}
-
 void check_cuda(cudaError_t result, const char* what)
 {
     if (result != cudaSuccess)
@@ -33,15 +25,12 @@ void check_cuda(cudaError_t result, const char* what)
     }
 }
 
-VkShaderModule create_shader_module(VkDevice device, const unsigned char* spv, size_t size)
+vk::raii::ShaderModule create_shader_module(const vk::raii::Device& device, const unsigned char* spv, size_t size)
 {
-    VkShaderModuleCreateInfo info{};
-    info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    info.codeSize = size;
-    info.pCode = reinterpret_cast<const uint32_t*>(spv);
-    VkShaderModule mod = VK_NULL_HANDLE;
-    check_vk(vkCreateShaderModule(device, &info, nullptr, &mod), "vkCreateShaderModule");
-    return mod;
+    return vk::raii::ShaderModule{ device, vk::ShaderModuleCreateInfo{
+                                               .codeSize = size,
+                                               .pCode = reinterpret_cast<const uint32_t*>(spv),
+                                           } };
 }
 
 // Once destroy() has run, slots_[0] is the canonical "alive" signal
@@ -115,46 +104,16 @@ void QuadLayer::init()
 
 void QuadLayer::destroy()
 {
-    if (ctx_ == nullptr)
-    {
-        return;
-    }
-    const VkDevice device = ctx_->device();
-    if (device == VK_NULL_HANDLE)
-    {
-        for (auto& slot : slots_)
-        {
-            slot.reset();
-        }
-        return;
-    }
-    if (descriptor_pool_ != VK_NULL_HANDLE)
-    {
-        // descriptor_sets_ are freed implicitly with the pool.
-        vkDestroyDescriptorPool(device, descriptor_pool_, nullptr);
-        descriptor_pool_ = VK_NULL_HANDLE;
-        descriptor_sets_.fill(VK_NULL_HANDLE);
-    }
-    if (pipeline_ != VK_NULL_HANDLE)
-    {
-        vkDestroyPipeline(device, pipeline_, nullptr);
-        pipeline_ = VK_NULL_HANDLE;
-    }
-    if (pipeline_layout_ != VK_NULL_HANDLE)
-    {
-        vkDestroyPipelineLayout(device, pipeline_layout_, nullptr);
-        pipeline_layout_ = VK_NULL_HANDLE;
-    }
-    if (descriptor_set_layout_ != VK_NULL_HANDLE)
-    {
-        vkDestroyDescriptorSetLayout(device, descriptor_set_layout_, nullptr);
-        descriptor_set_layout_ = VK_NULL_HANDLE;
-    }
-    if (sampler_ != VK_NULL_HANDLE)
-    {
-        vkDestroySampler(device, sampler_, nullptr);
-        sampler_ = VK_NULL_HANDLE;
-    }
+    // Reverse of init(): descriptor sets back to the pool, pipeline
+    // before its layout, sampler last. raii handles the actual
+    // destruction order via reset-to-nullptr in declared order
+    // (parent-first declaration → reverse runs child-first).
+    descriptor_sets_.reset();
+    descriptor_pool_ = nullptr;
+    pipeline_ = nullptr;
+    pipeline_layout_ = nullptr;
+    descriptor_set_layout_ = nullptr;
+    sampler_ = nullptr;
     for (auto& slot : slots_)
     {
         slot.reset();
@@ -271,9 +230,9 @@ void QuadLayer::record(VkCommandBuffer cmd, const std::vector<ViewInfo>& views, 
         return;
     }
 
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
-    vkCmdBindDescriptorSets(
-        cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0, 1, &descriptor_sets_[cur], 0, nullptr);
+    const vk::CommandBuffer cmd_hpp{ cmd };
+    cmd_hpp.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline_);
+    cmd_hpp.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipeline_layout_, 0, *(*descriptor_sets_)[cur], {});
 
     // 1 view in window/offscreen, 2 in XR stereo. Compositor pre-bound
     // the layer's scissor; we bind viewport per view and draw.
@@ -282,7 +241,7 @@ void QuadLayer::record(VkCommandBuffer cmd, const std::vector<ViewInfo>& views, 
         bind_view_viewport(cmd, view);
         // 3 vertices, no vertex buffer — vertex shader emits a
         // fullscreen triangle from gl_VertexIndex.
-        vkCmdDraw(cmd, 3, 1, 0, 0);
+        cmd_hpp.draw(3, 1, 0, 0);
     }
 }
 
@@ -313,204 +272,176 @@ std::vector<LayerBase::WaitSemaphore> QuadLayer::get_wait_semaphores() const
 
 void QuadLayer::create_sampler()
 {
-    VkSamplerCreateInfo info{};
-    info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    info.magFilter = VK_FILTER_LINEAR;
-    info.minFilter = VK_FILTER_LINEAR;
-    info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
-    info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    info.anisotropyEnable = VK_FALSE; // enable later when XR distance views need it
-    info.maxAnisotropy = 1.0f;
-    info.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-    info.unnormalizedCoordinates = VK_FALSE;
-    info.compareEnable = VK_FALSE;
-    info.compareOp = VK_COMPARE_OP_ALWAYS;
-    info.minLod = 0.0f;
-    info.maxLod = 0.0f;
-    check_vk(vkCreateSampler(ctx_->device(), &info, nullptr, &sampler_), "vkCreateSampler");
+    sampler_ = vk::raii::Sampler{ ctx_->raii_device(), vk::SamplerCreateInfo{
+                                                           .magFilter = vk::Filter::eLinear,
+                                                           .minFilter = vk::Filter::eLinear,
+                                                           .mipmapMode = vk::SamplerMipmapMode::eNearest,
+                                                           .addressModeU = vk::SamplerAddressMode::eClampToEdge,
+                                                           .addressModeV = vk::SamplerAddressMode::eClampToEdge,
+                                                           .addressModeW = vk::SamplerAddressMode::eClampToEdge,
+                                                           .anisotropyEnable = VK_FALSE, // enable later when XR
+                                                                                         // distance views need it
+                                                           .maxAnisotropy = 1.0f,
+                                                           .compareEnable = VK_FALSE,
+                                                           .compareOp = vk::CompareOp::eAlways,
+                                                           .minLod = 0.0f,
+                                                           .maxLod = 0.0f,
+                                                           .borderColor = vk::BorderColor::eIntOpaqueBlack,
+                                                           .unnormalizedCoordinates = VK_FALSE,
+                                                       } };
 }
 
 void QuadLayer::create_descriptor_set_layout()
 {
-    VkDescriptorSetLayoutBinding binding{};
-    binding.binding = 0;
-    binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    binding.descriptorCount = 1;
-    binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-    binding.pImmutableSamplers = nullptr;
-
-    VkDescriptorSetLayoutCreateInfo info{};
-    info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    info.bindingCount = 1;
-    info.pBindings = &binding;
-    check_vk(vkCreateDescriptorSetLayout(ctx_->device(), &info, nullptr, &descriptor_set_layout_),
-             "vkCreateDescriptorSetLayout");
+    const vk::DescriptorSetLayoutBinding binding{
+        .binding = 0,
+        .descriptorType = vk::DescriptorType::eCombinedImageSampler,
+        .descriptorCount = 1,
+        .stageFlags = vk::ShaderStageFlagBits::eFragment,
+        .pImmutableSamplers = nullptr,
+    };
+    descriptor_set_layout_ = vk::raii::DescriptorSetLayout{
+        ctx_->raii_device(),
+        vk::DescriptorSetLayoutCreateInfo{ .bindingCount = 1, .pBindings = &binding },
+    };
 }
 
 void QuadLayer::create_pipeline_layout()
 {
-    VkPipelineLayoutCreateInfo info{};
-    info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    info.setLayoutCount = 1;
-    info.pSetLayouts = &descriptor_set_layout_;
-    info.pushConstantRangeCount = 0;
-    check_vk(vkCreatePipelineLayout(ctx_->device(), &info, nullptr, &pipeline_layout_), "vkCreatePipelineLayout");
+    const vk::DescriptorSetLayout layout = *descriptor_set_layout_;
+    pipeline_layout_ = vk::raii::PipelineLayout{
+        ctx_->raii_device(),
+        vk::PipelineLayoutCreateInfo{
+            .setLayoutCount = 1,
+            .pSetLayouts = &layout,
+            .pushConstantRangeCount = 0,
+        },
+    };
 }
 
 void QuadLayer::create_pipeline()
 {
-    const VkDevice device = ctx_->device();
+    const auto& device = ctx_->raii_device();
 
-    VkShaderModule vert =
+    const auto vert =
         create_shader_module(device, viz::shaders::kTexturedQuadVertSpv, viz::shaders::kTexturedQuadVertSpvSize);
-    VkShaderModule frag =
+    const auto frag =
         create_shader_module(device, viz::shaders::kTexturedQuadFragSpv, viz::shaders::kTexturedQuadFragSpvSize);
 
-    // RAII: shader modules are only needed during pipeline creation.
-    struct ShaderGuard
-    {
-        VkDevice device;
-        VkShaderModule vert;
-        VkShaderModule frag;
-        ~ShaderGuard()
-        {
-            if (vert != VK_NULL_HANDLE)
-            {
-                vkDestroyShaderModule(device, vert, nullptr);
-            }
-            if (frag != VK_NULL_HANDLE)
-            {
-                vkDestroyShaderModule(device, frag, nullptr);
-            }
-        }
-    } guard{ device, vert, frag };
+    const std::array<vk::PipelineShaderStageCreateInfo, 2> stages{
+        vk::PipelineShaderStageCreateInfo{ .stage = vk::ShaderStageFlagBits::eVertex, .module = *vert, .pName = "main" },
+        vk::PipelineShaderStageCreateInfo{ .stage = vk::ShaderStageFlagBits::eFragment, .module = *frag, .pName = "main" },
+    };
 
-    VkPipelineShaderStageCreateInfo stages[2]{};
-    stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
-    stages[0].module = vert;
-    stages[0].pName = "main";
-    stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    stages[1].module = frag;
-    stages[1].pName = "main";
-
-    VkPipelineVertexInputStateCreateInfo vertex_input{};
-    vertex_input.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-
-    VkPipelineInputAssemblyStateCreateInfo input_assembly{};
-    input_assembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-    input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    const vk::PipelineVertexInputStateCreateInfo vertex_input{};
+    const vk::PipelineInputAssemblyStateCreateInfo input_assembly{ .topology = vk::PrimitiveTopology::eTriangleList };
 
     // Viewport / scissor are dynamic so one pipeline works across
     // resolutions.
-    VkPipelineViewportStateCreateInfo viewport_state{};
-    viewport_state.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-    viewport_state.viewportCount = 1;
-    viewport_state.scissorCount = 1;
+    const vk::PipelineViewportStateCreateInfo viewport_state{ .viewportCount = 1, .scissorCount = 1 };
 
-    VkPipelineRasterizationStateCreateInfo rasterizer{};
-    rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
-    rasterizer.cullMode = VK_CULL_MODE_NONE;
-    rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-    rasterizer.lineWidth = 1.0f;
+    const vk::PipelineRasterizationStateCreateInfo rasterizer{
+        .polygonMode = vk::PolygonMode::eFill,
+        .cullMode = vk::CullModeFlagBits::eNone,
+        .frontFace = vk::FrontFace::eCounterClockwise,
+        .lineWidth = 1.0f,
+    };
 
-    VkPipelineMultisampleStateCreateInfo multisample{};
-    multisample.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-    multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    const vk::PipelineMultisampleStateCreateInfo multisample{ .rasterizationSamples = vk::SampleCountFlagBits::e1 };
 
     // Depth disabled — fullscreen blits don't need it.
-    VkPipelineDepthStencilStateCreateInfo depth_stencil{};
-    depth_stencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-    depth_stencil.depthTestEnable = VK_FALSE;
-    depth_stencil.depthWriteEnable = VK_FALSE;
+    const vk::PipelineDepthStencilStateCreateInfo depth_stencil{
+        .depthTestEnable = VK_FALSE,
+        .depthWriteEnable = VK_FALSE,
+    };
 
-    VkPipelineColorBlendAttachmentState blend_attachment{};
-    blend_attachment.blendEnable = VK_FALSE;
-    blend_attachment.colorWriteMask =
-        VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    const vk::PipelineColorBlendAttachmentState blend_attachment{
+        .blendEnable = VK_FALSE,
+        .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
+                          vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
+    };
 
-    VkPipelineColorBlendStateCreateInfo color_blend{};
-    color_blend.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-    color_blend.attachmentCount = 1;
-    color_blend.pAttachments = &blend_attachment;
+    const vk::PipelineColorBlendStateCreateInfo color_blend{
+        .attachmentCount = 1,
+        .pAttachments = &blend_attachment,
+    };
 
-    const VkDynamicState dynamic_states[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-    VkPipelineDynamicStateCreateInfo dynamic{};
-    dynamic.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-    dynamic.dynamicStateCount = sizeof(dynamic_states) / sizeof(dynamic_states[0]);
-    dynamic.pDynamicStates = dynamic_states;
+    const std::array<vk::DynamicState, 2> dynamic_states{ vk::DynamicState::eViewport, vk::DynamicState::eScissor };
+    const vk::PipelineDynamicStateCreateInfo dynamic{
+        .dynamicStateCount = static_cast<uint32_t>(dynamic_states.size()),
+        .pDynamicStates = dynamic_states.data(),
+    };
 
-    VkGraphicsPipelineCreateInfo info{};
-    info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    info.stageCount = 2;
-    info.pStages = stages;
-    info.pVertexInputState = &vertex_input;
-    info.pInputAssemblyState = &input_assembly;
-    info.pViewportState = &viewport_state;
-    info.pRasterizationState = &rasterizer;
-    info.pMultisampleState = &multisample;
-    info.pDepthStencilState = &depth_stencil;
-    info.pColorBlendState = &color_blend;
-    info.pDynamicState = &dynamic;
-    info.layout = pipeline_layout_;
-    info.renderPass = render_pass_;
-    info.subpass = 0;
-
-    check_vk(vkCreateGraphicsPipelines(device, ctx_->pipeline_cache(), 1, &info, nullptr, &pipeline_),
-             "vkCreateGraphicsPipelines");
+    pipeline_ = vk::raii::Pipeline{ device, ctx_->raii_pipeline_cache(),
+                                    vk::GraphicsPipelineCreateInfo{
+                                        .stageCount = static_cast<uint32_t>(stages.size()),
+                                        .pStages = stages.data(),
+                                        .pVertexInputState = &vertex_input,
+                                        .pInputAssemblyState = &input_assembly,
+                                        .pViewportState = &viewport_state,
+                                        .pRasterizationState = &rasterizer,
+                                        .pMultisampleState = &multisample,
+                                        .pDepthStencilState = &depth_stencil,
+                                        .pColorBlendState = &color_blend,
+                                        .pDynamicState = &dynamic,
+                                        .layout = *pipeline_layout_,
+                                        .renderPass = render_pass_,
+                                        .subpass = 0,
+                                    } };
 }
 
 void QuadLayer::create_descriptor_pool()
 {
-    VkDescriptorPoolSize pool_size{};
-    pool_size.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    pool_size.descriptorCount = kSlotCount;
-
-    VkDescriptorPoolCreateInfo info{};
-    info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    info.maxSets = kSlotCount;
-    info.poolSizeCount = 1;
-    info.pPoolSizes = &pool_size;
-    check_vk(vkCreateDescriptorPool(ctx_->device(), &info, nullptr, &descriptor_pool_), "vkCreateDescriptorPool");
+    const vk::DescriptorPoolSize pool_size{
+        .type = vk::DescriptorType::eCombinedImageSampler,
+        .descriptorCount = kSlotCount,
+    };
+    descriptor_pool_ = vk::raii::DescriptorPool{
+        ctx_->raii_device(),
+        vk::DescriptorPoolCreateInfo{
+            // freeDescriptorSet bit not set: sets are freed implicitly
+            // when the pool is destroyed (raii handles that).
+            .maxSets = kSlotCount,
+            .poolSizeCount = 1,
+            .pPoolSizes = &pool_size,
+        },
+    };
 }
 
 void QuadLayer::allocate_descriptor_sets()
 {
-    std::array<VkDescriptorSetLayout, kSlotCount> layouts{};
-    layouts.fill(descriptor_set_layout_);
+    std::array<vk::DescriptorSetLayout, kSlotCount> layouts{};
+    layouts.fill(*descriptor_set_layout_);
 
-    VkDescriptorSetAllocateInfo info{};
-    info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    info.descriptorPool = descriptor_pool_;
-    info.descriptorSetCount = kSlotCount;
-    info.pSetLayouts = layouts.data();
-    check_vk(vkAllocateDescriptorSets(ctx_->device(), &info, descriptor_sets_.data()), "vkAllocateDescriptorSets");
+    descriptor_sets_.emplace(ctx_->raii_device(), vk::DescriptorSetAllocateInfo{
+                                                      .descriptorPool = *descriptor_pool_,
+                                                      .descriptorSetCount = kSlotCount,
+                                                      .pSetLayouts = layouts.data(),
+                                                  });
 }
 
 void QuadLayer::update_descriptor_sets()
 {
     // One write per slot, each pointing at the slot's own image view.
-    std::array<VkDescriptorImageInfo, kSlotCount> image_infos{};
-    std::array<VkWriteDescriptorSet, kSlotCount> writes{};
+    std::array<vk::DescriptorImageInfo, kSlotCount> image_infos{};
+    std::array<vk::WriteDescriptorSet, kSlotCount> writes{};
     for (uint32_t i = 0; i < kSlotCount; ++i)
     {
-        image_infos[i].sampler = sampler_;
-        image_infos[i].imageView = slots_[i]->vk_image_view();
-        image_infos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-        writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writes[i].dstSet = descriptor_sets_[i];
-        writes[i].dstBinding = 0;
-        writes[i].dstArrayElement = 0;
-        writes[i].descriptorCount = 1;
-        writes[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        writes[i].pImageInfo = &image_infos[i];
+        image_infos[i] = vk::DescriptorImageInfo{
+            .sampler = *sampler_,
+            .imageView = slots_[i]->vk_image_view(),
+            .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
+        };
+        writes[i] = vk::WriteDescriptorSet{
+            .dstSet = *(*descriptor_sets_)[i],
+            .dstBinding = 0,
+            .dstArrayElement = 0,
+            .descriptorCount = 1,
+            .descriptorType = vk::DescriptorType::eCombinedImageSampler,
+            .pImageInfo = &image_infos[i],
+        };
     }
-    vkUpdateDescriptorSets(ctx_->device(), kSlotCount, writes.data(), 0, nullptr);
+    ctx_->raii_device().updateDescriptorSets(writes, {});
 }
 
 } // namespace viz

@@ -62,9 +62,12 @@ void GlfwWindow::release() noexcept
     }
 }
 
-std::unique_ptr<GlfwWindow> GlfwWindow::create(VkInstance instance, uint32_t width, uint32_t height, const std::string& title)
+std::unique_ptr<GlfwWindow> GlfwWindow::create(const vk::raii::Instance& instance,
+                                               uint32_t width,
+                                               uint32_t height,
+                                               const std::string& title)
 {
-    if (instance == VK_NULL_HANDLE)
+    if (static_cast<VkInstance>(*instance) == VK_NULL_HANDLE)
     {
         throw std::invalid_argument("GlfwWindow::create: instance is VK_NULL_HANDLE");
     }
@@ -88,23 +91,25 @@ std::unique_ptr<GlfwWindow> GlfwWindow::create(VkInstance instance, uint32_t wid
                                  (desc ? desc : "(no description)"));
     }
 
-    VkSurfaceKHR surface = VK_NULL_HANDLE;
-    const VkResult r = glfwCreateWindowSurface(instance, w, nullptr, &surface);
+    // glfwCreateWindowSurface is a C API returning a raw handle; adopt
+    // it into vk::raii::SurfaceKHR so destruction is automatic.
+    VkSurfaceKHR raw_surface = VK_NULL_HANDLE;
+    const VkResult r = glfwCreateWindowSurface(*instance, w, nullptr, &raw_surface);
     if (r != VK_SUCCESS)
     {
         glfwDestroyWindow(w);
         GlfwWindow::release();
         throw std::runtime_error("GlfwWindow: glfwCreateWindowSurface failed: VkResult=" + std::to_string(r));
     }
+    vk::raii::SurfaceKHR surface{ instance, raw_surface };
 
-    std::unique_ptr<GlfwWindow> self(new GlfwWindow(instance, w, surface));
+    std::unique_ptr<GlfwWindow> self(new GlfwWindow(w, std::move(surface)));
     glfwSetWindowUserPointer(w, self.get());
     glfwSetFramebufferSizeCallback(w, &GlfwWindow::framebuffer_resize_callback);
     return self;
 }
 
-GlfwWindow::GlfwWindow(VkInstance instance, GLFWwindow* window, VkSurfaceKHR surface)
-    : instance_(instance), window_(window), surface_(surface)
+GlfwWindow::GlfwWindow(GLFWwindow* window, vk::raii::SurfaceKHR surface) : window_(window), surface_(std::move(surface))
 {
 }
 
@@ -115,11 +120,9 @@ GlfwWindow::~GlfwWindow()
 
 void GlfwWindow::destroy()
 {
-    if (surface_ != VK_NULL_HANDLE && instance_ != VK_NULL_HANDLE)
-    {
-        vkDestroySurfaceKHR(instance_, surface_, nullptr);
-        surface_ = VK_NULL_HANDLE;
-    }
+    // Surface must be released before the window goes away (the
+    // surface holds a reference to the window's native handles).
+    surface_ = nullptr;
     if (window_ != nullptr)
     {
         glfwDestroyWindow(window_);

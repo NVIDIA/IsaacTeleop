@@ -85,7 +85,7 @@ TEST_CASE("GlfwWindow construct + destroy with a real Vulkan instance", "[gpu][w
     VkContext ctx;
     ctx.init(cfg);
 
-    auto win = GlfwWindow::create(ctx.instance(), 320, 240, "viz-test");
+    auto win = GlfwWindow::create(ctx.raii_instance(), 320, 240, "viz-test");
     REQUIRE(win != nullptr);
     CHECK(win->glfw() != nullptr);
     CHECK(win->surface() != VK_NULL_HANDLE);
@@ -101,23 +101,20 @@ TEST_CASE("GlfwWindow construct + destroy with a real Vulkan instance", "[gpu][w
     win->destroy(); // idempotent
 }
 
-TEST_CASE("GlfwWindow rejects null instance and zero dims", "[gpu][window]")
+TEST_CASE("GlfwWindow rejects zero dims", "[gpu][window]")
 {
-    if (!window_environment_available())
+    // Null-instance check is enforced by the type system now
+    // (create takes const vk::raii::Instance&) — only the runtime
+    // dim check is reachable from C++.
+    if (!is_gpu_available() || !window_environment_available())
     {
-        SKIP("No display");
-    }
-    CHECK_THROWS_AS(GlfwWindow::create(VK_NULL_HANDLE, 320, 240, "x"), std::invalid_argument);
-    // Need a valid instance to exercise the dim check.
-    if (!is_gpu_available())
-    {
-        SKIP("No GPU");
+        SKIP("No GPU or no display");
     }
     VkContext::Config cfg{};
     cfg.instance_extensions = glfw_required_instance_extensions();
     VkContext ctx;
     ctx.init(cfg);
-    CHECK_THROWS_AS(GlfwWindow::create(ctx.instance(), 0, 240, "x"), std::invalid_argument);
+    CHECK_THROWS_AS(GlfwWindow::create(ctx.raii_instance(), 0, 240, "x"), std::invalid_argument);
 }
 
 TEST_CASE("Swapchain creates with non-zero image count and matching extent", "[gpu][window]")
@@ -133,7 +130,7 @@ TEST_CASE("Swapchain creates with non-zero image count and matching extent", "[g
     VkContext ctx;
     ctx.init(cfg);
 
-    auto win = GlfwWindow::create(ctx.instance(), 320, 240, "viz-test-sc");
+    auto win = GlfwWindow::create(ctx.raii_instance(), 320, 240, "viz-test-sc");
     auto sc = Swapchain::create(ctx, win->surface(), Resolution{ 320, 240 });
     REQUIRE(sc != nullptr);
     CHECK(sc->image_count() >= 2);
@@ -155,7 +152,7 @@ TEST_CASE("Swapchain recreate preserves usable state", "[gpu][window]")
     VkContext ctx;
     ctx.init(cfg);
 
-    auto win = GlfwWindow::create(ctx.instance(), 320, 240, "viz-test-sc-recreate");
+    auto win = GlfwWindow::create(ctx.raii_instance(), 320, 240, "viz-test-sc-recreate");
     auto sc = Swapchain::create(ctx, win->surface(), Resolution{ 320, 240 });
     const uint32_t before = sc->image_count();
 
@@ -178,7 +175,7 @@ TEST_CASE("Swapchain destroy is idempotent", "[gpu][window]")
     VkContext ctx;
     ctx.init(cfg);
 
-    auto win = GlfwWindow::create(ctx.instance(), 320, 240, "viz-test-sc-idem");
+    auto win = GlfwWindow::create(ctx.raii_instance(), 320, 240, "viz-test-sc-idem");
     auto sc = Swapchain::create(ctx, win->surface(), Resolution{ 320, 240 });
     sc->destroy();
     sc->destroy();

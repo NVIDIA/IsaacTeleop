@@ -36,14 +36,6 @@ namespace viz
 namespace
 {
 
-void check_vk(VkResult result, const char* what)
-{
-    if (result != VK_SUCCESS)
-    {
-        throw std::runtime_error(std::string("DeviceImage: ") + what + " failed: VkResult=" + std::to_string(result));
-    }
-}
-
 void check_cuda(cudaError_t result, const char* what)
 {
     if (result != cudaSuccess)
@@ -52,10 +44,11 @@ void check_cuda(cudaError_t result, const char* what)
     }
 }
 
-uint32_t find_memory_type(VkPhysicalDevice physical_device, uint32_t type_bits, VkMemoryPropertyFlags properties)
+uint32_t find_memory_type(const vk::raii::PhysicalDevice& physical_device,
+                          uint32_t type_bits,
+                          vk::MemoryPropertyFlags properties)
 {
-    VkPhysicalDeviceMemoryProperties mem_props;
-    vkGetPhysicalDeviceMemoryProperties(physical_device, &mem_props);
+    const auto mem_props = physical_device.getMemoryProperties();
     for (uint32_t i = 0; i < mem_props.memoryTypeCount; ++i)
     {
         if ((type_bits & (1u << i)) != 0 && (mem_props.memoryTypes[i].propertyFlags & properties) == properties)
@@ -172,8 +165,9 @@ void DeviceImage::destroy()
         (void)cudaSetDevice(ctx_->cuda_device_id());
     }
 
-    // CUDA side first — VkDeviceMemory must outlive the CUDA
-    // mapping. Sync drains any caller-issued async work first.
+    // CUDA side first — the imports are pinned against the Vulkan
+    // memory + semaphore handles, so they must close before the
+    // raii types release the underlying VkDeviceMemory / VkSemaphore.
     if (cuda_mipmapped_array_ != nullptr || cuda_external_memory_ != nullptr || cuda_cuda_done_writing_ != nullptr)
     {
         (void)cudaDeviceSynchronize();
@@ -202,133 +196,109 @@ void DeviceImage::destroy()
         memory_fd_ = -1;
     }
 
-    if (ctx_ == nullptr)
-    {
-        return;
-    }
-    const VkDevice device = ctx_->device();
-    if (device == VK_NULL_HANDLE)
-    {
-        return;
-    }
     // Wait for all GPU work to retire before tearing down Vulkan
-    // resources.
-    (void)vkDeviceWaitIdle(device);
-    if (cuda_done_writing_ != VK_NULL_HANDLE)
+    // resources (raii destruction below would do it too, but we
+    // want it before the explicit nulling so layout transitions in
+    // flight aren't racing).
+    if (ctx_ != nullptr && ctx_->is_initialized())
     {
-        vkDestroySemaphore(device, cuda_done_writing_, nullptr);
-        cuda_done_writing_ = VK_NULL_HANDLE;
+        ctx_->raii_device().waitIdle();
     }
-    if (command_pool_ != VK_NULL_HANDLE)
-    {
-        vkDestroyCommandPool(device, command_pool_, nullptr);
-        command_pool_ = VK_NULL_HANDLE;
-    }
-    if (image_view_ != VK_NULL_HANDLE)
-    {
-        vkDestroyImageView(device, image_view_, nullptr);
-        image_view_ = VK_NULL_HANDLE;
-    }
-    if (image_ != VK_NULL_HANDLE)
-    {
-        vkDestroyImage(device, image_, nullptr);
-        image_ = VK_NULL_HANDLE;
-    }
-    if (memory_ != VK_NULL_HANDLE)
-    {
-        vkFreeMemory(device, memory_, nullptr);
-        memory_ = VK_NULL_HANDLE;
-    }
+
+    cuda_done_writing_ = nullptr;
+    command_pool_ = nullptr;
+    image_view_ = nullptr;
+    image_ = nullptr;
+    memory_ = nullptr;
     current_layout_ = VK_IMAGE_LAYOUT_UNDEFINED;
 }
 
 void DeviceImage::create_vk_image_with_external_memory()
 {
-    const VkDevice device = ctx_->device();
+    const auto& device = ctx_->raii_device();
 
-    // Image with external-memory export flag. Optimal tiling — CUDA
-    // accesses the image via cudaArray_t, not raw memory, so opaque
-    // GPU layout is fine.
-    VkExternalMemoryImageCreateInfo ext_image_info{};
-    ext_image_info.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO;
-    ext_image_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
+    // Optimal tiling — CUDA accesses the image via cudaArray_t, not
+    // raw memory, so opaque GPU layout is fine.
+    //
+    // Storage in linear-space format (UNORM); SRGB view attached in
+    // create_vk_image_view(). VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT
+    // allows view format != image format among compatible formats
+    // (UNORM <-> SRGB are in the same compatibility class).
+    const vk::ImageCreateInfo image_info{
+        .flags = vk::ImageCreateFlagBits::eMutableFormat,
+        .imageType = vk::ImageType::e2D,
+        .format = static_cast<vk::Format>(to_vk_storage_format(format_)),
+        .extent = { resolution_.width, resolution_.height, 1 },
+        // Single level. If XR distance views show moiré, expose
+        // mipLevels via Config and generate via vkCmdBlitImage
+        // pre-render.
+        .mipLevels = 1,
+        .arrayLayers = 1,
+        .samples = vk::SampleCountFlagBits::e1,
+        .tiling = vk::ImageTiling::eOptimal,
+        .usage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst |
+                 vk::ImageUsageFlagBits::eTransferSrc,
+        .sharingMode = vk::SharingMode::eExclusive,
+        .initialLayout = vk::ImageLayout::eUndefined,
+    };
+    const vk::ExternalMemoryImageCreateInfo image_external_info{
+        .handleTypes = vk::ExternalMemoryHandleTypeFlagBits::eOpaqueFd,
+    };
+    vk::StructureChain<vk::ImageCreateInfo, vk::ExternalMemoryImageCreateInfo> image_chain{ image_info,
+                                                                                            image_external_info };
+    image_ = vk::raii::Image{ device, image_chain.get<vk::ImageCreateInfo>() };
 
-    VkImageCreateInfo info{};
-    info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    info.pNext = &ext_image_info;
-    info.imageType = VK_IMAGE_TYPE_2D;
-    // Storage in linear-space format (UNORM); we'll attach the SRGB
-    // view in create_vk_image_view(). VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT
-    // is what allows view format != image format among compatible
-    // formats (UNORM <-> SRGB are in the same compatibility class).
-    info.flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
-    info.format = to_vk_storage_format(format_);
-    info.extent = { resolution_.width, resolution_.height, 1 };
-    info.mipLevels = 1; // Single level. If XR distance views show
-                        // moiré, expose mipLevels via Config and
-                        // generate via vkCmdBlitImage pre-render.
-    info.arrayLayers = 1;
-    info.samples = VK_SAMPLE_COUNT_1_BIT;
-    info.tiling = VK_IMAGE_TILING_OPTIMAL;
-    info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-    info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-    check_vk(vkCreateImage(device, &info, nullptr, &image_), "vkCreateImage");
-
-    VkMemoryRequirements reqs;
-    vkGetImageMemoryRequirements(device, image_, &reqs);
+    const auto reqs = image_.getMemoryRequirements();
 
     // Device-local + exportable as POSIX fd. Generic allocation
     // (no VkMemoryDedicatedAllocateInfo) suffices for sampled 2D.
-    VkExportMemoryAllocateInfo export_info{};
-    export_info.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO;
-    export_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
+    const vk::MemoryAllocateInfo alloc_info{
+        .allocationSize = reqs.size,
+        .memoryTypeIndex = find_memory_type(
+            ctx_->raii_physical_device(), reqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal),
+    };
+    const vk::ExportMemoryAllocateInfo alloc_external_info{
+        .handleTypes = vk::ExternalMemoryHandleTypeFlagBits::eOpaqueFd,
+    };
+    vk::StructureChain<vk::MemoryAllocateInfo, vk::ExportMemoryAllocateInfo> alloc_chain{ alloc_info,
+                                                                                          alloc_external_info };
+    memory_ = vk::raii::DeviceMemory{ device, alloc_chain.get<vk::MemoryAllocateInfo>() };
+    image_.bindMemory(*memory_, 0);
 
-    VkMemoryAllocateInfo alloc{};
-    alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    alloc.pNext = &export_info;
-    alloc.allocationSize = reqs.size;
-    alloc.memoryTypeIndex =
-        find_memory_type(ctx_->physical_device(), reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    check_vk(vkAllocateMemory(device, &alloc, nullptr, &memory_), "vkAllocateMemory");
-    check_vk(vkBindImageMemory(device, image_, memory_, 0), "vkBindImageMemory");
-
-    auto vkGetMemoryFdKHR = reinterpret_cast<PFN_vkGetMemoryFdKHR>(vkGetDeviceProcAddr(device, "vkGetMemoryFdKHR"));
-    if (vkGetMemoryFdKHR == nullptr)
-    {
-        throw std::runtime_error(
-            "DeviceImage: vkGetMemoryFdKHR not available "
-            "(VK_KHR_external_memory_fd not enabled?)");
-    }
-    VkMemoryGetFdInfoKHR fd_info{};
-    fd_info.sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR;
-    fd_info.memory = memory_;
-    fd_info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
-    check_vk(vkGetMemoryFdKHR(device, &fd_info, &memory_fd_), "vkGetMemoryFdKHR");
+    memory_fd_ = device.getMemoryFdKHR({
+        .memory = *memory_,
+        .handleType = vk::ExternalMemoryHandleTypeFlagBits::eOpaqueFd,
+    });
 
     // Used only for transition_to_*; tiny pool, default flags.
-    VkCommandPoolCreateInfo pool_info{};
-    pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    pool_info.queueFamilyIndex = ctx_->queue_family_index();
-    check_vk(vkCreateCommandPool(device, &pool_info, nullptr, &command_pool_), "vkCreateCommandPool");
+    command_pool_ = vk::raii::CommandPool{
+        device,
+        vk::CommandPoolCreateInfo{
+            .flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
+            .queueFamilyIndex = ctx_->queue_family_index(),
+        },
+    };
 }
 
 void DeviceImage::create_vk_image_view()
 {
-    VkImageViewCreateInfo info{};
-    info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    info.image = image_;
-    info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    info.format = vk_format_;
-    info.subresourceRange.aspectMask =
-        (format_ == PixelFormat::kD32F) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
-    info.subresourceRange.baseMipLevel = 0;
-    info.subresourceRange.levelCount = 1;
-    info.subresourceRange.baseArrayLayer = 0;
-    info.subresourceRange.layerCount = 1;
-    check_vk(vkCreateImageView(ctx_->device(), &info, nullptr, &image_view_), "vkCreateImageView");
+    image_view_ = vk::raii::ImageView{
+        ctx_->raii_device(),
+        vk::ImageViewCreateInfo{
+            .image = *image_,
+            .viewType = vk::ImageViewType::e2D,
+            .format = static_cast<vk::Format>(vk_format_),
+            .subresourceRange =
+                {
+                    .aspectMask = (format_ == PixelFormat::kD32F) ? vk::ImageAspectFlagBits::eDepth
+                                                                  : vk::ImageAspectFlagBits::eColor,
+                    .baseMipLevel = 0,
+                    .levelCount = 1,
+                    .baseArrayLayer = 0,
+                    .layerCount = 1,
+                },
+        },
+    };
 }
 
 void DeviceImage::import_to_cuda()
@@ -337,8 +307,7 @@ void DeviceImage::import_to_cuda()
     // init thread, re-pin here for worker-thread create() callers.
     check_cuda(cudaSetDevice(ctx_->cuda_device_id()), "cudaSetDevice");
 
-    VkMemoryRequirements reqs;
-    vkGetImageMemoryRequirements(ctx_->device(), image_, &reqs);
+    const auto reqs = image_.getMemoryRequirements();
 
     cudaExternalMemoryHandleDesc ext_desc{};
     ext_desc.type = cudaExternalMemoryHandleTypeOpaqueFd;
@@ -366,41 +335,27 @@ void DeviceImage::import_to_cuda()
 
 void DeviceImage::create_interop_semaphores()
 {
-    const VkDevice device = ctx_->device();
-
-    auto vkGetSemaphoreFdKHR =
-        reinterpret_cast<PFN_vkGetSemaphoreFdKHR>(vkGetDeviceProcAddr(device, "vkGetSemaphoreFdKHR"));
-    if (vkGetSemaphoreFdKHR == nullptr)
-    {
-        throw std::runtime_error(
-            "DeviceImage: vkGetSemaphoreFdKHR not available "
-            "(VK_KHR_external_semaphore_fd not enabled?)");
-    }
+    const auto& device = ctx_->raii_device();
 
     // Timeline semaphore (initial value 0) exported via OPAQUE_FD and
-    // imported into CUDA. CUDA dups the fd internally; we close ours
-    // after the import.
-    VkSemaphoreTypeCreateInfo type_info{};
-    type_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
-    type_info.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
-    type_info.initialValue = 0;
+    // imported into CUDA.
+    const vk::SemaphoreCreateInfo sem_info{};
+    const vk::ExportSemaphoreCreateInfo sem_export_info{
+        .handleTypes = vk::ExternalSemaphoreHandleTypeFlagBits::eOpaqueFd,
+    };
+    const vk::SemaphoreTypeCreateInfo sem_type_info{
+        .semaphoreType = vk::SemaphoreType::eTimeline,
+        .initialValue = 0,
+    };
+    vk::StructureChain<vk::SemaphoreCreateInfo, vk::ExportSemaphoreCreateInfo, vk::SemaphoreTypeCreateInfo> sem_chain{
+        sem_info, sem_export_info, sem_type_info
+    };
+    cuda_done_writing_ = vk::raii::Semaphore{ device, sem_chain.get<vk::SemaphoreCreateInfo>() };
 
-    VkExportSemaphoreCreateInfo export_info{};
-    export_info.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO;
-    export_info.pNext = &type_info;
-    export_info.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
-
-    VkSemaphoreCreateInfo info{};
-    info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-    info.pNext = &export_info;
-    check_vk(vkCreateSemaphore(device, &info, nullptr, &cuda_done_writing_), "vkCreateSemaphore");
-
-    int fd = -1;
-    VkSemaphoreGetFdInfoKHR fd_info{};
-    fd_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR;
-    fd_info.semaphore = cuda_done_writing_;
-    fd_info.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
-    check_vk(vkGetSemaphoreFdKHR(device, &fd_info, &fd), "vkGetSemaphoreFdKHR");
+    const int fd = device.getSemaphoreFdKHR({
+        .semaphore = *cuda_done_writing_,
+        .handleType = vk::ExternalSemaphoreHandleTypeFlagBits::eOpaqueFd,
+    });
 
     cudaExternalSemaphoreHandleDesc ext_desc{};
     ext_desc.type = cudaExternalSemaphoreHandleTypeTimelineSemaphoreFd;
@@ -412,6 +367,7 @@ void DeviceImage::create_interop_semaphores()
         throw std::runtime_error(std::string("DeviceImage: cudaImportExternalSemaphore(cuda_done_writing) failed: ") +
                                  cudaGetErrorString(err));
     }
+    // CUDA dup'd the fd internally; close ours so we don't leak.
     close_fd(fd);
 }
 
@@ -465,61 +421,49 @@ void DeviceImage::run_one_shot_layout_transition(VkImageLayout old_layout,
                                                  VkPipelineStageFlags src_stage,
                                                  VkPipelineStageFlags dst_stage)
 {
-    const VkDevice device = ctx_->device();
+    const auto& device = ctx_->raii_device();
 
-    VkCommandBufferAllocateInfo alloc{};
-    alloc.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    alloc.commandPool = command_pool_;
-    alloc.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    alloc.commandBufferCount = 1;
-    VkCommandBuffer cmd = VK_NULL_HANDLE;
-    check_vk(vkAllocateCommandBuffers(device, &alloc, &cmd), "vkAllocateCommandBuffers(transition)");
+    auto cmd_buffers = vk::raii::CommandBuffers{
+        device,
+        vk::CommandBufferAllocateInfo{
+            .commandPool = *command_pool_,
+            .level = vk::CommandBufferLevel::ePrimary,
+            .commandBufferCount = 1,
+        },
+    };
+    auto& cmd = cmd_buffers.front();
 
-    // RAII: free the command buffer on every exit path (including
-    // exceptions from the check_vk calls below). The pool would
-    // eventually reclaim it on destroy(), but a retry loop after a
-    // transient queue submit failure would leak one cmd per attempt.
-    struct CmdGuard
-    {
-        VkDevice device;
-        VkCommandPool pool;
-        VkCommandBuffer cmd;
-        ~CmdGuard()
-        {
-            vkFreeCommandBuffers(device, pool, 1, &cmd);
-        }
-    } guard{ device, command_pool_, cmd };
+    cmd.begin(vk::CommandBufferBeginInfo{ .flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
-    VkCommandBufferBeginInfo begin{};
-    begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    check_vk(vkBeginCommandBuffer(cmd, &begin), "vkBeginCommandBuffer(transition)");
+    const vk::ImageMemoryBarrier barrier{
+        .srcAccessMask = static_cast<vk::AccessFlags>(src_access),
+        .dstAccessMask = static_cast<vk::AccessFlags>(dst_access),
+        .oldLayout = static_cast<vk::ImageLayout>(old_layout),
+        .newLayout = static_cast<vk::ImageLayout>(new_layout),
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image = *image_,
+        .subresourceRange =
+            {
+                .aspectMask = (format_ == PixelFormat::kD32F) ? vk::ImageAspectFlagBits::eDepth
+                                                              : vk::ImageAspectFlagBits::eColor,
+                .baseMipLevel = 0,
+                .levelCount = 1,
+                .baseArrayLayer = 0,
+                .layerCount = 1,
+            },
+    };
+    cmd.pipelineBarrier(static_cast<vk::PipelineStageFlags>(src_stage), static_cast<vk::PipelineStageFlags>(dst_stage),
+                        {}, {}, {}, { barrier });
+    cmd.end();
 
-    VkImageMemoryBarrier barrier{};
-    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    barrier.oldLayout = old_layout;
-    barrier.newLayout = new_layout;
-    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.image = image_;
-    barrier.subresourceRange.aspectMask =
-        (format_ == PixelFormat::kD32F) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
-    barrier.subresourceRange.baseMipLevel = 0;
-    barrier.subresourceRange.levelCount = 1;
-    barrier.subresourceRange.baseArrayLayer = 0;
-    barrier.subresourceRange.layerCount = 1;
-    barrier.srcAccessMask = src_access;
-    barrier.dstAccessMask = dst_access;
-    vkCmdPipelineBarrier(cmd, src_stage, dst_stage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-
-    check_vk(vkEndCommandBuffer(cmd), "vkEndCommandBuffer(transition)");
-
-    VkSubmitInfo submit{};
-    submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submit.commandBufferCount = 1;
-    submit.pCommandBuffers = &cmd;
-    check_vk(vkQueueSubmit(ctx_->queue(), 1, &submit, VK_NULL_HANDLE), "vkQueueSubmit(transition)");
-    check_vk(vkQueueWaitIdle(ctx_->queue()), "vkQueueWaitIdle(transition)");
+    const vk::CommandBuffer cmd_handle = *cmd;
+    ctx_->raii_queue().submit({ vk::SubmitInfo{
+                                  .commandBufferCount = 1,
+                                  .pCommandBuffers = &cmd_handle,
+                              } },
+                              VK_NULL_HANDLE);
+    ctx_->raii_queue().waitIdle();
 }
 
 } // namespace viz

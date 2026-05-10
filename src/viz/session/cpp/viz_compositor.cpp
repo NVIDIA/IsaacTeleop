@@ -17,14 +17,6 @@ namespace viz
 namespace
 {
 
-void check_vk(VkResult result, const char* what)
-{
-    if (result != VK_SUCCESS)
-    {
-        throw std::runtime_error(std::string("VizCompositor: ") + what + " failed: VkResult=" + std::to_string(result));
-    }
-}
-
 Rect2D to_rect2d(const VkRect2D& r)
 {
     return Rect2D{ r.offset.x, r.offset.y, r.extent.width, r.extent.height };
@@ -58,8 +50,7 @@ void VizCompositor::init()
     try
     {
         frame_sync_ = FrameSync::create(*ctx_);
-        create_command_pool();
-        create_command_buffer();
+        create_command_pool_and_buffer();
     }
     catch (...)
     {
@@ -70,61 +61,47 @@ void VizCompositor::init()
 
 void VizCompositor::destroy()
 {
-    if (ctx_ == nullptr)
-    {
-        return;
-    }
-    const VkDevice device = ctx_->device();
-    if (device == VK_NULL_HANDLE)
-    {
-        return;
-    }
-    if (command_pool_ != VK_NULL_HANDLE)
-    {
-        // Pool destruction frees all command buffers allocated from it.
-        vkDestroyCommandPool(device, command_pool_, nullptr);
-        command_pool_ = VK_NULL_HANDLE;
-        command_buffer_ = VK_NULL_HANDLE;
-    }
+    command_buffers_.reset();
+    command_pool_ = nullptr;
     frame_sync_.reset();
 }
 
-void VizCompositor::create_command_pool()
+void VizCompositor::create_command_pool_and_buffer()
 {
-    VkCommandPoolCreateInfo info{};
-    info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    info.queueFamilyIndex = ctx_->queue_family_index();
-    check_vk(vkCreateCommandPool(ctx_->device(), &info, nullptr, &command_pool_), "vkCreateCommandPool");
+    command_pool_ =
+        vk::raii::CommandPool{ ctx_->raii_device(), vk::CommandPoolCreateInfo{
+                                                        .flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
+                                                        .queueFamilyIndex = ctx_->queue_family_index(),
+                                                    } };
+    command_buffers_.emplace(ctx_->raii_device(), vk::CommandBufferAllocateInfo{
+                                                      .commandPool = *command_pool_,
+                                                      .level = vk::CommandBufferLevel::ePrimary,
+                                                      .commandBufferCount = 1,
+                                                  });
 }
 
-void VizCompositor::create_command_buffer()
+void VizCompositor::submit_or_signal_fence(const vk::SubmitInfo& info, const char* what)
 {
-    VkCommandBufferAllocateInfo info{};
-    info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    info.commandPool = command_pool_;
-    info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    info.commandBufferCount = 1;
-    check_vk(vkAllocateCommandBuffers(ctx_->device(), &info, &command_buffer_), "vkAllocateCommandBuffers");
-}
-
-void VizCompositor::submit_or_signal_fence(const VkSubmitInfo& info, const char* what)
-{
-    const VkResult r = vkQueueSubmit(ctx_->queue(), 1, &info, frame_sync_->in_flight_fence());
-    if (r == VK_SUCCESS)
+    const vk::Result r = static_cast<vk::Result>(
+        vkQueueSubmit(ctx_->queue(), 1, reinterpret_cast<const VkSubmitInfo*>(&info), frame_sync_->in_flight_fence()));
+    if (r == vk::Result::eSuccess)
     {
         return;
     }
-    VkSubmitInfo empty{};
-    empty.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    (void)vkQueueSubmit(ctx_->queue(), 1, &empty, frame_sync_->in_flight_fence());
-    throw std::runtime_error(std::string("VizCompositor: ") + what + " failed: VkResult=" + std::to_string(r));
+    // Fall back: signal the fence with an empty submit so the next
+    // wait() doesn't deadlock, then surface the original failure.
+    const vk::SubmitInfo empty{};
+    (void)vkQueueSubmit(ctx_->queue(), 1, reinterpret_cast<const VkSubmitInfo*>(&empty), frame_sync_->in_flight_fence());
+    throw std::runtime_error(std::string("VizCompositor: ") + what +
+                             " failed: VkResult=" + std::to_string(static_cast<int>(r)));
 }
 
 void VizCompositor::render(const std::vector<LayerBase*>& layers)
 {
     // Wait for previous frame (1 frame in flight).
     frame_sync_->wait();
+
+    auto& cmd = (*command_buffers_)[0];
 
     // RAII: leave the command buffer in INITIAL state on every exit
     // path (success or throw). VizSession::pump_events() runs between
@@ -134,15 +111,15 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
     // below guarantees we're never PENDING when this destructor runs.
     struct CmdResetGuard
     {
-        VkCommandBuffer cmd;
+        vk::raii::CommandBuffer* cmd;
         ~CmdResetGuard()
         {
-            if (cmd != VK_NULL_HANDLE)
+            if (cmd != nullptr && static_cast<VkCommandBuffer>(**cmd) != VK_NULL_HANDLE)
             {
-                (void)vkResetCommandBuffer(cmd, 0);
+                cmd->reset();
             }
         }
-    } cmd_guard{ command_buffer_ };
+    } cmd_guard{ &cmd };
 
     // Snapshot visible layers ONCE — is_visible() is atomic; reading
     // it twice could record a draw without the matching wait (or vice
@@ -208,99 +185,99 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
         tiles = tile_layout(aspects, rt_extent, /*padding=*/0);
     }
 
-    VkCommandBufferBeginInfo begin{};
-    begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    check_vk(vkBeginCommandBuffer(command_buffer_, &begin), "vkBeginCommandBuffer");
+    cmd.begin(vk::CommandBufferBeginInfo{ .flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
-    std::array<VkClearValue, 2> clears{};
-    clears[0].color = config_.clear_color;
-    clears[1].depthStencil = { 1.0f, 0 };
+    std::array<vk::ClearValue, 2> clears{};
+    // VkClearColorValue and vk::ClearColorValue are layout-compatible
+    // unions; reinterpret instead of selecting a discriminator.
+    clears[0].color = *reinterpret_cast<const vk::ClearColorValue*>(&config_.clear_color);
+    clears[1].depthStencil = vk::ClearDepthStencilValue{ 1.0f, 0 };
 
-    VkRenderPassBeginInfo rp{};
-    rp.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    rp.renderPass = rt.render_pass();
-    rp.framebuffer = rt.framebuffer();
-    rp.renderArea.offset = { 0, 0 };
-    rp.renderArea.extent = { rt_extent.width, rt_extent.height };
-    rp.clearValueCount = static_cast<uint32_t>(clears.size());
-    rp.pClearValues = clears.data();
-
-    vkCmdBeginRenderPass(command_buffer_, &rp, VK_SUBPASS_CONTENTS_INLINE);
+    cmd.beginRenderPass(
+        vk::RenderPassBeginInfo{
+            .renderPass = rt.render_pass(),
+            .framebuffer = rt.framebuffer(),
+            .renderArea = vk::Rect2D{ vk::Offset2D{ 0, 0 }, vk::Extent2D{ rt_extent.width, rt_extent.height } },
+            .clearValueCount = static_cast<uint32_t>(clears.size()),
+            .pClearValues = clears.data(),
+        },
+        vk::SubpassContents::eInline);
 
     // Per-layer: pre-bind scissor (tile.outer); per-layer ViewInfo
-    // gets viewport = tile.content.
+    // gets viewport = tile.content. Layer record() takes raw
+    // VkCommandBuffer — it's a recording boundary.
+    const vk::CommandBuffer cmd_hpp = *cmd;
+    const VkCommandBuffer raw_cmd = cmd_hpp;
     for (size_t i = 0; i < visible_layers.size(); ++i)
     {
-        const VkRect2D scissor_rect = tiles[i].outer;
-        const VkRect2D viewport_rect = tiles[i].content;
-        vkCmdSetScissor(command_buffer_, 0, 1, &scissor_rect);
+        // VkRect2D and vk::Rect2D are layout-compatible (vk-hpp guarantees
+        // ABI parity) — reinterpret rather than rebuilding the offset/extent.
+        cmd.setScissor(0, *reinterpret_cast<const vk::Rect2D*>(&tiles[i].outer));
 
         std::vector<ViewInfo> layer_views = frame->views;
         if (layer_views.empty())
         {
             layer_views.push_back(ViewInfo{});
         }
-        layer_views[0].viewport = to_rect2d(viewport_rect);
-        visible_layers[i]->record(command_buffer_, layer_views, rt);
+        layer_views[0].viewport = to_rect2d(tiles[i].content);
+        visible_layers[i]->record(raw_cmd, layer_views, rt);
     }
 
-    vkCmdEndRenderPass(command_buffer_);
+    cmd.endRenderPass();
 
     // Backend-specific post-render commands (blit + transitions etc.).
-    backend_->record_post_render_pass(command_buffer_, *frame);
+    backend_->record_post_render_pass(raw_cmd, *frame);
 
-    check_vk(vkEndCommandBuffer(command_buffer_), "vkEndCommandBuffer");
+    cmd.end();
 
     // Layer waits (timeline) + backend's wait_before_render (binary,
     // value 0 ignored).
-    std::vector<VkSemaphore> wait_semaphores;
+    std::vector<vk::Semaphore> wait_semaphores;
     std::vector<uint64_t> wait_values;
-    std::vector<VkPipelineStageFlags> wait_stages;
+    std::vector<vk::PipelineStageFlags> wait_stages;
     for (LayerBase* layer : visible_layers)
     {
         for (const auto& w : layer->get_wait_semaphores())
         {
             if (w.semaphore != VK_NULL_HANDLE)
             {
-                wait_semaphores.push_back(w.semaphore);
+                wait_semaphores.emplace_back(w.semaphore);
                 wait_values.push_back(w.value);
-                wait_stages.push_back(w.wait_stage);
+                wait_stages.emplace_back(static_cast<vk::PipelineStageFlagBits>(w.wait_stage));
             }
         }
     }
     if (frame->wait_before_render != VK_NULL_HANDLE)
     {
-        wait_semaphores.push_back(frame->wait_before_render);
+        wait_semaphores.emplace_back(frame->wait_before_render);
         wait_values.push_back(0);
-        wait_stages.push_back(frame->wait_stage);
+        wait_stages.emplace_back(static_cast<vk::PipelineStageFlagBits>(frame->wait_stage));
     }
 
-    std::vector<VkSemaphore> signal_semaphores;
+    std::vector<vk::Semaphore> signal_semaphores;
     std::vector<uint64_t> signal_values;
     if (frame->signal_after_render != VK_NULL_HANDLE)
     {
-        signal_semaphores.push_back(frame->signal_after_render);
+        signal_semaphores.emplace_back(frame->signal_after_render);
         signal_values.push_back(0);
     }
 
-    VkTimelineSemaphoreSubmitInfo timeline{};
-    timeline.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
-    timeline.waitSemaphoreValueCount = static_cast<uint32_t>(wait_values.size());
-    timeline.pWaitSemaphoreValues = wait_values.empty() ? nullptr : wait_values.data();
-    timeline.signalSemaphoreValueCount = static_cast<uint32_t>(signal_values.size());
-    timeline.pSignalSemaphoreValues = signal_values.empty() ? nullptr : signal_values.data();
-
-    VkSubmitInfo submit{};
-    submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submit.pNext = &timeline;
-    submit.commandBufferCount = 1;
-    submit.pCommandBuffers = &command_buffer_;
-    submit.waitSemaphoreCount = static_cast<uint32_t>(wait_semaphores.size());
-    submit.pWaitSemaphores = wait_semaphores.empty() ? nullptr : wait_semaphores.data();
-    submit.pWaitDstStageMask = wait_stages.empty() ? nullptr : wait_stages.data();
-    submit.signalSemaphoreCount = static_cast<uint32_t>(signal_semaphores.size());
-    submit.pSignalSemaphores = signal_semaphores.empty() ? nullptr : signal_semaphores.data();
+    const vk::SubmitInfo submit_info{
+        .waitSemaphoreCount = static_cast<uint32_t>(wait_semaphores.size()),
+        .pWaitSemaphores = wait_semaphores.empty() ? nullptr : wait_semaphores.data(),
+        .pWaitDstStageMask = wait_stages.empty() ? nullptr : wait_stages.data(),
+        .commandBufferCount = 1,
+        .pCommandBuffers = &cmd_hpp,
+        .signalSemaphoreCount = static_cast<uint32_t>(signal_semaphores.size()),
+        .pSignalSemaphores = signal_semaphores.empty() ? nullptr : signal_semaphores.data(),
+    };
+    const vk::TimelineSemaphoreSubmitInfo timeline_info{
+        .waitSemaphoreValueCount = static_cast<uint32_t>(wait_values.size()),
+        .pWaitSemaphoreValues = wait_values.empty() ? nullptr : wait_values.data(),
+        .signalSemaphoreValueCount = static_cast<uint32_t>(signal_values.size()),
+        .pSignalSemaphoreValues = signal_values.empty() ? nullptr : signal_values.data(),
+    };
+    vk::StructureChain<vk::SubmitInfo, vk::TimelineSemaphoreSubmitInfo> submit_chain{ submit_info, timeline_info };
 
     // Reset the fence immediately before submit. Anything that
     // throws above this point leaves the fence signaled from the
@@ -308,7 +285,7 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
     // submit_or_signal_fence handles vkQueueSubmit failure by
     // submitting an empty signal so the fence still transitions.
     frame_sync_->reset();
-    submit_or_signal_fence(submit, "vkQueueSubmit");
+    submit_or_signal_fence(submit_chain.get<vk::SubmitInfo>(), "vkQueueSubmit");
 
     // Drain before end_frame: if end_frame throws, the cmd buffer is
     // EXECUTABLE (resettable by CmdResetGuard) instead of PENDING.

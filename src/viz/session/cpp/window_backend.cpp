@@ -93,7 +93,7 @@ void WindowBackend::init(const VkContext& ctx, Resolution preferred_size)
     ctx_ = &ctx;
     try
     {
-        window_ = GlfwWindow::create(ctx.instance(), preferred_size.width, preferred_size.height, config_.title);
+        window_ = GlfwWindow::create(ctx.raii_instance(), preferred_size.width, preferred_size.height, config_.title);
         swapchain_ = Swapchain::create(ctx, window_->surface(), preferred_size);
         // Match intermediate extent to swapchain for a 1:1 post-render blit.
         render_target_ = RenderTarget::create(ctx, RenderTarget::Config{ swapchain_->extent() });

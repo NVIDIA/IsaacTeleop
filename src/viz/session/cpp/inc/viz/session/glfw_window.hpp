@@ -4,7 +4,7 @@
 #pragma once
 
 #include <viz/core/viz_types.hpp>
-#include <vulkan/vulkan.h>
+#include <viz/core/vk.hpp>
 
 #include <atomic>
 #include <memory>
@@ -26,7 +26,7 @@ public:
     // Creates the window + surface. Throws std::runtime_error if
     // GLFW init fails (no display, missing libs) — call sites should
     // catch and SKIP if running headless.
-    static std::unique_ptr<GlfwWindow> create(VkInstance instance,
+    static std::unique_ptr<GlfwWindow> create(const vk::raii::Instance& instance,
                                               uint32_t width,
                                               uint32_t height,
                                               const std::string& title);
@@ -50,9 +50,10 @@ public:
     {
         return window_;
     }
+    // Raw boundary: Swapchain::create takes VkSurfaceKHR.
     VkSurfaceKHR surface() const noexcept
     {
-        return surface_;
+        return *surface_;
     }
     bool should_close() const noexcept;
     void poll_events() noexcept;
@@ -67,12 +68,11 @@ public:
     }
 
 private:
-    GlfwWindow(VkInstance instance, GLFWwindow* window, VkSurfaceKHR surface);
+    GlfwWindow(GLFWwindow* window, vk::raii::SurfaceKHR surface);
     static void framebuffer_resize_callback(GLFWwindow* w, int width, int height);
 
-    VkInstance instance_ = VK_NULL_HANDLE;
     GLFWwindow* window_ = nullptr;
-    VkSurfaceKHR surface_ = VK_NULL_HANDLE;
+    vk::raii::SurfaceKHR surface_{ nullptr };
     std::atomic<bool> resized_{ false };
 };
 

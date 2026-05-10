@@ -5,23 +5,9 @@
 #include <viz/core/vk_context.hpp>
 
 #include <stdexcept>
-#include <string>
 
 namespace viz
 {
-
-namespace
-{
-
-void check_vk(VkResult result, const char* what)
-{
-    if (result != VK_SUCCESS)
-    {
-        throw std::runtime_error(std::string("FrameSync: ") + what + " failed: VkResult=" + std::to_string(result));
-    }
-}
-
-} // namespace
 
 std::unique_ptr<FrameSync> FrameSync::create(const VkContext& ctx)
 {
@@ -45,21 +31,17 @@ FrameSync::~FrameSync()
 
 void FrameSync::init()
 {
-    const VkDevice device = ctx_->device();
+    const auto& device = ctx_->raii_device();
 
-    VkFenceCreateInfo fence_info{};
-    fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     // Start signaled so the first wait()/reset() pair is a no-op.
-    fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-    VkSemaphoreCreateInfo sem_info{};
-    sem_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    const vk::FenceCreateInfo fence_info{ .flags = vk::FenceCreateFlagBits::eSignaled };
+    const vk::SemaphoreCreateInfo sem_info{};
 
     try
     {
-        check_vk(vkCreateFence(device, &fence_info, nullptr, &in_flight_fence_), "vkCreateFence");
-        check_vk(vkCreateSemaphore(device, &sem_info, nullptr, &image_available_), "vkCreateSemaphore(image_available)");
-        check_vk(vkCreateSemaphore(device, &sem_info, nullptr, &render_complete_), "vkCreateSemaphore(render_complete)");
+        in_flight_fence_ = vk::raii::Fence{ device, fence_info };
+        image_available_ = vk::raii::Semaphore{ device, sem_info };
+        render_complete_ = vk::raii::Semaphore{ device, sem_info };
     }
     catch (...)
     {
@@ -70,48 +52,31 @@ void FrameSync::init()
 
 void FrameSync::destroy()
 {
-    if (ctx_ == nullptr)
-    {
-        return;
-    }
-    const VkDevice device = ctx_->device();
-    if (device == VK_NULL_HANDLE)
-    {
-        return;
-    }
-    if (render_complete_ != VK_NULL_HANDLE)
-    {
-        vkDestroySemaphore(device, render_complete_, nullptr);
-        render_complete_ = VK_NULL_HANDLE;
-    }
-    if (image_available_ != VK_NULL_HANDLE)
-    {
-        vkDestroySemaphore(device, image_available_, nullptr);
-        image_available_ = VK_NULL_HANDLE;
-    }
-    if (in_flight_fence_ != VK_NULL_HANDLE)
-    {
-        vkDestroyFence(device, in_flight_fence_, nullptr);
-        in_flight_fence_ = VK_NULL_HANDLE;
-    }
+    render_complete_ = nullptr;
+    image_available_ = nullptr;
+    in_flight_fence_ = nullptr;
 }
 
 void FrameSync::wait(uint64_t timeout_ns)
 {
-    if (in_flight_fence_ == VK_NULL_HANDLE)
+    if (!*in_flight_fence_)
     {
         throw std::logic_error("FrameSync::wait: not initialized");
     }
-    check_vk(vkWaitForFences(ctx_->device(), 1, &in_flight_fence_, VK_TRUE, timeout_ns), "vkWaitForFences");
+    const vk::Result r = ctx_->raii_device().waitForFences({ *in_flight_fence_ }, VK_TRUE, timeout_ns);
+    if (r != vk::Result::eSuccess)
+    {
+        throw std::runtime_error("FrameSync: vkWaitForFences returned " + vk::to_string(r));
+    }
 }
 
 void FrameSync::reset()
 {
-    if (in_flight_fence_ == VK_NULL_HANDLE)
+    if (!*in_flight_fence_)
     {
         throw std::logic_error("FrameSync::reset: not initialized");
     }
-    check_vk(vkResetFences(ctx_->device(), 1, &in_flight_fence_), "vkResetFences");
+    ctx_->raii_device().resetFences({ *in_flight_fence_ });
 }
 
 } // namespace viz

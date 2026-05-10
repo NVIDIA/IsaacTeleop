@@ -9,6 +9,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace viz
@@ -24,10 +25,8 @@ constexpr const char* kEngineName = "Televiz";
 constexpr uint32_t kEngineVersion = VK_MAKE_VERSION(1, 0, 0);
 constexpr uint32_t kApiVersion = VK_API_VERSION_1_2;
 
-// Vendor IDs.
 constexpr uint32_t kVendorNvidia = 0x10DE;
 
-// Device extensions Televiz always requires (for CUDA-Vulkan interop).
 const std::vector<const char*> kRequiredDeviceExtensions = {
     VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
     VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
@@ -37,11 +36,7 @@ const std::vector<const char*> kRequiredDeviceExtensions = {
 
 bool is_validation_layer_available()
 {
-    uint32_t count = 0;
-    vkEnumerateInstanceLayerProperties(&count, nullptr);
-    std::vector<VkLayerProperties> layers(count);
-    vkEnumerateInstanceLayerProperties(&count, layers.data());
-    for (const auto& layer : layers)
+    for (const auto& layer : vk::enumerateInstanceLayerProperties())
     {
         if (std::strcmp(layer.layerName, kValidationLayerName) == 0)
         {
@@ -51,24 +46,47 @@ bool is_validation_layer_available()
     return false;
 }
 
-bool device_supports_extensions(VkPhysicalDevice device, const std::vector<const char*>& required)
+bool is_instance_extension_available(const char* name)
 {
-    uint32_t count = 0;
-    vkEnumerateDeviceExtensionProperties(device, nullptr, &count, nullptr);
-    std::vector<VkExtensionProperties> available(count);
-    vkEnumerateDeviceExtensionProperties(device, nullptr, &count, available.data());
+    for (const auto& ext : vk::enumerateInstanceExtensionProperties())
+    {
+        if (std::strcmp(ext.extensionName, name) == 0)
+        {
+            return true;
+        }
+    }
+    return false;
+}
 
+VKAPI_ATTR VkBool32 VKAPI_CALL debug_messenger_callback(VkDebugUtilsMessageSeverityFlagBitsEXT severity,
+                                                        VkDebugUtilsMessageTypeFlagsEXT /*types*/,
+                                                        const VkDebugUtilsMessengerCallbackDataEXT* data,
+                                                        void* /*user*/)
+{
+    const char* level = "verbose";
+    if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
+    {
+        level = "ERROR";
+    }
+    else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
+    {
+        level = "warn";
+    }
+    else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)
+    {
+        level = "info";
+    }
+    std::cerr << "[Vulkan " << level << "] " << (data && data->pMessage ? data->pMessage : "(null)") << std::endl;
+    return VK_FALSE;
+}
+
+bool device_supports_extensions(vk::PhysicalDevice device, const std::vector<const char*>& required)
+{
+    const auto available = device.enumerateDeviceExtensionProperties();
     for (const char* req : required)
     {
-        bool found = false;
-        for (const auto& ext : available)
-        {
-            if (std::strcmp(ext.extensionName, req) == 0)
-            {
-                found = true;
-                break;
-            }
-        }
+        const bool found = std::any_of(available.begin(), available.end(),
+                                       [&](const auto& ext) { return std::strcmp(ext.extensionName, req) == 0; });
         if (!found)
         {
             return false;
@@ -77,30 +95,17 @@ bool device_supports_extensions(VkPhysicalDevice device, const std::vector<const
     return true;
 }
 
-// Same check as above but for std::vector<std::string> input (avoids forcing
-// callers to materialize a vector<const char*> just for the check).
-bool device_supports_extensions(VkPhysicalDevice device, const std::vector<std::string>& required)
+bool device_supports_extensions(vk::PhysicalDevice device, const std::vector<std::string>& required)
 {
     if (required.empty())
     {
         return true;
     }
-    uint32_t count = 0;
-    vkEnumerateDeviceExtensionProperties(device, nullptr, &count, nullptr);
-    std::vector<VkExtensionProperties> available(count);
-    vkEnumerateDeviceExtensionProperties(device, nullptr, &count, available.data());
-
+    const auto available = device.enumerateDeviceExtensionProperties();
     for (const auto& req : required)
     {
-        bool found = false;
-        for (const auto& ext : available)
-        {
-            if (req == ext.extensionName)
-            {
-                found = true;
-                break;
-            }
-        }
+        const bool found =
+            std::any_of(available.begin(), available.end(), [&](const auto& ext) { return req == ext.extensionName; });
         if (!found)
         {
             return false;
@@ -109,15 +114,12 @@ bool device_supports_extensions(VkPhysicalDevice device, const std::vector<std::
     return true;
 }
 
-uint32_t find_graphics_compute_queue_family(VkPhysicalDevice device)
+uint32_t find_graphics_compute_queue_family(vk::PhysicalDevice device)
 {
-    uint32_t count = 0;
-    vkGetPhysicalDeviceQueueFamilyProperties(device, &count, nullptr);
-    std::vector<VkQueueFamilyProperties> families(count);
-    vkGetPhysicalDeviceQueueFamilyProperties(device, &count, families.data());
-
-    constexpr VkQueueFlags required_flags = VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT | VK_QUEUE_TRANSFER_BIT;
-    for (uint32_t i = 0; i < count; ++i)
+    constexpr auto required_flags =
+        vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute | vk::QueueFlagBits::eTransfer;
+    const auto families = device.getQueueFamilyProperties();
+    for (uint32_t i = 0; i < families.size(); ++i)
     {
         if ((families[i].queueFlags & required_flags) == required_flags)
         {
@@ -127,46 +129,34 @@ uint32_t find_graphics_compute_queue_family(VkPhysicalDevice device)
     return UINT32_MAX;
 }
 
-// Score a physical device. Higher is better; -1 means unsuitable.
-int score_physical_device(VkPhysicalDevice device)
+int score_physical_device(vk::PhysicalDevice device)
 {
-    VkPhysicalDeviceProperties props;
-    vkGetPhysicalDeviceProperties(device, &props);
-
-    // Required: API 1.2 or newer.
+    const auto props = device.getProperties();
     if (props.apiVersion < kApiVersion)
     {
         return -1;
     }
-
-    // Required: graphics+compute+transfer queue family.
     if (find_graphics_compute_queue_family(device) == UINT32_MAX)
     {
         return -1;
     }
-
-    // Required: external memory extensions (CUDA interop dependency).
     if (!device_supports_extensions(device, kRequiredDeviceExtensions))
     {
         return -1;
     }
-
     int score = 0;
-
-    // Strongly prefer NVIDIA GPUs (CUDA interop is NVIDIA-only).
     if (props.vendorID == kVendorNvidia)
     {
         score += 1000;
     }
-    if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+    if (props.deviceType == vk::PhysicalDeviceType::eDiscreteGpu)
     {
         score += 500;
     }
-    else if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU)
+    else if (props.deviceType == vk::PhysicalDeviceType::eIntegratedGpu)
     {
         score += 100;
     }
-
     return score;
 }
 
@@ -183,9 +173,6 @@ void VkContext::init(const Config& config)
     {
         throw std::logic_error("VkContext::init: already initialized");
     }
-    // Roll back any partial state if a later step throws so the context is
-    // left in a clean uninitialized state (no leaked instance/device handles)
-    // and is safe to retry init() on.
     try
     {
         create_instance(config);
@@ -204,26 +191,15 @@ void VkContext::init(const Config& config)
 
 void VkContext::destroy()
 {
-    // Destroy device-owned objects (pipeline cache) before the device.
-    if (pipeline_cache_ != VK_NULL_HANDLE && device_ != VK_NULL_HANDLE)
-    {
-        vkDestroyPipelineCache(device_, pipeline_cache_, nullptr);
-        pipeline_cache_ = VK_NULL_HANDLE;
-    }
-    if (device_ != VK_NULL_HANDLE)
-    {
-        vkDestroyDevice(device_, nullptr);
-        device_ = VK_NULL_HANDLE;
-    }
-    if (instance_ != VK_NULL_HANDLE)
-    {
-        vkDestroyInstance(instance_, nullptr);
-        instance_ = VK_NULL_HANDLE;
-    }
-    physical_device_ = VK_NULL_HANDLE;
-    queue_ = VK_NULL_HANDLE;
+    // Reverse parent/child order. Each move-from-nullptr destroys the
+    // existing handle via vk::raii's destructor.
+    pipeline_cache_ = nullptr;
+    queue_ = nullptr;
+    device_ = nullptr;
+    physical_device_ = nullptr;
+    debug_messenger_ = nullptr;
+    instance_ = nullptr;
     queue_family_index_ = UINT32_MAX;
-    pipeline_cache_ = VK_NULL_HANDLE;
     cuda_device_id_ = -1;
     validation_enabled_ = false;
     initialized_ = false;
@@ -236,17 +212,17 @@ bool VkContext::is_initialized() const noexcept
 
 VkInstance VkContext::instance() const noexcept
 {
-    return instance_;
+    return *instance_;
 }
 
 VkPhysicalDevice VkContext::physical_device() const noexcept
 {
-    return physical_device_;
+    return *physical_device_;
 }
 
 VkDevice VkContext::device() const noexcept
 {
-    return device_;
+    return *device_;
 }
 
 uint32_t VkContext::queue_family_index() const noexcept
@@ -256,12 +232,12 @@ uint32_t VkContext::queue_family_index() const noexcept
 
 VkQueue VkContext::queue() const noexcept
 {
-    return queue_;
+    return *queue_;
 }
 
 VkPipelineCache VkContext::pipeline_cache() const noexcept
 {
-    return pipeline_cache_;
+    return *pipeline_cache_;
 }
 
 int VkContext::cuda_device_id() const noexcept
@@ -271,13 +247,13 @@ int VkContext::cuda_device_id() const noexcept
 
 void VkContext::create_instance(const Config& config)
 {
-    VkApplicationInfo app_info{};
-    app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    app_info.pApplicationName = kAppName;
-    app_info.applicationVersion = kAppVersion;
-    app_info.pEngineName = kEngineName;
-    app_info.engineVersion = kEngineVersion;
-    app_info.apiVersion = kApiVersion;
+    const vk::ApplicationInfo app_info{
+        .pApplicationName = kAppName,
+        .applicationVersion = kAppVersion,
+        .pEngineName = kEngineName,
+        .engineVersion = kEngineVersion,
+        .apiVersion = kApiVersion,
+    };
 
     std::vector<const char*> layers;
     if (config.enable_validation)
@@ -296,168 +272,204 @@ void VkContext::create_instance(const Config& config)
     }
 
     std::vector<const char*> instance_extensions;
-    instance_extensions.reserve(config.instance_extensions.size());
+    instance_extensions.reserve(config.instance_extensions.size() + 2);
     for (const auto& s : config.instance_extensions)
     {
         instance_extensions.push_back(s.c_str());
     }
-
-    VkInstanceCreateInfo create_info{};
-    create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    create_info.pApplicationInfo = &app_info;
-    create_info.enabledLayerCount = static_cast<uint32_t>(layers.size());
-    create_info.ppEnabledLayerNames = layers.data();
-    create_info.enabledExtensionCount = static_cast<uint32_t>(instance_extensions.size());
-    create_info.ppEnabledExtensionNames = instance_extensions.data();
-
-    const VkResult result = vkCreateInstance(&create_info, nullptr, &instance_);
-    if (result != VK_SUCCESS)
+    bool validation_features_enabled = false;
+    if (validation_enabled_)
     {
-        throw std::runtime_error("vkCreateInstance failed: VkResult=" + std::to_string(result));
+        instance_extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        // VK_EXT_validation_features is bundled with recent SDKs but not
+        // every loader/driver advertises it. Gate the pNext chain on
+        // availability so vkCreateInstance doesn't fail when validation
+        // is requested but this extension isn't present.
+        if (is_instance_extension_available(VK_EXT_VALIDATION_FEATURES_EXTENSION_NAME))
+        {
+            instance_extensions.push_back(VK_EXT_VALIDATION_FEATURES_EXTENSION_NAME);
+            validation_features_enabled = true;
+        }
+    }
+
+    const vk::ValidationFeatureEnableEXT enables[] = {
+        vk::ValidationFeatureEnableEXT::eBestPractices,
+        vk::ValidationFeatureEnableEXT::eSynchronizationValidation,
+    };
+
+    // Plain create-info (no pNext) — same struct serves both the
+    // chained create-time messenger and the persistent post-create
+    // messenger, since neither needs further chained structures.
+    //
+    // pfnUserCallback's declared type varies across vk-hpp SDKs: newer
+    // versions wrap it as vk::PFN_DebugUtilsMessengerCallbackEXT (with
+    // vk::Flags<...> for the messageType parameter), older versions
+    // leave it as the raw PFN_vkDebugUtilsMessengerCallbackEXT C
+    // typedef. Our callback uses the C signature; reinterpret_cast
+    // through decltype lets the same code compile against both. The
+    // ABI is identical (vk::Flags<T> is a trivial uint32_t wrapper).
+    using PfnUserCallbackT = decltype(std::declval<vk::DebugUtilsMessengerCreateInfoEXT>().pfnUserCallback);
+    const vk::DebugUtilsMessengerCreateInfoEXT debug_create_info{
+        .messageSeverity =
+            vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError,
+        .messageType = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
+                       vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance,
+        .pfnUserCallback = reinterpret_cast<PfnUserCallbackT>(debug_messenger_callback),
+    };
+
+    const vk::InstanceCreateInfo base_info{
+        .pApplicationInfo = &app_info,
+        .enabledLayerCount = static_cast<uint32_t>(layers.size()),
+        .ppEnabledLayerNames = layers.data(),
+        .enabledExtensionCount = static_cast<uint32_t>(instance_extensions.size()),
+        .ppEnabledExtensionNames = instance_extensions.data(),
+    };
+
+    if (validation_features_enabled)
+    {
+        // Both ValidationFeaturesEXT and DebugUtilsMessengerCreateInfoEXT
+        // extend VkInstanceCreateInfo. The loader walks the entire pNext
+        // list and dispatches each struct by sType, so chain order is
+        // not semantically meaningful — but vulkan-hpp's StructureChain
+        // physically links them in declaration order, so we list them
+        // in the order they conceptually attach to the instance create
+        // info to keep the linkage easy to reason about.
+        vk::ValidationFeaturesEXT validation_features{
+            .enabledValidationFeatureCount = static_cast<uint32_t>(std::size(enables)),
+            .pEnabledValidationFeatures = enables,
+        };
+        vk::StructureChain<vk::InstanceCreateInfo, vk::ValidationFeaturesEXT, vk::DebugUtilsMessengerCreateInfoEXT> chain{
+            base_info,
+            validation_features,
+            debug_create_info,
+        };
+        instance_ = vk::raii::Instance{ context_, chain.get<vk::InstanceCreateInfo>() };
+        debug_messenger_ = vk::raii::DebugUtilsMessengerEXT{ instance_, debug_create_info };
+    }
+    else if (validation_enabled_)
+    {
+        // Validation layer available, but VK_EXT_validation_features is
+        // not — chain only the create-time messenger.
+        vk::StructureChain<vk::InstanceCreateInfo, vk::DebugUtilsMessengerCreateInfoEXT> chain{ base_info,
+                                                                                                debug_create_info };
+        instance_ = vk::raii::Instance{ context_, chain.get<vk::InstanceCreateInfo>() };
+        debug_messenger_ = vk::raii::DebugUtilsMessengerEXT{ instance_, debug_create_info };
+    }
+    else
+    {
+        instance_ = vk::raii::Instance{ context_, base_info };
     }
 }
 
 void VkContext::select_physical_device(const Config& config)
 {
-    uint32_t count = 0;
-    vkEnumeratePhysicalDevices(instance_, &count, nullptr);
-    if (count == 0)
+    auto devices = vk::raii::PhysicalDevices{ instance_ };
+    if (devices.empty())
     {
         throw std::runtime_error("No Vulkan-capable physical devices found");
     }
 
-    std::vector<VkPhysicalDevice> devices(count);
-    vkEnumeratePhysicalDevices(instance_, &count, devices.data());
-
-    // A device is "suitable" iff it passes the always-required check
-    // (score >= 0) AND supports any caller-requested device extensions.
-    // Validating caller extensions here surfaces a clear error / lets
-    // auto-pick skip the device, instead of failing later inside
-    // vkCreateDevice with a generic VK_ERROR_EXTENSION_NOT_PRESENT.
-    auto is_suitable = [&](VkPhysicalDevice d)
+    const auto is_suitable = [&](vk::PhysicalDevice d)
     { return score_physical_device(d) >= 0 && device_supports_extensions(d, config.device_extensions); };
 
     if (config.physical_device_index >= 0)
     {
-        // Explicit index: pick that device, validate it meets requirements.
-        const auto requested = static_cast<uint32_t>(config.physical_device_index);
-        if (requested >= count)
+        const auto requested = static_cast<size_t>(config.physical_device_index);
+        if (requested >= devices.size())
         {
             throw std::out_of_range("VkContext: physical_device_index " + std::to_string(requested) +
-                                    " is out of range (only " + std::to_string(count) + " device(s) available)");
+                                    " is out of range (only " + std::to_string(devices.size()) + " device(s) available)");
         }
-        if (!is_suitable(devices[requested]))
+        if (!is_suitable(*devices[requested]))
         {
-            VkPhysicalDeviceProperties props;
-            vkGetPhysicalDeviceProperties(devices[requested], &props);
+            const auto props = devices[requested].getProperties();
             throw std::runtime_error("VkContext: physical device at index " + std::to_string(requested) + " (" +
-                                     props.deviceName +
+                                     std::string(props.deviceName.data()) +
                                      ") does not meet Televiz requirements "
                                      "(need API 1.2+, graphics+compute queue, "
                                      "required + caller-requested extensions)");
         }
-        physical_device_ = devices[requested];
+        physical_device_ = std::move(devices[requested]);
     }
     else
     {
-        // Auto-pick: highest-scoring suitable device.
         int best_score = -1;
-        VkPhysicalDevice best_device = VK_NULL_HANDLE;
-        for (VkPhysicalDevice candidate : devices)
+        size_t best_index = devices.size();
+        for (size_t i = 0; i < devices.size(); ++i)
         {
-            if (!is_suitable(candidate))
+            if (!is_suitable(*devices[i]))
             {
                 continue;
             }
-            const int s = score_physical_device(candidate);
+            const int s = score_physical_device(*devices[i]);
             if (s > best_score)
             {
                 best_score = s;
-                best_device = candidate;
+                best_index = i;
             }
         }
-
-        if (best_device == VK_NULL_HANDLE)
+        if (best_index == devices.size())
         {
             throw std::runtime_error(
                 "No suitable Vulkan physical device found "
                 "(need API 1.2+, graphics+compute queue, "
                 "required + caller-requested extensions)");
         }
-
-        physical_device_ = best_device;
+        physical_device_ = std::move(devices[best_index]);
     }
 
-    queue_family_index_ = find_graphics_compute_queue_family(physical_device_);
+    queue_family_index_ = find_graphics_compute_queue_family(*physical_device_);
 }
 
 void VkContext::create_logical_device(const Config& config)
 {
     const float queue_priority = 1.0f;
-    VkDeviceQueueCreateInfo queue_info{};
-    queue_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    queue_info.queueFamilyIndex = queue_family_index_;
-    queue_info.queueCount = 1;
-    queue_info.pQueuePriorities = &queue_priority;
+    const vk::DeviceQueueCreateInfo queue_info{
+        .queueFamilyIndex = queue_family_index_,
+        .queueCount = 1,
+        .pQueuePriorities = &queue_priority,
+    };
 
-    // Build extension list: required + caller-provided.
     std::vector<const char*> extensions(kRequiredDeviceExtensions);
     for (const auto& s : config.device_extensions)
     {
         extensions.push_back(s.c_str());
     }
 
-    VkPhysicalDeviceFeatures device_features{};
+    const vk::PhysicalDeviceFeatures device_features{};
 
-    // Enable the Vulkan 1.2 timeline semaphore feature so DeviceImage
-    // can use VK_SEMAPHORE_TYPE_TIMELINE for CUDA-Vulkan interop.
-    VkPhysicalDeviceVulkan12Features features12{};
-    features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
-    features12.timelineSemaphore = VK_TRUE;
+    // VK_SEMAPHORE_TYPE_TIMELINE for CUDA-Vulkan interop.
+    const vk::PhysicalDeviceVulkan12Features features12{
+        .timelineSemaphore = VK_TRUE,
+    };
 
-    VkDeviceCreateInfo device_info{};
-    device_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    device_info.pNext = &features12;
-    device_info.queueCreateInfoCount = 1;
-    device_info.pQueueCreateInfos = &queue_info;
-    device_info.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
-    device_info.ppEnabledExtensionNames = extensions.data();
-    device_info.pEnabledFeatures = &device_features;
+    const vk::DeviceCreateInfo device_info{
+        .pNext = &features12,
+        .queueCreateInfoCount = 1,
+        .pQueueCreateInfos = &queue_info,
+        .enabledExtensionCount = static_cast<uint32_t>(extensions.size()),
+        .ppEnabledExtensionNames = extensions.data(),
+        .pEnabledFeatures = &device_features,
+    };
 
-    const VkResult result = vkCreateDevice(physical_device_, &device_info, nullptr, &device_);
-    if (result != VK_SUCCESS)
-    {
-        throw std::runtime_error("vkCreateDevice failed: VkResult=" + std::to_string(result));
-    }
-
-    vkGetDeviceQueue(device_, queue_family_index_, 0, &queue_);
+    device_ = vk::raii::Device{ physical_device_, device_info };
+    queue_ = device_.getQueue(queue_family_index_, 0);
 }
 
 void VkContext::create_pipeline_cache()
 {
     // Empty cache; the driver populates it as pipelines are created.
-    // Not persisted across runs — purely in-process reuse.
-    VkPipelineCacheCreateInfo info{};
-    info.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
-    const VkResult result = vkCreatePipelineCache(device_, &info, nullptr, &pipeline_cache_);
-    if (result != VK_SUCCESS)
-    {
-        throw std::runtime_error("vkCreatePipelineCache failed: VkResult=" + std::to_string(result));
-    }
+    pipeline_cache_ = vk::raii::PipelineCache{ device_, vk::PipelineCacheCreateInfo{} };
 }
 
 void VkContext::match_cuda_device_to_vulkan()
 {
-    // Find the CUDA device whose UUID matches the chosen Vulkan
-    // physical device and make it current. Required so CUDA-Vulkan
-    // interop on multi-GPU machines doesn't pick a different GPU
-    // than Vulkan.
-    VkPhysicalDeviceIDProperties id_props{};
-    id_props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES;
-    VkPhysicalDeviceProperties2 props2{};
-    props2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-    props2.pNext = &id_props;
-    vkGetPhysicalDeviceProperties2(physical_device_, &props2);
+    // Find the CUDA device whose UUID matches the Vulkan physical
+    // device. Required so CUDA-Vulkan interop on multi-GPU machines
+    // doesn't pick a different GPU than Vulkan.
+    const auto props_chain =
+        physical_device_.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceIDProperties>();
+    const auto& id_props = props_chain.get<vk::PhysicalDeviceIDProperties>();
 
     int cuda_count = 0;
     cudaError_t err = cudaGetDeviceCount(&cuda_count);
@@ -475,7 +487,7 @@ void VkContext::match_cuda_device_to_vulkan()
         {
             continue;
         }
-        if (std::memcmp(prop.uuid.bytes, id_props.deviceUUID, VK_UUID_SIZE) == 0)
+        if (std::memcmp(prop.uuid.bytes, id_props.deviceUUID.data(), VK_UUID_SIZE) == 0)
         {
             err = cudaSetDevice(i);
             if (err != cudaSuccess)
@@ -494,51 +506,35 @@ void VkContext::match_cuda_device_to_vulkan()
 std::vector<PhysicalDeviceInfo> VkContext::enumerate_physical_devices()
 {
     std::vector<PhysicalDeviceInfo> result;
-
-    // Create a minimal temporary instance just to enumerate devices.
-    VkApplicationInfo app_info{};
-    app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    app_info.pApplicationName = "viz_enumerate_probe";
-    app_info.apiVersion = kApiVersion;
-
-    VkInstanceCreateInfo create_info{};
-    create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    create_info.pApplicationInfo = &app_info;
-
-    VkInstance instance = VK_NULL_HANDLE;
-    if (vkCreateInstance(&create_info, nullptr, &instance) != VK_SUCCESS)
+    try
     {
-        return result; // Vulkan loader missing or instance creation failed.
-    }
+        vk::raii::Context ctx{};
+        const vk::ApplicationInfo app_info{
+            .pApplicationName = "viz_enumerate_probe",
+            .apiVersion = kApiVersion,
+        };
+        const vk::InstanceCreateInfo create_info{ .pApplicationInfo = &app_info };
+        vk::raii::Instance instance{ ctx, create_info };
+        vk::raii::PhysicalDevices devices{ instance };
 
-    uint32_t count = 0;
-    vkEnumeratePhysicalDevices(instance, &count, nullptr);
-    if (count == 0)
+        result.reserve(devices.size());
+        for (size_t i = 0; i < devices.size(); ++i)
+        {
+            const auto props = devices[i].getProperties();
+            PhysicalDeviceInfo info;
+            info.index = static_cast<uint32_t>(i);
+            info.name = std::string(props.deviceName.data());
+            info.vendor_id = props.vendorID;
+            info.device_id = props.deviceID;
+            info.is_discrete = (props.deviceType == vk::PhysicalDeviceType::eDiscreteGpu);
+            info.meets_requirements = (score_physical_device(*devices[i]) >= 0);
+            result.push_back(std::move(info));
+        }
+    }
+    catch (...)
     {
-        vkDestroyInstance(instance, nullptr);
-        return result;
+        // Loader missing, instance creation failed, or no devices.
     }
-
-    std::vector<VkPhysicalDevice> devices(count);
-    vkEnumeratePhysicalDevices(instance, &count, devices.data());
-
-    result.reserve(count);
-    for (uint32_t i = 0; i < count; ++i)
-    {
-        VkPhysicalDeviceProperties props;
-        vkGetPhysicalDeviceProperties(devices[i], &props);
-
-        PhysicalDeviceInfo info;
-        info.index = i;
-        info.name = props.deviceName;
-        info.vendor_id = props.vendorID;
-        info.device_id = props.deviceID;
-        info.is_discrete = (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU);
-        info.meets_requirements = (score_physical_device(devices[i]) >= 0);
-        result.push_back(std::move(info));
-    }
-
-    vkDestroyInstance(instance, nullptr);
     return result;
 }
 
