@@ -25,7 +25,7 @@ import isaacteleop.viz as viz
 
 from pipeline import FrameSource, VizRunner
 from placements import PlacementConfig, PlacementStrategy, build as build_placement
-from sources import SyntheticSource
+from sources import SyntheticSource, V4l2Source
 
 # A factory's output: (source, placement) pairs. Most source types yield one
 # entry; multi-stream cameras (OAK-D stereo, ZED stereo) yield one per stream.
@@ -71,7 +71,19 @@ def _build_source_entries(spec: dict, is_xr: bool) -> List[SourceEntry]:
             hue_speed_hz=float(spec.get("hue_speed_hz", 0.25)),
         )
         return [(source, _build_placement(spec.get("placement"), is_xr))]
-    raise ValueError(f"camera_viz: unknown source type {kind!r} (known: synthetic)")
+    if kind == "v4l2":
+        source = V4l2Source(
+            name=spec["name"],
+            device=spec.get("device", "/dev/video0"),
+            width=int(spec["width"]),
+            height=int(spec["height"]),
+            fps=float(spec.get("fps", 30.0)),
+            fourcc=spec.get("fourcc"),
+        )
+        return [(source, _build_placement(spec.get("placement"), is_xr))]
+    raise ValueError(
+        f"camera_viz: unknown source type {kind!r} (known: synthetic, v4l2)"
+    )
 
 
 def _make_session(cfg: dict) -> viz.VizSession:

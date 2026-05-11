@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Single V4L2 camera (typical USB webcam) → window. Useful sanity check
+# for the end-to-end zero-copy hot path on any dev box with a /dev/videoN.
+#
+# Most UVC cameras default to YUYV at 1080p@30fps over USB2. If your
+# camera also offers MJPG, set `fourcc: MJPG` to push higher framerates
+# (OpenCV decodes MJPG → BGR on the CPU; sub-ms at 720p, a few ms at
+# 1080p). For 4K MJPG at low latency, swap this source for an
+# NVDEC-backed one — out of scope for M7b.
+
+mode: window
+window:
+  width: 1280
+  height: 720
+clear_color: [0.05, 0.05, 0.08, 1.0]
+
+sources:
+  - name: webcam
+    type: v4l2
+    device: /dev/video0
+    width: 1280
+    height: 720
+    fps: 30
+    # fourcc: MJPG   # uncomment for high-fps UVC paths

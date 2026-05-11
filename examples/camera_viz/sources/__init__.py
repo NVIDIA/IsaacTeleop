@@ -8,5 +8,6 @@ end-to-end so the teleop hot path never round-trips through host memory.
 """
 
 from .synthetic import SyntheticSource
+from .v4l2 import V4l2Source
 
-__all__ = ["SyntheticSource"]
+__all__ = ["SyntheticSource", "V4l2Source"]
