@@ -1,0 +1,57 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Three synthetic sources in XR, one per lock mode — a comparison rig
+# for the placement strategies ported from camera_streamer.
+#
+# Layout, looking from above (user at origin facing -Z):
+#                   world (-0.6 m)   lazy (0.0 m)   head (+0.6 m)
+#                          |              |              |
+#                          +--------------+--------------+
+#                                         |
+#                                         O  user
+
+mode: xr
+xr:
+  near_z: 0.05
+  far_z: 100.0
+clear_color: [0.0, 0.0, 0.0, 1.0]
+
+sources:
+  - name: world_locked
+    type: synthetic
+    width: 1280
+    height: 720
+    fps: 60.0
+    placement:
+      lock_mode: world
+      size: [1.0, 0.5625]
+      distance: 1.5
+      offset_x: -0.6
+
+  - name: lazy_locked
+    type: synthetic
+    width: 1280
+    height: 720
+    fps: 60.0
+    placement:
+      lock_mode: lazy
+      size: [1.0, 0.5625]
+      distance: 1.5
+      offset_x: 0.0
+      # Defaults from camera_streamer's CameraPlaneConfig:
+      look_away_angle_deg: 45.0
+      reposition_distance: 0.5
+      reposition_delay_s: 0.5
+      transition_duration_s: 0.3
+
+  - name: head_locked
+    type: synthetic
+    width: 1280
+    height: 720
+    fps: 60.0
+    placement:
+      lock_mode: head
+      size: [1.0, 0.5625]
+      distance: 1.5
+      offset_x: 0.6

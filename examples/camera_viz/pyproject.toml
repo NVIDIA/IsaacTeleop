@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Standalone pyproject for camera_viz so `uv run` resolves the example's
+# deps without polluting the IsaacTeleop wheel's runtime requirements.
+# isaacteleop is consumed from the locally built wheel (./build/wheels/)
+# or from PyPI — point uv at it via --find-links / --with as needed.
+
+[project]
+name = "camera-viz"
+version = "0.0.0"
+description = "Televiz camera-feed visualizer"
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "pyyaml>=6.0",
+    "cupy-cuda12x",
+    # numpy + scipy power the placement-strategy math (quaternion ops via
+    # scipy.spatial.transform.Rotation). Already in IsaacTeleop's
+    # retargeters extra, so deploy boxes already have them.
+    "numpy>=1.23",
+    "scipy>=1.15",
+]
+
+[tool.uv]
+python-preference = "only-managed"
