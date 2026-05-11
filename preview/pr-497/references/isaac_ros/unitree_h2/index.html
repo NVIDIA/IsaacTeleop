@@ -1,0 +1,982 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Unitree H2 &#8212; Isaac Teleop Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=55c26ed414f5f8a31ebb" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=55c26ed414f5f8a31ebb" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/nvidia-sphinx-theme.css?v=933278ad" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/custom.css?v=e662b523" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../../../_static/scripts/fontawesome.js?digest=55c26ed414f5f8a31ebb"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=55c26ed414f5f8a31ebb" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=55c26ed414f5f8a31ebb" />
+
+
+
+    <script src="../../../_static/documentation_options.js?v=fb5244e5"></script>
+    <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=f281be69"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'references/isaac_ros/unitree_h2/index';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+
+    <link rel="icon" href="../../../_static/favicon.ico"/>
+
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="License" href="../../license.html" />
+    <link rel="prev" title="Isaac ROS Integrations" href="../index.html" />
+
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="1.3.x" />
+  
+    
+    <script src="../../../_static/searchtools.js"></script>
+    <script src="../../../_static/language_data.js"></script>
+    <script src="../../../searchindex.js"></script>
+  
+
+
+  </head>
+
+  <body data-default-mode="">
+
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="Isaac Teleop Documentation - Home"/>
+    <img src="../../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="Isaac Teleop Documentation - Home"/>
+  
+  
+    <p class="title logo__title">Isaac Teleop Documentation</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="Isaac Teleop Documentation - Home"/>
+    <img src="../../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="Isaac Teleop Documentation - Home"/>
+  
+  
+    <p class="title logo__title">Isaac Teleop Documentation</p>
+  
+</a>
+
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item"><!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+</div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/IsaacTeleop" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://docs.nvidia.com/cloudxr-sdk" title="CloudXR" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/CloudXR-6.1-green.svg" class="icon-link-image" alt="CloudXR"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://isaac-sim.github.io/IsaacLab" title="Isaac Lab" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacLab-3.0-silver.svg" class="icon-link-image" alt="Isaac Lab"/></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        <div class="sidebar-primary-item">
+
+
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Table of Contents">
+  <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../index.html">Isaac Teleop</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../overview/architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../overview/ecosystem.html">Ecosystem</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../getting_started/quick_start.html">Quick Start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../getting_started/build_from_source/index.html">Build from Source</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../getting_started/teleop_session.html">Teleop Session</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../getting_started/teleop_control_state_machine.html">Teleop Control State Machine</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../getting_started/contributing.html">Contributing</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../requirements.html">System Requirements</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../build.html">Build System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../device/index.html">Device Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../retargeting/index.html">Retargeting Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="../index.html">Isaac ROS Integrations</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Unitree H2</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../license.html">License</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../index.html" class="nav-link">Isaac ROS Integrations</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Unitree H2</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="unitree-h2">
+<h1>Unitree H2<a class="headerlink" href="#unitree-h2" title="Link to this heading">#</a></h1>
+<p><a class="reference external" href="https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_physical_ai/tree/main/isaac_ros_unitree_h2_teleop_bringup" rel="noopener noreferrer" target="_blank">isaac_ros_unitree_h2_teleop_bringup on GitHub</a></p>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading">#</a></h2>
+<p>Top-level launch file for Unitree H2 teleoperation combining AGILE locomotion, bimanual
+inverse kinematics, and finger control. Supports XR teleoperation via
+<a class="reference external" href="https://nvidia.github.io/IsaacTeleop" rel="noopener noreferrer" target="_blank">Isaac Teleop</a> and RViz interactive markers.</p>
+<p>Both simulation and real hardware are supported.</p>
+</section>
+<section id="tutorial-unitree-h2-xr-teleop">
+<h2>Tutorial: Unitree H2 XR Teleop<a class="headerlink" href="#tutorial-unitree-h2-xr-teleop" title="Link to this heading">#</a></h2>
+<p>This tutorial walks through running whole-body XR teleoperation on the Unitree H2
+humanoid robot. The application combines AGILE locomotion, bimanual inverse kinematics,
+and finger control, all driven by an XR headset.</p>
+<p>You will first run the application in MuJoCo simulation, then deploy on real hardware.</p>
+<section id="prerequisites">
+<h3>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h3>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This tutorial has been tested and qualified on <strong>Jetson AGX Thor</strong> for both simulation and
+real robot deployment. MuJoCo simulation is also supported on x86_64.</p>
+</div>
+<ul class="simple">
+<li><p><a class="reference external" href="https://www.picoxr.com/global/products/pico4-ultra" rel="noopener noreferrer" target="_blank">PICO 4 Ultra</a>  headset or <a class="reference external" href="https://www.meta.com/quest/quest-3/" rel="noopener noreferrer" target="_blank">Meta Quest 3</a> (if no XR headset is available, the emulator provided by
+<a class="reference external" href="https://nvidia.github.io/IsaacTeleop" rel="noopener noreferrer" target="_blank">Isaac Teleop Core</a> can be used instead)</p></li>
+<li><p>Unitree H2 robot powered on and connected to the host machine via Ethernet</p></li>
+</ul>
+</section>
+<section id="set-up-development-environment">
+<h3>Set Up Development Environment<a class="headerlink" href="#set-up-development-environment" title="Link to this heading">#</a></h3>
+<ol class="arabic simple">
+<li><p>Set up your Isaac ROS development environment by following the
+<a class="reference external" href="https://nvidia-isaac-ros.github.io/getting_started/index.html" rel="noopener noreferrer" target="_blank">Isaac ROS getting started guide</a>.</p></li>
+<li><p>Set up the Unitree H2 with a Jetson AGX Thor connected to it by following these guides:</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://support.unitree.com/home/en/H2_developer/about_H2" rel="noopener noreferrer" target="_blank">Unitree H2 Developer Guide</a></p></li>
+<li><p><a class="reference external" href="https://support.unitree.com/home/en/H2_developer/quick_development" rel="noopener noreferrer" target="_blank">Unitree H2 Quick Development</a></p></li>
+</ul>
+</li>
+</ol>
+</section>
+<section id="build-isaac-ros-unitree-h2-teleop-bringup">
+<h3>Build <code class="docutils literal notranslate"><span class="pre">isaac_ros_unitree_h2_teleop_bringup</span></code><a class="headerlink" href="#build-isaac-ros-unitree-h2-teleop-bringup" title="Link to this heading">#</a></h3>
+<ol class="arabic">
+<li><p>Follow the internal instructions to checkout the Isaac ROS mono-repo from GitLab.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>--branch<span class="w"> </span>devel/h2-gr00t-ra<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>ssh://git@gitlab-master.nvidia.com:12051/Isaac/isaac.git
+</pre></div>
+</div>
+</li>
+<li><p>Build and install Isaac ROS CLI</p>
+<p><a class="reference external" href="https://gitlab-master.nvidia.com/Isaac/isaac/-/tree/main#build-isaac-ros-cli-from-source" rel="noopener noreferrer" target="_blank">Build Isaac ROS CLI from source</a></p>
+<p>We need the internal version to use the GitLab docker image cache.</p>
+</li>
+<li><p>Activate the Isaac ROS environment:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>isaac-ros<span class="w"> </span>activate<span class="w"> </span>--build-local
+</pre></div>
+</div>
+<p>The build should be pulling containers from GitLab, rather than building everything from stratch, if it doesn’t do that.</p>
+</li>
+<li><p>Build the package from source:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>colcon<span class="w"> </span>build<span class="w"> </span>--packages-up-to<span class="w"> </span>isaac_ros_unitree_h2_teleop_bringup
+</pre></div>
+</div>
+</li>
+<li><p>Source the ROS workspace:</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Make sure to repeat this step in <strong>every</strong> terminal created inside the Isaac ROS environment. Because this package was built from source, the enclosing workspace must be sourced for ROS to be able to find the package’s contents.</p>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">source</span><span class="w"> </span>install/setup.bash
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+<section id="run-cloudxr-server">
+<h3>Run CloudXR Server<a class="headerlink" href="#run-cloudxr-server" title="Link to this heading">#</a></h3>
+<ol class="arabic">
+<li><p>Start the CloudXR runtime. Be sure to review and accept the EULA:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>To accept the EULA prompt in non-interactive settings, pass the flag:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr<span class="w"> </span>--accept-eula
+</pre></div>
+</div>
+</div>
+</li>
+<li><p>In a <strong>new</strong> terminal, activate the Isaac ROS environment:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>isaac-ros<span class="w"> </span>activate
+</pre></div>
+</div>
+</li>
+<li><p>Activate the CloudXR environment:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">source</span><span class="w"> </span>~/.cloudxr/run/cloudxr.env
+</pre></div>
+</div>
+</li>
+<li><p>Connect the XR headset to the teleop server. Follow the
+<a class="reference external" href="https://nvidia.github.io/IsaacTeleop/main/getting_started/quick_start.html#connect-an-xr-headset" rel="noopener noreferrer" target="_blank">headset connection guide</a>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If you are running this on Thor, make sure to set the <code class="docutils literal notranslate"><span class="pre">Video</span> <span class="pre">Codec</span></code> to <code class="docutils literal notranslate"><span class="pre">H.264</span></code>, otherwise
+the headset will fail to connect.</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>The world frame of the headset is defined as the position of the headset and controllers
+at the moment of connection. Stand still and face the robot before connecting to establish
+a consistent world frame. To reset the world frame, disconnect and reconnect the headset
+while stationary. On real hardware, ensure the robot is stopped (<code class="docutils literal notranslate"><span class="pre">blend_ratio</span></code> set to
+<code class="docutils literal notranslate"><span class="pre">0.0</span></code>) before disconnecting.</p>
+</div>
+</li>
+<li><p>Launch the application:</p>
+<div class="sd-tab-set docutils">
+<input checked="checked" id="sd-tab-item-0" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label" for="sd-tab-item-0">
+MuJoCo Simulation</label><div class="sd-tab-content docutils">
+<ol class="arabic">
+<li><p>Launch the teleop application:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ros2<span class="w"> </span>launch<span class="w"> </span>isaac_ros_unitree_h2_teleop_bringup<span class="w"> </span>unitree_h2_teleop.launch.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>hardware_type:<span class="o">=</span>mujoco<span class="w"> </span>input_mode:<span class="o">=</span>teleop
+</pre></div>
+</div>
+<p>This opens the MuJoCo viewer with the H2 robot. The virtual gantry holds the robot
+upright during startup. Press <strong>G</strong> to toggle the gantry on/off, and use <strong>[</strong> / <strong>]</strong>
+to shorten or lengthen the rope.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>In simulation, <code class="docutils literal notranslate"><span class="pre">blend_ratio</span></code> defaults to <code class="docutils literal notranslate"><span class="pre">1.0</span></code> so the policy is active
+immediately.</p>
+</div>
+<p>… code:: bash</p>
+<blockquote>
+<div><p>ros2 param set /safety_controller_with_hands blend_ratio 1.0</p>
+</div></blockquote>
+</li>
+<li><p>With the controllers in your hands, start moving them. You should see the robot’s arms
+track your movements in the MuJoCo viewer.</p></li>
+</ol>
+</div>
+<input id="sd-tab-item-1" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label" for="sd-tab-item-1">
+Real Robot</label><div class="sd-tab-content docutils">
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Before operating on real hardware:</p>
+<ol class="arabic simple">
+<li><p>Ensure the working area is free of any persons or other potential hazards.</p></li>
+<li><p>Always start with <code class="docutils literal notranslate"><span class="pre">blend_ratio</span></code> at <code class="docutils literal notranslate"><span class="pre">0.0</span></code>. You can increase from <code class="docutils literal notranslate"><span class="pre">0.0</span></code> to <code class="docutils literal notranslate"><span class="pre">1.0</span></code> in a single step since the ratio is smoothed internally.</p></li>
+<li><p>Ensure the waist yaw joint is close to zero before launching. It is uncontrolled and will be held at its current position, so a rotated torso can degrade balance.</p></li>
+<li><p>Have the disable command ready (refer to the <strong>disable</strong> step below).</p></li>
+</ol>
+</div>
+<ol class="arabic">
+<li><p><strong>Set up the network</strong> — clone <code class="docutils literal notranslate"><span class="pre">isaac_ros_robots</span></code> and run the setup script <strong>outside</strong> the docker container on the host machine:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span><span class="si">${</span><span class="nv">ISAAC_ROS_WS</span><span class="si">}</span>/src<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_robots.git
+</pre></div>
+</div>
+<p>Run the network setup script:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="si">${</span><span class="nv">ISAAC_ROS_WS</span><span class="si">}</span>/src/isaac_ros_robots/isaac_ros_robots_tools/scripts/setup_network.py
+</pre></div>
+</div>
+<p>The script will interactively guide you through the network setup. Make sure to select
+the network interface that is physically connected to the H2 robot.</p>
+</li>
+<li><p><strong>Launch the application</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ros2<span class="w"> </span>launch<span class="w"> </span>isaac_ros_unitree_h2_teleop_bringup<span class="w"> </span>unitree_h2_teleop.launch.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>hardware_type:<span class="o">=</span>real<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>input_mode:<span class="o">=</span>teleop<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>network_interface:<span class="o">=</span>&lt;your_interface&gt;
+</pre></div>
+</div>
+<p>Replace <code class="docutils literal notranslate"><span class="pre">&lt;your_interface&gt;</span></code> with the network interface you selected in the previous step.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The application starts but the robot will not move because <code class="docutils literal notranslate"><span class="pre">blend_ratio</span></code> defaults
+to <code class="docutils literal notranslate"><span class="pre">0.0</span></code> on real hardware.</p>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>To verify that XR commands are reaching the controller:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ros2<span class="w"> </span>topic<span class="w"> </span><span class="nb">echo</span><span class="w"> </span>/xr_teleop/ee_poses
+ros2<span class="w"> </span>topic<span class="w"> </span><span class="nb">echo</span><span class="w"> </span>/xr_teleop/root_twist
+</pre></div>
+</div>
+</div>
+</li>
+<li><p><strong>To disable the robot</strong>, set the blend ratio back to zero:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ros2<span class="w"> </span>param<span class="w"> </span><span class="nb">set</span><span class="w"> </span>/safety_controller<span class="w"> </span>blend_ratio<span class="w"> </span><span class="m">0</span>.0
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Keep this command in your shell history so you can execute it quickly if something
+goes wrong.</p>
+</div>
+</li>
+<li><p><strong>Enable the robot</strong> by setting the blend ratio:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ros2<span class="w"> </span>param<span class="w"> </span><span class="nb">set</span><span class="w"> </span>/safety_controller<span class="w"> </span>blend_ratio<span class="w"> </span><span class="m">1</span>.0
+</pre></div>
+</div>
+<p>The robot will start tracking your hand movements.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>After several minutes of operation, the H2 hands may lower due to
+temperature limits. Allow the robot to cool down before resuming.</p>
+</div>
+</li>
+</ol>
+</div>
+</div>
+</li>
+</ol>
+</section>
+<section id="controller-reference">
+<h3>Controller Reference<a class="headerlink" href="#controller-reference" title="Link to this heading">#</a></h3>
+<p>The PICO 4 Ultra headset and Meta Quest 3 include two handheld controllers.
+The following table summarizes what each input does during teleoperation:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 70.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Input</p></th>
+<th class="head"><p>Action</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><strong>Left joystick</strong></p></td>
+<td><p>Move the robot: up = forward, down = backward, left = strafe left, right = strafe right</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>Right joystick</strong> — left / right</p></td>
+<td><p>Rotate the robot in place (yaw)</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>Controller motion (6-DOF)</strong></p></td>
+<td><p>The end-effector pose tracks the physical controller; moving and rotating the
+controller moves the robot’s hand correspondingly</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>Triggers</strong> (each controller has two)</p></td>
+<td><p>Open and close the finger joints of the tri-finger hand</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<section id="api">
+<h2>API<a class="headerlink" href="#api" title="Link to this heading">#</a></h2>
+<section id="usage">
+<h3>Usage<a class="headerlink" href="#usage" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ros2<span class="w"> </span>launch<span class="w"> </span>isaac_ros_unitree_h2_teleop_bringup<span class="w"> </span>unitree_h2_teleop.launch.py
+</pre></div>
+</div>
+</section>
+<section id="launch-arguments">
+<h3>Launch Arguments<a class="headerlink" href="#launch-arguments" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Launch Argument</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">hardware_type</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">string</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">mujoco</span></code></p></td>
+<td><p>Hardware platform. Options: <code class="docutils literal notranslate"><span class="pre">mujoco</span></code> (simulation), <code class="docutils literal notranslate"><span class="pre">real</span></code> (physical robot).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">input_mode</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">string</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">teleop</span></code></p></td>
+<td><p>Input source. Options: <code class="docutils literal notranslate"><span class="pre">teleop</span></code> (XR device via CloudXR), <code class="docutils literal notranslate"><span class="pre">markers</span></code> (RViz interactive markers).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">network_interface</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">string</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">eno1</span></code></p></td>
+<td><p>Network interface for H2 communication. Only used when <code class="docutils literal notranslate"><span class="pre">hardware_type:=real</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">enable_viewer</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">bool</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>Enable MuJoCo GUI viewer. Only used when <code class="docutils literal notranslate"><span class="pre">hardware_type:=mujoco</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">use_rviz</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">bool</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Enable RViz visualization. Automatically set to <code class="docutils literal notranslate"><span class="pre">true</span></code> when <code class="docutils literal notranslate"><span class="pre">input_mode:=markers</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">use_foxglove</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">bool</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Start Foxglove bridge for remote monitoring.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="ros-topics">
+<h3>ROS Topics<a class="headerlink" href="#ros-topics" title="Link to this heading">#</a></h3>
+<p>Topics depend on the <code class="docutils literal notranslate"><span class="pre">input_mode</span></code> launch argument. In <code class="docutils literal notranslate"><span class="pre">teleop</span></code> mode:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>ROS Topic</p></th>
+<th class="head"><p>Interface</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/xr_teleop/ee_poses</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">geometry_msgs/PoseArray</span></code></p></td>
+<td><p>End-effector (wrist) poses from XR headset</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/xr_teleop/root_twist</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">geometry_msgs/TwistStamped</span></code></p></td>
+<td><p>Root velocity command from XR headset</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/xr_teleop/finger_joints</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">sensor_msgs/JointState</span></code></p></td>
+<td><p>Retargeted finger joint angles from XR hand tracking</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/xr_teleop/controller_data</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">std_msgs/ByteMultiArray</span></code></p></td>
+<td><p>Raw controller state encoded as msgpack (button, trigger, thumbstick, and pose data)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>In <code class="docutils literal notranslate"><span class="pre">markers</span></code> mode:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>ROS Topic</p></th>
+<th class="head"><p>Interface</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/ik_controller/reference_pose</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">geometry_msgs/PoseArray</span></code></p></td>
+<td><p>End-effector poses published by the RViz interactive marker node</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="ros-parameters">
+<h3>ROS Parameters<a class="headerlink" href="#ros-parameters" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Node</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">blend_ratio</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/safety_controller</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">double</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0.0</span></code> (real), <code class="docutils literal notranslate"><span class="pre">1.0</span></code> (sim)</p></td>
+<td><p>Policy activation level (0.0–1.0). Dynamically adjustable at runtime.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
+<section id="test-without-an-xr-headset-interactive-markers-mode">
+<h3>Test Without an XR Headset (Interactive Markers Mode)<a class="headerlink" href="#test-without-an-xr-headset-interactive-markers-mode" title="Link to this heading">#</a></h3>
+<p>If the XR headset is unavailable or you want to isolate whether an issue is
+with XR or the robot itself, launch with <code class="docutils literal notranslate"><span class="pre">input_mode:=markers</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ros2<span class="w"> </span>launch<span class="w"> </span>isaac_ros_unitree_h2_teleop_bringup<span class="w"> </span>unitree_h2_teleop.launch.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>input_mode:<span class="o">=</span>markers
+</pre></div>
+</div>
+<p>RViz opens automatically with 6-DOF interactive markers for each wrist.
+The <code class="docutils literal notranslate"><span class="pre">/ik_controller/reference_pose</span></code> topic
+replaces the <code class="docutils literal notranslate"><span class="pre">/xr_teleop/ee_poses</span></code> topic in this mode.</p>
+<ol class="arabic">
+<li><p>Publish to <code class="docutils literal notranslate"><span class="pre">/cmd_vel</span></code> to start the controller:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ros2<span class="w"> </span>topic<span class="w"> </span>pub<span class="w"> </span>--rate<span class="w"> </span><span class="m">10</span><span class="w"> </span>/cmd_vel<span class="w"> </span>geometry_msgs/msg/Twist<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span><span class="s2">&quot;{linear: {x: 0.0, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}&quot;</span>
+</pre></div>
+</div>
+</li>
+<li><p>In the RViz <strong>Displays</strong> panel, find the <strong>IK Target Marker</strong> display and set
+its <strong>Interactive Markers Namespace</strong> to <code class="docutils literal notranslate"><span class="pre">/ik_controller_marker</span></code>. You can
+then drag the wrist markers to command the arms.</p></li>
+</ol>
+</section>
+<section id="remote-monitoring-with-foxglove">
+<h3>Remote Monitoring with Foxglove<a class="headerlink" href="#remote-monitoring-with-foxglove" title="Link to this heading">#</a></h3>
+<p>If visualization via Foxglove is desired, add
+<code class="docutils literal notranslate"><span class="pre">use_foxglove:=true</span></code> to any launch command to start the Foxglove bridge:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ros2<span class="w"> </span>launch<span class="w"> </span>isaac_ros_unitree_h2_teleop_bringup<span class="w"> </span>unitree_h2_teleop.launch.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>use_foxglove:<span class="o">=</span><span class="nb">true</span>
+</pre></div>
+</div>
+<p>Refer to the <a class="reference external" href="https://foxglove.dev/docs/studio" rel="noopener noreferrer" target="_blank">Foxglove Studio documentation</a> for
+instructions on connecting Foxglove Studio.</p>
+</section>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../index.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Isaac ROS Integrations</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../../license.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">License</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+
+
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#tutorial-unitree-h2-xr-teleop">Tutorial: Unitree H2 XR Teleop</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#set-up-development-environment">Set Up Development Environment</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#build-isaac-ros-unitree-h2-teleop-bringup">Build <code class="docutils literal notranslate"><span class="pre">isaac_ros_unitree_h2_teleop_bringup</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#run-cloudxr-server">Run CloudXR Server</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#controller-reference">Controller Reference</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#api">API</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#usage">Usage</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#launch-arguments">Launch Arguments</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ros-topics">ROS Topics</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ros-parameters">ROS Parameters</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#test-without-an-xr-headset-interactive-markers-mode">Test Without an XR Headset (Interactive Markers Mode)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#remote-monitoring-with-foxglove">Remote Monitoring with Foxglove</a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=55c26ed414f5f8a31ebb"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=55c26ed414f5f8a31ebb"></script>
+
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+<a class="footer-brand logo" href="https://www.nvidia.com">
+  <img src="../../../_static/nvidia-logo-horiz-rgb-1c-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA"/>
+  <img src="../../../_static/nvidia-logo-horiz-rgb-1c-wht-for-screen.svg" class="logo__image only-dark" alt="NVIDIA"/>
+</a></div>
+      
+        <div class="footer-item">
+
+<div class="footer-links">
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">Privacy Policy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Your Privacy Choices</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/">Terms of Service</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/accessibility/">Accessibility</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/company-policies/">Corporate Policies</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/product-security/">Product Security</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/contact/">Contact</a>
+  
+  
+  
+</div>
+</div>
+      
+        <div class="footer-item">
+
+
+
+
+  <p class="copyright">
+    
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on May 11, 2026.
+      <br/>
+    
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+  </body>
+</html>
