@@ -148,8 +148,13 @@ Call ``submit`` with a VizBuffer or any object exposing
                                              std::to_string(res.height) + ", " + std::to_string(res.width) + ")");
                 }
 
-                // Row pitch: explicit if strides present + non-null (slice
-                // views, padded buffers); else tightly packed.
+                // Row pitch: explicit when strides present + non-null (slice
+                // views, padded buffers); else tightly packed. We require
+                // row-major, tightly-packed-within-each-row layout because
+                // submit() does a single cudaMemcpy2D per row at row_pitch
+                // stride — non-unit pixel/channel strides would silently
+                // mis-pack the destination texture.
+                const std::size_t bpp = viz::bytes_per_pixel(fmt);
                 std::size_t pitch_bytes = 0;
                 if (iface.contains("strides") && !iface["strides"].is_none())
                 {
@@ -159,7 +164,31 @@ Call ``submit`` with a VizBuffer or any object exposing
                         throw std::runtime_error("submit_cuda_array: strides rank " + std::to_string(strides.size()) +
                                                  " does not match shape rank " + std::to_string(expected_rank));
                     }
-                    pitch_bytes = strides[0].cast<std::size_t>();
+                    const std::ptrdiff_t row_stride = strides[0].cast<std::ptrdiff_t>();
+                    const std::ptrdiff_t pixel_stride = strides[1].cast<std::ptrdiff_t>();
+                    if (row_stride < static_cast<std::ptrdiff_t>(w * bpp))
+                    {
+                        throw std::runtime_error("submit_cuda_array: row stride " + std::to_string(row_stride) +
+                                                 " is less than width*bpp " + std::to_string(w * bpp) +
+                                                 " — non-positive or reversed strides aren't supported");
+                    }
+                    if (pixel_stride != static_cast<std::ptrdiff_t>(bpp))
+                    {
+                        throw std::runtime_error("submit_cuda_array: pixel stride " + std::to_string(pixel_stride) +
+                                                 " does not match bytes-per-pixel " + std::to_string(bpp) +
+                                                 " — transposed / non-contiguous-per-pixel layout isn't supported");
+                    }
+                    if (expected_rank == 3)
+                    {
+                        const std::ptrdiff_t channel_stride = strides[2].cast<std::ptrdiff_t>();
+                        if (channel_stride != 1)
+                        {
+                            throw std::runtime_error("submit_cuda_array: channel stride " +
+                                                     std::to_string(channel_stride) +
+                                                     " is not 1 — non-contiguous channels aren't supported");
+                        }
+                    }
+                    pitch_bytes = static_cast<std::size_t>(row_stride);
                 }
 
                 py::tuple data = iface["data"].cast<py::tuple>();

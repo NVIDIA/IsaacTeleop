@@ -16,17 +16,22 @@ import isaacteleop.viz as viz
 def _gpu_available() -> bool:
     # Vulkan is the source of truth here. Cheap probe: try to construct
     # an offscreen session; if Vulkan instance / device creation fails,
-    # there's no usable GPU on this host.
+    # there's no usable GPU on this host. Narrow the catch to RuntimeError
+    # (what pybind11 surfaces std::runtime_error as) so binding regressions
+    # — AttributeError, TypeError — propagate and fail loudly.
+    cfg = viz.VizSessionConfig()
+    cfg.mode = viz.DisplayMode.kOffscreen
+    cfg.window_width = 64
+    cfg.window_height = 64
+    s = None
     try:
-        cfg = viz.VizSessionConfig()
-        cfg.mode = viz.DisplayMode.kOffscreen
-        cfg.window_width = 64
-        cfg.window_height = 64
         s = viz.VizSession.create(cfg)
-        s.destroy()
-        return True
-    except Exception:
+    except RuntimeError:
         return False
+    finally:
+        if s is not None:
+            s.destroy()
+    return True
 
 
 pytestmark = pytest.mark.skipif(
