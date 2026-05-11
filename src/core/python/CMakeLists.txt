@@ -82,12 +82,18 @@ add_custom_target(python_package ALL
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-retargeters.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-retargeters-lite.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-grounding.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
-    # `viz_py` only exists when BUILD_VIZ=ON; the generator expression
-    # collapses to an empty token when BUILD_VIZ is OFF so the DEPENDS
-    # list is well-formed in either configuration.
-    DEPENDS deviceio_trackers_py deviceio_session_py oxr_py plugin_manager_py schema_py retargeting_engine_python retargeters_python retargeting_engine_ui_python teleop_session_manager_python cloudxr_python $<$<BOOL:${BUILD_VIZ}>:viz_py>
+    DEPENDS deviceio_trackers_py deviceio_session_py oxr_py plugin_manager_py schema_py retargeting_engine_python retargeters_python retargeting_engine_ui_python teleop_session_manager_python cloudxr_python
     COMMENT "Preparing Python package structure"
 )
+
+# viz_py only exists when BUILD_VIZ=ON. Use add_dependencies (not a
+# DEPENDS genex) so the build-order constraint is unconditional under
+# all generators — Windows ninja runs the wheel build in parallel
+# with viz_py's link otherwise and trips a "Permission denied" race
+# on the .pyd file.
+if(BUILD_VIZ)
+    add_dependencies(python_package viz_py)
+endif()
 
 # When deps/v2d/src/robotic_grounding/ is populated (script or CI action),
 # stage it into the wheel staging dir so the resulting Teleop wheel ships
@@ -139,6 +145,9 @@ add_custom_command(
             $<TARGET_FILE:oxr_py>
             $<TARGET_FILE:plugin_manager_py>
             $<TARGET_FILE:schema_py>
+            # viz_py's .pyd file as a file-level dependency when BUILD_VIZ=ON
+            # — keeps the wheel build from racing the link. Empty otherwise.
+            $<$<BOOL:${BUILD_VIZ}>:$<TARGET_FILE:viz_py>>
     WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
     COMMENT "Generating .pyi stub files for isaacteleop modules"
 )
