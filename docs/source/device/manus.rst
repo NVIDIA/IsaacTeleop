@@ -1,6 +1,5 @@
-..
-   SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-   SPDX-License-Identifier: Apache-2.0
+.. SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+.. SPDX-License-Identifier: Apache-2.0
 
 Manus Gloves
 ============
@@ -9,6 +8,10 @@ A Linux-only plugin for integrating `Manus <https://www.manus-meta.com/>`_ glove
 into the Isaac Teleop framework. It provides full hand-joint tracking via the
 Manus SDK and injects the resulting poses into the OpenXR hand-tracking layer so
 any downstream retargeter can consume them transparently.
+
+.. contents:: On this page
+   :local:
+   :depth: 2
 
 Components
 ----------
@@ -73,8 +76,8 @@ The script will:
 When run inside a container, ``install_manus.sh`` skips the udev step and
 reminds you to run ``install_udev_rules.sh`` on the host.
 
-Manual
-~~~~~~
+Manual installation
+~~~~~~~~~~~~~~~~~~~
 
 If you prefer to install manually:
 
@@ -116,15 +119,30 @@ Then build from the root:
 Running the Plugin
 ------------------
 
-1. Set up the CloudXR environment
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+1. Start the CloudXR runtime and load its environment
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Source the CloudXR environment and start the runtime before running the plugin:
+The Manus plugin connects to the Teleop session through the CloudXR / OpenXR
+runtime, so the runtime must be running and its environment sourced in the
+shell that launches the plugin.
+
+In one terminal, start the CloudXR runtime (keep it running for the duration
+of the session):
 
 .. code-block:: bash
 
-   export NV_CXR_RUNTIME_DIR=~/.cloudxr/run
-   export XR_RUNTIME_JSON=~/.cloudxr/openxr_cloudxr.json
+   python -m isaacteleop.cloudxr
+
+In the terminal you will use to run the plugin, source the environment file
+that the runtime writes on startup. This points the OpenXR loader at CloudXR:
+
+.. code-block:: bash
+
+   source ~/.cloudxr/run/cloudxr.env
+
+See :ref:`run-cloudxr-server` and :ref:`load-cloudxr-environment-variables`
+in the Quick Start for the full CloudXR runtime setup, including EULA
+acceptance and firewall configuration.
 
 2. Verify with the CLI tool
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -141,7 +159,9 @@ Visualizer** window showing a top-down and side view of each hand.
 3. Run the plugin
 ~~~~~~~~~~~~~~~~~~
 
-The plugin is installed to the `install` directory, please ensure the CLI tool is not running when running the plugin.
+The plugin is installed to the ``install`` directory. Ensure the CLI tool is
+not running when you launch the plugin — only one process can hold the Manus
+SDK connection at a time.
 
 .. code-block:: bash
 
@@ -187,7 +207,9 @@ Troubleshooting
    * - No data received
      - Ensure Manus Core is running and the gloves are connected and calibrated.
    * - CloudXR runtime errors
-     - Make sure ``scripts/setup_cloudxr_env.sh`` has been sourced before running.
+     - Make sure the CloudXR runtime is running (``python -m isaacteleop.cloudxr``)
+       and that ``~/.cloudxr/run/cloudxr.env`` has been sourced in the same
+       terminal as the plugin.
    * - Permission denied for USB devices
      - udev rules must be installed on the host. Run ``./install_udev_rules.sh``
        from the host (not inside a container), then unplug and replug the
