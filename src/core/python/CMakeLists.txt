@@ -82,7 +82,10 @@ add_custom_target(python_package ALL
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-retargeters.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-retargeters-lite.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-grounding.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
-    DEPENDS deviceio_trackers_py deviceio_session_py oxr_py plugin_manager_py schema_py retargeting_engine_python retargeters_python retargeting_engine_ui_python teleop_session_manager_python cloudxr_python
+    # `viz_py` only exists when BUILD_VIZ=ON; the generator expression
+    # collapses to an empty token when BUILD_VIZ is OFF so the DEPENDS
+    # list is well-formed in either configuration.
+    DEPENDS deviceio_trackers_py deviceio_session_py oxr_py plugin_manager_py schema_py retargeting_engine_python retargeters_python retargeting_engine_ui_python teleop_session_manager_python cloudxr_python $<$<BOOL:${BUILD_VIZ}>:viz_py>
     COMMENT "Preparing Python package structure"
 )
 
