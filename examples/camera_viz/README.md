@@ -74,3 +74,17 @@ uv run --with ./build/wheels/isaacteleop-*.whl --with cupy-cuda12x --with pyyaml
 ```
 
 Press Ctrl-C (window mode) or close the headset session (XR mode) to exit.
+
+## RTP sender (`camera_send.py`)
+
+Run on the robot to ship a camera feed over the network as RTP H.264:
+
+```bash
+uv run --with ./build/wheels/isaacteleop-*.whl \
+       --with cupy-cuda12x --with pyyaml --with opencv-python --with scipy \
+       python examples/camera_viz/camera_send.py examples/camera_viz/configs/rtp_send_test.yaml
+```
+
+The workstation-side receiver runs `camera_viz.py` against
+`configs/rtp_receive_test.yaml`. Both configs toggle window↔XR via a
+single ``mode:`` field.

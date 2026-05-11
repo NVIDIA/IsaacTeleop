@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# RTP H.264 sender test config — defaults to a V4L2 source on
+# /dev/video0 (matching v4l2_test.yaml's 2560x720 ZED Mini SBS mode at
+# 30fps), shipping it to a workstation as RTP H.264.
+#
+# Edit ``host`` to point at the workstation IP. The workstation runs
+# ``camera_viz.py rtp_receive_test.yaml`` to display the stream.
+#
+# Single source per sender process — mono-only until per-eye QuadLayer
+# binding lands (see memory note "Stereo XR rendering needs per-view
+# QuadLayer buffers"). For two cameras, run two camera_send processes.
+#
+# Swap to OAK-D / ZED:
+#   source.type: oakd      mode: mono, camera_socket: RGB, width/height/fps
+#   source.type: zed       stereo: false, resolution: HD720, fps: 30
+
+source:
+  type: v4l2
+  name: cam
+  device: /dev/video0
+  width: 2560
+  height: 720
+  fps: 30
+
+sender:
+  host: 192.168.1.100        # workstation IP — set to your receiver
+  port: 5000
+  width: 2560
+  height: 720
+  fps: 30
+  bitrate: 6000000           # 6 Mbps — sane for 2560x720@30 teleop
+  profile: baseline          # baseline = lowest decoder cost; ULL-friendly
+  gop: 15                    # IDR every ~0.5s; faster recovery on packet loss
+  mtu: 1400                  # under Ethernet MTU so routers don't fragment

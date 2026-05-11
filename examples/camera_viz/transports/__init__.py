@@ -12,5 +12,6 @@ side handles network packetization, the other handles GPU codec work.
 """
 
 from .rtp_h264_receiver import RtpH264Receiver
+from .rtp_h264_sender import RtpH264Sender
 
-__all__ = ["RtpH264Receiver"]
+__all__ = ["RtpH264Receiver", "RtpH264Sender"]

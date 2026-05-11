@@ -85,6 +85,13 @@ class RtpH264Source(FrameSource):
         for b in self._gpu_buffers:
             b[..., 3] = 255
 
+        # Bind NVDEC to whichever GPU the buffers landed on. On multi-GPU
+        # hosts VizSession may have picked a non-default Vulkan adapter and
+        # the buffers live there; a default gpu_id=0 NVDEC would write to
+        # the wrong device and trip a device-mismatch on the GPU view.
+        self._gpu_device_id = int(self._gpu_buffers[0].device.id)
+        decoder_gpu_id = self._gpu_device_id if gpu_id == 0 else gpu_id
+
         self._receiver = RtpH264Receiver(
             port=port, buffer_size=rtp_buffer_size, latency_ms=0
         )
@@ -92,7 +99,7 @@ class RtpH264Source(FrameSource):
             width=width,
             height=height,
             full_range=(color_range == "full"),
-            gpu_id=gpu_id,
+            gpu_id=decoder_gpu_id,
             low_latency=True,
         )
 
@@ -158,6 +165,15 @@ class RtpH264Source(FrameSource):
         self._connected = False
 
     def _produce_loop(self) -> None:
+        import cupy as cp
+
+        # Pin to the GPU our RGBA buffers + NVDEC instance live on. On
+        # multi-GPU hosts the producer thread otherwise defaults to GPU 0
+        # and the NV12→RGBA kernel launches on the wrong device.
+        with cp.cuda.Device(self._gpu_device_id):
+            self._produce_loop_inner()
+
+    def _produce_loop_inner(self) -> None:
         while not self._stop.is_set():
             if not self._connected:
                 now = time.monotonic()

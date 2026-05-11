@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# RTP H.264 receiver test config — toggle ``mode`` between ``window``
+# and ``xr`` without touching anything else.
+#
+# Pair with a robot running ``camera_send.py rtp_send_test.yaml`` on the
+# same port. ``color_range: full`` is the right choice for streams
+# produced by OAK-D's on-device VPU (BT.601 full range); H.264 default
+# is ``limited`` (BT.709 limited).
+#
+# Stopgap caveat: PyNvVideoCodec NVDEC. The C++ NVENC/NVDEC at
+# ``examples/camera_streamer/operators/nv_stream_*`` will move to
+# ``src/codec/`` and replace this glue.
+
+mode: window     # window | xr
+window:
+  width: 1280
+  height: 720
+xr:
+  near_z: 0.05
+  far_z: 100.0
+clear_color: [0.05, 0.05, 0.08, 1.0]
+
+sources:
+  - name: rtp_in
+    type: rtp_h264
+    port: 5000
+    width: 1280
+    height: 720
+    color_range: limited     # 'full' for OAK-D VPU streams
+    placement:               # used only in xr mode; harmless in window
+      lock_mode: lazy
+      size: [1.0, 0.5625]
+      distance: 1.5
