@@ -25,7 +25,7 @@ import isaacteleop.viz as viz
 
 from pipeline import FrameSource, VizRunner
 from placements import PlacementConfig, PlacementStrategy, build as build_placement
-from sources import OakdSource, SyntheticSource, V4l2Source
+from sources import OakdSource, SyntheticSource, V4l2Source, ZedSource
 
 # A factory's output: (source, placement) pairs. Most source types yield one
 # entry; multi-stream cameras (OAK-D stereo, ZED stereo) yield one per stream.
@@ -98,8 +98,19 @@ def _build_source_entries(spec: dict, is_xr: bool) -> List[SourceEntry]:
         return [
             (s, _build_placement(placements.get(s.stream_name), is_xr)) for s in sources
         ]
+    if kind == "zed":
+        sources = ZedSource.build(
+            base_name=spec.get("base_name", "zed"),
+            resolution=spec.get("resolution", "HD720"),
+            fps=int(spec.get("fps", 30)),
+            serial_number=int(spec.get("serial_number", 0)),
+            bus_type=spec.get("bus_type", "usb"),
+            stereo=bool(spec.get("stereo", True)),
+        )
+        placements = spec.get("placements", {})
+        return [(s, _build_placement(placements.get(s.eye), is_xr)) for s in sources]
     raise ValueError(
-        f"camera_viz: unknown source type {kind!r} (known: synthetic, v4l2, oakd)"
+        f"camera_viz: unknown source type {kind!r} (known: synthetic, v4l2, oakd, zed)"
     )
 
 

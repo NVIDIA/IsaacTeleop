@@ -26,6 +26,9 @@ dependencies = [
 [project.optional-dependencies]
 v4l2 = ["opencv-python>=4.5"]
 oakd = ["depthai>=3.0"]
+# pyzed isn't on PyPI — install via ZED SDK's bundled `python -m pip install
+# /usr/local/zed/python -U` after running the SDK installer. Listed here for
+# documentation; uv won't resolve it.
 
 [tool.uv]
 python-preference = "only-managed"

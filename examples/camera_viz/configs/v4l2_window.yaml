@@ -1,26 +1,30 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-# Single V4L2 camera (typical USB webcam) → window. Useful sanity check
-# for the end-to-end zero-copy hot path on any dev box with a /dev/videoN.
+# Single V4L2 device → window. Defaults to the ZED Mini's HD720 SBS mode
+# at /dev/video0 (1280x720 per eye, concatenated to 2560x720 side-by-side,
+# YUYV @ 60fps — the only format the ZED exposes via UVC). The window
+# height matches the SBS pair so it isn't squished; the cv2 V4L2 backend
+# does YUYV→BGR on the CPU, GPU then channel-swaps BGR→RGBA.
 #
-# Most UVC cameras default to YUYV at 1080p@30fps over USB2. If your
-# camera also offers MJPG, set `fourcc: MJPG` to push higher framerates
-# (OpenCV decodes MJPG → BGR on the CPU; sub-ms at 720p, a few ms at
-# 1080p). For 4K MJPG at low latency, swap this source for an
-# NVDEC-backed one — out of scope for M7b.
+# Switch to a regular UVC webcam:
+#   device: /dev/videoN, set width/height/fps to a mode v4l2-ctl reports.
+# For MJPG-capable webcams, uncomment `fourcc: MJPG` to push higher fps
+# (cv2 decodes MJPG → BGR on the CPU; sub-ms at 720p, a few ms at 1080p).
+# A proper zero-copy path (V4L2 DMABUF → CUDA external memory) is the
+# planned end-state for GMSL deployments; see memory note.
 
 mode: window
 window:
-  width: 1280
+  width: 2560
   height: 720
 clear_color: [0.05, 0.05, 0.08, 1.0]
 
 sources:
-  - name: webcam
+  - name: zed_v4l2_sbs
     type: v4l2
     device: /dev/video0
-    width: 1280
+    width: 2560
     height: 720
-    fps: 30
-    # fourcc: MJPG   # uncomment for high-fps UVC paths
+    fps: 60
+    # fourcc: MJPG   # only if the device offers MJPG (ZED V4L2 is YUYV-only)

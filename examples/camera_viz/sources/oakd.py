@@ -285,7 +285,19 @@ class _OakdDevice:
     # ── Producer loop ─────────────────────────────────────────────────
 
     def _produce_loop(self) -> None:
+        import cupy as cp
         import depthai as dai  # local import keeps OAK-D-less envs runnable
+
+        # Pin to the GPU our slot buffers + per-slot CUDA streams were
+        # allocated on at __init__ time. On multi-GPU hosts VizSession may
+        # have picked a non-default Vulkan adapter and this producer thread
+        # otherwise defaults to GPU 0.
+        first_slot = next(iter(self._slots.values()))
+        device_id = int(first_slot.gpu_buffers[0].device.id)
+        with cp.cuda.Device(device_id):
+            self._produce_loop_inner(dai)
+
+    def _produce_loop_inner(self, dai) -> None:
 
         while not self._stop.is_set():
             if not self._connected:

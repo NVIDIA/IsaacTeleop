@@ -65,8 +65,9 @@ def alloc_pinned_host(shape: tuple, dtype: np.dtype) -> np.ndarray:
         logger.warning("pinned host alloc failed (%s); falling back to pageable", e)
         return np.empty(shape, dtype=dtype)
     arr = np.frombuffer(mem, dtype=dtype, count=int(np.prod(shape))).reshape(shape)
-    # Keep the pinned-memory handle alive for the lifetime of arr.
-    arr.base.__dict__["_pinned_mem"] = mem  # type: ignore[attr-defined]
+    # The reshape returns a view; ``arr.base`` chains back through the
+    # frombuffer ndarray to the PinnedMemory object via numpy's buffer
+    # protocol, so ``mem`` stays alive for as long as ``arr`` does.
     return arr
 
 
@@ -213,6 +214,15 @@ class PolledSource(FrameSource):
     # ── Producer loop ─────────────────────────────────────────────────
 
     def _produce_loop(self) -> None:
+        # Pin the producer thread to whichever GPU the pre-allocated buffers
+        # + producer stream live on. On multi-GPU hosts VizSession picks the
+        # Vulkan adapter (potentially non-default) and __init__ allocates on
+        # that device; this thread otherwise defaults to GPU 0 and every
+        # kernel + the stream itself fails the device-match check.
+        with self._cp.cuda.Device(int(self._gpu_buffers[0].device.id)):
+            self._produce_loop_inner()
+
+    def _produce_loop_inner(self) -> None:
         while not self._stop.is_set():
             if not self._connected:
                 now = time.monotonic()
