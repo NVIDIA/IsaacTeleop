@@ -98,9 +98,13 @@ class VizRunner:
 
     def wait(self) -> None:
         """Block until the render thread exits — either via ``stop()`` from
-        another thread or via the session reporting ``should_close()``."""
-        if self._thread is not None:
-            self._thread.join()
+        another thread or via the session reporting ``should_close()``.
+
+        Polls with a short timeout so Python's signal-delivery checkpoints
+        run; a bare ``thread.join()`` would swallow SIGINT for the duration
+        of the run."""
+        while self._thread is not None and self._thread.is_alive():
+            self._thread.join(timeout=0.1)
 
     def __enter__(self) -> "VizRunner":
         self.start()

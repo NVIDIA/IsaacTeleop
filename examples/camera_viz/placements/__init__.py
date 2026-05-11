@@ -13,6 +13,7 @@ from .lock_modes import (
     LazyLocked,
     Placement,
     PlacementConfig,
+    PlacementStrategy,
     WorldLocked,
     build,
 )
@@ -22,6 +23,7 @@ __all__ = [
     "LazyLocked",
     "Placement",
     "PlacementConfig",
+    "PlacementStrategy",
     "WorldLocked",
     "build",
 ]
