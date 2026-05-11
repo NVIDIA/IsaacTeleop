@@ -268,6 +268,58 @@ jobs:
           exit 1
         fi
 
+    # ── viz_python GPU tests ─────────────────────────────────────────
+    # build-ubuntu runs the headless Python tests (import smoke, protocol
+    # dict shape, numpy round-trip). The remaining viz_python suite —
+    # test_offscreen_session.py and the CuPy round-trips in
+    # test_array_interface.py — needs a real Vulkan / CUDA device, so we
+    # exercise it here against the wheel we just built.
+    #
+    # Pinned to one Python version (3.12). The bindings layer is thin;
+    # cross-Python coverage is already provided by the build-ubuntu
+    # matrix (which runs every viz_python test that doesn't need a GPU).
+
+    - name: Checkout source (for pyproject.toml + viz python tests)
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+
+    - name: Install uv
+      uses: ./.github/actions/setup-uv
+
+    - name: Download isaacteleop wheel (py3.12)
+      uses: actions/download-artifact@v7
+      with:
+        name: isaacteleop-wheels-${{ matrix.arch }}-py3.12
+        path: viz-python-wheels
+
+    - name: Run viz_python tests against the GPU
+      run: |
+        set -euo pipefail
+        shopt -s nullglob
+        wheels=(viz-python-wheels/isaacteleop-*.whl)
+        if (( ${#wheels[@]} == 0 )); then
+          echo "No isaacteleop wheel found"
+          ls -la viz-python-wheels || true
+          exit 1
+        fi
+        # Same retry treatment as the C++ [gpu] tests above — the
+        # self-hosted runner is shared with other GPU jobs and Vulkan
+        # device enumeration occasionally returns empty under contention.
+        run_pytest() {
+          uv run --python 3.12 \
+                 --with "${wheels[0]}" \
+                 --with pytest \
+                 --with numpy \
+                 --with cupy-cuda12x \
+                 pytest -v --tb=short src/viz/python_tests/
+        }
+        if ! run_pytest; then
+          echo "::warning::viz_python GPU tests failed on first attempt; retrying after 5s"
+          sleep 5
+          run_pytest
+        fi
+
   test-viz-sanitizers:
     # Builds the viz module with AddressSanitizer + UndefinedBehaviorSanitizer
     # and runs only the [unit]-tagged Catch2 tests on a GPU-less GitHub-hosted
