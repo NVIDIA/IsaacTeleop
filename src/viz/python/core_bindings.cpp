@@ -4,7 +4,7 @@
 // Bindings for the viz_core surface: enums, plain-data types
 // (Resolution, Rect2D, Pose3D, Fov), VizBuffer, HostImage.
 
-#include "bind_helpers.hpp"
+#include "bindings_helpers.hpp"
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>

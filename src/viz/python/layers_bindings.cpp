@@ -6,9 +6,9 @@
 //
 // Layers are owned by the session — Python handles are non-owning
 // (py::nodelete). VizSession.add_quad_layer() is the only constructor;
-// it lives in bind_session.cpp.
+// it lives in session_bindings.cpp.
 
-#include "bind_helpers.hpp"
+#include "bindings_helpers.hpp"
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>

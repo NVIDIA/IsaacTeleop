@@ -7,8 +7,9 @@
 // `_viz.so` lives next to the package `__init__.py`, which re-exports
 // the symbols as `isaacteleop.viz`.
 //
-// The actual bindings are split along the C++ dep DAG (one bind_*.cpp
-// per sub-module). Registration order here must match the DAG:
+// The actual bindings are split along the C++ dep DAG (one
+// <module>_bindings.cpp per sub-module). Registration order here must
+// match the DAG:
 // core → layers → session. Types referenced by signatures in later
 // TUs (e.g. PixelFormat in QuadLayer::Config) need to be registered
 // first or pybind11 fails at import time.
@@ -17,7 +18,7 @@
 // release the GIL via py::call_guard so a Python frame-loop thread
 // doesn't block other threads while waiting on Vulkan / NVDEC.
 
-#include "bind_helpers.hpp"
+#include "bindings_helpers.hpp"
 
 #include <pybind11/pybind11.h>
 

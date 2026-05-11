@@ -3,10 +3,11 @@
 //
 // Bindings for viz_session: FrameInfo, FrameTimingStats, GpuFrameTiming,
 // VizSessionConfig, VizSession. VizSession owns layers — add_quad_layer
-// here returns a non-owning handle defined in bind_layers.cpp, so this
-// TU has to run after bind_layers in PYBIND11_MODULE.
+// here returns a non-owning handle whose py::class_ is registered in
+// layers_bindings.cpp, so bind_layers(m) must run before bind_session(m)
+// in PYBIND11_MODULE.
 
-#include "bind_helpers.hpp"
+#include "bindings_helpers.hpp"
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>

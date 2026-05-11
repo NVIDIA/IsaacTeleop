@@ -12,9 +12,9 @@ cmake_minimum_required(VERSION 3.20)
 # entry point and calls into the bind_*(m) helpers in the others.
 pybind11_add_module(viz_py
     viz_bindings.cpp
-    bind_core.cpp
-    bind_layers.cpp
-    bind_session.cpp
+    core_bindings.cpp
+    layers_bindings.cpp
+    session_bindings.cpp
 )
 
 target_link_libraries(viz_py

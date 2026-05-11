@@ -6,7 +6,7 @@
 // Shared helpers for the viz pybind11 bindings.
 //
 // Header-only by design: each TU gets its own copy via `inline`, keeping
-// ODR happy without a dedicated bind_helpers.cpp. Stays focused on the
+// ODR happy without a dedicated .cpp. Stays focused on the
 // __cuda_array_interface__ / __array_interface__ wiring used by both
 // VizBuffer and HostImage.
 
