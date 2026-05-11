@@ -218,6 +218,13 @@ class _ZedCamera:
         init_params.camera_fps = self._fps
         init_params.depth_mode = sl.DEPTH_MODE.NONE
         init_params.sdk_verbose = 0
+        # Bind the ZED SDK's internal CUDA context to the same GPU our
+        # pre-allocated buffers + producer streams live on. Without this
+        # pyzed defaults to GPU 0 and retrieve_image(MEM.GPU) → GPU
+        # channel-swap fails the device-match check on multi-GPU hosts
+        # where VizSession picked a non-default Vulkan adapter.
+        first_slot = next(iter(self._slots.values()))
+        init_params.sdk_gpu_id = int(first_slot.gpu_buffers[0].device.id)
 
         bus_enum = sl.BUS_TYPE.USB if self._bus_type == "usb" else sl.BUS_TYPE.GMSL
         if self._serial_number > 0:
