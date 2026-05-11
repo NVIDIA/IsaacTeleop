@@ -29,7 +29,9 @@ def _gpu_available() -> bool:
         return False
 
 
-pytestmark = pytest.mark.skipif(not _gpu_available(), reason="no Vulkan/CUDA-capable GPU")
+pytestmark = pytest.mark.skipif(
+    not _gpu_available(), reason="no Vulkan/CUDA-capable GPU"
+)
 
 
 def test_offscreen_session_lifecycle():

@@ -121,9 +121,7 @@ def test_cupy_round_trip():
 
     # Build a CuPy RGBA8 image, expose it as a VizBuffer, read it back
     # via the cuda interface. Validates both directions of the protocol.
-    src = cp.asarray(
-        (np.arange(4 * 8 * 4) % 256).astype(np.uint8).reshape(4, 8, 4)
-    )
+    src = cp.asarray((np.arange(4 * 8 * 4) % 256).astype(np.uint8).reshape(4, 8, 4))
     src = cp.ascontiguousarray(src)
 
     buf = viz.VizBuffer()
