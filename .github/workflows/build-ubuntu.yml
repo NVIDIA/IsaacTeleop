@@ -575,31 +575,21 @@ jobs:
           fi
         done
 
-  publish-wheel:  # to internal Artifactory
-    runs-on: [self-hosted, linux]
+  # These are the actual dependency jobs for publish-wheel. publish-wheel
+  # depends only on wheel-gate so the dependency list lives in one place, while
+  # this gate still runs for fork PRs where publish-wheel is intentionally skipped.
+  wheel-gate:
+    runs-on: ubuntu-22.04
     needs:
       - build-ubuntu
       - test-viz-gpu
       - test-viz-sanitizers
       - test-cloudxr
       - test-teleop-ros2
-    outputs:
-      wheel_paths: ${{ steps.upload-artifactory.outputs.wheel_paths }}
-    environment: dev
-
-    # Publish only for same-repo runs (pushes or non-fork PRs). Use always()
-    # so publish-wheel still runs on trusted refs when dependencies fail/skip;
-    # otherwise GitHub would skip this job, and branch rulesets treat skipped
-    # required checks as passing.
-    # github.repository is the base repo even for fork PRs, so a plain equality
-    # check does not filter forks; compare the PR head repo instead.
-    if: >-
-      always()
-      && (github.event_name != 'pull_request'
-        || github.event.pull_request.head.repo.full_name == github.repository)
+    if: ${{ always() }}
 
     steps:
-    - name: Require upstream jobs success
+    - name: Require wheel dependencies success
       env:
         NEEDS_JSON: ${{ toJson(needs) }}
       run: |
@@ -618,8 +608,24 @@ jobs:
           exit 1
         fi
 
-        echo "All upstream jobs completed successfully"
+        echo "All wheel dependency jobs completed successfully"
 
+  publish-wheel:  # to internal Artifactory
+    runs-on: [self-hosted, linux]
+    needs:
+      - wheel-gate
+    outputs:
+      wheel_paths: ${{ steps.upload-artifactory.outputs.wheel_paths }}
+    environment: dev
+
+    # Publish only for same-repo runs (pushes or non-fork PRs). github.repository
+    # is the base repo even for fork PRs, so compare the PR head repo instead.
+    if: >-
+      needs.wheel-gate.result == 'success'
+      && (github.event_name != 'pull_request'
+        || github.event.pull_request.head.repo.full_name == github.repository)
+
+    steps:
     - name: Set up Python
       uses: actions/setup-python@v6
       with:
