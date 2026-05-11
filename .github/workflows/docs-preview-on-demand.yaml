@@ -140,6 +140,25 @@ jobs:
           run-id: ${{ steps.find-build.outputs.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      # Docs-only PRs skip docs.yaml's build-app job, so the matching run
+      # may have no webapp artifact. Tolerate the miss; the preview just
+      # won't have /client/, which is fine for docs-only changes.
+      - name: Download webapp artifact
+        id: dl-webapp
+        uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          name: webapp
+          path: ./webapp
+          run-id: ${{ steps.find-build.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Place webapp under /client/
+        if: steps.dl-webapp.outcome == 'success'
+        run: |
+          mkdir -p ./docs/build/current/client
+          cp -r ./webapp/. ./docs/build/current/client/
+
       - name: Deploy preview to gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:
