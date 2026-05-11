@@ -580,6 +580,7 @@ jobs:
   # this gate still runs for fork PRs where publish-wheel is intentionally skipped.
   wheel-gate:
     runs-on: ubuntu-22.04
+    permissions: {}
     needs:
       - build-ubuntu
       - test-viz-gpu
@@ -612,6 +613,7 @@ jobs:
 
   publish-wheel:  # to internal Artifactory
     runs-on: [self-hosted, linux]
+    permissions: {}
     needs:
       - wheel-gate
     outputs:
