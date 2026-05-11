@@ -7,8 +7,14 @@
 
 cmake_minimum_required(VERSION 3.20)
 
+# Bindings are split per-sub-module to mirror the C++ dep DAG
+# (core → layers → session). viz_bindings.cpp is the PYBIND11_MODULE
+# entry point and calls into the bind_*(m) helpers in the others.
 pybind11_add_module(viz_py
     viz_bindings.cpp
+    bind_core.cpp
+    bind_layers.cpp
+    bind_session.cpp
 )
 
 target_link_libraries(viz_py
