@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Pyproject for the viz python tests. `uv run --extra dev pytest` (the
+# ctest invocation) discovers this file and installs the dev extras
+# into an ephemeral venv. cupy / torch are optional — the tests skip
+# cleanly if they aren't installed, but they're listed here so a full
+# run validates the array-interface protocol end-to-end.
+
+[project]
+name = "isaacteleop-viz-tests"
+version = "0.0.0"
+description = "Python tests for isaacteleop.viz bindings"
+requires-python = ">=3.10,<3.14"
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "numpy",
+]
+# Opt-in extras that exercise the cuda/numpy interface protocols
+# against real third-party consumers. Either lib is enough; both can
+# be installed via `uv run --extra dev --extra cuda-interop pytest`.
+cuda-interop = [
+    "cupy-cuda12x",
+    "torch",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+norecursedirs = [".git", ".venv", "build", "dist", "*.egg", "__pycache__"]
