@@ -116,7 +116,13 @@ def test_numpy_zero_copy_view_of_host_image():
 def test_cupy_round_trip():
     import cupy as cp
 
-    if cp.cuda.runtime.getDeviceCount() == 0:
+    # Treat a CUDARuntimeError (driver missing / wrong libs / unsupported
+    # GPU) the same as a "no device" outcome — skip rather than fail.
+    try:
+        cnt = cp.cuda.runtime.getDeviceCount()
+    except cp.cuda.runtime.CUDARuntimeError:
+        pytest.skip("no CUDA device")
+    if cnt == 0:
         pytest.skip("no CUDA device")
 
     # Build a CuPy RGBA8 image, expose it as a VizBuffer, read it back

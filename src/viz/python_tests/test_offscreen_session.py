@@ -67,7 +67,12 @@ def test_quad_layer_round_trip_via_cuda_array_interface():
         import cupy as cp
     except ImportError:
         pytest.skip("cupy not installed")
-    if cp.cuda.runtime.getDeviceCount() == 0:
+    # Treat a CUDARuntimeError (driver missing / wrong libs) as a skip.
+    try:
+        cnt = cp.cuda.runtime.getDeviceCount()
+    except cp.cuda.runtime.CUDARuntimeError:
+        pytest.skip("no CUDA device")
+    if cnt == 0:
         pytest.skip("no CUDA device")
 
     cfg = viz.VizSessionConfig()
@@ -99,5 +104,26 @@ def test_quad_layer_round_trip_via_cuda_array_interface():
     cx, cy = 32, 32
     r, g, b, _a = arr[cy, cx]
     assert g > r and g > b
+
+    # ── submit_cuda_array validation ──────────────────────────────────
+    # Wrong dtype: layer is RGBA8 (uint8); float32 source must reject.
+    bad_dtype = cp.zeros((32, 32, 4), dtype=cp.float32)
+    with pytest.raises(RuntimeError, match="typestr"):
+        layer.submit_cuda_array(bad_dtype)
+
+    # Wrong shape: doesn't match layer resolution.
+    bad_shape = cp.zeros((16, 16, 4), dtype=cp.uint8)
+    with pytest.raises(RuntimeError, match="resolution"):
+        layer.submit_cuda_array(bad_shape)
+
+    # Wrong channel count: RGB instead of RGBA.
+    bad_channels = cp.zeros((32, 32, 3), dtype=cp.uint8)
+    with pytest.raises(RuntimeError, match="channel"):
+        layer.submit_cuda_array(bad_channels)
+
+    # Wrong rank: 2D for an RGBA layer.
+    bad_rank = cp.zeros((32, 32), dtype=cp.uint8)
+    with pytest.raises(RuntimeError, match="rank"):
+        layer.submit_cuda_array(bad_rank)
 
     session.destroy()

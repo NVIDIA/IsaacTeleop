@@ -76,28 +76,101 @@ Call ``submit`` with a VizBuffer or any object exposing
             "submit_cuda_array",
             [](viz::QuadLayer& self, py::object obj, uintptr_t stream)
             {
-                // Accept anything that exposes __cuda_array_interface__.
-                // Construct a VizBuffer on the fly from the interface
-                // dict's data pointer + shape, then forward to the C++
-                // submit(). Stream is optional (0 = default stream).
+                // Accept anything exposing __cuda_array_interface__. Validate
+                // the dict before constructing a VizBuffer — silent dtype /
+                // shape / stride mismatches would surface inside the cudaMemcpy
+                // as either corrupted pixels or a cryptic CUDA error.
                 if (!py::hasattr(obj, "__cuda_array_interface__"))
                 {
                     throw std::runtime_error("submit_cuda_array: object does not expose __cuda_array_interface__");
                 }
                 py::dict iface = obj.attr("__cuda_array_interface__").cast<py::dict>();
-                py::tuple shape = iface["shape"].cast<py::tuple>();
-                if (shape.size() < 2)
+                if (!iface.contains("shape") || !iface.contains("typestr") || !iface.contains("data"))
                 {
-                    throw std::runtime_error("submit_cuda_array: array must have at least 2 dimensions (H, W[, C])");
+                    throw std::runtime_error(
+                        "submit_cuda_array: __cuda_array_interface__ missing required key (shape/typestr/data)");
                 }
+
+                // Per-format expectations (typestr + channels). Must match the
+                // layer's PixelFormat exactly — submit() reinterprets memory.
+                const viz::PixelFormat fmt = self.format();
+                const char* expected_typestr = nullptr;
+                std::size_t expected_rank = 0;
+                std::size_t expected_channels = 0;
+                if (fmt == viz::PixelFormat::kRGBA8)
+                {
+                    expected_typestr = "|u1";
+                    expected_rank = 3;
+                    expected_channels = 4;
+                }
+                else if (fmt == viz::PixelFormat::kD32F)
+                {
+                    expected_typestr = "<f4";
+                    expected_rank = 2;
+                    expected_channels = 1;
+                }
+                else
+                {
+                    throw std::runtime_error("submit_cuda_array: unsupported layer PixelFormat");
+                }
+
+                const std::string typestr = iface["typestr"].cast<std::string>();
+                if (typestr != expected_typestr)
+                {
+                    throw std::runtime_error(std::string("submit_cuda_array: typestr '") + typestr +
+                                             "' does not match layer format (expected '" + expected_typestr + "')");
+                }
+
+                py::tuple shape = iface["shape"].cast<py::tuple>();
+                if (shape.size() != expected_rank)
+                {
+                    throw std::runtime_error("submit_cuda_array: shape rank " + std::to_string(shape.size()) +
+                                             " does not match layer format (expected " + std::to_string(expected_rank) +
+                                             ")");
+                }
+                const uint32_t h = shape[0].cast<uint32_t>();
+                const uint32_t w = shape[1].cast<uint32_t>();
+                if (expected_channels > 1)
+                {
+                    const std::size_t c = shape[2].cast<std::size_t>();
+                    if (c != expected_channels)
+                    {
+                        throw std::runtime_error("submit_cuda_array: channel count " + std::to_string(c) +
+                                                 " does not match layer format (expected " +
+                                                 std::to_string(expected_channels) + ")");
+                    }
+                }
+                const viz::Resolution res = self.resolution();
+                if (h != res.height || w != res.width)
+                {
+                    throw std::runtime_error("submit_cuda_array: shape (" + std::to_string(h) + ", " +
+                                             std::to_string(w) + ") does not match layer resolution (" +
+                                             std::to_string(res.height) + ", " + std::to_string(res.width) + ")");
+                }
+
+                // Row pitch: explicit if strides present + non-null (slice
+                // views, padded buffers); else tightly packed.
+                std::size_t pitch_bytes = 0;
+                if (iface.contains("strides") && !iface["strides"].is_none())
+                {
+                    py::tuple strides = iface["strides"].cast<py::tuple>();
+                    if (strides.size() != expected_rank)
+                    {
+                        throw std::runtime_error("submit_cuda_array: strides rank " + std::to_string(strides.size()) +
+                                                 " does not match shape rank " + std::to_string(expected_rank));
+                    }
+                    pitch_bytes = strides[0].cast<std::size_t>();
+                }
+
                 py::tuple data = iface["data"].cast<py::tuple>();
                 const uintptr_t ptr = data[0].cast<uintptr_t>();
+
                 viz::VizBuffer buf;
                 buf.data = reinterpret_cast<void*>(ptr);
-                buf.height = shape[0].cast<uint32_t>();
-                buf.width = shape[1].cast<uint32_t>();
-                buf.format = self.format();
-                buf.pitch = 0; // Assume tightly packed; caller should set if not.
+                buf.width = w;
+                buf.height = h;
+                buf.format = fmt;
+                buf.pitch = pitch_bytes; // 0 = tightly packed; submit() uses effective_pitch().
                 buf.space = viz::MemorySpace::kDevice;
                 py::gil_scoped_release release;
                 self.submit(buf, reinterpret_cast<cudaStream_t>(stream));
