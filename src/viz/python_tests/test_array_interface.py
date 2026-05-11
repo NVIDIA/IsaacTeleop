@@ -127,8 +127,14 @@ def test_cupy_round_trip():
 
     # Build a CuPy RGBA8 image, expose it as a VizBuffer, read it back
     # via the cuda interface. Validates both directions of the protocol.
-    src = cp.asarray((np.arange(4 * 8 * 4) % 256).astype(np.uint8).reshape(4, 8, 4))
-    src = cp.ascontiguousarray(src)
+    #
+    # All set-up + verification goes through numpy round-trips so we
+    # don't hit CuPy's JIT (libnvrtc.so isn't shipped on the
+    # driver-only GPU CI runner). The view that goes through our
+    # __cuda_array_interface__ is the only thing we actually need
+    # CuPy on the device for.
+    host_src = (np.arange(4 * 8 * 4) % 256).astype(np.uint8).reshape(4, 8, 4)
+    src = cp.asarray(host_src)  # H2D memcpy, no kernel
 
     buf = viz.VizBuffer()
     buf.data = int(src.data.ptr)
@@ -141,8 +147,8 @@ def test_cupy_round_trip():
     view = cp.asarray(buf)
     assert view.shape == (4, 8, 4)
     assert view.dtype == cp.uint8
-    # Round-trip equality: cp.asnumpy(view) == src.
-    assert cp.array_equal(view, src)
+    # Round-trip: view's bytes pulled D2H should match the original.
+    np.testing.assert_array_equal(cp.asnumpy(view), host_src)
 
 
 # ── Round-trip: PyTorch ─────────────────────────────────────────────

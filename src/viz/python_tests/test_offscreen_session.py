@@ -89,10 +89,14 @@ def test_quad_layer_round_trip_via_cuda_array_interface():
 
     # Solid green RGBA8 source. submit_cuda_array consumes
     # __cuda_array_interface__ on the CuPy array.
-    src = cp.zeros((32, 32, 4), dtype=cp.uint8)
-    src[..., 1] = 200  # G
-    src[..., 3] = 255  # A
-    src = cp.ascontiguousarray(src)
+    #
+    # Build host-side first, then H2D once via cp.asarray. Avoiding
+    # cp.zeros + setitem keeps us off CuPy's JIT path (the GPU runner
+    # ships the driver but not libnvrtc.so).
+    host_src = np.zeros((32, 32, 4), dtype=np.uint8)
+    host_src[..., 1] = 200  # G
+    host_src[..., 3] = 255  # A
+    src = cp.asarray(host_src)
     layer.submit_cuda_array(src)
 
     info = session.render()
@@ -106,23 +110,28 @@ def test_quad_layer_round_trip_via_cuda_array_interface():
     assert g > r and g > b
 
     # ── submit_cuda_array validation ──────────────────────────────────
+    # Bad inputs built host-side then transferred via cp.asarray so we
+    # don't depend on libnvrtc.so being present (cp.zeros / setitem
+    # would JIT-compile a fill kernel and the GPU CI runner ships only
+    # the driver, not the toolkit).
+
     # Wrong dtype: layer is RGBA8 (uint8); float32 source must reject.
-    bad_dtype = cp.zeros((32, 32, 4), dtype=cp.float32)
+    bad_dtype = cp.asarray(np.zeros((32, 32, 4), dtype=np.float32))
     with pytest.raises(RuntimeError, match="typestr"):
         layer.submit_cuda_array(bad_dtype)
 
     # Wrong shape: doesn't match layer resolution.
-    bad_shape = cp.zeros((16, 16, 4), dtype=cp.uint8)
+    bad_shape = cp.asarray(np.zeros((16, 16, 4), dtype=np.uint8))
     with pytest.raises(RuntimeError, match="resolution"):
         layer.submit_cuda_array(bad_shape)
 
     # Wrong channel count: RGB instead of RGBA.
-    bad_channels = cp.zeros((32, 32, 3), dtype=cp.uint8)
+    bad_channels = cp.asarray(np.zeros((32, 32, 3), dtype=np.uint8))
     with pytest.raises(RuntimeError, match="channel"):
         layer.submit_cuda_array(bad_channels)
 
     # Wrong rank: 2D for an RGBA layer.
-    bad_rank = cp.zeros((32, 32), dtype=cp.uint8)
+    bad_rank = cp.asarray(np.zeros((32, 32), dtype=np.uint8))
     with pytest.raises(RuntimeError, match="rank"):
         layer.submit_cuda_array(bad_rank)
 
