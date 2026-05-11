@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# OAK-D stereo (mono sensors → GRAY8 over USB) into an XR headset.
+# Two planes lazy-locked side by side ~50 cm apart, matching the typical
+# camera_streamer stereo-teleop config.
+#
+# Stereo over USB at 1280x720@30fps is ~110 MB/s — comfortably within
+# USB3's budget. For higher rates set the OAK-D to a lower resolution
+# (camera_streamer's defaults are 720p for stereo teleop).
+
+mode: xr
+xr:
+  near_z: 0.05
+  far_z: 100.0
+clear_color: [0.0, 0.0, 0.0, 1.0]
+
+sources:
+  - base_name: oakd
+    type: oakd
+    mode: stereo
+    device_id: ""        # empty → first available OAK-D
+    width: 1280
+    height: 720
+    fps: 30
+    placements:
+      left:
+        lock_mode: lazy
+        size: [0.6, 0.3375]   # 16:9
+        distance: 1.0
+        offset_x: -0.35
+      right:
+        lock_mode: lazy
+        size: [0.6, 0.3375]
+        distance: 1.0
+        offset_x: 0.35

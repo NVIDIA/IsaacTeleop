@@ -25,7 +25,7 @@ import isaacteleop.viz as viz
 
 from pipeline import FrameSource, VizRunner
 from placements import PlacementConfig, PlacementStrategy, build as build_placement
-from sources import SyntheticSource, V4l2Source
+from sources import OakdSource, SyntheticSource, V4l2Source
 
 # A factory's output: (source, placement) pairs. Most source types yield one
 # entry; multi-stream cameras (OAK-D stereo, ZED stereo) yield one per stream.
@@ -81,8 +81,25 @@ def _build_source_entries(spec: dict, is_xr: bool) -> List[SourceEntry]:
             fourcc=spec.get("fourcc"),
         )
         return [(source, _build_placement(spec.get("placement"), is_xr))]
+    if kind == "oakd":
+        sources = OakdSource.build(
+            base_name=spec.get("base_name", "oakd"),
+            mode=spec.get("mode", "mono"),
+            device_id=spec.get("device_id", ""),
+            width=int(spec["width"]),
+            height=int(spec["height"]),
+            fps=int(spec.get("fps", 30)),
+            camera_socket=spec.get("camera_socket", "RGB"),
+            rgb_width=int(spec.get("rgb_width", 0)),
+            rgb_height=int(spec.get("rgb_height", 0)),
+            rgb_fps=int(spec.get("rgb_fps", 0)),
+        )
+        placements = spec.get("placements", {})
+        return [
+            (s, _build_placement(placements.get(s.stream_name), is_xr)) for s in sources
+        ]
     raise ValueError(
-        f"camera_viz: unknown source type {kind!r} (known: synthetic, v4l2)"
+        f"camera_viz: unknown source type {kind!r} (known: synthetic, v4l2, oakd)"
     )
 
 

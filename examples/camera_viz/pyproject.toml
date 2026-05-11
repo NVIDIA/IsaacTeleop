@@ -25,6 +25,7 @@ dependencies = [
 # uv resolves these via `--extra v4l2` / `--extra oakd` / `--extra zed`.
 [project.optional-dependencies]
 v4l2 = ["opencv-python>=4.5"]
+oakd = ["depthai>=3.0"]
 
 [tool.uv]
 python-preference = "only-managed"
