@@ -62,6 +62,7 @@ Table of Contents
    references/retargeting/index
    references/mcap_record_replay
    references/oob_teleop_control
+   references/isaac_ros/index
    references/license
 
 Indices and tables
