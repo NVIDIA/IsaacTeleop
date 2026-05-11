@@ -29,6 +29,17 @@ oakd = ["depthai>=3.0"]
 # pyzed isn't on PyPI — install via ZED SDK's bundled `python -m pip install
 # /usr/local/zed/python -U` after running the SDK installer. Listed here for
 # documentation; uv won't resolve it.
+rtp = [
+    # GStreamer Python bindings — also needs system packages:
+    #   apt install python3-gi gstreamer1.0-tools \
+    #               gstreamer1.0-plugins-{base,good,bad,ugly}
+    "PyGObject>=3.40",
+    # PyNvVideoCodec isn't on PyPI; install via:
+    #   pip install nvidia-pyindex && pip install PyNvVideoCodec
+    # or build from https://github.com/NVIDIA/PyNvVideoCodec.
+    # This is the M7c stopgap — the C++ codec library at src/codec/ (planned)
+    # will drop this dep entirely.
+]
 
 [tool.uv]
 python-preference = "only-managed"
