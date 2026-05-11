@@ -11,6 +11,19 @@
 # produce a wheel without robotic_grounding, and Sharpa imports skip.
 option(BUNDLE_ROBOTIC_GROUNDING "Bundle V2D's robotic_grounding into the wheel" OFF)
 
+# Entries injected into pyproject.toml.in's packages + package-data
+# for the viz module. Only present when BUILD_VIZ=ON so a -DBUILD_VIZ=OFF
+# wheel build doesn't reference a missing directory.
+if(BUILD_VIZ)
+    set(VIZ_PACKAGES_BLOCK
+        "    \"isaacteleop.viz\",\n")
+    set(VIZ_PACKAGE_DATA_BLOCK
+        "\"isaacteleop.viz\" = [\"*.so\", \"*.pyd\", \"*.pyi\"]\n")
+else()
+    set(VIZ_PACKAGES_BLOCK "")
+    set(VIZ_PACKAGE_DATA_BLOCK "")
+endif()
+
 set(ROBOTIC_GROUNDING_SRC "${CMAKE_SOURCE_DIR}/deps/v2d/src/robotic_grounding")
 if(BUNDLE_ROBOTIC_GROUNDING)
     if(NOT EXISTS "${ROBOTIC_GROUNDING_SRC}/__init__.py")
