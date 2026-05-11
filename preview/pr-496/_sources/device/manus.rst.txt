@@ -116,6 +116,8 @@ Then build from the root:
    cmake --build build --target manus_hand_plugin manus_hand_tracker_printer -j
    cmake --install build --component manus
 
+.. _running-the-manus-plugin:
+
 Running the Plugin
 ------------------
 

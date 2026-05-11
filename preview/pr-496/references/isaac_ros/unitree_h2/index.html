@@ -650,6 +650,22 @@ controller moves the robot’s hand correspondingly</p></td>
 </table>
 </div>
 </section>
+<section id="manus-gloves">
+<h3>Manus Gloves<a class="headerlink" href="#manus-gloves" title="Link to this heading">#</a></h3>
+<p>Install Manus plugin:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="si">${</span><span class="nv">ISAAC_ROS_WS</span><span class="si">}</span>/../lib/src/IsaacTeleop/src/plugins/manus/install_manus.sh
+</pre></div>
+</div>
+<p>For the first time running this, you also need to setup udev rules on the host (i.e. outside of the
+Isaac ROS container).  Just cd into your IsaacTeleop checkout and run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span><span class="si">${</span><span class="nv">ISAAC_ROS_WS</span><span class="si">}</span>/../lib/src/IsaacTeleop
+
+./src/plugins/manus/install_udev_rules.sh
+</pre></div>
+</div>
+<p>Then follow <a class="reference internal" href="../../../device/manus.html#running-the-manus-plugin"><span class="std std-ref">Running the Manus plugin</span></a> to verify the Manus SDK is
+properly connected and learn how to run the Manus plugin.</p>
+</section>
 </section>
 <section id="api">
 <h2>API<a class="headerlink" href="#api" title="Link to this heading">#</a></h2>
@@ -869,6 +885,7 @@ instructions on connecting Foxglove Studio.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#build-isaac-ros-unitree-h2-teleop-bringup">Build <code class="docutils literal notranslate"><span class="pre">isaac_ros_unitree_h2_teleop_bringup</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#run-cloudxr-server">Run CloudXR Server</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#controller-reference">Controller Reference</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#manus-gloves">Manus Gloves</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#api">API</a><ul class="nav section-nav flex-column">

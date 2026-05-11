@@ -259,6 +259,27 @@ The following table summarizes what each input does during teleoperation:
    * - **Triggers** (each controller has two)
      - Open and close the finger joints of the tri-finger hand
 
+Manus Gloves
+^^^^^^^^^^^^
+
+Install Manus plugin:
+
+.. code-block:: bash
+
+   ${ISAAC_ROS_WS}/../lib/src/IsaacTeleop/src/plugins/manus/install_manus.sh
+
+For the first time running this, you also need to setup udev rules on the host (i.e. outside of the
+Isaac ROS container).  Just cd into your IsaacTeleop checkout and run:
+
+.. code-block:: bash
+
+   cd ${ISAAC_ROS_WS}/../lib/src/IsaacTeleop
+
+   ./src/plugins/manus/install_udev_rules.sh
+
+Then follow :ref:`Running the Manus plugin <running-the-manus-plugin>` to verify the Manus SDK is
+properly connected and learn how to run the Manus plugin.
+
 API
 ---
 
