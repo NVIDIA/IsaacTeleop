@@ -32,6 +32,24 @@ from sources import OakdSource, SyntheticSource, V4l2Source, ZedSource
 SourceEntry = Tuple[FrameSource, Optional[PlacementStrategy]]
 
 
+_TRUE_STRINGS = frozenset({"true", "1", "yes", "y", "on"})
+_FALSE_STRINGS = frozenset({"false", "0", "no", "n", "off"})
+
+
+def _parse_bool(value, key: str = "") -> bool:
+    """Coerce a YAML-loaded value to bool with intent — ``bool("false")``
+    is ``True`` in plain Python, which silently inverts the user's intent
+    when they quote a boolean in YAML (``stereo: "false"``)."""
+    if isinstance(value, str):
+        v = value.strip().lower()
+        if v in _TRUE_STRINGS:
+            return True
+        if v in _FALSE_STRINGS:
+            return False
+        raise ValueError(f"camera_viz: {key!r} expected boolean, got string {value!r}")
+    return bool(value)
+
+
 def _build_placement(spec: Optional[dict], is_xr: bool) -> Optional[PlacementStrategy]:
     if not is_xr or spec is None:
         return None
@@ -105,7 +123,7 @@ def _build_source_entries(spec: dict, is_xr: bool) -> List[SourceEntry]:
             fps=int(spec.get("fps", 30)),
             serial_number=int(spec.get("serial_number", 0)),
             bus_type=spec.get("bus_type", "usb"),
-            stereo=bool(spec.get("stereo", True)),
+            stereo=_parse_bool(spec.get("stereo", True), key="stereo"),
         )
         placements = spec.get("placements", {})
         return [(s, _build_placement(placements.get(s.eye), is_xr)) for s in sources]

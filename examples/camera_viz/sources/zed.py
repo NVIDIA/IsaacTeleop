@@ -193,6 +193,13 @@ class _ZedCamera:
 
     def release(self) -> None:
         with self._lock:
+            # VizRunner.stop() runs from both the SIGINT handler and the
+            # finally-block, so source.stop() (and therefore release()) is
+            # called more than once per acquire. Guard the underflow so a
+            # second release doesn't drive the refcount negative + re-run
+            # the close path on an already-torn-down camera.
+            if self._refcount <= 0:
+                return
             self._refcount -= 1
             if self._refcount > 0:
                 return
@@ -344,18 +351,34 @@ class _ZedCamera:
             self._consecutive_failures = 0
 
             try:
+                retrieve_failed = False
                 for eye, slot in self._slots.items():
                     err = self._camera.retrieve_image(
                         slot.zed_mat, view_enum[eye], sl.MEM.GPU
                     )
                     if err != sl.ERROR_CODE.SUCCESS:
+                        retrieve_failed = True
                         continue
                     bgra_view = _zed_mat_as_cupy(slot.zed_mat, sl)
                     if bgra_view is None:
+                        retrieve_failed = True
                         continue
                     slot.upload_and_convert(bgra_view)
                     slot.cu_stream.synchronize()
                     slot.publish()
+                # Otherwise a consistently-failing retrieve_image with
+                # successful grab() would spin forever with no reconnect
+                # (the existing _consecutive_failures only tracks grab()).
+                if retrieve_failed:
+                    self._consecutive_failures += 1
+                    if self._consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                        logger.warning(
+                            "ZED retrieve_image failing %dx; reconnecting",
+                            self._consecutive_failures,
+                        )
+                        self._close_camera()
+                else:
+                    self._consecutive_failures = 0
             except Exception as e:
                 logger.warning("ZED retrieve/convert failed (%s); reconnecting", e)
                 self._close_camera()
