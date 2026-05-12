@@ -481,6 +481,49 @@ to add extra trackers that aren’t part of the pipeline:</p>
 Omitting it raises <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>.</p>
 </div>
 </section>
+<section id="runnable-example">
+<h2>Runnable Example<a class="headerlink" href="#runnable-example" title="Link to this heading">#</a></h2>
+<p>A complete record / replay example lives at
+<code class="docutils literal notranslate"><span class="pre">examples/mcap_record_replay/python/</span></code>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">common.py</span></code> — builds a single-source pipeline (<code class="docutils literal notranslate"><span class="pre">HandsSource</span></code> only) and
+defines a small <code class="docutils literal notranslate"><span class="pre">HandJoints</span></code> retargeter that exposes per-hand joint
+positions for downstream consumers.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">record_hand.py</span></code> — records the <code class="docutils literal notranslate"><span class="pre">hands</span></code> channel from a live OpenXR
+session.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">replay_hand.py</span></code> — replays the recording and visualizes both hands
+(joint cloud + skeleton) in a browser via <a class="reference external" href="https://viser.studio/" rel="noopener noreferrer" target="_blank">viser</a>.</p></li>
+</ul>
+<p>Because only <code class="docutils literal notranslate"><span class="pre">HandsSource</span></code> is wired into the pipeline, <code class="docutils literal notranslate"><span class="pre">TeleopSession</span></code>
+auto-discovers a single <code class="docutils literal notranslate"><span class="pre">HandTracker</span></code> and the resulting MCAP contains
+exactly one channel (<code class="docutils literal notranslate"><span class="pre">hands</span></code>).  To capture more data, add additional source
+nodes (<code class="docutils literal notranslate"><span class="pre">HeadSource</span></code>, <code class="docutils literal notranslate"><span class="pre">ControllersSource</span></code>, …) in <code class="docutils literal notranslate"><span class="pre">common.py</span></code>.</p>
+<section id="recording">
+<h3>Recording<a class="headerlink" href="#recording" title="Link to this heading">#</a></h3>
+<p>From the installed example directory:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>examples/mcap_record_replay/python
+uv<span class="w"> </span>sync
+uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>record_hand.py<span class="w">            </span><span class="c1"># 5 s → ../recordings/hands_&lt;timestamp&gt;.mcap</span>
+uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>record_hand.py<span class="w"> </span><span class="m">10</span><span class="w">         </span><span class="c1"># record for 10 seconds</span>
+uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>record_hand.py<span class="w"> </span><span class="m">10</span><span class="w"> </span>out.mcap<span class="w">  </span><span class="c1"># custom output path</span>
+</pre></div>
+</div>
+<p>An active OpenXR runtime / headset must be connected, just like any other
+live <code class="docutils literal notranslate"><span class="pre">TeleopSession</span></code>.</p>
+</section>
+<section id="replaying">
+<h3>Replaying<a class="headerlink" href="#replaying" title="Link to this heading">#</a></h3>
+<p>Replay runs headless — no headset required:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>replay_hand.py<span class="w">                       </span><span class="c1"># newest file in ../recordings/</span>
+uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>replay_hand.py<span class="w"> </span>path/to/file.mcap<span class="w">     </span><span class="c1"># explicit file</span>
+uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>replay_hand.py<span class="w"> </span>--loop<span class="w">                </span><span class="c1"># repeat until Ctrl+C</span>
+uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>replay_hand.py<span class="w"> </span>--port<span class="w"> </span><span class="m">8090</span><span class="w">           </span><span class="c1"># change viser port</span>
+</pre></div>
+</div>
+<p>Open the printed URL (default <a class="reference external" href="http://localhost:8080" rel="noopener noreferrer" target="_blank">http://localhost:8080</a>) in a browser to see the
+left (green) and right (blue) hand skeletons update each frame.</p>
+</section>
+</section>
 <section id="api-reference">
 <h2>API Reference<a class="headerlink" href="#api-reference" title="Link to this heading">#</a></h2>
 <section id="sessionmode">
@@ -572,6 +615,11 @@ When empty, <code class="docutils literal notranslate"><span class="pre">TeleopS
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#replaying-a-recording">Replaying a Recording</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#runnable-example">Runnable Example</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#recording">Recording</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#replaying">Replaying</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#api-reference">API Reference</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#sessionmode"><code class="docutils literal notranslate"><span class="pre">SessionMode</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mcaprecordingconfig"><code class="docutils literal notranslate"><span class="pre">McapRecordingConfig</span></code></a></li>
@@ -660,7 +708,7 @@ When empty, <code class="docutils literal notranslate"><span class="pre">TeleopS
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on May 11, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on May 12, 2026.
       <br/>
     
   </p>

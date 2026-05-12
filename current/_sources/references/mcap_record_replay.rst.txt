@@ -104,6 +104,56 @@ to add extra trackers that aren't part of the pipeline:
    ``mcap_config`` is **required** when ``mode`` is ``SessionMode.REPLAY``.
    Omitting it raises ``ValueError``.
 
+Runnable Example
+----------------
+
+A complete record / replay example lives at
+``examples/mcap_record_replay/python/``:
+
+- ``common.py`` — builds a single-source pipeline (``HandsSource`` only) and
+  defines a small ``HandJoints`` retargeter that exposes per-hand joint
+  positions for downstream consumers.
+- ``record_hand.py`` — records the ``hands`` channel from a live OpenXR
+  session.
+- ``replay_hand.py`` — replays the recording and visualizes both hands
+  (joint cloud + skeleton) in a browser via `viser <https://viser.studio/>`_.
+
+Because only ``HandsSource`` is wired into the pipeline, ``TeleopSession``
+auto-discovers a single ``HandTracker`` and the resulting MCAP contains
+exactly one channel (``hands``).  To capture more data, add additional source
+nodes (``HeadSource``, ``ControllersSource``, …) in ``common.py``.
+
+Recording
+^^^^^^^^^
+
+From the installed example directory:
+
+.. code-block:: bash
+
+   cd examples/mcap_record_replay/python
+   uv sync
+   uv run python record_hand.py            # 5 s → ../recordings/hands_<timestamp>.mcap
+   uv run python record_hand.py 10         # record for 10 seconds
+   uv run python record_hand.py 10 out.mcap  # custom output path
+
+An active OpenXR runtime / headset must be connected, just like any other
+live ``TeleopSession``.
+
+Replaying
+^^^^^^^^^
+
+Replay runs headless — no headset required:
+
+.. code-block:: bash
+
+   uv run python replay_hand.py                       # newest file in ../recordings/
+   uv run python replay_hand.py path/to/file.mcap     # explicit file
+   uv run python replay_hand.py --loop                # repeat until Ctrl+C
+   uv run python replay_hand.py --port 8090           # change viser port
+
+Open the printed URL (default http://localhost:8080) in a browser to see the
+left (green) and right (blue) hand skeletons update each frame.
+
 API Reference
 -------------
 
