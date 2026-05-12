@@ -22,6 +22,14 @@ macro(install_python_example)
         message(FATAL_ERROR "install_python_example: DESTINATION is required")
     endif()
 
+    # Installed example is intended to run against a locally built wheel, so
+    # required-environments must list only the current build arch.
+    if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+        set(_IPE_PLATFORM_MACHINE "aarch64")
+    else()
+        set(_IPE_PLATFORM_MACHINE "x86_64")
+    endif()
+
     # Read the bare pyproject.toml and append uv configuration for the
     # installed environment.
     file(READ "${CMAKE_CURRENT_SOURCE_DIR}/python/pyproject.toml" _PYPROJECT_BASE)
@@ -29,6 +37,7 @@ macro(install_python_example)
 find-links = [\"../../../wheels\"]
 python-preference = \"only-managed\"
 environments = [\"python_version == '${ISAAC_TELEOP_PYTHON_VERSION}'\"]
+required-environments = [\"sys_platform == 'linux' and platform_machine == '${_IPE_PLATFORM_MACHINE}'\"]
 ")
     if(_IPE_EXTRA_UV_EXTRA_BUILD_DEPS)
         string(APPEND _TOOL_UV_BLOCK "

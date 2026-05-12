@@ -125,6 +125,13 @@ ENV BASH_ENV=/usr/local/bin/teleop-env-setup
 RUN echo "source /usr/local/bin/teleop-env-setup" >> /etc/bash.bashrc
 
 # Pre-install Python dependencies so uv run doesn't download at every launch.
-RUN uv sync --no-dev
+# Pin isaacteleop to the exact version of the locally-built wheel so the
+# resolver cannot prefer a published PyPI release (whose dep metadata may
+# diverge from what this image was actually built with). Extract the version
+# from the wheel filename rather than hard-coding it.
+RUN set -eu; \
+    wheel=$(ls /opt/isaacteleop/install/wheels/isaacteleop-*.whl | head -n1); \
+    version=$(basename "$wheel" | sed -E 's/^isaacteleop-([^-]+)-.*$/\1/'); \
+    uv sync --no-dev --upgrade-package "isaacteleop==${version}"
 
 ENTRYPOINT ["/usr/local/bin/teleop-entrypoint", "uv", "run", "teleop_ros2_node.py"]
