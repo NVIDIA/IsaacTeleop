@@ -175,4 +175,6 @@ RUN echo "source /usr/local/bin/teleop-env-setup" >> /etc/bash.bashrc
 # Pre-install Python dependencies so uv run doesn't download at every launch.
 RUN uv sync --no-dev --find-links=/opt/nlopt-wheels
 
-ENTRYPOINT ["/usr/local/bin/teleop-entrypoint", "uv", "run", "teleop_ros2_node.py"]
+# Use --no-sync because the venv is already provisioned above, and the implicit
+# resync runs without --find-links and fails on aarch64 (no nlopt wheel on PyPI).
+ENTRYPOINT ["/usr/local/bin/teleop-entrypoint", "uv", "run", "--no-sync", "teleop_ros2_node.py"]
