@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # V4L2 source — same YAML drives both camera_viz (receiver) and
-# camera_sender (RTP sender). Flip top-level ``source: local|rtp`` to
-# control what camera_viz opens; camera_sender always reads cameras +
+# camera_streamer (RTP sender). Flip top-level ``source: local|rtp`` to
+# control what camera_viz opens; camera_streamer always reads cameras +
 # rtp ports + streaming.host.
 #
 # Defaults match the ZED Mini's UVC HD720 side-by-side mode at
@@ -13,7 +13,7 @@
 
 source: local                   # local | rtp
 streaming:
-  host: 127.0.0.1               # camera_sender target (override with --host)
+  host: 127.0.0.1               # camera_streamer target (override with --host)
 
 cameras:
   - name: cam
@@ -24,7 +24,7 @@ cameras:
     height: 720
     fps: 30
     # fourcc: MJPG              # only if the device offers MJPG (ZED V4L2 is YUYV-only)
-    rtp:                        # used by camera_sender + source: rtp receivers
+    rtp:                        # used by camera_streamer + source: rtp receivers
       port: 5000
       bitrate: 6000000          # ~6 Mbps for 2560x720@30
       profile: baseline

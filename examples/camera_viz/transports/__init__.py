@@ -4,7 +4,7 @@
 
 Transport modules wrap byte-stream I/O (RTP / UDP / TCP) and stay codec-
 agnostic — the codec layer lives in ``sources/`` (decoders, which feed
-into FrameSource) and in ``camera_send`` (encoders, which consume
+into FrameSource) and in ``camera_streamer`` (encoders, which consume
 FrameSource).
 
 The split matches camera_streamer's gstreamer + nv_stream split: one

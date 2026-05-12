@@ -97,15 +97,11 @@ class NvH264Encoder:
         gop: int = 15,
         gpu_id: int = 0,
     ) -> None:
-        try:
-            import cupy as cp  # noqa: F401
-            import PyNvVideoCodec  # noqa: F401
-        except ImportError as e:
-            raise RuntimeError(
-                "NvH264Encoder requires CuPy + PyNvVideoCodec. PyNvVideoCodec "
-                "isn't on PyPI — install via `pip install nvidia-pyindex && "
-                "pip install PyNvVideoCodec`."
-            ) from e
+        # NOTE: PyNvVideoCodec import is deferred to first encode() —
+        # constructing the sender on a Jetson (no PyNvVideoCodec) must
+        # NOT crash; the GStreamer-NVENC backend will take over at the
+        # encoder-selection layer. We only fail loudly if/when somebody
+        # actually tries to use this encoder without the dep installed.
 
         self._width = width
         self._height = height
@@ -126,7 +122,15 @@ class NvH264Encoder:
         if self._encoder is not None:
             return
         import cupy as cp
-        import PyNvVideoCodec as nvc
+
+        try:
+            import PyNvVideoCodec as nvc
+        except ImportError as e:
+            raise RuntimeError(
+                "NvH264Encoder requires PyNvVideoCodec. Not available on Jetson; "
+                "select the GStreamer NVENC backend instead. On desktop install "
+                "via `pip install nvidia-pyindex && pip install PyNvVideoCodec`."
+            ) from e
 
         # Bind NVENC + the NV12 staging buffer to the same GPU the input
         # RGBA lives on. Caller-supplied gpu_id wins if non-default; else

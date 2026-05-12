@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-# ZED (left mono) — same YAML drives camera_viz + camera_sender.
+# ZED (left mono) — same YAML drives camera_viz + camera_streamer.
 #
 # stereo: false until per-eye QuadLayer binding lands (see memory note
 # "Stereo XR rendering needs per-view QuadLayer buffers"). The "mono"

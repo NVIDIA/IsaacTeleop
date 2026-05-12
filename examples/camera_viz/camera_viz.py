@@ -6,9 +6,9 @@
 Reads the unified pipeline YAML (cameras + streaming + display) and
 runs the receiver side: either opens the configured cameras directly
 (``source: local``) or listens for matching RTP H.264 streams
-(``source: rtp``) from a ``camera_sender.py`` instance on the robot.
+(``source: rtp``) from a ``camera_streamer.py`` instance on the robot.
 
-The same YAML file drives ``camera_sender.py``, so both ends of an
+The same YAML file drives ``camera_streamer.py``, so both ends of an
 RTP-mode deployment share one config.
 
 Usage:
@@ -39,7 +39,7 @@ def build_local_camera(spec: dict) -> List[FrameSource]:
 
     Returns a list because multi-stream cameras (OAK-D stereo, ZED stereo)
     fan out to one source per stream. Single-stream cameras return [source].
-    Shared with ``camera_sender.py`` — keep the schema stable.
+    Shared with ``camera_streamer.py`` — keep the schema stable.
     """
     kind = spec["type"]
     if kind == "synthetic":

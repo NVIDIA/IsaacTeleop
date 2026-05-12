@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-# OAK-D (mono RGB) — same YAML drives camera_viz + camera_sender.
+# OAK-D (mono RGB) — same YAML drives camera_viz + camera_streamer.
 #
 # Mono-only by design until per-eye QuadLayer binding lands (see memory
 # note "Stereo XR rendering needs per-view QuadLayer buffers"). Stereo
