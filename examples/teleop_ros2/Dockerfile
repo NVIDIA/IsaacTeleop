@@ -173,7 +173,14 @@ ENV BASH_ENV=/usr/local/bin/teleop-env-setup
 RUN echo "source /usr/local/bin/teleop-env-setup" >> /etc/bash.bashrc
 
 # Pre-install Python dependencies so uv run doesn't download at every launch.
-RUN uv sync --no-dev --find-links=/opt/nlopt-wheels
+# Pin isaacteleop to the exact version of the locally-built wheel so the
+# resolver cannot prefer a published PyPI release (whose dep metadata may
+# diverge from what this image was actually built with). Extract the version
+# from the wheel filename rather than hard-coding it.
+RUN set -eu; \
+    wheel=$(ls /opt/isaacteleop/install/wheels/isaacteleop-*.whl | head -n1); \
+    version=$(basename "$wheel" | sed -E 's/^isaacteleop-([^-]+)-.*$/\1/'); \
+    uv sync --no-dev --find-links=/opt/nlopt-wheels --upgrade-package "isaacteleop==${version}"
 
 # Use --no-sync because the venv is already provisioned above, and the implicit
 # resync runs without --find-links and fails on aarch64 (no nlopt wheel on PyPI).
