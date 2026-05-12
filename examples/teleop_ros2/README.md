@@ -34,12 +34,18 @@ The default collection ID is `generic_3axis_pedal`. Override it with
 `--ros-args -p pedal_collection_id:=<your_collection_id>` when your pedal
 publisher uses a different ID.
 
-## Prerequisite: Hand Retargeting For `hand_teleop`
+## Prerequisite: Hand Retargeting
 
-`hand_teleop` retargets OpenXR hand tracking to Sharpa hand joint commands via
-the `hand_retargeter` parameter:
+`hand_teleop` and the Sharpa variants of `controller_teleop` retarget OpenXR
+hand tracking to Sharpa hand joint commands via the `hand_retargeter`
+parameter:
 
-- `hand_retargeter:=dexpilot` (default): uses `DexHandRetargeter` with DexPilot configs from
+- `hand_retargeter:=mode_default` (default): keeps the mode-specific default
+  behavior: `controller_teleop` uses TriHand controller retargeting, while
+  `hand_teleop` uses DexPilot Sharpa retargeting.
+- `hand_retargeter:=trihand`: valid only with `controller_teleop`; retargets
+  controller trigger/squeeze input to TriHand finger joints.
+- `hand_retargeter:=dexpilot`: uses `DexHandRetargeter` with DexPilot configs from
   `examples/teleop_ros2/configs/`. It requires `isaacteleop[retargeters]` and
   official standalone Sharpa Wave URDFs at:
   `examples/teleop_ros2/assets/urdf/sharpa_standalone/left_sharpa_wave.urdf`
@@ -50,6 +56,11 @@ the `hand_retargeter` parameter:
 - `hand_retargeter:=pink_ik`: uses `SharpaHandRetargeter`. It requires the
   `isaacteleop[grounding]` runtime dependencies and the bundled
   `robotic_grounding` package data that provides the Sharpa MJCF assets.
+
+In `controller_teleop`, explicitly setting `hand_retargeter:=dexpilot` or
+`hand_retargeter:=pink_ik` keeps XR controllers responsible for EE poses, wrist
+TFs, locomotion, and `controller_data`, while Manus/OpenXR hand data drives
+`xr_teleop/hand` and Sharpa `xr_teleop/finger_joints`.
 
 The Docker build fetches the pinned official Sharpa Wave URDFs and installs them
 at `/opt/isaacteleop/install/examples/teleop_ros2/assets/urdf/sharpa_standalone/`.
@@ -64,7 +75,7 @@ Robot assets are never downloaded by `teleop_ros2_node.py` at runtime.
 ## Published Topics
 
 - `xr_teleop/hand` (`geometry_msgs/PoseArray`)
-  - `poses`: Finger joint poses (all joints except palm/wrist, right then left)
+  - `poses`: Finger joint poses (all joints except palm/wrist, right then left); published by `hand_teleop` and by `controller_teleop` when `hand_retargeter:=dexpilot` or `hand_retargeter:=pink_ik`
 - `xr_teleop/ee_poses` (`geometry_msgs/PoseArray`)
   - `poses[0]`: Left hand/controller EE pose (if active)
   - `poses[1]`: Right hand/controller EE pose (if active)
@@ -72,7 +83,7 @@ Robot assets are never downloaded by `teleop_ros2_node.py` at runtime.
 - `xr_teleop/root_pose` (`geometry_msgs/PoseStamped`)
 - `xr_teleop/controller_data` (`std_msgs/ByteMultiArray`, msgpack-encoded dictionary)
 - `xr_teleop/finger_joints` (`sensor_msgs/JointState`)
-  - Retargeted finger joint angles for the robot; contains joint names and position arrays corresponding to the robot finger joints (TriHand in `controller_teleop`, selected Sharpa retargeter in `hand_teleop`)
+  - Retargeted finger joint angles for the robot; contains joint names and position arrays corresponding to the robot finger joints (TriHand in default `controller_teleop`, selected Sharpa retargeter in `hand_teleop`, or explicit Sharpa retargeter in `controller_teleop`)
 - `/tf` (`tf2_msgs/TFMessage`)
   - `world_frame` → `right_wrist_frame`: Right wrist transform (published in `controller_teleop` and `hand_teleop` modes)
   - `world_frame` → `left_wrist_frame`: Left wrist transform (published in `controller_teleop` and `hand_teleop` modes)
@@ -136,7 +147,7 @@ The `mode` parameter selects the teleoperation scenario and which topics are pub
 
 | Mode | Topics published |
 |------|------------------|
-| `controller_teleop` (default) | `ee_poses` (from controller aim pose), `root_twist`, `root_pose`, `finger_joints` (finger joints in joint space), `controller_data`, `tf` (from controller aim pose) |
+| `controller_teleop` (default) | `ee_poses` (from controller aim pose), `root_twist`, `root_pose`, `finger_joints` (TriHand by default; Sharpa from Manus/OpenXR hands when `hand_retargeter:=dexpilot` or `hand_retargeter:=pink_ik`), `controller_data`, `tf` (from controller aim pose), and `hand` only for the explicit Sharpa retargeter path |
 | `hand_teleop` | `ee_poses` (from hand tracking wrist), `hand` (finger joints in pose space), `finger_joints` (finger joints in joint space), `root_twist`, `root_pose`, `tf` (from hand tracking wrist); locomotion comes from the configured foot pedal collection |
 | `controller_raw` | `controller_data` only |
 | `full_body` | `full_body` and `controller_data` |

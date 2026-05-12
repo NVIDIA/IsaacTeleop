@@ -95,7 +95,17 @@ from teleop_ros2_retargeters import JointNameAliasRetargeter
 
 
 _BODY_JOINT_NAMES = [e.name for e in BodyJointPicoIndex]
-_HAND_RETARGETERS = ("pink_ik", "dexpilot")
+_HAND_RETARGETER_MODE_DEFAULT = "mode_default"
+_HAND_RETARGETER_TRIHAND = "trihand"
+_HAND_RETARGETER_PINK_IK = "pink_ik"
+_HAND_RETARGETER_DEXPILOT = "dexpilot"
+_HAND_RETARGETERS = (
+    _HAND_RETARGETER_MODE_DEFAULT,
+    _HAND_RETARGETER_TRIHAND,
+    _HAND_RETARGETER_PINK_IK,
+    _HAND_RETARGETER_DEXPILOT,
+)
+_SHARPA_HAND_RETARGETERS = (_HAND_RETARGETER_PINK_IK, _HAND_RETARGETER_DEXPILOT)
 _TELEOP_MODES = ("controller_teleop", "hand_teleop", "controller_raw", "full_body")
 
 _TRIHAND_JOINT_NAMES = [
@@ -300,12 +310,29 @@ def _resolve_finger_joint_name_aliases(
     return names or None
 
 
+def _resolve_hand_retargeter(mode: str, hand_retargeter: str) -> str:
+    if hand_retargeter == _HAND_RETARGETER_MODE_DEFAULT:
+        if mode == "controller_teleop":
+            return _HAND_RETARGETER_TRIHAND
+        if mode == "hand_teleop":
+            return _HAND_RETARGETER_DEXPILOT
+        return hand_retargeter
+
+    if mode == "hand_teleop" and hand_retargeter == _HAND_RETARGETER_TRIHAND:
+        raise ValueError(
+            "Parameter 'hand_retargeter:=trihand' is only valid with "
+            "mode:=controller_teleop"
+        )
+
+    return hand_retargeter
+
+
 def _resolve_sharpa_mjcf(filename: str) -> str:
     try:
         from importlib.resources import files
     except ImportError as exc:  # pragma: no cover - Python 3.10+ has this.
         raise ModuleNotFoundError(
-            "Sharpa hand teleop requires importlib.resources support"
+            "Sharpa hand retargeting requires importlib.resources support"
         ) from exc
 
     try:
@@ -314,7 +341,7 @@ def _resolve_sharpa_mjcf(filename: str) -> str:
         )
     except ModuleNotFoundError as exc:
         raise ModuleNotFoundError(
-            "hand_teleop requires robotic_grounding assets for Sharpa retargeting. "
+            "Sharpa hand retargeting requires robotic_grounding assets. "
             "Install/use a build with isaacteleop[grounding] and bundled robotic_grounding."
         ) from exc
 
@@ -624,11 +651,13 @@ class TeleopRos2Node(Node):
         )
         self.declare_parameter(
             "hand_retargeter",
-            "dexpilot",
+            _HAND_RETARGETER_MODE_DEFAULT,
             ParameterDescriptor(
                 description=(
-                    "Hand retargeter backend used by hand_teleop. "
-                    "Valid values: 'pink_ik' or 'dexpilot'."
+                    "Hand retargeter backend. 'mode_default' resolves to "
+                    "'trihand' in controller_teleop and 'dexpilot' in "
+                    "hand_teleop. Valid values: 'mode_default', 'trihand', "
+                    "'pink_ik', or 'dexpilot'."
                 )
             ),
         )
@@ -745,8 +774,15 @@ class TeleopRos2Node(Node):
                 f"Parameter 'hand_retargeter' must be one of {_HAND_RETARGETERS}, "
                 f"got {self._hand_retargeter!r}"
             )
-        if self._mode == "hand_teleop":
-            self.get_logger().info(f"Hand retargeter: {self._hand_retargeter}")
+        self._resolved_hand_retargeter: str = _resolve_hand_retargeter(
+            self._mode, self._hand_retargeter
+        )
+        self._controller_uses_hands_source: bool = (
+            self._mode == "controller_teleop"
+            and self._resolved_hand_retargeter in _SHARPA_HAND_RETARGETERS
+        )
+        if self._mode in ("hand_teleop", "controller_teleop"):
+            self.get_logger().info(f"Hand retargeter: {self._resolved_hand_retargeter}")
         self._config_asset_root: Path = _resolve_config_asset_root(
             self.get_parameter("config_asset_root").get_parameter_value().string_value
         )
@@ -877,27 +913,6 @@ class TeleopRos2Node(Node):
         )
 
     def _build_controller_teleop_config(self) -> TeleopSessionConfig:
-        _validate_joint_name_alias_count(
-            "left_finger_joint_names",
-            self._left_finger_joint_name_aliases,
-            len(_LEFT_FINGER_JOINT_NAMES),
-        )
-        _validate_joint_name_alias_count(
-            "right_finger_joint_names",
-            self._right_finger_joint_name_aliases,
-            len(_RIGHT_FINGER_JOINT_NAMES),
-        )
-        left_finger_joint_names = (
-            list(self._left_finger_joint_name_aliases)
-            if self._left_finger_joint_name_aliases is not None
-            else list(_LEFT_FINGER_JOINT_NAMES)
-        )
-        right_finger_joint_names = (
-            list(self._right_finger_joint_name_aliases)
-            if self._right_finger_joint_name_aliases is not None
-            else list(_RIGHT_FINGER_JOINT_NAMES)
-        )
-
         controllers = ControllersSource(name="controllers")
         locomotion = LocomotionRootCmdRetargeter(
             LocomotionRootCmdRetargeterConfig(), name="locomotion"
@@ -909,41 +924,96 @@ class TeleopRos2Node(Node):
             }
         )
 
-        left_hand_retargeter = TriHandMotionControllerRetargeter(
-            TriHandMotionControllerConfig(
-                hand_joint_names=left_finger_joint_names, controller_side="left"
-            ),
-            name="trihand_left",
-        )
-        right_hand_retargeter = TriHandMotionControllerRetargeter(
-            TriHandMotionControllerConfig(
-                hand_joint_names=right_finger_joint_names, controller_side="right"
-            ),
-            name="trihand_right",
-        )
-        left_hand_connected = left_hand_retargeter.connect(
-            {ControllersSource.LEFT: controllers.output(ControllersSource.LEFT)}
-        )
-        right_hand_connected = right_hand_retargeter.connect(
-            {ControllersSource.RIGHT: controllers.output(ControllersSource.RIGHT)}
-        )
+        pipeline_outputs = {
+            "controller_left": controllers.output(ControllersSource.LEFT),
+            "controller_right": controllers.output(ControllersSource.RIGHT),
+            "root_command": locomotion_connected.output("root_command"),
+        }
 
-        pipeline = OutputCombiner(
-            {
-                "controller_left": controllers.output(ControllersSource.LEFT),
-                "controller_right": controllers.output(ControllersSource.RIGHT),
-                "root_command": locomotion_connected.output("root_command"),
-                "finger_joints_left": left_hand_connected.output("hand_joints"),
-                "finger_joints_right": right_hand_connected.output("hand_joints"),
-            }
-        )
+        if self._resolved_hand_retargeter == _HAND_RETARGETER_TRIHAND:
+            _validate_joint_name_alias_count(
+                "left_finger_joint_names",
+                self._left_finger_joint_name_aliases,
+                len(_LEFT_FINGER_JOINT_NAMES),
+            )
+            _validate_joint_name_alias_count(
+                "right_finger_joint_names",
+                self._right_finger_joint_name_aliases,
+                len(_RIGHT_FINGER_JOINT_NAMES),
+            )
+            left_finger_joint_names = (
+                list(self._left_finger_joint_name_aliases)
+                if self._left_finger_joint_name_aliases is not None
+                else list(_LEFT_FINGER_JOINT_NAMES)
+            )
+            right_finger_joint_names = (
+                list(self._right_finger_joint_name_aliases)
+                if self._right_finger_joint_name_aliases is not None
+                else list(_RIGHT_FINGER_JOINT_NAMES)
+            )
+
+            left_hand_retargeter = TriHandMotionControllerRetargeter(
+                TriHandMotionControllerConfig(
+                    hand_joint_names=left_finger_joint_names, controller_side="left"
+                ),
+                name="trihand_left",
+            )
+            right_hand_retargeter = TriHandMotionControllerRetargeter(
+                TriHandMotionControllerConfig(
+                    hand_joint_names=right_finger_joint_names, controller_side="right"
+                ),
+                name="trihand_right",
+            )
+            left_hand_connected = left_hand_retargeter.connect(
+                {ControllersSource.LEFT: controllers.output(ControllersSource.LEFT)}
+            )
+            right_hand_connected = right_hand_retargeter.connect(
+                {ControllersSource.RIGHT: controllers.output(ControllersSource.RIGHT)}
+            )
+            pipeline_outputs.update(
+                {
+                    "finger_joints_left": left_hand_connected.output("hand_joints"),
+                    "finger_joints_right": right_hand_connected.output("hand_joints"),
+                }
+            )
+        elif self._resolved_hand_retargeter in _SHARPA_HAND_RETARGETERS:
+            _validate_joint_name_alias_count(
+                "left_finger_joint_names",
+                self._left_finger_joint_name_aliases,
+                _SHARPA_FINGER_JOINT_COUNT,
+            )
+            _validate_joint_name_alias_count(
+                "right_finger_joint_names",
+                self._right_finger_joint_name_aliases,
+                _SHARPA_FINGER_JOINT_COUNT,
+            )
+            hands = HandsSource(name="hands")
+            left_finger_joints, right_finger_joints = (
+                self._build_sharpa_finger_joint_outputs(hands, "controller_teleop")
+            )
+            pipeline_outputs.update(
+                {
+                    "hand_left": hands.output(HandsSource.LEFT),
+                    "hand_right": hands.output(HandsSource.RIGHT),
+                    "finger_joints_left": left_finger_joints,
+                    "finger_joints_right": right_finger_joints,
+                }
+            )
+        else:
+            raise ValueError(
+                "controller_teleop requires hand_retargeter to resolve to "
+                f"'trihand', 'dexpilot', or 'pink_ik', got "
+                f"{self._resolved_hand_retargeter!r}"
+            )
+
+        pipeline = OutputCombiner(pipeline_outputs)
 
         return TeleopSessionConfig(
             app_name="TeleopRos2Publisher",
             pipeline=pipeline,
             plugins=_build_plugins(
                 self._use_mock_operators,
-                include_synthetic_hands=False,
+                include_synthetic_hands=self._controller_uses_hands_source,
                 search_start=Path(__file__).resolve(),
             ),
         )
@@ -990,8 +1060,43 @@ class TeleopRos2Node(Node):
             name="foot_pedal",
         )
         locomotion_connected = locomotion.connect({"pedals": pedals.output("pedals")})
+        left_finger_joints, right_finger_joints = (
+            self._build_sharpa_finger_joint_outputs(hands, "hand_teleop")
+        )
 
-        if self._hand_retargeter == "pink_ik":
+        pipeline = OutputCombiner(
+            {
+                "hand_left": hands.output(HandsSource.LEFT),
+                "hand_right": hands.output(HandsSource.RIGHT),
+                "root_command": locomotion_connected.output("root_command"),
+                "finger_joints_left": left_finger_joints,
+                "finger_joints_right": right_finger_joints,
+            }
+        )
+
+        return TeleopSessionConfig(
+            app_name="TeleopRos2Publisher",
+            pipeline=pipeline,
+            plugins=_build_plugins(
+                self._use_mock_operators,
+                include_synthetic_hands=True,
+                search_start=Path(__file__).resolve(),
+            ),
+        )
+
+    def _build_session_config(self, mode: str) -> TeleopSessionConfig:
+        if mode == "controller_teleop":
+            return self._build_controller_teleop_config()
+        if mode == "hand_teleop":
+            return self._build_hand_teleop_config()
+        if mode == "controller_raw":
+            return self._build_controller_raw_config()
+        if mode == "full_body":
+            return self._build_full_body_config()
+        raise ValueError(f"Unsupported mode {mode!r}")
+
+    def _build_sharpa_finger_joint_outputs(self, hands: HandsSource, context: str):
+        if self._resolved_hand_retargeter == _HAND_RETARGETER_PINK_IK:
             try:
                 from isaacteleop.retargeters import (
                     SharpaHandRetargeter,
@@ -999,7 +1104,7 @@ class TeleopRos2Node(Node):
                 )
             except ModuleNotFoundError as exc:
                 raise ModuleNotFoundError(
-                    "hand_teleop with hand_retargeter:=pink_ik requires Sharpa "
+                    f"{context} with hand_retargeter:=pink_ik requires Sharpa "
                     "retargeting dependencies. Install/use a build with "
                     "isaacteleop[grounding] and bundled robotic_grounding."
                 ) from exc
@@ -1022,7 +1127,7 @@ class TeleopRos2Node(Node):
             )
             left_alias_name = "sharpa_left_joint_aliases"
             right_alias_name = "sharpa_right_joint_aliases"
-        else:
+        elif self._resolved_hand_retargeter == _HAND_RETARGETER_DEXPILOT:
             left_hand_retargeter = DexHandRetargeter(
                 DexHandRetargeterConfig(
                     hand_retargeting_config=_resolve_dex_sharpa_config(
@@ -1061,6 +1166,11 @@ class TeleopRos2Node(Node):
             )
             left_alias_name = "dex_sharpa_left_joint_aliases"
             right_alias_name = "dex_sharpa_right_joint_aliases"
+        else:
+            raise ValueError(
+                f"Sharpa hand retargeting requires one of {_SHARPA_HAND_RETARGETERS}, "
+                f"got {self._resolved_hand_retargeter!r}"
+            )
 
         left_hand_connected = left_hand_retargeter.connect(
             {HandsSource.LEFT: hands.output(HandsSource.LEFT)}
@@ -1084,37 +1194,7 @@ class TeleopRos2Node(Node):
             self._right_finger_joint_name_aliases,
             right_alias_name,
         )
-
-        pipeline = OutputCombiner(
-            {
-                "hand_left": hands.output(HandsSource.LEFT),
-                "hand_right": hands.output(HandsSource.RIGHT),
-                "root_command": locomotion_connected.output("root_command"),
-                "finger_joints_left": left_finger_joints,
-                "finger_joints_right": right_finger_joints,
-            }
-        )
-
-        return TeleopSessionConfig(
-            app_name="TeleopRos2Publisher",
-            pipeline=pipeline,
-            plugins=_build_plugins(
-                self._use_mock_operators,
-                include_synthetic_hands=True,
-                search_start=Path(__file__).resolve(),
-            ),
-        )
-
-    def _build_session_config(self, mode: str) -> TeleopSessionConfig:
-        if mode == "controller_teleop":
-            return self._build_controller_teleop_config()
-        if mode == "hand_teleop":
-            return self._build_hand_teleop_config()
-        if mode == "controller_raw":
-            return self._build_controller_raw_config()
-        if mode == "full_body":
-            return self._build_full_body_config()
-        raise ValueError(f"Unsupported mode {mode!r}")
+        return left_finger_joints, right_finger_joints
 
     def _build_wrist_tfs(
         self,
@@ -1224,6 +1304,19 @@ class TeleopRos2Node(Node):
                             )
                             if wrist_tfs:
                                 self._tf_broadcaster.sendTransform(wrist_tfs)
+                            if self._controller_uses_hands_source:
+                                left_hand = result["hand_left"]
+                                right_hand = result["hand_right"]
+                                hand_msg = _build_hand_msg_from_hands(
+                                    left_hand,
+                                    right_hand,
+                                    now,
+                                    self._world_frame,
+                                    self._transform_rot,
+                                    self._transform_trans,
+                                )
+                                if hand_msg.poses:
+                                    self._pub_hand.publish(hand_msg)
 
                         if self._mode in ("hand_teleop", "controller_teleop"):
                             root_command = result["root_command"]
