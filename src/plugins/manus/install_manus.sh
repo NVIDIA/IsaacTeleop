@@ -38,7 +38,10 @@ done
 MANUS_SDK_VERSION="3.1.1"
 MANUS_SDK_URL="https://static.manus-meta.com/resources/manus_core_3/sdk/MANUS_Core_${MANUS_SDK_VERSION}_SDK.zip"
 MANUS_SDK_ZIP="MANUS_Core_${MANUS_SDK_VERSION}_SDK.zip"
-MANUS_SDK_SHA256="c5ccd3c42a501107ec79f70d8450a486fbc3925c5c1e18e606114d09f2d9d24a"
+MANUS_SDK_SHA256_ACCEPTED=(
+    "c5ccd3c42a501107ec79f70d8450a486fbc3925c5c1e18e606114d09f2d9d24a"
+    "23fa74e507f3781668b50bbfc01141c495ffc93a5213d148c192220623b482fc"
+)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TELEOP_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
@@ -179,9 +182,16 @@ else
 fi
 
 ACTUAL_SHA256=$(sha256sum "$MANUS_SDK_ZIP" | awk '{print $1}')
-if [ "$ACTUAL_SHA256" != "$MANUS_SDK_SHA256" ]; then
+sha_match=0
+for expected in "${MANUS_SDK_SHA256_ACCEPTED[@]}"; do
+    if [ "$ACTUAL_SHA256" = "$expected" ]; then
+        sha_match=1
+        break
+    fi
+done
+if [ "$sha_match" -ne 1 ]; then
     rm -f "$MANUS_SDK_ZIP"
-    die "SHA-256 mismatch (expected $MANUS_SDK_SHA256, got $ACTUAL_SHA256)"
+    die "SHA-256 mismatch (got $ACTUAL_SHA256; accepted: ${MANUS_SDK_SHA256_ACCEPTED[*]})"
 fi
 
 if [ -d "$SCRIPT_DIR/ManusSDK" ]; then

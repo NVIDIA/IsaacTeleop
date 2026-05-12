@@ -411,7 +411,7 @@ void ManusTracker::OnLandscapeStream(const Landscape* landscape)
             left_present = true;
             // Fetch bone topology once on connect
             uint32_t nc = 0;
-            if (CoreSdk_GetRawSkeletonNodeCount(glove.id, nc) == SDKReturnCode::SDKReturnCode_Success && nc > 0)
+            if (CoreSdk_GetRawSkeletonNodeCount(glove.id, &nc) == SDKReturnCode::SDKReturnCode_Success && nc > 0)
             {
                 std::lock_guard<std::mutex> sk(tracker.m_skeleton_mutex);
                 tracker.m_left_node_info.resize(nc);
@@ -425,7 +425,7 @@ void ManusTracker::OnLandscapeStream(const Landscape* landscape)
             tracker.right_glove_id = glove.id;
             right_present = true;
             uint32_t nc = 0;
-            if (CoreSdk_GetRawSkeletonNodeCount(glove.id, nc) == SDKReturnCode::SDKReturnCode_Success && nc > 0)
+            if (CoreSdk_GetRawSkeletonNodeCount(glove.id, &nc) == SDKReturnCode::SDKReturnCode_Success && nc > 0)
             {
                 std::lock_guard<std::mutex> sk(tracker.m_skeleton_mutex);
                 tracker.m_right_node_info.resize(nc);
