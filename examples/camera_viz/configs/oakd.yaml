@@ -1,0 +1,50 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# OAK-D (mono RGB) — same YAML drives camera_viz + camera_sender.
+#
+# Mono-only by design until per-eye QuadLayer binding lands (see memory
+# note "Stereo XR rendering needs per-view QuadLayer buffers"). Stereo
+# OAK-D would otherwise render the same plane to both eyes — misleading.
+#
+# Stream colour: OAK-D's on-device VPU encoder produces BT.601 full-range
+# H.264 when output_format=h264 is used; OAK-D's USB raw frames go
+# through depthai's getCvFrame() (BGR888p → packed BGR) which the GPU
+# kernel converts to RGBA. For RTP receivers consuming this sender's
+# NVENC output, ``color_range: full`` matches what our GPU kernel emits.
+
+source: local                   # local | rtp
+streaming:
+  host: 127.0.0.1
+
+cameras:
+  - name: oakd
+    enabled: true
+    type: oakd
+    mode: mono                  # mono | stereo | stereo_rgb (mono only for now)
+    device_id: ""               # empty → first available; use list-cameras to pick
+    camera_socket: RGB          # mono mode: which sensor
+    width: 1280
+    height: 720
+    fps: 30
+    rtp:
+      port: 5000
+      bitrate: 4000000
+      profile: baseline
+      gop: 15
+      color_range: full         # matches our GPU NV12 path
+
+display:
+  mode: window                  # window | xr
+  window:
+    width: 1280
+    height: 720
+  xr:
+    near_z: 0.05
+    far_z: 100.0
+  clear_color: [0.0, 0.0, 0.0, 1.0]
+  placements:
+    oakd:
+      lock_mode: lazy
+      size: [1.0, 0.5625]       # 16:9 at 1m wide
+      distance: 1.5

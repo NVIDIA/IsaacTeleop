@@ -31,12 +31,28 @@ deliberately scoped down to what the operator's HMD needs.
 
 ```
 camera_viz/
-├── camera_viz.py        # main: parse YAML, build, run
+├── camera_viz.py        # display: opens cameras locally OR listens for RTP
+├── camera_sender.py     # robot side: opens cameras locally and ships RTP
 ├── pipeline/            # framework: source ABC + threaded runner
 ├── placements/          # world / head / lazy locks (camera_plane.cpp port)
 ├── sources/             # GPU-resident frame producers
-└── configs/             # example YAMLs
+├── transports/          # RTP H.264 sender + receiver + NVENC/NVDEC wrappers
+└── configs/             # example YAMLs (one per camera kind)
 ```
+
+## Single YAML, two scripts
+
+Each config under `configs/` describes the full pipeline: cameras, the
+RTP transport for each, the receiver-side display settings. The same
+file is consumed by both `camera_viz.py` (display) and `camera_sender.py`
+(robot). Three knobs flip behavior:
+
+- `source: local | rtp` (top-level, `camera_viz.py` only) — open cameras
+  directly on this host, or listen for RTP streams produced by a
+  matching `camera_sender.py` somewhere else.
+- `display.mode: window | xr` — desktop window vs. headset.
+- `streaming.host: <IP>` — sender target. Override with
+  `camera_sender.py --host …` for ad-hoc testing.
 
 ## Lock modes
 
@@ -63,28 +79,39 @@ Lazy-mode tuning knobs (XR placement YAML block):
 
 ## Running
 
+Local-only sanity check (no robot, no network):
+
 ```bash
 # From the IsaacTeleop checkout, with a wheel already in build/wheels/:
-uv run --with ./build/wheels/isaacteleop-*.whl --with cupy-cuda12x --with pyyaml \
-       python examples/camera_viz/camera_viz.py examples/camera_viz/configs/synthetic_window.yaml
+uv run --with ./build/wheels/isaacteleop-*.whl \
+       --with cupy-cuda12x --with pyyaml --with scipy \
+       python examples/camera_viz/camera_viz.py examples/camera_viz/configs/synthetic.yaml
 
 # XR 3-up comparison (world / lazy / head side-by-side):
-uv run --with ./build/wheels/isaacteleop-*.whl --with cupy-cuda12x --with pyyaml \
+uv run --with ./build/wheels/isaacteleop-*.whl \
+       --with cupy-cuda12x --with pyyaml --with scipy \
        python examples/camera_viz/camera_viz.py examples/camera_viz/configs/synthetic_xr_3up.yaml
 ```
 
-Press Ctrl-C (window mode) or close the headset session (XR mode) to exit.
-
-## RTP sender (`camera_send.py`)
-
-Run on the robot to ship a camera feed over the network as RTP H.264:
+Real camera, local:
 
 ```bash
+# v4l2 — add --with opencv-python; oakd — add --with depthai; zed — see ZED SDK install.
 uv run --with ./build/wheels/isaacteleop-*.whl \
        --with cupy-cuda12x --with pyyaml --with opencv-python --with scipy \
-       python examples/camera_viz/camera_send.py examples/camera_viz/configs/rtp_send_test.yaml
+       python examples/camera_viz/camera_viz.py examples/camera_viz/configs/v4l2.yaml
 ```
 
-The workstation-side receiver runs `camera_viz.py` against
-`configs/rtp_receive_test.yaml`. Both configs toggle window↔XR via a
-single ``mode:`` field.
+RTP — two processes, the **same YAML** on both sides. Set
+`streaming.host` to the workstation's IP, flip `source: rtp` for the
+receiver:
+
+```bash
+# On the robot:
+python examples/camera_viz/camera_sender.py examples/camera_viz/configs/v4l2.yaml --host 192.168.1.100
+
+# On the workstation (edit configs/v4l2.yaml: `source: rtp` first):
+python examples/camera_viz/camera_viz.py examples/camera_viz/configs/v4l2.yaml
+```
+
+Press Ctrl-C (window mode) or close the headset session (XR mode) to exit.

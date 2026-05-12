@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Three synthetic sources in XR, one per lock mode — a comparison rig
-# for the placement strategies ported from camera_streamer.
+# for the placement strategies ported from camera_streamer. Local-only
+# (no RTP path; this is a placement-strategy test, not a transport one).
 #
 # Layout, looking from above (user at origin facing -Z):
 #                   world (-0.6 m)   lazy (0.0 m)   head (+0.6 m)
@@ -11,30 +12,41 @@
 #                                         |
 #                                         O  user
 
-mode: xr
-xr:
-  near_z: 0.05
-  far_z: 100.0
-clear_color: [0.0, 0.0, 0.0, 1.0]
+source: local
 
-sources:
+cameras:
   - name: world_locked
     type: synthetic
     width: 1280
     height: 720
     fps: 60.0
-    placement:
-      lock_mode: world
-      size: [1.0, 0.5625]
-      distance: 1.5
-      offset_x: -0.6
 
   - name: lazy_locked
     type: synthetic
     width: 1280
     height: 720
     fps: 60.0
-    placement:
+
+  - name: head_locked
+    type: synthetic
+    width: 1280
+    height: 720
+    fps: 60.0
+
+display:
+  mode: xr
+  xr:
+    near_z: 0.05
+    far_z: 100.0
+  clear_color: [0.0, 0.0, 0.0, 1.0]
+  placements:
+    world_locked:
+      lock_mode: world
+      size: [1.0, 0.5625]
+      distance: 1.5
+      offset_x: -0.6
+
+    lazy_locked:
       lock_mode: lazy
       size: [1.0, 0.5625]
       distance: 1.5
@@ -45,12 +57,7 @@ sources:
       reposition_delay_s: 0.5
       transition_duration_s: 0.3
 
-  - name: head_locked
-    type: synthetic
-    width: 1280
-    height: 720
-    fps: 60.0
-    placement:
+    head_locked:
       lock_mode: head
       size: [1.0, 0.5625]
       distance: 1.5

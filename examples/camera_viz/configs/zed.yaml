@@ -1,0 +1,47 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# ZED (left mono) — same YAML drives camera_viz + camera_sender.
+#
+# stereo: false until per-eye QuadLayer binding lands (see memory note
+# "Stereo XR rendering needs per-view QuadLayer buffers"). The "mono"
+# stream from ZedSource is named "left" so placements: { left: ... }.
+#
+# Zero H2D in the steady state — pyzed's retrieve_image(MEM.GPU) hands
+# back BGRA8 already in VRAM. Our GPU kernel D2D-channel-swaps into the
+# contiguous RGBA output.
+
+source: local                   # local | rtp
+streaming:
+  host: 127.0.0.1
+
+cameras:
+  - name: zed
+    enabled: true
+    type: zed
+    resolution: HD720           # HD2K | HD1080 | HD720 | VGA
+    fps: 30
+    bus_type: usb               # usb | gmsl
+    serial_number: 0            # 0 → first available
+    stereo: false
+    rtp:
+      port: 5000
+      bitrate: 4000000
+      profile: baseline
+      gop: 15
+      color_range: full
+
+display:
+  mode: window                  # window | xr
+  window:
+    width: 1280
+    height: 720
+  xr:
+    near_z: 0.05
+    far_z: 100.0
+  clear_color: [0.0, 0.0, 0.0, 1.0]
+  placements:
+    zed:
+      lock_mode: lazy
+      size: [1.0, 0.5625]       # 16:9 at 1m wide
+      distance: 1.5
