@@ -46,6 +46,16 @@ bool is_openxr_extension_supported(const char* ext_name)
                        [ext_name](const XrExtensionProperties& p) { return std::string(p.extensionName) == ext_name; });
 }
 
+SDKReturnCode get_raw_skeleton_node_count(uint32_t glove_id, uint32_t& node_count)
+{
+#if defined(__aarch64__) || defined(__arm__) || defined(_M_ARM64) || defined(_M_ARM)
+    // Manus SDK 3.1.1 ships different declarations for this call across architectures.
+    return CoreSdk_GetRawSkeletonNodeCount(glove_id, &node_count);
+#else
+    return CoreSdk_GetRawSkeletonNodeCount(glove_id, node_count);
+#endif
+}
+
 } // anonymous namespace
 
 static constexpr XrPosef kLeftHandOffset = { { -0.70710678f, -0.5f, 0.0f, 0.5f }, { -0.1f, 0.02f, -0.02f } };
@@ -411,7 +421,7 @@ void ManusTracker::OnLandscapeStream(const Landscape* landscape)
             left_present = true;
             // Fetch bone topology once on connect
             uint32_t nc = 0;
-            if (CoreSdk_GetRawSkeletonNodeCount(glove.id, &nc) == SDKReturnCode::SDKReturnCode_Success && nc > 0)
+            if (get_raw_skeleton_node_count(glove.id, nc) == SDKReturnCode::SDKReturnCode_Success && nc > 0)
             {
                 std::lock_guard<std::mutex> sk(tracker.m_skeleton_mutex);
                 tracker.m_left_node_info.resize(nc);
@@ -425,7 +435,7 @@ void ManusTracker::OnLandscapeStream(const Landscape* landscape)
             tracker.right_glove_id = glove.id;
             right_present = true;
             uint32_t nc = 0;
-            if (CoreSdk_GetRawSkeletonNodeCount(glove.id, &nc) == SDKReturnCode::SDKReturnCode_Success && nc > 0)
+            if (get_raw_skeleton_node_count(glove.id, nc) == SDKReturnCode::SDKReturnCode_Success && nc > 0)
             {
                 std::lock_guard<std::mutex> sk(tracker.m_skeleton_mutex);
                 tracker.m_right_node_info.resize(nc);
