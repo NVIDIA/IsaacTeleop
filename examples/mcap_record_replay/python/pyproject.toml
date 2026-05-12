@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[project]
+name = "mcap-record-replay-example"
+version = "0.0.0"  # Internal example - not versioned
+description = "Isaac Teleop MCAP record / replay example with viser visualization"
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "isaacteleop[cloudxr]==1.3.9rc1",
+    "mcap>=1.2.0",
+    "numpy>=1.23.0",
+    "viser>=0.2.0",
+]
+
+[[tool.uv.index]]
+url = "https://pypi.nvidia.com"
