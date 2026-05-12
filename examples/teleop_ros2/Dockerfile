@@ -178,8 +178,18 @@ RUN echo "source /usr/local/bin/teleop-env-setup" >> /etc/bash.bashrc
 # diverge from what this image was actually built with). Extract the version
 # from the wheel filename rather than hard-coding it.
 RUN set -eu; \
-    wheel=$(ls /opt/isaacteleop/install/wheels/isaacteleop-*.whl | head -n1); \
+    echo "== isaacteleop wheels found in find-links =="; \
+    ls -la /opt/isaacteleop/install/wheels/ || true; \
+    wheels=$(ls /opt/isaacteleop/install/wheels/isaacteleop-*.whl 2>/dev/null); \
+    count=$(printf '%s\n' "$wheels" | grep -c .); \
+    if [ "$count" -ne 1 ]; then \
+        echo "ERROR: expected exactly 1 isaacteleop wheel in find-links, found $count:"; \
+        printf '  %s\n' $wheels; \
+        exit 1; \
+    fi; \
+    wheel=$wheels; \
     version=$(basename "$wheel" | sed -E 's/^isaacteleop-([^-]+)-.*$/\1/'); \
+    echo "== pinning isaacteleop==${version} =="; \
     uv sync --no-dev --find-links=/opt/nlopt-wheels --upgrade-package "isaacteleop==${version}"
 
 # Use --no-sync because the venv is already provisioned above, and the implicit
