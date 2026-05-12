@@ -319,24 +319,37 @@ def _resolve_sharpa_mjcf(filename: str) -> str:
         ) from exc
 
 
-def _resolve_teleop_ros2_file(description: str, *parts: str) -> str:
-    path = Path(__file__).resolve().parents[1].joinpath(*parts)
+def _resolve_config_asset_root(raw_root: str) -> Path:
+    raw_root = raw_root.strip()
+    if not raw_root:
+        return Path(__file__).resolve().parents[1]
+
+    root = Path(raw_root).expanduser().resolve()
+    if not root.is_dir():
+        raise FileNotFoundError(f"config_asset_root directory not found: {root}")
+    return root
+
+
+def _resolve_teleop_ros2_file(root: Path, description: str, *parts: str) -> str:
+    path = root.joinpath(*parts)
     if not path.is_file():
         raise FileNotFoundError(f"{description} not found at: {path}")
     return str(path)
 
 
-def _resolve_dex_sharpa_config(filename: str) -> str:
+def _resolve_dex_sharpa_config(root: Path, filename: str) -> str:
     return _resolve_teleop_ros2_file(
+        root,
         "DexPilot Sharpa Wave retargeting config",
         "configs",
         filename,
     )
 
 
-def _resolve_dex_sharpa_urdf(filename: str) -> str:
+def _resolve_dex_sharpa_urdf(root: Path, filename: str) -> str:
     try:
         return _resolve_teleop_ros2_file(
+            root,
             "Standalone Sharpa Wave URDF",
             "assets",
             "urdf",
@@ -619,6 +632,17 @@ class TeleopRos2Node(Node):
                 )
             ),
         )
+        self.declare_parameter(
+            "config_asset_root",
+            "",
+            ParameterDescriptor(
+                type=ParameterType.PARAMETER_STRING,
+                description=(
+                    "Directory containing teleop_ros2 configs/ and assets/. "
+                    "Leave empty to use the installed or source example root."
+                ),
+            ),
+        )
 
         self.declare_parameter(
             "transform_translation",
@@ -723,6 +747,10 @@ class TeleopRos2Node(Node):
             )
         if self._mode == "hand_teleop":
             self.get_logger().info(f"Hand retargeter: {self._hand_retargeter}")
+        self._config_asset_root: Path = _resolve_config_asset_root(
+            self.get_parameter("config_asset_root").get_parameter_value().string_value
+        )
+        self.get_logger().info(f"Config/asset root: {self._config_asset_root}")
 
         self._pedal_collection_id: str = (
             self.get_parameter("pedal_collection_id").get_parameter_value().string_value
@@ -998,9 +1026,13 @@ class TeleopRos2Node(Node):
             left_hand_retargeter = DexHandRetargeter(
                 DexHandRetargeterConfig(
                     hand_retargeting_config=_resolve_dex_sharpa_config(
-                        "sharpa_wave_left_dexpilot.yml"
+                        self._config_asset_root,
+                        "sharpa_wave_left_dexpilot.yml",
                     ),
-                    hand_urdf=_resolve_dex_sharpa_urdf("left_sharpa_wave.urdf"),
+                    hand_urdf=_resolve_dex_sharpa_urdf(
+                        self._config_asset_root,
+                        "left_sharpa_wave.urdf",
+                    ),
                     hand_joint_names=_LEFT_SHARPA_WAVE_JOINT_NAMES,
                     handtracking_to_baselink_frame_transform=(
                         _DEX_HANDTRACKING_TO_BASELINK_FRAME_TRANSFORM
@@ -1012,9 +1044,13 @@ class TeleopRos2Node(Node):
             right_hand_retargeter = DexHandRetargeter(
                 DexHandRetargeterConfig(
                     hand_retargeting_config=_resolve_dex_sharpa_config(
-                        "sharpa_wave_right_dexpilot.yml"
+                        self._config_asset_root,
+                        "sharpa_wave_right_dexpilot.yml",
                     ),
-                    hand_urdf=_resolve_dex_sharpa_urdf("right_sharpa_wave.urdf"),
+                    hand_urdf=_resolve_dex_sharpa_urdf(
+                        self._config_asset_root,
+                        "right_sharpa_wave.urdf",
+                    ),
                     hand_joint_names=_RIGHT_SHARPA_WAVE_JOINT_NAMES,
                     handtracking_to_baselink_frame_transform=(
                         _DEX_HANDTRACKING_TO_BASELINK_FRAME_TRANSFORM
