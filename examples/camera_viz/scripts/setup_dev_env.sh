@@ -125,12 +125,8 @@ if $WITH_ZED; then
     rm -rf "$tmp"
 fi
 
-# Build the native NVENC/NVDEC codec for the RTP path. Replaces
-# PyNvVideoCodec (which buffers 3 encoded frames at construction with no
-# way to override → 100 ms at 30 fps). Requires CUDA toolkit + NVIDIA
-# driver — the build script bails with a useful error if either is
-# missing. Skipped under --no-rtp because that's the only path that
-# uses the codec.
+# Build the native NVENC/NVDEC codec for the RTP path. Requires CUDA
+# toolkit + NVIDIA driver. Skipped under --no-rtp.
 if $WITH_RTP; then
     echo "==> building native codec (examples/camera_viz/codec)"
     CODEC_DIR="$(cd "$(dirname "$0")/.." && pwd)/codec"

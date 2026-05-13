@@ -12,9 +12,8 @@ CAP_PROP_BUFFERSIZE is forced to 1 so the kernel-side V4L2 buffer
 doesn't queue stale frames — the consumer always sees the latest
 captured frame, not whatever sat in the queue since the last grab.
 
-Hardware-decoded MJPG via NVDEC isn't in scope here; if you need
-sub-millisecond decode at 4K, replace the OpenCV backend with a
-PyNvVideoCodec-based source.
+Hardware-decoded MJPG via NVDEC isn't in scope here; for sub-millisecond
+decode at 4K, replace the OpenCV backend with a native NVDEC source.
 """
 
 from __future__ import annotations

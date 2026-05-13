@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-"""camera_viz — Holoscan-free camera-feed visualizer for Isaac Teleop.
+"""camera_viz — camera-feed visualizer for Isaac Teleop.
 
 Reads the unified pipeline YAML (cameras + streaming + display) and
 runs the receiver side: either opens the configured cameras directly

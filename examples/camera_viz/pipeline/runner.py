@@ -2,26 +2,15 @@
 # SPDX-License-Identifier: Apache-2.0
 """Event-driven run-loop for camera_viz.
 
-The VizSession primitive is single-threaded by design; threading is app
-policy. VizRunner owns two worker threads:
+VizRunner owns two threads:
 
-  * **submit thread** — polls each source's ``latest()`` at ~1 kHz and
-    calls ``layer.submit_cuda_array()`` the moment a new frame appears.
-    QuadLayer's 3-slot mailbox absorbs the high-frequency submissions;
-    the renderer reads whichever slot is freshest at record time.
-    After each successful publish it notifies a condition variable.
-
-  * **render thread** — waits on that condition. Wakes within ~µs of
-    a fresh publish, calls ``session.render()``. With the C++ side
-    running uncapped (no pacer) and MAILBOX / FIFO_LATEST_READY
-    swapchain, render() is non-blocking on host (multi-frame-in-flight
-    via per-image fences). Net effect: render fires at the camera's
-    publish rate, latency = next-vsync after submit. Mirrors
-    Holoscan's EventBasedScheduler firing HolovizOp on input arrival.
-
-A safety-net timeout on the wait re-runs ``session.render()`` even
-when no source has published — needed for window events / XR placement
-ticks / swapchain recreate on resize.
+  * **submit thread** — polls each source's ``latest()`` at ~1 kHz,
+    calls ``layer.submit_cuda_array()`` on new frames, and notifies a
+    condition variable.
+  * **render thread** — waits on the condition. Wakes within ~µs of a
+    new publish and calls ``session.render()``. A safety-net timeout
+    re-runs render() periodically for window events / XR placement
+    updates even without new frames.
 """
 
 from __future__ import annotations
@@ -36,14 +25,10 @@ from .interface import FrameSource
 
 logger = logging.getLogger(__name__)
 
-# Submit thread idle poll. 1 ms gives ~0.5 ms avg mailbox→layer
-# staleness at negligible CPU cost (sleeping thread polling at 1 kHz
-# costs <0.1% on a modern host).
+# Submit thread poll interval when no source has new data.
 SUBMIT_POLL_S = 0.001
 
-# Render thread safety-net tick. Wakes the render thread even with no
-# source publishes so window events / XR placement / resize recovery
-# still run. ~1 monitor period.
+# Render thread idle wake interval (one monitor period).
 RENDER_IDLE_TICK_S = 1.0 / 60.0
 
 
@@ -86,22 +71,18 @@ class VizRunner:
         self._stop = threading.Event()
         self._submit_thread: Optional[threading.Thread] = None
         self._render_thread: Optional[threading.Thread] = None
-        # Submit thread bumps the version + notifies after each publish.
-        # Render thread waits on this condition, wakes within ~µs of
-        # the notify. Lost-wakeup safe because the render thread
-        # compares versions under the lock.
+        # Submit thread bumps the version + notifies after each publish;
+        # render thread compares versions under the lock, so wakeups
+        # can't be lost.
         self._data_cond = threading.Condition()
         self._data_version = 0
 
     def start(self) -> None:
         if self._submit_thread is not None or self._render_thread is not None:
             raise RuntimeError("VizRunner already started")
-        # Clear the stop event so ``start() → stop() → start()`` works —
-        # without this, recycled threads see the previous stop and exit
-        # immediately.
         self._stop.clear()
-        # Defensive startup: a source's start() raising (SDK init, etc.)
-        # would leak earlier sources' producer threads. Roll back.
+        # Roll back started sources on any failure so the runner doesn't
+        # leak producer threads.
         started: list[FrameSource] = []
         try:
             for s in self._sources:
@@ -114,8 +95,6 @@ class VizRunner:
                 except Exception:
                     pass
             raise
-        # Submit thread first so frames published before render starts
-        # land in QuadLayer's mailbox immediately.
         self._submit_thread = threading.Thread(
             target=self._submit_loop, name="camera_viz_submit", daemon=False
         )
@@ -127,10 +106,9 @@ class VizRunner:
 
     def stop(self) -> None:
         self._stop.set()
-        # Wake the render thread out of cond.wait so it can observe stop.
+        # Wake the render thread out of cond.wait so it sees the stop.
         with self._data_cond:
             self._data_cond.notify_all()
-        # Join render thread first — it's the consumer.
         if self._render_thread is not None:
             self._render_thread.join()
             self._render_thread = None
@@ -141,12 +119,7 @@ class VizRunner:
             s.stop()
 
     def wait(self) -> None:
-        """Block until the render thread exits — either via ``stop()`` from
-        another thread or via the session reporting ``should_close()``.
-
-        Polls with a short timeout so Python's signal-delivery checkpoints
-        run; a bare ``thread.join()`` would swallow SIGINT for the
-        duration of the run."""
+        """Block until the render thread exits. Polls so SIGINT is delivered."""
         while self._render_thread is not None and self._render_thread.is_alive():
             self._render_thread.join(timeout=0.1)
 
@@ -160,9 +133,7 @@ class VizRunner:
     # ── Submit thread ──────────────────────────────────────────────────
 
     def _submit_loop(self) -> None:
-        # Pin to the source's GPU once we see the first frame. cupy ops
-        # otherwise default this thread to GPU 0 and break stream /
-        # buffer device matching on multi-GPU hosts.
+        # Pin to the source's GPU on the first frame.
         device_pinned = False
         while not self._stop.is_set():
             published_any = False
@@ -176,23 +147,13 @@ class VizRunner:
                 layer.submit_cuda_array(frame.image, stream=frame.stream)
                 published_any = True
             if published_any:
-                # Wake the render thread — closes the latency gap to
-                # HolovizOp by firing render() on data arrival rather
-                # than at a fixed pacer deadline.
                 with self._data_cond:
                     self._data_version += 1
                     self._data_cond.notify()
             else:
-                # Only sleep when there was nothing new — a fast burst
-                # (multiple sources publishing at once) goes through
-                # back-to-back without a 1 ms gap between submissions.
                 self._stop.wait(timeout=SUBMIT_POLL_S)
 
     def _pin_to_device(self, frame) -> None:
-        # Best-effort device pin. ``frame.image`` is typically a cupy
-        # ndarray with .device.id; objects with only
-        # __cuda_array_interface__ might lack the cupy attribute, in
-        # which case the setDevice would error and we skip.
         try:
             import cupy as cp
 

@@ -68,9 +68,7 @@ class RtpH264Sender:
         self._height = height
         self._fps = fps
         self._mtu = mtu
-        # Encoder is dependency-injected so the caller picks the backend
-        # (PyNvVideoCodec on desktop, GStreamer on Jetson). See
-        # transports._encoder_factory.make_encoder().
+        # Encoder is injected; see transports._encoder_factory.make_encoder().
         self._encoder = encoder
 
         self._pipeline = None

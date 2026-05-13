@@ -2,21 +2,14 @@
 # SPDX-License-Identifier: Apache-2.0
 """RTP H.264 receiver as a FrameSource.
 
-GStreamer handles UDP/RTP transport (see ``transports/rtp_h264_receiver``);
-PyNvVideoCodec handles NVDEC; the NV12→RGBA conversion is a single CuPy
-RawKernel launch in ``_nv_decode``.
+GStreamer handles UDP/RTP transport (``transports/rtp_h264_receiver``);
+NVDEC + NV12→RGBA conversion happens in the native ``codec`` module
+via ``_nv_decode``.
 
-This source is the *stopgap*: the C++ NVENC/NVDEC implementation in
-``examples/camera_streamer/operators/nv_stream_*`` will eventually move
-into ``src/codec/`` as ``isaacteleop.codec`` with thin pybind bindings,
-and this file collapses to a 30-line glue layer. For now it pulls in
-PyNvVideoCodec so we can test the receiver against a real RTP stream
-without waiting on the codec library port.
-
-Resolution is locked at construction (from YAML). A stream whose SPS
-advertises different dimensions drops frames with a warning — the
-consumer's QuadLayer is sized at ``session.add_quad_layer`` and can't
-absorb new geometry.
+Resolution is locked at construction (from YAML). Streams whose SPS
+advertises different dimensions drop frames with a warning — the
+QuadLayer is sized at ``session.add_quad_layer`` and can't absorb new
+geometry.
 """
 
 from __future__ import annotations

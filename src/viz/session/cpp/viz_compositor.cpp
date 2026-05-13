@@ -58,9 +58,6 @@ void VizCompositor::init()
     try
     {
         // One FrameSync + command buffer per backend image slot.
-        // image_count = 1 for kOffscreen/kXr (stub) → single-frame-in-
-        // flight fallback. Window backend returns swapchain image
-        // count (typically 3) → real multi-frame-in-flight.
         const uint32_t n = backend_->image_count();
         if (n == 0)
         {
@@ -84,11 +81,7 @@ void VizCompositor::init()
                 VkQueryPoolCreateInfo qpci{};
                 qpci.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
                 qpci.queryType = VK_QUERY_TYPE_TIMESTAMP;
-                // 4 timestamps per in-flight slot. Slot k writes to
-                // [4*k, 4*k+4). At the top of render() we wait on
-                // slot k's fence (it's about to be reused), at which
-                // point the previous timestamps for slot k are stable
-                // and we can read them without host-stalling.
+                // 4 timestamps per in-flight slot, indexed by slot.
                 qpci.queryCount = 4u * n;
                 check_vk(vkCreateQueryPool(ctx_->device(), &qpci, nullptr, &gpu_timestamp_pool_),
                          "vkCreateQueryPool(timestamps)");
@@ -139,10 +132,7 @@ void VizCompositor::create_command_pool()
 
 void VizCompositor::create_command_buffer()
 {
-    // One command buffer per in-flight slot. Host may NOT record into
-    // a PENDING cmd buffer; with per-slot fences gating the slot's
-    // reuse, the slot's fence wait at the top of render() is exactly
-    // the "this slot's cmd buf is no longer pending" wait we need.
+    // One command buffer per in-flight slot.
     const uint32_t n = static_cast<uint32_t>(frame_syncs_.size());
     command_buffers_.assign(n, VK_NULL_HANDLE);
     VkCommandBufferAllocateInfo info{};
@@ -189,32 +179,18 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
     }
 
     // Slot for the in-flight resources (fence, cmd buf, timestamp range).
-    // backend_token from begin_frame is the swapchain image_index for
-    // kWindow; an opaque per-mode value for others. Modulo by our slot
-    // count keeps us in range even when the backend rotates outside
-    // [0, n).
     const uint32_t slot_count = static_cast<uint32_t>(frame_syncs_.size());
     const uint32_t slot = static_cast<uint32_t>(frame->backend_token) % slot_count;
     FrameSync& slot_sync = *frame_syncs_[slot];
     VkCommandBuffer command_buffer = command_buffers_[slot];
 
-    // Wait on THIS slot's fence — signaled by its previous use, up to
-    // (slot_count - 1) renders ago. Multi-frame-in-flight: this is
-    // usually already signaled, so the wait is ~0 ms. Acts as a back-
-    // pressure valve when the host races ahead of the GPU faster than
-    // (slot_count) renders. Also guarantees the slot's cmd buffer is
-    // no longer PENDING — safe to re-record via vkBeginCommandBuffer
-    // (the pool was created with RESET_COMMAND_BUFFER_BIT so
-    // vkBeginCommandBuffer performs the implicit reset).
+    // Wait on THIS slot's fence — gates cmd-buffer reuse. Usually
+    // already signaled in multi-in-flight; backpressure when the host
+    // outruns the GPU.
     slot_sync.wait();
 
-    // Exception-safety guard: if we throw BEFORE submit, the cmd
-    // buffer is in RECORDING state and a later vkBeginCommandBuffer
-    // would implicitly reset it anyway — but explicit reset here
-    // documents the intent. After submit succeeds (the released
-    // flag is set), the cmd buffer is PENDING and we MUST NOT
-    // reset it — the slot's fence wait at the top of the next
-    // render-into-this-slot will release it.
+    // Reset on unwind before submit. After submit the cmd buffer is
+    // PENDING — releasing the guard prevents an illegal reset.
     struct CmdResetGuard
     {
         VkCommandBuffer cmd;
@@ -228,9 +204,8 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
         }
     } cmd_guard{ command_buffer };
 
-    // On unwind, call abort_frame instead of end_frame: end_frame's
-    // present would wait on signal_after_render which our submit may
-    // never have signaled. abort_frame is the backend's recovery hook.
+    // On unwind, abort_frame instead of end_frame — the present's
+    // wait on signal_after_render may never have been signaled.
     struct FrameGuard
     {
         DisplayBackend* backend;
@@ -254,10 +229,8 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
     const RenderTarget& rt = backend_->render_target();
     const Resolution rt_extent = rt.resolution();
 
-    // XR: per-eye viewports already set in frame->views by XrBackend.
-    // tile_layout / scissor / view[0] override are window-only
-    // letterboxing — applying them in XR collapses both eyes into one
-    // tile.
+    // XR: per-eye viewports come from frame->views. tile layout is
+    // window/offscreen letterboxing only.
     const bool xr_mode = backend_->is_xr();
 
     // Per-layer aspect-fit tiles (window/offscreen only).
@@ -279,9 +252,7 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
     begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     check_vk(vkBeginCommandBuffer(command_buffer, &begin), "vkBeginCommandBuffer");
 
-    // ts0: cmd-buffer-begin. Each slot owns 4 query slots starting at
-    // (4 * slot); reset just our slot's range so we don't disturb
-    // queries still pending from other in-flight frames.
+    // ts0: cmd-buffer-begin. Each slot owns query range [4*slot, 4*slot+4).
     const uint32_t query_base = 4u * slot;
     if (gpu_timestamp_pool_ != VK_NULL_HANDLE)
     {
@@ -304,9 +275,8 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
 
     vkCmdBeginRenderPass(command_buffer, &rp, VK_SUBPASS_CONTENTS_INLINE);
 
-    // Window/offscreen: pre-bind scissor=tile.outer and override
-    // view[0].viewport=tile.content for aspect-fit letterboxing.
-    // XR: per-eye viewports come from frame->views.
+    // Window/offscreen: scissor=tile.outer + view[0].viewport=tile.content
+    // for aspect-fit letterboxing.
     if (xr_mode)
     {
         const VkRect2D rt_full{ { 0, 0 }, { rt_extent.width, rt_extent.height } };
@@ -326,9 +296,6 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
             vkCmdSetScissor(command_buffer, 0, 1, &scissor_rect);
             layer_views[0].viewport = to_rect2d(viewport_rect);
         }
-        // Pass the in-flight slot so multi-in-flight mailbox layers
-        // (QuadLayer) can track which sample slot belongs to which
-        // in-flight frame.
         visible_layers[i]->record(command_buffer, layer_views, rt, slot);
     }
 
@@ -405,27 +372,16 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
     submit.signalSemaphoreCount = static_cast<uint32_t>(signal_semaphores.size());
     submit.pSignalSemaphores = signal_semaphores.empty() ? nullptr : signal_semaphores.data();
 
-    // Reset THIS slot's fence immediately before submit so the submit
-    // signal lands on a known-unsignaled fence. On throw above, the
-    // fence stays in its previous (signaled) state and the next render
-    // into this slot doesn't deadlock at its wait().
+    // Reset before submit so the signal lands on an unsignaled fence.
+    // On throw earlier, fence stays signaled — next render into this
+    // slot won't deadlock at wait().
     slot_sync.reset();
     submit_or_signal_fence(submit, "vkQueueSubmit", slot_sync.in_flight_fence());
-    // Submit succeeded — cmd buffer is now PENDING on the GPU.
-    // Disarm the reset guard; the next render-into-this-slot's fence
-    // wait + vkBeginCommandBuffer implicit reset handles the cleanup.
     cmd_guard.released = true;
 
-    // **F4: no trailing host wait.** The slot's fence is in flight and
-    // will signal when the GPU finishes this cmd buf. We let the GPU
-    // continue while the host returns and goes on to queue more work.
-    // The wait happens at the TOP of the next render() that targets
-    // this same slot (slot_count frames from now). Matches HolovizOp.
-    //
-    // GPU timing is opt-in (Config::gpu_timing) and DOES require
-    // host-waiting to read its query pool. Fall through to a synchronous
-    // path when enabled — gpu_timing effectively forces single-frame-
-    // in-flight for the frames it samples. Production runs leave it off.
+    // No trailing host wait — the slot's fence is gated by the next
+    // render that targets this slot. GPU timing forces a synchronous
+    // wait to read query results; opt-in only.
     if (gpu_timestamp_pool_ != VK_NULL_HANDLE)
     {
         slot_sync.wait();

@@ -1,10 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
-// NV12 → RGBA8 single-launch color conversion. Supports both BT.709
-// limited-range (H.264 default) and BT.601 full-range (OAK-D VPU
-// matrix). Ported from examples/camera_viz/sources/_nv_decode.py — same
-// math, same per-channel saturation. Alpha is always 255.
+// NV12 → RGBA8 colour conversion in a single kernel launch.
+// BT.709 limited-range (H.264 default) or BT.601 full-range (T.871).
+// Alpha is always 255.
 
 #include "nv12_to_rgba.cuh"
 
@@ -31,7 +30,7 @@ __global__ void nv12_to_rgba_kernel(const unsigned char* __restrict__ y_plane,
     }
 
     const int Y = y_plane[y * y_pitch + x];
-    // UV is at half resolution; interleaved Cb, Cr per 2-pixel block.
+    // UV is half-resolution, interleaved Cb,Cr per 2-pixel block.
     const int uv_x = (x & ~1);
     const int uv_y = y >> 1;
     const int Cb = uv_plane[uv_y * uv_pitch + uv_x + 0];
@@ -40,7 +39,7 @@ __global__ void nv12_to_rgba_kernel(const unsigned char* __restrict__ y_plane,
     float R, G, B;
     if (full_range)
     {
-        // BT.601 full-range (ITU-T T.871). What OAK-D VPU emits.
+        // BT.601 full-range (ITU-T T.871).
         const float yf = (float)Y;
         const float u = (float)Cb - 128.f;
         const float v = (float)Cr - 128.f;
@@ -50,7 +49,7 @@ __global__ void nv12_to_rgba_kernel(const unsigned char* __restrict__ y_plane,
     }
     else
     {
-        // BT.709 limited-range (16-235 luma). H.264 default.
+        // BT.709 limited-range (luma 16-235).
         const float yf = ((float)Y - 16.f) * 1.16438f;
         const float u = (float)Cb - 128.f;
         const float v = (float)Cr - 128.f;
@@ -82,8 +81,6 @@ void launch_nv12_to_rgba(const uint8_t* y_plane,
                          bool full_range,
                          cudaStream_t stream)
 {
-    // 16x16 threads per block — sweet spot for memory-bound kernels
-    // with strided 2D access. Same as the Python kernel.
     const dim3 block(16, 16, 1);
     const dim3 grid((width + 15) / 16, (height + 15) / 16, 1);
     nv12_to_rgba_kernel<<<grid, block, 0, stream>>>(

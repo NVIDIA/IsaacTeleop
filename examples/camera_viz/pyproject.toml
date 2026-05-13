@@ -44,11 +44,9 @@ rtp = [
     "pybind11>=2.11",
 ]
 
-# Native NVENC/NVDEC codec lives in ./codec/ — replaces PyNvVideoCodec
-# (which holds back 3 frames of bitstream at construction → 100 ms at
-# 30 fps with no kwarg to override). Build with ``codec/build.sh``;
-# scripts/setup_dev_env.sh does this automatically. Requires CUDA
-# toolkit + NVIDIA driver (libnvidia-encode + libnvcuvid).
+# Native NVENC/NVDEC codec lives in ./codec/. Build with
+# ``codec/build.sh``; scripts/setup_dev_env.sh does this automatically.
+# Requires CUDA toolkit + NVIDIA driver (libnvidia-encode + libnvcuvid).
 
 [tool.uv]
 python-preference = "only-managed"

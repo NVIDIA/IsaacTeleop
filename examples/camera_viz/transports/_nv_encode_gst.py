@@ -1,21 +1,15 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-"""GStreamer-based NVENC H.264 encoder.
-
-The Jetson-friendly alternative to ``NvH264Encoder`` (which uses
-PyNvVideoCodec, desktop-only). Builds a self-contained pipeline:
+"""GStreamer-based NVENC H.264 encoder — Jetson alternative to ``NvH264Encoder``.
 
     appsrc(NV12 sysmem) ! nvv4l2h264enc ! h264parse ! appsink
 
-On Jetson L4T R35+: ``nvv4l2h264enc`` (V4L2 M2M NVENC). Falls back to
-``nvh264enc`` (desktop GstCUDA NVENC) if the Jetson plugin is missing —
-both consume the same NV12 input.
+Jetson L4T R35+: ``nvv4l2h264enc`` (V4L2 M2M NVENC). Falls back to
+``nvh264enc`` (desktop GstCUDA) if the Jetson plugin is missing.
 
-We still do the RGBA → NV12 conversion on GPU via the shared CuPy
-kernel; the result is downloaded to a pinned host buffer and pushed to
-``appsrc``. The D2H download is the latency cost of staying portable
-without a CuPy ↔ GstCudaMemory bridge — about 1-3 ms at 720p. Real
-zero-copy GstCuda integration is a separate follow-up.
+RGBA → NV12 conversion runs on GPU via the shared CuPy kernel; result is
+downloaded to a pinned host buffer and pushed to ``appsrc`` (D2H cost
+~1-3 ms at 720p).
 """
 
 from __future__ import annotations

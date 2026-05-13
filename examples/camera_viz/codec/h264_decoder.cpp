@@ -66,20 +66,16 @@ struct H264Decoder::Impl
         try
         {
             check_rt(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking), "cudaStreamCreate");
-            // bLowLatency=true + bForceZeroLatency=true → no reorder
-            // buffer, output in decode order. Matches REF
-            // NvStreamDecoderOp settings. With bf=0 on the encoder side
-            // decode-order == display-order so this is loss-free.
+            // Zero-latency, decode-order output. Output stays on GPU.
             decoder = std::make_unique<NvDecoder>(cu_context,
-                                                  true, // bUseDeviceFrame — keep output on GPU
+                                                  true, // bUseDeviceFrame
                                                   cudaVideoCodec_H264,
                                                   true, // bLowLatency
-                                                  false, // bDeviceFramePitched — keep tightly packed
+                                                  false, // bDeviceFramePitched
                                                   nullptr, // pCropRect
                                                   nullptr, // pResizeDim
                                                   false, // bExtractSEIMessage
-                                                  0, // nMaxWidth (auto from SPS)
-                                                  0, // nMaxHeight
+                                                  0, 0,  // max width/height (auto)
                                                   1000, // nClockRate
                                                   true); // bForceZeroLatency
         }
@@ -120,10 +116,7 @@ struct H264Decoder::Impl
     {
         if (!decoder)
         {
-            // ``reset()`` left the decoder torn down; rebuild lazily so
-            // the caller doesn't have to retry construction after a
-            // stream-timeout.
-            throw std::runtime_error("H264Decoder: decoder unavailable (after reset, rebuild not yet wired)");
+            throw std::runtime_error("H264Decoder: decoder unavailable");
         }
 
         check_cu(cuCtxPushCurrent(cu_context), "cuCtxPushCurrent");
@@ -157,10 +150,8 @@ struct H264Decoder::Impl
 
         if (w != static_cast<int>(cfg.width) || h != static_cast<int>(cfg.height))
         {
-            // Stream resolution diverged from caller's static
-            // configuration. Drop the frame; caller's RGBA buffer is
-            // sized to (cfg.width, cfg.height) and a bigger frame would
-            // walk off the end. Log once.
+            // Caller's RGBA buffer is fixed at construction; drop frames
+            // that don't match. Log once.
             if (!warned_size_mismatch)
             {
                 std::ostringstream os;
@@ -185,8 +176,8 @@ struct H264Decoder::Impl
                             static_cast<int>(rgba_row_bytes),
                             cfg.full_range,
                             stream);
-        // Sync before unlock — NVDEC reclaims the surface once we
-        // unlock, so the kernel must finish reading first.
+        // UnlockFrame returns the surface to NVDEC's pool, so the
+        // kernel reading it must finish first.
         const cudaError_t sync_err = cudaStreamSynchronize(stream);
         decoder->UnlockFrame(&nv12);
         check_cu(cuCtxPopCurrent(nullptr), "cuCtxPopCurrent");

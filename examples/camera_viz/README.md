@@ -14,8 +14,7 @@ config file:
   those RTP streams or opens cameras directly. Renders to a desktop
   window or to an XR headset.
 
-Built on Televiz (`isaacteleop.viz`). Replaces the Holoscan-based
-[`examples/camera_streamer/`](../camera_streamer/) for teleop display.
+Built on Televiz (`isaacteleop.viz`).
 
 ## Supported cameras
 
@@ -43,10 +42,10 @@ source examples/camera_viz/.venv/bin/activate
 
 `setup_dev_env.sh` creates `examples/camera_viz/.venv/`, installs the
 IsaacTeleop wheel + every Python dep camera_viz / camera_streamer
-needs (cupy, scipy, pyyaml, opencv-python, depthai, PyGObject,
-PyNvVideoCodec). Pass `--no-rtp` / `--no-oakd` / `--no-v4l2` to skip
-extras, `--with-zed` to also pull in pyzed via the ZED SDK's
-`get_python_api.py`. Re-run any time to upgrade.
+needs (cupy, scipy, pyyaml, opencv-python, depthai, PyGObject), and
+builds the native NVENC/NVDEC codec under `codec/`. Pass `--no-rtp` /
+`--no-oakd` / `--no-v4l2` to skip extras, `--with-zed` to also pull in
+pyzed via the ZED SDK's `get_python_api.py`. Re-run any time to upgrade.
 
 ### Workstation, local cameras
 
@@ -120,8 +119,8 @@ Multiple cameras → multiple `cameras:` entries, each with its own
 `rtp.port`. The streamer fans out to all of them; the viewer renders
 each as its own plane.
 
-Top-level `encoder: auto | pynvideocodec | gstreamer` selects the
-NVENC backend. `auto` picks PyNvVideoCodec on desktop and GStreamer
+Top-level `encoder: auto | nvenc | gstreamer` selects the NVENC backend.
+`auto` picks the native NVENC codec on desktop and GStreamer
 (`nvv4l2h264enc`) on Jetson — no config change needed when moving the
 same YAML between platforms.
 

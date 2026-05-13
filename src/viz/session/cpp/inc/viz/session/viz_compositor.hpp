@@ -56,15 +56,11 @@ public:
     VizCompositor& operator=(VizCompositor&&) = delete;
 
     // Records and submits one frame. Multi-frame-in-flight: one
-    // FrameSync per backend image slot. At render() entry we wait on
-    // the fence for the slot we're about to write (signaled by its
-    // PREVIOUS use, max-in-flight frames ago — typically already
-    // signaled). Submit signals that same fence. No trailing host
-    // wait — the GPU is left running so the next render() can overlap.
-    //
-    // CPU throttling is from vkAcquireNextImageKHR blocking when all
-    // swapchain images are tied up (compositor releases at vsync rate
-    // with MAILBOX present mode). Matches HolovizOp's model.
+    // FrameSync per backend image slot. render() waits on the slot's
+    // fence at entry (signaled by its previous use), submits with the
+    // same fence as signal target, and returns without host-waiting
+    // on completion. CPU is throttled naturally by
+    // vkAcquireNextImageKHR blocking at vsync.
     void render(const std::vector<LayerBase*>& layers);
 
     HostImage readback_to_host();
@@ -92,16 +88,10 @@ private:
     DisplayBackend* backend_ = nullptr;
     Config config_{};
 
-    // One FrameSync per backend image slot — enables multi-frame-in-
-    // flight rendering. Indexed by the Frame::backend_token returned
-    // from DisplayBackend::begin_frame(). All fences start signaled so
-    // the first wait per slot returns immediately.
+    // One FrameSync + command buffer per backend image slot, indexed
+    // by Frame::backend_token. Fences start signaled; the slot's fence
+    // wait at entry is exactly the "cmd buffer no longer PENDING" wait.
     std::vector<std::unique_ptr<FrameSync>> frame_syncs_;
-    // One command buffer per in-flight slot — matches HolovizOp's
-    // per-image command_buffers_. The host may not record into a cmd
-    // buffer that's still PENDING on the GPU; using one per slot
-    // means the slot's fence wait (above) is exactly the "this cmd
-    // buf is no longer pending" wait we need.
     std::vector<VkCommandBuffer> command_buffers_;
     VkCommandPool command_pool_ = VK_NULL_HANDLE;
 

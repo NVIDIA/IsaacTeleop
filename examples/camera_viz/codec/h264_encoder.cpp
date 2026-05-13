@@ -32,9 +32,7 @@ inline void check_cu(CUresult result, const char* what)
 
 NV_ENC_BUFFER_FORMAT to_nvenc_format(PixelFormat fmt)
 {
-    // NVENC's naming convention is the BIG-endian byte order, so a
-    // little-endian layout of R,G,B,A in memory is what NVENC calls ABGR
-    // (A in the high byte = last in memory). See nvEncodeAPI.h.
+    // NVENC names by big-endian byte order: R,G,B,A in memory = ABGR.
     switch (fmt)
     {
         case PixelFormat::kRGBA8:
@@ -63,9 +61,7 @@ struct H264Encoder::Impl
         }
         if (cfg.width % 2 != 0 || cfg.height % 2 != 0)
         {
-            // NVENC's internal RGBA→YUV converter assumes 4:2:0 chroma,
-            // which requires even dimensions. Reject early with a
-            // useful error rather than at EncodeFrame() time.
+            // 4:2:0 chroma requires even dimensions.
             std::ostringstream os;
             os << "H264Encoder: width and height must be even (got " << cfg.width << "x" << cfg.height << ")";
             throw std::runtime_error(os.str());
@@ -82,12 +78,7 @@ struct H264Encoder::Impl
         check_cu(cuCtxPushCurrent(cu_context), "cuCtxPushCurrent");
         try
         {
-            // nExtraOutputDelay=0 is the entire point of this port —
-            // PyNvVideoCodec defaults this to 3, holding 3 frames of
-            // bitstream before emitting (~100 ms at 30 fps).
-            // m_nEncoderBuffer = frameIntervalP + lookaheadDepth + extraOutputDelay
-            //                  = 1 + 0 + 0 = 1
-            // m_nOutputDelay = m_nEncoderBuffer - 1 = 0 → emit every frame.
+            // extraOutputDelay=0 → emit every frame (no buffer ahead).
             constexpr uint32_t kExtraOutputDelay = 0;
             encoder = std::make_unique<NvEncoderCuda>(
                 cu_context, cfg.width, cfg.height, to_nvenc_format(cfg.pixel_format), kExtraOutputDelay);
@@ -98,7 +89,6 @@ struct H264Encoder::Impl
             enc_config.version = NV_ENC_CONFIG_VER;
             init_params.encodeConfig = &enc_config;
 
-            // P4 + ULTRA_LOW_LATENCY tuning — camera_streamer's reference.
             encoder->CreateDefaultEncoderParams(&init_params,
                                                 NV_ENC_CODEC_H264_GUID,
                                                 NV_ENC_PRESET_P4_GUID,
@@ -107,7 +97,7 @@ struct H264Encoder::Impl
             init_params.frameRateNum = cfg.fps;
             init_params.frameRateDen = 1;
 
-            // CBR with 2-frame VBV — matches REF NvStreamEncoderOp.
+            // CBR with 2-frame VBV.
             enc_config.rcParams.rateControlMode = NV_ENC_PARAMS_RC_CBR;
             enc_config.rcParams.averageBitRate = cfg.bitrate_bps;
             enc_config.rcParams.maxBitRate = static_cast<uint32_t>(cfg.bitrate_bps * 1.2);
@@ -115,14 +105,11 @@ struct H264Encoder::Impl
             enc_config.rcParams.vbvBufferSize = frame_bits * 2;
             enc_config.rcParams.vbvInitialDelay = frame_bits * 2;
 
-            // No B-frames.
-            enc_config.frameIntervalP = 1;
+            enc_config.frameIntervalP = 1;  // no B-frames
 
             auto& h264 = enc_config.encodeCodecConfig.h264Config;
-            const uint32_t idr = cfg.gop != 0 ? cfg.gop : cfg.fps * 5;
-            h264.idrPeriod = idr;
-            // SPS/PPS at every IDR — lets late-joining receivers re-init
-            // without waiting for a fresh stream.
+            h264.idrPeriod = cfg.gop != 0 ? cfg.gop : cfg.fps * 5;
+            // Repeat SPS/PPS at every IDR so late joiners can re-init.
             h264.repeatSPSPPS = 1;
             h264.sliceMode = 0;
             h264.sliceModeData = 0;
@@ -157,7 +144,6 @@ struct H264Encoder::Impl
             }
             catch (...)
             {
-                // Swallow — dtor cleanup, nothing useful to surface.
             }
             encoder.reset();
         }
@@ -170,9 +156,7 @@ struct H264Encoder::Impl
 
     std::vector<uint8_t> encode_one(uintptr_t rgba_ptr, std::size_t row_pitch_bytes)
     {
-        // NvEncoderCuda::CopyToDeviceFrame expects pitch as int; pass 0
-        // to mean "tightly packed". Forward any explicit pitch only when
-        // it's not the natural pitch — saves an awkward static_cast.
+        // 0 means "tightly packed" to CopyToDeviceFrame.
         const std::size_t natural_pitch = static_cast<std::size_t>(cfg.width) * 4u;
         const int src_pitch = (row_pitch_bytes == 0 || row_pitch_bytes == natural_pitch)
                                   ? 0
@@ -207,9 +191,7 @@ struct H264Encoder::Impl
         }
         check_cu(cuCtxPopCurrent(nullptr), "cuCtxPopCurrent");
 
-        // With extraOutputDelay=0 and bf=0, each EncodeFrame returns at
-        // most one packet. Concatenate just in case some preset ever
-        // returns more (defensive — NVENC docs don't guarantee 1).
+        // Concatenate packets — typically one with our settings.
         std::vector<uint8_t> out;
         std::size_t total = 0;
         for (const auto& p : packets)

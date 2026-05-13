@@ -1,9 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
-// pybind11 bindings for the camera_viz native codec. Module name is
-// ``_camera_viz_codec`` — a private impl detail; the public surface is
-// the ``camera_viz.codec`` Python package (__init__.py re-exports).
+// pybind11 bindings — public surface is ``camera_viz.codec``.
 
 #include <cstdint>
 #include <stdexcept>
@@ -25,12 +23,9 @@ using camera_viz::codec::PixelFormat;
 namespace
 {
 
-// Walks a Python object's ``__cuda_array_interface__`` and pulls out the
-// device pointer + row pitch. We intentionally do NOT validate dtype or
-// channel count here — the C++ encoder/decoder do their own size checks
-// against the configured (width, height) and reject mismatches. Keeping
-// the binding dumb means it's easier to feed it bytearrays / numpy
-// device buffers from torch / cupy without bespoke type-system glue.
+// Extracts device pointer + row pitch from an object exposing
+// __cuda_array_interface__. Expects HxWx4 RGBA8 matching the configured
+// (width, height).
 struct CudaBuf
 {
     std::uintptr_t ptr;
@@ -71,7 +66,7 @@ CudaBuf extract_cuda_buffer(const py::object& obj, std::uint32_t expected_width,
     py::tuple data = iface["data"].cast<py::tuple>();
     const auto ptr = data[0].cast<std::uintptr_t>();
 
-    // Default row pitch — tightly packed RGBA8.
+    // Default to tightly packed RGBA8.
     std::size_t row_pitch = static_cast<std::size_t>(w) * 4u;
     if (iface.contains("strides") && !iface["strides"].is_none())
     {
@@ -134,8 +129,7 @@ PYBIND11_MODULE(_camera_viz_codec, m)
                 return py::bytes(reinterpret_cast<const char*>(packet.data()), packet.size());
             },
             py::arg("rgba"),
-            "Encode one GPU-resident RGBA8 frame. Accepts any object exposing "
-            "__cuda_array_interface__ with shape (H, W, 4) matching the config.")
+            "Encode one GPU-resident RGBA8 frame (shape (H, W, 4) via __cuda_array_interface__).")
         .def(
             "end_of_stream",
             [](H264Encoder& self) -> py::bytes
@@ -187,7 +181,6 @@ PYBIND11_MODULE(_camera_viz_codec, m)
             py::arg("rgba_out"),
             py::arg("width"),
             py::arg("height"),
-            "Feed one Annex-B AU. Writes RGBA8 into rgba_out and returns True iff "
-            "a frame was produced; False during SPS/PPS-only or warmup packets.")
-        .def("reset", &H264Decoder::reset, "Tear down NVDEC state and rebuild — use after long stream silence.");
+            "Feed one Annex-B AU. Returns True iff a frame was written to rgba_out.")
+        .def("reset", &H264Decoder::reset, "Tear down NVDEC state. Use after long stream silence.");
 }

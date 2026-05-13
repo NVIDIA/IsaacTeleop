@@ -67,15 +67,11 @@ def main(argv: Optional[List[str]] = None) -> int:
             "camera_streamer: streaming.host missing in YAML and no --host given"
         )
 
-    # Build senders per-camera, isolating failures: a missing OAK-D / bad
-    # YAML key / unsupported camera mode for ONE camera shouldn't bring
-    # the whole streamer down. Log + skip; remaining cameras still ship.
-    # The producer / GStreamer threads inside each RtpH264Sender already
-    # handle runtime reconnects, and systemd Restart=always covers truly
-    # fatal crashes — this is just the construction-time layer.
-    # Encoder backend can be overridden globally (top-level ``encoder:``)
-    # or per-camera (``cameras[].rtp.encoder``). Default ``auto`` picks
-    # PyNvVideoCodec on desktop, GStreamer on Jetson.
+    # Build senders per-camera; failures for one camera are logged and
+    # skipped so the rest still ship.
+    # Encoder backend overridable globally (``encoder:``) or per-camera
+    # (``cameras[].rtp.encoder``). ``auto`` picks native NVENC on desktop,
+    # GStreamer on Jetson.
     default_encoder = cfg.get("encoder", "auto")
 
     senders: List[RtpH264Sender] = []

@@ -2,9 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Shared RGBA → NV12 CuPy kernel.
 
-Both NVENC backends (PyNvVideoCodec on desktop, GStreamer on Jetson)
-need RGBA8 → NV12 conversion as their first step. Same kernel, same
-BT.601 full-range matrix, one source of truth.
+Used by both NVENC paths (native + GStreamer). BT.601 full-range matrix.
 """
 
 from __future__ import annotations
