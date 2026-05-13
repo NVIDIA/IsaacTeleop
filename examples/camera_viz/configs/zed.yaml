@@ -14,6 +14,7 @@
 source: local                   # local | rtp
 streaming:
   host: 127.0.0.1
+encoder: auto                   # auto | pynvideocodec | gstreamer
 
 cameras:
   - name: zed
@@ -24,12 +25,13 @@ cameras:
     bus_type: usb               # usb | gmsl
     serial_number: 0            # 0 → first available
     stereo: false
+    width: 1280                 # must match the HD720 preset (per-eye)
+    height: 720
     rtp:
       port: 5000
-      bitrate: 4000000
+      bitrate_mbps: 15
       profile: baseline
-      gop: 15
-      color_range: full
+      # gop:                    # default: fps*5 (ULL tuning)
 
 display:
   mode: window                  # window | xr
@@ -41,7 +43,6 @@ display:
     far_z: 100.0
   clear_color: [0.0, 0.0, 0.0, 1.0]
   placements:
-    zed:
+    zed:                        # size defaults to 1.0 m wide × aspect-derived height
       lock_mode: lazy
-      size: [1.0, 0.5625]       # 16:9 at 1m wide
       distance: 1.5

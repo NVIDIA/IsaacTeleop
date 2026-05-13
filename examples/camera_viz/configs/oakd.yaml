@@ -7,15 +7,17 @@
 # note "Stereo XR rendering needs per-view QuadLayer buffers"). Stereo
 # OAK-D would otherwise render the same plane to both eyes — misleading.
 #
-# Stream colour: OAK-D's on-device VPU encoder produces BT.601 full-range
-# H.264 when output_format=h264 is used; OAK-D's USB raw frames go
-# through depthai's getCvFrame() (BGR888p → packed BGR) which the GPU
-# kernel converts to RGBA. For RTP receivers consuming this sender's
-# NVENC output, ``color_range: full`` matches what our GPU kernel emits.
+# RTP path: OAK-D's USB raw BGR frames go through depthai's
+# getCvFrame() (BGR888p → packed BGR) which the GPU kernel converts to
+# RGBA, then our NVENC encodes to H.264 (BT.709 limited-range). Future
+# work: opt-in to OAK-D's on-device VPU encoder to skip the host-side
+# NVENC entirely (would emit BT.601 full-range and require the decoder
+# to switch matrices — not yet wired).
 
 source: local                   # local | rtp
 streaming:
   host: 127.0.0.1
+encoder: auto                   # auto | pynvideocodec | gstreamer
 
 cameras:
   - name: oakd
@@ -29,10 +31,9 @@ cameras:
     fps: 30
     rtp:
       port: 5000
-      bitrate: 4000000
+      bitrate_mbps: 15
       profile: baseline
-      gop: 15
-      color_range: full         # matches our GPU NV12 path
+      # gop:                    # default: fps*5 (ULL tuning)
 
 display:
   mode: window                  # window | xr
@@ -44,7 +45,6 @@ display:
     far_z: 100.0
   clear_color: [0.0, 0.0, 0.0, 1.0]
   placements:
-    oakd:
+    oakd:                       # size defaults to 1.0 m wide × aspect-derived height
       lock_mode: lazy
-      size: [1.0, 0.5625]       # 16:9 at 1m wide
       distance: 1.5

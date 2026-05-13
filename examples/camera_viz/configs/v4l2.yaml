@@ -14,6 +14,8 @@
 source: local                   # local | rtp
 streaming:
   host: 127.0.0.1               # camera_streamer target (override with --host)
+encoder: auto                   # auto | pynvideocodec | gstreamer
+                                # auto picks PyNvVideoCodec on desktop, GStreamer on Jetson
 
 cameras:
   - name: cam
@@ -26,10 +28,9 @@ cameras:
     # fourcc: MJPG              # only if the device offers MJPG (ZED V4L2 is YUYV-only)
     rtp:                        # used by camera_streamer + source: rtp receivers
       port: 5000
-      bitrate: 6000000          # ~6 Mbps for 2560x720@30
+      bitrate_mbps: 15          # camera_streamer default; lower for tight uplinks
       profile: baseline
-      gop: 15                   # IDR every ~0.5s; faster recovery on packet loss
-      color_range: limited      # YUV→BGR→NV12 chain ends up BT.601 full-ish; bump to 'full' if colors look washed
+      # gop:                    # default: fps*5 (IDR every 5 s, ULL tuning)
 
 display:
   mode: window                  # window | xr
@@ -39,9 +40,8 @@ display:
   xr:
     near_z: 0.05
     far_z: 100.0
-  clear_color: [0.05, 0.05, 0.08, 1.0]
+  clear_color: [0.0, 0.0, 0.0, 0.0]
   placements:
-    cam:
+    cam:                        # size defaults to 1.0 m wide × aspect-derived height
       lock_mode: lazy
-      size: [1.6, 0.45]         # 3.55:1 aspect for the SBS pair
       distance: 1.5

@@ -119,12 +119,35 @@ def _enabled_cameras(cfg: dict) -> List[dict]:
     return [c for c in cfg.get("cameras", []) if c.get("enabled", True)]
 
 
+# Default plane width when ``size`` is omitted from a placement block.
+# Height is derived from the camera's pixel aspect ratio so the rendered
+# plane keeps the picture's shape.
+_DEFAULT_PLANE_WIDTH_M = 1.0
+
+
+def _placement_with_aspect(
+    spec: Optional[dict], cam: dict, is_xr: bool
+) -> Optional[PlacementStrategy]:
+    """Build the placement for ``cam``, filling in ``size`` from the
+    camera's aspect ratio when the YAML doesn't pin it. Width defaults
+    to 1.0 m so a 16:9 camera lands at 1.0 x 0.5625, a 3.55:1 SBS at
+    1.0 x 0.281."""
+    if spec is not None and "size" not in spec:
+        w = int(cam["width"])
+        h = int(cam["height"])
+        spec = {
+            **spec,
+            "size": [_DEFAULT_PLANE_WIDTH_M, _DEFAULT_PLANE_WIDTH_M * h / w],
+        }
+    return _build_placement(spec, is_xr)
+
+
 def _build_local_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
     """source=local: open each enabled camera directly."""
     placements_cfg = cfg.get("display", {}).get("placements", {})
     entries: List[SourceEntry] = []
     for cam in _enabled_cameras(cfg):
-        placement = _build_placement(placements_cfg.get(cam["name"]), is_xr)
+        placement = _placement_with_aspect(placements_cfg.get(cam["name"]), cam, is_xr)
         for source in build_local_camera(cam):
             entries.append((source, placement))
     return entries
@@ -146,10 +169,9 @@ def _build_rtp_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
             width=int(cam["width"]),
             height=int(cam["height"]),
             port=int(rtp["port"]),
-            color_range=rtp.get("color_range", "limited"),
             rtp_buffer_size=int(rtp.get("rtp_buffer_size", 212992)),
         )
-        placement = _build_placement(placements_cfg.get(cam["name"]), is_xr)
+        placement = _placement_with_aspect(placements_cfg.get(cam["name"]), cam, is_xr)
         entries.append((source, placement))
     return entries
 

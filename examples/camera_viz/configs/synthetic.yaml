@@ -9,6 +9,7 @@
 source: local                   # local | rtp — see real-camera configs for rtp
 streaming:
   host: 127.0.0.1               # only used by camera_streamer (rtp mode)
+encoder: auto                   # auto | pynvideocodec | gstreamer
 
 cameras:
   - name: synth
@@ -20,10 +21,9 @@ cameras:
     hue_speed_hz: 0.25
     rtp:                        # only used when source: rtp + camera_streamer
       port: 5000
-      bitrate: 6000000
+      bitrate_mbps: 15
       profile: baseline
-      gop: 15
-      color_range: full         # synthetic feeds CuPy frames directly — pick what your sender emits
+      # gop:                    # default: fps*5 (ULL tuning)
 
 display:
   mode: window                  # window | xr
@@ -35,7 +35,6 @@ display:
     far_z: 100.0
   clear_color: [0.05, 0.05, 0.08, 1.0]
   placements:
-    synth:
+    synth:                      # size defaults to 1.0 m wide × aspect-derived height
       lock_mode: lazy
-      size: [1.0, 0.5625]
       distance: 1.5
