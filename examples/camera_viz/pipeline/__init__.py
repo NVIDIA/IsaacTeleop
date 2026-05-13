@@ -9,6 +9,14 @@ internal mailbox).
 """
 
 from .interface import Frame, FrameSource, SourceSpec
-from .runner import VizRunner
 
+# VizRunner is exposed via a lazy attribute so importing ``pipeline``
+# doesn't drag in ``isaacteleop.viz`` for sender-side code paths.
 __all__ = ["Frame", "FrameSource", "SourceSpec", "VizRunner"]
+
+
+def __getattr__(name: str):
+    if name == "VizRunner":
+        from .runner import VizRunner
+        return VizRunner
+    raise AttributeError(f"module 'pipeline' has no attribute {name!r}")

@@ -30,22 +30,24 @@ stereo XR is pending a layer-side feature.
 
 ## Quick start
 
-Build the wheel, run the setup script once, activate the venv:
+One script drives local development and remote (robot) deployment:
 
 ```bash
+# Build the IsaacTeleop wheel first (one-time).
 cmake -B build -DBUILD_VIZ=ON
 cmake --build build --target python_wheel --parallel
 
-examples/camera_viz/scripts/setup_dev_env.sh           # adds --with-zed if you have the ZED SDK
+# Then provision the camera_viz venv + native codec.
+examples/camera_viz/camera_viz.sh setup
 source examples/camera_viz/.venv/bin/activate
 ```
 
-`setup_dev_env.sh` creates `examples/camera_viz/.venv/`, installs the
-IsaacTeleop wheel + every Python dep camera_viz / camera_streamer
-needs (cupy, scipy, pyyaml, opencv-python, depthai, PyGObject), and
-builds the native NVENC/NVDEC codec under `codec/`. Pass `--no-rtp` /
-`--no-oakd` / `--no-v4l2` to skip extras, `--with-zed` to also pull in
-pyzed via the ZED SDK's `get_python_api.py`. Re-run any time to upgrade.
+`setup` creates `examples/camera_viz/.venv/`, installs the IsaacTeleop
+wheel + every Python dep camera_viz / camera_streamer need (cupy, scipy,
+pyyaml, opencv-python, depthai, PyGObject), and builds the native
+NVENC/NVDEC codec under `codec/`. Flags: `--no-rtp` / `--no-oakd` /
+`--no-v4l2` to skip extras, `--with-zed` for pyzed, `--sender-only`
+for a sender-only host (skips wheel + vulkan deps).
 
 ### Workstation, local cameras
 
@@ -58,24 +60,32 @@ cameras.
 
 ### Robot → workstation over RTP
 
-Edit `streaming.host` in the YAML to the workstation's IP. Then:
+Edit `streaming.host` in the YAML to the workstation's IP. Then deploy
+the sender as a systemd user service on the robot:
 
 ```bash
-# Robot (sender):
-python examples/camera_viz/camera_streamer.py examples/camera_viz/configs/v4l2.yaml
+# Workstation:
+./camera_viz.sh deploy --host 10.0.0.5 --user nvidia configs/v4l2.yaml
+./camera_viz.sh service-logs --host 10.0.0.5 --user nvidia
+./camera_viz.sh service-restart --host 10.0.0.5 --user nvidia
 
-# Workstation (receiver) — set `source: rtp` in the YAML, then:
+# Workstation (receiver) — set `source: rtp` in the YAML:
 python examples/camera_viz/camera_viz.py examples/camera_viz/configs/v4l2.yaml
 ```
 
-`camera_streamer.py --host <IP>` overrides `streaming.host` for ad-hoc
-testing.
+`deploy` rsyncs the source to `~/camera_viz/` on the robot, runs
+`setup --sender-only` there, installs a systemd user unit at
+`~/.config/systemd/user/camera-streamer.service`, and enables
+`loginctl enable-linger` once so the service survives logout.
+
+Add `--password PW` to all remote commands if you don't have SSH keys
+set up (requires `sshpass`). The sender supervisor retries forever on
+camera / SDK errors, so the service never voluntarily exits.
 
 ### Loopback (one host, sender + viewer)
 
-`scripts/loopback.sh <config.yaml>` runs both sides on `127.0.0.1`.
-With the venv activated it just calls `python`; without one it falls
-back to a slower per-invocation `uv run --with` chain.
+`./camera_viz.sh loopback configs/v4l2.yaml` runs both sides on
+`127.0.0.1`. Requires the local venv (`setup` first).
 
 ## Config
 
@@ -140,12 +150,16 @@ camera_streamer's tuning; override per-camera under `placements.<name>`.
 
 ```
 camera_viz/
+├── camera_viz.sh        # local + remote CLI (setup/loopback/deploy/service-*)
 ├── camera_viz.py        # receiver / viewer
-├── camera_streamer.py   # robot-side RTP sender
+├── camera_streamer.py   # robot-side RTP sender (per-camera supervisor, retries forever)
 ├── pipeline/            # source ABC + threaded runner
 ├── placements/          # XR lock-mode strategies
 ├── sources/             # V4L2 / OAK-D / ZED / synthetic
 ├── transports/          # RTP H.264 sender + receiver
+├── codec/               # native NVENC/NVDEC pybind module
 ├── configs/             # one YAML per camera kind
-└── scripts/             # setup_dev_env.sh + loopback.sh; robot installer later
+└── scripts/
+    ├── _install_deps.sh             # shared installer (used by setup + deploy)
+    └── camera-streamer.service.in   # systemd unit template
 ```

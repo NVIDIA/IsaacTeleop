@@ -29,69 +29,9 @@ import isaacteleop.viz as viz
 
 from pipeline import FrameSource, VizRunner
 from placements import PlacementConfig, PlacementStrategy, build as build_placement
-from sources import OakdSource, RtpH264Source, SyntheticSource, V4l2Source, ZedSource
+from sources import RtpH264Source, build_local_camera
 
 SourceEntry = Tuple[FrameSource, Optional[PlacementStrategy]]
-
-
-def build_local_camera(spec: dict) -> List[FrameSource]:
-    """Build the local FrameSource(s) for one ``cameras:`` entry.
-
-    Returns a list because multi-stream cameras (OAK-D stereo, ZED stereo)
-    fan out to one source per stream. Single-stream cameras return [source].
-    Shared with ``camera_streamer.py`` — keep the schema stable.
-    """
-    kind = spec["type"]
-    if kind == "synthetic":
-        return [
-            SyntheticSource(
-                name=spec["name"],
-                width=int(spec["width"]),
-                height=int(spec["height"]),
-                fps=float(spec.get("fps", 60.0)),
-                hue_speed_hz=float(spec.get("hue_speed_hz", 0.25)),
-            )
-        ]
-    if kind == "v4l2":
-        return [
-            V4l2Source(
-                name=spec["name"],
-                device=spec.get("device", "/dev/video0"),
-                width=int(spec["width"]),
-                height=int(spec["height"]),
-                fps=float(spec.get("fps", 30.0)),
-                fourcc=spec.get("fourcc"),
-            )
-        ]
-    if kind == "oakd":
-        return list(
-            OakdSource.build(
-                base_name=spec["name"],
-                mode=spec.get("mode", "mono"),
-                device_id=spec.get("device_id", ""),
-                width=int(spec["width"]),
-                height=int(spec["height"]),
-                fps=int(spec.get("fps", 30)),
-                camera_socket=spec.get("camera_socket", "RGB"),
-                rgb_width=int(spec.get("rgb_width", 0)),
-                rgb_height=int(spec.get("rgb_height", 0)),
-                rgb_fps=int(spec.get("rgb_fps", 0)),
-            )
-        )
-    if kind == "zed":
-        return list(
-            ZedSource.build(
-                base_name=spec["name"],
-                resolution=spec.get("resolution", "HD720"),
-                fps=int(spec.get("fps", 30)),
-                serial_number=int(spec.get("serial_number", 0)),
-                bus_type=spec.get("bus_type", "usb"),
-                stereo=bool(spec.get("stereo", False)),
-            )
-        )
-    raise ValueError(
-        f"camera_viz: unknown camera type {kind!r} (known: synthetic, v4l2, oakd, zed)"
-    )
 
 
 def _build_placement(spec: Optional[dict], is_xr: bool) -> Optional[PlacementStrategy]:

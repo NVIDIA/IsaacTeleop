@@ -16,7 +16,6 @@ Two H.264 encoders share the same ``encode(rgba) -> List[bytes]`` API:
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -45,17 +44,11 @@ def make_encoder(
 ):
     """Build a sender-side H.264 encoder.
 
-    ``backend`` is ``"auto"``, ``"native"``, or ``"gstreamer"``.
-    ``"pynvideocodec"`` is accepted as a legacy alias for ``"native"``
-    so old YAMLs keep working. Returns an object with
-    ``encode(rgba_cupy_array) -> List[bytes]`` + ``end_of_stream() ->
-    List[bytes]`` + ``reset() -> None``.
+    ``backend`` is ``"auto"``, ``"native"``, or ``"gstreamer"``. Returns
+    an object with ``encode(rgba_cupy_array) -> List[bytes]`` +
+    ``end_of_stream() -> List[bytes]`` + ``reset() -> None``.
     """
-    chosen: Optional[str] = backend.lower() if isinstance(backend, str) else "auto"
-    if chosen == "pynvideocodec":
-        # Legacy alias kept so old YAMLs keep working.
-        logger.info("encoder backend 'pynvideocodec' is a legacy alias; using native codec")
-        chosen = "native"
+    chosen = backend.lower() if isinstance(backend, str) else "auto"
     if chosen == "auto":
         chosen = "native" if _has_native_codec() else "gstreamer"
         logger.info("encoder backend (auto): %s", chosen)
