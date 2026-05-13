@@ -62,6 +62,9 @@ class _TopicProbe:
     validate: Callable[[Any], None]
 
 
+# Validation helpers
+
+
 def _decode_byte_multi_array(msg: ByteMultiArray) -> Any:
     payload = bytearray()
     for item in msg.data:
@@ -152,6 +155,10 @@ def _validate_controller_data(msg: ByteMultiArray) -> None:
         _expect_finite(float(payload[key]), key)
 
 
+def _validate_ee_poses(msg: PoseArray) -> None:
+    _validate_pose_array(msg, expected_count=2, label="ee_poses")
+
+
 def _validate_full_body(msg: ByteMultiArray) -> None:
     payload = _decode_byte_multi_array(msg)
     if not isinstance(payload, Mapping):
@@ -193,9 +200,32 @@ def _validate_full_body(msg: ByteMultiArray) -> None:
             _expect_quaternion(orientations[index], f"joint_orientations[{index}]")
 
 
+def _validate_hand_poses(msg: PoseArray) -> None:
+    _validate_pose_array(msg, expected_count=_HAND_POSE_COUNT, label="hand")
+
+
 def _validate_header_frame(frame_id: str, label: str) -> None:
     if not frame_id:
         raise ValueError(f"{label}.header.frame_id must be non-empty")
+
+
+def _validate_joint_state(msg: JointState, expected_count: int) -> None:
+    _validate_header_frame(msg.header.frame_id, "finger_joints")
+    if len(msg.name) != expected_count:
+        raise ValueError(
+            f"finger_joints.name must have {expected_count} entries, got {len(msg.name)}"
+        )
+    if len(msg.position) != expected_count:
+        raise ValueError(
+            "finger_joints.position must have the same expected length as name, "
+            f"got {len(msg.position)}"
+        )
+    if len(set(msg.name)) != len(msg.name):
+        raise ValueError("finger_joints.name entries must be unique")
+    for index, name in enumerate(msg.name):
+        if not name:
+            raise ValueError(f"finger_joints.name[{index}] must be non-empty")
+        _expect_finite(msg.position[index], f"finger_joints.position[{index}]")
 
 
 def _validate_pose(pose: Pose, label: str) -> None:
@@ -223,33 +253,6 @@ def _validate_pose_array(msg: PoseArray, *, expected_count: int, label: str) -> 
         _validate_pose(pose, f"{label}.poses[{index}]")
 
 
-def _validate_ee_poses(msg: PoseArray) -> None:
-    _validate_pose_array(msg, expected_count=2, label="ee_poses")
-
-
-def _validate_hand_poses(msg: PoseArray) -> None:
-    _validate_pose_array(msg, expected_count=_HAND_POSE_COUNT, label="hand")
-
-
-def _validate_joint_state(msg: JointState, expected_count: int) -> None:
-    _validate_header_frame(msg.header.frame_id, "finger_joints")
-    if len(msg.name) != expected_count:
-        raise ValueError(
-            f"finger_joints.name must have {expected_count} entries, got {len(msg.name)}"
-        )
-    if len(msg.position) != expected_count:
-        raise ValueError(
-            "finger_joints.position must have the same expected length as name, "
-            f"got {len(msg.position)}"
-        )
-    if len(set(msg.name)) != len(msg.name):
-        raise ValueError("finger_joints.name entries must be unique")
-    for index, name in enumerate(msg.name):
-        if not name:
-            raise ValueError(f"finger_joints.name[{index}] must be non-empty")
-        _expect_finite(msg.position[index], f"finger_joints.position[{index}]")
-
-
 def _validate_pose_stamped(msg: PoseStamped) -> None:
     _validate_header_frame(msg.header.frame_id, "root_pose")
     _validate_pose(msg.pose, "root_pose.pose")
@@ -268,13 +271,7 @@ def _validate_twist_stamped(msg: TwistStamped) -> None:
         _expect_finite(value, f"root_twist.twist.{field}")
 
 
-def _resolve_hand_retargeter(mode: str, hand_retargeter: str) -> str:
-    if hand_retargeter == "mode_default":
-        if mode == "controller_teleop":
-            return "trihand"
-        if mode == "hand_teleop":
-            return "dexpilot"
-    return hand_retargeter
+# Mode helpers
 
 
 def _expected_finger_joint_count(mode: str, hand_retargeter: str) -> int:
@@ -288,68 +285,97 @@ def _expected_finger_joint_count(mode: str, hand_retargeter: str) -> int:
     )
 
 
+def _resolve_hand_retargeter(mode: str, hand_retargeter: str) -> str:
+    if hand_retargeter == "mode_default":
+        if mode == "controller_teleop":
+            return "trihand"
+        if mode == "hand_teleop":
+            return "dexpilot"
+    return hand_retargeter
+
+
+# Probe builders
+
+
+def _controller_data_probe(*, required: bool = False) -> _TopicProbe:
+    return _TopicProbe(
+        ByteMultiArray, required=required, validate=_validate_controller_data
+    )
+
+
+def _ee_pose_probe(*, required: bool = True) -> _TopicProbe:
+    return _TopicProbe(PoseArray, required=required, validate=_validate_ee_poses)
+
+
+def _finger_joint_probe(
+    mode: str, hand_retargeter: str, *, required: bool = True
+) -> _TopicProbe:
+    return _TopicProbe(
+        JointState,
+        required=required,
+        validate=lambda msg: _validate_joint_state(
+            msg, _expected_finger_joint_count(mode, hand_retargeter)
+        ),
+    )
+
+
+def _full_body_probe(*, required: bool = False) -> _TopicProbe:
+    return _TopicProbe(ByteMultiArray, required=required, validate=_validate_full_body)
+
+
+def _hand_pose_probe(*, required: bool = True) -> _TopicProbe:
+    return _TopicProbe(PoseArray, required=required, validate=_validate_hand_poses)
+
+
+def _root_pose_probe(*, required: bool = False) -> _TopicProbe:
+    return _TopicProbe(PoseStamped, required=required, validate=_validate_pose_stamped)
+
+
+def _root_twist_probe(*, required: bool = False) -> _TopicProbe:
+    return _TopicProbe(
+        TwistStamped, required=required, validate=_validate_twist_stamped
+    )
+
+
+# Topic policy
+
+
 def _topic_probes(mode: str, hand_retargeter: str) -> dict[str, _TopicProbe]:
     optional = {
-        "xr_teleop/root_twist": _TopicProbe(
-            TwistStamped, required=False, validate=_validate_twist_stamped
-        ),
-        "xr_teleop/root_pose": _TopicProbe(
-            PoseStamped, required=False, validate=_validate_pose_stamped
-        ),
+        "xr_teleop/root_twist": _root_twist_probe(),
+        "xr_teleop/root_pose": _root_pose_probe(),
     }
     if mode == "controller_raw":
         return {
-            "xr_teleop/controller_data": _TopicProbe(
-                ByteMultiArray, required=True, validate=_validate_controller_data
-            )
+            "xr_teleop/controller_data": _controller_data_probe(),
         }
     if mode == "controller_teleop":
         probes = {
-            "xr_teleop/controller_data": _TopicProbe(
-                ByteMultiArray, required=True, validate=_validate_controller_data
-            ),
-            "xr_teleop/ee_poses": _TopicProbe(
-                PoseArray, required=True, validate=_validate_ee_poses
-            ),
-            "xr_teleop/finger_joints": _TopicProbe(
-                JointState,
-                required=True,
-                validate=lambda msg: _validate_joint_state(
-                    msg, _expected_finger_joint_count(mode, hand_retargeter)
-                ),
+            # The CI CloudXR runtime can expose head/hand devices without active
+            # controllers. In that state controller_teleop may reach startup
+            # without publishing controller-backed samples, so validate samples
+            # when present but do not use them as required liveness signals.
+            "xr_teleop/controller_data": _controller_data_probe(),
+            "xr_teleop/ee_poses": _ee_pose_probe(required=False),
+            "xr_teleop/finger_joints": _finger_joint_probe(
+                mode, hand_retargeter, required=False
             ),
             **optional,
         }
         if _resolve_hand_retargeter(mode, hand_retargeter) in ("dexpilot", "pink_ik"):
-            probes["xr_teleop/hand"] = _TopicProbe(
-                PoseArray, required=True, validate=_validate_hand_poses
-            )
+            probes["xr_teleop/hand"] = _hand_pose_probe(required=False)
         return probes
     if mode == "hand_teleop":
         return {
-            "xr_teleop/hand": _TopicProbe(
-                PoseArray, required=True, validate=_validate_hand_poses
-            ),
-            "xr_teleop/ee_poses": _TopicProbe(
-                PoseArray, required=True, validate=_validate_ee_poses
-            ),
-            "xr_teleop/finger_joints": _TopicProbe(
-                JointState,
-                required=True,
-                validate=lambda msg: _validate_joint_state(
-                    msg, _expected_finger_joint_count(mode, hand_retargeter)
-                ),
-            ),
+            "xr_teleop/hand": _hand_pose_probe(),
+            "xr_teleop/ee_poses": _ee_pose_probe(),
+            "xr_teleop/finger_joints": _finger_joint_probe(mode, hand_retargeter),
             **optional,
         }
     if mode == "full_body":
         return {
-            "xr_teleop/controller_data": _TopicProbe(
-                ByteMultiArray, required=True, validate=_validate_controller_data
-            ),
-            "xr_teleop/full_body": _TopicProbe(
-                ByteMultiArray, required=False, validate=_validate_full_body
-            ),
+            "xr_teleop/controller_data": _controller_data_probe(),
+            "xr_teleop/full_body": _full_body_probe(),
         }
     raise ValueError(f"Unsupported mode {mode!r}")
 
@@ -405,8 +431,10 @@ def main() -> int:
 
         required_topics = {topic for topic, probe in probes.items() if probe.required}
         deadline = time.monotonic() + args.timeout_sec
-        while time.monotonic() < deadline and not required_topics <= valid_topics:
+        while time.monotonic() < deadline:
             rclpy.spin_once(node, timeout_sec=0.1)
+            if required_topics and required_topics <= valid_topics:
+                break
 
         missing_topics = sorted(required_topics - valid_topics)
         if invalid_samples:
