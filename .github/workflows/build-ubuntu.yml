@@ -22,6 +22,7 @@ jobs:
     runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-22.04-arm' || 'ubuntu-22.04' }}
 
     strategy:
+      fail-fast: ${{ github.event_name == 'pull_request' }}
       matrix:
         build_type: ["Debug", "Release"]
         python_version: ['3.10', '3.11', '3.12', '3.13']
@@ -207,6 +208,7 @@ jobs:
     needs: build-ubuntu
 
     strategy:
+      fail-fast: ${{ github.event_name == 'pull_request' }}
       matrix:
         arch: ['x64', 'arm64']
 
@@ -394,6 +396,7 @@ jobs:
     needs: build-ubuntu
 
     strategy:
+      fail-fast: ${{ github.event_name == 'pull_request' }}
       matrix:
         python_version: ['3.10', '3.11', '3.12', '3.13']
         arch: ['x64', 'arm64']
@@ -436,6 +439,7 @@ jobs:
     needs: build-ubuntu
 
     strategy:
+      fail-fast: ${{ github.event_name == 'pull_request' }}
       matrix:
         python_version: ['3.10', '3.12']
         arch: ['x64', 'arm64']
