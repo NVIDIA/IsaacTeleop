@@ -3,16 +3,20 @@
 
 #include "inc/oxr/oxr_session.hpp"
 
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <thread>
 
 namespace core
 {
 
 namespace
 {
+
+constexpr std::chrono::seconds kSystemRetryDelay{ 1 };
 
 // Helper to get user home directory (cross-platform: HOME on Unix, USERPROFILE on Windows)
 std::string get_home_dir()
@@ -68,11 +72,12 @@ void ensure_cloudxr_runtime_configured()
 
 } // anonymous namespace
 
-OpenXRSession::OpenXRSession(const std::string& app_name, const std::vector<std::string>& extensions)
+OpenXRSession::OpenXRSession(const std::string& app_name, const std::vector<std::string>& extensions, bool wait_for_system)
     : instance_(XR_NULL_HANDLE, &xrDestroyInstance),
       system_id_(XR_NULL_SYSTEM_ID),
       session_(XR_NULL_HANDLE, &xrDestroySession),
-      space_(XR_NULL_HANDLE, &xrDestroySpace)
+      space_(XR_NULL_HANDLE, &xrDestroySpace),
+      wait_for_system_(wait_for_system)
 {
     create_instance(app_name, extensions);
     create_system();
@@ -132,10 +137,27 @@ void OpenXRSession::create_system()
     XrSystemGetInfo system_info{ XR_TYPE_SYSTEM_GET_INFO };
     system_info.formFactor = XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY;
 
-    XrResult result = xrGetSystem(instance_.get(), &system_info, &system_id_);
-    if (XR_FAILED(result))
+    bool logged_waiting = false;
+    while (true)
     {
-        throw std::runtime_error("Failed to get OpenXR system: " + std::to_string(result));
+        XrResult result = xrGetSystem(instance_.get(), &system_info, &system_id_);
+        if (XR_SUCCEEDED(result))
+        {
+            break;
+        }
+
+        if (result != XR_ERROR_FORM_FACTOR_UNAVAILABLE || !wait_for_system_)
+        {
+            throw std::runtime_error("Failed to get OpenXR system: " + std::to_string(result));
+        }
+
+        if (!logged_waiting)
+        {
+            std::cout << "OpenXR HMD form factor is unavailable; waiting for a system..." << std::endl;
+            logged_waiting = true;
+        }
+
+        std::this_thread::sleep_for(kSystemRetryDelay);
     }
 
     std::cout << "Created OpenXR system" << std::endl;
