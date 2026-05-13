@@ -503,6 +503,7 @@ jobs:
         STARTUP_MARKER="TeleopSession started successfully"
         READINESS_TIMEOUT_SEC=30
         READINESS_POLL_INTERVAL_SEC=1
+        DATA_PROBE_TIMEOUT_SEC=20
 
         # Cleanup
         trap 'docker compose -p "$PROJECT_NAME" \
@@ -560,11 +561,13 @@ jobs:
         for mode in controller_teleop hand_teleop controller_raw full_body; do
           echo "Testing mode: $mode"
           LOG_FILE="${LOG_FILE_BASE}_${mode}.log"
+          PROBE_LOG="${LOG_FILE_BASE}_${mode}_probe.log"
           RUN_NAME="teleop-ros2-${PROJECT_NAME}-${mode//_/-}"
           docker_rc=0
+          probe_rc=0
           started=false
 
-          rm -f "$LOG_FILE"
+          rm -f "$LOG_FILE" "$PROBE_LOG"
 
           # This test overrides the image entrypoint, so keep uv's runtime
           # resolver pointed at the locally built arm64 nlopt wheel.
@@ -601,6 +604,13 @@ jobs:
           docker logs "$RUN_NAME" > "$LOG_FILE" 2>&1 || true
 
           if [ "$started" = true ]; then
+            docker run --rm \
+              --name "${RUN_NAME}-probe" \
+              --network host \
+              --entrypoint bash teleop_ros2_ref:${{ env.ROS_DISTRO }} -c \
+              "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync integration_tests/teleop_ros2_data_probe.py --mode $mode --timeout-sec $DATA_PROBE_TIMEOUT_SEC" \
+              > "$PROBE_LOG" 2>&1 || probe_rc=$?
+
             docker stop --time 5 "$RUN_NAME" >/dev/null || true
             docker wait "$RUN_NAME" >/dev/null || true
           else
@@ -616,6 +626,10 @@ jobs:
 
           docker rm -f "$RUN_NAME" >/dev/null 2>&1 || true
 
+          if [ -f "$PROBE_LOG" ]; then
+            cat "$PROBE_LOG"
+          fi
+
           if [ -f "$LOG_FILE" ]; then
             cat "$LOG_FILE"
           else
@@ -623,6 +637,10 @@ jobs:
           fi
 
           if [ "$started" != true ]; then
+            exit 1
+          fi
+          if [ "$probe_rc" -ne 0 ]; then
+            echo "Error: teleop_ros2_data_probe failed in mode $mode (exit code $probe_rc)"
             exit 1
           fi
         done
