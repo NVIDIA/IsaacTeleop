@@ -734,10 +734,11 @@ Resolution XrBackend::current_extent() const
 
 uint32_t XrBackend::image_count() const
 {
-    // M5 stub: XR is single-frame-in-flight until the per-XR-swapchain
-    // fence mapping is wired up (TODO when M5 lands). Returns 1 so the
-    // compositor allocates one fence and falls back to the original
-    // single-frame-in-flight behavior for this backend.
+    // XR is intentionally single-frame-in-flight. The loop is display-
+    // rate capped by xrWaitFrame, so multi-in-flight gains no throughput
+    // and adds one frame period of motion-to-photon latency per extra
+    // slot. Returns 1 so the compositor allocates one fence and host-
+    // waits each frame.
     return 1;
 }
 
