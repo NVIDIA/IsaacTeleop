@@ -190,7 +190,8 @@ void ManusTracker::initialize(const std::string& app_name) noexcept(false)
         }
 
         // Create session with required extensions - constructor automatically begins the session
-        m_session = std::make_shared<core::OpenXRSession>(app_name, extensions);
+        const bool wait_for_openxr_system = true;
+        m_session = std::make_shared<core::OpenXRSession>(app_name, extensions, wait_for_openxr_system);
         m_handles = m_session->get_handles();
 
         // Initialize time converter now that handles are ready

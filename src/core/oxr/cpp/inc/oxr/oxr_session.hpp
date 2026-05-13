@@ -18,7 +18,7 @@ namespace core
 class OpenXRSession
 {
 public:
-    OpenXRSession(const std::string& app_name, const std::vector<std::string>& extensions);
+    OpenXRSession(const std::string& app_name, const std::vector<std::string>& extensions, bool wait_for_system = false);
 
     // Get session handles for use with trackers
     OpenXRSessionHandles get_handles() const;
@@ -40,6 +40,7 @@ private:
     XrSystemId system_id_;
     SessionHandle session_;
     SpaceHandle space_;
+    bool wait_for_system_;
 };
 
 } // namespace core
