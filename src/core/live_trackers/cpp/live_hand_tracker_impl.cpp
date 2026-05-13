@@ -8,17 +8,61 @@
 #include <schema/hand_bfbs_generated.h>
 #include <schema/timestamp_generated.h>
 
+#include <algorithm>
 #include <cassert>
-#include <cstring>
+#include <cctype>
 #include <iostream>
 #include <stdexcept>
+#include <utility>
 
 namespace core
 {
 
+namespace
+{
+
+template <size_t N>
+std::string bounded_string(const char (&value)[N])
+{
+    const char* end = std::find(value, value + N, '\0');
+    return std::string(value, end);
+}
+
+std::string ascii_lower(std::string value)
+{
+    std::transform(
+        value.begin(), value.end(), value.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return value;
+}
+
+bool contains_case_insensitive(const std::string& haystack, const char* needle)
+{
+    return ascii_lower(haystack).find(needle) != std::string::npos;
+}
+
+bool is_display_device_xdev(const XrXDevPropertiesMNDX& properties)
+{
+    const std::string name = bounded_string(properties.name);
+    const std::string serial = bounded_string(properties.serial);
+
+    std::cout << "name: " << name << std::endl;
+    std::cout << "serial: " << serial << std::endl;
+
+    return contains_case_insensitive(name, "displaydevice") || contains_case_insensitive(name, "display device") ||
+           contains_case_insensitive(serial, "displaydevice") || contains_case_insensitive(serial, "display device") ||
+           contains_case_insensitive(name, "head device") || contains_case_insensitive(serial, "head device");
+}
+
+} // namespace
+
 // ============================================================================
 // LiveHandTrackerImpl
 // ============================================================================
+
+std::vector<std::string> LiveHandTrackerImpl::required_extensions()
+{
+    return { XR_EXT_HAND_TRACKING_EXTENSION_NAME, XR_MNDX_XDEV_SPACE_EXTENSION_NAME };
+}
 
 std::unique_ptr<HandMcapChannels> LiveHandTrackerImpl::create_mcap_channels(mcap::McapWriter& writer,
                                                                             std::string_view base_name)
@@ -32,11 +76,14 @@ LiveHandTrackerImpl::LiveHandTrackerImpl(const OpenXRSessionHandles& handles,
                                          std::unique_ptr<HandMcapChannels> mcap_channels)
     : time_converter_(handles),
       base_space_(handles.space),
-      left_hand_tracker_(XR_NULL_HANDLE),
-      right_hand_tracker_(XR_NULL_HANDLE),
+      xdev_list_(XR_NULL_HANDLE),
       pfn_create_hand_tracker_(nullptr),
       pfn_destroy_hand_tracker_(nullptr),
       pfn_locate_hand_joints_(nullptr),
+      pfn_create_xdev_list_(nullptr),
+      pfn_destroy_xdev_list_(nullptr),
+      pfn_enumerate_xdevs_(nullptr),
+      pfn_get_xdev_properties_(nullptr),
       mcap_channels_(std::move(mcap_channels))
 {
     auto core_funcs = OpenXRCoreFunctions::load(handles.instance, handles.xrGetInstanceProcAddr);
@@ -77,52 +124,60 @@ LiveHandTrackerImpl::LiveHandTrackerImpl(const OpenXRSessionHandles& handles,
         throw std::runtime_error("Failed to get hand tracking function pointers");
     }
 
-    XrHandTrackerCreateInfoEXT create_info{ XR_TYPE_HAND_TRACKER_CREATE_INFO_EXT };
-    create_info.handJointSet = XR_HAND_JOINT_SET_DEFAULT_EXT;
-
-    create_info.hand = XR_HAND_LEFT_EXT;
-    result = pfn_create_hand_tracker_(handles.session, &create_info, &left_hand_tracker_);
-    if (XR_FAILED(result))
+    try
     {
-        throw std::runtime_error("Failed to create left hand tracker: " + std::to_string(result));
-    }
+        initialize_xdev_hand_trackers(handles);
 
-    create_info.hand = XR_HAND_RIGHT_EXT;
-    result = pfn_create_hand_tracker_(handles.session, &create_info, &right_hand_tracker_);
-    if (XR_FAILED(result))
-    {
-        if (left_hand_tracker_ != XR_NULL_HANDLE)
+        // Keep the plain session hand trackers wired as the final fallback candidate.
+        //
+        // Current deployments are expected to use the XDev-backed candidates above because
+        // XR_MNDX_xdev_space is now a required extension for live hand tracking. In that
+        // normal path these default trackers should not be the data source selected by
+        // update_hand(); they sit after every XDev tracker in the priority list and only win
+        // if all XDev candidates fail to create or return inactive data.
+        //
+        // We intentionally keep this path alive instead of deleting it because future runtime
+        // modes may use the default/display hand tracker as a real fallback source once the
+        // source-priority policy is expanded beyond today's XDev-first behavior.
+        try_create_default_hand_tracker(handles.session, XR_HAND_LEFT_EXT, left_hand_trackers_);
+        try_create_default_hand_tracker(handles.session, XR_HAND_RIGHT_EXT, right_hand_trackers_);
+
+        if (left_hand_trackers_.empty())
         {
-            pfn_destroy_hand_tracker_(left_hand_tracker_);
+            throw std::runtime_error("Failed to create any left hand tracker");
         }
-        throw std::runtime_error("Failed to create right hand tracker: " + std::to_string(result));
+        if (right_hand_trackers_.empty())
+        {
+            throw std::runtime_error("Failed to create any right hand tracker");
+        }
+    }
+    catch (...)
+    {
+        destroy_hand_trackers(left_hand_trackers_);
+        destroy_hand_trackers(right_hand_trackers_);
+        destroy_xdev_list();
+        throw;
     }
 
-    std::cout << "HandTracker initialized (left + right)" << std::endl;
+    std::cout << "HandTracker initialized (left candidates: " << left_hand_trackers_.size()
+              << ", right candidates: " << right_hand_trackers_.size() << ")" << std::endl;
 }
 
 LiveHandTrackerImpl::~LiveHandTrackerImpl()
 {
     assert(pfn_destroy_hand_tracker_ != nullptr && "pfn_destroy_hand_tracker must not be null");
 
-    if (left_hand_tracker_ != XR_NULL_HANDLE)
-    {
-        pfn_destroy_hand_tracker_(left_hand_tracker_);
-        left_hand_tracker_ = XR_NULL_HANDLE;
-    }
-    if (right_hand_tracker_ != XR_NULL_HANDLE)
-    {
-        pfn_destroy_hand_tracker_(right_hand_tracker_);
-        right_hand_tracker_ = XR_NULL_HANDLE;
-    }
+    destroy_hand_trackers(left_hand_trackers_);
+    destroy_hand_trackers(right_hand_trackers_);
+    destroy_xdev_list();
 }
 
 void LiveHandTrackerImpl::update(int64_t monotonic_time_ns)
 {
     last_update_time_ = monotonic_time_ns;
     const XrTime xr_time = time_converter_.convert_monotonic_ns_to_xrtime(monotonic_time_ns);
-    update_hand(left_hand_tracker_, xr_time, left_tracked_);
-    update_hand(right_hand_tracker_, xr_time, right_tracked_);
+    update_hand(left_hand_trackers_, xr_time, left_tracked_);
+    update_hand(right_hand_trackers_, xr_time, right_tracked_);
 
     if (mcap_channels_)
     {
@@ -142,8 +197,192 @@ const HandPoseTrackedT& LiveHandTrackerImpl::get_right_hand() const
     return right_tracked_;
 }
 
-void LiveHandTrackerImpl::update_hand(XrHandTrackerEXT tracker, XrTime time, HandPoseTrackedT& tracked)
+void LiveHandTrackerImpl::initialize_xdev_hand_trackers(const OpenXRSessionHandles& handles)
 {
+    auto load_optional_func = [&handles](const char* name, PFN_xrVoidFunction* ptr) -> bool
+    {
+        XrResult result = handles.xrGetInstanceProcAddr(handles.instance, name, ptr);
+        return XR_SUCCEEDED(result) && *ptr != nullptr;
+    };
+
+    if (!load_optional_func("xrCreateXDevListMNDX", reinterpret_cast<PFN_xrVoidFunction*>(&pfn_create_xdev_list_)) ||
+        !load_optional_func("xrDestroyXDevListMNDX", reinterpret_cast<PFN_xrVoidFunction*>(&pfn_destroy_xdev_list_)) ||
+        !load_optional_func("xrEnumerateXDevsMNDX", reinterpret_cast<PFN_xrVoidFunction*>(&pfn_enumerate_xdevs_)) ||
+        !load_optional_func("xrGetXDevPropertiesMNDX", reinterpret_cast<PFN_xrVoidFunction*>(&pfn_get_xdev_properties_)))
+    {
+        pfn_create_xdev_list_ = nullptr;
+        pfn_destroy_xdev_list_ = nullptr;
+        pfn_enumerate_xdevs_ = nullptr;
+        pfn_get_xdev_properties_ = nullptr;
+        return;
+    }
+
+    XrCreateXDevListInfoMNDX create_info{ XR_TYPE_CREATE_XDEV_LIST_INFO_MNDX };
+    XrResult result = pfn_create_xdev_list_(handles.session, &create_info, &xdev_list_);
+    if (XR_FAILED(result))
+    {
+        xdev_list_ = XR_NULL_HANDLE;
+        return;
+    }
+
+    uint32_t xdev_count = 0;
+    result = pfn_enumerate_xdevs_(xdev_list_, 0, &xdev_count, nullptr);
+    if (XR_FAILED(result) || xdev_count == 0)
+    {
+        destroy_xdev_list();
+        return;
+    }
+
+    std::vector<XrXDevIdMNDX> xdev_ids(xdev_count);
+    result = pfn_enumerate_xdevs_(xdev_list_, xdev_count, &xdev_count, xdev_ids.data());
+    if (XR_FAILED(result))
+    {
+        destroy_xdev_list();
+        return;
+    }
+
+    std::vector<XrXDevIdMNDX> preferred_xdev_ids;
+    std::vector<XrXDevIdMNDX> display_xdev_ids;
+    for (const XrXDevIdMNDX xdev_id : xdev_ids)
+    {
+        XrGetXDevInfoMNDX get_info{ XR_TYPE_GET_XDEV_INFO_MNDX };
+        get_info.id = xdev_id;
+
+        XrXDevPropertiesMNDX properties{ XR_TYPE_XDEV_PROPERTIES_MNDX };
+        result = pfn_get_xdev_properties_(xdev_list_, &get_info, &properties);
+        if (XR_FAILED(result))
+        {
+            continue;
+        }
+
+        if (is_display_device_xdev(properties))
+        {
+            display_xdev_ids.push_back(xdev_id);
+        }
+        else
+        {
+            preferred_xdev_ids.push_back(xdev_id);
+        }
+    }
+
+    auto add_xdev_candidates = [this, &handles](const std::vector<XrXDevIdMNDX>& xdev_ids_to_add)
+    {
+        for (const XrXDevIdMNDX xdev_id : xdev_ids_to_add)
+        {
+            try_create_xdev_hand_tracker(handles.session, xdev_id, XR_HAND_LEFT_EXT, left_hand_trackers_);
+            try_create_xdev_hand_tracker(handles.session, xdev_id, XR_HAND_RIGHT_EXT, right_hand_trackers_);
+        }
+    };
+
+    add_xdev_candidates(preferred_xdev_ids);
+    add_xdev_candidates(display_xdev_ids);
+
+    if (left_hand_trackers_.empty() && right_hand_trackers_.empty())
+    {
+        destroy_xdev_list();
+    }
+}
+
+bool LiveHandTrackerImpl::try_create_xdev_hand_tracker(XrSession session,
+                                                       XrXDevIdMNDX xdev_id,
+                                                       XrHandEXT hand,
+                                                       std::vector<XrHandTrackerEXT>& trackers)
+{
+    if (xdev_list_ == XR_NULL_HANDLE || xdev_id == 0)
+    {
+        return false;
+    }
+
+    XrCreateHandTrackerXDevMNDX xdev_create_info{ XR_TYPE_CREATE_HAND_TRACKER_XDEV_MNDX };
+    xdev_create_info.xdevList = xdev_list_;
+    xdev_create_info.id = xdev_id;
+
+    XrHandTrackerCreateInfoEXT create_info{ XR_TYPE_HAND_TRACKER_CREATE_INFO_EXT };
+    create_info.next = &xdev_create_info;
+    create_info.hand = hand;
+    create_info.handJointSet = XR_HAND_JOINT_SET_DEFAULT_EXT;
+
+    // Reserve before creation so push_back cannot throw after OpenXR returns an unowned handle.
+    trackers.reserve(trackers.size() + 1);
+
+    XrHandTrackerEXT tracker = XR_NULL_HANDLE;
+    const XrResult result = pfn_create_hand_tracker_(session, &create_info, &tracker);
+    if (XR_FAILED(result))
+    {
+        return false;
+    }
+
+    trackers.push_back(tracker);
+    return true;
+}
+
+bool LiveHandTrackerImpl::try_create_default_hand_tracker(XrSession session,
+                                                          XrHandEXT hand,
+                                                          std::vector<XrHandTrackerEXT>& trackers)
+{
+    XrHandTrackerCreateInfoEXT create_info{ XR_TYPE_HAND_TRACKER_CREATE_INFO_EXT };
+    create_info.hand = hand;
+    create_info.handJointSet = XR_HAND_JOINT_SET_DEFAULT_EXT;
+
+    // Reserve before creation so push_back cannot throw after OpenXR returns an unowned handle.
+    trackers.reserve(trackers.size() + 1);
+
+    XrHandTrackerEXT tracker = XR_NULL_HANDLE;
+    const XrResult result = pfn_create_hand_tracker_(session, &create_info, &tracker);
+    if (XR_FAILED(result))
+    {
+        return false;
+    }
+
+    trackers.push_back(tracker);
+    return true;
+}
+
+void LiveHandTrackerImpl::destroy_hand_trackers(std::vector<XrHandTrackerEXT>& trackers)
+{
+    for (XrHandTrackerEXT& tracker : trackers)
+    {
+        if (tracker != XR_NULL_HANDLE)
+        {
+            pfn_destroy_hand_tracker_(tracker);
+            tracker = XR_NULL_HANDLE;
+        }
+    }
+    trackers.clear();
+}
+
+void LiveHandTrackerImpl::destroy_xdev_list()
+{
+    if (xdev_list_ != XR_NULL_HANDLE && pfn_destroy_xdev_list_ != nullptr)
+    {
+        pfn_destroy_xdev_list_(xdev_list_);
+        xdev_list_ = XR_NULL_HANDLE;
+    }
+}
+
+void LiveHandTrackerImpl::update_hand(const std::vector<XrHandTrackerEXT>& trackers, XrTime time, HandPoseTrackedT& tracked)
+{
+    for (XrHandTrackerEXT tracker : trackers)
+    {
+        HandPoseTrackedT candidate;
+        if (try_update_hand(tracker, time, candidate))
+        {
+            tracked = std::move(candidate);
+            return;
+        }
+    }
+
+    tracked.data.reset();
+}
+
+bool LiveHandTrackerImpl::try_update_hand(XrHandTrackerEXT tracker, XrTime time, HandPoseTrackedT& tracked)
+{
+    if (tracker == XR_NULL_HANDLE)
+    {
+        tracked.data.reset();
+        return false;
+    }
+
     XrHandJointsLocateInfoEXT locate_info{ XR_TYPE_HAND_JOINTS_LOCATE_INFO_EXT };
     locate_info.baseSpace = base_space_;
     locate_info.time = time;
@@ -159,14 +398,14 @@ void LiveHandTrackerImpl::update_hand(XrHandTrackerEXT tracker, XrTime time, Han
     if (XR_FAILED(result))
     {
         tracked.data.reset();
-        throw std::runtime_error("[HandTracker] xrLocateHandJointsEXT failed: " + std::to_string(result));
+        return false;
     }
 
     if (!locations.isActive)
     {
         // Policy: inactive hand is a common runtime condition; non-fatal.
         tracked.data.reset();
-        return;
+        return false;
     }
 
     if (!tracked.data)
@@ -194,6 +433,8 @@ void LiveHandTrackerImpl::update_hand(XrHandTrackerEXT tracker, XrTime time, Han
         HandJointPose joint_pose(pose, is_valid, joint_loc.radius);
         tracked.data->joints->mutable_poses()->Mutate(i, joint_pose);
     }
+
+    return true;
 }
 
 } // namespace core
