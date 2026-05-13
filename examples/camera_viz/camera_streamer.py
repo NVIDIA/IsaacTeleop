@@ -26,7 +26,7 @@ import yaml
 
 from camera_viz import build_local_camera
 from pipeline import FrameSource
-from transports import RtpH264Sender
+from transports import RtpH264Sender, make_encoder
 
 
 def _pick_mono_source(sources: List[FrameSource], camera_name: str) -> FrameSource:
@@ -73,6 +73,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     # The producer / GStreamer threads inside each RtpH264Sender already
     # handle runtime reconnects, and systemd Restart=always covers truly
     # fatal crashes — this is just the construction-time layer.
+    # Encoder backend can be overridden globally (top-level ``encoder:``)
+    # or per-camera (``cameras[].rtp.encoder``). Default ``auto`` picks
+    # PyNvVideoCodec on desktop, GStreamer on Jetson.
+    default_encoder = cfg.get("encoder", "auto")
+
     senders: List[RtpH264Sender] = []
     failures: List[str] = []
     for cam in cfg.get("cameras", []):
@@ -84,17 +89,29 @@ def main(argv: Optional[List[str]] = None) -> int:
             rtp = cam.get("rtp", {})
             if "port" not in rtp:
                 raise ValueError(f"camera {cam_name!r} missing rtp.port")
+            # ``bitrate_mbps`` is the YAML field (Mbps is the unit operators
+            # think in); the encoder internally takes bits/sec. ``gop`` is
+            # optional — omit and the encoder defaults to fps*5 (IDR every
+            # 5 s), matching camera_streamer's ULL tuning.
+            encoder = make_encoder(
+                rtp.get("encoder", default_encoder),
+                width=int(cam["width"]),
+                height=int(cam["height"]),
+                bitrate=int(rtp.get("bitrate_mbps", 15)) * 1_000_000,
+                fps=int(cam.get("fps", 30)),
+                profile=rtp.get("profile", "baseline"),
+                gop=int(rtp["gop"]) if "gop" in rtp else None,
+                gpu_id=int(rtp.get("gpu_id", 0)),
+            )
             senders.append(
                 RtpH264Sender(
                     source=source,
+                    encoder=encoder,
                     host=host,
                     port=int(rtp["port"]),
                     width=int(cam["width"]),
                     height=int(cam["height"]),
                     fps=int(cam.get("fps", 30)),
-                    bitrate=int(rtp.get("bitrate", 4_000_000)),
-                    profile=rtp.get("profile", "baseline"),
-                    gop=int(rtp.get("gop", 15)),
                     mtu=int(rtp.get("mtu", 1400)),
                 )
             )
@@ -130,16 +147,28 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("camera_streamer: stopping...", flush=True)
         stop_event.set()
 
+    # Handle SIGTERM too — systemd's default ``systemctl stop`` signal.
+    # Without this the service gets killed and senders never tear down
+    # their GStreamer pipelines cleanly.
     signal.signal(signal.SIGINT, _on_sigint)
+    signal.signal(signal.SIGTERM, _on_sigint)
 
-    for s in senders:
-        s.start()
+    # Track which senders we actually started so a mid-loop failure in
+    # ``start()`` doesn't leak the earlier ones — the finally below only
+    # stops what's in started.
+    started: List[RtpH264Sender] = []
     try:
+        for s in senders:
+            s.start()
+            started.append(s)
         while not stop_event.is_set():
             stop_event.wait(timeout=0.1)
     finally:
-        for s in senders:
-            s.stop()
+        for s in started:
+            try:
+                s.stop()
+            except Exception:
+                pass
     return 0
 
 

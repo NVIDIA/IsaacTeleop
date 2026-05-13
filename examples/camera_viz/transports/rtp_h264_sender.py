@@ -27,7 +27,6 @@ import time
 from typing import Optional
 
 from .rtp_h264_receiver import _ensure_gst_initialized
-from ._nv_encode import NvH264Encoder
 
 logger = logging.getLogger(__name__)
 
@@ -42,17 +41,22 @@ class RtpH264Sender:
     def __init__(
         self,
         source,
+        encoder,
         host: str,
         port: int,
         width: int,
         height: int,
         fps: int = 30,
-        bitrate: int = 4_000_000,
-        profile: str = "baseline",
-        gop: int = 15,
-        gpu_id: int = 0,
         mtu: int = 1400,
     ) -> None:
+        # fps must be > 0 — _push_packet does ``int(1e9 / fps)`` for the
+        # buffer duration, which would ZeroDivisionError or go negative
+        # otherwise. Validate up front so the failure mode is a clear
+        # ValueError at construction rather than a cryptic crash on the
+        # first encoded frame.
+        if fps <= 0:
+            raise ValueError(f"RtpH264Sender: fps must be > 0, got {fps}")
+
         _ensure_gst_initialized()
         from gi.repository import Gst
 
@@ -63,20 +67,11 @@ class RtpH264Sender:
         self._width = width
         self._height = height
         self._fps = fps
-        self._bitrate = bitrate
-        self._profile = profile
-        self._gop = gop
         self._mtu = mtu
-
-        self._encoder = NvH264Encoder(
-            width=width,
-            height=height,
-            bitrate=bitrate,
-            fps=fps,
-            profile=profile,
-            gop=gop,
-            gpu_id=gpu_id,
-        )
+        # Encoder is dependency-injected so the caller picks the backend
+        # (PyNvVideoCodec on desktop, GStreamer on Jetson). See
+        # transports._encoder_factory.make_encoder().
+        self._encoder = encoder
 
         self._pipeline = None
         self._appsrc = None
@@ -86,7 +81,6 @@ class RtpH264Sender:
         self._last_reconnect_attempt_s = 0.0
         self._reconnect_count = 0
         self._frame_count = 0
-        self._pts_ns = 0  # presentation timestamp running counter
 
     def start(self) -> None:
         if self._thread is not None:
@@ -152,19 +146,25 @@ class RtpH264Sender:
     def _push_packet(self, packet: bytes) -> bool:
         Gst = self._Gst
         buf = Gst.Buffer.new_wrapped(packet)
-        # Synthesize a monotonic PTS based on the configured fps so
-        # downstream RTP timestamps advance evenly even when frames
-        # arrive irregularly (camera hiccup / source disconnect).
-        buf.pts = self._pts_ns
-        buf.duration = int(1e9 / self._fps)
-        self._pts_ns += buf.duration
+        # No manual PTS — appsrc ``do-timestamp=true`` stamps each buffer
+        # with the pipeline clock at push time, which is what
+        # rtpjitterbuffer expects. Setting buf.pts here would fight the
+        # appsrc and introduce drift between our synthetic monotonic
+        # counter and the actual arrival cadence (this is what the
+        # camera_streamer reference does — no manual PTS).
         flow = self._appsrc.emit("push-buffer", buf)
         return flow == Gst.FlowReturn.OK
 
     def _send_loop(self) -> None:
-        # Frame-pacer: don't poll source.latest() faster than the configured fps
-        # — at higher rates we'd spin the CPU draining None returns.
-        frame_period_s = 1.0 / max(self._fps, 1)
+        # Idle poll interval. ``FrameSource.latest()`` returns None when no
+        # NEW frame has arrived since the previous call, so the loop only
+        # idles when there's nothing to ship — it does NOT spin on a steady
+        # stream. The interval bounds the wakeup latency between "frame
+        # published" and "encoder sees it": at 1 ms the average add is
+        # 0.5 ms; the old 1/fps (33 ms @ 30 fps) added ~16 ms on average
+        # for nothing. CPU cost of a sleeping thread polling at 1 kHz is
+        # negligible (~0% on any modern host).
+        idle_poll_s = 0.001
 
         # Pin to the source's GPU once we see the first frame. The encoder
         # is lazy-init'd inside encode() based on the input device, so the
@@ -190,13 +190,12 @@ class RtpH264Sender:
                     self._reconnect_count += 1
                     continue
                 logger.info(
-                    "RtpH264Sender: sending to %s:%d (%dx%d@%dfps, %dkbps)%s",
+                    "RtpH264Sender: sending to %s:%d (%dx%d@%dfps)%s",
                     self._host,
                     self._port,
                     self._width,
                     self._height,
                     self._fps,
-                    self._bitrate // 1000,
                     f" (reconnect #{self._reconnect_count})"
                     if self._reconnect_count
                     else "",
@@ -204,7 +203,7 @@ class RtpH264Sender:
 
             frame = self._source.latest()
             if frame is None:
-                self._stop.wait(timeout=frame_period_s)
+                self._stop.wait(timeout=idle_poll_s)
                 continue
 
             # First-frame device pin: capture whichever GPU the source's

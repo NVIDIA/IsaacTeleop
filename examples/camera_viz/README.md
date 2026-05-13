@@ -31,18 +31,27 @@ stereo XR is pending a layer-side feature.
 
 ## Quick start
 
-Build the wheel and pick the deps your cameras need (V4L2 →
-`opencv-python`, OAK-D → `depthai`, ZED → install pyzed from
-`/usr/local/zed/get_python_api.py`).
+Build the wheel, run the setup script once, activate the venv:
+
+```bash
+cmake -B build -DBUILD_VIZ=ON
+cmake --build build --target python_wheel --parallel
+
+examples/camera_viz/scripts/setup_dev_env.sh           # adds --with-zed if you have the ZED SDK
+source examples/camera_viz/.venv/bin/activate
+```
+
+`setup_dev_env.sh` creates `examples/camera_viz/.venv/`, installs the
+IsaacTeleop wheel + every Python dep camera_viz / camera_streamer
+needs (cupy, scipy, pyyaml, opencv-python, depthai, PyGObject,
+PyNvVideoCodec). Pass `--no-rtp` / `--no-oakd` / `--no-v4l2` to skip
+extras, `--with-zed` to also pull in pyzed via the ZED SDK's
+`get_python_api.py`. Re-run any time to upgrade.
 
 ### Workstation, local cameras
 
 ```bash
-WHEEL=$(ls build/wheels/isaacteleop-*.whl | head -1)
-uv run --python 3.12 \
-       --with $WHEEL --with cupy-cuda12x --with pyyaml --with scipy \
-       --with opencv-python \
-       python examples/camera_viz/camera_viz.py examples/camera_viz/configs/v4l2.yaml
+python examples/camera_viz/camera_viz.py examples/camera_viz/configs/v4l2.yaml
 ```
 
 Swap the config (`oakd.yaml`, `zed.yaml`, `synthetic.yaml`) for other
@@ -66,7 +75,8 @@ testing.
 ### Loopback (one host, sender + viewer)
 
 `scripts/loopback.sh <config.yaml>` runs both sides on `127.0.0.1`.
-Useful for validating the full RTP pipeline end-to-end before deploying.
+With the venv activated it just calls `python`; without one it falls
+back to a slower per-invocation `uv run --with` chain.
 
 ## Config
 
@@ -87,10 +97,10 @@ cameras:
     # … type-specific fields (device, resolution preset, etc.)
     rtp:
       port: 5000
-      bitrate: 6000000        # bits/sec
-      profile: baseline
-      gop: 15                 # IDR every N frames
-      color_range: limited    # 'full' for OAK-D VPU streams
+      bitrate_mbps: 15        # camera_streamer's default; tune for your uplink
+      profile: baseline       # baseline | main | high
+      # gop: 150              # frames between IDRs; default fps*5 (ULL tuning)
+      # encoder: auto         # per-camera override of the top-level encoder:
 
 display:                      # camera_viz only
   mode: window | xr
@@ -100,7 +110,7 @@ display:                      # camera_viz only
   placements:
     cam:                      # keyed by camera name
       lock_mode: lazy         # world | head | lazy
-      size: [width_m, height_m]
+      # size: [width_m, height_m]   # default: 1.0 m wide, height from camera aspect
       distance: 1.5
       offset_x: 0.0
       offset_y: 0.0
@@ -109,6 +119,11 @@ display:                      # camera_viz only
 Multiple cameras → multiple `cameras:` entries, each with its own
 `rtp.port`. The streamer fans out to all of them; the viewer renders
 each as its own plane.
+
+Top-level `encoder: auto | pynvideocodec | gstreamer` selects the
+NVENC backend. `auto` picks PyNvVideoCodec on desktop and GStreamer
+(`nvv4l2h264enc`) on Jetson — no config change needed when moving the
+same YAML between platforms.
 
 ## Lock modes (XR display)
 
@@ -133,5 +148,5 @@ camera_viz/
 ├── sources/             # V4L2 / OAK-D / ZED / synthetic
 ├── transports/          # RTP H.264 sender + receiver
 ├── configs/             # one YAML per camera kind
-└── scripts/             # loopback.sh + robot installer (later)
+└── scripts/             # setup_dev_env.sh + loopback.sh; robot installer later
 ```

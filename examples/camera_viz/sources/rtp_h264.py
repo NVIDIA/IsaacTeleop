@@ -52,7 +52,6 @@ class RtpH264Source(FrameSource):
         width: int,
         height: int,
         port: int,
-        color_range: str = "limited",
         gpu_id: int = 0,
         rtp_buffer_size: int = 212992,
     ) -> None:
@@ -63,12 +62,6 @@ class RtpH264Source(FrameSource):
                 "RtpH264Source requires CuPy. Install via "
                 "`uv pip install cupy-cuda12x`."
             ) from e
-
-        if color_range not in ("limited", "full"):
-            raise ValueError(
-                f"RtpH264Source: color_range must be 'limited' or 'full', "
-                f"got {color_range!r}"
-            )
 
         self._spec = SourceSpec(
             name=name, width=width, height=height, pixel_format="rgba8"
@@ -95,10 +88,15 @@ class RtpH264Source(FrameSource):
         self._receiver = RtpH264Receiver(
             port=port, buffer_size=rtp_buffer_size, latency_ms=0
         )
+        # NVENC (sender side) emits BT.709 limited-range H.264; the
+        # decoder's matching ``full_range=False`` is the only correct
+        # setting for the our-encoder path. The BT.601 full-range
+        # branch in the C++ kernel exists for future OAK-D VPU
+        # encoder support (not yet wired through this source).
         self._decoder = NvH264Decoder(
             width=width,
             height=height,
-            full_range=(color_range == "full"),
+            full_range=False,
             gpu_id=decoder_gpu_id,
             low_latency=True,
         )
