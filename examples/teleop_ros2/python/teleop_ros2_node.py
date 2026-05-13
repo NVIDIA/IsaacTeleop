@@ -169,6 +169,60 @@ def _append_hand_poses(
         poses.append(pose)
 
 
+def _apply_manus_controller_to_hand_pose(pose: Pose, side: str) -> Pose:
+    """
+    Apply MANUS controller-to-hand calibration in the pose's current frame.
+
+    This is equivalent to:
+
+        T_world_hand = T_world_controller @ T_controller_hand
+    """
+    if side not in ("left", "right"):
+        raise ValueError(f"side must be 'left' or 'right', got {side!r}")
+
+    # All MANUS calibration data is intentionally kept in this one function.
+    hand_left_pico_rotation = np.array(
+        [
+            [-0.91777945, -0.18672461, -0.35044942],
+            [0.37550315, -0.69513369, -0.61301431],
+            [-0.12914434, -0.6942068, 0.70809509],
+        ],
+        dtype=float,
+    )
+    hand_pico_translation = np.array([0.0, 0.0, 0.08], dtype=float)
+
+    if side == "left":
+        controller_to_hand_rot_mat = hand_left_pico_rotation.T
+    else:
+        mirror_y = np.diag([1.0, -1.0, 1.0])
+        hand_right_pico_rotation = mirror_y @ hand_left_pico_rotation @ mirror_y
+        controller_to_hand_rot_mat = hand_right_pico_rotation.T
+
+    controller_to_hand_trans = -controller_to_hand_rot_mat @ hand_pico_translation
+
+    world_controller_pos = np.array(
+        [pose.position.x, pose.position.y, pose.position.z],
+        dtype=float,
+    )
+    world_controller_rot = Rotation.from_quat(
+        [
+            pose.orientation.x,
+            pose.orientation.y,
+            pose.orientation.z,
+            pose.orientation.w,
+        ]
+    )
+
+    controller_to_hand_rot = Rotation.from_matrix(controller_to_hand_rot_mat)
+
+    world_hand_pos = world_controller_pos + world_controller_rot.apply(
+        controller_to_hand_trans
+    )
+    world_hand_rot = world_controller_rot * controller_to_hand_rot
+
+    return _to_pose(world_hand_pos, world_hand_rot.as_quat())
+
+
 def _apply_transform_to_pose(
     pose: Pose,
     rotation: Rotation | None = None,
@@ -431,17 +485,24 @@ def _build_ee_msg_from_controllers(
     frame_id: str,
     transform_rot: Rotation | None = None,
     transform_trans: Sequence[float] | None = None,
+    controller_uses_hands_source: bool = False,
 ) -> PoseArray:
-    """Build a PoseArray with left then right controller aim poses (wrist proxy)."""
+    """Build a PoseArray with left then right controller/hand wrist poses."""
     msg = PoseArray()
     msg.header.stamp = now
     msg.header.frame_id = frame_id
+
     if not left_ctrl.is_none:
         pos = [float(x) for x in left_ctrl[ControllerInputIndex.AIM_POSITION]]
         ori = [float(x) for x in left_ctrl[ControllerInputIndex.AIM_ORIENTATION]]
         pose = _to_pose(pos, ori)
+
         if transform_rot is not None or transform_trans is not None:
             pose = _apply_transform_to_pose(pose, transform_rot, transform_trans)
+
+        if controller_uses_hands_source:
+            pose = _apply_manus_controller_to_hand_pose(pose, "left")
+
         msg.poses.append(pose)
     else:
         msg.poses.append(_to_pose([0.0, 0.0, 0.0]))
@@ -450,8 +511,13 @@ def _build_ee_msg_from_controllers(
         pos = [float(x) for x in right_ctrl[ControllerInputIndex.AIM_POSITION]]
         ori = [float(x) for x in right_ctrl[ControllerInputIndex.AIM_ORIENTATION]]
         pose = _to_pose(pos, ori)
+
         if transform_rot is not None or transform_trans is not None:
             pose = _apply_transform_to_pose(pose, transform_rot, transform_trans)
+
+        if controller_uses_hands_source:
+            pose = _apply_manus_controller_to_hand_pose(pose, "right")
+
         msg.poses.append(pose)
     else:
         msg.poses.append(_to_pose([0.0, 0.0, 0.0]))
@@ -783,6 +849,10 @@ class TeleopRos2Node(Node):
         )
         if self._mode in ("hand_teleop", "controller_teleop"):
             self.get_logger().info(f"Hand retargeter: {self._resolved_hand_retargeter}")
+        if self._controller_uses_hands_source:
+            self.get_logger().info(
+                "Applying MANUS controller-to-hand transform after pose transform."
+            )
         self._config_asset_root: Path = _resolve_config_asset_root(
             self.get_parameter("config_asset_root").get_parameter_value().string_value
         )
@@ -1293,6 +1363,7 @@ class TeleopRos2Node(Node):
                                 self._world_frame,
                                 self._transform_rot,
                                 self._transform_trans,
+                                self._controller_uses_hands_source,
                             )
                             if ee_msg.poses:
                                 self._pub_ee_pose.publish(ee_msg)
