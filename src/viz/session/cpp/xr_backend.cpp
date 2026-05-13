@@ -732,6 +732,15 @@ Resolution XrBackend::current_extent() const
     return render_target_ ? render_target_->resolution() : Resolution{};
 }
 
+uint32_t XrBackend::image_count() const
+{
+    // M5 stub: XR is single-frame-in-flight until the per-XR-swapchain
+    // fence mapping is wired up (TODO when M5 lands). Returns 1 so the
+    // compositor allocates one fence and falls back to the original
+    // single-frame-in-flight behavior for this backend.
+    return 1;
+}
+
 XrBackend::OxrHandles XrBackend::oxr_handles() const noexcept
 {
     OxrHandles h{};

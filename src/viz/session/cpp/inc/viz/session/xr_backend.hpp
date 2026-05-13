@@ -69,6 +69,7 @@ public:
     void poll_events() override;
     bool should_close() const override;
     Resolution current_extent() const override;
+    uint32_t image_count() const override;
 
     // Backend-internal handle bundle. VizSession::get_oxr_handles()
     // converts this to core::OpenXRSessionHandles for cross-module

@@ -16,13 +16,21 @@ namespace viz
 
 class VkContext;
 
-// VkSwapchainKHR + per-image semaphores. Prefers MAILBOX present
-// mode, falls back to FIFO. Surface format prefers B8G8R8A8_SRGB
-// then any *_SRGB then the runtime's first.
+// VkSwapchainKHR + per-image semaphores. Present mode preference:
+// MAILBOX → FIFO_LATEST_READY → FIFO. Skips IMMEDIATE (would let
+// the render loop burn a CPU core with no natural throttle on most
+// drivers). On X11 + compositor stacks that strip MAILBOX from
+// windowed surfaces, FIFO_LATEST_READY gives the same low-latency
+// behavior (no tearing, vsync-paced, always presents the latest
+// ready image). Surface format prefers B8G8R8A8_SRGB then any
+// *_SRGB then the runtime's first. The chosen present mode is
+// logged at startup so the actual selection is visible.
 class Swapchain
 {
 public:
-    static std::unique_ptr<Swapchain> create(const VkContext& ctx, VkSurfaceKHR surface, Resolution preferred_size);
+    static std::unique_ptr<Swapchain> create(const VkContext& ctx,
+                                             VkSurfaceKHR surface,
+                                             Resolution preferred_size);
 
     ~Swapchain();
     void destroy();

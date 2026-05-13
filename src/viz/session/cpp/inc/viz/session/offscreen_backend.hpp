@@ -24,6 +24,10 @@ public:
     const RenderTarget& render_target() const override;
 
     Resolution current_extent() const override;
+    uint32_t image_count() const override
+    {
+        return 1;
+    }
 
     // Synchronous tightly-packed RGBA8 copy of the RT's color attachment.
     HostImage readback_to_host() override;

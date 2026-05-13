@@ -46,11 +46,20 @@ public:
     LayerBase& operator=(const LayerBase&) = delete;
 
     // Issue draws inside the active render pass.
-    //   views:  1 entry in window/offscreen, 2 in kXr stereo. Each
-    //           entry's viewport is this layer's rect for that view —
-    //           bind it via viz::bind_view_viewport.
+    //   views:    1 entry in window/offscreen, 2 in kXr stereo. Each
+    //             entry's viewport is this layer's rect for that view —
+    //             bind it via viz::bind_view_viewport.
+    //   in_flight_slot: index of the in-flight slot this render() is
+    //             targeting. Layers with multi-frame-in-flight mailboxes
+    //             (e.g. QuadLayer) use this to track which sample slot
+    //             belongs to which in-flight frame, so submit() can pick
+    //             a slot not currently being read by any GPU work. 0 in
+    //             single-frame-in-flight setups.
     //   DO NOT bind scissor; compositor pre-binds it.
-    virtual void record(VkCommandBuffer cmd, const std::vector<ViewInfo>& views, const RenderTarget& target) = 0;
+    virtual void record(VkCommandBuffer cmd,
+                        const std::vector<ViewInfo>& views,
+                        const RenderTarget& target,
+                        uint32_t in_flight_slot) = 0;
 
     // Timeline waits to thread into vkQueueSubmit (e.g. CUDA-Vulkan
     // producer fences). Compositor concatenates across visible layers.

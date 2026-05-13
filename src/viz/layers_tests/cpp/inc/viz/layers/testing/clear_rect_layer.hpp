@@ -33,7 +33,10 @@ public:
 
     explicit ClearRectLayer(Config config);
 
-    void record(VkCommandBuffer cmd, const std::vector<viz::ViewInfo>& views, const viz::RenderTarget& target) override;
+    void record(VkCommandBuffer cmd,
+                const std::vector<viz::ViewInfo>& views,
+                const viz::RenderTarget& target,
+                uint32_t in_flight_slot) override;
 
     const Config& config() const noexcept
     {

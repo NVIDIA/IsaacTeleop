@@ -12,7 +12,8 @@ ClearRectLayer::ClearRectLayer(Config config) : LayerBase(config.name), config_(
 
 void ClearRectLayer::record(VkCommandBuffer cmd,
                             const std::vector<viz::ViewInfo>& /*views*/,
-                            const viz::RenderTarget& target)
+                            const viz::RenderTarget& target,
+                            uint32_t /*in_flight_slot*/)
 {
     VkClearAttachment attachment{};
     attachment.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;

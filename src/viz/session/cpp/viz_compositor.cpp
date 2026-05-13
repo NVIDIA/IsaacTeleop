@@ -57,7 +57,20 @@ void VizCompositor::init()
 {
     try
     {
-        frame_sync_ = FrameSync::create(*ctx_);
+        // One FrameSync + command buffer per backend image slot.
+        // image_count = 1 for kOffscreen/kXr (stub) → single-frame-in-
+        // flight fallback. Window backend returns swapchain image
+        // count (typically 3) → real multi-frame-in-flight.
+        const uint32_t n = backend_->image_count();
+        if (n == 0)
+        {
+            throw std::runtime_error("VizCompositor: backend->image_count() returned 0");
+        }
+        frame_syncs_.reserve(n);
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            frame_syncs_.push_back(FrameSync::create(*ctx_));
+        }
         create_command_pool();
         create_command_buffer();
         if (config_.gpu_timing)
@@ -71,7 +84,12 @@ void VizCompositor::init()
                 VkQueryPoolCreateInfo qpci{};
                 qpci.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
                 qpci.queryType = VK_QUERY_TYPE_TIMESTAMP;
-                qpci.queryCount = 4;
+                // 4 timestamps per in-flight slot. Slot k writes to
+                // [4*k, 4*k+4). At the top of render() we wait on
+                // slot k's fence (it's about to be reused), at which
+                // point the previous timestamps for slot k are stable
+                // and we can read them without host-stalling.
+                qpci.queryCount = 4u * n;
                 check_vk(vkCreateQueryPool(ctx_->device(), &qpci, nullptr, &gpu_timestamp_pool_),
                          "vkCreateQueryPool(timestamps)");
             }
@@ -100,14 +118,14 @@ void VizCompositor::destroy()
         // Pool destruction frees all command buffers allocated from it.
         vkDestroyCommandPool(device, command_pool_, nullptr);
         command_pool_ = VK_NULL_HANDLE;
-        command_buffer_ = VK_NULL_HANDLE;
+        command_buffers_.clear();
     }
     if (gpu_timestamp_pool_ != VK_NULL_HANDLE)
     {
         vkDestroyQueryPool(device, gpu_timestamp_pool_, nullptr);
         gpu_timestamp_pool_ = VK_NULL_HANDLE;
     }
-    frame_sync_.reset();
+    frame_syncs_.clear();
 }
 
 void VizCompositor::create_command_pool()
@@ -121,49 +139,36 @@ void VizCompositor::create_command_pool()
 
 void VizCompositor::create_command_buffer()
 {
+    // One command buffer per in-flight slot. Host may NOT record into
+    // a PENDING cmd buffer; with per-slot fences gating the slot's
+    // reuse, the slot's fence wait at the top of render() is exactly
+    // the "this slot's cmd buf is no longer pending" wait we need.
+    const uint32_t n = static_cast<uint32_t>(frame_syncs_.size());
+    command_buffers_.assign(n, VK_NULL_HANDLE);
     VkCommandBufferAllocateInfo info{};
     info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     info.commandPool = command_pool_;
     info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    info.commandBufferCount = 1;
-    check_vk(vkAllocateCommandBuffers(ctx_->device(), &info, &command_buffer_), "vkAllocateCommandBuffers");
+    info.commandBufferCount = n;
+    check_vk(vkAllocateCommandBuffers(ctx_->device(), &info, command_buffers_.data()),
+             "vkAllocateCommandBuffers");
 }
 
-void VizCompositor::submit_or_signal_fence(const VkSubmitInfo& info, const char* what)
+void VizCompositor::submit_or_signal_fence(const VkSubmitInfo& info, const char* what, VkFence fence)
 {
-    const VkResult r = vkQueueSubmit(ctx_->queue(), 1, &info, frame_sync_->in_flight_fence());
+    const VkResult r = vkQueueSubmit(ctx_->queue(), 1, &info, fence);
     if (r == VK_SUCCESS)
     {
         return;
     }
     VkSubmitInfo empty{};
     empty.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    (void)vkQueueSubmit(ctx_->queue(), 1, &empty, frame_sync_->in_flight_fence());
+    (void)vkQueueSubmit(ctx_->queue(), 1, &empty, fence);
     throw std::runtime_error(std::string("VizCompositor: ") + what + " failed: VkResult=" + std::to_string(r));
 }
 
 void VizCompositor::render(const std::vector<LayerBase*>& layers)
 {
-    // Wait for previous frame (1 frame in flight).
-    frame_sync_->wait();
-
-    // Leave the command buffer in INITIAL on every exit path —
-    // pump_events() between renders may destroy framebuffer attachments,
-    // which Vulkan forbids while a cmd buffer referencing them is
-    // RECORDING/EXECUTABLE/PENDING. The trailing fence wait below
-    // guarantees we're never PENDING here.
-    struct CmdResetGuard
-    {
-        VkCommandBuffer cmd;
-        ~CmdResetGuard()
-        {
-            if (cmd != VK_NULL_HANDLE)
-            {
-                (void)vkResetCommandBuffer(cmd, 0);
-            }
-        }
-    } cmd_guard{ command_buffer_ };
-
     // Snapshot visible layers once — is_visible() is atomic, and
     // reading it twice could record a draw without the matching wait.
     std::vector<LayerBase*> visible_layers;
@@ -179,9 +184,49 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
     auto frame = backend_->begin_frame(/*predicted_display_time=*/0);
     if (!frame.has_value())
     {
-        // Backend skipped; fence stays signaled, next wait() won't deadlock.
+        // Backend skipped; all fences stay signaled, next wait() won't deadlock.
         return;
     }
+
+    // Slot for the in-flight resources (fence, cmd buf, timestamp range).
+    // backend_token from begin_frame is the swapchain image_index for
+    // kWindow; an opaque per-mode value for others. Modulo by our slot
+    // count keeps us in range even when the backend rotates outside
+    // [0, n).
+    const uint32_t slot_count = static_cast<uint32_t>(frame_syncs_.size());
+    const uint32_t slot = static_cast<uint32_t>(frame->backend_token) % slot_count;
+    FrameSync& slot_sync = *frame_syncs_[slot];
+    VkCommandBuffer command_buffer = command_buffers_[slot];
+
+    // Wait on THIS slot's fence — signaled by its previous use, up to
+    // (slot_count - 1) renders ago. Multi-frame-in-flight: this is
+    // usually already signaled, so the wait is ~0 ms. Acts as a back-
+    // pressure valve when the host races ahead of the GPU faster than
+    // (slot_count) renders. Also guarantees the slot's cmd buffer is
+    // no longer PENDING — safe to re-record via vkBeginCommandBuffer
+    // (the pool was created with RESET_COMMAND_BUFFER_BIT so
+    // vkBeginCommandBuffer performs the implicit reset).
+    slot_sync.wait();
+
+    // Exception-safety guard: if we throw BEFORE submit, the cmd
+    // buffer is in RECORDING state and a later vkBeginCommandBuffer
+    // would implicitly reset it anyway — but explicit reset here
+    // documents the intent. After submit succeeds (the released
+    // flag is set), the cmd buffer is PENDING and we MUST NOT
+    // reset it — the slot's fence wait at the top of the next
+    // render-into-this-slot will release it.
+    struct CmdResetGuard
+    {
+        VkCommandBuffer cmd;
+        bool released = false;
+        ~CmdResetGuard()
+        {
+            if (cmd != VK_NULL_HANDLE && !released)
+            {
+                (void)vkResetCommandBuffer(cmd, 0);
+            }
+        }
+    } cmd_guard{ command_buffer };
 
     // On unwind, call abort_frame instead of end_frame: end_frame's
     // present would wait on signal_after_render which our submit may
@@ -232,14 +277,16 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
     VkCommandBufferBeginInfo begin{};
     begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    check_vk(vkBeginCommandBuffer(command_buffer_, &begin), "vkBeginCommandBuffer");
+    check_vk(vkBeginCommandBuffer(command_buffer, &begin), "vkBeginCommandBuffer");
 
-    // ts0: cmd-buffer-begin. vkCmdResetQueryPool is the spec-compliant
-    // reset (some drivers reset implicitly, but don't rely on it).
+    // ts0: cmd-buffer-begin. Each slot owns 4 query slots starting at
+    // (4 * slot); reset just our slot's range so we don't disturb
+    // queries still pending from other in-flight frames.
+    const uint32_t query_base = 4u * slot;
     if (gpu_timestamp_pool_ != VK_NULL_HANDLE)
     {
-        vkCmdResetQueryPool(command_buffer_, gpu_timestamp_pool_, 0, 4);
-        vkCmdWriteTimestamp(command_buffer_, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, gpu_timestamp_pool_, 0);
+        vkCmdResetQueryPool(command_buffer, gpu_timestamp_pool_, query_base, 4);
+        vkCmdWriteTimestamp(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, gpu_timestamp_pool_, query_base + 0);
     }
 
     std::array<VkClearValue, 2> clears{};
@@ -255,7 +302,7 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
     rp.clearValueCount = static_cast<uint32_t>(clears.size());
     rp.pClearValues = clears.data();
 
-    vkCmdBeginRenderPass(command_buffer_, &rp, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBeginRenderPass(command_buffer, &rp, VK_SUBPASS_CONTENTS_INLINE);
 
     // Window/offscreen: pre-bind scissor=tile.outer and override
     // view[0].viewport=tile.content for aspect-fit letterboxing.
@@ -263,7 +310,7 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
     if (xr_mode)
     {
         const VkRect2D rt_full{ { 0, 0 }, { rt_extent.width, rt_extent.height } };
-        vkCmdSetScissor(command_buffer_, 0, 1, &rt_full);
+        vkCmdSetScissor(command_buffer, 0, 1, &rt_full);
     }
     for (size_t i = 0; i < visible_layers.size(); ++i)
     {
@@ -276,35 +323,38 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
         {
             const VkRect2D scissor_rect = tiles[i].outer;
             const VkRect2D viewport_rect = tiles[i].content;
-            vkCmdSetScissor(command_buffer_, 0, 1, &scissor_rect);
+            vkCmdSetScissor(command_buffer, 0, 1, &scissor_rect);
             layer_views[0].viewport = to_rect2d(viewport_rect);
         }
-        visible_layers[i]->record(command_buffer_, layer_views, rt);
+        // Pass the in-flight slot so multi-in-flight mailbox layers
+        // (QuadLayer) can track which sample slot belongs to which
+        // in-flight frame.
+        visible_layers[i]->record(command_buffer, layer_views, rt, slot);
     }
 
-    vkCmdEndRenderPass(command_buffer_);
+    vkCmdEndRenderPass(command_buffer);
 
     // ts1: end of render pass.
     if (gpu_timestamp_pool_ != VK_NULL_HANDLE)
     {
-        vkCmdWriteTimestamp(command_buffer_, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, gpu_timestamp_pool_, 1);
+        vkCmdWriteTimestamp(command_buffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, gpu_timestamp_pool_, query_base + 1);
     }
 
-    backend_->record_post_render_pass(command_buffer_, *frame);
+    backend_->record_post_render_pass(command_buffer, *frame);
 
     // ts2: end of backend post-pass (ts2-ts1 = blit/transition cost).
     if (gpu_timestamp_pool_ != VK_NULL_HANDLE)
     {
-        vkCmdWriteTimestamp(command_buffer_, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, gpu_timestamp_pool_, 2);
+        vkCmdWriteTimestamp(command_buffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, gpu_timestamp_pool_, query_base + 2);
     }
 
     // ts3: cmd-buffer-end (total = ts3-ts0).
     if (gpu_timestamp_pool_ != VK_NULL_HANDLE)
     {
-        vkCmdWriteTimestamp(command_buffer_, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, gpu_timestamp_pool_, 3);
+        vkCmdWriteTimestamp(command_buffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, gpu_timestamp_pool_, query_base + 3);
     }
 
-    check_vk(vkEndCommandBuffer(command_buffer_), "vkEndCommandBuffer");
+    check_vk(vkEndCommandBuffer(command_buffer), "vkEndCommandBuffer");
 
     // Layer timeline waits + backend binary wait_before_render (value=0).
     std::vector<VkSemaphore> wait_semaphores;
@@ -348,27 +398,39 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
     submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit.pNext = &timeline;
     submit.commandBufferCount = 1;
-    submit.pCommandBuffers = &command_buffer_;
+    submit.pCommandBuffers = &command_buffer;
     submit.waitSemaphoreCount = static_cast<uint32_t>(wait_semaphores.size());
     submit.pWaitSemaphores = wait_semaphores.empty() ? nullptr : wait_semaphores.data();
     submit.pWaitDstStageMask = wait_stages.empty() ? nullptr : wait_stages.data();
     submit.signalSemaphoreCount = static_cast<uint32_t>(signal_semaphores.size());
     submit.pSignalSemaphores = signal_semaphores.empty() ? nullptr : signal_semaphores.data();
 
-    // Reset fence immediately before submit so any throw above leaves
-    // it signaled from the previous frame (next wait() won't deadlock).
-    frame_sync_->reset();
-    submit_or_signal_fence(submit, "vkQueueSubmit");
+    // Reset THIS slot's fence immediately before submit so the submit
+    // signal lands on a known-unsignaled fence. On throw above, the
+    // fence stays in its previous (signaled) state and the next render
+    // into this slot doesn't deadlock at its wait().
+    slot_sync.reset();
+    submit_or_signal_fence(submit, "vkQueueSubmit", slot_sync.in_flight_fence());
+    // Submit succeeded — cmd buffer is now PENDING on the GPU.
+    // Disarm the reset guard; the next render-into-this-slot's fence
+    // wait + vkBeginCommandBuffer implicit reset handles the cleanup.
+    cmd_guard.released = true;
 
-    // Drain before end_frame: keeps the cmd buffer EXECUTABLE (not
-    // PENDING) if end_frame throws. QuadLayer's mailbox depends on
-    // this synchronous-frame contract — see quad_layer.hpp.
-    frame_sync_->wait();
-
+    // **F4: no trailing host wait.** The slot's fence is in flight and
+    // will signal when the GPU finishes this cmd buf. We let the GPU
+    // continue while the host returns and goes on to queue more work.
+    // The wait happens at the TOP of the next render() that targets
+    // this same slot (slot_count frames from now). Matches HolovizOp.
+    //
+    // GPU timing is opt-in (Config::gpu_timing) and DOES require
+    // host-waiting to read its query pool. Fall through to a synchronous
+    // path when enabled — gpu_timing effectively forces single-frame-
+    // in-flight for the frames it samples. Production runs leave it off.
     if (gpu_timestamp_pool_ != VK_NULL_HANDLE)
     {
+        slot_sync.wait();
         uint64_t ts[4] = { 0, 0, 0, 0 };
-        const VkResult r = vkGetQueryPoolResults(ctx_->device(), gpu_timestamp_pool_, 0, 4, sizeof(ts), ts,
+        const VkResult r = vkGetQueryPoolResults(ctx_->device(), gpu_timestamp_pool_, query_base, 4, sizeof(ts), ts,
                                                  sizeof(uint64_t), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
         if (r == VK_SUCCESS)
         {

@@ -5,7 +5,6 @@
 
 #include <viz/session/display_backend.hpp>
 
-#include <chrono>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -26,8 +25,6 @@ public:
         uint32_t width = 1024;
         uint32_t height = 1024;
         std::string title = "televiz";
-        // Soft fps cap; 0 = primary monitor's refresh rate.
-        uint32_t target_fps = 0;
     };
 
     explicit WindowBackend(Config config);
@@ -48,6 +45,7 @@ public:
     bool consume_resized() override;
     void resize(Resolution new_size) override;
     Resolution current_extent() const override;
+    uint32_t image_count() const override;
 
     void destroy();
 
@@ -58,12 +56,6 @@ private:
     std::unique_ptr<GlfwWindow> window_;
     std::unique_ptr<Swapchain> swapchain_;
     std::unique_ptr<RenderTarget> render_target_;
-
-    // MAILBOX doesn't throttle acquire; the pacer at begin_frame's
-    // start caps render rate (and runs even on OUT_OF_DATE early-out
-    // so the loop can't spin).
-    std::chrono::nanoseconds frame_period_{ 0 };
-    std::chrono::steady_clock::time_point next_frame_deadline_{};
 
     // Set by abort_frame and by acquire-time OUT_OF_DATE; consumed
     // at the top of the next begin_frame, which forces a swapchain

@@ -38,7 +38,8 @@ public:
 
     void record(VkCommandBuffer /*cmd*/,
                 const std::vector<viz::ViewInfo>& /*views*/,
-                const viz::RenderTarget& /*target*/) override
+                const viz::RenderTarget& /*target*/,
+                uint32_t /*in_flight_slot*/) override
     {
         const uint32_t prior = call_count_.fetch_add(1);
         if (prior >= config_.throw_after_n_calls)

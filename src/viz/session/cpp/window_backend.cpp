@@ -7,7 +7,6 @@
 #include <viz/session/window_backend.hpp>
 
 #include <stdexcept>
-#include <thread>
 #include <utility>
 
 #define GLFW_INCLUDE_NONE
@@ -97,27 +96,6 @@ void WindowBackend::init(const VkContext& ctx, Resolution preferred_size)
         swapchain_ = Swapchain::create(ctx, window_->surface(), preferred_size);
         // Match intermediate extent to swapchain for a 1:1 post-render blit.
         render_target_ = RenderTarget::create(ctx, RenderTarget::Config{ swapchain_->extent() });
-
-        // Pacer target: monitor refresh rate, falling back to 60.
-        uint32_t fps = config_.target_fps;
-        if (fps == 0)
-        {
-            GLFWmonitor* monitor = glfwGetPrimaryMonitor();
-            const GLFWvidmode* mode = monitor != nullptr ? glfwGetVideoMode(monitor) : nullptr;
-            if (mode != nullptr && mode->refreshRate > 0)
-            {
-                fps = static_cast<uint32_t>(mode->refreshRate);
-            }
-        }
-        if (fps == 0)
-        {
-            fps = 60;
-        }
-        frame_period_ = std::chrono::nanoseconds(1'000'000'000ULL / fps);
-        // Subtract one period so begin_frame's first += lands at now()
-        // and the first frame doesn't burn ~16ms in sleep_until before
-        // rendering anything.
-        next_frame_deadline_ = std::chrono::steady_clock::now() - frame_period_;
     }
     catch (...)
     {
@@ -140,19 +118,6 @@ std::optional<DisplayBackend::Frame> WindowBackend::begin_frame(int64_t /*predic
     if (swapchain_ == nullptr)
     {
         return std::nullopt;
-    }
-
-    // Pacer first — runs once per loop iteration even when we return
-    // nullopt below; otherwise OUT_OF_DATE recovery spins.
-    next_frame_deadline_ += frame_period_;
-    const auto now = std::chrono::steady_clock::now();
-    if (next_frame_deadline_ < now)
-    {
-        next_frame_deadline_ = now; // fell behind; don't accumulate debt
-    }
-    else
-    {
-        std::this_thread::sleep_until(next_frame_deadline_);
     }
 
     // Drain a deferred recreate (set by abort_frame or a prior
@@ -321,6 +286,14 @@ Resolution WindowBackend::current_extent() const
         return swapchain_->extent();
     }
     return Resolution{ config_.width, config_.height };
+}
+
+uint32_t WindowBackend::image_count() const
+{
+    // 1 before init() — VizCompositor calls image_count() AFTER init,
+    // so this should never be observed pre-init, but return a safe
+    // default just in case.
+    return swapchain_ != nullptr ? swapchain_->image_count() : 1u;
 }
 
 } // namespace viz

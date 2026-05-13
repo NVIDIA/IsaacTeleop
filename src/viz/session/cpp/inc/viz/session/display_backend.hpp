@@ -57,6 +57,17 @@ public:
         return false;
     }
 
+    // Number of distinct image slots the backend cycles through.
+    // VizCompositor allocates one FrameSync per slot to enable
+    // multi-frame-in-flight rendering (the host waits on the fence
+    // for the slot it's about to reuse, not on the most recent frame).
+    // Window: swapchain image count (typically 3). XR: XR swapchain
+    // image count (typically 2-3). Offscreen: 1.
+    // The Frame::backend_token returned by begin_frame must be the
+    // slot index (0..image_count()-1) so the compositor can look up
+    // the right fence.
+    virtual uint32_t image_count() const = 0;
+
     struct Frame
     {
         // Per-view info: 1 entry for window/offscreen, 2 for XR stereo.

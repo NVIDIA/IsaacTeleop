@@ -126,6 +126,14 @@ void QuadLayer::init()
 {
     try
     {
+        // Atomic<uint8_t>'s default state is unspecified per the
+        // standard; explicitly seed every entry to kSlotNone so submit
+        // / record / get_wait_semaphores see a defined initial state.
+        for (auto& e : in_use_)
+        {
+            e.store(kSlotNone, std::memory_order_relaxed);
+        }
+        last_in_use_slot_.store(kSlotNone, std::memory_order_relaxed);
         for (auto& slot : slots_)
         {
             slot = DeviceImage::create(*ctx_, config_.resolution, config_.format);
@@ -192,7 +200,11 @@ void QuadLayer::destroy()
         slot.reset();
     }
     latest_.store(kSlotNone, std::memory_order_release);
-    in_use_.store(kSlotNone, std::memory_order_release);
+    for (auto& e : in_use_)
+    {
+        e.store(kSlotNone, std::memory_order_release);
+    }
+    last_in_use_slot_.store(kSlotNone, std::memory_order_release);
 }
 
 Resolution QuadLayer::resolution() const noexcept
@@ -223,19 +235,41 @@ const DeviceImage* QuadLayer::device_image(uint32_t slot) const noexcept
     return slots_[slot].get();
 }
 
-uint8_t QuadLayer::pick_free_slot(uint8_t latest, uint8_t in_use) const noexcept
+uint8_t QuadLayer::pick_free_slot(uint8_t latest,
+                                  const std::array<std::atomic<uint8_t>, kMaxFramesInFlight>& in_use) const noexcept
 {
-    // With kSlotCount=3, at most 2 slots are "claimed" (latest +
-    // in_use). At least one of {0, 1, 2} is always free.
-    static_assert(kSlotCount == 3, "pick_free_slot assumes 3 slots");
+    // Forbidden = {latest} ∪ {in_use_[0..N-1]}. At most 1 + N distinct
+    // forbidden values. With kSlotCount = 4 and kMaxFramesInFlight = 3
+    // that's 4 distinct in the worst case — exactly matching the slot
+    // count. The "worst case" only happens when submit publishes
+    // between every record() call AND every recent in_use_ entry is
+    // distinct, which is rare (the most recent in_use_ usually equals
+    // latest_). When it does happen, we fall back to returning slot 0
+    // and accept the small risk of overwriting a slot the GPU is
+    // sampling — caller should keep producer rate ≤ render rate to
+    // avoid this. In practice (30 Hz source, 60 Hz render) it never
+    // triggers.
+    static_assert(kSlotCount >= kMaxFramesInFlight + 1,
+                  "kSlotCount must be at least kMaxFramesInFlight + 1");
     for (uint8_t i = 0; i < kSlotCount; ++i)
     {
-        if (i != latest && i != in_use)
+        if (i == latest)
+            continue;
+        bool conflicts = false;
+        for (uint32_t k = 0; k < kMaxFramesInFlight; ++k)
+        {
+            if (i == in_use[k].load(std::memory_order_acquire))
+            {
+                conflicts = true;
+                break;
+            }
+        }
+        if (!conflicts)
         {
             return i;
         }
     }
-    return 0; // unreachable for kSlotCount >= 2
+    return 0; // see worst-case note above
 }
 
 void QuadLayer::submit(const VizBuffer& src, cudaStream_t stream)
@@ -258,12 +292,12 @@ void QuadLayer::submit(const VizBuffer& src, cudaStream_t stream)
         throw std::invalid_argument("QuadLayer::submit: src.data is null");
     }
 
-    // Pick a free slot — neither the most recent publish nor the
-    // slot the renderer is currently using. With 3 slots there's
-    // always one free, so this is wait-free.
+    // Pick a free slot — neither the most recent publish nor any slot
+    // an in-flight renderer is currently sampling. pick_free_slot
+    // scans the in_use_ array. With 4 storage slots and at most 3
+    // in-flight frames there's always at least one free slot.
     const uint8_t latest = latest_.load(std::memory_order_acquire);
-    const uint8_t in_use = in_use_.load(std::memory_order_acquire);
-    const uint8_t slot = pick_free_slot(latest, in_use);
+    const uint8_t slot = pick_free_slot(latest, in_use_);
     DeviceImage& image = *slots_[slot];
 
     check_cuda(cudaSetDevice(ctx_->cuda_device_id()), "cudaSetDevice");
@@ -283,25 +317,38 @@ void QuadLayer::submit(const VizBuffer& src, cudaStream_t stream)
     latest_.store(slot, std::memory_order_release);
 }
 
-void QuadLayer::record(VkCommandBuffer cmd, const std::vector<ViewInfo>& views, const RenderTarget& /*target*/)
+void QuadLayer::record(VkCommandBuffer cmd,
+                       const std::vector<ViewInfo>& views,
+                       const RenderTarget& /*target*/,
+                       uint32_t in_flight_slot)
 {
     require_alive(slots_[0], "record");
 
-    // Promote latest_ to in_use_. The previous in_use_ slot becomes
-    // free for the next submit(). If no frame has been published yet
-    // (latest_ == kSlotNone), we leave in_use_ as-is — if it's also
-    // kSlotNone, we skip the draw and the framebuffer keeps its
-    // clear value.
+    // Promote latest_ to in_use_[in_flight_slot]. The previous entry
+    // at this index becomes free for the next submit() — but only
+    // once the GPU work that referenced it completes, which is
+    // exactly what the compositor's per-slot fence wait guarantees
+    // (it waits on the fence for THIS in_flight_slot before re-
+    // entering record() for this slot, so by then the GPU has
+    // finished sampling whatever this entry pointed to).
+    //
+    // If no frame has been published yet (latest_ == kSlotNone), we
+    // leave the entry as-is. If it's also kSlotNone we skip the draw.
     const uint8_t latest = latest_.load(std::memory_order_acquire);
+    const uint32_t idx = in_flight_slot % kMaxFramesInFlight;
     if (latest != kSlotNone)
     {
-        in_use_.store(latest, std::memory_order_release);
+        in_use_[idx].store(latest, std::memory_order_release);
     }
-    const uint8_t cur = in_use_.load(std::memory_order_acquire);
+    const uint8_t cur = in_use_[idx].load(std::memory_order_acquire);
     if (cur == kSlotNone)
     {
         return;
     }
+    // Record which slot this frame is sampling so get_wait_semaphores
+    // (called by compositor between record and submit) reads the
+    // matching cuda_done_writing semaphore.
+    last_in_use_slot_.store(cur, std::memory_order_release);
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
     vkCmdBindDescriptorSets(
@@ -356,9 +403,11 @@ std::optional<QuadLayer::Config::Placement> QuadLayer::placement() const noexcep
 
 std::vector<LayerBase::WaitSemaphore> QuadLayer::get_wait_semaphores() const
 {
-    // Compositor calls record() first (promotes latest_ → in_use_),
-    // so in_use_ is the slot the draw will sample.
-    const uint8_t cur = in_use_.load(std::memory_order_acquire);
+    // Compositor calls record() first, which sets last_in_use_slot_ to
+    // the slot it just bound. We return THAT slot's cuda_done_writing
+    // semaphore so the submit waits for the producer's memcpy to
+    // complete before the fragment shader samples.
+    const uint8_t cur = last_in_use_slot_.load(std::memory_order_acquire);
     if (cur == kSlotNone || !slots_[cur])
     {
         return {};

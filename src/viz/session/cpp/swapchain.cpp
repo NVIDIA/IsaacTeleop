@@ -5,8 +5,17 @@
 #include <viz/session/swapchain.hpp>
 
 #include <algorithm>
+#include <cstdio>
 #include <stdexcept>
 #include <string>
+
+// VK_EXT_present_mode_fifo_latest_ready. Numeric value from the
+// extension spec; we declare it locally instead of pulling in the
+// extension header so the swapchain code stays buildable against
+// older Vulkan SDKs that don't bundle it.
+#ifndef VK_PRESENT_MODE_FIFO_LATEST_READY_EXT
+#define VK_PRESENT_MODE_FIFO_LATEST_READY_EXT static_cast<VkPresentModeKHR>(1000361000)
+#endif
 
 namespace viz
 {
@@ -60,7 +69,9 @@ VkExtent2D clamp_extent(const VkSurfaceCapabilitiesKHR& caps, Resolution preferr
 
 } // namespace
 
-std::unique_ptr<Swapchain> Swapchain::create(const VkContext& ctx, VkSurfaceKHR surface, Resolution preferred_size)
+std::unique_ptr<Swapchain> Swapchain::create(const VkContext& ctx,
+                                             VkSurfaceKHR surface,
+                                             Resolution preferred_size)
 {
     if (!ctx.is_initialized())
     {
@@ -100,7 +111,8 @@ std::unique_ptr<Swapchain> Swapchain::create(const VkContext& ctx, VkSurfaceKHR 
     return sc;
 }
 
-Swapchain::Swapchain(const VkContext& ctx, VkSurfaceKHR surface) : ctx_(&ctx), surface_(surface)
+Swapchain::Swapchain(const VkContext& ctx, VkSurfaceKHR surface)
+    : ctx_(&ctx), surface_(surface)
 {
 }
 
@@ -159,8 +171,8 @@ void Swapchain::init(Resolution preferred_size, VkSwapchainKHR old_swapchain)
         info.preTransform = caps.currentTransform;
         info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 
-        // Prefer MAILBOX (no compositor sync stalls); FIFO is the
-        // universal fallback. App throttles its own render rate.
+        // Pick present mode per caller preference. FIFO is the universal
+        // fallback (always available per Vulkan spec).
         VkPresentModeKHR present_mode = VK_PRESENT_MODE_FIFO_KHR;
         uint32_t pm_count = 0;
         vkGetPhysicalDeviceSurfacePresentModesKHR(phys, surface_, &pm_count, nullptr);
@@ -169,14 +181,52 @@ void Swapchain::init(Resolution preferred_size, VkSwapchainKHR old_swapchain)
         {
             vkGetPhysicalDeviceSurfacePresentModesKHR(phys, surface_, &pm_count, available_modes.data());
         }
-        for (VkPresentModeKHR m : available_modes)
-        {
-            if (m == VK_PRESENT_MODE_MAILBOX_KHR)
+        // Preference order: MAILBOX (no tear, no vsync) →
+        // FIFO_LATEST_READY (no tear, vsync-paced but always shows
+        // latest) → FIFO (universal fallback). IMMEDIATE is skipped
+        // because without an acquire-blocks-at-vsync throttle the
+        // event-driven render loop has no natural pacing and the
+        // render thread burns CPU.
+        const auto has_mode = [&available_modes](VkPresentModeKHR m) {
+            for (VkPresentModeKHR avail : available_modes)
             {
-                present_mode = m;
-                break;
+                if (avail == m)
+                    return true;
             }
+            return false;
+        };
+        if (has_mode(VK_PRESENT_MODE_MAILBOX_KHR))
+        {
+            present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
         }
+        else if (has_mode(VK_PRESENT_MODE_FIFO_LATEST_READY_EXT))
+        {
+            present_mode = VK_PRESENT_MODE_FIFO_LATEST_READY_EXT;
+        }
+        // Stderr log so the user can confirm which mode they actually got
+        // — driver/compositor combinations sometimes silently fall back.
+        const auto mode_name = [](VkPresentModeKHR m) -> const char* {
+            switch (m)
+            {
+                case VK_PRESENT_MODE_IMMEDIATE_KHR: return "IMMEDIATE";
+                case VK_PRESENT_MODE_MAILBOX_KHR:   return "MAILBOX";
+                case VK_PRESENT_MODE_FIFO_KHR:      return "FIFO";
+                case VK_PRESENT_MODE_FIFO_RELAXED_KHR: return "FIFO_RELAXED";
+                default: break;
+            }
+            if (m == VK_PRESENT_MODE_FIFO_LATEST_READY_EXT)
+            {
+                return "FIFO_LATEST_READY";
+            }
+            return "OTHER";
+        };
+        const char* mode_str = mode_name(present_mode);
+        std::fprintf(stderr, "viz: swapchain present_mode = %s (chose from %u: ", mode_str, pm_count);
+        for (uint32_t i = 0; i < pm_count; ++i)
+        {
+            std::fprintf(stderr, "%s%s", i > 0 ? ", " : "", mode_name(available_modes[i]));
+        }
+        std::fprintf(stderr, ")\n");
         info.presentMode = present_mode;
         info.clipped = VK_TRUE;
         info.oldSwapchain = old_swapchain;
