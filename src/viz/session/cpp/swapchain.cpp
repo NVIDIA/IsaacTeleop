@@ -5,7 +5,6 @@
 #include <viz/session/swapchain.hpp>
 
 #include <algorithm>
-#include <cstdio>
 #include <stdexcept>
 #include <string>
 
@@ -201,36 +200,6 @@ void Swapchain::init(Resolution preferred_size, VkSwapchainKHR old_swapchain)
         {
             present_mode = VK_PRESENT_MODE_FIFO_LATEST_READY_EXT;
         }
-        // Stderr log so the user can confirm which mode they actually got
-        // — driver/compositor combinations sometimes silently fall back.
-        const auto mode_name = [](VkPresentModeKHR m) -> const char*
-        {
-            switch (m)
-            {
-            case VK_PRESENT_MODE_IMMEDIATE_KHR:
-                return "IMMEDIATE";
-            case VK_PRESENT_MODE_MAILBOX_KHR:
-                return "MAILBOX";
-            case VK_PRESENT_MODE_FIFO_KHR:
-                return "FIFO";
-            case VK_PRESENT_MODE_FIFO_RELAXED_KHR:
-                return "FIFO_RELAXED";
-            default:
-                break;
-            }
-            if (m == VK_PRESENT_MODE_FIFO_LATEST_READY_EXT)
-            {
-                return "FIFO_LATEST_READY";
-            }
-            return "OTHER";
-        };
-        const char* mode_str = mode_name(present_mode);
-        std::fprintf(stderr, "viz: swapchain present_mode = %s (chose from %u: ", mode_str, pm_count);
-        for (uint32_t i = 0; i < pm_count; ++i)
-        {
-            std::fprintf(stderr, "%s%s", i > 0 ? ", " : "", mode_name(available_modes[i]));
-        }
-        std::fprintf(stderr, ")\n");
         info.presentMode = present_mode;
         info.clipped = VK_TRUE;
         info.oldSwapchain = old_swapchain;
