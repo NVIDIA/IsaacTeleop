@@ -188,6 +188,12 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
     // outruns the GPU.
     slot_sync.wait();
 
+    // After ONE_TIME_SUBMIT + completion the buffer is in the "invalid"
+    // state per the Vulkan spec. The pool has RESET_COMMAND_BUFFER_BIT
+    // so vkBeginCommandBuffer below would implicitly reset, but we make
+    // it explicit so the lifecycle isn't load-bearing on that nuance.
+    check_vk(vkResetCommandBuffer(command_buffer, 0), "vkResetCommandBuffer");
+
     // Reset on unwind before submit. After submit the cmd buffer is
     // PENDING — releasing the guard prevents an illegal reset.
     struct CmdResetGuard

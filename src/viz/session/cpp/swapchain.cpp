@@ -144,22 +144,23 @@ void Swapchain::init(Resolution preferred_size, VkSwapchainKHR old_swapchain)
         color_space_ = chosen.colorSpace;
         extent_ = clamp_extent(caps, preferred_size);
 
-        // Aim for triple-buffer. QuadLayer tracks up to
-        // kMaxFramesInFlight (= 5) in-flight slots, so anything beyond
-        // that breaks the slot-tracking invariant. We REQUEST 3 to keep
-        // memory in check, but accept up to the layer cap if the driver
-        // insists on giving more.
+        // Aim for triple-buffer, but never below caps.minImageCount
+        // (Vulkan spec requires VkSwapchainCreateInfoKHR::minImageCount
+        // >= surface's minImageCount). QuadLayer tracks up to
+        // kMaxFramesInFlight (= 5) in-flight slots, so we refuse to
+        // create swapchains that demand more.
         constexpr uint32_t kRequestTarget = 3;
         constexpr uint32_t kMaxAccept = 5; // matches QuadLayer::kMaxFramesInFlight
-        uint32_t image_count = std::min(caps.minImageCount + 1, kRequestTarget);
+        uint32_t image_count = std::max(caps.minImageCount, kRequestTarget);
         if (caps.maxImageCount > 0)
         {
             image_count = std::min(image_count, caps.maxImageCount);
         }
-        if (caps.minImageCount > kMaxAccept)
+        if (image_count > kMaxAccept)
         {
-            throw std::runtime_error("Swapchain::init: surface minImageCount " + std::to_string(caps.minImageCount) +
-                                     " exceeds compositor cap of " + std::to_string(kMaxAccept));
+            throw std::runtime_error("Swapchain::init: surface requires minImageCount " +
+                                     std::to_string(caps.minImageCount) + " (would create " + std::to_string(image_count) +
+                                     " images), exceeds compositor cap of " + std::to_string(kMaxAccept));
         }
 
         VkSwapchainCreateInfoKHR info{};
