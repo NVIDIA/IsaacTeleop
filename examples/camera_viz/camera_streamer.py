@@ -124,8 +124,12 @@ class CameraSupervisor:
                 sender = self._build_sender()
                 sender.start()
                 started_at = time.monotonic()
-                logger.info("camera %r: streaming → %s:%s",
-                            self._name, self._host, self._cfg["rtp"]["port"])
+                logger.info(
+                    "camera %r: streaming → %s:%s",
+                    self._name,
+                    self._host,
+                    self._cfg["rtp"]["port"],
+                )
                 # Run until we're asked to stop. We don't have a fatal-
                 # error callback on the sender, so we just wait; if start()
                 # raised it's already in the except below.
@@ -143,7 +147,10 @@ class CameraSupervisor:
                 uptime = (time.monotonic() - started_at) if started_at else 0.0
                 logger.warning(
                     "camera %r: failure after %.1fs uptime: %s — retrying in %.1fs",
-                    self._name, uptime, e, RETRY_S,
+                    self._name,
+                    uptime,
+                    e,
+                    RETRY_S,
                 )
                 logger.debug("camera %r: traceback", self._name, exc_info=True)
             finally:
@@ -151,8 +158,9 @@ class CameraSupervisor:
                     try:
                         sender.stop()
                     except Exception:
-                        logger.debug("camera %r: sender.stop() raised",
-                                     self._name, exc_info=True)
+                        logger.debug(
+                            "camera %r: sender.stop() raised", self._name, exc_info=True
+                        )
             if not self._stop.is_set():
                 self._stop.wait(timeout=RETRY_S)
         logger.info("camera %r: supervisor exited", self._name)
@@ -162,6 +170,7 @@ def _setup_logging() -> None:
     # systemd captures stdout/stderr — journal formats timestamps, so we
     # don't add our own. Keep level info by default; DEBUG via env var.
     import os
+
     level = logging.DEBUG if os.environ.get("CAMERA_STREAMER_DEBUG") else logging.INFO
     logging.basicConfig(
         level=level,
@@ -177,8 +186,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         description="camera_streamer — RTP H.264 sender (per-camera supervisor)"
     )
     parser.add_argument("config", type=Path, help="YAML config file")
-    parser.add_argument("--host", type=str, default=None,
-                        help="Override streaming.host (receiver IP).")
+    parser.add_argument(
+        "--host", type=str, default=None, help="Override streaming.host (receiver IP)."
+    )
     args = parser.parse_args(argv)
 
     with open(args.config) as f:

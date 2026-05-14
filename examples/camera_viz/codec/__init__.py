@@ -18,8 +18,7 @@ try:
     )
 except ImportError as e:
     raise ImportError(
-        "camera_viz native codec not built. Run "
-        "`examples/camera_viz/codec/build.sh`."
+        "camera_viz native codec not built. Run `examples/camera_viz/codec/build.sh`."
     ) from e
 
 __all__ = [
