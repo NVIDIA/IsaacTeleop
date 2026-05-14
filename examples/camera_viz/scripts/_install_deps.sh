@@ -56,11 +56,21 @@ while (( $# )); do
     esac
 done
 
-# System apt deps for the RTP path: Debian's pre-built PyGObject +
-# GStreamer Python bindings, plus the gstreamer plugins RtpH264Sender
-# pipes through. Using the apt packages avoids a 5-minute pycairo /
-# PyGObject source-build per fresh deploy. Idempotent; skipped fast
-# when ``import gi`` already resolves on system python3.
+# Detect CUDA major from /usr/local/cuda's resolved target (typically
+# /usr/local/cuda → /etc/alternatives/cuda → /usr/local/cuda-13.0).
+# Default to 12 when nothing's detectable. Used for both the cupy
+# wheel name and the cuda-nvrtc apt package version.
+cuda_major=12
+if [[ -e /usr/local/cuda ]]; then
+    cuda_resolved=$(readlink -f /usr/local/cuda 2>/dev/null)
+    detected=$(echo "$cuda_resolved" | grep -oE 'cuda-[0-9]+' | head -1 | cut -d- -f2)
+    [[ -n "$detected" ]] && cuda_major=$detected
+fi
+
+# System apt deps: Debian PyGObject + GStreamer (so we don't source-build
+# pycairo / PyGObject) plus cuda-nvrtc, which JetPack 7's base image
+# doesn't ship — cupy can't compile kernels without it. Idempotent;
+# skipped fast when nothing is missing.
 ensure_apt_deps() {
     if ! $WITH_RTP; then
         return 0
@@ -68,18 +78,28 @@ ensure_apt_deps() {
     if ! command -v apt-get >/dev/null 2>&1; then
         return 0  # not Debian/Ubuntu, user is on their own
     fi
-    if python3 -c "import gi; gi.require_version('Gst', '1.0'); from gi.repository import Gst" 2>/dev/null; then
+
+    local pkgs=()
+    if ! python3 -c "import gi; gi.require_version('Gst', '1.0'); from gi.repository import Gst" 2>/dev/null; then
+        pkgs+=(
+            python3-gi
+            python3-gst-1.0
+            gir1.2-gstreamer-1.0
+            gstreamer1.0-tools
+            gstreamer1.0-plugins-base
+            gstreamer1.0-plugins-good
+        )
+    fi
+    # NVRTC is the kernel compiler cupy uses at runtime. JetPack 7 omits
+    # it from the base CUDA toolkit metapackages; install it explicitly.
+    if ! find /usr -name 'libnvrtc.so*' 2>/dev/null | grep -q .; then
+        pkgs+=("cuda-nvrtc-${cuda_major}-0")
+    fi
+
+    if [[ ${#pkgs[@]} -eq 0 ]]; then
         return 0
     fi
-    echo "==> apt-installing GStreamer Python bindings + plugins"
-    local pkgs=(
-        python3-gi
-        python3-gst-1.0
-        gir1.2-gstreamer-1.0
-        gstreamer1.0-tools
-        gstreamer1.0-plugins-base
-        gstreamer1.0-plugins-good
-    )
+    echo "==> apt-installing system deps: ${pkgs[*]}"
     if ! sudo -n true 2>/dev/null; then
         echo "    sudo password required (one-time)"
     fi
@@ -153,18 +173,6 @@ if [[ ! -d "$VENV_DIR" ]]; then
 fi
 PY="$VENV_DIR/bin/python"
 
-# cupy is split by CUDA major: cupy-cuda12x for CUDA 12, cupy-cuda13x
-# for CUDA 13. Get this wrong and you hit obscure NVRTC errors (lib not
-# found on a mismatched runtime, or unknown -arch=sm_X for a GPU the
-# wrong cupy build can't target). Detect from /usr/local/cuda's resolved
-# version and pick accordingly. Default to cu12 when nothing's
-# detectable — covers most workstations.
-cuda_major=12
-if [[ -L /usr/local/cuda ]]; then
-    cuda_resolved=$(readlink -f /usr/local/cuda 2>/dev/null)
-    detected=$(echo "$cuda_resolved" | grep -oE 'cuda-[0-9]+' | head -1 | cut -d- -f2)
-    [[ -n "$detected" ]] && cuda_major=$detected
-fi
 echo "==> cuda:   $cuda_major (cupy-cuda${cuda_major}x)"
 
 # Mirrors pyproject.toml's dependency block. Sender-only drops the wheel.
