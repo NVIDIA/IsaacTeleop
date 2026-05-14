@@ -323,13 +323,13 @@ TEST_CASE("QuadLayer visibility toggle is independent of pipeline state", "[gpu]
 // Stereo (Config::stereo == true)
 // ────────────────────────────────────────────────────────────────────
 
-TEST_CASE("QuadLayer ctor rejects non-finite stereo_baseline_m", "[unit][quad_layer]")
+TEST_CASE("QuadLayer ctor rejects non-finite stereo_baseline_mm", "[unit][quad_layer]")
 {
     VkContext ctx;
     QuadLayer::Config cfg;
     cfg.resolution = { 64, 64 };
     cfg.stereo = true;
-    cfg.stereo_baseline_m = std::numeric_limits<float>::quiet_NaN();
+    cfg.stereo_baseline_mm = std::numeric_limits<float>::quiet_NaN();
     CHECK_THROWS_AS(QuadLayer(ctx, VK_NULL_HANDLE, cfg), std::invalid_argument);
 }
 
