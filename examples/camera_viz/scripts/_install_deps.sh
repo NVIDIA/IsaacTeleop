@@ -108,6 +108,54 @@ ensure_apt_deps() {
 }
 ensure_apt_deps
 
+# JetPack's cuda-nvrtc-13-0 lays down libnvrtc.so.13 in /usr/local/cuda/
+# lib64 but skips the unversioned symlink and the ld.so cache entry that
+# the desktop CUDA installer normally creates. cupy + cuda.pathfinder
+# both look for ``libnvrtc.so`` (no version) and resolve via ld.so, so
+# without the symlink + cache entry the load fails with "No such file:
+# libnvrtc.so*" even though the .so.13 sits right there.
+ensure_cuda_symlinks() {
+    if [[ ! -d /usr/local/cuda/lib64 ]]; then
+        return 0
+    fi
+    local lib64=/usr/local/cuda/lib64
+    local needs_sudo=false
+    for stem in libnvrtc.so libnvrtc-builtins.so libcudart.so; do
+        if [[ ! -e "$lib64/$stem" ]]; then
+            local versioned
+            versioned=$(ls "$lib64/$stem".[0-9]* 2>/dev/null | sort -V | tail -1)
+            [[ -n "$versioned" ]] && needs_sudo=true
+        fi
+    done
+    if ! ldconfig -p 2>/dev/null | grep -q "$lib64"; then
+        needs_sudo=true
+    fi
+    if ! $needs_sudo; then
+        return 0
+    fi
+
+    echo "==> wiring CUDA libs into ld.so + creating unversioned symlinks"
+    if ! sudo -n true 2>/dev/null; then
+        echo "    sudo password required (one-time)"
+    fi
+    for stem in libnvrtc.so libnvrtc-builtins.so libcudart.so; do
+        if [[ ! -e "$lib64/$stem" ]]; then
+            local versioned
+            versioned=$(ls "$lib64/$stem".[0-9]* 2>/dev/null | sort -V | tail -1)
+            if [[ -n "$versioned" ]]; then
+                sudo ln -sf "$(basename "$versioned")" "$lib64/$stem"
+                echo "    $lib64/$stem -> $(basename "$versioned")"
+            fi
+        fi
+    done
+    if ! ldconfig -p 2>/dev/null | grep -q "$lib64"; then
+        echo "$lib64" | sudo tee /etc/ld.so.conf.d/zz-camera-viz-cuda.conf >/dev/null
+        sudo ldconfig
+        echo "    registered $lib64 with ldconfig"
+    fi
+}
+ensure_cuda_symlinks
+
 # Auto-install uv into ~/.local/bin if missing. Jetson images usually
 # don't ship it; we don't want a fresh deploy to require a manual step.
 if ! command -v uv >/dev/null 2>&1; then
