@@ -317,3 +317,70 @@ class PolledSource(FrameSource):
             pass
         self._connected = False
         self._last_reconnect_attempt_s = time.monotonic()
+
+
+class PairedFrameSource(FrameSource):
+    """Pair two per-eye FrameSources into a single stereo source.
+
+    Owns no thread of its own. latest() polls both children: when
+    each has produced a fresh Frame, emits one combined Frame with the
+    left source's image in Frame.image and the right source's image
+    in Frame.image_right. Skips the publish (returns None) if either
+    eye hasn't produced — the QuadLayer mailbox keeps the previous
+    matched pair until both eyes catch up. Acceptable because both eyes
+    share the camera producer (same SDK grab cycle), so they re-sync
+    within one frame.
+
+    Both children MUST agree on (width, height, pixel_format).
+    """
+
+    def __init__(self, name: str, left: FrameSource, right: FrameSource) -> None:
+        if left.spec.width != right.spec.width or left.spec.height != right.spec.height:
+            raise ValueError(
+                f"PairedFrameSource: left/right resolution mismatch "
+                f"({left.spec.width}x{left.spec.height} vs "
+                f"{right.spec.width}x{right.spec.height})"
+            )
+        if left.spec.pixel_format != right.spec.pixel_format:
+            raise ValueError(
+                f"PairedFrameSource: left/right pixel_format mismatch "
+                f"({left.spec.pixel_format!r} vs {right.spec.pixel_format!r})"
+            )
+        self._spec = SourceSpec(
+            name=name,
+            width=left.spec.width,
+            height=left.spec.height,
+            pixel_format=left.spec.pixel_format,
+        )
+        self._left = left
+        self._right = right
+
+    @property
+    def spec(self) -> SourceSpec:
+        return self._spec
+
+    def start(self) -> None:
+        self._left.start()
+        self._right.start()
+
+    def stop(self) -> None:
+        self._left.stop()
+        self._right.stop()
+
+    def latest(self) -> Optional[Frame]:
+        # Read both. We only publish when BOTH eyes have produced —
+        # otherwise the renderer would see a mismatched pair (or an
+        # update on one eye only, which submit() would treat as the
+        # left of a new pair with the previous right). Returning None
+        # leaves the layer rendering the prior matched pair.
+        fl = self._left.latest()
+        fr = self._right.latest()
+        if fl is None or fr is None:
+            return None
+        return Frame(
+            image=fl.image,
+            image_right=fr.image,
+            timestamp_ns=fl.timestamp_ns,
+            source_id=self._spec.name,
+            stream=fl.stream,
+        )

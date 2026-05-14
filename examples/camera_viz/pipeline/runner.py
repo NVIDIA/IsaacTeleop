@@ -200,7 +200,13 @@ class VizRunner:
                 if not device_pinned:
                     self._pin_to_device(frame)
                     device_pinned = True
-                layer.submit(frame.image, stream=frame.stream)
+                # Stereo dispatch: when the source carries a second eye,
+                # hand both to QuadLayer in one atomic submit. The layer
+                # validates that its stereo-ness matches.
+                if frame.image_right is not None:
+                    layer.submit(frame.image, frame.image_right, stream=frame.stream)
+                else:
+                    layer.submit(frame.image, stream=frame.stream)
                 published_any = True
             if published_any:
                 with self._data_cond:

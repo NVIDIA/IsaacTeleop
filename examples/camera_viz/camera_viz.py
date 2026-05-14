@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import signal
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -31,7 +32,21 @@ from pipeline import FrameSource, VizRunner
 from placements import PlacementConfig, PlacementStrategy, build as build_placement
 from sources import RtpH264Source, build_local_camera
 
-SourceEntry = Tuple[FrameSource, Optional[PlacementStrategy]]
+
+@dataclass
+class SourceEntry:
+    """One row in the layer plan: a source + its placement + stereo cfg.
+
+    ``stereo`` and ``stereo_baseline_mm`` are pulled from the camera spec
+    (``cameras.<cam>.stereo``) and the placement spec
+    (``placements.<cam>.stereo_baseline_mm``) respectively. They drive
+    the QuadLayer Config when the layer is added to the session.
+    """
+
+    source: FrameSource
+    placement: Optional[PlacementStrategy]
+    stereo: bool = False
+    stereo_baseline_mm: float = 0.0
 
 
 def _build_placement(spec: Optional[dict], is_xr: bool) -> Optional[PlacementStrategy]:
@@ -82,14 +97,36 @@ def _placement_with_aspect(
     return _build_placement(spec, is_xr)
 
 
+def _stereo_for(cam: dict, placements_cfg: dict) -> Tuple[bool, float]:
+    """Resolve stereo + baseline for one camera.
+
+    ``stereo`` lives on the camera (so the producer side knows). The
+    rendering knob ``stereo_baseline_mm`` lives on the placement (it's
+    a display-time parameter). 0.0 means both eyes see the same world
+    quad — all parallax comes from the captured frames.
+    """
+    stereo = bool(cam.get("stereo", False))
+    pspec = placements_cfg.get(cam["name"]) or {}
+    baseline_mm = float(pspec.get("stereo_baseline_mm", 0.0))
+    return stereo, baseline_mm
+
+
 def _build_local_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
     """source=local: open each enabled camera directly."""
     placements_cfg = cfg.get("display", {}).get("placements", {})
     entries: List[SourceEntry] = []
     for cam in _enabled_cameras(cfg):
         placement = _placement_with_aspect(placements_cfg.get(cam["name"]), cam, is_xr)
+        stereo, baseline_mm = _stereo_for(cam, placements_cfg)
         for source in build_local_camera(cam):
-            entries.append((source, placement))
+            entries.append(
+                SourceEntry(
+                    source=source,
+                    placement=placement,
+                    stereo=stereo,
+                    stereo_baseline_mm=baseline_mm,
+                )
+            )
     return entries
 
 
@@ -113,7 +150,10 @@ def _build_rtp_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
             gpu_id=int(rtp.get("gpu_id", 0)),
         )
         placement = _placement_with_aspect(placements_cfg.get(cam["name"]), cam, is_xr)
-        entries.append((source, placement))
+        # NOTE: RTP stereo wiring (C4) — paired receivers — isn't in
+        # this entry's scope yet. ``stereo`` flips false here so the
+        # layer stays mono until that lands.
+        entries.append(SourceEntry(source=source, placement=placement))
     return entries
 
 
@@ -168,14 +208,19 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     # Build sources, layers, and placement strategies in parallel arrays.
     sources, layers, strategies = [], [], []
-    for source, placement in entries:
-        sources.append(source)
+    for entry in entries:
+        sources.append(entry.source)
         layer_cfg = viz.QuadLayerConfig()
-        layer_cfg.name = source.spec.name
-        layer_cfg.resolution = viz.Resolution(source.spec.width, source.spec.height)
+        layer_cfg.name = entry.source.spec.name
+        layer_cfg.resolution = viz.Resolution(
+            entry.source.spec.width, entry.source.spec.height
+        )
         layer_cfg.format = viz.PixelFormat.kRGBA8
+        if entry.stereo:
+            layer_cfg.stereo = True
+            layer_cfg.stereo_baseline_mm = entry.stereo_baseline_mm
         layers.append(session.add_quad_layer(layer_cfg))
-        strategies.append(placement)
+        strategies.append(entry.placement)
 
     print(
         f"camera_viz: source={source_mode}, mode={cfg.get('display', {}).get('mode')}, "
