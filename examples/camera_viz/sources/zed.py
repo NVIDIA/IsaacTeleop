@@ -21,7 +21,7 @@ grab), count consecutive transients, force a reopen past the threshold.
 
 from __future__ import annotations
 
-import logging
+import sys
 import threading
 import time
 from dataclasses import dataclass, field
@@ -29,7 +29,20 @@ from typing import List, Optional
 
 from pipeline import Frame, FrameSource, SourceSpec
 
-logger = logging.getLogger(__name__)
+
+# Wall-clock budget for ``Camera.open()`` before we nudge the user with
+# a USB-3 hint. The pyzed open call blocks inside a C extension — we
+# can't actually interrupt it, but we CAN tell the user what's likely
+# wrong so they don't sit watching a frozen terminal.
+_OPEN_HINT_AFTER_S = 8.0
+
+
+def _notify(msg: str) -> None:
+    """User-facing breadcrumb. Routed via stderr directly (not through
+    ``logger``) so it shows up even when the app hasn't configured
+    Python logging, which is the common case for camera_viz."""
+    print(f"[zed] {msg}", file=sys.stderr, flush=True)
+
 
 RECONNECT_DELAY_S = 2.0
 MAX_CONSECUTIVE_FAILURES = 10
@@ -239,7 +252,27 @@ class _ZedCamera:
         elif self._bus_type == "gmsl":
             init_params.input.setFromCameraID(-1, bus_enum)
 
-        if camera.open(init_params) != sl.ERROR_CODE.SUCCESS:
+        _notify("opening...")
+
+        # Watchdog: ``Camera.open()`` blocks inside a C extension and
+        # can sit for tens of seconds on a USB-2 port (the camera
+        # negotiates but the SDK never gets a usable frame). Without
+        # this hint the user just sees a frozen terminal.
+        opened = threading.Event()
+
+        def _hint():
+            if not opened.wait(timeout=_OPEN_HINT_AFTER_S):
+                _notify("camera not responding — check USB 3 connection")
+
+        threading.Thread(target=_hint, name="zed_open_hint", daemon=True).start()
+
+        try:
+            err = camera.open(init_params)
+        finally:
+            opened.set()
+
+        if err != sl.ERROR_CODE.SUCCESS:
+            _notify(f"open failed ({err})")
             try:
                 camera.close()
             except Exception:
@@ -250,13 +283,9 @@ class _ZedCamera:
         actual_w = info.camera_configuration.resolution.width
         actual_h = info.camera_configuration.resolution.height
         if actual_w != self._width or actual_h != self._height:
-            logger.warning(
-                "ZED resolution mismatch: expected %dx%d, got %dx%d — "
-                "pre-allocated buffers won't match; closing.",
-                self._width,
-                self._height,
-                actual_w,
-                actual_h,
+            _notify(
+                f"resolution mismatch (expected {self._width}x{self._height}, "
+                f"got {actual_w}x{actual_h})"
             )
             camera.close()
             return False
@@ -306,6 +335,7 @@ class _ZedCamera:
             sl.ERROR_CODE.CAMERA_NOT_INITIALIZED,
         }
 
+        first_frame_seen = False
         while not self._stop.is_set():
             if not self._connected:
                 now = time.monotonic()
@@ -316,23 +346,16 @@ class _ZedCamera:
                 try:
                     self._connected = self._open_camera()
                 except Exception as e:
-                    logger.warning("ZED open failed (%s); retrying", e)
+                    _notify(f"open failed ({e})")
                     self._close_camera()
                     self._reconnect_count += 1
                     continue
                 if not self._connected:
                     self._reconnect_count += 1
                     continue
-                logger.info(
-                    "ZED connected: SN=%s, %dx%d@%dfps%s",
-                    self._serial_number or "auto",
-                    self._width,
-                    self._height,
-                    self._fps,
-                    f" (reconnect #{self._reconnect_count})"
-                    if self._reconnect_count
-                    else "",
-                )
+                _notify("connected")
+                # Reset the first-frame breadcrumb after each (re)connect.
+                first_frame_seen = False
 
             err = self._camera.grab(self._runtime_params)
             if err != sl.ERROR_CODE.SUCCESS:
@@ -341,11 +364,7 @@ class _ZedCamera:
                     err in fatal_errors
                     or self._consecutive_failures >= MAX_CONSECUTIVE_FAILURES
                 ):
-                    logger.warning(
-                        "ZED grab failed (%s, %dx consecutive); reconnecting",
-                        err,
-                        self._consecutive_failures,
-                    )
+                    _notify(f"grab failed ({err}); reconnecting")
                     self._close_camera()
                 continue
             self._consecutive_failures = 0
@@ -372,15 +391,15 @@ class _ZedCamera:
                 if retrieve_failed:
                     self._consecutive_failures += 1
                     if self._consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
-                        logger.warning(
-                            "ZED retrieve_image failing %dx; reconnecting",
-                            self._consecutive_failures,
-                        )
+                        _notify("camera connection problem; reconnecting")
                         self._close_camera()
                 else:
                     self._consecutive_failures = 0
+                    if not first_frame_seen:
+                        first_frame_seen = True
+                        _notify("streaming")
             except Exception as e:
-                logger.warning("ZED retrieve/convert failed (%s); reconnecting", e)
+                _notify(f"frame error ({e}); reconnecting")
                 self._close_camera()
                 self._reconnect_count += 1
                 continue
