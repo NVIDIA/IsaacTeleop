@@ -30,7 +30,7 @@ import isaacteleop.viz as viz
 
 from pipeline import FrameSource, VizRunner
 from placements import PlacementConfig, PlacementStrategy, build as build_placement
-from sources import RtpH264Source, build_local_camera
+from sources import PairedFrameSource, RtpH264Source, build_local_camera
 
 
 @dataclass
@@ -131,7 +131,14 @@ def _build_local_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
 
 
 def _build_rtp_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
-    """source=rtp: build an RTP listener per camera using its ``rtp.port``."""
+    """source=rtp: build an RTP listener per camera using its ``rtp.port``.
+
+    Stereo cameras open TWO listeners (rtp.port for left, rtp.port_right
+    for right) and pair them via PairedFrameSource. The wire path treats
+    the two eyes as independent streams — drift is acceptable (the user
+    accepted "no sync" for RTP stereo); paired-frame atomicity at the
+    QuadLayer mailbox is what stops torn pairs from reaching the GPU.
+    """
     placements_cfg = cfg.get("display", {}).get("placements", {})
     entries: List[SourceEntry] = []
     for cam in _enabled_cameras(cfg):
@@ -141,19 +148,52 @@ def _build_rtp_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
                 f"camera_viz: camera {cam.get('name')!r} missing rtp.port; "
                 "required when source: rtp"
             )
-        source = RtpH264Source(
-            name=cam["name"],
-            width=int(cam["width"]),
-            height=int(cam["height"]),
-            port=int(rtp["port"]),
-            rtp_buffer_size=int(rtp.get("rtp_buffer_size", 212992)),
-            gpu_id=int(rtp.get("gpu_id", 0)),
-        )
         placement = _placement_with_aspect(placements_cfg.get(cam["name"]), cam, is_xr)
-        # NOTE: RTP stereo wiring (C4) — paired receivers — isn't in
-        # this entry's scope yet. ``stereo`` flips false here so the
-        # layer stays mono until that lands.
-        entries.append(SourceEntry(source=source, placement=placement))
+        stereo, baseline_mm = _stereo_for(cam, placements_cfg)
+
+        if stereo:
+            if "port_right" not in rtp:
+                raise ValueError(
+                    f"camera_viz: stereo camera {cam.get('name')!r} missing "
+                    "rtp.port_right (required when stereo + source: rtp)"
+                )
+            left = RtpH264Source(
+                name=f"{cam['name']}.left",
+                width=int(cam["width"]),
+                height=int(cam["height"]),
+                port=int(rtp["port"]),
+                rtp_buffer_size=int(rtp.get("rtp_buffer_size", 212992)),
+                gpu_id=int(rtp.get("gpu_id", 0)),
+            )
+            right = RtpH264Source(
+                name=f"{cam['name']}.right",
+                width=int(cam["width"]),
+                height=int(cam["height"]),
+                port=int(rtp["port_right"]),
+                rtp_buffer_size=int(rtp.get("rtp_buffer_size", 212992)),
+                gpu_id=int(rtp.get("gpu_id", 0)),
+            )
+            source: FrameSource = PairedFrameSource(
+                name=cam["name"], left=left, right=right
+            )
+        else:
+            source = RtpH264Source(
+                name=cam["name"],
+                width=int(cam["width"]),
+                height=int(cam["height"]),
+                port=int(rtp["port"]),
+                rtp_buffer_size=int(rtp.get("rtp_buffer_size", 212992)),
+                gpu_id=int(rtp.get("gpu_id", 0)),
+            )
+
+        entries.append(
+            SourceEntry(
+                source=source,
+                placement=placement,
+                stereo=stereo,
+                stereo_baseline_mm=baseline_mm,
+            )
+        )
     return entries
 
 

@@ -359,6 +359,17 @@ class PairedFrameSource(FrameSource):
     def spec(self) -> SourceSpec:
         return self._spec
 
+    @property
+    def left(self) -> FrameSource:
+        """Per-eye left source. Used by camera_streamer.py to fan out
+        two independent RTP streams for stereo cameras (paired
+        atomicity comes back at the receiver, not on the wire)."""
+        return self._left
+
+    @property
+    def right(self) -> FrameSource:
+        return self._right
+
     def start(self) -> None:
         self._left.start()
         self._right.start()

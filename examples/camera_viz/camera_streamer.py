@@ -30,7 +30,7 @@ from typing import List, Optional
 import yaml
 
 from pipeline import FrameSource
-from sources import build_local_camera
+from sources import PairedFrameSource, build_local_camera
 from transports import RtpH264Sender, make_encoder
 
 logger = logging.getLogger("camera_streamer")
@@ -45,16 +45,22 @@ RETRY_S = 5.0
 SUPERVISOR_TICK_S = 1.0
 
 
-def _pick_mono_source(sources: List[FrameSource], camera_name: str) -> FrameSource:
-    """Mono-only sender: exactly one source per camera. Stereo cameras
-    aren't supported here pending per-eye QuadLayer binding."""
+def _eye_sources(sources: List[FrameSource], camera_name: str) -> List[FrameSource]:
+    """Normalize ``build_local_camera`` output into a 1-or-2 element list.
+
+    Mono cameras → [src]. Stereo cameras → [left, right] unwrapped from
+    the PairedFrameSource wrapper that ``build_local_camera`` returns.
+    The streamer then fires one independent RTP stream per element."""
+    if len(sources) == 1 and isinstance(sources[0], PairedFrameSource):
+        paired = sources[0]
+        return [paired.left, paired.right]
     if len(sources) != 1:
         names = [s.spec.name for s in sources]
         raise ValueError(
             f"camera {camera_name!r} produced {len(sources)} streams {names}; "
-            "only mono cameras are supported here. Set mode/stereo to mono/false."
+            "expected 1 (mono) or a PairedFrameSource (stereo)."
         )
-    return sources[0]
+    return [sources[0]]
 
 
 class CameraSupervisor:
@@ -96,66 +102,91 @@ class CameraSupervisor:
                 return
             self._thread = None
 
-    def _build_sender(self) -> RtpH264Sender:
-        source = _pick_mono_source(build_local_camera(self._cfg), self._name)
+    def _build_senders(self) -> List[RtpH264Sender]:
+        eyes = _eye_sources(build_local_camera(self._cfg), self._name)
         rtp = self._cfg.get("rtp", {})
         if "port" not in rtp:
             raise ValueError(f"camera {self._name!r} missing rtp.port")
-        encoder = make_encoder(
-            rtp.get("encoder", self._default_encoder),
-            width=int(self._cfg["width"]),
-            height=int(self._cfg["height"]),
-            bitrate=int(rtp.get("bitrate_mbps", 15)) * 1_000_000,
-            fps=int(self._cfg.get("fps", 30)),
-            gop=int(rtp["gop"]) if "gop" in rtp else None,
-            gpu_id=int(rtp.get("gpu_id", 0)),
-        )
-        return RtpH264Sender(
-            source=source,
-            encoder=encoder,
-            host=self._host,
-            port=int(rtp["port"]),
-            width=int(self._cfg["width"]),
-            height=int(self._cfg["height"]),
-            fps=int(self._cfg.get("fps", 30)),
-            mtu=int(rtp.get("mtu", 1400)),
-        )
+        is_stereo = len(eyes) == 2
+        if is_stereo and "port_right" not in rtp:
+            raise ValueError(
+                f"camera {self._name!r}: stereo requires rtp.port_right (the "
+                "left eye goes to rtp.port, the right eye to rtp.port_right)"
+            )
+
+        def build_one(source: FrameSource, port: int) -> RtpH264Sender:
+            encoder = make_encoder(
+                rtp.get("encoder", self._default_encoder),
+                width=int(self._cfg["width"]),
+                height=int(self._cfg["height"]),
+                bitrate=int(rtp.get("bitrate_mbps", 15)) * 1_000_000,
+                fps=int(self._cfg.get("fps", 30)),
+                gop=int(rtp["gop"]) if "gop" in rtp else None,
+                gpu_id=int(rtp.get("gpu_id", 0)),
+            )
+            return RtpH264Sender(
+                source=source,
+                encoder=encoder,
+                host=self._host,
+                port=port,
+                width=int(self._cfg["width"]),
+                height=int(self._cfg["height"]),
+                fps=int(self._cfg.get("fps", 30)),
+                mtu=int(rtp.get("mtu", 1400)),
+            )
+
+        if is_stereo:
+            return [
+                build_one(eyes[0], int(rtp["port"])),
+                build_one(eyes[1], int(rtp["port_right"])),
+            ]
+        return [build_one(eyes[0], int(rtp["port"]))]
 
     def _run(self) -> None:
         attempt = 0
         while not self._stop.is_set():
             attempt += 1
-            sender: Optional[RtpH264Sender] = None
+            senders: List[RtpH264Sender] = []
             started_at: Optional[float] = None
             try:
                 logger.info("camera %r: building (attempt %d)", self._name, attempt)
-                sender = self._build_sender()
-                sender.start()
+                senders = self._build_senders()
+                for s in senders:
+                    s.start()
                 started_at = time.monotonic()
-                logger.info(
-                    "camera %r: streaming → %s:%s",
-                    self._name,
-                    self._host,
-                    self._cfg["rtp"]["port"],
-                )
-                # Poll sender liveness. If the send-loop thread dies
+                rtp = self._cfg.get("rtp", {})
+                if len(senders) == 2:
+                    logger.info(
+                        "camera %r: streaming stereo → %s:%s (L) + %s:%s (R)",
+                        self._name,
+                        self._host,
+                        rtp.get("port"),
+                        self._host,
+                        rtp.get("port_right"),
+                    )
+                else:
+                    logger.info(
+                        "camera %r: streaming → %s:%s",
+                        self._name,
+                        self._host,
+                        rtp.get("port"),
+                    )
+                # Poll sender liveness. If any send-loop thread dies
                 # after startup (GStreamer pipeline error, encoder
-                # crash, etc.) raise into the retry path; otherwise a
-                # silent-but-dead supervisor would keep the service
-                # "healthy" while nothing is being streamed.
+                # crash, etc.) raise into the retry path — for stereo
+                # we treat the pair atomically: if one eye drops, we
+                # restart both.
                 while not self._stop.is_set():
                     self._stop.wait(timeout=SUPERVISOR_TICK_S)
-                    if not sender.is_alive():
-                        raise RuntimeError("RtpH264Sender thread exited unexpectedly")
+                    dead = [s for s in senders if not s.is_alive()]
+                    if dead:
+                        raise RuntimeError(
+                            f"{len(dead)}/{len(senders)} RtpH264Sender thread(s) exited unexpectedly"
+                        )
             except KeyboardInterrupt:
-                # SIGINT during ``sender.start()`` arrives as KeyboardInterrupt
-                # in this thread; surface as a stop, not a retry.
                 self._stop.set()
                 break
             except Exception as e:
-                # ``camera_streamer`` is supposed to never exit. Log full
-                # traceback at debug and a one-liner at warning so journalctl
-                # stays readable while preserving the detail for triage.
                 uptime = (time.monotonic() - started_at) if started_at else 0.0
                 logger.warning(
                     "camera %r: failure after %.1fs uptime: %s — retrying in %.1fs",
@@ -166,9 +197,9 @@ class CameraSupervisor:
                 )
                 logger.debug("camera %r: traceback", self._name, exc_info=True)
             finally:
-                if sender is not None:
+                for s in senders:
                     try:
-                        sender.stop()
+                        s.stop()
                     except Exception:
                         logger.debug(
                             "camera %r: sender.stop() raised", self._name, exc_info=True
