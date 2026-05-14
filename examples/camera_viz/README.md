@@ -134,10 +134,9 @@ Multiple cameras → multiple `cameras:` entries, each with its own
 `rtp.port`. The streamer fans out to all of them; the viewer renders
 each as its own plane.
 
-Top-level `encoder: auto | nvenc | gstreamer` selects the NVENC backend.
-`auto` picks the native NVENC codec on desktop and GStreamer
-(`nvv4l2h264enc`) on Jetson — no config change needed when moving the
-same YAML between platforms.
+Top-level `encoder: auto | native | gstreamer` selects the H.264 backend.
+`auto` picks the native NVENC codec when its `.so` is importable, GStreamer
+(`nvv4l2h264enc` on Jetson, `nvh264enc` / `x264enc` fallbacks) otherwise.
 
 ## Lock modes (XR display)
 

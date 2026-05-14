@@ -14,7 +14,7 @@
 source: local                   # local | rtp
 streaming:
   host: 127.0.0.1               # camera_streamer target (override with --host)
-encoder: auto                   # auto | nvenc | gstreamer
+encoder: auto                   # auto | native | gstreamer
                                 # auto picks native NVENC on desktop, GStreamer on Jetson
 
 cameras:

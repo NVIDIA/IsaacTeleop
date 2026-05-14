@@ -14,7 +14,7 @@
 source: local                   # local | rtp
 streaming:
   host: 127.0.0.1
-encoder: auto                   # auto | pynvideocodec | gstreamer
+encoder: auto                   # auto | native | gstreamer
 
 cameras:
   - name: zed
