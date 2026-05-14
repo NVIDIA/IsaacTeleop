@@ -196,17 +196,21 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
         }
     }
 
-    // Catch swapchain recreates whose image_count differs from the one
-    // we sized per-slot state for at init. Cheap check; only rebuilds
-    // on mismatch.
-    ensure_slot_count_matches_backend();
-
     auto frame = backend_->begin_frame(/*predicted_display_time=*/0);
     if (!frame.has_value())
     {
         // Backend skipped; all fences stay signaled, next wait() won't deadlock.
         return;
     }
+
+    // Catch swapchain recreates whose image_count differs from the one
+    // we sized per-slot state for. Has to run AFTER begin_frame because
+    // WindowBackend::begin_frame may itself recreate the swapchain (on
+    // OUT_OF_DATE / suboptimal). Cheap check; only rebuilds on mismatch.
+    // The frame's wait/signal semaphores are owned by the swapchain, not
+    // the compositor, so rebuilding compositor state doesn't invalidate
+    // them.
+    ensure_slot_count_matches_backend();
 
     // Slot for the in-flight resources (fence, cmd buf, timestamp range).
     const uint32_t slot_count = static_cast<uint32_t>(frame_syncs_.size());
