@@ -8,7 +8,7 @@
 # Local:
 #   ./camera_viz.sh setup [--sender-only]      install deps + build codec
 #   ./camera_viz.sh loopback CONFIG            run streamer + viz on 127.0.0.1
-#   ./camera_viz.sh receive CONFIG             run viewer against a remote sender
+#   ./camera_viz.sh run CONFIG                 run the viewer (honors source:)
 #
 # Remote (Jetson robot):
 #   ./camera_viz.sh deploy --host H --user U [--password P] CONFIG
@@ -140,9 +140,10 @@ _require_local_config() {
     }
 }
 
-# Write a receiver-side copy of CONFIG with ``source: rtp`` forced on.
+# Write a copy of CONFIG with ``source: rtp`` forced on. Used by loopback
+# so the receiver doesn't need the user to edit the YAML between runs.
 # Caller is responsible for rm-ing the returned path.
-_rewrite_recv_config() {
+_rewrite_source_rtp() {
     local src="$1" dst
     dst="$(mktemp -t camera_viz_recv.XXXXXX.yaml)"
     "$LOCAL_VENV/bin/python" - "$src" "$dst" <<'PY'
@@ -161,46 +162,47 @@ PY
 }
 
 # ──────────────────────────────────────────────────────────────────────
-# receive (local viewer pointed at a remote sender)
+# run (run the viewer with the YAML as-is)
 # ──────────────────────────────────────────────────────────────────────
 
-cmd_receive() {
-    _require_local_config receive "${1:-}"
-    local recv_config
-    recv_config="$(_rewrite_recv_config "$1")"
-    # shellcheck disable=SC2064
-    trap "rm -f '$recv_config'" EXIT
-
-    log_step "Starting camera_viz (source: rtp) — Ctrl-C to exit"
-    "$LOCAL_VENV/bin/python" "$HERE/camera_viz.py" "$recv_config"
+cmd_run() {
+    _require_local_config run "${1:-}"
+    log_step "Starting camera_viz — Ctrl-C to exit"
+    "$LOCAL_VENV/bin/python" "$HERE/camera_viz.py" "$1"
 }
 
 # ──────────────────────────────────────────────────────────────────────
 # loopback (local)
 # ──────────────────────────────────────────────────────────────────────
 
+# Globals so the EXIT trap can reach them after cmd_loopback has
+# returned (function locals would be out of scope by then, and ``set
+# -u`` then trips on the unbound name).
+_LOOPBACK_SENDER_PID=
+_LOOPBACK_RECV_CONFIG=
+
+_loopback_cleanup() {
+    local pid="${_LOOPBACK_SENDER_PID:-}"
+    if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+        log_info "stopping camera_streamer (pid $pid)"
+        kill -INT "$pid" 2>/dev/null || true
+        wait "$pid" 2>/dev/null || true
+    fi
+    local cfg="${_LOOPBACK_RECV_CONFIG:-}"
+    [[ -n "$cfg" ]] && rm -f "$cfg"
+}
+
 cmd_loopback() {
     _require_local_config loopback "${1:-}"
-    local recv_config
-    recv_config="$(_rewrite_recv_config "$1")"
-    # shellcheck disable=SC2064
-    trap "rm -f '$recv_config'" EXIT
+    _LOOPBACK_RECV_CONFIG="$(_rewrite_source_rtp "$1")"
+    trap '_loopback_cleanup' EXIT
 
     log_step "Starting camera_streamer → 127.0.0.1 (background)"
     "$LOCAL_VENV/bin/python" "$HERE/camera_streamer.py" "$1" --host 127.0.0.1 &
-    local sender_pid=$!
-
-    cleanup_sender() {
-        if kill -0 "$sender_pid" 2>/dev/null; then
-            log_info "stopping camera_streamer (pid $sender_pid)"
-            kill -INT "$sender_pid" 2>/dev/null || true
-            wait "$sender_pid" 2>/dev/null || true
-        fi
-    }
-    trap 'cleanup_sender; rm -f "$recv_config"' EXIT
+    _LOOPBACK_SENDER_PID=$!
 
     log_step "Starting camera_viz (foreground) — Ctrl-C to exit"
-    "$LOCAL_VENV/bin/python" "$HERE/camera_viz.py" "$recv_config"
+    "$LOCAL_VENV/bin/python" "$HERE/camera_viz.py" "$_LOOPBACK_RECV_CONFIG"
 }
 
 # ──────────────────────────────────────────────────────────────────────
@@ -338,9 +340,10 @@ LOCAL
 
     loopback CONFIG       Run camera_streamer + camera_viz on 127.0.0.1.
 
-    receive CONFIG        Run the viewer pointed at a remote sender. Flips
-                          ``source: rtp`` in a temp YAML and binds the
-                          receiver to 0.0.0.0:rtp.port (sender IP irrelevant).
+    run CONFIG            Run the viewer with the YAML as-is. ``source:
+                          local`` opens cameras directly; ``source: rtp``
+                          listens on rtp.port (sender IP irrelevant — the
+                          receiver binds 0.0.0.0).
 
 REMOTE (Jetson robot)
     deploy --host H --user U [--password P] [--no-service] CONFIG
@@ -358,7 +361,7 @@ EXAMPLES
     ./camera_viz.sh setup
     ./camera_viz.sh loopback configs/v4l2.yaml
     ./camera_viz.sh deploy --host 10.29.90.127 --user nvidia configs/v4l2.yaml
-    ./camera_viz.sh receive configs/v4l2.yaml
+    ./camera_viz.sh run configs/v4l2.yaml
     ./camera_viz.sh service-logs --host 10.29.90.127 --user nvidia
 
 SSH AUTH
@@ -378,7 +381,7 @@ cmd="$1"; shift
 case "$cmd" in
     setup)            cmd_setup "$@" ;;
     loopback)         cmd_loopback "$@" ;;
-    receive)          cmd_receive "$@" ;;
+    run)              cmd_run "$@" ;;
     deploy)           cmd_deploy "$@" ;;
     service-status)   cmd_service_status "$@" ;;
     service-logs)     cmd_service_logs "$@" ;;

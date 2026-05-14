@@ -41,31 +41,32 @@ source examples/camera_viz/.venv/bin/activate
 
 ## Mode 1 — Direct (cameras on the workstation)
 
-Edit the config so `source: local`, plug cameras in, run:
+Set `source: local` in the YAML, plug cameras in, run:
 
 ```bash
-./camera_viz.sh receive configs/v4l2.yaml      # any config in source: local mode
-# or directly:
-python camera_viz.py configs/v4l2.yaml
+./camera_viz.sh run configs/v4l2.yaml
 ```
 
-Swap config for `oakd.yaml`, `zed.yaml`, `synthetic.yaml`. Synthetic is the fastest sanity check (no hardware).
+Swap config for `oakd.yaml`, `zed.yaml`, `synthetic.yaml`, `multi_camera.yaml`. Synthetic is the fastest sanity check (no hardware).
 
 ## Mode 2 — Split (robot → workstation over RTP, wired)
 
 The robot sends RTP H.264; the workstation receives + renders. **Wired Ethernet only.** No retransmit, no FEC; one dropped packet means one corrupted frame until the next IDR (default every 5 s).
 
 ```bash
-# 1. Set streaming.host in the YAML to the workstation's IP.
+# 1. In the YAML: set streaming.host to the workstation's IP, and
+#    source: rtp (so the viewer listens instead of opening cameras).
 $EDITOR configs/v4l2.yaml
 
-# 2. Deploy the sender to the robot as a systemd user service.
+# 2. Deploy the sender to the robot. The deployed copy is rsync'd
+#    with the YAML as-is; the robot's camera_streamer.py ignores
+#    ``source:`` and always opens local cameras.
 ./camera_viz.sh deploy --host 10.0.0.5 --user nvidia configs/v4l2.yaml
 # Add --password PW if you don't have SSH keys (requires sshpass).
 # Add --no-service to stop after deps so you can run camera_streamer.py by hand first.
 
 # 3. Run the viewer on the workstation.
-./camera_viz.sh receive configs/v4l2.yaml      # flips source: rtp in a temp YAML
+./camera_viz.sh run configs/v4l2.yaml
 
 # Operate the service:
 ./camera_viz.sh service-logs    --host 10.0.0.5 --user nvidia
@@ -137,7 +138,7 @@ Lazy timing knobs: `look_away_angle_deg`, `reposition_distance`, `reposition_del
 
 ```
 camera_viz/
-├── camera_viz.sh        # CLI: setup / loopback / receive / deploy / service-*
+├── camera_viz.sh        # CLI: setup / loopback / run / deploy / service-*
 ├── camera_viz.py        # receiver / viewer
 ├── camera_streamer.py   # robot-side RTP sender (per-camera supervisor, retries forever)
 ├── pipeline/            # source ABC + threaded runner
