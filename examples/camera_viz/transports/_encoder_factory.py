@@ -38,7 +38,6 @@ def make_encoder(
     height: int,
     bitrate: int,
     fps: int,
-    profile: str,
     gop: int,
     gpu_id: int,
 ):
@@ -57,25 +56,13 @@ def make_encoder(
         from ._nv_encode import NvH264Encoder
 
         return NvH264Encoder(
-            width=width,
-            height=height,
-            bitrate=bitrate,
-            fps=fps,
-            profile=profile,
-            gop=gop,
-            gpu_id=gpu_id,
+            width=width, height=height, bitrate=bitrate, fps=fps, gop=gop, gpu_id=gpu_id
         )
     if chosen == "gstreamer":
         from ._nv_encode_gst import GstNvH264Encoder
 
         return GstNvH264Encoder(
-            width=width,
-            height=height,
-            bitrate=bitrate,
-            fps=fps,
-            profile=profile,
-            gop=gop,
-            gpu_id=gpu_id,
+            width=width, height=height, bitrate=bitrate, fps=fps, gop=gop, gpu_id=gpu_id
         )
     raise ValueError(
         f"unknown encoder backend {backend!r} (known: auto | native | gstreamer)"

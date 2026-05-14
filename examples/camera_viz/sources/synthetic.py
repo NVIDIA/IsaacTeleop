@@ -49,11 +49,10 @@ class SyntheticSource(FrameSource):
         self._frame_interval_s = 1.0 / fps if fps > 0.0 else 0.0
         self._hue_speed_hz = hue_speed_hz
 
-        # Two GPU buffers — producer writes B while consumer reads A.
-        self._buffers = [
-            cp.zeros((height, width, 4), dtype=cp.uint8),
-            cp.zeros((height, width, 4), dtype=cp.uint8),
-        ]
+        # Triple-buffer — matches the other sources' mailbox depth so
+        # the consumer's async copy has at least one producer cycle to
+        # finish before the producer wraps back to the same buffer.
+        self._buffers = [cp.zeros((height, width, 4), dtype=cp.uint8) for _ in range(3)]
         self._write_idx = 0
         self._publish_idx: int = -1  # -1 = nothing published yet
         self._consumed_idx: int = -2  # track what `latest()` last returned
@@ -137,7 +136,7 @@ class SyntheticSource(FrameSource):
 
                 with self._lock:
                     self._publish_idx = self._write_idx
-                self._write_idx = 1 - self._write_idx
+                self._write_idx = (self._write_idx + 1) % len(self._buffers)
 
                 if self._frame_interval_s > 0.0:
                     # Coarse pacing — CuPy fill kernels at 1080p are well under

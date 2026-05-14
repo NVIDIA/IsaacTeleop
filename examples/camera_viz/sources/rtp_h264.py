@@ -62,11 +62,11 @@ class RtpH264Source(FrameSource):
         self._port = port
         self._rtp_buffer_size = rtp_buffer_size
 
-        # Pre-allocate two RGBA8 GPU output buffers — never reallocated.
-        # Alpha is set once at construction (NVDEC's NV12 output has no
-        # alpha so we don't touch it per frame).
+        # Triple-buffer RGBA8 GPU output — never reallocated. Matches
+        # PolledSource's mailbox so a fast producer doesn't wrap the
+        # mailbox before the consumer's async copy completes.
         self._gpu_buffers = [
-            cp.empty((height, width, 4), dtype=cp.uint8) for _ in range(2)
+            cp.empty((height, width, 4), dtype=cp.uint8) for _ in range(3)
         ]
         for b in self._gpu_buffers:
             b[..., 3] = 255
@@ -127,7 +127,12 @@ class RtpH264Source(FrameSource):
     def stop(self) -> None:
         self._stop.set()
         if self._thread is not None:
-            self._thread.join()
+            self._thread.join(timeout=5.0)
+            if self._thread.is_alive():
+                logger.warning(
+                    "RtpH264Source '%s': decode thread did not exit within 5s",
+                    self._spec.name,
+                )
             self._thread = None
         self._close()
 
@@ -237,5 +242,5 @@ class RtpH264Source(FrameSource):
 
             with self._publish_lock:
                 self._publish_idx = self._write_idx
-            self._write_idx = 1 - self._write_idx
+            self._write_idx = (self._write_idx + 1) % len(self._gpu_buffers)
             self._frame_count += 1

@@ -144,20 +144,22 @@ void Swapchain::init(Resolution preferred_size, VkSwapchainKHR old_swapchain)
         color_space_ = chosen.colorSpace;
         extent_ = clamp_extent(caps, preferred_size);
 
-        // Aim for triple-buffer, never request more than 3. Downstream
-        // (QuadLayer::kMaxFramesInFlight) tracks at most 3 in-flight
-        // slots; asking for more wastes memory and risks the driver
-        // returning > 3 images, which we'd then reject below.
-        constexpr uint32_t kMaxRequest = 3;
-        uint32_t image_count = std::min(caps.minImageCount + 1, kMaxRequest);
+        // Aim for triple-buffer. QuadLayer tracks up to
+        // kMaxFramesInFlight (= 5) in-flight slots, so anything beyond
+        // that breaks the slot-tracking invariant. We REQUEST 3 to keep
+        // memory in check, but accept up to the layer cap if the driver
+        // insists on giving more.
+        constexpr uint32_t kRequestTarget = 3;
+        constexpr uint32_t kMaxAccept = 5; // matches QuadLayer::kMaxFramesInFlight
+        uint32_t image_count = std::min(caps.minImageCount + 1, kRequestTarget);
         if (caps.maxImageCount > 0)
         {
             image_count = std::min(image_count, caps.maxImageCount);
         }
-        if (caps.minImageCount > kMaxRequest)
+        if (caps.minImageCount > kMaxAccept)
         {
             throw std::runtime_error("Swapchain::init: surface minImageCount " + std::to_string(caps.minImageCount) +
-                                     " exceeds compositor cap of " + std::to_string(kMaxRequest));
+                                     " exceeds compositor cap of " + std::to_string(kMaxAccept));
         }
 
         VkSwapchainCreateInfoKHR info{};
@@ -220,13 +222,13 @@ void Swapchain::init(Resolution preferred_size, VkSwapchainKHR old_swapchain)
 
         uint32_t actual = 0;
         vkGetSwapchainImagesKHR(device, swapchain_, &actual, nullptr);
-        // Spec says we get AT LEAST minImageCount, so the driver is free
-        // to give more than we asked for. Compositor/QuadLayer can't
-        // handle that — fail loud rather than alias slots silently.
-        if (actual > kMaxRequest)
+        // Spec lets the driver return AT LEAST minImageCount. Accept up
+        // to QuadLayer's tracking cap; reject above that to avoid silent
+        // slot aliasing.
+        if (actual > kMaxAccept)
         {
             throw std::runtime_error("Swapchain::init: driver returned " + std::to_string(actual) +
-                                     " swapchain images, exceeding compositor cap of " + std::to_string(kMaxRequest));
+                                     " swapchain images, exceeding compositor cap of " + std::to_string(kMaxAccept));
         }
         images_.resize(actual);
         vkGetSwapchainImagesKHR(device, swapchain_, &actual, images_.data());

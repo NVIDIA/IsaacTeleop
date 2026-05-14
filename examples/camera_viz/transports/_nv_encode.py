@@ -23,7 +23,6 @@ class NvH264Encoder:
         height: int,
         bitrate: int = 15_000_000,
         fps: int = 30,
-        profile: str = "baseline",
         gop: Optional[int] = None,
         gpu_id: int = 0,
     ) -> None:
@@ -37,7 +36,6 @@ class NvH264Encoder:
         self._height = height
         self._bitrate = bitrate
         self._fps = fps
-        del profile  # accepted for API compatibility, currently unused
         self._gop = gop or 0  # 0 → fps*5
         self._gpu_id = gpu_id
         self._encoder = None

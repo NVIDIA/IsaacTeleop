@@ -98,7 +98,6 @@ class CameraSupervisor:
             height=int(self._cfg["height"]),
             bitrate=int(rtp.get("bitrate_mbps", 15)) * 1_000_000,
             fps=int(self._cfg.get("fps", 30)),
-            profile=rtp.get("profile", "baseline"),
             gop=int(rtp["gop"]) if "gop" in rtp else None,
             gpu_id=int(rtp.get("gpu_id", 0)),
         )
@@ -130,11 +129,15 @@ class CameraSupervisor:
                     self._host,
                     self._cfg["rtp"]["port"],
                 )
-                # Run until we're asked to stop. We don't have a fatal-
-                # error callback on the sender, so we just wait; if start()
-                # raised it's already in the except below.
+                # Poll sender liveness. If the send-loop thread dies
+                # after startup (GStreamer pipeline error, encoder
+                # crash, etc.) raise into the retry path; otherwise a
+                # silent-but-dead supervisor would keep the service
+                # "healthy" while nothing is being streamed.
                 while not self._stop.is_set():
                     self._stop.wait(timeout=SUPERVISOR_TICK_S)
+                    if not sender.is_alive():
+                        raise RuntimeError("RtpH264Sender thread exited unexpectedly")
             except KeyboardInterrupt:
                 # SIGINT during ``sender.start()`` arrives as KeyboardInterrupt
                 # in this thread; surface as a stop, not a retry.
@@ -193,6 +196,13 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     with open(args.config) as f:
         cfg = yaml.safe_load(f)
+    if not isinstance(cfg, dict):
+        logger.error(
+            "%s must be a YAML mapping at the top level, got %s",
+            args.config,
+            type(cfg).__name__,
+        )
+        return 2
 
     streaming = cfg.get("streaming", {})
     host = args.host or streaming.get("host")

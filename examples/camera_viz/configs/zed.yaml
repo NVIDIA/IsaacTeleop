@@ -30,7 +30,6 @@ cameras:
     rtp:
       port: 5000
       bitrate_mbps: 15
-      profile: baseline
       # gop:                    # default: fps*5 (ULL tuning)
 
 display:

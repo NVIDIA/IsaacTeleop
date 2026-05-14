@@ -109,14 +109,23 @@ class VizRunner:
         # Wake the render thread out of cond.wait so it sees the stop.
         with self._data_cond:
             self._data_cond.notify_all()
+        # Bounded joins so a wedged session.render() / source doesn't
+        # block Ctrl-C indefinitely; warn-log if a thread doesn't exit.
         if self._render_thread is not None:
-            self._render_thread.join()
+            self._render_thread.join(timeout=5.0)
+            if self._render_thread.is_alive():
+                logger.warning("render thread did not exit within 5s")
             self._render_thread = None
         if self._submit_thread is not None:
-            self._submit_thread.join()
+            self._submit_thread.join(timeout=5.0)
+            if self._submit_thread.is_alive():
+                logger.warning("submit thread did not exit within 5s")
             self._submit_thread = None
         for s in self._sources:
-            s.stop()
+            try:
+                s.stop()
+            except Exception:
+                logger.exception("source.stop() raised")
 
     def wait(self) -> None:
         """Block until the render thread exits. Polls so SIGINT is delivered."""

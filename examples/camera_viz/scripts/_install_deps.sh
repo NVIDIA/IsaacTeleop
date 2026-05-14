@@ -77,20 +77,28 @@ ensure_apt_deps() {
     fi
 
     local pkgs=()
+    # Python bindings.
     if ! python3 -c "import gi; gi.require_version('Gst', '1.0'); from gi.repository import Gst" 2>/dev/null; then
-        pkgs+=(
-            python3-gi
-            python3-gst-1.0
-            gir1.2-gstreamer-1.0
-            gstreamer1.0-tools
-            gstreamer1.0-plugins-base
-            gstreamer1.0-plugins-good
-            # h264parse + nv*h264enc live in -bad; both sender and receiver
-            # pipelines need h264parse.
-            gstreamer1.0-plugins-bad
-            gstreamer1.0-libav
-        )
+        pkgs+=(python3-gi python3-gst-1.0 gir1.2-gstreamer-1.0 gstreamer1.0-tools)
     fi
+    # GStreamer elements RtpH264Sender / RtpH264Receiver need at runtime.
+    # Checked per-element via gst-inspect-1.0 so hosts that have python3-gi
+    # but missing plugins (a real failure mode on partially-provisioned
+    # systems) still get the right apt packages.
+    local need_base=false need_good=false need_bad=false
+    if command -v gst-inspect-1.0 >/dev/null 2>&1; then
+        gst-inspect-1.0 videoconvert >/dev/null 2>&1 || need_base=true
+        gst-inspect-1.0 rtph264pay   >/dev/null 2>&1 || need_good=true
+        gst-inspect-1.0 udpsink      >/dev/null 2>&1 || need_good=true
+        gst-inspect-1.0 h264parse    >/dev/null 2>&1 || need_bad=true
+    else
+        # No gst-inspect → install everything.
+        need_base=true; need_good=true; need_bad=true
+    fi
+    $need_base && pkgs+=(gstreamer1.0-plugins-base)
+    $need_good && pkgs+=(gstreamer1.0-plugins-good)
+    $need_bad  && pkgs+=(gstreamer1.0-plugins-bad gstreamer1.0-libav)
+
     if ! find /usr -name 'libnvrtc.so*' 2>/dev/null | grep -q .; then
         pkgs+=("cuda-nvrtc-${cuda_major}-${cuda_minor}")
     fi

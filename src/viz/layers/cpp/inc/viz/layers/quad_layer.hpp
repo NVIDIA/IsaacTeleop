@@ -45,7 +45,12 @@ class VkContext;
 class QuadLayer : public LayerBase
 {
 public:
-    static constexpr uint32_t kMaxFramesInFlight = 3;
+    // Sized to cover swapchains up to 5 images. The window swapchain
+    // requests <= 3 (see Swapchain::init), but drivers may grant more
+    // than requested; this headroom keeps record() from throwing on
+    // those platforms. Memory cost: kSlotCount × W × H × bpp per layer
+    // (~56 MB at 1080p RGBA8).
+    static constexpr uint32_t kMaxFramesInFlight = 5;
     static constexpr uint32_t kSlotCount = kMaxFramesInFlight + 2;
 
     struct Config

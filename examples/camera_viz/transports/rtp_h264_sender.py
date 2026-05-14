@@ -93,13 +93,22 @@ class RtpH264Sender:
     def stop(self) -> None:
         self._stop.set()
         if self._thread is not None:
-            self._thread.join()
+            self._thread.join(timeout=5.0)
+            if self._thread.is_alive():
+                logger.warning("RtpH264Sender: send thread did not exit within 5s")
             self._thread = None
         self._teardown_pipeline()
         try:
             self._source.stop()
         except Exception:
             pass
+
+    def is_alive(self) -> bool:
+        """True while the send loop thread is running. Returns False if
+        ``start()`` hasn't been called, after ``stop()``, or if the loop
+        died with an uncaught exception. Supervisors should poll this
+        to detect post-startup crashes."""
+        return self._thread is not None and self._thread.is_alive()
 
     def _build_pipeline(self) -> bool:
         Gst = self._Gst

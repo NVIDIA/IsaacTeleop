@@ -29,7 +29,6 @@ cameras:
     rtp:                        # used by camera_streamer + source: rtp receivers
       port: 5000
       bitrate_mbps: 15          # camera_streamer default; lower for tight uplinks
-      profile: baseline
       # gop:                    # default: fps*5 (IDR every 5 s, ULL tuning)
 
 display:

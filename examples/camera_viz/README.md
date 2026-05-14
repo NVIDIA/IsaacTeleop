@@ -111,8 +111,7 @@ cameras:
     # … type-specific fields (device, resolution preset, etc.)
     rtp:
       port: 5000
-      bitrate_mbps: 15        # camera_streamer's default; tune for your uplink
-      profile: baseline       # baseline | main | high
+      bitrate_mbps: 15        # default; tune for your uplink
       # gop: 150              # frames between IDRs; default fps*5 (ULL tuning)
       # encoder: auto         # per-camera override of the top-level encoder:
 

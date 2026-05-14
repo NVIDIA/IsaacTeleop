@@ -110,6 +110,7 @@ def _build_rtp_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
             height=int(cam["height"]),
             port=int(rtp["port"]),
             rtp_buffer_size=int(rtp.get("rtp_buffer_size", 212992)),
+            gpu_id=int(rtp.get("gpu_id", 0)),
         )
         placement = _placement_with_aspect(placements_cfg.get(cam["name"]), cam, is_xr)
         entries.append((source, placement))
@@ -147,6 +148,11 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     with open(args.config) as f:
         cfg = yaml.safe_load(f)
+    if not isinstance(cfg, dict):
+        raise ValueError(
+            f"camera_viz: {args.config} must be a YAML mapping at the top level, "
+            f"got {type(cfg).__name__}"
+        )
 
     source_mode = cfg.get("source", "local").lower()
     if source_mode not in ("local", "rtp"):

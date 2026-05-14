@@ -75,7 +75,7 @@ class _EyeSlot:
     def publish(self) -> None:
         with self.lock:
             self.publish_idx = self.write_idx
-        self.write_idx = 1 - self.write_idx
+        self.write_idx = (self.write_idx + 1) % len(self.gpu_buffers)
 
     def latest(self) -> Optional[Frame]:
         with self.lock:
@@ -156,7 +156,7 @@ class _ZedCamera:
         for eye in eyes:
             gpu_buffers = [
                 cp.empty((self._height, self._width, 4), dtype=cp.uint8)
-                for _ in range(2)
+                for _ in range(3)
             ]
             for b in gpu_buffers:
                 b[..., 3] = 255

@@ -96,7 +96,7 @@ class _StreamSlot:
     def publish(self) -> None:
         with self.lock:
             self.publish_idx = self.write_idx
-        self.write_idx = 1 - self.write_idx
+        self.write_idx = (self.write_idx + 1) % len(self.gpu_buffers)
 
     def latest(self) -> Optional[Frame]:
         with self.lock:
@@ -168,7 +168,7 @@ class _OakdDevice:
                 staging = alloc_pinned_host((s.height, s.width, 3), np.uint8)
                 landing = cp.empty((s.height, s.width, 3), dtype=cp.uint8)
             gpu_buffers = [
-                cp.empty((s.height, s.width, 4), dtype=cp.uint8) for _ in range(2)
+                cp.empty((s.height, s.width, 4), dtype=cp.uint8) for _ in range(3)
             ]
             for b in gpu_buffers:
                 b[..., 3] = 255

@@ -138,9 +138,14 @@ _rewrite_recv_config() {
     "$LOCAL_VENV/bin/python" - "$src" "$dst" <<'PY'
 import sys, yaml
 src, dst = sys.argv[1], sys.argv[2]
-with open(src) as f: cfg = yaml.safe_load(f)
+with open(src) as f:
+    cfg = yaml.safe_load(f)
+if not isinstance(cfg, dict):
+    print(f"camera_viz.sh: {src} must be a YAML mapping (got {type(cfg).__name__})", file=sys.stderr)
+    sys.exit(2)
 cfg["source"] = "rtp"
-with open(dst, "w") as f: yaml.safe_dump(cfg, f)
+with open(dst, "w") as f:
+    yaml.safe_dump(cfg, f)
 PY
     echo "$dst"
 }

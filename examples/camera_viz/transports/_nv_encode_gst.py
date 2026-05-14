@@ -73,37 +73,29 @@ def _select_encoder_element():
     )
 
 
-# Encoder-specific property formatting. Different plugins spell things
-# differently — keep the per-plugin quirks contained here.
-def _encoder_args(name: str, *, bitrate: int, gop: int, profile: str) -> str:
-    """Format the encoder element with its codec params."""
+# Per-plugin property formatting. Profile is left as plugin default
+# (typically high) so behavior matches the native NVENC path.
+def _encoder_args(name: str, *, bitrate: int, gop: int) -> str:
     if name == "nvv4l2h264enc":
         # Jetson V4L2 M2M NVENC. control-rate=1 → CBR. preset-level=1 →
-        # ultra-fast (lowest latency). maxperf-enable=true → max clocks.
-        # insert-sps-pps=true so the receiver can sync mid-stream.
+        # ultra-fast (lowest latency). insert-sps-pps=true lets the
+        # receiver sync mid-stream.
         return (
             f"{name} bitrate={bitrate} iframeinterval={gop} "
             f"insert-sps-pps=true control-rate=1 preset-level=1 "
-            f"maxperf-enable=true profile={_v4l2_profile_id(profile)}"
+            f"maxperf-enable=true"
         )
     if name == "nvh264enc":
-        # Desktop GstCUDA NVENC.
         return (
             f"{name} bitrate={bitrate // 1000} gop-size={gop} "
             f"preset=low-latency-hq rc-mode=cbr"
         )
     if name == "x264enc":
-        # CPU fallback. tune=zerolatency, ultrafast.
         return (
             f"{name} bitrate={bitrate // 1000} key-int-max={gop} "
             f"tune=zerolatency speed-preset=ultrafast"
         )
     raise RuntimeError(f"GstNvH264Encoder: unknown encoder {name!r}")
-
-
-def _v4l2_profile_id(profile: str) -> int:
-    """nvv4l2h264enc profile enum: 0=baseline, 2=main, 4=high."""
-    return {"baseline": 0, "main": 2, "high": 4}.get(profile.lower(), 0)
 
 
 class GstNvH264Encoder:
@@ -121,17 +113,15 @@ class GstNvH264Encoder:
         height: int,
         bitrate: int = 15_000_000,
         fps: int = 30,
-        profile: str = "baseline",
         gop: Optional[int] = None,
         gpu_id: int = 0,  # unused on Jetson (single NVENC); accepted for API parity
     ) -> None:
-        # camera_streamer's ULL defaults: 15 Mbps, IDR every 5 s (fps*5),
-        # CBR rate control, no B-frames. Same on both encoder backends.
+        # ULL defaults: 15 Mbps, IDR every 5 s (fps*5), CBR rate control,
+        # no B-frames. Same on both encoder backends.
         self._width = width
         self._height = height
         self._bitrate = bitrate
         self._fps = fps
-        self._profile = profile
         self._gop = gop if gop is not None else fps * 5
         self._gpu_id = gpu_id
 
@@ -171,12 +161,7 @@ class GstNvH264Encoder:
         # H.264 Annex-B bytes one access-unit at a time.
         encoder_name, _ = _select_encoder_element()
         logger.info("GstNvH264Encoder: using %s", encoder_name)
-        encoder_args = _encoder_args(
-            encoder_name,
-            bitrate=self._bitrate,
-            gop=self._gop,
-            profile=self._profile,
-        )
+        encoder_args = _encoder_args(encoder_name, bitrate=self._bitrate, gop=self._gop)
         elements = [
             (
                 f"appsrc name=src is-live=true do-timestamp=true format=time "
