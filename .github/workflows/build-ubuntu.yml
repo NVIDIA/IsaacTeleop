@@ -473,10 +473,12 @@ jobs:
       id: ros-distro
       run: |
         if [ "${{ matrix.python_version }}" = "3.10" ]; then
-          echo "ROS_DISTRO=humble" >> $GITHUB_ENV
+          ROS_DISTRO=humble
         elif [ "${{ matrix.python_version }}" = "3.12" ]; then
-          echo "ROS_DISTRO=jazzy" >> $GITHUB_ENV
+          ROS_DISTRO=jazzy
         fi
+        echo "ROS_DISTRO=$ROS_DISTRO" >> $GITHUB_ENV
+        echo "TELEOP_ROS2_IMAGE=teleop_ros2_ref:${ROS_DISTRO}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}" >> $GITHUB_ENV
 
     - name: Build teleop_ros2 image
       run: |
@@ -484,7 +486,7 @@ jobs:
           --build-arg ROS_DISTRO=${{ env.ROS_DISTRO }} \
           --build-arg PYTHON_VERSION=${{ matrix.python_version }} \
           --build-arg BUNDLE_ROBOTIC_GROUNDING=${{ steps.setup-v2d-src.outputs.bundled || 'false' }} \
-          -t teleop_ros2_ref:${{ env.ROS_DISTRO }} .
+          -t "$TELEOP_ROS2_IMAGE" .
 
     - name: Verify application modes
       env:
@@ -504,6 +506,11 @@ jobs:
         READINESS_TIMEOUT_SEC=30
         READINESS_POLL_INTERVAL_SEC=1
         DATA_PROBE_TIMEOUT_SEC=20
+        # Isolate ROS discovery on shared self-hosted runners so the probe only
+        # sees the publisher from this job/matrix entry.
+        ROS_DOMAIN_ID=$(printf '%s' "$PROJECT_NAME" | cksum | awk '{print $1 % 232}')
+        export ROS_DOMAIN_ID
+        echo "Using ROS_DOMAIN_ID=$ROS_DOMAIN_ID"
 
         # Cleanup
         trap 'docker compose -p "$PROJECT_NAME" \
@@ -579,8 +586,9 @@ jobs:
             -v /tmp:/tmp \
             -e NV_CXR_RUNTIME_DIR="$CXR_HOST_VOLUME_PATH/.cloudxr/run" \
             -e XR_RUNTIME_JSON="$CXR_HOST_VOLUME_PATH/.cloudxr/openxr_cloudxr.json" \
+            -e ROS_DOMAIN_ID="$ROS_DOMAIN_ID" \
             -e PYTHONUNBUFFERED=1 \
-            --entrypoint bash teleop_ros2_ref:${{ env.ROS_DISTRO }} -c \
+            --entrypoint bash "$TELEOP_ROS2_IMAGE" -c \
             "source /usr/local/bin/teleop-env-setup && exec uv run --find-links=/opt/nlopt-wheels teleop_ros2_node.py --ros-args -p mode:=$mode -p use_mock_operators:=true" >/dev/null
 
           deadline=$((SECONDS + READINESS_TIMEOUT_SEC))
@@ -607,7 +615,8 @@ jobs:
             docker run --rm \
               --name "${RUN_NAME}-probe" \
               --network host \
-              --entrypoint bash teleop_ros2_ref:${{ env.ROS_DISTRO }} -c \
+              -e ROS_DOMAIN_ID="$ROS_DOMAIN_ID" \
+              --entrypoint bash "$TELEOP_ROS2_IMAGE" -c \
               "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync integration_tests/teleop_ros2_data_probe.py --mode $mode --timeout-sec $DATA_PROBE_TIMEOUT_SEC" \
               > "$PROBE_LOG" 2>&1 || probe_rc=$?
 
