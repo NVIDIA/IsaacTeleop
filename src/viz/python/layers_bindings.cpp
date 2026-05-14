@@ -57,7 +57,10 @@ void bind_layers(py::module_& m)
         .def_readwrite("name", &viz::QuadLayer::Config::name)
         .def_readwrite("resolution", &viz::QuadLayer::Config::resolution)
         .def_readwrite("format", &viz::QuadLayer::Config::format)
-        .def_readwrite("placement", &viz::QuadLayer::Config::placement);
+        .def_readwrite("placement", &viz::QuadLayer::Config::placement)
+        .def_readwrite("generate_mipmaps", &viz::QuadLayer::Config::generate_mipmaps,
+                       "Allocate + regenerate a capped mip chain each frame; sampler "
+                       "uses trilinear filtering. Off by default.");
 
     // ── QuadLayer (non-owning; session owns the lifetime) ─────────────
 
