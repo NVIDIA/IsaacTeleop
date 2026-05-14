@@ -103,7 +103,20 @@ class CameraSupervisor:
             self._thread = None
 
     def _build_senders(self) -> List[RtpH264Sender]:
-        eyes = _eye_sources(build_local_camera(self._cfg), self._name)
+        sources = build_local_camera(self._cfg)
+        # mode: stereo_rgb on OAK-D returns a PairedFrameSource of just
+        # (left, right) — the rgb stream is still being grabbed +
+        # processed by depthai but never reaches the wire. Burn-without-
+        # use is wasteful enough that we'd rather flag it loudly than
+        # let a user wonder why their USB / VPU is saturated.
+        if self._cfg.get("type") == "oakd" and self._cfg.get("mode") == "stereo_rgb":
+            logger.warning(
+                "camera %r: mode=stereo_rgb on the streamer wastes the rgb stream "
+                "(only left + right go on the wire). Use mode: stereo to save USB + VPU.",
+                self._name,
+            )
+
+        eyes = _eye_sources(sources, self._name)
         rtp = self._cfg.get("rtp", {})
         if "port" not in rtp:
             raise ValueError(f"camera {self._name!r} missing rtp.port")
@@ -135,12 +148,29 @@ class CameraSupervisor:
                 mtu=int(rtp.get("mtu", 1400)),
             )
 
+        # Build incrementally so a partial-failure mid-list (stereo with
+        # NVENC contention on the second encoder is the realistic case)
+        # rolls back the first sender's NVENC session via .stop()
+        # instead of leaving it dangling until Python GC.
+        ports = [int(rtp["port"])]
         if is_stereo:
-            return [
-                build_one(eyes[0], int(rtp["port"])),
-                build_one(eyes[1], int(rtp["port_right"])),
-            ]
-        return [build_one(eyes[0], int(rtp["port"]))]
+            ports.append(int(rtp["port_right"]))
+        built: List[RtpH264Sender] = []
+        try:
+            for eye, port in zip(eyes, ports):
+                built.append(build_one(eye, port))
+            return built
+        except Exception:
+            for s in built:
+                try:
+                    s.stop()
+                except Exception:
+                    logger.debug(
+                        "camera %r: partial-build rollback s.stop() raised",
+                        self._name,
+                        exc_info=True,
+                    )
+            raise
 
     def _run(self) -> None:
         attempt = 0

@@ -171,6 +171,13 @@ class RtpH264Sender:
         flow = self._appsrc.emit("push-buffer", buf)
         return flow == Gst.FlowReturn.OK
 
+    # Per-sender measured-fps breadcrumb cadence + how many encoder
+    # failures in a row trip a hard restart (lets the supervisor
+    # rebuild the pipeline instead of spinning forever on a wedged
+    # NVENC session).
+    _FPS_REPORT_S = 5.0
+    _ENCODE_FAIL_THRESHOLD = 30
+
     def _send_loop(self) -> None:
         # Idle poll interval. ``FrameSource.latest()`` returns None when no
         # NEW frame has arrived since the previous call, so the loop only
@@ -189,6 +196,9 @@ class RtpH264Sender:
         import cupy as cp
 
         device_pinned = False
+        consecutive_encode_failures = 0
+        last_fps_report_at = time.monotonic()
+        last_fps_count = 0
 
         while not self._stop.is_set():
             if not self._connected:
@@ -231,11 +241,26 @@ class RtpH264Sender:
 
             try:
                 packets = self._encoder.encode(frame.image)
+                consecutive_encode_failures = 0
             except Exception as e:
+                consecutive_encode_failures += 1
                 logger.warning(
-                    "RtpH264Sender: encode failed (%s); resetting encoder", e
+                    "RtpH264Sender: encode failed (%s); resetting encoder (%d/%d)",
+                    e,
+                    consecutive_encode_failures,
+                    self._ENCODE_FAIL_THRESHOLD,
                 )
                 self._encoder.reset()
+                # Fail-fast: persistent encode failures mean NVENC is
+                # wedged or the input format changed. Raise so the
+                # supervisor rebuilds the whole pipeline (camera +
+                # encoder + GStreamer) instead of spinning forever
+                # with the user seeing no stream + no error.
+                if consecutive_encode_failures >= self._ENCODE_FAIL_THRESHOLD:
+                    raise RuntimeError(
+                        f"RtpH264Sender: encode failed {consecutive_encode_failures} "
+                        f"times in a row; surfacing to supervisor for full restart"
+                    )
                 continue
 
             for pkt in packets:
@@ -246,3 +271,17 @@ class RtpH264Sender:
                     self._teardown_pipeline()
                     break
             self._frame_count += 1
+            now = time.monotonic()
+            elapsed = now - last_fps_report_at
+            if elapsed >= self._FPS_REPORT_S:
+                actual = (self._frame_count - last_fps_count) / elapsed
+                tag = " ⚠ throttled" if actual < 0.8 * self._fps else ""
+                logger.info(
+                    "RtpH264Sender :%d fps=%.1f/%d%s",
+                    self._port,
+                    actual,
+                    self._fps,
+                    tag,
+                )
+                last_fps_report_at = now
+                last_fps_count = self._frame_count
