@@ -1,0 +1,66 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# ZED + OAK-D side-by-side in XR. Each is mono (left eye / RGB socket).
+# Default layout: two 1.0 m × 0.5625 m planes at 1.5 m, lazy-locked
+# facing the user. ZED on the left (offset_x = -0.55), OAK-D on the
+# right (+0.55) — center-to-center ~1.1 m gives ~10 cm of breathing
+# room between them and keeps both inside a typical 100° XR FOV.
+#
+# To go RTP: set ``source: rtp``, edit ``streaming.host`` to the
+# workstation IP, and run camera_viz.sh deploy CONFIG on the robot.
+# Each camera ships on its own port (5000 / 5001).
+
+source: local                   # local | rtp
+streaming:
+  host: 127.0.0.1
+encoder: auto                   # auto | native | gstreamer
+
+cameras:
+  - name: zed
+    enabled: true
+    type: zed
+    resolution: HD720
+    fps: 30
+    bus_type: usb               # usb | gmsl
+    serial_number: 0            # 0 → first available
+    stereo: false
+    width: 1280
+    height: 720
+    rtp:
+      port: 5000
+      bitrate_mbps: 15
+
+  - name: oakd
+    enabled: true
+    type: oakd
+    mode: mono
+    device_id: ""               # empty → first available
+    camera_socket: RGB
+    width: 1280
+    height: 720
+    fps: 30
+    rtp:
+      port: 5001                # distinct port per camera
+      bitrate_mbps: 15
+
+display:
+  mode: xr                      # window | xr
+  window:                       # used only if mode: window
+    width: 2560
+    height: 720
+  xr:
+    near_z: 0.05
+    far_z: 100.0
+  clear_color: [0.0, 0.0, 0.0, 0.0]
+  placements:
+    zed:
+      lock_mode: lazy
+      distance: 1.5
+      offset_x: -0.55           # left of center; half-width(0.5) + gap(0.05)
+      offset_y: 0.0
+    oakd:
+      lock_mode: lazy
+      distance: 1.5
+      offset_x: 0.55            # mirror right
+      offset_y: 0.0
