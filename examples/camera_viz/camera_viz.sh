@@ -201,9 +201,19 @@ cmd_loopback() {
 # ──────────────────────────────────────────────────────────────────────
 
 cmd_deploy() {
+    # ``--no-service`` skips the systemd install + linger + enable steps.
+    # Pull it out of "$@" before parse_remote_args runs since the latter
+    # collects unknown args into REMOTE_REST as the positional config.
+    local no_service=false
+    local filtered=()
+    for arg in "$@"; do
+        if [[ "$arg" == "--no-service" ]]; then no_service=true; else filtered+=("$arg"); fi
+    done
+    set -- "${filtered[@]}"
+
     parse_remote_args "$@"
     [[ "${#REMOTE_REST[@]}" -eq 1 ]] || {
-        log_error "usage: camera_viz.sh deploy --host H --user U [--password P] CONFIG"
+        log_error "usage: camera_viz.sh deploy --host H --user U [--password P] [--no-service] CONFIG"
         exit 1
     }
     local config="${REMOTE_REST[0]}"
@@ -227,6 +237,14 @@ cmd_deploy() {
     # everything on so first deploy "just works" given the YAML.
     ssh_run "cd $REMOTE_DIR && bash scripts/_install_deps.sh --sender-only"
     log_ok "deps installed"
+
+    if $no_service; then
+        log_ok "source + deps installed (service skipped)"
+        log_info "Run manually with:"
+        log_info "  ssh $REMOTE_USER@$REMOTE_HOST 'cd ~/camera_viz && .venv/bin/python camera_streamer.py $config'"
+        log_info "Re-run without --no-service when you're ready to install the systemd unit."
+        return 0
+    fi
 
     log_step "Installing systemd unit"
     # Render the service file from template with absolute remote paths.
@@ -317,9 +335,11 @@ LOCAL
                           receiver to 0.0.0.0:rtp.port (sender IP irrelevant).
 
 REMOTE (Jetson robot)
-    deploy --host H --user U [--password P] CONFIG
+    deploy --host H --user U [--password P] [--no-service] CONFIG
                           rsync source, install deps, install + start
                           systemd user service running camera_streamer.py.
+                          --no-service stops after deps so you can run
+                          camera_streamer.py by hand first.
 
     service-status   --host H --user U [--password P]
     service-logs     --host H --user U [--password P]

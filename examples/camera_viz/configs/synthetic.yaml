@@ -9,7 +9,7 @@
 source: local                   # local | rtp — see real-camera configs for rtp
 streaming:
   host: 127.0.0.1               # only used by camera_streamer (rtp mode)
-encoder: auto                   # auto | pynvideocodec | gstreamer
+encoder: auto                   # auto | native | gstreamer
 
 cameras:
   - name: synth
