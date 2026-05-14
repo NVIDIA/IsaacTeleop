@@ -66,24 +66,33 @@ The robot sends RTP H.264; the workstation receives + renders.
 > ⚠ **Wired Ethernet only.** No retransmit, no FEC; one dropped packet means one corrupted frame until the next IDR (default every 5 s).
 
 ```bash
-# 1. In the YAML: set streaming.host to the workstation's IP, and
-#    source: rtp (so the viewer listens instead of opening cameras).
+# 1. In the YAML: set source: rtp (so the viewer listens instead of
+#    opening cameras). streaming.host can stay at 127.0.0.1 — we'll
+#    override it at deploy time without rewriting the file.
 $EDITOR configs/v4l2.yaml
 
-# 2. Deploy the sender to the robot. The deployed copy is rsync'd
-#    with the YAML as-is; the robot's camera_streamer.py ignores
-#    `source:` and always opens local cameras.
-./camera_viz.sh deploy --host 10.0.0.5 --user nvidia configs/v4l2.yaml
-# Add --password PW if you don't have SSH keys (requires sshpass).
+# 2. (Optional but recommended) Export remote creds once per shell so
+#    the password stays out of your shell history and `ps`.
+export REMOTE_HOST=10.0.0.5 REMOTE_USER=nvidia
+read -s REMOTE_PASSWORD && export REMOTE_PASSWORD   # only if no SSH keys
+export STREAMING_HOST=10.0.0.42                      # workstation IP
+
+# 3. Deploy the sender to the robot. ``--streaming-host`` (or
+#    $STREAMING_HOST) is injected as ``--host`` on camera_streamer.py's
+#    CLI inside the systemd unit — the YAML on disk stays untouched.
+./camera_viz.sh deploy configs/v4l2.yaml
+# Or fully explicit, no env vars:
+# ./camera_viz.sh deploy --host 10.0.0.5 --user nvidia \
+#     --streaming-host 10.0.0.42 configs/v4l2.yaml
 # Add --no-service to stop after deps so you can run camera_streamer.py by hand first.
 
-# 3. Run the viewer on the workstation.
+# 4. Run the viewer on the workstation.
 ./camera_viz.sh run configs/v4l2.yaml
 
 # Operate the service:
-./camera_viz.sh service-logs    --host 10.0.0.5 --user nvidia
-./camera_viz.sh service-status  --host 10.0.0.5 --user nvidia
-./camera_viz.sh service-restart --host 10.0.0.5 --user nvidia
+./camera_viz.sh service-logs
+./camera_viz.sh service-status
+./camera_viz.sh service-restart
 ```
 
 `deploy` rsyncs source, then runs `setup --sender-only --jetson` over `ssh -t`. The same `[y/N]` prompt fires for any missing apt packages / CUDA symlinks **on the Jetson** — nothing under sudo runs on the robot without your explicit yes. After deps are in place it installs a systemd user unit at `~/.config/systemd/user/camera-streamer.service` and runs `loginctl enable-linger` (one-time sudo, same TTY).

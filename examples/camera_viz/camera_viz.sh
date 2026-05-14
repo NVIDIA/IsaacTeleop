@@ -212,12 +212,21 @@ cmd_loopback() {
 # ──────────────────────────────────────────────────────────────────────
 
 cmd_deploy() {
-    # Filter --no-service out of "$@" before parse_remote_args runs;
-    # otherwise it lands in REMOTE_REST and gets mistaken for the config.
+    # Pull deploy-only flags out of "$@" before parse_remote_args runs;
+    # anything we don't recognize would land in REMOTE_REST (where the
+    # positional CONFIG lives).
     local no_service=false
+    # ``--streaming-host`` → injected as ``--host`` on camera_streamer.py's
+    # CLI inside the rendered systemd unit. Lets you keep the YAML at
+    # 127.0.0.1 for loopback and override only when deploying to a robot.
+    local streaming_host="${STREAMING_HOST:-}"
     local filtered=()
-    for arg in "$@"; do
-        if [[ "$arg" == "--no-service" ]]; then no_service=true; else filtered+=("$arg"); fi
+    while (( $# )); do
+        case $1 in
+            --no-service)     no_service=true; shift;;
+            --streaming-host) streaming_host=$2; shift 2;;
+            *)                filtered+=("$1"); shift;;
+        esac
     done
     set -- "${filtered[@]}"
 
@@ -252,10 +261,24 @@ cmd_deploy() {
 
     if $no_service; then
         log_ok "source + deps installed (service skipped)"
+        local manual_host_flag=""
+        if [[ -n "$streaming_host" ]]; then
+            manual_host_flag=" --host $streaming_host"
+            log_info "(--streaming-host has no effect in --no-service mode — pass it to camera_streamer.py yourself.)"
+        fi
         log_info "Run manually with:"
-        log_info "  ssh $REMOTE_USER@$REMOTE_HOST 'cd ~/camera_viz && .venv/bin/python camera_streamer.py $config'"
+        log_info "  ssh $REMOTE_USER@$REMOTE_HOST 'cd ~/camera_viz && .venv/bin/python camera_streamer.py $config$manual_host_flag'"
         log_info "Re-run without --no-service when you're ready to install the systemd unit."
         return 0
+    fi
+
+    # Empty when --streaming-host wasn't given — ExecStart falls back to
+    # streaming.host from the YAML. Leading space so the substituted
+    # template doesn't end with a trailing space when empty.
+    local extra_args=""
+    if [[ -n "$streaming_host" ]]; then
+        extra_args=" --host $streaming_host"
+        log_info "streaming.host overridden: --host $streaming_host"
     fi
 
     log_step "Installing systemd unit"
@@ -271,6 +294,7 @@ mkdir -p "\$unit_dir"
 sed -e "s|{{WORKDIR}}|\$workdir|g" \
     -e "s|{{VENV}}|\$venv|g" \
     -e "s|{{CONFIG}}|\$config|g" \
+    -e "s|{{EXTRA_ARGS}}|${extra_args}|g" \
     "\$workdir/scripts/${SERVICE_NAME}.service.in" \
     > "\$unit_dir/${SERVICE_NAME}.service"
 echo "wrote \$unit_dir/${SERVICE_NAME}.service"
@@ -355,11 +379,17 @@ LOCAL
                           receiver binds 0.0.0.0).
 
 REMOTE (Jetson robot)
-    deploy [--host H --user U [--password P]] [--no-service] CONFIG
+    deploy [--host H --user U [--password P]]
+           [--streaming-host IP] [--no-service] CONFIG
                           rsync source, install deps, install + start
                           systemd user service running camera_streamer.py.
                           --no-service stops after deps so you can run
                           camera_streamer.py by hand first.
+                          --streaming-host injects ``--host IP`` into the
+                          unit's ExecStart so the sender streams there
+                          regardless of streaming.host in the YAML. Same
+                          knob via $STREAMING_HOST env var. Leave unset
+                          to use the YAML value.
 
     service-status   [--host H --user U [--password P]]
     service-logs     [--host H --user U [--password P]]
@@ -371,6 +401,8 @@ ENVIRONMENT (remote commands)
                           Defaults for --host / --user / --password. CLI
                           flags override. Drop the flags from your shell
                           history by exporting these once per session.
+
+    STREAMING_HOST        Default for --streaming-host on ``deploy``.
 
 EXAMPLES
     ./camera_viz.sh setup
