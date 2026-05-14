@@ -237,9 +237,20 @@ PY="$VENV_DIR/bin/python"
 
 echo "==> cuda:   ${cuda_major}.${cuda_minor} (cupy-cuda${cuda_major}x, cuda-nvrtc-${cuda_major}-${cuda_minor})"
 
+# cupy ships separate packages per CUDA major (cupy-cuda12x, cupy-cuda13x...);
+# they coexist on disk and CuPy warns about "multiple CuPy packages installed."
+# If a prior setup picked a different major, uninstall the stale variant now.
+target_cupy="cupy-cuda${cuda_major}x"
+for v in cupy-cuda11x cupy-cuda12x cupy-cuda13x; do
+    if [[ "$v" != "$target_cupy" ]] && uv pip show --python "$PY" "$v" >/dev/null 2>&1; then
+        echo "==> removing stale $v (target is $target_cupy)"
+        uv pip uninstall --python "$PY" "$v" >/dev/null
+    fi
+done
+
 # Mirrors pyproject.toml. PyGObject comes from system python3-gi via
 # --system-site-packages, not pip.
-PKGS=("pyyaml>=6.0" "cupy-cuda${cuda_major}x" "numpy>=1.23" "scipy>=1.15")
+PKGS=("pyyaml>=6.0" "$target_cupy" "numpy>=1.23" "scipy>=1.15")
 [[ "$MODE" == full ]] && PKGS=("$WHEEL" "${PKGS[@]}")
 $WITH_V4L2 && PKGS+=("opencv-python>=4.5")
 $WITH_OAKD && PKGS+=("depthai>=3.0")
