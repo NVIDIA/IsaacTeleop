@@ -15,7 +15,7 @@ All vendor-SDK sources follow the same shape:
      - kicks off an async ``cudaMemcpyAsync`` H2D + color-convert on the
        producer stream,
      - synchronizes the stream so the consumer (renderer thread) can safely
-       read the GPU buffer via ``submit_cuda_array(stream=0)`` — until the
+       read the GPU buffer via ``submit(stream=0)`` — until the
        viz binding grows cross-stream sync (M6 review item #2), this is
        the only correct way to hand the buffer across threads,
      - flips the write/publish index atomically under a short lock.

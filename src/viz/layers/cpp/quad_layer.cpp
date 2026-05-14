@@ -114,9 +114,9 @@ QuadLayer::QuadLayer(const VkContext& ctx, VkRenderPass render_pass, Config conf
             throw std::invalid_argument("QuadLayer: Placement::size_meters must be > 0 in both components");
         }
     }
-    if (!std::isfinite(config_.stereo_baseline_m))
+    if (!std::isfinite(config_.stereo_baseline_mm))
     {
-        throw std::invalid_argument("QuadLayer: stereo_baseline_m must be finite");
+        throw std::invalid_argument("QuadLayer: stereo_baseline_mm must be finite");
     }
 
     // Resolve mip count: capped chain when enabled, single level
@@ -619,7 +619,7 @@ void QuadLayer::record(VkCommandBuffer cmd,
     // constant. Skipped when the layer is mono (baseline doesn't apply)
     // OR outside kXr (both eyes converge to a single view, no signed
     // disambiguation possible). Zero baseline elides to the mono MVP.
-    const bool apply_baseline = xr_mode && config_.stereo && config_.stereo_baseline_m != 0.0f;
+    const bool apply_baseline = xr_mode && config_.stereo && config_.stereo_baseline_mm != 0.0f;
     glm::vec3 baseline_axis_ws{ 0.0f };
     if (apply_baseline)
     {
@@ -645,7 +645,9 @@ void QuadLayer::record(VkCommandBuffer cmd,
             if (apply_baseline)
             {
                 const float sign = (view_idx == 0) ? -1.0f : +1.0f;
-                eye_placement.pose.position += sign * (config_.stereo_baseline_m * 0.5f) * baseline_axis_ws;
+                // 0.5 to halve the disparity per eye, 0.001 to convert mm → m
+                // (placement.pose.position is in world meters).
+                eye_placement.pose.position += sign * (config_.stereo_baseline_mm * 0.0005f) * baseline_axis_ws;
             }
             const glm::mat4 mvp = placement_mvp(eye_placement, view);
             std::memcpy(data.mvp, &mvp[0][0], sizeof(data.mvp));

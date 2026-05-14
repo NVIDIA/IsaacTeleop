@@ -101,15 +101,16 @@ public:
         bool stereo = false;
 
         // Horizontal disparity between the left-plane (in the left eye)
-        // and the right-plane (in the right eye), in meters along the
-        // placement's local +x axis. Each eye's quad center is shifted
-        // by ±stereo_baseline_m/2 (left eye: −, right eye: +). 0 means
-        // both eyes see the same world-space quad; all stereo cues
-        // come from the captured images. Positive values let the
+        // and the right-plane (in the right eye), in millimeters along
+        // the placement's local +x axis. Each eye's quad center is
+        // shifted by ±stereo_baseline_mm/2 (left eye: −, right eye: +).
+        // 0 means both eyes see the same world-space quad; all stereo
+        // cues come from the captured images. Positive values let the
         // planes splay outward (virtual screen further back); negative
         // makes them cross (closer to viewer). Ignored when stereo is
-        // false or outside kXr.
-        float stereo_baseline_m = 0.0f;
+        // false or outside kXr. mm-scale chosen because typical real-
+        // world IPDs and camera baselines are 50–80 mm.
+        float stereo_baseline_mm = 0.0f;
     };
 
     // Hard cap on the mip chain when generate_mipmaps is enabled.
