@@ -34,6 +34,7 @@ into the writable GPU buffer using ``self._stream``).
 from __future__ import annotations
 
 import logging
+import os
 import sys
 import threading
 import time
@@ -52,8 +53,46 @@ def notify(tag: str, msg: str) -> None:
     even when the host app hasn't configured Python logging — the
     common case for camera_viz. ``tag`` is the short source kind
     (``zed`` / ``oakd`` / ``v4l2``); the rendered prefix is
-    ``[tag]``."""
+    ``[tag]``. Reserved for lifecycle transitions (opening, connected,
+    streaming, errors) — anything fired more than once per minute
+    belongs in :func:`notify_verbose`."""
     print(f"[{tag}] {msg}", file=sys.stderr, flush=True)
+
+
+# Verbose state. Driven by the YAML's top-level ``verbose:`` flag
+# (set via :func:`set_verbose` after the entrypoint parses the
+# config); the ``CAMERA_VIZ_VERBOSE`` env var is also honored as a
+# no-YAML-edit override for ad-hoc debugging.
+_VERBOSE = False
+
+
+def set_verbose(enabled: bool) -> None:
+    """Enable / disable verbose breadcrumbs. Called by the entrypoint
+    (camera_viz.py / camera_streamer.py) after parsing the YAML."""
+    global _VERBOSE
+    _VERBOSE = bool(enabled)
+
+
+def _verbose_enabled() -> bool:
+    if _VERBOSE:
+        return True
+    return os.environ.get("CAMERA_VIZ_VERBOSE", "").lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
+def notify_verbose(tag: str, msg: str) -> None:
+    """Diagnostic breadcrumb, gated on the YAML ``verbose:`` flag or
+    ``CAMERA_VIZ_VERBOSE=1`` env var.
+
+    Use for periodic stats (per-eye fps, queue depths, etc.) that are
+    useful while debugging but spam the terminal in steady state.
+    Default-off keeps the run output clean."""
+    if _verbose_enabled():
+        print(f"[{tag}] {msg}", file=sys.stderr, flush=True)
 
 
 logger = logging.getLogger(__name__)

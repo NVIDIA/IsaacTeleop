@@ -30,7 +30,7 @@ import isaacteleop.viz as viz
 
 from pipeline import FrameSource, VizRunner
 from placements import PlacementConfig, PlacementStrategy, build as build_placement
-from sources import PairedFrameSource, RtpH264Source, build_local_camera
+from sources import PairedFrameSource, RtpH264Source, build_local_camera, set_verbose
 
 
 @dataclass
@@ -233,6 +233,11 @@ def main(argv: Optional[list[str]] = None) -> int:
             f"camera_viz: {args.config} must be a YAML mapping at the top level, "
             f"got {type(cfg).__name__}"
         )
+
+    # YAML top-level ``verbose: true`` turns on the per-source periodic
+    # breadcrumbs (per-eye fps, etc.). CAMERA_VIZ_VERBOSE=1 in the env
+    # also works for ad-hoc debugging without editing the YAML.
+    set_verbose(bool(cfg.get("verbose", False)))
 
     source_mode = cfg.get("source", "local").lower()
     if source_mode not in ("local", "rtp"):

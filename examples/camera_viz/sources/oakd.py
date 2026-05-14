@@ -35,7 +35,7 @@ from typing import List, Optional
 import numpy as np
 
 from pipeline import Frame, FrameSource, SourceSpec
-from ._helpers import alloc_pinned_host, notify
+from ._helpers import alloc_pinned_host, notify, notify_verbose
 
 logger = logging.getLogger(__name__)
 
@@ -272,25 +272,6 @@ class _OakdDevice:
         else:
             notify("oakd", f"USB {speed_name}")
 
-        # Per-sensor capability dump. Lets us tell the user what the
-        # board's RGB / mono sensors actually max out at — when the
-        # requested fps is silently capped (depthai's pipeline syncs
-        # all streams to the slowest sensor's achievable rate) this is
-        # the only way to know whether the limit is our config or the
-        # sensor itself.
-        try:
-            for feat in device.getConnectedCameraFeatures():
-                supported = ", ".join(str(c.fps) for c in feat.configs) or "?"
-                notify(
-                    "oakd",
-                    f"sensor {feat.socket.name}={feat.sensorName} "
-                    f"max fps per mode: {supported}",
-                )
-        except Exception as e:
-            # getConnectedCameraFeatures isn't on every depthai version;
-            # don't fail open on a probe-only call.
-            notify("oakd", f"sensor capability probe skipped ({e})")
-
         pipeline = dai.Pipeline(device)
         for s in self._stream_specs:
             socket_key = self._SOCKET_MAP[s.socket.upper()]
@@ -422,7 +403,9 @@ class _OakdDevice:
             # Periodic actual-vs-target fps. Any stream running <80% of
             # its requested rate is almost certainly hitting USB / VPU
             # throttling; the absolute numbers tell the user how far off
-            # they are. Reset counters AFTER reporting so windows align.
+            # they are. Gated by CAMERA_VIZ_VERBOSE=1 — too chatty for
+            # the default run output. Reset counters AFTER reporting so
+            # windows align.
             now = time.monotonic()
             elapsed = now - last_fps_report_at
             if elapsed >= _FPS_REPORT_S and first_frame_seen:
@@ -436,7 +419,7 @@ class _OakdDevice:
                         throttled = True
                     last_fps_counts[s.name] = self._frame_counts[s.name]
                 tag = " ⚠ throttled" if throttled else ""
-                notify("oakd", f"fps {' '.join(parts)}{tag}")
+                notify_verbose("oakd", f"fps {' '.join(parts)}{tag}")
                 last_fps_report_at = now
 
 

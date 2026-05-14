@@ -12,7 +12,7 @@ from typing import List
 
 from pipeline import FrameSource
 
-from ._helpers import PairedFrameSource
+from ._helpers import PairedFrameSource, set_verbose
 from .oakd import OakdSource
 from .rtp_h264 import RtpH264Source
 from .synthetic import SyntheticSource, SyntheticStereoSource
@@ -28,6 +28,7 @@ __all__ = [
     "V4l2Source",
     "ZedSource",
     "build_local_camera",
+    "set_verbose",
 ]
 
 

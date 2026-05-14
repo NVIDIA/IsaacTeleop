@@ -30,7 +30,7 @@ from typing import List, Optional
 import yaml
 
 from pipeline import FrameSource
-from sources import PairedFrameSource, build_local_camera
+from sources import PairedFrameSource, build_local_camera, set_verbose
 from transports import RtpH264Sender, make_encoder
 
 logger = logging.getLogger("camera_streamer")
@@ -273,6 +273,11 @@ def main(argv: Optional[List[str]] = None) -> int:
             type(cfg).__name__,
         )
         return 2
+
+    # YAML top-level ``verbose: true`` turns on the per-source periodic
+    # breadcrumbs (per-eye fps, etc.). CAMERA_VIZ_VERBOSE=1 in the env
+    # also works without editing the YAML.
+    set_verbose(bool(cfg.get("verbose", False)))
 
     streaming = cfg.get("streaming", {})
     host = args.host or streaming.get("host")
