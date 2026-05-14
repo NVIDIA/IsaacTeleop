@@ -127,16 +127,22 @@ class RtpH264Source(FrameSource):
 
     def stop(self) -> None:
         self._stop.set()
-        if self._thread is not None:
-            self._thread.join(timeout=5.0)
-            if self._thread.is_alive():
-                logger.warning(
-                    "RtpH264Source '%s': decode thread did not exit within 5s",
-                    self._spec.name,
-                )
-                return
-            self._thread = None
-        self._close()
+        try:
+            if self._thread is not None:
+                self._thread.join(timeout=5.0)
+                if self._thread.is_alive():
+                    # Keep _thread visible to supervision; fall through
+                    # to _close() anyway — setting the GStreamer
+                    # receiver pipeline to NULL usually unblocks a
+                    # wedged decode loop.
+                    logger.warning(
+                        "RtpH264Source '%s': decode thread did not exit within 5s",
+                        self._spec.name,
+                    )
+                else:
+                    self._thread = None
+        finally:
+            self._close()
 
     def latest(self) -> Optional[Frame]:
         with self._publish_lock:

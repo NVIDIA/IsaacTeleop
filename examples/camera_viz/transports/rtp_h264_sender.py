@@ -92,20 +92,25 @@ class RtpH264Sender:
 
     def stop(self) -> None:
         self._stop.set()
-        if self._thread is not None:
-            self._thread.join(timeout=5.0)
-            if self._thread.is_alive():
-                # Don't null _thread — is_alive() must keep reporting the
-                # live thread for the supervisor, and the non-daemon
-                # thread will still block process exit.
-                logger.warning("RtpH264Sender: send thread did not exit within 5s")
-                return
-            self._thread = None
-        self._teardown_pipeline()
         try:
-            self._source.stop()
-        except Exception:
-            pass
+            if self._thread is not None:
+                self._thread.join(timeout=5.0)
+                if self._thread.is_alive():
+                    # Don't null _thread — is_alive() must keep reporting
+                    # the live thread for the supervisor, and the non-
+                    # daemon thread will still block process exit. Fall
+                    # through to teardown anyway: setting the GStreamer
+                    # pipeline state to NULL often unblocks a wedged send
+                    # loop, and we never want to leak the source either.
+                    logger.warning("RtpH264Sender: send thread did not exit within 5s")
+                else:
+                    self._thread = None
+        finally:
+            self._teardown_pipeline()
+            try:
+                self._source.stop()
+            except Exception:
+                pass
 
     def is_alive(self) -> bool:
         """True while the send loop thread is running. Returns False if

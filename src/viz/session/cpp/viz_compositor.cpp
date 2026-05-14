@@ -204,16 +204,42 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
     }
 
     // Catch swapchain recreates whose image_count differs from the one
-    // we sized per-slot state for. Has to run AFTER begin_frame because
-    // WindowBackend::begin_frame may itself recreate the swapchain (on
-    // OUT_OF_DATE / suboptimal). Cheap check; only rebuilds on mismatch.
-    // The frame's wait/signal semaphores are owned by the swapchain, not
-    // the compositor, so rebuilding compositor state doesn't invalidate
-    // them.
-    ensure_slot_count_matches_backend();
+    // we sized per-slot state for. Runs AFTER begin_frame because
+    // WindowBackend::begin_frame may itself recreate (OUT_OF_DATE etc.).
+    // Wrapped so a failed rebuild balances the backend protocol — we've
+    // already acquired a swapchain image and FrameGuard isn't set up
+    // yet, so a raw throw would leak the acquire.
+    try
+    {
+        ensure_slot_count_matches_backend();
+    }
+    catch (...)
+    {
+        try
+        {
+            backend_->abort_frame(*frame);
+        }
+        catch (...)
+        {
+        }
+        throw;
+    }
 
     // Slot for the in-flight resources (fence, cmd buf, timestamp range).
     const uint32_t slot_count = static_cast<uint32_t>(frame_syncs_.size());
+    if (slot_count == 0)
+    {
+        // ensure_slot_count_matches_backend either set this to >= 1 or
+        // threw; reaching here means logic drift. Bail rather than UB.
+        try
+        {
+            backend_->abort_frame(*frame);
+        }
+        catch (...)
+        {
+        }
+        throw std::runtime_error("VizCompositor: slot_count == 0 after ensure_slot_count_matches_backend");
+    }
     const uint32_t slot = static_cast<uint32_t>(frame->backend_token) % slot_count;
     FrameSync& slot_sync = *frame_syncs_[slot];
     VkCommandBuffer command_buffer = command_buffers_[slot];
