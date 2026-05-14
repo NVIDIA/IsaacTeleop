@@ -26,9 +26,11 @@ SCRIPTS_DIR="$HERE/scripts"
 SERVICE_NAME="camera-streamer"
 SERVICE_TEMPLATE="$SCRIPTS_DIR/${SERVICE_NAME}.service.in"
 
-# Where the source tree lands on the robot. ``~`` expands on the remote
-# side at command time.
-REMOTE_DIR='$HOME/camera_viz'
+# Where the source tree lands on the robot. Relative path — rsync and
+# ssh both interpret it against the remote user's home directory.
+# Don't switch to ~ or $HOME: rsync's --protect-args (default in 3.2+)
+# prevents the remote shell from expanding those.
+REMOTE_DIR='camera_viz'
 
 # ──────────────────────────────────────────────────────────────────────
 # Logging
@@ -227,7 +229,7 @@ cmd_deploy() {
     }
     command -v rsync >/dev/null || { log_error "rsync not installed"; exit 1; }
 
-    log_step "Pushing source → $REMOTE_USER@$REMOTE_HOST:$REMOTE_DIR"
+    log_step "Pushing source → $REMOTE_USER@$REMOTE_HOST:~/$REMOTE_DIR"
     rsync_to_remote
     log_ok "source synced"
 
