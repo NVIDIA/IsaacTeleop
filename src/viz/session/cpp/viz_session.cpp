@@ -125,6 +125,16 @@ void VizSession::init()
 
 void VizSession::destroy()
 {
+    // Drain GPU before tearing anything down. render() returns without
+    // host-waiting on its fence (multi-frame-in-flight), so when we
+    // reach destroy() the GPU may still be reading layer descriptor
+    // sets / DeviceImages / command buffers. vkDeviceWaitIdle blocks
+    // until the device is idle. Errors are swallowed — if the device
+    // is already lost we still need to tear down cleanly.
+    if (ctx_ptr_ != nullptr && ctx_ptr_->device() != VK_NULL_HANDLE)
+    {
+        (void)vkDeviceWaitIdle(ctx_ptr_->device());
+    }
     layers_.clear();
     // compositor holds a backend ref; backend uses the context: tear down in this order.
     compositor_.reset();
@@ -142,6 +152,12 @@ void VizSession::remove_layer(LayerBase* layer)
     if (layer == nullptr)
     {
         return;
+    }
+    // Same hazard as destroy() — a layer's resources may still be in
+    // an in-flight command buffer; drain before freeing them.
+    if (ctx_ptr_ != nullptr && ctx_ptr_->device() != VK_NULL_HANDLE)
+    {
+        (void)vkDeviceWaitIdle(ctx_ptr_->device());
     }
     auto it = std::remove_if(
         layers_.begin(), layers_.end(), [layer](const std::unique_ptr<LayerBase>& p) { return p.get() == layer; });

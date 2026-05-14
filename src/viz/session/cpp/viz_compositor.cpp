@@ -106,6 +106,13 @@ void VizCompositor::destroy()
     {
         return;
     }
+    // render() returns without host-waiting, so the command buffers /
+    // query pool may still be PENDING when destroy() is called. Drain
+    // before freeing — vkDestroyCommandPool on a PENDING buffer is UB.
+    // ensure_slot_count_matches_backend already drains via per-fence
+    // waits; here we use the device-wide hammer because destroy() runs
+    // in paths (dtor, init catch) where the per-fence path is fragile.
+    (void)vkDeviceWaitIdle(device);
     if (command_pool_ != VK_NULL_HANDLE)
     {
         // Pool destruction frees all command buffers allocated from it.
