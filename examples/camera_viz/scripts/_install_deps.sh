@@ -56,10 +56,25 @@ while (( $# )); do
     esac
 done
 
-command -v uv >/dev/null || {
-    echo "_install_deps.sh: 'uv' not on PATH. Install from https://docs.astral.sh/uv/" >&2
-    exit 1
-}
+# Auto-install uv into ~/.local/bin if missing. Jetson images usually
+# don't ship it; we don't want a fresh deploy to require a manual step.
+if ! command -v uv >/dev/null 2>&1; then
+    if [[ -x "$HOME/.local/bin/uv" ]]; then
+        export PATH="$HOME/.local/bin:$PATH"
+    else
+        echo "==> installing uv (no system uv found)"
+        if ! command -v curl >/dev/null 2>&1; then
+            echo "_install_deps.sh: 'curl' required to bootstrap uv. apt install curl." >&2
+            exit 1
+        fi
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        export PATH="$HOME/.local/bin:$PATH"
+        command -v uv >/dev/null || {
+            echo "_install_deps.sh: uv install failed — check ~/.local/bin/uv." >&2
+            exit 1
+        }
+    fi
+fi
 
 # Resolve the wheel only in --full mode.
 if [[ "$MODE" == full ]]; then
