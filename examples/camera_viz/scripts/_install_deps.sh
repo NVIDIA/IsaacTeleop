@@ -56,32 +56,26 @@ while (( $# )); do
     esac
 done
 
-# System apt deps for the RTP path: cairo + girepository headers
-# (pycairo / PyGObject build from source via pip) plus the GStreamer
-# elements RtpH264Sender pipes through at runtime. Idempotent — skipped
-# fast when everything's already present. Only attempted under --no-rtp
-# off (the default) since these are RTP-only requirements.
+# System apt deps for the RTP path: Debian's pre-built PyGObject +
+# GStreamer Python bindings, plus the gstreamer plugins RtpH264Sender
+# pipes through. Using the apt packages avoids a 5-minute pycairo /
+# PyGObject source-build per fresh deploy. Idempotent; skipped fast
+# when ``import gi`` already resolves on system python3.
 ensure_apt_deps() {
     if ! $WITH_RTP; then
         return 0
     fi
     if ! command -v apt-get >/dev/null 2>&1; then
-        # Not Debian/Ubuntu — skip; user is on something else and knows
-        # what they're doing.
+        return 0  # not Debian/Ubuntu, user is on their own
+    fi
+    if python3 -c "import gi; gi.require_version('Gst', '1.0'); from gi.repository import Gst" 2>/dev/null; then
         return 0
     fi
-    # Fast path: cairo + girepository headers detectable via pkg-config.
-    if command -v pkg-config >/dev/null 2>&1 \
-        && pkg-config --exists cairo \
-        && (pkg-config --exists girepository-1.0 || pkg-config --exists girepository-2.0); then
-        return 0
-    fi
-    echo "==> apt-installing system deps (cairo + girepository + gstreamer)"
+    echo "==> apt-installing GStreamer Python bindings + plugins"
     local pkgs=(
-        pkg-config
-        libcairo2-dev
-        libgirepository1.0-dev
-        gobject-introspection
+        python3-gi
+        python3-gst-1.0
+        gir1.2-gstreamer-1.0
         gstreamer1.0-tools
         gstreamer1.0-plugins-base
         gstreamer1.0-plugins-good
@@ -135,18 +129,22 @@ echo "==> python: $PYTHON_VERSION"
 [[ "$MODE" == full ]] && echo "==> wheel:  $WHEEL"
 
 if [[ ! -d "$VENV_DIR" ]]; then
-    uv venv "$VENV_DIR" --python "$PYTHON_VERSION"
+    # --system-site-packages lets the venv see Debian's apt-packaged
+    # python3-gi / python3-gst-1.0 without rebuilding them from source.
+    # Venv-installed packages still shadow system ones (venv site-packages
+    # is prepended to sys.path).
+    uv venv "$VENV_DIR" --python "$PYTHON_VERSION" --system-site-packages
 fi
 PY="$VENV_DIR/bin/python"
 
 # Mirrors pyproject.toml's dependency block. Sender-only drops the wheel.
+# PyGObject is intentionally NOT here — it comes from system python3-gi
+# via --system-site-packages above.
 PKGS=("pyyaml>=6.0" "cupy-cuda12x" "numpy>=1.23" "scipy>=1.15")
 [[ "$MODE" == full ]] && PKGS=("$WHEEL" "${PKGS[@]}")
 $WITH_V4L2 && PKGS+=("opencv-python>=4.5")
 $WITH_OAKD && PKGS+=("depthai>=3.0")
-# PyGObject <3.51: 3.51+ requires girepository-2.0 (GLib ≥2.80) which
-# Ubuntu 22.04 LTS doesn't ship.
-$WITH_RTP  && PKGS+=("PyGObject>=3.40,<3.51" "pybind11>=2.11")
+$WITH_RTP  && PKGS+=("pybind11>=2.11")
 
 echo "==> installing: ${PKGS[*]}"
 uv pip install --python "$PY" --upgrade "${PKGS[@]}"
@@ -193,10 +191,13 @@ if $WITH_RTP; then
     fi
 fi
 
-# Smoke import — kept minimal so this works in --sender-only too.
+# Smoke import — kept minimal so this works in --sender-only too. ``gi``
+# is included when RTP is enabled to verify --system-site-packages
+# actually exposes the apt-installed PyGObject.
 echo "==> import smoke"
 SMOKE_MODS="cupy yaml scipy.spatial.transform"
 [[ "$MODE" == full ]] && SMOKE_MODS="isaacteleop.viz $SMOKE_MODS"
+$WITH_RTP && SMOKE_MODS="$SMOKE_MODS gi"
 "$PY" - <<PY
 import sys
 mods = "$SMOKE_MODS".split()
