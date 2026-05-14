@@ -8,6 +8,7 @@
 # Local:
 #   ./camera_viz.sh setup [--sender-only]      install deps + build codec
 #   ./camera_viz.sh loopback CONFIG            run streamer + viz on 127.0.0.1
+#   ./camera_viz.sh receive CONFIG             run viewer against a remote sender
 #
 # Remote (Jetson robot):
 #   ./camera_viz.sh deploy --host H --user U [--password P] CONFIG
@@ -117,6 +118,48 @@ cmd_setup() {
 }
 
 # ──────────────────────────────────────────────────────────────────────
+# receive (local viewer pointed at a remote sender)
+# ──────────────────────────────────────────────────────────────────────
+
+# Rewrites the YAML to source: rtp and prints the temp file path. Caller
+# must ``rm -f`` it after use. Receiver binds 0.0.0.0:rtp.port — sender
+# IP is irrelevant here.
+_rewrite_recv_config() {
+    local src="$1"
+    local venv="$2"
+    local dst
+    dst="$(mktemp -t camera_viz_recv.XXXXXX.yaml)"
+    "$venv/bin/python" - "$src" "$dst" <<'PY'
+import sys, yaml
+src, dst = sys.argv[1], sys.argv[2]
+with open(src) as f: cfg = yaml.safe_load(f)
+cfg["source"] = "rtp"
+with open(dst, "w") as f: yaml.safe_dump(cfg, f)
+PY
+    echo "$dst"
+}
+
+cmd_receive() {
+    local config="${1:-}"
+    [[ -n "$config" ]] || { log_error "usage: camera_viz.sh receive CONFIG"; exit 1; }
+    [[ -f "$config" ]] || { log_error "config not found: $config"; exit 1; }
+
+    local venv="$HERE/.venv"
+    [[ -x "$venv/bin/python" ]] || {
+        log_error "no venv at $venv — run ./camera_viz.sh setup first"
+        exit 1
+    }
+
+    local recv_config
+    recv_config="$(_rewrite_recv_config "$config" "$venv")"
+    # shellcheck disable=SC2064
+    trap "rm -f '$recv_config'" EXIT
+
+    log_step "Starting camera_viz (source: rtp) — Ctrl-C to exit"
+    "$venv/bin/python" "$HERE/camera_viz.py" "$recv_config"
+}
+
+# ──────────────────────────────────────────────────────────────────────
 # loopback (local)
 # ──────────────────────────────────────────────────────────────────────
 
@@ -131,18 +174,10 @@ cmd_loopback() {
         exit 1
     }
 
-    # Receiver gets a copy of the config with source flipped to rtp.
     local recv_config
-    recv_config="$(mktemp -t camera_viz_recv.XXXXXX.yaml)"
+    recv_config="$(_rewrite_recv_config "$config" "$venv")"
     # shellcheck disable=SC2064
     trap "rm -f '$recv_config'" EXIT
-    "$venv/bin/python" - "$config" "$recv_config" <<'PY'
-import sys, yaml
-src, dst = sys.argv[1], sys.argv[2]
-with open(src) as f: cfg = yaml.safe_load(f)
-cfg["source"] = "rtp"
-with open(dst, "w") as f: yaml.safe_dump(cfg, f)
-PY
 
     log_step "Starting camera_streamer → 127.0.0.1 (background)"
     "$venv/bin/python" "$HERE/camera_streamer.py" "$config" --host 127.0.0.1 &
@@ -277,6 +312,10 @@ LOCAL
 
     loopback CONFIG       Run camera_streamer + camera_viz on 127.0.0.1.
 
+    receive CONFIG        Run the viewer pointed at a remote sender. Flips
+                          ``source: rtp`` in a temp YAML and binds the
+                          receiver to 0.0.0.0:rtp.port (sender IP irrelevant).
+
 REMOTE (Jetson robot)
     deploy --host H --user U [--password P] CONFIG
                           rsync source, install deps, install + start
@@ -291,6 +330,7 @@ EXAMPLES
     ./camera_viz.sh setup
     ./camera_viz.sh loopback configs/v4l2.yaml
     ./camera_viz.sh deploy --host 10.29.90.127 --user nvidia configs/v4l2.yaml
+    ./camera_viz.sh receive configs/v4l2.yaml
     ./camera_viz.sh service-logs --host 10.29.90.127 --user nvidia
 
 SSH AUTH
@@ -310,6 +350,7 @@ cmd="$1"; shift
 case "$cmd" in
     setup)            cmd_setup "$@" ;;
     loopback)         cmd_loopback "$@" ;;
+    receive)          cmd_receive "$@" ;;
     deploy)           cmd_deploy "$@" ;;
     service-status)   cmd_service_status "$@" ;;
     service-logs)     cmd_service_logs "$@" ;;

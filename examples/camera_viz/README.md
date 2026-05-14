@@ -64,14 +64,18 @@ Edit `streaming.host` in the YAML to the workstation's IP. Then deploy
 the sender as a systemd user service on the robot:
 
 ```bash
-# Workstation:
+# Workstation, ship the sender to the robot:
 ./camera_viz.sh deploy --host 10.0.0.5 --user nvidia configs/v4l2.yaml
 ./camera_viz.sh service-logs --host 10.0.0.5 --user nvidia
 ./camera_viz.sh service-restart --host 10.0.0.5 --user nvidia
 
-# Workstation (receiver) — set `source: rtp` in the YAML:
-python examples/camera_viz/camera_viz.py examples/camera_viz/configs/v4l2.yaml
+# Workstation, start the viewer:
+./camera_viz.sh receive configs/v4l2.yaml
 ```
+
+`receive` rewrites `source: rtp` in a temp config and runs `camera_viz.py`
+— the receiver binds to `0.0.0.0:rtp.port`, so the sender's IP doesn't
+need to be supplied here.
 
 `deploy` rsyncs the source to `~/camera_viz/` on the robot, runs
 `setup --sender-only` there, installs a systemd user unit at
