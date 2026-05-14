@@ -55,6 +55,7 @@ private:
     void destroy_channel() noexcept;
     bool try_reopen_channel();
     XrUuidEXT make_uuid(const std::array<uint8_t, MessageChannelTracker::CHANNEL_UUID_SIZE>& channel_uuid) const;
+    void drain_messages();
 
     OpenXRSessionHandles handles_;
     const MessageChannelTracker* tracker_{ nullptr };

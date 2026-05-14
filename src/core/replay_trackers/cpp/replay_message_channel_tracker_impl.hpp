@@ -21,35 +21,29 @@ using MessageChannelMcapViewers = McapTrackerViewers<MessageChannelMessagesRecor
 /**
  * @brief Frame-aligned replay of the `_teleop_control` message channel.
  *
- * Live recording writes one MCAP record per drained OpenXR opaque-channel
- * message. Each record carries the monotonic-ns timestamp the message was
- * received on. The other replay trackers (hand / head / controller) emit
- * exactly one MCAP record per ``session.update()`` call, so the
- * recording's logical clock advances by one "frame" per session update --
- * independent of the replay loop's wall-clock cadence. To stay aligned
- * with the rest of the recorded data the message channel replay must use
- * the same logical clock: emit records when their recorded frame index
- * is reached, not when their wall-clock timestamp matches replay time.
- * That way a slow replay loop, a fast one, or a loop with variable dt
- * all see START / STOP / RESET surface at the same recording-frame
- * offset they were captured at.
+ * The live recorder writes at least one MCAP record per
+ * ``session.update()`` call: one record per drained opaque-channel
+ * message, or a single data-null sentinel when nothing was drained
+ * that update (see ``LiveMessageChannelTrackerImpl::update``). All
+ * records produced by a single live update share that update's
+ * monotonic-ns timestamp. The message channel is therefore its own
+ * frame clock -- the recorded record stream advances by exactly one
+ * timestamp-group per live ``session.update()`` call, independent of
+ * the live recording's fps or fps variance.
  *
- * Strategy: at construction time, read the MCAP summary, anchor
- * ``recording_start_ns_`` to ``messageStartTime``, and derive
- * ``recording_dt_ns_`` from the densest non-self channel's record count
- * over the recording's duration. That value is the live recorder's
- * effective inter-frame interval. On every ``update()`` call advance a
- * ``frame_counter_`` and emit every pending record whose
- * ``logTime - messageStartTime <= frame_counter_ * recording_dt_ns_``.
- * Wall-clock time is intentionally unused -- the replay rate can vary
- * frame-to-frame without skewing the relative position of control
- * events.
+ * To stay aligned with the rest of the replayed trackers (which also
+ * emit one record per ``session.update()``), this impl consumes one
+ * timestamp-group per replay update: read the first pending record,
+ * then keep consuming records as long as their timestamp matches.
+ * Records with non-null ``data`` are surfaced via ``get_messages()``;
+ * sentinels are silently dropped. The next record (belonging to the
+ * following frame) is buffered in ``pending_record_`` for the next
+ * ``update()`` call.
  *
- * Fallback: when the summary is missing or no non-self channel exists,
- * ``recording_dt_ns_`` stays at the sentinel and ``update()`` emits one
- * record per call. That degenerate ordering preserves the at-least
- * "events fire in recorded order" property on malformed files where we
- * cannot derive a frame rate.
+ * No average-dt calculation, reference-channel scan, or wall-clock
+ * comparison is involved. Replay-loop dt is irrelevant -- N replay
+ * updates consume exactly the first N recorded frames, regardless of
+ * how many or how few messages were drained on each one.
  */
 class ReplayMessageChannelTrackerImpl : public IMessageChannelTrackerImpl
 {
@@ -67,15 +61,15 @@ public:
     void send_message(const std::vector<uint8_t>& payload) const override;
 
 private:
-    void prime_pending_record();
     static int64_t record_monotonic_ns(const MessageChannelMessagesRecordT& record);
 
     MessageChannelMessagesTrackedT messages_;
     std::unique_ptr<MessageChannelMcapViewers> mcap_viewers_;
+    // Holds the first record of the next frame, peeked but not yet
+    // consumed. McapTrackerViewers::read() advances the underlying
+    // LinearMessageView, so detecting a timestamp boundary requires
+    // buffering one record across update() calls.
     std::optional<MessageChannelMessagesRecordT> pending_record_;
-    int64_t recording_start_ns_ = -1;
-    int64_t recording_dt_ns_ = -1;
-    int64_t frame_counter_ = 0;
 };
 
 } // namespace core

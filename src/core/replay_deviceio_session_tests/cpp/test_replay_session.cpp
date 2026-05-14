@@ -110,6 +110,14 @@ void write_message_record(MessageChannelChannels& ch, int64_t time_ns, const std
     ch.write(0, core::DeviceDataTimestamp(time_ns, time_ns, time_ns), data);
 }
 
+// Mirror LiveMessageChannelTrackerImpl::update's data-null sentinel: a
+// record per session.update() with no payload, marking that frame on
+// the message channel's own frame clock.
+void write_message_sentinel(MessageChannelChannels& ch, int64_t time_ns)
+{
+    ch.write(0, core::DeviceDataTimestamp(time_ns, time_ns, time_ns), nullptr);
+}
+
 std::vector<std::string> to_string_vec(auto traits_channels)
 {
     return std::vector<std::string>(traits_channels.begin(), traits_channels.end());
@@ -292,50 +300,41 @@ TEST_CASE("ReplaySession: head and hand trackers in one session", "[replay][sess
 // Single tracker — MessageChannelTracker (frame-aligned replay)
 // =============================================================================
 //
-// The message-channel replay impl emits recorded payloads in lockstep with
-// the per-frame trackers' record stream, indexed by ``session.update()``
-// call count instead of wall-clock time. The per-frame replay impls emit
-// one record per update, so N updates == recording frame N regardless of
-// how fast the replay loop ticks. The impl derives an inter-frame
-// interval from the MCAP summary (densest non-self channel) and uses
-// ``frame_counter * dt`` as a virtual elapsed clock against each
-// pending record's offset from ``messageStartTime``.
+// LiveMessageChannelTrackerImpl writes ≥1 record per session.update():
+// one per drained payload, or a data-null sentinel when nothing was
+// drained that frame. ReplayMessageChannelTrackerImpl consumes one
+// timestamp-group per replay update, surfacing payload records and
+// silently dropping sentinels. These tests construct that record
+// stream directly (without going through the live impl) and assert
+// frame-aligned drain order under three scenarios: multiple payloads
+// in one frame, payloads spread across frames separated by sentinels,
+// and a tight replay loop that would have raced past every wall-clock
+// offset on the first tick under a wall-clock-based scheme.
 
 TEST_CASE("ReplaySession: message channel drains records on their recorded frame", "[replay][session][message_channel]")
 {
-    // Setup: 4 head records at 0 / 10ms / 20ms / 30ms establishes
-    // ``messageStartTime = 0`` and an inter-frame interval of 10ms (so
-    // ``recording_dt_ns_ = duration / (count - 1) = 30ms / 3 = 10ms``).
-    // Three message-channel records all at logTime 0 -> all map to
-    // recorded frame 0 -> all drain on the first session.update().
+    // Three payloads, all written by a single (recorded) session.update():
+    // they share one timestamp, so the first replay update drains all
+    // three at once.
     auto path = get_temp_mcap_path();
     TempFileCleanup cleanup(path);
-    const std::string head_base = "head";
     const std::string control_base = "_teleop_control";
 
     {
         auto writer = open_writer(path);
-        HeadChannels head_ch(*writer, head_base, core::HeadRecordingTraits::schema_name,
-                             to_string_vec(core::HeadRecordingTraits::recording_channels));
         MessageChannelChannels ctrl_ch(*writer, control_base, core::MessageChannelRecordingTraits::schema_name,
                                        to_string_vec(core::MessageChannelRecordingTraits::channels));
 
-        for (int i = 0; i < 4; ++i)
-        {
-            write_head_frame(head_ch, i * 10'000'000, 1.0f, 2.0f, 3.0f);
-        }
         write_message_record(ctrl_ch, 0, "start");
         write_message_record(ctrl_ch, 0, "stop");
         write_message_record(ctrl_ch, 0, "reset");
         writer->close();
     }
 
-    core::HeadTracker head_tracker;
     core::MessageChannelTracker ctrl_tracker(make_test_uuid(), "test_channel");
     core::McapReplayConfig config;
     config.filename = path;
     config.tracker_names = {
-        { &head_tracker, head_base },
         { &ctrl_tracker, control_base },
     };
 
@@ -358,47 +357,35 @@ TEST_CASE("ReplaySession: message channel drains records on their recorded frame
 
 TEST_CASE("ReplaySession: message channel fans recorded events across update ticks", "[replay][session][message_channel]")
 {
-    // Setup: 4 head records at 0 / 10ms / 20ms / 30ms (dt=10ms). Three
-    // message-channel records at logTimes 0 / 10ms / 20ms map to recorded
-    // frames 0 / 1 / 2 respectively -- exactly one drains per session
-    // update.
+    // Three frames, one payload each, with distinct timestamps. Each
+    // replay update drains exactly one record.
     auto path = get_temp_mcap_path();
     TempFileCleanup cleanup(path);
-    const std::string head_base = "head";
     const std::string control_base = "_teleop_control";
 
     constexpr int64_t dt_ns = 10'000'000;
 
     {
         auto writer = open_writer(path);
-        HeadChannels head_ch(*writer, head_base, core::HeadRecordingTraits::schema_name,
-                             to_string_vec(core::HeadRecordingTraits::recording_channels));
         MessageChannelChannels ctrl_ch(*writer, control_base, core::MessageChannelRecordingTraits::schema_name,
                                        to_string_vec(core::MessageChannelRecordingTraits::channels));
 
-        for (int i = 0; i < 4; ++i)
-        {
-            write_head_frame(head_ch, i * dt_ns, 1.0f, 2.0f, 3.0f);
-        }
         write_message_record(ctrl_ch, 0, "start");
         write_message_record(ctrl_ch, 1 * dt_ns, "stop");
         write_message_record(ctrl_ch, 2 * dt_ns, "reset");
         writer->close();
     }
 
-    core::HeadTracker head_tracker;
     core::MessageChannelTracker ctrl_tracker(make_test_uuid(), "test_channel");
     core::McapReplayConfig config;
     config.filename = path;
     config.tracker_names = {
-        { &head_tracker, head_base },
         { &ctrl_tracker, control_base },
     };
 
     auto session = core::ReplaySession::run(config);
     REQUIRE(session != nullptr);
 
-    // Frame 0: only the record at logTime 0 is due.
     session->update();
     {
         const auto& msgs = ctrl_tracker.get_messages(*session);
@@ -406,7 +393,6 @@ TEST_CASE("ReplaySession: message channel fans recorded events across update tic
         CHECK(payload_string(msgs.data[0]) == "start");
     }
 
-    // Frame 1: the record at logTime 10ms is due.
     session->update();
     {
         const auto& msgs = ctrl_tracker.get_messages(*session);
@@ -414,7 +400,6 @@ TEST_CASE("ReplaySession: message channel fans recorded events across update tic
         CHECK(payload_string(msgs.data[0]) == "stop");
     }
 
-    // Frame 2: the record at logTime 20ms is due.
     session->update();
     {
         const auto& msgs = ctrl_tracker.get_messages(*session);
@@ -422,7 +407,6 @@ TEST_CASE("ReplaySession: message channel fans recorded events across update tic
         CHECK(payload_string(msgs.data[0]) == "reset");
     }
 
-    // Frame 3+: nothing left.
     session->update();
     CHECK(ctrl_tracker.get_messages(*session).data.empty());
 }
@@ -435,12 +419,12 @@ TEST_CASE("ReplaySession: message channel emits at recorded frame regardless of 
     // 6th session.update() call, NOT on the first one and NOT at the
     // wall-clock offset between the START's logTime and the replay
     // loop's monotonic start. This test calls update() in a tight loop
-    // (no sleeps) so wall-clock would race past every logTime offset on
-    // tick 1 -- the only way the START surfaces on the right tick is by
-    // counting frames.
+    // (no sleeps) so any wall-clock-based scheme would race past every
+    // logTime offset on tick 1 -- the only way START surfaces on the
+    // right tick is by counting frames. Frames without payloads carry
+    // data-null sentinels, mirroring what the live impl records.
     auto path = get_temp_mcap_path();
     TempFileCleanup cleanup(path);
-    const std::string head_base = "head";
     const std::string control_base = "_teleop_control";
 
     constexpr int64_t t0_ns = 5'000'000'000;
@@ -451,26 +435,32 @@ TEST_CASE("ReplaySession: message channel emits at recorded frame regardless of 
 
     {
         auto writer = open_writer(path);
-        HeadChannels head_ch(*writer, head_base, core::HeadRecordingTraits::schema_name,
-                             to_string_vec(core::HeadRecordingTraits::recording_channels));
         MessageChannelChannels ctrl_ch(*writer, control_base, core::MessageChannelRecordingTraits::schema_name,
                                        to_string_vec(core::MessageChannelRecordingTraits::channels));
 
         for (int i = 0; i < kFrameCount; ++i)
         {
-            write_head_frame(head_ch, t0_ns + i * dt_ns, 1.0f, 2.0f, 3.0f);
+            const int64_t t = t0_ns + i * dt_ns;
+            if (i == kStartFrame)
+            {
+                write_message_record(ctrl_ch, t, "start");
+            }
+            else if (i == kStopFrame)
+            {
+                write_message_record(ctrl_ch, t, "stop");
+            }
+            else
+            {
+                write_message_sentinel(ctrl_ch, t);
+            }
         }
-        write_message_record(ctrl_ch, t0_ns + kStartFrame * dt_ns, "start");
-        write_message_record(ctrl_ch, t0_ns + kStopFrame * dt_ns, "stop");
         writer->close();
     }
 
-    core::HeadTracker head_tracker;
     core::MessageChannelTracker ctrl_tracker(make_test_uuid(), "test_channel");
     core::McapReplayConfig config;
     config.filename = path;
     config.tracker_names = {
-        { &head_tracker, head_base },
         { &ctrl_tracker, control_base },
     };
 
@@ -496,6 +486,60 @@ TEST_CASE("ReplaySession: message channel emits at recorded frame regardless of 
             CHECK(msgs.data.empty());
         }
     }
+}
+
+TEST_CASE("ReplaySession: message channel drains payloads alongside sentinels in the same frame", "[replay][session][message_channel]")
+{
+    // Mixed-fixture regression: when a frame contains both a sentinel
+    // and one or more payloads (which the live impl never emits, but
+    // is the limit case for the grouping logic), all records sharing
+    // the timestamp should drain on the same update and the sentinel
+    // should be silently dropped.
+    auto path = get_temp_mcap_path();
+    TempFileCleanup cleanup(path);
+    const std::string control_base = "_teleop_control";
+
+    constexpr int64_t dt_ns = 10'000'000;
+
+    {
+        auto writer = open_writer(path);
+        MessageChannelChannels ctrl_ch(*writer, control_base, core::MessageChannelRecordingTraits::schema_name,
+                                       to_string_vec(core::MessageChannelRecordingTraits::channels));
+
+        write_message_sentinel(ctrl_ch, 0);
+        write_message_record(ctrl_ch, 1 * dt_ns, "hello");
+        write_message_sentinel(ctrl_ch, 1 * dt_ns);
+        write_message_record(ctrl_ch, 1 * dt_ns, "world");
+        write_message_sentinel(ctrl_ch, 2 * dt_ns);
+        writer->close();
+    }
+
+    core::MessageChannelTracker ctrl_tracker(make_test_uuid(), "test_channel");
+    core::McapReplayConfig config;
+    config.filename = path;
+    config.tracker_names = {
+        { &ctrl_tracker, control_base },
+    };
+
+    auto session = core::ReplaySession::run(config);
+    REQUIRE(session != nullptr);
+
+    session->update();
+    CHECK(ctrl_tracker.get_messages(*session).data.empty());
+
+    session->update();
+    {
+        const auto& msgs = ctrl_tracker.get_messages(*session);
+        REQUIRE(msgs.data.size() == 2);
+        CHECK(payload_string(msgs.data[0]) == "hello");
+        CHECK(payload_string(msgs.data[1]) == "world");
+    }
+
+    session->update();
+    CHECK(ctrl_tracker.get_messages(*session).data.empty());
+
+    session->update();
+    CHECK(ctrl_tracker.get_messages(*session).data.empty());
 }
 
 // =============================================================================

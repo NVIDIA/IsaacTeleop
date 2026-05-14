@@ -67,14 +67,42 @@ void LiveMessageChannelTrackerImpl::update(int64_t monotonic_time_ns)
     {
         // Runtime/client disconnected: rebuild the channel object so it can reconnect.
         try_reopen_channel();
-        return;
     }
-
-    if (status != MessageChannelStatus::CONNECTED)
+    else if (status == MessageChannelStatus::CONNECTED)
     {
-        return;
+        drain_messages();
     }
+    // For other statuses (CONNECTING / SHUTTING / UNKNOWN), no messages
+    // are drained but the sentinel write below still advances the
+    // replay frame clock.
 
+    if (mcap_channels_)
+    {
+        // The message channel is the replay impl's own frame clock:
+        // ReplayMessageChannelTrackerImpl consumes one timestamp-group
+        // per session.update() to stay aligned with the rest of the
+        // recorded data, so every live update must persist at least one
+        // record. When nothing was drained, write a data-null sentinel
+        // -- skipping the write would let a connection hiccup desync
+        // the replay from the per-frame trackers (head / hand / ...)
+        // by the duration of the gap.
+        DeviceDataTimestamp timestamp(last_update_time_, last_update_time_, xr_time);
+        if (messages_.data.empty())
+        {
+            mcap_channels_->write(0, timestamp, nullptr);
+        }
+        else
+        {
+            for (const auto& msg : messages_.data)
+            {
+                mcap_channels_->write(0, timestamp, msg);
+            }
+        }
+    }
+}
+
+void LiveMessageChannelTrackerImpl::drain_messages()
+{
     while (true)
     {
         // First call: query pending byte count without reading.
@@ -138,15 +166,6 @@ void LiveMessageChannelTrackerImpl::update(int64_t monotonic_time_ns)
         auto message = std::make_shared<MessageChannelMessagesT>();
         message->payload.assign(receive_buffer_.begin(), receive_buffer_.begin() + read_count);
         messages_.data.push_back(message);
-    }
-
-    if (mcap_channels_)
-    {
-        DeviceDataTimestamp timestamp(last_update_time_, last_update_time_, xr_time);
-        for (const auto& msg : messages_.data)
-        {
-            mcap_channels_->write(0, timestamp, msg);
-        }
     }
 }
 
