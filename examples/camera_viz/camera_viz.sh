@@ -122,8 +122,31 @@ rsync_to_remote() {
 # ──────────────────────────────────────────────────────────────────────
 
 cmd_setup() {
+    # Intercept --venv so $HERE/.venv becomes a symlink to the caller's
+    # path. The rest of camera_viz.sh (cmd_run / cmd_loopback) hardcodes
+    # $HERE/.venv; routing it through a symlink lets ``setup --venv PATH``
+    # work without touching every command.
+    local custom_venv=""
+    local rest=()
+    while (( $# )); do
+        case $1 in
+            --venv) custom_venv=$2; shift 2;;
+            *)      rest+=("$1"); shift;;
+        esac
+    done
+
+    if [[ -n "$custom_venv" ]]; then
+        custom_venv=$(realpath -m "$custom_venv")
+        if [[ -e "$HERE/.venv" && ! -L "$HERE/.venv" ]]; then
+            log_error "$HERE/.venv exists as a real directory; rm it (or move it) before using --venv."
+            exit 1
+        fi
+        ln -sfn "$custom_venv" "$HERE/.venv"
+        log_info "linked $HERE/.venv → $custom_venv"
+    fi
+
     log_step "Local setup"
-    exec "$SCRIPTS_DIR/_install_deps.sh" "$@"
+    exec "$SCRIPTS_DIR/_install_deps.sh" "${rest[@]}"
 }
 
 # ──────────────────────────────────────────────────────────────────────
@@ -355,7 +378,8 @@ show_help() {
 camera_viz.sh — local development + Jetson deployment for camera_viz
 
 LOCAL
-    setup [--sender-only] [--jetson] [--no-v4l2] [--no-oakd] [--no-rtp] [--with-zed]
+    setup [--venv PATH] [--sender-only] [--jetson]
+          [--no-v4l2] [--no-oakd] [--no-rtp] [--with-zed]
                           Create .venv, install Python deps via uv into
                           the venv, build native codec. Python deps stay
                           inside .venv (no --system-site-packages).
@@ -365,6 +389,10 @@ LOCAL
                           missing the script prints the exact apt-get
                           command and prompts ``y/N`` before running it.
                           Reply N or run non-interactively to abort.
+                          --venv PATH installs into an existing venv at
+                          PATH instead of creating one in-place.
+                          examples/camera_viz/.venv is symlinked → PATH
+                          so run / loopback pick it up too.
                           --sender-only skips the isaacteleop wheel + vulkan
                           deps (use on Jetson sender hosts).
                           --jetson adds JetPack-only checks: unversioned
