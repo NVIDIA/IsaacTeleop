@@ -62,21 +62,22 @@ class RtpH264Source(FrameSource):
         self._port = port
         self._rtp_buffer_size = rtp_buffer_size
 
-        # Triple-buffer RGBA8 GPU output — never reallocated. Matches
-        # PolledSource's mailbox so a fast producer doesn't wrap the
-        # mailbox before the consumer's async copy completes.
-        self._gpu_buffers = [
-            cp.empty((height, width, 4), dtype=cp.uint8) for _ in range(3)
-        ]
-        for b in self._gpu_buffers:
-            b[..., 3] = 255
+        # Pick the GPU FIRST so the buffers and decoder land together.
+        # gpu_id=0 (default) means "follow whichever GPU CuPy is currently
+        # bound to" — typically the Vulkan adapter VizSession picked.
+        # An explicit gpu_id pins both buffers and NVDEC to that device.
+        if gpu_id == 0:
+            decoder_gpu_id = int(cp.cuda.runtime.getDevice())
+        else:
+            decoder_gpu_id = gpu_id
+        self._gpu_device_id = decoder_gpu_id
 
-        # Bind NVDEC to whichever GPU the buffers landed on. On multi-GPU
-        # hosts VizSession may have picked a non-default Vulkan adapter and
-        # the buffers live there; a default gpu_id=0 NVDEC would write to
-        # the wrong device and trip a device-mismatch on the GPU view.
-        self._gpu_device_id = int(self._gpu_buffers[0].device.id)
-        decoder_gpu_id = self._gpu_device_id if gpu_id == 0 else gpu_id
+        with cp.cuda.Device(decoder_gpu_id):
+            self._gpu_buffers = [
+                cp.empty((height, width, 4), dtype=cp.uint8) for _ in range(3)
+            ]
+            for b in self._gpu_buffers:
+                b[..., 3] = 255
 
         self._receiver = RtpH264Receiver(
             port=port, buffer_size=rtp_buffer_size, latency_ms=0
@@ -133,6 +134,7 @@ class RtpH264Source(FrameSource):
                     "RtpH264Source '%s': decode thread did not exit within 5s",
                     self._spec.name,
                 )
+                return
             self._thread = None
         self._close()
 

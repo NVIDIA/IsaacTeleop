@@ -303,6 +303,14 @@ void QuadLayer::submit(const VizBuffer& src, cudaStream_t stream)
                "cudaMemcpy2DToArrayAsync");
     image.cuda_signal_write_done(stream);
 
+    // Wait for the D2D copy to complete before returning. Sources publish
+    // buffers by reference and treat ``latest()`` returning them as proof
+    // of consumption; without a sync here a fast producer could wrap the
+    // mailbox and overwrite src.data while our async memcpy is still
+    // reading from it. Cost is ~0.5 ms per 1080p submit on the caller's
+    // thread; the render path is unaffected.
+    check_cuda(cudaStreamSynchronize(stream), "cudaStreamSynchronize(submit)");
+
     // memory_order_release pairs with the renderer's acquire load.
     latest_.store(slot, std::memory_order_release);
 }

@@ -3,7 +3,7 @@
 """Native NVENC/NVDEC codec — pybind11 module re-exports.
 
 Build the .so with ``codec/build.sh`` (also invoked by
-``scripts/setup_dev_env.sh``). Requires CUDA toolkit + NVIDIA driver.
+``camera_viz.sh setup``). Requires CUDA toolkit + NVIDIA driver.
 """
 
 from __future__ import annotations

@@ -57,16 +57,16 @@ class _StreamSpec:
 
 @dataclass
 class _StreamSlot:
-    """Per-stream double-buffered output + pinned host staging.
+    """Per-stream triple-buffered output + pinned host staging.
 
     Producer thread (one per device) writes into ``gpu_buffers[write_idx]``;
-    consumer (renderer thread) reads via ``latest()``. ``_stream`` is a
+    consumer (renderer thread) reads via ``latest()``. ``cu_stream`` is a
     non-blocking CUDA stream so each stream's H2D + convert can issue
     concurrently with the others on the same producer thread.
     """
 
     spec: _StreamSpec
-    gpu_buffers: list  # 2 × cupy ndarray, HxWx4 RGBA8
+    gpu_buffers: list  # 3 × cupy ndarray, HxWx4 RGBA8 (triple-buffer mailbox)
     host_staging: np.ndarray  # HxW (gray) or HxWx3 (bgr)
     gpu_landing: object  # cupy ndarray matching host_staging shape
     cu_stream: object  # cupy.cuda.Stream

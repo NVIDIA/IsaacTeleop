@@ -110,17 +110,26 @@ class VizRunner:
         with self._data_cond:
             self._data_cond.notify_all()
         # Bounded joins so a wedged session.render() / source doesn't
-        # block Ctrl-C indefinitely; warn-log if a thread doesn't exit.
+        # block Ctrl-C. If a thread doesn't exit, warn but keep the
+        # reference — these are non-daemon threads, so they'll still
+        # block process exit and remain visible to a later stop().
+        stuck = False
         if self._render_thread is not None:
             self._render_thread.join(timeout=5.0)
             if self._render_thread.is_alive():
                 logger.warning("render thread did not exit within 5s")
-            self._render_thread = None
+                stuck = True
+            else:
+                self._render_thread = None
         if self._submit_thread is not None:
             self._submit_thread.join(timeout=5.0)
             if self._submit_thread.is_alive():
                 logger.warning("submit thread did not exit within 5s")
-            self._submit_thread = None
+                stuck = True
+            else:
+                self._submit_thread = None
+        if stuck:
+            return
         for s in self._sources:
             try:
                 s.stop()

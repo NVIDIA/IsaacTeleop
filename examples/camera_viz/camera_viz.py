@@ -185,11 +185,12 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     runner = VizRunner(session, sources, layers, strategies)
 
-    def _on_sigint(signum, frame):
-        print("camera_viz: stopping...", flush=True)
+    def _on_signal(signum, frame):
+        print(f"camera_viz: stopping (signal {signum})...", flush=True)
         runner.stop()
 
-    signal.signal(signal.SIGINT, _on_sigint)
+    signal.signal(signal.SIGINT, _on_signal)
+    signal.signal(signal.SIGTERM, _on_signal)
 
     runner.start()
     try:

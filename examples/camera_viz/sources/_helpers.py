@@ -108,13 +108,11 @@ class PolledSource(FrameSource):
             name=name, width=width, height=height, pixel_format="rgba8"
         )
 
-        # Triple-buffer: producer rotates write_idx through 3 GPU buffers
-        # so the consumer's downstream copy (e.g. QuadLayer's async
-        # cudaMemcpy) has at least one full producer cycle to complete
-        # before the producer wraps back. With 2 buffers a fast producer
-        # could overwrite the same buffer mid-copy; with 3, the race is
-        # bounded by N_buffers - 1 producer ticks. Proper fix is event-
-        # based release in the FrameSource protocol — follow-up.
+        # Triple-buffer so the producer never spins waiting for the
+        # consumer's read to clear. QuadLayer::submit synchronizes its
+        # D2D copy before returning, so by the time the producer wraps
+        # back to any slot the consumer is provably done with it; the
+        # third buffer is overlap headroom, not a correctness margin.
         # Alpha is initialised to 255 once; subclasses that don't carry
         # alpha (BGR, GRAY, BGRA) write only the colour channels each frame.
         self._gpu_buffers = [
@@ -169,11 +167,15 @@ class PolledSource(FrameSource):
         if self._thread is not None:
             self._thread.join(timeout=5.0)
             if self._thread.is_alive():
+                # Keep the thread visible to supervision; nulling it
+                # would hide a stuck non-daemon producer that still
+                # blocks process exit.
                 logger.warning(
                     "%s '%s': producer thread did not exit within 5s",
                     self._kind,
                     self._spec.name,
                 )
+                return
             self._thread = None
         if self._connected:
             try:

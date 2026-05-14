@@ -21,31 +21,25 @@ dependencies = [
     "scipy>=1.15",
 ]
 
-# Vendor-SDK deps are optional. ``scripts/setup_dev_env.sh`` installs all
-# four extras by default; pass ``--no-<extra>`` to skip any.
+# Vendor-SDK deps are optional. ``./camera_viz.sh setup`` installs all
+# extras by default; pass ``--no-<extra>`` to skip.
 [project.optional-dependencies]
 v4l2 = ["opencv-python>=4.5"]
 oakd = ["depthai>=3.0"]
 # pyzed isn't on PyPI — the ZED SDK's bundled ``get_python_api.py``
-# produces a Python-version-specific wheel. ``setup_dev_env.sh --with-zed``
+# produces a Python-version-specific wheel. ``camera_viz.sh setup --with-zed``
 # runs that and installs the result.
 rtp = [
-    # GStreamer Python bindings — pair with system packages:
-    #   apt install python3-gi gstreamer1.0-tools libgirepository1.0-dev \
-    #               libcairo2-dev pkg-config \
-    #               gstreamer1.0-plugins-{base,good,bad,ugly}
-    # Pinned <3.51 because 3.51+ requires girepository-2.0 (GLib ≥2.80),
-    # which Ubuntu 22.04 LTS doesn't ship. Drop the upper bound once
-    # 22.04 isn't a target.
-    "PyGObject>=3.40,<3.51",
-    # pybind11 is a build-time dep for the native NVENC/NVDEC codec at
-    # ./codec/ — kept in the runtime venv so users iterating on the
-    # codec C++ can rerun ``build.sh`` without re-installing.
+    # GStreamer is consumed via system python3-gi + python3-gst-1.0 (the
+    # setup script apt-installs them and uses --system-site-packages),
+    # not pip — PyGObject from PyPI requires a source-build with cairo
+    # + girepository dev headers. pybind11 stays in the venv as a build-
+    # time dep for the codec at ./codec/.
     "pybind11>=2.11",
 ]
 
 # Native NVENC/NVDEC codec lives in ./codec/. Build with
-# ``codec/build.sh``; scripts/setup_dev_env.sh does this automatically.
+# ``codec/build.sh``; ``./camera_viz.sh setup`` does this automatically.
 # Requires CUDA toolkit + NVIDIA driver (libnvidia-encode + libnvcuvid).
 
 [tool.uv]

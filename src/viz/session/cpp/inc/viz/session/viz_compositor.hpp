@@ -59,8 +59,10 @@ public:
     // FrameSync per backend image slot. render() waits on the slot's
     // fence at entry (signaled by its previous use), submits with the
     // same fence as signal target, and returns without host-waiting
-    // on completion. CPU is throttled naturally by
-    // vkAcquireNextImageKHR blocking at vsync.
+    // on completion. CPU pacing is the caller's responsibility — the
+    // window backend prefers MAILBOX (no vsync block), so a hot loop
+    // would burn a core; camera_viz drives this from an event-driven
+    // condition variable that wakes per producer publish.
     void render(const std::vector<LayerBase*>& layers);
 
     HostImage readback_to_host();

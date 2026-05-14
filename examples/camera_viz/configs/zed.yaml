@@ -4,8 +4,9 @@
 # ZED (left mono) — same YAML drives camera_viz + camera_streamer.
 #
 # stereo: false until per-eye QuadLayer binding lands (see memory note
-# "Stereo XR rendering needs per-view QuadLayer buffers"). The "mono"
-# stream from ZedSource is named "left" so placements: { left: ... }.
+# "Stereo XR rendering needs per-view QuadLayer buffers"). Placement
+# below is keyed by the camera's YAML ``name`` ("zed"), which covers
+# every source ZedSource produces from this entry.
 #
 # Zero H2D in the steady state — pyzed's retrieve_image(MEM.GPU) hands
 # back BGRA8 already in VRAM. Our GPU kernel D2D-channel-swaps into the

@@ -85,6 +85,15 @@ class CameraSupervisor:
         self._stop.set()
         if self._thread is not None:
             self._thread.join(timeout=10.0)
+            if self._thread.is_alive():
+                # Keep the reference so a later stop() / shutdown can
+                # retry, and so the non-daemon thread doesn't slip
+                # invisible to supervision while still keeping the
+                # process alive at exit.
+                logger.warning(
+                    "camera %r: supervisor did not exit within 10s", self._name
+                )
+                return
             self._thread = None
 
     def _build_sender(self) -> RtpH264Sender:

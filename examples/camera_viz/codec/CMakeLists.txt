@@ -26,7 +26,7 @@ endif()
 find_package(CUDAToolkit REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development.Module)
 
-# pybind11 is installed into the venv via pip (see setup_dev_env.sh).
+# pybind11 is pip-installed into the venv by ``camera_viz.sh setup``.
 execute_process(
   COMMAND ${Python3_EXECUTABLE} -c "import pybind11; print(pybind11.get_cmake_dir())"
   OUTPUT_VARIABLE pybind11_DIR

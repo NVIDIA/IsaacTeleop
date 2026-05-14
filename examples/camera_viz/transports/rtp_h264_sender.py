@@ -95,7 +95,11 @@ class RtpH264Sender:
         if self._thread is not None:
             self._thread.join(timeout=5.0)
             if self._thread.is_alive():
+                # Don't null _thread — is_alive() must keep reporting the
+                # live thread for the supervisor, and the non-daemon
+                # thread will still block process exit.
                 logger.warning("RtpH264Sender: send thread did not exit within 5s")
+                return
             self._thread = None
         self._teardown_pipeline()
         try:

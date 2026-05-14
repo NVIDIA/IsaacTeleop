@@ -69,11 +69,20 @@ parse_remote_args() {
     fi
 }
 
+# When a password is set we pass it via SSHPASS env var (sshpass -e)
+# rather than command-line interpolation. -p would expose it on argv
+# AND break on spaces / metacharacters in the password.
+_sshpass_env() {
+    if [[ -n "$REMOTE_PASSWORD" ]]; then
+        export SSHPASS="$REMOTE_PASSWORD"
+    fi
+}
+
 ssh_run() {
     local cmd="$1"
+    _sshpass_env
     if [[ -n "$REMOTE_PASSWORD" ]]; then
-        sshpass -p "$REMOTE_PASSWORD" ssh -o StrictHostKeyChecking=accept-new \
-            "$REMOTE_USER@$REMOTE_HOST" "$cmd"
+        sshpass -e ssh -o StrictHostKeyChecking=accept-new "$REMOTE_USER@$REMOTE_HOST" "$cmd"
     else
         ssh -o StrictHostKeyChecking=accept-new "$REMOTE_USER@$REMOTE_HOST" "$cmd"
     fi
@@ -82,18 +91,19 @@ ssh_run() {
 # TTY variant — needed for remote sudo prompts.
 ssh_run_tty() {
     local cmd="$1"
+    _sshpass_env
     if [[ -n "$REMOTE_PASSWORD" ]]; then
-        sshpass -p "$REMOTE_PASSWORD" ssh -t -o StrictHostKeyChecking=accept-new \
-            "$REMOTE_USER@$REMOTE_HOST" "$cmd"
+        sshpass -e ssh -t -o StrictHostKeyChecking=accept-new "$REMOTE_USER@$REMOTE_HOST" "$cmd"
     else
         ssh -t -o StrictHostKeyChecking=accept-new "$REMOTE_USER@$REMOTE_HOST" "$cmd"
     fi
 }
 
 rsync_to_remote() {
+    _sshpass_env
     local rsync_ssh="ssh -o StrictHostKeyChecking=accept-new"
     if [[ -n "$REMOTE_PASSWORD" ]]; then
-        rsync_ssh="sshpass -p $REMOTE_PASSWORD $rsync_ssh"
+        rsync_ssh="sshpass -e $rsync_ssh"
     fi
     rsync -az --delete \
         --exclude='.venv/' \

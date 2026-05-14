@@ -55,7 +55,7 @@ class _EyeSlot:
     eye: str  # "left" | "right"
     width: int
     height: int
-    gpu_buffers: list  # 2 × cupy HxWx4 uint8 RGBA
+    gpu_buffers: list  # 3 × cupy HxWx4 uint8 RGBA (triple-buffer mailbox)
     cu_stream: object
     write_idx: int = 0
     publish_idx: int = -1
