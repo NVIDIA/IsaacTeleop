@@ -70,26 +70,26 @@ if [[ -e /usr/local/cuda ]]; then
     fi
 fi
 
-# Apt-install: Debian PyGObject (avoids a pycairo source-build) +
-# GStreamer plugins (always, when RTP is enabled), and cuda-nvrtc
-# (Jetson only — JetPack base image omits it; desktop CUDA installer
-# already ships it). Idempotent; each package is gated on a fast check.
-ensure_apt_deps() {
+# System-dep check. apt-installable bits are NOT auto-installed — we
+# only probe what's present and, if anything is missing, print the
+# exact ``apt-get install`` command for the user to run and exit. The
+# venv side (uv pip) is fully automated; the system side is opt-in by
+# the user so setup never escalates privileges on their behalf.
+check_system_deps() {
     if ! $WITH_RTP; then
         return 0
     fi
     if ! command -v apt-get >/dev/null 2>&1; then
-        return 0  # not Debian/Ubuntu, user is on their own
+        return 0  # not Debian/Ubuntu — user is on their own
     fi
 
     local pkgs=()
     # PyGObject lives in the venv (installed via uv below). What apt
     # owns here is purely non-Python:
     #   * C build deps for the source build (libcairo / libgirepository /
-    #     pkg-config / Python dev headers — uv-managed Python ships its
-    #     own headers, but system python3 doesn't).
+    #     pkg-config). uv-managed Python ships its own headers.
     #   * Runtime Gst typelib (PyGObject loads it via gobject-introspection).
-    #   * gst-inspect-1.0 for our own plugin-presence check below.
+    #   * gst-inspect-1.0 for the plugin-presence probe below.
     command -v pkg-config >/dev/null 2>&1                       || pkgs+=(pkg-config)
     pkg-config --exists cairo 2>/dev/null                       || pkgs+=(libcairo2-dev)
     # Debian's libgirepository1.0-dev publishes the .pc file as
@@ -101,7 +101,7 @@ ensure_apt_deps() {
     # GStreamer elements RtpH264Sender / RtpH264Receiver need at runtime.
     # Checked per-element via gst-inspect-1.0 so partially-provisioned
     # hosts (typelib present, plugins missing — a real failure mode) still
-    # get the right apt packages.
+    # get flagged correctly.
     local need_base=false need_good=false need_bad=false need_ugly=false
     if command -v gst-inspect-1.0 >/dev/null 2>&1; then
         gst-inspect-1.0 videoconvert >/dev/null 2>&1 || need_base=true
@@ -111,7 +111,7 @@ ensure_apt_deps() {
         # x264enc is the CPU fallback in GstNvH264Encoder's candidate list.
         gst-inspect-1.0 x264enc      >/dev/null 2>&1 || need_ugly=true
     else
-        # No gst-inspect → install everything.
+        # No gst-inspect → flag everything; user installs gst-tools and re-runs.
         need_base=true; need_good=true; need_bad=true; need_ugly=true
     fi
     $need_base && pkgs+=(gstreamer1.0-plugins-base)
@@ -119,10 +119,9 @@ ensure_apt_deps() {
     $need_bad  && pkgs+=(gstreamer1.0-plugins-bad gstreamer1.0-libav)
     $need_ugly && pkgs+=(gstreamer1.0-plugins-ugly)
 
-    # cuda-nvrtc is only apt-installed on Jetson — JetPack ships partial
-    # CUDA without it. Desktop CUDA installer already drops libnvrtc into
-    # /usr/local/cuda; if it's missing there, the user needs to fix their
-    # CUDA install, not have us apt-pull it.
+    # cuda-nvrtc on Jetson — JetPack ships partial CUDA without it.
+    # Desktop CUDA installer drops libnvrtc into /usr/local/cuda; if it's
+    # missing there, the user needs to fix their CUDA install.
     if $JETSON && ! find /usr -name 'libnvrtc.so*' 2>/dev/null | grep -q .; then
         pkgs+=("cuda-nvrtc-${cuda_major}-${cuda_minor}")
     fi
@@ -130,20 +129,26 @@ ensure_apt_deps() {
     if [[ ${#pkgs[@]} -eq 0 ]]; then
         return 0
     fi
-    echo "==> apt-installing system deps: ${pkgs[*]}"
-    if ! sudo -n true 2>/dev/null; then
-        echo "    sudo password required (one-time)"
-    fi
-    sudo apt-get update -qq
-    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${pkgs[@]}"
+
+    cat >&2 <<EOF
+_install_deps.sh: missing system packages required by camera_viz (RTP path):
+  ${pkgs[*]}
+
+Install them yourself (one-time) and re-run setup:
+  sudo apt-get update
+  sudo apt-get install -y --no-install-recommends ${pkgs[*]}
+
+Or pass --no-rtp to skip the GStreamer-based RTP path entirely.
+EOF
+    exit 1
 }
-ensure_apt_deps
+check_system_deps
 
 # JetPack ships versioned libs (libnvrtc.so.13) without the unversioned
 # symlink + ld.so cache entry that desktop CUDA creates. cupy looks up
 # ``libnvrtc.so`` and fails to resolve without these. Skipped on desktop
 # where the CUDA installer already lays down the right symlinks.
-ensure_cuda_symlinks() {
+check_cuda_symlinks() {
     if ! $JETSON; then
         return 0
     fi
@@ -151,42 +156,35 @@ ensure_cuda_symlinks() {
         return 0
     fi
     local lib64=/usr/local/cuda/lib64
-    local needs_sudo=false
-    for stem in libnvrtc.so libnvrtc-builtins.so libcudart.so; do
-        if [[ ! -e "$lib64/$stem" ]]; then
-            local versioned
-            versioned=$(ls "$lib64/$stem".[0-9]* 2>/dev/null | sort -V | tail -1)
-            [[ -n "$versioned" ]] && needs_sudo=true
-        fi
-    done
-    if ! ldconfig -p 2>/dev/null | grep -q "$lib64"; then
-        needs_sudo=true
-    fi
-    if ! $needs_sudo; then
-        return 0
-    fi
-
-    echo "==> wiring CUDA libs into ld.so + creating unversioned symlinks"
-    if ! sudo -n true 2>/dev/null; then
-        echo "    sudo password required (one-time)"
-    fi
+    local cmds=()
     for stem in libnvrtc.so libnvrtc-builtins.so libcudart.so; do
         if [[ ! -e "$lib64/$stem" ]]; then
             local versioned
             versioned=$(ls "$lib64/$stem".[0-9]* 2>/dev/null | sort -V | tail -1)
             if [[ -n "$versioned" ]]; then
-                sudo ln -sf "$(basename "$versioned")" "$lib64/$stem"
-                echo "    $lib64/$stem -> $(basename "$versioned")"
+                cmds+=("sudo ln -sf $(basename "$versioned") $lib64/$stem")
             fi
         fi
     done
     if ! ldconfig -p 2>/dev/null | grep -q "$lib64"; then
-        echo "$lib64" | sudo tee /etc/ld.so.conf.d/zz-camera-viz-cuda.conf >/dev/null
-        sudo ldconfig
-        echo "    registered $lib64 with ldconfig"
+        cmds+=("echo $lib64 | sudo tee /etc/ld.so.conf.d/zz-camera-viz-cuda.conf >/dev/null"
+               "sudo ldconfig")
     fi
+    if [[ ${#cmds[@]} -eq 0 ]]; then
+        return 0
+    fi
+
+    {
+        echo "_install_deps.sh: Jetson CUDA libs aren't wired into ld.so / unversioned"
+        echo "symlinks are missing. cupy will fail to dlopen libnvrtc.so without these."
+        echo "Run (one-time) and then re-run setup:"
+        for c in "${cmds[@]}"; do
+            echo "  $c"
+        done
+    } >&2
+    exit 1
 }
-ensure_cuda_symlinks
+check_cuda_symlinks
 
 # Bootstrap uv from astral.sh if missing (Jetson images don't ship it).
 if ! command -v uv >/dev/null 2>&1; then
