@@ -164,29 +164,32 @@ class PolledSource(FrameSource):
 
     def stop(self) -> None:
         self._stop.set()
-        try:
-            if self._thread is not None:
-                self._thread.join(timeout=5.0)
-                if self._thread.is_alive():
-                    # Keep the thread visible to supervision; nulling
-                    # would hide a stuck non-daemon producer. Fall
-                    # through to _close_device anyway — releasing the
-                    # SDK handle (depthai/cv2/zed) often unblocks a
-                    # wedged grab.
-                    logger.warning(
-                        "%s '%s': producer thread did not exit within 5s",
-                        self._kind,
-                        self._spec.name,
-                    )
-                else:
-                    self._thread = None
-        finally:
-            if self._connected:
-                try:
-                    self._close_device()
-                except Exception:
-                    pass
-                self._connected = False
+        if self._thread is not None:
+            self._thread.join(timeout=5.0)
+            if self._thread.is_alive():
+                # Thread is wedged inside a subclass _grab() or
+                # _upload_and_convert() that has released the GIL.
+                # Calling _close_device() now would race the live SDK
+                # call (depthai/cv2/zed) — potential native UAF /
+                # driver crash. Leak the device handle instead; the
+                # thread keeps a self-reference via its bound method
+                # so nothing gets freed until it exits.
+                logger.warning(
+                    "%s '%s': producer thread did not exit within 5s; "
+                    "skipping _close_device (SDK handle leaked)",
+                    self._kind,
+                    self._spec.name,
+                )
+                return
+            self._thread = None
+
+        # Thread exited cleanly — safe to release the SDK handle.
+        if self._connected:
+            try:
+                self._close_device()
+            except Exception:
+                pass
+            self._connected = False
 
     def latest(self) -> Optional[Frame]:
         with self._publish_lock:

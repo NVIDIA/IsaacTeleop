@@ -127,22 +127,45 @@ class RtpH264Source(FrameSource):
 
     def stop(self) -> None:
         self._stop.set()
+        # Stop the GStreamer receiver FIRST so a thread blocked in
+        # try_pull_packet returns immediately. Pipeline state changes
+        # are thread-safe per GStreamer; this is the kick that unblocks
+        # the typical wedge.
         try:
-            if self._thread is not None:
-                self._thread.join(timeout=5.0)
-                if self._thread.is_alive():
-                    # Keep _thread visible to supervision; fall through
-                    # to _close() anyway — setting the GStreamer
-                    # receiver pipeline to NULL usually unblocks a
-                    # wedged decode loop.
-                    logger.warning(
-                        "RtpH264Source '%s': decode thread did not exit within 5s",
-                        self._spec.name,
-                    )
-                else:
-                    self._thread = None
-        finally:
-            self._close()
+            self._receiver.stop()
+        except Exception:
+            logger.debug(
+                "RtpH264Source '%s': receiver.stop raised",
+                self._spec.name,
+                exc_info=True,
+            )
+
+        if self._thread is not None:
+            self._thread.join(timeout=5.0)
+            if self._thread.is_alive():
+                # Thread is wedged INSIDE self._decoder.decode (which
+                # holds no GIL). Calling self._decoder.reset() now would
+                # race the native decode call — UAF / driver crash. Leak
+                # the decoder; the thread holds a self-reference via
+                # its bound method, so the decoder stays alive until
+                # the thread eventually exits or the process dies.
+                logger.warning(
+                    "RtpH264Source '%s': decode thread did not exit within 5s; "
+                    "skipping decoder.reset() (native handle leaked)",
+                    self._spec.name,
+                )
+                return
+            self._thread = None
+
+        # Thread exited cleanly — safe to release the decoder.
+        try:
+            self._decoder.reset()
+        except Exception:
+            logger.debug(
+                "RtpH264Source '%s': decoder.reset raised",
+                self._spec.name,
+                exc_info=True,
+            )
 
     def latest(self) -> Optional[Frame]:
         with self._publish_lock:
