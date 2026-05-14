@@ -272,6 +272,25 @@ class _OakdDevice:
         else:
             notify("oakd", f"USB {speed_name}")
 
+        # Per-sensor capability dump. Lets us tell the user what the
+        # board's RGB / mono sensors actually max out at — when the
+        # requested fps is silently capped (depthai's pipeline syncs
+        # all streams to the slowest sensor's achievable rate) this is
+        # the only way to know whether the limit is our config or the
+        # sensor itself.
+        try:
+            for feat in device.getConnectedCameraFeatures():
+                supported = ", ".join(str(c.fps) for c in feat.configs) or "?"
+                notify(
+                    "oakd",
+                    f"sensor {feat.socket.name}={feat.sensorName} "
+                    f"max fps per mode: {supported}",
+                )
+        except Exception as e:
+            # getConnectedCameraFeatures isn't on every depthai version;
+            # don't fail open on a probe-only call.
+            notify("oakd", f"sensor capability probe skipped ({e})")
+
         pipeline = dai.Pipeline(device)
         for s in self._stream_specs:
             socket_key = self._SOCKET_MAP[s.socket.upper()]

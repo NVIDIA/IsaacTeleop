@@ -323,14 +323,22 @@ class PolledSource(FrameSource):
 class PairedFrameSource(FrameSource):
     """Pair two per-eye FrameSources into a single stereo source.
 
-    Owns no thread of its own. latest() polls both children: when
-    each has produced a fresh Frame, emits one combined Frame with the
-    left source's image in Frame.image and the right source's image
-    in Frame.image_right. Skips the publish (returns None) if either
-    eye hasn't produced — the QuadLayer mailbox keeps the previous
-    matched pair until both eyes catch up. Acceptable because both eyes
-    share the camera producer (same SDK grab cycle), so they re-sync
-    within one frame.
+    Owns no thread of its own. ``latest()`` reads both children and
+    caches whichever side returned a frame. Emits a paired Frame
+    whenever EITHER side updated since the last emit; the older eye
+    stays paired with its most recent frame until it produces.
+
+    Why caching, not "wait for both": the underlying per-eye source's
+    ``latest()`` is one-shot — it marks the frame consumed even if the
+    caller chooses not to use it. The producer publishes left and
+    right sequentially within microseconds, but the consumer polls at
+    ~1 kHz, so polls routinely land between the two publishes. The
+    earlier "consume both, drop if either is None" implementation
+    threw away the side that came first on every such race, which at
+    high producer rates collapsed the visible fps to half and gave a
+    very laggy / stuttery display. Caching turns that into bounded
+    inter-eye drift of at most one producer frame — well under any
+    perceptual threshold for stereo.
 
     Both children MUST agree on (width, height, pixel_format).
     """
@@ -355,6 +363,10 @@ class PairedFrameSource(FrameSource):
         )
         self._left = left
         self._right = right
+        # Most recently observed Frame from each child. Updated whenever
+        # the child's latest() returns non-None (i.e. a fresh publish).
+        self._cached_left: Optional[Frame] = None
+        self._cached_right: Optional[Frame] = None
 
     @property
     def spec(self) -> SourceSpec:
@@ -380,19 +392,30 @@ class PairedFrameSource(FrameSource):
         self._right.stop()
 
     def latest(self) -> Optional[Frame]:
-        # Read both. We only publish when BOTH eyes have produced —
-        # otherwise the renderer would see a mismatched pair (or an
-        # update on one eye only, which submit() would treat as the
-        # left of a new pair with the previous right). Returning None
-        # leaves the layer rendering the prior matched pair.
+        # Pull from each child; cache whichever side delivered a fresh
+        # publish. ``updated`` tracks whether EITHER side moved since
+        # the previous call — when neither updated there's nothing new
+        # to render, so we return None and let the layer keep its last
+        # mailbox slot.
+        updated = False
         fl = self._left.latest()
+        if fl is not None:
+            self._cached_left = fl
+            updated = True
         fr = self._right.latest()
-        if fl is None or fr is None:
+        if fr is not None:
+            self._cached_right = fr
+            updated = True
+        if not updated:
+            return None
+        # Bootstrap: don't emit until both eyes have ever published.
+        # In steady state this only matters on the very first frame.
+        if self._cached_left is None or self._cached_right is None:
             return None
         return Frame(
-            image=fl.image,
-            image_right=fr.image,
-            timestamp_ns=fl.timestamp_ns,
+            image=self._cached_left.image,
+            image_right=self._cached_right.image,
+            timestamp_ns=self._cached_left.timestamp_ns,
             source_id=self._spec.name,
-            stream=fl.stream,
+            stream=self._cached_left.stream,
         )
