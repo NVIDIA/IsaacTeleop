@@ -11,4 +11,4 @@ SPDX-License-Identifier: Apache-2.0
 
 ## Python Node Layout
 
-- In `python/teleop_ros2_node.py`, preserve the existing grouped/sorted organization for global non-member helpers and for `TeleopRos2Node` member functions. When adding a helper or method, place it in the matching existing group rather than near the first call site.
+- In `python/teleop_ros2_node.py`, preserve the existing grouped/sorted organization for global non-member helpers and `TeleopRos2Node` member functions: scan the surrounding order before inserting, and do not place helpers near call sites when the existing section is sorted.

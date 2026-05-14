@@ -157,15 +157,19 @@ def _append_hand_poses(
     poses: List[Pose],
     joint_positions: np.ndarray,
     joint_orientations: np.ndarray,
+    joint_valid: np.ndarray,
     transform_rot: Rotation | None = None,
     transform_trans: Sequence[float] | None = None,
 ) -> None:
     for joint_idx in range(
         HandJointIndex.THUMB_METACARPAL, HandJointIndex.LITTLE_TIP + 1
     ):
-        pose = _to_pose(joint_positions[joint_idx], joint_orientations[joint_idx])
-        if transform_rot is not None or transform_trans is not None:
-            pose = _apply_transform_to_pose(pose, transform_rot, transform_trans)
+        if joint_valid[joint_idx]:
+            pose = _to_pose(joint_positions[joint_idx], joint_orientations[joint_idx])
+            if transform_rot is not None or transform_trans is not None:
+                pose = _apply_transform_to_pose(pose, transform_rot, transform_trans)
+        else:
+            pose = _to_pose([0.0, 0.0, 0.0])
         poses.append(pose)
 
 
@@ -291,6 +295,11 @@ def _build_plugins(
     ]
 
 
+def _controller_aim_is_valid(ctrl: OptionalTensorGroup) -> bool:
+    # DeviceIO's AIM_IS_VALID flag is the usability contract for aim poses.
+    return not ctrl.is_none and bool(ctrl[ControllerInputIndex.AIM_IS_VALID])
+
+
 def _find_plugins_dirs(start: Path) -> List[Path]:
     candidates: List[Path] = []
     for parent in [start, *start.parents]:
@@ -298,6 +307,12 @@ def _find_plugins_dirs(start: Path) -> List[Path]:
         if plugin_dir.is_dir() and plugin_dir not in candidates:
             candidates.append(plugin_dir)
     return candidates
+
+
+def _hand_joint_is_valid(hand: OptionalTensorGroup, joint_idx: HandJointIndex) -> bool:
+    if hand.is_none:
+        return False
+    return bool(hand[HandInputIndex.JOINT_VALID][joint_idx])
 
 
 def _joint_names_from_group_type(group_type) -> List[str]:
@@ -492,7 +507,7 @@ def _build_ee_msg_from_controllers(
     msg.header.stamp = now
     msg.header.frame_id = frame_id
 
-    if not left_ctrl.is_none:
+    if _controller_aim_is_valid(left_ctrl):
         pos = [float(x) for x in left_ctrl[ControllerInputIndex.AIM_POSITION]]
         ori = [float(x) for x in left_ctrl[ControllerInputIndex.AIM_ORIENTATION]]
         pose = _to_pose(pos, ori)
@@ -507,7 +522,7 @@ def _build_ee_msg_from_controllers(
     else:
         msg.poses.append(_to_pose([0.0, 0.0, 0.0]))
 
-    if not right_ctrl.is_none:
+    if _controller_aim_is_valid(right_ctrl):
         pos = [float(x) for x in right_ctrl[ControllerInputIndex.AIM_POSITION]]
         ori = [float(x) for x in right_ctrl[ControllerInputIndex.AIM_ORIENTATION]]
         pose = _to_pose(pos, ori)
@@ -538,7 +553,7 @@ def _build_ee_msg_from_hands(
     msg.header.stamp = now
     msg.header.frame_id = frame_id
 
-    if not left_hand.is_none:
+    if _hand_joint_is_valid(left_hand, HandJointIndex.WRIST):
         left_positions = np.asarray(left_hand[HandInputIndex.JOINT_POSITIONS])
         left_orientations = np.asarray(left_hand[HandInputIndex.JOINT_ORIENTATIONS])
         pose = _to_pose(
@@ -551,7 +566,7 @@ def _build_ee_msg_from_hands(
     else:
         msg.poses.append(_to_pose([0.0, 0.0, 0.0]))
 
-    if not right_hand.is_none:
+    if _hand_joint_is_valid(right_hand, HandJointIndex.WRIST):
         right_positions = np.asarray(right_hand[HandInputIndex.JOINT_POSITIONS])
         right_orientations = np.asarray(right_hand[HandInputIndex.JOINT_ORIENTATIONS])
         pose = _to_pose(
@@ -583,10 +598,12 @@ def _build_hand_msg_from_hands(
     if not right_hand.is_none:
         right_positions = np.asarray(right_hand[HandInputIndex.JOINT_POSITIONS])
         right_orientations = np.asarray(right_hand[HandInputIndex.JOINT_ORIENTATIONS])
+        right_valid = np.asarray(right_hand[HandInputIndex.JOINT_VALID])
         _append_hand_poses(
             msg.poses,
             right_positions,
             right_orientations,
+            right_valid,
             transform_rot,
             transform_trans,
         )
@@ -597,8 +614,14 @@ def _build_hand_msg_from_hands(
     if not left_hand.is_none:
         left_positions = np.asarray(left_hand[HandInputIndex.JOINT_POSITIONS])
         left_orientations = np.asarray(left_hand[HandInputIndex.JOINT_ORIENTATIONS])
+        left_valid = np.asarray(left_hand[HandInputIndex.JOINT_VALID])
         _append_hand_poses(
-            msg.poses, left_positions, left_orientations, transform_rot, transform_trans
+            msg.poses,
+            left_positions,
+            left_orientations,
+            left_valid,
+            transform_rot,
+            transform_trans,
         )
     else:
         for _ in range(HandJointIndex.THUMB_METACARPAL, HandJointIndex.LITTLE_TIP + 1):
@@ -1346,8 +1369,12 @@ class TeleopRos2Node(Node):
                                 self._pub_ee_pose.publish(ee_msg)
                             wrist_tfs = self._build_wrist_tfs(
                                 ee_msg,
-                                right_available=not right_hand.is_none,
-                                left_available=not left_hand.is_none,
+                                right_available=_hand_joint_is_valid(
+                                    right_hand, HandJointIndex.WRIST
+                                ),
+                                left_available=_hand_joint_is_valid(
+                                    left_hand, HandJointIndex.WRIST
+                                ),
                                 now=now,
                             )
                             if wrist_tfs:
@@ -1369,8 +1396,8 @@ class TeleopRos2Node(Node):
                                 self._pub_ee_pose.publish(ee_msg)
                             wrist_tfs = self._build_wrist_tfs(
                                 ee_msg,
-                                right_available=not right_ctrl.is_none,
-                                left_available=not left_ctrl.is_none,
+                                right_available=_controller_aim_is_valid(right_ctrl),
+                                left_available=_controller_aim_is_valid(left_ctrl),
                                 now=now,
                             )
                             if wrist_tfs:
