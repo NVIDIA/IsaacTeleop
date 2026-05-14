@@ -43,11 +43,12 @@ source examples/camera_viz/.venv/bin/activate
 ```
 
 `setup` creates `examples/camera_viz/.venv/`, installs the IsaacTeleop
-wheel + every Python dep camera_viz / camera_streamer need (cupy, scipy,
-pyyaml, opencv-python, depthai, PyGObject), and builds the native
-NVENC/NVDEC codec under `codec/`. Flags: `--no-rtp` / `--no-oakd` /
-`--no-v4l2` to skip extras, `--with-zed` for pyzed, `--sender-only`
-for a sender-only host (skips wheel + vulkan deps).
+wheel and the Python deps camera_viz / camera_streamer need (cupy,
+scipy, pyyaml, opencv-python, depthai), apt-installs the system
+GStreamer + PyGObject bindings, and builds the native NVENC/NVDEC
+codec under `codec/`. Flags: `--no-rtp` / `--no-oakd` / `--no-v4l2`
+to skip extras, `--with-zed` for pyzed, `--sender-only` for a sender-
+only host (skips wheel + vulkan deps).
 
 ### Workstation, local cameras
 

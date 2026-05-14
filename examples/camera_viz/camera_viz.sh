@@ -26,10 +26,9 @@ SCRIPTS_DIR="$HERE/scripts"
 SERVICE_NAME="camera-streamer"
 SERVICE_TEMPLATE="$SCRIPTS_DIR/${SERVICE_NAME}.service.in"
 
-# Where the source tree lands on the robot. Relative path — rsync and
-# ssh both interpret it against the remote user's home directory.
-# Don't switch to ~ or $HOME: rsync's --protect-args (default in 3.2+)
-# prevents the remote shell from expanding those.
+# Relative path → resolved against the remote user's home by rsync + ssh.
+# Don't use ~ or $HOME: rsync's --protect-args (3.2+ default) blocks
+# remote shell expansion in the destination.
 REMOTE_DIR='camera_viz'
 
 # ──────────────────────────────────────────────────────────────────────
@@ -47,8 +46,7 @@ log_step()  { echo -e "\n\033[1m=== $* ===${_C_RESET}"; }
 # Shared remote arg parsing (--host/--user/--password)
 # ──────────────────────────────────────────────────────────────────────
 
-# Sets REMOTE_HOST / REMOTE_USER / REMOTE_PASSWORD and consumes those
-# flags from "$@". Leaves any remaining positionals in REMOTE_REST[].
+# Sets REMOTE_{HOST,USER,PASSWORD}; remaining positionals → REMOTE_REST[].
 parse_remote_args() {
     REMOTE_HOST=""
     REMOTE_USER=""
@@ -71,8 +69,6 @@ parse_remote_args() {
     fi
 }
 
-# Run a command on the remote. Stdin is forwarded; stdout/stderr stream
-# back. Caller passes the remote command as a single string in $1.
 ssh_run() {
     local cmd="$1"
     if [[ -n "$REMOTE_PASSWORD" ]]; then
@@ -83,7 +79,7 @@ ssh_run() {
     fi
 }
 
-# Same as ssh_run but allocates a TTY (needed for remote sudo prompts).
+# TTY variant — needed for remote sudo prompts.
 ssh_run_tty() {
     local cmd="$1"
     if [[ -n "$REMOTE_PASSWORD" ]]; then
@@ -94,7 +90,6 @@ ssh_run_tty() {
     fi
 }
 
-# rsync source → robot. Excludes build / venv / git artifacts.
 rsync_to_remote() {
     local rsync_ssh="ssh -o StrictHostKeyChecking=accept-new"
     if [[ -n "$REMOTE_PASSWORD" ]]; then
@@ -120,18 +115,27 @@ cmd_setup() {
 }
 
 # ──────────────────────────────────────────────────────────────────────
-# receive (local viewer pointed at a remote sender)
+# Local-command helpers
 # ──────────────────────────────────────────────────────────────────────
 
-# Rewrites the YAML to source: rtp and prints the temp file path. Caller
-# must ``rm -f`` it after use. Receiver binds 0.0.0.0:rtp.port — sender
-# IP is irrelevant here.
+# Validate CONFIG arg + local venv; on success sets LOCAL_VENV.
+_require_local_config() {
+    local cmd_name="$1" config="$2"
+    [[ -n "$config" ]] || { log_error "usage: camera_viz.sh $cmd_name CONFIG"; exit 1; }
+    [[ -f "$config" ]] || { log_error "config not found: $config"; exit 1; }
+    LOCAL_VENV="$HERE/.venv"
+    [[ -x "$LOCAL_VENV/bin/python" ]] || {
+        log_error "no venv at $LOCAL_VENV — run ./camera_viz.sh setup first"
+        exit 1
+    }
+}
+
+# Write a receiver-side copy of CONFIG with ``source: rtp`` forced on.
+# Caller is responsible for rm-ing the returned path.
 _rewrite_recv_config() {
-    local src="$1"
-    local venv="$2"
-    local dst
+    local src="$1" dst
     dst="$(mktemp -t camera_viz_recv.XXXXXX.yaml)"
-    "$venv/bin/python" - "$src" "$dst" <<'PY'
+    "$LOCAL_VENV/bin/python" - "$src" "$dst" <<'PY'
 import sys, yaml
 src, dst = sys.argv[1], sys.argv[2]
 with open(src) as f: cfg = yaml.safe_load(f)
@@ -141,24 +145,19 @@ PY
     echo "$dst"
 }
 
+# ──────────────────────────────────────────────────────────────────────
+# receive (local viewer pointed at a remote sender)
+# ──────────────────────────────────────────────────────────────────────
+
 cmd_receive() {
-    local config="${1:-}"
-    [[ -n "$config" ]] || { log_error "usage: camera_viz.sh receive CONFIG"; exit 1; }
-    [[ -f "$config" ]] || { log_error "config not found: $config"; exit 1; }
-
-    local venv="$HERE/.venv"
-    [[ -x "$venv/bin/python" ]] || {
-        log_error "no venv at $venv — run ./camera_viz.sh setup first"
-        exit 1
-    }
-
+    _require_local_config receive "${1:-}"
     local recv_config
-    recv_config="$(_rewrite_recv_config "$config" "$venv")"
+    recv_config="$(_rewrite_recv_config "$1")"
     # shellcheck disable=SC2064
     trap "rm -f '$recv_config'" EXIT
 
     log_step "Starting camera_viz (source: rtp) — Ctrl-C to exit"
-    "$venv/bin/python" "$HERE/camera_viz.py" "$recv_config"
+    "$LOCAL_VENV/bin/python" "$HERE/camera_viz.py" "$recv_config"
 }
 
 # ──────────────────────────────────────────────────────────────────────
@@ -166,23 +165,14 @@ cmd_receive() {
 # ──────────────────────────────────────────────────────────────────────
 
 cmd_loopback() {
-    local config="${1:-}"
-    [[ -n "$config" ]] || { log_error "usage: camera_viz.sh loopback CONFIG"; exit 1; }
-    [[ -f "$config" ]] || { log_error "config not found: $config"; exit 1; }
-
-    local venv="$HERE/.venv"
-    [[ -x "$venv/bin/python" ]] || {
-        log_error "no venv at $venv — run ./camera_viz.sh setup first"
-        exit 1
-    }
-
+    _require_local_config loopback "${1:-}"
     local recv_config
-    recv_config="$(_rewrite_recv_config "$config" "$venv")"
+    recv_config="$(_rewrite_recv_config "$1")"
     # shellcheck disable=SC2064
     trap "rm -f '$recv_config'" EXIT
 
     log_step "Starting camera_streamer → 127.0.0.1 (background)"
-    "$venv/bin/python" "$HERE/camera_streamer.py" "$config" --host 127.0.0.1 &
+    "$LOCAL_VENV/bin/python" "$HERE/camera_streamer.py" "$1" --host 127.0.0.1 &
     local sender_pid=$!
 
     cleanup_sender() {
@@ -195,7 +185,7 @@ cmd_loopback() {
     trap 'cleanup_sender; rm -f "$recv_config"' EXIT
 
     log_step "Starting camera_viz (foreground) — Ctrl-C to exit"
-    "$venv/bin/python" "$HERE/camera_viz.py" "$recv_config"
+    "$LOCAL_VENV/bin/python" "$HERE/camera_viz.py" "$recv_config"
 }
 
 # ──────────────────────────────────────────────────────────────────────
@@ -203,9 +193,8 @@ cmd_loopback() {
 # ──────────────────────────────────────────────────────────────────────
 
 cmd_deploy() {
-    # ``--no-service`` skips the systemd install + linger + enable steps.
-    # Pull it out of "$@" before parse_remote_args runs since the latter
-    # collects unknown args into REMOTE_REST as the positional config.
+    # Filter --no-service out of "$@" before parse_remote_args runs;
+    # otherwise it lands in REMOTE_REST and gets mistaken for the config.
     local no_service=false
     local filtered=()
     for arg in "$@"; do
@@ -234,10 +223,8 @@ cmd_deploy() {
     log_ok "source synced"
 
     log_step "Installing deps on robot (sender-only)"
-    # ``--sender-only`` means no isaacteleop wheel + no vulkan deps.
-    # Use ssh_run_tty so apt + sudo can prompt for the password — the
-    # script's apt step is gated on a fast pkg-config check, so it
-    # only prompts on first deploy / when system libs are missing.
+    # TTY so apt's sudo can prompt; the script's gating makes that a
+    # one-time cost on first deploy.
     ssh_run_tty "cd $REMOTE_DIR && bash scripts/_install_deps.sh --sender-only"
     log_ok "deps installed"
 
@@ -250,10 +237,7 @@ cmd_deploy() {
     fi
 
     log_step "Installing systemd unit"
-    # Render the service file from template with absolute remote paths.
-    # WORKDIR/VENV/CONFIG must be expanded on the REMOTE side because
-    # ~/camera_viz expands to a different path per host. We do this with
-    # a small shell snippet inline.
+    # Render the template on the remote side so $HOME expands there.
     local install_cmd
     install_cmd=$(cat <<REMOTE
 set -euo pipefail
@@ -273,8 +257,7 @@ REMOTE
 )
     ssh_run "$install_cmd"
 
-    # loginctl enable-linger needs root, and only once per Jetson. Skip
-    # if already enabled. ssh -t so the sudo prompt can interact.
+    # One-time sudo to enable linger so the service survives logout.
     log_step "Enabling user-mode systemd persistence"
     local linger_cmd
     linger_cmd=$(cat <<REMOTE

@@ -2,29 +2,24 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-# _install_deps.sh — provisions the camera_viz Python venv + native codec.
-# Called by ``camera_viz.sh setup`` (locally) and ``camera_viz.sh deploy``
-# (remotely over SSH). Not intended for direct invocation by users.
+# Provisions the camera_viz venv + native codec. Invoked by
+# ``camera_viz.sh setup`` (local) and ``camera_viz.sh deploy`` (over SSH).
 #
 # Modes:
-#   --full         viewer + sender (workstation default). Installs
-#                  isaacteleop wheel from build/wheels/.
-#   --sender-only  sender path only. Skips the wheel + vulkan deps;
-#                  used on Jetson robots where camera_streamer.py runs
-#                  but camera_viz.py does not.
+#   --full         viewer + sender (workstation). Installs isaacteleop wheel.
+#   --sender-only  sender path only. No wheel, no vulkan deps.
 #
-# Other flags mirror the previous setup_dev_env.sh: --venv, --wheel,
-# --python, --no-v4l2, --no-oakd, --no-rtp, --with-zed, --zed-sdk.
+# Flags: --venv, --wheel, --python, --no-v4l2, --no-oakd, --no-rtp,
+#        --with-zed, --zed-sdk.
 
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 CAMERA_VIZ_DIR="$(cd "$HERE/.." && pwd)"
 
-# In the local workstation flow, the wheel lives in REPO_ROOT/build/wheels/.
-# Resolve only when the layout looks right; over SSH on a robot, there's
-# no repo around the source tree and that's fine — --sender-only doesn't
-# need a wheel.
+# Only resolved when this lives inside the IsaacTeleop tree (local flow).
+# Empty on rsync'd robot deploys, which use --sender-only and don't need
+# the wheel anyway.
 REPO_ROOT=""
 if [[ -d "$CAMERA_VIZ_DIR/../.." ]]; then
     REPO_ROOT="$(cd "$CAMERA_VIZ_DIR/../.." && pwd)"
@@ -56,15 +51,9 @@ while (( $# )); do
     esac
 done
 
-# Detect CUDA major.minor from /usr/local/cuda's resolved target
-# (typically /usr/local/cuda → /etc/alternatives/cuda → /usr/local/
-# cuda-13.0). Default to 12.0 when nothing's detectable.
-#
-# Both pieces are load-bearing:
-#   - major picks the cupy wheel  (cupy-cuda12x vs cupy-cuda13x)
-#   - major.minor picks the apt nvrtc package  (cuda-nvrtc-12-6 on
-#     Orin/JP6, cuda-nvrtc-13-0 on Thor/JP7). The minor matters
-#     because JetPack only publishes the exact-minor package.
+# major picks the cupy wheel (cupy-cuda12x / cupy-cuda13x).
+# major.minor picks the apt nvrtc package (cuda-nvrtc-12-6 on Orin/JP6,
+# cuda-nvrtc-13-0 on Thor/JP7); JetPack only publishes the exact-minor.
 cuda_major=12
 cuda_minor=0
 if [[ -e /usr/local/cuda ]]; then
@@ -76,10 +65,9 @@ if [[ -e /usr/local/cuda ]]; then
     fi
 fi
 
-# System apt deps: Debian PyGObject + GStreamer (so we don't source-build
-# pycairo / PyGObject) plus cuda-nvrtc, which JetPack 7's base image
-# doesn't ship — cupy can't compile kernels without it. Idempotent;
-# skipped fast when nothing is missing.
+# Apt-install: Debian PyGObject (avoids a pycairo source-build), GStreamer
+# plugins, and cuda-nvrtc (JetPack base image omits it). Idempotent; each
+# package is gated on a fast check.
 ensure_apt_deps() {
     if ! $WITH_RTP; then
         return 0
@@ -99,9 +87,6 @@ ensure_apt_deps() {
             gstreamer1.0-plugins-good
         )
     fi
-    # NVRTC is the kernel compiler cupy uses at runtime. JetPack omits
-    # it from the base CUDA toolkit metapackages; install the exact-
-    # minor package (Orin/JP6: cuda-nvrtc-12-6, Thor/JP7: cuda-nvrtc-13-0).
     if ! find /usr -name 'libnvrtc.so*' 2>/dev/null | grep -q .; then
         pkgs+=("cuda-nvrtc-${cuda_major}-${cuda_minor}")
     fi
@@ -118,12 +103,9 @@ ensure_apt_deps() {
 }
 ensure_apt_deps
 
-# JetPack's cuda-nvrtc-13-0 lays down libnvrtc.so.13 in /usr/local/cuda/
-# lib64 but skips the unversioned symlink and the ld.so cache entry that
-# the desktop CUDA installer normally creates. cupy + cuda.pathfinder
-# both look for ``libnvrtc.so`` (no version) and resolve via ld.so, so
-# without the symlink + cache entry the load fails with "No such file:
-# libnvrtc.so*" even though the .so.13 sits right there.
+# JetPack ships versioned libs (libnvrtc.so.13) without the unversioned
+# symlink + ld.so cache entry that desktop CUDA creates. cupy looks up
+# ``libnvrtc.so`` and fails to resolve without these.
 ensure_cuda_symlinks() {
     if [[ ! -d /usr/local/cuda/lib64 ]]; then
         return 0
@@ -166,8 +148,7 @@ ensure_cuda_symlinks() {
 }
 ensure_cuda_symlinks
 
-# Auto-install uv into ~/.local/bin if missing. Jetson images usually
-# don't ship it; we don't want a fresh deploy to require a manual step.
+# Bootstrap uv from astral.sh if missing (Jetson images don't ship it).
 if ! command -v uv >/dev/null 2>&1; then
     if [[ -x "$HOME/.local/bin/uv" ]]; then
         export PATH="$HOME/.local/bin:$PATH"
@@ -207,17 +188,10 @@ echo "==> python: $PYTHON_VERSION"
 [[ "$MODE" == full ]] && echo "==> wheel:  $WHEEL"
 
 if [[ ! -d "$VENV_DIR" ]]; then
-    # --system-site-packages lets the venv see Debian's apt-packaged
-    # python3-gi / python3-gst-1.0 without rebuilding them from source.
-    # Venv-installed packages still shadow system ones (venv site-packages
-    # is prepended to sys.path).
-    #
-    # Critical: in --sender-only mode we base the venv on the SYSTEM
-    # python3, not uv's managed download. --system-site-packages exposes
-    # whichever interpreter's site-packages the base points at, and only
-    # the system python3 sees /usr/lib/python3/dist-packages (where
-    # python3-gi lands). Full mode pins by version since it needs to
-    # match the IsaacTeleop wheel's ABI.
+    # --system-site-packages exposes Debian's python3-gi / python3-gst-1.0
+    # (no pycairo source-build); venv installs still shadow system pkgs.
+    # Sender mode must base on system python3 so /usr/lib/python3/dist-
+    # packages is reachable — uv's managed download has empty site-packages.
     if [[ "$MODE" == sender ]]; then
         sys_py="$(command -v python3 || true)"
         [[ -x "$sys_py" ]] || {
@@ -233,9 +207,8 @@ PY="$VENV_DIR/bin/python"
 
 echo "==> cuda:   ${cuda_major}.${cuda_minor} (cupy-cuda${cuda_major}x, cuda-nvrtc-${cuda_major}-${cuda_minor})"
 
-# Mirrors pyproject.toml's dependency block. Sender-only drops the wheel.
-# PyGObject is intentionally NOT here — it comes from system python3-gi
-# via --system-site-packages above.
+# Mirrors pyproject.toml. PyGObject comes from system python3-gi via
+# --system-site-packages, not pip.
 PKGS=("pyyaml>=6.0" "cupy-cuda${cuda_major}x" "numpy>=1.23" "scipy>=1.15")
 [[ "$MODE" == full ]] && PKGS=("$WHEEL" "${PKGS[@]}")
 $WITH_V4L2 && PKGS+=("opencv-python>=4.5")
@@ -245,9 +218,9 @@ $WITH_RTP  && PKGS+=("pybind11>=2.11")
 echo "==> installing: ${PKGS[*]}"
 uv pip install --python "$PY" --upgrade "${PKGS[@]}"
 
-# ZED SDK's get_python_api.py downloads a pyzed wheel matching the active
-# Python. We run it inside the venv-Python, expect its internal pip step
-# to fail (uv venvs don't ship pip), then install the leftover wheel.
+# ZED SDK ships get_python_api.py which downloads a matching pyzed wheel
+# and then tries ``pip install`` it (which fails in uv venvs, no pip).
+# We let that fail and install the wheel ourselves.
 if $WITH_ZED; then
     [[ -f "$ZED_SDK_DIR/get_python_api.py" ]] || {
         echo "_install_deps.sh: --with-zed but no $ZED_SDK_DIR/get_python_api.py." >&2
@@ -271,9 +244,8 @@ if $WITH_ZED; then
     rm -rf "$tmp"
 fi
 
-# Native NVENC/NVDEC codec. Skipped under --no-rtp. On Jetson, the build
-# may fail (no CUDA toolkit on some L4T images); we keep going so the
-# GStreamer fallback path still works.
+# Native NVENC/NVDEC codec. Failures are non-fatal: the runtime falls
+# back to the GStreamer encoder when the native ``.so`` isn't importable.
 if $WITH_RTP; then
     CODEC_DIR="$CAMERA_VIZ_DIR/codec"
     if [[ -d "$CODEC_DIR" ]]; then
@@ -287,9 +259,8 @@ if $WITH_RTP; then
     fi
 fi
 
-# Smoke import — kept minimal so this works in --sender-only too. ``gi``
-# is included when RTP is enabled to verify --system-site-packages
-# actually exposes the apt-installed PyGObject.
+# Smoke imports. ``gi`` is in the list under RTP to confirm
+# --system-site-packages is wired up.
 echo "==> import smoke"
 SMOKE_MODS="cupy yaml scipy.spatial.transform"
 [[ "$MODE" == full ]] && SMOKE_MODS="isaacteleop.viz $SMOKE_MODS"
