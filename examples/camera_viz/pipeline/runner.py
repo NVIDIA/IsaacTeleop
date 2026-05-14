@@ -28,15 +28,13 @@ logger = logging.getLogger(__name__)
 # Submit thread poll interval when no source has new data.
 SUBMIT_POLL_S = 0.001
 
-# Render thread idle wake intervals — the cond.wait timeout used when
-# the producer hasn't published anything new. Each render cycle is
-# (idle_wait + render_call_duration); for XR the cycle must be < the
-# display period (90 Hz → 11.1 ms) or we miss display ticks and judder.
-# XR's xrWaitFrame paces us internally, so a tight loop is correct.
-# Window mode with MAILBOX needs the throttle since there's no vsync
-# block on the present side.
-RENDER_IDLE_TICK_S_XR = 0.002  # 500 Hz idle; xrWaitFrame absorbs the slack
-RENDER_IDLE_TICK_S_WINDOW = 1.0 / 60.0  # 16.6 ms — fine for windowed MAILBOX
+# Window-mode stop-check granularity. stop() calls cond.notify_all()
+# so this is normally a safety net, not a hot path — value isn't a
+# render rate, it's "how long until Ctrl-C is honored if a notify
+# is somehow lost." No XR equivalent: XR's render loop is paced by
+# xrWaitFrame and iterates at display rate, which is itself a tight
+# stop-check granularity (~one display period).
+STOP_CHECK_INTERVAL_S = 0.5
 
 
 class VizRunner:
@@ -228,32 +226,58 @@ class VizRunner:
             self._record_error(e, "render")
 
     def _render_loop_inner(self) -> None:
-        is_xr = self._session.is_xr_mode()
-        idle_tick_s = RENDER_IDLE_TICK_S_XR if is_xr else RENDER_IDLE_TICK_S_WINDOW
+        # Two distinct loop shapes, principled per mode:
+        #   XR: tight loop, paced by xrWaitFrame inside session.render().
+        #       The runtime requires xrEndFrame every display tick, so
+        #       there's no "idle skip" option — we render even with
+        #       stale data. Stop is checked once per iteration ≈ one
+        #       display period.
+        #   Window: pure event-driven. Render only on producer notify
+        #       (cond.wait blocks indefinitely until notify or stop).
+        #       The display already shows the last presented frame, so
+        #       skipping idle renders is correct; window events go
+        #       through pump_events on the main thread, not us.
+        if self._session.is_xr_mode():
+            self._render_loop_xr()
+        else:
+            self._render_loop_window()
+
+    def _render_loop_xr(self) -> None:
+        while not self._stop.is_set():
+            self._apply_xr_placements()
+            self._session.render()
+            if self._session.should_close():
+                self._stop.set()
+
+    def _render_loop_window(self) -> None:
         last_seen_version = 0
         while not self._stop.is_set():
             with self._data_cond:
                 if self._data_version == last_seen_version:
-                    self._data_cond.wait(timeout=idle_tick_s)
+                    # Block until producer notifies OR stop() wakes us.
+                    # The timeout is just a Ctrl-C safety net for the
+                    # case where a notify is lost; not a render rate.
+                    self._data_cond.wait(timeout=STOP_CHECK_INTERVAL_S)
                 last_seen_version = self._data_version
             if self._stop.is_set():
                 break
-
-            # XR placement update from current head pose.
-            if is_xr and any(s is not None for s in self._strategies):
-                head = self._session.head_pose_now()
-                if head is not None:
-                    for layer, strategy in zip(self._layers, self._strategies):
-                        if strategy is None:
-                            continue
-                        placement = strategy.update(head.position, head.orientation)
-                        layer.set_placement(
-                            viz.QuadLayerPlacement(
-                                viz.Pose3D(placement.position, placement.orientation),
-                                placement.size_meters,
-                            )
-                        )
-
             self._session.render()
             if self._session.should_close():
                 self._stop.set()
+
+    def _apply_xr_placements(self) -> None:
+        if not any(s is not None for s in self._strategies):
+            return
+        head = self._session.head_pose_now()
+        if head is None:
+            return
+        for layer, strategy in zip(self._layers, self._strategies):
+            if strategy is None:
+                continue
+            placement = strategy.update(head.position, head.orientation)
+            layer.set_placement(
+                viz.QuadLayerPlacement(
+                    viz.Pose3D(placement.position, placement.orientation),
+                    placement.size_meters,
+                )
+            )
