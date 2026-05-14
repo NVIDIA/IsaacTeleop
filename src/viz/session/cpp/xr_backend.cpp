@@ -486,7 +486,11 @@ std::optional<DisplayBackend::Frame> XrBackend::begin_frame(int64_t /*ignored*/)
     }
     f.wait_before_render = VK_NULL_HANDLE;
     f.signal_after_render = VK_NULL_HANDLE;
-    f.backend_token = static_cast<uint64_t>(last_frame_state_.predictedDisplayTime);
+    // backend_token contract is 0..image_count()-1; use a monotonic
+    // counter mod image_count() instead of predictedDisplayTime so the
+    // invariant holds if image_count ever grows past 1.
+    const uint32_t slots = image_count();
+    f.backend_token = (slots == 0) ? 0u : (frame_index_++ % slots);
     // Hand protocol-balance off to the compositor's FrameGuard.
     in_flight_guard.dismissed = true;
     return f;

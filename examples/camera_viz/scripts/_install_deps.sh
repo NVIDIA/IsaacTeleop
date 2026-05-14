@@ -85,19 +85,22 @@ ensure_apt_deps() {
     # Checked per-element via gst-inspect-1.0 so hosts that have python3-gi
     # but missing plugins (a real failure mode on partially-provisioned
     # systems) still get the right apt packages.
-    local need_base=false need_good=false need_bad=false
+    local need_base=false need_good=false need_bad=false need_ugly=false
     if command -v gst-inspect-1.0 >/dev/null 2>&1; then
         gst-inspect-1.0 videoconvert >/dev/null 2>&1 || need_base=true
         gst-inspect-1.0 rtph264pay   >/dev/null 2>&1 || need_good=true
         gst-inspect-1.0 udpsink      >/dev/null 2>&1 || need_good=true
         gst-inspect-1.0 h264parse    >/dev/null 2>&1 || need_bad=true
+        # x264enc is the CPU fallback in GstNvH264Encoder's candidate list.
+        gst-inspect-1.0 x264enc      >/dev/null 2>&1 || need_ugly=true
     else
         # No gst-inspect → install everything.
-        need_base=true; need_good=true; need_bad=true
+        need_base=true; need_good=true; need_bad=true; need_ugly=true
     fi
     $need_base && pkgs+=(gstreamer1.0-plugins-base)
     $need_good && pkgs+=(gstreamer1.0-plugins-good)
     $need_bad  && pkgs+=(gstreamer1.0-plugins-bad gstreamer1.0-libav)
+    $need_ugly && pkgs+=(gstreamer1.0-plugins-ugly)
 
     if ! find /usr -name 'libnvrtc.so*' 2>/dev/null | grep -q .; then
         pkgs+=("cuda-nvrtc-${cuda_major}-${cuda_minor}")

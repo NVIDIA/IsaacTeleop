@@ -76,6 +76,11 @@ class VizRunner:
         # can't be lost.
         self._data_cond = threading.Condition()
         self._data_version = 0
+        # First exception raised by either loop. ``wait()`` re-raises it
+        # so the main thread sees a thread death instead of silently
+        # falling through to ``return 0``.
+        self._error: Optional[BaseException] = None
+        self._error_lock = threading.Lock()
 
     def start(self) -> None:
         if self._submit_thread is not None or self._render_thread is not None:
@@ -110,36 +115,45 @@ class VizRunner:
         with self._data_cond:
             self._data_cond.notify_all()
         # Bounded joins so a wedged session.render() / source doesn't
-        # block Ctrl-C. If a thread doesn't exit, warn but keep the
-        # reference — these are non-daemon threads, so they'll still
-        # block process exit and remain visible to a later stop().
-        stuck = False
-        if self._render_thread is not None:
-            self._render_thread.join(timeout=5.0)
-            if self._render_thread.is_alive():
-                logger.warning("render thread did not exit within 5s")
-                stuck = True
-            else:
-                self._render_thread = None
-        if self._submit_thread is not None:
-            self._submit_thread.join(timeout=5.0)
-            if self._submit_thread.is_alive():
-                logger.warning("submit thread did not exit within 5s")
-                stuck = True
-            else:
-                self._submit_thread = None
-        if stuck:
-            return
-        for s in self._sources:
-            try:
-                s.stop()
-            except Exception:
-                logger.exception("source.stop() raised")
+        # block Ctrl-C. Non-daemon threads still block process exit, so
+        # we keep stuck thread references for a later retry. Sources
+        # ALWAYS get stop()ped — they own camera/GStreamer handles and
+        # leaking them on a stuck thread is worse than retrying later.
+        try:
+            if self._render_thread is not None:
+                self._render_thread.join(timeout=5.0)
+                if self._render_thread.is_alive():
+                    logger.warning("render thread did not exit within 5s")
+                else:
+                    self._render_thread = None
+            if self._submit_thread is not None:
+                self._submit_thread.join(timeout=5.0)
+                if self._submit_thread.is_alive():
+                    logger.warning("submit thread did not exit within 5s")
+                else:
+                    self._submit_thread = None
+        finally:
+            for s in self._sources:
+                try:
+                    s.stop()
+                except Exception:
+                    logger.exception("source.stop() raised")
 
     def wait(self) -> None:
-        """Block until the render thread exits. Polls so SIGINT is delivered."""
+        """Block until the render thread exits, then re-raise any captured
+        thread error. Polls so SIGINT is delivered."""
         while self._render_thread is not None and self._render_thread.is_alive():
             self._render_thread.join(timeout=0.1)
+        # The submit thread may still be running (it exits on _stop set
+        # by render's exit / signal handler / record_error). Give it the
+        # same poll-loop courtesy so its error has a chance to land
+        # before we re-raise.
+        while self._submit_thread is not None and self._submit_thread.is_alive():
+            self._submit_thread.join(timeout=0.1)
+        with self._error_lock:
+            err = self._error
+        if err is not None:
+            raise err
 
     def __enter__(self) -> "VizRunner":
         self.start()
@@ -148,9 +162,28 @@ class VizRunner:
     def __exit__(self, *exc) -> None:
         self.stop()
 
+    # Capture the first exception either loop raises, signal stop so the
+    # peer thread exits cleanly, and let wait() re-raise to the main
+    # thread. Without this, a dead thread silently leaves the main
+    # process running.
+    def _record_error(self, exc: BaseException, where: str) -> None:
+        with self._error_lock:
+            if self._error is None:
+                self._error = exc
+        logger.error("VizRunner %s thread failed: %s", where, exc, exc_info=True)
+        self._stop.set()
+        with self._data_cond:
+            self._data_cond.notify_all()
+
     # ── Submit thread ──────────────────────────────────────────────────
 
     def _submit_loop(self) -> None:
+        try:
+            self._submit_loop_inner()
+        except BaseException as e:  # noqa: BLE001 — propagate everything
+            self._record_error(e, "submit")
+
+    def _submit_loop_inner(self) -> None:
         # Pin to the source's GPU on the first frame.
         device_pinned = False
         while not self._stop.is_set():
@@ -182,6 +215,12 @@ class VizRunner:
     # ── Render thread ──────────────────────────────────────────────────
 
     def _render_loop(self) -> None:
+        try:
+            self._render_loop_inner()
+        except BaseException as e:  # noqa: BLE001 — propagate everything
+            self._record_error(e, "render")
+
+    def _render_loop_inner(self) -> None:
         is_xr = self._session.is_xr_mode()
         last_seen_version = 0
         while not self._stop.is_set():

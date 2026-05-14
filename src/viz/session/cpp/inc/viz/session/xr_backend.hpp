@@ -144,6 +144,12 @@ private:
     std::vector<XrView> last_views_;
     bool frame_began_ = false;
     bool frame_renderable_ = false; // false on shouldRender=0 / locate failure
+    // Monotonic counter that drives Frame::backend_token; the contract
+    // (display_backend.hpp) requires 0..image_count()-1, which the
+    // compositor then mods by its slot count. Image_count is 1 today
+    // (single-frame-in-flight on XR) but this keeps the invariant
+    // explicit for future multi-slot work.
+    uint64_t frame_index_ = 0;
 };
 
 } // namespace viz

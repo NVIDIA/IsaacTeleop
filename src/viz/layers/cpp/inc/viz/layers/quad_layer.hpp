@@ -87,8 +87,12 @@ public:
     // (one QuadLayer per producer).
     //
     // src.space must be kDevice; dims/format must match the layer.
-    // The copy + cuda_done_writing signal run on `stream` — pass the
-    // producer's stream so the signal lands after its prior writes.
+    // The copy + cuda_done_writing signal run on ``stream``. submit()
+    // BLOCKS on cudaStreamSynchronize(stream) before returning so the
+    // producer can safely reuse src.data — without that wait, a fast
+    // producer wrapping its mailbox could overwrite src.data while our
+    // async memcpy was still reading. Cost: ~0.5 ms per 1080p call on
+    // the calling thread; the render path is unaffected.
     void submit(const VizBuffer& src, cudaStream_t stream = 0);
 
     // Skips the draw before the first submit (slot kSlotNone) — RT
