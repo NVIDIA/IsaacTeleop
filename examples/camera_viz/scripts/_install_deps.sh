@@ -34,10 +34,9 @@ WITH_OAKD=true
 WITH_RTP=true
 WITH_ZED=false
 ZED_SDK_DIR=/usr/local/zed
-# Jetson-specific provisioning: apt-install python3-gi / GStreamer
-# plugins / cuda-nvrtc and create the unversioned CUDA lib symlinks +
-# ld.so cache entry that JetPack skips. Off on desktop where these are
-# already covered by the normal package manager / CUDA installer.
+# Jetson-specific provisioning: apt-install cuda-nvrtc and create the
+# unversioned CUDA lib symlinks + ld.so cache entry that JetPack skips.
+# Off on desktop where the normal CUDA installer covers both.
 JETSON=false
 
 while (( $# )); do
@@ -84,14 +83,25 @@ ensure_apt_deps() {
     fi
 
     local pkgs=()
-    # Python bindings.
-    if ! python3 -c "import gi; gi.require_version('Gst', '1.0'); from gi.repository import Gst" 2>/dev/null; then
-        pkgs+=(python3-gi python3-gst-1.0 gir1.2-gstreamer-1.0 gstreamer1.0-tools)
-    fi
+    # PyGObject lives in the venv (installed via uv below). What apt
+    # owns here is purely non-Python:
+    #   * C build deps for the source build (libcairo / libgirepository /
+    #     pkg-config / Python dev headers — uv-managed Python ships its
+    #     own headers, but system python3 doesn't).
+    #   * Runtime Gst typelib (PyGObject loads it via gobject-introspection).
+    #   * gst-inspect-1.0 for our own plugin-presence check below.
+    command -v pkg-config >/dev/null 2>&1                       || pkgs+=(pkg-config)
+    pkg-config --exists cairo 2>/dev/null                       || pkgs+=(libcairo2-dev)
+    # Debian's libgirepository1.0-dev publishes the .pc file as
+    # gobject-introspection-1.0, NOT girepository-1.0 — probe accordingly.
+    pkg-config --exists gobject-introspection-1.0 2>/dev/null   || pkgs+=(libgirepository1.0-dev)
+    ls /usr/lib/*-linux-gnu/girepository-1.0/Gst-1.0.typelib >/dev/null 2>&1 \
+                                                                || pkgs+=(gir1.2-gstreamer-1.0)
+    command -v gst-inspect-1.0 >/dev/null 2>&1                  || pkgs+=(gstreamer1.0-tools)
     # GStreamer elements RtpH264Sender / RtpH264Receiver need at runtime.
-    # Checked per-element via gst-inspect-1.0 so hosts that have python3-gi
-    # but missing plugins (a real failure mode on partially-provisioned
-    # systems) still get the right apt packages.
+    # Checked per-element via gst-inspect-1.0 so partially-provisioned
+    # hosts (typelib present, plugins missing — a real failure mode) still
+    # get the right apt packages.
     local need_base=false need_good=false need_bad=false need_ugly=false
     if command -v gst-inspect-1.0 >/dev/null 2>&1; then
         gst-inspect-1.0 videoconvert >/dev/null 2>&1 || need_base=true
@@ -218,19 +228,20 @@ echo "==> python: $PYTHON_VERSION"
 [[ "$MODE" == full ]] && echo "==> wheel:  $WHEEL"
 
 if [[ ! -d "$VENV_DIR" ]]; then
-    # --system-site-packages exposes Debian's python3-gi / python3-gst-1.0
-    # (no pycairo source-build); venv installs still shadow system pkgs.
-    # Sender mode must base on system python3 so /usr/lib/python3/dist-
-    # packages is reachable — uv's managed download has empty site-packages.
+    # Strict venv isolation: no --system-site-packages. PyGObject + every
+    # other Python dep is installed into the venv via uv below. Sender mode
+    # still defaults to system python3 because Jetson images sometimes
+    # don't have a uv-managed Python build for the JetPack arch+libc combo
+    # — but the venv itself stays isolated.
     if [[ "$MODE" == sender ]]; then
         sys_py="$(command -v python3 || true)"
         [[ -x "$sys_py" ]] || {
             echo "_install_deps.sh: system python3 required in --sender-only mode" >&2
             exit 1
         }
-        uv venv "$VENV_DIR" --python "$sys_py" --system-site-packages
+        uv venv "$VENV_DIR" --python "$sys_py"
     else
-        uv venv "$VENV_DIR" --python "$PYTHON_VERSION" --system-site-packages
+        uv venv "$VENV_DIR" --python "$PYTHON_VERSION"
     fi
 fi
 PY="$VENV_DIR/bin/python"
@@ -257,13 +268,15 @@ if uv pip show --python "$PY" "$target_cupy" >/dev/null 2>&1 \
     uv pip uninstall --python "$PY" "$target_cupy" >/dev/null
 fi
 
-# Mirrors pyproject.toml. PyGObject comes from system python3-gi via
-# --system-site-packages, not pip.
+# Mirrors pyproject.toml. PyGObject is pinned <3.52: 3.52 dropped the
+# girepository-1.0 build path, and Ubuntu 22.04 only ships 1.0
+# (libgirepository1.0-dev). 3.50.x supports both. Source-builds against
+# the C deps installed in ensure_apt_deps(); pycairo is a transitive dep.
 PKGS=("pyyaml>=6.0" "$target_cupy" "numpy>=1.23" "scipy>=1.15")
 [[ "$MODE" == full ]] && PKGS=("$WHEEL" "${PKGS[@]}")
 $WITH_V4L2 && PKGS+=("opencv-python>=4.5")
 $WITH_OAKD && PKGS+=("depthai>=3.0")
-$WITH_RTP  && PKGS+=("pybind11>=2.11")
+$WITH_RTP  && PKGS+=("pybind11>=2.11" "PyGObject>=3.42,<3.52")
 
 echo "==> installing: ${PKGS[*]}"
 uv pip install --python "$PY" --upgrade "${PKGS[@]}"
@@ -309,8 +322,8 @@ if $WITH_RTP; then
     fi
 fi
 
-# Smoke imports. ``gi`` is in the list under RTP to confirm
-# --system-site-packages is wired up.
+# Smoke imports. ``gi`` is in the list under RTP to confirm PyGObject
+# built and installed cleanly into the venv.
 echo "==> import smoke"
 SMOKE_MODS="cupy yaml scipy.spatial.transform"
 [[ "$MODE" == full ]] && SMOKE_MODS="isaacteleop.viz $SMOKE_MODS"
