@@ -242,7 +242,9 @@ cmd_deploy() {
     log_step "Installing deps on robot (sender-only, jetson)"
     # ``deploy`` targets Jetson robots, so we always pass --jetson:
     # JetPack ships partial CUDA + skips the unversioned symlinks the
-    # cupy loader needs. TTY so apt's sudo can prompt.
+    # cupy loader needs. If the Jetson is missing system packages /
+    # symlinks, _install_deps.sh prompts on the TTY (ssh -t) and either
+    # runs the sudo commands after the operator types ``y`` or aborts.
     ssh_run_tty "cd $REMOTE_DIR && bash scripts/_install_deps.sh --sender-only --jetson"
     log_ok "deps installed"
 
@@ -328,15 +330,20 @@ camera_viz.sh — local development + Jetson deployment for camera_viz
 
 LOCAL
     setup [--sender-only] [--jetson] [--no-v4l2] [--no-oakd] [--no-rtp] [--with-zed]
-                          Create .venv, install deps, build native codec.
-                          Missing python3-gi / GStreamer plugins are
-                          apt-installed on Debian/Ubuntu regardless of
-                          host kind.
+                          Create .venv, install Python deps via uv into
+                          the venv, build native codec. Python deps stay
+                          inside .venv (no --system-site-packages).
+                          System-side prerequisites (GStreamer plugins,
+                          cairo/girepository dev headers, cuda-nvrtc on
+                          Jetson, etc.) are PROBED. If anything is
+                          missing the script prints the exact apt-get
+                          command and prompts ``y/N`` before running it.
+                          Reply N or run non-interactively to abort.
                           --sender-only skips the isaacteleop wheel + vulkan
                           deps (use on Jetson sender hosts).
-                          --jetson adds JetPack-only steps on top: apt-
-                          install cuda-nvrtc and create the unversioned
-                          CUDA lib symlinks JetPack skips. Off on desktop.
+                          --jetson adds JetPack-only checks: unversioned
+                          CUDA lib symlinks + ld.so wiring that JetPack
+                          skips. Off on desktop.
 
     loopback CONFIG       Run camera_streamer + camera_viz on 127.0.0.1.
 

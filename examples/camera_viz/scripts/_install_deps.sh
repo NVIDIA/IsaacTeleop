@@ -134,13 +134,30 @@ check_system_deps() {
 _install_deps.sh: missing system packages required by camera_viz (RTP path):
   ${pkgs[*]}
 
-Install them yourself (one-time) and re-run setup:
+The exact command:
   sudo apt-get update
   sudo apt-get install -y --no-install-recommends ${pkgs[*]}
 
-Or pass --no-rtp to skip the GStreamer-based RTP path entirely.
+(--no-rtp skips the GStreamer-based RTP path entirely.)
 EOF
-    exit 1
+
+    local ans=""
+    if [[ -e /dev/tty ]]; then
+        read -r -p "Run those apt-get commands now? [y/N] " ans </dev/tty 2>/dev/null || ans=""
+    fi
+    case "${ans,,}" in
+        y|yes)
+            if ! sudo -n true 2>/dev/null; then
+                echo "    sudo password required (one-time)"
+            fi
+            sudo apt-get update -qq
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${pkgs[@]}"
+            ;;
+        *)
+            echo "_install_deps.sh: aborted. Install the listed packages and re-run." >&2
+            exit 1
+            ;;
+    esac
 }
 check_system_deps
 
@@ -177,12 +194,42 @@ check_cuda_symlinks() {
     {
         echo "_install_deps.sh: Jetson CUDA libs aren't wired into ld.so / unversioned"
         echo "symlinks are missing. cupy will fail to dlopen libnvrtc.so without these."
-        echo "Run (one-time) and then re-run setup:"
+        echo "Exact commands:"
         for c in "${cmds[@]}"; do
             echo "  $c"
         done
     } >&2
-    exit 1
+
+    local ans=""
+    if [[ -e /dev/tty ]]; then
+        read -r -p "Run those now? [y/N] " ans </dev/tty 2>/dev/null || ans=""
+    fi
+    case "${ans,,}" in
+        y|yes)
+            if ! sudo -n true 2>/dev/null; then
+                echo "    sudo password required (one-time)"
+            fi
+            for stem in libnvrtc.so libnvrtc-builtins.so libcudart.so; do
+                if [[ ! -e "$lib64/$stem" ]]; then
+                    local versioned
+                    versioned=$(ls "$lib64/$stem".[0-9]* 2>/dev/null | sort -V | tail -1)
+                    if [[ -n "$versioned" ]]; then
+                        sudo ln -sf "$(basename "$versioned")" "$lib64/$stem"
+                        echo "    $lib64/$stem -> $(basename "$versioned")"
+                    fi
+                fi
+            done
+            if ! ldconfig -p 2>/dev/null | grep -q "$lib64"; then
+                echo "$lib64" | sudo tee /etc/ld.so.conf.d/zz-camera-viz-cuda.conf >/dev/null
+                sudo ldconfig
+                echo "    registered $lib64 with ldconfig"
+            fi
+            ;;
+        *)
+            echo "_install_deps.sh: aborted. Run the listed commands and re-run setup." >&2
+            exit 1
+            ;;
+    esac
 }
 check_cuda_symlinks
 
