@@ -133,7 +133,23 @@ if [[ ! -d "$VENV_DIR" ]]; then
     # python3-gi / python3-gst-1.0 without rebuilding them from source.
     # Venv-installed packages still shadow system ones (venv site-packages
     # is prepended to sys.path).
-    uv venv "$VENV_DIR" --python "$PYTHON_VERSION" --system-site-packages
+    #
+    # Critical: in --sender-only mode we base the venv on the SYSTEM
+    # python3, not uv's managed download. --system-site-packages exposes
+    # whichever interpreter's site-packages the base points at, and only
+    # the system python3 sees /usr/lib/python3/dist-packages (where
+    # python3-gi lands). Full mode pins by version since it needs to
+    # match the IsaacTeleop wheel's ABI.
+    if [[ "$MODE" == sender ]]; then
+        sys_py="$(command -v python3 || true)"
+        [[ -x "$sys_py" ]] || {
+            echo "_install_deps.sh: system python3 required in --sender-only mode" >&2
+            exit 1
+        }
+        uv venv "$VENV_DIR" --python "$sys_py" --system-site-packages
+    else
+        uv venv "$VENV_DIR" --python "$PYTHON_VERSION" --system-site-packages
+    fi
 fi
 PY="$VENV_DIR/bin/python"
 
