@@ -96,6 +96,7 @@ RUN python3 scripts/fetch_sharpa_wave_urdfs.py --output-dir /opt/sharpa-wave-urd
 FROM base AS builder
 ARG ROS_DISTRO
 ARG PYTHON_VERSION
+ARG TARGETARCH
 ARG BUNDLE_ROBOTIC_GROUNDING=false
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -109,16 +110,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /opt/isaacteleop
 COPY . /opt/isaacteleop
 
-# Wipe any stale wheels before building:
+# Wipe cached generated outputs that can pollute this build:
 #   - `install/` may arrive via `COPY . /opt/isaacteleop` when the host context
 #     contains an extracted build-ubuntu artifact tarball.
 #   - `build/wheels/` lives inside the persistent cmake build cache mount and
 #     accumulates one wheel per VERSION the cache has ever seen; `cmake
 #     --install` copies the entire directory.
-# Either source can pollute find-links with an isaacteleop wheel that is not
-# the one this build just produced.
-RUN --mount=type=cache,target=/opt/isaacteleop/build,id=isaacteleop-teleop-ros2-build-${ROS_DISTRO} \
-    rm -rf /opt/isaacteleop/install /opt/isaacteleop/build/wheels \
+#   - `build/python_package/` contains generated extension outputs that may be
+#     left truncated if a previous cached build was interrupted.
+# These can otherwise pollute find-links or stub generation with artifacts that
+# this build did not just produce.
+RUN --mount=type=cache,target=/opt/isaacteleop/build,id=isaacteleop-teleop-ros2-build-${ROS_DISTRO}-${PYTHON_VERSION}-${TARGETARCH},sharing=locked \
+    rm -rf /opt/isaacteleop/install \
+        /opt/isaacteleop/build/python_package \
+        /opt/isaacteleop/build/wheels \
     && cmake -B build -S . \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=/opt/isaacteleop/install \
