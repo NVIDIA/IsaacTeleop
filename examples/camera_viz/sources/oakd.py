@@ -35,7 +35,7 @@ from typing import List, Optional
 import numpy as np
 
 from pipeline import Frame, FrameSource, SourceSpec
-from ._helpers import alloc_pinned_host
+from ._helpers import alloc_pinned_host, notify
 
 logger = logging.getLogger(__name__)
 
@@ -298,7 +298,9 @@ class _OakdDevice:
             self._produce_loop_inner(dai)
 
     def _produce_loop_inner(self, dai) -> None:
-
+        first_frame_seen = False
+        opening_notified = False
+        unavailable_notified = False
         while not self._stop.is_set():
             if not self._connected:
                 now = time.monotonic()
@@ -307,32 +309,29 @@ class _OakdDevice:
                     continue
                 self._last_reconnect_attempt_s = now
                 if not self._is_device_available():
-                    logger.info(
-                        "OAK-D '%s' not visible on USB; retrying in %.1fs",
-                        self._device_id or "auto",
-                        RECONNECT_DELAY_S,
-                    )
+                    if not unavailable_notified:
+                        notify("oakd", "device not visible on USB; waiting")
+                        unavailable_notified = True
                     continue
+                if not opening_notified:
+                    notify("oakd", "opening...")
+                    opening_notified = True
                 try:
                     self._connected = self._open_device()
                 except Exception as e:
-                    logger.warning("OAK-D open failed (%s); retrying", e)
+                    notify("oakd", f"open failed ({e})")
                     self._close_device()
                     self._reconnect_count += 1
                     continue
-                logger.info(
-                    "OAK-D '%s' connected (streams=%s)%s",
-                    self._device_id or "auto",
-                    [s.name for s in self._stream_specs],
-                    f" (reconnect #{self._reconnect_count})"
-                    if self._reconnect_count
-                    else "",
-                )
+                notify("oakd", "connected")
+                first_frame_seen = False
+                opening_notified = False
+                unavailable_notified = False
 
             try:
                 self._pipeline.processTasks()
             except Exception as e:
-                logger.warning("OAK-D processTasks failed (%s); reconnecting", e)
+                notify("oakd", f"pipeline error ({e}); reconnecting")
                 self._close_device()
                 self._reconnect_count += 1
                 continue
@@ -363,12 +362,15 @@ class _OakdDevice:
                     self._frame_counts[stream_spec.name] += 1
                     emitted_any = True
             except Exception as e:
-                logger.warning("OAK-D emit failed (%s); reconnecting", e)
+                notify("oakd", f"frame error ({e}); reconnecting")
                 self._close_device()
                 self._reconnect_count += 1
                 continue
 
-            if not emitted_any:
+            if emitted_any and not first_frame_seen:
+                first_frame_seen = True
+                notify("oakd", "streaming")
+            elif not emitted_any:
                 # No queue had data this tick — brief yield to avoid burning CPU.
                 self._stop.wait(timeout=0.001)
 

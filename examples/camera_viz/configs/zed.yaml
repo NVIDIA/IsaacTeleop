@@ -1,12 +1,9 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-# ZED (left mono) — same YAML drives camera_viz + camera_streamer.
-#
-# stereo: false until per-eye QuadLayer binding lands (see memory note
-# "Stereo XR rendering needs per-view QuadLayer buffers"). Placement
-# below is keyed by the camera's YAML ``name`` ("zed"), which covers
-# every source ZedSource produces from this entry.
+# ZED — same YAML drives camera_viz + camera_streamer. Placement below
+# is keyed by the camera's YAML ``name`` ("zed"), which covers every
+# source ZedSource produces from this entry.
 #
 # Zero H2D in the steady state — pyzed's retrieve_image(MEM.GPU) hands
 # back BGRA8 already in VRAM. Our GPU kernel D2D-channel-swaps into the
@@ -21,13 +18,15 @@ cameras:
   - name: zed
     enabled: true
     type: zed
-    resolution: HD720           # HD2K | HD1080 | HD720 | VGA
+    # Per-eye dims pick the SDK preset (HD2K=2208x1242, HD1080=1920x1080,
+    # HD720=1280x720, VGA=672x376). Mismatch errors at startup with the
+    # full list.
+    width: 1280
+    height: 720
     fps: 30
     bus_type: usb               # usb | gmsl
     serial_number: 0            # 0 → first available
-    stereo: false
-    width: 1280                 # must match the HD720 preset (per-eye)
-    height: 720
+    stereo: true
     rtp:
       port: 5000
       bitrate_mbps: 15
@@ -45,4 +44,5 @@ display:
   placements:
     zed:                        # size defaults to 1.0 m wide × aspect-derived height
       lock_mode: lazy
-      distance: 1.5
+      distance: 1.0
+      stereo_baseline_mm: 50.0

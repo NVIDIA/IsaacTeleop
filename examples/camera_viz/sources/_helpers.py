@@ -34,6 +34,7 @@ into the writable GPU buffer using ``self._stream``).
 from __future__ import annotations
 
 import logging
+import sys
 import threading
 import time
 from abc import abstractmethod
@@ -42,6 +43,18 @@ from typing import Optional
 import numpy as np
 
 from pipeline import Frame, FrameSource, SourceSpec
+
+
+def notify(tag: str, msg: str) -> None:
+    """Single-line user-visible breadcrumb.
+
+    Goes to stderr directly (not through ``logger``) so it shows up
+    even when the host app hasn't configured Python logging — the
+    common case for camera_viz. ``tag`` is the short source kind
+    (``zed`` / ``oakd`` / ``v4l2``); the rendered prefix is
+    ``[tag]``."""
+    print(f"[{tag}] {msg}", file=sys.stderr, flush=True)
+
 
 logger = logging.getLogger(__name__)
 
@@ -244,6 +257,8 @@ class PolledSource(FrameSource):
             self._produce_loop_inner()
 
     def _produce_loop_inner(self) -> None:
+        first_frame_seen = False
+        opening_notified = False
         while not self._stop.is_set():
             if not self._connected:
                 now = time.monotonic()
@@ -252,38 +267,25 @@ class PolledSource(FrameSource):
                     self._stop.wait(timeout=0.1)
                     continue
                 self._last_reconnect_attempt_s = now
+                if not opening_notified:
+                    notify(self._kind, "opening...")
+                    opening_notified = True
                 try:
                     self._connected = self._open_device()
                 except Exception as e:
-                    logger.warning(
-                        "%s '%s': open failed (%s); retrying in %.1fs",
-                        self._kind,
-                        self._spec.name,
-                        e,
-                        self._reconnect_delay_s,
-                    )
+                    notify(self._kind, f"open failed ({e})")
                     self._connected = False
                 if not self._connected:
                     self._reconnect_count += 1
                     continue
-                logger.info(
-                    "%s '%s': connected%s",
-                    self._kind,
-                    self._spec.name,
-                    f" (reconnect #{self._reconnect_count})"
-                    if self._reconnect_count
-                    else "",
-                )
+                notify(self._kind, "connected")
+                first_frame_seen = False
+                opening_notified = False
 
             try:
                 host = self._grab()
             except Exception as e:
-                logger.warning(
-                    "%s '%s': grab failed (%s); reconnecting",
-                    self._kind,
-                    self._spec.name,
-                    e,
-                )
+                notify(self._kind, f"grab failed ({e}); reconnecting")
                 self._mark_disconnected()
                 continue
             if host is None:
@@ -296,14 +298,13 @@ class PolledSource(FrameSource):
                 self._upload_and_convert(buf)
                 self._stream.synchronize()
             except Exception as e:
-                logger.warning(
-                    "%s '%s': upload failed (%s); reconnecting",
-                    self._kind,
-                    self._spec.name,
-                    e,
-                )
+                notify(self._kind, f"frame error ({e}); reconnecting")
                 self._mark_disconnected()
                 continue
+
+            if not first_frame_seen:
+                first_frame_seen = True
+                notify(self._kind, "streaming")
 
             with self._publish_lock:
                 self._publish_idx = self._write_idx

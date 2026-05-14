@@ -117,7 +117,8 @@ def build_local_camera(spec: dict) -> List[FrameSource]:
         eyes = list(
             ZedSource.build(
                 base_name=name,
-                resolution=spec.get("resolution", "HD720"),
+                width=int(spec["width"]),
+                height=int(spec["height"]),
                 fps=int(spec.get("fps", 30)),
                 serial_number=int(spec.get("serial_number", 0)),
                 bus_type=spec.get("bus_type", "usb"),

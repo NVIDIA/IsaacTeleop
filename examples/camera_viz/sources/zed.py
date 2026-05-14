@@ -21,7 +21,6 @@ grab), count consecutive transients, force a reopen past the threshold.
 
 from __future__ import annotations
 
-import sys
 import threading
 import time
 from dataclasses import dataclass, field
@@ -29,19 +28,18 @@ from typing import List, Optional
 
 from pipeline import Frame, FrameSource, SourceSpec
 
+from ._helpers import notify
+
+
+def _notify(msg: str) -> None:
+    notify("zed", msg)
+
 
 # Wall-clock budget for ``Camera.open()`` before we nudge the user with
 # a USB-3 hint. The pyzed open call blocks inside a C extension — we
 # can't actually interrupt it, but we CAN tell the user what's likely
 # wrong so they don't sit watching a frozen terminal.
 _OPEN_HINT_AFTER_S = 8.0
-
-
-def _notify(msg: str) -> None:
-    """User-facing breadcrumb. Routed via stderr directly (not through
-    ``logger``) so it shows up even when the app hasn't configured
-    Python logging, which is the common case for camera_viz."""
-    print(f"[zed] {msg}", file=sys.stderr, flush=True)
 
 
 RECONNECT_DELAY_S = 2.0
@@ -54,6 +52,24 @@ _RESOLUTION_DIMS = {
     "HD720": (1280, 720),
     "VGA": (672, 376),
 }
+
+# Inverse lookup: (width, height) → preset name. Used to infer the
+# SDK preset from the YAML's width / height — keeps the schema single-
+# sourced and lets us reject mismatched dimensions with a useful error.
+_DIMS_TO_RESOLUTION = {dims: name for name, dims in _RESOLUTION_DIMS.items()}
+
+
+def _resolution_for_dims(width: int, height: int) -> str:
+    """Map per-eye dimensions to the ZED SDK preset. Raises with the
+    full list when the dimensions don't match any known preset."""
+    key = (int(width), int(height))
+    if key in _DIMS_TO_RESOLUTION:
+        return _DIMS_TO_RESOLUTION[key]
+    valid = ", ".join(f"{n} = {w}x{h}" for n, (w, h) in _RESOLUTION_DIMS.items())
+    raise ValueError(
+        f"ZedSource: {width}x{height} doesn't match any ZED SDK preset. "
+        f"Valid (per-eye): {valid}."
+    )
 
 
 @dataclass
@@ -117,7 +133,8 @@ class _ZedCamera:
         self,
         serial_number: int,
         bus_type: str,
-        resolution: str,
+        width: int,
+        height: int,
         fps: int,
         stereo: bool,
     ) -> None:
@@ -131,11 +148,11 @@ class _ZedCamera:
                 "SDK's Python install instructions for pyzed."
             ) from e
 
-        if resolution.upper() not in _RESOLUTION_DIMS:
-            raise ValueError(
-                f"ZedSource: unknown resolution {resolution!r} "
-                f"(known: {sorted(_RESOLUTION_DIMS)})"
-            )
+        # Single-source the dims: width/height come from the YAML and
+        # we look up the matching SDK preset. Mismatch raises with the
+        # full list of valid combinations.
+        self._resolution_name = _resolution_for_dims(width, height)
+
         if bus_type.lower() not in ("usb", "gmsl"):
             raise ValueError(
                 f"ZedSource: unknown bus_type {bus_type!r} (expected usb | gmsl)"
@@ -143,7 +160,6 @@ class _ZedCamera:
 
         self._serial_number = serial_number
         self._bus_type = bus_type.lower()
-        self._resolution_name = resolution.upper()
         self._fps = fps
         self._stereo = stereo
         self._width, self._height = _RESOLUTION_DIMS[self._resolution_name]
@@ -468,13 +484,14 @@ class ZedSource(FrameSource):
     def build(
         cls,
         base_name: str,
-        resolution: str = "HD720",
+        width: int,
+        height: int,
         fps: int = 30,
         serial_number: int = 0,
         bus_type: str = "usb",
         stereo: bool = True,
     ) -> List["ZedSource"]:
-        camera = _ZedCamera(serial_number, bus_type, resolution, fps, stereo)
+        camera = _ZedCamera(serial_number, bus_type, width, height, fps, stereo)
         eyes = ["left", "right"] if stereo else ["left"]
         return [
             cls(
