@@ -10,14 +10,14 @@ Camera streaming + visualization on Televiz (`isaacteleop.viz`).
 Two ways to use it:
 
 1. **Direct**: workstation runs the viewer with cameras attached locally.
-2. **Split**: robot runs the sender, ships RTP H.264 to a workstation receiver. Wired Ethernet only — the current sender doesn't handle packet loss / jitter beyond what GStreamer's stock RTP layer provides.
+2. **Split**: robot runs the sender, ships RTP H.264 to a workstation receiver. Wired Ethernet only -- the current sender doesn't handle packet loss / jitter beyond what GStreamer's stock RTP layer provides.
 
 ## Supported cameras
 
 | YAML `type:` | Notes |
 |---|---|
-| `synthetic` | GPU test pattern — no hardware, useful for sanity checks |
-| `v4l2` | USB / UVC — anything `v4l2-ctl --list-formats-ext` shows |
+| `synthetic` | GPU test pattern -- no hardware, useful for sanity checks |
+| `v4l2` | USB / UVC -- anything `v4l2-ctl --list-formats-ext` shows |
 | `oakd` | OAK-D mono RGB / LEFT / RIGHT |
 | `zed` | ZED 2 / Mini / X One, left-eye mono (stereo XR not wired yet) |
 
@@ -39,7 +39,7 @@ source examples/camera_viz/.venv/bin/activate
 
 ---
 
-## Mode 1 — Direct (cameras on the workstation)
+## Mode 1 -- Direct (cameras on the workstation)
 
 Set `source: local` in the YAML, plug cameras in, run:
 
@@ -49,7 +49,7 @@ Set `source: local` in the YAML, plug cameras in, run:
 
 Swap config for `oakd.yaml`, `zed.yaml`, `synthetic.yaml`, `multi_camera.yaml`. Synthetic is the fastest sanity check (no hardware).
 
-## Mode 2 — Split (robot → workstation over RTP, wired)
+## Mode 2 -- Split (robot -> workstation over RTP, wired)
 
 The robot sends RTP H.264; the workstation receives + renders. **Wired Ethernet only.** No retransmit, no FEC; one dropped packet means one corrupted frame until the next IDR (default every 5 s).
 
@@ -76,7 +76,7 @@ $EDITOR configs/v4l2.yaml
 
 `deploy` rsyncs source, runs `setup --sender-only --jetson`, installs a systemd user unit at `~/.config/systemd/user/camera-streamer.service`, and enables `loginctl enable-linger` (one-time sudo).
 
-The sender supervises per-camera retries forever — camera unplug, SDK errors, network blips all recover. The service never voluntarily exits.
+The sender supervises per-camera retries forever -- camera unplug, SDK errors, network blips all recover. The service never voluntarily exits.
 
 ### Loopback (sender + viewer on one host)
 
@@ -91,7 +91,7 @@ One YAML drives both ends. Top-level keys:
 ```yaml
 source: local | rtp           # camera_viz only: open cameras or listen for RTP
 streaming:
-  host: 192.168.1.100         # workstation IP — used by camera_streamer in rtp mode
+  host: 192.168.1.100         # workstation IP -- used by camera_streamer in rtp mode
 encoder: auto | native | gstreamer   # auto picks native NVENC on desktop, GStreamer on Jetson
 
 cameras:
@@ -101,7 +101,7 @@ cameras:
     width: 2560
     height: 720
     fps: 30
-    # … type-specific fields (device, resolution preset, etc.)
+    # ... type-specific fields (device, resolution preset, etc.)
     rtp:
       port: 5000
       bitrate_mbps: 15        # tune for your uplink
@@ -122,7 +122,7 @@ display:                      # camera_viz only
       # size: [w_m, h_m]      # default: 1.0 m wide, height from camera aspect
 ```
 
-Multiple cameras → multiple `cameras:` entries; each gets its own `rtp.port` and renders as its own plane.
+Multiple cameras -> multiple `cameras:` entries; each gets its own `rtp.port` and renders as its own plane.
 
 ## Lock modes (XR)
 
