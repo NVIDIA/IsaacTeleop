@@ -84,7 +84,8 @@ core::Pose make_pose(float x, float y, float z, float qw = 1.0f)
 
 using HeadChannels = core::McapTrackerChannels<core::HeadPoseRecord, core::HeadPose>;
 using HandChannels = core::McapTrackerChannels<core::HandPoseRecord, core::HandPose>;
-using MessageChannelChannels = core::McapTrackerChannels<core::MessageChannelMessagesRecord, core::MessageChannelMessages>;
+using MessageChannelChannels =
+    core::McapTrackerChannels<core::MessageChannelMessagesRecord, core::MessageChannelMessages>;
 
 // ============================================================================
 // Write helpers
@@ -130,8 +131,7 @@ std::string payload_string(const std::shared_ptr<core::MessageChannelMessagesT>&
 
 std::array<uint8_t, core::MessageChannelTracker::CHANNEL_UUID_SIZE> make_test_uuid()
 {
-    return { 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
-             0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x01 };
+    return { 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x01 };
 }
 
 } // namespace
@@ -411,7 +411,8 @@ TEST_CASE("ReplaySession: message channel fans recorded events across update tic
     CHECK(ctrl_tracker.get_messages(*session).data.empty());
 }
 
-TEST_CASE("ReplaySession: message channel emits at recorded frame regardless of replay-loop speed", "[replay][session][message_channel]")
+TEST_CASE("ReplaySession: message channel emits at recorded frame regardless of replay-loop speed",
+          "[replay][session][message_channel]")
 {
     // The user-visible regression that motivated frame-alignment: the
     // operator presses START some way into the recording (e.g. on
@@ -488,7 +489,8 @@ TEST_CASE("ReplaySession: message channel emits at recorded frame regardless of 
     }
 }
 
-TEST_CASE("ReplaySession: message channel drains payloads alongside sentinels in the same frame", "[replay][session][message_channel]")
+TEST_CASE("ReplaySession: message channel drains payloads alongside sentinels in the same frame",
+          "[replay][session][message_channel]")
 {
     // Mixed-fixture regression: when a frame contains both a sentinel
     // and one or more payloads (which the live impl never emits, but

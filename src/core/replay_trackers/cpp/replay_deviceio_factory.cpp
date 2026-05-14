@@ -80,8 +80,8 @@ std::unique_ptr<ITrackerImpl> try_create_message_channel_impl(ReplayDeviceIOFact
 using TryCreateFn = std::unique_ptr<ITrackerImpl> (*)(ReplayDeviceIOFactory&, const ITracker&);
 
 inline const TryCreateFn k_tracker_dispatch[] = {
-    &try_create_head_impl,           &try_create_hand_impl,           &try_create_controller_impl,
-    &try_create_full_body_pico_impl, &try_create_generic_pedal_impl,  &try_create_message_channel_impl,
+    &try_create_head_impl,           &try_create_hand_impl,          &try_create_controller_impl,
+    &try_create_full_body_pico_impl, &try_create_generic_pedal_impl, &try_create_message_channel_impl,
 };
 
 } // namespace

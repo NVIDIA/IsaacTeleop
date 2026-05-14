@@ -19,8 +19,8 @@ ReplayMessageChannelTrackerImpl::ReplayMessageChannelTrackerImpl(std::unique_ptr
     : mcap_viewers_(std::make_unique<MessageChannelMcapViewers>(
           std::move(reader),
           base_name,
-          std::vector<std::string>(MessageChannelRecordingTraits::channels.begin(),
-                                   MessageChannelRecordingTraits::channels.end())))
+          std::vector<std::string>(
+              MessageChannelRecordingTraits::channels.begin(), MessageChannelRecordingTraits::channels.end())))
 {
 }
 
