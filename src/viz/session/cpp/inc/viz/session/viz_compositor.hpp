@@ -79,6 +79,12 @@ private:
     VizCompositor(const VkContext& ctx, DisplayBackend& backend, const Config& config);
     void init();
 
+    // Rebuild per-slot resources (fences, command buffers, timestamp
+    // query pool) when the backend's image_count() changes — typically
+    // after a window resize / swapchain recreate where the driver
+    // returns a different image count.
+    void ensure_slot_count_matches_backend();
+
     void create_command_pool();
     void create_command_buffer();
 

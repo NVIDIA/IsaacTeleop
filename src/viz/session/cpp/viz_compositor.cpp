@@ -143,6 +143,32 @@ void VizCompositor::create_command_buffer()
     check_vk(vkAllocateCommandBuffers(ctx_->device(), &info, command_buffers_.data()), "vkAllocateCommandBuffers");
 }
 
+void VizCompositor::ensure_slot_count_matches_backend()
+{
+    const uint32_t want = backend_->image_count();
+    if (want == 0)
+    {
+        throw std::runtime_error("VizCompositor: backend->image_count() returned 0");
+    }
+    if (want == frame_syncs_.size())
+    {
+        return;
+    }
+    // Backend image_count changed under us — typically a WindowBackend
+    // swapchain recreate that returned a different count. Drain any
+    // in-flight work first; without this, destroy() would free fences
+    // / command buffers still in PENDING state on the GPU.
+    for (auto& fs : frame_syncs_)
+    {
+        if (fs != nullptr)
+        {
+            fs->wait();
+        }
+    }
+    destroy();
+    init();
+}
+
 void VizCompositor::submit_or_signal_fence(const VkSubmitInfo& info, const char* what, VkFence fence)
 {
     const VkResult r = vkQueueSubmit(ctx_->queue(), 1, &info, fence);
@@ -169,6 +195,11 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
             visible_layers.push_back(layer);
         }
     }
+
+    // Catch swapchain recreates whose image_count differs from the one
+    // we sized per-slot state for at init. Cheap check; only rebuilds
+    // on mismatch.
+    ensure_slot_count_matches_backend();
 
     auto frame = backend_->begin_frame(/*predicted_display_time=*/0);
     if (!frame.has_value())
