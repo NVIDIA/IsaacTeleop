@@ -59,8 +59,10 @@ public:
         std::string app_name = "televiz";
 
         // Initial clear color for the framebuffer (RGBA, [0..1] each).
-        // Layers render on top of this. Defaults to opaque black.
-        float clear_color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+        // Layers render on top of this. Defaults to transparent — the
+        // XR compositor and most window managers blend behind us, so
+        // alpha=0 lets a non-opaque background show through.
+        float clear_color[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
         // Optional pre-built Vulkan context. If non-null, MUST already
         // have the backend's extensions enabled (VK_KHR_swapchain +

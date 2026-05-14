@@ -26,7 +26,7 @@ class VizCompositor
 public:
     struct Config
     {
-        VkClearColorValue clear_color{ { 0.0f, 0.0f, 0.0f, 1.0f } };
+        VkClearColorValue clear_color{ { 0.0f, 0.0f, 0.0f, 0.0f } };
         // Opt-in GPU timestamp queries (4 per frame). Off by default so
         // production builds don't pay; read via last_gpu_timing() after
         // the frame's fence wait.

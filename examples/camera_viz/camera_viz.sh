@@ -237,10 +237,11 @@ cmd_deploy() {
     rsync_to_remote
     log_ok "source synced"
 
-    log_step "Installing deps on robot (sender-only)"
-    # TTY so apt's sudo can prompt; the script's gating makes that a
-    # one-time cost on first deploy.
-    ssh_run_tty "cd $REMOTE_DIR && bash scripts/_install_deps.sh --sender-only"
+    log_step "Installing deps on robot (sender-only, jetson)"
+    # ``deploy`` targets Jetson robots, so we always pass --jetson:
+    # JetPack ships partial CUDA + skips the unversioned symlinks the
+    # cupy loader needs. TTY so apt's sudo can prompt.
+    ssh_run_tty "cd $REMOTE_DIR && bash scripts/_install_deps.sh --sender-only --jetson"
     log_ok "deps installed"
 
     if $no_service; then
@@ -324,10 +325,14 @@ show_help() {
 camera_viz.sh — local development + Jetson deployment for camera_viz
 
 LOCAL
-    setup [--sender-only] [--no-v4l2] [--no-oakd] [--no-rtp] [--with-zed]
+    setup [--sender-only] [--jetson] [--no-v4l2] [--no-oakd] [--no-rtp] [--with-zed]
                           Create .venv, install deps, build native codec.
                           --sender-only skips the isaacteleop wheel + vulkan
                           deps (use on Jetson sender hosts).
+                          --jetson opts into JetPack-specific provisioning
+                          (apt-installs python3-gi / GStreamer plugins /
+                          cuda-nvrtc + creates the unversioned CUDA lib
+                          symlinks JetPack skips). Off on desktop.
 
     loopback CONFIG       Run camera_streamer + camera_viz on 127.0.0.1.
 

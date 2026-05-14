@@ -42,7 +42,7 @@ display:
   xr:
     near_z: 0.05
     far_z: 100.0
-  clear_color: [0.0, 0.0, 0.0, 1.0]
+  clear_color: [0.0, 0.0, 0.0, 0.0]
   placements:
     oakd:                       # size defaults to 1.0 m wide × aspect-derived height
       lock_mode: lazy

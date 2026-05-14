@@ -38,7 +38,7 @@ display:
   xr:
     near_z: 0.05
     far_z: 100.0
-  clear_color: [0.0, 0.0, 0.0, 1.0]
+  clear_color: [0.0, 0.0, 0.0, 0.0]
   placements:
     world_locked:
       lock_mode: world

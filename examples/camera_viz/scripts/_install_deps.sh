@@ -34,11 +34,17 @@ WITH_OAKD=true
 WITH_RTP=true
 WITH_ZED=false
 ZED_SDK_DIR=/usr/local/zed
+# Jetson-specific provisioning: apt-install python3-gi / GStreamer
+# plugins / cuda-nvrtc and create the unversioned CUDA lib symlinks +
+# ld.so cache entry that JetPack skips. Off on desktop where these are
+# already covered by the normal package manager / CUDA installer.
+JETSON=false
 
 while (( $# )); do
     case $1 in
         --full)         MODE=full; shift;;
         --sender-only)  MODE=sender; shift;;
+        --jetson)       JETSON=true; shift;;
         --venv)         VENV_DIR=$2; shift 2;;
         --wheel)        WHEEL=$2; shift 2;;
         --python)       PYTHON_VERSION=$2; shift 2;;
@@ -67,8 +73,12 @@ fi
 
 # Apt-install: Debian PyGObject (avoids a pycairo source-build), GStreamer
 # plugins, and cuda-nvrtc (JetPack base image omits it). Idempotent; each
-# package is gated on a fast check.
+# package is gated on a fast check. Skipped on desktop (--jetson off):
+# desktop CUDA + standard apt env covers these.
 ensure_apt_deps() {
+    if ! $JETSON; then
+        return 0
+    fi
     if ! $WITH_RTP; then
         return 0
     fi
@@ -120,8 +130,12 @@ ensure_apt_deps
 
 # JetPack ships versioned libs (libnvrtc.so.13) without the unversioned
 # symlink + ld.so cache entry that desktop CUDA creates. cupy looks up
-# ``libnvrtc.so`` and fails to resolve without these.
+# ``libnvrtc.so`` and fails to resolve without these. Skipped on desktop
+# where the CUDA installer already lays down the right symlinks.
 ensure_cuda_symlinks() {
+    if ! $JETSON; then
+        return 0
+    fi
     if [[ ! -d /usr/local/cuda/lib64 ]]; then
         return 0
     fi
