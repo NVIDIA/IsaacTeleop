@@ -325,8 +325,30 @@ $WITH_V4L2 && PKGS+=("opencv-python>=4.5")
 $WITH_OAKD && PKGS+=("depthai>=3.0")
 $WITH_RTP  && PKGS+=("pybind11>=2.11" "PyGObject>=3.42,<3.52")
 
+# Local wheels keep the version string ``1.3+local`` across rebuilds,
+# so ``uv pip install --upgrade`` treats them as already-installed and
+# skips. Compare mtimes: if the wheel on disk is newer than the
+# installed copy's dist-info directory, force-reinstall just that one
+# package — other deps keep their normal upgrade-if-newer behavior.
+EXTRA_UV=()
+if [[ "$MODE" == full && -f "$WHEEL" ]]; then
+    wheel_mtime=$(stat -c %Y "$WHEEL" 2>/dev/null || echo 0)
+    installed_dist=$(ls -d "$VENV_DIR"/lib/python*/site-packages/isaacteleop-*.dist-info 2>/dev/null | head -1)
+    if [[ -n "$installed_dist" ]]; then
+        installed_mtime=$(stat -c %Y "$installed_dist" 2>/dev/null || echo 0)
+        if (( wheel_mtime > installed_mtime )); then
+            echo "==> wheel newer than installed copy — forcing reinstall of isaacteleop"
+            EXTRA_UV+=(--reinstall-package isaacteleop)
+        fi
+    fi
+fi
+
 echo "==> installing: ${PKGS[*]}"
-uv pip install --python "$PY" --upgrade "${PKGS[@]}"
+if (( ${#EXTRA_UV[@]} > 0 )); then
+    uv pip install --python "$PY" --upgrade "${EXTRA_UV[@]}" "${PKGS[@]}"
+else
+    uv pip install --python "$PY" --upgrade "${PKGS[@]}"
+fi
 
 # ZED SDK ships get_python_api.py which downloads a matching pyzed wheel
 # and then tries ``pip install`` it (which fails in uv venvs, no pip).
