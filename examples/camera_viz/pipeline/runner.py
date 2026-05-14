@@ -28,8 +28,15 @@ logger = logging.getLogger(__name__)
 # Submit thread poll interval when no source has new data.
 SUBMIT_POLL_S = 0.001
 
-# Render thread idle wake interval (one monitor period).
-RENDER_IDLE_TICK_S = 1.0 / 60.0
+# Render thread idle wake intervals — the cond.wait timeout used when
+# the producer hasn't published anything new. Each render cycle is
+# (idle_wait + render_call_duration); for XR the cycle must be < the
+# display period (90 Hz → 11.1 ms) or we miss display ticks and judder.
+# XR's xrWaitFrame paces us internally, so a tight loop is correct.
+# Window mode with MAILBOX needs the throttle since there's no vsync
+# block on the present side.
+RENDER_IDLE_TICK_S_XR = 0.002  # 500 Hz idle; xrWaitFrame absorbs the slack
+RENDER_IDLE_TICK_S_WINDOW = 1.0 / 60.0  # 16.6 ms — fine for windowed MAILBOX
 
 
 class VizRunner:
@@ -222,11 +229,12 @@ class VizRunner:
 
     def _render_loop_inner(self) -> None:
         is_xr = self._session.is_xr_mode()
+        idle_tick_s = RENDER_IDLE_TICK_S_XR if is_xr else RENDER_IDLE_TICK_S_WINDOW
         last_seen_version = 0
         while not self._stop.is_set():
             with self._data_cond:
                 if self._data_version == last_seen_version:
-                    self._data_cond.wait(timeout=RENDER_IDLE_TICK_S)
+                    self._data_cond.wait(timeout=idle_tick_s)
                 last_seen_version = self._data_version
             if self._stop.is_set():
                 break
