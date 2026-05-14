@@ -4,6 +4,7 @@
 #include <viz/core/device_image.hpp>
 #include <viz/core/vk_context.hpp>
 
+#include <algorithm>
 #include <stdexcept>
 #include <string>
 
@@ -113,7 +114,10 @@ cudaChannelFormatDesc to_cuda_format(PixelFormat format)
 
 } // namespace
 
-std::unique_ptr<DeviceImage> DeviceImage::create(const VkContext& ctx, Resolution resolution, PixelFormat format)
+std::unique_ptr<DeviceImage> DeviceImage::create(const VkContext& ctx,
+                                                 Resolution resolution,
+                                                 PixelFormat format,
+                                                 uint32_t mip_levels)
 {
     if (!ctx.is_initialized())
     {
@@ -131,13 +135,23 @@ std::unique_ptr<DeviceImage> DeviceImage::create(const VkContext& ctx, Resolutio
         // worked out yet, so refuse to half-build it.
         throw std::invalid_argument("DeviceImage: only PixelFormat::kRGBA8 is supported");
     }
-    std::unique_ptr<DeviceImage> img(new DeviceImage(ctx, resolution, format));
+    // mip_levels == 0 -> auto-compute full chain to 1x1.
+    if (mip_levels == 0)
+    {
+        const uint32_t max_dim = std::max(resolution.width, resolution.height);
+        mip_levels = 1;
+        for (uint32_t d = max_dim; d > 1; d >>= 1)
+        {
+            ++mip_levels;
+        }
+    }
+    std::unique_ptr<DeviceImage> img(new DeviceImage(ctx, resolution, format, mip_levels));
     img->init();
     return img;
 }
 
-DeviceImage::DeviceImage(const VkContext& ctx, Resolution resolution, PixelFormat format)
-    : ctx_(&ctx), resolution_(resolution), format_(format), vk_format_(to_vk_view_format(format))
+DeviceImage::DeviceImage(const VkContext& ctx, Resolution resolution, PixelFormat format, uint32_t mip_levels)
+    : ctx_(&ctx), resolution_(resolution), format_(format), vk_format_(to_vk_view_format(format)), mip_levels_(mip_levels)
 {
 }
 
@@ -264,9 +278,7 @@ void DeviceImage::create_vk_image_with_external_memory()
     info.flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
     info.format = to_vk_storage_format(format_);
     info.extent = { resolution_.width, resolution_.height, 1 };
-    info.mipLevels = 1; // Single level. If XR distance views show
-                        // moiré, expose mipLevels via Config and
-                        // generate via vkCmdBlitImage pre-render.
+    info.mipLevels = mip_levels_;
     info.arrayLayers = 1;
     info.samples = VK_SAMPLE_COUNT_1_BIT;
     info.tiling = VK_IMAGE_TILING_OPTIMAL;
@@ -325,7 +337,7 @@ void DeviceImage::create_vk_image_view()
     info.subresourceRange.aspectMask =
         (format_ == PixelFormat::kD32F) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
     info.subresourceRange.baseMipLevel = 0;
-    info.subresourceRange.levelCount = 1;
+    info.subresourceRange.levelCount = mip_levels_;
     info.subresourceRange.baseArrayLayer = 0;
     info.subresourceRange.layerCount = 1;
     check_vk(vkCreateImageView(ctx_->device(), &info, nullptr, &image_view_), "vkCreateImageView");
@@ -357,7 +369,9 @@ void DeviceImage::import_to_cuda()
     array_desc.formatDesc = to_cuda_format(format_);
     array_desc.extent = make_cudaExtent(resolution_.width, resolution_.height, 0);
     array_desc.flags = cudaArrayColorAttachment;
-    array_desc.numLevels = 1;
+    // numLevels must match Vulkan; CUDA still writes only level 0
+    // (the mip chain is generated Vulkan-side via vkCmdBlitImage).
+    array_desc.numLevels = mip_levels_;
 
     check_cuda(cudaExternalMemoryGetMappedMipmappedArray(&cuda_mipmapped_array_, cuda_external_memory_, &array_desc),
                "cudaExternalMemoryGetMappedMipmappedArray");
@@ -505,7 +519,7 @@ void DeviceImage::run_one_shot_layout_transition(VkImageLayout old_layout,
     barrier.subresourceRange.aspectMask =
         (format_ == PixelFormat::kD32F) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
     barrier.subresourceRange.baseMipLevel = 0;
-    barrier.subresourceRange.levelCount = 1;
+    barrier.subresourceRange.levelCount = mip_levels_;
     barrier.subresourceRange.baseArrayLayer = 0;
     barrier.subresourceRange.layerCount = 1;
     barrier.srcAccessMask = src_access;

@@ -333,6 +333,15 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
         vkCmdWriteTimestamp(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, gpu_timestamp_pool_, query_base + 0);
     }
 
+    // Pre-pass hook for transfer/compute work that can't run inside a
+    // render pass (e.g. QuadLayer mip-chain blits). Ordering: all
+    // layers' pre-pass run BEFORE any record(), so a layer can rely on
+    // its own pre-pass results inside record().
+    for (LayerBase* layer : visible_layers)
+    {
+        layer->record_pre_render_pass(command_buffer, slot);
+    }
+
     std::array<VkClearValue, 2> clears{};
     clears[0].color = config_.clear_color;
     clears[1].depthStencil = { 1.0f, 0 };

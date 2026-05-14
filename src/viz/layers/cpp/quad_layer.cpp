@@ -113,6 +113,26 @@ QuadLayer::QuadLayer(const VkContext& ctx, VkRenderPass render_pass, Config conf
             throw std::invalid_argument("QuadLayer: Placement::size_meters must be > 0 in both components");
         }
     }
+
+    // Resolve mip count: capped chain when enabled, single level
+    // otherwise. The cap (kMaxMipLevels) keeps the per-frame blit
+    // cost and the extra image storage in check; full log2 chain
+    // adds levels that the sampler rarely picks anyway.
+    if (config_.generate_mipmaps)
+    {
+        const uint32_t max_dim = std::max(config_.resolution.width, config_.resolution.height);
+        uint32_t full_chain = 1;
+        for (uint32_t d = max_dim; d > 1; d >>= 1)
+        {
+            ++full_chain;
+        }
+        mip_levels_ = std::min(full_chain, kMaxMipLevels);
+    }
+    else
+    {
+        mip_levels_ = 1;
+    }
+
     placement_ = config_.placement;
     init();
 }
@@ -136,7 +156,7 @@ void QuadLayer::init()
         last_in_use_slot_.store(kSlotNone, std::memory_order_relaxed);
         for (auto& slot : slots_)
         {
-            slot = DeviceImage::create(*ctx_, config_.resolution, config_.format);
+            slot = DeviceImage::create(*ctx_, config_.resolution, config_.format, mip_levels_);
         }
         create_sampler();
         create_descriptor_set_layout();
@@ -315,27 +335,122 @@ void QuadLayer::submit(const VizBuffer& src, cudaStream_t stream)
     latest_.store(slot, std::memory_order_release);
 }
 
-void QuadLayer::record(VkCommandBuffer cmd,
-                       const std::vector<ViewInfo>& views,
-                       const RenderTarget& /*target*/,
-                       uint32_t in_flight_slot)
+void QuadLayer::record_mip_generation(VkCommandBuffer cmd, DeviceImage& image)
 {
-    require_alive(slots_[0], "record");
+    // Mip-chain regeneration via vkCmdBlitImage. The image lives in
+    // SHADER_READ_ONLY between frames (set in DeviceImage::init); we
+    // cycle through TRANSFER layouts and return to SHADER_READ_ONLY so
+    // the post-pass sample sees the same invariant. CUDA wrote level 0
+    // out-of-band; the queue submit's TRANSFER-stage wait on
+    // cuda_done_writing gates this against the producer (see
+    // get_wait_semaphores).
+    const VkImage vk_image = image.vk_image();
+    const uint32_t levels = image.mip_levels();
+    const int32_t base_w = static_cast<int32_t>(image.resolution().width);
+    const int32_t base_h = static_cast<int32_t>(image.resolution().height);
 
-    // Backends are contracted to image_count ≤ kMaxFramesInFlight; if
+    auto barrier_one_level = [&](uint32_t level, VkImageLayout old_layout, VkImageLayout new_layout,
+                                 VkAccessFlags src_access, VkAccessFlags dst_access, VkPipelineStageFlags src_stage,
+                                 VkPipelineStageFlags dst_stage)
+    {
+        VkImageMemoryBarrier b{};
+        b.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        b.oldLayout = old_layout;
+        b.newLayout = new_layout;
+        b.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        b.image = vk_image;
+        b.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        b.subresourceRange.baseMipLevel = level;
+        b.subresourceRange.levelCount = 1;
+        b.subresourceRange.baseArrayLayer = 0;
+        b.subresourceRange.layerCount = 1;
+        b.srcAccessMask = src_access;
+        b.dstAccessMask = dst_access;
+        vkCmdPipelineBarrier(cmd, src_stage, dst_stage, 0, 0, nullptr, 0, nullptr, 1, &b);
+    };
+
+    // Level 0: SHADER_READ -> TRANSFER_SRC (will be read by the first blit).
+    barrier_one_level(0, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                      VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                      VK_PIPELINE_STAGE_TRANSFER_BIT);
+    // Levels 1..N-1: SHADER_READ -> TRANSFER_DST (will be overwritten).
+    for (uint32_t i = 1; i < levels; ++i)
+    {
+        barrier_one_level(i, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                          VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+                          VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+    }
+
+    int32_t src_w = base_w;
+    int32_t src_h = base_h;
+    for (uint32_t i = 1; i < levels; ++i)
+    {
+        const int32_t dst_w = std::max(1, src_w >> 1);
+        const int32_t dst_h = std::max(1, src_h >> 1);
+
+        VkImageBlit blit{};
+        blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        blit.srcSubresource.mipLevel = i - 1;
+        blit.srcSubresource.baseArrayLayer = 0;
+        blit.srcSubresource.layerCount = 1;
+        blit.srcOffsets[0] = { 0, 0, 0 };
+        blit.srcOffsets[1] = { src_w, src_h, 1 };
+        blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        blit.dstSubresource.mipLevel = i;
+        blit.dstSubresource.baseArrayLayer = 0;
+        blit.dstSubresource.layerCount = 1;
+        blit.dstOffsets[0] = { 0, 0, 0 };
+        blit.dstOffsets[1] = { dst_w, dst_h, 1 };
+
+        vkCmdBlitImage(cmd, vk_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, vk_image,
+                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit, VK_FILTER_LINEAR);
+
+        // Promote level i to TRANSFER_SRC so the next blit can read it.
+        // Last level skips this — the final sweep below moves it
+        // straight from TRANSFER_DST to SHADER_READ.
+        if (i + 1 < levels)
+        {
+            barrier_one_level(i, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                              VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                              VK_PIPELINE_STAGE_TRANSFER_BIT);
+        }
+
+        src_w = dst_w;
+        src_h = dst_h;
+    }
+
+    // Final sweep: levels 0..N-2 are in TRANSFER_SRC, level N-1 is in
+    // TRANSFER_DST. One barrier each back to SHADER_READ.
+    for (uint32_t i = 0; i + 1 < levels; ++i)
+    {
+        barrier_one_level(i, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                          VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                          VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+    }
+    barrier_one_level(levels - 1, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                      VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                      VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+}
+
+void QuadLayer::record_pre_render_pass(VkCommandBuffer cmd, uint32_t in_flight_slot)
+{
+    require_alive(slots_[0], "record_pre_render_pass");
+
+    // Backends are contracted to image_count <= kMaxFramesInFlight; if
     // that ever breaks, two in-flight frames would alias on the same
     // in_use_ entry and we'd lose the slot-tracking invariant.
     if (in_flight_slot >= kMaxFramesInFlight)
     {
-        throw std::logic_error("QuadLayer::record: in_flight_slot " + std::to_string(in_flight_slot) +
+        throw std::logic_error("QuadLayer::record_pre_render_pass: in_flight_slot " + std::to_string(in_flight_slot) +
                                " >= kMaxFramesInFlight (" + std::to_string(kMaxFramesInFlight) +
                                "); bump kMaxFramesInFlight to match the backend's image_count");
     }
 
-    // Promote latest_ to in_use_[in_flight_slot]. The compositor's
+    // Promote latest_ -> in_use_[in_flight_slot]. The compositor's
     // per-slot fence wait at the top of render() guarantees the GPU
-    // has finished sampling the previous in_use_ value before we
-    // overwrite it.
+    // has finished sampling the previous in_use_ value. record() reads
+    // the same entry — pre-pass and pass MUST agree on in_flight_slot.
     const uint8_t latest = latest_.load(std::memory_order_acquire);
     const uint32_t idx = in_flight_slot;
     if (latest != kSlotNone)
@@ -351,6 +466,32 @@ void QuadLayer::record(VkCommandBuffer cmd,
     // (called by compositor between record and submit) reads the
     // matching cuda_done_writing semaphore.
     last_in_use_slot_.store(cur, std::memory_order_release);
+
+    // Mip generation (if configured). Reads level 0 written by CUDA,
+    // writes levels 1..N-1, ends with the whole image back in
+    // SHADER_READ_ONLY for the sampler in record().
+    if (mip_levels_ > 1)
+    {
+        record_mip_generation(cmd, *slots_[cur]);
+    }
+}
+
+void QuadLayer::record(VkCommandBuffer cmd,
+                       const std::vector<ViewInfo>& views,
+                       const RenderTarget& /*target*/,
+                       uint32_t in_flight_slot)
+{
+    require_alive(slots_[0], "record");
+
+    // Slot promotion ran in record_pre_render_pass with the same
+    // in_flight_slot. Read the result; skip the draw if there's been
+    // no publish yet (RT keeps its clear value).
+    const uint32_t idx = in_flight_slot;
+    const uint8_t cur = in_use_[idx].load(std::memory_order_acquire);
+    if (cur == kSlotNone)
+    {
+        return;
+    }
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
     vkCmdBindDescriptorSets(
@@ -405,10 +546,15 @@ std::optional<QuadLayer::Config::Placement> QuadLayer::placement() const noexcep
 
 std::vector<LayerBase::WaitSemaphore> QuadLayer::get_wait_semaphores() const
 {
-    // Compositor calls record() first, which sets last_in_use_slot_ to
-    // the slot it just bound. We return THAT slot's cuda_done_writing
-    // semaphore so the submit waits for the producer's memcpy to
-    // complete before the fragment shader samples.
+    // Compositor calls record_pre_render_pass first (which sets
+    // last_in_use_slot_). We return THAT slot's cuda_done_writing
+    // semaphore so the submit waits for the producer's memcpy.
+    // Wait stage:
+    //   * No mips: first GPU read is the fragment sampler.
+    //   * Mips on: the mip-gen blit chain in pre-pass reads level 0
+    //     first (TRANSFER stage); fragment sampling comes later but
+    //     is already ordered via the chain's barriers, so the submit
+    //     wait can gate at TRANSFER.
     const uint8_t cur = last_in_use_slot_.load(std::memory_order_acquire);
     if (cur == kSlotNone || !slots_[cur])
     {
@@ -420,33 +566,40 @@ std::vector<LayerBase::WaitSemaphore> QuadLayer::get_wait_semaphores() const
     {
         return {};
     }
+    const VkPipelineStageFlags wait_stage =
+        (mip_levels_ > 1) ? VK_PIPELINE_STAGE_TRANSFER_BIT : VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
     return {
         WaitSemaphore{
             image.cuda_done_writing(),
             value,
-            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            wait_stage,
         },
     };
 }
 
 void QuadLayer::create_sampler()
 {
+    const bool mips_on = mip_levels_ > 1;
     VkSamplerCreateInfo info{};
     info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     info.magFilter = VK_FILTER_LINEAR;
     info.minFilter = VK_FILTER_LINEAR;
-    info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    // Trilinear when mips are on (LINEAR mode interpolates between two
+    // chain levels). NEAREST is harmless single-level since the lod
+    // range collapses to 0.
+    info.mipmapMode = mips_on ? VK_SAMPLER_MIPMAP_MODE_LINEAR : VK_SAMPLER_MIPMAP_MODE_NEAREST;
     info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    info.anisotropyEnable = VK_FALSE; // enable later when XR distance views need it
+    info.anisotropyEnable = VK_FALSE;
     info.maxAnisotropy = 1.0f;
     info.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
     info.unnormalizedCoordinates = VK_FALSE;
     info.compareEnable = VK_FALSE;
     info.compareOp = VK_COMPARE_OP_ALWAYS;
+    info.mipLodBias = 0.0f;
     info.minLod = 0.0f;
-    info.maxLod = 0.0f;
+    info.maxLod = mips_on ? static_cast<float>(mip_levels_ - 1) : 0.0f;
     check_vk(vkCreateSampler(ctx_->device(), &info, nullptr, &sampler_), "vkCreateSampler");
 }
 

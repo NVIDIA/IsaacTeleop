@@ -72,7 +72,20 @@ public:
         // fullscreen quad across stereo eyes is never the right thing.
         // record() throws std::logic_error on kXr + nullopt.
         std::optional<Placement> placement;
+
+        // Allocate a small mip chain on each DeviceImage slot and
+        // regenerate it via vkCmdBlitImage in record_pre_render_pass.
+        // Sampler switches to LINEAR mip filtering. Capped internally
+        // at kMaxMipLevels (smallest level is 1/8 linear dims for the
+        // typical 1080p / 4K source) — past that the cost outpaces the
+        // visual win for our XR distance-view use cases.
+        bool generate_mipmaps = false;
     };
+
+    // Hard cap on the mip chain when generate_mipmaps is enabled.
+    // Smallest level is 1/(2^(kMaxMipLevels-1)) of the linear extent;
+    // at 4 that's 1/8 (240x135 from 1080p, 480x270 from 4K).
+    static constexpr uint32_t kMaxMipLevels = 4;
 
     // Builds the 3 DeviceImages + pipeline up front. Throws
     // std::invalid_argument on bad config; std::runtime_error on
@@ -94,6 +107,12 @@ public:
     // async memcpy was still reading. Cost: ~0.5 ms per 1080p call on
     // the calling thread; the render path is unaffected.
     void submit(const VizBuffer& src, cudaStream_t stream = 0);
+
+    // Pre-pass slot: promote latest_ -> in_use_[in_flight_slot] AND
+    // (when generate_mipmaps is on) emit the mip-chain blits on the
+    // in-use slot. record() reads the already-promoted slot, so both
+    // calls must agree on in_flight_slot for the same frame.
+    void record_pre_render_pass(VkCommandBuffer cmd, uint32_t in_flight_slot) override;
 
     // Skips the draw before the first submit (slot kSlotNone) — RT
     // keeps its clear value. in_flight_slot identifies which of the
@@ -143,9 +162,17 @@ private:
     uint8_t pick_free_slot(uint8_t latest,
                            const std::array<std::atomic<uint8_t>, kMaxFramesInFlight>& in_use) const noexcept;
 
+    // Emit a full mip-chain regeneration for ``image`` via
+    // vkCmdBlitImage. Assumes the image is currently in
+    // VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL and returns it to the
+    // same layout. Only called when Config::generate_mipmaps is true.
+    void record_mip_generation(VkCommandBuffer cmd, DeviceImage& image);
+
     const VkContext* ctx_ = nullptr;
     VkRenderPass render_pass_ = VK_NULL_HANDLE; // borrowed from compositor
     Config config_;
+    // Number of mip levels per DeviceImage slot. 1 when mips disabled.
+    uint32_t mip_levels_ = 1;
 
     // One DeviceImage per mailbox slot.
     std::array<std::unique_ptr<DeviceImage>, kSlotCount> slots_;

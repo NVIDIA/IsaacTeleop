@@ -41,7 +41,19 @@ class DeviceImage
 public:
     // Throws std::invalid_argument on bad config; std::runtime_error
     // on Vulkan or CUDA failure. Pre-initialized.
-    static std::unique_ptr<DeviceImage> create(const VkContext& ctx, Resolution resolution, PixelFormat format);
+    //
+    // mip_levels:
+    //   1 (default) -- single-level image, current behavior.
+    //   N > 1       -- full chain (level 0 is ``resolution``; levels
+    //                  1..N-1 halve down). CUDA still writes only
+    //                  level 0; the Vulkan side is expected to
+    //                  populate levels 1..N-1 via vkCmdBlitImage
+    //                  (e.g. QuadLayer's mip-gen pass).
+    //   0           -- auto-compute full chain to 1x1.
+    static std::unique_ptr<DeviceImage> create(const VkContext& ctx,
+                                               Resolution resolution,
+                                               PixelFormat format,
+                                               uint32_t mip_levels = 1);
 
     ~DeviceImage();
     void destroy();
@@ -103,6 +115,10 @@ public:
     {
         return format_;
     }
+    uint32_t mip_levels() const noexcept
+    {
+        return mip_levels_;
+    }
 
     // Synchronous one-shot layout transitions (vkQueueSubmit +
     // vkQueueWaitIdle). For tests / one-shot uploads — production
@@ -111,7 +127,7 @@ public:
     void transition_to_transfer_dst();
 
 private:
-    explicit DeviceImage(const VkContext& ctx, Resolution resolution, PixelFormat format);
+    explicit DeviceImage(const VkContext& ctx, Resolution resolution, PixelFormat format, uint32_t mip_levels);
     void init();
 
     void create_vk_image_with_external_memory();
@@ -130,6 +146,7 @@ private:
     Resolution resolution_{};
     PixelFormat format_ = PixelFormat::kRGBA8;
     VkFormat vk_format_ = VK_FORMAT_R8G8B8A8_UNORM;
+    uint32_t mip_levels_ = 1;
     VkImageLayout current_layout_ = VK_IMAGE_LAYOUT_UNDEFINED;
 
     VkImage image_ = VK_NULL_HANDLE;

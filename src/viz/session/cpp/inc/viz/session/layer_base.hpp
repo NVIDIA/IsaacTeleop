@@ -45,6 +45,17 @@ public:
     LayerBase(const LayerBase&) = delete;
     LayerBase& operator=(const LayerBase&) = delete;
 
+    // Optional transfer/compute work that can't run inside a render
+    // pass (layout transitions, blits, mip generation). Called once per
+    // visible layer BEFORE vkCmdBeginRenderPass on the same command
+    // buffer. ``in_flight_slot`` matches the value the compositor will
+    // pass to record() — implementations that mutate per-slot state
+    // (QuadLayer mailbox) MUST agree on the slot across both calls.
+    // Default = no-op.
+    virtual void record_pre_render_pass(VkCommandBuffer /*cmd*/, uint32_t /*in_flight_slot*/)
+    {
+    }
+
     // Issue draws inside the active render pass.
     //   views:    1 entry in window/offscreen, 2 in kXr stereo. Each
     //             entry's viewport is this layer's rect for that view —
