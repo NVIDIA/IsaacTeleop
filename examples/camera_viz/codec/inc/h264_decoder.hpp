@@ -39,8 +39,7 @@ public:
     // buffer; ``row_pitch_bytes`` is the byte stride between rows.
     // Synchronous on an internal stream — buffer is safe to read from
     // any stream once decode() returns.
-    bool decode(const uint8_t* packet, std::size_t packet_size,
-                uintptr_t rgba_out_device_ptr, std::size_t row_pitch_bytes);
+    bool decode(const uint8_t* packet, std::size_t packet_size, uintptr_t rgba_out_device_ptr, std::size_t row_pitch_bytes);
 
     // Tear down NVDEC state. Use on stream-timeout / disconnect so the
     // next packet sees a fresh DPB.

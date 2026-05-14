@@ -249,8 +249,7 @@ uint8_t QuadLayer::pick_free_slot(uint8_t latest,
     // sampling — caller should keep producer rate ≤ render rate to
     // avoid this. In practice (30 Hz source, 60 Hz render) it never
     // triggers.
-    static_assert(kSlotCount >= kMaxFramesInFlight + 1,
-                  "kSlotCount must be at least kMaxFramesInFlight + 1");
+    static_assert(kSlotCount >= kMaxFramesInFlight + 1, "kSlotCount must be at least kMaxFramesInFlight + 1");
     for (uint8_t i = 0; i < kSlotCount; ++i)
     {
         if (i == latest)

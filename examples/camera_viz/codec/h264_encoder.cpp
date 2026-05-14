@@ -3,14 +3,13 @@
 
 #include "h264_encoder.hpp"
 
-#include <cstring>
-#include <sstream>
-#include <stdexcept>
+#include "NvEncoder/NvEncoderCuda.h"
 
+#include <cstring>
 #include <cuda.h>
 #include <cuda_runtime.h>
-
-#include "NvEncoder/NvEncoderCuda.h"
+#include <sstream>
+#include <stdexcept>
 
 namespace camera_viz::codec
 {
@@ -35,10 +34,10 @@ NV_ENC_BUFFER_FORMAT to_nvenc_format(PixelFormat fmt)
     // NVENC names by big-endian byte order: R,G,B,A in memory = ABGR.
     switch (fmt)
     {
-        case PixelFormat::kRGBA8:
-            return NV_ENC_BUFFER_FORMAT_ABGR;
-        case PixelFormat::kBGRA8:
-            return NV_ENC_BUFFER_FORMAT_ARGB;
+    case PixelFormat::kRGBA8:
+        return NV_ENC_BUFFER_FORMAT_ABGR;
+    case PixelFormat::kBGRA8:
+        return NV_ENC_BUFFER_FORMAT_ARGB;
     }
     throw std::runtime_error("H264Encoder: unsupported pixel format");
 }
@@ -89,10 +88,8 @@ struct H264Encoder::Impl
             enc_config.version = NV_ENC_CONFIG_VER;
             init_params.encodeConfig = &enc_config;
 
-            encoder->CreateDefaultEncoderParams(&init_params,
-                                                NV_ENC_CODEC_H264_GUID,
-                                                NV_ENC_PRESET_P4_GUID,
-                                                NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY);
+            encoder->CreateDefaultEncoderParams(
+                &init_params, NV_ENC_CODEC_H264_GUID, NV_ENC_PRESET_P4_GUID, NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY);
 
             init_params.frameRateNum = cfg.fps;
             init_params.frameRateDen = 1;
@@ -105,7 +102,7 @@ struct H264Encoder::Impl
             enc_config.rcParams.vbvBufferSize = frame_bits * 2;
             enc_config.rcParams.vbvInitialDelay = frame_bits * 2;
 
-            enc_config.frameIntervalP = 1;  // no B-frames
+            enc_config.frameIntervalP = 1; // no B-frames
 
             auto& h264 = enc_config.encodeCodecConfig.h264Config;
             h264.idrPeriod = cfg.gop != 0 ? cfg.gop : cfg.fps * 5;
@@ -158,9 +155,8 @@ struct H264Encoder::Impl
     {
         // 0 means "tightly packed" to CopyToDeviceFrame.
         const std::size_t natural_pitch = static_cast<std::size_t>(cfg.width) * 4u;
-        const int src_pitch = (row_pitch_bytes == 0 || row_pitch_bytes == natural_pitch)
-                                  ? 0
-                                  : static_cast<int>(row_pitch_bytes);
+        const int src_pitch =
+            (row_pitch_bytes == 0 || row_pitch_bytes == natural_pitch) ? 0 : static_cast<int>(row_pitch_bytes);
 
         check_cu(cuCtxPushCurrent(cu_context), "cuCtxPushCurrent");
         std::vector<NvEncOutputFrame> packets;
@@ -171,17 +167,10 @@ struct H264Encoder::Impl
             {
                 throw std::runtime_error("H264Encoder: GetNextInputFrame returned null");
             }
-            NvEncoderCuda::CopyToDeviceFrame(cu_context,
-                                             reinterpret_cast<void*>(rgba_ptr),
-                                             src_pitch,
-                                             reinterpret_cast<CUdeviceptr>(in->inputPtr),
-                                             static_cast<int>(in->pitch),
-                                             encoder->GetEncodeWidth(),
-                                             encoder->GetEncodeHeight(),
-                                             CU_MEMORYTYPE_DEVICE,
-                                             in->bufferFormat,
-                                             in->chromaOffsets,
-                                             in->numChromaPlanes);
+            NvEncoderCuda::CopyToDeviceFrame(cu_context, reinterpret_cast<void*>(rgba_ptr), src_pitch,
+                                             reinterpret_cast<CUdeviceptr>(in->inputPtr), static_cast<int>(in->pitch),
+                                             encoder->GetEncodeWidth(), encoder->GetEncodeHeight(), CU_MEMORYTYPE_DEVICE,
+                                             in->bufferFormat, in->chromaOffsets, in->numChromaPlanes);
             encoder->EncodeFrame(packets);
         }
         catch (...)

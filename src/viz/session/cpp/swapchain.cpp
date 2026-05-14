@@ -14,7 +14,7 @@
 // extension header so the swapchain code stays buildable against
 // older Vulkan SDKs that don't bundle it.
 #ifndef VK_PRESENT_MODE_FIFO_LATEST_READY_EXT
-#define VK_PRESENT_MODE_FIFO_LATEST_READY_EXT static_cast<VkPresentModeKHR>(1000361000)
+#    define VK_PRESENT_MODE_FIFO_LATEST_READY_EXT static_cast<VkPresentModeKHR>(1000361000)
 #endif
 
 namespace viz
@@ -69,9 +69,7 @@ VkExtent2D clamp_extent(const VkSurfaceCapabilitiesKHR& caps, Resolution preferr
 
 } // namespace
 
-std::unique_ptr<Swapchain> Swapchain::create(const VkContext& ctx,
-                                             VkSurfaceKHR surface,
-                                             Resolution preferred_size)
+std::unique_ptr<Swapchain> Swapchain::create(const VkContext& ctx, VkSurfaceKHR surface, Resolution preferred_size)
 {
     if (!ctx.is_initialized())
     {
@@ -111,8 +109,7 @@ std::unique_ptr<Swapchain> Swapchain::create(const VkContext& ctx,
     return sc;
 }
 
-Swapchain::Swapchain(const VkContext& ctx, VkSurfaceKHR surface)
-    : ctx_(&ctx), surface_(surface)
+Swapchain::Swapchain(const VkContext& ctx, VkSurfaceKHR surface) : ctx_(&ctx), surface_(surface)
 {
 }
 
@@ -187,7 +184,8 @@ void Swapchain::init(Resolution preferred_size, VkSwapchainKHR old_swapchain)
         // because without an acquire-blocks-at-vsync throttle the
         // event-driven render loop has no natural pacing and the
         // render thread burns CPU.
-        const auto has_mode = [&available_modes](VkPresentModeKHR m) {
+        const auto has_mode = [&available_modes](VkPresentModeKHR m)
+        {
             for (VkPresentModeKHR avail : available_modes)
             {
                 if (avail == m)
@@ -205,14 +203,20 @@ void Swapchain::init(Resolution preferred_size, VkSwapchainKHR old_swapchain)
         }
         // Stderr log so the user can confirm which mode they actually got
         // — driver/compositor combinations sometimes silently fall back.
-        const auto mode_name = [](VkPresentModeKHR m) -> const char* {
+        const auto mode_name = [](VkPresentModeKHR m) -> const char*
+        {
             switch (m)
             {
-                case VK_PRESENT_MODE_IMMEDIATE_KHR: return "IMMEDIATE";
-                case VK_PRESENT_MODE_MAILBOX_KHR:   return "MAILBOX";
-                case VK_PRESENT_MODE_FIFO_KHR:      return "FIFO";
-                case VK_PRESENT_MODE_FIFO_RELAXED_KHR: return "FIFO_RELAXED";
-                default: break;
+            case VK_PRESENT_MODE_IMMEDIATE_KHR:
+                return "IMMEDIATE";
+            case VK_PRESENT_MODE_MAILBOX_KHR:
+                return "MAILBOX";
+            case VK_PRESENT_MODE_FIFO_KHR:
+                return "FIFO";
+            case VK_PRESENT_MODE_FIFO_RELAXED_KHR:
+                return "FIFO_RELAXED";
+            default:
+                break;
             }
             if (m == VK_PRESENT_MODE_FIFO_LATEST_READY_EXT)
             {

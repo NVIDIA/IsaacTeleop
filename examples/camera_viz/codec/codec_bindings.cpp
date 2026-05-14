@@ -3,15 +3,15 @@
 //
 // pybind11 bindings — public surface is ``camera_viz.codec``.
 
-#include <cstdint>
-#include <stdexcept>
-#include <string>
+#include "h264_decoder.hpp"
+#include "h264_encoder.hpp"
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
-#include "h264_decoder.hpp"
-#include "h264_encoder.hpp"
+#include <cstdint>
+#include <stdexcept>
+#include <string>
 
 namespace py = pybind11;
 using camera_viz::codec::DecoderConfig;
@@ -98,9 +98,7 @@ PYBIND11_MODULE(_camera_viz_codec, m)
 {
     m.doc() = "Native H.264 NVENC encoder + NVDEC decoder for camera_viz.";
 
-    py::enum_<PixelFormat>(m, "PixelFormat")
-        .value("RGBA8", PixelFormat::kRGBA8)
-        .value("BGRA8", PixelFormat::kBGRA8);
+    py::enum_<PixelFormat>(m, "PixelFormat").value("RGBA8", PixelFormat::kRGBA8).value("BGRA8", PixelFormat::kBGRA8);
 
     py::class_<EncoderConfig>(m, "EncoderConfig")
         .def(py::init<>())
@@ -128,8 +126,7 @@ PYBIND11_MODULE(_camera_viz_codec, m)
                 }
                 return py::bytes(reinterpret_cast<const char*>(packet.data()), packet.size());
             },
-            py::arg("rgba"),
-            "Encode one GPU-resident RGBA8 frame (shape (H, W, 4) via __cuda_array_interface__).")
+            py::arg("rgba"), "Encode one GPU-resident RGBA8 frame (shape (H, W, 4) via __cuda_array_interface__).")
         .def(
             "end_of_stream",
             [](H264Encoder& self) -> py::bytes
@@ -171,16 +168,11 @@ PYBIND11_MODULE(_camera_viz_codec, m)
                 {
                     py::gil_scoped_release release;
                     produced = self.decode(static_cast<const std::uint8_t*>(pkt.ptr),
-                                           static_cast<std::size_t>(pkt.size),
-                                           buf.ptr,
-                                           buf.row_pitch_bytes);
+                                           static_cast<std::size_t>(pkt.size), buf.ptr, buf.row_pitch_bytes);
                 }
                 return produced;
             },
-            py::arg("packet"),
-            py::arg("rgba_out"),
-            py::arg("width"),
-            py::arg("height"),
+            py::arg("packet"), py::arg("rgba_out"), py::arg("width"), py::arg("height"),
             "Feed one Annex-B AU. Returns True iff a frame was written to rgba_out.")
         .def("reset", &H264Decoder::reset, "Tear down NVDEC state. Use after long stream silence.");
 }

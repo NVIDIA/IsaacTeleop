@@ -3,14 +3,13 @@
 
 #include "h264_decoder.hpp"
 
-#include <sstream>
-#include <stdexcept>
+#include "NvDecoder/NvDecoder.h"
+#include "nv12_to_rgba.cuh"
 
 #include <cuda.h>
 #include <cuda_runtime.h>
-
-#include "NvDecoder/NvDecoder.h"
-#include "nv12_to_rgba.cuh"
+#include <sstream>
+#include <stdexcept>
 
 namespace camera_viz::codec
 {
@@ -75,7 +74,7 @@ struct H264Decoder::Impl
                                                   nullptr, // pCropRect
                                                   nullptr, // pResizeDim
                                                   false, // bExtractSEIMessage
-                                                  0, 0,  // max width/height (auto)
+                                                  0, 0, // max width/height (auto)
                                                   1000, // nClockRate
                                                   true); // bForceZeroLatency
         }
@@ -155,8 +154,8 @@ struct H264Decoder::Impl
             if (!warned_size_mismatch)
             {
                 std::ostringstream os;
-                os << "H264Decoder: stream is " << w << "x" << h
-                   << " but configured for " << cfg.width << "x" << cfg.height << "; dropping frames";
+                os << "H264Decoder: stream is " << w << "x" << h << " but configured for " << cfg.width << "x"
+                   << cfg.height << "; dropping frames";
                 std::fputs(os.str().c_str(), stderr);
                 std::fputc('\n', stderr);
                 warned_size_mismatch = true;
@@ -166,16 +165,8 @@ struct H264Decoder::Impl
             return false;
         }
 
-        launch_nv12_to_rgba(nv12,
-                            nv12 + luma_size,
-                            pitch,
-                            pitch,
-                            w,
-                            h,
-                            reinterpret_cast<uint8_t*>(rgba_out),
-                            static_cast<int>(rgba_row_bytes),
-                            cfg.full_range,
-                            stream);
+        launch_nv12_to_rgba(nv12, nv12 + luma_size, pitch, pitch, w, h, reinterpret_cast<uint8_t*>(rgba_out),
+                            static_cast<int>(rgba_row_bytes), cfg.full_range, stream);
         // UnlockFrame returns the surface to NVDEC's pool, so the
         // kernel reading it must finish first.
         const cudaError_t sync_err = cudaStreamSynchronize(stream);
@@ -198,18 +189,8 @@ struct H264Decoder::Impl
         decoder.reset();
         try
         {
-            decoder = std::make_unique<NvDecoder>(cu_context,
-                                                  true,
-                                                  cudaVideoCodec_H264,
-                                                  true,
-                                                  false,
-                                                  nullptr,
-                                                  nullptr,
-                                                  false,
-                                                  0,
-                                                  0,
-                                                  1000,
-                                                  true);
+            decoder = std::make_unique<NvDecoder>(
+                cu_context, true, cudaVideoCodec_H264, true, false, nullptr, nullptr, false, 0, 0, 1000, true);
         }
         catch (...)
         {
@@ -227,8 +208,10 @@ H264Decoder::H264Decoder(const DecoderConfig& cfg) : impl_(std::make_unique<Impl
 
 H264Decoder::~H264Decoder() = default;
 
-bool H264Decoder::decode(const uint8_t* packet, std::size_t packet_size,
-                         uintptr_t rgba_out_device_ptr, std::size_t row_pitch_bytes)
+bool H264Decoder::decode(const uint8_t* packet,
+                         std::size_t packet_size,
+                         uintptr_t rgba_out_device_ptr,
+                         std::size_t row_pitch_bytes)
 {
     return impl_->decode_one(packet, packet_size, rgba_out_device_ptr, row_pitch_bytes);
 }

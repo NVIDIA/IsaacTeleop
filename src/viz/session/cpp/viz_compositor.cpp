@@ -140,8 +140,7 @@ void VizCompositor::create_command_buffer()
     info.commandPool = command_pool_;
     info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     info.commandBufferCount = n;
-    check_vk(vkAllocateCommandBuffers(ctx_->device(), &info, command_buffers_.data()),
-             "vkAllocateCommandBuffers");
+    check_vk(vkAllocateCommandBuffers(ctx_->device(), &info, command_buffers_.data()), "vkAllocateCommandBuffers");
 }
 
 void VizCompositor::submit_or_signal_fence(const VkSubmitInfo& info, const char* what, VkFence fence)

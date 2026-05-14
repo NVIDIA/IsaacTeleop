@@ -28,9 +28,7 @@ class VkContext;
 class Swapchain
 {
 public:
-    static std::unique_ptr<Swapchain> create(const VkContext& ctx,
-                                             VkSurfaceKHR surface,
-                                             Resolution preferred_size);
+    static std::unique_ptr<Swapchain> create(const VkContext& ctx, VkSurfaceKHR surface, Resolution preferred_size);
 
     ~Swapchain();
     void destroy();

@@ -4,7 +4,6 @@
 #pragma once
 
 #include <cstdint>
-
 #include <cuda_runtime.h>
 
 namespace camera_viz::codec
@@ -14,14 +13,14 @@ namespace camera_viz::codec
 //   full_range = true  → BT.601 full-range (T.871)
 //              = false → BT.709 limited-range (H.264 default)
 void launch_nv12_to_rgba(const uint8_t* y_plane,
-                        const uint8_t* uv_plane,
-                        int y_pitch,
-                        int uv_pitch,
-                        int width,
-                        int height,
-                        uint8_t* rgba_out,
-                        int rgba_row_bytes,
-                        bool full_range,
-                        cudaStream_t stream);
+                         const uint8_t* uv_plane,
+                         int y_pitch,
+                         int uv_pitch,
+                         int width,
+                         int height,
+                         uint8_t* rgba_out,
+                         int rgba_row_bytes,
+                         bool full_range,
+                         cudaStream_t stream);
 
 } // namespace camera_viz::codec
