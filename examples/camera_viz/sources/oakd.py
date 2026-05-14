@@ -252,6 +252,26 @@ class _OakdDevice:
             else dai.Device.getAllAvailableDevices()[0]
         )
         device = dai.Device(device_info)
+
+        # USB-speed sanity check. Throughput-sensitive configs (720p+/45fps,
+        # stereo, BGR) need SUPER (USB 3.0 / 5 Gbps); HIGH (USB 2.0 /
+        # 480 Mbps) silently caps the effective fps and is by far the
+        # most common cause of "looks like it's hitting USB bandwidth".
+        # Surfacing this on connect saves a lot of guesswork.
+        try:
+            usb_speed = device.getUsbSpeed()
+            speed_name = getattr(usb_speed, "name", str(usb_speed))
+        except Exception:
+            speed_name = "?"
+        if speed_name in ("HIGH", "FULL", "LOW"):
+            notify(
+                "oakd",
+                f"USB {speed_name} (NOT USB 3) — high fps / stereo / BGR will "
+                "drop frames. Try a different cable or USB-3 port.",
+            )
+        else:
+            notify("oakd", f"USB {speed_name}")
+
         pipeline = dai.Pipeline(device)
         for s in self._stream_specs:
             socket_key = self._SOCKET_MAP[s.socket.upper()]
@@ -301,6 +321,12 @@ class _OakdDevice:
         first_frame_seen = False
         opening_notified = False
         unavailable_notified = False
+        # Measured-fps breadcrumb. Every _FPS_REPORT_S seconds we compare
+        # the actual delivered fps against the stream's requested fps;
+        # a big gap is the smoking gun for USB bandwidth / VPU throttling.
+        _FPS_REPORT_S = 5.0
+        last_fps_report_at = time.monotonic()
+        last_fps_counts = {s.name: 0 for s in self._stream_specs}
         while not self._stop.is_set():
             if not self._connected:
                 now = time.monotonic()
@@ -373,6 +399,26 @@ class _OakdDevice:
             elif not emitted_any:
                 # No queue had data this tick — brief yield to avoid burning CPU.
                 self._stop.wait(timeout=0.001)
+
+            # Periodic actual-vs-target fps. Any stream running <80% of
+            # its requested rate is almost certainly hitting USB / VPU
+            # throttling; the absolute numbers tell the user how far off
+            # they are. Reset counters AFTER reporting so windows align.
+            now = time.monotonic()
+            elapsed = now - last_fps_report_at
+            if elapsed >= _FPS_REPORT_S and first_frame_seen:
+                parts = []
+                throttled = False
+                for s in self._stream_specs:
+                    delta = self._frame_counts[s.name] - last_fps_counts[s.name]
+                    actual = delta / elapsed
+                    parts.append(f"{s.name}={actual:.1f}/{s.fps}")
+                    if actual < 0.8 * s.fps:
+                        throttled = True
+                    last_fps_counts[s.name] = self._frame_counts[s.name]
+                tag = " ⚠ throttled" if throttled else ""
+                notify("oakd", f"fps {' '.join(parts)}{tag}")
+                last_fps_report_at = now
 
 
 # ── Mode → streams config ──────────────────────────────────────────────
