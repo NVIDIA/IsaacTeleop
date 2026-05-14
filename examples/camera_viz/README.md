@@ -148,3 +148,34 @@ camera_viz/
     ├── _install_deps.sh             — installer (setup + deploy)
     └── camera-streamer.service.in   — systemd unit template
 ```
+
+---
+
+## Sharing the XR session with TeleopSession
+
+Only one OpenXR session is allowed per process. `VizSession` can own it and hand its live handles to `TeleopSession` / `DeviceIOSession` so they skip creating their own:
+
+```python
+import isaacteleop.viz as viz
+from teleopcore.oxr import OpenXRSessionHandles
+
+cfg = viz.VizSessionConfig()
+cfg.mode = viz.DisplayMode.kXr
+# Aggregate the XR extensions downstream trackers need (e.g.
+# XR_NVX1_action_context for ControllerTracker) so they're present
+# on the XrInstance we're about to create.
+cfg.required_extensions = DeviceIOSession.get_required_extensions(trackers)
+viz_session = viz.VizSession.create(cfg)
+
+# Pass the live handles into TeleopSession via its config.
+config = TeleopSessionConfig(
+    app_name="MyApp",
+    pipeline=pipeline,
+    oxr_handles=OpenXRSessionHandles(*viz_session.get_oxr_handles()),
+)
+with TeleopSession(config) as session:
+    ...
+```
+
+`viz_session.get_oxr_handles()` returns `(instance, session, space, proc_addr)` as raw `uint64`s, or `None` outside `kXr`.
+
