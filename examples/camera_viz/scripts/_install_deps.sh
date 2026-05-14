@@ -248,6 +248,15 @@ for v in cupy-cuda11x cupy-cuda12x cupy-cuda13x; do
     fi
 done
 
+# Broken-install guard: if dist-info is present but `import cupy` fails
+# (interrupted setup, manual `rm -rf cupy/`), uv treats the package as
+# installed and won't reinstall on the regular install line.
+if uv pip show --python "$PY" "$target_cupy" >/dev/null 2>&1 \
+        && ! "$PY" -c "import cupy" >/dev/null 2>&1; then
+    echo "==> $target_cupy metadata present but import fails — reinstalling"
+    uv pip uninstall --python "$PY" "$target_cupy" >/dev/null
+fi
+
 # Mirrors pyproject.toml. PyGObject comes from system python3-gi via
 # --system-site-packages, not pip.
 PKGS=("pyyaml>=6.0" "$target_cupy" "numpy>=1.23" "scipy>=1.15")
