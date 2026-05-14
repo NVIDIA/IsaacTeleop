@@ -143,7 +143,9 @@ EOF
 
     local ans=""
     if [[ -e /dev/tty ]]; then
-        read -r -p "Run those apt-get commands now? [y/N] " ans </dev/tty 2>/dev/null || ans=""
+        # NOTE: do NOT redirect stderr — ``read -p`` writes the prompt to
+        # stderr, and we want the user to actually see it.
+        read -r -p "Run those apt-get commands now? [y/N] " ans </dev/tty || ans=""
     fi
     case "${ans,,}" in
         y|yes)
@@ -202,7 +204,7 @@ check_cuda_symlinks() {
 
     local ans=""
     if [[ -e /dev/tty ]]; then
-        read -r -p "Run those now? [y/N] " ans </dev/tty 2>/dev/null || ans=""
+        read -r -p "Run those now? [y/N] " ans </dev/tty || ans=""
     fi
     case "${ans,,}" in
         y|yes)
