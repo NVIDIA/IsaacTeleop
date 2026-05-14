@@ -153,16 +153,24 @@ if [[ ! -d "$VENV_DIR" ]]; then
 fi
 PY="$VENV_DIR/bin/python"
 
+# cupy is split by CUDA major: cupy-cuda12x for CUDA 12, cupy-cuda13x
+# for CUDA 13. Get this wrong and you hit obscure NVRTC errors (lib not
+# found on a mismatched runtime, or unknown -arch=sm_X for a GPU the
+# wrong cupy build can't target). Detect from /usr/local/cuda's resolved
+# version and pick accordingly. Default to cu12 when nothing's
+# detectable — covers most workstations.
+cuda_major=12
+if [[ -L /usr/local/cuda ]]; then
+    cuda_resolved=$(readlink -f /usr/local/cuda 2>/dev/null)
+    detected=$(echo "$cuda_resolved" | grep -oE 'cuda-[0-9]+' | head -1 | cut -d- -f2)
+    [[ -n "$detected" ]] && cuda_major=$detected
+fi
+echo "==> cuda:   $cuda_major (cupy-cuda${cuda_major}x)"
+
 # Mirrors pyproject.toml's dependency block. Sender-only drops the wheel.
 # PyGObject is intentionally NOT here — it comes from system python3-gi
 # via --system-site-packages above.
-#
-# nvidia-cuda-nvrtc-cu12 + nvidia-cuda-runtime-cu12 ship the CUDA 12
-# libs cupy-cuda12x expects inside the venv. Without them, cuda.pathfinder
-# falls back to system CUDA which on Jetson Thor is 13.x — an ABI
-# mismatch that surfaces as ``libnvrtc.so not found``. These wheels have
-# aarch64 builds, so they work on both x86_64 and Jetson.
-PKGS=("pyyaml>=6.0" "cupy-cuda12x" "nvidia-cuda-nvrtc-cu12" "nvidia-cuda-runtime-cu12" "numpy>=1.23" "scipy>=1.15")
+PKGS=("pyyaml>=6.0" "cupy-cuda${cuda_major}x" "numpy>=1.23" "scipy>=1.15")
 [[ "$MODE" == full ]] && PKGS=("$WHEEL" "${PKGS[@]}")
 $WITH_V4L2 && PKGS+=("opencv-python>=4.5")
 $WITH_OAKD && PKGS+=("depthai>=3.0")
