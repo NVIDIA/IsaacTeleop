@@ -238,18 +238,12 @@ const DeviceImage* QuadLayer::device_image(uint32_t slot) const noexcept
 uint8_t QuadLayer::pick_free_slot(uint8_t latest,
                                   const std::array<std::atomic<uint8_t>, kMaxFramesInFlight>& in_use) const noexcept
 {
-    // Forbidden = {latest} ∪ {in_use_[0..N-1]}. At most 1 + N distinct
-    // forbidden values. With kSlotCount = 4 and kMaxFramesInFlight = 3
-    // that's 4 distinct in the worst case — exactly matching the slot
-    // count. The "worst case" only happens when submit publishes
-    // between every record() call AND every recent in_use_ entry is
-    // distinct, which is rare (the most recent in_use_ usually equals
-    // latest_). When it does happen, we fall back to returning slot 0
-    // and accept the small risk of overwriting a slot the GPU is
-    // sampling — caller should keep producer rate ≤ render rate to
-    // avoid this. In practice (30 Hz source, 60 Hz render) it never
-    // triggers.
-    static_assert(kSlotCount >= kMaxFramesInFlight + 1, "kSlotCount must be at least kMaxFramesInFlight + 1");
+    // Forbidden = {latest} ∪ in_use_. kSlotCount = kMaxFramesInFlight + 2
+    // guarantees one free slot under the invariant; we still return
+    // kSlotNone defensively if the invariant ever breaks, so submit()
+    // drops the publish rather than overwriting a slot the GPU is sampling.
+    static_assert(kSlotCount > kMaxFramesInFlight + 1,
+                  "kSlotCount must exceed kMaxFramesInFlight + 1 so at least one slot is free");
     for (uint8_t i = 0; i < kSlotCount; ++i)
     {
         if (i == latest)
@@ -268,7 +262,7 @@ uint8_t QuadLayer::pick_free_slot(uint8_t latest,
             return i;
         }
     }
-    return 0; // see worst-case note above
+    return kSlotNone;
 }
 
 void QuadLayer::submit(const VizBuffer& src, cudaStream_t stream)
@@ -291,18 +285,17 @@ void QuadLayer::submit(const VizBuffer& src, cudaStream_t stream)
         throw std::invalid_argument("QuadLayer::submit: src.data is null");
     }
 
-    // Pick a free slot — neither the most recent publish nor any slot
-    // an in-flight renderer is currently sampling. pick_free_slot
-    // scans the in_use_ array. With 4 storage slots and at most 3
-    // in-flight frames there's always at least one free slot.
     const uint8_t latest = latest_.load(std::memory_order_acquire);
     const uint8_t slot = pick_free_slot(latest, in_use_);
+    if (slot == kSlotNone)
+    {
+        // Mailbox drop: producer outran the renderer beyond the sizing
+        // invariant. Keep latest_ where it is; consumer keeps using it.
+        return;
+    }
     DeviceImage& image = *slots_[slot];
 
     check_cuda(cudaSetDevice(ctx_->cuda_device_id()), "cudaSetDevice");
-    // Async copy on `stream`. Caller's prior work on the same stream
-    // is naturally ordered before this; signal lands after the copy
-    // completes on the GPU.
     const size_t row_bytes = static_cast<size_t>(src.width) * bytes_per_pixel(src.format);
     const size_t src_pitch = (src.pitch == 0) ? row_bytes : src.pitch;
     check_cuda(cudaMemcpy2DToArrayAsync(image.cuda_array(), 0, 0, src.data, src_pitch, row_bytes, src.height,
@@ -310,8 +303,6 @@ void QuadLayer::submit(const VizBuffer& src, cudaStream_t stream)
                "cudaMemcpy2DToArrayAsync");
     image.cuda_signal_write_done(stream);
 
-    // Publish. The renderer's next record() will atomic-exchange
-    // this into in_use_; the previous latest_ slot becomes free.
     // memory_order_release pairs with the renderer's acquire load.
     latest_.store(slot, std::memory_order_release);
 }
@@ -323,18 +314,22 @@ void QuadLayer::record(VkCommandBuffer cmd,
 {
     require_alive(slots_[0], "record");
 
-    // Promote latest_ to in_use_[in_flight_slot]. The previous entry
-    // at this index becomes free for the next submit() — but only
-    // once the GPU work that referenced it completes, which is
-    // exactly what the compositor's per-slot fence wait guarantees
-    // (it waits on the fence for THIS in_flight_slot before re-
-    // entering record() for this slot, so by then the GPU has
-    // finished sampling whatever this entry pointed to).
-    //
-    // If no frame has been published yet (latest_ == kSlotNone), we
-    // leave the entry as-is. If it's also kSlotNone we skip the draw.
+    // Backends are contracted to image_count ≤ kMaxFramesInFlight; if
+    // that ever breaks, two in-flight frames would alias on the same
+    // in_use_ entry and we'd lose the slot-tracking invariant.
+    if (in_flight_slot >= kMaxFramesInFlight)
+    {
+        throw std::logic_error("QuadLayer::record: in_flight_slot " + std::to_string(in_flight_slot) +
+                               " >= kMaxFramesInFlight (" + std::to_string(kMaxFramesInFlight) +
+                               "); bump kMaxFramesInFlight to match the backend's image_count");
+    }
+
+    // Promote latest_ to in_use_[in_flight_slot]. The compositor's
+    // per-slot fence wait at the top of render() guarantees the GPU
+    // has finished sampling the previous in_use_ value before we
+    // overwrite it.
     const uint8_t latest = latest_.load(std::memory_order_acquire);
-    const uint32_t idx = in_flight_slot % kMaxFramesInFlight;
+    const uint32_t idx = in_flight_slot;
     if (latest != kSlotNone)
     {
         in_use_[idx].store(latest, std::memory_order_release);

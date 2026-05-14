@@ -27,7 +27,7 @@ class VkContext;
 // (window/offscreen — quad fills the layer's tile) or as a world-space
 // rectangle (kXr — Config::placement required).
 //
-// Mailbox: kSlotCount=4 DeviceImages. submit() picks a slot that's
+// Mailbox: kSlotCount DeviceImages. submit() picks a slot that's
 // neither the latest publish nor in use by any in-flight frame, copies
 // pixels in, signals cuda_done_writing, and atomic-stores latest.
 // record(slot_index) atomic-stores latest into in_use_[slot_index]
@@ -35,25 +35,18 @@ class VkContext;
 // renderer is sampling; renderer always sees the most recent
 // completed publish.
 //
-// Multi-frame-in-flight: VizCompositor passes the in-flight slot index
-// to record(); we keep one in_use_ entry per slot so submit's
-// pick_free_slot can exclude all the slots that any active GPU work is
-// reading. With 4 storage slots and at most {latest + 3 in_use}
-// distinct forbidden values, there's always at least one free slot.
+// Sizing invariant: kSlotCount = kMaxFramesInFlight + 2. Worst-case
+// forbidden set is {latest} ∪ in_use_ → 1 + kMaxFramesInFlight distinct
+// values, the +2 leaves at least one free slot. If a backend's
+// image_count ever exceeds kMaxFramesInFlight, record() asserts —
+// bump kMaxFramesInFlight and kSlotCount together.
 //
-// Memory: ~4 × width × height × bpp (32 MB at 1080p RGBA8).
+// Memory: kSlotCount × width × height × bpp (~40 MB at 1080p RGBA8).
 class QuadLayer : public LayerBase
 {
 public:
-    // 4 storage slots: 1 for latest, up to 3 in-flight frames'
-    // in_use_ entries, leaves at least 1 free for the next submit.
-    static constexpr uint32_t kSlotCount = 4;
-    // Matches typical swapchain image count. Compositor's slot index
-    // is taken modulo this when indexing in_use_; the array sized to
-    // this dimension regardless of actual backend image_count keeps
-    // pick_free_slot O(1) and lets the same QuadLayer attach to any
-    // backend without re-allocating.
     static constexpr uint32_t kMaxFramesInFlight = 3;
+    static constexpr uint32_t kSlotCount = kMaxFramesInFlight + 2;
 
     struct Config
     {
@@ -135,12 +128,9 @@ private:
     // a freshly-published slot to `in_use_`.
     static constexpr uint8_t kSlotNone = 0xFF;
 
-    // Picks a slot that is neither latest_ nor in any in_use_ entry,
-    // in 0..kSlotCount-1. With kSlotCount=4 and at most
-    // (1 + kMaxFramesInFlight) = 4 forbidden values, the worst case
-    // still leaves zero free — but in steady state the most-recent
-    // in_use_ entry equals latest_, so typically 2-3 distinct
-    // forbidden values and 1-2 free slots.
+    // Picks a slot that is neither latest_ nor in any in_use_ entry.
+    // Returns kSlotNone if every slot is forbidden (producer outran the
+    // renderer beyond the sizing invariant) — caller drops the publish.
     uint8_t pick_free_slot(uint8_t latest,
                            const std::array<std::atomic<uint8_t>, kMaxFramesInFlight>& in_use) const noexcept;
 
