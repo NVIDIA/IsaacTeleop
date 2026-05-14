@@ -71,14 +71,11 @@ if [[ -e /usr/local/cuda ]]; then
     fi
 fi
 
-# Apt-install: Debian PyGObject (avoids a pycairo source-build), GStreamer
-# plugins, and cuda-nvrtc (JetPack base image omits it). Idempotent; each
-# package is gated on a fast check. Skipped on desktop (--jetson off):
-# desktop CUDA + standard apt env covers these.
+# Apt-install: Debian PyGObject (avoids a pycairo source-build) +
+# GStreamer plugins (always, when RTP is enabled), and cuda-nvrtc
+# (Jetson only — JetPack base image omits it; desktop CUDA installer
+# already ships it). Idempotent; each package is gated on a fast check.
 ensure_apt_deps() {
-    if ! $JETSON; then
-        return 0
-    fi
     if ! $WITH_RTP; then
         return 0
     fi
@@ -112,7 +109,11 @@ ensure_apt_deps() {
     $need_bad  && pkgs+=(gstreamer1.0-plugins-bad gstreamer1.0-libav)
     $need_ugly && pkgs+=(gstreamer1.0-plugins-ugly)
 
-    if ! find /usr -name 'libnvrtc.so*' 2>/dev/null | grep -q .; then
+    # cuda-nvrtc is only apt-installed on Jetson — JetPack ships partial
+    # CUDA without it. Desktop CUDA installer already drops libnvrtc into
+    # /usr/local/cuda; if it's missing there, the user needs to fix their
+    # CUDA install, not have us apt-pull it.
+    if $JETSON && ! find /usr -name 'libnvrtc.so*' 2>/dev/null | grep -q .; then
         pkgs+=("cuda-nvrtc-${cuda_major}-${cuda_minor}")
     fi
 

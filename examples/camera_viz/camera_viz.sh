@@ -327,12 +327,14 @@ camera_viz.sh — local development + Jetson deployment for camera_viz
 LOCAL
     setup [--sender-only] [--jetson] [--no-v4l2] [--no-oakd] [--no-rtp] [--with-zed]
                           Create .venv, install deps, build native codec.
+                          Missing python3-gi / GStreamer plugins are
+                          apt-installed on Debian/Ubuntu regardless of
+                          host kind.
                           --sender-only skips the isaacteleop wheel + vulkan
                           deps (use on Jetson sender hosts).
-                          --jetson opts into JetPack-specific provisioning
-                          (apt-installs python3-gi / GStreamer plugins /
-                          cuda-nvrtc + creates the unversioned CUDA lib
-                          symlinks JetPack skips). Off on desktop.
+                          --jetson adds JetPack-only steps on top: apt-
+                          install cuda-nvrtc and create the unversioned
+                          CUDA lib symlinks JetPack skips. Off on desktop.
 
     loopback CONFIG       Run camera_streamer + camera_viz on 127.0.0.1.
 
