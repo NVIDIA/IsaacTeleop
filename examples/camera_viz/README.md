@@ -178,4 +178,3 @@ with TeleopSession(config) as session:
 ```
 
 `viz_session.get_oxr_handles()` returns `(instance, session, space, proc_addr)` as raw `uint64`s, or `None` outside `kXr`.
-
