@@ -46,6 +46,13 @@ public:
     {
         return {};
     }
+    // Best-effort device extensions: enabled only when the chosen
+    // physical device advertises them. Query at runtime via
+    // VkContext::has_device_extension().
+    virtual std::vector<std::string> optional_device_extensions() const
+    {
+        return {};
+    }
 
     // Allocate device resources. Throws on failure.
     virtual void init(const VkContext& ctx, Resolution preferred_size) = 0;

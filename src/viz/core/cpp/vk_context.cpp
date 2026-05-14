@@ -294,6 +294,22 @@ int VkContext::cuda_device_id() const noexcept
     return cuda_device_id_;
 }
 
+bool VkContext::has_device_extension(const char* name) const noexcept
+{
+    if (name == nullptr)
+    {
+        return false;
+    }
+    for (const auto& s : enabled_device_extensions_)
+    {
+        if (s == name)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 void VkContext::create_instance(const Config& config)
 {
     VkApplicationInfo app_info{};
@@ -425,11 +441,27 @@ void VkContext::create_logical_device(const Config& config)
     queue_info.queueCount = 1;
     queue_info.pQueuePriorities = &queue_priority;
 
-    // Build extension list: required + caller-provided.
+    // Build extension list: required + caller-provided + the subset of
+    // optional that the device advertises. Persist the final list so
+    // has_device_extension() can answer later queries.
     std::vector<const char*> extensions(kRequiredDeviceExtensions);
+    enabled_device_extensions_.clear();
+    for (const char* req : kRequiredDeviceExtensions)
+    {
+        enabled_device_extensions_.emplace_back(req);
+    }
     for (const auto& s : config.device_extensions)
     {
         extensions.push_back(s.c_str());
+        enabled_device_extensions_.emplace_back(s);
+    }
+    for (const auto& s : config.optional_device_extensions)
+    {
+        if (device_supports_extensions(physical_device_, std::vector<std::string>{ s }))
+        {
+            extensions.push_back(s.c_str());
+            enabled_device_extensions_.emplace_back(s);
+        }
     }
 
     VkPhysicalDeviceFeatures device_features{};
@@ -707,9 +739,23 @@ void VkContext::create_logical_device_xr(const Config& config)
     queue_info.pQueuePriorities = &queue_priority;
 
     std::vector<const char*> extensions(kRequiredDeviceExtensions);
+    enabled_device_extensions_.clear();
+    for (const char* req : kRequiredDeviceExtensions)
+    {
+        enabled_device_extensions_.emplace_back(req);
+    }
     for (const auto& s : config.device_extensions)
     {
         extensions.push_back(s.c_str());
+        enabled_device_extensions_.emplace_back(s);
+    }
+    for (const auto& s : config.optional_device_extensions)
+    {
+        if (device_supports_extensions(physical_device_, std::vector<std::string>{ s }))
+        {
+            extensions.push_back(s.c_str());
+            enabled_device_extensions_.emplace_back(s);
+        }
     }
 
     VkPhysicalDeviceFeatures features{};

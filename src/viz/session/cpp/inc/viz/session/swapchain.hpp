@@ -17,14 +17,11 @@ namespace viz
 class VkContext;
 
 // VkSwapchainKHR + per-image semaphores. Present mode preference:
-// MAILBOX → FIFO_LATEST_READY → FIFO. Skips IMMEDIATE (would let
-// the render loop burn a CPU core with no natural throttle on most
-// drivers). On X11 + compositor stacks that strip MAILBOX from
-// windowed surfaces, FIFO_LATEST_READY gives the same low-latency
-// behavior (no tearing, vsync-paced, always presents the latest
-// ready image). Surface format prefers B8G8R8A8_SRGB then any
-// *_SRGB then the runtime's first. The chosen present mode is
-// logged at startup so the actual selection is visible.
+// MAILBOX → FIFO_LATEST_READY (only if VK_EXT_present_mode_fifo_latest_ready
+// is enabled) → FIFO. IMMEDIATE is skipped — without an acquire-blocks-
+// at-vsync throttle the event-driven render loop has no natural pacing.
+// Surface format prefers B8G8R8A8_SRGB then any *_SRGB then the
+// runtime's first.
 class Swapchain
 {
 public:

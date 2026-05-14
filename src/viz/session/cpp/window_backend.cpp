@@ -87,6 +87,14 @@ std::vector<std::string> WindowBackend::required_device_extensions() const
     return { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
 }
 
+std::vector<std::string> WindowBackend::optional_device_extensions() const
+{
+    // FIFO_LATEST_READY gives MAILBOX-like behavior on drivers that
+    // strip MAILBOX from windowed surfaces (X11 + compositor stacks).
+    // Best-effort: Swapchain falls back to FIFO when this isn't enabled.
+    return { "VK_EXT_present_mode_fifo_latest_ready" };
+}
+
 void WindowBackend::init(const VkContext& ctx, Resolution preferred_size)
 {
     ctx_ = &ctx;

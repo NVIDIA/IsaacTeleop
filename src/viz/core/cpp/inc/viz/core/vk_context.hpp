@@ -45,7 +45,11 @@ public:
         bool enable_validation = false;
 
         std::vector<std::string> instance_extensions;
+        // Required; init() rejects devices that lack any of these.
         std::vector<std::string> device_extensions;
+        // Best-effort; each is enabled iff the chosen device advertises
+        // it. Query at runtime via has_device_extension().
+        std::vector<std::string> optional_device_extensions;
 
         // -1 = auto-pick (discrete NVIDIA preferred); otherwise use the
         // device at this index from vkEnumeratePhysicalDevices().
@@ -85,6 +89,11 @@ public:
     // VK_NULL_HANDLE before init().
     VkPipelineCache pipeline_cache() const noexcept;
 
+    // True iff the named extension was enabled at device creation
+    // (required or optional). Use to gate features that depend on a
+    // best-effort extension being present.
+    bool has_device_extension(const char* name) const noexcept;
+
     // Layers running CUDA on worker threads must cudaSetDevice(this)
     // before any CUDA call (cudaSetDevice is per-thread). -1 before init().
     int cuda_device_id() const noexcept;
@@ -112,6 +121,9 @@ private:
     VkQueue queue_ = VK_NULL_HANDLE;
     VkPipelineCache pipeline_cache_ = VK_NULL_HANDLE;
     int cuda_device_id_ = -1;
+    // Names of every device extension actually enabled (required + the
+    // subset of optional that the device supports).
+    std::vector<std::string> enabled_device_extensions_;
 };
 
 } // namespace viz

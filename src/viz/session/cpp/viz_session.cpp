@@ -79,6 +79,7 @@ void VizSession::init()
         VkContext::Config vk_cfg{};
         vk_cfg.instance_extensions = backend_->required_instance_extensions();
         vk_cfg.device_extensions = backend_->required_device_extensions();
+        vk_cfg.optional_device_extensions = backend_->optional_device_extensions();
 
         // kXr: hand XrInstance + systemId to VkContext so it takes the
         // xrCreateVulkan*KHR path — lets the runtime interpose on

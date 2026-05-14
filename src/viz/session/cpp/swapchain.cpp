@@ -144,11 +144,20 @@ void Swapchain::init(Resolution preferred_size, VkSwapchainKHR old_swapchain)
         color_space_ = chosen.colorSpace;
         extent_ = clamp_extent(caps, preferred_size);
 
-        // Triple-buffer if the runtime allows it; otherwise the min.
-        uint32_t image_count = caps.minImageCount + 1;
+        // Aim for triple-buffer, never request more than 3. Downstream
+        // (QuadLayer::kMaxFramesInFlight) tracks at most 3 in-flight
+        // slots; asking for more wastes memory and risks the driver
+        // returning > 3 images, which we'd then reject below.
+        constexpr uint32_t kMaxRequest = 3;
+        uint32_t image_count = std::min(caps.minImageCount + 1, kMaxRequest);
         if (caps.maxImageCount > 0)
         {
             image_count = std::min(image_count, caps.maxImageCount);
+        }
+        if (caps.minImageCount > kMaxRequest)
+        {
+            throw std::runtime_error("Swapchain::init: surface minImageCount " + std::to_string(caps.minImageCount) +
+                                     " exceeds compositor cap of " + std::to_string(kMaxRequest));
         }
 
         VkSwapchainCreateInfoKHR info{};
@@ -196,8 +205,11 @@ void Swapchain::init(Resolution preferred_size, VkSwapchainKHR old_swapchain)
         {
             present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
         }
-        else if (has_mode(VK_PRESENT_MODE_FIFO_LATEST_READY_EXT))
+        else if (ctx_->has_device_extension("VK_EXT_present_mode_fifo_latest_ready") &&
+                 has_mode(VK_PRESENT_MODE_FIFO_LATEST_READY_EXT))
         {
+            // Only legal to pass this enum to vkCreateSwapchainKHR when
+            // the extension is enabled; otherwise validation trips.
             present_mode = VK_PRESENT_MODE_FIFO_LATEST_READY_EXT;
         }
         info.presentMode = present_mode;
@@ -208,6 +220,14 @@ void Swapchain::init(Resolution preferred_size, VkSwapchainKHR old_swapchain)
 
         uint32_t actual = 0;
         vkGetSwapchainImagesKHR(device, swapchain_, &actual, nullptr);
+        // Spec says we get AT LEAST minImageCount, so the driver is free
+        // to give more than we asked for. Compositor/QuadLayer can't
+        // handle that — fail loud rather than alias slots silently.
+        if (actual > kMaxRequest)
+        {
+            throw std::runtime_error("Swapchain::init: driver returned " + std::to_string(actual) +
+                                     " swapchain images, exceeding compositor cap of " + std::to_string(kMaxRequest));
+        }
         images_.resize(actual);
         vkGetSwapchainImagesKHR(device, swapchain_, &actual, images_.data());
 

@@ -32,6 +32,7 @@ public:
 
     std::vector<std::string> required_instance_extensions() const override;
     std::vector<std::string> required_device_extensions() const override;
+    std::vector<std::string> optional_device_extensions() const override;
     void init(const VkContext& ctx, Resolution preferred_size) override;
 
     std::optional<Frame> begin_frame(int64_t predicted_display_time) override;
