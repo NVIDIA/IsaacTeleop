@@ -56,15 +56,24 @@ while (( $# )); do
     esac
 done
 
-# Detect CUDA major from /usr/local/cuda's resolved target (typically
-# /usr/local/cuda → /etc/alternatives/cuda → /usr/local/cuda-13.0).
-# Default to 12 when nothing's detectable. Used for both the cupy
-# wheel name and the cuda-nvrtc apt package version.
+# Detect CUDA major.minor from /usr/local/cuda's resolved target
+# (typically /usr/local/cuda → /etc/alternatives/cuda → /usr/local/
+# cuda-13.0). Default to 12.0 when nothing's detectable.
+#
+# Both pieces are load-bearing:
+#   - major picks the cupy wheel  (cupy-cuda12x vs cupy-cuda13x)
+#   - major.minor picks the apt nvrtc package  (cuda-nvrtc-12-6 on
+#     Orin/JP6, cuda-nvrtc-13-0 on Thor/JP7). The minor matters
+#     because JetPack only publishes the exact-minor package.
 cuda_major=12
+cuda_minor=0
 if [[ -e /usr/local/cuda ]]; then
     cuda_resolved=$(readlink -f /usr/local/cuda 2>/dev/null)
-    detected=$(echo "$cuda_resolved" | grep -oE 'cuda-[0-9]+' | head -1 | cut -d- -f2)
-    [[ -n "$detected" ]] && cuda_major=$detected
+    full=$(echo "$cuda_resolved" | grep -oE 'cuda-[0-9]+\.[0-9]+' | head -1 | sed 's/cuda-//')
+    if [[ -n "$full" ]]; then
+        cuda_major=$(echo "$full" | cut -d. -f1)
+        cuda_minor=$(echo "$full" | cut -d. -f2)
+    fi
 fi
 
 # System apt deps: Debian PyGObject + GStreamer (so we don't source-build
@@ -90,10 +99,11 @@ ensure_apt_deps() {
             gstreamer1.0-plugins-good
         )
     fi
-    # NVRTC is the kernel compiler cupy uses at runtime. JetPack 7 omits
-    # it from the base CUDA toolkit metapackages; install it explicitly.
+    # NVRTC is the kernel compiler cupy uses at runtime. JetPack omits
+    # it from the base CUDA toolkit metapackages; install the exact-
+    # minor package (Orin/JP6: cuda-nvrtc-12-6, Thor/JP7: cuda-nvrtc-13-0).
     if ! find /usr -name 'libnvrtc.so*' 2>/dev/null | grep -q .; then
-        pkgs+=("cuda-nvrtc-${cuda_major}-0")
+        pkgs+=("cuda-nvrtc-${cuda_major}-${cuda_minor}")
     fi
 
     if [[ ${#pkgs[@]} -eq 0 ]]; then
@@ -221,7 +231,7 @@ if [[ ! -d "$VENV_DIR" ]]; then
 fi
 PY="$VENV_DIR/bin/python"
 
-echo "==> cuda:   $cuda_major (cupy-cuda${cuda_major}x)"
+echo "==> cuda:   ${cuda_major}.${cuda_minor} (cupy-cuda${cuda_major}x, cuda-nvrtc-${cuda_major}-${cuda_minor})"
 
 # Mirrors pyproject.toml's dependency block. Sender-only drops the wheel.
 # PyGObject is intentionally NOT here — it comes from system python3-gi
