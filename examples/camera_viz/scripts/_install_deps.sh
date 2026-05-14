@@ -56,6 +56,44 @@ while (( $# )); do
     esac
 done
 
+# System apt deps for the RTP path: cairo + girepository headers
+# (pycairo / PyGObject build from source via pip) plus the GStreamer
+# elements RtpH264Sender pipes through at runtime. Idempotent — skipped
+# fast when everything's already present. Only attempted under --no-rtp
+# off (the default) since these are RTP-only requirements.
+ensure_apt_deps() {
+    if ! $WITH_RTP; then
+        return 0
+    fi
+    if ! command -v apt-get >/dev/null 2>&1; then
+        # Not Debian/Ubuntu — skip; user is on something else and knows
+        # what they're doing.
+        return 0
+    fi
+    # Fast path: cairo + girepository headers detectable via pkg-config.
+    if command -v pkg-config >/dev/null 2>&1 \
+        && pkg-config --exists cairo \
+        && (pkg-config --exists girepository-1.0 || pkg-config --exists girepository-2.0); then
+        return 0
+    fi
+    echo "==> apt-installing system deps (cairo + girepository + gstreamer)"
+    local pkgs=(
+        pkg-config
+        libcairo2-dev
+        libgirepository1.0-dev
+        gobject-introspection
+        gstreamer1.0-tools
+        gstreamer1.0-plugins-base
+        gstreamer1.0-plugins-good
+    )
+    if ! sudo -n true 2>/dev/null; then
+        echo "    sudo password required (one-time)"
+    fi
+    sudo apt-get update -qq
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${pkgs[@]}"
+}
+ensure_apt_deps
+
 # Auto-install uv into ~/.local/bin if missing. Jetson images usually
 # don't ship it; we don't want a fresh deploy to require a manual step.
 if ! command -v uv >/dev/null 2>&1; then

@@ -235,9 +235,10 @@ cmd_deploy() {
 
     log_step "Installing deps on robot (sender-only)"
     # ``--sender-only`` means no isaacteleop wheel + no vulkan deps.
-    # We pass --no-oakd / --no-v4l2 only if the user wants them; default
-    # everything on so first deploy "just works" given the YAML.
-    ssh_run "cd $REMOTE_DIR && bash scripts/_install_deps.sh --sender-only"
+    # Use ssh_run_tty so apt + sudo can prompt for the password — the
+    # script's apt step is gated on a fast pkg-config check, so it
+    # only prompts on first deploy / when system libs are missing.
+    ssh_run_tty "cd $REMOTE_DIR && bash scripts/_install_deps.sh --sender-only"
     log_ok "deps installed"
 
     if $no_service; then
