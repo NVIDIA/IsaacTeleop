@@ -63,6 +63,7 @@ void bind_session(py::module_& m)
         .def_readwrite("xr_system_wait_seconds", &viz::VizSession::Config::xr_system_wait_seconds)
         .def_readwrite("xr_near_z", &viz::VizSession::Config::xr_near_z)
         .def_readwrite("xr_far_z", &viz::VizSession::Config::xr_far_z)
+        .def_readwrite("required_extensions", &viz::VizSession::Config::required_extensions)
         .def_readwrite("gpu_timing", &viz::VizSession::Config::gpu_timing)
         .def_property(
             "clear_color",
@@ -120,6 +121,24 @@ Construct via ``VizSession.create(config)``. Add layers with
         .def("has_xr_time_conversion", &viz::VizSession::has_xr_time_conversion)
         .def("head_pose_now", &viz::VizSession::head_pose_now,
              "Current head pose (kXr only). None on tracking loss or missing time-conversion ext.")
+        // OpenXR handle bundle for sharing with TeleopSession / DeviceIOSession.
+        // Returns (instance, session, space, xrGetInstanceProcAddr) as raw
+        // uint64_t — pass to ``OpenXRSessionHandles(*tuple)`` on the Python
+        // side. None unless in kXr mode and the backend is initialized.
+        .def(
+            "get_oxr_handles",
+            [](const viz::VizSession& s) -> py::object
+            {
+                auto h = s.get_oxr_handles();
+                if (!h.has_value())
+                {
+                    return py::none();
+                }
+                return py::make_tuple(reinterpret_cast<uint64_t>(h->instance), reinterpret_cast<uint64_t>(h->session),
+                                      reinterpret_cast<uint64_t>(h->space),
+                                      reinterpret_cast<uint64_t>(h->xrGetInstanceProcAddr));
+            },
+            "OpenXR (instance, session, space, proc_addr) as raw uint64 tuple, or None outside kXr.")
         // Raw handle accessors as integers — for callers wiring Televiz into
         // a foreign Vulkan / OpenXR app. Most users won't touch these.
         .def_property_readonly(
