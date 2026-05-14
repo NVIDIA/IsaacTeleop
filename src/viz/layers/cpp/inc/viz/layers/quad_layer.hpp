@@ -79,7 +79,11 @@ public:
         // at kMaxMipLevels (smallest level is 1/8 linear dims for the
         // typical 1080p / 4K source) — past that the cost outpaces the
         // visual win for our XR distance-view use cases.
-        bool generate_mipmaps = false;
+        // On by default: the per-frame cost is sub-millisecond and the
+        // aliasing it removes is very visible in XR / multi-tile grids.
+        // Set to false to save the ~33% extra image memory on layers
+        // that are always sampled at native resolution.
+        bool generate_mipmaps = true;
     };
 
     // Hard cap on the mip chain when generate_mipmaps is enabled.
