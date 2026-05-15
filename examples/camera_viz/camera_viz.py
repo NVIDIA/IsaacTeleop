@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import signal
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -29,9 +30,23 @@ import isaacteleop.viz as viz
 
 from pipeline import FrameSource, VizRunner
 from placements import PlacementConfig, PlacementStrategy, build as build_placement
-from sources import RtpH264Source, build_local_camera
+from sources import PairedFrameSource, RtpH264Source, build_local_camera
 
-SourceEntry = Tuple[FrameSource, Optional[PlacementStrategy]]
+
+@dataclass
+class SourceEntry:
+    """One row in the layer plan: a source + its placement + stereo cfg.
+
+    ``stereo`` and ``stereo_baseline_mm`` are pulled from the camera spec
+    (``cameras.<cam>.stereo``) and the placement spec
+    (``placements.<cam>.stereo_baseline_mm``) respectively. They drive
+    the QuadLayer Config when the layer is added to the session.
+    """
+
+    source: FrameSource
+    placement: Optional[PlacementStrategy]
+    stereo: bool = False
+    stereo_baseline_mm: float = 0.0
 
 
 def _build_placement(spec: Optional[dict], is_xr: bool) -> Optional[PlacementStrategy]:
@@ -82,19 +97,48 @@ def _placement_with_aspect(
     return _build_placement(spec, is_xr)
 
 
+def _stereo_for(cam: dict, placements_cfg: dict) -> Tuple[bool, float]:
+    """Resolve stereo + baseline for one camera.
+
+    ``stereo`` lives on the camera (so the producer side knows). The
+    rendering knob ``stereo_baseline_mm`` lives on the placement (it's
+    a display-time parameter). 0.0 means both eyes see the same world
+    quad — all parallax comes from the captured frames.
+    """
+    stereo = bool(cam.get("stereo", False))
+    pspec = placements_cfg.get(cam["name"]) or {}
+    baseline_mm = float(pspec.get("stereo_baseline_mm", 0.0))
+    return stereo, baseline_mm
+
+
 def _build_local_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
     """source=local: open each enabled camera directly."""
     placements_cfg = cfg.get("display", {}).get("placements", {})
     entries: List[SourceEntry] = []
     for cam in _enabled_cameras(cfg):
         placement = _placement_with_aspect(placements_cfg.get(cam["name"]), cam, is_xr)
+        stereo, baseline_mm = _stereo_for(cam, placements_cfg)
         for source in build_local_camera(cam):
-            entries.append((source, placement))
+            entries.append(
+                SourceEntry(
+                    source=source,
+                    placement=placement,
+                    stereo=stereo,
+                    stereo_baseline_mm=baseline_mm,
+                )
+            )
     return entries
 
 
 def _build_rtp_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
-    """source=rtp: build an RTP listener per camera using its ``rtp.port``."""
+    """source=rtp: build an RTP listener per camera using its ``rtp.port``.
+
+    Stereo cameras open TWO listeners (rtp.port for left, rtp.port_right
+    for right) and pair them via PairedFrameSource. The wire path treats
+    the two eyes as independent streams — drift is acceptable (the user
+    accepted "no sync" for RTP stereo); paired-frame atomicity at the
+    QuadLayer mailbox is what stops torn pairs from reaching the GPU.
+    """
     placements_cfg = cfg.get("display", {}).get("placements", {})
     entries: List[SourceEntry] = []
     for cam in _enabled_cameras(cfg):
@@ -104,16 +148,52 @@ def _build_rtp_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
                 f"camera_viz: camera {cam.get('name')!r} missing rtp.port; "
                 "required when source: rtp"
             )
-        source = RtpH264Source(
-            name=cam["name"],
-            width=int(cam["width"]),
-            height=int(cam["height"]),
-            port=int(rtp["port"]),
-            rtp_buffer_size=int(rtp.get("rtp_buffer_size", 212992)),
-            gpu_id=int(rtp.get("gpu_id", 0)),
-        )
         placement = _placement_with_aspect(placements_cfg.get(cam["name"]), cam, is_xr)
-        entries.append((source, placement))
+        stereo, baseline_mm = _stereo_for(cam, placements_cfg)
+
+        if stereo:
+            if "port_right" not in rtp:
+                raise ValueError(
+                    f"camera_viz: stereo camera {cam.get('name')!r} missing "
+                    "rtp.port_right (required when stereo + source: rtp)"
+                )
+            left = RtpH264Source(
+                name=f"{cam['name']}.left",
+                width=int(cam["width"]),
+                height=int(cam["height"]),
+                port=int(rtp["port"]),
+                rtp_buffer_size=int(rtp.get("rtp_buffer_size", 212992)),
+                gpu_id=int(rtp.get("gpu_id", 0)),
+            )
+            right = RtpH264Source(
+                name=f"{cam['name']}.right",
+                width=int(cam["width"]),
+                height=int(cam["height"]),
+                port=int(rtp["port_right"]),
+                rtp_buffer_size=int(rtp.get("rtp_buffer_size", 212992)),
+                gpu_id=int(rtp.get("gpu_id", 0)),
+            )
+            source: FrameSource = PairedFrameSource(
+                name=cam["name"], left=left, right=right
+            )
+        else:
+            source = RtpH264Source(
+                name=cam["name"],
+                width=int(cam["width"]),
+                height=int(cam["height"]),
+                port=int(rtp["port"]),
+                rtp_buffer_size=int(rtp.get("rtp_buffer_size", 212992)),
+                gpu_id=int(rtp.get("gpu_id", 0)),
+            )
+
+        entries.append(
+            SourceEntry(
+                source=source,
+                placement=placement,
+                stereo=stereo,
+                stereo_baseline_mm=baseline_mm,
+            )
+        )
     return entries
 
 
@@ -168,14 +248,19 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     # Build sources, layers, and placement strategies in parallel arrays.
     sources, layers, strategies = [], [], []
-    for source, placement in entries:
-        sources.append(source)
+    for entry in entries:
+        sources.append(entry.source)
         layer_cfg = viz.QuadLayerConfig()
-        layer_cfg.name = source.spec.name
-        layer_cfg.resolution = viz.Resolution(source.spec.width, source.spec.height)
+        layer_cfg.name = entry.source.spec.name
+        layer_cfg.resolution = viz.Resolution(
+            entry.source.spec.width, entry.source.spec.height
+        )
         layer_cfg.format = viz.PixelFormat.kRGBA8
+        if entry.stereo:
+            layer_cfg.stereo = True
+            layer_cfg.stereo_baseline_mm = entry.stereo_baseline_mm
         layers.append(session.add_quad_layer(layer_cfg))
-        strategies.append(placement)
+        strategies.append(entry.placement)
 
     print(
         f"camera_viz: source={source_mode}, mode={cfg.get('display', {}).get('mode')}, "

@@ -35,12 +35,18 @@ class Frame:
     ``image`` is anything that exposes ``__cuda_array_interface__`` —
     CuPy / PyTorch / Numba arrays all work. ``stream`` is the producer's
     CUDA stream so the consumer can synchronize when it's not 0/default.
+
+    Stereo: when the source produces a second eye, set ``image_right``
+    to the right-eye buffer. ``image`` is the left eye. Both eyes MUST
+    come from the same capture instant — the renderer submits them as
+    an atomic pair. Mono sources leave ``image_right`` as None.
     """
 
     image: Any
     timestamp_ns: int
     source_id: str
     stream: int = 0
+    image_right: Optional[Any] = None
 
 
 class FrameSource(ABC):

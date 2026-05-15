@@ -1,0 +1,45 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Synthetic stereo source — exercises the stereo QuadLayer path without
+# stereo camera hardware. Same animated pattern as synthetic.yaml, but
+# with a horizontal pixel disparity between the eyes so the parallax is
+# visible in XR. Window mode renders the LEFT eye (per the documented
+# single-view fallback).
+
+source: local
+streaming:
+  host: 127.0.0.1
+encoder: auto
+
+cameras:
+  - name: synth
+    enabled: true
+    type: synthetic
+    stereo: true                  # → SyntheticStereoSource + stereo QuadLayer
+    width: 1280
+    height: 720
+    fps: 60
+    hue_speed_hz: 0.25
+    disparity_px: 20              # horizontal pixel offset between eyes
+    rtp:
+      port: 5000
+      bitrate_mbps: 15
+
+display:
+  mode: xr                        # window | xr — stereo really only shines in xr
+  window:
+    width: 1280
+    height: 720
+  xr:
+    near_z: 0.05
+    far_z: 100.0
+  clear_color: [0.05, 0.05, 0.08, 1.0]
+  placements:
+    synth:
+      lock_mode: lazy
+      distance: 1.5
+      stereo_baseline_mm: 0.0     # 0 → both eyes see the same world quad
+                                  # (parallax purely from the captured frames).
+                                  # Try 65.0 (typical IPD) to virtually push the
+                                  # screen further; -30.0 to bring it closer.

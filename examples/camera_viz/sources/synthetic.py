@@ -142,3 +142,134 @@ class SyntheticSource(FrameSource):
                     # Coarse pacing — CuPy fill kernels at 1080p are well under
                     # the budget, so a simple sleep keeps us at target fps.
                     time.sleep(self._frame_interval_s)
+
+
+class SyntheticStereoSource(FrameSource):
+    """GPU-resident stereo source emitting a paired RGBA8 test pattern.
+
+    Same animated pattern as ``SyntheticSource``, but with a horizontal
+    pixel shift between the eyes so the disparity is visible — useful
+    for sanity-checking a stereo QuadLayer end-to-end without a real
+    camera. The left/right kernels run on the same stream and are
+    pre-synced before publish, so the renderer always reads a
+    same-instant pair.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        width: int,
+        height: int,
+        fps: float = 60.0,
+        hue_speed_hz: float = 0.25,
+        disparity_px: int = 20,
+    ) -> None:
+        try:
+            import cupy as cp
+        except ImportError as e:
+            raise RuntimeError(
+                "SyntheticStereoSource requires CuPy (cupy-cuda12x). Install via "
+                "`uv pip install cupy-cuda12x` or skip this source."
+            ) from e
+
+        self._cp = cp
+        self._spec = SourceSpec(
+            name=name, width=width, height=height, pixel_format="rgba8"
+        )
+        self._frame_interval_s = 1.0 / fps if fps > 0.0 else 0.0
+        self._hue_speed_hz = hue_speed_hz
+        self._disparity_px = int(disparity_px)
+
+        # Triple-buffer per eye. Indices stay in lock-step so latest()
+        # always returns matching (left[i], right[i]).
+        self._left = [cp.zeros((height, width, 4), dtype=cp.uint8) for _ in range(3)]
+        self._right = [cp.zeros((height, width, 4), dtype=cp.uint8) for _ in range(3)]
+        self._write_idx = 0
+        self._publish_idx: int = -1
+        self._consumed_idx: int = -2
+        self._lock = threading.Lock()
+
+        self._stop = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+        self._t0_ns = 0
+
+    @property
+    def spec(self) -> SourceSpec:
+        return self._spec
+
+    def start(self) -> None:
+        if self._thread is not None:
+            return
+        self._stop.clear()
+        self._t0_ns = time.monotonic_ns()
+        self._thread = threading.Thread(
+            target=self._produce_loop,
+            name=f"synth_stereo_{self._spec.name}",
+            daemon=False,
+        )
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join()
+            self._thread = None
+
+    def latest(self) -> Optional[Frame]:
+        with self._lock:
+            if self._publish_idx < 0 or self._publish_idx == self._consumed_idx:
+                return None
+            idx = self._publish_idx
+            self._consumed_idx = idx
+        return Frame(
+            image=self._left[idx],
+            image_right=self._right[idx],
+            timestamp_ns=time.monotonic_ns(),
+            source_id=self._spec.name,
+            stream=0,
+        )
+
+    def _produce_loop(self) -> None:
+        cp = self._cp
+        h, w = self._spec.height, self._spec.width
+        with cp.cuda.Device(int(self._left[0].device.id)):
+            y_grid = cp.arange(h, dtype=cp.float32).reshape(h, 1)
+            x_grid_l = cp.arange(w, dtype=cp.float32).reshape(1, w)
+            # Right-eye coord shifted by disparity_px so the same content
+            # appears at a slightly different x position. Visible parallax
+            # confirms the renderer routed both eyes correctly.
+            x_grid_r = (cp.arange(w, dtype=cp.float32) - self._disparity_px).reshape(
+                1, w
+            )
+            diag_l = (x_grid_l + y_grid) / float(w + h)
+            diag_r = (x_grid_r + y_grid) / float(w + h)
+
+            while not self._stop.is_set():
+                t = (time.monotonic_ns() - self._t0_ns) * 1e-9
+                phase = (t * self._hue_speed_hz) % 1.0
+
+                def fill(buf, diag):
+                    r = (cp.sin((diag + phase) * 6.2831853) * 127.0 + 128.0).astype(
+                        cp.uint8
+                    )
+                    g = (
+                        cp.sin((diag + phase + 0.3333) * 6.2831853) * 127.0 + 128.0
+                    ).astype(cp.uint8)
+                    b = (
+                        cp.sin((diag + phase + 0.6667) * 6.2831853) * 127.0 + 128.0
+                    ).astype(cp.uint8)
+                    buf[..., 0] = r
+                    buf[..., 1] = g
+                    buf[..., 2] = b
+                    buf[..., 3] = 255
+
+                fill(self._left[self._write_idx], diag_l)
+                fill(self._right[self._write_idx], diag_r)
+                cp.cuda.Stream.null.synchronize()
+
+                with self._lock:
+                    self._publish_idx = self._write_idx
+                self._write_idx = (self._write_idx + 1) % len(self._left)
+
+                if self._frame_interval_s > 0.0:
+                    time.sleep(self._frame_interval_s)

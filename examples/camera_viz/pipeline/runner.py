@@ -5,7 +5,7 @@
 VizRunner owns two threads:
 
   * **submit thread** — polls each source's ``latest()`` at ~1 kHz,
-    calls ``layer.submit_cuda_array()`` on new frames, and notifies a
+    calls ``layer.submit()`` on new frames, and notifies a
     condition variable.
   * **render thread** — waits on the condition. Wakes within ~µs of a
     new publish and calls ``session.render()``. A safety-net timeout
@@ -200,7 +200,13 @@ class VizRunner:
                 if not device_pinned:
                     self._pin_to_device(frame)
                     device_pinned = True
-                layer.submit_cuda_array(frame.image, stream=frame.stream)
+                # Stereo dispatch: when the source carries a second eye,
+                # hand both to QuadLayer in one atomic submit. The layer
+                # validates that its stereo-ness matches.
+                if frame.image_right is not None:
+                    layer.submit(frame.image, frame.image_right, stream=frame.stream)
+                else:
+                    layer.submit(frame.image, stream=frame.stream)
                 published_any = True
             if published_any:
                 with self._data_cond:

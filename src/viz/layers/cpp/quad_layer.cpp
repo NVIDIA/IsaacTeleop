@@ -10,6 +10,7 @@
 #include <viz/shaders/textured_quad.frag.spv.h>
 #include <viz/shaders/textured_quad.vert.spv.h>
 
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <cuda_runtime.h>
@@ -113,6 +114,10 @@ QuadLayer::QuadLayer(const VkContext& ctx, VkRenderPass render_pass, Config conf
             throw std::invalid_argument("QuadLayer: Placement::size_meters must be > 0 in both components");
         }
     }
+    if (!std::isfinite(config_.stereo_baseline_mm))
+    {
+        throw std::invalid_argument("QuadLayer: stereo_baseline_mm must be finite");
+    }
 
     // Resolve mip count: capped chain when enabled, single level
     // otherwise. The cap (kMaxMipLevels) keeps the per-frame blit
@@ -158,6 +163,13 @@ void QuadLayer::init()
         {
             slot = DeviceImage::create(*ctx_, config_.resolution, config_.format, mip_levels_);
         }
+        if (config_.stereo)
+        {
+            for (auto& slot : slots_right_)
+            {
+                slot = DeviceImage::create(*ctx_, config_.resolution, config_.format, mip_levels_);
+            }
+        }
         create_sampler();
         create_descriptor_set_layout();
         create_pipeline_layout();
@@ -186,14 +198,20 @@ void QuadLayer::destroy()
         {
             slot.reset();
         }
+        for (auto& slot : slots_right_)
+        {
+            slot.reset();
+        }
         return;
     }
     if (descriptor_pool_ != VK_NULL_HANDLE)
     {
-        // descriptor_sets_ are freed implicitly with the pool.
+        // descriptor_sets_ + descriptor_sets_right_ are freed implicitly
+        // with the pool.
         vkDestroyDescriptorPool(device, descriptor_pool_, nullptr);
         descriptor_pool_ = VK_NULL_HANDLE;
         descriptor_sets_.fill(VK_NULL_HANDLE);
+        descriptor_sets_right_.fill(VK_NULL_HANDLE);
     }
     if (pipeline_ != VK_NULL_HANDLE)
     {
@@ -216,6 +234,10 @@ void QuadLayer::destroy()
         sampler_ = VK_NULL_HANDLE;
     }
     for (auto& slot : slots_)
+    {
+        slot.reset();
+    }
+    for (auto& slot : slots_right_)
     {
         slot.reset();
     }
@@ -255,6 +277,15 @@ const DeviceImage* QuadLayer::device_image(uint32_t slot) const noexcept
     return slots_[slot].get();
 }
 
+const DeviceImage* QuadLayer::device_image_right(uint32_t slot) const noexcept
+{
+    if (slot >= kSlotCount)
+    {
+        return nullptr;
+    }
+    return slots_right_[slot].get();
+}
+
 uint8_t QuadLayer::pick_free_slot(uint8_t latest,
                                   const std::array<std::atomic<uint8_t>, kMaxFramesInFlight>& in_use) const noexcept
 {
@@ -285,25 +316,56 @@ uint8_t QuadLayer::pick_free_slot(uint8_t latest,
     return kSlotNone;
 }
 
+namespace
+{
+// Shared per-buffer validation for the submit overloads. ``label`` is
+// the caller's tag (e.g. "src", "left", "right") so the error message
+// names which buffer failed in the stereo case.
+void validate_submit_buffer(const VizBuffer& buf, const QuadLayer::Config& cfg, const char* label)
+{
+    if (buf.space != MemorySpace::kDevice)
+    {
+        throw std::invalid_argument(std::string("QuadLayer::submit: ") + label + " must be MemorySpace::kDevice");
+    }
+    if (buf.width != cfg.resolution.width || buf.height != cfg.resolution.height)
+    {
+        throw std::invalid_argument(std::string("QuadLayer::submit: ") + label +
+                                    " dimensions do not match layer resolution");
+    }
+    if (buf.format != cfg.format)
+    {
+        throw std::invalid_argument(std::string("QuadLayer::submit: ") + label + " format does not match layer format");
+    }
+    if (buf.data == nullptr)
+    {
+        throw std::invalid_argument(std::string("QuadLayer::submit: ") + label + ".data is null");
+    }
+}
+
+// Queue an async D2D copy of ``buf`` → ``image.cuda_array()`` on
+// ``stream``. Shared between the mono and stereo submit paths.
+void enqueue_copy(const VizBuffer& buf, DeviceImage& image, cudaStream_t stream)
+{
+    const size_t row_bytes = static_cast<size_t>(buf.width) * bytes_per_pixel(buf.format);
+    const size_t src_pitch = (buf.pitch == 0) ? row_bytes : buf.pitch;
+    const cudaError_t err = cudaMemcpy2DToArrayAsync(
+        image.cuda_array(), 0, 0, buf.data, src_pitch, row_bytes, buf.height, cudaMemcpyDeviceToDevice, stream);
+    if (err != cudaSuccess)
+    {
+        throw std::runtime_error(std::string("QuadLayer::submit: cudaMemcpy2DToArrayAsync failed: ") +
+                                 cudaGetErrorString(err));
+    }
+}
+} // namespace
+
 void QuadLayer::submit(const VizBuffer& src, cudaStream_t stream)
 {
     require_alive(slots_[0], "submit");
-    if (src.space != MemorySpace::kDevice)
+    if (config_.stereo)
     {
-        throw std::invalid_argument("QuadLayer::submit: src must be MemorySpace::kDevice");
+        throw std::logic_error("QuadLayer::submit: this layer is stereo — use the two-arg submit(left, right) overload");
     }
-    if (src.width != config_.resolution.width || src.height != config_.resolution.height)
-    {
-        throw std::invalid_argument("QuadLayer::submit: src dimensions do not match layer resolution");
-    }
-    if (src.format != config_.format)
-    {
-        throw std::invalid_argument("QuadLayer::submit: src format does not match layer format");
-    }
-    if (src.data == nullptr)
-    {
-        throw std::invalid_argument("QuadLayer::submit: src.data is null");
-    }
+    validate_submit_buffer(src, config_, "src");
 
     const uint8_t latest = latest_.load(std::memory_order_acquire);
     const uint8_t slot = pick_free_slot(latest, in_use_);
@@ -316,11 +378,7 @@ void QuadLayer::submit(const VizBuffer& src, cudaStream_t stream)
     DeviceImage& image = *slots_[slot];
 
     check_cuda(cudaSetDevice(ctx_->cuda_device_id()), "cudaSetDevice");
-    const size_t row_bytes = static_cast<size_t>(src.width) * bytes_per_pixel(src.format);
-    const size_t src_pitch = (src.pitch == 0) ? row_bytes : src.pitch;
-    check_cuda(cudaMemcpy2DToArrayAsync(image.cuda_array(), 0, 0, src.data, src_pitch, row_bytes, src.height,
-                                        cudaMemcpyDeviceToDevice, stream),
-               "cudaMemcpy2DToArrayAsync");
+    enqueue_copy(src, image, stream);
     image.cuda_signal_write_done(stream);
 
     // Wait for the D2D copy to complete before returning. Sources publish
@@ -332,6 +390,40 @@ void QuadLayer::submit(const VizBuffer& src, cudaStream_t stream)
     check_cuda(cudaStreamSynchronize(stream), "cudaStreamSynchronize(submit)");
 
     // memory_order_release pairs with the renderer's acquire load.
+    latest_.store(slot, std::memory_order_release);
+}
+
+void QuadLayer::submit(const VizBuffer& left, const VizBuffer& right, cudaStream_t stream)
+{
+    require_alive(slots_[0], "submit");
+    if (!config_.stereo)
+    {
+        throw std::logic_error("QuadLayer::submit: this layer is mono — call submit(src) with a single buffer");
+    }
+    validate_submit_buffer(left, config_, "left");
+    validate_submit_buffer(right, config_, "right");
+
+    const uint8_t latest = latest_.load(std::memory_order_acquire);
+    const uint8_t slot = pick_free_slot(latest, in_use_);
+    if (slot == kSlotNone)
+    {
+        return;
+    }
+    DeviceImage& image_l = *slots_[slot];
+    DeviceImage& image_r = *slots_right_[slot];
+
+    check_cuda(cudaSetDevice(ctx_->cuda_device_id()), "cudaSetDevice");
+    // Both copies on the same stream + a single signal on the left's
+    // semaphore. Stream ordering guarantees the right copy completes
+    // before the signal fires, so the renderer waiting on the left's
+    // semaphore implies the right is ready too. No second semaphore
+    // needed — by construction the renderer cannot see a half-pair.
+    enqueue_copy(left, image_l, stream);
+    enqueue_copy(right, image_r, stream);
+    image_l.cuda_signal_write_done(stream);
+
+    check_cuda(cudaStreamSynchronize(stream), "cudaStreamSynchronize(submit-stereo)");
+
     latest_.store(slot, std::memory_order_release);
 }
 
@@ -469,10 +561,17 @@ void QuadLayer::record_pre_render_pass(VkCommandBuffer cmd, uint32_t in_flight_s
 
     // Mip generation (if configured). Reads level 0 written by CUDA,
     // writes levels 1..N-1, ends with the whole image back in
-    // SHADER_READ_ONLY for the sampler in record().
+    // SHADER_READ_ONLY for the sampler in record(). For stereo we
+    // regenerate both eyes' chains; the right image's level 0 was
+    // written by the same producer stream that signaled the left's
+    // semaphore, so the queue's TRANSFER-stage wait already covers it.
     if (mip_levels_ > 1)
     {
         record_mip_generation(cmd, *slots_[cur]);
+        if (config_.stereo)
+        {
+            record_mip_generation(cmd, *slots_right_[cur]);
+        }
     }
 }
 
@@ -494,8 +593,6 @@ void QuadLayer::record(VkCommandBuffer cmd,
     }
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
-    vkCmdBindDescriptorSets(
-        cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0, 1, &descriptor_sets_[cur], 0, nullptr);
 
     // Snapshot under lock so set_placement() can run concurrently.
     std::optional<Config::Placement> placement;
@@ -514,15 +611,45 @@ void QuadLayer::record(VkCommandBuffer cmd,
     // xr: 4-vertex triangle strip; else: 3-vertex NDC-cover triangle.
     const uint32_t vertex_count = xr_mode ? 4u : 3u;
 
-    // Compositor pre-binds the layer's scissor; we set per-view viewport.
-    for (const auto& view : views)
+    // Stereo baseline offset along the placement's local +x axis. ±half
+    // the configured baseline, signed per eye: left eye gets the
+    // negative offset, right eye the positive. Direction in world space
+    // is the placement orientation rotating local +x. We evaluate it
+    // once outside the per-view loop since orientation is per-frame
+    // constant. Skipped when the layer is mono (baseline doesn't apply)
+    // OR outside kXr (both eyes converge to a single view, no signed
+    // disambiguation possible). Zero baseline elides to the mono MVP.
+    const bool apply_baseline = xr_mode && config_.stereo && config_.stereo_baseline_mm != 0.0f;
+    glm::vec3 baseline_axis_ws{ 0.0f };
+    if (apply_baseline)
     {
+        baseline_axis_ws = glm::mat3_cast(placement->pose.orientation) * glm::vec3(1.0f, 0.0f, 0.0f);
+    }
+
+    // Compositor pre-binds the layer's scissor; we set per-view viewport.
+    for (size_t view_idx = 0; view_idx < views.size(); ++view_idx)
+    {
+        const auto& view = views[view_idx];
         bind_view_viewport(cmd, view);
+
+        // Stereo: view 0 → left descriptor, view 1 → right descriptor.
+        // Mono OR single-view backends (window/offscreen): always left.
+        const bool sample_right = config_.stereo && view_idx == 1;
+        VkDescriptorSet ds = sample_right ? descriptor_sets_right_[cur] : descriptor_sets_[cur];
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0, 1, &ds, 0, nullptr);
 
         QuadShaderData data{};
         if (xr_mode)
         {
-            const glm::mat4 mvp = placement_mvp(*placement, view);
+            Config::Placement eye_placement = *placement;
+            if (apply_baseline)
+            {
+                const float sign = (view_idx == 0) ? -1.0f : +1.0f;
+                // 0.5 to halve the disparity per eye, 0.001 to convert mm → m
+                // (placement.pose.position is in world meters).
+                eye_placement.pose.position += sign * (config_.stereo_baseline_mm * 0.0005f) * baseline_axis_ws;
+            }
+            const glm::mat4 mvp = placement_mvp(eye_placement, view);
             std::memcpy(data.mvp, &mvp[0][0], sizeof(data.mvp));
             data.mode = 1;
         }
@@ -755,13 +882,16 @@ void QuadLayer::create_pipeline()
 
 void QuadLayer::create_descriptor_pool()
 {
+    // Stereo needs twice the sets: one per slot per eye.
+    const uint32_t set_count = config_.stereo ? (kSlotCount * 2u) : kSlotCount;
+
     VkDescriptorPoolSize pool_size{};
     pool_size.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    pool_size.descriptorCount = kSlotCount;
+    pool_size.descriptorCount = set_count;
 
     VkDescriptorPoolCreateInfo info{};
     info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    info.maxSets = kSlotCount;
+    info.maxSets = set_count;
     info.poolSizeCount = 1;
     info.pPoolSizes = &pool_size;
     check_vk(vkCreateDescriptorPool(ctx_->device(), &info, nullptr, &descriptor_pool_), "vkCreateDescriptorPool");
@@ -778,14 +908,24 @@ void QuadLayer::allocate_descriptor_sets()
     info.descriptorSetCount = kSlotCount;
     info.pSetLayouts = layouts.data();
     check_vk(vkAllocateDescriptorSets(ctx_->device(), &info, descriptor_sets_.data()), "vkAllocateDescriptorSets");
+    if (config_.stereo)
+    {
+        check_vk(vkAllocateDescriptorSets(ctx_->device(), &info, descriptor_sets_right_.data()),
+                 "vkAllocateDescriptorSets(right)");
+    }
 }
 
 void QuadLayer::update_descriptor_sets()
 {
-    // One write per slot, each pointing at the slot's own image view.
-    std::array<VkDescriptorImageInfo, kSlotCount> image_infos{};
-    std::array<VkWriteDescriptorSet, kSlotCount> writes{};
-    for (uint32_t i = 0; i < kSlotCount; ++i)
+    // One write per slot per eye, pointing at the eye-specific image
+    // view. Stereo doubles the write count.
+    const uint32_t per_eye = kSlotCount;
+    const uint32_t total = config_.stereo ? (per_eye * 2u) : per_eye;
+
+    std::array<VkDescriptorImageInfo, kSlotCount * 2> image_infos{};
+    std::array<VkWriteDescriptorSet, kSlotCount * 2> writes{};
+
+    for (uint32_t i = 0; i < per_eye; ++i)
     {
         image_infos[i].sampler = sampler_;
         image_infos[i].imageView = slots_[i]->vk_image_view();
@@ -799,7 +939,25 @@ void QuadLayer::update_descriptor_sets()
         writes[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         writes[i].pImageInfo = &image_infos[i];
     }
-    vkUpdateDescriptorSets(ctx_->device(), kSlotCount, writes.data(), 0, nullptr);
+    if (config_.stereo)
+    {
+        for (uint32_t i = 0; i < per_eye; ++i)
+        {
+            const uint32_t k = per_eye + i;
+            image_infos[k].sampler = sampler_;
+            image_infos[k].imageView = slots_right_[i]->vk_image_view();
+            image_infos[k].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+            writes[k].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            writes[k].dstSet = descriptor_sets_right_[i];
+            writes[k].dstBinding = 0;
+            writes[k].dstArrayElement = 0;
+            writes[k].descriptorCount = 1;
+            writes[k].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            writes[k].pImageInfo = &image_infos[k];
+        }
+    }
+    vkUpdateDescriptorSets(ctx_->device(), total, writes.data(), 0, nullptr);
 }
 
 } // namespace viz

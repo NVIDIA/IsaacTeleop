@@ -22,8 +22,9 @@ Quick start::
     layer_cfg.resolution = viz.Resolution(1024, 1024)
     layer = session.add_quad_layer(layer_cfg)
 
-    # CuPy / PyTorch / Numba arrays (anything with __cuda_array_interface__):
-    layer.submit_cuda_array(cupy_rgba8)
+    # CuPy / PyTorch / Numba arrays (anything with __cuda_array_interface__),
+    # or a pre-built VizBuffer:
+    layer.submit(cupy_rgba8)
 
     info = session.render()
     img = session.readback_to_host()      # HostImage with __array_interface__

@@ -60,7 +60,16 @@ void bind_layers(py::module_& m)
         .def_readwrite("placement", &viz::QuadLayer::Config::placement)
         .def_readwrite("generate_mipmaps", &viz::QuadLayer::Config::generate_mipmaps,
                        "Allocate + regenerate a capped mip chain each frame; sampler "
-                       "uses trilinear filtering. Off by default.");
+                       "uses trilinear filtering. On by default.")
+        .def_readwrite("stereo", &viz::QuadLayer::Config::stereo,
+                       "Per-eye stereo. When true, submit MUST be called with both buffers; "
+                       "view 0 (left eye) samples the left buffer, view 1 (right eye) the right. "
+                       "Memory doubles. Off by default.")
+        .def_readwrite("stereo_baseline_mm", &viz::QuadLayer::Config::stereo_baseline_mm,
+                       "Horizontal disparity between left and right planes (millimeters), "
+                       "applied along the placement's local +x axis. 0 → both eyes see the "
+                       "same world quad. Ignored unless stereo + kXr. mm-scale chosen because "
+                       "typical IPDs / stereo camera baselines are 50–80 mm.");
 
     // ── QuadLayer (non-owning; session owns the lifetime) ─────────────
 
@@ -69,145 +78,53 @@ void bind_layers(py::module_& m)
 Single CUDA-fed quad layer. Owned by VizSession; the Python handle is
 non-owning (don't keep it around past the session).
 
-Call ``submit`` with a VizBuffer or any object exposing
-``__cuda_array_interface__``. Render order = insertion order.
+Render order = insertion order. Call ``submit(left, right=None, stream=0)``:
+
+  * Mono layer (Config.stereo == False): pass exactly one buffer as
+    ``left``. Passing ``right`` raises ``RuntimeError``.
+  * Stereo layer (Config.stereo == True): pass both. Missing ``right``
+    raises ``RuntimeError``. Both buffers are copied on the same CUDA
+    stream + a single semaphore signals when they're both ready, so
+    the renderer never sees a half-matched pair.
+
+Each buffer is either a ``VizBuffer`` (passed straight to C++) or any
+object exposing ``__cuda_array_interface__`` (CuPy / PyTorch / Numba /
+numpy on a CUDA device pointer); the binding converts it on the fly.
 )doc")
         .def(
-            "submit", [](viz::QuadLayer& self, const viz::VizBuffer& src) { self.submit(src); }, "src"_a,
-            py::call_guard<py::gil_scoped_release>(), "Submit a pre-built VizBuffer (kDevice).")
-        .def(
-            "submit_cuda_array",
-            [](viz::QuadLayer& self, py::object obj, uintptr_t stream)
+            "submit",
+            [](viz::QuadLayer& self, py::object left, py::object right, uintptr_t stream)
             {
-                // Accept anything exposing __cuda_array_interface__. Validate
-                // the dict before constructing a VizBuffer — silent dtype /
-                // shape / stride mismatches would surface inside the cudaMemcpy
-                // as either corrupted pixels or a cryptic CUDA error.
-                if (!py::hasattr(obj, "__cuda_array_interface__"))
+                // Resolve each Python arg to a VizBuffer. VizBuffer passes
+                // through; anything else goes via the cuda-array-interface
+                // converter (which validates dtype / shape / strides
+                // before constructing the buffer).
+                auto to_buf = [&self](py::object obj, const char* label) -> viz::VizBuffer
                 {
-                    throw std::runtime_error("submit_cuda_array: object does not expose __cuda_array_interface__");
-                }
-                py::dict iface = obj.attr("__cuda_array_interface__").cast<py::dict>();
-                if (!iface.contains("shape") || !iface.contains("typestr") || !iface.contains("data"))
-                {
-                    throw std::runtime_error(
-                        "submit_cuda_array: __cuda_array_interface__ missing required key (shape/typestr/data)");
-                }
+                    if (py::isinstance<viz::VizBuffer>(obj))
+                    {
+                        return obj.cast<viz::VizBuffer>();
+                    }
+                    return cuda_array_to_viz_buffer(obj, self.format(), self.resolution(), label);
+                };
 
-                // Per-format expectations (typestr + channels). Must match the
-                // layer's PixelFormat exactly — submit() reinterprets memory.
-                const viz::PixelFormat fmt = self.format();
-                const char* expected_typestr = nullptr;
-                std::size_t expected_rank = 0;
-                std::size_t expected_channels = 0;
-                if (fmt == viz::PixelFormat::kRGBA8)
+                if (right.is_none())
                 {
-                    expected_typestr = "|u1";
-                    expected_rank = 3;
-                    expected_channels = 4;
-                }
-                else if (fmt == viz::PixelFormat::kD32F)
-                {
-                    expected_typestr = "<f4";
-                    expected_rank = 2;
-                    expected_channels = 1;
+                    viz::VizBuffer left_buf = to_buf(left, "QuadLayer.submit(left)");
+                    py::gil_scoped_release release;
+                    self.submit(left_buf, reinterpret_cast<cudaStream_t>(stream));
                 }
                 else
                 {
-                    throw std::runtime_error("submit_cuda_array: unsupported layer PixelFormat");
+                    viz::VizBuffer left_buf = to_buf(left, "QuadLayer.submit(left)");
+                    viz::VizBuffer right_buf = to_buf(right, "QuadLayer.submit(right)");
+                    py::gil_scoped_release release;
+                    self.submit(left_buf, right_buf, reinterpret_cast<cudaStream_t>(stream));
                 }
-
-                const std::string typestr = iface["typestr"].cast<std::string>();
-                if (typestr != expected_typestr)
-                {
-                    throw std::runtime_error(std::string("submit_cuda_array: typestr '") + typestr +
-                                             "' does not match layer format (expected '" + expected_typestr + "')");
-                }
-
-                py::tuple shape = iface["shape"].cast<py::tuple>();
-                if (shape.size() != expected_rank)
-                {
-                    throw std::runtime_error("submit_cuda_array: shape rank " + std::to_string(shape.size()) +
-                                             " does not match layer format (expected " + std::to_string(expected_rank) +
-                                             ")");
-                }
-                const uint32_t h = shape[0].cast<uint32_t>();
-                const uint32_t w = shape[1].cast<uint32_t>();
-                if (expected_channels > 1)
-                {
-                    const std::size_t c = shape[2].cast<std::size_t>();
-                    if (c != expected_channels)
-                    {
-                        throw std::runtime_error("submit_cuda_array: channel count " + std::to_string(c) +
-                                                 " does not match layer format (expected " +
-                                                 std::to_string(expected_channels) + ")");
-                    }
-                }
-                const viz::Resolution res = self.resolution();
-                if (h != res.height || w != res.width)
-                {
-                    throw std::runtime_error("submit_cuda_array: shape (" + std::to_string(h) + ", " +
-                                             std::to_string(w) + ") does not match layer resolution (" +
-                                             std::to_string(res.height) + ", " + std::to_string(res.width) + ")");
-                }
-
-                // Row pitch: explicit when strides present + non-null (slice
-                // views, padded buffers); else tightly packed. We require
-                // row-major, tightly-packed-within-each-row layout because
-                // submit() does a single cudaMemcpy2D per row at row_pitch
-                // stride — non-unit pixel/channel strides would silently
-                // mis-pack the destination texture.
-                const std::size_t bpp = viz::bytes_per_pixel(fmt);
-                std::size_t pitch_bytes = 0;
-                if (iface.contains("strides") && !iface["strides"].is_none())
-                {
-                    py::tuple strides = iface["strides"].cast<py::tuple>();
-                    if (strides.size() != expected_rank)
-                    {
-                        throw std::runtime_error("submit_cuda_array: strides rank " + std::to_string(strides.size()) +
-                                                 " does not match shape rank " + std::to_string(expected_rank));
-                    }
-                    const std::ptrdiff_t row_stride = strides[0].cast<std::ptrdiff_t>();
-                    const std::ptrdiff_t pixel_stride = strides[1].cast<std::ptrdiff_t>();
-                    if (row_stride < static_cast<std::ptrdiff_t>(w * bpp))
-                    {
-                        throw std::runtime_error("submit_cuda_array: row stride " + std::to_string(row_stride) +
-                                                 " is less than width*bpp " + std::to_string(w * bpp) +
-                                                 " — non-positive or reversed strides aren't supported");
-                    }
-                    if (pixel_stride != static_cast<std::ptrdiff_t>(bpp))
-                    {
-                        throw std::runtime_error("submit_cuda_array: pixel stride " + std::to_string(pixel_stride) +
-                                                 " does not match bytes-per-pixel " + std::to_string(bpp) +
-                                                 " — transposed / non-contiguous-per-pixel layout isn't supported");
-                    }
-                    if (expected_rank == 3)
-                    {
-                        const std::ptrdiff_t channel_stride = strides[2].cast<std::ptrdiff_t>();
-                        if (channel_stride != 1)
-                        {
-                            throw std::runtime_error("submit_cuda_array: channel stride " +
-                                                     std::to_string(channel_stride) +
-                                                     " is not 1 — non-contiguous channels aren't supported");
-                        }
-                    }
-                    pitch_bytes = static_cast<std::size_t>(row_stride);
-                }
-
-                py::tuple data = iface["data"].cast<py::tuple>();
-                const uintptr_t ptr = data[0].cast<uintptr_t>();
-
-                viz::VizBuffer buf;
-                buf.data = reinterpret_cast<void*>(ptr);
-                buf.width = w;
-                buf.height = h;
-                buf.format = fmt;
-                buf.pitch = pitch_bytes; // 0 = tightly packed; submit() uses effective_pitch().
-                buf.space = viz::MemorySpace::kDevice;
-                py::gil_scoped_release release;
-                self.submit(buf, reinterpret_cast<cudaStream_t>(stream));
             },
-            "obj"_a, "stream"_a = 0, "Submit any object exposing __cuda_array_interface__ (CuPy / PyTorch / Numba).")
+            "left"_a, "right"_a = py::none(), "stream"_a = 0,
+            "Submit a frame. Each arg is a VizBuffer or any __cuda_array_interface__ "
+            "object. Mono layer: pass only ``left``. Stereo layer: pass both.")
         .def_property_readonly("resolution", &viz::QuadLayer::resolution)
         .def_property_readonly("format", &viz::QuadLayer::format)
         .def_property_readonly("aspect_ratio", &viz::QuadLayer::aspect_ratio)
