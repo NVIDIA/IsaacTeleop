@@ -36,6 +36,21 @@ export function getOrCreateCanvas(
   return canvas;
 }
 
+/** Upper bound on consecutive getError drains (guards broken drivers). */
+const kMaxGLErrorDrain = 64;
+
+/**
+ * Drain pending WebGL errors on `gl` until {@link WebGL2RenderingContext.NO_ERROR}.
+ * Shared contexts may carry stale errors from the host app (e.g. R3F/XR) before CloudXR runs.
+ */
+export function clearPendingGLErrors(gl: WebGL2RenderingContext): void {
+  for (let i = 0; i < kMaxGLErrorDrain; i++) {
+    if (gl.getError() === gl.NO_ERROR) {
+      break;
+    }
+  }
+}
+
 export function logOrThrow(tagString: string, gl: WebGL2RenderingContext) {
   const err = gl.getError();
   if (err !== gl.NO_ERROR) {
