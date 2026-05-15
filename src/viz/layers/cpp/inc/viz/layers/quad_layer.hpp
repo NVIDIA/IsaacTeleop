@@ -41,15 +41,23 @@ class VkContext;
 // image_count ever exceeds kMaxFramesInFlight, record() asserts —
 // bump kMaxFramesInFlight and kSlotCount together.
 //
-// Memory: kSlotCount × width × height × bpp (~40 MB at 1080p RGBA8).
+// Memory: kSlotCount × width × height × bpp.
+//   mono   1080p RGBA8: ~56 MB / layer
+//   mono   4K    RGBA8: ~232 MB / layer
+//   stereo 1080p RGBA8: ~112 MB / layer (×2 from paired slots)
+//   stereo 4K    RGBA8: ~464 MB / layer
+// With ``generate_mipmaps`` on (default), add ~33% for the mip chain.
+// A single 4K stereo layer with mips is ~620 MB — sizing concern for
+// the host's VRAM budget and worth surfacing to whoever picks the
+// resolution / layer count.
 //
 // Stereo: when Config::stereo is true, each slot owns a PAIR of
 // DeviceImages (left + right). The two-arg submit() does both
 // memcpy2Ds + the cuda_done_writing signal on a single CUDA stream,
 // so stream ordering guarantees the renderer never sees a half-
-// updated pair. Memory doubles. In kXr, record() binds the left
-// descriptor for view 0 and the right for view 1; window/offscreen
-// (single view) draws the left buffer only.
+// updated pair. In kXr, record() binds the left descriptor for
+// view 0 and the right for view 1; window/offscreen (single view)
+// draws the left buffer only.
 class QuadLayer : public LayerBase
 {
 public:
@@ -146,6 +154,20 @@ public:
     // emitted on the SAME ``stream``, so stream ordering guarantees
     // the renderer never reads a half-matched pair. The one-arg
     // overload throws std::logic_error.
+    //
+    // STREAM PRECONDITION (stereo): the two-arg overload runs the copies
+    // for BOTH eyes on the single ``stream`` argument. CUDA's stream
+    // ordering only sequences work submitted to the SAME stream, so
+    // when ``left.data`` or ``right.data`` was produced on a different
+    // stream than ``stream``, the caller MUST synchronize that producer
+    // stream before calling submit (cudaStreamSynchronize, or a recorded
+    // event waited on ``stream`` via cudaStreamWaitEvent). Otherwise the
+    // memcpy here can read stale / torn pixels for that eye. The
+    // in-tree ZED + OAK-D producers handle this by calling
+    // ``cu_stream.synchronize()`` per eye-slot before publishing, which
+    // makes calling ``submit(left, right, stream=0)`` safe; external
+    // producers wiring separate per-eye streams must follow the same
+    // pattern.
     void submit(const VizBuffer& src, cudaStream_t stream = 0);
     void submit(const VizBuffer& left, const VizBuffer& right, cudaStream_t stream = 0);
 

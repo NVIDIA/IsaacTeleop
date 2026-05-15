@@ -10,6 +10,7 @@
 #include <viz/shaders/textured_quad.frag.spv.h>
 #include <viz/shaders/textured_quad.vert.spv.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -418,6 +419,12 @@ void QuadLayer::submit(const VizBuffer& left, const VizBuffer& right, cudaStream
     // before the signal fires, so the renderer waiting on the left's
     // semaphore implies the right is ready too. No second semaphore
     // needed — by construction the renderer cannot see a half-pair.
+    //
+    // Stream precondition (see header): ``left.data`` and ``right.data``
+    // must both be reachable from ``stream`` by the time control reaches
+    // here. If a producer wrote either buffer on a different stream, the
+    // caller is responsible for syncing it before submit; otherwise the
+    // memcpy below may read pre-write state on that eye.
     enqueue_copy(left, image_l, stream);
     enqueue_copy(right, image_r, stream);
     image_l.cuda_signal_write_done(stream);
