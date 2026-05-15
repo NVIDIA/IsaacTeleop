@@ -286,8 +286,25 @@ def main(argv: Optional[list[str]] = None) -> int:
     try:
         runner.wait()
     finally:
-        runner.stop()
-        session.destroy()
+        # ``runner.stop()`` returns False when a worker thread (render
+        # or submit) is still alive after the join budget — typically
+        # because it's wedged inside session.render() / layer.submit().
+        # Destroying the session under a live worker is a use-after-
+        # free on the Vulkan / CUDA handles it's still touching, so we
+        # skip session.destroy() in that case. The non-daemon worker
+        # keeps the process alive until it eventually exits; the OS
+        # reaps the session on process exit.
+        clean = runner.stop()
+        if clean:
+            session.destroy()
+        else:
+            print(
+                "camera_viz: a worker thread did not exit; leaving VizSession "
+                "alive to avoid a use-after-free. Process will keep running "
+                "until the stuck thread completes.",
+                file=sys.stderr,
+                flush=True,
+            )
     return 0
 
 

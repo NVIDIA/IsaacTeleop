@@ -114,27 +114,46 @@ class VizRunner:
         )
         self._render_thread.start()
 
-    def stop(self) -> None:
+    def stop(self) -> bool:
+        """Stop both worker threads and the source producers.
+
+        Returns ``True`` iff both the render and submit threads exited
+        within the join budget. Returns ``False`` if either is still
+        running when this method gives up.
+
+        **Callers MUST NOT destroy the VizSession when this returns
+        False.** The still-running thread may be inside
+        ``session.render()`` or ``layer.submit()`` and is touching
+        Vulkan / CUDA handles the session owns; tearing the session
+        down under it is a use-after-free. The non-daemon threads
+        keep the process alive until they finish on their own — let
+        the OS reap them on process exit.
+        """
         self._stop.set()
         # Wake the render thread out of cond.wait so it sees the stop.
         with self._data_cond:
             self._data_cond.notify_all()
         # Bounded joins so a wedged session.render() / source doesn't
-        # block Ctrl-C. Non-daemon threads still block process exit, so
-        # we keep stuck thread references for a later retry. Sources
-        # ALWAYS get stop()ped — they own camera/GStreamer handles and
-        # leaking them on a stuck thread is worse than retrying later.
+        # block Ctrl-C. Stuck thread references stay set so the caller
+        # can still poll is_alive() / our return value, and so the non-
+        # daemon thread can keep the process alive until it exits.
+        # Sources ALWAYS get stop()ped — they own camera/GStreamer
+        # handles and leaking them on a stuck thread is worse than
+        # retrying later.
+        clean = True
         try:
             if self._render_thread is not None:
                 self._render_thread.join(timeout=5.0)
                 if self._render_thread.is_alive():
                     logger.warning("render thread did not exit within 5s")
+                    clean = False
                 else:
                     self._render_thread = None
             if self._submit_thread is not None:
                 self._submit_thread.join(timeout=5.0)
                 if self._submit_thread.is_alive():
                     logger.warning("submit thread did not exit within 5s")
+                    clean = False
                 else:
                     self._submit_thread = None
         finally:
@@ -143,6 +162,7 @@ class VizRunner:
                     s.stop()
                 except Exception:
                     logger.exception("source.stop() raised")
+        return clean
 
     def wait(self) -> None:
         """Block until the render thread exits, then re-raise any captured
