@@ -145,15 +145,8 @@ class SyntheticSource(FrameSource):
 
 
 class SyntheticStereoSource(FrameSource):
-    """GPU-resident stereo source emitting a paired RGBA8 test pattern.
-
-    Same animated pattern as ``SyntheticSource``, but with a horizontal
-    pixel shift between the eyes so the disparity is visible — useful
-    for sanity-checking a stereo QuadLayer end-to-end without a real
-    camera. The left/right kernels run on the same stream and are
-    pre-synced before publish, so the renderer always reads a
-    same-instant pair.
-    """
+    """Stereo variant of SyntheticSource with a horizontal pixel
+    disparity between eyes; for hardware-free stereo testing."""
 
     def __init__(
         self,
@@ -180,8 +173,7 @@ class SyntheticStereoSource(FrameSource):
         self._hue_speed_hz = hue_speed_hz
         self._disparity_px = int(disparity_px)
 
-        # Triple-buffer per eye. Indices stay in lock-step so latest()
-        # always returns matching (left[i], right[i]).
+        # Lock-step per-eye triple-buffer; latest() returns matching pairs.
         self._left = [cp.zeros((height, width, 4), dtype=cp.uint8) for _ in range(3)]
         self._right = [cp.zeros((height, width, 4), dtype=cp.uint8) for _ in range(3)]
         self._write_idx = 0
@@ -235,9 +227,7 @@ class SyntheticStereoSource(FrameSource):
         with cp.cuda.Device(int(self._left[0].device.id)):
             y_grid = cp.arange(h, dtype=cp.float32).reshape(h, 1)
             x_grid_l = cp.arange(w, dtype=cp.float32).reshape(1, w)
-            # Right-eye coord shifted by disparity_px so the same content
-            # appears at a slightly different x position. Visible parallax
-            # confirms the renderer routed both eyes correctly.
+            # Right-eye x shifted by disparity_px → visible parallax.
             x_grid_r = (cp.arange(w, dtype=cp.float32) - self._disparity_px).reshape(
                 1, w
             )

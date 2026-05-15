@@ -46,11 +46,7 @@ SUPERVISOR_TICK_S = 1.0
 
 
 def _eye_sources(sources: List[FrameSource], camera_name: str) -> List[FrameSource]:
-    """Normalize ``build_local_camera`` output into a 1-or-2 element list.
-
-    Mono cameras → [src]. Stereo cameras → [left, right] unwrapped from
-    the PairedFrameSource wrapper that ``build_local_camera`` returns.
-    The streamer then fires one independent RTP stream per element."""
+    """Unwrap build_local_camera()'s output: [src] mono, [left, right] stereo."""
     if len(sources) == 1 and isinstance(sources[0], PairedFrameSource):
         paired = sources[0]
         return [paired.left, paired.right]
@@ -104,11 +100,7 @@ class CameraSupervisor:
 
     def _build_senders(self) -> List[RtpH264Sender]:
         sources = build_local_camera(self._cfg)
-        # mode: stereo_rgb on OAK-D returns a PairedFrameSource of just
-        # (left, right) — the rgb stream is still being grabbed +
-        # processed by depthai but never reaches the wire. Burn-without-
-        # use is wasteful enough that we'd rather flag it loudly than
-        # let a user wonder why their USB / VPU is saturated.
+        # stereo_rgb's third stream is processed by depthai but never wired.
         if self._cfg.get("type") == "oakd" and self._cfg.get("mode") == "stereo_rgb":
             logger.warning(
                 "camera %r: mode=stereo_rgb on the streamer wastes the rgb stream "
@@ -148,10 +140,8 @@ class CameraSupervisor:
                 mtu=int(rtp.get("mtu", 1400)),
             )
 
-        # Build incrementally so a partial-failure mid-list (stereo with
-        # NVENC contention on the second encoder is the realistic case)
-        # rolls back the first sender's NVENC session via .stop()
-        # instead of leaving it dangling until Python GC.
+        # Incremental build so a mid-list failure rolls back the
+        # already-built sender's NVENC session via .stop().
         ports = [int(rtp["port"])]
         if is_stereo:
             ports.append(int(rtp["port_right"]))
@@ -201,11 +191,7 @@ class CameraSupervisor:
                         self._host,
                         rtp.get("port"),
                     )
-                # Poll sender liveness. If any send-loop thread dies
-                # after startup (GStreamer pipeline error, encoder
-                # crash, etc.) raise into the retry path — for stereo
-                # we treat the pair atomically: if one eye drops, we
-                # restart both.
+                # Stereo treats the pair atomically: if either eye dies, restart both.
                 while not self._stop.is_set():
                     self._stop.wait(timeout=SUPERVISOR_TICK_S)
                     dead = [s for s in senders if not s.is_alive()]
@@ -274,9 +260,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         )
         return 2
 
-    # YAML top-level ``verbose: true`` turns on the per-source periodic
-    # breadcrumbs (per-eye fps, etc.). CAMERA_VIZ_VERBOSE=1 in the env
-    # also works without editing the YAML.
+    # Top-level ``verbose:`` enables per-source periodic breadcrumbs.
     set_verbose(bool(cfg.get("verbose", False)))
 
     streaming = cfg.get("streaming", {})

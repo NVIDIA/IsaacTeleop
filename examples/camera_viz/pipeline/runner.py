@@ -115,31 +115,21 @@ class VizRunner:
         self._render_thread.start()
 
     def stop(self) -> bool:
-        """Stop both worker threads and the source producers.
+        """Returns True iff both worker threads exited within the join budget.
 
-        Returns ``True`` iff both the render and submit threads exited
-        within the join budget. Returns ``False`` if either is still
-        running when this method gives up.
-
-        **Callers MUST NOT destroy the VizSession when this returns
-        False.** The still-running thread may be inside
-        ``session.render()`` or ``layer.submit()`` and is touching
-        Vulkan / CUDA handles the session owns; tearing the session
-        down under it is a use-after-free. The non-daemon threads
-        keep the process alive until they finish on their own — let
-        the OS reap them on process exit.
+        Callers MUST NOT destroy the VizSession on False — a thread is
+        still inside session.render() / layer.submit() and tearing the
+        session down under it is a use-after-free on Vulkan / CUDA
+        handles. The non-daemon thread keeps the process alive until
+        it exits; the OS reaps the session at process exit.
         """
         self._stop.set()
-        # Wake the render thread out of cond.wait so it sees the stop.
+        # Wake the render thread's cond.wait.
         with self._data_cond:
             self._data_cond.notify_all()
         # Bounded joins so a wedged session.render() / source doesn't
-        # block Ctrl-C. Stuck thread references stay set so the caller
-        # can still poll is_alive() / our return value, and so the non-
-        # daemon thread can keep the process alive until it exits.
-        # Sources ALWAYS get stop()ped — they own camera/GStreamer
-        # handles and leaking them on a stuck thread is worse than
-        # retrying later.
+        # block Ctrl-C. Sources always get stop()ped (camera / gst
+        # handles) even if a thread is stuck.
         clean = True
         try:
             if self._render_thread is not None:
@@ -220,9 +210,6 @@ class VizRunner:
                 if not device_pinned:
                     self._pin_to_device(frame)
                     device_pinned = True
-                # Stereo dispatch: when the source carries a second eye,
-                # hand both to QuadLayer in one atomic submit. The layer
-                # validates that its stereo-ness matches.
                 if frame.image_right is not None:
                     layer.submit(frame.image, frame.image_right, stream=frame.stream)
                 else:

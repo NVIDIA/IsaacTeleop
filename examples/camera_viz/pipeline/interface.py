@@ -36,10 +36,8 @@ class Frame:
     CuPy / PyTorch / Numba arrays all work. ``stream`` is the producer's
     CUDA stream so the consumer can synchronize when it's not 0/default.
 
-    Stereo: when the source produces a second eye, set ``image_right``
-    to the right-eye buffer. ``image`` is the left eye. Both eyes MUST
-    come from the same capture instant — the renderer submits them as
-    an atomic pair. Mono sources leave ``image_right`` as None.
+    Stereo: ``image`` is the left eye; ``image_right`` carries the
+    right eye when paired (both from the same capture instant).
     """
 
     image: Any

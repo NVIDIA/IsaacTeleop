@@ -33,16 +33,10 @@ __all__ = [
 
 
 def build_local_camera(spec: dict) -> List[FrameSource]:
-    """Build the local FrameSource(s) for one ``cameras:`` entry.
+    """Build local FrameSource(s) for one ``cameras:`` entry.
 
-    Mono cameras return [source]. Stereo cameras (``stereo: true``)
-    return [PairedFrameSource] — a single FrameSource that emits a
-    ``Frame`` with both ``image`` (left eye) and ``image_right`` populated.
-    The camera_viz pipeline routes that to ``QuadLayer.submit(left, right)``.
-    For v4l2 the ``stereo`` toggle is rejected (USB cameras are mono);
-    OAK-D / ZED / synthetic each have their own native paths.
-
-    Shared by camera_viz.py and camera_streamer.py — keep the schema stable.
+    Mono → [source]; ``stereo: true`` → [PairedFrameSource]. v4l2 rejects
+    stereo (UVC is mono). Shared by camera_viz + camera_streamer.
     """
     kind = spec["type"]
     stereo = bool(spec.get("stereo", False))
@@ -85,8 +79,7 @@ def build_local_camera(spec: dict) -> List[FrameSource]:
             )
         ]
     if kind == "oakd":
-        # ``stereo: true`` is a shorthand for the OAK-D ``mode: stereo``.
-        # If the user passed both, an explicit mode wins.
+        # ``stereo: true`` shorthand for ``mode: stereo``; explicit mode wins.
         mode = spec.get("mode", "stereo" if stereo else "mono")
         eyes = list(
             OakdSource.build(
@@ -103,10 +96,7 @@ def build_local_camera(spec: dict) -> List[FrameSource]:
             )
         )
         if stereo or mode in ("stereo", "stereo_rgb"):
-            # OakdSource.build returns 2 per-eye sources in stereo and 3
-            # in stereo_rgb; we pair the first two (left + right). The
-            # extra RGB stream of stereo_rgb is intentionally dropped —
-            # the QuadLayer takes exactly two eyes.
+            # stereo_rgb's third stream is intentionally dropped here.
             if len(eyes) < 2:
                 raise ValueError(
                     f"build_local_camera: oakd {name!r} stereo mode produced {len(eyes)} "

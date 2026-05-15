@@ -171,10 +171,7 @@ class RtpH264Sender:
         flow = self._appsrc.emit("push-buffer", buf)
         return flow == Gst.FlowReturn.OK
 
-    # Per-sender measured-fps breadcrumb cadence + how many encoder
-    # failures in a row trip a hard restart (lets the supervisor
-    # rebuild the pipeline instead of spinning forever on a wedged
-    # NVENC session).
+    # fps log cadence + consecutive-encode-fail threshold for hard restart.
     _FPS_REPORT_S = 5.0
     _ENCODE_FAIL_THRESHOLD = 30
 
@@ -251,11 +248,7 @@ class RtpH264Sender:
                     self._ENCODE_FAIL_THRESHOLD,
                 )
                 self._encoder.reset()
-                # Fail-fast: persistent encode failures mean NVENC is
-                # wedged or the input format changed. Raise so the
-                # supervisor rebuilds the whole pipeline (camera +
-                # encoder + GStreamer) instead of spinning forever
-                # with the user seeing no stream + no error.
+                # Persistent failures = wedged NVENC; let the supervisor restart.
                 if consecutive_encode_failures >= self._ENCODE_FAIL_THRESHOLD:
                     raise RuntimeError(
                         f"RtpH264Sender: encode failed {consecutive_encode_failures} "

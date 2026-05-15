@@ -35,33 +35,26 @@ def _notify(msg: str) -> None:
     notify("zed", msg)
 
 
-# Wall-clock budget for ``Camera.open()`` before we nudge the user with
-# a USB-3 hint. The pyzed open call blocks inside a C extension — we
-# can't actually interrupt it, but we CAN tell the user what's likely
-# wrong so they don't sit watching a frozen terminal.
+# Open() blocks inside pyzed's C extension; print a USB-3 hint after this
+# long so the user has something to look at on a USB-2 hang.
 _OPEN_HINT_AFTER_S = 8.0
 
 
 RECONNECT_DELAY_S = 2.0
 MAX_CONSECUTIVE_FAILURES = 10
 
-# Resolution preset → (width, height) — must match pyzed.sl.RESOLUTION enums.
+# pyzed.sl.RESOLUTION enum mirror.
 _RESOLUTION_DIMS = {
     "HD2K": (2208, 1242),
     "HD1080": (1920, 1080),
     "HD720": (1280, 720),
     "VGA": (672, 376),
 }
-
-# Inverse lookup: (width, height) → preset name. Used to infer the
-# SDK preset from the YAML's width / height — keeps the schema single-
-# sourced and lets us reject mismatched dimensions with a useful error.
 _DIMS_TO_RESOLUTION = {dims: name for name, dims in _RESOLUTION_DIMS.items()}
 
 
 def _resolution_for_dims(width: int, height: int) -> str:
-    """Map per-eye dimensions to the ZED SDK preset. Raises with the
-    full list when the dimensions don't match any known preset."""
+    """YAML width × height → SDK preset. Raises with the valid list on mismatch."""
     key = (int(width), int(height))
     if key in _DIMS_TO_RESOLUTION:
         return _DIMS_TO_RESOLUTION[key]
@@ -148,9 +141,6 @@ class _ZedCamera:
                 "SDK's Python install instructions for pyzed."
             ) from e
 
-        # Single-source the dims: width/height come from the YAML and
-        # we look up the matching SDK preset. Mismatch raises with the
-        # full list of valid combinations.
         self._resolution_name = _resolution_for_dims(width, height)
 
         if bus_type.lower() not in ("usb", "gmsl"):
@@ -270,10 +260,7 @@ class _ZedCamera:
 
         _notify("opening...")
 
-        # Watchdog: ``Camera.open()`` blocks inside a C extension and
-        # can sit for tens of seconds on a USB-2 port (the camera
-        # negotiates but the SDK never gets a usable frame). Without
-        # this hint the user just sees a frozen terminal.
+        # Watchdog hint while pyzed.open() blocks in C. USB-2 is the usual cause.
         opened = threading.Event()
 
         def _hint():

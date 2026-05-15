@@ -325,11 +325,8 @@ $WITH_V4L2 && PKGS+=("opencv-python>=4.5")
 $WITH_OAKD && PKGS+=("depthai>=3.0")
 $WITH_RTP  && PKGS+=("pybind11>=2.11" "PyGObject>=3.42,<3.52")
 
-# Local wheels keep the version string ``1.3+local`` across rebuilds,
-# so ``uv pip install --upgrade`` treats them as already-installed and
-# skips. Compare mtimes: if the wheel on disk is newer than the
-# installed copy's dist-info directory, force-reinstall just that one
-# package — other deps keep their normal upgrade-if-newer behavior.
+# Local wheels keep version ``1.3+local`` across rebuilds; uv's --upgrade
+# no-ops on them. mtime probe forces a reinstall when the wheel's newer.
 EXTRA_UV=()
 if [[ "$MODE" == full && -f "$WHEEL" ]]; then
     wheel_mtime=$(stat -c %Y "$WHEEL" 2>/dev/null || echo 0)

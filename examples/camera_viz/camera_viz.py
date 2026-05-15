@@ -35,13 +35,7 @@ from sources import PairedFrameSource, RtpH264Source, build_local_camera, set_ve
 
 @dataclass
 class SourceEntry:
-    """One row in the layer plan: a source + its placement + stereo cfg.
-
-    ``stereo`` and ``stereo_baseline_mm`` are pulled from the camera spec
-    (``cameras.<cam>.stereo``) and the placement spec
-    (``placements.<cam>.stereo_baseline_mm``) respectively. They drive
-    the QuadLayer Config when the layer is added to the session.
-    """
+    """source + placement + stereo cfg; drives QuadLayer construction."""
 
     source: FrameSource
     placement: Optional[PlacementStrategy]
@@ -98,13 +92,7 @@ def _placement_with_aspect(
 
 
 def _stereo_for(cam: dict, placements_cfg: dict) -> Tuple[bool, float]:
-    """Resolve stereo + baseline for one camera.
-
-    ``stereo`` lives on the camera (so the producer side knows). The
-    rendering knob ``stereo_baseline_mm`` lives on the placement (it's
-    a display-time parameter). 0.0 means both eyes see the same world
-    quad — all parallax comes from the captured frames.
-    """
+    """``cameras.<cam>.stereo`` (producer toggle) + ``placements.<cam>.stereo_baseline_mm``."""
     stereo = bool(cam.get("stereo", False))
     pspec = placements_cfg.get(cam["name"]) or {}
     baseline_mm = float(pspec.get("stereo_baseline_mm", 0.0))
@@ -131,14 +119,8 @@ def _build_local_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
 
 
 def _build_rtp_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
-    """source=rtp: build an RTP listener per camera using its ``rtp.port``.
-
-    Stereo cameras open TWO listeners (rtp.port for left, rtp.port_right
-    for right) and pair them via PairedFrameSource. The wire path treats
-    the two eyes as independent streams — drift is acceptable (the user
-    accepted "no sync" for RTP stereo); paired-frame atomicity at the
-    QuadLayer mailbox is what stops torn pairs from reaching the GPU.
-    """
+    """One RTP listener per camera; stereo uses rtp.port + rtp.port_right
+    and pairs them at the receiver (no wire-level sync — drift OK)."""
     placements_cfg = cfg.get("display", {}).get("placements", {})
     entries: List[SourceEntry] = []
     for cam in _enabled_cameras(cfg):
@@ -234,9 +216,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             f"got {type(cfg).__name__}"
         )
 
-    # YAML top-level ``verbose: true`` turns on the per-source periodic
-    # breadcrumbs (per-eye fps, etc.). CAMERA_VIZ_VERBOSE=1 in the env
-    # also works for ad-hoc debugging without editing the YAML.
+    # Top-level ``verbose:`` enables per-source periodic breadcrumbs.
     set_verbose(bool(cfg.get("verbose", False)))
 
     source_mode = cfg.get("source", "local").lower()
@@ -286,21 +266,17 @@ def main(argv: Optional[list[str]] = None) -> int:
     try:
         runner.wait()
     finally:
-        # ``runner.stop()`` returns False when a worker thread (render
-        # or submit) is still alive after the join budget — typically
-        # because it's wedged inside session.render() / layer.submit().
-        # Destroying the session under a live worker is a use-after-
-        # free on the Vulkan / CUDA handles it's still touching, so we
-        # skip session.destroy() in that case. The non-daemon worker
-        # keeps the process alive until it eventually exits; the OS
-        # reaps the session on process exit.
+        # Skip session.destroy() when a worker thread is still alive —
+        # it may be inside session.render() and destroying under it
+        # would UAF on the Vulkan / CUDA handles. Non-daemon thread
+        # keeps the process alive; OS reaps at exit.
         clean = runner.stop()
         if clean:
             session.destroy()
         else:
             print(
-                "camera_viz: a worker thread did not exit; leaving VizSession "
-                "alive to avoid a use-after-free. Process will keep running "
+                "camera_viz: worker thread did not exit; leaving VizSession "
+                "alive to avoid use-after-free. Process will keep running "
                 "until the stuck thread completes.",
                 file=sys.stderr,
                 flush=True,

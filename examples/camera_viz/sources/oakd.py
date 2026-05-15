@@ -253,21 +253,16 @@ class _OakdDevice:
         )
         device = dai.Device(device_info)
 
-        # USB-speed sanity check. Throughput-sensitive configs (720p+/45fps,
-        # stereo, BGR) need SUPER (USB 3.0 / 5 Gbps); HIGH (USB 2.0 /
-        # 480 Mbps) silently caps the effective fps and is by far the
-        # most common cause of "looks like it's hitting USB bandwidth".
-        # Surfacing this on connect saves a lot of guesswork.
+        # SUPER = USB 3.0+; HIGH / FULL / LOW = USB 2, silently caps fps
+        # under stereo / BGR / 720p+ workloads.
         try:
-            usb_speed = device.getUsbSpeed()
-            speed_name = getattr(usb_speed, "name", str(usb_speed))
+            speed_name = getattr(device.getUsbSpeed(), "name", "?")
         except Exception:
             speed_name = "?"
         if speed_name in ("HIGH", "FULL", "LOW"):
             notify(
                 "oakd",
-                f"USB {speed_name} (NOT USB 3) — high fps / stereo / BGR will "
-                "drop frames. Try a different cable or USB-3 port.",
+                f"USB {speed_name} (NOT USB 3) — high fps / stereo / BGR will drop frames.",
             )
         else:
             notify("oakd", f"USB {speed_name}")
@@ -321,9 +316,7 @@ class _OakdDevice:
         first_frame_seen = False
         opening_notified = False
         unavailable_notified = False
-        # Measured-fps breadcrumb. Every _FPS_REPORT_S seconds we compare
-        # the actual delivered fps against the stream's requested fps;
-        # a big gap is the smoking gun for USB bandwidth / VPU throttling.
+        # Periodic actual-vs-requested fps; flags USB / VPU throttling.
         _FPS_REPORT_S = 5.0
         last_fps_report_at = time.monotonic()
         last_fps_counts = {s.name: 0 for s in self._stream_specs}
@@ -400,12 +393,7 @@ class _OakdDevice:
                 # No queue had data this tick — brief yield to avoid burning CPU.
                 self._stop.wait(timeout=0.001)
 
-            # Periodic actual-vs-target fps. Any stream running <80% of
-            # its requested rate is almost certainly hitting USB / VPU
-            # throttling; the absolute numbers tell the user how far off
-            # they are. Gated by CAMERA_VIZ_VERBOSE=1 — too chatty for
-            # the default run output. Reset counters AFTER reporting so
-            # windows align.
+            # Periodic actual-vs-target fps; <80% flagged as throttled.
             now = time.monotonic()
             elapsed = now - last_fps_report_at
             if elapsed >= _FPS_REPORT_S and first_frame_seen:

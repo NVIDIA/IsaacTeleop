@@ -47,28 +47,16 @@ from pipeline import Frame, FrameSource, SourceSpec
 
 
 def notify(tag: str, msg: str) -> None:
-    """Single-line user-visible breadcrumb.
-
-    Goes to stderr directly (not through ``logger``) so it shows up
-    even when the host app hasn't configured Python logging — the
-    common case for camera_viz. ``tag`` is the short source kind
-    (``zed`` / ``oakd`` / ``v4l2``); the rendered prefix is
-    ``[tag]``. Reserved for lifecycle transitions (opening, connected,
-    streaming, errors) — anything fired more than once per minute
-    belongs in :func:`notify_verbose`."""
+    # Stderr-direct so it shows without a configured Python logger.
+    # Reserved for lifecycle events; periodic stats use notify_verbose.
     print(f"[{tag}] {msg}", file=sys.stderr, flush=True)
 
 
-# Verbose state. Driven by the YAML's top-level ``verbose:`` flag
-# (set via :func:`set_verbose` after the entrypoint parses the
-# config); the ``CAMERA_VIZ_VERBOSE`` env var is also honored as a
-# no-YAML-edit override for ad-hoc debugging.
 _VERBOSE = False
 
 
 def set_verbose(enabled: bool) -> None:
-    """Enable / disable verbose breadcrumbs. Called by the entrypoint
-    (camera_viz.py / camera_streamer.py) after parsing the YAML."""
+    """Set by the entrypoint from the YAML ``verbose:`` flag."""
     global _VERBOSE
     _VERBOSE = bool(enabled)
 
@@ -85,12 +73,7 @@ def _verbose_enabled() -> bool:
 
 
 def notify_verbose(tag: str, msg: str) -> None:
-    """Diagnostic breadcrumb, gated on the YAML ``verbose:`` flag or
-    ``CAMERA_VIZ_VERBOSE=1`` env var.
-
-    Use for periodic stats (per-eye fps, queue depths, etc.) that are
-    useful while debugging but spam the terminal in steady state.
-    Default-off keeps the run output clean."""
+    """Periodic stats; gated by YAML ``verbose:`` or CAMERA_VIZ_VERBOSE."""
     if _verbose_enabled():
         print(f"[{tag}] {msg}", file=sys.stderr, flush=True)
 
@@ -360,26 +343,13 @@ class PolledSource(FrameSource):
 
 
 class PairedFrameSource(FrameSource):
-    """Pair two per-eye FrameSources into a single stereo source.
+    """Pair two per-eye FrameSources into one stereo source.
 
-    Owns no thread of its own. ``latest()`` reads both children and
-    caches whichever side returned a frame. Emits a paired Frame
-    whenever EITHER side updated since the last emit; the older eye
-    stays paired with its most recent frame until it produces.
-
-    Why caching, not "wait for both": the underlying per-eye source's
-    ``latest()`` is one-shot — it marks the frame consumed even if the
-    caller chooses not to use it. The producer publishes left and
-    right sequentially within microseconds, but the consumer polls at
-    ~1 kHz, so polls routinely land between the two publishes. The
-    earlier "consume both, drop if either is None" implementation
-    threw away the side that came first on every such race, which at
-    high producer rates collapsed the visible fps to half and gave a
-    very laggy / stuttery display. Caching turns that into bounded
-    inter-eye drift of at most one producer frame — well under any
-    perceptual threshold for stereo.
-
-    Both children MUST agree on (width, height, pixel_format).
+    Caches each child's latest Frame and emits a pair whenever either
+    side updates. The "wait for both, drop on miss" alternative loses
+    frames at the producer-publishes-L-then-R / consumer-polls-between
+    race, halving effective fps. Inter-eye drift is bounded to one
+    producer frame — well under perceptual threshold.
     """
 
     def __init__(self, name: str, left: FrameSource, right: FrameSource) -> None:
@@ -402,8 +372,6 @@ class PairedFrameSource(FrameSource):
         )
         self._left = left
         self._right = right
-        # Most recently observed Frame from each child. Updated whenever
-        # the child's latest() returns non-None (i.e. a fresh publish).
         self._cached_left: Optional[Frame] = None
         self._cached_right: Optional[Frame] = None
 
@@ -413,9 +381,7 @@ class PairedFrameSource(FrameSource):
 
     @property
     def left(self) -> FrameSource:
-        """Per-eye left source. Used by camera_streamer.py to fan out
-        two independent RTP streams for stereo cameras (paired
-        atomicity comes back at the receiver, not on the wire)."""
+        # camera_streamer fans out to two independent RTP senders.
         return self._left
 
     @property
@@ -431,11 +397,6 @@ class PairedFrameSource(FrameSource):
         self._right.stop()
 
     def latest(self) -> Optional[Frame]:
-        # Pull from each child; cache whichever side delivered a fresh
-        # publish. ``updated`` tracks whether EITHER side moved since
-        # the previous call — when neither updated there's nothing new
-        # to render, so we return None and let the layer keep its last
-        # mailbox slot.
         updated = False
         fl = self._left.latest()
         if fl is not None:
@@ -447,8 +408,7 @@ class PairedFrameSource(FrameSource):
             updated = True
         if not updated:
             return None
-        # Bootstrap: don't emit until both eyes have ever published.
-        # In steady state this only matters on the very first frame.
+        # Both eyes must have produced at least once before we emit.
         if self._cached_left is None or self._cached_right is None:
             return None
         return Frame(
