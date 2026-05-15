@@ -323,14 +323,26 @@ TEST_CASE("QuadLayer visibility toggle is independent of pipeline state", "[gpu]
 // Stereo (Config::stereo == true)
 // ────────────────────────────────────────────────────────────────────
 
-TEST_CASE("QuadLayer ctor rejects non-finite stereo_baseline_mm", "[unit][quad_layer]")
+// GPU test: the ctor's render_pass + VkContext::is_initialized checks
+// run BEFORE the stereo_baseline_mm validation in the current order,
+// so a VK_NULL_HANDLE / default-ctx form would throw at the earlier
+// check and pass for the wrong reason. Initialize a real VkContext +
+// RenderTarget so the throw actually originates from the
+// stereo_baseline_mm finite-check.
+TEST_CASE("QuadLayer ctor rejects non-finite stereo_baseline_mm", "[gpu][quad_layer][stereo]")
 {
+    if (!is_gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
     VkContext ctx;
+    ctx.init({});
+    auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 64, 64 } });
     QuadLayer::Config cfg;
     cfg.resolution = { 64, 64 };
     cfg.stereo = true;
     cfg.stereo_baseline_mm = std::numeric_limits<float>::quiet_NaN();
-    CHECK_THROWS_AS(QuadLayer(ctx, VK_NULL_HANDLE, cfg), std::invalid_argument);
+    CHECK_THROWS_AS(QuadLayer(ctx, target->render_pass(), cfg), std::invalid_argument);
 }
 
 TEST_CASE("QuadLayer stereo allocates paired DeviceImages for every slot", "[gpu][quad_layer][stereo]")

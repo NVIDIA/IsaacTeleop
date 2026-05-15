@@ -634,7 +634,11 @@ void QuadLayer::record(VkCommandBuffer cmd,
 
         // Stereo: view 0 → left descriptor, view 1 → right descriptor.
         // Mono OR single-view backends (window/offscreen): always left.
-        const bool sample_right = config_.stereo && view_idx == 1;
+        // ``xr_mode`` gate: views[1] only carries right-eye semantics in
+        // kXr — in kWindow/kOffscreen the single ViewInfo is the whole
+        // surface regardless of view_idx, so sampling right_ there would
+        // bind a buffer the producer doesn't even feed in mono.
+        const bool sample_right = xr_mode && config_.stereo && view_idx == 1;
         VkDescriptorSet ds = sample_right ? descriptor_sets_right_[cur] : descriptor_sets_[cur];
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0, 1, &ds, 0, nullptr);
 
