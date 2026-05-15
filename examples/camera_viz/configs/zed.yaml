@@ -28,7 +28,8 @@ cameras:
     serial_number: 0            # 0 → first available
     stereo: true
     rtp:
-      port: 5000
+      port: 5000                # left eye
+      port_right: 5001          # right eye (required when stereo + source: rtp)
       bitrate_mbps: 15
       # gop:                    # default: fps*5 (ULL tuning)
 

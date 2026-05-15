@@ -45,7 +45,9 @@ RETRY_S = 5.0
 SUPERVISOR_TICK_S = 1.0
 
 
-def _eye_sources(sources: List[FrameSource], camera_name: str) -> List[FrameSource]:
+def _eye_sources(
+    sources: List[FrameSource], camera_name: str, expect_stereo: bool = False
+) -> List[FrameSource]:
     """Unwrap build_local_camera()'s output: [src] mono, [left, right] stereo."""
     if len(sources) == 1 and isinstance(sources[0], PairedFrameSource):
         paired = sources[0]
@@ -55,6 +57,18 @@ def _eye_sources(sources: List[FrameSource], camera_name: str) -> List[FrameSour
         raise ValueError(
             f"camera {camera_name!r} produced {len(sources)} streams {names}; "
             "expected 1 (mono) or a PairedFrameSource (stereo)."
+        )
+    # Single source but the YAML asked for stereo. Single-producer stereo
+    # (SyntheticStereoSource) emits paired Frames but doesn't expose
+    # per-eye streams for two independent RTP senders — fail loudly
+    # rather than silently send only the left eye on the wire.
+    if expect_stereo:
+        raise ValueError(
+            f"camera {camera_name!r}: stereo configured but the source "
+            f"({type(sources[0]).__name__}) doesn't expose per-eye streams. "
+            "Streamer-side stereo currently requires PairedFrameSource "
+            "(ZED / OAK-D); single-producer stereo (e.g. SyntheticStereoSource) "
+            "isn't supported over RTP."
         )
     return [sources[0]]
 
@@ -108,7 +122,9 @@ class CameraSupervisor:
                 self._name,
             )
 
-        eyes = _eye_sources(sources, self._name)
+        eyes = _eye_sources(
+            sources, self._name, expect_stereo=bool(self._cfg.get("stereo", False))
+        )
         rtp = self._cfg.get("rtp", {})
         if "port" not in rtp:
             raise ValueError(f"camera {self._name!r} missing rtp.port")
