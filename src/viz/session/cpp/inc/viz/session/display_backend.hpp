@@ -94,6 +94,13 @@ public:
         // Backend-private bookkeeping round-tripped to record_post_* /
         // end_frame (e.g. swapchain image_index, predicted_display_time).
         uint64_t backend_token = 0;
+
+        // OpenXR predicted display time in nanoseconds (from
+        // xrWaitFrame's XrFrameState.predictedDisplayTime), exposed
+        // through FrameInfo so renderers can use it for time-aware
+        // content (e.g. animation timestamps that match the runtime's
+        // prediction). 0 outside kXr.
+        int64_t predicted_display_time_ns = 0;
     };
 
     // Acquire the next frame target. nullopt = skip this frame.

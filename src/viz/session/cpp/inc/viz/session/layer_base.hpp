@@ -56,6 +56,16 @@ public:
     {
     }
 
+    // Called from ``VizSession::begin_frame`` for EVERY registered layer
+    // (visible or not) before the new frame's FrameInfo is returned.
+    // Lets layers clear per-frame state (e.g. ProjectionLayer's
+    // submitted-this-frame flag). Default = no-op. Must NOT touch GPU
+    // state — the backend's begin_frame has already run, and the
+    // compositor's per-slot fence wait hasn't happened yet.
+    virtual void on_frame_begin()
+    {
+    }
+
     // Issue draws inside the active render pass.
     //   views:    1 entry in window/offscreen, 2 in kXr stereo. Each
     //             entry's viewport is this layer's rect for that view —

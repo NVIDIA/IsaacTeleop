@@ -207,6 +207,11 @@ private:
     bool first_frame_ = true;
     bool frame_in_progress_ = false;
     FrameInfo current_frame_info_{};
+    // The backend-acquired frame for the in-progress begin/end pair.
+    // Acquired by begin_frame, consumed by end_frame. nullopt outside
+    // a begin/end window or when the backend skipped this frame
+    // (e.g. XR runtime shouldRender=0).
+    std::optional<DisplayBackend::Frame> current_backend_frame_;
     FrameTimingStats timing_stats_{};
 };
 

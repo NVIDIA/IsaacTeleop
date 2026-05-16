@@ -211,11 +211,47 @@ FrameInfo VizSession::begin_frame()
     last_frame_time_ = now;
 
     current_frame_info_.frame_index = frame_index_;
-    current_frame_info_.predicted_display_time = 0; // XR-only; 0 in offscreen
-    current_frame_info_.should_render = (state_ == SessionState::kRunning);
     current_frame_info_.resolution = compositor_ ? compositor_->resolution() : Resolution{};
-    // Identity placeholder; backends fill per-view info inside render().
-    current_frame_info_.views.assign(1, ViewInfo{});
+    current_backend_frame_.reset();
+
+    // Acquire the backend frame BEFORE returning so renderers calling
+    // submit() against the returned FrameInfo's views are working with
+    // the same per-eye poses xrEndFrame will submit later. Skip the
+    // acquire when state isn't kRunning (kStopping/kLost paths submit
+    // empty xrEndFrames internally) or when the backend itself returns
+    // nullopt (XR shouldRender=0, swapchain skip).
+    if (state_ == SessionState::kRunning && backend_)
+    {
+        current_backend_frame_ = backend_->begin_frame(/*ignored=*/0);
+    }
+
+    if (current_backend_frame_.has_value())
+    {
+        current_frame_info_.should_render = true;
+        current_frame_info_.predicted_display_time = current_backend_frame_->predicted_display_time_ns;
+        current_frame_info_.views = current_backend_frame_->views;
+        if (current_frame_info_.views.empty())
+        {
+            current_frame_info_.views.assign(1, ViewInfo{});
+        }
+    }
+    else
+    {
+        current_frame_info_.should_render = false;
+        current_frame_info_.predicted_display_time = 0;
+        current_frame_info_.views.assign(1, ViewInfo{});
+    }
+
+    // Notify layers a new frame has begun. Lets ProjectionLayer-style
+    // layers clear per-frame freshness flags so a stale mailbox slot
+    // doesn't get composited under a new pose.
+    for (const auto& layer : layers_)
+    {
+        if (layer != nullptr)
+        {
+            layer->on_frame_begin();
+        }
+    }
 
     frame_in_progress_ = true;
     return current_frame_info_;
@@ -227,31 +263,27 @@ void VizSession::end_frame()
     {
         throw std::logic_error("VizSession: end_frame called without a matching begin_frame");
     }
-    if (state_ != SessionState::kRunning)
-    {
-        frame_in_progress_ = false;
-        return;
-    }
 
     struct ClearGuard
     {
         bool* flag;
+        std::optional<DisplayBackend::Frame>* frame_slot;
         ~ClearGuard()
         {
             *flag = false;
+            frame_slot->reset();
         }
-    } guard{ &frame_in_progress_ };
+    } guard{ &frame_in_progress_, &current_backend_frame_ };
 
-    std::vector<LayerBase*> raw_layers;
-    raw_layers.reserve(layers_.size());
-    for (const auto& l : layers_)
+    if (current_backend_frame_.has_value())
     {
-        raw_layers.push_back(l.get());
-    }
-
-    if (current_frame_info_.should_render)
-    {
-        compositor_->render(raw_layers);
+        std::vector<LayerBase*> raw_layers;
+        raw_layers.reserve(layers_.size());
+        for (const auto& l : layers_)
+        {
+            raw_layers.push_back(l.get());
+        }
+        compositor_->render(*current_backend_frame_, raw_layers);
     }
 
     update_timing_stats(current_frame_info_.delta_time);

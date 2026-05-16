@@ -12,6 +12,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <viz/core/vk_context.hpp>
+#include <viz/layers/projection_layer.hpp>
 #include <viz/layers/quad_layer.hpp>
 #include <viz/session/frame_info.hpp>
 #include <viz/session/viz_session.hpp>
@@ -35,7 +36,10 @@ void bind_session(py::module_& m)
         .def_readonly("predicted_display_time", &viz::FrameInfo::predicted_display_time)
         .def_readonly("delta_time", &viz::FrameInfo::delta_time)
         .def_readonly("should_render", &viz::FrameInfo::should_render)
-        .def_readonly("resolution", &viz::FrameInfo::resolution);
+        .def_readonly("resolution", &viz::FrameInfo::resolution)
+        .def_readonly("views", &viz::FrameInfo::views,
+                      "Per-eye render target metadata. 2 entries in XR stereo, 1 in window/offscreen. "
+                      "Renderers should render against ``views[i].pose`` + ``views[i].fov``.");
 
     py::class_<viz::FrameTimingStats>(m, "FrameTimingStats")
         .def(py::init<>())
@@ -106,6 +110,20 @@ Construct via ``VizSession.create(config)``. Add layers with
             },
             "config"_a, py::return_value_policy::reference_internal,
             "Construct + register a QuadLayer. Returns a non-owning handle.")
+        .def(
+            "add_projection_layer",
+            [](viz::VizSession& self, viz::ProjectionLayer::Config config) -> viz::ProjectionLayer*
+            {
+                const auto* ctx = self.get_vk_context();
+                const auto render_pass = self.get_render_pass();
+                if (ctx == nullptr || render_pass == VK_NULL_HANDLE)
+                {
+                    throw std::runtime_error("VizSession: cannot add layer before session is initialized");
+                }
+                return self.add_layer<viz::ProjectionLayer>(*ctx, render_pass, std::move(config));
+            },
+            "config"_a, py::return_value_policy::reference_internal,
+            "Construct + register a ProjectionLayer. Returns a non-owning handle.")
         .def("render", &viz::VizSession::render, py::call_guard<py::gil_scoped_release>(),
              "Wait + composite + present in one call. Returns FrameInfo.")
         .def("begin_frame", &viz::VizSession::begin_frame, py::call_guard<py::gil_scoped_release>())

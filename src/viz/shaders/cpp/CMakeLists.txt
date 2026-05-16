@@ -45,10 +45,17 @@ function(compile_shader GLSL_PATH VAR_NAME)
 endfunction()
 
 # Shader programs:
-#   textured_quad  — fullscreen quad sampling a combined image sampler.
-#                    Used by QuadLayer to display a CUDA-fed texture.
-compile_shader(textured_quad.vert  kTexturedQuadVertSpv)
-compile_shader(textured_quad.frag  kTexturedQuadFragSpv)
+#   textured_quad   — fullscreen / placed quad sampling a combined image
+#                     sampler. Used by QuadLayer.
+#   projection_layer — fullscreen quad sampling color + depth and
+#                     writing gl_FragDepth for Z-composite with other
+#                     layers. Used by ProjectionLayer (two variants:
+#                     with and without depth output).
+compile_shader(textured_quad.vert            kTexturedQuadVertSpv)
+compile_shader(textured_quad.frag            kTexturedQuadFragSpv)
+compile_shader(projection_layer.vert         kProjectionLayerVertSpv)
+compile_shader(projection_layer.frag         kProjectionLayerFragSpv)
+compile_shader(projection_layer_no_depth.frag kProjectionLayerFragNoDepthSpv)
 
 # INTERFACE library exposing the generated headers + a phony custom
 # target that ensures the headers exist before any consumer compiles.

@@ -191,7 +191,7 @@ void VizCompositor::submit_or_signal_fence(const VkSubmitInfo& info, const char*
     throw std::runtime_error(std::string("VizCompositor: ") + what + " failed: VkResult=" + std::to_string(r));
 }
 
-void VizCompositor::render(const std::vector<LayerBase*>& layers)
+void VizCompositor::render(const DisplayBackend::Frame& frame, const std::vector<LayerBase*>& layers)
 {
     // Snapshot visible layers once — is_visible() is atomic, and
     // reading it twice could record a draw without the matching wait.
@@ -205,19 +205,12 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
         }
     }
 
-    auto frame = backend_->begin_frame(/*predicted_display_time=*/0);
-    if (!frame.has_value())
-    {
-        // Backend skipped; all fences stay signaled, next wait() won't deadlock.
-        return;
-    }
-
     // Catch swapchain recreates whose image_count differs from the one
-    // we sized per-slot state for. Runs AFTER begin_frame because
-    // WindowBackend::begin_frame may itself recreate (OUT_OF_DATE etc.).
-    // Wrapped so a failed rebuild balances the backend protocol — we've
-    // already acquired a swapchain image and FrameGuard isn't set up
-    // yet, so a raw throw would leak the acquire.
+    // we sized per-slot state for. Runs first because the backend's
+    // begin_frame (run by VizSession) may itself recreate (OUT_OF_DATE
+    // etc.). Wrapped so a failed rebuild balances the backend protocol —
+    // the frame is already acquired and FrameGuard isn't set up yet, so
+    // a raw throw would leak it.
     try
     {
         ensure_slot_count_matches_backend();
@@ -226,7 +219,7 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
     {
         try
         {
-            backend_->abort_frame(*frame);
+            backend_->abort_frame(frame);
         }
         catch (...)
         {
@@ -242,14 +235,14 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
         // threw; reaching here means logic drift. Bail rather than UB.
         try
         {
-            backend_->abort_frame(*frame);
+            backend_->abort_frame(frame);
         }
         catch (...)
         {
         }
         throw std::runtime_error("VizCompositor: slot_count == 0 after ensure_slot_count_matches_backend");
     }
-    const uint32_t slot = static_cast<uint32_t>(frame->backend_token) % slot_count;
+    const uint32_t slot = static_cast<uint32_t>(frame.backend_token) % slot_count;
     FrameSync& slot_sync = *frame_syncs_[slot];
     VkCommandBuffer command_buffer = command_buffers_[slot];
 
@@ -299,12 +292,12 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
                 }
             }
         }
-    } frame_guard{ backend_, &*frame };
+    } frame_guard{ backend_, &frame };
 
     const RenderTarget& rt = backend_->render_target();
     const Resolution rt_extent = rt.resolution();
 
-    // XR: per-eye viewports come from frame->views. tile layout is
+    // XR: per-eye viewports come from frame.views. tile layout is
     // window/offscreen letterboxing only.
     const bool xr_mode = backend_->is_xr();
 
@@ -368,7 +361,7 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
     }
     for (size_t i = 0; i < visible_layers.size(); ++i)
     {
-        std::vector<ViewInfo> layer_views = frame->views;
+        std::vector<ViewInfo> layer_views = frame.views;
         if (layer_views.empty())
         {
             layer_views.push_back(ViewInfo{});
@@ -391,7 +384,7 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
         vkCmdWriteTimestamp(command_buffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, gpu_timestamp_pool_, query_base + 1);
     }
 
-    backend_->record_post_render_pass(command_buffer, *frame);
+    backend_->record_post_render_pass(command_buffer, frame);
 
     // ts2: end of backend post-pass (ts2-ts1 = blit/transition cost).
     if (gpu_timestamp_pool_ != VK_NULL_HANDLE)
@@ -423,18 +416,18 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
             }
         }
     }
-    if (frame->wait_before_render != VK_NULL_HANDLE)
+    if (frame.wait_before_render != VK_NULL_HANDLE)
     {
-        wait_semaphores.push_back(frame->wait_before_render);
+        wait_semaphores.push_back(frame.wait_before_render);
         wait_values.push_back(0);
-        wait_stages.push_back(frame->wait_stage);
+        wait_stages.push_back(frame.wait_stage);
     }
 
     std::vector<VkSemaphore> signal_semaphores;
     std::vector<uint64_t> signal_values;
-    if (frame->signal_after_render != VK_NULL_HANDLE)
+    if (frame.signal_after_render != VK_NULL_HANDLE)
     {
-        signal_semaphores.push_back(frame->signal_after_render);
+        signal_semaphores.push_back(frame.signal_after_render);
         signal_values.push_back(0);
     }
 
@@ -488,7 +481,7 @@ void VizCompositor::render(const std::vector<LayerBase*>& layers)
         }
     }
 
-    backend_->end_frame(*frame);
+    backend_->end_frame(frame);
     frame_guard.released = true;
 }
 

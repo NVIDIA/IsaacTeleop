@@ -128,13 +128,17 @@ std::unique_ptr<DeviceImage> DeviceImage::create(const VkContext& ctx,
     {
         throw std::invalid_argument("DeviceImage: resolution must be non-zero");
     }
-    if (format != PixelFormat::kRGBA8)
+    if (format != PixelFormat::kRGBA8 && format != PixelFormat::kD32F)
     {
-        // kD32F is reserved for ProjectionLayer's depth path. The
-        // CUDA-Vulkan interop contract for a depth image (sample
-        // semantics, layout transitions, color-space view) is not
-        // worked out yet, so refuse to half-build it.
-        throw std::invalid_argument("DeviceImage: only PixelFormat::kRGBA8 is supported");
+        throw std::invalid_argument("DeviceImage: unsupported PixelFormat");
+    }
+    if (format == PixelFormat::kD32F && mip_levels > 1)
+    {
+        // Depth + mip chain is meaningless (filtering depth between mip
+        // levels produces incorrect occlusion) and we'd have to
+        // special-case the blit-down pipeline. Reject explicitly rather
+        // than silently allocating the chain.
+        throw std::invalid_argument("DeviceImage: kD32F does not support mip_levels > 1");
     }
     // mip_levels == 0 -> auto-compute full chain to 1x1.
     if (mip_levels == 0)

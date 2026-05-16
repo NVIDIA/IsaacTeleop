@@ -120,6 +120,21 @@ orientation : (w, x, y, z) quaternion (identity = (1, 0, 0, 0))
         .def_readwrite("angle_up", &viz::Fov::angle_up)
         .def_readwrite("angle_down", &viz::Fov::angle_down);
 
+    py::class_<viz::ViewInfo>(m, "ViewInfo",
+                              R"doc(
+Per-eye render target metadata returned in ``FrameInfo.views``. In XR
+mode (kXr stereo), 2 entries — one per eye. In window / offscreen, 1
+entry with identity pose.
+
+Renderers reading the pose for projection content should use
+``pose`` + ``fov`` here; the matrices are convenience helpers populated
+from the same predicted-display-time XR data.
+)doc")
+        .def(py::init<>())
+        .def_readonly("viewport", &viz::ViewInfo::viewport)
+        .def_readonly("fov", &viz::ViewInfo::fov)
+        .def_readonly("pose", &viz::ViewInfo::pose);
+
     // ── VizBuffer (with cuda/numpy interface) ──────────────────────────
 
     py::class_<viz::VizBuffer>(m, "VizBuffer",

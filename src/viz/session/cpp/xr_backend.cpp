@@ -492,6 +492,10 @@ std::optional<DisplayBackend::Frame> XrBackend::begin_frame(int64_t /*ignored*/)
     // invariant holds if image_count ever grows past 1.
     const uint32_t slots = image_count();
     f.backend_token = (slots == 0) ? 0u : (frame_index_++ % slots);
+    // Predicted display time forwarded to FrameInfo so renderers can
+    // use it for time-aware content (e.g. animation timestamps that
+    // line up with the runtime's prediction).
+    f.predicted_display_time_ns = static_cast<int64_t>(last_frame_state_.predictedDisplayTime);
     // Hand protocol-balance off to the compositor's FrameGuard.
     in_flight_guard.dismissed = true;
     return f;

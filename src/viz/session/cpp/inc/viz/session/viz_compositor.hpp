@@ -6,6 +6,7 @@
 #include <viz/core/frame_sync.hpp>
 #include <viz/core/host_image.hpp>
 #include <viz/core/viz_types.hpp>
+#include <viz/session/display_backend.hpp>
 #include <vulkan/vulkan.h>
 
 #include <memory>
@@ -55,15 +56,22 @@ public:
     VizCompositor(VizCompositor&&) = delete;
     VizCompositor& operator=(VizCompositor&&) = delete;
 
-    // Records and submits one frame. Multi-frame-in-flight: one
-    // FrameSync per backend image slot. render() waits on the slot's
-    // fence at entry (signaled by its previous use), submits with the
-    // same fence as signal target, and returns without host-waiting
-    // on completion. CPU pacing is the caller's responsibility — the
-    // window backend prefers MAILBOX (no vsync block), so a hot loop
-    // would burn a core; camera_viz drives this from an event-driven
-    // condition variable that wakes per producer publish.
-    void render(const std::vector<LayerBase*>& layers);
+    // Records and submits one frame against the backend ``Frame``
+    // already acquired by VizSession::begin_frame. Multi-frame-in-
+    // flight: one FrameSync per backend image slot. render() waits on
+    // the slot's fence at entry (signaled by its previous use),
+    // submits with the same fence as signal target, and returns
+    // without host-waiting on completion. CPU pacing is the caller's
+    // responsibility — the window backend prefers MAILBOX (no vsync
+    // block), so a hot loop would burn a core; camera_viz drives this
+    // from an event-driven condition variable that wakes per producer
+    // publish.
+    //
+    // Owns end_frame / abort_frame protocol balance for the supplied
+    // ``frame``: on successful submit, calls backend->end_frame; on
+    // exception, calls backend->abort_frame via RAII guard before
+    // re-throwing.
+    void render(const DisplayBackend::Frame& frame, const std::vector<LayerBase*>& layers);
 
     HostImage readback_to_host();
 

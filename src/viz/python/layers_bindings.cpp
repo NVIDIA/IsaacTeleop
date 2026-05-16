@@ -13,10 +13,12 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <viz/core/viz_buffer.hpp>
+#include <viz/layers/projection_layer.hpp>
 #include <viz/layers/quad_layer.hpp>
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 
 namespace viz_py
 {
@@ -134,6 +136,110 @@ numpy on a CUDA device pointer); the binding converts it on the fly.
         .def("set_visible", &viz::QuadLayer::set_visible, "visible"_a)
         .def("is_visible", &viz::QuadLayer::is_visible)
         .def_property_readonly("name", [](const viz::QuadLayer& l) { return l.name(); });
+
+    // ── ProjectionLayer ────────────────────────────────────────────────
+
+    py::class_<viz::ProjectionLayer::Config>(m, "ProjectionLayerConfig")
+        .def(py::init<>())
+        .def_readwrite("name", &viz::ProjectionLayer::Config::name)
+        .def_readwrite("view_resolution", &viz::ProjectionLayer::Config::view_resolution)
+        .def_readwrite("color_format", &viz::ProjectionLayer::Config::color_format)
+        .def_readwrite("depth_format", &viz::ProjectionLayer::Config::depth_format,
+                       "PixelFormat.D32F for depth output (Z-composite with QuadLayer); None to disable.")
+        .def_readwrite("stereo", &viz::ProjectionLayer::Config::stereo,
+                       "Per-eye paired storage. When True, submit() requires both eyes' buffers; "
+                       "in kXr view 0 → left, view 1 → right.");
+
+    py::class_<viz::ProjectionLayer, std::unique_ptr<viz::ProjectionLayer, py::nodelete>>(m, "ProjectionLayer",
+                                                                                          R"doc(
+Full-view RGBD layer. Owned by VizSession; the Python handle is
+non-owning (don't keep it around past the session).
+
+Designed for renderers (gsplat, nvblox, neural reconstruction) that
+produce per-view (color, depth) buffers. The renderer runs IN-LOOP with
+the OpenXR frame loop — `submit()` must be called between
+`session.begin_frame()` and `session.end_frame()`, and the renderer
+must render against `info.views[i].pose` from the FrameInfo returned by
+`begin_frame()`.
+
+Typical pattern::
+
+    while running:
+        info = session.begin_frame()
+        color, depth = renderer.render(info.views)
+        layer.submit(color, depth=depth)
+        session.end_frame()
+
+If the renderer is slower than display rate, the runtime / CloudXR
+paces the application via xrWaitFrame and reprojects the last submitted
+frame at display rate. In `kXr`, a visible ProjectionLayer that fails
+to submit for the current frame is skipped at record time so stale RGBD
+isn't composited under a new projection-layer pose.
+
+Each buffer is a VizBuffer or any __cuda_array_interface__ object
+(cupy / torch / numba). submit() does one CUDA→CUDA copy per buffer on
+the supplied stream and BLOCKS on cudaStreamSynchronize so the caller
+can re-use ``color`` / ``depth`` immediately.
+)doc")
+        .def(
+            "submit",
+            [](viz::ProjectionLayer& self, py::object left_color, py::object left_depth, py::object right_color,
+               py::object right_depth, uintptr_t stream)
+            {
+                auto to_buf = [&self](py::object obj, viz::PixelFormat fmt, const char* label) -> viz::VizBuffer
+                {
+                    if (py::isinstance<viz::VizBuffer>(obj))
+                    {
+                        return obj.cast<viz::VizBuffer>();
+                    }
+                    return cuda_array_to_viz_buffer(obj, fmt, self.view_resolution(), label);
+                };
+
+                // Materialize each buffer (or std::nullopt). View slots
+                // that aren't provided pass nullptr through to submit.
+                std::optional<viz::VizBuffer> lc;
+                std::optional<viz::VizBuffer> ld;
+                std::optional<viz::VizBuffer> rc;
+                std::optional<viz::VizBuffer> rd;
+                if (!left_color.is_none())
+                {
+                    lc = to_buf(left_color, self.color_format(), "ProjectionLayer.submit(left_color)");
+                }
+                else
+                {
+                    throw std::runtime_error("ProjectionLayer.submit: left_color is required");
+                }
+                if (!left_depth.is_none())
+                {
+                    ld = to_buf(left_depth, viz::PixelFormat::kD32F, "ProjectionLayer.submit(left_depth)");
+                }
+                if (!right_color.is_none())
+                {
+                    rc = to_buf(right_color, self.color_format(), "ProjectionLayer.submit(right_color)");
+                }
+                if (!right_depth.is_none())
+                {
+                    rd = to_buf(right_depth, viz::PixelFormat::kD32F, "ProjectionLayer.submit(right_depth)");
+                }
+
+                py::gil_scoped_release release;
+                self.submit(*lc, ld.has_value() ? &*ld : nullptr, rc.has_value() ? &*rc : nullptr,
+                            rd.has_value() ? &*rd : nullptr, reinterpret_cast<cudaStream_t>(stream));
+            },
+            "left_color"_a, "left_depth"_a = py::none(), "right_color"_a = py::none(), "right_depth"_a = py::none(),
+            "stream"_a = 0,
+            "Submit a frame. Each arg is a VizBuffer or any __cuda_array_interface__ object. "
+            "Mono: only ``left_color`` (+ ``left_depth`` if depth-enabled). "
+            "Stereo: pair with ``right_color`` (+ depths). Buffers must match view_resolution "
+            "and the layer's pixel formats. Releases the GIL across the copy + sync.")
+        .def_property_readonly("view_resolution", &viz::ProjectionLayer::view_resolution)
+        .def_property_readonly("color_format", &viz::ProjectionLayer::color_format)
+        .def_property_readonly("depth_format", &viz::ProjectionLayer::depth_format)
+        .def_property_readonly("stereo", &viz::ProjectionLayer::is_stereo)
+        .def_property_readonly("view_count", &viz::ProjectionLayer::view_count)
+        .def("set_visible", &viz::ProjectionLayer::set_visible, "visible"_a)
+        .def("is_visible", &viz::ProjectionLayer::is_visible)
+        .def_property_readonly("name", [](const viz::ProjectionLayer& l) { return l.name(); });
 }
 
 } // namespace viz_py
