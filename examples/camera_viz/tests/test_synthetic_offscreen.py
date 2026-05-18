@@ -10,6 +10,7 @@ without cupy installed (the synthetic source is cupy-resident).
 from __future__ import annotations
 
 import time
+from contextlib import contextmanager
 
 import numpy as np
 import pytest
@@ -62,7 +63,8 @@ def _wait_for_frame(source, timeout_s: float = 3.0):
     raise TimeoutError(f"no frame from {source.spec.name} within {timeout_s}s")
 
 
-def _make_session(width: int, height: int) -> viz.VizSession:
+@contextmanager
+def _make_session(width: int, height: int):
     cfg = viz.VizSessionConfig()
     cfg.mode = viz.DisplayMode.kOffscreen
     cfg.window_width = width
@@ -73,7 +75,11 @@ def _make_session(width: int, height: int) -> viz.VizSession:
         0.0,
         1.0,
     )  # black baseline so any non-black confirms content
-    return viz.VizSession.create(cfg)
+    session = viz.VizSession.create(cfg)
+    try:
+        yield session
+    finally:
+        session.destroy()
 
 
 def test_synthetic_mono_renders_non_black():
@@ -90,29 +96,22 @@ def test_synthetic_mono_renders_non_black():
     }
     [source] = build_local_camera(spec)
 
-    session = _make_session(64, 64)
-    try:
+    with _make_session(64, 64) as session, source:
         layer_cfg = viz.QuadLayerConfig()
         layer_cfg.name = "synth"
         layer_cfg.resolution = viz.Resolution(64, 64)
         layer = session.add_quad_layer(layer_cfg)
 
-        source.start()
-        try:
-            frame = _wait_for_frame(source)
-            layer.submit(frame.image)
-            session.render()
-            arr = np.asarray(session.readback_to_host())
-            assert arr.shape == (64, 64, 4)
-            # Synthetic emits a hue-cycling sinusoid; nothing should be black.
-            rgb = arr[..., :3]
-            assert rgb.any(), "readback is all zero — synthetic source produced nothing"
-            # Sanity: at least two distinct values somewhere (it's a pattern, not a flat fill).
-            assert len(np.unique(rgb)) > 1
-        finally:
-            source.stop()
-    finally:
-        session.destroy()
+        frame = _wait_for_frame(source)
+        layer.submit(frame.image)
+        session.render()
+        arr = np.asarray(session.readback_to_host())
+        assert arr.shape == (64, 64, 4)
+        # Synthetic emits a hue-cycling sinusoid; nothing should be black.
+        rgb = arr[..., :3]
+        assert rgb.any(), "readback is all zero — synthetic source produced nothing"
+        # Sanity: at least two distinct values somewhere (it's a pattern, not a flat fill).
+        assert len(np.unique(rgb)) > 1
 
 
 def test_synthetic_stereo_renders_left_eye_in_offscreen():
@@ -131,30 +130,23 @@ def test_synthetic_stereo_renders_left_eye_in_offscreen():
     }
     [source] = build_local_camera(spec)
 
-    session = _make_session(64, 64)
-    try:
+    with _make_session(64, 64) as session, source:
         layer_cfg = viz.QuadLayerConfig()
         layer_cfg.name = "synth_stereo"
         layer_cfg.resolution = viz.Resolution(64, 64)
         layer_cfg.stereo = True
         layer = session.add_quad_layer(layer_cfg)
 
-        source.start()
-        try:
-            frame = _wait_for_frame(source)
-            # Stereo source must populate image_right; otherwise the
-            # synthetic-stereo dispatch wiring is broken.
-            assert frame.image_right is not None, (
-                "stereo source did not produce a right buffer"
-            )
-            layer.submit(frame.image, frame.image_right)
-            session.render()
-            arr = np.asarray(session.readback_to_host())
-            assert arr.shape == (64, 64, 4)
-            assert arr[..., :3].any(), (
-                "readback all zero — stereo render produced nothing"
-            )
-        finally:
-            source.stop()
-    finally:
-        session.destroy()
+        frame = _wait_for_frame(source)
+        # Stereo source must populate image_right; otherwise the
+        # synthetic-stereo dispatch wiring is broken.
+        assert frame.image_right is not None, (
+            "stereo source did not produce a right buffer"
+        )
+        layer.submit(frame.image, frame.image_right)
+        session.render()
+        arr = np.asarray(session.readback_to_host())
+        assert arr.shape == (64, 64, 4)
+        assert arr[..., :3].any(), (
+            "readback all zero — stereo render produced nothing"
+        )
