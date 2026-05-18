@@ -147,6 +147,4 @@ def test_synthetic_stereo_renders_left_eye_in_offscreen():
         session.render()
         arr = np.asarray(session.readback_to_host())
         assert arr.shape == (64, 64, 4)
-        assert arr[..., :3].any(), (
-            "readback all zero — stereo render produced nothing"
-        )
+        assert arr[..., :3].any(), "readback all zero — stereo render produced nothing"
