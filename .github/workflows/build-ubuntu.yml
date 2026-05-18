@@ -675,6 +675,7 @@ jobs:
     outputs:
       wheel_paths: ${{ steps.upload-artifactory.outputs.wheel_paths }}
     environment: dev
+    timeout-minutes: 10
 
     # Publish only for same-repo runs (pushes or non-fork PRs). github.repository
     # is the base repo even for fork PRs, so compare the PR head repo instead.
