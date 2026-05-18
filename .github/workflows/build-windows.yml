@@ -20,7 +20,8 @@ concurrency:
 
 jobs:
   build-windows:
-    runs-on: windows-latest
+    # Pin to windows-2025 (VS 2022) until VS 2026 is validated.
+    runs-on: windows-2025
 
     env:
       SCCACHE_GHA_ENABLED: "true"
@@ -39,7 +40,7 @@ jobs:
       uses: ./.github/actions/setup-uv
 
     - name: Setup sccache
-      uses: Mozilla-Actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad  # v0.0.9
+      uses: Mozilla-Actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696  # v0.0.10
 
     # Hunter cache - caches depthai dependencies
     # Note: Hunter uses C:/.hunter on Windows (at drive root)
@@ -75,7 +76,7 @@ jobs:
     # network installer and sets CUDA_PATH so find_package(CUDAToolkit)
     # locates the install.
     - name: Install CUDA Toolkit
-      uses: Jimver/cuda-toolkit@v0.2.19
+      uses: Jimver/cuda-toolkit@v0.2.35
       with:
         cuda: '12.4.0'
         method: 'network'
