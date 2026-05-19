@@ -1340,6 +1340,10 @@ class TeleopRos2Node(Node):
                     while rclpy.ok():
                         result = session.step()
 
+                        # Keep ROS time and other callbacks updated in this
+                        # manual loop so stamped messages progress with /clock.
+                        rclpy.spin_once(self, timeout_sec=0.0)
+
                         now = self.get_clock().now().to_msg()
 
                         if self._mode == "hand_teleop":
