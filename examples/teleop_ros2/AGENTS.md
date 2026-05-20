@@ -12,3 +12,4 @@ SPDX-License-Identifier: Apache-2.0
 ## Python Node Layout
 
 - In `python/teleop_ros2_node.py`, preserve the existing grouped/sorted organization for global non-member helpers and `TeleopRos2Node` member functions: scan the surrounding order before inserting, and do not place helpers near call sites when the existing section is sorted.
+- In Python integration test verifier code, do not use bare `assert` for runtime validation; Python optimization can disable it, so raise explicit exceptions from validators.

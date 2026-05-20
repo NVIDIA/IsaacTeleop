@@ -35,7 +35,6 @@ TF frames published in hand_teleop and controller_teleop modes (configurable via
 """
 
 import math
-import os
 import time
 from pathlib import Path
 from typing import Dict, List, Sequence, Union
@@ -59,6 +58,7 @@ from sensor_msgs.msg import JointState
 from std_msgs.msg import ByteMultiArray
 from tf2_ros import TransformBroadcaster
 
+from isaacteleop.deviceio import McapReplayConfig
 from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     ControllersSource,
     FullBodySource,
@@ -87,7 +87,7 @@ from isaacteleop.retargeting_engine.tensor_types.indices import (
     HandJointIndex,
 )
 from isaacteleop.teleop_session_manager import (
-    PluginConfig,
+    SessionMode,
     TeleopSession,
     TeleopSessionConfig,
 )
@@ -271,42 +271,9 @@ def _apply_transform_to_pose(
     return result
 
 
-def _build_plugins(
-    use_mock_operators: bool,
-    *,
-    include_synthetic_hands: bool,
-    search_start: Path,
-) -> List[PluginConfig]:
-    if not use_mock_operators or not include_synthetic_hands:
-        return []
-
-    plugin_paths = []
-    env_paths = os.environ.get("ISAAC_TELEOP_PLUGIN_PATH")
-    if env_paths:
-        plugin_paths.extend([Path(p) for p in env_paths.split(os.pathsep) if p])
-    plugin_paths.extend(_find_plugins_dirs(search_start))
-
-    return [
-        PluginConfig(
-            plugin_name="controller_synthetic_hands",
-            plugin_root_id="synthetic_hands",
-            search_paths=plugin_paths,
-        )
-    ]
-
-
 def _controller_aim_is_valid(ctrl: OptionalTensorGroup) -> bool:
     # DeviceIO's AIM_IS_VALID flag is the usability contract for aim poses.
     return not ctrl.is_none and bool(ctrl[ControllerInputIndex.AIM_IS_VALID])
-
-
-def _find_plugins_dirs(start: Path) -> List[Path]:
-    candidates: List[Path] = []
-    for parent in [start, *start.parents]:
-        plugin_dir = parent / "plugins"
-        if plugin_dir.is_dir() and plugin_dir not in candidates:
-            candidates.append(plugin_dir)
-    return candidates
 
 
 def _hand_joint_is_valid(hand: OptionalTensorGroup, joint_idx: HandJointIndex) -> bool:
@@ -727,7 +694,6 @@ class TeleopRos2Node(Node):
 
         self.declare_parameter("mode", "controller_teleop")
         self.declare_parameter("rate_hz", 60.0)
-        self.declare_parameter("use_mock_operators", value=False)
         self.declare_parameter(
             "pedal_collection_id",
             DEFAULT_PEDAL_COLLECTION_ID,
@@ -758,6 +724,17 @@ class TeleopRos2Node(Node):
                 description=(
                     "Directory containing teleop_ros2 configs/ and assets/. "
                     "Leave empty to use the installed or source example root."
+                ),
+            ),
+        )
+        self.declare_parameter(
+            "mcap_replay_path",
+            "",
+            ParameterDescriptor(
+                type=ParameterType.PARAMETER_STRING,
+                description=(
+                    "Optional MCAP file to replay through TeleopSession instead "
+                    "of connecting to live OpenXR/DeviceIO inputs."
                 ),
             ),
         )
@@ -845,9 +822,6 @@ class TeleopRos2Node(Node):
         if rate_hz <= 0 or not math.isfinite(rate_hz):
             raise ValueError("Parameter 'rate_hz' must be > 0")
         self._sleep_period_s: float = 1.0 / rate_hz
-        self._use_mock_operators: bool = (
-            self.get_parameter("use_mock_operators").get_parameter_value().bool_value
-        )
         mode = self.get_parameter("mode").get_parameter_value().string_value
         if mode not in _TELEOP_MODES:
             raise ValueError(
@@ -880,6 +854,22 @@ class TeleopRos2Node(Node):
             self.get_parameter("config_asset_root").get_parameter_value().string_value
         )
         self.get_logger().info(f"Config/asset root: {self._config_asset_root}")
+        mcap_replay_path = (
+            self.get_parameter("mcap_replay_path")
+            .get_parameter_value()
+            .string_value.strip()
+        )
+        self._session_mode: SessionMode = SessionMode.LIVE
+        self._mcap_config: McapReplayConfig | None = None
+        if mcap_replay_path:
+            replay_path = Path(mcap_replay_path).expanduser().resolve()
+            if not replay_path.is_file():
+                raise FileNotFoundError(
+                    f"mcap_replay_path file not found: {replay_path}"
+                )
+            self._session_mode = SessionMode.REPLAY
+            self._mcap_config = McapReplayConfig(str(replay_path))
+            self.get_logger().info(f"Replaying MCAP input: {replay_path}")
 
         self._pedal_collection_id: str = (
             self.get_parameter("pedal_collection_id").get_parameter_value().string_value
@@ -998,11 +988,8 @@ class TeleopRos2Node(Node):
         return TeleopSessionConfig(
             app_name="TeleopRos2Publisher",
             pipeline=pipeline,
-            plugins=_build_plugins(
-                self._use_mock_operators,
-                include_synthetic_hands=False,
-                search_start=Path(__file__).resolve(),
-            ),
+            mode=self._session_mode,
+            mcap_config=self._mcap_config,
         )
 
     def _build_controller_teleop_config(self) -> TeleopSessionConfig:
@@ -1104,11 +1091,8 @@ class TeleopRos2Node(Node):
         return TeleopSessionConfig(
             app_name="TeleopRos2Publisher",
             pipeline=pipeline,
-            plugins=_build_plugins(
-                self._use_mock_operators,
-                include_synthetic_hands=self._controller_uses_hands_source,
-                search_start=Path(__file__).resolve(),
-            ),
+            mode=self._session_mode,
+            mcap_config=self._mcap_config,
         )
 
     def _build_full_body_config(self) -> TeleopSessionConfig:
@@ -1125,11 +1109,8 @@ class TeleopRos2Node(Node):
         return TeleopSessionConfig(
             app_name="TeleopRos2Publisher",
             pipeline=pipeline,
-            plugins=_build_plugins(
-                self._use_mock_operators,
-                include_synthetic_hands=False,
-                search_start=Path(__file__).resolve(),
-            ),
+            mode=self._session_mode,
+            mcap_config=self._mcap_config,
         )
 
     def _build_hand_teleop_config(self) -> TeleopSessionConfig:
@@ -1170,11 +1151,8 @@ class TeleopRos2Node(Node):
         return TeleopSessionConfig(
             app_name="TeleopRos2Publisher",
             pipeline=pipeline,
-            plugins=_build_plugins(
-                self._use_mock_operators,
-                include_synthetic_hands=True,
-                search_start=Path(__file__).resolve(),
-            ),
+            mode=self._session_mode,
+            mcap_config=self._mcap_config,
         )
 
     def _build_session_config(self, mode: str) -> TeleopSessionConfig:

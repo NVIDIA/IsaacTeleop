@@ -491,98 +491,42 @@ jobs:
           -t teleop_ros2_ref:${{ env.ROS_DISTRO }} .
 
     - name: Verify application modes
-      env:
-        ACCEPT_CLOUDXR_EULA: Y
-        CXR_BUILD_CONTEXT: ${{ github.workspace }}
-        CXR_RUNTIME_NETWORK_MODE: bridge
-        PYTHON_VERSION: ${{ matrix.python_version }}
-        ISAACTELEOP_PIP_DEBUG: "0"
-        ISAACTELEOP_PIP_FIND_LINKS: /workspace/install/wheels
-        ISAACTELEOP_PIP_SPEC: isaacteleop[cloudxr]
       run: |
-        source scripts/setup_cloudxr_env.sh
+        set -euo pipefail
 
         PROJECT_NAME="isaacteleop-test-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}-${{ env.ROS_DISTRO }}"
         LOG_FILE_BASE="/tmp/ros2_test_output_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${{ matrix.arch }}_${{ env.ROS_DISTRO }}"
+        REPLAY_MCAP="/tmp/teleop_ros2_test_input_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${{ matrix.arch }}_${{ env.ROS_DISTRO }}.mcap"
         STARTUP_MARKER="TeleopSession started successfully"
         READINESS_TIMEOUT_SEC=30
         READINESS_POLL_INTERVAL_SEC=1
 
         # Cleanup
-        trap 'docker compose -p "$PROJECT_NAME" \
-          --env-file "$ENV_DEFAULT" \
-          ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
-          -f deps/cloudxr/docker-compose.runtime.yaml \
-          -f deps/cloudxr/docker-compose.test.yaml \
-          -f deps/cloudxr/docker-compose.override.yaml \
-          down -v' EXIT
+        trap 'docker ps -aq --filter "name=teleop-ros2-$PROJECT_NAME" | xargs -r docker rm -f >/dev/null 2>&1 || true; rm -f "$REPLAY_MCAP"' EXIT
 
-        # Start CloudXR runtime
-        cat <<EOF > deps/cloudxr/docker-compose.override.yaml
-        services:
-          cloudxr-runtime:
-            container_name: "cloudxr-runtime-$PROJECT_NAME"
-        EOF
+        docker run --rm \
+          --user "$(id -u):$(id -g)" \
+          -v /tmp:/tmp \
+          --entrypoint bash teleop_ros2_ref:${{ env.ROS_DISTRO }} -c \
+          "source /usr/local/bin/teleop-env-setup && exec /opt/isaacteleop/install/examples/teleop_ros2/cpp/integration_tests/teleop_ros2_mcap_generator '$REPLAY_MCAP'"
 
-        docker compose -p "$PROJECT_NAME" \
-          --env-file "$ENV_DEFAULT" \
-          ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
-          -f deps/cloudxr/docker-compose.runtime.yaml \
-          -f deps/cloudxr/docker-compose.test.yaml \
-          -f deps/cloudxr/docker-compose.override.yaml \
-          up --build -d cloudxr-runtime
-
-        # Wait for healthy
-        healthy=false
-        for i in {1..30}; do
-          if docker compose -p "$PROJECT_NAME" \
-            --env-file "$ENV_DEFAULT" \
-            ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
-            -f deps/cloudxr/docker-compose.runtime.yaml \
-            -f deps/cloudxr/docker-compose.test.yaml \
-            -f deps/cloudxr/docker-compose.override.yaml \
-            ps cloudxr-runtime | grep -q "healthy"; then
-            healthy=true
-            break
-          fi
-          sleep 2
-        done
-
-        if [ "$healthy" = false ]; then
-          echo "Error: CloudXR runtime failed to become healthy"
-          docker compose -p "$PROJECT_NAME" \
-            --env-file "$ENV_DEFAULT" \
-            ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
-            -f deps/cloudxr/docker-compose.runtime.yaml \
-            -f deps/cloudxr/docker-compose.test.yaml \
-            -f deps/cloudxr/docker-compose.override.yaml \
-            logs cloudxr-runtime
-          exit 1
-        fi
-
-        # Run tests
         for mode in controller_teleop hand_teleop controller_raw full_body; do
           echo "Testing mode: $mode"
           LOG_FILE="${LOG_FILE_BASE}_${mode}.log"
           RUN_NAME="teleop-ros2-${PROJECT_NAME}-${mode//_/-}"
+          verifier_rc=0
           docker_rc=0
           started=false
 
           rm -f "$LOG_FILE"
 
-          # This test overrides the image entrypoint, so keep uv's runtime
-          # resolver pointed at the locally built arm64 nlopt wheel.
           docker run -d \
             --name "$RUN_NAME" \
-            --gpus all \
             --network host \
-            -v "$CXR_HOST_VOLUME_PATH:$CXR_HOST_VOLUME_PATH" \
             -v /tmp:/tmp \
-            -e NV_CXR_RUNTIME_DIR="$CXR_HOST_VOLUME_PATH/.cloudxr/run" \
-            -e XR_RUNTIME_JSON="$CXR_HOST_VOLUME_PATH/.cloudxr/openxr_cloudxr.json" \
             -e PYTHONUNBUFFERED=1 \
             --entrypoint bash teleop_ros2_ref:${{ env.ROS_DISTRO }} -c \
-            "source /usr/local/bin/teleop-env-setup && exec uv run --find-links=/opt/nlopt-wheels teleop_ros2_node.py --ros-args -p mode:=$mode -p use_mock_operators:=true" >/dev/null
+            "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync teleop_ros2_node.py --ros-args -p mode:=$mode -p mcap_replay_path:=$REPLAY_MCAP" >/dev/null
 
           deadline=$((SECONDS + READINESS_TIMEOUT_SEC))
           while [ "$SECONDS" -lt "$deadline" ]; do
@@ -605,6 +549,15 @@ jobs:
           docker logs "$RUN_NAME" > "$LOG_FILE" 2>&1 || true
 
           if [ "$started" = true ]; then
+            if docker exec \
+              -e PYTHONUNBUFFERED=1 \
+              "$RUN_NAME" bash -c \
+              "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync integration_tests/teleop_ros2_topic_verifier.py --mode $mode"; then
+              verifier_rc=0
+            else
+              verifier_rc=$?
+            fi
+            docker logs "$RUN_NAME" > "$LOG_FILE" 2>&1 || true
             docker stop --time 5 "$RUN_NAME" >/dev/null || true
             docker wait "$RUN_NAME" >/dev/null || true
           else
@@ -628,6 +581,10 @@ jobs:
 
           if [ "$started" != true ]; then
             exit 1
+          fi
+          if [ "$verifier_rc" -ne 0 ]; then
+            echo "Error: topic verifier failed in mode $mode (exit code $verifier_rc)"
+            exit "$verifier_rc"
           fi
         done
 

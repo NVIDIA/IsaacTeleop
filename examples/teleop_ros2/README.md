@@ -154,6 +154,24 @@ The `mode` parameter selects the teleoperation scenario and which topics are pub
 
 Example: `--ros-args -p mode:=controller_raw`
 
+### MCAP Replay
+
+Set `mcap_replay_path` to run the same ROS 2 publisher from recorded DeviceIO
+tracker data instead of live OpenXR/DeviceIO inputs:
+
+```bash
+docker run --rm --net=host --ipc=host \
+  -v /tmp:/tmp \
+  --name teleop_ros2_ref \
+  teleop_ros2_ref --ros-args -p mode:=controller_raw \
+  -p mcap_replay_path:=/tmp/teleop_ros2_input.mcap
+```
+
+The installed integration test utility
+`examples/teleop_ros2/cpp/integration_tests/teleop_ros2_mcap_generator` creates a
+deterministic fixture with controller, hand, pedal, and full-body samples for CI
+coverage.
+
 ## Echo Topics
 
 ```bash
