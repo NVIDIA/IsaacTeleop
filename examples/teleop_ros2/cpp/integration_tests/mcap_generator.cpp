@@ -162,6 +162,7 @@ int parse_frame_count(const char* value)
 } // namespace
 
 int main(int argc, char** argv)
+try
 {
     if (argc < 2 || argc > 3)
     {
@@ -169,18 +170,19 @@ int main(int argc, char** argv)
         return 2;
     }
 
-    try
-    {
-        const std::filesystem::path output_path(argv[1]);
-        const int frame_count = argc == 3 ? parse_frame_count(argv[2]) : kDefaultFrameCount;
-        write_fixture(output_path, frame_count);
-        std::cout << "Wrote " << frame_count << " teleop ROS 2 replay frames to " << output_path << "\n";
-    }
-    catch (const std::exception& e)
-    {
-        std::cerr << "teleop_ros2_mcap_generator: " << e.what() << "\n";
-        return 1;
-    }
-
+    const std::filesystem::path output_path(argv[1]);
+    const int frame_count = argc == 3 ? parse_frame_count(argv[2]) : kDefaultFrameCount;
+    write_fixture(output_path, frame_count);
+    std::cout << "Wrote " << frame_count << " teleop ROS 2 replay frames to " << output_path << "\n";
     return 0;
+}
+catch (const std::exception& e)
+{
+    std::cerr << argv[0] << ": " << e.what() << "\n";
+    return 1;
+}
+catch (...)
+{
+    std::cerr << argv[0] << ": Unknown error occurred\n";
+    return 1;
 }
