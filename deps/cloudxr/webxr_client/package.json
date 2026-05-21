@@ -1,6 +1,6 @@
 {
   "name": "cloudxr-isaac-lab-teleop",
-  "version": "6.2.0",
+  "version": "6.1.0",
   "private": true,
   "description": "NVIDIA Isaac Teleop Web Client",
   "author": "NVIDIA Corporation",
@@ -20,7 +20,7 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
-    "@nvidia/cloudxr": "file:../nvidia-cloudxr-6.2.0.tgz",
+    "@nvidia/cloudxr": "file:../nvidia-cloudxr-6.1.0.tgz",
     "@preact/signals-react": "^2.2.0",
     "@react-three/drei": "^10.6.1",
     "@react-three/fiber": "^9.3.0",
