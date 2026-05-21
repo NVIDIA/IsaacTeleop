@@ -39,7 +39,7 @@ def build_controller_payload(
 
     def _as_quat(ctrl, index):
         if ctrl.is_none:
-            return [1.0, 0.0, 0.0, 0.0]
+            return [0.0, 0.0, 0.0, 1.0]
         return [float(x) for x in ctrl[index]]
 
     def _as_float(ctrl, index):
