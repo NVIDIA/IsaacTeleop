@@ -16,6 +16,16 @@ from .standard_types import (
     NUM_BODY_JOINTS_PICO,
     RobotHandJoints,
 )
+from .tactile_types import (
+    TactileVector,
+    TactileHeatmap,
+    FingerPowerVector,
+    ControllerHapticPulse,
+    EndEffectorForce,
+    NUM_HAPTIC_FINGERS,
+    NUM_CONTROLLER_HAPTIC_FIELDS,
+    NUM_END_EFFECTOR_FORCE_AXES,
+)
 from .indices import (
     HandInputIndex,
     HeadPoseIndex,
@@ -24,6 +34,9 @@ from .indices import (
     FullBodyInputIndex,
     HandJointIndex,
     BodyJointPicoIndex,
+    FingerIndex,
+    ControllerHapticPulseField,
+    EndEffectorForceAxis,
 )
 
 __all__ = [
@@ -43,6 +56,15 @@ __all__ = [
     "NUM_HAND_JOINTS",
     "NUM_BODY_JOINTS_PICO",
     "RobotHandJoints",
+    # Tactile / haptic types
+    "TactileVector",
+    "TactileHeatmap",
+    "FingerPowerVector",
+    "ControllerHapticPulse",
+    "EndEffectorForce",
+    "NUM_HAPTIC_FINGERS",
+    "NUM_CONTROLLER_HAPTIC_FIELDS",
+    "NUM_END_EFFECTOR_FORCE_AXES",
     # Indices
     "HandInputIndex",
     "HeadPoseIndex",
@@ -51,4 +73,7 @@ __all__ = [
     "FullBodyInputIndex",
     "HandJointIndex",
     "BodyJointPicoIndex",
+    "FingerIndex",
+    "ControllerHapticPulseField",
+    "EndEffectorForceAxis",
 ]

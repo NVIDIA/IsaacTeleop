@@ -8,6 +8,7 @@
 #include <schema/controller_bfbs_generated.h>
 #include <schema/timestamp_generated.h>
 
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <cstring>
@@ -254,6 +255,13 @@ LiveControllerTrackerImpl::LiveControllerTrackerImpl(const OpenXRSessionHandles&
                                           "trigger_value",
                                           "Trigger Value",
                                           XR_ACTION_TYPE_FLOAT_INPUT)),
+      haptic_action_(create_action(core_funcs_,
+                                   action_set_.get(),
+                                   left_hand_path_,
+                                   right_hand_path_,
+                                   "haptic_output",
+                                   "Haptic Output",
+                                   XR_ACTION_TYPE_VIBRATION_OUTPUT)),
       left_grip_space_(create_space(core_funcs_, session_, grip_pose_action_, left_hand_path_)),
       right_grip_space_(create_space(core_funcs_, session_, grip_pose_action_, right_hand_path_)),
       left_aim_space_(create_space(core_funcs_, session_, aim_pose_action_, left_hand_path_)),
@@ -285,6 +293,10 @@ LiveControllerTrackerImpl::LiveControllerTrackerImpl(const OpenXRSessionHandles&
     // Oculus Touch exposes menu only on the left controller; right hand has no such path,
     // so we bind left only. Right-hand menu_click will report false (action inactive).
     add_binding(menu_click_action_, "/user/hand/left/input/menu/click");
+    // Haptic output bindings — one per side onto the standard haptic component path
+    // every conformant motion-controller interaction profile exposes.
+    add_binding(haptic_action_, "/user/hand/left/output/haptic");
+    add_binding(haptic_action_, "/user/hand/right/output/haptic");
 
     XrInstanceActionContextInfoNV binding_ctx_info{ XR_TYPE_INSTANCE_ACTION_CONTEXT_INFO_NV };
     binding_ctx_info.instanceActionContext = instance_action_context_.get();
@@ -446,6 +458,77 @@ const ControllerSnapshotTrackedT& LiveControllerTrackerImpl::get_left_controller
 const ControllerSnapshotTrackedT& LiveControllerTrackerImpl::get_right_controller() const
 {
     return right_tracked_;
+}
+
+void LiveControllerTrackerImpl::apply_haptic_feedback(bool is_left,
+                                                     float amplitude,
+                                                     float frequency_hz,
+                                                     float duration_s) const
+{
+    // The haptic action was created against both subaction paths during init,
+    // so targeting one side is a matter of choosing the matching path here.
+    const XrPath subaction_path = is_left ? left_hand_path_ : right_hand_path_;
+    const size_t slot = is_left ? 0 : 1;
+    const char* const side_name = is_left ? "left" : "right";
+
+    XrHapticActionInfo info{ XR_TYPE_HAPTIC_ACTION_INFO };
+    info.action = haptic_action_;
+    info.subactionPath = subaction_path;
+
+    // amplitude==0 maps to an explicit stop instead of a zero-amplitude pulse,
+    // so dropping below the upstream deadband cleanly aborts an in-flight rumble.
+    if (amplitude <= 0.0f)
+    {
+        if (core_funcs_.xrStopHapticFeedback == nullptr)
+        {
+            return;
+        }
+        const XrResult stop_result = core_funcs_.xrStopHapticFeedback(session_, &info);
+        if (XR_FAILED(stop_result))
+        {
+            // Don't tear the session down on transient failures, but log the
+            // first occurrence per side so chronic problems are not invisible.
+            bool expected = false;
+            if (stop_haptic_error_logged_[slot].compare_exchange_strong(expected, true))
+            {
+                std::cerr << "[ControllerTracker] xrStopHapticFeedback(" << side_name << ") failed: "
+                          << static_cast<int>(stop_result)
+                          << "; further errors for this side will be silenced." << std::endl;
+            }
+        }
+        return;
+    }
+
+    if (core_funcs_.xrApplyHapticFeedback == nullptr)
+    {
+        // Runtime does not advertise the haptic entry point — silently no-op.
+        // This keeps haptic feedback a nice-to-have rather than a session-fatal
+        // dependency for runtimes that omit it (e.g. some headless test rigs).
+        return;
+    }
+
+    XrHapticVibration vibration{ XR_TYPE_HAPTIC_VIBRATION };
+    vibration.amplitude = std::clamp(amplitude, 0.0f, 1.0f);
+    // duration_s == 0 -> shortest pulse the runtime supports. Use double for
+    // the seconds->nanoseconds conversion: float has ~7 decimal digits and
+    // can lose tens of microseconds for multi-second pulses.
+    vibration.duration =
+        (duration_s <= 0.0f) ? XR_MIN_HAPTIC_DURATION : static_cast<XrDuration>(static_cast<double>(duration_s) * 1.0e9);
+    // frequency_hz == 0 -> let the runtime pick.
+    vibration.frequency = (frequency_hz <= 0.0f) ? XR_FREQUENCY_UNSPECIFIED : frequency_hz;
+
+    const XrResult apply_result = core_funcs_.xrApplyHapticFeedback(
+        session_, &info, reinterpret_cast<const XrHapticBaseHeader*>(&vibration));
+    if (XR_FAILED(apply_result))
+    {
+        bool expected = false;
+        if (apply_haptic_error_logged_[slot].compare_exchange_strong(expected, true))
+        {
+            std::cerr << "[ControllerTracker] xrApplyHapticFeedback(" << side_name << ") failed: "
+                      << static_cast<int>(apply_result)
+                      << "; further errors for this side will be silenced." << std::endl;
+        }
+    }
 }
 
 } // namespace core

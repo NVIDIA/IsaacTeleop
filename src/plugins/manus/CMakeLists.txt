@@ -107,6 +107,10 @@ add_subdirectory(core)
 add_library(isaac::manus_plugin ALIAS manus_plugin_core)
 add_subdirectory(app)
 add_subdirectory(tools)
+# Python bindings — wraps ManusTracker's haptic API for
+# isaacteleop.haptic_devices.manus.ManusHapticDevice. Inner CMakeLists is
+# a no-op when BUILD_PYTHON_BINDINGS is off.
+add_subdirectory(python)
 
 # Install Manus SDK shared library
 install(FILES "${_MANUS_LIB}"

@@ -105,6 +105,68 @@ std::vector<NodeInfo> ManusTracker::get_right_node_info() const
     return m_right_node_info;
 }
 
+bool ManusTracker::supports_haptics(bool is_left) const
+{
+    uint32_t glove_id = 0;
+    {
+        std::lock_guard<std::mutex> lock(landscape_mutex);
+        const auto& opt = is_left ? left_glove_id : right_glove_id;
+        if (!opt.has_value())
+        {
+            return false;
+        }
+        glove_id = *opt;
+    }
+
+    bool out = false;
+    if (CoreSdk_DoesSkeletonGloveSupportHaptics(glove_id, &out) != SDKReturnCode::SDKReturnCode_Success)
+    {
+        return false;
+    }
+    return out;
+}
+
+void ManusTracker::apply_haptic_command(bool is_left, const std::array<float, 5>& powers)
+{
+    uint32_t glove_id = 0;
+    {
+        std::lock_guard<std::mutex> lock(landscape_mutex);
+        const auto& opt = is_left ? left_glove_id : right_glove_id;
+        if (!opt.has_value())
+        {
+            // No glove connected on this side — silently no-op. Spamming the
+            // log every frame while the glove is disconnected drowns out real
+            // errors; the user already knows the glove is down because hand
+            // tracking is unavailable.
+            return;
+        }
+        glove_id = *opt;
+    }
+
+    // Clamp to [0, 1] — the Manus SDK does the same internally but
+    // documenting the contract here lets retargeters with looser saturation
+    // bounds wire up safely.
+    std::array<float, 5> clamped{};
+    for (size_t i = 0; i < clamped.size(); ++i)
+    {
+        clamped[i] = std::clamp(powers[i], 0.0f, 1.0f);
+    }
+
+    const SDKReturnCode rc = CoreSdk_VibrateFingersForGlove(glove_id, clamped.data());
+    if (rc != SDKReturnCode::SDKReturnCode_Success)
+    {
+        const size_t slot = is_left ? 0 : 1;
+        bool expected = false;
+        if (m_haptic_error_logged[slot].compare_exchange_strong(expected, true))
+        {
+            std::cerr << "[Manus] CoreSdk_VibrateFingersForGlove failed for "
+                      << (is_left ? "left" : "right") << " glove (id=" << glove_id
+                      << ", code=" << static_cast<int>(rc)
+                      << "); further errors for this side will be silenced." << std::endl;
+        }
+    }
+}
+
 ManusTracker::ManusTracker(const std::string& app_name) noexcept(false)
 {
     initialize(app_name);

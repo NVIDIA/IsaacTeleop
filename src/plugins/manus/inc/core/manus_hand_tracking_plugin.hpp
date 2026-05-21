@@ -13,6 +13,8 @@
 
 #include <ManusSDK.h>
 #include <XR_MNDX_xdev_space.h>
+#include <array>
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -40,6 +42,28 @@ public:
     std::vector<SkeletonNode> get_right_hand_nodes() const;
     std::vector<NodeInfo> get_left_node_info() const;
     std::vector<NodeInfo> get_right_node_info() const;
+
+    /// Vibrate the five finger motors of one haptic glove.
+    ///
+    /// Bridges Isaac Teleop's haptic feedback flow (see
+    /// isaacteleop.haptic_devices.ManusHapticDevice) to
+    /// `CoreSdk_VibrateFingersForGlove`. Powers are interpreted in Manus
+    /// order [Thumb, Index, Middle, Ring, Pinky] and are clamped to [0, 1].
+    ///
+    /// No-ops (and logs at most once per side) when:
+    ///   - the glove for the requested side is not connected, or
+    ///   - the connected glove reports no haptic support, or
+    ///   - the SDK call itself returns a non-success code.
+    ///
+    /// Thread-safe — `landscape_mutex` guards the per-side glove id used to
+    /// look up the SDK target.
+    void apply_haptic_command(bool is_left, const std::array<float, 5>& powers);
+
+    /// Whether the glove for the given side is currently connected and
+    /// reports support for haptic vibration (via
+    /// `CoreSdk_DoesSkeletonGloveSupportHaptics`). Returns false when no
+    /// glove is connected on that side. Thread-safe.
+    bool supports_haptics(bool is_left) const;
 
 private:
     // Lifecycle
@@ -78,10 +102,18 @@ private:
     bool m_initialized = false;
 
     // ManusSDK State
-    std::mutex landscape_mutex;
+    mutable std::mutex landscape_mutex;
     std::optional<uint32_t> left_glove_id;
     std::optional<uint32_t> right_glove_id;
     bool is_connected = false;
+
+    // Haptic state — kept separate from landscape_mutex so a vibration call
+    // does not contend with the landscape callback for the duration of the
+    // SDK call. The per-side log-once flags use std::atomic to stay quiet
+    // when many frames in a row fail (e.g. the glove was disconnected
+    // mid-session). Only `apply_haptic_command` (non-const) writes here, so
+    // no `mutable` is needed; const callers do not touch these flags.
+    std::array<std::atomic<bool>, 2> m_haptic_error_logged{ { false, false } };
 
     // OpenXR State
     std::shared_ptr<core::OpenXRSession> m_session;
