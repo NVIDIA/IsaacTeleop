@@ -35,7 +35,6 @@
  * back to the parent component through callback props.
  */
 
-import { PerformanceCanvasImage } from '@helpers/react/PerformanceCanvasImage';
 import { useXRButton } from '@helpers/react/useXRButton';
 import { ReadonlySignal } from '@preact/signals-react';
 import { useFrame } from '@react-three/fiber';
@@ -48,10 +47,6 @@ import { damp } from 'three/src/math/MathUtils.js';
 
 // Face-camera rotation constants
 const FACE_CAMERA_DAMPING = 10; // Higher = faster rotation toward camera
-
-/** Display size for the Performance metrics slot (width and height passed to PerformanceCanvasImage and its container). */
-const METRIC_SLOT_WIDTH = 512;
-const METRIC_SLOT_HEIGHT = 250;
 
 interface CloudXRUIProps {
   onStartTeleop?: () => void;
@@ -369,18 +364,101 @@ export default function CloudXR3DUI({
                   </Text>
 
                   <Container
-                    width={METRIC_SLOT_WIDTH}
-                    height={METRIC_SLOT_HEIGHT}
-                    alignItems="center"
+                    flexDirection="column"
+                    gap={14}
+                    alignItems="stretch"
                     justifyContent="center"
+                    width="100%"
                   >
-                    <PerformanceCanvasImage
-                      width={METRIC_SLOT_WIDTH}
-                      height={METRIC_SLOT_HEIGHT}
-                      renderFpsText={renderFpsText}
-                      streamingFpsText={streamingFpsText}
-                      poseToRenderText={poseToRenderText}
-                    />
+                    <Container
+                      backgroundColor="rgba(0, 0, 0, 0.5)"
+                      borderRadius={12}
+                      paddingTop={16}
+                      paddingBottom={16}
+                      paddingLeft={20}
+                      paddingRight={20}
+                      alignItems="center"
+                      justifyContent="center"
+                    >
+                      <Text
+                        fontSize={26}
+                        color="rgba(180, 180, 180, 1)"
+                        textAlign="center"
+                        marginBottom={12}
+                      >
+                        Render FPS
+                      </Text>
+                      <Container width={200} alignItems="center" justifyContent="center">
+                        <Text
+                          fontSize={40}
+                          color="rgba(100, 255, 100, 1)"
+                          textAlign="center"
+                          fontWeight="bold"
+                        >
+                          {renderFpsText}
+                        </Text>
+                      </Container>
+                    </Container>
+
+                    <Container
+                      backgroundColor="rgba(0, 0, 0, 0.5)"
+                      borderRadius={12}
+                      paddingTop={16}
+                      paddingBottom={16}
+                      paddingLeft={20}
+                      paddingRight={20}
+                      alignItems="center"
+                      justifyContent="center"
+                    >
+                      <Text
+                        fontSize={26}
+                        color="rgba(180, 180, 180, 1)"
+                        textAlign="center"
+                        marginBottom={12}
+                      >
+                        Streaming FPS
+                      </Text>
+                      <Container width={200} alignItems="center" justifyContent="center">
+                        <Text
+                          fontSize={40}
+                          color="rgba(100, 200, 255, 1)"
+                          textAlign="center"
+                          fontWeight="bold"
+                        >
+                          {streamingFpsText}
+                        </Text>
+                      </Container>
+                    </Container>
+
+                    <Container
+                      backgroundColor="rgba(0, 0, 0, 0.5)"
+                      borderRadius={12}
+                      paddingTop={16}
+                      paddingBottom={16}
+                      paddingLeft={20}
+                      paddingRight={20}
+                      alignItems="center"
+                      justifyContent="center"
+                    >
+                      <Text
+                        fontSize={26}
+                        color="rgba(180, 180, 180, 1)"
+                        textAlign="center"
+                        marginBottom={12}
+                      >
+                        Pose-to-Render
+                      </Text>
+                      <Container width={200} alignItems="center" justifyContent="center">
+                        <Text
+                          fontSize={40}
+                          color="rgba(255, 200, 100, 1)"
+                          textAlign="center"
+                          fontWeight="bold"
+                        >
+                          {poseToRenderText}
+                        </Text>
+                      </Container>
+                    </Container>
                   </Container>
                 </Container>
 
