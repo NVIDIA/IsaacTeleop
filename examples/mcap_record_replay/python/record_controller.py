@@ -2,16 +2,16 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Record a live OpenXR hand-tracking session to an MCAP file.
+Record a live OpenXR controller-tracking session to an MCAP file.
 
 Requires an active OpenXR runtime / headset. The pipeline in ``common.py``
-wires only ``HandsSource``, so ``TeleopSession`` records exactly the ``hands``
-channel — no head, no controllers.
+wires only ``ControllersSource``, so ``TeleopSession`` records exactly the
+``controllers`` channel — no head, no hands.
 
 Usage:
-    python record_hand.py [duration_seconds] [output.mcap]
+    python record_controller.py [duration_seconds] [output.mcap]
 
-Defaults: 5 seconds → ../recordings/hands_<timestamp>.mcap
+Defaults: 5 seconds → ../recordings/controllers_<timestamp>.mcap
 
 See: https://nvidia.github.io/IsaacTeleop/main/references/mcap_record_replay.html
 """
@@ -22,9 +22,10 @@ from datetime import datetime
 from pathlib import Path
 
 from isaacteleop.deviceio import McapRecordingConfig
+from isaacteleop.retargeting_engine.tensor_types.indices import ControllerInputIndex
 from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
-from common import build_hand_pipeline
+from common import build_controller_pipeline
 
 
 def main(argv: list[str]) -> int:
@@ -36,13 +37,13 @@ def main(argv: list[str]) -> int:
     else:
         out_dir = Path(__file__).resolve().parent.parent / "recordings"
         out_dir.mkdir(exist_ok=True)
-        mcap_path = out_dir / f"hands_{datetime.now():%Y%m%d_%H%M%S}.mcap"
+        mcap_path = out_dir / f"controllers_{datetime.now():%Y%m%d_%H%M%S}.mcap"
 
     print(f"[record] writing {mcap_path} for {duration_s:.1f}s")
 
     config = TeleopSessionConfig(
-        app_name="McapHandRecordExample",
-        pipeline=build_hand_pipeline(),
+        app_name="McapControllerRecordExample",
+        pipeline=build_controller_pipeline(),
         mcap_config=McapRecordingConfig(str(mcap_path)),
     )
 
@@ -51,8 +52,14 @@ def main(argv: list[str]) -> int:
         while time.time() - start < duration_s:
             result = session.step()
             if session.frame_count % 60 == 0:
-                left = bool(result["left_valid"][0])
-                right = bool(result["right_valid"][0])
+                left_ctrl = result["controller_left"]
+                right_ctrl = result["controller_right"]
+                left = not left_ctrl.is_none and bool(
+                    left_ctrl[ControllerInputIndex.AIM_IS_VALID]
+                )
+                right = not right_ctrl.is_none and bool(
+                    right_ctrl[ControllerInputIndex.AIM_IS_VALID]
+                )
                 print(
                     f"[record] t={time.time() - start:5.2f}s  "
                     f"frame={session.frame_count}  L={'Y' if left else '-'} "
