@@ -2,20 +2,9 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Asset and configuration path resolution for teleop_ros2_node."""
+"""Asset file path resolution for teleop_ros2_node."""
 
 from pathlib import Path
-
-
-def resolve_config_asset_root(raw_root: str, default_root: Path) -> Path:
-    raw_root = raw_root.strip()
-    if not raw_root:
-        return default_root
-
-    root = Path(raw_root).expanduser().resolve()
-    if not root.is_dir():
-        raise FileNotFoundError(f"config_asset_root directory not found: {root}")
-    return root
 
 
 def resolve_dex_sharpa_config(root: Path, filename: str) -> str:
