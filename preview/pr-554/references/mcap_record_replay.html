@@ -499,29 +499,23 @@ Omitting it raises <code class="docutils literal notranslate"><span class="pre">
 <p>A complete record / replay example lives at
 <code class="docutils literal notranslate"><span class="pre">examples/mcap_record_replay/python/</span></code>:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">common.py</span></code> — shared helpers for both example paths:
-<code class="docutils literal notranslate"><span class="pre">build_hand_pipeline()</span></code> + <code class="docutils literal notranslate"><span class="pre">HandJoints</span></code> for hand replay visualization,
-<code class="docutils literal notranslate"><span class="pre">build_controller_pipeline()</span></code> for controller replay, and
-<code class="docutils literal notranslate"><span class="pre">build_full_body_pipeline()</span></code> plus full-body/controller payload adapters for
-receiver-side integration examples.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">record_hand.py</span></code> — records the <code class="docutils literal notranslate"><span class="pre">hands</span></code> channel from a live OpenXR
-session.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">replay_hand.py</span></code> — replays the recording and visualizes both hands
-(joint cloud + skeleton) in a browser via <a class="reference external" href="https://viser.studio/" rel="noopener noreferrer" target="_blank">viser</a>.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">record_controller.py</span></code> — records the <code class="docutils literal notranslate"><span class="pre">controllers</span></code> channel from a live
-OpenXR session.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">replay_controller.py</span></code> — replays controller aim/grip data and visualizes it
-in a browser via <a class="reference external" href="https://viser.studio/" rel="noopener noreferrer" target="_blank">viser</a>, including a live HUD for
-thumbsticks, triggers/squeeze, and button states.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">record_full_body.py</span></code> — records <code class="docutils literal notranslate"><span class="pre">full_body</span></code> + <code class="docutils literal notranslate"><span class="pre">controllers</span></code> from a live
-OpenXR session.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">replay_full_body.py</span></code> — replays the recording, visualizes the full-body
-joints/skeleton in a browser via <a class="reference external" href="https://viser.studio/" rel="noopener noreferrer" target="_blank">viser</a>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">common.py</span></code> — pipeline builders (<code class="docutils literal notranslate"><span class="pre">build_hand_pipeline()</span></code>,
+<code class="docutils literal notranslate"><span class="pre">build_controller_pipeline()</span></code>, <code class="docutils literal notranslate"><span class="pre">build_full_body_pipeline()</span></code>) plus the
+<code class="docutils literal notranslate"><span class="pre">HandJoints</span></code> retargeter and the bone tables used by the replay
+visualizers.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">record_hand.py</span></code> / <code class="docutils literal notranslate"><span class="pre">replay_hand.py</span></code> — records the <code class="docutils literal notranslate"><span class="pre">hands</span></code> channel
+from a live OpenXR session and replays it with a <a class="reference external" href="https://viser.studio/" rel="noopener noreferrer" target="_blank">viser</a> visualization of both hand skeletons (joint cloud
++ skeleton).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">record_controller.py</span></code> / <code class="docutils literal notranslate"><span class="pre">replay_controller.py</span></code> — records the
+<code class="docutils literal notranslate"><span class="pre">controllers</span></code> channel and replays it in viser, including a per-controller
+HUD (thumbstick, trigger, squeeze, button states).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">record_full_body.py</span></code> / <code class="docutils literal notranslate"><span class="pre">replay_full_body.py</span></code> — records the
+<code class="docutils literal notranslate"><span class="pre">full_body</span></code> + <code class="docutils literal notranslate"><span class="pre">controllers</span></code> channels and replays the body skeleton in
+viser.</p></li>
 </ul>
-<p>For the hand path (<code class="docutils literal notranslate"><span class="pre">build_hand_pipeline()</span></code>), only <code class="docutils literal notranslate"><span class="pre">HandsSource</span></code> is wired
-into the pipeline, so <code class="docutils literal notranslate"><span class="pre">TeleopSession</span></code> auto-discovers a single
-<code class="docutils literal notranslate"><span class="pre">HandTracker</span></code> and the resulting MCAP contains exactly one channel (<code class="docutils literal notranslate"><span class="pre">hands</span></code>).
-Controller and full-body scripts use their corresponding pipeline builders in
+<p>Each pipeline wires only the <code class="docutils literal notranslate"><span class="pre">Source</span></code> nodes it needs, so the resulting MCAP
+contains exactly the matching channels.  To capture more data, add
+additional source nodes (<code class="docutils literal notranslate"><span class="pre">HeadSource</span></code>, <code class="docutils literal notranslate"><span class="pre">ControllersSource</span></code>, …) in
 <code class="docutils literal notranslate"><span class="pre">common.py</span></code>.</p>
 <section id="recording">
 <h3>Recording<a class="headerlink" href="#recording" title="Link to this heading">#</a></h3>
@@ -547,16 +541,9 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
 </div>
 <p>Open the printed URL (default <a class="reference external" href="http://localhost:8080" rel="noopener noreferrer" target="_blank">http://localhost:8080</a>) in a browser to see the
 left (green) and right (blue) hand skeletons update each frame.</p>
-</section>
-<section id="additional-variants">
-<h3>Additional variants<a class="headerlink" href="#additional-variants" title="Link to this heading">#</a></h3>
-<p>Controller and full-body examples follow the same workflow with script
-substitutions:</p>
-<ul class="simple">
-<li><p>Controller: <code class="docutils literal notranslate"><span class="pre">record_controller.py</span></code> / <code class="docutils literal notranslate"><span class="pre">replay_controller.py</span></code>.</p></li>
-<li><p>Full-body: <code class="docutils literal notranslate"><span class="pre">record_full_body.py</span></code> / <code class="docutils literal notranslate"><span class="pre">replay_full_body.py</span></code>.</p></li>
-</ul>
-<p>Use <code class="docutils literal notranslate"><span class="pre">--port</span></code> and <code class="docutils literal notranslate"><span class="pre">--loop</span></code> the same way as hands.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">record_controller.py</span></code> / <code class="docutils literal notranslate"><span class="pre">replay_controller.py</span></code> and
+<code class="docutils literal notranslate"><span class="pre">record_full_body.py</span></code> / <code class="docutils literal notranslate"><span class="pre">replay_full_body.py</span></code> pairs use the same CLI
+(positional MCAP path, <code class="docutils literal notranslate"><span class="pre">--host</span></code>, <code class="docutils literal notranslate"><span class="pre">--port</span></code>, <code class="docutils literal notranslate"><span class="pre">--loop</span></code>).</p>
 </section>
 </section>
 <section id="api-reference">
@@ -653,7 +640,6 @@ When empty, <code class="docutils literal notranslate"><span class="pre">TeleopS
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#runnable-example">Runnable Example</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#recording">Recording</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#replaying">Replaying</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#additional-variants">Additional variants</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#api-reference">API Reference</a><ul class="nav section-nav flex-column">

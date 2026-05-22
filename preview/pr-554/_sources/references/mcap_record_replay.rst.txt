@@ -110,29 +110,24 @@ Runnable Example
 A complete record / replay example lives at
 ``examples/mcap_record_replay/python/``:
 
-- ``common.py`` — shared helpers for both example paths:
-  ``build_hand_pipeline()`` + ``HandJoints`` for hand replay visualization,
-  ``build_controller_pipeline()`` for controller replay, and
-  ``build_full_body_pipeline()`` plus full-body/controller payload adapters for
-  receiver-side integration examples.
-- ``record_hand.py`` — records the ``hands`` channel from a live OpenXR
-  session.
-- ``replay_hand.py`` — replays the recording and visualizes both hands
-  (joint cloud + skeleton) in a browser via `viser <https://viser.studio/>`_.
-- ``record_controller.py`` — records the ``controllers`` channel from a live
-  OpenXR session.
-- ``replay_controller.py`` — replays controller aim/grip data and visualizes it
-  in a browser via `viser <https://viser.studio/>`_, including a live HUD for
-  thumbsticks, triggers/squeeze, and button states.
-- ``record_full_body.py`` — records ``full_body`` + ``controllers`` from a live
-  OpenXR session.
-- ``replay_full_body.py`` — replays the recording, visualizes the full-body
-  joints/skeleton in a browser via `viser <https://viser.studio/>`_.
+- ``common.py`` — pipeline builders (``build_hand_pipeline()``,
+  ``build_controller_pipeline()``, ``build_full_body_pipeline()``) plus the
+  ``HandJoints`` retargeter and the bone tables used by the replay
+  visualizers.
+- ``record_hand.py`` / ``replay_hand.py`` — records the ``hands`` channel
+  from a live OpenXR session and replays it with a `viser
+  <https://viser.studio/>`_ visualization of both hand skeletons (joint cloud
+  + skeleton).
+- ``record_controller.py`` / ``replay_controller.py`` — records the
+  ``controllers`` channel and replays it in viser, including a per-controller
+  HUD (thumbstick, trigger, squeeze, button states).
+- ``record_full_body.py`` / ``replay_full_body.py`` — records the
+  ``full_body`` + ``controllers`` channels and replays the body skeleton in
+  viser.
 
-For the hand path (``build_hand_pipeline()``), only ``HandsSource`` is wired
-into the pipeline, so ``TeleopSession`` auto-discovers a single
-``HandTracker`` and the resulting MCAP contains exactly one channel (``hands``).
-Controller and full-body scripts use their corresponding pipeline builders in
+Each pipeline wires only the ``Source`` nodes it needs, so the resulting MCAP
+contains exactly the matching channels.  To capture more data, add
+additional source nodes (``HeadSource``, ``ControllersSource``, …) in
 ``common.py``.
 
 Recording
@@ -166,16 +161,9 @@ Replay runs headless — no headset required:
 Open the printed URL (default http://localhost:8080) in a browser to see the
 left (green) and right (blue) hand skeletons update each frame.
 
-Additional variants
-^^^^^^^^^^^^^^^^^^^
-
-Controller and full-body examples follow the same workflow with script
-substitutions:
-
-- Controller: ``record_controller.py`` / ``replay_controller.py``.
-- Full-body: ``record_full_body.py`` / ``replay_full_body.py``.
-
-Use ``--port`` and ``--loop`` the same way as hands.
+The ``record_controller.py`` / ``replay_controller.py`` and
+``record_full_body.py`` / ``replay_full_body.py`` pairs use the same CLI
+(positional MCAP path, ``--host``, ``--port``, ``--loop``).
 
 API Reference
 -------------
