@@ -80,7 +80,8 @@ export const TELEOP_PROJECTS: TeleopProjectRegistry = {
     label: 'Simulation',
     settings: { panelHiddenAtStart: false, headless: false },
     children: {
-      isaacsim: { label: 'IsaacSim' },
+      isaaclab: { label: 'Isaac Lab' },
+      isaacsim: { label: 'Isaac Sim' },
     },
   },
   real: {
