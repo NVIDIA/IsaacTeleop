@@ -45,7 +45,7 @@
 
 
 
-    <script src="../_static/documentation_options.js?v=18f8d057"></script>
+    <script src="../_static/documentation_options.js?v=fb5244e5"></script>
     <script src="../_static/doctools.js?v=9bcbadda"></script>
     <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -58,13 +58,13 @@
 
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Contributing" href="contributing.html" />
-    <link rel="prev" title="Build from Source" href="build_from_source.html" />
+    <link rel="next" title="Teleop Control State Machine" href="teleop_control_state_machine.html" />
+    <link rel="prev" title="Build WebXR Client" href="build_from_source/webxr.html" />
 
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.1.x" />
+  <meta name="docsearch:version" content="1.3.x" />
   
     
     <script src="../_static/searchtools.js"></script>
@@ -338,8 +338,9 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="quick_start.html">Quick Start</a></li>
-<li class="toctree-l1"><a class="reference internal" href="build_from_source.html">Build from Source</a></li>
+<li class="toctree-l1"><a class="reference internal" href="build_from_source/index.html">Build from Source</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Teleop Session</a></li>
+<li class="toctree-l1"><a class="reference internal" href="teleop_control_state_machine.html">Teleop Control State Machine</a></li>
 <li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
@@ -347,7 +348,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../references/requirements.html">System Requirements</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/build.html">Build System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../device/index.html">Device Interface</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../references/retargeting.html">Retargeting Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/retargeting/index.html">Retargeting Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/license.html">License</a></li>
 </ul>
 </div>
@@ -469,17 +472,27 @@ following issue for progress: <a class="github reference external" href="https:/
 <p>The main configuration object:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@dataclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">TeleopSessionConfig</span><span class="p">:</span>
-    <span class="n">app_name</span><span class="p">:</span> <span class="nb">str</span>                                       <span class="c1"># OpenXR application name</span>
-    <span class="n">pipeline</span><span class="p">:</span> <span class="n">Any</span>                                       <span class="c1"># Connected retargeting pipeline</span>
-    <span class="n">trackers</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>                            <span class="c1"># Tracker instances (optional)</span>
-    <span class="n">plugins</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">PluginConfig</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>                    <span class="c1"># Plugin configurations (optional)</span>
-    <span class="n">verbose</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>                                <span class="c1"># Print progress info</span>
-    <span class="n">oxr_handles</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">OpenXRSessionHandles</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># External OpenXR handles (optional)</span>
+    <span class="n">app_name</span><span class="p">:</span> <span class="nb">str</span>                            <span class="c1"># OpenXR application name</span>
+    <span class="n">pipeline</span><span class="p">:</span> <span class="n">Any</span>                            <span class="c1"># Connected retargeting pipeline</span>
+    <span class="n">mode</span><span class="p">:</span> <span class="n">SessionMode</span> <span class="o">=</span> <span class="n">SessionMode</span><span class="o">.</span><span class="n">LIVE</span>     <span class="c1"># LIVE or REPLAY</span>
+    <span class="n">trackers</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>                 <span class="c1"># Tracker instances (optional)</span>
+    <span class="n">plugins</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">PluginConfig</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>         <span class="c1"># Plugin configurations (optional)</span>
+    <span class="n">verbose</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>                     <span class="c1"># Print progress info</span>
+    <span class="n">oxr_handles</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>        <span class="c1"># External OpenXR handles (optional)</span>
+    <span class="n">mcap_config</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>        <span class="c1"># Required for REPLAY, optional for LIVE</span>
+    <span class="n">retargeting_execution</span><span class="p">:</span> <span class="n">RetargetingExecutionConfig</span> <span class="o">=</span> <span class="o">...</span>
 </pre></div>
 </div>
-<p>When <code class="docutils literal notranslate"><span class="pre">oxr_handles</span></code> is provided, <code class="docutils literal notranslate"><span class="pre">TeleopSession</span></code> uses the supplied handles
-instead of creating its own OpenXR session. The caller is responsible for the
-external session’s lifetime. Construct handles with
+<p>When <code class="docutils literal notranslate"><span class="pre">mode</span></code> is <code class="docutils literal notranslate"><span class="pre">SessionMode.REPLAY</span></code>, <code class="docutils literal notranslate"><span class="pre">TeleopSession</span></code> skips OpenXR
+session creation and reads tracking data from the MCAP file specified in
+<code class="docutils literal notranslate"><span class="pre">mcap_config</span></code> (a <code class="docutils literal notranslate"><span class="pre">McapReplayConfig</span></code>).  <code class="docutils literal notranslate"><span class="pre">mcap_config</span></code> is <strong>required</strong> in
+replay mode — omitting it raises <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>.  In the default <code class="docutils literal notranslate"><span class="pre">LIVE</span></code>
+mode, <code class="docutils literal notranslate"><span class="pre">mcap_config</span></code> is optional; passing an <code class="docutils literal notranslate"><span class="pre">McapRecordingConfig</span></code> enables
+recording to disk.  See <a class="reference internal" href="../references/mcap_record_replay.html"><span class="doc">MCAP Recording &amp; Replay</span></a> for full
+details.</p>
+<p>When <code class="docutils literal notranslate"><span class="pre">oxr_handles</span></code> is provided (live mode), <code class="docutils literal notranslate"><span class="pre">TeleopSession</span></code> uses the
+supplied handles instead of creating its own OpenXR session. The caller is
+responsible for the external session’s lifetime. Construct handles with
 <code class="docutils literal notranslate"><span class="pre">OpenXRSessionHandles(instance,</span> <span class="pre">session,</span> <span class="pre">space,</span> <span class="pre">proc_addr)</span></code> where each
 argument is a <code class="docutils literal notranslate"><span class="pre">uint64</span></code> handle value.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">teleopcore.oxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">OpenXRSessionHandles</span>
@@ -494,6 +507,180 @@ argument is a <code class="docutils literal notranslate"><span class="pre">uint6
 <span class="p">)</span>
 </pre></div>
 </div>
+<section id="retargeting-execution">
+<h4>Retargeting execution<a class="headerlink" href="#retargeting-execution" title="Link to this heading">#</a></h4>
+<p><code class="docutils literal notranslate"><span class="pre">TeleopSession.step()</span></code> runs retargeting synchronously by default: each call
+updates DeviceIO, polls trackers, merges caller-provided inputs, runs optional
+control logic, runs the main retarget pipeline, and returns the current frame’s
+<code class="docutils literal notranslate"><span class="pre">RetargeterIO</span></code> before <code class="docutils literal notranslate"><span class="pre">step()</span></code> completes.</p>
+<p>Set <code class="docutils literal notranslate"><span class="pre">retargeting_execution=RetargetingExecutionConfig(mode=&quot;pipelined&quot;)</span></code> to
+opt into background retargeting. In pipelined mode, the application still calls
+<code class="docutils literal notranslate"><span class="pre">step()</span></code> once per simulation frame and supplies any external inputs, graph
+time, or explicit execution events. IsaacTeleop owns one retarget worker thread.
+After the first seed frame, that worker runs the normal synchronous step body
+end-to-end.</p>
+<p>Per application frame in pipelined mode, <code class="docutils literal notranslate"><span class="pre">step()</span></code> submits the current request
+and returns the latest completed <code class="docutils literal notranslate"><span class="pre">RetargeterIO</span></code>. On a normal hit this is often
+the previous application frame’s output. If that returned output came from
+request N-1, then <code class="docutils literal notranslate"><span class="pre">session.last_context</span></code> also comes from N-1: tracker data,
+control messages, execution events, outputs, and context stay self-consistent
+for the completed frame that is returned. Use <code class="docutils literal notranslate"><span class="pre">mode=&quot;sync&quot;</span></code> when the
+application needs exact current-frame sample/compute/return behavior.</p>
+<p>The return type is unchanged; inspect <code class="docutils literal notranslate"><span class="pre">session.last_step_info</span></code> for age and
+timing metadata such as <code class="docutils literal notranslate"><span class="pre">returned_frame_id</span></code>, <code class="docutils literal notranslate"><span class="pre">submitted_frame_id</span></code>,
+<code class="docutils literal notranslate"><span class="pre">returned_age_frames</span></code>, <code class="docutils literal notranslate"><span class="pre">compute_duration_s</span></code>, <code class="docutils literal notranslate"><span class="pre">ran_synchronously</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">dropped_submissions</span></code>. <code class="docutils literal notranslate"><span class="pre">dropped_submissions</span></code> is per-step; accumulate it in
+the application when you need a run-wide total. <code class="docutils literal notranslate"><span class="pre">frame_deadline_miss</span></code> is a
+per-step flag for outputs more than one submitted frame old, meaning the worker
+missed the normal pipelined target of having a result ready for the next
+application frame. Consumers that want totals should accumulate it.</p>
+<p><code class="docutils literal notranslate"><span class="pre">last_step_info</span></code> fields:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">returned_frame_id</span></code> / <code class="docutils literal notranslate"><span class="pre">submitted_frame_id</span></code>: frame identifiers for the
+output returned and the request submitted by this call.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">returned_age_frames</span></code> / <code class="docutils literal notranslate"><span class="pre">returned_age_s</span></code>: how old the returned output is.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">compute_duration_s</span></code>: worker compute time for the returned output.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ran_synchronously</span></code>: the returned output was computed on the application
+thread during this <code class="docutils literal notranslate"><span class="pre">step()</span></code> call. This is true in <code class="docutils literal notranslate"><span class="pre">mode=&quot;sync&quot;</span></code> and for
+the pipelined seed frame.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">dropped_submissions</span></code>: unstarted pending requests replaced by this call;
+accumulate this field for a run-wide total.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">frame_deadline_miss</span></code>: returned output is more than one submitted frame old.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">worker_exception</span></code>: worker failure surfaced on this step, when present.</p></li>
+</ul>
+<p>Because pipelined mode reuses completed frames, caller-provided external inputs
+and returned outputs must be snapshot-copyable. <code class="docutils literal notranslate"><span class="pre">TensorGroup.create_snapshot()</span></code>
+handles standard scalar, array, and common DLPack-backed tensor cases; custom
+opaque values should provide an equivalent <code class="docutils literal notranslate"><span class="pre">create_snapshot()</span></code> hook or run
+with <code class="docutils literal notranslate"><span class="pre">mode=&quot;sync&quot;</span></code>. Pipelined mode returns a new snapshot of the cached
+output on each <code class="docutils literal notranslate"><span class="pre">step()</span></code> call. Sync mode returns the pipeline result directly,
+matching the historical ownership behavior.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.teleop_session_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">RetargetingExecutionConfig</span>
+
+<span class="n">config</span> <span class="o">=</span> <span class="n">TeleopSessionConfig</span><span class="p">(</span>
+    <span class="n">app_name</span><span class="o">=</span><span class="s2">&quot;MyApp&quot;</span><span class="p">,</span>
+    <span class="n">pipeline</span><span class="o">=</span><span class="n">pipeline</span><span class="p">,</span>
+    <span class="n">retargeting_execution</span><span class="o">=</span><span class="n">RetargetingExecutionConfig</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s2">&quot;pipelined&quot;</span><span class="p">),</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>Key pipelined options:</p>
+<p>These options affect pipelined mode only. In <code class="docutils literal notranslate"><span class="pre">mode=&quot;sync&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">step()</span></code> always
+runs and returns the current frame directly.</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">pacing=ImmediatePacingConfig()</span></code> starts retarget work as soon as the worker
+receives a request. This is the default pacing when pipelined mode is enabled.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">pacing=DeadlinePacingConfig(safety_margin_s=0.015)</span></code> delays worker
+requests toward the predicted next application frame using recent cadence and
+compute-spike estimates. This prepares results just in time for simulation
+consumption while preserving the pipelined submit-current/return-latest
+contract. The safety margin is the main tuning knob.</p></li>
+</ul>
+<p>Pacing changes when the worker begins a submitted step request. It does not
+change the one-worker/one-pending-request correctness model. Unstarted paced
+work is coalesced so newer submissions replace older delayed requests.</p>
+<p><code class="docutils literal notranslate"><span class="pre">TeleopSession.step()</span></code> is intended to be called by one application loop
+thread. IsaacTeleop runs the retarget work on one background worker in
+pipelined mode, but public session state such as <code class="docutils literal notranslate"><span class="pre">frame_count</span></code>,
+<code class="docutils literal notranslate"><span class="pre">last_context</span></code>, and <code class="docutils literal notranslate"><span class="pre">last_step_info</span></code> belongs to the application thread.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.teleop_session_manager</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">DeadlinePacingConfig</span><span class="p">,</span>
+    <span class="n">RetargetingExecutionConfig</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">config</span> <span class="o">=</span> <span class="n">TeleopSessionConfig</span><span class="p">(</span>
+    <span class="n">app_name</span><span class="o">=</span><span class="s2">&quot;MyApp&quot;</span><span class="p">,</span>
+    <span class="n">pipeline</span><span class="o">=</span><span class="n">pipeline</span><span class="p">,</span>
+    <span class="n">retargeting_execution</span><span class="o">=</span><span class="n">RetargetingExecutionConfig</span><span class="p">(</span>
+        <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;pipelined&quot;</span><span class="p">,</span>
+        <span class="n">pacing</span><span class="o">=</span><span class="n">DeadlinePacingConfig</span><span class="p">(</span><span class="n">safety_margin_s</span><span class="o">=</span><span class="mf">0.015</span><span class="p">),</span>
+    <span class="p">),</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="deadline-pacing-tuning">
+<h4>Deadline pacing tuning<a class="headerlink" href="#deadline-pacing-tuning" title="Link to this heading">#</a></h4>
+<p><code class="docutils literal notranslate"><span class="pre">DeadlinePacingConfig</span></code> predicts the next application-frame deadline
+from recent <code class="docutils literal notranslate"><span class="pre">step()</span></code> submissions, estimates retarget compute cost, and starts
+the worker at roughly:</p>
+<p><code class="docutils literal notranslate"><span class="pre">predicted_next_step_time</span> <span class="pre">-</span> <span class="pre">estimated_retarget_cost</span> <span class="pre">-</span> <span class="pre">safety_margin_s</span></code>.</p>
+<p>The goal is to avoid starting too early, which uses older inputs, while still
+finishing before the application asks for the next action. If accumulated
+<code class="docutils literal notranslate"><span class="pre">session.last_step_info.frame_deadline_miss</span></code> counts rise, make the schedule
+more conservative. If misses stay low but outputs use unnecessarily old inputs,
+make the schedule less conservative.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>What it changes</p></th>
+<th class="head"><p>When to tune it</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">safety_margin_s</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0.015</span></code></p></td>
+<td><p>Starts work this much earlier than the predicted deadline.</p></td>
+<td><p>Tune this first. Increase it when <code class="docutils literal notranslate"><span class="pre">frame_deadline_miss</span></code> counts rise;
+decrease it when misses are near zero and you want more recent inputs.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">spike_guard_percentile</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0.90</span></code></p></td>
+<td><p>Chooses how conservative the compute-spike estimate is.</p></td>
+<td><p>Raise it for rare slow retarget spikes; lower it for more recent inputs
+on stable workloads.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">spike_guard_window</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">60</span></code></p></td>
+<td><p>Controls how many recent retarget durations feed the spike estimate.</p></td>
+<td><p>Increase it when spikes repeat in bursts; decrease it when old spikes
+make the worker start early for too long.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">frame_period_adaptation</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0.2</span></code></p></td>
+<td><p>Controls how quickly the predicted application cadence follows changes.</p></td>
+<td><p>Raise it when app frame rate changes quickly; lower it when cadence is
+stable but jittery.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">compute_cost_adaptation</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0.25</span></code></p></td>
+<td><p>Controls how quickly the estimated retarget cost follows recent compute
+time.</p></td>
+<td><p>Raise it when retarget cost changes by mode/task; lower it when single
+slow frames cause overreaction.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">startup_frame_period_s</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0.022</span></code></p></td>
+<td><p>Initial frame-period guess before enough samples exist.</p></td>
+<td><p>Rarely tune. Match it to expected app cadence only if startup behavior
+matters.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">startup_compute_cost_s</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0.005</span></code></p></td>
+<td><p>Initial retarget-cost guess before enough samples exist.</p></td>
+<td><p>Rarely tune. Increase it only if the first few retargets are heavy.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Practical tuning:</p>
+<ul class="simple">
+<li><p>Light, stable load with near-zero misses: try
+<code class="docutils literal notranslate"><span class="pre">DeadlinePacingConfig(safety_margin_s=0.005)</span></code> to <code class="docutils literal notranslate"><span class="pre">0.010</span></code>. This
+starts retargeting later so inputs are more recent.</p></li>
+<li><p>Typical interactive XR load: keep <code class="docutils literal notranslate"><span class="pre">safety_margin_s=0.015</span></code>. This is the
+default balance between input recency and spike tolerance.</p></li>
+<li><p>Heavy retargeting or occasional compute spikes: try
+<code class="docutils literal notranslate"><span class="pre">safety_margin_s=0.025</span></code> to <code class="docutils literal notranslate"><span class="pre">0.040</span></code>. If misses still come in bursts, also
+try <code class="docutils literal notranslate"><span class="pre">spike_guard_percentile=0.95</span></code> or <code class="docutils literal notranslate"><span class="pre">spike_guard_window=120</span></code>.</p></li>
+<li><p>Variable app frame rate: try <code class="docutils literal notranslate"><span class="pre">frame_period_adaptation=0.35</span></code> to <code class="docutils literal notranslate"><span class="pre">0.50</span></code> so
+the predicted deadline catches up faster.</p></li>
+<li><p>Task modes that change retarget cost abruptly: try
+<code class="docutils literal notranslate"><span class="pre">compute_cost_adaptation=0.40</span></code> to <code class="docutils literal notranslate"><span class="pre">0.60</span></code> so the compute estimate catches
+up faster.</p></li>
+</ul>
+</section>
 </section>
 <section id="pluginconfig">
 <h3>PluginConfig<a class="headerlink" href="#pluginconfig" title="Link to this heading">#</a></h3>
@@ -521,11 +708,19 @@ argument is a <code class="docutils literal notranslate"><span class="pre">uint6
 <section id="methods">
 <h4>Methods<a class="headerlink" href="#methods" title="Link to this heading">#</a></h4>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">step(external_inputs=None)</span> <span class="pre">-&gt;</span> <span class="pre">Dict[str,</span> <span class="pre">TensorGroup]</span></code> – Execute one step:
-updates the DeviceIO session, polls tracker data, merges any caller-provided
-<code class="docutils literal notranslate"><span class="pre">external_inputs</span></code>, and executes the retargeting pipeline. Raises
-<code class="docutils literal notranslate"><span class="pre">ValueError</span></code> if required external inputs are missing or collide with
-DeviceIO source names.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">step(*,</span> <span class="pre">external_inputs=None,</span> <span class="pre">graph_time=None,</span> <span class="pre">execution_events=None)</span> <span class="pre">-&gt;</span> <span class="pre">Dict[str,</span> <span class="pre">TensorGroup]</span></code>
+– Execute one step. In default sync mode, all work completes before
+<code class="docutils literal notranslate"><span class="pre">step()</span></code> returns. In pipelined mode, the first call seeds an initial output,
+then later calls submit DeviceIO update, tracker polling, <code class="docutils literal notranslate"><span class="pre">external_inputs</span></code>
+merge, and retargeting work to the worker before returning the latest
+completed output; unstarted pending work may be replaced by a newer
+submission.
+<code class="docutils literal notranslate"><span class="pre">graph_time</span></code> can be provided explicitly; when omitted, monotonic time is used
+for both sim/real time. If <code class="docutils literal notranslate"><span class="pre">execution_events</span></code> is provided, it is injected into
+<code class="docutils literal notranslate"><span class="pre">ComputeContext</span></code> and <code class="docutils literal notranslate"><span class="pre">teleop_control_pipeline</span></code> is skipped for that step.
+Extra top-level external inputs and extra per-leaf keys are ignored. Raises
+<code class="docutils literal notranslate"><span class="pre">ValueError</span></code> if required external inputs are missing or collide with DeviceIO
+source names.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">get_external_input_specs()</span> <span class="pre">-&gt;</span> <span class="pre">Dict[str,</span> <span class="pre">RetargeterIOType]</span></code> – Return the
 input specifications for all external (non-DeviceIO) leaf nodes that require
 caller-provided inputs in <code class="docutils literal notranslate"><span class="pre">step()</span></code>.</p></li>
@@ -533,6 +728,25 @@ caller-provided inputs in <code class="docutils literal notranslate"><span class
 nodes that require caller-provided inputs.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">get_elapsed_time()</span> <span class="pre">-&gt;</span> <span class="pre">float</span></code> – Get elapsed time since session started.</p></li>
 </ul>
+<p>Example (explicit GraphTime + ExecutionEvents override):</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.retargeting_engine.interface.execution_events</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">ExecutionEvents</span><span class="p">,</span>
+    <span class="n">ExecutionState</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.retargeting_engine.interface.retargeter_core_types</span><span class="w"> </span><span class="kn">import</span> <span class="n">GraphTime</span>
+
+<span class="n">now_ns</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic_ns</span><span class="p">()</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">step</span><span class="p">(</span>
+    <span class="n">graph_time</span><span class="o">=</span><span class="n">GraphTime</span><span class="p">(</span><span class="n">sim_time_ns</span><span class="o">=</span><span class="mi">123_000_000</span><span class="p">,</span> <span class="n">real_time_ns</span><span class="o">=</span><span class="n">now_ns</span><span class="p">),</span>
+    <span class="n">execution_events</span><span class="o">=</span><span class="n">ExecutionEvents</span><span class="p">(</span>
+        <span class="n">execution_state</span><span class="o">=</span><span class="n">ExecutionState</span><span class="o">.</span><span class="n">PAUSED</span><span class="p">,</span>
+        <span class="n">reset</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="p">),</span>
+<span class="p">)</span>
+</pre></div>
+</div>
 </section>
 <section id="properties">
 <h4>Properties<a class="headerlink" href="#properties" title="Link to this heading">#</a></h4>
@@ -542,6 +756,10 @@ nodes that require caller-provided inputs.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">config:</span> <span class="pre">TeleopSessionConfig</span></code> – The configuration object</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">oxr_session:</span> <span class="pre">Optional[OpenXRSession]</span></code> – The internal OpenXR session, or
 <code class="docutils literal notranslate"><span class="pre">None</span></code> when using external handles (read-only)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">last_context:</span> <span class="pre">Optional[ComputeContext]</span></code> – Context corresponding to the
+most recent returned output</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">last_step_info:</span> <span class="pre">RetargetingStepInfo</span></code> – Age and timing metadata for
+the most recent returned output</p></li>
 </ul>
 </section>
 </section>
@@ -673,20 +891,20 @@ of input sources.</p></li>
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="build_from_source.html"
+       href="build_from_source/webxr.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Build from Source</p>
+        <p class="prev-next-title">Build WebXR Client</p>
       </div>
     </a>
     <a class="right-next"
-       href="contributing.html"
+       href="teleop_control_state_machine.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Contributing</p>
+        <p class="prev-next-title">Teleop Control State Machine</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -714,7 +932,11 @@ of input sources.</p></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#quick-start">Quick Start</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration-classes">Configuration Classes</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#teleopsessionconfig">TeleopSessionConfig</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#teleopsessionconfig">TeleopSessionConfig</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#retargeting-execution">Retargeting execution</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#deadline-pacing-tuning">Deadline pacing tuning</a></li>
+</ul>
+</li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pluginconfig">PluginConfig</a></li>
 </ul>
 </li>

@@ -50,15 +50,15 @@ see :ref:`device-interface-device-plugin` for details.
      - Input Modes
      - Client / Connection
      - Notes
-   * - Apple Vision Pro
+   * - `Apple Vision Pro`_
      - Hand tracking (26 joints), spatial controllers
      - `Isaac XR Teleop Sample Client`_ (visionOS app)
      - Build from source; see :ref:`Connect Apple Vision Pro <connect-apple-vision-pro>`
-   * - Meta Quest 2/3/3S
+   * - `Meta Quest 2/3/3S`_
      - Motion controllers (triggers, thumbsticks, squeeze), hand tracking
      - `Isaac Teleop Web Client`_ (browser)
      - See :ref:`Connect Quest and Pico <connect-quest-pico>`
-   * - Pico 4 Ultra
+   * - `Pico 4 Ultra`_
      - Motion controllers, hand tracking
      - `Isaac Teleop Web Client`_ (browser)
      - Requires Pico OS 15.4.4U or newer
@@ -79,13 +79,13 @@ session is running via USB or Bluetooth. See :ref:`device-interface-device-plugi
    * - Device
      - Input Modes
      - Client / Connection
-   * - Manus Gloves
+   * - `Manus Gloves`_
      - High-fidelity finger tracking (Manus SDK)
      - `Manus Gloves Plugin`_ (CLI tool)
-   * - Logitech Rudder Pedals
+   * - `Logitech Rudder Pedals`_
      - 3-axis foot pedal
      - `Generic 3-axis Pedal Plugin`_ (CLI tool)
-   * - OAK-D Camera
+   * - `OAK-D Camera`_
      - Offline data recording
      - `OAK-D Camera Plugin`_ (CLI tool)
 
@@ -110,7 +110,7 @@ The following input devices and device categories are planned for support in the
      - Master Manipulators
      - CLI tool with USB connection
      - Planning, see `#273 <https://github.com/NVIDIA/IsaacTeleop/issues/273>`_
-   * - Haply
+   * - `Haply`_
      - Master Manipulators
      - CLI tool with USB connection
      - Planning, see `#274 <https://github.com/NVIDIA/IsaacTeleop/issues/274>`_
@@ -118,7 +118,7 @@ The following input devices and device categories are planned for support in the
      - Master Manipulators
      - CLI tool with USB connection
      - Planning, see `#275 <https://github.com/NVIDIA/IsaacTeleop/issues/275>`_
-   * - 3D Space Mouse
+   * - `3D Space Mouse`_
      - HID input
      - CLI tool with USB connection
      - Planning, see `#276 <https://github.com/NVIDIA/IsaacTeleop/issues/276>`_
@@ -140,9 +140,70 @@ Targeted Robotics Embodiments
 - `Retargeter tuning UI <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/core/retargeting_engine_ui/python>`_ to facilitate
   live retargeter tuning.
 
+Device Acquisition
+------------------
+
+For inquiries about acquiring supported or planned devices, please contact the manufacturers
+directly. Each device name in the tables above links to the corresponding manufacturer page.
+
+.. list-table:: Manufacturer Contacts
+   :header-rows: 1
+   :widths: 20 35 45
+
+   * - Manufacturer
+     - Devices
+     - Acquisition Contact
+   * - `Apple`_
+     - Apple Vision Pro
+     -
+   * - `Meta`_
+     - Meta Quest 2/3/3S
+     -
+   * - `Pico`_ (ByteDance)
+     - Pico 4 Ultra, Pico Motion Tracker
+     - | Veronica Li
+       | Email: Veronica.li@bytedance.com
+       | Mobile: +1 (909) 569-2774
+   * - `Manus`_
+     - Manus Gloves
+     -
+   * - `Logitech`_
+     - Logitech Rudder Pedals
+     -
+   * - `Luxonis`_
+     - OAK-D Camera
+     -
+   * - `Haply`_
+     - Haply (planned)
+     -
+   * - `3Dconnexion`_
+     - 3D Space Mouse (planned)
+     -
+
 ..
    References
+
+.. Manufacturer / vendor home pages
+.. _Apple: https://www.apple.com/
+.. _Meta: https://www.meta.com/
+.. _Pico: https://www.picoxr.com/
+.. _Manus: https://www.manus-meta.com/
+.. _Logitech: https://www.logitechg.com/
+.. _Luxonis: https://www.luxonis.com/
+.. _Haply: https://www.haply.co/
+.. _`3Dconnexion`: https://3dconnexion.com/
+
+.. Device product pages (used as link targets for device names in the tables above)
+.. _`Apple Vision Pro`: https://www.apple.com/apple-vision-pro/
+.. _`Meta Quest 2/3/3S`: https://www.meta.com/quest/
+.. _`Pico 4 Ultra`: https://www.picoxr.com/products/pico4-ultra
 .. _`Pico Motion Tracker`: https://www.picoxr.com/global/products/pico-motion-tracker
+.. _`Manus Gloves`: https://www.manus-meta.com/products/quantum-metagloves
+.. _`Logitech Rudder Pedals`: https://www.logitechg.com/en-us/products/flight/flight-simulator-rudder-pedals.html
+.. _`OAK-D Camera`: https://shop.luxonis.com/products/oak-d
+.. _`3D Space Mouse`: https://3dconnexion.com/us/spacemouse/
+
+.. Other references
 .. _`Isaac XR Teleop Sample Client`: https://github.com/isaac-sim/isaac-xr-teleop-sample-client-apple
 .. _`Isaac Teleop Web Client`: https://nvidia.github.io/IsaacTeleop/client
 .. _`Manus Gloves Plugin`: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/manus
