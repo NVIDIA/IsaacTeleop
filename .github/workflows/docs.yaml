@@ -208,8 +208,7 @@ jobs:
 
       # Web client lands at client/<slug>/: tag → v1.2.3, main → main, release branch → release-1.3.x.
       # Tag pushes also (re)point client/stable/ at the highest v* tag.
-      # The root client/ redirect (currently → ./main/) is owned by the main branch deploy;
-      # flip it to ./stable/ in a follow-up once 1.2.x ships.
+      # The root client/ redirect is owned by the main branch deploy and points at ./stable/.
       - name: Place web app under versioned subpath
         if: needs.build-app.result == 'success'
         run: |
@@ -238,12 +237,14 @@ jobs:
           <!DOCTYPE html>
           <html>
             <head>
-              <title>Redirecting to the latest Isaac Teleop web client</title>
+              <title>Redirecting to the stable Isaac Teleop web client</title>
               <meta charset="utf-8">
-              <meta http-equiv="refresh" content="0; url=./main/">
+              <meta http-equiv="refresh" content="0; url=./stable/">
+              <link rel="canonical" href="./stable/">
             </head>
             <body>
-              <p>Redirecting to <a href="./main/">the latest Isaac Teleop web client</a>.</p>
+              <p>Redirecting to <a href="./stable/">the stable Isaac Teleop web client</a>.</p>
+              <script>location.replace('./stable/' + location.search + location.hash);</script>
             </body>
           </html>
           HTML
