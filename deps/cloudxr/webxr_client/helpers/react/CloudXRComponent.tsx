@@ -36,6 +36,7 @@
 import { MetricsTracker } from '@helpers/Metrics';
 import { getConnectionConfig, ConnectionConfiguration, CloudXRConfig } from '@helpers/utils';
 import { bindGL } from '@helpers/WebGLStateBinding';
+import { clearPendingGLErrors } from '@helpers/WebGlUtils';
 import * as CloudXR from '@nvidia/cloudxr';
 import { useThree, useFrame } from '@react-three/fiber';
 import { useXR } from '@react-three/xr';
@@ -296,6 +297,10 @@ export default function CloudXRComponent({
               }
             },
           };
+
+          // Shared GL contexts may still have queued errors from the host app (e.g. R3F/XR).
+          // Clear them before createSession so CloudXR setup only sees errors from its own path.
+          clearPendingGLErrors(gl);
 
           // Create the CloudXR session.
           let cxrSession: CloudXR.Session;
