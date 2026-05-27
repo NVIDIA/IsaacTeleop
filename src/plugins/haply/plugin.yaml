@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: haply_hand_plugin
+description: "Haply Inverse3 + VerseGrip hand tracking"
+command: "./haply_hand_plugin"
+version: "1.0.0"
+devices:
+  - path: "/hand/right"
+    type: "hand_tracker"
+    description: "Haply Inverse3 + VerseGrip"

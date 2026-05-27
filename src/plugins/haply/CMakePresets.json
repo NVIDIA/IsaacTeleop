@@ -1,0 +1,35 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 22, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "linux-haply-default",
+      "displayName": "Linux Haply Default (RelWithDebInfo)",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build-haply-default",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    },
+    {
+      "name": "linux-haply-debug",
+      "displayName": "Linux Haply Debug",
+      "inherits": "linux-haply-default",
+      "binaryDir": "${sourceDir}/build-haply-debug",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    },
+    {
+      "name": "linux-haply-release",
+      "displayName": "Linux Haply Release",
+      "inherits": "linux-haply-default",
+      "binaryDir": "${sourceDir}/build-haply-release",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "haply-default", "configurePreset": "linux-haply-default" },
+    { "name": "haply-debug",   "configurePreset": "linux-haply-debug" },
+    { "name": "haply-release", "configurePreset": "linux-haply-release" }
+  ],
+  "testPresets": []
+}
