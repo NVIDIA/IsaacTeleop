@@ -58,6 +58,10 @@ struct OpenXRCoreFunctions
     PFN_xrGetActionStateVector2f xrGetActionStateVector2f;
     PFN_xrGetActionStatePose xrGetActionStatePose;
 
+    // Haptic output (optional, used by controller-tracker haptic feedback).
+    PFN_xrApplyHapticFeedback xrApplyHapticFeedback;
+    PFN_xrStopHapticFeedback xrStopHapticFeedback;
+
     // Load all core functions from an instance using the provided xrGetInstanceProcAddr
     static OpenXRCoreFunctions load(XrInstance instance, PFN_xrGetInstanceProcAddr getProcAddr)
     {
@@ -102,6 +106,13 @@ struct OpenXRCoreFunctions
                     reinterpret_cast<PFN_xrVoidFunction*>(&results.xrGetActionStateVector2f));
         getProcAddr(
             instance, "xrGetActionStatePose", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrGetActionStatePose));
+
+        // Haptic output (optional — tracker haptic methods check for null pointers
+        // and silently no-op when the runtime does not advertise them).
+        getProcAddr(
+            instance, "xrApplyHapticFeedback", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrApplyHapticFeedback));
+        getProcAddr(
+            instance, "xrStopHapticFeedback", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrStopHapticFeedback));
 
         return results;
     }

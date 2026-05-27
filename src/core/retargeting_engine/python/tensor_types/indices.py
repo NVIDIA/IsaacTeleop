@@ -106,3 +106,19 @@ class BodyJointPicoIndex(IntEnum):
     RIGHT_WRIST = 21
     LEFT_HAND = 22
     RIGHT_HAND = 23
+
+
+class ControllerHapticPulseField(IntEnum):
+    """Field indices into a :func:`ControllerHapticPulse` ``[amplitude, frequency_hz, duration_s]`` vector."""
+
+    AMPLITUDE = 0
+    FREQUENCY_HZ = 1
+    DURATION_S = 2
+
+
+class EndEffectorForceAxis(IntEnum):
+    """Component indices into an :func:`EndEffectorForce` ``[fx, fy, fz]`` vector."""
+
+    X = 0
+    Y = 1
+    Z = 2

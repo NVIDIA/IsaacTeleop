@@ -16,6 +16,7 @@ from .message_channel_config import (
     message_channel_config,
     messageChannelConfig,
 )
+from .haptic_sink import HapticSink
 from .deviceio_tensor_types import (
     HeadPoseTrackedType,
     HandPoseTrackedType,
@@ -47,6 +48,7 @@ __all__ = [
     "MessageChannelConfig",
     "message_channel_config",
     "messageChannelConfig",
+    "HapticSink",
     "HeadPoseTrackedType",
     "HandPoseTrackedType",
     "ControllerSnapshotTrackedType",

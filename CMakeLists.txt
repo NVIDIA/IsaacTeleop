@@ -124,6 +124,15 @@ add_subdirectory(src/core)
 # Build retargeters (pure Python, sibling of src/core)
 add_subdirectory(src/retargeters)
 
+# Build haptic device adapters (pure Python, sibling of src/core).
+# Vendor-specific pybind extensions (e.g. src/plugins/manus/python) write
+# their .so files into the wheel-staging tree at
+# python_package/<cfg>/isaacteleop/haptic_devices/ alongside the Python adapter
+# modules so adapters can lazy-import them via `from . import _<vendor>_haptic`.
+# (cmake-install of those extensions goes to ${CMAKE_INSTALL_LIBDIR} per the
+# vendor plugin's own install rules; verify wheel layout matches.)
+add_subdirectory(src/haptic_devices)
+
 # Build Televiz visualization module (sibling of src/core).
 # src/viz/CMakeLists.txt orchestrates its own sub-modules and tests.
 if(BUILD_VIZ)
@@ -139,6 +148,7 @@ if(BUILD_EXAMPLES)
     add_subdirectory(examples/schemaio)
     add_subdirectory(examples/native_openxr)
     add_subdirectory(examples/mcap_record_replay)
+    add_subdirectory(examples/haptic_feedback)
     if(BUILD_VIZ)
         add_subdirectory(examples/camera_viz/tests)
     endif()

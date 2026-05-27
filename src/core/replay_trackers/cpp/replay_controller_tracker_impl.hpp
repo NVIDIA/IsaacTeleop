@@ -29,6 +29,10 @@ public:
     void update(int64_t monotonic_time_ns) override;
     const ControllerSnapshotTrackedT& get_left_controller() const override;
     const ControllerSnapshotTrackedT& get_right_controller() const override;
+    // Replay sessions do not drive hardware — haptic feedback is a no-op here.
+    void apply_haptic_feedback(bool /*is_left*/, float /*amplitude*/, float /*frequency_hz*/, float /*duration_s*/) const override
+    {
+    }
 
 private:
     ControllerSnapshotTrackedT left_tracked_;
