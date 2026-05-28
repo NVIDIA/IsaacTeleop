@@ -3,11 +3,13 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Redirecting to the latest Isaac Teleop web client</title>
+    <title>Redirecting to the stable Isaac Teleop web client</title>
     <meta charset="utf-8">
-    <meta http-equiv="refresh" content="0; url=./main/">
+    <meta http-equiv="refresh" content="0; url=./stable/">
+    <link rel="canonical" href="./stable/">
   </head>
   <body>
-    <p>Redirecting to <a href="./main/">the latest Isaac Teleop web client</a>.</p>
+    <p>Redirecting to <a href="./stable/">the stable Isaac Teleop web client</a>.</p>
+    <script>location.replace('./stable/' + location.search + location.hash);</script>
   </body>
 </html>
