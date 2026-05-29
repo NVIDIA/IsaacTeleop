@@ -266,16 +266,23 @@ def run() -> None:
     state["service_created"] = True
     lib.nv_cxr_service_start(svc)
 
-    # Run the blocking join() in a worker thread so the main thread stays in Python
-    # and can run the signal handler. Otherwise Ctrl+C is not processed while we're
-    # inside the native nv_cxr_service_join() call.
-    def join_then_destroy() -> None:
+    join_on_main = os.environ.get("NV_CXR_RUNTIME_JOIN_MAIN_THREAD", "").strip().lower()
+    if join_on_main in ("1", "true", "yes", "on"):
+        # Opt-in: join on the main thread to avoid a "Couldn't create autoTSSkey
+        # mapping" abort seen on some platforms.
         lib.nv_cxr_service_join(svc)
         lib.nv_cxr_service_destroy(svc)
+    else:
+        # Run the blocking join() in a worker thread so the main thread stays in Python
+        # and can run the signal handler. Otherwise Ctrl+C is not processed while we're
+        # inside the native nv_cxr_service_join() call.
+        def join_then_destroy() -> None:
+            lib.nv_cxr_service_join(svc)
+            lib.nv_cxr_service_destroy(svc)
 
-    worker = threading.Thread(target=join_then_destroy, daemon=False)
-    worker.start()
-    worker.join()
+        worker = threading.Thread(target=join_then_destroy, daemon=False)
+        worker.start()
+        worker.join()
 
     if state["interrupted"]:
         raise KeyboardInterrupt()
