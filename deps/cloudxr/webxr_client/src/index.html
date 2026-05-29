@@ -724,6 +724,17 @@ limitations under the License.
                 </div>
 
                 <div class="config-section">
+                    <label for="networkLatencyMode" class="input-label">Network Latency Mode</label>
+                    <select id="networkLatencyMode" class="ui-input config-input">
+                        <option value="DEFAULT" selected>Default (high quality)</option>
+                        <option value="LOW">Low (congested Wi‑Fi)</option>
+                    </select>
+                    <div id="networkLatencyModeHelp" class="config-text">
+                        Default: full-rate tracking and Mbps below. Low: applies ~15 Mbit/s, Ragnarok DRC, and throttled pose/controller uplink (ignores Mbps).
+                    </div>
+                </div>
+
+                <div class="config-section">
                     <label class="input-label">Maximum Streaming Bitrate</label>
                     <label for="maxStreamingBitrateMbps" class="input-label">Megabits per second</label>
                     <select id="maxStreamingBitrateMbps" class="ui-input config-input">
