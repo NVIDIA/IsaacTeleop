@@ -90,6 +90,8 @@ export class CloudXR2DUI {
   private immersiveSelect!: HTMLSelectElement;
   /** Dropdown to select device frame rate (FPS) */
   private deviceFrameRateSelect!: HTMLSelectElement;
+  /** Dropdown for CloudXR networkLatencyMode preset */
+  private networkLatencyModeSelect!: HTMLSelectElement;
   /** Dropdown to select max streaming bitrate (Mbps) */
   private maxStreamingBitrateMbpsSelect!: HTMLSelectElement;
   /** Dropdown to select preferred streaming codec */
@@ -217,6 +219,7 @@ export class CloudXR2DUI {
       // Set initial display value
       this.posePredictionFactorValue.textContent = this.posePredictionFactorInput.value;
       this.updateConfiguration();
+      this.updateNetworkLatencyModeUi();
       this.updateDeviceProfileWarning(resolveDeviceProfileId(this.deviceProfileSelect.value));
       this.updateConnectButtonState();
       this.initialized = true;
@@ -363,6 +366,7 @@ export class CloudXR2DUI {
     this.proxyUrlInput = this.getElement<HTMLInputElement>('proxyUrl');
     this.immersiveSelect = this.getElement<HTMLSelectElement>('immersive');
     this.deviceFrameRateSelect = this.getElement<HTMLSelectElement>('deviceFrameRate');
+    this.networkLatencyModeSelect = this.getElement<HTMLSelectElement>('networkLatencyMode');
     this.maxStreamingBitrateMbpsSelect =
       this.getElement<HTMLSelectElement>('maxStreamingBitrateMbps');
     this.codecSelect = this.getElement<HTMLSelectElement>('codec');
@@ -447,6 +451,7 @@ export class CloudXR2DUI {
       reprojectionGridRows: 0,
       deviceFrameRate: 90,
       maxStreamingBitrateMbps: 150,
+      networkLatencyMode: 'DEFAULT',
       codec: 'av1',
       immersiveMode: 'ar',
       deviceProfileId: 'custom',
@@ -481,6 +486,7 @@ export class CloudXR2DUI {
     enableLocalStorage(this.reprojectionGridRowsInput, 'reprojectionGridRows');
     enableLocalStorage(this.proxyUrlInput, 'proxyUrl');
     enableLocalStorage(this.deviceFrameRateSelect, 'deviceFrameRate');
+    enableLocalStorage(this.networkLatencyModeSelect, 'networkLatencyMode');
     enableLocalStorage(this.maxStreamingBitrateMbpsSelect, 'maxStreamingBitrateMbps');
     enableLocalStorage(this.codecSelect, 'codec');
     enableLocalStorage(this.enablePoseSmoothingSelect, 'enablePoseSmoothing');
@@ -568,6 +574,10 @@ export class CloudXR2DUI {
     addListener(this.reprojectionGridRowsInput, 'keyup', updateGridValidation);
     this.updateGridValidationMessage();
     addListener(this.deviceFrameRateSelect, 'change', onProfileLinkedChange);
+    addListener(this.networkLatencyModeSelect, 'change', () => {
+      this.updateNetworkLatencyModeUi();
+      onProfileLinkedChange();
+    });
     addListener(this.maxStreamingBitrateMbpsSelect, 'change', onProfileLinkedChange);
     addListener(this.codecSelect, 'change', onProfileLinkedChange);
     addListener(this.enablePoseSmoothingSelect, 'change', onProfileLinkedChange);
@@ -751,6 +761,7 @@ export class CloudXR2DUI {
       maxStreamingBitrateMbps:
         parseInt(this.maxStreamingBitrateMbpsSelect.value) ||
         this.getDefaultConfiguration().maxStreamingBitrateMbps,
+      networkLatencyMode: this.networkLatencyModeSelect.value === 'LOW' ? 'LOW' : 'DEFAULT',
       codec:
         (this.codecSelect.value as 'h264' | 'h265' | 'av1') || this.getDefaultConfiguration().codec,
       // Headless mode turns off the client's CloudXR frame blit but keeps tracking; the WebXR
@@ -880,6 +891,7 @@ export class CloudXR2DUI {
       localStorage.setItem('reprojectionGridCols', this.reprojectionGridColsInput.value);
       localStorage.setItem('reprojectionGridRows', this.reprojectionGridRowsInput.value);
       localStorage.setItem('deviceFrameRate', this.deviceFrameRateSelect.value);
+      localStorage.setItem('networkLatencyMode', this.networkLatencyModeSelect.value);
       localStorage.setItem('maxStreamingBitrateMbps', this.maxStreamingBitrateMbpsSelect.value);
       localStorage.setItem('codec', this.codecSelect.value);
       localStorage.setItem('enablePoseSmoothing', this.enablePoseSmoothingSelect.value);
@@ -888,6 +900,17 @@ export class CloudXR2DUI {
       localStorage.setItem('useQuestColorWorkaround', this.useQuestColorWorkaroundSelect.value);
     } catch (e) {
       console.warn('Failed to persist profile fields to localStorage:', e);
+    }
+  }
+
+  private updateNetworkLatencyModeUi(): void {
+    const low = this.networkLatencyModeSelect.value === 'LOW';
+    this.maxStreamingBitrateMbpsSelect.disabled = low;
+    const help = document.getElementById('networkLatencyModeHelp');
+    if (help) {
+      help.textContent = low
+        ? 'Low mode sets ~15 Mbit/s max bitrate, Ragnarok DRC, ~30 Hz pose/controller uplink, and disables hand/body bulk. Settings below do not apply.'
+        : 'Default: full-rate tracking (including hands/body), Ragnarok ALL adaptive streaming. Set max Mbps below.';
     }
   }
 

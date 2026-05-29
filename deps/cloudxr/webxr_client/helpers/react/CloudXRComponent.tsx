@@ -230,6 +230,8 @@ export default function CloudXRComponent({
             referenceSpace = referenceSpace.getOffsetReferenceSpace(offsetTransform);
           }
 
+          const lowLatency = config.networkLatencyMode === 'LOW';
+
           // Fill in CloudXR session options.
           const cloudXROptions: CloudXR.SessionOptions = {
             serverAddress: connectionConfig.serverIP,
@@ -244,7 +246,13 @@ export default function CloudXRComponent({
             gl: gl,
             referenceSpace: referenceSpace,
             deviceFrameRate: config.deviceFrameRate,
-            maxStreamingBitrateKbps: config.maxStreamingBitrateMbps * 1000, // Convert Mbps to Kbps
+            networkLatencyMode: lowLatency
+              ? CloudXR.NetworkLatencyMode.Low
+              : CloudXR.NetworkLatencyMode.Default,
+            // LOW preset sets bitrate, DRC, and tracking uplink in SessionImpl; do not override.
+            ...(lowLatency
+              ? {}
+              : { maxStreamingBitrateKbps: config.maxStreamingBitrateMbps * 1000 }),
             enablePoseSmoothing: config.enablePoseSmoothing,
             posePredictionFactor: config.posePredictionFactor,
             enableTexSubImage2D: config.enableTexSubImage2D,
