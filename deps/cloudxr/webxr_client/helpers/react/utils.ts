@@ -64,8 +64,30 @@ export interface ReactUIConfig {
   panelHiddenAtStart?: boolean;
   /** When true, all WebGL rendering is skipped. */
   headless?: boolean;
+  /** Page-refresh behavior when the XR session ends. See {@link AutoRefreshMode}. */
+  autoRefreshMode?: AutoRefreshMode;
   /** Active teleop project path (a key path in `TELEOP_PROJECTS`). */
   teleopPath: string;
+}
+
+/** When to reload the page once the XR session ends: never, only on a clean end, or on any end. */
+export type AutoRefreshMode = 'never' | 'clean' | 'any';
+
+const AUTO_REFRESH_MODES: readonly AutoRefreshMode[] = ['never', 'clean', 'any'];
+
+/**
+ * Parses a string into a valid auto-refresh mode.
+ * @param unvalidatedValue - String to validate (e.g. from URL, config, or form). May be invalid or empty.
+ * @param fallback - Value to return when unvalidatedValue is not valid.
+ */
+export function parseAutoRefreshMode(
+  unvalidatedValue: string,
+  fallback: AutoRefreshMode
+): AutoRefreshMode {
+  if (AUTO_REFRESH_MODES.includes(unvalidatedValue as AutoRefreshMode)) {
+    return unvalidatedValue as AutoRefreshMode;
+  }
+  return fallback;
 }
 
 const CONTROL_PANEL_POSITIONS: readonly ControlPanelPosition[] = ['left', 'center', 'right'];

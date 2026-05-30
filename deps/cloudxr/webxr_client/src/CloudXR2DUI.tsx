@@ -37,7 +37,9 @@ import {
   type DeviceProfileId,
 } from '@helpers/DeviceProfiles';
 import {
+  type AutoRefreshMode,
   loadPerProject,
+  parseAutoRefreshMode,
   parseControlPanelPosition,
   ReactUIConfig,
   savePerProject,
@@ -154,6 +156,8 @@ export class CloudXR2DUI {
   private controllerModelVisibilitySelect!: HTMLSelectElement;
   /** Skip client CloudXR `render` (headless: client blit off; tracking on) */
   private headlessInput!: HTMLInputElement;
+  /** When to reload the page after the XR session ends (never / clean / any) */
+  private autoRefreshModeSelect!: HTMLSelectElement;
   /** Breadcrumb subtitle in header (e.g. "for Real Robot › GEAR › Dexmate"). */
   private teleopModeSubtitle!: HTMLElement;
   /** Hierarchical project selector in header */
@@ -348,6 +352,15 @@ export class CloudXR2DUI {
       savePerProject('headless', this.teleopPath, headlessSeed);
       this.applyHeadlessImmersiveDropdown();
     }
+    const autoRefreshSeed = seeds['autoRefreshMode'];
+    if (autoRefreshSeed !== undefined) {
+      const mode = parseAutoRefreshMode(
+        autoRefreshSeed,
+        this.autoRefreshModeSelect.value as AutoRefreshMode
+      );
+      this.autoRefreshModeSelect.value = mode;
+      try { localStorage.setItem('autoRefreshMode', mode); } catch (_) { /* localStorage unavailable */ }
+    }
   }
 
   /**
@@ -408,6 +421,7 @@ export class CloudXR2DUI {
       'controllerModelVisibility'
     );
     this.headlessInput = this.getElement<HTMLInputElement>('cloudxrHeadless');
+    this.autoRefreshModeSelect = this.getElement<HTMLSelectElement>('cloudxrAutoRefreshMode');
     this.teleopModeSubtitle = this.getElement<HTMLElement>('teleopModeSubtitle');
     this.teleopProjectSelect = this.getElement<HTMLSelectElement>('teleopProjectSelect');
   }
@@ -458,6 +472,7 @@ export class CloudXR2DUI {
       useQuestColorWorkaround: false,
       hideControllerModel: false,
       headless: false,
+      autoRefreshMode: 'clean',
       teleopPath: DEFAULT_TELEOP_PATH,
     };
   }
@@ -493,6 +508,7 @@ export class CloudXR2DUI {
     enableLocalStorage(this.mediaAddressInput, 'mediaAddress');
     enableLocalStorage(this.mediaPortInput, 'mediaPort');
     enableLocalStorage(this.controllerModelVisibilitySelect, 'controllerModelVisibility');
+    enableLocalStorage(this.autoRefreshModeSelect, 'autoRefreshMode');
   }
 
   /**
@@ -609,6 +625,7 @@ export class CloudXR2DUI {
       this.applyHeadlessImmersiveDropdown();
       this.updateConfiguration();
     });
+    addListener(this.autoRefreshModeSelect, 'change', updateConfig);
 
     addListener(this.deviceProfileSelect, 'change', () => {
       this.applyDeviceProfileToForm(resolveDeviceProfileId(this.deviceProfileSelect.value));
@@ -790,6 +807,10 @@ export class CloudXR2DUI {
       hideControllerModel: this.controllerModelVisibilitySelect.value === 'hide',
       // See immersiveMode above: when true, callers must start an immersive-vr WebXR session.
       headless: this.headlessInput.checked,
+      autoRefreshMode: parseAutoRefreshMode(
+        this.autoRefreshModeSelect.value,
+        this.getDefaultConfiguration().autoRefreshMode ?? 'clean'
+      ),
       panelHiddenAtStart: this.panelHiddenAtStartSelect.value === 'true',
       teleopPath: this.teleopPath,
     };

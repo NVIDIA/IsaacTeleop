@@ -356,7 +356,7 @@ function App() {
     // URL query params override localStorage so bookmarked links always win.
     const urlSeeds: Record<string, string> = {};
     const p = new URLSearchParams(window.location.search);
-    for (const key of ['serverIP', 'port', 'codec', 'panelHiddenAtStart', 'headless', 'turnServer', 'turnUsername', 'turnCredential']) {
+    for (const key of ['serverIP', 'port', 'codec', 'panelHiddenAtStart', 'headless', 'autoRefreshMode', 'turnServer', 'turnUsername', 'turnCredential']) {
       const v = p.get(key);
       if (v !== null) urlSeeds[key] = v;
     }
@@ -497,6 +497,15 @@ function App() {
     setIsConnected(connected);
     setSessionStatus(status);
     controlChannelRef.current?.sendStreamStatus(connected && status === 'Connected');
+
+    // Reload on session end per mode; read live off the stable 2D UI to avoid a stale closure.
+    const autoRefreshMode = cloudXR2DUI?.getConfiguration().autoRefreshMode;
+    if (
+      (status === 'Disconnected' && (autoRefreshMode === 'clean' || autoRefreshMode === 'any')) ||
+      (status === 'Error' && autoRefreshMode === 'any')
+    ) {
+      window.location.reload();
+    }
   };
 
   // Render performance metrics callback handler - updates raw data signal
@@ -671,6 +680,7 @@ function App() {
       }
     }
 
+    // Auto-refresh is handled centrally in handleStatusChange on the resulting stream-stop.
     const xrState = store.getState();
     const session = xrState.session;
     if (session) {

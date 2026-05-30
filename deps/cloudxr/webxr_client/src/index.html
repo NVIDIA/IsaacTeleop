@@ -691,6 +691,21 @@ limitations under the License.
                 </div>
 
                 <div class="config-section">
+                    <label for="cloudxrAutoRefreshMode" class="input-label">Auto Refresh on Session End</label>
+                    <select id="cloudxrAutoRefreshMode" name="cloudxrAutoRefreshMode" class="ui-input config-input"
+                        aria-label="When to reload the page after the XR session ends">
+                        <option value="never">Never refresh</option>
+                        <option value="clean" selected>Refresh on clean session end</option>
+                        <option value="any">Refresh on any session end (including errors)</option>
+                    </select>
+                    <div class="config-text">
+                        Reload the page after the XR session ends to return to a fresh state. Choose to refresh
+                        only on a clean end (Disconnect, headset exit, server stop), on any end including a
+                        streaming error, or never.
+                    </div>
+                </div>
+
+                <div class="config-section">
                     <label class="input-label">Proxy Configuration</label>
                     <label for="proxyUrl" class="input-label">Proxy URL</label>
                     <input id="proxyUrl" class="ui-input config-input" type="text" placeholder="" spellcheck="false">
