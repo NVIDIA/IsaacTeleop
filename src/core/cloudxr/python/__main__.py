@@ -170,17 +170,6 @@ def main() -> None:
         print(
             f"CloudXR WSS proxy: \033[36mrunning\033[0m, log file: \033[90m{wss_log}\033[0m"
         )
-        # Print the WebXR client matching this release line, derived from the
-        # installed version's leading MAJOR.MINOR (present for every build
-        # type). The client is published per release line on GitHub Pages.
-        client_base = "https://nvidia.github.io/IsaacTeleop/client/"
-        ver_match = re.match(r"(\d+)\.(\d+)", isaacteleop_version)
-        client_url = (
-            f"{client_base}release-{ver_match.group(1)}.{ver_match.group(2)}.x/"
-            if ver_match
-            else client_base
-        )
-        print(f"WebXR client:      \033[36m{client_url}\033[0m")
         if args.setup_oob:
             if args.usb_local:
                 print(
@@ -192,6 +181,22 @@ def main() -> None:
                     "        oob:       \033[32menabled\033[0m  (hub + USB adb automation — see OOB TELEOP block)"
                 )
                 print_oob_hub_startup_banner(lan_host=resolve_lan_host_for_oob())
+        else:
+            # Print the WebXR client matching this release line, derived from
+            # the installed version's leading MAJOR.MINOR (present for every
+            # build type). The client is published per release line on GitHub
+            # Pages. In OOB modes the banner above already prints a complete,
+            # mode-correct client URL instead (GitHub Pages /main/ for WiFi, a
+            # local https URL for USB-local), so this standalone line is
+            # skipped there to avoid a redundant or misleading second URL.
+            client_base = "https://nvidia.github.io/IsaacTeleop/client/"
+            ver_match = re.match(r"(\d+)\.(\d+)", isaacteleop_version)
+            client_url = (
+                f"{client_base}release-{ver_match.group(1)}.{ver_match.group(2)}.x/"
+                if ver_match
+                else client_base
+            )
+            print(f"WebXR client:      \033[36m{client_url}\033[0m")
         print(
             f"Activate CloudXR environment in another terminal: \033[1;32msource {env_cfg.env_filepath()}\033[0m"
         )
