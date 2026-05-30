@@ -38,6 +38,19 @@ In a new terminal, install the package from PyPI (or from a local wheel if you b
 Instead of installing the package from PyPI, you can build from source and install the local wheel.
 See :doc:`build_from_source/index` for more details.
 
+.. note::
+   **ARM64 / aarch64 systems only** (e.g. NVIDIA DGX Spark): PyPI does not publish pre-built
+   ``nlopt`` wheels for ARM64, so the ``retargeters`` extra cannot be installed directly from PyPI
+   (see `issue #452 <https://github.com/NVIDIA/IsaacTeleop/issues/452>`_). Follow the
+   :ref:`aarch64 nlopt wheel build steps <aarch64-nlopt-wheel>` from the build-from-source guide
+   first, then install ``isaacteleop`` with an additional ``--find-links``:
+
+   .. code-block:: bash
+
+      pip install 'isaacteleop[cloudxr,retargeters]~=1.0.0' \
+          --extra-index-url https://pypi.nvidia.com \
+          --find-links=/tmp/nlopt-wheels/
+
 .. _run-cloudxr-server:
 
 3. Run CloudXR Server
