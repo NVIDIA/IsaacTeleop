@@ -58,3 +58,8 @@ runs:
       run: |
         npm install "../nvidia-cloudxr-${SDK_VERSION}.tgz"
         USE_LOCAL_WEBXR_ASSETS=0 npm run build
+
+    - name: Test web client
+      shell: bash
+      working-directory: deps/cloudxr/webxr_client
+      run: npm test

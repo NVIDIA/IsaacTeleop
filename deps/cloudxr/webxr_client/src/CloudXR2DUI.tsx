@@ -58,6 +58,8 @@ import {
   setSelectValueIfAvailable,
   setupCertificateAcceptanceLink,
 } from '@helpers/utils';
+import { URL_PARAMS } from './config/params';
+import { seedsFromParams } from './config/resolve';
 import {
   getGridValidationError,
   getGridValidationMessageForConnect,
@@ -194,7 +196,7 @@ export class CloudXR2DUI {
   /**
    * Initializes the CloudXR2DUI with all necessary components and event handlers
    */
-  public initialize(urlSeeds?: Record<string, string>, teleopPath?: string): void {
+  public initialize(teleopPath?: string): void {
     if (this.initialized) {
       return;
     }
@@ -209,9 +211,7 @@ export class CloudXR2DUI {
       }
       this.applyTeleopPath();
 
-      if (urlSeeds) {
-        this.applyUrlSeeds(urlSeeds);
-      }
+      this.applyUrlSeeds();
       this.setupProxyConfiguration();
       this.setupEventListeners();
       // Set initial display value
@@ -324,42 +324,31 @@ export class CloudXR2DUI {
   }
 
   /**
-   * Override form fields and localStorage from URL query params.
-   * Called after setupLocalStorage() so URL params win over stored values.
+   * Override form controls from URL query params. Values are applied but not persisted;
+   * called after setupLocalStorage() so URL params win over stored values for this load.
    */
-  private applyUrlSeeds(seeds: Record<string, string>): void {
-    const mapping: Array<[string, HTMLInputElement | HTMLSelectElement, string]> = [
-      ['serverIP', this.serverIpInput, 'serverIp'],
-      ['port', this.portInput, 'port'],
-      ['codec', this.codecSelect, 'codec'],
-    ];
-    for (const [paramKey, element, storageKey] of mapping) {
-      const v = seeds[paramKey];
-      if (v === undefined) continue;
-      element.value = v;
-      try { localStorage.setItem(storageKey, v); } catch (_) { /* localStorage unavailable */ }
+  private applyUrlSeeds(): void {
+    // Seed every form-backed URL_PARAMS control whose query param is present and valid.
+    // URL values override but are not persisted (next load without the param
+    // falls back to the stored/default value).
+    const seeds = seedsFromParams(new URLSearchParams(window.location.search));
+    for (const field of URL_PARAMS) {
+      if (!field.elementId) continue;
+      const raw = seeds.get(field.key);
+      if (raw === undefined) continue;
+      const el = document.getElementById(field.elementId) as
+        | HTMLInputElement
+        | HTMLSelectElement
+        | null;
+      if (!el) continue;
+      if (field.kind === 'checked') {
+        (el as HTMLInputElement).checked = raw === 'true';
+      } else {
+        el.value = raw;
+      }
     }
-    // panelHiddenAtStart persists per-project-path, so route it through savePerProject
-    // rather than the flat localStorage key nothing else reads.
-    const panelHidden = seeds['panelHiddenAtStart'];
-    if (panelHidden !== undefined) {
-      this.panelHiddenAtStartSelect.value = panelHidden;
-      savePerProject('panelHiddenAtStart', this.teleopPath, panelHidden);
-    }
-    const headlessSeed = seeds['headless'];
-    if (headlessSeed === 'true' || headlessSeed === 'false') {
-      this.headlessInput.checked = headlessSeed === 'true';
-      savePerProject('headless', this.teleopPath, headlessSeed);
+    if (seeds.has('headless')) {
       this.applyHeadlessImmersiveDropdown();
-    }
-    const autoRefreshSeed = seeds['autoRefreshMode'];
-    if (autoRefreshSeed !== undefined) {
-      const mode = parseAutoRefreshMode(
-        autoRefreshSeed,
-        this.autoRefreshModeSelect.value as AutoRefreshMode
-      );
-      this.autoRefreshModeSelect.value = mode;
-      try { localStorage.setItem('autoRefreshMode', mode); } catch (_) { /* localStorage unavailable */ }
     }
   }
 

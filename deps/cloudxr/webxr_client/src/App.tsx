@@ -59,6 +59,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 
 import { v5 } from 'uuid';
 import { CloudXR2DUI } from './CloudXR2DUI';
+import { readUrlParam } from './config/resolve';
 import CloudXR3DUI from './CloudXRUI';
 import { HeadsetControlChannel } from '@helpers/controlChannel';
 
@@ -118,14 +119,14 @@ const START_TELEOP_COMMAND = {
 
 /** When set with ``serverIP`` + ``port``, WebXR builds ``wss://{serverIP}:{port}/oob/v1/ws``. */
 function isOobEnabled(searchParams: URLSearchParams): boolean {
-  const v = searchParams.get('oobEnable');
+  const v = readUrlParam(searchParams, 'oobEnable');
   return v === '1' || v?.toLowerCase() === 'true';
 }
 
 function buildOobHubWsUrlFromQuery(searchParams: URLSearchParams): string | null {
   if (!isOobEnabled(searchParams)) return null;
-  const serverIP = searchParams.get('serverIP')?.trim();
-  const portStr = searchParams.get('port')?.trim();
+  const serverIP = readUrlParam(searchParams, 'serverIP')?.trim();
+  const portStr = readUrlParam(searchParams, 'port')?.trim();
   if (!serverIP || portStr === undefined || portStr === '') return null;
   if (!/^\d{1,5}$/.test(portStr)) return null;
   const host =
@@ -353,14 +354,8 @@ function App() {
     }
     saveStoredTeleopPath(resolvedPath);
 
-    // URL query params override localStorage so bookmarked links always win.
-    const urlSeeds: Record<string, string> = {};
-    const p = new URLSearchParams(window.location.search);
-    for (const key of ['serverIP', 'port', 'codec', 'panelHiddenAtStart', 'headless', 'autoRefreshMode', 'turnServer', 'turnUsername', 'turnCredential']) {
-      const v = p.get(key);
-      if (v !== null) urlSeeds[key] = v;
-    }
-    ui.initialize(Object.keys(urlSeeds).length > 0 ? urlSeeds : undefined, resolvedPath);
+    // URL query params (URL_PARAMS) are applied inside initialize() and win over stored values.
+    ui.initialize(resolvedPath);
     const doConnect = async () => {
       const config = ui.getConfiguration();
       const resolutionError = getResolutionValidationError(
@@ -705,7 +700,7 @@ function App() {
 
     const channel = new HeadsetControlChannel({
       url: hubWsUrl,
-      token: p.get('controlToken') ?? undefined,
+      token: readUrlParam(p, 'controlToken') ?? undefined,
       onConfig: () => {
         // Config push handling deferred to phase 2.
       },
@@ -762,11 +757,11 @@ function App() {
   // turnServer e.g. "turn:127.0.0.1:3478?transport=tcp", iceRelayOnly=1 forces relay-only ICE.
   const iceServersConfig = useMemo<CloudXR.SessionOptions['iceServers'] | undefined>(() => {
     const p = new URLSearchParams(window.location.search);
-    const turnServer = p.get('turnServer');
+    const turnServer = readUrlParam(p, 'turnServer');
     if (!turnServer) return undefined;
-    const turnUsername = p.get('turnUsername') ?? undefined;
-    const turnCredential = p.get('turnCredential') ?? undefined;
-    const iceRelayOnly = p.get('iceRelayOnly') === '1';
+    const turnUsername = readUrlParam(p, 'turnUsername') ?? undefined;
+    const turnCredential = readUrlParam(p, 'turnCredential') ?? undefined;
+    const iceRelayOnly = readUrlParam(p, 'iceRelayOnly') === '1';
     return {
       iceServers: [{
         urls: turnServer,

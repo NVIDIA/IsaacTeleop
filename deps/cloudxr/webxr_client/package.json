@@ -17,7 +17,15 @@
     "dev": "webpack --config ./webpack.dev.js",
     "dev-server": "webpack serve --config ./webpack.dev.js --no-open",
     "dev-server:https": "cross-env HTTPS=true webpack serve --config ./webpack.dev.js --no-open",
+    "test": "jest",
     "clean": "rimraf dist"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "roots": [
+      "<rootDir>/src"
+    ]
   },
   "dependencies": {
     "@nvidia/cloudxr": "file:../nvidia-cloudxr-6.2.0.tgz",
@@ -34,6 +42,8 @@
     "uuid": "^14.0.0"
   },
   "devDependencies": {
+    "@types/jest": "^30",
+    "@types/node": "^22",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/three": "^0.184.0",
@@ -43,8 +53,10 @@
     "css-loader": "^6.8.1",
     "html-webpack-plugin": "^5.6.7",
     "iwer": "^2.2.1",
+    "jest": "^30",
     "rimraf": "^5.0.5",
     "style-loader": "^3.3.3",
+    "ts-jest": "^29",
     "ts-loader": "^9.5.7",
     "typescript": "^5.8.2",
     "webpack-cli": "^6.0.1",
