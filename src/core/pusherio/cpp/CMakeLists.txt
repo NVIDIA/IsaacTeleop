@@ -10,7 +10,7 @@ add_library(pusherio STATIC
 )
 
 target_include_directories(pusherio
-    PUBLIC
+    INTERFACE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
 )
 
