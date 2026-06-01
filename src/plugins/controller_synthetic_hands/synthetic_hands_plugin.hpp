@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
-#include <controller_synthetic_hands/hand_generator.hpp>
+#include "hand_generator.hpp"
+
 #include <deviceio_session/deviceio_session.hpp>
 #include <deviceio_trackers/controller_tracker.hpp>
 #include <oxr/oxr_session.hpp>

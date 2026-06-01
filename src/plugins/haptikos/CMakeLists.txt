@@ -11,7 +11,7 @@ if (TARGET Haptikos::HaptikosAPI)
     add_executable(haptikos_hands_plugin
     main.cpp
     haptikos_hands_plugin.cpp
-    inc/haptikos/haptikos_hands_plugin.hpp
+    haptikos_hands_plugin.hpp
     )
 
     target_link_libraries(haptikos_hands_plugin PRIVATE
@@ -23,10 +23,6 @@ if (TARGET Haptikos::HaptikosAPI)
         oxr::oxr_utils
         OpenXR::openxr_loader
         Teleop::openxr_extensions
-    )
-
-    target_include_directories(haptikos_hands_plugin PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/inc
     )
 
     set_target_properties(haptikos_hands_plugin PROPERTIES

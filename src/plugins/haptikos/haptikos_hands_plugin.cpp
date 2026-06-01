@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-#include <haptikos/haptikos_hands_plugin.hpp>
+#include "haptikos_hands_plugin.hpp"
+
 #include <oxr_utils/pose_conversions.hpp>
 
 #include <chrono>
