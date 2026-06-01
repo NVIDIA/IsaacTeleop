@@ -1,0 +1,12 @@
+---
+description: IsaacTeleop CMake target layout and #include conventions — apply when editing CMakeLists.txt, adding/moving targets, placing headers, or writing #include directives.
+globs: **/CMakeLists.txt,**/*.cmake,**/*.h,**/*.hpp,**/*.hxx,**/*.cpp,**/*.cxx,**/*.cc
+alwaysApply: false
+---
+
+# CMake & include structure
+
+Follow the repo's canonical CMake/include rules before changing build files,
+header placement, or include paths. Full rules and review checklist:
+
+@cmake/cmake-structure.md

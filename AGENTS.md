@@ -47,6 +47,18 @@ If you cannot run a shell, use your search/glob tools on the pattern `**/AGENTS.
 
 Optional context index: [`src/core/AGENTS.md`](src/core/AGENTS.md) (also on the ancestor walk—read it when working under `src/core/`).
 
+## CMake & include structure
+
+When you create or edit a `CMakeLists.txt`, add or move a target, place a header,
+write `#include` directives, or restructure directories, follow the repo's
+canonical CMake/include rules in **[`cmake/cmake-structure.md`](cmake/cmake-structure.md)**.
+Read that file before touching build files, header placement, or include paths.
+
+Per-tool shims auto-load the same doc for Claude Code, Cursor, Copilot, and
+CodeRabbit (`.claude/skills/cmake-structure/`, `.cursor/rules/cmake-structure.mdc`,
+`.github/instructions/cmake-structure.instructions.md`, `.coderabbit.yaml`); they
+only point here — edit the rules in the doc, not the shims.
+
 ## Pre-commit — match CI before you stop
 
 - From the **IsaacTeleop repo root** (this directory), run pre-commit and **fix all failures** before you treat a change as finished (do not only rely on “should pass” reasoning).

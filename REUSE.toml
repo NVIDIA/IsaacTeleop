@@ -27,3 +27,11 @@ path = "examples/cxrjs/**"
 precedence = "override"
 SPDX-FileCopyrightText = "Copyright (c) NVIDIA CORPORATION & AFFILIATES. All rights reserved."
 SPDX-License-Identifier = "Apache-2.0"
+
+# Cursor rule files (.mdc) keep frontmatter clean (no SPDX header); cover them
+# here so REUSE lint passes, mirroring the .github/** override above.
+[[annotations]]
+path = ".cursor/**"
+precedence = "override"
+SPDX-FileCopyrightText = "Copyright (c) NVIDIA CORPORATION & AFFILIATES. All rights reserved."
+SPDX-License-Identifier = "Apache-2.0"
