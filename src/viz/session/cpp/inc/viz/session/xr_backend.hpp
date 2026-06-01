@@ -3,8 +3,9 @@
 
 #pragma once
 
+#include "display_backend.hpp"
+
 #include <openxr/openxr.h>
-#include <viz/session/display_backend.hpp>
 #include <viz/xr/openxr_session.hpp>
 
 #include <cstdint>

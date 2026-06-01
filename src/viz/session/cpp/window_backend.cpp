@@ -1,10 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+#include "inc/viz/session/window_backend.hpp"
+
+#include "inc/viz/session/glfw_window.hpp"
+#include "inc/viz/session/swapchain.hpp"
+
 #include <viz/core/vk_context.hpp>
-#include <viz/session/glfw_window.hpp>
-#include <viz/session/swapchain.hpp>
-#include <viz/session/window_backend.hpp>
 
 #include <stdexcept>
 #include <utility>

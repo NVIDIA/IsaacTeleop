@@ -1,11 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-#include <viz/session/display_backend.hpp>
-#include <viz/session/offscreen_backend.hpp>
-#include <viz/session/viz_session.hpp>
-#include <viz/session/window_backend.hpp>
-#include <viz/session/xr_backend.hpp>
+#include "inc/viz/session/viz_session.hpp"
+
+#include "inc/viz/session/display_backend.hpp"
+#include "inc/viz/session/offscreen_backend.hpp"
+#include "inc/viz/session/window_backend.hpp"
+#include "inc/viz/session/xr_backend.hpp"
+
 #include <viz/xr/openxr_session.hpp>
 
 #include <algorithm>

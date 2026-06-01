@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-#include <viz/layers/testing/clear_rect_layer.hpp>
+#include "inc/viz/layers/testing/clear_rect_layer.hpp"
 
 namespace viz::testing
 {

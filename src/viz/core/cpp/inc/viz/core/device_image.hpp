@@ -3,8 +3,9 @@
 
 #pragma once
 
-#include <viz/core/viz_buffer.hpp> // PixelFormat — used in API signatures
-#include <viz/core/viz_types.hpp>
+#include "viz_buffer.hpp" // PixelFormat — used in API signatures
+#include "viz_types.hpp"
+
 #include <vulkan/vulkan.h>
 
 #include <atomic>

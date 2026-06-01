@@ -1,8 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-#include <viz/core/render_target.hpp>
-#include <viz/core/vk_context.hpp>
+#include "inc/viz/core/render_target.hpp"
+
+#include "inc/viz/core/vk_context.hpp"
 
 #include <array>
 #include <stdexcept>

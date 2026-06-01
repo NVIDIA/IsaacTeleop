@@ -1,8 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+#include "inc/viz/xr/openxr_session.hpp"
+
 #include <viz/core/vk_context.hpp>
-#include <viz/xr/openxr_session.hpp>
 
 #define XR_USE_TIMESPEC
 #include <viz/core/openxr_platform_compat.hpp>

@@ -16,8 +16,9 @@ add_library(viz_xr STATIC
     inc/viz/xr/xr_runtime.hpp
 )
 
-target_include_directories(viz_xr PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/inc
+target_include_directories(viz_xr
+    INTERFACE
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
 )
 
 target_link_libraries(viz_xr PUBLIC

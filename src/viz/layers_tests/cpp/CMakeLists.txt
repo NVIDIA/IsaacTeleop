@@ -13,7 +13,7 @@ add_library(viz_layers_testing STATIC
 )
 
 target_include_directories(viz_layers_testing
-    PUBLIC
+    INTERFACE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
 )
 
