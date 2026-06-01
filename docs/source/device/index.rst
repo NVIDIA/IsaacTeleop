@@ -21,3 +21,4 @@ See the `Plugins directory <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/
    add_device
    body_tracking
    manus
+   oak
