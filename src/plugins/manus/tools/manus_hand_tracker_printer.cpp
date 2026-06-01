@@ -3,7 +3,7 @@
 
 #include "manus_hand_visualizer.hpp"
 
-#include <core/manus_hand_tracking_plugin.hpp>
+#include <manus/manus_hand_tracking_plugin.hpp>
 
 #include <algorithm>
 #include <chrono>

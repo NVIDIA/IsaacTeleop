@@ -15,11 +15,6 @@ target_link_libraries(manus_hand_tracker_printer
     X11::X11
 )
 
-target_include_directories(manus_hand_tracker_printer
-  PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
 set_target_properties(manus_hand_tracker_printer PROPERTIES
   CXX_VISIBILITY_PRESET hidden
   VISIBILITY_INLINES_HIDDEN YES

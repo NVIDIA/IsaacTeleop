@@ -3,12 +3,12 @@
 
 add_library(manus_plugin_core SHARED
   manus_hand_tracking_plugin.cpp
-  ${MANUS_PLUGIN_INC_DIR}/core/manus_hand_tracking_plugin.hpp
+  inc/manus/manus_hand_tracking_plugin.hpp
 )
 
 target_include_directories(manus_plugin_core
-  PUBLIC
-    $<BUILD_INTERFACE:${MANUS_PLUGIN_INC_DIR}>
+  INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
 )
 
 target_link_libraries(manus_plugin_core
