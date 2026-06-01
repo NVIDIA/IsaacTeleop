@@ -37,6 +37,30 @@ uint32_t find_memory_type(VkPhysicalDevice physical_device, uint32_t type_bits, 
     throw std::runtime_error("OffscreenBackend: no memory type matches readback requirements");
 }
 
+void transition_image(VkCommandBuffer cmd,
+                      VkImage image,
+                      VkImageLayout old_layout,
+                      VkImageLayout new_layout,
+                      VkAccessFlags src_access,
+                      VkAccessFlags dst_access,
+                      VkPipelineStageFlags src_stage,
+                      VkPipelineStageFlags dst_stage)
+{
+    VkImageMemoryBarrier b{};
+    b.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    b.oldLayout = old_layout;
+    b.newLayout = new_layout;
+    b.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    b.image = image;
+    b.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    b.subresourceRange.levelCount = 1;
+    b.subresourceRange.layerCount = 1;
+    b.srcAccessMask = src_access;
+    b.dstAccessMask = dst_access;
+    vkCmdPipelineBarrier(cmd, src_stage, dst_stage, 0, 0, nullptr, 0, nullptr, 1, &b);
+}
+
 } // namespace
 
 OffscreenBackend::OffscreenBackend() = default;
@@ -139,6 +163,61 @@ HostImage OffscreenBackend::readback_to_host()
     std::memcpy(result.data(), mapped, readback_byte_size_);
     vkUnmapMemory(ctx_->device(), readback_memory_);
     return result;
+}
+
+void OffscreenBackend::record_direct(VkCommandBuffer cmd,
+                                     const Frame& /*frame*/,
+                                     const std::vector<DirectPresentView>& views)
+{
+    if (render_target_ == nullptr)
+    {
+        return;
+    }
+    const VkImage dst = render_target_->color_image();
+    const VkImage src = views.empty() ? VK_NULL_HANDLE : views[0].color;
+
+    // Discard prior RT contents (UNDEFINED) — the copy/clear fully
+    // overwrites — and leave the RT in TRANSFER_SRC so readback_to_host's
+    // image→buffer copy works exactly as it does after the render pass.
+    transition_image(cmd, dst, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0,
+                     VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+
+    if (src != VK_NULL_HANDLE)
+    {
+        transition_image(cmd, src, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                         VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                         VK_PIPELINE_STAGE_TRANSFER_BIT);
+
+        VkImageCopy region{};
+        region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.srcSubresource.layerCount = 1;
+        region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.dstSubresource.layerCount = 1;
+        // VizSession::add_layer enforces source extent == target extent, so
+        // these match; clamp to the smaller of the two anyway so a stray
+        // mismatch can never produce an out-of-bounds copy region.
+        region.extent = { extent_.width < views[0].extent.width ? extent_.width : views[0].extent.width,
+                          extent_.height < views[0].extent.height ? extent_.height : views[0].extent.height, 1 };
+        vkCmdCopyImage(
+            cmd, src, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+        transition_image(cmd, src, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                         VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+    }
+    else
+    {
+        VkClearColorValue clear{};
+        VkImageSubresourceRange range{};
+        range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        range.levelCount = 1;
+        range.layerCount = 1;
+        vkCmdClearColorImage(cmd, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clear, 1, &range);
+    }
+
+    transition_image(cmd, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                     VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                     VK_PIPELINE_STAGE_TRANSFER_BIT);
 }
 
 void OffscreenBackend::create_readback_staging()

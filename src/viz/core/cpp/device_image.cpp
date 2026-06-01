@@ -84,7 +84,14 @@ VkFormat to_vk_storage_format(PixelFormat format)
     case PixelFormat::kRGBA8:
         return VK_FORMAT_R8G8B8A8_UNORM;
     case PixelFormat::kD32F:
-        return VK_FORMAT_D32_SFLOAT;
+        // Single-channel float COLOR format, NOT VK_FORMAT_D32_SFLOAT. Depth
+        // formats use hardware depth compression in optimal tiling that CUDA
+        // external-memory array interop cannot interpret, so a CUDA-written
+        // D32_SFLOAT image reads back as garbage on the Vulkan side. R32_SFLOAT
+        // is bit-identical (IEEE float32) and interops exactly like the color
+        // images do; the bridge into the D32_SFLOAT XR depth swapchain happens
+        // via a staging buffer in the backend (float bits copy verbatim).
+        return VK_FORMAT_R32_SFLOAT;
     }
     throw std::runtime_error("DeviceImage: unsupported PixelFormat");
 }
@@ -96,7 +103,7 @@ VkFormat to_vk_view_format(PixelFormat format)
     case PixelFormat::kRGBA8:
         return VK_FORMAT_R8G8B8A8_SRGB;
     case PixelFormat::kD32F:
-        return VK_FORMAT_D32_SFLOAT;
+        return VK_FORMAT_R32_SFLOAT; // see to_vk_storage_format
     }
     throw std::runtime_error("DeviceImage: unsupported PixelFormat");
 }
@@ -339,8 +346,9 @@ void DeviceImage::create_vk_image_view()
     info.image = image_;
     info.viewType = VK_IMAGE_VIEW_TYPE_2D;
     info.format = vk_format_;
-    info.subresourceRange.aspectMask =
-        (format_ == PixelFormat::kD32F) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+    // Always COLOR: kD32F is stored as R32_SFLOAT (a color format), not a
+    // depth format — see to_vk_storage_format.
+    info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     info.subresourceRange.baseMipLevel = 0;
     info.subresourceRange.levelCount = mip_levels_;
     info.subresourceRange.baseArrayLayer = 0;
@@ -521,8 +529,8 @@ void DeviceImage::run_one_shot_layout_transition(VkImageLayout old_layout,
     barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     barrier.image = image_;
-    barrier.subresourceRange.aspectMask =
-        (format_ == PixelFormat::kD32F) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+    // kD32F is stored as R32_SFLOAT (color format), so always COLOR aspect.
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     barrier.subresourceRange.baseMipLevel = 0;
     barrier.subresourceRange.levelCount = mip_levels_;
     barrier.subresourceRange.baseArrayLayer = 0;

@@ -310,11 +310,27 @@ void VizSession::update_timing_stats(float frame_time_seconds)
         (timing_stats_.avg_frame_time_ms > 0.0f) ? 1000.0f / timing_stats_.avg_frame_time_ms : 0.0f;
 }
 
+void VizSession::validate_layer_against_backend_(LayerBase* layer) const
+{
+    // Only meaningful once a backend exists; layers may be constructed
+    // standalone in tests. The layer decides what (if anything) it requires.
+    if (layer == nullptr || backend_ == nullptr)
+    {
+        return;
+    }
+    const uint32_t backend_view_count = backend_->is_xr() ? 2u : 1u;
+    layer->validate_backend_compatibility(
+        backend_->recommended_view_resolution(), backend_view_count, backend_->image_count());
+}
+
 Resolution VizSession::get_recommended_resolution() const noexcept
 {
-    if (compositor_)
+    // Per-view size a direct ProjectionLayer should render at (kXr: per-eye,
+    // so its copy to the swapchain is 1:1). Window/offscreen report the
+    // single-view target extent.
+    if (backend_)
     {
-        return compositor_->resolution();
+        return backend_->recommended_view_resolution();
     }
     return Resolution{ config_.window_width, config_.window_height };
 }

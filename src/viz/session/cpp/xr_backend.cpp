@@ -28,6 +28,28 @@ void check_xr(XrResult r, const char* what)
     }
 }
 
+void check_vk(VkResult r, const char* what)
+{
+    if (r != VK_SUCCESS)
+    {
+        throw std::runtime_error(std::string("XrBackend: ") + what + " failed: VkResult=" + std::to_string(r));
+    }
+}
+
+uint32_t find_memory_type(VkPhysicalDevice physical_device, uint32_t type_bits, VkMemoryPropertyFlags properties)
+{
+    VkPhysicalDeviceMemoryProperties mem_props;
+    vkGetPhysicalDeviceMemoryProperties(physical_device, &mem_props);
+    for (uint32_t i = 0; i < mem_props.memoryTypeCount; ++i)
+    {
+        if ((type_bits & (1u << i)) != 0 && (mem_props.memoryTypes[i].propertyFlags & properties) == properties)
+        {
+            return i;
+        }
+    }
+    throw std::runtime_error("XrBackend: no memory type matches depth staging requirements");
+}
+
 void transition_image(VkCommandBuffer cmd,
                       VkImage image,
                       VkImageLayout old_layout,
@@ -104,6 +126,7 @@ void XrBackend::init(const VkContext& ctx, Resolution /*preferred_size*/)
         if (depth_layer_enabled_)
         {
             create_depth_swapchains();
+            create_depth_staging();
         }
         create_intermediate();
     }
@@ -123,6 +146,7 @@ void XrBackend::destroy()
     // Order: rendering resources → session. Runtime owns swapchain
     // images, so xrDestroySwapchain is enough (no vkDestroyImage).
     render_target_.reset();
+    destroy_depth_staging();
     destroy_swapchains();
     session_.reset();
     ctx_ = nullptr;
@@ -280,6 +304,58 @@ void XrBackend::create_depth_swapchains()
             depth_swapchains_[i].images.push_back(vi.image);
         }
     }
+}
+
+void XrBackend::create_depth_staging()
+{
+    const VkDevice device = ctx_->device();
+    depth_staging_.assign(depth_swapchains_.size(), DepthStaging{});
+    for (size_t i = 0; i < depth_swapchains_.size(); ++i)
+    {
+        const VkDeviceSize size = static_cast<VkDeviceSize>(depth_swapchains_[i].width) * depth_swapchains_[i].height * 4;
+
+        VkBufferCreateInfo bi{};
+        bi.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bi.size = size;
+        bi.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        check_vk(vkCreateBuffer(device, &bi, nullptr, &depth_staging_[i].buffer), "vkCreateBuffer(depth staging)");
+
+        VkMemoryRequirements reqs;
+        vkGetBufferMemoryRequirements(device, depth_staging_[i].buffer, &reqs);
+
+        VkMemoryAllocateInfo ai{};
+        ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        ai.allocationSize = reqs.size;
+        ai.memoryTypeIndex =
+            find_memory_type(ctx_->physical_device(), reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        check_vk(vkAllocateMemory(device, &ai, nullptr, &depth_staging_[i].memory), "vkAllocateMemory(depth staging)");
+        check_vk(vkBindBufferMemory(device, depth_staging_[i].buffer, depth_staging_[i].memory, 0),
+                 "vkBindBufferMemory(depth staging)");
+        depth_staging_[i].size = size;
+    }
+}
+
+void XrBackend::destroy_depth_staging() noexcept
+{
+    if (ctx_ == nullptr)
+    {
+        return;
+    }
+    const VkDevice device = ctx_->device();
+    for (auto& s : depth_staging_)
+    {
+        if (s.buffer != VK_NULL_HANDLE)
+        {
+            vkDestroyBuffer(device, s.buffer, nullptr);
+        }
+        if (s.memory != VK_NULL_HANDLE)
+        {
+            vkFreeMemory(device, s.memory, nullptr);
+        }
+        s = DepthStaging{};
+    }
+    depth_staging_.clear();
 }
 
 void XrBackend::create_swapchains()
@@ -610,14 +686,179 @@ void XrBackend::record_post_render_pass(VkCommandBuffer cmd, const Frame& frame)
             vkCmdCopyImage(cmd, depth_src, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst,
                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-            // DEPTH_STENCIL_READ_ONLY is the conventional "runtime
-            // samples this" layout for the depth-info subImage.
+            // CloudXR follows the same handoff convention as Holohub's
+            // XrSwapchainCuda: depth swapchain images are returned in
+            // DEPTH_STENCIL_ATTACHMENT_OPTIMAL before xrEndFrame. Leaving
+            // them in READ_ONLY can make the runtime consume stale/invalid
+            // depth even though the XrCompositionLayerDepthInfoKHR metadata
+            // is otherwise correct.
             transition_image_aspect(cmd, dst, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                    VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT,
-                                    VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+                                    VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT, 0,
+                                    VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
         }
     }
+}
+
+void XrBackend::record_direct(VkCommandBuffer cmd, const Frame& /*frame*/, const std::vector<DirectPresentView>& views)
+{
+    if (!frame_renderable_)
+    {
+        return;
+    }
+
+    // Direct-present: copy a ProjectionLayer's per-eye (color, depth)
+    // straight into the per-eye swapchains — no wide intermediate, no
+    // blit. recommended_view_resolution() sized the layer's images to the
+    // per-eye swapchain, so each copy is 1:1 and the renderer's depth
+    // reaches CloudXR byte-for-byte (matching Holohub's xr_gsplat path).
+    for (size_t i = 0; i < view_swapchains_.size(); ++i)
+    {
+        const auto& sw = view_swapchains_[i];
+        const VkImage dst = sw.images[sw.current_image_index];
+        const VkImage src = (i < views.size()) ? views[i].color : VK_NULL_HANDLE;
+
+        transition_image(cmd, dst, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0,
+                         VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+
+        if (src != VK_NULL_HANDLE)
+        {
+            // Source DeviceImage rests in SHADER_READ_ONLY_OPTIMAL; move it
+            // to TRANSFER_SRC for the copy, then restore so the next frame's
+            // copy sees the same resting layout.
+            transition_image(cmd, src, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                             VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_TRANSFER_READ_BIT,
+                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+
+            // Verbatim copy (size-compatible UNORM ↔ SRGB) — no color-space
+            // conversion, unlike a blit. The runtime treats the swapchain
+            // format's encoding, so the raw bytes pass through unchanged.
+            VkImageCopy region{};
+            region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            region.srcSubresource.layerCount = 1;
+            region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            region.dstSubresource.layerCount = 1;
+            // add_layer enforces source extent == per-eye swapchain size;
+            // clamp defensively so a mismatch can't read/write out of bounds.
+            region.extent = { sw.width < views[i].extent.width ? sw.width : views[i].extent.width,
+                              sw.height < views[i].extent.height ? sw.height : views[i].extent.height, 1 };
+            vkCmdCopyImage(
+                cmd, src, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+            transition_image(cmd, src, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                             VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+        }
+        else
+        {
+            // No image submitted this frame: clear so the runtime never
+            // composites stale swapchain contents.
+            VkClearColorValue clear{};
+            VkImageSubresourceRange range{};
+            range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            range.levelCount = 1;
+            range.layerCount = 1;
+            vkCmdClearColorImage(cmd, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clear, 1, &range);
+        }
+
+        // OpenXR expects COLOR_ATTACHMENT_OPTIMAL at xrEndFrame.
+        transition_image(cmd, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                         VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_COLOR_ATTACHMENT_READ_BIT,
+                         VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+    }
+
+    if (!depth_layer_enabled_)
+    {
+        return;
+    }
+
+    // Per-eye depth into XR_KHR_composition_layer_depth. The layer's depth
+    // image is R32_SFLOAT (color) — CUDA can't interop a depth-format image —
+    // so we bridge through a staging buffer: image(R32_SFLOAT,color) -> buffer
+    // -> image(D32_SFLOAT,depth). The 32-bit float bits copy verbatim.
+    for (size_t i = 0; i < depth_swapchains_.size(); ++i)
+    {
+        const auto& sw = depth_swapchains_[i];
+        const VkImage dst = sw.images[sw.current_image_index];
+        const VkImage src = (i < views.size()) ? views[i].depth : VK_NULL_HANDLE;
+
+        transition_image_aspect(cmd, dst, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0, VK_ACCESS_TRANSFER_WRITE_BIT,
+                                VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+
+        if (src != VK_NULL_HANDLE && i < depth_staging_.size())
+        {
+            const VkBuffer staging = depth_staging_[i].buffer;
+
+            // R32_SFLOAT source rests in SHADER_READ_ONLY (COLOR aspect).
+            transition_image(cmd, src, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                             VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_TRANSFER_READ_BIT,
+                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+
+            // add_layer enforces source extent == per-eye swapchain size;
+            // clamp defensively so a mismatch can't read/write out of bounds.
+            const uint32_t dw = sw.width < views[i].extent.width ? sw.width : views[i].extent.width;
+            const uint32_t dh = sw.height < views[i].extent.height ? sw.height : views[i].extent.height;
+
+            VkBufferImageCopy to_buf{};
+            to_buf.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            to_buf.imageSubresource.layerCount = 1;
+            to_buf.imageExtent = { dw, dh, 1 };
+            vkCmdCopyImageToBuffer(cmd, src, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, staging, 1, &to_buf);
+
+            // Order the buffer write before the buffer read.
+            VkBufferMemoryBarrier bb{};
+            bb.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+            bb.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            bb.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+            bb.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            bb.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            bb.buffer = staging;
+            bb.offset = 0;
+            bb.size = VK_WHOLE_SIZE;
+            vkCmdPipelineBarrier(
+                cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 1, &bb, 0, nullptr);
+
+            VkBufferImageCopy to_img{};
+            to_img.imageSubresource.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+            to_img.imageSubresource.layerCount = 1;
+            to_img.imageExtent = { dw, dh, 1 };
+            vkCmdCopyBufferToImage(cmd, staging, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &to_img);
+
+            transition_image(cmd, src, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                             VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+        }
+        else
+        {
+            // Clear to the far plane (1.0) so reprojection treats the empty
+            // frame as "nothing in front".
+            VkClearDepthStencilValue clear{ 1.0f, 0 };
+            VkImageSubresourceRange range{};
+            range.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+            range.levelCount = 1;
+            range.layerCount = 1;
+            vkCmdClearDepthStencilImage(cmd, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clear, 1, &range);
+        }
+
+        // Match record_post_render_pass: depth swapchains are returned in
+        // DEPTH_STENCIL_ATTACHMENT_OPTIMAL before xrEndFrame.
+        transition_image_aspect(cmd, dst, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT, 0,
+                                VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+    }
+}
+
+Resolution XrBackend::recommended_view_resolution() const
+{
+    if (session_)
+    {
+        const auto& views = session_->view_configuration_views();
+        if (!views.empty())
+        {
+            return Resolution{ views[0].recommendedImageRectWidth, views[0].recommendedImageRectHeight };
+        }
+    }
+    return current_extent();
 }
 
 void XrBackend::end_frame(const Frame& /*frame*/)

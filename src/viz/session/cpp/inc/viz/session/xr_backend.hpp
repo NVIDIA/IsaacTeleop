@@ -67,6 +67,17 @@ public:
     void end_frame(const Frame& frame) override;
     void abort_frame(const Frame& frame) override;
 
+    // Direct-present: copy a ProjectionLayer's per-eye color/depth straight
+    // into the per-eye color + depth swapchains (vkCmdCopyImage, verbatim),
+    // skipping the shared RT — so the renderer's depth reaches CloudXR
+    // exactly. Per-eye recommended size keeps the copy 1:1.
+    bool supports_direct() const noexcept override
+    {
+        return true;
+    }
+    void record_direct(VkCommandBuffer cmd, const Frame& frame, const std::vector<DirectPresentView>& views) override;
+    Resolution recommended_view_resolution() const override;
+
     void poll_events() override;
     bool should_close() const override;
     Resolution current_extent() const override;
@@ -116,6 +127,13 @@ private:
     void destroy_swapchains();
     void create_intermediate();
 
+    // Per-eye staging buffers that bridge a direct ProjectionLayer's depth
+    // (stored as R32_SFLOAT — CUDA can't interop a depth-format image) into
+    // the D32_SFLOAT depth swapchain via image->buffer->image. The float bits
+    // copy verbatim. Allocated only when depth submission is enabled.
+    void create_depth_staging();
+    void destroy_depth_staging() noexcept;
+
     // Release every swapchain currently flagged `acquired`.
     void release_acquired_swapchains() noexcept;
     // Submit an empty xrEndFrame to balance an outstanding xrBeginFrame.
@@ -138,6 +156,15 @@ private:
     // XrCompositionLayerDepthInfoKHR for runtime reprojection.
     std::vector<ViewSwapchain> depth_swapchains_;
     bool depth_layer_enabled_ = false;
+
+    // Per-eye R32_SFLOAT->D32_SFLOAT bridge buffers (see create_depth_staging).
+    struct DepthStaging
+    {
+        VkBuffer buffer = VK_NULL_HANDLE;
+        VkDeviceMemory memory = VK_NULL_HANDLE;
+        VkDeviceSize size = 0;
+    };
+    std::vector<DepthStaging> depth_staging_;
 
     // Per-frame state — valid only while frame_began_ == true.
     XrFrameState last_frame_state_{ XR_TYPE_FRAME_STATE };

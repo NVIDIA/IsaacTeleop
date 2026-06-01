@@ -1,15 +1,15 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-// Tests for ProjectionLayer: config validation (unit-level) and pipeline
-// / CUDA-Vulkan interop + submit (gpu-level). End-to-end fill + render +
-// readback lives in viz_session_tests where the full pipeline is
-// available.
+// Tests for ProjectionLayer: config validation (unit-level) and the
+// CUDA-Vulkan interop mailbox + submit (gpu-level). ProjectionLayer is
+// direct-present-only (no render pipeline); end-to-end copy-to-swapchain
+// + readback lives in viz_session_tests where the full backend exists.
 
 #include "test_helpers.hpp"
 
 #include <catch2/catch_test_macros.hpp>
-#include <viz/core/render_target.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 #include <viz/core/viz_buffer.hpp>
 #include <viz/core/vk_context.hpp>
 #include <viz/layers/projection_layer.hpp>
@@ -21,8 +21,6 @@
 using viz::DeviceImage;
 using viz::PixelFormat;
 using viz::ProjectionLayer;
-using viz::RenderTarget;
-using viz::Resolution;
 using viz::VizBuffer;
 using viz::VkContext;
 
@@ -46,6 +44,13 @@ struct CudaFreeGuard
 } // namespace
 
 // ── Unit: config validation without GPU ─────────────────────────────
+//
+// Config is validated BEFORE the VkContext, so these run with an
+// uninitialized context. The message matchers pin each test to the
+// config check it targets — without them an uninitialized-context throw
+// would satisfy CHECK_THROWS_AS for the wrong reason.
+
+using Catch::Matchers::ContainsSubstring;
 
 TEST_CASE("ProjectionLayer ctor rejects non-RGBA8 color format", "[unit][projection_layer]")
 {
@@ -53,7 +58,7 @@ TEST_CASE("ProjectionLayer ctor rejects non-RGBA8 color format", "[unit][project
     ProjectionLayer::Config cfg;
     cfg.view_resolution = { 64, 64 };
     cfg.color_format = PixelFormat::kD32F;
-    CHECK_THROWS_AS(ProjectionLayer(ctx, VK_NULL_HANDLE, cfg), std::invalid_argument);
+    CHECK_THROWS_WITH(ProjectionLayer(ctx, cfg), ContainsSubstring("color_format"));
 }
 
 TEST_CASE("ProjectionLayer ctor rejects non-D32F depth format", "[unit][projection_layer]")
@@ -62,7 +67,7 @@ TEST_CASE("ProjectionLayer ctor rejects non-D32F depth format", "[unit][projecti
     ProjectionLayer::Config cfg;
     cfg.view_resolution = { 64, 64 };
     cfg.depth_format = PixelFormat::kRGBA8;
-    CHECK_THROWS_AS(ProjectionLayer(ctx, VK_NULL_HANDLE, cfg), std::invalid_argument);
+    CHECK_THROWS_WITH(ProjectionLayer(ctx, cfg), ContainsSubstring("depth_format"));
 }
 
 TEST_CASE("ProjectionLayer ctor rejects zero view_resolution", "[unit][projection_layer]")
@@ -70,15 +75,39 @@ TEST_CASE("ProjectionLayer ctor rejects zero view_resolution", "[unit][projectio
     VkContext ctx;
     ProjectionLayer::Config cfg;
     cfg.view_resolution = { 0, 64 };
-    CHECK_THROWS_AS(ProjectionLayer(ctx, VK_NULL_HANDLE, cfg), std::invalid_argument);
+    CHECK_THROWS_WITH(ProjectionLayer(ctx, cfg), ContainsSubstring("view_resolution"));
 }
 
-TEST_CASE("ProjectionLayer ctor rejects null render pass", "[unit][projection_layer]")
+// ── GPU: backend-compatibility validation ───────────────────────────
+
+TEST_CASE("ProjectionLayer validate_backend_compatibility enforces the direct-present contract", "[gpu][projection_layer]")
 {
+    if (!is_gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
     VkContext ctx;
+    ctx.init({});
+
     ProjectionLayer::Config cfg;
     cfg.view_resolution = { 64, 64 };
-    CHECK_THROWS_AS(ProjectionLayer(ctx, VK_NULL_HANDLE, cfg), std::invalid_argument);
+    ProjectionLayer mono(ctx, cfg);
+
+    // Matching mono display: ok.
+    CHECK_NOTHROW(mono.validate_backend_compatibility({ 64, 64 }, 1, 3));
+    // Resolution mismatch (would make the 1:1 swapchain copy out-of-bounds).
+    CHECK_THROWS_WITH(mono.validate_backend_compatibility({ 128, 128 }, 1, 3), ContainsSubstring("view_resolution"));
+    // Mono layer can't drive a 2-view (stereo) display.
+    CHECK_THROWS_WITH(mono.validate_backend_compatibility({ 64, 64 }, 2, 3), ContainsSubstring("stereo"));
+    // Backend cycles more in-flight images than the mailbox can hold.
+    CHECK_THROWS_WITH(mono.validate_backend_compatibility({ 64, 64 }, 1, ProjectionLayer::kMaxFramesInFlight + 1),
+                      ContainsSubstring("kMaxFramesInFlight"));
+
+    // A stereo layer is allowed on a mono display (the left eye is used).
+    cfg.stereo = true;
+    ProjectionLayer stereo(ctx, cfg);
+    CHECK_NOTHROW(stereo.validate_backend_compatibility({ 64, 64 }, 1, 3));
+    CHECK_NOTHROW(stereo.validate_backend_compatibility({ 64, 64 }, 2, 3));
 }
 
 // ── GPU: construction + accessors ───────────────────────────────────
@@ -91,11 +120,10 @@ TEST_CASE("ProjectionLayer mono+depth creates valid handles for every slot+view"
     }
     VkContext ctx;
     ctx.init({});
-    auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 64, 64 } });
 
     ProjectionLayer::Config cfg;
     cfg.view_resolution = { 64, 64 };
-    ProjectionLayer layer(ctx, target->render_pass(), cfg);
+    ProjectionLayer layer(ctx, cfg);
 
     CHECK(layer.name() == "ProjectionLayer");
     CHECK(layer.view_count() == 1);
@@ -127,12 +155,11 @@ TEST_CASE("ProjectionLayer stereo allocates per-eye storage", "[gpu][projection_
     }
     VkContext ctx;
     ctx.init({});
-    auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 64, 64 } });
 
     ProjectionLayer::Config cfg;
     cfg.view_resolution = { 64, 64 };
     cfg.stereo = true;
-    ProjectionLayer layer(ctx, target->render_pass(), cfg);
+    ProjectionLayer layer(ctx, cfg);
 
     CHECK(layer.view_count() == 2);
     CHECK(layer.is_stereo());
@@ -154,12 +181,11 @@ TEST_CASE("ProjectionLayer no-depth skips depth allocation", "[gpu][projection_l
     }
     VkContext ctx;
     ctx.init({});
-    auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 32, 32 } });
 
     ProjectionLayer::Config cfg;
     cfg.view_resolution = { 32, 32 };
     cfg.depth_format = std::nullopt;
-    ProjectionLayer layer(ctx, target->render_pass(), cfg);
+    ProjectionLayer layer(ctx, cfg);
 
     CHECK_FALSE(layer.depth_format().has_value());
     for (uint32_t s = 0; s < ProjectionLayer::kSlotCount; ++s)
@@ -177,11 +203,10 @@ TEST_CASE("ProjectionLayer destroy is idempotent", "[gpu][projection_layer]")
     }
     VkContext ctx;
     ctx.init({});
-    auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 32, 32 } });
 
     ProjectionLayer::Config cfg;
     cfg.view_resolution = { 32, 32 };
-    ProjectionLayer layer(ctx, target->render_pass(), cfg);
+    ProjectionLayer layer(ctx, cfg);
 
     layer.destroy();
     layer.destroy(); // second call must be a no-op
@@ -197,12 +222,11 @@ TEST_CASE("ProjectionLayer::submit rejects bad call shapes", "[gpu][projection_l
     }
     VkContext ctx;
     ctx.init({});
-    auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 64, 64 } });
 
     ProjectionLayer::Config cfg;
     cfg.view_resolution = { 64, 64 };
     cfg.stereo = false;
-    ProjectionLayer layer(ctx, target->render_pass(), cfg);
+    ProjectionLayer layer(ctx, cfg);
 
     void* color_dev = nullptr;
     void* depth_dev = nullptr;
@@ -261,11 +285,10 @@ TEST_CASE("ProjectionLayer::submit mono+depth advances mailbox + signals semapho
     }
     VkContext ctx;
     ctx.init({});
-    auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 64, 64 } });
 
     ProjectionLayer::Config cfg;
     cfg.view_resolution = { 64, 64 };
-    ProjectionLayer layer(ctx, target->render_pass(), cfg);
+    ProjectionLayer layer(ctx, cfg);
 
     void* color_dev = nullptr;
     void* depth_dev = nullptr;
@@ -304,7 +327,6 @@ TEST_CASE("ProjectionLayer::submit mono+depth advances mailbox + signals semapho
     // semaphores both advance to 1.
     layer.submit(color, &depth);
 
-    // At least one slot's color + depth semaphore is now nonzero.
     uint32_t signaled = 0;
     for (uint32_t s = 0; s < ProjectionLayer::kSlotCount; ++s)
     {
@@ -326,12 +348,11 @@ TEST_CASE("ProjectionLayer::submit stereo requires both eyes", "[gpu][projection
     }
     VkContext ctx;
     ctx.init({});
-    auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 64, 64 } });
 
     ProjectionLayer::Config cfg;
     cfg.view_resolution = { 64, 64 };
     cfg.stereo = true;
-    ProjectionLayer layer(ctx, target->render_pass(), cfg);
+    ProjectionLayer layer(ctx, cfg);
 
     void* color_dev = nullptr;
     void* depth_dev = nullptr;
@@ -359,7 +380,6 @@ TEST_CASE("ProjectionLayer::submit stereo requires both eyes", "[gpu][projection
 
     // Stereo with both eyes succeeds.
     layer.submit(color, &depth, &color, &depth);
-    // Eye 0 + eye 1 semaphores both advance.
     uint32_t signaled = 0;
     for (uint32_t s = 0; s < ProjectionLayer::kSlotCount; ++s)
     {
@@ -383,12 +403,11 @@ TEST_CASE("ProjectionLayer::submit no-depth path accepts color only", "[gpu][pro
     }
     VkContext ctx;
     ctx.init({});
-    auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 32, 32 } });
 
     ProjectionLayer::Config cfg;
     cfg.view_resolution = { 32, 32 };
     cfg.depth_format = std::nullopt;
-    ProjectionLayer layer(ctx, target->render_pass(), cfg);
+    ProjectionLayer layer(ctx, cfg);
 
     void* color_dev = nullptr;
     REQUIRE(cudaMalloc(&color_dev, 32 * 32 * 4) == cudaSuccess);
@@ -420,7 +439,7 @@ TEST_CASE("ProjectionLayer::submit no-depth path accepts color only", "[gpu][pro
     CHECK(signaled == 1);
 }
 
-TEST_CASE("ProjectionLayer on_frame_begin clears submitted-this-frame flag", "[gpu][projection_layer]")
+TEST_CASE("ProjectionLayer acquire_direct_views returns latest slot images", "[gpu][projection_layer]")
 {
     if (!is_gpu_available())
     {
@@ -428,11 +447,13 @@ TEST_CASE("ProjectionLayer on_frame_begin clears submitted-this-frame flag", "[g
     }
     VkContext ctx;
     ctx.init({});
-    auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 32, 32 } });
 
     ProjectionLayer::Config cfg;
     cfg.view_resolution = { 32, 32 };
-    ProjectionLayer layer(ctx, target->render_pass(), cfg);
+    ProjectionLayer layer(ctx, cfg);
+
+    // Nothing published yet → no direct views.
+    CHECK(layer.acquire_direct_views(0).empty());
 
     void* color_dev = nullptr;
     void* depth_dev = nullptr;
@@ -454,15 +475,23 @@ TEST_CASE("ProjectionLayer on_frame_begin clears submitted-this-frame flag", "[g
     depth.format = PixelFormat::kD32F;
     depth.space = viz::MemorySpace::kDevice;
 
-    // submit + on_frame_begin observable via two consecutive on_frame_begin /
-    // submit cycles, then ensuring the second frame's record path can run.
     layer.on_frame_begin();
     layer.submit(color, &depth);
-    // After submit the layer is "fresh"; another on_frame_begin clears it.
-    layer.on_frame_begin();
-    // Layer is now "unfresh"; a follow-up record() in XR mode would skip.
-    // We don't have a real session here to drive record(); the flag toggle
-    // is exercised via the kSession-attached pytest case (in offscreen,
-    // the flag is set/cleared but doesn't gate the draw).
-    SUCCEED();
+
+    // Offscreen (no session attached → not XR), so the freshness gate is
+    // off and the latest publish is returned.
+    auto views = layer.acquire_direct_views(0);
+    REQUIRE(views.size() == 1);
+    CHECK(views[0].color != VK_NULL_HANDLE);
+    CHECK(views[0].depth != VK_NULL_HANDLE);
+    CHECK(views[0].extent.width == 32);
+    CHECK(views[0].extent.height == 32);
+
+    // get_wait_semaphores now waits on the promoted slot at TRANSFER stage.
+    const auto waits = layer.get_wait_semaphores();
+    REQUIRE(waits.size() == 2); // color + depth
+    for (const auto& w : waits)
+    {
+        CHECK(w.wait_stage == VK_PIPELINE_STAGE_TRANSFER_BIT);
+    }
 }

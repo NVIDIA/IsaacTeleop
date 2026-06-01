@@ -126,9 +126,9 @@ Per-eye render target metadata returned in ``FrameInfo.views``. In XR
 mode (kXr stereo), 2 entries — one per eye. In window / offscreen, 1
 entry with identity pose.
 
-Renderers reading the pose for projection content should use
-``pose`` + ``fov`` here; the matrices are convenience helpers populated
-from the same predicted-display-time XR data.
+Exposes ``viewport``, ``fov`` and ``pose`` (all from the predicted-
+display-time XR data for this frame). Renderers build their own view /
+projection matrices from ``pose`` + ``fov``.
 )doc")
         .def(py::init<>())
         .def_readonly("viewport", &viz::ViewInfo::viewport)

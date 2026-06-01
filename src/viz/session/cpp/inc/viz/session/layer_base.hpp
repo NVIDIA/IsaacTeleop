@@ -32,6 +32,20 @@ inline void bind_view_viewport(VkCommandBuffer cmd, const ViewInfo& view)
     vkCmdSetViewport(cmd, 0, 1, &vp);
 }
 
+// Per-view source images for the direct-present path: a layer whose
+// content is already a full-view (color, depth) image pair the backend
+// can copy STRAIGHT into the presentation swapchains, bypassing the
+// shared render target + render pass. This mirrors holohub xr_gsplat:
+// the renderer's depth lands in the XR depth swapchain verbatim (no
+// gl_FragDepth round-trip), so CloudXR reprojection gets exact depth.
+// 1 entry for window/offscreen, 2 for kXr stereo.
+struct DirectPresentView
+{
+    VkImage color = VK_NULL_HANDLE; // resting layout SHADER_READ_ONLY_OPTIMAL
+    VkImage depth = VK_NULL_HANDLE; // VK_NULL_HANDLE when the layer has no depth
+    Resolution extent{}; // must equal the swapchain per-view size
+};
+
 // Abstract layer drawn into the compositor's render pass (RGBA8_SRGB
 // color + D32_SFLOAT depth, single-sample). record() issues draw calls;
 // it must NOT end the render pass or submit. Resource lifetime is the
@@ -94,6 +108,46 @@ public:
     virtual std::vector<WaitSemaphore> get_wait_semaphores() const
     {
         return {};
+    }
+
+    // True only for ProjectionLayer. VizSession uses it to enforce the
+    // single-projection XOR multi-quad invariant, and the compositor uses
+    // it to pick the direct-present path.
+    virtual bool is_projection_layer() const noexcept
+    {
+        return false;
+    }
+
+    // Direct-present support (see DirectPresentView). When true, the
+    // compositor — for a session whose only layer is this one — skips the
+    // render pass and asks the backend to copy these images straight to
+    // the swapchains. Default: not supported (composited via the RT).
+    virtual bool supports_direct_present() const noexcept
+    {
+        return false;
+    }
+
+    // Promote this frame's content into ``in_flight_slot`` (same slot the
+    // compositor passes to record()/get_wait_semaphores) and return the
+    // per-view source images to copy. Empty vector = nothing fresh to
+    // present this frame (backend clears the swapchains). Called instead
+    // of record_pre_render_pass()/record() on the direct path.
+    virtual std::vector<DirectPresentView> acquire_direct_views(uint32_t /*in_flight_slot*/)
+    {
+        return {};
+    }
+
+    // Hard requirements a layer places on the backend it's attached to.
+    // Called once by VizSession::add_layer with the backend's per-view
+    // recommended resolution, view count (1 window/offscreen, 2 kXr
+    // stereo), and in-flight image count. Direct-present layers override
+    // this to fail fast (std::invalid_argument) when a 1:1 swapchain copy
+    // would be impossible (size/stereo/slot mismatch). Default: no
+    // requirements.
+    virtual void validate_backend_compatibility(Resolution /*recommended_view_resolution*/,
+                                                uint32_t /*backend_view_count*/,
+                                                uint32_t /*backend_image_count*/) const
+    {
     }
 
     // Window-mode aspect-fit hint. nullopt = fill the tile; kXr ignores.

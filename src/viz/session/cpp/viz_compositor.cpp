@@ -301,9 +301,15 @@ void VizCompositor::render(const DisplayBackend::Frame& frame, const std::vector
     // window/offscreen letterboxing only.
     const bool xr_mode = backend_->is_xr();
 
-    // Per-layer aspect-fit tiles (window/offscreen only).
+    // Direct-present: a single ProjectionLayer copied straight to the
+    // swapchain (no shared render pass). VizSession's add_layer guarantees
+    // a direct layer is the session's only layer, so size()==1 suffices.
+    const bool direct_mode =
+        visible_layers.size() == 1 && visible_layers[0]->supports_direct_present() && backend_->supports_direct();
+
+    // Per-layer aspect-fit tiles (window/offscreen composited path only).
     std::vector<TileSlot> tiles;
-    if (!xr_mode && !visible_layers.empty())
+    if (!xr_mode && !direct_mode && !visible_layers.empty())
     {
         const float fb_aspect = static_cast<float>(rt_extent.width) / static_cast<float>(rt_extent.height);
         std::vector<float> aspects;
@@ -328,68 +334,97 @@ void VizCompositor::render(const DisplayBackend::Frame& frame, const std::vector
         vkCmdWriteTimestamp(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, gpu_timestamp_pool_, query_base + 0);
     }
 
-    // Pre-pass hook for transfer/compute work that can't run inside a
-    // render pass (e.g. QuadLayer mip-chain blits). Ordering: all
-    // layers' pre-pass run BEFORE any record(), so a layer can rely on
-    // its own pre-pass results inside record().
-    for (LayerBase* layer : visible_layers)
+    if (direct_mode)
     {
-        layer->record_pre_render_pass(command_buffer, slot);
-    }
+        // Promote the layer's latest published (color, depth) for this slot
+        // and copy straight into the swapchain — no render pass, no shared
+        // RT. acquire_direct_views must precede the wait-semaphore gather
+        // below so get_wait_semaphores reflects the promoted slot.
+        const std::vector<DirectPresentView> direct_views = visible_layers[0]->acquire_direct_views(slot);
 
-    std::array<VkClearValue, 2> clears{};
-    clears[0].color = config_.clear_color;
-    clears[1].depthStencil = { 1.0f, 0 };
-
-    VkRenderPassBeginInfo rp{};
-    rp.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    rp.renderPass = rt.render_pass();
-    rp.framebuffer = rt.framebuffer();
-    rp.renderArea.offset = { 0, 0 };
-    rp.renderArea.extent = { rt_extent.width, rt_extent.height };
-    rp.clearValueCount = static_cast<uint32_t>(clears.size());
-    rp.pClearValues = clears.data();
-
-    vkCmdBeginRenderPass(command_buffer, &rp, VK_SUBPASS_CONTENTS_INLINE);
-
-    // Window/offscreen: scissor=tile.outer + view[0].viewport=tile.content
-    // for aspect-fit letterboxing.
-    if (xr_mode)
-    {
-        const VkRect2D rt_full{ { 0, 0 }, { rt_extent.width, rt_extent.height } };
-        vkCmdSetScissor(command_buffer, 0, 1, &rt_full);
-    }
-    for (size_t i = 0; i < visible_layers.size(); ++i)
-    {
-        std::vector<ViewInfo> layer_views = frame.views;
-        if (layer_views.empty())
+        // ts1: nothing rendered into the RT; mark the point for symmetry.
+        if (gpu_timestamp_pool_ != VK_NULL_HANDLE)
         {
-            layer_views.push_back(ViewInfo{});
+            vkCmdWriteTimestamp(
+                command_buffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, gpu_timestamp_pool_, query_base + 1);
         }
-        if (!xr_mode)
+
+        backend_->record_direct(command_buffer, frame, direct_views);
+
+        // ts2: end of direct copy (ts2-ts1 = copy/transition cost).
+        if (gpu_timestamp_pool_ != VK_NULL_HANDLE)
         {
-            const VkRect2D scissor_rect = tiles[i].outer;
-            const VkRect2D viewport_rect = tiles[i].content;
-            vkCmdSetScissor(command_buffer, 0, 1, &scissor_rect);
-            layer_views[0].viewport = to_rect2d(viewport_rect);
+            vkCmdWriteTimestamp(
+                command_buffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, gpu_timestamp_pool_, query_base + 2);
         }
-        visible_layers[i]->record(command_buffer, layer_views, rt, slot);
     }
-
-    vkCmdEndRenderPass(command_buffer);
-
-    // ts1: end of render pass.
-    if (gpu_timestamp_pool_ != VK_NULL_HANDLE)
+    else
     {
-        vkCmdWriteTimestamp(command_buffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, gpu_timestamp_pool_, query_base + 1);
-    }
+        // Pre-pass hook for transfer/compute work that can't run inside a
+        // render pass (e.g. QuadLayer mip-chain blits). Ordering: all
+        // layers' pre-pass run BEFORE any record(), so a layer can rely on
+        // its own pre-pass results inside record().
+        for (LayerBase* layer : visible_layers)
+        {
+            layer->record_pre_render_pass(command_buffer, slot);
+        }
 
-    backend_->record_post_render_pass(command_buffer, frame);
+        std::array<VkClearValue, 2> clears{};
+        clears[0].color = config_.clear_color;
+        clears[1].depthStencil = { 1.0f, 0 };
 
-    // ts2: end of backend post-pass (ts2-ts1 = blit/transition cost).
-    if (gpu_timestamp_pool_ != VK_NULL_HANDLE)
-    {
-        vkCmdWriteTimestamp(command_buffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, gpu_timestamp_pool_, query_base + 2);
+        VkRenderPassBeginInfo rp{};
+        rp.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        rp.renderPass = rt.render_pass();
+        rp.framebuffer = rt.framebuffer();
+        rp.renderArea.offset = { 0, 0 };
+        rp.renderArea.extent = { rt_extent.width, rt_extent.height };
+        rp.clearValueCount = static_cast<uint32_t>(clears.size());
+        rp.pClearValues = clears.data();
+
+        vkCmdBeginRenderPass(command_buffer, &rp, VK_SUBPASS_CONTENTS_INLINE);
+
+        // Window/offscreen: scissor=tile.outer + view[0].viewport=tile.content
+        // for aspect-fit letterboxing.
+        if (xr_mode)
+        {
+            const VkRect2D rt_full{ { 0, 0 }, { rt_extent.width, rt_extent.height } };
+            vkCmdSetScissor(command_buffer, 0, 1, &rt_full);
+        }
+        for (size_t i = 0; i < visible_layers.size(); ++i)
+        {
+            std::vector<ViewInfo> layer_views = frame.views;
+            if (layer_views.empty())
+            {
+                layer_views.push_back(ViewInfo{});
+            }
+            if (!xr_mode)
+            {
+                const VkRect2D scissor_rect = tiles[i].outer;
+                const VkRect2D viewport_rect = tiles[i].content;
+                vkCmdSetScissor(command_buffer, 0, 1, &scissor_rect);
+                layer_views[0].viewport = to_rect2d(viewport_rect);
+            }
+            visible_layers[i]->record(command_buffer, layer_views, rt, slot);
+        }
+
+        vkCmdEndRenderPass(command_buffer);
+
+        // ts1: end of render pass.
+        if (gpu_timestamp_pool_ != VK_NULL_HANDLE)
+        {
+            vkCmdWriteTimestamp(
+                command_buffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, gpu_timestamp_pool_, query_base + 1);
+        }
+
+        backend_->record_post_render_pass(command_buffer, frame);
+
+        // ts2: end of backend post-pass (ts2-ts1 = blit/transition cost).
+        if (gpu_timestamp_pool_ != VK_NULL_HANDLE)
+        {
+            vkCmdWriteTimestamp(
+                command_buffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, gpu_timestamp_pool_, query_base + 2);
+        }
     }
 
     // ts3: cmd-buffer-end (total = ts3-ts0).
@@ -456,9 +491,15 @@ void VizCompositor::render(const DisplayBackend::Frame& frame, const std::vector
     submit_or_signal_fence(submit, "vkQueueSubmit", slot_sync.in_flight_fence());
     cmd_guard.released = true;
 
-    // No trailing host wait — the slot's fence is gated by the next
-    // render that targets this slot. GPU timing forces a synchronous
-    // wait to read query results; opt-in only.
+    // No trailing host wait: the slot's fence gates the NEXT render into this
+    // slot (cmd buffer + depth staging reuse), and OpenXR guarantees the
+    // runtime reads the swapchain only after our queue-submitted writes
+    // complete (queue ordering — the same VkQueue we bound to the session).
+    // Host-waiting here would block xrBeginFrame..xrEndFrame for a full GPU
+    // frame, pushing xrEndFrame past predictedDisplayTime and forcing the
+    // runtime to reproject every frame (visible tearing/judder under motion).
+    // holohub's xr_gsplat pipelines the same way. The gpu_timing path still
+    // waits — it has to read back the timestamp queries.
     if (gpu_timestamp_pool_ != VK_NULL_HANDLE)
     {
         slot_sync.wait();

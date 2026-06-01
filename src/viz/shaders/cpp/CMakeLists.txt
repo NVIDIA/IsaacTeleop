@@ -47,15 +47,10 @@ endfunction()
 # Shader programs:
 #   textured_quad   — fullscreen / placed quad sampling a combined image
 #                     sampler. Used by QuadLayer.
-#   projection_layer — fullscreen quad sampling color + depth and
-#                     writing gl_FragDepth for Z-composite with other
-#                     layers. Used by ProjectionLayer (two variants:
-#                     with and without depth output).
+# (ProjectionLayer is direct-present-only — it copies its color/depth
+# images straight to the swapchains, so it owns no shaders.)
 compile_shader(textured_quad.vert            kTexturedQuadVertSpv)
 compile_shader(textured_quad.frag            kTexturedQuadFragSpv)
-compile_shader(projection_layer.vert         kProjectionLayerVertSpv)
-compile_shader(projection_layer.frag         kProjectionLayerFragSpv)
-compile_shader(projection_layer_no_depth.frag kProjectionLayerFragNoDepthSpv)
 
 # INTERFACE library exposing the generated headers + a phony custom
 # target that ensures the headers exist before any consumer compiles.

@@ -115,12 +115,12 @@ Construct via ``VizSession.create(config)``. Add layers with
             [](viz::VizSession& self, viz::ProjectionLayer::Config config) -> viz::ProjectionLayer*
             {
                 const auto* ctx = self.get_vk_context();
-                const auto render_pass = self.get_render_pass();
-                if (ctx == nullptr || render_pass == VK_NULL_HANDLE)
+                if (ctx == nullptr)
                 {
                     throw std::runtime_error("VizSession: cannot add layer before session is initialized");
                 }
-                return self.add_layer<viz::ProjectionLayer>(*ctx, render_pass, std::move(config));
+                // ProjectionLayer is direct-present-only — no render pass.
+                return self.add_layer<viz::ProjectionLayer>(*ctx, std::move(config));
             },
             "config"_a, py::return_value_policy::reference_internal,
             "Construct + register a ProjectionLayer. Returns a non-owning handle.")
