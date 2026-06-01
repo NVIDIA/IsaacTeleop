@@ -3,12 +3,13 @@
 
 cmake_minimum_required(VERSION 3.20)
 
-# Header-only INTERFACE library exposing test_helpers.hpp:
+# Header-only INTERFACE library exposing <viz/test_support/test_helpers.hpp>:
 # is_gpu_available(), shared_vk_context(), GpuFixture. Used by all
-# viz_*_tests so the probes have one canonical implementation.
+# viz_*_tests so the probes have one canonical implementation. Exports inc/
+# (not the dir root) so consumers include it with the viz/test_support prefix.
 add_library(viz_test_support INTERFACE)
 target_include_directories(viz_test_support INTERFACE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
 )
 target_link_libraries(viz_test_support INTERFACE
     viz::core

@@ -11,14 +11,13 @@
 // VizSession + LayerBase dispatch + readback path. Everything that ships
 // in this milestone, exercised in one test.
 
-#include "test_helpers.hpp"
-
 #include <catch2/catch_test_macros.hpp>
 #include <viz/core/host_image.hpp>
 #include <viz/core/vk_context.hpp>
 #include <viz/layers/testing/clear_rect_layer.hpp>
 #include <viz/layers/testing/throwing_layer.hpp>
 #include <viz/session/viz_session.hpp>
+#include <viz/test_support/test_helpers.hpp>
 
 #include <cstdint>
 #include <stdexcept>

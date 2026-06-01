@@ -6,11 +6,10 @@
 //   B. Render hot path stays under a per-frame allocation ceiling.
 // Run against kOffscreen for CI determinism; same code paths run on kXr.
 
-#include "test_helpers.hpp"
-
 #include <catch2/catch_test_macros.hpp>
 #include <viz/layers/testing/clear_rect_layer.hpp>
 #include <viz/session/viz_session.hpp>
+#include <viz/test_support/test_helpers.hpp>
 
 #include <atomic>
 #include <cstdlib>

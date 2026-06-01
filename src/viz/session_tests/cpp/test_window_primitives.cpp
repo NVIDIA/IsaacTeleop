@@ -4,14 +4,13 @@
 // [gpu][window] tests for GlfwWindow, Swapchain, and the VizSession
 // kWindow render loop. Skip cleanly without a display.
 
-#include "test_helpers.hpp"
-
 #include <catch2/catch_test_macros.hpp>
 #include <viz/core/vk_context.hpp>
 #include <viz/layers/quad_layer.hpp>
 #include <viz/session/glfw_window.hpp>
 #include <viz/session/swapchain.hpp>
 #include <viz/session/viz_session.hpp>
+#include <viz/test_support/test_helpers.hpp>
 
 #include <array>
 #include <cstdint>

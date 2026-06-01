@@ -1,11 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-#include "test_helpers.hpp"
-
 #include <catch2/catch_test_macros.hpp>
 #include <viz/core/render_target.hpp>
 #include <viz/core/vk_context.hpp>
+#include <viz/test_support/test_helpers.hpp>
 #include <vulkan/vulkan.h>
 
 #include <stdexcept>

@@ -6,13 +6,12 @@
 // lives in viz_session_tests where the full VizSession pipeline is
 // available.
 
-#include "test_helpers.hpp"
-
 #include <catch2/catch_test_macros.hpp>
 #include <viz/core/render_target.hpp>
 #include <viz/core/viz_buffer.hpp>
 #include <viz/core/vk_context.hpp>
 #include <viz/layers/quad_layer.hpp>
+#include <viz/test_support/test_helpers.hpp>
 
 #include <cstdint>
 #include <cuda_runtime.h>
