@@ -156,6 +156,10 @@ export class CloudXR2DUI {
   private controllerModelVisibilitySelect!: HTMLSelectElement;
   /** Skip client CloudXR `render` (headless: client blit off; tracking on) */
   private headlessInput!: HTMLInputElement;
+  /** Cap tracking bulk uplink rate (pose, controllers, hands, body) */
+  private trackingUplinkThrottleInput!: HTMLInputElement;
+  /** Max tracking uplink rate when throttle is enabled */
+  private trackingUplinkMaxHzSelect!: HTMLSelectElement;
   /** Breadcrumb subtitle in header (e.g. "for Real Robot › GEAR › Dexmate"). */
   private teleopModeSubtitle!: HTMLElement;
   /** Hierarchical project selector in header */
@@ -216,6 +220,7 @@ export class CloudXR2DUI {
       this.posePredictionFactorValue.textContent = this.posePredictionFactorInput.value;
       this.updateConfiguration();
       this.updateNetworkLatencyModeUi();
+      this.updateTrackingUplinkThrottleUi();
       this.updateDeviceProfileWarning(resolveDeviceProfileId(this.deviceProfileSelect.value));
       this.updateConnectButtonState();
       this.initialized = true;
@@ -412,6 +417,10 @@ export class CloudXR2DUI {
       'controllerModelVisibility'
     );
     this.headlessInput = this.getElement<HTMLInputElement>('cloudxrHeadless');
+    this.trackingUplinkThrottleInput = this.getElement<HTMLInputElement>(
+      'cloudxrTrackingUplinkThrottle'
+    );
+    this.trackingUplinkMaxHzSelect = this.getElement<HTMLSelectElement>('trackingUplinkMaxHz');
     this.teleopModeSubtitle = this.getElement<HTMLElement>('teleopModeSubtitle');
     this.teleopProjectSelect = this.getElement<HTMLSelectElement>('teleopProjectSelect');
   }
@@ -463,6 +472,8 @@ export class CloudXR2DUI {
       useQuestColorWorkaround: false,
       hideControllerModel: false,
       headless: false,
+      enableTrackingUplinkThrottle: false,
+      trackingUplinkMaxHz: 30,
       teleopPath: DEFAULT_TELEOP_PATH,
     };
   }
@@ -499,6 +510,17 @@ export class CloudXR2DUI {
     enableLocalStorage(this.mediaAddressInput, 'mediaAddress');
     enableLocalStorage(this.mediaPortInput, 'mediaPort');
     enableLocalStorage(this.controllerModelVisibilitySelect, 'controllerModelVisibility');
+    enableLocalStorage(this.trackingUplinkMaxHzSelect, 'trackingUplinkMaxHz');
+    this.loadTrackingUplinkThrottleFromLocalStorage();
+  }
+
+  private loadTrackingUplinkThrottleFromLocalStorage(): void {
+    try {
+      this.trackingUplinkThrottleInput.checked =
+        localStorage.getItem('cloudxrTrackingUplinkThrottle') === 'true';
+    } catch {
+      this.trackingUplinkThrottleInput.checked = false;
+    }
   }
 
   /**
@@ -617,6 +639,21 @@ export class CloudXR2DUI {
     addListener(this.headlessInput, 'change', () => {
       savePerProject('headless', this.teleopPath, this.headlessInput.checked ? 'true' : 'false');
       this.applyHeadlessImmersiveDropdown();
+      this.updateConfiguration();
+    });
+    addListener(this.trackingUplinkThrottleInput, 'change', () => {
+      try {
+        localStorage.setItem(
+          'cloudxrTrackingUplinkThrottle',
+          this.trackingUplinkThrottleInput.checked ? 'true' : 'false'
+        );
+      } catch {
+        // ignore
+      }
+      this.updateTrackingUplinkThrottleUi();
+      this.updateConfiguration();
+    });
+    addListener(this.trackingUplinkMaxHzSelect, 'change', () => {
       this.updateConfiguration();
     });
 
@@ -802,6 +839,10 @@ export class CloudXR2DUI {
       // See immersiveMode above: when true, callers must start an immersive-vr WebXR session.
       headless: this.headlessInput.checked,
       panelHiddenAtStart: this.panelHiddenAtStartSelect.value === 'true',
+      enableTrackingUplinkThrottle: this.trackingUplinkThrottleInput.checked,
+      trackingUplinkMaxHz:
+        parseInt(this.trackingUplinkMaxHzSelect.value, 10) ||
+        this.getDefaultConfiguration().trackingUplinkMaxHz,
       teleopPath: this.teleopPath,
     };
 
@@ -893,14 +934,25 @@ export class CloudXR2DUI {
     }
   }
 
+  private updateTrackingUplinkThrottleUi(): void {
+    const enabled = this.trackingUplinkThrottleInput.checked;
+    this.trackingUplinkMaxHzSelect.disabled = !enabled;
+    const help = document.getElementById('trackingUplinkMaxHzHelp');
+    if (help) {
+      help.textContent = enabled
+        ? 'Maximum rate for all tracking bulk messages (pose, controllers, hands, body).'
+        : 'Enable tracking uplink throttle above to set a max rate.';
+    }
+  }
+
   private updateNetworkLatencyModeUi(): void {
     const low = this.networkLatencyModeSelect.value === 'LOW';
     this.maxStreamingBitrateMbpsSelect.disabled = low;
     const help = document.getElementById('networkLatencyModeHelp');
     if (help) {
       help.textContent = low
-        ? 'Low mode sets ~15 Mbit/s max bitrate, Ragnarok DRC, ~30 Hz pose/controller uplink, and disables hand/body bulk. Settings below do not apply.'
-        : 'Default: full-rate tracking (including hands/body), Ragnarok ALL adaptive streaming. Set max Mbps below.';
+        ? 'Low mode sets ~15 Mbit/s max bitrate and Ragnarok DRC. Settings below do not apply.'
+        : 'Default: Ragnarok ALL adaptive streaming. Set max Mbps below.';
     }
   }
 

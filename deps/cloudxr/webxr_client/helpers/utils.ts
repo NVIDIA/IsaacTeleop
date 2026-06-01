@@ -146,8 +146,14 @@ export interface CloudXRConfig {
   /** Maximum streaming bitrate in Megabits per second (Mbps) */
   maxStreamingBitrateMbps: number;
 
-  /** CloudXR network latency preset (`LOW` caps bitrate and throttles tracking uplink for congested links). */
+  /** CloudXR network latency preset (`LOW` caps downstream bitrate for congested links). */
   networkLatencyMode?: 'DEFAULT' | 'LOW';
+
+  /** Cap tracking bulk uplink rate (pose, controllers, hands, body) */
+  enableTrackingUplinkThrottle?: boolean;
+
+  /** Max tracking uplink rate in Hz when throttle is enabled */
+  trackingUplinkMaxHz?: number;
 
   /** Preferred video codec used for streaming */
   codec?: 'h264' | 'h265' | 'av1';

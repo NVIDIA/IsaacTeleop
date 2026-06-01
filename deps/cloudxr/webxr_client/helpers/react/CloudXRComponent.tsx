@@ -249,7 +249,7 @@ export default function CloudXRComponent({
             networkLatencyMode: lowLatency
               ? CloudXR.NetworkLatencyMode.Low
               : CloudXR.NetworkLatencyMode.Default,
-            // LOW preset sets bitrate, DRC, and tracking uplink in SessionImpl; do not override.
+            // LOW preset sets bitrate and DRC in SessionImpl; do not override.
             ...(lowLatency
               ? {}
               : { maxStreamingBitrateKbps: config.maxStreamingBitrateMbps * 1000 }),
@@ -269,6 +269,12 @@ export default function CloudXRComponent({
               },
             },
           };
+
+          // Requires cloudxr-js with UplinkThrottle support; harmless on older SDK tarballs.
+          Object.assign(cloudXROptions, {
+            enableTrackingUplinkThrottle: config.enableTrackingUplinkThrottle ?? false,
+            trackingUplinkMaxHz: config.trackingUplinkMaxHz ?? 30,
+          });
 
           // Store the render target and key GL bindings to restore after CloudXR rendering
           const cloudXRDelegates: CloudXR.SessionDelegates = {

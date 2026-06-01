@@ -730,7 +730,26 @@ limitations under the License.
                         <option value="LOW">Low (congested Wi‑Fi)</option>
                     </select>
                     <div id="networkLatencyModeHelp" class="config-text">
-                        Default: full-rate tracking and Mbps below. Low: applies ~15 Mbit/s, Ragnarok DRC, and throttled pose/controller uplink (ignores Mbps).
+                        Default: set max Mbps below with Ragnarok ALL adaptive streaming. Low: applies ~15 Mbit/s and Ragnarok DRC (ignores Mbps).
+                    </div>
+                </div>
+
+                <div class="config-section">
+                    <label for="cloudxrTrackingUplinkThrottle" class="input-label">Tracking Uplink Throttle</label>
+                    <div class="config-text">
+                        <input type="checkbox" id="cloudxrTrackingUplinkThrottle" class="config-input" style="width: auto; margin-right: 0.5em" aria-label="Cap tracking uplink rate">
+                        <span>Cap tracking uplink (pose, controllers, hands, body) to reduce bandwidth.</span>
+                    </div>
+                    <label for="trackingUplinkMaxHz" class="input-label">Max Uplink Rate (Hz)</label>
+                    <select id="trackingUplinkMaxHz" class="ui-input config-input">
+                        <option value="15">15 Hz</option>
+                        <option value="30" selected>30 Hz</option>
+                        <option value="45">45 Hz</option>
+                        <option value="60">60 Hz</option>
+                        <option value="90">90 Hz</option>
+                    </select>
+                    <div id="trackingUplinkMaxHzHelp" class="config-text">
+                        Maximum rate for all tracking bulk messages when throttle is enabled.
                     </div>
                 </div>
 
