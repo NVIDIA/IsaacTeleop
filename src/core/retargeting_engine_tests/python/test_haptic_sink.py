@@ -5,23 +5,24 @@
 Tests for ``HapticSink``: vendor-agnostic dispatch from the retargeting graph
 to whatever ``IHapticDevice`` adapter is plugged in.
 
-The sink is a sink-only node modelled after ``MessageChannelSink``: its only
-output is a heartbeat boolean used so ``OutputCombiner`` discovers it as a
-graph leaf. The behaviour we need to lock down here is
+``HapticSink`` is an ``IDeviceIOSink`` -- a terminal node with no graph outputs.
+The behaviour we lock down here is:
 
-* the accepted-type round-trip (so connect-time type checking works), and
-* the per-side dispatch contract — call ``device.apply(side, values)`` only
-  when the side is both present in inputs *and* ``device.supports(side)``.
+* the accepted-type round-trip (so connect-time type checking works),
+* one optional input port per device endpoint,
+* the per-endpoint dispatch contract -- call ``device.apply(endpoint, values)``
+  only for endpoints present in the inputs this frame, and
+* the sink delegating ``get_tracker`` / ``flush_to_device`` to the device.
 """
 
-from typing import Any, List
+from typing import List, Tuple
 
 import numpy as np
 import pytest
 
 from isaacteleop.haptic_devices import IHapticDevice
 from isaacteleop.retargeting_engine.deviceio_source_nodes import HapticSink
-from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
+from isaacteleop.retargeting_engine.interface import ValueInput
 from isaacteleop.retargeting_engine.interface.base_retargeter import _make_output_group
 from isaacteleop.retargeting_engine.interface.tensor_group import (
     OptionalTensorGroup,
@@ -33,55 +34,56 @@ from isaacteleop.retargeting_engine.tensor_types import (
 
 
 class _RecordingDevice(IHapticDevice):
-    """Test double that records every ``apply()`` call.
+    """Test double that records every ``apply()`` / ``flush()`` call.
 
-    Restricting `supports()` lets the dispatch test confirm `HapticSink` honours
-    per-side availability — Haply Inverse3 will have the same shape.
+    The configurable ``endpoints`` tuple lets the dispatch tests confirm
+    ``HapticSink`` only exposes (and drives) the endpoints the device declares --
+    a single grounded Haply Inverse3 would declare ``("device",)``.
     """
 
-    def __init__(
-        self,
-        accepted=None,
-        supported_sides=("left", "right"),
-    ) -> None:
+    def __init__(self, accepted=None, endpoints=("left", "right"), tracker=None):
         self._accepted = accepted if accepted is not None else ControllerHapticPulse()
-        self._supported_sides = set(supported_sides)
-        self.calls: List[tuple[str, np.ndarray]] = []
+        self._endpoints = tuple(endpoints)
+        self._tracker = tracker
+        self.calls: List[Tuple[str, np.ndarray]] = []
+        self.flushed_with: List[object] = []
 
     def accepted_type(self):
         return self._accepted
 
-    def apply(self, side, values):
-        self.calls.append((side, np.asarray(values, dtype=np.float32).copy()))
+    def endpoints(self):
+        return self._endpoints
 
-    def supports(self, side):
-        return side in self._supported_sides
+    def apply(self, endpoint, values):
+        self.calls.append((endpoint, np.asarray(values, dtype=np.float32).copy()))
+
+    def flush(self, deviceio_session):
+        self.flushed_with.append(deviceio_session)
+
+    def get_tracker(self):
+        return self._tracker
 
 
-def _build_inputs(sink: HapticSink, *, left=None, right=None):
-    """Build a HapticSink-shaped inputs dict.
+def _build_inputs(sink: HapticSink, **values):
+    """Build a HapticSink-shaped inputs dict keyed by endpoint name.
 
-    Each side defaults to absent (an empty ``OptionalTensorGroup``) — sources
-    that are not wired in pass through ``BaseRetargeter._fill_optional_inputs``
-    as absent at runtime, and the sink must skip them.
+    Each endpoint defaults to absent (an empty ``OptionalTensorGroup``) -- ports
+    that are not wired pass through ``BaseRetargeter._fill_optional_inputs`` as
+    absent at runtime, and the sink must skip them.
     """
     inputs = {}
-    for side, value in (("left", left), ("right", right)):
-        spec = sink._inputs[side]
+    for endpoint, spec in sink.input_spec().items():
         inner = spec.inner_type if spec.is_optional else spec
         group = OptionalTensorGroup(inner)
+        value = values.get(endpoint)
         if value is not None:
             group[0] = np.asarray(value, dtype=np.float32)
-        inputs[side] = group
+        inputs[endpoint] = group
     return inputs
 
 
-def _build_outputs(sink: HapticSink):
-    return {k: _make_output_group(v) for k, v in sink.output_spec().items()}
-
-
 def _compute(sink: HapticSink, inputs):
-    outputs = _build_outputs(sink)
+    outputs = {k: _make_output_group(v) for k, v in sink.output_spec().items()}
     sink.compute(inputs, outputs)
     return outputs
 
@@ -92,14 +94,19 @@ def _compute(sink: HapticSink, inputs):
 
 
 class TestAcceptedType:
-    def test_input_spec_uses_accepted_type(self) -> None:
-        device = _RecordingDevice(accepted=ControllerHapticPulse())
+    def test_input_spec_exposes_one_optional_port_per_endpoint(self) -> None:
+        device = _RecordingDevice(
+            accepted=ControllerHapticPulse(), endpoints=("left", "right")
+        )
         sink = HapticSink("sink", device)
 
-        for side in (HapticSink.LEFT, HapticSink.RIGHT):
-            spec = sink.input_spec()[side]
-            assert spec.is_optional, "sides are optional so single-handed rigs work"
-            assert spec.inner_type.name == device.accepted_type().name
+        spec = sink.input_spec()
+        assert set(spec.keys()) == {"left", "right"}
+        for endpoint in ("left", "right"):
+            assert spec[endpoint].is_optional, (
+                "endpoints are optional so single-handed rigs work"
+            )
+            assert spec[endpoint].inner_type.name == device.accepted_type().name
 
     def test_connect_accepts_matching_upstream_type(self) -> None:
         device = _RecordingDevice(accepted=ControllerHapticPulse())
@@ -108,7 +115,7 @@ class TestAcceptedType:
         leaf = ValueInput("upstream", ControllerHapticPulse())
         # connect() raises on type mismatch; reaching the assignment is the
         # implicit success signal.
-        sink.connect({HapticSink.LEFT: leaf.output("value")})
+        sink.connect({"left": leaf.output("value")})
 
     def test_connect_rejects_mismatched_upstream_type(self) -> None:
         device = _RecordingDevice(accepted=ControllerHapticPulse())
@@ -118,7 +125,7 @@ class TestAcceptedType:
         with pytest.raises(Exception):
             # Compatibility check raises a TypeError or AssertionError depending
             # on which TensorType detects the mismatch first; either is fine.
-            sink.connect({HapticSink.LEFT: leaf.output("value")})
+            sink.connect({"left": leaf.output("value")})
 
 
 # ---------------------------------------------------------------------------
@@ -127,84 +134,86 @@ class TestAcceptedType:
 
 
 class TestDispatch:
-    def test_calls_device_apply_for_each_present_supported_side(self) -> None:
+    def test_calls_device_apply_for_each_present_endpoint(self) -> None:
         device = _RecordingDevice()
         sink = HapticSink("sink", device)
 
         # ControllerHapticPulse is [amplitude, frequency_hz, duration_s]; use
-        # distinct per-side values so the dispatch assertion can tell them apart.
+        # distinct per-endpoint values so the dispatch assertion can tell them
+        # apart.
         left_values = np.array([0.4, 200.0, 0.05], dtype=np.float32)
         right_values = np.array([0.7, 100.0, 0.10], dtype=np.float32)
         _compute(sink, _build_inputs(sink, left=left_values, right=right_values))
 
-        sides_called = {side for side, _ in device.calls}
-        assert sides_called == {"left", "right"}
-        for side, values in device.calls:
-            expected = left_values if side == "left" else right_values
+        endpoints_called = {endpoint for endpoint, _ in device.calls}
+        assert endpoints_called == {"left", "right"}
+        for endpoint, values in device.calls:
+            expected = left_values if endpoint == "left" else right_values
             np.testing.assert_array_equal(values, expected)
 
-    def test_skips_absent_sides(self) -> None:
+    def test_skips_absent_endpoints(self) -> None:
         device = _RecordingDevice()
         sink = HapticSink("sink", device)
 
         left_values = np.array([0.4, 200.0, 0.05], dtype=np.float32)
-        _compute(sink, _build_inputs(sink, left=left_values, right=None))
+        _compute(sink, _build_inputs(sink, left=left_values))
 
-        sides_called = [side for side, _ in device.calls]
-        assert sides_called == ["left"]
+        assert [endpoint for endpoint, _ in device.calls] == ["left"]
 
-    def test_skips_unsupported_sides(self) -> None:
-        device = _RecordingDevice(supported_sides=("right",))
+    def test_only_exposes_device_declared_endpoints(self) -> None:
+        device = _RecordingDevice(endpoints=("right",))
         sink = HapticSink("sink", device)
 
-        left_values = np.array([0.4, 200.0, 0.05], dtype=np.float32)
+        assert set(sink.input_spec().keys()) == {"right"}
         right_values = np.array([0.7, 100.0, 0.10], dtype=np.float32)
-        _compute(sink, _build_inputs(sink, left=left_values, right=right_values))
+        _compute(sink, _build_inputs(sink, right=right_values))
 
-        sides_called = [side for side, _ in device.calls]
-        assert sides_called == ["right"]
+        assert [endpoint for endpoint, _ in device.calls] == ["right"]
 
-    def test_no_calls_when_both_sides_absent(self) -> None:
+    def test_no_calls_when_all_endpoints_absent(self) -> None:
         device = _RecordingDevice()
         sink = HapticSink("sink", device)
 
-        _compute(sink, _build_inputs(sink, left=None, right=None))
+        _compute(sink, _build_inputs(sink))
 
         assert device.calls == []
 
 
 # ---------------------------------------------------------------------------
-# Heartbeat / discoverability
+# IDeviceIOSink contract
 # ---------------------------------------------------------------------------
 
 
-class TestHeartbeat:
-    def test_heartbeat_is_set_each_step(self) -> None:
+class TestSinkContract:
+    def test_sink_has_no_graph_outputs(self) -> None:
+        sink = HapticSink("sink", _RecordingDevice())
+        assert sink.output_spec() == {}
+
+    def test_get_tracker_delegates_to_device(self) -> None:
+        tracker = object()
+        sink = HapticSink("sink", _RecordingDevice(tracker=tracker))
+        assert sink.get_tracker() is tracker
+
+    def test_flush_to_device_delegates_to_device(self) -> None:
         device = _RecordingDevice()
         sink = HapticSink("sink", device)
 
-        outputs = _compute(sink, _build_inputs(sink, left=None, right=None))
+        sentinel_session = object()
+        sink.flush_to_device(sentinel_session)
 
-        assert outputs[HapticSink.HEARTBEAT][0] is True
+        assert device.flushed_with == [sentinel_session]
 
-    def test_sink_is_reachable_from_output_combiner(self) -> None:
-        """OutputCombiner must enumerate the sink as a leaf via the heartbeat.
-
-        This locks down the discovery invariant called out in the haptic-sink
-        docstring: a custom combiner that does not declare any sink output
-        will not discover the sink, so haptics never fire.
+    def test_sink_is_not_discovered_as_a_leaf(self) -> None:
+        """A sink is a terminal consumer, so an OutputCombiner that selects an
+        upstream output does not enumerate the sink as a leaf. The session runs
+        registered sinks explicitly instead of discovering them via heartbeats.
         """
         device = _RecordingDevice()
         sink = HapticSink("sink", device)
+        upstream = ValueInput("upstream", ControllerHapticPulse())
+        sink_graph = sink.connect({"left": upstream.output("value")})
 
-        # No upstream — just include the heartbeat so OutputCombiner walks
-        # back to the sink. Real users would wire `.LEFT`/`.RIGHT`; we are
-        # only testing graph discovery here.
-        combiner = OutputCombiner(
-            {HapticSink.HEARTBEAT: sink.output(HapticSink.HEARTBEAT)}
-        )
-
-        leaves: List[Any] = combiner.get_leaf_nodes()
-        assert sink in leaves, (
-            "HapticSink must be discoverable from a combiner that selects its heartbeat"
-        )
+        # The sink subgraph's leaves are its upstream inputs, not the sink.
+        leaves = sink_graph.get_leaf_nodes()
+        assert upstream in leaves
+        assert sink not in leaves

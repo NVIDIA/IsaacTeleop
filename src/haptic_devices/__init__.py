@@ -3,15 +3,13 @@
 
 """Vendor-agnostic haptic device adapters consumed by ``HapticSink``.
 
-Vendor-specific submodules (``openxr_controller``, ...) lazy-import their
-backing pybind11 extensions so this package always imports cleanly.
-Import the submodule directly to use a specific adapter, e.g.::
+Device submodules (``controller``, ...) lazy-import their backing pybind11
+extensions so this package always imports cleanly. Import the submodule
+directly to use a specific adapter, e.g.::
 
-    from isaacteleop.haptic_devices.openxr_controller import (
-        OpenXRControllerHapticDevice,
-    )
+    from isaacteleop.haptic_devices.controller import ControllerHapticDevice
 """
 
-from .interface import IHapticDevice
+from .interface import Endpoint, IHapticDevice
 
-__all__ = ["IHapticDevice"]
+__all__ = ["Endpoint", "IHapticDevice"]

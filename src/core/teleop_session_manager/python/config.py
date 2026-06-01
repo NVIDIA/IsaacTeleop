@@ -16,8 +16,12 @@ from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, List, Optional, Union
 
+from isaacteleop.retargeting_engine.deviceio_source_nodes import IDeviceIOSink
 from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
     GraphExecutable,
+)
+from isaacteleop.retargeting_engine.interface.retargeter_subgraph import (
+    RetargeterSubgraph,
 )
 from isaacteleop.retargeting_engine.tensor_types import BoolType
 
@@ -307,6 +311,15 @@ class TeleopSessionConfig:
             Expected outputs:
               - "teleop_state": one-hot bool group [stopped, paused, running]
               - "reset_event": single bool pulse
+        sinks: Optional list of device-output sinks. Each entry is an
+            :class:`~isaacteleop.retargeting_engine.deviceio_source_nodes.IDeviceIOSink`
+            (typically the subgraph returned by ``sink.connect({...})``).
+            ``TeleopSession`` discovers each sink subgraph's own leaves
+            (sources / external inputs feeding it), executes the sink each frame
+            *after* ``pipeline``, then calls ``flush_to_device(session)`` so the
+            device write happens in the same frame. Unlike ``pipeline``, sinks do
+            not contribute to the value returned by ``step()`` -- they are
+            side-effecting terminals (e.g. a haptic ``HapticSink``).
         trackers: Optional list of manual trackers (usually not needed - auto-discovered!)
         plugins: List of plugin configurations
         verbose: Whether to print detailed progress information during setup
@@ -367,6 +380,7 @@ class TeleopSessionConfig:
     pipeline: GraphExecutable
     mode: SessionMode = SessionMode.LIVE
     teleop_control_pipeline: Optional[GraphExecutable] = None
+    sinks: List[GraphExecutable] = field(default_factory=list)
     trackers: List[Any] = field(default_factory=list)
     plugins: List[PluginConfig] = field(default_factory=list)
     verbose: bool = True
@@ -380,6 +394,8 @@ class TeleopSessionConfig:
         """Validate configuration consistency."""
         if self.mode == SessionMode.REPLAY and self.mcap_config is None:
             raise ValueError("mcap_config is required when mode is SessionMode.REPLAY")
+
+        self._validate_sinks()
 
         if self.teleop_control_pipeline is None:
             return
@@ -436,3 +452,20 @@ class TeleopSessionConfig:
                 "teleop_control_pipeline output 'reset_event' must be a bool scalar "
                 f"(got {type(reset_event_type.types[0]).__name__})"
             )
+
+    def _validate_sinks(self) -> None:
+        """Ensure every ``sinks`` entry resolves to an ``IDeviceIOSink``.
+
+        Accepts either a bare sink node or the subgraph returned by
+        ``sink.connect({...})`` (whose ``target_module`` is the sink).
+        """
+        for entry in self.sinks:
+            target = (
+                entry.target_module if isinstance(entry, RetargeterSubgraph) else entry
+            )
+            if not isinstance(target, IDeviceIOSink):
+                raise ValueError(
+                    "TeleopSessionConfig.sinks entries must be an IDeviceIOSink "
+                    "(or a subgraph wrapping one, e.g. sink.connect({...})); got "
+                    f"{type(target).__name__}"
+                )

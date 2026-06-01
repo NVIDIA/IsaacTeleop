@@ -29,7 +29,7 @@ public:
     /// Drive the controller's haptic actuator for one frame.
     ///
     /// Bridges Isaac Teleop's haptic feedback flow (see
-    /// isaacteleop.haptic_devices.OpenXRControllerHapticDevice) to the
+    /// isaacteleop.haptic_devices.controller.ControllerHapticDevice) to the
     /// underlying runtime impl. Vendor neutral at this layer; concrete impls
     /// (e.g. the live OpenXR impl) translate to runtime-specific calls.
     ///

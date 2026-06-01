@@ -6,58 +6,52 @@ SPDX-License-Identifier: Apache-2.0
 # Haptic Feedback Examples
 
 End-to-end CLI demos for the tactile / haptic-feedback flow introduced in Isaac
-Teleop. Each demo builds a `TeleopSession` whose pipeline reaches **backwards**
-through the retargeting graph -- from a tactile-shaped signal source, through
-the per-device retargeter and `HapticSink`, into the matching
+Teleop. Each demo builds a `TeleopSession` with a device-output **sink**: a
+tactile-shaped signal feeds a per-device retargeter and a `HapticSink`
+(`IDeviceIOSink`), registered via `TeleopSessionConfig(sinks=[...])`. The
+session runs the sink each frame and then flushes it to the matching
 `IHapticDevice` adapter and out to hardware.
 
 | Example | Input | Device | What it demonstrates |
 | --- | --- | --- | --- |
-| `openxr_controller_haptic_example.py` | Controller trigger value (or a synthetic sine) | OpenXR motion controller | The full session-aware sink + source pattern (`HapticSink` + `OpenXRControllerHapticSource`) -- one `ControllerHapticPulse` per hand per frame. |
+| `controller_haptic_example.py` | Controller trigger value | Motion controller | The first-class device-output sink (`HapticSink` -> `ControllerHapticDevice`) flushed by the session after the graph -- one `ControllerHapticPulse` per endpoint per frame. |
 
-## OpenXR motion-controller haptics (`openxr_controller_haptic_example.py`)
+## Motion-controller haptics (`controller_haptic_example.py`)
 
-Drives the haptic actuator on each OpenXR motion controller through the full
-stack. Two demo modes:
-
-| Mode (default `trigger`) | Behaviour |
-| --- | --- |
-| `--mode trigger` (default; `--same-hand` to flip) | Pulling the **left** trigger rumbles the **right** controller and vice versa (cross-hand by default). |
-| `--mode sine` | Both controllers rumble on a smooth half-rectified sine envelope. No controller input required -- useful as a hardware smoke test. |
+Pull a controller's trigger and that **same** controller rumbles. This is the
+smallest end-to-end wiring of the device-output path: `TriggerToTactile` turns
+each trigger value into a `TactileVector`, `TactileVectorToControllerPulse` turns
+that into a `ControllerHapticPulse`, and the `HapticSink` drives the controller.
+Swap `TriggerToTactile` for any `TactileVector`-producing source (e.g. an Isaac
+Lab `ContactSensor` fetch) to rumble from sim contact instead.
 
 ### Pipeline
 
 ```
-ControllersSource (input)              OpenXRControllerHapticDevice
-        |                                       ^   ^
-        v                                       |   |
-TriggerToTactile  ->  TactileVectorToControllerPulse  ->  HapticSink
-                                                          |
-                                                          v
-                                          OpenXRControllerHapticSource
-                                              poll_tracker(session)
+ControllersSource (input)
+        |
+        v
+TriggerToTactile  ->  TactileVectorToControllerPulse  ->  HapticSink (IDeviceIOSink)
+                                                              |
+                                          (after the graph)   v
+                                  TeleopSession.flush_to_device(session)
+                                      -> ControllerHapticDevice.flush
+                                      -> ControllerTracker.apply_haptic_feedback
 ```
 
-The same `ControllerTracker` instance is reused by both `ControllersSource` and
-`OpenXRControllerHapticSource`, so `DeviceIOSession` only creates one
-`LiveControllerTrackerImpl` and there is no contention on the underlying
-OpenXR action set.
+The sink is registered with `TeleopSessionConfig(sinks=[sink_graph])`, not wired
+into the returned pipeline. `ControllerHapticDevice` is constructed with
+`controllers.get_tracker()`, so `DeviceIOSession` reuses the one
+`LiveControllerTrackerImpl` `ControllersSource` already owns and there is no
+contention on the underlying controller action set.
 
 ### Usage
 
 ```bash
-# Default: cross-hand trigger -> rumble (most fun on a single user).
-uv run openxr_controller_haptic_example.py
-
-# Same-hand instead of cross-hand.
-uv run openxr_controller_haptic_example.py --same-hand
-
-# Open-loop sine wave smoke test (no input needed).
-uv run openxr_controller_haptic_example.py --mode sine --sine-period 1.5
-
-# Override OpenXR pulse parameters (defaults select runtime-picked values).
-uv run openxr_controller_haptic_example.py --frequency-hz 320 --duration-s 0.05
+uv run controller_haptic_example.py
 ```
+
+No arguments: pull either trigger to rumble that controller. Press Ctrl+C to exit.
 
 ### Notes
 
@@ -65,13 +59,12 @@ uv run openxr_controller_haptic_example.py --frequency-hz 320 --duration-s 0.05
   `/user/hand/{left,right}/output/haptic` paths. Verified runtimes: Quest 2/3
   via CloudXR, Vive Index, Pico 4. Runtimes that omit `xrApplyHapticFeedback`
   silently no-op without tearing the session down.
-- `--frequency-hz 0` selects `XR_FREQUENCY_UNSPECIFIED` and `--duration-s 0`
-  selects `XR_MIN_HAPTIC_DURATION`. Both defaults work on every conformant
-  runtime, so leave them at zero unless you need a specific waveform.
-- The OpenXR controller haptic adapter is the canonical example of an
-  `IHapticDevice` that needs a session reference at write-time. See the
-  design doc (`IsaacLab/docs/tactile_haptic_feedback_design.md`, §4.7 and
-  §5.6) for the architectural rationale.
+- The controller haptic adapter (`ControllerHapticDevice`) is the in-process
+  reference for an `IHapticDevice`: `apply(endpoint, values)` stores the value
+  inside the graph
+  and `flush(session)` writes it after the graph, with the session in scope. See
+  the design doc (`IsaacLab/docs/tactile_haptic_feedback_design.md`) for the
+  architectural rationale and the cross-process (push-tensor) archetype.
 
 ## Quick start
 
@@ -86,7 +79,7 @@ cmake --build build --target install -j16
 
 # Run the demo from the install tree.
 cd install/examples/haptic_feedback/python
-uv run openxr_controller_haptic_example.py
+uv run controller_haptic_example.py
 ```
 
 ## See also

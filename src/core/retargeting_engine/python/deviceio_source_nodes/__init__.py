@@ -4,6 +4,7 @@
 """DeviceIO Source Nodes - Stateless converters from DeviceIO to retargeting engine formats."""
 
 from .interface import IDeviceIOSource
+from .sink_interface import IDeviceIOSink
 from .head_source import HeadSource
 from .hands_source import HandsSource
 from .controllers_source import ControllersSource
@@ -38,6 +39,7 @@ from .deviceio_tensor_types import (
 
 __all__ = [
     "IDeviceIOSource",
+    "IDeviceIOSink",
     "HeadSource",
     "HandsSource",
     "ControllersSource",

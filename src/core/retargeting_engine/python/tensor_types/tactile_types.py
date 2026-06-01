@@ -89,19 +89,16 @@ def TactileHeatmap(rows: int, cols: int, num_pads: int = 1) -> TensorGroupType:
 
 
 def ControllerHapticPulse() -> TensorGroupType:
-    """One-frame OpenXR motion-controller pulse ``[amplitude, frequency_hz, duration_s]``.
+    """One-frame motion-controller vibration pulse ``[amplitude, frequency_hz, duration_s]``.
 
     Fields, in order (see :class:`ControllerHapticPulseField`):
 
-    * ``amplitude`` [unitless, 0..1] -- 0 stops any active pulse via
-      :c:func:`xrStopHapticFeedback`.
-    * ``frequency_hz`` [Hz] -- ``0.0`` selects ``XR_FREQUENCY_UNSPECIFIED``
-      (the runtime's default frequency).
-    * ``duration_s`` [s] -- ``0.0`` selects ``XR_MIN_HAPTIC_DURATION``
-      (the shortest pulse the runtime supports).
+    * ``amplitude`` [unitless, 0..1] -- ``0.0`` stops any active pulse.
+    * ``frequency_hz`` [Hz] -- ``0.0`` selects the backend's default frequency.
+    * ``duration_s`` [s] -- ``0.0`` selects the shortest pulse the backend supports.
 
-    Maps directly to ``XrHapticVibration``. Consumed by
-    :class:`isaacteleop.haptic_devices.OpenXRControllerHapticDevice`.
+    Consumed by :class:`isaacteleop.haptic_devices.controller.ControllerHapticDevice`;
+    the live backend maps it to the controller's vibration actuator.
     """
     return TensorGroupType(
         "controller_haptic_pulse",
