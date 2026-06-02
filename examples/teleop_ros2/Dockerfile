@@ -103,6 +103,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     clang-format \
     cmake \
     git \
+    patchelf \
     pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
@@ -152,6 +153,14 @@ ARG PYTHON_VERSION
 
 WORKDIR /opt/isaacteleop/install/examples/teleop_ros2/python
 
+# The node launches the CloudXR runtime in-process via CloudXRLauncher, so this
+# image needs GPU access and the NVIDIA Vulkan/EGL ICDs. Run with --gpus all.
+ENV NVIDIA_VISIBLE_DEVICES=all NVIDIA_DRIVER_CAPABILITIES=all
+RUN mkdir -p /etc/vulkan/icd.d /usr/share/glvnd/egl_vendor.d
+COPY deps/cloudxr/runtime/data/10_nvidia.json /usr/share/glvnd/egl_vendor.d/
+COPY deps/cloudxr/runtime/data/nvidia_icd.json /etc/vulkan/icd.d/
+ENV VK_DRIVER_FILES=/etc/vulkan/icd.d/nvidia_icd.json
+
 COPY --from=nlopt_wheel /opt/nlopt-wheels /opt/nlopt-wheels
 
 # Pre-install heavy Python dependencies so they are cached independently of C++ builds.
@@ -159,6 +168,7 @@ COPY --from=nlopt_wheel /opt/nlopt-wheels /opt/nlopt-wheels
 COPY src/core/python/requirements.txt \
      src/core/python/requirements-retargeters.txt \
      src/core/python/requirements-grounding.txt \
+     src/core/python/requirements-cloudxr.txt \
      /tmp/
 RUN uv venv --python=${PYTHON_VERSION} && \
     uv pip install setuptools wheel && \
@@ -166,10 +176,12 @@ RUN uv venv --python=${PYTHON_VERSION} && \
         -r /tmp/requirements.txt \
         -r /tmp/requirements-retargeters.txt \
         -r /tmp/requirements-grounding.txt \
+        -r /tmp/requirements-cloudxr.txt \
         msgpack msgpack-numpy && \
     rm /tmp/requirements.txt \
        /tmp/requirements-retargeters.txt \
-       /tmp/requirements-grounding.txt
+       /tmp/requirements-grounding.txt \
+       /tmp/requirements-cloudxr.txt
 
 COPY --from=builder /opt/isaacteleop/install /opt/isaacteleop/install
 COPY --from=sharpa_urdfs /opt/sharpa-wave-urdfs/ /opt/isaacteleop/install/examples/teleop_ros2/assets/urdf/sharpa_standalone/

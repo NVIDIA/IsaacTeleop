@@ -49,6 +49,9 @@ class NodeParameters:
     config_asset_root: Path
     session_mode: SessionMode
     mcap_config: McapReplayConfig | None
+    cloudxr_install_dir: str
+    cloudxr_env_config: str | None
+    cloudxr_accept_eula: bool
     pedal_collection_id: str
     world_frame: str
     right_wrist_frame: str
@@ -57,6 +60,69 @@ class NodeParameters:
     transform_rotation: Rotation | None
     left_finger_joint_name_aliases: list[str] | None
     right_finger_joint_name_aliases: list[str] | None
+
+
+def _load_cloudxr(node: Node) -> tuple[str, str | None, bool]:
+    node.declare_parameter(
+        "cloudxr_install_dir",
+        "~/.cloudxr",
+        ParameterDescriptor(
+            type=ParameterType.PARAMETER_STRING,
+            description=(
+                "CloudXR install directory used by the in-process "
+                "CloudXRLauncher (runtime + WSS proxy). Defaults to ~/.cloudxr."
+            ),
+        ),
+    )
+    node.declare_parameter(
+        "cloudxr_env_config",
+        "",
+        ParameterDescriptor(
+            type=ParameterType.PARAMETER_STRING,
+            description=(
+                "Optional CloudXR env file (KEY=value per line) passed to "
+                "CloudXRLauncher to override default CloudXR env vars. Empty "
+                "uses the built-in defaults."
+            ),
+        ),
+    )
+    node.declare_parameter(
+        "cloudxr_accept_eula",
+        False,
+        ParameterDescriptor(
+            type=ParameterType.PARAMETER_BOOL,
+            description=(
+                "Accept the NVIDIA CloudXR EULA non-interactively. Required for "
+                "container/non-interactive runs; otherwise the launcher prompts "
+                "on stdin the first time."
+            ),
+        ),
+    )
+
+    install_dir = (
+        node.get_parameter("cloudxr_install_dir")
+        .get_parameter_value()
+        .string_value.strip()
+    ) or "~/.cloudxr"
+
+    env_config_str = (
+        node.get_parameter("cloudxr_env_config")
+        .get_parameter_value()
+        .string_value.strip()
+    )
+    env_config: str | None = None
+    if env_config_str:
+        env_config_path = Path(env_config_str).expanduser()
+        if not env_config_path.is_file():
+            raise FileNotFoundError(
+                f"cloudxr_env_config file not found: {env_config_path}"
+            )
+        env_config = str(env_config_path)
+
+    accept_eula = (
+        node.get_parameter("cloudxr_accept_eula").get_parameter_value().bool_value
+    )
+    return install_dir, env_config, accept_eula
 
 
 def _load_config_asset_root(node: Node) -> Path:
@@ -355,6 +421,7 @@ def create_node_parameters(node: Node) -> NodeParameters:
     ) = _load_hand_retargeter(node, mode)
     config_asset_root = _load_config_asset_root(node)
     session_mode, mcap_config = _load_mcap_replay(node)
+    cloudxr_install_dir, cloudxr_env_config, cloudxr_accept_eula = _load_cloudxr(node)
     pedal_collection_id = _load_pedal_collection_id(node)
     world_frame, right_wrist_frame, left_wrist_frame = _load_frames(node)
     transform_translation = _load_transform_translation(node)
@@ -371,6 +438,9 @@ def create_node_parameters(node: Node) -> NodeParameters:
         config_asset_root=config_asset_root,
         session_mode=session_mode,
         mcap_config=mcap_config,
+        cloudxr_install_dir=cloudxr_install_dir,
+        cloudxr_env_config=cloudxr_env_config,
+        cloudxr_accept_eula=cloudxr_accept_eula,
         pedal_collection_id=pedal_collection_id,
         world_frame=world_frame,
         right_wrist_frame=right_wrist_frame,

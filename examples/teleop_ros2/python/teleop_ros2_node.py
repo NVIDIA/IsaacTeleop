@@ -53,7 +53,8 @@ from sensor_msgs.msg import JointState
 from std_msgs.msg import ByteMultiArray
 from tf2_ros import TransformBroadcaster
 
-from isaacteleop.teleop_session_manager import TeleopSession
+from isaacteleop.cloudxr import CloudXRLauncher
+from isaacteleop.teleop_session_manager import SessionMode, TeleopSession
 from geometry import make_transform
 from messages import (
     build_controller_payload,
@@ -282,12 +283,17 @@ class TeleopRos2Node(Node):
         pose_msg.pose.orientation.w = 1.0
         self._pub_root_pose.publish(pose_msg)
 
-    def run(self) -> int:
+    def _run_session_loop(self, launcher: CloudXRLauncher | None = None) -> int:
         while rclpy.ok():
             try:
                 with TeleopSession(self._config) as session:
                     self.get_logger().info("TeleopSession started successfully")
                     while rclpy.ok():
+                        # Surface a dead CloudXR runtime/WSS proxy as an error
+                        # instead of silently stepping a session with no source.
+                        if launcher is not None:
+                            launcher.health_check()
+
                         result = session.step()
 
                         # Keep ROS time and other callbacks updated in this
@@ -310,12 +316,33 @@ class TeleopRos2Node(Node):
             except RuntimeError as e:
                 if "Failed to get OpenXR system" not in str(e):
                     raise
+                # The CloudXR runtime is up but no headset/WebXR client has
+                # connected yet, so xrGetSystem reports no HMD. Keep the
+                # runtime alive (launcher stays open) and retry the session.
                 self.get_logger().warn(
                     f"No XR client connected ({e}), retrying in 2s..."
                 )
                 time.sleep(2.0)
 
         return 0
+
+    def run(self) -> int:
+        # MCAP replay reads recorded tracker data and needs no live runtime; a
+        # live session needs the CloudXR runtime + WSS proxy, which the node now
+        # owns in-process via CloudXRLauncher (no separate runtime process).
+        if self._params.session_mode != SessionMode.LIVE:
+            return self._run_session_loop()
+
+        with CloudXRLauncher(
+            install_dir=self._params.cloudxr_install_dir,
+            env_config=self._params.cloudxr_env_config,
+            accept_eula=self._params.cloudxr_accept_eula,
+        ) as launcher:
+            self.get_logger().info(
+                "CloudXR runtime and WSS proxy started "
+                f"(WSS log: {launcher.wss_log_path})"
+            )
+            return self._run_session_loop(launcher)
 
 
 def main() -> int:

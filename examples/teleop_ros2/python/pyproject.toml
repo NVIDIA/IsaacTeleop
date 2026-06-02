@@ -7,7 +7,7 @@ version = "0.1.0"
 description = "Isaac Teleop ROS2 Example"
 requires-python = ">=3.10,<3.14"
 dependencies = [
-    "isaacteleop[grounding,retargeters]",
+    "isaacteleop[cloudxr,grounding,retargeters]",
     "msgpack",
     "msgpack-numpy",
     # The ROS node installs pink_ik and dexpilot together. Require nlopt>=2.8 so
