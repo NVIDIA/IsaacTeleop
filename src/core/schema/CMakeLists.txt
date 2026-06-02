@@ -3,7 +3,10 @@
 
 cmake_minimum_required(VERSION 3.20)
 
-add_subdirectory(fbs)
+# FlatBuffer schemas are this module's language-neutral contract; each binding
+# generates its own code from them.
+set(SCHEMA_FBS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/fbs)
+
 add_subdirectory(cpp)
 
 # ==============================================================================

@@ -4,20 +4,30 @@
 cmake_minimum_required(VERSION 3.20)
 
 # ==============================================================================
-# Schema Library (C++ utilities)
+# Schema library (isaacteleop_schema)
 # ==============================================================================
-# Library containing generated FlatBuffer schema types.
+# Generates C++ headers from the module's FlatBuffer schemas and exposes them,
+# with the FlatBuffers runtime, under the <schema/...> prefix.
+
+include(${CMAKE_SOURCE_DIR}/cmake/GenerateFlatBuffers.cmake)
+
+generate_flatbuffer_headers(
+  SCHEMA_GENERATED_HEADERS
+  ${SCHEMA_FBS_DIR}
+  ${CMAKE_CURRENT_BINARY_DIR}/generated/schema
+)
+
+add_custom_target(schema_header_generation
+  DEPENDS ${SCHEMA_GENERATED_HEADERS}
+)
 
 add_library(isaacteleop_schema INTERFACE)
 add_dependencies(isaacteleop_schema schema_header_generation)
 
-# Include directories for generated headers and FlatBuffers runtime.
 target_include_directories(isaacteleop_schema INTERFACE
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/../fbs/generated>
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>
 )
 
-# Link FlatBuffers runtime (target created by FetchContent in deps/third_party).
 target_link_libraries(isaacteleop_schema INTERFACE
   flatbuffers
 )
