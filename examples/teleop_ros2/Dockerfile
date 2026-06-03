@@ -97,9 +97,17 @@ FROM base AS builder
 ARG ROS_DISTRO
 ARG PYTHON_VERSION
 ARG BUNDLE_ROBOTIC_GROUNDING=false
+ARG TARGETARCH
+
+# Compiler cache. CCACHE_DIR points at a BuildKit cache mount kept on the
+# runner's local BuildKit storage (not the image, not GitHub Actions cache),
+# so unchanged translation units are reused across builds. Bounded so it
+# self-evicts LRU instead of growing without limit.
+ENV CCACHE_DIR=/ccache CCACHE_MAXSIZE=5G
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    ccache \
     clang-format \
     cmake \
     git \
@@ -110,19 +118,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /opt/isaacteleop
 COPY . /opt/isaacteleop
 
-# Wipe any stale wheels before building:
-#   - `install/` may arrive via `COPY . /opt/isaacteleop` when the host context
-#     contains an extracted build-ubuntu artifact tarball.
-#   - `build/wheels/` lives inside the persistent cmake build cache mount and
-#     accumulates one wheel per VERSION the cache has ever seen; `cmake
-#     --install` copies the entire directory.
-# Either source can pollute find-links with an isaacteleop wheel that is not
-# the one this build just produced.
-RUN --mount=type=cache,target=/opt/isaacteleop/build,id=isaacteleop-teleop-ros2-build-${ROS_DISTRO} \
-    rm -rf /opt/isaacteleop/install /opt/isaacteleop/build/wheels \
+# Remove any install/ or build/ copied in from the host context (an extracted
+# build-ubuntu artifact tree can carry both). A stale install/wheels/ would
+# pollute find-links with an isaacteleop wheel that is not the one this build
+# produces; a stale build/ would skip a clean CMake reconfigure. The build tree
+# is rebuilt from scratch every time -- ccache keeps recompiles cheap -- so each
+# build reconfigures against the current image rather than trusting cached
+# configure results.
+RUN --mount=type=cache,target=/ccache,id=isaacteleop-teleop-ros2-ccache-${ROS_DISTRO}-${TARGETARCH} \
+    rm -rf /opt/isaacteleop/install /opt/isaacteleop/build \
     && cmake -B build -S . \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=/opt/isaacteleop/install \
+        -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+        -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
         -DBUILD_EXAMPLES=OFF \
         -DBUILD_EXAMPLE_TELEOP_ROS2=ON \
         -DBUILD_TESTING=OFF \
@@ -132,7 +141,8 @@ RUN --mount=type=cache,target=/opt/isaacteleop/build,id=isaacteleop-teleop-ros2-
         -DBUNDLE_ROBOTIC_GROUNDING=${BUNDLE_ROBOTIC_GROUNDING} \
         -DISAAC_TELEOP_PYTHON_VERSION=${PYTHON_VERSION} \
     && cmake --build build --config Release -j$(nproc) \
-    && cmake --install build --config Release
+    && cmake --install build --config Release \
+    && ccache --show-stats
 
 COPY --chmod=644 <<EOF /usr/local/bin/teleop-env-setup
 source /opt/ros/${ROS_DISTRO}/setup.bash
