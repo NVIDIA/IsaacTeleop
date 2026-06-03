@@ -24,6 +24,7 @@ Key features:
 - **Standardized device interface** for XR headsets, gloves, foot pedals, body trackers
 - **Flexible retargeting** to different robot embodiments
 - **Plugin system** for adding new devices and use cases
+- **Markerless hand reconstruction** from egocentric video into 4D hand and camera poses (monocular supported, stereo on the roadmap)
 
 .. tip::
 
