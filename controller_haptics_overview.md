@@ -52,7 +52,8 @@ trigger value, ...)                    (TactileVectorToControllerPulse,
                                      |   -> ControllerHapticDevice      |
                                      |        .flush(session)            |
                                      |   -> ControllerTracker            |
-                                     |        .apply_haptic_feedback(...) |
+                                     |        .apply_{left,right}_        |
+                                     |          haptic_feedback(...)      |
                                      +----------------+-----------------+
                                                       v
                                        xrApplyHapticFeedback /
@@ -68,12 +69,15 @@ trigger value, ...)                    (TactileVectorToControllerPulse,
    endpoint present in its inputs this frame. `apply` only *stores* the latest
    value per endpoint — `_compute_fn` has no `XrSession` in scope.
 3. After the graph runs, `TeleopSession` calls `sink.flush_to_device(session)`,
-   which delegates to `ControllerHapticDevice.flush(session)`. That drains
-   the stored pulses and forwards each to `controller_tracker.apply_haptic_feedback(
-   session, endpoint, amplitude, frequency_hz, duration_s)`.
-4. The pybind shim translates `endpoint` (`"left"`/`"right"`) → `is_left` and
-   dispatches to `core::ControllerTracker::apply_haptic_feedback`, which forwards
-   to `LiveControllerTrackerImpl::apply_haptic_feedback`.
+   which delegates to `ControllerHapticDevice.flush(session)`. That forwards
+   each stored pulse to the tracker's per-side
+   `apply_left_haptic_feedback(session, amplitude, frequency_hz, duration_s)` /
+   `apply_right_haptic_feedback(...)` — the single point where the `"left"` /
+   `"right"` endpoint names map to the per-side DeviceIO API (mirroring
+   `get_left_controller` / `get_right_controller` on the read side).
+4. `core::ControllerTracker::apply_{left,right}_haptic_feedback` forwards to
+   `LiveControllerTrackerImpl::apply_haptic_feedback`, an internal helper that
+   still takes a side index.
 5. The impl maps:
     - `amplitude == 0` → `xrStopHapticFeedback`
     - `amplitude > 0` → `xrApplyHapticFeedback` with
@@ -91,7 +95,7 @@ trigger value, ...)                    (TactileVectorToControllerPulse,
 | Device-side schema | `ControllerHapticPulse` (`TensorGroupType`) | `isaacteleop.retargeting_engine.tensor_types.tactile_types` |
 | Per-device mappers | `TactileVectorToControllerPulse`, `TactileHeatmapToControllerPulse` | `isaacteleop.retargeters.tactile_retargeters` |
 | Controller device adapter | `ControllerHapticDevice` (`IHapticDevice`) | `isaacteleop.haptic_devices.controller` |
-| C++ tracker public API | `core::ControllerTracker::apply_haptic_feedback` | `src/core/deviceio_trackers/cpp/controller_tracker.{hpp,cpp}` |
+| C++ tracker public API | `core::ControllerTracker::apply_left_haptic_feedback` / `apply_right_haptic_feedback` | `src/core/deviceio_trackers/cpp/controller_tracker.{hpp,cpp}` |
 | C++ tracker abstract impl | `core::IControllerTrackerImpl::apply_haptic_feedback` | `src/core/deviceio_base/cpp/inc/deviceio_base/controller_tracker_base.hpp` |
 | Live OpenXR impl | `core::LiveControllerTrackerImpl::apply_haptic_feedback` | `src/core/live_trackers/cpp/live_controller_tracker_impl.{hpp,cpp}` |
 | Replay impl (no-op) | `core::ReplayControllerTrackerImpl::apply_haptic_feedback` | `src/core/replay_trackers/cpp/replay_controller_tracker_impl.hpp` |

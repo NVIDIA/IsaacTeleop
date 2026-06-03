@@ -12,7 +12,8 @@ session in scope) and writes them out in ``flush(session)`` (called by
 * Store/emit semantics (latest-wins coalescing per endpoint, flush clears).
 * Shape validation on ``apply()``.
 * ``flush`` forwards each stored pulse to
-  ``ControllerTracker.apply_haptic_feedback`` with the right argument shape.
+  ``ControllerTracker``'s per-side ``apply_left_haptic_feedback`` /
+  ``apply_right_haptic_feedback`` with the right argument shape.
 * ``flush`` swallows tracker exceptions and only logs once per endpoint.
 * ``get_tracker`` / ``endpoints`` reflect construction.
 """
@@ -32,16 +33,23 @@ _PulseCall = Tuple[object, str, float, float, float]
 class _RecordingControllerTracker:
     """Test double for ``ControllerTracker``.
 
-    Implements just enough of the surface ``ControllerHapticDevice`` uses:
-    ``apply_haptic_feedback`` records the call; ``fail_endpoints`` makes selected
-    endpoints raise so we can exercise the once-per-endpoint error gate.
+    Implements just enough of the surface ``ControllerHapticDevice`` uses: the
+    per-side ``apply_left_haptic_feedback`` / ``apply_right_haptic_feedback``
+    record the call (tagged with the side); ``fail_endpoints`` makes selected
+    sides raise so we can exercise the once-per-endpoint error gate.
     """
 
     def __init__(self, fail_endpoints: tuple[str, ...] = ()) -> None:
         self.calls: List[_PulseCall] = []
         self.fail_endpoints = set(fail_endpoints)
 
-    def apply_haptic_feedback(self, session, side, amplitude, frequency_hz, duration_s):
+    def apply_left_haptic_feedback(self, session, amplitude, frequency_hz, duration_s):
+        self._record("left", session, amplitude, frequency_hz, duration_s)
+
+    def apply_right_haptic_feedback(self, session, amplitude, frequency_hz, duration_s):
+        self._record("right", session, amplitude, frequency_hz, duration_s)
+
+    def _record(self, side, session, amplitude, frequency_hz, duration_s):
         if side in self.fail_endpoints:
             raise RuntimeError(f"simulated tracker failure on {side}")
         self.calls.append((session, side, amplitude, frequency_hz, duration_s))

@@ -64,32 +64,22 @@ PYBIND11_MODULE(_deviceio_trackers, m)
             { return self.get_right_controller(session); },
             py::arg("session"), "Get the right controller tracked state (data is None if inactive)")
         .def(
-            "apply_haptic_feedback",
-            [](const core::ControllerTracker& self, const core::ITrackerSession& session, const std::string& side,
-               float amplitude, float frequency_hz, float duration_s)
-            {
-                bool is_left;
-                if (side == "left")
-                {
-                    is_left = true;
-                }
-                else if (side == "right")
-                {
-                    is_left = false;
-                }
-                else
-                {
-                    throw py::value_error("side must be \"left\" or \"right\", got \"" + side + "\"");
-                }
-                self.apply_haptic_feedback(session, is_left, amplitude, frequency_hz, duration_s);
-            },
-            py::arg("session"), py::arg("side"), py::arg("amplitude"), py::arg("frequency_hz") = 0.0f,
-            py::arg("duration_s") = 0.0f,
-            "Apply one frame of OpenXR haptic vibration to the controller on the given side.\n"
-            "side: 'left' or 'right'.\n"
-            "amplitude: [0, 1]; 0 issues xrStopHapticFeedback instead of a zero-amplitude pulse.\n"
-            "frequency_hz: 0 = XR_FREQUENCY_UNSPECIFIED (runtime default).\n"
-            "duration_s: 0 = XR_MIN_HAPTIC_DURATION (shortest pulse the runtime supports).");
+            "apply_left_haptic_feedback",
+            [](const core::ControllerTracker& self, const core::ITrackerSession& session, float amplitude,
+               float frequency_hz, float duration_s)
+            { self.apply_left_haptic_feedback(session, amplitude, frequency_hz, duration_s); },
+            py::arg("session"), py::arg("amplitude"), py::arg("frequency_hz") = 0.0f, py::arg("duration_s") = 0.0f,
+            "Apply one frame of haptic vibration to the left controller.\n"
+            "amplitude: [0, 1]; 0 stops any active pulse instead of issuing a zero-amplitude pulse.\n"
+            "frequency_hz: 0 selects the runtime's default frequency.\n"
+            "duration_s: 0 selects the shortest pulse the runtime supports.")
+        .def(
+            "apply_right_haptic_feedback",
+            [](const core::ControllerTracker& self, const core::ITrackerSession& session, float amplitude,
+               float frequency_hz, float duration_s)
+            { self.apply_right_haptic_feedback(session, amplitude, frequency_hz, duration_s); },
+            py::arg("session"), py::arg("amplitude"), py::arg("frequency_hz") = 0.0f, py::arg("duration_s") = 0.0f,
+            "Apply one frame of haptic vibration to the right controller. See apply_left_haptic_feedback.");
 
     py::enum_<core::MessageChannelStatus>(m, "MessageChannelStatus")
         .value("CONNECTING", core::MessageChannelStatus::CONNECTING)

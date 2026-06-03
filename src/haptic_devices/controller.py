@@ -9,10 +9,11 @@ through the generic ``ControllerTracker`` -- the same tracker
 ``ControllersSource`` uses on the input side. It is runtime-neutral at this
 layer: ``apply`` stores the latest pulse per endpoint inside the retargeting
 graph (no session in scope), and ``TeleopSession`` calls ``flush(session)``
-after the graph, forwarding each pulse to
-``ControllerTracker.apply_haptic_feedback(...)``. The concrete OpenXR mapping
-(an ``xrApplyHapticFeedback`` vibration action) lives in the live tracker impl,
-not here, mirroring how controller pose/buttons are read on input.
+after the graph, forwarding each pulse to ``ControllerTracker``'s per-side
+``apply_left_haptic_feedback`` / ``apply_right_haptic_feedback``. The concrete
+OpenXR mapping (an ``xrApplyHapticFeedback`` vibration action) lives in the
+live tracker impl, not here, mirroring how controller pose/buttons are read on
+input.
 """
 
 from __future__ import annotations
@@ -49,9 +50,9 @@ class ControllerHapticDevice(IHapticDevice):
 
     :meth:`apply` stores the pulse (latest-wins per endpoint within a frame --
     non-lossy because the backend supersedes any in-flight pulse on the same
-    actuator). :meth:`flush` forwards each stored pulse to
-    ``ControllerTracker.apply_haptic_feedback(session, endpoint, ...)`` and
-    clears the store, logging any failure at most once per endpoint.
+    actuator). :meth:`flush` forwards each stored pulse to the tracker's
+    ``apply_left_haptic_feedback`` / ``apply_right_haptic_feedback`` and clears
+    the store, logging any failure at most once per endpoint.
 
     .. important::
         ``controller_tracker`` MUST be the same instance owned by the pipeline's
@@ -99,9 +100,19 @@ class ControllerHapticDevice(IHapticDevice):
         pending, self._pending = self._pending, {}
         for endpoint, (amplitude, frequency_hz, duration_s) in pending.items():
             try:
-                self._controller_tracker.apply_haptic_feedback(
-                    deviceio_session, endpoint, amplitude, frequency_hz, duration_s
-                )
+                # The "left"/"right" endpoint convention maps to the tracker's
+                # per-side methods here, the single conversion point between the
+                # retargeting graph's endpoint names and the DeviceIO API.
+                if endpoint == "left":
+                    self._controller_tracker.apply_left_haptic_feedback(
+                        deviceio_session, amplitude, frequency_hz, duration_s
+                    )
+                elif endpoint == "right":
+                    self._controller_tracker.apply_right_haptic_feedback(
+                        deviceio_session, amplitude, frequency_hz, duration_s
+                    )
+                else:
+                    continue
             except Exception as exc:
                 if not self._error_logged.get(endpoint, False):
                     logger.warning(

@@ -20,4 +20,5 @@ See the `Plugins directory <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/
    trackers
    add_device
    body_tracking
+   haptic_feedback
    manus

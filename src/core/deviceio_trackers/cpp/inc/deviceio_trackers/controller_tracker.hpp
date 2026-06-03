@@ -26,7 +26,11 @@ public:
     const ControllerSnapshotTrackedT& get_left_controller(const ITrackerSession& session) const;
     const ControllerSnapshotTrackedT& get_right_controller(const ITrackerSession& session) const;
 
-    /// Drive the controller's haptic actuator for one frame.
+    /// Drive the left/right controller's haptic actuator for one frame.
+    ///
+    /// Per-side methods mirror :meth:`get_left_controller` /
+    /// :meth:`get_right_controller`, matching how DeviceIO names bilateral
+    /// hardware (the side is chosen by which method you call, not a parameter).
     ///
     /// Bridges Isaac Teleop's haptic feedback flow (see
     /// isaacteleop.haptic_devices.controller.ControllerHapticDevice) to the
@@ -36,11 +40,15 @@ public:
     /// `amplitude` is in [0, 1]; `amplitude == 0` requests an explicit stop
     /// instead of a zero-amplitude pulse. `frequency_hz == 0` selects the
     /// runtime's default frequency; `duration_s == 0` selects the runtime's
-    /// shortest supported pulse. See the base interface
-    /// (:class:`IControllerTrackerImpl::apply_haptic_feedback`) for the full
-    /// contract.
-    void apply_haptic_feedback(
-        const ITrackerSession& session, bool is_left, float amplitude, float frequency_hz, float duration_s) const;
+    /// shortest supported pulse.
+    void apply_left_haptic_feedback(const ITrackerSession& session,
+                                    float amplitude,
+                                    float frequency_hz,
+                                    float duration_s) const;
+    void apply_right_haptic_feedback(const ITrackerSession& session,
+                                     float amplitude,
+                                     float frequency_hz,
+                                     float duration_s) const;
 
 private:
     static constexpr const char* TRACKER_NAME = "ControllerTracker";
