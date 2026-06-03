@@ -290,7 +290,8 @@ based on the Python version.  Note that ``pip`` and ``uv pip`` has slightly diff
       cd /tmp/nlopt-python
       git submodule update --init --recursive
 
-      uv venv --python=${PYTHON_VERSION} /tmp/nlopt-wheel-venv
+      # Use the same Python version as your isaacteleop install (3.10, 3.11, 3.12, or 3.13)
+      uv venv --python=3.11 /tmp/nlopt-wheel-venv
       VIRTUAL_ENV=/tmp/nlopt-wheel-venv uv pip install numpy setuptools wheel
       /tmp/nlopt-wheel-venv/bin/python setup.py bdist_wheel -d /tmp/nlopt-wheels/
 
