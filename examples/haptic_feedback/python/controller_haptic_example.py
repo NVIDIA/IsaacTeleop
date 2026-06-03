@@ -23,7 +23,7 @@ Key points for integrators:
 
 * The haptic device is a *sink*: register it with
   ``TeleopSessionConfig(sinks=[...])``. The session runs it each frame after the
-  main pipeline, then flushes it to hardware -- no heartbeat / source plumbing.
+  main pipeline and then flushes it to hardware.
 * ``ControllerHapticDevice`` reuses the **same**
   :class:`~isaacteleop.deviceio_trackers.ControllerTracker` as
   ``ControllersSource`` (pass ``controllers.get_tracker()``), so the session

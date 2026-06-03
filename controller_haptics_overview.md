@@ -18,7 +18,7 @@ force-feedback exoskeletons) plug into the *same* `IDeviceIOSink` /
 `IHapticDevice` contract over a cross-process push-tensor transport; that
 archetype lands on top of this one.
 
-## Output is a first-class graph phase
+## Output as a graph phase, symmetric to input
 
 The retargeting graph + `TeleopSession` model an **input phase** and an
 **output phase**, symmetric to each other:
@@ -30,7 +30,7 @@ The retargeting graph + `TeleopSession` model an **input phase** and an
   and `flush_to_device(session)`. The session runs every registered sink as part
   of the graph and then calls `flush_to_device(session)` *after* the graph, with
   the active session in scope. The device write therefore lands in the **same
-  frame** the value was computed — no queue, no extra latency, no heartbeat.
+  frame** the value was computed, with no added latency.
 
 ```
 Sim signal (contact magnitude,        Retargeter

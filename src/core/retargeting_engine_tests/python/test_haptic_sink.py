@@ -206,7 +206,7 @@ class TestSinkContract:
     def test_sink_is_not_discovered_as_a_leaf(self) -> None:
         """A sink is a terminal consumer, so an OutputCombiner that selects an
         upstream output does not enumerate the sink as a leaf. The session runs
-        registered sinks explicitly instead of discovering them via heartbeats.
+        registered sinks explicitly.
         """
         device = _RecordingDevice()
         sink = HapticSink("sink", device)

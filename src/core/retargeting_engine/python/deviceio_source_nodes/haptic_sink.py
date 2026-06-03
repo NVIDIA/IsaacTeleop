@@ -44,9 +44,9 @@ class HapticSink(IDeviceIOSink):
         - one optional ``device.accepted_type()`` payload per endpoint.
 
     Outputs:
-        - none (a sink is terminal). The session executes registered sinks
-          explicitly, so no heartbeat output is needed to make the sink
-          reachable from an ``OutputCombiner``.
+        - none (a sink is terminal). ``TeleopSession`` runs registered sinks
+          explicitly, so a sink does not need to be wired into an
+          ``OutputCombiner``.
     """
 
     def __init__(self, name: str, device: "IHapticDevice") -> None:
