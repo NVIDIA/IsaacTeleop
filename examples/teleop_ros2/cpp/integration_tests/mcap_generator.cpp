@@ -32,6 +32,23 @@ using FullBodyChannels = core::McapTrackerChannels<core::FullBodyPosePicoRecord,
 constexpr int kDefaultFrameCount = 1800;
 constexpr int64_t kFramePeriodNs = 16'666'667;
 
+// Per-frame position drift (meters) applied to every sample source so replayed
+// poses vary over time instead of staying static; the fixture only needs
+// valid/finite/changing values, so the exact magnitude is arbitrary.
+constexpr float kDriftRatePerFrameM = 0.0005f;
+
+// Plausible standing-pose heights (meters) that give the sample poses physical meaning.
+constexpr float kHeadHeightM = 1.60f;
+constexpr float kControllerGripHeightM = 1.10f;
+constexpr float kControllerAimHeightM = 1.20f;
+constexpr float kFullBodyBaseHeightM = 0.80f;
+
+// Identity orientation shared by every sample pose.
+core::Quaternion identity_quaternion()
+{
+    return core::Quaternion(0.0f, 0.0f, 0.0f, 1.0f);
+}
+
 std::vector<std::string> to_strings(auto channels)
 {
     std::vector<std::string> result;
@@ -46,12 +63,12 @@ std::vector<std::string> to_strings(auto channels)
 std::shared_ptr<core::ControllerSnapshotT> make_controller_sample(bool left, int frame)
 {
     const float side = left ? -1.0f : 1.0f;
-    const float delta = 0.001f * static_cast<float>(frame);
+    const float delta = kDriftRatePerFrameM * static_cast<float>(frame);
     auto sample = std::make_shared<core::ControllerSnapshotT>();
     sample->grip_pose = std::make_shared<core::ControllerPose>(
-        core::Pose(core::Point(0.15f * side, 0.10f + delta, 1.10f), core::Quaternion(0.0f, 0.0f, 0.0f, 1.0f)), true);
+        core::Pose(core::Point(0.15f * side, 0.10f + delta, kControllerGripHeightM), identity_quaternion()), true);
     sample->aim_pose = std::make_shared<core::ControllerPose>(
-        core::Pose(core::Point(0.20f * side, 0.15f + delta, 1.20f), core::Quaternion(0.0f, 0.0f, 0.0f, 1.0f)), true);
+        core::Pose(core::Point(0.20f * side, 0.15f + delta, kControllerAimHeightM), identity_quaternion()), true);
     sample->inputs = std::make_shared<core::ControllerInputState>(
         true, !left, false, left, 0.25f * side, left ? 0.40f : -0.40f, 0.55f, 0.70f);
     return sample;
@@ -60,17 +77,18 @@ std::shared_ptr<core::ControllerSnapshotT> make_controller_sample(bool left, int
 std::shared_ptr<core::HandPoseT> make_hand_sample(bool left, int frame)
 {
     const float side = left ? -1.0f : 1.0f;
-    const float delta = 0.0005f * static_cast<float>(frame);
+    const float delta = kDriftRatePerFrameM * static_cast<float>(frame);
     auto sample = std::make_shared<core::HandPoseT>();
     sample->joints = std::make_unique<core::HandJoints>();
     for (int joint = 0; joint < core::HandJoint_NUM_JOINTS; ++joint)
     {
+        // Per-joint offsets fan the joints out into a plausible-looking hand layout.
         const float joint_f = static_cast<float>(joint);
         const float x = 0.05f * side + 0.003f * side * joint_f;
         const float y = 0.03f + 0.006f * joint_f + delta;
         const float z = 1.00f + 0.004f * joint_f;
         const core::Point position(x, y, z);
-        const core::Pose pose(position, core::Quaternion(0.0f, 0.0f, 0.0f, 1.0f));
+        const core::Pose pose(position, identity_quaternion());
         sample->joints->mutable_poses()->Mutate(joint, core::HandJointPose(pose, true, 0.010f));
     }
     return sample;
@@ -78,15 +96,10 @@ std::shared_ptr<core::HandPoseT> make_hand_sample(bool left, int frame)
 
 std::shared_ptr<core::HeadPoseT> make_head_sample(int frame)
 {
-    // Arbitrary-but-plausible deterministic head pose for the replay fixture: the
-    // verifier only requires valid/finite/non-zero values, so the literals just
-    // describe a centered head ~1.6 m up (standing height) with identity orientation.
-    // `delta` adds a slow per-frame drift (0.5 mm/frame, matching the hand/full-body
-    // samples) so the pose varies over time rather than being static.
-    const float delta = 0.0005f * static_cast<float>(frame);
+    // Deterministic, slowly drifting head pose at standing height.
+    const float delta = kDriftRatePerFrameM * static_cast<float>(frame);
     auto sample = std::make_shared<core::HeadPoseT>();
-    sample->pose =
-        std::make_shared<core::Pose>(core::Point(0.0f, 0.10f + delta, 1.60f), core::Quaternion(0.0f, 0.0f, 0.0f, 1.0f));
+    sample->pose = std::make_shared<core::Pose>(core::Point(0.0f, 0.10f + delta, kHeadHeightM), identity_quaternion());
     sample->is_valid = true;
     return sample;
 }
@@ -102,17 +115,18 @@ std::shared_ptr<core::Generic3AxisPedalOutputT> make_pedal_sample(int frame)
 
 std::shared_ptr<core::FullBodyPosePicoT> make_full_body_sample(int frame)
 {
-    const float delta = 0.0005f * static_cast<float>(frame);
+    const float delta = kDriftRatePerFrameM * static_cast<float>(frame);
     auto sample = std::make_shared<core::FullBodyPosePicoT>();
     sample->joints = std::make_unique<core::BodyJointsPico>();
     for (int joint = 0; joint < core::BodyJointPico_NUM_JOINTS; ++joint)
     {
+        // Per-joint offsets spread the joints into a plausible-looking body layout.
         const float joint_f = static_cast<float>(joint);
         const float x = 0.01f * joint_f;
         const float y = -0.02f + 0.002f * joint_f + delta;
-        const float z = 0.80f + 0.01f * joint_f;
+        const float z = kFullBodyBaseHeightM + 0.01f * joint_f;
         const core::Point position(x, y, z);
-        const core::Pose pose(position, core::Quaternion(0.0f, 0.0f, 0.0f, 1.0f));
+        const core::Pose pose(position, identity_quaternion());
         sample->joints->mutable_joints()->Mutate(joint, core::BodyJointPose(pose, true));
     }
     return sample;
