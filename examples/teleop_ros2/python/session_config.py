@@ -42,8 +42,8 @@ from constants import (
     SHARPA_FINGER_JOINT_COUNT,
     SHARPA_HAND_RETARGETERS,
 )
-from messages import joint_names_from_group_type
 from node_parameters import NodeParameters
+from tensor_group_helpers import joint_names_from_group_type
 
 
 def build_controller_raw_config(params: NodeParameters) -> TeleopSessionConfig:

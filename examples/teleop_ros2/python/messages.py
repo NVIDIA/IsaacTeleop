@@ -28,6 +28,12 @@ from geometry import (
     apply_transform_to_pose,
     to_pose,
 )
+from tensor_group_helpers import (
+    controller_aim_is_valid,
+    hand_wrist_is_valid,
+    head_is_valid,
+    joint_names_from_group_type,
+)
 
 
 def build_controller_payload(
@@ -165,7 +171,7 @@ def build_ee_msg_from_hands(
     msg.header.stamp = now
     msg.header.frame_id = frame_id
 
-    if hand_joint_is_valid(left_hand, HandJointIndex.WRIST):
+    if hand_wrist_is_valid(left_hand):
         left_positions = np.asarray(left_hand[HandInputIndex.JOINT_POSITIONS])
         left_orientations = np.asarray(left_hand[HandInputIndex.JOINT_ORIENTATIONS])
         pose = to_pose(
@@ -178,7 +184,7 @@ def build_ee_msg_from_hands(
     else:
         msg.poses.append(to_pose([0.0, 0.0, 0.0]))
 
-    if hand_joint_is_valid(right_hand, HandJointIndex.WRIST):
+    if hand_wrist_is_valid(right_hand):
         right_positions = np.asarray(right_hand[HandInputIndex.JOINT_POSITIONS])
         right_orientations = np.asarray(right_hand[HandInputIndex.JOINT_ORIENTATIONS])
         pose = to_pose(
@@ -313,26 +319,3 @@ def build_head_msg(
     msg.header.frame_id = frame_id
     msg.pose = pose
     return msg
-
-
-def controller_aim_is_valid(ctrl: OptionalTensorGroup) -> bool:
-    # DeviceIO's AIM_IS_VALID flag is the usability contract for aim poses.
-    return not ctrl.is_none and bool(ctrl[ControllerInputIndex.AIM_IS_VALID])
-
-
-def hand_joint_is_valid(hand: OptionalTensorGroup, joint_idx: HandJointIndex) -> bool:
-    if hand.is_none:
-        return False
-    return bool(hand[HandInputIndex.JOINT_VALID][joint_idx])
-
-
-def hand_wrist_is_valid(hand: OptionalTensorGroup) -> bool:
-    return hand_joint_is_valid(hand, HandJointIndex.WRIST)
-
-
-def head_is_valid(head: OptionalTensorGroup) -> bool:
-    return not head.is_none and bool(head[HeadPoseIndex.IS_VALID])
-
-
-def joint_names_from_group_type(group_type) -> list[str]:
-    return [tensor_type.name for tensor_type in group_type.types]

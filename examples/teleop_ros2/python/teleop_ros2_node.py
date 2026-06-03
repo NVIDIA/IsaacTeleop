@@ -67,15 +67,17 @@ from messages import (
     build_full_body_payload,
     build_hand_msg_from_hands,
     build_head_msg,
-    controller_aim_is_valid,
-    hand_wrist_is_valid,
-    head_is_valid,
 )
 from node_parameters import (
     NodeParameters,
     create_node_parameters,
 )
 from session_config import build_session_config
+from tensor_group_helpers import (
+    controller_aim_is_valid,
+    hand_wrist_is_valid,
+    head_is_valid,
+)
 
 
 class TeleopRos2Node(Node):
