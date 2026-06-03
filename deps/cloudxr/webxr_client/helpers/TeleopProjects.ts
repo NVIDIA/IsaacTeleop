@@ -93,9 +93,8 @@ export const TELEOP_PROJECTS: TeleopProjectRegistry = {
       gear: {
         label: 'GEAR',
         children: {
-          dexmate: { label: 'Dexmate', settings: { headless: true } },
-          g1_sonic: { label: 'G1 SONIC' },
-          g1_homie: { label: 'G1 HOMIE' },
+          headless: { label: 'Headless', settings: { headless: true } },
+          video: { label: 'Video streaming' },
         },
       },
     },
