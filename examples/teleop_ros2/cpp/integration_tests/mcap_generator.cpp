@@ -7,6 +7,7 @@
 #include <schema/controller_generated.h>
 #include <schema/full_body_generated.h>
 #include <schema/hand_generated.h>
+#include <schema/head_generated.h>
 #include <schema/pedals_generated.h>
 #include <schema/timestamp_generated.h>
 
@@ -24,6 +25,7 @@ namespace
 
 using ControllerChannels = core::McapTrackerChannels<core::ControllerSnapshotRecord, core::ControllerSnapshot>;
 using HandChannels = core::McapTrackerChannels<core::HandPoseRecord, core::HandPose>;
+using HeadChannels = core::McapTrackerChannels<core::HeadPoseRecord, core::HeadPose>;
 using PedalChannels = core::McapTrackerChannels<core::Generic3AxisPedalOutputRecord, core::Generic3AxisPedalOutput>;
 using FullBodyChannels = core::McapTrackerChannels<core::FullBodyPosePicoRecord, core::FullBodyPosePico>;
 
@@ -71,6 +73,16 @@ std::shared_ptr<core::HandPoseT> make_hand_sample(bool left, int frame)
         const core::Pose pose(position, core::Quaternion(0.0f, 0.0f, 0.0f, 1.0f));
         sample->joints->mutable_poses()->Mutate(joint, core::HandJointPose(pose, true, 0.010f));
     }
+    return sample;
+}
+
+std::shared_ptr<core::HeadPoseT> make_head_sample(int frame)
+{
+    const float delta = 0.0005f * static_cast<float>(frame);
+    auto sample = std::make_shared<core::HeadPoseT>();
+    sample->pose =
+        std::make_shared<core::Pose>(core::Point(0.0f, 0.10f + delta, 1.60f), core::Quaternion(0.0f, 0.0f, 0.0f, 1.0f));
+    sample->is_valid = true;
     return sample;
 }
 
@@ -124,12 +136,14 @@ void write_fixture(const std::filesystem::path& output_path, int frame_count)
     auto writer = open_writer(output_path);
     const auto controller_names = to_strings(core::ControllerRecordingTraits::recording_channels);
     const auto hand_names = to_strings(core::HandRecordingTraits::recording_channels);
+    const auto head_names = to_strings(core::HeadRecordingTraits::recording_channels);
     const auto pedal_names = to_strings(core::PedalRecordingTraits::recording_channels);
     const auto full_body_names = to_strings(core::FullBodyPicoRecordingTraits::recording_channels);
 
     ControllerChannels controller_channels(
         *writer, "controllers", core::ControllerRecordingTraits::schema_name, controller_names);
     HandChannels hand_channels(*writer, "hands", core::HandRecordingTraits::schema_name, hand_names);
+    HeadChannels head_channels(*writer, "head", core::HeadRecordingTraits::schema_name, head_names);
     PedalChannels pedal_channels(*writer, "pedals", core::PedalRecordingTraits::schema_name, pedal_names);
     FullBodyChannels full_body_channels(
         *writer, "full_body", core::FullBodyPicoRecordingTraits::schema_name, full_body_names);
@@ -142,6 +156,7 @@ void write_fixture(const std::filesystem::path& output_path, int frame_count)
         controller_channels.write(1, timestamp, make_controller_sample(false, frame));
         hand_channels.write(0, timestamp, make_hand_sample(true, frame));
         hand_channels.write(1, timestamp, make_hand_sample(false, frame));
+        head_channels.write(0, timestamp, make_head_sample(frame));
         pedal_channels.write(0, timestamp, make_pedal_sample(frame));
         full_body_channels.write(0, timestamp, make_full_body_sample(frame));
     }

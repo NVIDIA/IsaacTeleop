@@ -11,6 +11,7 @@ from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     FullBodySource,
     Generic3AxisPedalSource,
     HandsSource,
+    HeadSource,
 )
 from isaacteleop.retargeting_engine.interface import OutputCombiner
 from isaacteleop.retargeters import (
@@ -64,6 +65,7 @@ def build_controller_raw_config(params: NodeParameters) -> TeleopSessionConfig:
 
 def build_controller_teleop_config(params: NodeParameters) -> TeleopSessionConfig:
     controllers = ControllersSource(name="controllers")
+    head = HeadSource(name="head")
     locomotion = LocomotionRootCmdRetargeter(
         LocomotionRootCmdRetargeterConfig(), name="locomotion"
     )
@@ -77,6 +79,7 @@ def build_controller_teleop_config(params: NodeParameters) -> TeleopSessionConfi
     pipeline_outputs = {
         "controller_left": controllers.output(ControllersSource.LEFT),
         "controller_right": controllers.output(ControllersSource.RIGHT),
+        "head": head.output("head"),
         "root_command": locomotion_connected.output("root_command"),
     }
 
@@ -198,6 +201,7 @@ def build_hand_teleop_config(params: NodeParameters) -> TeleopSessionConfig:
     )
 
     hands = HandsSource(name="hands")
+    head = HeadSource(name="head")
     pedals = Generic3AxisPedalSource(
         name="pedals", collection_id=params.pedal_collection_id
     )
@@ -214,6 +218,7 @@ def build_hand_teleop_config(params: NodeParameters) -> TeleopSessionConfig:
         {
             "hand_left": hands.output(HandsSource.LEFT),
             "hand_right": hands.output(HandsSource.RIGHT),
+            "head": head.output("head"),
             "root_command": locomotion_connected.output("root_command"),
             "finger_joints_left": left_finger_joints,
             "finger_joints_right": right_finger_joints,

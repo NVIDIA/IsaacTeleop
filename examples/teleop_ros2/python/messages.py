@@ -8,7 +8,7 @@ import time
 from typing import Dict, Sequence
 
 import numpy as np
-from geometry_msgs.msg import PoseArray
+from geometry_msgs.msg import PoseArray, PoseStamped
 from scipy.spatial.transform import Rotation
 from sensor_msgs.msg import JointState
 
@@ -18,6 +18,7 @@ from isaacteleop.retargeting_engine.tensor_types.indices import (
     FullBodyInputIndex,
     HandInputIndex,
     HandJointIndex,
+    HeadPoseIndex,
 )
 
 from constants import BODY_JOINT_NAMES
@@ -290,6 +291,30 @@ def build_hand_msg_from_hands(
     return msg
 
 
+def build_head_msg(
+    head: OptionalTensorGroup,
+    now,
+    frame_id: str,
+    transform_rot: Rotation | None = None,
+    transform_trans: Sequence[float] | None = None,
+) -> PoseStamped | None:
+    """Build a PoseStamped for the head pose, or None when head is invalid."""
+    if not head_is_valid(head):
+        return None
+
+    position = [float(x) for x in head[HeadPoseIndex.POSITION]]
+    orientation = [float(x) for x in head[HeadPoseIndex.ORIENTATION]]
+    pose = to_pose(position, orientation)
+    if transform_rot is not None or transform_trans is not None:
+        pose = apply_transform_to_pose(pose, transform_rot, transform_trans)
+
+    msg = PoseStamped()
+    msg.header.stamp = now
+    msg.header.frame_id = frame_id
+    msg.pose = pose
+    return msg
+
+
 def controller_aim_is_valid(ctrl: OptionalTensorGroup) -> bool:
     # DeviceIO's AIM_IS_VALID flag is the usability contract for aim poses.
     return not ctrl.is_none and bool(ctrl[ControllerInputIndex.AIM_IS_VALID])
@@ -303,6 +328,10 @@ def hand_joint_is_valid(hand: OptionalTensorGroup, joint_idx: HandJointIndex) ->
 
 def hand_wrist_is_valid(hand: OptionalTensorGroup) -> bool:
     return hand_joint_is_valid(hand, HandJointIndex.WRIST)
+
+
+def head_is_valid(head: OptionalTensorGroup) -> bool:
+    return not head.is_none and bool(head[HeadPoseIndex.IS_VALID])
 
 
 def joint_names_from_group_type(group_type) -> list[str]:

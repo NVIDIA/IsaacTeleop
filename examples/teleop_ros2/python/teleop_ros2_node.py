@@ -12,11 +12,12 @@ published:
 
   - controller_teleop (default): ee_poses (from controller aim pose), root_twist,
                        root_pose, finger_joints (retargeted TriHand angles),
-                       controller_data, and TF transforms for left/right wrists
+                       controller_data, head_pose, and TF transforms for
+                       left/right wrists and head
   - hand_teleop: ee_poses (from hand tracking wrist), hand (finger joint poses),
                  finger_joints (retargeted Sharpa joint angles),
-                 root_twist/root_pose (from foot pedal locomotion), and TF
-                 transforms for left/right wrists
+                 root_twist/root_pose (from foot pedal locomotion), head_pose,
+                 and TF transforms for left/right wrists and head
   - controller_raw: controller_data only
   - full_body: full_body and controller_data
 
@@ -25,6 +26,7 @@ Topic names (remappable via ROS 2 remapping):
   - xr_teleop/ee_poses (PoseArray): [left_ee, right_ee]
   - xr_teleop/root_twist (TwistStamped): root velocity command
   - xr_teleop/root_pose (PoseStamped): root pose command (height only)
+  - xr_teleop/head_pose (PoseStamped): head pose
   - xr_teleop/controller_data (ByteMultiArray): msgpack-encoded controller data
   - xr_teleop/full_body (ByteMultiArray): msgpack-encoded full body tracking data
   - xr_teleop/finger_joints (JointState): retargeted finger joint angles
@@ -32,6 +34,7 @@ Topic names (remappable via ROS 2 remapping):
 TF frames published in hand_teleop and controller_teleop modes (configurable via parameters):
   - world_frame -> right_wrist_frame
   - world_frame -> left_wrist_frame
+  - world_frame -> head_frame
 """
 
 import time
@@ -63,8 +66,10 @@ from messages import (
     build_finger_joints_msg,
     build_full_body_payload,
     build_hand_msg_from_hands,
+    build_head_msg,
     controller_aim_is_valid,
     hand_wrist_is_valid,
+    head_is_valid,
 )
 from node_parameters import (
     NodeParameters,
@@ -144,6 +149,7 @@ class TeleopRos2Node(Node):
         self._pub_finger_joints = self.create_publisher(
             JointState, "xr_teleop/finger_joints", 10
         )
+        self._pub_head = self.create_publisher(PoseStamped, "xr_teleop/head_pose", 10)
 
     def _publish_controller_outputs(self, result: dict, now) -> None:
         left_ctrl = result["controller_left"]
@@ -258,6 +264,40 @@ class TeleopRos2Node(Node):
         if wrist_tfs:
             self._tf_broadcaster.sendTransform(wrist_tfs)
 
+    def _publish_head(self, result: dict, now) -> None:
+        if self._params.mode not in ("controller_teleop", "hand_teleop"):
+            return
+
+        head = result["head"]
+        if not head_is_valid(head):
+            return
+
+        head_msg = build_head_msg(
+            head,
+            now,
+            self._params.world_frame,
+            self._params.transform_rotation,
+            self._params.transform_translation,
+        )
+        if head_msg is None:
+            return
+
+        self._pub_head.publish(head_msg)
+        pose = head_msg.pose
+        head_tf = make_transform(
+            now,
+            self._params.world_frame,
+            self._params.head_frame,
+            [pose.position.x, pose.position.y, pose.position.z],
+            [
+                pose.orientation.x,
+                pose.orientation.y,
+                pose.orientation.z,
+                pose.orientation.w,
+            ],
+        )
+        self._tf_broadcaster.sendTransform(head_tf)
+
     def _publish_root_command(self, result: dict, now) -> None:
         if self._params.mode not in ("hand_teleop", "controller_teleop"):
             return
@@ -309,6 +349,7 @@ class TeleopRos2Node(Node):
 
                         self._publish_root_command(result, now)
                         self._publish_finger_joints(result, now)
+                        self._publish_head(result, now)
                         self._publish_controller_payload(result)
                         self._publish_full_body_payload(result)
 

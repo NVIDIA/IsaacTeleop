@@ -12,6 +12,7 @@ a startup message, and return the resolved value(s). The public entry point
 assembles a frozen ``NodeParameters`` snapshot.
 """
 
+import itertools
 import math
 from dataclasses import dataclass
 from pathlib import Path
@@ -56,6 +57,7 @@ class NodeParameters:
     world_frame: str
     right_wrist_frame: str
     left_wrist_frame: str
+    head_frame: str
     transform_translation: list[float] | None
     transform_rotation: Rotation | None
     left_finger_joint_name_aliases: list[str] | None
@@ -186,7 +188,7 @@ def _load_finger_joint_name_aliases(node: Node, side: str) -> list[str] | None:
     return names or None
 
 
-def _load_frames(node: Node) -> tuple[str, str, str]:
+def _load_frames(node: Node) -> tuple[str, str, str, str]:
     node.declare_parameter(
         "world_frame",
         "world",
@@ -207,33 +209,31 @@ def _load_frames(node: Node) -> tuple[str, str, str]:
         "left_wrist",
         ParameterDescriptor(description="TF child frame name for the left wrist."),
     )
+    node.declare_parameter(
+        "head_frame",
+        "head",
+        ParameterDescriptor(description="TF child frame name for the head."),
+    )
 
-    world_frame = node.get_parameter("world_frame").get_parameter_value().string_value
-    right_wrist_frame = (
-        node.get_parameter("right_wrist_frame").get_parameter_value().string_value
-    )
-    left_wrist_frame = (
-        node.get_parameter("left_wrist_frame").get_parameter_value().string_value
-    )
-    if not world_frame:
-        raise ValueError("Parameter 'world_frame' must not be empty")
-    if not right_wrist_frame:
-        raise ValueError("Parameter 'right_wrist_frame' must not be empty")
-    if not left_wrist_frame:
-        raise ValueError("Parameter 'left_wrist_frame' must not be empty")
-    if right_wrist_frame == left_wrist_frame:
-        raise ValueError(
-            f"'right_wrist_frame' and 'left_wrist_frame' must be different , got {right_wrist_frame!r}"
-        )
-    if right_wrist_frame == world_frame:
-        raise ValueError(
-            f"'right_wrist_frame' must be different from 'world_frame', got {right_wrist_frame!r}"
-        )
-    if left_wrist_frame == world_frame:
-        raise ValueError(
-            f"'left_wrist_frame' must be different from 'world_frame', got {left_wrist_frame!r}"
-        )
-    return world_frame, right_wrist_frame, left_wrist_frame
+    # Every frame must be non-empty and distinct from the others: they become
+    # TF frame names that all share the same world parent, so any collision
+    # would publish ambiguous transforms.
+    frame_names = ("world_frame", "right_wrist_frame", "left_wrist_frame", "head_frame")
+    frames = {
+        name: node.get_parameter(name).get_parameter_value().string_value
+        for name in frame_names
+    }
+    for name, value in frames.items():
+        if not value:
+            raise ValueError(f"Parameter '{name}' must not be empty")
+    for (name_a, value_a), (name_b, value_b) in itertools.combinations(
+        frames.items(), 2
+    ):
+        if value_a == value_b:
+            raise ValueError(
+                f"Parameters '{name_a}' and '{name_b}' must be different, got {value_a!r}"
+            )
+    return tuple(frames.values())
 
 
 def _load_hand_retargeter(
@@ -423,7 +423,7 @@ def create_node_parameters(node: Node) -> NodeParameters:
     session_mode, mcap_config = _load_mcap_replay(node)
     cloudxr_install_dir, cloudxr_env_config, cloudxr_accept_eula = _load_cloudxr(node)
     pedal_collection_id = _load_pedal_collection_id(node)
-    world_frame, right_wrist_frame, left_wrist_frame = _load_frames(node)
+    world_frame, right_wrist_frame, left_wrist_frame, head_frame = _load_frames(node)
     transform_translation = _load_transform_translation(node)
     transform_rotation = _load_transform_rotation(node)
     left_finger_joint_name_aliases = _load_finger_joint_name_aliases(node, "left")
@@ -445,6 +445,7 @@ def create_node_parameters(node: Node) -> NodeParameters:
         world_frame=world_frame,
         right_wrist_frame=right_wrist_frame,
         left_wrist_frame=left_wrist_frame,
+        head_frame=head_frame,
         transform_translation=transform_translation,
         transform_rotation=transform_rotation,
         left_finger_joint_name_aliases=left_finger_joint_name_aliases,

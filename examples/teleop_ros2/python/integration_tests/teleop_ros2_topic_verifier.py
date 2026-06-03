@@ -23,7 +23,7 @@ from tf2_msgs.msg import TFMessage
 
 
 _MODES = ("controller_teleop", "hand_teleop", "controller_raw", "full_body")
-_EXPECTED_TF_FRAMES = {"right_wrist", "left_wrist"}
+_EXPECTED_TF_FRAMES = {"right_wrist", "left_wrist", "head"}
 
 
 def _is_finite_sequence(values) -> bool:
@@ -232,6 +232,7 @@ class TopicVerifier(Node):
                 ),
                 ("root_twist", "xr_teleop/root_twist", TwistStamped, _assert_twist),
                 ("root_pose", "xr_teleop/root_pose", PoseStamped, _assert_root_pose),
+                ("head_pose", "xr_teleop/head_pose", PoseStamped, _assert_root_pose),
                 (
                     "finger_joints",
                     "xr_teleop/finger_joints",
@@ -261,6 +262,7 @@ class TopicVerifier(Node):
                 ),
                 ("root_twist", "xr_teleop/root_twist", TwistStamped, _assert_twist),
                 ("root_pose", "xr_teleop/root_pose", PoseStamped, _assert_root_pose),
+                ("head_pose", "xr_teleop/head_pose", PoseStamped, _assert_root_pose),
                 (
                     "finger_joints",
                     "xr_teleop/finger_joints",
