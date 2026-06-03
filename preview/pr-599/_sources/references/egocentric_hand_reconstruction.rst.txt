@@ -7,7 +7,7 @@ Egocentric Hand Reconstruction
 Automated pipeline for 4D hand and camera pose reconstruction from egocentric
 videos. Integrates ViPE and Dyn-HaMR in containerized environments.
 
-Egocentric Video Collection
+Video Capture
 ---------------------------
 
 To capture egocentric video with an OAK camera, see the
