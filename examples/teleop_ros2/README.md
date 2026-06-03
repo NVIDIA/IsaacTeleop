@@ -7,22 +7,6 @@ SPDX-License-Identifier: Apache-2.0
 
 Reference ROS 2 publisher for Isaac Teleop data.
 
-## Prerequisite: Start CloudXR Runtime
-
-Before running this ROS 2 reference publisher, start the CloudXR runtime via Docker (see the `README.md` setup flow, step "Run CloudXR"):
-
-1. To use optical hand tracking from the XR device, create a CloudXR environment file `deps/cloudxr/.env` (if missing) with:
-
-```bash
-NV_CXR_ENABLE_PUSH_DEVICES=0
-```
-
-1. Start CloudXR:
-
-```bash
-./scripts/run_cloudxr_via_docker.sh
-```
-
 ## Prerequisite: Foot Pedal For `hand_teleop`
 
 `hand_teleop` uses `Generic3AxisPedalSource` + `FootPedalRootCmdRetargeter` for
@@ -112,13 +96,12 @@ Incremental rebuilds use Docker BuildKit cache. Ensure BuildKit is enabled (defa
 
 Use host networking (recommended for ROS 2 DDS):
 ```bash
-source scripts/setup_cloudxr_env.sh
-docker run --rm --net=host --ipc=host \
-  -e XR_RUNTIME_JSON -e NV_CXR_RUNTIME_DIR \
+docker run --rm --gpus all --net=host --ipc=host \
+  -e NVIDIA_VISIBLE_DEVICES=all -e NVIDIA_DRIVER_CAPABILITIES=all \
   -e ROS_LOCALHOST_ONLY=1 \
-  -v $CXR_HOST_VOLUME_PATH:$CXR_HOST_VOLUME_PATH:ro \
+  -v $HOME/.cloudxr:/root/.cloudxr \
   --name teleop_ros2_ref \
-  teleop_ros2_ref
+  teleop_ros2_ref --ros-args -p cloudxr_accept_eula:=true
 ```
 
 ### Overriding parameters and remapping topics
@@ -126,16 +109,17 @@ docker run --rm --net=host --ipc=host \
 It's possible to set ROS 2 parameters and remap topics from the command line when running the container. Append `--ros-args -p param_name:=value` to set parameters, or `--ros-args -r old_topic:=new_topic` to remap topics after the image name:
 
 ```bash
-docker run --rm --net=host --ipc=host \
-  -e XR_RUNTIME_JSON -e NV_CXR_RUNTIME_DIR \
+docker run --rm --gpus all --net=host --ipc=host \
+  -e NVIDIA_VISIBLE_DEVICES=all -e NVIDIA_DRIVER_CAPABILITIES=all \
   -e ROS_LOCALHOST_ONLY=1 \
-  -v $CXR_HOST_VOLUME_PATH:$CXR_HOST_VOLUME_PATH:ro \
+  -v $HOME/.cloudxr:/root/.cloudxr \
   --name teleop_ros2_ref \
-  teleop_ros2_ref --ros-args -p world_frame:=odom -p rate_hz:=30.0 \
+  teleop_ros2_ref --ros-args -p cloudxr_accept_eula:=true \
+  -p world_frame:=odom -p rate_hz:=30.0 \
   -r xr_teleop/hand:=my_robot/hand -r xr_teleop/ee_poses:=my_robot/ee_poses
 ```
 
-Available parameters: `rate_hz`, `mode`, `hand_retargeter`, `config_asset_root`, `pedal_collection_id`, `world_frame`, `right_wrist_frame`, `left_wrist_frame`, `left_finger_joint_names`, `right_finger_joint_names`. Use `ros2 param list /teleop_ros2_node` and `ros2 param describe /teleop_ros2_node <param>` (with the node running) for the full set.
+Available parameters: `rate_hz`, `mode`, `hand_retargeter`, `config_asset_root`, `cloudxr_install_dir`, `cloudxr_env_config`, `cloudxr_accept_eula`, `pedal_collection_id`, `world_frame`, `right_wrist_frame`, `left_wrist_frame`, `left_finger_joint_names`, `right_finger_joint_names`. Use `ros2 param list /teleop_ros2_node` and `ros2 param describe /teleop_ros2_node <param>` (with the node running) for the full set.
 
 By default, `left_finger_joint_names` and `right_finger_joint_names` use the selected mode's retargeter joint names. They can be overridden to publish robot-specific names on `xr_teleop/finger_joints`, but each override must provide the same number of names as the joints emitted by that mode's retargeter.
 
