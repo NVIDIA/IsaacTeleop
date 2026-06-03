@@ -78,6 +78,11 @@ std::shared_ptr<core::HandPoseT> make_hand_sample(bool left, int frame)
 
 std::shared_ptr<core::HeadPoseT> make_head_sample(int frame)
 {
+    // Arbitrary-but-plausible deterministic head pose for the replay fixture: the
+    // verifier only requires valid/finite/non-zero values, so the literals just
+    // describe a centered head ~1.6 m up (standing height) with identity orientation.
+    // `delta` adds a slow per-frame drift (0.5 mm/frame, matching the hand/full-body
+    // samples) so the pose varies over time rather than being static.
     const float delta = 0.0005f * static_cast<float>(frame);
     auto sample = std::make_shared<core::HeadPoseT>();
     sample->pose =
