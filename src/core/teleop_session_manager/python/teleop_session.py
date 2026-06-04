@@ -519,14 +519,14 @@ class TeleopSession:
             k: v for k, v in pipeline_inputs.items() if k in graph_leaf_names
         }
         cache = ExecutionCache(graph_inputs, context)
-        main_outputs = self.pipeline._compute_with_cache(cache)
+        main_outputs = self.pipeline.execute_pipeline_with_cache(cache)
 
         # Output phase: run each sink subgraph (its _compute_fn stores this
         # frame's per-endpoint values on the device), then flush every sink to
         # hardware with the active session. The IDeviceIOSink/IHapticDevice
         # contract is non-throwing, so a device hiccup cannot tear down the loop.
         for executable, _sink_node in self._sinks:
-            executable._compute_with_cache(cache)
+            executable.execute_pipeline_with_cache(cache)
         for _executable, sink_node in self._sinks:
             sink_node.flush_to_device(self.deviceio_session)
 

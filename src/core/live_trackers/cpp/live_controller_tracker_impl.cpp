@@ -484,6 +484,7 @@ void LiveControllerTrackerImpl::apply_haptic_feedback(bool is_left, float amplit
     {
         if (core_funcs_.xrStopHapticFeedback == nullptr)
         {
+            // Runtime does not advertise the entry point — silently no-op.
             return;
         }
         const XrResult stop_result = core_funcs_.xrStopHapticFeedback(session_, &info);

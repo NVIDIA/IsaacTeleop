@@ -66,6 +66,12 @@ class TestControllerHapticDevice:
         )
         assert device.endpoints() == ("right",)
 
+    def test_rejects_unsupported_endpoints(self) -> None:
+        with pytest.raises(ValueError, match="only supports 'left'/'right'"):
+            ControllerHapticDevice(
+                _RecordingControllerTracker(), endpoints=("left", "device")
+            )
+
     def test_get_tracker_returns_constructor_handle(self) -> None:
         tracker = _RecordingControllerTracker()
         device = ControllerHapticDevice(tracker)

@@ -71,6 +71,12 @@ class ControllerHapticDevice(IHapticDevice):
     ) -> None:
         self._controller_tracker = controller_tracker
         self._endpoints: tuple[Endpoint, ...] = tuple(endpoints)
+        unsupported = sorted(set(self._endpoints) - {"left", "right"})
+        if unsupported:
+            raise ValueError(
+                "ControllerHapticDevice only supports 'left'/'right' endpoints, "
+                f"got {unsupported}"
+            )
         # Latest-wins per endpoint within a frame; emitted and cleared by flush.
         self._pending: dict[Endpoint, _Pulse] = {}
         self._error_logged: dict[Endpoint, bool] = {

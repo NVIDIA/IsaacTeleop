@@ -21,6 +21,10 @@ Available Retargeters:
     - Se3AbsRetargeter: Absolute EE pose control
     - Se3RelRetargeter: Relative EE delta control
     - TensorReorderer: Reorders and flattens multiple inputs into a single tensor
+    - Vector3FrameTransform / WorldForceAccumulator / MagnitudeReducer: Composable
+      spatial primitives for tactile/haptic retargeting
+    - TactileVectorToControllerPulse / TactileHeatmapToControllerPulse: Map tactile
+      signals to controller haptic pulses
 """
 
 import importlib as _importlib
@@ -121,6 +125,28 @@ _LAZY_IMPORTS: dict[str, tuple[str, str, str | None]] = {
     ),
     # .tensor_reorderer
     "TensorReorderer": (".tensor_reorderer", "TensorReorderer", None),
+    # .tactile_retargeters  (tactile / haptic device-output mappers)
+    "Vector3FrameTransform": (
+        ".tactile_retargeters",
+        "Vector3FrameTransform",
+        None,
+    ),
+    "WorldForceAccumulator": (
+        ".tactile_retargeters",
+        "WorldForceAccumulator",
+        None,
+    ),
+    "MagnitudeReducer": (".tactile_retargeters", "MagnitudeReducer", None),
+    "TactileVectorToControllerPulse": (
+        ".tactile_retargeters",
+        "TactileVectorToControllerPulse",
+        None,
+    ),
+    "TactileHeatmapToControllerPulse": (
+        ".tactile_retargeters",
+        "TactileHeatmapToControllerPulse",
+        None,
+    ),
 }
 
 
@@ -172,4 +198,10 @@ __all__ = [
     "SharpaHandRetargeterConfig",
     # Utility retargeters
     "TensorReorderer",
+    # Tactile / haptic device-output retargeters
+    "Vector3FrameTransform",
+    "WorldForceAccumulator",
+    "MagnitudeReducer",
+    "TactileVectorToControllerPulse",
+    "TactileHeatmapToControllerPulse",
 ]
