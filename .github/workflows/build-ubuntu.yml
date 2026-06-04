@@ -482,6 +482,11 @@ jobs:
           echo "ROS_DISTRO=jazzy" >> $GITHUB_ENV
         fi
 
+    - name: Setup CloudXR SDK
+      uses: ./.github/actions/setup-cloudxr-sdk
+      with:
+        ngc-api-key: ${{ secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY }}
+
     - name: Build teleop_ros2 image
       run: |
         docker build -f examples/teleop_ros2/Dockerfile \
@@ -588,6 +593,200 @@ jobs:
           fi
         done
 
+  # Run the teleop_ros2 node against a real in-process CloudXR runtime (CloudXRLauncher
+  # launches the runtime + WSS proxy) on a GPU runner, and assert clean bring-up.
+  # No XR client connects, so the session never starts and topics are not verified here.
+  # This job exercises the CloudXR launch path the replay job cannot.
+  test-teleop-ros2-cloudxr:
+    runs-on: [self-hosted, linux, gpu, "${{ matrix.arch }}"]
+    needs: build-ubuntu
+
+    strategy:
+      fail-fast: ${{ github.event_name == 'pull_request' }}
+      matrix:
+        python_version: ['3.10', '3.12']
+        arch: ['x64', 'arm64']
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+      with:
+        submodules: recursive
+
+    - name: Install uv
+      uses: ./.github/actions/setup-uv
+
+    - name: Download install artifacts
+      uses: actions/download-artifact@v7
+      with:
+        name: isaacteleop-install-release-${{ matrix.arch }}-py${{ matrix.python_version }}
+
+    - name: Extract tarball to preserve permissions
+      run: |
+        mkdir -p install
+        tar -xvf isaacteleop-install.tar -C install
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v4
+
+    - name: Setup robotic_grounding source bundle
+      id: setup-v2d-src
+      if: ${{ !startsWith(github.ref_name, 'release/') && !startsWith(github.base_ref, 'release/') }}
+      uses: ./.github/actions/setup-v2d-src
+      with:
+        github-token: ${{ secrets.V2D_RETARGETER_TOKEN }}
+
+    - name: Set ROS Distro
+      id: ros-distro
+      run: |
+        if [ "${{ matrix.python_version }}" = "3.10" ]; then
+          echo "ROS_DISTRO=humble" >> $GITHUB_ENV
+        elif [ "${{ matrix.python_version }}" = "3.12" ]; then
+          echo "ROS_DISTRO=jazzy" >> $GITHUB_ENV
+        fi
+
+    # Live mode needs the bundled CloudXR runtime in the image, so the SDK must
+    # be in the build context (the Dockerfile builds with
+    # -DENABLE_CLOUDXR_BUNDLE_CHECK=ON). Public NGC by default; private NGC
+    # fallback on trusted runs via the key.
+    - name: Setup CloudXR SDK
+      uses: ./.github/actions/setup-cloudxr-sdk
+      with:
+        ngc-api-key: ${{ secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY }}
+
+    - name: Build teleop_ros2 image
+      run: |
+        docker build -f examples/teleop_ros2/Dockerfile \
+          --build-arg ROS_DISTRO=${{ env.ROS_DISTRO }} \
+          --build-arg PYTHON_VERSION=${{ matrix.python_version }} \
+          --build-arg BUNDLE_ROBOTIC_GROUNDING=${{ steps.setup-v2d-src.outputs.bundled || 'false' }} \
+          -t teleop_ros2_cloudxr_ref:${{ env.ROS_DISTRO }} .
+
+    - name: Verify live CloudXR bring-up
+      run: |
+        set -euo pipefail
+
+        IMAGE="teleop_ros2_cloudxr_ref:${{ env.ROS_DISTRO }}"
+        RUN_NAME="teleop-ros2-cloudxr-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}-${{ env.ROS_DISTRO }}"
+        LOG_FILE="/tmp/ros2_cloudxr_output_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${{ matrix.arch }}_${{ env.ROS_DISTRO }}.log"
+        MODE="controller_teleop"
+
+        # The node logs this after CloudXRLauncher returns: runtime ready + WSS
+        # proxy up. This is the primary bring-up marker.
+        BRINGUP_MARKER="CloudXR runtime and WSS proxy started"
+        # After bring-up the node enters the live session loop. With no XR client
+        # connected it logs the retry warning; if a device/system is present it
+        # logs session start. Either proves the loop is live.
+        LOOP_MARKER_A="TeleopSession started successfully"
+        LOOP_MARKER_B="No XR client connected"
+        # Hard failures from the launcher/runtime.
+        FAIL_RE="CloudXR runtime failed to start|SDK missing libcloudxr.so|CloudXR EULA was not accepted|CloudXR launcher is not running|runtime process exited unexpectedly|WSS proxy thread stopped unexpectedly"
+
+        BRINGUP_TIMEOUT_SEC=180
+        LOOP_TIMEOUT_SEC=30
+        SOAK_SEC=15
+        POLL_INTERVAL_SEC=2
+
+        rm -f "$LOG_FILE"
+
+        cleanup() {
+          docker logs "$RUN_NAME" > "$LOG_FILE" 2>&1 || true
+          docker rm -f "$RUN_NAME" >/dev/null 2>&1 || true
+          docker image rm -f "$IMAGE" >/dev/null 2>&1 || true
+        }
+        trap cleanup EXIT
+
+        # Live session: no mcap_replay_path => SessionMode.LIVE; accept the EULA
+        # non-interactively. --gpus all gives the in-process runtime a GPU.
+        docker run -d \
+          --name "$RUN_NAME" \
+          --gpus all \
+          --network host \
+          -e PYTHONUNBUFFERED=1 \
+          -e ACCEPT_CLOUDXR_EULA=Y \
+          --entrypoint bash "$IMAGE" -c \
+          "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync teleop_ros2_node.py --ros-args -p mode:=$MODE -p cloudxr_accept_eula:=true" >/dev/null
+
+        fail() {
+          echo "Error: $1"
+          docker logs "$RUN_NAME" > "$LOG_FILE" 2>&1 || true
+          echo "===== teleop_ros2 (live) container log ====="
+          cat "$LOG_FILE" 2>/dev/null || echo "No log captured"
+          exit 1
+        }
+
+        # Phase 1: wait for CloudXR runtime + WSS proxy bring-up.
+        bringup=false
+        deadline=$((SECONDS + BRINGUP_TIMEOUT_SEC))
+        while [ "$SECONDS" -lt "$deadline" ]; do
+          docker logs "$RUN_NAME" > "$LOG_FILE" 2>&1 || true
+
+          if grep -Eq "$FAIL_RE" "$LOG_FILE"; then
+            fail "CloudXR runtime/launcher reported a fatal error during bring-up"
+          fi
+          if grep -qF "$BRINGUP_MARKER" "$LOG_FILE"; then
+            bringup=true
+            break
+          fi
+
+          running=$(docker inspect -f '{{.State.Running}}' "$RUN_NAME" 2>/dev/null || echo false)
+          if [ "$running" != "true" ]; then
+            rc=$(docker inspect -f '{{.State.ExitCode}}' "$RUN_NAME" 2>/dev/null || echo 1)
+            fail "node exited before CloudXR bring-up (exit code $rc)"
+          fi
+
+          sleep "$POLL_INTERVAL_SEC"
+        done
+
+        if [ "$bringup" != true ]; then
+          fail "CloudXR runtime + WSS proxy did not come up within ${BRINGUP_TIMEOUT_SEC}s"
+        fi
+        echo "CloudXR runtime + WSS proxy came up."
+
+        # Phase 2: confirm the node entered the live session loop.
+        loop=false
+        deadline=$((SECONDS + LOOP_TIMEOUT_SEC))
+        while [ "$SECONDS" -lt "$deadline" ]; do
+          docker logs "$RUN_NAME" > "$LOG_FILE" 2>&1 || true
+          if grep -Eq "$FAIL_RE" "$LOG_FILE"; then
+            fail "CloudXR runtime/launcher reported a fatal error after bring-up"
+          fi
+          if grep -qF "$LOOP_MARKER_A" "$LOG_FILE" || grep -qF "$LOOP_MARKER_B" "$LOG_FILE"; then
+            loop=true
+            break
+          fi
+          running=$(docker inspect -f '{{.State.Running}}' "$RUN_NAME" 2>/dev/null || echo false)
+          if [ "$running" != "true" ]; then
+            rc=$(docker inspect -f '{{.State.ExitCode}}' "$RUN_NAME" 2>/dev/null || echo 1)
+            fail "node exited before entering the live session loop (exit code $rc)"
+          fi
+          sleep "$POLL_INTERVAL_SEC"
+        done
+
+        if [ "$loop" != true ]; then
+          fail "node did not enter the live session loop within ${LOOP_TIMEOUT_SEC}s"
+        fi
+        echo "Node entered the live session loop."
+
+        # Phase 3: soak. The node calls launcher.health_check() every loop, so a
+        # dead runtime/WSS proxy would crash it. Surviving the soak with no fatal
+        # log means the live CloudXR stack stayed healthy.
+        sleep "$SOAK_SEC"
+        docker logs "$RUN_NAME" > "$LOG_FILE" 2>&1 || true
+        if grep -Eq "$FAIL_RE" "$LOG_FILE"; then
+          fail "CloudXR runtime/launcher reported a fatal error during soak"
+        fi
+        running=$(docker inspect -f '{{.State.Running}}' "$RUN_NAME" 2>/dev/null || echo false)
+        if [ "$running" != "true" ]; then
+          rc=$(docker inspect -f '{{.State.ExitCode}}' "$RUN_NAME" 2>/dev/null || echo 1)
+          fail "node exited during the ${SOAK_SEC}s soak (exit code $rc)"
+        fi
+
+        docker stop --time 5 "$RUN_NAME" >/dev/null || true
+        echo "===== teleop_ros2 (live) container log ====="
+        cat "$LOG_FILE" 2>/dev/null || echo "No log captured"
+        echo "Live CloudXR bring-up verified for mode $MODE (${{ env.ROS_DISTRO }}, ${{ matrix.arch }})."
+
   # These are the actual dependency jobs for publish-wheel. publish-wheel
   # depends only on wheel-gate so the dependency list lives in one place, while
   # this gate still runs for fork PRs where publish-wheel is intentionally skipped.
@@ -600,6 +799,7 @@ jobs:
       - test-viz-sanitizers
       - test-cloudxr
       - test-teleop-ros2
+      - test-teleop-ros2-cloudxr
     if: ${{ always() }}
 
     steps:

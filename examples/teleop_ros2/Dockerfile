@@ -138,6 +138,7 @@ RUN --mount=type=cache,target=/ccache,id=isaacteleop-teleop-ros2-ccache-${ROS_DI
         -DBUILD_PLUGINS=ON \
         -DBUILD_PLUGIN_OAK_CAMERA=OFF \
         -DENABLE_CLANG_FORMAT_CHECK=OFF \
+        -DENABLE_CLOUDXR_BUNDLE_CHECK=ON \
         -DBUNDLE_ROBOTIC_GROUNDING=${BUNDLE_ROBOTIC_GROUNDING} \
         -DISAAC_TELEOP_PYTHON_VERSION=${PYTHON_VERSION} \
     && cmake --build build --config Release -j$(nproc) \
