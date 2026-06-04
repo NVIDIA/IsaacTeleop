@@ -701,7 +701,6 @@ jobs:
         docker run -d \
           --name "$RUN_NAME" \
           --gpus all \
-          --network host \
           -e PYTHONUNBUFFERED=1 \
           -e ACCEPT_CLOUDXR_EULA=Y \
           --entrypoint bash "$IMAGE" -c \
