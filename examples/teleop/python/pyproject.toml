@@ -5,7 +5,7 @@
 name = "teleop-examples"
 version = "0.1.0"
 description = "Isaac Teleop Retargeting Examples"
-requires-python = ">=3.10,<3.14"
+requires-python = ">=3.10"
 dependencies = [
     "isaacteleop[retargeters]",
 ]

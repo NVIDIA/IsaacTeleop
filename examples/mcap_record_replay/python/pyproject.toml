@@ -5,7 +5,7 @@
 name = "mcap-record-replay-example"
 version = "0.0.0"  # Internal example - not versioned
 description = "Isaac Teleop MCAP record / replay example with viser visualization"
-requires-python = ">=3.10,<3.14"
+requires-python = ">=3.10"
 dependencies = [
     "isaacteleop[cloudxr]==1.3.9rc1",
     "mcap>=1.2.0",

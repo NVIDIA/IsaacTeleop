@@ -10,7 +10,7 @@
 name = "camera-viz"
 version = "0.0.0"
 description = "Televiz camera-feed visualizer"
-requires-python = ">=3.10,<3.14"
+requires-python = ">=3.10"
 dependencies = [
     "pyyaml>=6.0",
     "cupy-cuda12x",

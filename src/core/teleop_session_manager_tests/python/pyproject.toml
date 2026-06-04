@@ -5,7 +5,7 @@
 name = "teleopcore-teleop-session-manager-tests"
 version = "0.0.0"  # Internal tests - not versioned
 description = "Teleop session manager tests for TeleopCore"
-requires-python = ">=3.10,<3.14"
+requires-python = ">=3.10"
 
 [project.optional-dependencies]
 dev = [
