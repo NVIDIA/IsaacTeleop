@@ -127,6 +127,7 @@ class CloudXRLauncher:
         self._wss_stop_future: asyncio.Future | None = None
         self._wss_log_path: Path | None = None
         self._atexit_registered = False
+        self._prev_signal_handlers: dict[int, object] = {}
 
         env_cfg = EnvConfig.from_args(self._install_dir, self._env_config)
         try:
@@ -160,6 +161,14 @@ class CloudXRLauncher:
             atexit.register(self.stop)
             self._atexit_registered = True
 
+        # atexit handlers do NOT run on SIGTERM/SIGINT, and the runtime is in its
+        # own session (start_new_session=True) so it isn't killed with this
+        # process. Without this, a signalled shutdown (e.g. `pkill` of the
+        # embedding streamer) orphans the runtime, which keeps holding the
+        # streaming port and makes the next start fail with PORT_UNAVAILABLE.
+        # Install handlers that run stop() then chain to the prior disposition.
+        self._install_signal_handlers()
+
         wss_ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M%SZ")
         wss_log_path = logs_dir_path / f"wss.{wss_ts}.log"
         self._wss_log_path = wss_log_path
@@ -188,6 +197,7 @@ class CloudXRLauncher:
                 The process handle is retained so callers can retry or
                 inspect the still-running process.
         """
+        self._restore_signal_handlers()
         self._stop_wss_proxy()
 
         if self._runtime_proc is not None:
@@ -235,6 +245,51 @@ class CloudXRLauncher:
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
+
+    def _install_signal_handlers(self) -> None:
+        """Tear the runtime down on SIGTERM/SIGINT.
+
+        Signals don't trigger ``atexit``, and the runtime runs in its own
+        session, so a signalled shutdown would otherwise orphan it.  Each
+        handler runs :meth:`stop` then chains to the previously-installed
+        disposition, so embedding apps keep their own shutdown behaviour.
+        No-op off the main thread (``signal.signal`` only works there).
+        """
+        if threading.current_thread() is not threading.main_thread():
+            return
+
+        def _make_handler(prev):
+            def _handler(signum, frame):
+                try:
+                    self.stop()
+                finally:
+                    if callable(prev):
+                        prev(signum, frame)
+                    else:
+                        # SIG_DFL / SIG_IGN: restore it and re-raise so the
+                        # default (terminate) or ignore behaviour applies.
+                        signal.signal(signum, prev)
+                        if prev == signal.SIG_DFL:
+                            os.kill(os.getpid(), signum)
+
+            return _handler
+
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            try:
+                prev = signal.getsignal(sig)
+                signal.signal(sig, _make_handler(prev))
+            except (ValueError, OSError):
+                continue
+            self._prev_signal_handlers[sig] = prev
+
+    def _restore_signal_handlers(self) -> None:
+        """Restore signal handlers saved by :meth:`_install_signal_handlers`."""
+        while self._prev_signal_handlers:
+            sig, prev = self._prev_signal_handlers.popitem()
+            try:
+                signal.signal(sig, prev)
+            except (ValueError, OSError):
+                pass
 
     @staticmethod
     def _cleanup_stale_runtime(env_cfg: EnvConfig) -> None:
