@@ -44,9 +44,19 @@ public:
     void update(int64_t monotonic_time_ns) override;
     const ControllerSnapshotTrackedT& get_left_controller() const override;
     const ControllerSnapshotTrackedT& get_right_controller() const override;
-    void apply_haptic_feedback(bool is_left, float amplitude, float frequency_hz, float duration_s) const override;
+    void apply_left_haptic_feedback(float amplitude, float frequency_hz, float duration_s) const override;
+    void apply_right_haptic_feedback(float amplitude, float frequency_hz, float duration_s) const override;
 
 private:
+    // Internal side selector for the shared haptic implementation. The public
+    // surface stays split (apply_left/right) to match get_left/right_controller.
+    enum class Side
+    {
+        Left,
+        Right
+    };
+    void apply_haptic_feedback(Side side, float amplitude, float frequency_hz, float duration_s) const;
+
     const OpenXRCoreFunctions core_funcs_;
     XrTimeConverter time_converter_;
 

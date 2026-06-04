@@ -17,7 +17,10 @@ public:
     virtual const ControllerSnapshotTrackedT& get_left_controller() const = 0;
     virtual const ControllerSnapshotTrackedT& get_right_controller() const = 0;
 
-    /// Apply one frame of haptic vibration to the controller on the given side.
+    /// Apply one frame of haptic vibration to the left / right controller.
+    ///
+    /// Split by side to mirror `get_left_controller` / `get_right_controller`:
+    /// DeviceIO selects the side by which method you call, not a side argument.
     ///
     /// `amplitude` in [0, 1]. `amplitude == 0` requests an explicit "stop"
     /// rather than a zero-amplitude pulse, so a rumble can be aborted cleanly
@@ -29,11 +32,8 @@ public:
     /// `XR_MIN_HAPTIC_DURATION`). Implementations must be non-throwing on
     /// transient hardware failures -- a missing haptic component must not
     /// tear down the tracker.
-    ///
-    /// Marked `const` to match the rest of the impl API (the impl object is
-    /// treated as immutable from the public interface; the side effect lives
-    /// in the runtime / hardware).
-    virtual void apply_haptic_feedback(bool is_left, float amplitude, float frequency_hz, float duration_s) const = 0;
+    virtual void apply_left_haptic_feedback(float amplitude, float frequency_hz, float duration_s) const = 0;
+    virtual void apply_right_haptic_feedback(float amplitude, float frequency_hz, float duration_s) const = 0;
 };
 
 } // namespace core

@@ -460,11 +460,21 @@ const ControllerSnapshotTrackedT& LiveControllerTrackerImpl::get_right_controlle
     return right_tracked_;
 }
 
-void LiveControllerTrackerImpl::apply_haptic_feedback(bool is_left, float amplitude, float frequency_hz, float duration_s) const
+void LiveControllerTrackerImpl::apply_left_haptic_feedback(float amplitude, float frequency_hz, float duration_s) const
 {
-    const XrPath subaction_path = is_left ? left_hand_path_ : right_hand_path_;
-    const size_t slot = is_left ? 0 : 1;
-    const char* const side_name = is_left ? "left" : "right";
+    apply_haptic_feedback(Side::Left, amplitude, frequency_hz, duration_s);
+}
+
+void LiveControllerTrackerImpl::apply_right_haptic_feedback(float amplitude, float frequency_hz, float duration_s) const
+{
+    apply_haptic_feedback(Side::Right, amplitude, frequency_hz, duration_s);
+}
+
+void LiveControllerTrackerImpl::apply_haptic_feedback(Side side, float amplitude, float frequency_hz, float duration_s) const
+{
+    const XrPath subaction_path = (side == Side::Left) ? left_hand_path_ : right_hand_path_;
+    const size_t slot = (side == Side::Left) ? 0 : 1;
+    const char* const side_name = (side == Side::Left) ? "left" : "right";
 
     // Map non-finite inputs (NaN / +-Inf) to zero so they hit the explicit-stop
     // / runtime-default branches below. Without this, std::clamp leaves NaN

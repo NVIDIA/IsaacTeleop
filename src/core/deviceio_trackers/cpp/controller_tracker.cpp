@@ -26,7 +26,7 @@ void ControllerTracker::apply_left_haptic_feedback(const ITrackerSession& sessio
                                                    float duration_s) const
 {
     static_cast<const IControllerTrackerImpl&>(session.get_tracker_impl(*this))
-        .apply_haptic_feedback(/*is_left=*/true, amplitude, frequency_hz, duration_s);
+        .apply_left_haptic_feedback(amplitude, frequency_hz, duration_s);
 }
 
 void ControllerTracker::apply_right_haptic_feedback(const ITrackerSession& session,
@@ -35,7 +35,7 @@ void ControllerTracker::apply_right_haptic_feedback(const ITrackerSession& sessi
                                                     float duration_s) const
 {
     static_cast<const IControllerTrackerImpl&>(session.get_tracker_impl(*this))
-        .apply_haptic_feedback(/*is_left=*/false, amplitude, frequency_hz, duration_s);
+        .apply_right_haptic_feedback(amplitude, frequency_hz, duration_s);
 }
 
 } // namespace core
