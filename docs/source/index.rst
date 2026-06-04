@@ -61,6 +61,7 @@ Table of Contents
    references/build
    device/index
    references/retargeting/index
+   references/cloudxr
    references/mcap_record_replay
    references/oob_teleop_control
    references/egocentric_hand_reconstruction
