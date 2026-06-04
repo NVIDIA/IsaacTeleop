@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 image:
@@ -17,6 +17,7 @@ build-sonar:
   stage: build-sonar
   tags:
     - type/docker
+    - os/linux
 
   cache:
     policy: pull-push
