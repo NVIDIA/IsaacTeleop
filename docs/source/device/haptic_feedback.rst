@@ -93,7 +93,6 @@ foundation.
 See also
 --------
 
-- Design rationale: ``IsaacLab/docs/tactile_haptic_feedback_design.md``.
 - Example + tests: ``examples/haptic_feedback/python/`` and
   ``src/core/retargeting_engine_tests/python/test_haptic_devices.py`` /
   ``test_haptic_sink.py``.
