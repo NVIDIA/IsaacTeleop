@@ -122,7 +122,8 @@ check_system_deps() {
     # cuda-nvrtc on Jetson — JetPack ships partial CUDA without it.
     # Desktop CUDA installer drops libnvrtc into /usr/local/cuda; if it's
     # missing there, the user needs to fix their CUDA install.
-    if $JETSON && ! find /usr -name 'libnvrtc.so*' 2>/dev/null | grep -q .; then
+    # capture, not `find | grep -q`: find's non-zero on an unreadable /usr dir trips pipefail.
+    if $JETSON && [[ -z "$(find /usr -name 'libnvrtc.so*' -print -quit 2>/dev/null)" ]]; then
         pkgs+=("cuda-nvrtc-${cuda_major}-${cuda_minor}")
     fi
 
@@ -330,7 +331,8 @@ $WITH_RTP  && PKGS+=("pybind11>=2.11" "PyGObject>=3.42,<3.52")
 EXTRA_UV=()
 if [[ "$MODE" == full && -f "$WHEEL" ]]; then
     wheel_mtime=$(stat -c %Y "$WHEEL" 2>/dev/null || echo 0)
-    installed_dist=$(ls -d "$VENV_DIR"/lib/python*/site-packages/isaacteleop-*.dist-info 2>/dev/null | head -1)
+    # Empty on a fresh venv; `|| true` keeps the no-match from aborting under pipefail+set -e.
+    installed_dist=$(ls -d "$VENV_DIR"/lib/python*/site-packages/isaacteleop-*.dist-info 2>/dev/null | head -1 || true)
     if [[ -n "$installed_dist" ]]; then
         installed_mtime=$(stat -c %Y "$installed_dist" 2>/dev/null || echo 0)
         if (( wheel_mtime > installed_mtime )); then
