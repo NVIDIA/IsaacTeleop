@@ -43,7 +43,7 @@ import { Handle, HandleTarget } from '@react-three/handle';
 import { Container, Text, Image } from '@react-three/uikit';
 import { Button } from '@react-three/uikit-default';
 import React, { useRef, useState, useEffect } from 'react';
-import { Color, Euler, Group, Mesh, MeshStandardMaterial, Quaternion, Vector3 } from 'three';
+import { Color, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
 import { damp } from 'three/src/math/MathUtils.js';
 
 // Face-camera rotation constants
@@ -80,11 +80,8 @@ interface CloudXRUIProps {
 }
 
 // Reusable objects for face-camera rotation (avoid allocations in render loop)
-const eulerHelper = new Euler();
-const quaternionHelper = new Quaternion();
 const cameraPositionHelper = new Vector3();
 const uiPositionHelper = new Vector3();
-const zAxis = new Vector3(0, 0, 1);
 
 // Handle hover colors (module-level to avoid per-render allocations)
 const HANDLE_COLOR_DEFAULT = new Color('#666666');
@@ -161,17 +158,24 @@ export default function CloudXR3DUI({
     }
     state.camera.getWorldPosition(cameraPositionHelper);
     groupRef.current.getWorldPosition(uiPositionHelper);
-    quaternionHelper.setFromUnitVectors(
-      zAxis,
-      cameraPositionHelper.sub(uiPositionHelper).normalize()
-    );
-    eulerHelper.setFromQuaternion(quaternionHelper, 'YXZ');
-    groupRef.current.rotation.y = damp(
-      groupRef.current.rotation.y,
-      eulerHelper.y,
-      FACE_CAMERA_DAMPING,
-      dt
-    );
+
+    // Project onto the horizontal plane (XZ) to get a pure yaw angle.
+    // Using atan2 avoids the 3D-quaternion→Euler extraction that can give wrong
+    // yaw when the camera has significant height offset relative to the panel.
+    const dx = cameraPositionHelper.x - uiPositionHelper.x;
+    const dz = cameraPositionHelper.z - uiPositionHelper.z;
+    let targetY = Math.atan2(dx, dz);
+
+    // Wrap the angular difference to [-π, π] so damp() always takes the
+    // shortest path.  Without this, when the target crosses the ±π boundary
+    // (camera near the side/behind the panel), damp interpolates the long way
+    // around and the panel snaps to face away from the user.
+    const currentY = groupRef.current.rotation.y;
+    let diff = targetY - currentY;
+    diff = diff - Math.round(diff / (2 * Math.PI)) * (2 * Math.PI);
+    targetY = currentY + diff;
+
+    groupRef.current.rotation.y = damp(currentY, targetY, FACE_CAMERA_DAMPING, dt);
   });
 
   return (
