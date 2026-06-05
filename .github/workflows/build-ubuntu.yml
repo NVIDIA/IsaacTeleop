@@ -495,7 +495,12 @@ jobs:
           --build-arg BUNDLE_ROBOTIC_GROUNDING=${{ steps.setup-v2d-src.outputs.bundled || 'false' }} \
           -t teleop_ros2_ref:${{ env.ROS_DISTRO }} .
 
-    - name: Verify application modes
+    # MCAP replay path: feed a recorded fixture through the node
+    # (SessionMode.REPLAY, no CloudXR runtime / GPU) across all teleop modes and
+    # verify the published topics. The cheaper, deterministic check; runs before
+    # the live bring-up below, which reuses the same image and removes it on
+    # teardown.
+    - name: Verify application modes (MCAP replay)
       run: |
         set -euo pipefail
 
@@ -593,80 +598,17 @@ jobs:
           fi
         done
 
-  # Run the teleop_ros2 node against a real in-process CloudXR runtime (CloudXRLauncher
-  # launches the runtime + WSS proxy) on a GPU runner, and assert clean bring-up.
-  # No XR client connects, so the session never starts and topics are not verified here.
-  # This job exercises the CloudXR launch path the replay job cannot.
-  test-teleop-ros2-cloudxr:
-    runs-on: [self-hosted, linux, gpu, "${{ matrix.arch }}"]
-    needs: build-ubuntu
-
-    strategy:
-      fail-fast: ${{ github.event_name == 'pull_request' }}
-      matrix:
-        python_version: ['3.10', '3.12']
-        arch: ['x64', 'arm64']
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v6
-      with:
-        submodules: recursive
-
-    - name: Install uv
-      uses: ./.github/actions/setup-uv
-
-    - name: Download install artifacts
-      uses: actions/download-artifact@v7
-      with:
-        name: isaacteleop-install-release-${{ matrix.arch }}-py${{ matrix.python_version }}
-
-    - name: Extract tarball to preserve permissions
-      run: |
-        mkdir -p install
-        tar -xvf isaacteleop-install.tar -C install
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v4
-
-    - name: Setup robotic_grounding source bundle
-      id: setup-v2d-src
-      if: ${{ !startsWith(github.ref_name, 'release/') && !startsWith(github.base_ref, 'release/') }}
-      uses: ./.github/actions/setup-v2d-src
-      with:
-        github-token: ${{ secrets.V2D_RETARGETER_TOKEN }}
-
-    - name: Set ROS Distro
-      id: ros-distro
-      run: |
-        if [ "${{ matrix.python_version }}" = "3.10" ]; then
-          echo "ROS_DISTRO=humble" >> $GITHUB_ENV
-        elif [ "${{ matrix.python_version }}" = "3.12" ]; then
-          echo "ROS_DISTRO=jazzy" >> $GITHUB_ENV
-        fi
-
-    # Live mode needs the bundled CloudXR runtime in the image, so the SDK must
-    # be in the build context (the Dockerfile builds with
-    # -DENABLE_CLOUDXR_BUNDLE_CHECK=ON). Public NGC by default; private NGC
-    # fallback on trusted runs via the key.
-    - name: Setup CloudXR SDK
-      uses: ./.github/actions/setup-cloudxr-sdk
-      with:
-        ngc-api-key: ${{ secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY }}
-
-    - name: Build teleop_ros2 image
-      run: |
-        docker build -f examples/teleop_ros2/Dockerfile \
-          --build-arg ROS_DISTRO=${{ env.ROS_DISTRO }} \
-          --build-arg PYTHON_VERSION=${{ matrix.python_version }} \
-          --build-arg BUNDLE_ROBOTIC_GROUNDING=${{ steps.setup-v2d-src.outputs.bundled || 'false' }} \
-          -t teleop_ros2_cloudxr_ref:${{ env.ROS_DISTRO }} .
-
+    # Live CloudXR bring-up on the same GPU runner, reusing the teleop_ros2_ref
+    # image built above. Runs the teleop_ros2 node against a real in-process
+    # CloudXR runtime (CloudXRLauncher launches the runtime + WSS proxy) and
+    # asserts clean bring-up. No XR client connects, so the session never starts
+    # and topics are not verified here; this exercises the CloudXR launch path
+    # the replay phase above cannot.
     - name: Verify live CloudXR bring-up
       run: |
         set -euo pipefail
 
-        IMAGE="teleop_ros2_cloudxr_ref:${{ env.ROS_DISTRO }}"
+        IMAGE="teleop_ros2_ref:${{ env.ROS_DISTRO }}"
         RUN_NAME="teleop-ros2-cloudxr-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}-${{ env.ROS_DISTRO }}"
         LOG_FILE="/tmp/ros2_cloudxr_output_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${{ matrix.arch }}_${{ env.ROS_DISTRO }}.log"
         MODE="controller_teleop"
@@ -798,7 +740,6 @@ jobs:
       - test-viz-sanitizers
       - test-cloudxr
       - test-teleop-ros2
-      - test-teleop-ros2-cloudxr
     if: ${{ always() }}
 
     steps:
