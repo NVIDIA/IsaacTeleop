@@ -59,7 +59,7 @@ Robot assets are never downloaded by `teleop_ros2_node.py` at runtime.
 ## Published Topics
 
 - `xr_teleop/hand` (`geometry_msgs/PoseArray`)
-  - `poses`: Finger joint poses (all joints except palm/wrist, right then left); published by `hand_teleop` and by `controller_teleop` when `hand_retargeter:=dexpilot` or `hand_retargeter:=pink_ik`
+  - `poses`: Hand joint poses (all joints except palm, left then right); published by `hand_teleop` and by `controller_teleop` when `hand_retargeter:=dexpilot` or `hand_retargeter:=pink_ik`
 - `xr_teleop/ee_poses` (`geometry_msgs/PoseArray`)
   - `poses[0]`: Left hand/controller EE pose (if active)
   - `poses[1]`: Right hand/controller EE pose (if active)

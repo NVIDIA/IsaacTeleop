@@ -252,7 +252,7 @@ class TopicVerifier(Node):
                     "hand",
                     "xr_teleop/hand",
                     PoseArray,
-                    lambda msg: _assert_pose_array(msg, expected_count=48),
+                    lambda msg: _assert_pose_array(msg, expected_count=50),
                 ),
                 (
                     "ee_poses",

@@ -257,26 +257,10 @@ def build_hand_msg_from_hands(
     transform_rot: Rotation | None = None,
     transform_trans: Sequence[float] | None = None,
 ) -> PoseArray:
-    """Build a PoseArray with finger joint poses, right hand then left hand."""
+    """Build a PoseArray with finger joint poses, left hand then right hand."""
     msg = PoseArray()
     msg.header.stamp = now
     msg.header.frame_id = frame_id
-
-    if not right_hand.is_none:
-        right_positions = np.asarray(right_hand[HandInputIndex.JOINT_POSITIONS])
-        right_orientations = np.asarray(right_hand[HandInputIndex.JOINT_ORIENTATIONS])
-        right_valid = np.asarray(right_hand[HandInputIndex.JOINT_VALID])
-        append_hand_poses(
-            msg.poses,
-            right_positions,
-            right_orientations,
-            right_valid,
-            transform_rot,
-            transform_trans,
-        )
-    else:
-        for _ in range(HandJointIndex.THUMB_METACARPAL, HandJointIndex.LITTLE_TIP + 1):
-            msg.poses.append(to_pose([0.0, 0.0, 0.0]))
 
     if not left_hand.is_none:
         left_positions = np.asarray(left_hand[HandInputIndex.JOINT_POSITIONS])
@@ -291,7 +275,23 @@ def build_hand_msg_from_hands(
             transform_trans,
         )
     else:
-        for _ in range(HandJointIndex.THUMB_METACARPAL, HandJointIndex.LITTLE_TIP + 1):
+        for _ in range(HandJointIndex.WRIST, HandJointIndex.LITTLE_TIP + 1):
+            msg.poses.append(to_pose([0.0, 0.0, 0.0]))
+
+    if not right_hand.is_none:
+        right_positions = np.asarray(right_hand[HandInputIndex.JOINT_POSITIONS])
+        right_orientations = np.asarray(right_hand[HandInputIndex.JOINT_ORIENTATIONS])
+        right_valid = np.asarray(right_hand[HandInputIndex.JOINT_VALID])
+        append_hand_poses(
+            msg.poses,
+            right_positions,
+            right_orientations,
+            right_valid,
+            transform_rot,
+            transform_trans,
+        )
+    else:
+        for _ in range(HandJointIndex.WRIST, HandJointIndex.LITTLE_TIP + 1):
             msg.poses.append(to_pose([0.0, 0.0, 0.0]))
 
     return msg
