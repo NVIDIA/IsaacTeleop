@@ -20,7 +20,7 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
-    "@nvidia/cloudxr": "file:../nvidia-cloudxr-6.1.0.tgz",
+    "@nvidia/cloudxr": "file:../sdk.tgz",
     "@preact/signals-react": "^2.2.0",
     "@react-three/drei": "^10.6.1",
     "@react-three/fiber": "^9.3.0",

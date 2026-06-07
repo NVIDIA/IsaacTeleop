@@ -222,18 +222,12 @@ Sharing the XR session with TeleopSession
 -----------------------------------------
 
 Only one OpenXR session is allowed per process, so when this sample runs alongside teleoperation the
-``VizSession`` owns the session and hands its live handles to ``TeleopSession`` /
-``DeviceIOSession``, which then skip creating their own:
+``VizSession`` owns the session and hands its handles to ``TeleopSession`` / ``DeviceIOSession``,
+which then skip creating their own. The viewer builds the session with the trackers' required
+extensions and forwards the handles through ``TeleopSessionConfig.oxr_handles``:
 
 .. code-block:: python
 
-   import isaacteleop.viz as televiz
-   from teleopcore.oxr import OpenXRSessionHandles
-
-   cfg = televiz.VizSessionConfig()
-   cfg.mode = televiz.DisplayMode.kXr
-   # Aggregate the XR extensions downstream trackers need (e.g.
-   # XR_NVX1_action_context for ControllerTracker).
    cfg.required_extensions = DeviceIOSession.get_required_extensions(trackers)
    viz_session = televiz.VizSession.create(cfg)
 
@@ -242,9 +236,7 @@ Only one OpenXR session is allowed per process, so when this sample runs alongsi
        pipeline=pipeline,
        oxr_handles=OpenXRSessionHandles(*viz_session.get_oxr_handles()),
    )
-   with TeleopSession(config) as session:
-       ...
 
-``viz_session.get_oxr_handles()`` returns ``(instance, session, space, proc_addr)`` as raw
-``uint64`` values, or ``None`` outside ``kXr``. See :doc:`/getting_started/televiz` for the full
-Televiz API and :doc:`/getting_started/teleop_session` for the ``TeleopSession`` side.
+See the *Sharing the XR session* section of :doc:`/getting_started/televiz` for the full pattern
+(imports, frame loop, and how the two sessions' lifecycles relate), and
+:doc:`/getting_started/teleop_session` for the ``TeleopSession`` side.

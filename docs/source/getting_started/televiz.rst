@@ -4,18 +4,18 @@
 Televiz
 =======
 
-Televiz (``isaacteleop.viz``) is a lightweight Vulkan compositor for Isaac Teleop. It renders 2D
-sensor feeds and 3D reconstruction content into XR, windowed, or offscreen displays, integrating
-directly with the device-tracking and retargeting pipeline. It is a self-contained Vulkan + OpenXR +
-CUDA module with no external rendering-framework dependency.
+Televiz (``isaacteleop.viz``) is a lightweight compositor for Isaac Teleop. It composites camera and
+sensor feeds — with 3D rendered content coming soon — into an XR headset, a desktop window, or an
+offscreen buffer, integrating directly with the device-tracking and retargeting pipeline.
 
-The compositor is implemented in C++ (``namespace viz``) with a pybind11 binding. This page uses the
-Python API (``isaacteleop.viz``), which mirrors the C++ names one-to-one — see `C++ API`_ to link
-against the library directly.
-
-Televiz is a **compositor**, not a capture or streaming layer: it consumes GPU frames and assembles
-them into a final image. Camera capture, decode, and network transport live in the application (see
+It is a **compositor**, not a capture or streaming layer: it consumes GPU frames and assembles them
+into a final image. Camera capture, decode, and network transport live in the application (see
 :doc:`/references/camera_streaming`).
+
+The compositor is implemented in C++ (``namespace viz``, built on Vulkan + OpenXR + CUDA with no
+external rendering-framework dependency) and exposed through a pybind11 binding. This page uses the
+Python API, which mirrors the C++ names one-to-one — see `C++ API`_ to link against the library
+directly.
 
 .. contents:: On this page
    :local:
@@ -95,8 +95,9 @@ A minimal offscreen render-and-readback (no GPU display, no headset):
 
    session.destroy()
 
-Swap ``mode`` to ``televiz.DisplayMode.kWindow`` to open a desktop window, or ``televiz.DisplayMode.kXr`` to
-render to a headset; the rest of the loop is identical.
+For a window or headset, set ``mode`` to ``DisplayMode.kWindow`` or ``DisplayMode.kXr`` instead. The
+layer setup is identical; you just drive a frame loop (see `Frame loop`_) rather than the one-shot
+``readback_to_host()``, which is offscreen-only.
 
 Session configuration
 ---------------------
@@ -194,7 +195,7 @@ Submit and place a frame:
    layer = session.add_quad_layer(layer_cfg)
 
    # Mono: pass exactly one buffer. Stereo: layer.submit(left, right).
-   layer.submit(rgba_array, stream=cuda_stream_ptr)
+   layer.submit(rgba_array)            # optional: stream=<cuda stream ptr>
 
    # 3D placement (XR). Pose is OpenXR stage space: position (x,y,z),
    # orientation quaternion (w,x,y,z). size_meters is (width, height).
