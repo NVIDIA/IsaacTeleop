@@ -343,6 +343,8 @@ More Information
 
 - :doc:`teleop_session` — learn how ``TeleopSession`` works and how to build
   custom retargeting pipelines
+- :doc:`televiz` — visualize robot camera and sensor feeds in an XR headset with
+  the Televiz compositor (and share a single XR session with your teleop pipeline)
 - :doc:`build_from_source/index` — build the C++ core, Python bindings, and plugins
   from source
 
