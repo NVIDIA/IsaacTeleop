@@ -105,8 +105,8 @@ if(BUILD_PLUGINS AND BUILD_PLUGIN_OAK_CAMERA)
     set(ENV{CMAKE_POLICY_VERSION_MINIMUM} "3.5")
 
     HunterGate(
-        URL "https://github.com/cpp-pm/hunter/archive/9d9242b60d5236269f894efd3ddd60a9ca83dd7f.tar.gz"
-        SHA1 "16cc954aa723bccd16ea45fc91a858d0c5246376"
+        URL "https://github.com/cpp-pm/hunter/archive/v0.26.9.tar.gz"
+        SHA1 "a962c9f0cfd6f8fc62ea25943d89debfa61d4d4a"
         LOCAL  # Uses cmake/Hunter/config.cmake
     )
 endif()
