@@ -39,7 +39,8 @@ The layout below reflects the actual ``CMakeLists.txt`` hierarchy (root ``CMakeL
    │   ├── controller_synthetic_hands/
    │   ├── generic_3axis_pedal/
    │   ├── manus/
-   │   └── oak/                    # When BUILD_PLUGIN_OAK_CAMERA=ON
+   │   ├── oak/                    # When BUILD_PLUGIN_OAK_CAMERA=ON
+   |   └── haptikos/
    └── examples/
        ├── oxr/                    # OpenXR examples (C++ and Python)
        ├── retargeting/

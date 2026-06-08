@@ -88,6 +88,9 @@ session is running via USB or Bluetooth. See :ref:`device-interface-device-plugi
    * - `OAK-D Camera`_
      - Offline data recording
      - `OAK-D Camera Plugin`_ (CLI tool)
+   * - `Haptikos Exoskeletons`_
+     -  High-fidelity finger tracking and haptic feedback (Haptikos Robotics API)
+     - `Haptikos Plugin`_ (CLI tool) 
 
 Planned Input Device Support
 -----------------------------
@@ -173,12 +176,15 @@ directly. Each device name in the tables above links to the corresponding manufa
    * - `Luxonis`_
      - OAK-D Camera
      -
+   * - `Haptikos`_
+     - Haptikos Exoskeletons
+     -      
    * - `Haply`_
      - Haply (planned)
      -
    * - `3Dconnexion`_
      - 3D Space Mouse (planned)
-     -
+     - 
 
 ..
    References
@@ -190,6 +196,7 @@ directly. Each device name in the tables above links to the corresponding manufa
 .. _Manus: https://www.manus-meta.com/
 .. _Logitech: https://www.logitechg.com/
 .. _Luxonis: https://www.luxonis.com/
+.. _Haptikos: https://haptikos.tech/
 .. _Haply: https://www.haply.co/
 .. _`3Dconnexion`: https://3dconnexion.com/
 
@@ -202,6 +209,7 @@ directly. Each device name in the tables above links to the corresponding manufa
 .. _`Logitech Rudder Pedals`: https://www.logitechg.com/en-us/products/flight/flight-simulator-rudder-pedals.html
 .. _`OAK-D Camera`: https://shop.luxonis.com/products/oak-d
 .. _`3D Space Mouse`: https://3dconnexion.com/us/spacemouse/
+.. _`Haptikos Exoskeletons`: https://haptikos.tech/product/haptikos/ 
 
 .. Other references
 .. _`Isaac XR Teleop Sample Client`: https://github.com/isaac-sim/isaac-xr-teleop-sample-client-apple
@@ -209,3 +217,4 @@ directly. Each device name in the tables above links to the corresponding manufa
 .. _`Manus Gloves Plugin`: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/manus
 .. _`Generic 3-axis Pedal Plugin`: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/generic_3axis_pedal
 .. _`OAK-D Camera Plugin`: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/oak
+.. _`Haptikos Plugin`: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/haptikos
