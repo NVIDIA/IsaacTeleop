@@ -198,6 +198,12 @@ running the CloudXR runtime and wss proxy in containerized environment; or using
    convenience, we host a prebuilt CloudXR web client at `nvidia.github.io/IsaacTeleop/client`_.
    You can just open this URL in your headset's browser. No need to build or install a separate client.
 
+   .. important::
+
+      Make sure your headset is updated to the latest firmware (system software) version before
+      connecting. Older firmware may ship an outdated browser/WebXR runtime that fails to connect or
+      streams with reduced functionality.
+
    .. tip::
 
       For quick validation, you can also open the `nvidia.github.io/IsaacTeleop/client`_ URL in a
