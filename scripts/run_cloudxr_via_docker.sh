@@ -35,7 +35,7 @@ ${RED}##########################################################################
 EOF
 
 # Require interactive acknowledgment before continuing.
-if [ -t 0 ]; then
+if [[ -t 0 ]]; then
     printf "${YELLOW}Press any key to acknowledge and continue, or Ctrl-C to abort...${RESET}\n"
     read -r -n 1 -s
     printf "\n"
