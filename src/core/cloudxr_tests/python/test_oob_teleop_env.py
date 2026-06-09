@@ -11,16 +11,20 @@ import cloudxr_py_test_ns.oob_teleop_env as oob_teleop_env_under_test
 import pytest
 
 from cloudxr_py_test_ns.oob_teleop_env import (
+    FALLBACK_WEB_CLIENT_ORIGIN,
     TELEOP_WEB_CLIENT_BASE_ENV,
     TELEOP_WEB_CLIENT_STATIC_DIR_ENV,
     USB_BACKEND_DEFAULT_PORT,
     USB_TURN_DEFAULT_PORT,
     USB_UI_DEFAULT_PORT,
+    WEB_CLIENT_BASE,
     WSS_PROXY_DEFAULT_PORT,
     build_headset_bookmark_url,
     client_ui_fields_from_env,
     default_initial_stream_config,
+    default_web_client_origin,
     guess_lan_ipv4,
+    versioned_web_client_url,
     print_oob_hub_startup_banner,
     require_usb_local_webxr_static_dir,
     resolve_lan_host_for_oob,
@@ -128,6 +132,56 @@ def test_web_client_base_override_from_env(
     assert web_client_base_override_from_env() is None
     monkeypatch.setenv(TELEOP_WEB_CLIENT_BASE_ENV, "  https://example.test/app  ")
     assert web_client_base_override_from_env() == "https://example.test/app"
+
+
+def test_versioned_web_client_url_exact_tag() -> None:
+    # A clean MAJOR.MINOR.PATCH release maps to the per-tag client.
+    assert (
+        versioned_web_client_url("1.2.3")
+        == "https://nvidia.github.io/IsaacTeleop/client/v1.2.3/"
+    )
+
+
+def test_versioned_web_client_url_prerelease_uses_release_line() -> None:
+    # rc / dev builds fall to the release line, not a per-tag client.
+    assert (
+        versioned_web_client_url("1.3.9rc1")
+        == "https://nvidia.github.io/IsaacTeleop/client/release-1.3.x/"
+    )
+    assert (
+        versioned_web_client_url("1.3.0.dev5")
+        == "https://nvidia.github.io/IsaacTeleop/client/release-1.3.x/"
+    )
+
+
+def test_versioned_web_client_url_unparseable_falls_back_to_base() -> None:
+    # No leading MAJOR.MINOR -> generic client root (site redirects to stable).
+    assert versioned_web_client_url("unknown") == WEB_CLIENT_BASE
+
+
+def test_default_web_client_origin_uses_installed_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import cloudxr_py_test_ns.oob_teleop_env as mod
+
+    monkeypatch.setattr(mod, "version", lambda _name: "1.4.0", raising=False)
+    assert (
+        default_web_client_origin()
+        == "https://nvidia.github.io/IsaacTeleop/client/v1.4.0/"
+    )
+
+
+def test_default_web_client_origin_falls_back_when_version_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import cloudxr_py_test_ns.oob_teleop_env as mod
+    from importlib.metadata import PackageNotFoundError
+
+    def _raise(_name: str) -> str:
+        raise PackageNotFoundError(_name)
+
+    monkeypatch.setattr(mod, "version", _raise, raising=False)
+    assert default_web_client_origin() == FALLBACK_WEB_CLIENT_ORIGIN
 
 
 def test_build_headset_bookmark_url_minimal() -> None:
