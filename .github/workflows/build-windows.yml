@@ -134,6 +134,15 @@ jobs:
       run: |
         $testLog = Join-Path $env:RUNNER_TEMP "windows-ctest-${{ matrix.build_type }}.log"
 
+        $runtimePaths = @(
+          (Join-Path $PWD "build\_deps\openxr-sdk-build\src\loader"),
+          (Join-Path $PWD "build\_deps\openxr-sdk-build\src\loader\${{ matrix.build_type }}"),
+          (Join-Path $env:VULKAN_SDK "Bin")
+        ) | Where-Object { Test-Path $_ }
+        if ($runtimePaths) {
+          $env:PATH = (($runtimePaths + $env:PATH) -join [System.IO.Path]::PathSeparator)
+        }
+
         cmd /c "ctest --test-dir build --output-on-failure --parallel 2>&1" | Tee-Object -FilePath $testLog
         $exitCode = $LASTEXITCODE
 
