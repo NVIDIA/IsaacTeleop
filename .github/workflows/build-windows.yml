@@ -20,8 +20,8 @@ concurrency:
 
 jobs:
   build-windows:
-    # Pin to windows-2025 (VS 2022) until VS 2026 is validated.
-    runs-on: windows-2025
+     # Pin to the VS 2022 image until newer MSVC toolchains are validated.
+    runs-on: windows-2022
 
     env:
       SCCACHE_GHA_ENABLED: "true"
@@ -56,7 +56,7 @@ jobs:
       run: |
         sccache --version
 
-    # Put cl.exe and other build tools in PATH
+    # Put cl.exe and other build tools in PATH.
     - name: Setup MSVC (Developer Command Prompt)
       uses: ilammy/msvc-dev-cmd@v1
 
