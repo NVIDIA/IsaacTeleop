@@ -143,7 +143,9 @@ jobs:
           $env:PATH = (($runtimePaths + $env:PATH) -join [System.IO.Path]::PathSeparator)
         }
 
-        cmd /c "ctest --test-dir build --output-on-failure --parallel 2>&1" | Tee-Object -FilePath $testLog
+        # GitHub-hosted Windows validates source compilation; viz runtime tests need
+        # graphics/driver DLLs that are not present on the runner.
+        cmd /c "ctest --test-dir build --output-on-failure --parallel -LE \"viz_python|camera_viz\" 2>&1" | Tee-Object -FilePath $testLog
         $exitCode = $LASTEXITCODE
 
         if ($exitCode -ne 0) {
