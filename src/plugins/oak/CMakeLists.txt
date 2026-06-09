@@ -74,16 +74,10 @@ if(WIN32)
 
     message(STATUS "Using prebuilt DepthAI ${DEPTHAI_VERSION} from ${DEPTHAI_INSTALL_ROOT}")
 else()
-    # Configure DepthAI build options for embedding in IsaacTeleop
-    set(DEPTHAI_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-    set(DEPTHAI_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-    set(DEPTHAI_BUILD_DOCS OFF CACHE BOOL "" FORCE)
-    set(DEPTHAI_OPENCV_SUPPORT OFF CACHE BOOL "" FORCE)
-    set(DEPTHAI_CLANG_FORMAT OFF CACHE BOOL "" FORCE)
-
     FetchContent_Declare(
         depthai
-        URL https://github.com/luxonis/depthai-core/releases/download/v3.7.1/depthai-core-v3.7.1.tar.gz
+        URL "${ISAAC_TELEOP_DEPTHAI_SOURCE_URL}"
+        URL_HASH "SHA256=${ISAAC_TELEOP_DEPTHAI_SOURCE_SHA256}"
     )
 
     FetchContent_MakeAvailable(depthai)
