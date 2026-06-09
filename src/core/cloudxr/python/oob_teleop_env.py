@@ -15,6 +15,7 @@ import subprocess
 import sys
 import threading
 import time
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from urllib.error import URLError
 from urllib.parse import urlencode, urljoin
@@ -26,11 +27,50 @@ log = logging.getLogger("oob-teleop-env")
 
 WSS_PROXY_DEFAULT_PORT = 48322
 
-DEFAULT_WEB_CLIENT_ORIGIN = "https://nvidia.github.io/IsaacTeleop/client/main/"
+# GitHub Pages WebXR client root. The published client lives under a per-ref
+# slug (``main``, ``release-1.3.x``, ``v1.2.3``, ...); the docs build emits one
+# slug per ref it builds. :func:`default_web_client_origin` resolves the slug
+# for the installed version so OOB opens the matching client.
+WEB_CLIENT_BASE = "https://nvidia.github.io/IsaacTeleop/client/"
 
-# Published WebXR client files (same origin as ``DEFAULT_WEB_CLIENT_ORIGIN``).
-USB_LOCAL_STATIC_INDEX_URL = urljoin(DEFAULT_WEB_CLIENT_ORIGIN, "index.html")
-USB_LOCAL_STATIC_BUNDLE_URL = urljoin(DEFAULT_WEB_CLIENT_ORIGIN, "bundle.js")
+# Origin used when the installed version can't be resolved (dev trees, tests).
+FALLBACK_WEB_CLIENT_ORIGIN = urljoin(WEB_CLIENT_BASE, "main/")
+
+
+def versioned_web_client_url(version: str) -> str:
+    """GitHub Pages WebXR client URL matching *version*.
+
+    A clean ``MAJOR.MINOR.PATCH`` release (a tag build) maps to the per-tag
+    client ``client/vMAJOR.MINOR.PATCH/``. Pre-release / dev builds (``1.2.4rc1``,
+    ``1.3.0.dev5``, ...) and any other version with a leading MAJOR.MINOR map to
+    the release line ``client/release-MAJOR.MINOR.x/``. Versions with no
+    parseable MAJOR.MINOR fall back to the generic ``client/`` URL, which the
+    site redirects to the latest stable tag. The same helper backs the
+    standalone "WebXR client:" line printed in non-OOB mode, so every path
+    agrees on which client to open.
+    """
+    v = version.strip()
+    if re.fullmatch(r"\d+\.\d+\.\d+", v):
+        return urljoin(WEB_CLIENT_BASE, f"v{v}/")
+    m = re.match(r"(\d+)\.(\d+)", v)
+    if m:
+        return urljoin(WEB_CLIENT_BASE, f"release-{m.group(1)}.{m.group(2)}.x/")
+    return WEB_CLIENT_BASE
+
+
+def default_web_client_origin() -> str:
+    """Versioned WebXR client origin for the installed ``isaacteleop`` version.
+
+    Reads the installed distribution version (namespace-independent, so it works
+    under the test package alias too) and maps it via
+    :func:`versioned_web_client_url`. Falls back to
+    :data:`FALLBACK_WEB_CLIENT_ORIGIN` when the version can't be determined.
+    """
+    try:
+        return versioned_web_client_url(version("isaacteleop"))
+    except PackageNotFoundError:
+        return FALLBACK_WEB_CLIENT_ORIGIN
+
 
 # Upper bound for downloaded client assets (supply-chain / accident guard).
 _USB_LOCAL_ASSET_MAX_BYTES = 32 * 1024 * 1024
@@ -154,9 +194,10 @@ def require_usb_local_webxr_static_dir() -> Path:
             f"Cannot create USB-local WebXR static directory {p}: {exc}"
         ) from exc
 
+    client_origin = default_web_client_origin()
     assets = (
-        ("index.html", USB_LOCAL_STATIC_INDEX_URL),
-        ("bundle.js", USB_LOCAL_STATIC_BUNDLE_URL),
+        ("index.html", urljoin(client_origin, "index.html")),
+        ("bundle.js", urljoin(client_origin, "bundle.js")),
     )
     for name, url in assets:
         dest = p / name
@@ -504,7 +545,7 @@ def print_oob_hub_startup_banner(
             or f"https://localhost:{ui_port}"
         )
     else:
-        web_base = DEFAULT_WEB_CLIENT_ORIGIN
+        web_base = default_web_client_origin()
 
     stream_cfg: dict = {"serverIP": primary_host, "port": port}
     if usb_local:
