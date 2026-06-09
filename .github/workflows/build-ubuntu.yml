@@ -121,7 +121,7 @@ jobs:
           -DBUILD_PLUGIN_OAK_CAMERA=ON \
           -DBUILD_VIZ=ON \
           -DENABLE_CLOUDXR_BUNDLE_CHECK=ON \
-          -DBUNDLE_ROBOTIC_GROUNDING=${{ steps.setup-v2d-src.outputs.bundled || 'false' }}
+          -DBUNDLE_ROBOTIC_GROUNDING=${{ steps.setup-v2d-src.outputs.bundled || 'false' }} \
           -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake
 
     - name: Build
