@@ -65,7 +65,7 @@ class NodeParameters:
     config_asset_root: Path
     session_mode: SessionMode
     mcap_config: McapReplayConfig | None
-    cloudxr: CloudXRParams
+    cloudxr_params: CloudXRParams
     pedal_collection_id: str
     world_frame: str
     right_wrist_frame: str
@@ -484,7 +484,7 @@ def create_node_parameters(node: Node) -> NodeParameters:
         config_asset_root=config_asset_root,
         session_mode=session_mode,
         mcap_config=mcap_config,
-        cloudxr=cloudxr,
+        cloudxr_params=cloudxr,
         pedal_collection_id=pedal_collection_id,
         world_frame=world_frame,
         right_wrist_frame=right_wrist_frame,
