@@ -25,6 +25,8 @@ jobs:
 
     env:
       SCCACHE_GHA_ENABLED: "true"
+      # Keep compiler outputs built with newer MSVC toolchains out of VS 2022 jobs.
+      SCCACHE_GHA_VERSION: "windows-vs2022-v1"
 
     strategy:
       matrix:
@@ -44,13 +46,14 @@ jobs:
 
     # Hunter cache - caches depthai dependencies
     # Note: Hunter uses C:/.hunter on Windows (at drive root)
+    # Include the toolset pin in the key because Hunter packages are compiler-built.
     - name: Cache Hunter packages
       uses: actions/cache@v5
       with:
         path: C:/.hunter
-        key: hunter-${{ runner.os }}-${{ hashFiles('cmake/SetupHunter.cmake') }}
+        key: hunter-${{ runner.os }}-vs2022-${{ hashFiles('cmake/SetupHunter.cmake') }}
         restore-keys: |
-          hunter-${{ runner.os }}-
+          hunter-${{ runner.os }}-vs2022-
 
     - name: Verify sccache
       run: |
