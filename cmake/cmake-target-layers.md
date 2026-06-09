@@ -18,7 +18,7 @@ other and dependencies always point to lower layers.
 
 ## Overview
 
-- **64** targets, **103** direct dependencies, **8** layers.
+- **59** targets, **98** direct dependencies, **8** layers.
 - Generated from configure preset `ci-linux` (see `CMakePresets.json`).
 - Layer *k* contains targets whose deepest direct-dependency chain is *k* long; every dependency points to a strictly lower layer, so there are **no edges within a layer**. This is a layered DAG (shared foundations create diamonds), not a strict tree.
 - Raw system library links (`-ldl`, `-lstdc++fs`, …) are omitted: CMake records them as *Unknown library* nodes (not real CMake targets) and they carry no structural information about module boundaries.
@@ -38,13 +38,11 @@ other and dependencies always point to lower layers.
 %%{init: {"flowchart": {"rankSpacing": 120}, "themeVariables": {"fontSize": "24pt"}} }%%
 flowchart TD
   subgraph LYR7["Layer 7 - top (consumers)"]
+    deviceio_session_py[["deviceio_session_py"]]
     viz_layers_tests(["viz_layers_tests"])
     viz_session_tests(["viz_session_tests"])
-    deviceio_session_py[["deviceio_session_py"]]
   end
   subgraph LYR6["Layer 6"]
-    viz__layers_testing["viz::layers_testing"]
-    viz_py[["viz_py"]]
     deviceio__deviceio_py_utils{{"deviceio::deviceio_py_utils"}}
     controller_synthetic_hands(["controller_synthetic_hands"])
     frame_metadata_printer(["frame_metadata_printer"])
@@ -54,20 +52,23 @@ flowchart TD
     pedal_printer(["pedal_printer"])
     replay_deviceio_session_tests(["replay_deviceio_session_tests"])
     teleop_ros2_mcap_generator(["teleop_ros2_mcap_generator"])
+    viz__layers_testing["viz::layers_testing"]
+    viz_py[["viz_py"]]
   end
   subgraph LYR5["Layer 5"]
-    viz__layers["viz::layers"]
     deviceio__deviceio_session["deviceio::deviceio_session"]
+    viz__layers["viz::layers"]
   end
   subgraph LYR4["Layer 4"]
-    viz__session["viz::session"]
-    viz_xr_tests(["viz_xr_tests"])
-    viz_core_tests(["viz_core_tests"])
     deviceio__live_trackers["deviceio::live_trackers"]
     deviceio__replay_trackers["deviceio::replay_trackers"]
     deviceio_trackers_py[["deviceio_trackers_py"]]
+    viz__session["viz::session"]
+    viz_xr_tests(["viz_xr_tests"])
+    viz_core_tests(["viz_core_tests"])
   end
   subgraph LYR3["Layer 3"]
+    deviceio__deviceio_trackers["deviceio::deviceio_trackers"]
     camera_plugin_oak(["camera_plugin_oak"])
     generic_3axis_pedal_plugin(["generic_3axis_pedal_plugin"])
     pedal_pusher(["pedal_pusher"])
@@ -75,51 +76,43 @@ flowchart TD
     viz__xr["viz::xr"]
     viz__test_support{{"viz::test_support"}}
     xdev_list(["xdev_list"])
-    deviceio__deviceio_trackers["deviceio::deviceio_trackers"]
   end
   subgraph LYR2["Layer 2"]
-    depthai__core["depthai::core"]
     pusherio__pusherio["pusherio::pusherio"]
+    deviceio__deviceio_base{{"deviceio::deviceio_base"}}
     oxr__oxr_core["oxr::oxr_core"]
+    mcap__mcap_core{{"mcap::mcap_core"}}
+    schema_py[["schema_py"]]
     Teleop__plugin_utils["Teleop::plugin_utils"]
     viz__core["viz::core"]
     examples_common["examples_common"]
-    deviceio__deviceio_base{{"deviceio::deviceio_base"}}
-    mcap__mcap_core{{"mcap::mcap_core"}}
-    schema_py[["schema_py"]]
-    schema_tests(["schema_tests"])
     plugin_manager_py[["plugin_manager_py"]]
+    schema_tests(["schema_tests"])
     viz_shaders_tests(["viz_shaders_tests"])
   end
   subgraph LYR1["Layer 1"]
-    XLink["XLink"]
-    archive_static["archive_static"]
     oxr__oxr_utils{{"oxr::oxr_utils"}}
-    OpenXR__openxr_loader["OpenXR::openxr_loader"]
     isaacteleop_schema{{"isaacteleop_schema"}}
-    glfw["glfw"]
+    OpenXR__openxr_loader["OpenXR::openxr_loader"]
     teleop_plugin_manager["teleop_plugin_manager"]
+    depthai__core["depthai::core"]
+    glfw["glfw"]
     Catch2__Catch2WithMain["Catch2::Catch2WithMain"]
   end
   subgraph LYR0["Layer 0 - foundation"]
-    XLinkPublic{{"XLinkPublic"}}
-    lzma__lzma["lzma::lzma"]
     OpenXR__headers{{"OpenXR::headers"}}
     flatbuffers["flatbuffers"]
-    Threads__Threads{{"Threads::Threads"}}
     yaml_cpp__yaml_cpp["yaml-cpp::yaml-cpp"]
+    Threads__Threads{{"Threads::Threads"}}
     Catch2__Catch2["Catch2::Catch2"]
     SDL2__SDL2_static["SDL2::SDL2-static"]
     glm__glm{{"glm::glm"}}
-    libnop{{"libnop"}}
     mcap__mcap{{"mcap::mcap"}}
     pybind11__module{{"pybind11::module"}}
     Teleop__openxr_extensions{{"Teleop::openxr_extensions"}}
     viz__shaders{{"viz::shaders"}}
   end
   Catch2__Catch2WithMain --> Catch2__Catch2
-  XLink --> XLinkPublic
-  archive_static --> lzma__lzma
   camera_plugin_oak --> SDL2__SDL2_static
   camera_plugin_oak --> depthai__core
   camera_plugin_oak --> isaacteleop_schema
@@ -130,9 +123,6 @@ flowchart TD
   controller_synthetic_hands --> oxr__oxr_core
   controller_synthetic_hands --> Teleop__plugin_utils
   depthai__core --> Threads__Threads
-  depthai__core --> XLink
-  depthai__core --> archive_static
-  depthai__core --> libnop
   deviceio__deviceio_base --> isaacteleop_schema
   deviceio__deviceio_py_utils --> deviceio__deviceio_session
   deviceio__deviceio_session --> deviceio__live_trackers
@@ -222,22 +212,22 @@ flowchart TD
   xdev_list --> Teleop__openxr_extensions
   classDef firstparty fill:#d9e8fb,stroke:#3b73b9,color:#0b2545;
   classDef thirdparty fill:#ededed,stroke:#9a9a9a,color:#333333;
-  class Teleop__openxr_extensions,Teleop__plugin_utils,XLink,XLinkPublic,archive_static,camera_plugin_oak,controller_synthetic_hands,deviceio__deviceio_base,deviceio__deviceio_py_utils,deviceio__deviceio_session,deviceio__deviceio_trackers,deviceio__live_trackers,deviceio__replay_trackers,deviceio_session_py,deviceio_trackers_py,examples_common,frame_metadata_printer,generic_3axis_pedal_plugin,isaacteleop_schema,libnop,mcap__mcap,mcap__mcap_core,mcap_tests,oxr__oxr_core,oxr__oxr_utils,oxr_py,oxr_session_sharing,oxr_simple_api_demo,pedal_printer,pedal_pusher,plugin_manager_py,pusherio__pusherio,replay_deviceio_session_tests,schema_py,schema_tests,teleop_plugin_manager,teleop_ros2_mcap_generator,viz__core,viz__layers,viz__layers_testing,viz__session,viz__shaders,viz__test_support,viz__xr,viz_core_tests,viz_layers_tests,viz_py,viz_session_tests,viz_shaders_tests,viz_xr_tests,xdev_list firstparty
-  class Catch2__Catch2,Catch2__Catch2WithMain,OpenXR__headers,OpenXR__openxr_loader,SDL2__SDL2_static,Threads__Threads,depthai__core,flatbuffers,glfw,glm__glm,lzma__lzma,pybind11__module,yaml_cpp__yaml_cpp thirdparty
+  class Teleop__openxr_extensions,Teleop__plugin_utils,camera_plugin_oak,controller_synthetic_hands,deviceio__deviceio_base,deviceio__deviceio_py_utils,deviceio__deviceio_session,deviceio__deviceio_trackers,deviceio__live_trackers,deviceio__replay_trackers,deviceio_session_py,deviceio_trackers_py,examples_common,frame_metadata_printer,generic_3axis_pedal_plugin,isaacteleop_schema,mcap__mcap,mcap__mcap_core,mcap_tests,oxr__oxr_core,oxr__oxr_utils,oxr_py,oxr_session_sharing,oxr_simple_api_demo,pedal_printer,pedal_pusher,plugin_manager_py,pusherio__pusherio,replay_deviceio_session_tests,schema_py,schema_tests,teleop_plugin_manager,teleop_ros2_mcap_generator,viz__core,viz__layers,viz__layers_testing,viz__session,viz__shaders,viz__test_support,viz__xr,viz_core_tests,viz_layers_tests,viz_py,viz_session_tests,viz_shaders_tests,viz_xr_tests,xdev_list firstparty
+  class Catch2__Catch2,Catch2__Catch2WithMain,OpenXR__headers,OpenXR__openxr_loader,SDL2__SDL2_static,Threads__Threads,depthai__core,flatbuffers,glfw,glm__glm,pybind11__module,yaml_cpp__yaml_cpp thirdparty
 ```
 
 ## Layers
 
 | Layer | Targets |
 | ----: | ------- |
-| 7 | `viz_layers_tests`, `viz_session_tests`, `deviceio_session_py` |
-| 6 | `viz::layers_testing`, `viz_py`, `deviceio::deviceio_py_utils`, `controller_synthetic_hands`, `frame_metadata_printer`, `mcap_tests`, `oxr_session_sharing`, `oxr_simple_api_demo`, `pedal_printer`, `replay_deviceio_session_tests`, `teleop_ros2_mcap_generator` |
-| 5 | `viz::layers`, `deviceio::deviceio_session` |
-| 4 | `viz::session`, `viz_xr_tests`, `viz_core_tests`, `deviceio::live_trackers`, `deviceio::replay_trackers`, `deviceio_trackers_py` |
-| 3 | `camera_plugin_oak`, `generic_3axis_pedal_plugin`, `pedal_pusher`, `oxr_py`, `viz::xr`, `viz::test_support`, `xdev_list`, `deviceio::deviceio_trackers` |
-| 2 | `depthai::core`, `pusherio::pusherio`, `oxr::oxr_core`, `Teleop::plugin_utils`, `viz::core`, `examples_common`, `deviceio::deviceio_base`, `mcap::mcap_core`, `schema_py`, `schema_tests`, `plugin_manager_py`, `viz_shaders_tests` |
-| 1 | `XLink`, `archive_static`, `oxr::oxr_utils`, `OpenXR::openxr_loader`, `isaacteleop_schema`, `glfw`, `teleop_plugin_manager`, `Catch2::Catch2WithMain` |
-| 0 | `XLinkPublic`, `lzma::lzma`, `OpenXR::headers`, `flatbuffers`, `Threads::Threads`, `yaml-cpp::yaml-cpp`, `Catch2::Catch2`, `SDL2::SDL2-static`, `glm::glm`, `libnop`, `mcap::mcap`, `pybind11::module`, `Teleop::openxr_extensions`, `viz::shaders` |
+| 7 | `deviceio_session_py`, `viz_layers_tests`, `viz_session_tests` |
+| 6 | `deviceio::deviceio_py_utils`, `controller_synthetic_hands`, `frame_metadata_printer`, `mcap_tests`, `oxr_session_sharing`, `oxr_simple_api_demo`, `pedal_printer`, `replay_deviceio_session_tests`, `teleop_ros2_mcap_generator`, `viz::layers_testing`, `viz_py` |
+| 5 | `deviceio::deviceio_session`, `viz::layers` |
+| 4 | `deviceio::live_trackers`, `deviceio::replay_trackers`, `deviceio_trackers_py`, `viz::session`, `viz_xr_tests`, `viz_core_tests` |
+| 3 | `deviceio::deviceio_trackers`, `camera_plugin_oak`, `generic_3axis_pedal_plugin`, `pedal_pusher`, `oxr_py`, `viz::xr`, `viz::test_support`, `xdev_list` |
+| 2 | `pusherio::pusherio`, `deviceio::deviceio_base`, `oxr::oxr_core`, `mcap::mcap_core`, `schema_py`, `Teleop::plugin_utils`, `viz::core`, `examples_common`, `plugin_manager_py`, `schema_tests`, `viz_shaders_tests` |
+| 1 | `oxr::oxr_utils`, `isaacteleop_schema`, `OpenXR::openxr_loader`, `teleop_plugin_manager`, `depthai::core`, `glfw`, `Catch2::Catch2WithMain` |
+| 0 | `OpenXR::headers`, `flatbuffers`, `yaml-cpp::yaml-cpp`, `Threads::Threads`, `Catch2::Catch2`, `SDL2::SDL2-static`, `glm::glm`, `mcap::mcap`, `pybind11::module`, `Teleop::openxr_extensions`, `viz::shaders` |
 
 ## Direct dependencies by target
 
@@ -247,12 +237,9 @@ flowchart TD
 | `Catch2::Catch2WithMain` | Static library | third-party | 1 | `Catch2::Catch2` (public) |
 | `SDL2::SDL2-static` | Static library | third-party | 0 | _(none)_ |
 | `Threads::Threads` | Interface library | third-party | 0 | _(none)_ |
-| `XLink` | Static library | first-party | 1 | `XLinkPublic` (interface) |
-| `XLinkPublic` | Interface library | first-party | 0 | _(none)_ |
-| `archive_static` | Static library | first-party | 1 | `lzma::lzma` (interface) |
 | `camera_plugin_oak` | Executable | first-party | 3 | `SDL2::SDL2-static` (private), `depthai::core` (private), `isaacteleop_schema` (private), `mcap::mcap` (private), `oxr::oxr_core` (private), `pusherio::pusherio` (private) |
 | `controller_synthetic_hands` | Executable | first-party | 6 | `deviceio::deviceio_session` (private), `oxr::oxr_core` (private), `Teleop::plugin_utils` (private) |
-| `depthai::core` | Static library | third-party | 2 | `Threads::Threads` (private), `XLink` (private), `archive_static` (private), `libnop` (public) |
+| `depthai::core` | Static library | third-party | 1 | `Threads::Threads` (private) |
 | `deviceio::deviceio_base` | Interface library | first-party | 2 | `isaacteleop_schema` (interface) |
 | `deviceio::deviceio_py_utils` | Interface library | first-party | 6 | `deviceio::deviceio_session` (interface) |
 | `deviceio::deviceio_session` | Static library | first-party | 5 | `deviceio::live_trackers` (private), `deviceio::replay_trackers` (private) |
@@ -267,9 +254,7 @@ flowchart TD
 | `glm::glm` | Interface library | third-party | 0 | _(none)_ |
 | `OpenXR::headers` | Interface library | third-party | 0 | _(none)_ |
 | `isaacteleop_schema` | Interface library | first-party | 1 | `flatbuffers` (interface) |
-| `libnop` | Interface library | first-party | 0 | _(none)_ |
 | `deviceio::live_trackers` | Static library | first-party | 4 | `deviceio::deviceio_trackers` (public), `mcap::mcap_core` (public), `oxr::oxr_utils` (public), `Teleop::openxr_extensions` (public) |
-| `lzma::lzma` | Static library | third-party | 0 | _(none)_ |
 | `mcap::mcap_core` | Interface library | first-party | 2 | `isaacteleop_schema` (interface), `mcap::mcap` (interface) |
 | `mcap::mcap` | Interface library | first-party | 0 | _(none)_ |
 | `mcap_tests` | Executable | first-party | 6 | `Catch2::Catch2WithMain` (private), `deviceio::deviceio_session` (private) |
