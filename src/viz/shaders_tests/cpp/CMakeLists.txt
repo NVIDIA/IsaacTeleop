@@ -14,4 +14,4 @@ target_link_libraries(viz_shaders_tests PRIVATE
 
 message(STATUS "viz_shaders_tests target enabled with Catch2")
 
-catch_discover_tests(viz_shaders_tests ADD_TAGS_AS_LABELS)
+viz_discover_tests(viz_shaders_tests)

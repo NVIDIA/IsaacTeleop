@@ -23,4 +23,4 @@ target_link_libraries(viz_core_tests PRIVATE
 message(STATUS "viz_core_tests target enabled with Catch2")
 
 # ADD_TAGS_AS_LABELS lets CTest filter by Catch2 tags via -L (e.g. -L unit, -L gpu).
-catch_discover_tests(viz_core_tests ADD_TAGS_AS_LABELS)
+viz_discover_tests(viz_core_tests)

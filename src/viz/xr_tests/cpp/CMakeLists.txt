@@ -16,4 +16,4 @@ target_link_libraries(viz_xr_tests PRIVATE
 
 message(STATUS "viz_xr_tests target enabled with Catch2")
 
-catch_discover_tests(viz_xr_tests ADD_TAGS_AS_LABELS)
+viz_discover_tests(viz_xr_tests)
