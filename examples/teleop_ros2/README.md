@@ -122,7 +122,7 @@ docker run --rm --gpus all --net=host --ipc=host \
   -r xr_teleop/hand:=my_robot/hand -r xr_teleop/ee_poses:=my_robot/ee_poses
 ```
 
-Available parameters: `rate_hz`, `mode`, `hand_retargeter`, `config_asset_root`, `cloudxr_install_dir`, `cloudxr_env_config`, `cloudxr_accept_eula`, `pedal_collection_id`, `world_frame`, `right_wrist_frame`, `left_wrist_frame`, `head_frame`, `left_finger_joint_names`, `right_finger_joint_names`. Use `ros2 param list /teleop_ros2_node` and `ros2 param describe /teleop_ros2_node <param>` (with the node running) for the full set.
+Available parameters: `rate_hz`, `mode`, `hand_retargeter`, `config_asset_root`, `cloudxr_install_dir`, `cloudxr_env_config`, `cloudxr_accept_eula`, `cloudxr_setup_oob`, `cloudxr_usb_local`, `pedal_collection_id`, `world_frame`, `right_wrist_frame`, `left_wrist_frame`, `head_frame`, `left_finger_joint_names`, `right_finger_joint_names`. Use `ros2 param list /teleop_ros2_node` and `ros2 param describe /teleop_ros2_node <param>` (with the node running) for the full set.
 
 By default, `left_finger_joint_names` and `right_finger_joint_names` use the selected mode's retargeter joint names. They can be overridden to publish robot-specific names on `xr_teleop/finger_joints`, but each override must provide the same number of names as the joints emitted by that mode's retargeter.
 
@@ -140,6 +140,32 @@ The `mode` parameter selects the teleoperation scenario and which topics are pub
 | `full_body` | `full_body` and `controller_data` |
 
 Example: `--ros-args -p mode:=controller_raw`
+
+### OOB Teleop Control
+
+For live sessions, the node can enable the out-of-band (OOB) teleop control hub
+that the in-process `CloudXRLauncher` provides. The hub shares the CloudXR proxy
+TLS port (default 48322) and lets you read streaming metrics, inspect connected
+headsets, and push config from outside the headset:
+
+```bash
+docker run --rm --gpus all --net=host --ipc=host \
+  -e NVIDIA_VISIBLE_DEVICES=all -e NVIDIA_DRIVER_CAPABILITIES=all \
+  -e ROS_LOCALHOST_ONLY=1 \
+  -v $HOME/.cloudxr:/root/.cloudxr \
+  --name teleop_ros2_ref \
+  teleop_ros2_ref --ros-args -p cloudxr_accept_eula:=true \
+  -p cloudxr_setup_oob:=true
+```
+
+`cloudxr_usb_local:=true` additionally routes teleop signalling, the web client,
+and WebRTC media over the USB cable via `adb reverse`. It requires
+`cloudxr_setup_oob:=true` (the node raises a parameter error otherwise) and the
+`adb` and `coturn` host tools. Both parameters are ignored in MCAP replay mode,
+since no CloudXR runtime is launched.
+
+See the [Out-of-Band Teleop Control](../../docs/source/references/oob_teleop_control.rst)
+reference for the hub HTTP/WebSocket API, ADB automation, and USB-local details.
 
 ### MCAP Replay
 

@@ -39,6 +39,21 @@ from constants import (
 
 
 @dataclass(frozen=True)
+class CloudXRParams:
+    """CloudXR launcher settings, mirroring ``CloudXRLauncher.__init__`` kwargs.
+
+    Field names match the launcher constructor so the resolved snapshot maps
+    cleanly onto explicit keyword arguments at the call site.
+    """
+
+    install_dir: str
+    env_config: str | None
+    accept_eula: bool
+    setup_oob: bool
+    usb_local: bool
+
+
+@dataclass(frozen=True)
 class NodeParameters:
     """Resolved snapshot of every ROS parameter consumed by TeleopRos2Node."""
 
@@ -50,9 +65,7 @@ class NodeParameters:
     config_asset_root: Path
     session_mode: SessionMode
     mcap_config: McapReplayConfig | None
-    cloudxr_install_dir: str
-    cloudxr_env_config: str | None
-    cloudxr_accept_eula: bool
+    cloudxr: CloudXRParams
     pedal_collection_id: str
     world_frame: str
     right_wrist_frame: str
@@ -64,7 +77,7 @@ class NodeParameters:
     right_finger_joint_name_aliases: list[str] | None
 
 
-def _load_cloudxr(node: Node) -> tuple[str, str | None, bool]:
+def _load_cloudxr(node: Node) -> CloudXRParams:
     node.declare_parameter(
         "cloudxr_install_dir",
         "~/.cloudxr",
@@ -100,6 +113,31 @@ def _load_cloudxr(node: Node) -> tuple[str, str | None, bool]:
             ),
         ),
     )
+    node.declare_parameter(
+        "cloudxr_setup_oob",
+        False,
+        ParameterDescriptor(
+            type=ParameterType.PARAMETER_BOOL,
+            description=(
+                "Enable the OOB (out-of-band) teleop control hub and USB adb "
+                "automation in the WSS proxy. The hub shares the proxy TLS "
+                "port. Only takes effect for live sessions, not MCAP replay."
+            ),
+        ),
+    )
+    node.declare_parameter(
+        "cloudxr_usb_local",
+        False,
+        ParameterDescriptor(
+            type=ParameterType.PARAMETER_BOOL,
+            description=(
+                "Route teleop traffic over the USB headset loopback via "
+                "'adb reverse' (also starts coturn and serves the WebXR "
+                "static files). Requires cloudxr_setup_oob. Only takes effect "
+                "for live sessions, not MCAP replay."
+            ),
+        ),
+    )
 
     install_dir = (
         node.get_parameter("cloudxr_install_dir")
@@ -124,7 +162,15 @@ def _load_cloudxr(node: Node) -> tuple[str, str | None, bool]:
     accept_eula = (
         node.get_parameter("cloudxr_accept_eula").get_parameter_value().bool_value
     )
-    return install_dir, env_config, accept_eula
+    setup_oob = node.get_parameter("cloudxr_setup_oob").get_parameter_value().bool_value
+    usb_local = node.get_parameter("cloudxr_usb_local").get_parameter_value().bool_value
+    # CloudXRLauncher allows usb_local only alongside setup_oob; reject the
+    # invalid combination here so it surfaces as a clear parameter error.
+    if usb_local and not setup_oob:
+        raise ValueError(
+            "Parameter 'cloudxr_usb_local' requires 'cloudxr_setup_oob' to be true"
+        )
+    return CloudXRParams(install_dir, env_config, accept_eula, setup_oob, usb_local)
 
 
 def _load_config_asset_root(node: Node) -> Path:
@@ -421,7 +467,7 @@ def create_node_parameters(node: Node) -> NodeParameters:
     ) = _load_hand_retargeter(node, mode)
     config_asset_root = _load_config_asset_root(node)
     session_mode, mcap_config = _load_mcap_replay(node)
-    cloudxr_install_dir, cloudxr_env_config, cloudxr_accept_eula = _load_cloudxr(node)
+    cloudxr = _load_cloudxr(node)
     pedal_collection_id = _load_pedal_collection_id(node)
     world_frame, right_wrist_frame, left_wrist_frame, head_frame = _load_frames(node)
     transform_translation = _load_transform_translation(node)
@@ -438,9 +484,7 @@ def create_node_parameters(node: Node) -> NodeParameters:
         config_asset_root=config_asset_root,
         session_mode=session_mode,
         mcap_config=mcap_config,
-        cloudxr_install_dir=cloudxr_install_dir,
-        cloudxr_env_config=cloudxr_env_config,
-        cloudxr_accept_eula=cloudxr_accept_eula,
+        cloudxr=cloudxr,
         pedal_collection_id=pedal_collection_id,
         world_frame=world_frame,
         right_wrist_frame=right_wrist_frame,
