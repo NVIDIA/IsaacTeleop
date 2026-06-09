@@ -130,4 +130,28 @@ jobs:
         }
 
     - name: Run All Tests
-      run: ctest --test-dir build --output-on-failure --parallel
+      shell: pwsh
+      run: |
+        $testLog = Join-Path $env:RUNNER_TEMP "windows-ctest-${{ matrix.build_type }}.log"
+
+        cmd /c "ctest --test-dir build --output-on-failure --parallel 2>&1" | Tee-Object -FilePath $testLog
+        $exitCode = $LASTEXITCODE
+
+        if ($exitCode -ne 0) {
+          $matches = Select-String `
+            -Path $testLog `
+            -Pattern 'Error|FAILED|Failed|failed|Could not|not found|The following tests FAILED|0% tests passed|No tests were found' `
+            -Context 2,4
+          $lines = foreach ($match in ($matches | Select-Object -Last 8)) {
+            $match.Context.PreContext
+            $match.Line
+            $match.Context.PostContext
+          }
+          if (-not $lines) {
+            $lines = Get-Content $testLog -Tail 120
+          }
+          $message = ($lines | Select-Object -Last 160) -join "`n"
+          $message = $message -replace '%', '%25' -replace "`r", '%0D' -replace "`n", '%0A'
+          Write-Host "::error title=Windows ${{ matrix.build_type }} tests failed::$message"
+          exit $exitCode
+        }
