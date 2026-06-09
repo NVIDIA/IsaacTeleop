@@ -103,7 +103,31 @@ jobs:
         -DBUILD_VIZ=ON
 
     - name: Build
-      run: cmake --build build --parallel
+      shell: pwsh
+      run: |
+        $buildLog = Join-Path $env:RUNNER_TEMP "windows-build-${{ matrix.build_type }}.log"
+
+        cmd /c "cmake --build build --parallel 2>&1" | Tee-Object -FilePath $buildLog
+        $exitCode = $LASTEXITCODE
+
+        if ($exitCode -ne 0) {
+          $matches = Select-String `
+            -Path $buildLog `
+            -Pattern 'FAILED:|fatal error|error C\d+|error LNK\d+|ninja: build stopped|CMake Error' `
+            -Context 2,2
+          $lines = foreach ($match in ($matches | Select-Object -Last 8)) {
+            $match.Context.PreContext
+            $match.Line
+            $match.Context.PostContext
+          }
+          if (-not $lines) {
+            $lines = Get-Content $buildLog -Tail 80
+          }
+          $message = ($lines | Select-Object -Last 120) -join "`n"
+          $message = $message -replace '%', '%25' -replace "`r", '%0D' -replace "`n", '%0A'
+          Write-Host "::error title=Windows ${{ matrix.build_type }} build failed::$message"
+          exit $exitCode
+        }
 
     - name: Run All Tests
       run: ctest --test-dir build --output-on-failure --parallel
