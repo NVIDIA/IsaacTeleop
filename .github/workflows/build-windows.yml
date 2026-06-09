@@ -20,8 +20,8 @@ concurrency:
 
 jobs:
   build-windows:
-    # Pin to windows-2025 (VS 2022) until VS 2026 is validated.
-    runs-on: windows-2025
+     # Pin to the VS 2022 image until newer MSVC toolchains are validated.
+    runs-on: windows-2022
 
     env:
       SCCACHE_GHA_ENABLED: "true"
@@ -57,12 +57,6 @@ jobs:
         sccache --version
 
     # Put cl.exe and other build tools in PATH.
-    # Pin to VS 2022: windows-2025 also ships the VS 2026 toolset, which
-    # msvc-dev-cmd would otherwise auto-select. Although Hunter v0.26.9 now
-    # *recognizes* VS 2026 (MSVC_VERSION 195x), depthai pins 2020-era deps
-    # (e.g. spdlog 1.8.2 + fmt 7) that do not *compile* with the VS 2026
-    # toolchain. VS 2022 is the newest compiler depthai's pinned deps build
-    # with. Drop this pin once depthai updates its Hunter config dep versions.
     - name: Setup MSVC (Developer Command Prompt)
       uses: ilammy/msvc-dev-cmd@v1
 
