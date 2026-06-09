@@ -18,7 +18,7 @@ ROT_FACTOR="${ROT_FACTOR:-20.0}"
 # FPS: optional second arg, or env FPS (for useful seconds in cal_jumpy_proportions)
 FPS="${2:-${FPS:-}}"
 
-if [ ! -d "${RESULTS_DIR}" ]; then
+if [[ ! -d "${RESULTS_DIR}" ]]; then
     echo "Error: Directory not found: ${RESULTS_DIR}"
     echo "Usage: $0 [results_dir] [fps]"
     echo "  results_dir  Directory containing Dyn-HaMR logs (default: outputs)"
@@ -48,7 +48,7 @@ python3 "${SCRIPT_DIR}/detect_jumpy_hand_from_world_results.py" \
     --error_valid_ratio 0.3
 
 SUMMARY="${RESULTS_DIR}/qc_world_jumpy_batch_summary.json"
-if [ ! -f "${SUMMARY}" ]; then
+if [[ ! -f "${SUMMARY}" ]]; then
     echo "No batch summary produced (no matching world_results found?). Skipping proportions."
     exit 0
 fi
@@ -57,7 +57,7 @@ fi
 echo ""
 echo "Step 2: Running cal_jumpy_proportions.py ..."
 EXTRA=""
-[ -n "${FPS}" ] && EXTRA="${EXTRA} --fps ${FPS}"
+[[ -n "${FPS}" ]] && EXTRA="${EXTRA} --fps ${FPS}"
 python3 "${SCRIPT_DIR}/cal_jumpy_proportions.py" --world_results_dir "${RESULTS_DIR}" ${EXTRA}
 
 echo ""

@@ -17,16 +17,16 @@ MANO_MODEL_DIR="${MANO_MODEL_DIR:-/home/appuser/Dyn-HaMR/_DATA/data/mano}"
 PYTHON="${PYTHON:-python}"
 
 EXTRA_ARGS=""
-[ "${NO_TEMPORAL_SMOOTH:-0}" = "1" ] && EXTRA_ARGS="${EXTRA_ARGS} --no_temporal_smooth"
-[ "${NO_SMOOTH_TRANS:-0}" = "1" ]    && EXTRA_ARGS="${EXTRA_ARGS} --no_smooth_trans"
+[[ "${NO_TEMPORAL_SMOOTH:-0}" = "1" ]] && EXTRA_ARGS="${EXTRA_ARGS} --no_temporal_smooth"
+[[ "${NO_SMOOTH_TRANS:-0}" = "1" ]]    && EXTRA_ARGS="${EXTRA_ARGS} --no_smooth_trans"
 
-if [ ! -d "${RESULTS_DIR}" ]; then
+if [[ ! -d "${RESULTS_DIR}" ]]; then
     echo "Error: Directory not found: ${RESULTS_DIR}"
     echo "Usage: $0 [results_dir]"
     exit 1
 fi
 
-if [ ! -f "${MANO_MODEL_DIR}/MANO_RIGHT.pkl" ]; then
+if [[ ! -f "${MANO_MODEL_DIR}/MANO_RIGHT.pkl" ]]; then
     echo "Error: MANO_RIGHT.pkl not found in ${MANO_MODEL_DIR}/"
     echo "Run /home/appuser/setup_dynhamr.sh inside the container to populate it"
     echo "(requires MANO_RIGHT.pkl in the mounted outputs/ directory on the host)."
@@ -50,7 +50,7 @@ mapfile -t LOG_DIRS < <(
       done | sort -u
 )
 
-if [ ${#LOG_DIRS[@]} -eq 0 ]; then
+if [[ ${#LOG_DIRS[@]} -eq 0 ]]; then
     echo "No *_world_results.npz under */${PHASE}/ found under ${RESULTS_DIR}. Nothing to do."
     exit 0
 fi
@@ -64,7 +64,7 @@ FAIL=0
 
 for LOG_DIR in "${LOG_DIRS[@]}"; do
     PHASE_DIR="${LOG_DIR}/${PHASE}"
-    if [ ! -d "${PHASE_DIR}" ]; then
+    if [[ ! -d "${PHASE_DIR}" ]]; then
         echo "[SKIP] ${LOG_DIR}  (no ${PHASE}/ subdir)"
         SKIP=$((SKIP + 1))
         continue
