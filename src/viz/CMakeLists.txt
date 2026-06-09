@@ -57,17 +57,12 @@ endif()
 # *_tests executables can resolve their aliases at the link call.
 if(BUILD_TESTING)
     function(viz_discover_tests target)
-        set(_viz_catch_args ADD_TAGS_AS_LABELS)
         if(WIN32)
-            # Windows test executables depend on the FetchContent OpenXR loader DLL.
-            # Discover them under CTest with the DLL directory on PATH instead of
-            # launching them as post-build commands from their link directories.
-            list(APPEND _viz_catch_args DISCOVERY_MODE PRE_TEST)
-            if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.22)
-                list(APPEND _viz_catch_args DL_PATHS $<TARGET_FILE_DIR:openxr_loader>)
-            endif()
+            # GitHub-hosted Windows validates source compilation only; viz tests
+            # can depend on driver/runtime DLLs that are not present on the runner.
+            return()
         endif()
-        catch_discover_tests(${target} ${_viz_catch_args})
+        catch_discover_tests(${target} ADD_TAGS_AS_LABELS)
     endfunction()
 
     add_subdirectory(test_support)
