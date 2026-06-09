@@ -467,7 +467,7 @@ def create_node_parameters(node: Node) -> NodeParameters:
     ) = _load_hand_retargeter(node, mode)
     config_asset_root = _load_config_asset_root(node)
     session_mode, mcap_config = _load_mcap_replay(node)
-    cloudxr = _load_cloudxr(node)
+    cloudxr_params = _load_cloudxr(node)
     pedal_collection_id = _load_pedal_collection_id(node)
     world_frame, right_wrist_frame, left_wrist_frame, head_frame = _load_frames(node)
     transform_translation = _load_transform_translation(node)
@@ -484,7 +484,7 @@ def create_node_parameters(node: Node) -> NodeParameters:
         config_asset_root=config_asset_root,
         session_mode=session_mode,
         mcap_config=mcap_config,
-        cloudxr_params=cloudxr,
+        cloudxr_params=cloudxr_params,
         pedal_collection_id=pedal_collection_id,
         world_frame=world_frame,
         right_wrist_frame=right_wrist_frame,
