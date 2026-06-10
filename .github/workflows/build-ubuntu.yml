@@ -1031,25 +1031,56 @@ jobs:
         # Limit total polling time to under an hour with exponential backoff starting at 30s
         max_attempts=15
         sleep_seconds=30
+        # Reason reported if every attempt is exhausted; refined as we poll so
+        # the final message reflects the last condition seen (e.g. repeated
+        # 5xx or network errors) instead of always claiming a plain timeout.
+        last_reason="release status never reached a terminal state"
 
         for ((attempt=1; attempt<=max_attempts; attempt++)); do
           echo "Polling Kitmaker status (attempt ${attempt}/${max_attempts})"
 
-          response_json="$(curl --fail-with-body --show-error --silent --location --connect-timeout 10 --max-time 60 \
+          # Capture the body and HTTP status separately (instead of relying on
+          # --fail-with-body) so we can tell a transient failure worth retrying
+          # — a network error or a 5xx — apart from a permanent one (a 4xx such
+          # as auth/not-found) that will never succeed and should fail fast.
+          # Don't let a network failure abort the step under `set -e`.
+          curl_status=0
+          curl_output="$(curl --show-error --silent --location --connect-timeout 10 --max-time 60 \
+            --write-out '\n%{http_code}' \
             -H "Authorization: Bearer ${KITMAKER_TOKEN}" \
-            "${status_url}")"
+            "${status_url}")" || curl_status=$?
+          http_code="${curl_output##*$'\n'}"
+          response_json="${curl_output%$'\n'*}"
 
-          echo "${response_json}"
-          status="$(jq -r '.status // empty' <<< "${response_json}")"
+          if (( curl_status != 0 )); then
+            # Network-level failure (timeout, connection reset, DNS): transient.
+            last_reason="curl request kept failing (last exit ${curl_status})"
+            echo "curl request failed (exit ${curl_status}); will retry on the next attempt"
+          else
+            echo "${response_json}"
 
-          if [[ "${status}" == "completed" ]]; then
-            echo "Kitmaker release ${KITMAKER_RELEASE_UUID} completed"
-            exit 0
-          fi
+            if (( http_code >= 500 )); then
+              last_reason="Kitmaker status endpoint kept returning HTTP ${http_code}"
+              echo "Kitmaker status request returned HTTP ${http_code}; will retry on the next attempt"
+            elif (( http_code >= 400 )); then
+              echo "Kitmaker status request returned HTTP ${http_code}"
+              exit 1
+            else
+              # A non-JSON body (e.g. a proxy/gateway error page served with a
+              # 2xx) is itself transient: leave status empty and keep polling
+              # rather than letting jq's parse error abort the step under set -e.
+              status="$(jq -r '.status // empty' <<< "${response_json}" 2>/dev/null || true)"
 
-          if [[ "${status}" == "failed" ]]; then
-            echo "Kitmaker release ${KITMAKER_RELEASE_UUID} failed"
-            exit 1
+              if [[ "${status}" == "completed" ]]; then
+                echo "Kitmaker release ${KITMAKER_RELEASE_UUID} completed"
+                exit 0
+              fi
+
+              if [[ "${status}" == "failed" ]]; then
+                echo "Kitmaker release ${KITMAKER_RELEASE_UUID} failed"
+                exit 1
+              fi
+            fi
           fi
 
           if (( attempt == max_attempts )); then
@@ -1060,5 +1091,5 @@ jobs:
           sleep_seconds=$(( sleep_seconds * 125 / 100 ))
         done
 
-        echo "Timed out waiting for Kitmaker release ${KITMAKER_RELEASE_UUID} to complete"
+        echo "Timed out after ${max_attempts} attempts waiting for Kitmaker release ${KITMAKER_RELEASE_UUID}: ${last_reason}"
         exit 1
