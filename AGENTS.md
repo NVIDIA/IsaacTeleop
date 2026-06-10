@@ -88,6 +88,7 @@ only point here — edit the rules in the doc, not the shims.
   clang-format --dry-run --Werror $(git diff --name-only main -- '*.cpp' '*.hpp' '*.h' '*.cc')
   ```
 
+- If a formatter hook rewrites files (for example `ruff format`), keep the mechanical rewrite and rerun the full pre-commit command until it passes.
 - If a hook failure shows **missing or non-obvious repo policy** (not a one-off typo), you **must** add a **short** reminder under **Mandatory learning loop** rules to the right `AGENTS.md` or adjacent **`//` comments** so the next run does not repeat it—unless it is already documented.
 
 ## Mandatory learning loop (AGENTS.md and comments)

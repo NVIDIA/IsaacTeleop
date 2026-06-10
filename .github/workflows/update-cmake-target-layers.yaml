@@ -1,0 +1,186 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Slash-command handler: /update-cmake-target-layers
+#
+# When a maintainer with write access comments `/update-cmake-target-layers` on a PR,
+# this workflow downloads the cmake-target-layers artifact that the "Verify CMake target
+# layers" CI job already generated on its most recent successful run and commits it to
+# the PR branch via the GitHub Contents API. No checkout of PR code, no cmake re-run.
+#
+# Only same-repo PRs are supported; fork PRs cannot be pushed to from this context.
+#
+# The workflow file is always loaded from the default branch, so a PR cannot override
+# it to gain elevated write-access.
+
+name: Update CMake target layers
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  update:
+    name: Commit refreshed cmake-target-layers.md
+    if: >-
+      github.event_name == 'issue_comment'
+      && github.event.issue.pull_request != null
+      && (github.event.comment.body == '/update-cmake-target-layers'
+          || startsWith(github.event.comment.body, '/update-cmake-target-layers '))
+    runs-on: ubuntu-latest
+    concurrency:
+      group: update-cmake-target-layers-pr-${{ github.event.issue.number }}
+      cancel-in-progress: true
+    permissions:
+      actions: read         # download artifact from the verify run
+      contents: write       # push to the PR branch
+      pull-requests: write  # comment on the PR
+      issues: write         # react to the triggering comment
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+      COMMENT_ID: ${{ github.event.comment.id }}
+      PR_NUMBER: ${{ github.event.issue.number }}
+
+    steps:
+      - name: Verify commenter has write access
+        env:
+          USER: ${{ github.event.comment.user.login }}
+        run: |
+          PERM=$(gh api "repos/$REPO/collaborators/$USER/permission" --jq '.permission')
+          case "$PERM" in
+            admin|maintain|write)
+              echo "$USER has $PERM access — proceeding."
+              ;;
+            *)
+              gh api -X POST "repos/$REPO/issues/comments/$COMMENT_ID/reactions" \
+                -f content='-1' >/dev/null
+              echo "::error::User $USER has '$PERM' access; /update-cmake-target-layers requires write or higher." >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Acknowledge command
+        run: |
+          gh api -X POST "repos/$REPO/issues/comments/$COMMENT_ID/reactions" \
+            -f content='eyes' >/dev/null
+
+      - name: Get PR info
+        id: pr
+        run: |
+          read -r HEAD_SHA HEAD_REF HEAD_REPO < <(
+            gh api "repos/$REPO/pulls/$PR_NUMBER" \
+              --jq '[.head.sha, .head.ref, .head.repo.full_name] | @tsv'
+          )
+
+          echo "head_sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
+          echo "head_ref=$HEAD_REF" >> "$GITHUB_OUTPUT"
+
+          if [ "$HEAD_REPO" != "$REPO" ]; then
+            gh api -X POST "repos/$REPO/issues/comments/$COMMENT_ID/reactions" \
+              -f content='-1' >/dev/null
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body \
+              "❌ \`/update-cmake-target-layers\` only works for same-repository PRs. Fork PRs cannot be pushed to from this context. Download the \`cmake-target-layers\` artifact from the failing CI run and commit it manually."
+            echo "::error::Fork PR — cannot push to $HEAD_REPO from $REPO context." >&2
+            exit 1
+          fi
+
+      # Reuse the artifact the verify job already uploaded on its successful run.
+      # Only success runs are eligible: a failure run may have crashed before the
+      # Regenerate step and therefore has no artifact to download.
+      - name: Find verify run for PR head SHA
+        id: find-run
+        env:
+          HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
+        run: |
+          RUN_ID=$(gh run list --repo "$REPO" \
+            --workflow=cmake-target-layers.yaml \
+            --commit "$HEAD_SHA" \
+            --limit 10 \
+            --json databaseId,conclusion \
+            --jq '[.[] | select(.conclusion == "success")] | .[0].databaseId // ""')
+
+          if [ -z "$RUN_ID" ]; then
+            gh api -X POST "repos/$REPO/issues/comments/$COMMENT_ID/reactions" \
+              -f content='-1' >/dev/null
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body \
+              "❌ No successful **Verify CMake target layers** run found for commit \`${HEAD_SHA:0:8}\`. Wait for the CI job to pass, then re-comment \`/update-cmake-target-layers\`."
+            echo "::error::No successful cmake-target-layers.yaml run for $HEAD_SHA" >&2
+            exit 1
+          fi
+
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "Reusing artifact from cmake-target-layers.yaml run #$RUN_ID for SHA \`${HEAD_SHA:0:8}\`" \
+            >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Download cmake-target-layers artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: cmake-target-layers
+          path: ./artifact
+          run-id: ${{ steps.find-run.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Commit via the Contents API — no checkout of PR code required.
+      # This avoids the "untrusted checkout in a privileged context" security pattern.
+      - name: Commit refreshed diagram via API
+        id: commit
+        env:
+          COMMENTER: ${{ github.event.comment.user.login }}
+          COMMENTER_ID: ${{ github.event.comment.user.id }}
+          HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
+          HEAD_REF: ${{ steps.pr.outputs.head_ref }}
+          RUN_ID: ${{ steps.find-run.outputs.run_id }}
+        run: |
+          # Get blob SHA of the currently-committed file (required to update it via API).
+          FILE_META=$(gh api "repos/$REPO/contents/cmake/cmake-target-layers.md?ref=$HEAD_REF" \
+            2>/dev/null || echo '{}')
+          CURRENT_SHA=$(echo "$FILE_META" | jq -r '.sha // ""')
+
+          # Compare base64 strings directly — API returns base64 with line breaks, strip them.
+          ARTIFACT_B64=$(base64 -w 0 ./artifact/cmake-target-layers.md)
+          CURRENT_B64=$(echo "$FILE_META" | jq -r '.content // ""' | tr -d '\n')
+          if [ "$ARTIFACT_B64" = "$CURRENT_B64" ]; then
+            echo "already_current=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          COMMIT_MSG=$(printf \
+            'docs(cmake): regenerate cmake-target-layers.md\n\nAuto-committed by /update-cmake-target-layers (PR #%s).\nSource: cmake-target-layers.yaml run #%s, head %s.' \
+            "$PR_NUMBER" "$RUN_ID" "$HEAD_SHA")
+
+          jq -n \
+            --arg message "$COMMIT_MSG" \
+            --arg content "$ARTIFACT_B64" \
+            --arg sha "$CURRENT_SHA" \
+            --arg branch "$HEAD_REF" \
+            --arg name "$COMMENTER" \
+            --arg email "${COMMENTER_ID}+${COMMENTER}@users.noreply.github.com" \
+            '{message: $message, content: $content, branch: $branch,
+              committer: {name: $name, email: $email},
+              author:    {name: $name, email: $email}}
+             | if $sha != "" then . + {sha: $sha} else . end' \
+          | gh api -X PUT "repos/$REPO/contents/cmake/cmake-target-layers.md" --input -
+
+      - name: Confirm update
+        if: always()
+        env:
+          ALREADY_CURRENT: ${{ steps.commit.outputs.already_current }}
+          COMMIT_OUTCOME: ${{ steps.commit.outcome }}
+        run: |
+          if [ "$COMMIT_OUTCOME" = "success" ]; then
+            gh api -X POST "repos/$REPO/issues/comments/$COMMENT_ID/reactions" \
+              -f content='+1' >/dev/null
+            if [ "$ALREADY_CURRENT" = "true" ]; then
+              gh pr comment "$PR_NUMBER" --repo "$REPO" --body \
+                "✅ \`cmake/cmake-target-layers.md\` is already up to date with the latest CI run — nothing to commit."
+            else
+              gh pr comment "$PR_NUMBER" --repo "$REPO" --body \
+                "✅ \`cmake/cmake-target-layers.md\` has been refreshed and committed to this branch."
+            fi
+          else
+            gh api -X POST "repos/$REPO/issues/comments/$COMMENT_ID/reactions" \
+              -f content='-1' >/dev/null
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body \
+              "❌ Failed to commit \`cmake/cmake-target-layers.md\` — check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details."
+          fi

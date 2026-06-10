@@ -1,0 +1,25 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "ci-linux",
+      "displayName": "Linux CI build (full)",
+      "description": "Canonical Linux CI configuration. Single source of truth for the graph-affecting build options, shared with the cmake-target-layers diagram workflow.",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "BUILD_VIZ": "ON",
+        "BUILD_PLUGINS": "ON",
+        "BUILD_PLUGIN_OAK_CAMERA": "ON",
+        "BUILD_EXAMPLES": "ON",
+        "BUILD_TESTING": "ON",
+        "BUILD_PYTHON_BINDINGS": "ON",
+        "ENABLE_CLOUDXR_BUNDLE_CHECK": "ON"
+      }
+    }
+  ]
+}

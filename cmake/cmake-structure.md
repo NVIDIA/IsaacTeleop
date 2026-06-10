@@ -17,6 +17,11 @@ as humans. Apply them both when **authoring** code/build files and when
 > and the root `AGENTS.md`) point here — edit the rules **here**, not in those
 > shims.
 
+> **See also:** [`cmake-target-layers.md`](cmake-target-layers.md) — an auto-generated,
+> layered view of the *actual* CMake target dependency graph (direct edges only, sorted into
+> topological layers), regenerated from live CMake and CI-verified by the *Verify CMake target
+> layers* workflow.
+
 ## The six rules (non-negotiable)
 
 1. **One CMake target per leaf directory.** A directory that defines a target

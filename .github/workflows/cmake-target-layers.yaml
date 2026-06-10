@@ -1,0 +1,122 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Verify that cmake/cmake-target-layers.md matches the live CMake target graph.
+#
+# The graph is read straight from CMake: we configure with the SAME `ci-linux` preset that the
+# primary Linux build uses (CMakePresets.json is the single source of the graph-affecting build
+# options), ask CMake to emit its own dependency graph (`cmake --graphviz`), and regenerate the
+# layered diagram. If the committed copy drifts from what CMake reports, the job fails — and the
+# freshly-generated diagram is always uploaded as the `cmake-target-layers` artifact, so the fix
+# is to download it and commit it in place of the stale file (no local full build required).
+#
+# Only graph-NEUTRAL build gates are relaxed here (ENABLE_CLOUDXR_BUNDLE_CHECK and
+# ENABLE_CLANG_FORMAT_CHECK gate python/utility/custom targets that `cmake --graphviz` excludes),
+# which keeps this job free of the CloudXR SDK / NGC secret so it also runs on fork PRs. Every
+# build-affecting flag still comes from the shared preset, so the diagram cannot diverge from the
+# real build's target graph.
+
+name: Verify CMake target layers
+
+on:
+  push:
+    branches: [ main, 'release/*.*.x' ]
+    paths:
+      - '**/CMakeLists.txt'
+      - '**/*.cmake'
+      - 'CMakePresets.json'
+      - 'scripts/cmake_target_layers.py'
+      - 'cmake/cmake-target-layers.md'
+      - '.github/workflows/cmake-target-layers.yaml'
+  pull_request:
+    paths:
+      - '**/CMakeLists.txt'
+      - '**/*.cmake'
+      - 'CMakePresets.json'
+      - 'scripts/cmake_target_layers.py'
+      - 'cmake/cmake-target-layers.md'
+      - '.github/workflows/cmake-target-layers.yaml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  verify-target-layers:
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 0 # Full history for accurate git describe during configure
+
+    - name: Install uv
+      uses: ./.github/actions/setup-uv
+
+    # viz_core links libcudart, so find_package(CUDAToolkit) must resolve at configure time
+    # for BUILD_VIZ=ON (set by the ci-linux preset).
+    - name: Install CUDA toolkit
+      uses: ./.github/actions/setup-cuda
+
+    - name: Install Apt dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake libx11-dev libvulkan-dev glslang-tools \
+          libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxext-dev libxkbcommon-dev \
+          libwayland-dev wayland-protocols
+
+    # BUILD_PLUGIN_OAK_CAMERA=ON (ci-linux preset) pulls DepthAI via Hunter at configure time.
+    - name: Cache Hunter packages
+      uses: actions/cache@v5
+      with:
+        path: ~/.hunter
+        key: hunter-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('cmake/SetupHunter.cmake') }}
+        restore-keys: |
+          hunter-${{ runner.os }}-${{ runner.arch }}-
+
+    # Configure only (no build) with the shared preset; emit CMake's own dependency graph.
+    # The two -D overlays are graph-neutral (see header) and drop the CloudXR/clang-format needs.
+    - name: Configure CMake and emit dependency graph
+      run: |
+        cmake --preset ci-linux \
+          -DENABLE_CLOUDXR_BUNDLE_CHECK=OFF \
+          -DENABLE_CLANG_FORMAT_CHECK=OFF \
+          --graphviz=build/cmake-target-graph.dot
+
+    - name: Regenerate diagram (artifact)
+      run: |
+        python3 scripts/cmake_target_layers.py \
+          --dot build/cmake-target-graph.dot \
+          --out artifact/cmake-target-layers.md
+
+    # Upload regardless of the check result so a stale committed copy can be replaced by this file.
+    - name: Upload diagram artifact
+      if: always()
+      uses: actions/upload-artifact@v6
+      with:
+        name: cmake-target-layers
+        path: artifact/cmake-target-layers.md
+        if-no-files-found: error
+
+    - name: Verify committed diagram is up to date
+      id: verify-diagram
+      run: |
+        python3 scripts/cmake_target_layers.py \
+          --dot build/cmake-target-graph.dot \
+          --check
+
+    - name: Hint on stale diagram
+      if: failure() && steps.verify-diagram.conclusion == 'failure'
+      env:
+        PR_URL: ${{ github.event.pull_request.html_url }}
+      run: |
+        if [ -n "$PR_URL" ]; then
+          HINT="Comment \`/update-cmake-target-layers\` on the PR to auto-commit the refreshed diagram."
+        else
+          HINT="Download the \`cmake-target-layers\` artifact from this run and commit it in place of \`cmake/cmake-target-layers.md\`."
+        fi
+        echo "::error title=cmake-target-layers.md is stale::$HINT"

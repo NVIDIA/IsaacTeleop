@@ -101,16 +101,17 @@ jobs:
         ccache --version
         ccache --show-config
 
+    # Graph-affecting build options (BUILD_VIZ / BUILD_PLUGIN_OAK_CAMERA /
+    # ENABLE_CLOUDXR_BUNDLE_CHECK / plugins / examples / tests / python bindings) live in the
+    # `ci-linux` preset in CMakePresets.json, the single source shared with the
+    # cmake-target-layers diagram workflow. Only the per-matrix/tooling vars are overlaid here.
     - name: Configure CMake
       run: |
-        cmake -B build \
+        cmake --preset ci-linux \
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
           -DISAAC_TELEOP_PYTHON_VERSION=${{ matrix.python_version }} \
           -DCMAKE_C_COMPILER_LAUNCHER=ccache \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-          -DBUILD_PLUGIN_OAK_CAMERA=ON \
-          -DBUILD_VIZ=ON \
-          -DENABLE_CLOUDXR_BUNDLE_CHECK=ON \
           -DBUNDLE_ROBOTIC_GROUNDING=${{ steps.setup-v2d-src.outputs.bundled || 'false' }}
 
     - name: Build
