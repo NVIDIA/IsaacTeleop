@@ -85,7 +85,13 @@ include(FetchContent)
 # ==============================================================================
 # DepthAI v3.x Setup via FetchContent
 # ==============================================================================
-set(DEPTHAI_VERSION "3.3.0")
+# DEPTHAI_VERSION is the single source of truth in cmake/DepthAIVcpkgManifest.cmake
+# (it pins both DepthAI's source tag here and the vcpkg manifest downloaded before
+# project()). The fallback keeps this subdir self-consistent if that module was
+# not included for some reason.
+if(NOT DEFINED DEPTHAI_VERSION)
+    set(DEPTHAI_VERSION "3.3.0")
+endif()
 
 set(DEPTHAI_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(DEPTHAI_BUILD_TESTS OFF CACHE BOOL "" FORCE)

@@ -54,7 +54,7 @@ jobs:
         path: |
           C:\vcpkg
           build\vcpkg_installed
-        key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+        key: vcpkg-${{ runner.os }}-${{ hashFiles('cmake/DepthAIVcpkgManifest.cmake') }}
         restore-keys: |
           vcpkg-${{ runner.os }}-
 

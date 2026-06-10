@@ -16,6 +16,19 @@ if(NOT DEFINED CMAKE_INSTALL_PREFIX OR CMAKE_INSTALL_PREFIX STREQUAL "" OR CMAKE
     set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/install" CACHE PATH "Install prefix" FORCE)
 endif()
 
+# ==============================================================================
+# DepthAI vcpkg manifest (OAK camera plugin)
+# ==============================================================================
+# The OAK camera plugin's vcpkg dependencies come from DepthAI's own vcpkg.json,
+# auto-downloaded for the pinned tag, rather than a duplicate manifest tracked
+# in this repo. This MUST run before project() so vcpkg picks up the manifest
+# when the toolchain loads. Gated on the -D option being passed (it lives in the
+# cache before project(); the option() default below applies only when unset).
+if(BUILD_PLUGIN_OAK_CAMERA)
+    include(cmake/DepthAIVcpkgManifest.cmake)
+    isaac_teleop_setup_depthai_vcpkg_manifest()
+endif()
+
 project(IsaacTeleop VERSION ${ISAAC_TELEOP_VERSION} LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
