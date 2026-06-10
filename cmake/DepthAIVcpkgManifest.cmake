@@ -16,9 +16,22 @@
 #   So we re-enable the compression codecs below (crypto/libxml2 left off to
 #   avoid pulling openssl/libxml2 back in).
 
-# Single source of truth for the DepthAI version/tag, also consumed by the
-# FetchContent pull in src/plugins/oak/CMakeLists.txt.
-set(DEPTHAI_VERSION "3.3.0" CACHE STRING "DepthAI (depthai-core) version/tag to build against")
+# Single source of truth for the DepthAI version, also consumed by the
+# FetchContent pull in src/plugins/oak/CMakeLists.txt. DEPTHAI_VERSION is for
+# human-readable messages only; the build pins the immutable commit below.
+set(DEPTHAI_VERSION "3.7.1" CACHE STRING "DepthAI (depthai-core) version (display only)")
+
+# Supply-chain pinning: pin the exact commit (not the mutable tag) that both the
+# manifest download and the FetchContent source clone resolve to, and verify the
+# downloaded manifest against its known SHA256. To bump DepthAI, update all three
+# of DEPTHAI_VERSION / DEPTHAI_COMMIT / DEPTHAI_VCPKG_MANIFEST_SHA256 together:
+#   git ls-remote https://github.com/luxonis/depthai-core.git refs/tags/v<VER>^{}
+#   curl -sL https://raw.githubusercontent.com/luxonis/depthai-core/<COMMIT>/vcpkg.json | sha256sum
+set(DEPTHAI_COMMIT "8d32a1f05deb39c26823d596eb635d2599215b72"
+    CACHE STRING "DepthAI (depthai-core) pinned commit SHA")
+# SHA256 of the unmodified upstream vcpkg.json at DEPTHAI_COMMIT (checked before
+# this module patches in libarchive's lzma feature).
+set(DEPTHAI_VCPKG_MANIFEST_SHA256 "719cd72de8b5a819af24b22f5e89d3f7615dc68844615b8d76788cb8ca461954")
 
 # Bump when the patching below changes, to regenerate a cached manifest.
 set(_ISAAC_DEPTHAI_MANIFEST_REVISION "2")
@@ -27,8 +40,8 @@ function(isaac_teleop_setup_depthai_vcpkg_manifest)
     set(_manifest_dir "${CMAKE_BINARY_DIR}/vcpkg-manifest")
     set(_manifest_file "${_manifest_dir}/vcpkg.json")
     set(_stamp_file "${_manifest_dir}/.depthai-version")
-    set(_url "https://raw.githubusercontent.com/luxonis/depthai-core/v${DEPTHAI_VERSION}/vcpkg.json")
-    set(_stamp_value "${DEPTHAI_VERSION}+rev${_ISAAC_DEPTHAI_MANIFEST_REVISION}")
+    set(_url "https://raw.githubusercontent.com/luxonis/depthai-core/${DEPTHAI_COMMIT}/vcpkg.json")
+    set(_stamp_value "${DEPTHAI_COMMIT}+rev${_ISAAC_DEPTHAI_MANIFEST_REVISION}")
 
     # Re-download only when missing or the version/revision changed.
     set(_need_download TRUE)
@@ -42,8 +55,9 @@ function(isaac_teleop_setup_depthai_vcpkg_manifest)
 
     if(_need_download)
         file(MAKE_DIRECTORY "${_manifest_dir}")
-        message(STATUS "Downloading DepthAI vcpkg manifest (v${DEPTHAI_VERSION}): ${_url}")
+        message(STATUS "Downloading DepthAI vcpkg manifest (v${DEPTHAI_VERSION} @ ${DEPTHAI_COMMIT}): ${_url}")
         file(DOWNLOAD "${_url}" "${_manifest_file}"
+            EXPECTED_HASH "SHA256=${DEPTHAI_VCPKG_MANIFEST_SHA256}"
             STATUS _dl_status
             TLS_VERIFY ON)
         list(GET _dl_status 0 _dl_code)
@@ -51,7 +65,10 @@ function(isaac_teleop_setup_depthai_vcpkg_manifest)
             list(GET _dl_status 1 _dl_msg)
             file(REMOVE "${_manifest_file}")
             message(FATAL_ERROR
-                "Failed to download DepthAI vcpkg manifest from ${_url}: ${_dl_msg}\n"
+                "Failed to download/verify DepthAI vcpkg manifest from ${_url}: ${_dl_msg}\n"
+                "A hash mismatch means the upstream vcpkg.json changed or the download was "
+                "tampered with; if DepthAI was intentionally bumped, update DEPTHAI_COMMIT and "
+                "DEPTHAI_VCPKG_MANIFEST_SHA256 in cmake/DepthAIVcpkgManifest.cmake.\n"
                 "Configuring the OAK camera plugin needs network access to GitHub. "
                 "Either restore connectivity, or disable the plugin with "
                 "-DBUILD_PLUGIN_OAK_CAMERA=OFF.")

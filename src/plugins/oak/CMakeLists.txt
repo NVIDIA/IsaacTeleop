@@ -85,12 +85,16 @@ include(FetchContent)
 # ==============================================================================
 # DepthAI v3.x Setup via FetchContent
 # ==============================================================================
-# DEPTHAI_VERSION is the single source of truth in cmake/DepthAIVcpkgManifest.cmake
-# (it pins both DepthAI's source tag here and the vcpkg manifest downloaded before
-# project()). The fallback keeps this subdir self-consistent if that module was
-# not included for some reason.
-if(NOT DEFINED DEPTHAI_VERSION)
-    set(DEPTHAI_VERSION "3.3.0")
+# cmake/DepthAIVcpkgManifest.cmake is the single source of truth for the pinned
+# DepthAI version/commit. The top-level CMakeLists.txt includes it (before
+# project()) under the same BUILD_PLUGIN_OAK_CAMERA guard that adds this subdir,
+# so both vars are always defined here. Fail loudly if that ordering invariant is
+# ever broken rather than duplicating the pin (a stale copy could clone a commit
+# that mismatches the verified vcpkg manifest).
+if(NOT DEFINED DEPTHAI_VERSION OR NOT DEFINED DEPTHAI_COMMIT)
+    message(FATAL_ERROR
+        "DEPTHAI_VERSION/DEPTHAI_COMMIT are unset. Include "
+        "cmake/DepthAIVcpkgManifest.cmake before adding the src/plugins/oak subdirectory.")
 endif()
 
 set(DEPTHAI_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -117,6 +121,18 @@ set(DEPTHAI_ENABLE_REMOTE_CONNECTION OFF CACHE BOOL "" FORCE)
 set(DEPTHAI_ENABLE_PROTOBUF OFF CACHE BOOL "" FORCE)
 set(DEPTHAI_ENABLE_MP4V2 OFF CACHE BOOL "" FORCE)
 set(DEPTHAI_DYNAMIC_CALIBRATION_SUPPORT OFF CACHE BOOL "" FORCE)
+
+# ==============================================================================
+# MSVC: define M_PI and friends for DepthAI sources
+# ==============================================================================
+# MSVC's <cmath>/<math.h> only expose M_PI (and the other M_* constants) when
+# _USE_MATH_DEFINES is defined. Several DepthAI sources use M_PI directly (e.g.
+# src/utility/matrixOps.cpp), so without this they fail with:
+#   error C2065: 'M_PI': undeclared identifier
+# Set at directory scope so the DepthAI subdirectory (added below) inherits it.
+if(MSVC)
+    add_compile_definitions(_USE_MATH_DEFINES)
+endif()
 
 # ==============================================================================
 # Bridge vcpkg's libusb to DepthAI's expected usb-1.0 target
@@ -146,38 +162,21 @@ if(DEFINED VCPKG_INSTALLED_DIR AND DEFINED VCPKG_TARGET_TRIPLET)
     include_directories(SYSTEM "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include")
 endif()
 
-message(STATUS "Fetching DepthAI v${DEPTHAI_VERSION}...")
+message(STATUS "Fetching DepthAI v${DEPTHAI_VERSION} (commit ${DEPTHAI_COMMIT})...")
 
+# Pin to the immutable commit, not the mutable v${DEPTHAI_VERSION} tag. GIT_SHALLOW
+# is intentionally OFF: a shallow fetch resolves a named ref, so checking out an
+# arbitrary commit SHA needs the full history.
 FetchContent_Declare(
     depthai
     GIT_REPOSITORY https://github.com/luxonis/depthai-core.git
-    GIT_TAG v${DEPTHAI_VERSION}
-    GIT_SHALLOW TRUE
+    GIT_TAG ${DEPTHAI_COMMIT}
+    GIT_SHALLOW FALSE
 )
 
 FetchContent_GetProperties(depthai)
 if(NOT depthai_POPULATED)
     FetchContent_Populate(depthai)
-
-    # Patch v3.3.0 bug: recordConfig should be pipeline->recordConfig
-    # Guard: only apply if the unpatched pattern is still present (idempotent)
-    if(DEPTHAI_VERSION VERSION_EQUAL "3.3.0")
-        set(_patch_file "${depthai_SOURCE_DIR}/src/utility/PipelineImplHelper.cpp")
-        if(EXISTS "${_patch_file}")
-            file(READ "${_patch_file}" _patch_content)
-            string(FIND "${_patch_content}" "pipeline->recordConfig.state = RecordConfig::RecordReplayState::NONE" _already_patched)
-            if(_already_patched EQUAL -1)
-                string(REPLACE
-                    "recordConfig.state = RecordConfig::RecordReplayState::NONE"
-                    "pipeline->recordConfig.state = RecordConfig::RecordReplayState::NONE"
-                    _patch_content "${_patch_content}")
-                file(WRITE "${_patch_file}" "${_patch_content}")
-                message(STATUS "Applied v3.3.0 recordConfig patch")
-            else()
-                message(STATUS "v3.3.0 recordConfig patch already applied")
-            endif()
-        endif()
-    endif()
 
     # Override export() to no-op — DepthAI's export fails with vcpkg IMPORTED targets
     function(export)
