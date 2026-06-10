@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: so101_leader
+description: "SO-101 (5-DOF + gripper) leader arm joint angles as JointStateOutput"
+command: "./so101_leader_plugin"
+version: "1.0.0"
+devices:
+  - path: "/arm/so101_leader"
+    type: "joint_state"
+    description: "SO-101 leader arm (6 Feetech STS3215 servos); synthetic backend by default"
