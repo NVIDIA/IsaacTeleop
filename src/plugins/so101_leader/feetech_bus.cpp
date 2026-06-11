@@ -33,6 +33,8 @@ constexpr uint8_t kInstWrite = 0x03;
 constexpr uint8_t kInstSyncRead = 0x82;
 constexpr uint8_t kRegTorqueEnable = 40; // 1 byte
 constexpr uint8_t kRegPresentPosition = 56; // 2 bytes, little-endian (SMS/STS)
+constexpr uint8_t kRegHomingOffset = 31; // 2 bytes, sign-magnitude (sign bit 11) on SMS/STS
+constexpr int kHomingOffsetSignBit = 11;
 constexpr int kReadTimeoutMs = 20;
 
 // Map a numeric baud rate to the matching termios speed constant. Only the rates a FEETECH bus
@@ -310,6 +312,26 @@ bool FeetechBus::sync_read_positions(const std::vector<uint8_t>& ids,
     return true;
 }
 
+bool FeetechBus::read_homing_offset(uint8_t id, int& offset_out)
+{
+    const uint8_t params[2] = { kRegHomingOffset, 0x02 };
+    if (!write_packet(id, kInstRead, params, 2))
+    {
+        return false;
+    }
+    uint8_t data[2] = { 0, 0 };
+    if (!read_status(id, data, 2))
+    {
+        return false;
+    }
+    const uint16_t raw = static_cast<uint16_t>(data[0]) | static_cast<uint16_t>(data[1] << 8);
+    // Sign-magnitude: bits [0, sign_bit) are the magnitude, bit sign_bit is the sign.
+    const uint16_t magnitude = raw & ((1u << kHomingOffsetSignBit) - 1u);
+    const bool negative = (raw >> kHomingOffsetSignBit) & 1u;
+    offset_out = negative ? -static_cast<int>(magnitude) : static_cast<int>(magnitude);
+    return true;
+}
+
 bool FeetechBus::disable_torque(uint8_t id)
 {
     const uint8_t params[2] = { kRegTorqueEnable, 0x00 };
@@ -361,6 +383,10 @@ bool FeetechBus::read_position(uint8_t, uint16_t&)
     return false;
 }
 bool FeetechBus::sync_read_positions(const std::vector<uint8_t>&, std::vector<uint16_t>&, std::vector<uint8_t>&)
+{
+    return false;
+}
+bool FeetechBus::read_homing_offset(uint8_t, int&)
 {
     return false;
 }

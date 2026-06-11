@@ -6,6 +6,7 @@
 #include <pusherio/schema_pusher.hpp>
 
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -71,10 +72,19 @@ private:
     //! Synthetic smooth trajectory used when no serial device is attached.
     void read_synthetic();
     void push_current_state();
-    //! Parse a whitespace-separated calibration file: ``name servo_id sign home_ticks [range_min
-    //! range_max]`` per line (``#`` comments allowed; range columns optional). Unknown joint names
-    //! are ignored; missing joints keep defaults.
+    //! Load calibration from @p path. A ``.json`` file is read as a LeRobot calibration (see
+    //! load_lerobot_calibration()); anything else is the plain-text format: ``name servo_id sign
+    //! home_ticks [range_min range_max]`` per line (``#`` comments allowed; range columns optional).
+    //! Unknown joint names are ignored; missing joints keep defaults.
     void load_calibration(const std::string& path);
+    //! Load a LeRobot calibration JSON. Maps ``range_min/range_max`` -> range, the range midpoint ->
+    //! ``home_ticks`` (LeRobot's zero), and ``drive_mode`` -> ``sign``. The per-joint
+    //! ``homing_offset`` is reconciled against the servo by compensate_homing().
+    void load_lerobot_calibration(const std::string& path);
+    //! Reconcile a loaded LeRobot calibration with the live servos: LeRobot's offsets live in the
+    //! servo EEPROM, so shift home/range by ``homing_offset_file - homing_offset_servo`` (read live).
+    //! No-op without a LeRobot calibration or a connected bus.
+    void compensate_homing();
 
     std::string device_path_;
     std::string collection_id_;
@@ -86,6 +96,7 @@ private:
     std::vector<uint8_t> servo_ids_; // calibration_[*].servo_id in DOF order (sync-read request)
     std::vector<uint16_t> read_ticks_; // sync-read scratch (reused each frame)
     std::vector<uint8_t> read_ok_; // sync-read scratch: per-servo reply flag
+    std::vector<int> lerobot_homing_; // per-DOF homing_offset from a loaded LeRobot JSON (else empty)
 
     std::shared_ptr<core::OpenXRSession> session_;
     core::SchemaPusher pusher_;
@@ -99,6 +110,12 @@ private:
 //! endpoints in radians for the retargeter. Does not create an OpenXR session. Returns a process
 //! exit code (0 = all servos read).
 int run_calibration(const std::string& device_path, const std::string& output_path);
+
+//! Minimal reader for a LeRobot calibration JSON of the shape ``{ "joint": {"id": int,
+//! "drive_mode": int, "homing_offset": int, "range_min": int, "range_max": int}, ... }``. Returns
+//! ``joint -> {field -> integer}`` (non-integer values skipped). Not a general JSON parser; returns
+//! an empty map on malformed input.
+std::map<std::string, std::map<std::string, long>> parse_lerobot_calibration(const std::string& json);
 
 } // namespace so101_leader
 } // namespace plugins

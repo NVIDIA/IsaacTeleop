@@ -46,6 +46,9 @@ sweep.
 # Two interactive steps: (1) hold the arm at mid-range, ENTER; (2) sweep every joint, ENTER:
 ./install/plugins/so101_leader/so101_leader_plugin calibrate /dev/ttyACM0 so101_leader.calib
 
+# Write a LeRobot-format calibration instead (chosen by the .json extension):
+./install/plugins/so101_leader/so101_leader_plugin calibrate /dev/ttyACM0 so101_leader.json
+
 # Omit the output path to just print the measurements (a "dump" for inspection):
 ./install/plugins/so101_leader/so101_leader_plugin calibrate /dev/ttyACM0
 ```
@@ -56,9 +59,29 @@ It disables torque, then:
 2. **Range sweep** — while you move every joint through its full range, it tracks per-joint
    `range_min`/`range_max` until you press ENTER.
 
-It writes the file below (all `sign` default to `+1` — flip any inverted joint by hand) and prints
-the gripper's range endpoints in radians, which you drop into the retargeter's
-`gripper_open`/`gripper_close`.
+It writes the file (plain text, or LeRobot JSON if the path ends in `.json`; all `sign` default to
+`+1` — flip any inverted joint by hand) and prints the gripper's range endpoints in radians, which
+you drop into the retargeter's `gripper_open`/`gripper_close`.
+
+### LeRobot calibration interoperability
+
+The calibration files are interchangeable with [LeRobot](https://github.com/huggingface/lerobot)
+(`SO101Leader`). A `.json` path is read/written in LeRobot's format
+(`{ "joint": {"id", "drive_mode", "homing_offset", "range_min", "range_max"}, ... }`); anything else
+is the plain-text format above.
+
+```bash
+# Use an existing LeRobot calibration directly:
+./install/plugins/so101_leader/so101_leader_plugin /dev/ttyACM0 so101_leader \
+    ~/.cache/huggingface/lerobot/calibration/teleoperators/so101_leader/<id>.json
+```
+
+Mapping: LeRobot's `range_min`/`range_max` → our range (reads are clamped to it), the range midpoint
+→ `home_ticks` (LeRobot's zero), `drive_mode` → `sign`. LeRobot stores each joint's `homing_offset`
+in the **servo EEPROM** (its runtime normalization doesn't use it), so on connect we read the
+servo's live `Homing_Offset` (register 31) and shift home/range by
+`homing_offset_file − homing_offset_servo` — reconciling the frames without writing to the servo.
+The result reproduces LeRobot's joint angles (in radians rather than degrees).
 
 ### Hardware setup (per SO-ARM100 / LeRobot)
 
@@ -71,7 +94,8 @@ the gripper's range endpoints in radians, which you drop into the retargeter's
 
 ### Calibration file (optional)
 
-Whitespace-separated, one joint per line; `#` starts a comment. Columns:
+The plain-text format (used unless the path ends in `.json`) is whitespace-separated, one joint per
+line; `#` starts a comment. Columns:
 `name  servo_id  sign(+1/-1)  home_ticks(0..4095)  [range_min range_max]` (the two range columns are
 optional). The conversion is
 `angle [rad] = sign * (clamp(ticks, range_min, range_max) - home_ticks) * 2π / 4096`.

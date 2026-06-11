@@ -52,6 +52,11 @@ public:
     //! only if the request itself could not be sent.
     bool sync_read_positions(const std::vector<uint8_t>& ids, std::vector<uint16_t>& positions, std::vector<uint8_t>& ok);
 
+    //! Read the signed ``Homing_Offset`` (register 31, sign-magnitude with sign bit 11) the servo
+    //! subtracts from its actual position (``Present_Position = Actual_Position - Homing_Offset``).
+    //! Used to reconcile our reads with a LeRobot calibration, whose offsets are stored in the servo.
+    bool read_homing_offset(uint8_t id, int& offset_out);
+
     //! Write ``Torque_Enable = 0`` (register 40) so servo @p id goes limp and can be moved by hand.
     bool disable_torque(uint8_t id);
 
