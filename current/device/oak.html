@@ -424,20 +424,25 @@ files. Source and plugin README:
 <p class="topic-title">On this page</p>
 <ul class="simple">
 <li><p><a class="reference internal" href="#features" id="id1">Features</a></p></li>
-<li><p><a class="reference internal" href="#build" id="id2">Build</a></p></li>
-<li><p><a class="reference internal" href="#usage" id="id3">Usage</a></p>
+<li><p><a class="reference internal" href="#build" id="id2">Build</a></p>
 <ul>
-<li><p><a class="reference internal" href="#record-camera-metadata-in-mcap" id="id4">Record camera metadata in MCAP</a></p></li>
+<li><p><a class="reference internal" href="#prerequisites" id="id3">Prerequisites</a></p></li>
+<li><p><a class="reference internal" href="#configure-and-build" id="id4">Configure and Build</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#configuration" id="id5">Configuration</a></p></li>
-<li><p><a class="reference internal" href="#architecture" id="id6">Architecture</a></p></li>
-<li><p><a class="reference internal" href="#dependencies" id="id7">Dependencies</a></p></li>
-<li><p><a class="reference internal" href="#output-format" id="id8">Output Format</a></p></li>
-<li><p><a class="reference internal" href="#troubleshooting" id="id9">Troubleshooting</a></p>
+<li><p><a class="reference internal" href="#usage" id="id5">Usage</a></p>
 <ul>
-<li><p><a class="reference internal" href="#device-usb-connection" id="id10">Device USB Connection</a></p></li>
-<li><p><a class="reference internal" href="#inspect-the-recording" id="id11">Inspect the Recording</a></p></li>
+<li><p><a class="reference internal" href="#record-camera-metadata-in-mcap" id="id6">Record camera metadata in MCAP</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#configuration" id="id7">Configuration</a></p></li>
+<li><p><a class="reference internal" href="#architecture" id="id8">Architecture</a></p></li>
+<li><p><a class="reference internal" href="#dependencies" id="id9">Dependencies</a></p></li>
+<li><p><a class="reference internal" href="#output-format" id="id10">Output Format</a></p></li>
+<li><p><a class="reference internal" href="#troubleshooting" id="id11">Troubleshooting</a></p>
+<ul>
+<li><p><a class="reference internal" href="#device-usb-connection" id="id12">Device USB Connection</a></p></li>
+<li><p><a class="reference internal" href="#inspect-the-recording" id="id13">Inspect the Recording</a></p></li>
 </ul>
 </li>
 </ul>
@@ -454,19 +459,37 @@ container overhead)</p></li>
 </section>
 <section id="build">
 <h2><a class="toc-backref" href="#id2" role="doc-backlink">Build</a><a class="headerlink" href="#build" title="Link to this heading">#</a></h2>
-<p>DepthAI is fetched and built automatically via FetchContent. The first build
-takes ~10–15 minutes (mostly DepthAI and its Hunter dependencies); subsequent
-builds are fast.</p>
+<p>DepthAI v3.x is fetched and built automatically via FetchContent. Its transitive
+dependencies are managed by <strong>vcpkg</strong>: rather than tracking our own <code class="docutils literal notranslate"><span class="pre">vcpkg.json</span></code>,
+the build downloads <strong>DepthAI’s own vcpkg manifest</strong> for the pinned tag at configure
+time (see <code class="docutils literal notranslate"><span class="pre">cmake/DepthAIVcpkgManifest.cmake</span></code>) and enables its <code class="docutils literal notranslate"><span class="pre">usb</span></code> feature for
+libusb. The first build takes ~10–15 minutes (mostly vcpkg deps + DepthAI);
+subsequent builds are fast.</p>
+<section id="prerequisites">
+<h3><a class="toc-backref" href="#id3" role="doc-backlink">Prerequisites</a><a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Install build tools for vcpkg to build libusb (Linux)</span>
+sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>libudev-dev<span class="w"> </span>autoconf<span class="w"> </span>automake<span class="w"> </span>libtool<span class="w"> </span>pkg-config
+
+<span class="c1"># Install vcpkg (one-time)</span>
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/microsoft/vcpkg<span class="w"> </span>~/.vcpkg
+~/.vcpkg/bootstrap-vcpkg.sh
+<span class="nb">echo</span><span class="w"> </span><span class="s1">&#39;export VCPKG_ROOT=~/.vcpkg&#39;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>~/.bashrc<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">source</span><span class="w"> </span>~/.bashrc
+</pre></div>
+</div>
+</section>
+<section id="configure-and-build">
+<h3><a class="toc-backref" href="#id4" role="doc-backlink">Configure and Build</a><a class="headerlink" href="#configure-and-build" title="Link to this heading">#</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>IsaacTeleop
 
-<span class="c1"># Configure and build</span>
-cmake<span class="w"> </span>-B<span class="w"> </span>build<span class="w"> </span>-DBUILD_PLUGIN_OAK_CAMERA<span class="o">=</span>ON
+cmake<span class="w"> </span>-B<span class="w"> </span>build<span class="w"> </span>-DBUILD_PLUGIN_OAK_CAMERA<span class="o">=</span>ON<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-DCMAKE_TOOLCHAIN_FILE<span class="o">=</span><span class="nv">$VCPKG_ROOT</span>/scripts/buildsystems/vcpkg.cmake
 cmake<span class="w"> </span>--build<span class="w"> </span>build<span class="w"> </span>--target<span class="w"> </span>camera_plugin_oak<span class="w"> </span>--parallel
 </pre></div>
 </div>
 </section>
+</section>
 <section id="usage">
-<h2><a class="toc-backref" href="#id3" role="doc-backlink">Usage</a><a class="headerlink" href="#usage" title="Link to this heading">#</a></h2>
+<h2><a class="toc-backref" href="#id5" role="doc-backlink">Usage</a><a class="headerlink" href="#usage" title="Link to this heading">#</a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Record a single color stream</span>
 ./build/src/plugins/oak/camera_plugin_oak<span class="w"> </span>--add-stream<span class="o">=</span><span class="nv">camera</span><span class="o">=</span>Color,output<span class="o">=</span>./color.h264
 
@@ -486,7 +509,7 @@ cmake<span class="w"> </span>--build<span class="w"> </span>build<span class="w"
 </div>
 <p>Press <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> to stop recording.</p>
 <section id="record-camera-metadata-in-mcap">
-<h3><a class="toc-backref" href="#id4" role="doc-backlink">Record camera metadata in MCAP</a><a class="headerlink" href="#record-camera-metadata-in-mcap" title="Link to this heading">#</a></h3>
+<h3><a class="toc-backref" href="#id6" role="doc-backlink">Record camera metadata in MCAP</a><a class="headerlink" href="#record-camera-metadata-in-mcap" title="Link to this heading">#</a></h3>
 <p>Each captured frame emits metadata (sequence number, timestamps) as FlatBuffer
 <code class="docutils literal notranslate"><span class="pre">FrameMetadataOak</span></code> messages. There are two ways to record it —
 <code class="docutils literal notranslate"><span class="pre">--collection-prefix</span></code> and <code class="docutils literal notranslate"><span class="pre">--mcap-filename</span></code> are <strong>mutually exclusive</strong>.</p>
@@ -563,7 +586,7 @@ the same SchemaPusher flow.</p>
 </section>
 </section>
 <section id="configuration">
-<h2><a class="toc-backref" href="#id5" role="doc-backlink">Configuration</a><a class="headerlink" href="#configuration" title="Link to this heading">#</a></h2>
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">Configuration</a><a class="headerlink" href="#configuration" title="Link to this heading">#</a></h2>
 <div class="pst-scrollable-table-container"><table class="table">
 <colgroup>
 <col style="width: 30.0%" />
@@ -615,7 +638,7 @@ the same SchemaPusher flow.</p>
 </div>
 </section>
 <section id="architecture">
-<h2><a class="toc-backref" href="#id6" role="doc-backlink">Architecture</a><a class="headerlink" href="#architecture" title="Link to this heading">#</a></h2>
+<h2><a class="toc-backref" href="#id8" role="doc-backlink">Architecture</a><a class="headerlink" href="#architecture" title="Link to this heading">#</a></h2>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>┌─────────────────┐     ┌──────────────────┐     ┌───────────────┐     ┌──────────────┐
 │   OakCamera     │────&gt;│    FrameSink     │────&gt;│ RawDataWriter │────&gt;│  .h264 File  │
 │  (H.264 encode) │     │ (write + push)   │     │ (file writer) │     │              │
@@ -630,15 +653,18 @@ the same SchemaPusher flow.</p>
 </div>
 </section>
 <section id="dependencies">
-<h2><a class="toc-backref" href="#id7" role="doc-backlink">Dependencies</a><a class="headerlink" href="#dependencies" title="Link to this heading">#</a></h2>
-<p>All dependencies are built automatically via CMake:</p>
+<h2><a class="toc-backref" href="#id9" role="doc-backlink">Dependencies</a><a class="headerlink" href="#dependencies" title="Link to this heading">#</a></h2>
+<p>Transitive dependencies via <strong>vcpkg</strong>, DepthAI and SDL2 via FetchContent:</p>
 <ul class="simple">
-<li><p><strong>DepthAI</strong> — OAK camera interface</p></li>
-<li><p><strong>SDL2</strong> — Live preview window (used by <code class="docutils literal notranslate"><span class="pre">--preview</span></code>)</p></li>
+<li><p><strong>DepthAI v3.x</strong> — OAK camera interface (FetchContent)</p></li>
+<li><p><strong>SDL2</strong> — Live preview window (FetchContent, used by <code class="docutils literal notranslate"><span class="pre">--preview</span></code>)</p></li>
+<li><p><strong>vcpkg</strong> — DepthAI’s transitive deps (nlohmann-json, spdlog, libusb,
+libarchive, etc.), resolved from DepthAI’s own auto-downloaded manifest
+(<code class="docutils literal notranslate"><span class="pre">usb</span></code> feature enabled for libusb)</p></li>
 </ul>
 </section>
 <section id="output-format">
-<h2><a class="toc-backref" href="#id8" role="doc-backlink">Output Format</a><a class="headerlink" href="#output-format" title="Link to this heading">#</a></h2>
+<h2><a class="toc-backref" href="#id10" role="doc-backlink">Output Format</a><a class="headerlink" href="#output-format" title="Link to this heading">#</a></h2>
 <p>The plugin writes raw H.264 NAL units (Annex B format) to <code class="docutils literal notranslate"><span class="pre">.h264</span></code> files. To
 play or convert:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Play with ffplay</span>
@@ -653,9 +679,9 @@ ffmpeg<span class="w"> </span>-f<span class="w"> </span>h264<span class="w"> </s
 </div>
 </section>
 <section id="troubleshooting">
-<h2><a class="toc-backref" href="#id9" role="doc-backlink">Troubleshooting</a><a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
+<h2><a class="toc-backref" href="#id11" role="doc-backlink">Troubleshooting</a><a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
 <section id="device-usb-connection">
-<h3><a class="toc-backref" href="#id10" role="doc-backlink">Device USB Connection</a><a class="headerlink" href="#device-usb-connection" title="Link to this heading">#</a></h3>
+<h3><a class="toc-backref" href="#id12" role="doc-backlink">Device USB Connection</a><a class="headerlink" href="#device-usb-connection" title="Link to this heading">#</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Check OAK camera connection</span>
 lsusb<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>03e7
 </pre></div>
@@ -664,7 +690,7 @@ lsusb<span class="w"> </span><span class="p">|</span><span class="w"> </span>gre
 <a class="reference external" href="https://docs.luxonis.com/hardware/platform/deploy/usb-deployment-guide" rel="noopener noreferrer" target="_blank">OAK USB deployment guide</a>.</p>
 </section>
 <section id="inspect-the-recording">
-<h3><a class="toc-backref" href="#id11" role="doc-backlink">Inspect the Recording</a><a class="headerlink" href="#inspect-the-recording" title="Link to this heading">#</a></h3>
+<h3><a class="toc-backref" href="#id13" role="doc-backlink">Inspect the Recording</a><a class="headerlink" href="#inspect-the-recording" title="Link to this heading">#</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Verify recording (convert to MP4 first)</span>
 ffmpeg<span class="w"> </span>-f<span class="w"> </span>h264<span class="w"> </span>-i<span class="w"> </span>recording.h264<span class="w"> </span>-c<span class="w"> </span>copy<span class="w"> </span>recording.mp4
 ffprobe<span class="w"> </span>recording.mp4
@@ -727,7 +753,11 @@ ffprobe<span class="w"> </span>-show_entries<span class="w"> </span><span class=
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#features">Features</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#build">Build</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#build">Build</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#configure-and-build">Configure and Build</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#usage">Usage</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#record-camera-metadata-in-mcap">Record camera metadata in MCAP</a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#local-mcap-file-mcap-filename">Local MCAP file (<code class="docutils literal notranslate"><span class="pre">--mcap-filename</span></code>)</a></li>
@@ -827,7 +857,7 @@ ffprobe<span class="w"> </span>-show_entries<span class="w"> </span><span class=
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on June 08, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on June 11, 2026.
       <br/>
     
   </p>

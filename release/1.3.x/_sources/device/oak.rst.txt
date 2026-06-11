@@ -24,16 +24,35 @@ Features
 Build
 -----
 
-DepthAI is fetched and built automatically via FetchContent. The first build
-takes ~10–15 minutes (mostly DepthAI and its Hunter dependencies); subsequent
-builds are fast.
+DepthAI v3.x is fetched and built automatically via FetchContent. Its transitive
+dependencies are managed by **vcpkg**: rather than tracking our own ``vcpkg.json``,
+the build downloads **DepthAI's own vcpkg manifest** for the pinned tag at configure
+time (see ``cmake/DepthAIVcpkgManifest.cmake``) and enables its ``usb`` feature for
+libusb. The first build takes ~10–15 minutes (mostly vcpkg deps + DepthAI);
+subsequent builds are fast.
+
+Prerequisites
+~~~~~~~~~~~~~
+
+.. code-block:: bash
+
+   # Install build tools for vcpkg to build libusb (Linux)
+   sudo apt install libudev-dev autoconf automake libtool pkg-config
+
+   # Install vcpkg (one-time)
+   git clone https://github.com/microsoft/vcpkg ~/.vcpkg
+   ~/.vcpkg/bootstrap-vcpkg.sh
+   echo 'export VCPKG_ROOT=~/.vcpkg' >> ~/.bashrc && source ~/.bashrc
+
+Configure and Build
+~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
    cd IsaacTeleop
 
-   # Configure and build
-   cmake -B build -DBUILD_PLUGIN_OAK_CAMERA=ON
+   cmake -B build -DBUILD_PLUGIN_OAK_CAMERA=ON \
+       -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
    cmake --build build --target camera_plugin_oak --parallel
 
 Usage
@@ -195,10 +214,13 @@ Architecture
 Dependencies
 ------------
 
-All dependencies are built automatically via CMake:
+Transitive dependencies via **vcpkg**, DepthAI and SDL2 via FetchContent:
 
-- **DepthAI** — OAK camera interface
-- **SDL2** — Live preview window (used by ``--preview``)
+- **DepthAI v3.x** — OAK camera interface (FetchContent)
+- **SDL2** — Live preview window (FetchContent, used by ``--preview``)
+- **vcpkg** — DepthAI's transitive deps (nlohmann-json, spdlog, libusb,
+  libarchive, etc.), resolved from DepthAI's own auto-downloaded manifest
+  (``usb`` feature enabled for libusb)
 
 Output Format
 -------------
