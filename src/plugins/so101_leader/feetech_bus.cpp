@@ -27,8 +27,10 @@ namespace
 
 // FEETECH SMS/STS protocol constants.
 constexpr uint8_t kHeader = 0xFF;
+constexpr uint8_t kBroadcastId = 0xFE;
 constexpr uint8_t kInstRead = 0x02;
 constexpr uint8_t kInstWrite = 0x03;
+constexpr uint8_t kInstSyncRead = 0x82;
 constexpr uint8_t kRegTorqueEnable = 40; // 1 byte
 constexpr uint8_t kRegPresentPosition = 56; // 2 bytes, little-endian (SMS/STS)
 constexpr int kReadTimeoutMs = 20;
@@ -172,7 +174,7 @@ bool FeetechBus::read_byte(uint8_t& out, int timeout_ms)
     return n == 1;
 }
 
-bool FeetechBus::read_status(uint8_t expected_id, uint8_t* data_out, uint8_t expected_data_len)
+bool FeetechBus::read_status_any(uint8_t* data_out, uint8_t expected_data_len, uint8_t& id_out)
 {
     // Sync to the 0xFF 0xFF header (tolerates leading noise from bus turnaround).
     int prev = -1;
@@ -222,7 +224,7 @@ bool FeetechBus::read_status(uint8_t expected_id, uint8_t* data_out, uint8_t exp
         checksum += rest[i];
     }
     const uint8_t expected_checksum = static_cast<uint8_t>(~checksum & 0xFF);
-    if (expected_checksum != rest[length - 1] || id != expected_id)
+    if (expected_checksum != rest[length - 1])
     {
         return false;
     }
@@ -236,7 +238,14 @@ bool FeetechBus::read_status(uint8_t expected_id, uint8_t* data_out, uint8_t exp
     {
         data_out[i] = rest[i + 1]; // skip the error byte at rest[0]
     }
+    id_out = id;
     return true;
+}
+
+bool FeetechBus::read_status(uint8_t expected_id, uint8_t* data_out, uint8_t expected_data_len)
+{
+    uint8_t id = 0;
+    return read_status_any(data_out, expected_data_len, id) && id == expected_id;
 }
 
 bool FeetechBus::read_position(uint8_t id, uint16_t& ticks_out)
@@ -252,6 +261,52 @@ bool FeetechBus::read_position(uint8_t id, uint16_t& ticks_out)
         return false;
     }
     ticks_out = static_cast<uint16_t>(data[0]) | static_cast<uint16_t>(data[1] << 8);
+    return true;
+}
+
+bool FeetechBus::sync_read_positions(const std::vector<uint8_t>& ids,
+                                     std::vector<uint16_t>& positions,
+                                     std::vector<uint8_t>& ok)
+{
+    positions.assign(ids.size(), 0);
+    ok.assign(ids.size(), 0);
+    if (ids.empty())
+    {
+        return true;
+    }
+
+    // SYNC READ (0x82) to the broadcast id: params are [reg, read_len, id0, id1, ...]. Each
+    // addressed servo then replies with its own status packet in list order.
+    std::vector<uint8_t> params;
+    params.reserve(ids.size() + 2);
+    params.push_back(kRegPresentPosition);
+    params.push_back(0x02);
+    params.insert(params.end(), ids.begin(), ids.end());
+    if (!write_packet(kBroadcastId, kInstSyncRead, params.data(), static_cast<uint8_t>(params.size())))
+    {
+        return false;
+    }
+
+    // Read up to one reply per requested servo, matching by id so a non-responding servo doesn't
+    // misalign the rest (the first missing reply just ends the burst).
+    for (size_t k = 0; k < ids.size(); ++k)
+    {
+        uint8_t data[2] = { 0, 0 };
+        uint8_t resp_id = 0;
+        if (!read_status_any(data, 2, resp_id))
+        {
+            break;
+        }
+        for (size_t i = 0; i < ids.size(); ++i)
+        {
+            if (ids[i] == resp_id && !ok[i])
+            {
+                positions[i] = static_cast<uint16_t>(data[0]) | static_cast<uint16_t>(data[1] << 8);
+                ok[i] = 1;
+                break;
+            }
+        }
+    }
     return true;
 }
 
@@ -289,6 +344,10 @@ bool FeetechBus::write_packet(uint8_t, uint8_t, const uint8_t*, uint8_t)
 {
     return false;
 }
+bool FeetechBus::read_status_any(uint8_t*, uint8_t, uint8_t&)
+{
+    return false;
+}
 bool FeetechBus::read_status(uint8_t, uint8_t*, uint8_t)
 {
     return false;
@@ -298,6 +357,10 @@ bool FeetechBus::read_byte(uint8_t&, int)
     return false;
 }
 bool FeetechBus::read_position(uint8_t, uint16_t&)
+{
+    return false;
+}
+bool FeetechBus::sync_read_positions(const std::vector<uint8_t>&, std::vector<uint16_t>&, std::vector<uint8_t>&)
 {
     return false;
 }

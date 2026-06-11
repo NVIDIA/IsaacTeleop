@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace core
 {
@@ -79,10 +80,19 @@ private:
     JointCalibration calibration_[kNumJoints];
 
     std::unique_ptr<FeetechBus> bus_; // null => synthetic backend
+    std::vector<uint8_t> servo_ids_; // calibration_[*].servo_id in DOF order (sync-read request)
+    std::vector<uint16_t> read_ticks_; // sync-read scratch (reused each frame)
+    std::vector<uint8_t> read_ok_; // sync-read scratch: per-servo reply flag
 
     std::shared_ptr<core::OpenXRSession> session_;
     core::SchemaPusher pusher_;
 };
+
+//! Calibration/dump helper: open @p device_path, back-drive-enable the servos, read the current
+//! joint positions (hold the arm at its zero pose first), print them, and -- if @p output_path is
+//! non-empty -- write a calibration file in the format ``load_calibration()`` consumes. Does not
+//! create an OpenXR session. Returns a process exit code (0 = all servos read).
+int run_calibration(const std::string& device_path, const std::string& output_path);
 
 } // namespace so101_leader
 } // namespace plugins

@@ -14,7 +14,8 @@ hardware [TheRobotStudio/SO-ARM100](https://github.com/TheRobotStudio/SO-ARM100)
 LeRobot drive via the FEETECH SCServo SDK). `FeetechBus` (`feetech_bus.{hpp,cpp}`) speaks that
 SMS/STS wire protocol directly — no SDK dependency — and implements just what a *leader* needs:
 disable torque so the arm can be back-driven by hand, then read `Present_Position` (register 56,
-4096 ticks / 360°) each frame. Ticks are converted to radians with per-joint calibration.
+4096 ticks / 360°) for all six servos in a **single SYNC READ** per frame (one bus round-trip, not
+six — matching LeRobot's `sync_read`). Ticks are converted to radians with per-joint calibration.
 
 When no serial device is given, the plugin falls back to a **synthetic** trajectory so the
 device → tracker → retargeter pipeline runs with no hardware (CI and the headless example).
@@ -34,6 +35,23 @@ device → tracker → retargeter pipeline runs with no hardware (CI and the hea
 
 Args are positional: `[device_path] [collection_id] [calibration_file]`. The serial backend is
 Linux/macOS only (POSIX `termios`); the STS bus runs at 1,000,000 bps by default.
+
+### Generate a calibration file
+
+The `calibrate` subcommand reads the live servo positions and writes a calibration file (it does
+**not** need the OpenXR runtime):
+
+```bash
+# Hold the arm at its zero/home pose; this prompts, then averages a few sync reads:
+./install/plugins/so101_leader/so101_leader_plugin calibrate /dev/ttyACM0 so101_leader.calib
+
+# Omit the output path to just print the current ticks (a "dump" for inspection):
+./install/plugins/so101_leader/so101_leader_plugin calibrate /dev/ttyACM0
+```
+
+It disables torque, prompts you to hold the zero pose, captures each servo's `home_ticks`, and
+writes the file below (all `sign` default to `+1` — flip any inverted joint by hand afterward).
+This mirrors LeRobot's `lerobot-calibrate` homing step.
 
 ### Hardware setup (per SO-ARM100 / LeRobot)
 

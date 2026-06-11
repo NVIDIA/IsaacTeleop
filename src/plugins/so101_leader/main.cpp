@@ -14,6 +14,16 @@ using namespace plugins::so101_leader;
 int main(int argc, char** argv)
 try
 {
+    // Calibration/dump mode: so101_leader_plugin calibrate <device_path> [output_file]
+    // Reads the current servo positions (hold the arm at its zero pose) and optionally writes a
+    // calibration file. No OpenXR runtime required.
+    if (argc > 1 && std::string(argv[1]) == "calibrate")
+    {
+        const std::string device_path = (argc > 2) ? argv[2] : "";
+        const std::string output_path = (argc > 3) ? argv[3] : "";
+        return run_calibration(device_path, output_path);
+    }
+
     // Usage: so101_leader_plugin [device_path] [collection_id] [calibration_file]
     // Empty device_path selects the synthetic backend (no hardware required).
     const std::string device_path = (argc > 1) ? argv[1] : "";
