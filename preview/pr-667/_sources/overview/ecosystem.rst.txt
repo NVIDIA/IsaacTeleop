@@ -200,13 +200,15 @@ Discord server. Joining takes two steps:
 WeChat (微信) group (community-run)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-A community-driven WeChat group is also available. Scan the QR code below with WeChat to join.
+A community-driven WeChat group is also available. Scan the QR code below from **within the
+WeChat app** (Discover → Scan) to join. Scanning with your phone's built-in camera app will
+**not** work.
 
-.. figure:: ../_static/wechat-community-qr.png
+.. figure:: ../_static/wechat-community-qr.jpg
    :alt: Isaac Teleop community WeChat group QR code
    :width: 240px
 
-   **Figure:** Scan to join the community WeChat group
+   **Figure:** Scan from within the WeChat app (not the camera app) to join the community WeChat group
 
 .. note::
 
