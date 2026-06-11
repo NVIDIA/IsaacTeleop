@@ -8,4 +8,4 @@ version: "1.0.0"
 devices:
   - path: "/arm/so101_leader"
     type: "joint_state"
-    description: "SO-101 leader arm (6 Feetech STS3215 servos); synthetic backend by default"
+    description: "SO-101 leader arm (6 FEETECH STS3215 servos over serial; synthetic fallback when no device path)"

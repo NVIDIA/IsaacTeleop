@@ -4,6 +4,7 @@
 add_executable(so101_leader_plugin
     main.cpp
     so101_leader_plugin.cpp
+    feetech_bus.cpp
 )
 
 target_link_libraries(so101_leader_plugin PRIVATE

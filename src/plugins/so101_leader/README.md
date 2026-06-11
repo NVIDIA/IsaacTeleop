@@ -9,9 +9,15 @@ Streams the SO-101 (5-DOF arm + gripper) leader joint angles as a `JointStateOut
 over the OpenXR tensor transport, using the generic **joint-space device** path
 (`JointStateTracker` / `JointStateSource` / `JointStateRetargeter`).
 
-The SO-101 reads 6 Feetech STS3215 bus servos over a serial port. To keep the example
-hardware-free and headless, the plugin ships a **synthetic backend** by default; the real
-Feetech/serial read is the marked seam in `So101LeaderPlugin::read_hardware()`.
+The SO-101 leader is 6 FEETECH STS3215 bus servos on a half-duplex TTL serial bus (the same
+hardware [TheRobotStudio/SO-ARM100](https://github.com/TheRobotStudio/SO-ARM100) and HuggingFace
+LeRobot drive via the FEETECH SCServo SDK). `FeetechBus` (`feetech_bus.{hpp,cpp}`) speaks that
+SMS/STS wire protocol directly — no SDK dependency — and implements just what a *leader* needs:
+disable torque so the arm can be back-driven by hand, then read `Present_Position` (register 56,
+4096 ticks / 360°) each frame. Ticks are converted to radians with per-joint calibration.
+
+When no serial device is given, the plugin falls back to a **synthetic** trajectory so the
+device → tracker → retargeter pipeline runs with no hardware (CI and the headless example).
 
 ## Run
 
@@ -19,9 +25,47 @@ Feetech/serial read is the marked seam in `So101LeaderPlugin::read_hardware()`.
 # Synthetic backend (no hardware):
 ./install/plugins/so101_leader/so101_leader_plugin
 
-# With a serial device path + custom collection id (real backend is a TODO seam):
-./install/plugins/so101_leader/so101_leader_plugin /dev/ttyACM0 so101_leader
+# Real SO-101 leader on a serial port (Linux), default collection id "so101_leader":
+./install/plugins/so101_leader/so101_leader_plugin /dev/ttyACM0
+
+# ... with a custom collection id and a calibration file:
+./install/plugins/so101_leader/so101_leader_plugin /dev/ttyACM0 so101_leader so101_leader.calib
 ```
+
+Args are positional: `[device_path] [collection_id] [calibration_file]`. The serial backend is
+Linux/macOS only (POSIX `termios`); the STS bus runs at 1,000,000 bps by default.
+
+### Hardware setup (per SO-ARM100 / LeRobot)
+
+- Assemble the leader arm and **remove the gearbox gears** so the joints move freely and only the
+  position encoders are used (the plugin disables torque on connect, but the leader is meant to be
+  back-driven).
+- Give each servo a unique id `1..6` on the bus and set them all to the same baud rate. Use the
+  FEETECH tool (`FT_SCServo_Debug_Qt` on Ubuntu) or LeRobot's `lerobot-setup-motors` to do this.
+- Make sure your user can access the serial device (e.g. add it to the `dialout` group).
+
+### Calibration file (optional)
+
+Whitespace-separated, one joint per line; `#` starts a comment. Columns:
+`name  servo_id  sign(+1/-1)  home_ticks(0..4095)`. The conversion is
+`angle [rad] = sign * (ticks - home_ticks) * 2π / 4096`.
+
+```
+# joint          id  sign  home_ticks
+shoulder_pan      1   1     2048
+shoulder_lift     2   1     2048
+elbow_flex        3   1     2048
+wrist_flex        4   1     2048
+wrist_roll        5   1     2048
+gripper           6   1     2048
+```
+
+Defaults (no file): ids `1..6` in DOF order, `sign +1`, `home_ticks 2048` (servo center). Set
+`home_ticks` to each servo's raw `Present_Position` at the joint's URDF-zero pose, and `sign` to
+`-1` for any joint whose servo turns opposite the URDF convention (LeRobot's `drive_mode`). For
+**joint-mirror** mode the retargeter's per-joint `offset`/`sign`/`scale` can also absorb
+calibration; for **EE (URDF FK)** mode the joint angles must already match the URDF, so set
+`home_ticks`/`sign` here.
 
 The consumer side creates a `JointStateTracker("so101_leader")` (via
 `JointStateSource(name=..., collection_id="so101_leader", joint_names=[...])`) on the same

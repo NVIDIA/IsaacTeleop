@@ -27,7 +27,8 @@ At a glance
        optional velocity/effort) and ``JointStateOutput`` (a vector of joints + ``device_id``).
    * - Plugin
      - :code-dir:`src/plugins/so101_leader` -- pushes ``JointStateOutput`` via ``SchemaPusher``.
-       Ships a synthetic backend; the real Feetech/serial read is a marked seam.
+       Reads the FEETECH STS3215 servos over serial (``FeetechBus``); synthetic fallback when no
+       device path is given.
    * - Tracker
      - ``JointStateTracker`` (facade) with live (``LiveJointStateTrackerImpl``) and MCAP-replay
        (``ReplayJointStateTrackerImpl``) backends, registered in the live/replay factories.
@@ -72,17 +73,23 @@ The SO-101 leader plugin
 ------------------------
 
 ``so101_leader`` reads the six SO-101 servos (``shoulder_pan, shoulder_lift, elbow_flex,
-wrist_flex, wrist_roll, gripper``) and pushes them to a tensor collection. To keep the example
-hardware-free and headless it ships a **synthetic backend**; the real Feetech read (via LeRobot's
-``FeetechMotorsBus`` + calibration) is the marked seam in ``So101LeaderPlugin::read_hardware()``.
+wrist_flex, wrist_roll, gripper``) and pushes them to a tensor collection. With a serial device
+path it talks to the FEETECH STS3215 bus servos directly via ``FeetechBus`` -- the same SMS/STS
+wire protocol the FEETECH SCServo SDK / LeRobot's ``FeetechMotorsBus`` use, with no SDK dependency:
+it disables torque (so the leader can be back-driven) and reads ``Present_Position`` each frame,
+converting ticks to radians with per-joint calibration. With no device path it falls back to a
+**synthetic** trajectory so the pipeline runs hardware-free (CI and the headless example).
 
 .. code-block:: bash
 
    # Synthetic backend (no hardware), default collection id "so101_leader":
    ./install/plugins/so101_leader/so101_leader_plugin
 
-   # Reserved for the real serial backend + a custom collection id:
-   ./install/plugins/so101_leader/so101_leader_plugin /dev/ttyACM0 so101_leader
+   # Real SO-101 leader on a serial port (Linux), optional calibration file:
+   ./install/plugins/so101_leader/so101_leader_plugin /dev/ttyACM0 so101_leader so101_leader.calib
+
+See the :code-file:`plugin README <src/plugins/so101_leader/README.md>` for hardware setup
+(unique servo ids, gear removal, back-driving) and the calibration file format.
 
 The consumer side creates a ``JointStateSource(name=..., collection_id="so101_leader",
 joint_names=[...])`` on the same ``collection_id``; ``TeleopSession`` discovers and polls the

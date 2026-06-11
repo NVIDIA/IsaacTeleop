@@ -14,14 +14,17 @@ using namespace plugins::so101_leader;
 int main(int argc, char** argv)
 try
 {
+    // Usage: so101_leader_plugin [device_path] [collection_id] [calibration_file]
     // Empty device_path selects the synthetic backend (no hardware required).
     const std::string device_path = (argc > 1) ? argv[1] : "";
     const std::string collection_id = (argc > 2) ? argv[2] : "so101_leader";
+    const std::string calibration_path = (argc > 3) ? argv[3] : "";
 
     std::cout << "SO-101 Leader Arm (device: " << (device_path.empty() ? "<synthetic>" : device_path)
-              << ", collection: " << collection_id << ")" << std::endl;
+              << ", collection: " << collection_id
+              << (calibration_path.empty() ? "" : ", calibration: " + calibration_path) << ")" << std::endl;
 
-    So101LeaderPlugin plugin(device_path, collection_id);
+    So101LeaderPlugin plugin(device_path, collection_id, calibration_path);
 
     // Push joint state at 90 Hz.
     const auto frame_duration = std::chrono::nanoseconds(1000000000 / 90);
