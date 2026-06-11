@@ -28,7 +28,8 @@ to clone the repository for a couple quick samples to run.
 2. Install the ``isaacteleop`` pip package
 ------------------------------------------
 
-In a new terminal, install the package from PyPI (or from a local wheel if you built from source):
+In a new terminal, activate your preferred virtual or conda environment, then install the package
+from PyPI (or from a local wheel if you built from source):
 
 .. code-block:: bash
 
