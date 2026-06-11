@@ -1,3 +1,6 @@
+.. SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+.. SPDX-License-Identifier: Apache-2.0
+
 Retargeting Interface
 =====================
 
@@ -40,6 +43,15 @@ Available Retargeters
    thumb-index pinch distance from hand tracking. ``GripperRetargeterConfig`` includes
    ``hand_side`` (``"left"`` or ``"right"``), ``gripper_close_meters``, ``gripper_open_meters``,
    and ``controller_threshold`` for trigger-based closing.
+
+.. dropdown:: SO101ClutchRetargeter / SO101RollRetargeter / SO101GripperRetargeter
+
+   Retargeters for the SO-101 5-DOF arm under position-only IK. ``SO101ClutchRetargeter``
+   outputs a 7-D ``ee_pose`` like ``Se3AbsRetargeter`` but clutch-rebases controller motion
+   around an origin captured on engage (no teleport). ``SO101RollRetargeter`` recovers the
+   controller's roll as a dedicated ``wrist_roll`` channel via swing-twist decomposition, and
+   ``SO101GripperRetargeter`` maps the trigger to a proportional jaw closedness in ``[0, 1]``.
+   See :doc:`so101` for the full setup.
 
 .. dropdown:: DexHandRetargeter / DexBiManualRetargeter
 
@@ -315,3 +327,4 @@ and :doc:`Contributing Guide <../../getting_started/contributing>` for details.
    :caption: Retargeter setup guides
 
    sharpa
+   so101
