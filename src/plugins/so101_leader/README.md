@@ -38,20 +38,27 @@ Linux/macOS only (POSIX `termios`); the STS bus runs at 1,000,000 bps by default
 
 ### Generate a calibration file
 
-The `calibrate` subcommand reads the live servo positions and writes a calibration file (it does
-**not** need the OpenXR runtime):
+The `calibrate` subcommand reads the live servos and writes a calibration file (it does **not** need
+the OpenXR runtime). It mirrors LeRobot's `lerobot-calibrate`: a homing step then a range-of-motion
+sweep.
 
 ```bash
-# Hold the arm at its zero/home pose; this prompts, then averages a few sync reads:
+# Two interactive steps: (1) hold the arm at mid-range, ENTER; (2) sweep every joint, ENTER:
 ./install/plugins/so101_leader/so101_leader_plugin calibrate /dev/ttyACM0 so101_leader.calib
 
-# Omit the output path to just print the current ticks (a "dump" for inspection):
+# Omit the output path to just print the measurements (a "dump" for inspection):
 ./install/plugins/so101_leader/so101_leader_plugin calibrate /dev/ttyACM0
 ```
 
-It disables torque, prompts you to hold the zero pose, captures each servo's `home_ticks`, and
-writes the file below (all `sign` default to `+1` — flip any inverted joint by hand afterward).
-This mirrors LeRobot's `lerobot-calibrate` homing step.
+It disables torque, then:
+1. **Home** — prompts you to hold all joints at the middle of their range and averages a few sync
+   reads into each servo's `home_ticks` (the middle pose is also the SO-101 URDF/operating zero).
+2. **Range sweep** — while you move every joint through its full range, it tracks per-joint
+   `range_min`/`range_max` until you press ENTER.
+
+It writes the file below (all `sign` default to `+1` — flip any inverted joint by hand) and prints
+the gripper's range endpoints in radians, which you drop into the retargeter's
+`gripper_open`/`gripper_close`.
 
 ### Hardware setup (per SO-ARM100 / LeRobot)
 
@@ -65,25 +72,28 @@ This mirrors LeRobot's `lerobot-calibrate` homing step.
 ### Calibration file (optional)
 
 Whitespace-separated, one joint per line; `#` starts a comment. Columns:
-`name  servo_id  sign(+1/-1)  home_ticks(0..4095)`. The conversion is
-`angle [rad] = sign * (ticks - home_ticks) * 2π / 4096`.
+`name  servo_id  sign(+1/-1)  home_ticks(0..4095)  [range_min range_max]` (the two range columns are
+optional). The conversion is
+`angle [rad] = sign * (clamp(ticks, range_min, range_max) - home_ticks) * 2π / 4096`.
 
 ```
-# joint          id  sign  home_ticks
-shoulder_pan      1   1     2048
-shoulder_lift     2   1     2048
-elbow_flex        3   1     2048
-wrist_flex        4   1     2048
-wrist_roll        5   1     2048
-gripper           6   1     2048
+# name           id  sign  home_ticks  range_min  range_max
+shoulder_pan      1   1     2048        800        3300
+shoulder_lift     2   1     2048        900        3100
+elbow_flex        3   1     2048        700        3400
+wrist_flex        4   1     2048        800        3300
+wrist_roll        5   1     2048        0          4095
+gripper           6   1     2048        2000       3000
 ```
 
-Defaults (no file): ids `1..6` in DOF order, `sign +1`, `home_ticks 2048` (servo center). Set
-`home_ticks` to each servo's raw `Present_Position` at the joint's URDF-zero pose, and `sign` to
-`-1` for any joint whose servo turns opposite the URDF convention (LeRobot's `drive_mode`). For
-**joint-mirror** mode the retargeter's per-joint `offset`/`sign`/`scale` can also absorb
-calibration; for **EE (URDF FK)** mode the joint angles must already match the URDF, so set
-`home_ticks`/`sign` here.
+Defaults (no file, or only the first four columns): ids `1..6` in DOF order, `sign +1`,
+`home_ticks 2048` (servo center), full range `0..4095` (clamp is a no-op). Set `home_ticks` to each
+servo's raw `Present_Position` at the joint's URDF-zero pose, `sign` to `-1` for any joint whose
+servo turns opposite the URDF convention (LeRobot's `drive_mode`), and the optional `range_min/max`
+to the swept extremes (reads are clamped to them; `range_min < range_max` required or they're
+ignored). For **joint-mirror** mode the retargeter's per-joint `offset`/`sign`/`scale` can also
+absorb calibration; for **EE (URDF FK)** mode the joint angles must already match the URDF, so set
+`home_ticks`/`sign` here. The `calibrate` subcommand fills all of this in for you.
 
 The consumer side creates a `JointStateTracker("so101_leader")` (via
 `JointStateSource(name=..., collection_id="so101_leader", joint_names=[...])`) on the same

@@ -10,7 +10,9 @@
 #include <oxr_utils/os_time.hpp>
 #include <schema/joint_state_generated.h>
 
+#include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
@@ -61,10 +63,11 @@ So101LeaderPlugin::So101LeaderPlugin(const std::string& device_path,
                                         .localized_name = "SO-101 Leader Arm",
                                         .app_name = "So101LeaderPlugin" })
 {
-    // Defaults: servo ids 1..6 in DOF order, no sign flip, centered at the servo midpoint (2048).
+    // Defaults: servo ids 1..6 in DOF order, no sign flip, centered at the servo midpoint (2048),
+    // full tick range (so the clamp is a no-op until a calibration file narrows it).
     for (int i = 0; i < kNumJoints; ++i)
     {
-        calibration_[i] = JointCalibration{ static_cast<uint8_t>(i + 1), 1.0, 2048 };
+        calibration_[i] = JointCalibration{ static_cast<uint8_t>(i + 1), 1.0, 2048, 0, 4095 };
     }
     if (!calibration_path.empty())
     {
@@ -133,6 +136,15 @@ void So101LeaderPlugin::load_calibration(const std::string& path)
             continue; // blank / comment-only / malformed line
         }
 
+        // Optional range_min range_max columns (from the calibrate sweep); else full range.
+        int range_min = 0;
+        int range_max = 4095;
+        if (int a = 0, b = 0; (iss >> a >> b) && a >= 0 && b <= 4095 && a < b)
+        {
+            range_min = a;
+            range_max = b;
+        }
+
         int idx = -1;
         for (int i = 0; i < kNumJoints; ++i)
         {
@@ -148,7 +160,8 @@ void So101LeaderPlugin::load_calibration(const std::string& path)
                       << std::endl;
             continue;
         }
-        calibration_[idx] = JointCalibration{ static_cast<uint8_t>(servo_id), (sign < 0.0 ? -1.0 : 1.0), home_ticks };
+        calibration_[idx] = JointCalibration{ static_cast<uint8_t>(servo_id), (sign < 0.0 ? -1.0 : 1.0), home_ticks,
+                                              range_min, range_max };
     }
 }
 
@@ -178,8 +191,9 @@ void So101LeaderPlugin::read_hardware()
     {
         if (read_ok_[i])
         {
-            positions_[i] =
-                calibration_[i].sign * (static_cast<int>(read_ticks_[i]) - calibration_[i].home_ticks) * kTicksToRadians;
+            const int ticks =
+                std::clamp(static_cast<int>(read_ticks_[i]), calibration_[i].range_min, calibration_[i].range_max);
+            positions_[i] = calibration_[i].sign * (ticks - calibration_[i].home_ticks) * kTicksToRadians;
         }
     }
 }
@@ -222,6 +236,48 @@ void So101LeaderPlugin::update()
     ++frame_;
 }
 
+namespace
+{
+
+//! Read the servos a few times and return the per-joint averaged tick (or 2048 if a servo never
+//! replied). @p ok_out[i] reflects whether servo @p ids[i] replied at least once.
+std::vector<int> averaged_positions(FeetechBus& bus, const std::vector<uint8_t>& ids, int samples, std::vector<bool>& ok_out)
+{
+    std::vector<long> sums(ids.size(), 0);
+    std::vector<int> counts(ids.size(), 0);
+    for (int s = 0; s < samples; ++s)
+    {
+        std::vector<uint16_t> ticks;
+        std::vector<uint8_t> ok;
+        if (bus.sync_read_positions(ids, ticks, ok))
+        {
+            for (size_t i = 0; i < ids.size(); ++i)
+            {
+                if (ok[i])
+                {
+                    sums[i] += ticks[i];
+                    ++counts[i];
+                }
+            }
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+
+    std::vector<int> out(ids.size(), 2048);
+    ok_out.assign(ids.size(), false);
+    for (size_t i = 0; i < ids.size(); ++i)
+    {
+        if (counts[i] > 0)
+        {
+            out[i] = static_cast<int>((sums[i] + counts[i] / 2) / counts[i]);
+            ok_out[i] = true;
+        }
+    }
+    return out;
+}
+
+} // namespace
+
 int run_calibration(const std::string& device_path, const std::string& output_path)
 {
     if (device_path.empty())
@@ -240,15 +296,30 @@ int run_calibration(const std::string& device_path, const std::string& output_pa
         bus.disable_torque(ids.back());
     }
 
-    std::cout << "Hold the SO-101 leader at its zero/home pose, then press ENTER..." << std::flush;
+    // Step 1: home (zero) capture. Holding the middle of the range matches LeRobot's homing step
+    // and, for the SO-101, the URDF/operating zero convention used by EE-mode forward kinematics.
+    std::cout << "Step 1/2: move all joints to the MIDDLE of their range of motion, then press ENTER..." << std::flush;
     std::string line;
     std::getline(std::cin, line);
+    std::vector<bool> home_ok;
+    const std::vector<int> home = averaged_positions(bus, ids, 8, home_ok);
 
-    // Average a few sync reads to smooth encoder jitter.
-    constexpr int kSamples = 8;
-    std::vector<long> sums(kNumJoints, 0);
-    std::vector<int> counts(kNumJoints, 0);
-    for (int s = 0; s < kSamples; ++s)
+    // Step 2: range-of-motion sweep -- track per-joint min/max while the operator moves the arm,
+    // until ENTER is pressed (mirrors LeRobot's record_ranges_of_motion). Seed with home so the
+    // range always contains the zero pose.
+    std::vector<int> range_min = home;
+    std::vector<int> range_max = home;
+    std::cout << "Step 2/2: move EVERY joint through its full range of motion, then press ENTER to finish..."
+              << std::endl;
+    std::atomic<bool> stop{ false };
+    std::thread waiter(
+        [&stop]()
+        {
+            std::string l;
+            std::getline(std::cin, l);
+            stop.store(true);
+        });
+    while (!stop.load())
     {
         std::vector<uint16_t> ticks;
         std::vector<uint8_t> ok;
@@ -258,13 +329,14 @@ int run_calibration(const std::string& device_path, const std::string& output_pa
             {
                 if (ok[i])
                 {
-                    sums[i] += ticks[i];
-                    ++counts[i];
+                    range_min[i] = std::min(range_min[i], static_cast<int>(ticks[i]));
+                    range_max[i] = std::max(range_max[i], static_cast<int>(ticks[i]));
                 }
             }
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
+    waiter.join();
 
     std::ofstream out;
     const bool write_file = !output_path.empty();
@@ -277,27 +349,35 @@ int run_calibration(const std::string& device_path, const std::string& output_pa
             return 2;
         }
         out << "# SO-101 leader calibration (generated by `so101_leader_plugin calibrate`)\n";
-        out << "# name           id  sign  home_ticks\n";
+        out << "# name           id  sign  home_ticks  range_min  range_max\n";
     }
 
     bool all_ok = true;
-    std::cout << "\nMeasured home positions:" << std::endl;
+    std::cout << "\nMeasured calibration (ticks; angle = sign * (ticks - home) * 2pi/4096):" << std::endl;
     for (int i = 0; i < kNumJoints; ++i)
     {
-        const int home = counts[i] > 0 ? static_cast<int>((sums[i] + counts[i] / 2) / counts[i]) : 2048;
-        if (counts[i] == 0)
+        if (!home_ok[i])
         {
             all_ok = false;
             std::cerr << "  warning: no reply from servo " << static_cast<int>(ids[i]) << " (" << kJointNames[i]
-                      << "); writing default 2048" << std::endl;
+                      << "); writing defaults" << std::endl;
         }
-        std::cout << "  " << kJointNames[i] << "  id=" << static_cast<int>(ids[i]) << "  home_ticks=" << home
-                  << std::endl;
+        std::cout << "  " << kJointNames[i] << "  id=" << static_cast<int>(ids[i]) << "  home=" << home[i]
+                  << "  range=[" << range_min[i] << ", " << range_max[i] << "]" << std::endl;
         if (write_file)
         {
-            out << kJointNames[i] << " " << static_cast<int>(ids[i]) << " 1 " << home << "\n";
+            out << kJointNames[i] << " " << static_cast<int>(ids[i]) << " 1 " << home[i] << " " << range_min[i] << " "
+                << range_max[i] << "\n";
         }
     }
+
+    // Gripper endpoints in radians (relative to home) for the retargeter's gripper_open/gripper_close.
+    const int g = kNumJoints - 1;
+    const double grip_lo = (range_min[g] - home[g]) * kTicksToRadians;
+    const double grip_hi = (range_max[g] - home[g]) * kTicksToRadians;
+    std::cout << "\nGripper '" << kJointNames[g] << "' range endpoints (radians, relative to home): " << grip_lo
+              << " .. " << grip_hi << "\n  -> set JointStateRetargeterConfig.gripper_open / gripper_close to these "
+              << "(whichever matches your open/closed convention)." << std::endl;
 
     if (write_file)
     {

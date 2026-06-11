@@ -56,12 +56,14 @@ public:
 
 private:
     //! Per-joint mapping from a FEETECH servo to a joint angle, mirroring LeRobot's calibration:
-    //! ``angle [rad] = sign * (ticks - home_ticks) * 2*pi / 4096``.
+    //! ``angle [rad] = sign * (clamp(ticks, range_min, range_max) - home_ticks) * 2*pi / 4096``.
     struct JointCalibration
     {
         uint8_t servo_id;
         double sign; // +1 / -1 (LeRobot drive_mode)
         int home_ticks; // raw tick at the joint's zero pose (LeRobot homing reference); 2048 = servo center
+        int range_min; // sweep min tick; reads are clamped to [range_min, range_max]
+        int range_max; // sweep max tick; default full range 0..4095 => clamp is a no-op
     };
 
     //! Fill positions_ from the live servos (held last on a failed read). SEAM for other backends.
@@ -69,8 +71,9 @@ private:
     //! Synthetic smooth trajectory used when no serial device is attached.
     void read_synthetic();
     void push_current_state();
-    //! Parse a whitespace-separated calibration file: ``name servo_id sign home_ticks`` per line
-    //! (``#`` comments allowed). Unknown joint names are ignored; missing joints keep defaults.
+    //! Parse a whitespace-separated calibration file: ``name servo_id sign home_ticks [range_min
+    //! range_max]`` per line (``#`` comments allowed; range columns optional). Unknown joint names
+    //! are ignored; missing joints keep defaults.
     void load_calibration(const std::string& path);
 
     std::string device_path_;
@@ -88,10 +91,13 @@ private:
     core::SchemaPusher pusher_;
 };
 
-//! Calibration/dump helper: open @p device_path, back-drive-enable the servos, read the current
-//! joint positions (hold the arm at its zero pose first), print them, and -- if @p output_path is
-//! non-empty -- write a calibration file in the format ``load_calibration()`` consumes. Does not
-//! create an OpenXR session. Returns a process exit code (0 = all servos read).
+//! Calibration/dump helper: open @p device_path, back-drive-enable the servos, then (1) capture the
+//! home tick with the arm held at the middle of its range, and (2) record each joint's min/max over
+//! a range-of-motion sweep (move the arm, press ENTER to finish). Prints the result and -- if
+//! @p output_path is non-empty -- writes a calibration file in the format ``load_calibration()``
+//! consumes (``name id sign home_ticks range_min range_max``). Also prints the gripper open/close
+//! endpoints in radians for the retargeter. Does not create an OpenXR session. Returns a process
+//! exit code (0 = all servos read).
 int run_calibration(const std::string& device_path, const std::string& output_path);
 
 } // namespace so101_leader
