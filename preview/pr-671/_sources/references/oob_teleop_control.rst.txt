@@ -388,11 +388,10 @@ Environment variables
        ``adb`` subprocess inherits it, so no code path needs ``-s
        <serial>``.
    * - ``USB_UI_PORT``
-     - HTTPS static web client port used by ``--host-client`` and
-       ``--usb-local`` (default ``8080``).  With ``--host-client`` the
-       server binds to ``0.0.0.0:<port>``; with ``--usb-local`` it binds
-       to ``127.0.0.1:<port>`` and ``adb reverse``-maps the port to the
-       headset.
+     - HTTPS static web client port for ``--usb-local`` (default ``8080``).
+       Binds to ``127.0.0.1:<port>`` and ``adb reverse``-maps the port to
+       the headset.  ``--host-client`` uses the WSS proxy port (``PROXY_PORT``)
+       instead; ``USB_UI_PORT`` has no effect on it.
    * - ``USB_BACKEND_PORT``
      - CloudXR backend port the headset reaches via ``adb reverse`` in
        ``--usb-local`` mode (default ``49100``).

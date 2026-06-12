@@ -762,11 +762,10 @@ set; the value must match a serial currently in <code class="docutils literal no
 <span class="pre">&lt;serial&gt;</span></code>.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">USB_UI_PORT</span></code></p></td>
-<td><p>HTTPS static web client port used by <code class="docutils literal notranslate"><span class="pre">--host-client</span></code> and
-<code class="docutils literal notranslate"><span class="pre">--usb-local</span></code> (default <code class="docutils literal notranslate"><span class="pre">8080</span></code>).  With <code class="docutils literal notranslate"><span class="pre">--host-client</span></code> the
-server binds to <code class="docutils literal notranslate"><span class="pre">0.0.0.0:&lt;port&gt;</span></code>; with <code class="docutils literal notranslate"><span class="pre">--usb-local</span></code> it binds
-to <code class="docutils literal notranslate"><span class="pre">127.0.0.1:&lt;port&gt;</span></code> and <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">reverse</span></code>-maps the port to the
-headset.</p></td>
+<td><p>HTTPS static web client port for <code class="docutils literal notranslate"><span class="pre">--usb-local</span></code> (default <code class="docutils literal notranslate"><span class="pre">8080</span></code>).
+Binds to <code class="docutils literal notranslate"><span class="pre">127.0.0.1:&lt;port&gt;</span></code> and <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">reverse</span></code>-maps the port to
+the headset.  <code class="docutils literal notranslate"><span class="pre">--host-client</span></code> uses the WSS proxy port (<code class="docutils literal notranslate"><span class="pre">PROXY_PORT</span></code>)
+instead; <code class="docutils literal notranslate"><span class="pre">USB_UI_PORT</span></code> has no effect on it.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">USB_BACKEND_PORT</span></code></p></td>
 <td><p>CloudXR backend port the headset reaches via <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">reverse</span></code> in

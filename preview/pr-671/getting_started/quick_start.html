@@ -488,15 +488,17 @@ how the headset connects and how the web client is delivered.</p>
 <td><p class="sd-card-text">Plain: headset navigates to GitHub Pages URL over WiFi.</p></td>
 </tr>
 <tr class="row-odd"><td><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr</span> <span class="pre">--host-client</span></code></p></td>
-<td><p class="sd-card-text">Serves the web client locally on <code class="docutils literal notranslate"><span class="pre">0.0.0.0:8080</span></code>. No USB or TURN
-relay required. Useful when GitHub Pages is unreachable.</p></td>
+<td><p class="sd-card-text">Serves the web client at <code class="docutils literal notranslate"><span class="pre">https://&lt;ip&gt;:48322/client/</span></code> via the WSS
+proxy. No separate port, no USB or TURN relay required. Useful when
+GitHub Pages is unreachable.</p></td>
 </tr>
 <tr class="row-even"><td><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr</span> <span class="pre">--setup-oob</span></code></p></td>
 <td><p class="sd-card-text">OOB hub + CDP automation: opens the browser on the headset and
 auto-clicks CONNECT over USB adb. Client URL is GitHub Pages.</p></td>
 </tr>
 <tr class="row-odd"><td><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr</span> <span class="pre">--setup-oob</span> <span class="pre">--host-client</span></code></p></td>
-<td><p class="sd-card-text">OOB hub + CDP with locally-served client (air-gapped / proxy use).</p></td>
+<td><p class="sd-card-text">OOB hub + CDP with client at <code class="docutils literal notranslate"><span class="pre">/client/</span></code> on the WSS proxy
+(air-gapped / proxy use).</p></td>
 </tr>
 <tr class="row-even"><td><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr</span> <span class="pre">--setup-oob</span> <span class="pre">--usb-local</span></code></p></td>
 <td><p class="sd-card-text">All traffic over USB: adb-reverse + coturn TURN relay + loopback
@@ -615,11 +617,6 @@ for the CloudXR runtime and wss proxy:</p>
 sudo<span class="w"> </span>ufw<span class="w"> </span>allow<span class="w"> </span><span class="m">49100</span>,48322/tcp
 </pre></div>
 </div>
-<p class="sd-card-text">If you are using <code class="docutils literal notranslate"><span class="pre">--host-client</span></code> to serve the web client locally,
-also open port 8080:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>ufw<span class="w"> </span>allow<span class="w"> </span><span class="m">8080</span>/tcp
-</pre></div>
-</div>
 <p class="sd-card-text">If you are running the web client from source (dev server), open both
 ports:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>ufw<span class="w"> </span>allow<span class="w"> </span><span class="m">8080</span>,8443/tcp
@@ -709,13 +706,14 @@ details.</p>
 </div>
 <p class="sd-card-text">Alternatively, pass <code class="docutils literal notranslate"><span class="pre">--host-client</span></code> when starting the launcher to serve
 the web client directly from the streaming host (useful when GitHub Pages is
-unreachable).  The launcher prints the local URL on startup:</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>web client:        https://10.0.1.5:8080/  (hosted locally — open on your headset or browser)
+unreachable).  The client is served at <code class="docutils literal notranslate"><span class="pre">/client/</span></code> on the WSS proxy port
+(no extra port needed).  The launcher prints the local URL on startup:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>web client:        https://10.0.1.5:48322/client/  (hosted locally — open on your headset or browser)
 </pre></div>
 </div>
 <p class="sd-card-text">Open that URL instead of the GitHub Pages link above.  The rest of the
 flow — certificate acceptance, entering the server IP, clicking Connect —
-is the same.  Make sure port 8080 is open on the host firewall (see step 4).</p>
+is the same.  Port 48322 is already open from step 4.</p>
 <p class="sd-card-text">The source code for the web client is in the <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/deps/cloudxr/webxr_client" rel="noopener noreferrer" target="_blank">deps/cloudxr/webxr_client/</a> directory.  To build the web
 client from source, see <a class="reference internal" href="build_from_source/webxr.html"><span class="doc">Build WebXR Client</span></a>.</p>
 </div>
