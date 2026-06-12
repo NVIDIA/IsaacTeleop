@@ -217,6 +217,8 @@ might need to whitelist them manually.
 Please see the `CloudXR network setup`_ for more details for other network configurations (such as
 running the CloudXR runtime and wss proxy in containerized environment; or using Vision Pro client).
 
+.. _connect-xr-headset:
+
 5. Connect an XR headset
 ------------------------
 
