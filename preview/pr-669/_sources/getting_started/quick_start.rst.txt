@@ -368,7 +368,6 @@ More Information
 
 ..
    References
-.. _`nvidia.github.io/IsaacTeleop/client`: https://nvidia.github.io/IsaacTeleop/client/main/
 .. _`CloudXR documentation`: https://docs.nvidia.com/cloudxr-sdk/latest/index.html
 .. _`Isaac XR Teleop Sample Client for Apple Vision Pro`: https://github.com/isaac-sim/isaac-xr-teleop-sample-client-apple
 .. _`Isaac Lab Quick Start`: https://isaac-sim.github.io/IsaacLab/develop/source/setup/quickstart.html

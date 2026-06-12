@@ -62,9 +62,9 @@ If the adb automation fails (e.g. headset not paired), you can manually open
 the client URL on the headset browser with **all three** required query
 parameters — ``oobEnable``, ``serverIP``, and ``port``:
 
-.. code-block:: text
+.. parsed-literal::
 
-   https://nvidia.github.io/IsaacTeleop/client/main/?oobEnable=1&serverIP=<HOST_IP>&port=48322
+   |web_client_url|\ ?oobEnable=1&serverIP=<HOST_IP>&port=48322
 
 Replace ``<HOST_IP>`` with the streaming host's LAN IP. The ``port`` must
 match the proxy port (default 48322).
@@ -310,9 +310,9 @@ Web client integration
 The WebXR client connects to the hub when the page URL contains
 ``oobEnable=1`` plus ``serverIP`` and ``port``:
 
-.. code-block:: text
+.. parsed-literal::
 
-   https://nvidia.github.io/IsaacTeleop/client/main/?oobEnable=1&serverIP=10.0.0.1&port=48322
+   |web_client_url|\ ?oobEnable=1&serverIP=10.0.0.1&port=48322
 
 The client builds ``wss://{serverIP}:{port}/oob/v1/ws`` and:
 
