@@ -273,11 +273,11 @@
 <div class="version-switcher">
   <label for="version-select" class="version-switcher__label">Version</label>
   <select id="version-select" class="version-switcher__select" onchange="location = this.value;">
-    <option value="architecture.html" selected>release/1.3.x</option>
     <option value="../../../main/overview/architecture.html" >main</option>
     <option value="../../1.0.x/overview/architecture.html" >release/1.0.x</option>
     <option value="../../1.1.x/overview/architecture.html" >release/1.1.x</option>
     <option value="../../1.2.x/overview/architecture.html" >release/1.2.x</option>
+    <option value="architecture.html" selected>release/1.3.x</option>
     <option value="../../../v1.1.8/overview/architecture.html" >v1.1.8</option>
     <option value="../../../v1.1.5/overview/architecture.html" >v1.1.5</option>
     <option value="../../../v1.0.193/overview/architecture.html" >v1.0.193</option>
@@ -356,6 +356,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/build_from_source/index.html">Build from Source</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/teleop_session.html">Teleop Session</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/teleop_control_state_machine.html">Teleop Control State Machine</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/televiz.html">Televiz</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/contributing.html">Contributing</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
@@ -364,6 +365,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../references/build.html">Build System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../device/index.html">Device Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/retargeting/index.html">Retargeting Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
@@ -456,6 +458,19 @@ interoperability.</p>
 <li><p>Dataset interoperability with <a class="reference external" href="https://github.com/huggingface/lerobot" rel="noopener noreferrer" target="_blank">LeRobot</a></p></li>
 </ul>
 </section>
+<section id="visualization-televiz">
+<h2>Visualization (Televiz)<a class="headerlink" href="#visualization-televiz" title="Link to this heading">#</a></h2>
+<p>Televiz (<code class="docutils literal notranslate"><span class="pre">isaacteleop.viz</span></code>) is a lightweight compositor module for visualizing what the operator
+sees — camera and sensor feeds, plus 3D rendered content — in an XR headset or a desktop window.</p>
+<ul class="simple">
+<li><p>Composites multiple sources into one view: 2D camera/sensor planes (<code class="docutils literal notranslate"><span class="pre">QuadLayer</span></code>) today, with full-view stereo RGBD (<code class="docutils literal notranslate"><span class="pre">ProjectionLayer</span></code>) for 3D rendered content coming soon</p></li>
+<li><p>Per-eye stereo rendering and 3D placement in XR; the same API drives windowed and offscreen output</p></li>
+<li><p>Zero-copy submission of GPU frames straight from CuPy, PyTorch, or any CUDA memory object</p></li>
+<li><p>Shares one OpenXR session with the teleop device trackers, so rendering and tracking can run over a single CloudXR connection</p></li>
+</ul>
+<p>See <a class="reference internal" href="../getting_started/televiz.html"><span class="doc">Televiz</span></a> for the module API and <a class="reference internal" href="../references/camera_streaming.html"><span class="doc">Camera Streaming</span></a> for
+the reference camera-streaming sample.</p>
+</section>
 </section>
 
 
@@ -510,6 +525,7 @@ interoperability.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#unified-device-interface">Unified Device Interface</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#retargeting-interface">Retargeting Interface</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#data-interface">Data Interface</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#visualization-televiz">Visualization (Televiz)</a></li>
 </ul>
   </nav></div>
 
