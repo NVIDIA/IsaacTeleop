@@ -707,22 +707,17 @@ Certificate accepted</label><div class="sd-tab-content docutils">
 <p class="sd-card-text">For advanced usage and troubleshooting of CloudXR, see the <a class="reference external" href="https://docs.nvidia.com/cloudxr-sdk/latest/index.html" rel="noopener noreferrer" target="_blank">CloudXR documentation</a> for more
 details.</p>
 </div>
-<p class="sd-card-text">The source code for the web client is in the <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/deps/cloudxr/webxr_client" rel="noopener noreferrer" target="_blank">deps/cloudxr/webxr_client/</a> directory.  To build the web
-client from source, see <a class="reference internal" href="build_from_source/webxr.html"><span class="doc">Build WebXR Client</span></a>.</p>
-</div>
-</details><details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
-<summary class="sd-summary-title sd-card-header">
-<span class="sd-summary-text">Locally hosted client (<code class="docutils literal notranslate"><span class="pre">--host-client</span></code>)</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
-<p class="sd-card-text">If you started the launcher with <code class="docutils literal notranslate"><span class="pre">--host-client</span></code>, the web client is
-served directly from the streaming host instead of GitHub Pages.  The
-launcher prints the URL on startup:</p>
+<p class="sd-card-text">Alternatively, pass <code class="docutils literal notranslate"><span class="pre">--host-client</span></code> when starting the launcher to serve
+the web client directly from the streaming host (useful when GitHub Pages is
+unreachable).  The launcher prints the local URL on startup:</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>web client:        https://10.0.1.5:8080/  (hosted locally — open on your headset or browser)
 </pre></div>
 </div>
-<p class="sd-card-text">Open that URL in the headset browser.  The rest of the flow — certificate
-acceptance, entering the server IP, clicking Connect — is the same as the
-standard Quest/Pico steps above.</p>
-<p class="sd-card-text">Make sure port 8080 is open on the host firewall (see step 4).</p>
+<p class="sd-card-text">Open that URL instead of the GitHub Pages link above.  The rest of the
+flow — certificate acceptance, entering the server IP, clicking Connect —
+is the same.  Make sure port 8080 is open on the host firewall (see step 4).</p>
+<p class="sd-card-text">The source code for the web client is in the <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/deps/cloudxr/webxr_client" rel="noopener noreferrer" target="_blank">deps/cloudxr/webxr_client/</a> directory.  To build the web
+client from source, see <a class="reference internal" href="build_from_source/webxr.html"><span class="doc">Build WebXR Client</span></a>.</p>
 </div>
 </details><details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3" id="connect-apple-vision-pro">
 <summary class="sd-summary-title sd-card-header">

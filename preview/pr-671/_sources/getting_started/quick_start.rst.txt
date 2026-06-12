@@ -283,24 +283,20 @@ running the CloudXR runtime and wss proxy in containerized environment; or using
       For advanced usage and troubleshooting of CloudXR, see the `CloudXR documentation`_ for more
       details.
 
-   The source code for the web client is in the :code-dir:`deps/cloudxr/webxr_client/` directory.  To build the web
-   client from source, see :doc:`build_from_source/webxr`.
-
-.. dropdown:: Locally hosted client (``--host-client``)
-
-   If you started the launcher with ``--host-client``, the web client is
-   served directly from the streaming host instead of GitHub Pages.  The
-   launcher prints the URL on startup:
+   Alternatively, pass ``--host-client`` when starting the launcher to serve
+   the web client directly from the streaming host (useful when GitHub Pages is
+   unreachable).  The launcher prints the local URL on startup:
 
    .. code-block:: text
 
       web client:        https://10.0.1.5:8080/  (hosted locally — open on your headset or browser)
 
-   Open that URL in the headset browser.  The rest of the flow — certificate
-   acceptance, entering the server IP, clicking Connect — is the same as the
-   standard Quest/Pico steps above.
+   Open that URL instead of the GitHub Pages link above.  The rest of the
+   flow — certificate acceptance, entering the server IP, clicking Connect —
+   is the same.  Make sure port 8080 is open on the host firewall (see step 4).
 
-   Make sure port 8080 is open on the host firewall (see step 4).
+   The source code for the web client is in the :code-dir:`deps/cloudxr/webxr_client/` directory.  To build the web
+   client from source, see :doc:`build_from_source/webxr`.
 
 .. _connect-apple-vision-pro:
 
