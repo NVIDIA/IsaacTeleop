@@ -11,9 +11,9 @@ Default mode (WiFi streaming):
 USB-local mode (``--usb-local``):
     Teleop signalling and streaming travel over USB via ``adb reverse`` on the
     headset's loopback.  The headset URL uses ``serverIP=127.0.0.1`` and loads
-    the WebXR client from ``https://localhost:8080`` (Python ``http.server``
-    in :mod:`~.oob_teleop_env` serves the prebuilt static client over HTTPS,
-    reusing the WSS proxy's PEM).  coturn runs locally and is reachable from
+    the web client from ``https://localhost:<USB_UI_PORT>`` (Python
+    ``http.server`` in :mod:`~.oob_teleop_env` serves the prebuilt static
+    client over HTTPS, reusing the WSS proxy's PEM).  coturn runs locally and is reachable from
     the headset through adb reverse for WebRTC ICE relay.  Note: WebRTC
     requires a non-loopback interface on the headset, so WiFi must remain
     connected (no traffic traverses it).
@@ -489,10 +489,10 @@ def build_teleop_url(
         }
         ovr = web_client_base_override_from_env()
         if host_client:
-            from .oob_teleop_env import guess_lan_ipv4, usb_ui_port  # noqa: PLC0415
+            from .oob_teleop_env import guess_lan_ipv4, wss_proxy_port  # noqa: PLC0415
 
             _lan = guess_lan_ipv4() or "localhost"
-            default_base = f"https://{_lan}:{usb_ui_port()}"
+            default_base = f"https://{_lan}:{wss_proxy_port()}/client"
         else:
             default_base = default_web_client_origin()
         web_base = ovr if ovr else default_base
@@ -1555,10 +1555,10 @@ async def run_oob_connect(
         resolved_port: WSS proxy port used for signalling.
         timeout: Maximum seconds to wait for the browser/tab to appear.
         usb_local: When ``True``, the headset URL uses ``serverIP=127.0.0.1``
-            and the local webxr_client dev-server at ``https://localhost:8080``.
+            and the local HTTPS static server on the USB loopback port.
         host_client: When ``True`` (and not usb_local), the headset URL uses
-            the local HTTPS static server at ``https://<lan>:8080`` instead of
-            the versioned GitHub Pages origin.
+            ``https://<lan>:<wss_port>/client/`` instead of the versioned
+            GitHub Pages origin.
 
     Returns:
         A running :class:`asyncio.Task` that monitors the headset's error

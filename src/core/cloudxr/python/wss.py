@@ -257,7 +257,7 @@ def _json_response(status: int, phrase: str, body: dict) -> Response:
     )
 
 
-def _make_http_handler(backend_host, backend_port, hub=None):
+def _make_http_handler(backend_host, backend_port, hub=None, static_dir=None):
     async def handle_http_request(connection, request):
         if request.headers.get("Upgrade", "").lower() == "websocket":
             return None
@@ -317,6 +317,37 @@ def _make_http_handler(backend_host, backend_port, hub=None):
                 "Not Found",
                 Headers({"Content-Type": "text/plain", **CORS_HEADERS}),
                 b"Not found",
+            )
+
+        if static_dir is not None and (
+            path == "/client" or path.startswith("/client/")
+        ):
+            _MIME = {
+                "index.html": "text/html; charset=utf-8",
+                "bundle.js": "application/javascript; charset=utf-8",
+            }
+            tail = path[len("/client") :].lstrip("/") or "index.html"
+            if tail not in _MIME:
+                return Response(
+                    404,
+                    "Not Found",
+                    Headers({"Content-Type": "text/plain", **CORS_HEADERS}),
+                    b"Not found",
+                )
+            try:
+                body = (static_dir / tail).read_bytes()
+            except OSError:
+                return Response(
+                    503,
+                    "Service Unavailable",
+                    Headers({"Content-Type": "text/plain", **CORS_HEADERS}),
+                    b"Static file unavailable",
+                )
+            return Response(
+                200,
+                "OK",
+                Headers({"Content-Type": _MIME[tail], **CORS_HEADERS}),
+                body,
             )
 
         return Response(
@@ -519,7 +550,15 @@ async def run(
                     return hub.handle_connection(ws)
             return proxy_handler(ws, backend_host, backend_port)
 
-        http_handler = _make_http_handler(backend_host, backend_port, hub=hub)
+        _host_client_static_dir = None
+        if host_client:
+            from .oob_teleop_env import require_web_client_static_dir  # noqa: PLC0415
+
+            _host_client_static_dir = require_web_client_static_dir()
+
+        http_handler = _make_http_handler(
+            backend_host, backend_port, hub=hub, static_dir=_host_client_static_dir
+        )
 
         async with ws_serve(
             handler,
@@ -537,10 +576,12 @@ async def run(
             log.info("WSS proxy listening on port %d", resolved_port)
 
             # ------------------------------------------------------------------
-            # USB-local: HTTPS static client (:func:`oob_teleop_env.usb_ui_port`,
-            # default 8080; override via ``USB_UI_PORT`` env) + adb reverse
-            # (WSS / backend / TURN) + coturn. Assets are ensured in
-            # require_usb_local_webxr_static_dir (also called from launcher).
+            # USB-local: separate HTTPS static client on 127.0.0.1:<usb_ui_port>
+            # (default 8080; override via ``USB_UI_PORT``) + adb reverse
+            # (WSS / backend / TURN) + coturn.
+            # --host-client: serves the web client at /client/ on the WSS proxy
+            # port; assets ensured by require_web_client_static_dir (called
+            # above and also from launcher).
             # ------------------------------------------------------------------
             # The coturn handle lives in a 1-element list so the watchdog
             # (H7) can replace it after a mid-session restart while keeping
@@ -562,28 +603,25 @@ async def run(
             # below propagates to the outer ``finally`` which tears down
             # whatever we'd already started (cleanup helpers are None-safe).
             try:
-                if host_client or usb_local:
+                if usb_local:
                     from .oob_teleop_env import (  # noqa: PLC0415
-                        require_usb_local_webxr_static_dir,
+                        require_web_client_static_dir as _req_static,
                         start_usb_local_https_server,
                         stop_usb_local_https_server,
                         usb_ui_port,
                     )
 
                     _ui_port = usb_ui_port()
-                    _bind_host = "127.0.0.1" if usb_local else "0.0.0.0"
-                    _stage = "usb-local" if usb_local else "host-client"
                     oob_progress(
-                        _stage,
-                        f"HTTPS client on {_bind_host}:{_ui_port} ...",
+                        "usb-local",
+                        f"HTTPS client on 127.0.0.1:{_ui_port} ...",
                     )
-                    static_root = require_usb_local_webxr_static_dir()
                     _usb_https_thread, _usb_https_httpd = start_usb_local_https_server(
-                        static_root,
+                        _req_static(),
                         cert_file=cert_paths.cert_file,
                         key_file=cert_paths.key_file,
                         port=_ui_port,
-                        host=_bind_host,
+                        host="127.0.0.1",
                     )
 
                 if usb_local:
@@ -796,7 +834,7 @@ async def run(
                         teardown_adb_reverse_turn(_usb_turn_port_resolved)
                     teardown_adb_reverse_ports()
                     log.info("USB-local: cleanup complete")
-                if host_client or usb_local:
+                if usb_local:
                     stop_usb_local_https_server(_usb_https_thread, _usb_https_httpd)
 
             log.info("Shutting down ...")

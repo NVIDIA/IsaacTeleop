@@ -101,12 +101,9 @@ class CloudXRLauncher:
                 fetched from GitHub Pages if missing) over HTTPS.  Ports
                 are overridable via ``USB_UI_PORT`` / ``USB_BACKEND_PORT``
                 / ``USB_TURN_PORT``.
-            host_client: Start an HTTPS static file server on
-                ``USB_UI_PORT`` (default 8080) bound to all interfaces,
-                serving the versioned WebXR client (fetched once from
-                GitHub Pages into ``TELEOP_WEB_CLIENT_STATIC_DIR`` or
-                ``~/.cloudxr/static-client``).  ``--usb-local`` implies
-                this flag (binding to loopback instead of all interfaces).
+            host_client: Serve the web client at ``/client/`` on the WSS
+                proxy port.  Assets are fetched once from GitHub Pages into
+                ``TELEOP_WEB_CLIENT_STATIC_DIR`` or ``~/.cloudxr/static-client``.
 
         Raises:
             RuntimeError: If the EULA is not accepted or the runtime
@@ -120,9 +117,9 @@ class CloudXRLauncher:
         self._host_client = host_client
 
         if self._usb_local or self._host_client:
-            from .oob_teleop_env import require_usb_local_webxr_static_dir  # noqa: PLC0415
+            from .oob_teleop_env import require_web_client_static_dir  # noqa: PLC0415
 
-            require_usb_local_webxr_static_dir()
+            require_web_client_static_dir()
 
         self._runtime_proc: subprocess.Popen | None = None
         self._wss_thread: threading.Thread | None = None

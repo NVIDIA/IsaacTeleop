@@ -84,13 +84,15 @@ To bypass the interactive EULA prompt (e.g. for CI or headless runs), pass the f
       * - ``python -m isaacteleop.cloudxr``
         - Plain: headset navigates to GitHub Pages URL over WiFi.
       * - ``python -m isaacteleop.cloudxr --host-client``
-        - Serves the web client locally on ``0.0.0.0:8080``. No USB or TURN
-          relay required. Useful when GitHub Pages is unreachable.
+        - Serves the web client at ``https://<ip>:48322/client/`` via the WSS
+          proxy. No separate port, no USB or TURN relay required. Useful when
+          GitHub Pages is unreachable.
       * - ``python -m isaacteleop.cloudxr --setup-oob``
         - OOB hub + CDP automation: opens the browser on the headset and
           auto-clicks CONNECT over USB adb. Client URL is GitHub Pages.
       * - ``python -m isaacteleop.cloudxr --setup-oob --host-client``
-        - OOB hub + CDP with locally-served client (air-gapped / proxy use).
+        - OOB hub + CDP with client at ``/client/`` on the WSS proxy
+          (air-gapped / proxy use).
       * - ``python -m isaacteleop.cloudxr --setup-oob --usb-local``
         - All traffic over USB: adb-reverse + coturn TURN relay + loopback
           HTTPS. Requires ``coturn`` and a WiFi-associated headset.
@@ -196,13 +198,6 @@ might need to whitelist them manually.
       sudo ufw allow 47998/udp
       sudo ufw allow 49100,48322/tcp
 
-   If you are using ``--host-client`` to serve the web client locally,
-   also open port 8080:
-
-   .. code-block:: bash
-
-      sudo ufw allow 8080/tcp
-
    If you are running the web client from source (dev server), open both
    ports:
 
@@ -285,15 +280,16 @@ running the CloudXR runtime and wss proxy in containerized environment; or using
 
    Alternatively, pass ``--host-client`` when starting the launcher to serve
    the web client directly from the streaming host (useful when GitHub Pages is
-   unreachable).  The launcher prints the local URL on startup:
+   unreachable).  The client is served at ``/client/`` on the WSS proxy port
+   (no extra port needed).  The launcher prints the local URL on startup:
 
    .. code-block:: text
 
-      web client:        https://10.0.1.5:8080/  (hosted locally — open on your headset or browser)
+      web client:        https://10.0.1.5:48322/client/  (hosted locally — open on your headset or browser)
 
    Open that URL instead of the GitHub Pages link above.  The rest of the
    flow — certificate acceptance, entering the server IP, clicking Connect —
-   is the same.  Make sure port 8080 is open on the host firewall (see step 4).
+   is the same.  Port 48322 is already open from step 4.
 
    The source code for the web client is in the :code-dir:`deps/cloudxr/webxr_client/` directory.  To build the web
    client from source, see :doc:`build_from_source/webxr`.

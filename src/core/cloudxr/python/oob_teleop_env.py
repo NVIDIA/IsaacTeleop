@@ -109,13 +109,13 @@ USB_TURN_USER = "cloudxr"  # TURN username
 USB_TURN_CREDENTIAL = "cloudxrpass"  # TURN credential
 
 
-def default_usb_local_webxr_static_dir() -> Path:
-    """Default directory for USB-local WebXR static files (under ``~/.cloudxr``)."""
+def default_web_client_static_dir() -> Path:
+    """Default directory for web client static files (under ``~/.cloudxr``)."""
     return Path.home() / ".cloudxr" / "static-client"
 
 
-def resolve_usb_local_webxr_static_dir() -> Path:
-    """Directory for USB-local WebXR assets: :envvar:`TELEOP_WEB_CLIENT_STATIC_DIR` or default.
+def resolve_web_client_static_dir() -> Path:
+    """Directory for web client assets: :envvar:`TELEOP_WEB_CLIENT_STATIC_DIR` or default.
 
     Raises:
         RuntimeError: If ``TELEOP_WEB_CLIENT_STATIC_DIR`` points at a non-directory path.
@@ -128,7 +128,7 @@ def resolve_usb_local_webxr_static_dir() -> Path:
                 f"{TELEOP_WEB_CLIENT_STATIC_DIR_ENV} is not a directory: {p}"
             )
         return p
-    return default_usb_local_webxr_static_dir()
+    return default_web_client_static_dir()
 
 
 def _fetch_url_bytes(url: str, *, timeout: float = 120.0) -> bytes:
@@ -173,8 +173,8 @@ def _write_atomic_bytes(dest: Path, data: bytes) -> None:
         raise
 
 
-def require_usb_local_webxr_static_dir() -> Path:
-    """Ensure USB-local WebXR static assets exist under :func:`resolve_usb_local_webxr_static_dir`.
+def require_web_client_static_dir() -> Path:
+    """Ensure web client static assets exist under :func:`resolve_web_client_static_dir`.
 
     Creates the directory if needed. If ``index.html`` or ``bundle.js`` is missing or empty,
     downloads from the published Isaac Teleop client URLs.
@@ -185,13 +185,13 @@ def require_usb_local_webxr_static_dir() -> Path:
     Raises:
         RuntimeError: If the path is invalid or downloads/final validation fail.
     """
-    p = resolve_usb_local_webxr_static_dir()
+    p = resolve_web_client_static_dir()
 
     try:
         p.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
         raise RuntimeError(
-            f"Cannot create USB-local WebXR static directory {p}: {exc}"
+            f"Cannot create web client static directory {p}: {exc}"
         ) from exc
 
     client_origin = default_web_client_origin()
@@ -203,7 +203,7 @@ def require_usb_local_webxr_static_dir() -> Path:
         dest = p / name
         if dest.is_file() and dest.stat().st_size > 0:
             continue
-        log.info("USB-local: fetching %s → %s", url, dest)
+        log.info("web client: fetching %s → %s", url, dest)
         data = _fetch_url_bytes(url)
         if not data:
             raise RuntimeError(f"Downloaded empty body from {url}")
@@ -215,9 +215,7 @@ def require_usb_local_webxr_static_dir() -> Path:
     for name in ("index.html", "bundle.js"):
         fp = p / name
         if not fp.is_file() or fp.stat().st_size == 0:
-            raise RuntimeError(
-                f"USB-local WebXR client file missing or empty after fetch: {fp}"
-            )
+            raise RuntimeError(f"Web client file missing or empty after fetch: {fp}")
     return p
 
 

@@ -35,6 +35,7 @@ from isaacteleop.cloudxr.oob_teleop_env import (
     usb_turn_port,
     usb_ui_port,
     versioned_web_client_url,
+    wss_proxy_port,
 )
 
 
@@ -98,13 +99,12 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         default=False,
         help=(
-            "Start an HTTPS static file server on USB_UI_PORT (default 8080) "
-            "bound to all interfaces, serving the versioned web client.  "
+            "Serve the web client at /client/ on the WSS proxy port (default 48322). "
             "Assets (index.html + bundle.js) are fetched once from the matching "
             "versioned release on nvidia.github.io/IsaacTeleop into "
             "TELEOP_WEB_CLIENT_STATIC_DIR or ~/.cloudxr/static-client.  "
-            "No build step or adb required.  --usb-local implies this flag "
-            "(with loopback binding instead of all interfaces)."
+            "No separate port, no build step, no adb required.  "
+            "--usb-local implies a separate loopback HTTPS server instead."
         ),
     )
     return parser.parse_args()
@@ -124,9 +124,9 @@ def main() -> None:
     # Valid flag combinations and what they mean:
     #
     #   (none)                        Plain: headset navigates to GitHub Pages URL over WiFi.
-    #   --host-client                 Local HTTPS on 0.0.0.0:8080; no adb, no TURN relay.
+    #   --host-client                 Client served at https://<lan>:<wss_port>/client/; no adb/TURN.
     #   --setup-oob                   OOB hub + CDP automation; GitHub Pages URL.
-    #   --setup-oob --host-client     OOB hub + CDP; client served locally on LAN (0.0.0.0:8080).
+    #   --setup-oob --host-client     OOB hub + CDP; client served at /client/ on the WSS proxy.
     #   --setup-oob --usb-local       OOB hub + CDP; adb-reverse + coturn + loopback HTTPS.
 
     _oob_lan_host: str | None = None  # resolved once, reused in startup banner
@@ -199,12 +199,11 @@ def main() -> None:
             f"CloudXR WSS proxy: \033[36mrunning\033[0m, log file: \033[90m{wss_log}\033[0m"
         )
 
-        _ui_port = usb_ui_port()
         if args.usb_local:
-            _hosted_client_url = f"https://127.0.0.1:{_ui_port}/"
+            _hosted_client_url = f"https://127.0.0.1:{usb_ui_port()}/"
         elif args.host_client:
             _lan = guess_lan_ipv4() or "localhost"
-            _hosted_client_url = f"https://{_lan}:{_ui_port}/"
+            _hosted_client_url = f"https://{_lan}:{wss_proxy_port()}/client/"
         else:
             _hosted_client_url = None
 

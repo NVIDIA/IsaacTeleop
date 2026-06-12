@@ -26,7 +26,7 @@ from cloudxr_py_test_ns.oob_teleop_env import (
     guess_lan_ipv4,
     versioned_web_client_url,
     print_oob_hub_startup_banner,
-    require_usb_local_webxr_static_dir,
+    require_web_client_static_dir,
     resolve_lan_host_for_oob,
     usb_backend_port,
     usb_turn_port,
@@ -331,7 +331,7 @@ def test_guess_lan_ipv4_returns_string_or_none() -> None:
     assert result is None or isinstance(result, str)
 
 
-def test_require_usb_local_webxr_static_dir_default_downloads(
+def test_require_web_client_static_dir_default_downloads(
     clear_teleop_env: None,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
@@ -354,14 +354,14 @@ def test_require_usb_local_webxr_static_dir_default_downloads(
         "_fetch_url_bytes",
         fake_fetch,
     )
-    out = require_usb_local_webxr_static_dir()
+    out = require_web_client_static_dir()
     expected = (tmp_path / ".cloudxr" / "static-client").resolve()
     assert out == expected
     assert (out / "index.html").read_bytes().startswith(b"<!doctype")
     assert b"console.log" in (out / "bundle.js").read_bytes()
 
 
-def test_require_usb_local_webxr_static_dir_ok(
+def test_require_web_client_static_dir_ok(
     clear_teleop_env: None,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
@@ -371,10 +371,10 @@ def test_require_usb_local_webxr_static_dir_ok(
     )
     (tmp_path / "bundle.js").write_text("// bundle", encoding="utf-8")
     monkeypatch.setenv(TELEOP_WEB_CLIENT_STATIC_DIR_ENV, str(tmp_path))
-    assert require_usb_local_webxr_static_dir() == tmp_path.resolve()
+    assert require_web_client_static_dir() == tmp_path.resolve()
 
 
-def test_require_usb_local_webxr_static_dir_not_a_directory(
+def test_require_web_client_static_dir_not_a_directory(
     clear_teleop_env: None,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
@@ -383,7 +383,7 @@ def test_require_usb_local_webxr_static_dir_not_a_directory(
     bogus.write_text("x", encoding="utf-8")
     monkeypatch.setenv(TELEOP_WEB_CLIENT_STATIC_DIR_ENV, str(bogus))
     with pytest.raises(RuntimeError, match="not a directory"):
-        require_usb_local_webxr_static_dir()
+        require_web_client_static_dir()
 
 
 def test_print_oob_hub_startup_banner(
