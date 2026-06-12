@@ -30,6 +30,13 @@ on first run):
 
    python -m isaacteleop.cloudxr --accept-eula --setup-oob
 
+Add ``--host-client`` to serve the web client locally instead of using GitHub
+Pages (useful in air-gapped environments):
+
+.. code-block:: bash
+
+   python -m isaacteleop.cloudxr --accept-eula --setup-oob --host-client
+
 This will:
 
 1. Verify a USB-connected headset is available via ``adb devices``
@@ -170,7 +177,7 @@ Architecture
      - Software
      - What it does
    * - **XR headset**
-     - Isaac Teleop WebXR client in the device browser
+     - Isaac Teleop web client in the device browser
      - Registers with the hub via WebSocket, reports streaming metrics
        periodically (default every 500 ms), receives config pushes.
    * - **Streaming host**
@@ -307,7 +314,7 @@ Pass it as:
 Web client integration
 ----------------------
 
-The WebXR client connects to the hub when the page URL contains
+The web client connects to the hub when the page URL contains
 ``oobEnable=1`` plus ``serverIP`` and ``port``:
 
 .. parsed-literal::
@@ -350,7 +357,7 @@ Environment variables
    * - ``TELEOP_PROXY_HOST``
      - Override the LAN IP used for headset bookmark URLs
    * - ``TELEOP_WEB_CLIENT_BASE``
-     - Override the WebXR client origin URL
+     - Override the web client origin URL
    * - ``TELEOP_STREAM_PORT``
      - Override the signaling port (default same as proxy port)
    * - ``TELEOP_CLIENT_CODEC``
@@ -359,7 +366,7 @@ Environment variables
      - Hide control panel on load (``true`` / ``false``)
    * - ``TELEOP_CLIENT_ROUTE``
      - HashRouter fragment appended to the bookmark URL. Default empty
-       (no fragment — the WebXR client picks its own landing route). Set
+       (no fragment — the web client picks its own landing route). Set
        to e.g. ``/real/gear/dexmate`` to force a specific route. A
        leading ``#`` is stripped automatically.
    * - ``ANDROID_SERIAL``
@@ -370,10 +377,11 @@ Environment variables
        ``adb`` subprocess inherits it, so no code path needs ``-s
        <serial>``.
    * - ``USB_UI_PORT``
-     - HTTPS static WebXR UI port in ``--usb-local`` mode (default
-       ``8080``). The launcher serves the prebuilt client on
-       ``https://127.0.0.1:<port>`` and ``adb reverse``-maps the same
-       port to the headset.
+     - HTTPS static web client port used by ``--host-client`` and
+       ``--usb-local`` (default ``8080``).  With ``--host-client`` the
+       server binds to ``0.0.0.0:<port>``; with ``--usb-local`` it binds
+       to ``127.0.0.1:<port>`` and ``adb reverse``-maps the port to the
+       headset.
    * - ``USB_BACKEND_PORT``
      - CloudXR backend port the headset reaches via ``adb reverse`` in
        ``--usb-local`` mode (default ``49100``).
@@ -381,12 +389,14 @@ Environment variables
      - coturn TURN-server port for WebRTC ICE relay in ``--usb-local``
        mode (default ``3478``). ``adb reverse``-mapped to the headset.
 
-USB-local mode
---------------
+USB-local mode (``--setup-oob --usb-local``)
+--------------------------------------------
 
 ``--usb-local`` routes teleop signalling, the web client, and WebRTC media
-over the USB cable on the headset's loopback via ``adb reverse``. Add it to
-``--setup-oob``:
+over the USB cable on the headset's loopback via ``adb reverse``.  It requires
+``--setup-oob`` because the OOB hub is the only path that delivers TURN relay
+configuration to the client (without it the headset has no way to discover the
+coturn endpoint).  Always use both flags together:
 
 .. code-block:: bash
 
@@ -411,7 +421,7 @@ On startup the launcher:
 
 In ``--usb-local`` mode the launcher also wipes localStorage / IndexedDB /
 cookies / HTTP cache for the teleop UI origin (``https://127.0.0.1:<usb_ui_port>``)
-before the session starts — the SDK and WebXR client both cache settings
+before the session starts — the SDK and web client both cache settings
 (e.g. ``general.iceTransportPolicy`` for ICE transport policy,
 ``cxr.isaac.teleopPath`` for the last-used project) in localStorage, and a
 stale value can silently win over a fresh URL param. The origin is owned

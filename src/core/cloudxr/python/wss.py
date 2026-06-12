@@ -465,6 +465,7 @@ async def run(
     proxy_port: int | None = None,
     setup_oob: bool = False,
     usb_local: bool = False,
+    host_client: bool = False,
 ) -> None:
     logger = log
     logger.setLevel(logging.INFO)
@@ -561,16 +562,36 @@ async def run(
             # below propagates to the outer ``finally`` which tears down
             # whatever we'd already started (cleanup helpers are None-safe).
             try:
+                if host_client or usb_local:
+                    from .oob_teleop_env import (  # noqa: PLC0415
+                        require_usb_local_webxr_static_dir,
+                        start_usb_local_https_server,
+                        stop_usb_local_https_server,
+                        usb_ui_port,
+                    )
+
+                    _ui_port = usb_ui_port()
+                    _bind_host = "127.0.0.1" if usb_local else "0.0.0.0"
+                    _stage = "usb-local" if usb_local else "host-client"
+                    oob_progress(
+                        _stage,
+                        f"HTTPS client on {_bind_host}:{_ui_port} ...",
+                    )
+                    static_root = require_usb_local_webxr_static_dir()
+                    _usb_https_thread, _usb_https_httpd = start_usb_local_https_server(
+                        static_root,
+                        cert_file=cert_paths.cert_file,
+                        key_file=cert_paths.key_file,
+                        port=_ui_port,
+                        host=_bind_host,
+                    )
+
                 if usb_local:
                     from .oob_teleop_env import (  # noqa: PLC0415
                         USB_TURN_USER,
                         USB_TURN_CREDENTIAL,
-                        require_usb_local_webxr_static_dir,
-                        start_usb_local_https_server,
-                        stop_usb_local_https_server,
                         usb_backend_port,
                         usb_turn_port,
-                        usb_ui_port,
                     )
 
                     # Resolve once so the coturn bind, adb reverse, and shutdown
@@ -598,18 +619,6 @@ async def run(
                     # the four ports we own.
                     teardown_adb_reverse_ports()
                     teardown_adb_reverse_turn(_usb_turn_port_resolved)
-
-                    oob_progress(
-                        "usb-local",
-                        f"HTTPS static UI on https://localhost:{usb_ui_port()} ...",
-                    )
-                    static_root = require_usb_local_webxr_static_dir()
-                    _usb_https_thread, _usb_https_httpd = start_usb_local_https_server(
-                        static_root,
-                        cert_file=cert_paths.cert_file,
-                        key_file=cert_paths.key_file,
-                        port=usb_ui_port(),
-                    )
 
                     # 2. adb reverse for TCP ports (WebXR UI, WSS proxy, backend)
                     _expected_tcp_ports = [
@@ -715,7 +724,9 @@ async def run(
                     )
                     try:
                         oob_monitor_task = await run_oob_connect(
-                            resolved_port=resolved_port, usb_local=usb_local
+                            resolved_port=resolved_port,
+                            usb_local=usb_local,
+                            host_client=host_client,
                         )
                         log.info("OOB automation completed — CONNECT clicked")
                         oob_progress("setup-oob", "CONNECT dispatched — session active")
@@ -744,7 +755,9 @@ async def run(
                         )
                         try:
                             fallback_url = build_teleop_url(
-                                resolved_port=resolved_port, usb_local=usb_local
+                                resolved_port=resolved_port,
+                                usb_local=usb_local,
+                                host_client=host_client,
                             )
                         except Exception:
                             fallback_url = ""
@@ -782,8 +795,9 @@ async def run(
                     if _usb_turn_port_resolved is not None:
                         teardown_adb_reverse_turn(_usb_turn_port_resolved)
                     teardown_adb_reverse_ports()
-                    stop_usb_local_https_server(_usb_https_thread, _usb_https_httpd)
                     log.info("USB-local: cleanup complete")
+                if host_client or usb_local:
+                    stop_usb_local_https_server(_usb_https_thread, _usb_https_httpd)
 
             log.info("Shutting down ...")
     except OSError as e:

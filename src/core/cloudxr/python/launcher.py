@@ -75,6 +75,7 @@ class CloudXRLauncher:
         accept_eula: bool = False,
         setup_oob: bool = False,
         usb_local: bool = False,
+        host_client: bool = False,
     ) -> None:
         """Launch the CloudXR runtime and WSS proxy.
 
@@ -100,6 +101,12 @@ class CloudXRLauncher:
                 fetched from GitHub Pages if missing) over HTTPS.  Ports
                 are overridable via ``USB_UI_PORT`` / ``USB_BACKEND_PORT``
                 / ``USB_TURN_PORT``.
+            host_client: Start an HTTPS static file server on
+                ``USB_UI_PORT`` (default 8080) bound to all interfaces,
+                serving the versioned WebXR client (fetched once from
+                GitHub Pages into ``TELEOP_WEB_CLIENT_STATIC_DIR`` or
+                ``~/.cloudxr/static-client``).  ``--usb-local`` implies
+                this flag (binding to loopback instead of all interfaces).
 
         Raises:
             RuntimeError: If the EULA is not accepted or the runtime
@@ -110,8 +117,9 @@ class CloudXRLauncher:
         self._accept_eula = accept_eula
         self._setup_oob = setup_oob
         self._usb_local = usb_local
+        self._host_client = host_client
 
-        if self._usb_local:
+        if self._usb_local or self._host_client:
             from .oob_teleop_env import require_usb_local_webxr_static_dir  # noqa: PLC0415
 
             require_usb_local_webxr_static_dir()
@@ -385,6 +393,7 @@ class CloudXRLauncher:
 
         setup_oob = self._setup_oob
         usb_local = self._usb_local
+        host_client = self._host_client
 
         def _run_wss() -> None:
             asyncio.set_event_loop(loop)
@@ -395,6 +404,7 @@ class CloudXRLauncher:
                         stop_future=stop_future,
                         setup_oob=setup_oob,
                         usb_local=usb_local,
+                        host_client=host_client,
                     )
                 )
             except Exception:

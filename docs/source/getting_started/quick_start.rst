@@ -70,6 +70,34 @@ To bypass the interactive EULA prompt (e.g. for CI or headless runs), pass the f
 
    python -m isaacteleop.cloudxr --accept-eula
 
+.. dropdown:: Optional launch modes
+
+   The launcher supports three optional flags that can be combined to control
+   how the headset connects and how the web client is delivered.
+
+   .. list-table::
+      :header-rows: 1
+      :widths: 45 55
+
+      * - Command
+        - What it does
+      * - ``python -m isaacteleop.cloudxr``
+        - Plain: headset navigates to GitHub Pages URL over WiFi.
+      * - ``python -m isaacteleop.cloudxr --host-client``
+        - Serves the web client locally on ``0.0.0.0:8080``. No USB or TURN
+          relay required. Useful when GitHub Pages is unreachable.
+      * - ``python -m isaacteleop.cloudxr --setup-oob``
+        - OOB hub + CDP automation: opens the browser on the headset and
+          auto-clicks CONNECT over USB adb. Client URL is GitHub Pages.
+      * - ``python -m isaacteleop.cloudxr --setup-oob --host-client``
+        - OOB hub + CDP with locally-served client (air-gapped / proxy use).
+      * - ``python -m isaacteleop.cloudxr --setup-oob --usb-local``
+        - All traffic over USB: adb-reverse + coturn TURN relay + loopback
+          HTTPS. Requires ``coturn`` and a WiFi-associated headset.
+
+   ``--usb-local`` requires ``--setup-oob``.  See
+   :doc:`/references/oob_teleop_control` for full OOB documentation.
+
 You should see output similar to:
 
 .. figure:: ../_static/cloudxr-run-output.png
@@ -160,7 +188,7 @@ might need to whitelist them manually.
 .. dropdown:: Meta Quest and Pico headsets
    :open:
 
-   For **Quest and Pico headsets** (WebXR Client), at the minimum, you need to whitelist the ports
+   For **Quest and Pico headsets** (web client), at the minimum, you need to whitelist the ports
    for the CloudXR runtime and wss proxy:
 
    .. code-block:: bash
@@ -168,8 +196,15 @@ might need to whitelist them manually.
       sudo ufw allow 47998/udp
       sudo ufw allow 49100,48322/tcp
 
-   If you are running the WebXR client from source, you need to whitelist the additional ports for
-   the web server:
+   If you are using ``--host-client`` or ``--usb-local`` to serve the web
+   client locally, also open port 8080:
+
+   .. code-block:: bash
+
+      sudo ufw allow 8080/tcp
+
+   If you are running the web client from source (dev server), open both
+   ports:
 
    .. code-block:: bash
 
@@ -250,6 +285,22 @@ running the CloudXR runtime and wss proxy in containerized environment; or using
 
    The source code for the web client is in the :code-dir:`deps/cloudxr/webxr_client/` directory.  To build the web
    client from source, see :doc:`build_from_source/webxr`.
+
+.. dropdown:: Locally hosted client (``--host-client``)
+
+   If you started the launcher with ``--host-client``, the web client is
+   served directly from the streaming host instead of GitHub Pages.  The
+   launcher prints the URL on startup:
+
+   .. code-block:: text
+
+      web client:        https://10.0.1.5:8080/  (hosted locally — open on your headset or browser)
+
+   Open that URL in the headset browser.  The rest of the flow — certificate
+   acceptance, entering the server IP, clicking Connect — is the same as the
+   standard Quest/Pico steps above.
+
+   Make sure port 8080 is open on the host firewall (see step 4).
 
 .. _connect-apple-vision-pro:
 

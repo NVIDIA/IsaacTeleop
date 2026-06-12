@@ -46,7 +46,7 @@ def versioned_web_client_url(version: str) -> str:
     the release line ``client/release-MAJOR.MINOR.x/``. Versions with no
     parseable MAJOR.MINOR fall back to the generic ``client/`` URL, which the
     site redirects to the latest stable tag. The same helper backs the
-    standalone "WebXR client:" line printed in non-OOB mode, so every path
+    standalone "web client:" line printed in non-OOB mode, so every path
     agrees on which client to open.
     """
     v = version.strip()
@@ -254,17 +254,22 @@ def start_usb_local_https_server(
     cert_file: Path,
     key_file: Path,
     port: int | None = None,
+    host: str = "127.0.0.1",
     ready_timeout: float = 15.0,
 ) -> tuple[threading.Thread, http.server.ThreadingHTTPServer]:
-    """Serve *static_root* over HTTPS on loopback using the same PEM as the WSS proxy.
+    """Serve *static_root* over HTTPS using the same PEM as the WSS proxy.
 
     When *port* is ``None`` (the default) the bind port is resolved via
     :func:`usb_ui_port` (env-overridable through ``USB_UI_PORT``).
+
+    *host* controls the bind address: ``"127.0.0.1"`` (default) for USB-local
+    mode where the headset reaches the PC via ``adb reverse``; ``"0.0.0.0"``
+    for ``--host-client`` WiFi/LAN mode where the headset connects directly.
     """
     if port is None:
         port = usb_ui_port()
     handler_cls = _usb_local_static_handler_class(static_root)
-    httpd = http.server.ThreadingHTTPServer(("127.0.0.1", port), handler_cls)
+    httpd = http.server.ThreadingHTTPServer((host, port), handler_cls)
     httpd.daemon_threads = True
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ctx.minimum_version = ssl.TLSVersion.TLSv1_2
@@ -276,21 +281,22 @@ def start_usb_local_https_server(
     )
     thread.start()
     log.info(
-        "USB-local static HTTPS starting — waiting up to %.0fs for :%d",
+        "Static HTTPS server starting — waiting up to %.0fs for :%d",
         ready_timeout,
         port,
     )
-    if not _wait_for_port("127.0.0.1", port, ready_timeout):
+    probe_host = "127.0.0.1" if host == "0.0.0.0" else host
+    if not _wait_for_port(probe_host, port, ready_timeout):
         try:
             httpd.shutdown()
         finally:
             httpd.server_close()
         thread.join(timeout=2.0)
         raise RuntimeError(
-            f"USB-local static HTTPS did not accept connections on 127.0.0.1:{port} "
+            f"Static HTTPS server did not accept connections on {host}:{port} "
             f"within {ready_timeout:.0f}s"
         )
-    log.info("USB-local static HTTPS ready on https://127.0.0.1:%d", port)
+    log.info("Static HTTPS server ready on https://%s:%d", host, port)
     return thread, httpd
 
 
@@ -306,7 +312,7 @@ def stop_usb_local_https_server(
             httpd.server_close()
     if thread is not None:
         thread.join(timeout=5.0)
-    log.info("USB-local static HTTPS server stopped")
+    log.info("Static HTTPS server stopped")
 
 
 def web_client_base_override_from_env() -> str | None:
@@ -519,7 +525,10 @@ def oob_progress(stage: str, msg: str) -> None:
 
 
 def print_oob_hub_startup_banner(
-    *, lan_host: str | None = None, usb_local: bool = False
+    *,
+    lan_host: str | None = None,
+    usb_local: bool = False,
+    web_client_base: str | None = None,
 ) -> None:
     """Print operator instructions for OOB + USB adb automation.
 
@@ -528,6 +537,10 @@ def print_oob_hub_startup_banner(
         usb_local: When ``True``, adjust the banner to describe the USB-local
             topology: everything reachable from the headset via ``adb reverse``
             on loopback; WebXR UI from ``TELEOP_WEB_CLIENT_STATIC_DIR`` (HTTPS, same PEM as WSS).
+        web_client_base: Override the WebXR client base URL in the bookmark.
+            When ``None`` (default), uses the versioned GitHub Pages client
+            (WiFi mode) or the USB-local HTTPS origin (USB-local mode).
+            ``TELEOP_WEB_CLIENT_BASE`` env var still takes precedence over this.
     """
     port = wss_proxy_port()
     ui_port = usb_ui_port()
@@ -544,6 +557,8 @@ def print_oob_hub_startup_banner(
             os.environ.get("TELEOP_WEB_CLIENT_BASE", "").strip()
             or f"https://localhost:{ui_port}"
         )
+    elif web_client_base is not None:
+        web_base = web_client_base
     else:
         web_base = default_web_client_origin()
 
