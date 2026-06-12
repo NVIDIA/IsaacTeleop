@@ -291,6 +291,18 @@ running the CloudXR runtime and wss proxy in containerized environment; or using
    flow — certificate acceptance, entering the server IP, clicking Connect —
    is the same.  Port 48322 is already open from step 4.
 
+   .. note::
+
+      On **first run**, the launcher fetches ``index.html`` and ``bundle.js`` from
+      GitHub Pages and caches them in ``~/.cloudxr/static-client/`` (override with
+      ``TELEOP_WEB_CLIENT_STATIC_DIR``).  Subsequent runs are fully offline.
+
+      For a **true air-gapped machine**, pre-stage the two files before the first
+      run — copy or download them from
+      ``https://nvidia.github.io/IsaacTeleop/client/`` into
+      ``~/.cloudxr/static-client/`` on a networked host, then transfer the
+      directory to the air-gapped machine.
+
    The source code for the web client is in the :code-dir:`deps/cloudxr/webxr_client/` directory.  To build the web
    client from source, see :doc:`build_from_source/webxr`.
 
