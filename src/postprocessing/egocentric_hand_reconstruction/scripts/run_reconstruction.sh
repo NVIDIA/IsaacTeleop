@@ -4,7 +4,7 @@
 set -euo pipefail
 
 # Check arguments
-if [ $# -lt 1 ]; then
+if [[ $# -lt 1 ]]; then
     echo "Usage: $0 <video_path>"
     echo "Example: $0 my-local-path/my-video.mp4"
     echo "Example: $0 s3://my-remote-path/my-video.mp4"
@@ -36,12 +36,12 @@ if is_bucket_url "${VIDEO_PATH}"; then
     VIDEO_FILE="$(basename "${VIDEO_PATH}")"
     VIDEO_FULL_PATH="${OUTPUTS_DIR}/${VIDEO_FILE}"
 else
-    if [ -f "${VIDEO_PATH}" ]; then
+    if [[ -f "${VIDEO_PATH}" ]]; then
         VIDEO_FULL_PATH="${VIDEO_PATH}"
     else
         VIDEO_FULL_PATH="${PROJECT_ROOT}/${VIDEO_PATH}"
     fi
-    if [ ! -f "${VIDEO_FULL_PATH}" ]; then
+    if [[ ! -f "${VIDEO_FULL_PATH}" ]]; then
         echo "Error: Video file not found at ${VIDEO_FULL_PATH}"
         exit 1
     fi
@@ -53,15 +53,15 @@ VIDEO_NAME="${VIDEO_FILE%.*}"
 
 # Check for required licensed data (needed by Dyn-HaMR in Step 3)
 missing=0
-if [ ! -f "${OUTPUTS_DIR}/MANO_RIGHT.pkl" ]; then
+if [[ ! -f "${OUTPUTS_DIR}/MANO_RIGHT.pkl" ]]; then
     echo "Error: MANO_RIGHT.pkl not found in ${OUTPUTS_DIR}/"
     missing=1
 fi
-if [ ! -d "${OUTPUTS_DIR}/BMC" ] || [ -z "$(ls -A "${OUTPUTS_DIR}/BMC/" 2>/dev/null)" ]; then
+if [[ ! -d "${OUTPUTS_DIR}/BMC" ]] || [[ -z "$(ls -A "${OUTPUTS_DIR}/BMC/" 2>/dev/null)" ]]; then
     echo "Error: BMC data not found in ${OUTPUTS_DIR}/BMC/"
     missing=1
 fi
-if [ "$missing" -eq 1 ]; then
+if [[ "$missing" -eq 1 ]]; then
     exit 1
 fi
 
@@ -74,12 +74,12 @@ echo "Step 1: Preparing video for processing"
 echo "=========================================="
 
 if is_bucket_url "${VIDEO_PATH}"; then
-    if [ ! -f "${VIDEO_FULL_PATH}" ]; then
+    if [[ ! -f "${VIDEO_FULL_PATH}" ]]; then
         if ! command -v python3 >/dev/null 2>&1; then
             echo "Error: python3 is required to download bucket URLs."
             exit 1
         fi
-        if [ ! -f "${BUCKET_DOWNLOADER}" ]; then
+        if [[ ! -f "${BUCKET_DOWNLOADER}" ]]; then
             echo "Error: Bucket downloader script not found at ${BUCKET_DOWNLOADER}"
             exit 1
         fi
@@ -90,7 +90,7 @@ if is_bucket_url "${VIDEO_PATH}"; then
     fi
 else
     # Copy local video to outputs if not already there
-    if [ ! -f "${OUTPUTS_DIR}/${VIDEO_FILE}" ]; then
+    if [[ ! -f "${OUTPUTS_DIR}/${VIDEO_FILE}" ]]; then
         cp "${VIDEO_FULL_PATH}" "${OUTPUTS_DIR}/${VIDEO_FILE}"
         echo "✓ Video copied to outputs directory"
     else

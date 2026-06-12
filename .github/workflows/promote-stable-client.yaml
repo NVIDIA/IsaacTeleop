@@ -1,0 +1,71 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Re-resolve /client/stable/ to the highest existing v* tag.
+# Fires on tag deletion (rollback) and manual dispatch. Tag creation is handled
+# by docs.yaml as part of the per-tag deploy.
+
+name: Promote stable web client
+
+on:
+  delete:
+  workflow_dispatch:
+
+concurrency:
+  group: promote-stable-client
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    if: >-
+      github.repository == 'NVIDIA/IsaacTeleop'
+      && (
+        github.event_name == 'workflow_dispatch'
+        || (github.event.ref_type == 'tag' && startsWith(github.event.ref, 'v'))
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - id: build
+        run: |
+          set -euo pipefail
+          slug="$(git ls-remote --tags origin 'v[1-9]*.[0-9]*.[0-9]*' \
+            | awk -F'refs/tags/' '{print $2}' \
+            | sed 's/\^{}$//' | sort -uV | tail -n1)"
+          if [ -z "$slug" ]; then
+            echo "::warning::No v* tags remain; leaving client/stable/ untouched."
+            exit 0
+          fi
+          mkdir -p out/client/stable
+          cat > out/client/stable/index.html <<HTML
+          <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+          <!-- SPDX-License-Identifier: Apache-2.0 -->
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Redirecting to the stable Isaac Teleop web client (${slug})</title>
+              <meta charset="utf-8">
+              <meta http-equiv="refresh" content="0; url=../${slug}/">
+              <link rel="canonical" href="../${slug}/">
+            </head>
+            <body>
+              <p>Redirecting to <a href="../${slug}/">the stable Isaac Teleop web client</a>.</p>
+              <script>location.replace('../${slug}/' + location.search + location.hash);</script>
+            </body>
+          </html>
+          HTML
+          echo "slug=$slug" >> "$GITHUB_OUTPUT"
+          echo "Stable resolved to /client/${slug}/"
+
+      - if: steps.build.outputs.slug != ''
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./out
+          keep_files: true

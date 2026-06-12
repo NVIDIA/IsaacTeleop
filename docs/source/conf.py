@@ -77,6 +77,24 @@ _VERSION_ICON_MAP = {
 }
 _icons = _VERSION_ICON_MAP.get(_smv_name, _DEFAULT_ICONS)
 
+# Branch-specific CloudXR web client ("CloudXR.js") deployment.  docs.yaml
+# publishes the prebuilt web client to ``/client/<slug>/`` where ``<slug>`` is
+# the built ref name with ``/`` replaced by ``-`` (e.g. ``main``,
+# ``release-1.3.x``, ``v1.2.3``).  Resolving the same slug here lets each
+# versioned docs build link to the matching client instead of always ``main``.
+_client_slug = (_smv_name or "main").replace("/", "-")
+_web_client_url = f"https://nvidia.github.io/IsaacTeleop/client/{_client_slug}/"
+
+# Shared substitution + link targets injected into every page, so the
+# branch-specific web client URL lives in one place.  ``|web_client_url|``
+# expands the bare URL (usable in prose and ``parsed-literal`` blocks); the
+# named targets back ```...`_`` references in the prose.
+rst_epilog = f"""
+.. |web_client_url| replace:: {_web_client_url}
+.. _`nvidia.github.io/IsaacTeleop/client`: {_web_client_url}
+.. _`Isaac Teleop Web Client`: {_web_client_url}
+"""
+
 html_theme_options = {
     "collapse_navigation": True,
     "use_edit_page_button": True,

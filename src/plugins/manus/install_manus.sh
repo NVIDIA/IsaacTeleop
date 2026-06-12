@@ -11,7 +11,7 @@ set -euo pipefail
 
 # --- Arg parsing ---------------------------------------------------------
 VERBOSE=0
-while [ $# -gt 0 ]; do
+while [[ $# -gt 0 ]]; do
     case "$1" in
         -v|--verbose) VERBOSE=1; shift ;;
         -h|--help)
@@ -50,7 +50,7 @@ LOG_FILE=$(mktemp -t manus_install.XXXXXX.log)
 trap 'rm -f "$LOG_FILE"' EXIT
 
 # ANSI colors, but only when stdout is a TTY so logs/pipes stay clean.
-if [ -t 1 ]; then
+if [[ -t 1 ]]; then
     C_BOLD=$'\033[1m'
     C_RED=$'\033[31m'
     C_YELLOW=$'\033[33m'
@@ -63,7 +63,7 @@ step() { printf '\n==> %s\n' "$*"; }
 done_ok() { printf '    done.\n'; }
 die() {
     printf '    FAILED: %s\n' "$*" >&2
-    if [ "$VERBOSE" -eq 0 ] && [ -s "$LOG_FILE" ]; then
+    if [[ "$VERBOSE" -eq 0 ]] && [[ -s "$LOG_FILE" ]]; then
         printf -- '\n--- last 50 lines of command output ---\n' >&2
         tail -n 50 "$LOG_FILE" >&2
         printf -- '--- (re-run with --verbose for full output) ---\n' >&2
@@ -73,7 +73,7 @@ die() {
 
 # Run a command; in quiet mode, redirect stdout+stderr to the log file.
 run() {
-    if [ "$VERBOSE" -eq 1 ]; then
+    if [[ "$VERBOSE" -eq 1 ]]; then
         "$@"
     else
         "$@" >>"$LOG_FILE" 2>&1
@@ -81,7 +81,7 @@ run() {
 }
 
 in_container() {
-    [ -f /.dockerenv ] || grep -qE '(docker|containerd|kubepods)' /proc/1/cgroup 2>/dev/null
+    [[ -f /.dockerenv ]] || grep -qE '(docker|containerd|kubepods)' /proc/1/cgroup 2>/dev/null
 }
 
 # --- Banner --------------------------------------------------------------
@@ -94,7 +94,7 @@ else
     CONTAINER=0
     echo "Environment:  host"
 fi
-if [ "$VERBOSE" -eq 0 ]; then
+if [[ "$VERBOSE" -eq 0 ]]; then
     echo "(re-run with --verbose to see full command output)"
 fi
 
@@ -133,7 +133,7 @@ for pkg in "${APT_PACKAGES[@]}"; do
         missing_pkgs+=("$pkg")
     fi
 done
-if [ "${#missing_pkgs[@]}" -eq 0 ]; then
+if [[ "${#missing_pkgs[@]}" -eq 0 ]]; then
     echo "    all ${#APT_PACKAGES[@]} packages already installed; skipping apt."
 else
     echo "    ${#missing_pkgs[@]} missing: ${missing_pkgs[*]}"
@@ -143,7 +143,7 @@ fi
 done_ok
 
 # --- 2. udev rules (host only) ------------------------------------------
-if [ "$CONTAINER" -eq 0 ]; then
+if [[ "$CONTAINER" -eq 0 ]]; then
     step "[2/4] Installing host udev rules for Manus devices"
     # install_udev_rules.sh is the single source of truth for udev setup.
     run bash "$SCRIPT_DIR/install_udev_rules.sh" || die "udev rules install failed"
@@ -157,7 +157,7 @@ fi
 step "[3/4] Downloading and extracting MANUS SDK v${MANUS_SDK_VERSION}"
 cd "$SCRIPT_DIR"
 
-if [ -f "$MANUS_SDK_ZIP" ]; then
+if [[ -f "$MANUS_SDK_ZIP" ]]; then
     echo "    SDK archive already exists. Skipping download."
 else
     # Download to a .tmp path and rename on success so a partial/aborted
@@ -165,7 +165,7 @@ else
     MANUS_SDK_ZIP_TMP="${MANUS_SDK_ZIP}.tmp"
     trap 'rm -f "$LOG_FILE" "$MANUS_SDK_ZIP_TMP"' EXIT
     if command -v curl &> /dev/null; then
-        if [ "$VERBOSE" -eq 1 ]; then
+        if [[ "$VERBOSE" -eq 1 ]]; then
             # -f: fail on HTTP errors (4xx/5xx), -L: follow redirects
             curl -fL "$MANUS_SDK_URL" -o "$MANUS_SDK_ZIP_TMP" || die "SDK download failed"
         else
@@ -184,26 +184,26 @@ fi
 ACTUAL_SHA256=$(sha256sum "$MANUS_SDK_ZIP" | awk '{print $1}')
 sha_match=0
 for expected in "${MANUS_SDK_SHA256_ACCEPTED[@]}"; do
-    if [ "$ACTUAL_SHA256" = "$expected" ]; then
+    if [[ "$ACTUAL_SHA256" = "$expected" ]]; then
         sha_match=1
         break
     fi
 done
-if [ "$sha_match" -ne 1 ]; then
+if [[ "$sha_match" -ne 1 ]]; then
     rm -f "$MANUS_SDK_ZIP"
     die "SHA-256 mismatch (got $ACTUAL_SHA256; accepted: ${MANUS_SDK_SHA256_ACCEPTED[*]})"
 fi
 
-if [ -d "$SCRIPT_DIR/ManusSDK" ]; then
+if [[ -d "$SCRIPT_DIR/ManusSDK" ]]; then
     rm -rf "$SCRIPT_DIR/ManusSDK"
 fi
 run unzip -oq "$MANUS_SDK_ZIP" || die "unzip failed"
 
 EXTRACTED_DIR=$(find . -maxdepth 1 -type d -name "ManusSDK_v*" | head -n 1)
-[ -n "$EXTRACTED_DIR" ] || die "Could not find extracted SDK directory"
+[[ -n "$EXTRACTED_DIR" ]] || die "Could not find extracted SDK directory"
 
 SDK_CLIENT_DIR="SDKClient_Linux"
-[ -d "$EXTRACTED_DIR/$SDK_CLIENT_DIR/ManusSDK" ] || \
+[[ -d "$EXTRACTED_DIR/$SDK_CLIENT_DIR/ManusSDK" ]] || \
     die "ManusSDK folder not found in $EXTRACTED_DIR/$SDK_CLIENT_DIR"
 
 cp -r "$EXTRACTED_DIR/$SDK_CLIENT_DIR/ManusSDK" "$SCRIPT_DIR/"
@@ -229,7 +229,7 @@ cat <<EOF
   Printer diagnostic: $TELEOP_ROOT/build/bin/manus_hand_tracker_printer
 EOF
 
-if [ "$CONTAINER" -eq 1 ]; then
+if [[ "$CONTAINER" -eq 1 ]]; then
     cat <<EOF
 
 ${C_YELLOW}==================================================================${C_RESET}

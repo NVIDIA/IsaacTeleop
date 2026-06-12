@@ -3,7 +3,8 @@
 
 #pragma once
 
-#include <viz/core/viz_types.hpp>
+#include "viz_types.hpp"
+
 #include <vulkan/vulkan.h>
 
 #include <memory>

@@ -1,11 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+#include "inc/viz/layers/quad_layer.hpp"
+
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <viz/core/render_target.hpp>
 #include <viz/core/vk_context.hpp>
-#include <viz/layers/quad_layer.hpp>
 #include <viz/session/viz_session.hpp>
 #include <viz/shaders/textured_quad.frag.spv.h>
 #include <viz/shaders/textured_quad.vert.spv.h>

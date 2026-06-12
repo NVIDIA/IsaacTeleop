@@ -272,16 +272,56 @@ The wheels are built in the ``./install/wheels/`` directory. Install the package
 Using ``pip``, you need to pass the ``--no-index`` option to automatically find the right wheel
 based on the Python version.  Note that ``pip`` and ``uv pip`` has slightly different options.
 
+.. _aarch64-nlopt-wheel:
+
+.. note::
+   **ARM64 / aarch64 systems only** (e.g. NVIDIA DGX Spark): PyPI does not publish pre-built
+   ``nlopt`` wheels for ARM64, so pip cannot satisfy the ``retargeters`` extra automatically.
+   Build an ``nlopt`` wheel from source before running the install commands below
+   (see `issue #452 <https://github.com/NVIDIA/IsaacTeleop/issues/452>`_):
+
+   .. code-block:: bash
+
+      # Install build tools
+      sudo apt-get install -y build-essential cmake git pkg-config swig
+
+      # Clone nlopt-python and build a wheel
+      git clone --depth 1 --branch 2.10.0 https://github.com/DanielBok/nlopt-python.git /tmp/nlopt-python
+      cd /tmp/nlopt-python
+      git submodule update --init --recursive
+
+      # Use the same Python version as your isaacteleop install (3.10, 3.11, 3.12, or 3.13)
+      uv venv --python=3.11 /tmp/nlopt-wheel-venv
+      VIRTUAL_ENV=/tmp/nlopt-wheel-venv uv pip install numpy setuptools wheel
+      /tmp/nlopt-wheel-venv/bin/python setup.py bdist_wheel -d /tmp/nlopt-wheels/
+
+   Then pass ``--find-links=/tmp/nlopt-wheels/`` when installing so the locally-built wheel is
+   used instead of attempting a PyPI download:
+
+   .. code-block:: bash
+
+      # pip
+      pip install "isaacteleop[retargeters,cloudxr,ui]" \
+          --find-links=./install/wheels/ \
+          --find-links=/tmp/nlopt-wheels/ \
+          --no-index --force-reinstall
+
+      # uv pip
+      uv pip install "isaacteleop[retargeters,cloudxr,ui]" \
+          --find-links=./install/wheels/ \
+          --find-links=/tmp/nlopt-wheels/ \
+          --reinstall
+
 .. code-block:: bash
 
    # Pass --no-index to use only wheels in ./install/wheels/;
    # Pass --force-reinstall to replace an existing install.
-   pip install isaacteleop[retargeters,cloudxr,ui] --find-links=./install/wheels/ --no-index --force-reinstall
+   pip install "isaacteleop[retargeters,cloudxr,ui]" --find-links=./install/wheels/ --no-index --force-reinstall
 
 .. code-block:: bash
 
    # Pass --reinstall to replace an existing install.
-   uv pip install isaacteleop[retargeters,cloudxr,ui] --find-links=./install/wheels/ --reinstall
+   uv pip install "isaacteleop[retargeters,cloudxr,ui]" --find-links=./install/wheels/ --reinstall
 
 .. toctree::
    :hidden:

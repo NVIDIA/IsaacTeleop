@@ -16,11 +16,17 @@ Available Retargeters:
     - LocomotionRootCmdRetargeter: Locomotion from controller inputs
     - FootPedalRootCmdRetargeter: Root command from 3-axis foot pedal (horizontal/vertical + rudder)
     - GripperRetargeter: Pinch-based gripper control
+    - SO101ClutchRetargeter: Clutch-rebased absolute EE pose for the SO-101 5-DOF arm
+    - SO101GripperRetargeter: Proportional (analog) jaw closedness for the SO-101 gripper
     - SharpaHandRetargeter: Pinocchio/Pink IK-based retargeting for Sharpa hand
     - SharpaBiManualRetargeter: Bimanual version of SharpaHandRetargeter
     - Se3AbsRetargeter: Absolute EE pose control
     - Se3RelRetargeter: Relative EE delta control
     - TensorReorderer: Reorders and flattens multiple inputs into a single tensor
+    - Vector3FrameTransform / WorldForceAccumulator / MagnitudeReducer: Composable
+      spatial primitives for tactile/haptic retargeting
+    - TactileVectorToControllerPulse / TactileHeatmapToControllerPulse: Map tactile
+      signals to controller haptic pulses
 """
 
 import importlib as _importlib
@@ -94,6 +100,17 @@ _LAZY_IMPORTS: dict[str, tuple[str, str, str | None]] = {
     # .gripper_retargeter
     "GripperRetargeter": (".gripper_retargeter", "GripperRetargeter", None),
     "GripperRetargeterConfig": (".gripper_retargeter", "GripperRetargeterConfig", None),
+    # .SO101 (SO-101 5-DOF arm: full-pose clutch EE pose, analog gripper)
+    "SO101ClutchRetargeter": (
+        ".SO101.clutch_retargeter",
+        "SO101ClutchRetargeter",
+        None,
+    ),
+    "SO101GripperRetargeter": (
+        ".SO101.gripper_retargeter",
+        "SO101GripperRetargeter",
+        None,
+    ),
     # .se3_retargeter  (requires retargeters-lite extra: scipy)
     "Se3AbsRetargeter": (".se3_retargeter", "Se3AbsRetargeter", "retargeters-lite"),
     "Se3RelRetargeter": (".se3_retargeter", "Se3RelRetargeter", "retargeters-lite"),
@@ -121,6 +138,28 @@ _LAZY_IMPORTS: dict[str, tuple[str, str, str | None]] = {
     ),
     # .tensor_reorderer
     "TensorReorderer": (".tensor_reorderer", "TensorReorderer", None),
+    # .tactile_retargeters  (tactile / haptic device-output mappers)
+    "Vector3FrameTransform": (
+        ".tactile_retargeters",
+        "Vector3FrameTransform",
+        None,
+    ),
+    "WorldForceAccumulator": (
+        ".tactile_retargeters",
+        "WorldForceAccumulator",
+        None,
+    ),
+    "MagnitudeReducer": (".tactile_retargeters", "MagnitudeReducer", None),
+    "TactileVectorToControllerPulse": (
+        ".tactile_retargeters",
+        "TactileVectorToControllerPulse",
+        None,
+    ),
+    "TactileHeatmapToControllerPulse": (
+        ".tactile_retargeters",
+        "TactileHeatmapToControllerPulse",
+        None,
+    ),
 }
 
 
@@ -163,6 +202,9 @@ __all__ = [
     # Manipulator retargeters
     "GripperRetargeter",
     "GripperRetargeterConfig",
+    # SO-101 5-DOF arm retargeters
+    "SO101ClutchRetargeter",
+    "SO101GripperRetargeter",
     "Se3AbsRetargeter",
     "Se3RelRetargeter",
     "Se3RetargeterConfig",
@@ -172,4 +214,10 @@ __all__ = [
     "SharpaHandRetargeterConfig",
     # Utility retargeters
     "TensorReorderer",
+    # Tactile / haptic device-output retargeters
+    "Vector3FrameTransform",
+    "WorldForceAccumulator",
+    "MagnitudeReducer",
+    "TactileVectorToControllerPulse",
+    "TactileHeatmapToControllerPulse",
 ]

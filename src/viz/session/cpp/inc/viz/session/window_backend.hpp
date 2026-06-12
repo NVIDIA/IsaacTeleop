@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <viz/session/display_backend.hpp>
+#include "display_backend.hpp"
 
 #include <cstdint>
 #include <memory>

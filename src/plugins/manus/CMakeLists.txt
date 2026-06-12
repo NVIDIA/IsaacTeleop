@@ -101,8 +101,6 @@ if(MANUS_ADD_SDK_TO_BUILD_RPATH)
 endif()
 list(JOIN _ISAAC_MANUS_EFFECTIVE_BUILD_RPATH ";" _ISAAC_MANUS_EFFECTIVE_BUILD_RPATH_STR)
 
-set(MANUS_PLUGIN_INC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/inc")
-
 add_subdirectory(core)
 add_library(isaac::manus_plugin ALIAS manus_plugin_core)
 add_subdirectory(app)

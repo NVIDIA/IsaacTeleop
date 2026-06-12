@@ -1,8 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+#include "inc/viz/session/swapchain.hpp"
+
 #include <viz/core/vk_context.hpp>
-#include <viz/session/swapchain.hpp>
 
 #include <algorithm>
 #include <stdexcept>

@@ -17,7 +17,7 @@ target_link_libraries(teleop_plugin_utils
 
 # Include directories
 target_include_directories(teleop_plugin_utils
-    PUBLIC
+    INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
 )
 

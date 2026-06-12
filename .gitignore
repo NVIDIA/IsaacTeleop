@@ -42,6 +42,9 @@ compile_commands.json
 # Auto-downloaded from GitHub
 cmake/HunterGate.cmake
 cmake/Hunter/config-depthai.cmake
+# OAK plugin pulls DepthAI's vcpkg manifest at configure time (cmake/DepthAIVcpkgManifest.cmake);
+# we intentionally do not track our own vcpkg.json.
+/vcpkg.json
 
 # Python egg info
 *.egg-info/

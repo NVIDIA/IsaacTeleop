@@ -20,4 +20,7 @@ const common = require('./webpack.common.js');
 
 module.exports = merge(common, {
   mode: 'production',
+  // Inline async chunks (from @pmndrs/xr emulate.js and @pmndrs/uikit msdf-generator)
+  // into bundle.js so the build produces a single JS file alongside index.html.
+  output: { asyncChunks: false },
 });

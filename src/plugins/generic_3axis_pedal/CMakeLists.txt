@@ -13,8 +13,6 @@ add_executable(generic_3axis_pedal_plugin
     generic_3axis_pedal_plugin.cpp
 )
 
-target_include_directories(generic_3axis_pedal_plugin PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-
 target_link_libraries(generic_3axis_pedal_plugin PRIVATE
     pusherio::pusherio
     oxr::oxr_core

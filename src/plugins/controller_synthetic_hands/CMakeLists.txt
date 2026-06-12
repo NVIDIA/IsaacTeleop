@@ -8,12 +8,8 @@ add_executable(controller_synthetic_hands
     controller_synthetic_hands.cpp
     synthetic_hands_plugin.cpp
     hand_generator.cpp
-    inc/controller_synthetic_hands/synthetic_hands_plugin.hpp
-    inc/controller_synthetic_hands/hand_generator.hpp
-)
-
-target_include_directories(controller_synthetic_hands PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/inc
+    synthetic_hands_plugin.hpp
+    hand_generator.hpp
 )
 
 find_package(Threads REQUIRED)

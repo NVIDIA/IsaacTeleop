@@ -3,10 +3,9 @@
 
 // VizSession config + lifecycle tests.
 
-#include "test_helpers.hpp"
-
 #include <catch2/catch_test_macros.hpp>
 #include <viz/session/viz_session.hpp>
+#include <viz/test_support/test_helpers.hpp>
 
 #include <chrono>
 #include <stdexcept>

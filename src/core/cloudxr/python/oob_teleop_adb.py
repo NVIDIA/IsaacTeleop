@@ -34,7 +34,7 @@ import sys
 import time
 import urllib.request
 from .oob_teleop_env import (
-    DEFAULT_WEB_CLIENT_ORIGIN,
+    default_web_client_origin,
     parse_env_port,
     build_headset_bookmark_url,
     client_ui_fields_from_env,
@@ -486,7 +486,7 @@ def build_teleop_url(*, resolved_port: int, usb_local: bool = False) -> str:
             **client_ui_fields_from_env(),
         }
         ovr = web_client_base_override_from_env()
-        web_base = ovr if ovr else DEFAULT_WEB_CLIENT_ORIGIN
+        web_base = ovr if ovr else default_web_client_origin()
 
     token = os.environ.get("CONTROL_TOKEN") or None
     return build_headset_bookmark_url(
@@ -1199,7 +1199,7 @@ def clear_headset_browser_cache(*, usb_local: bool) -> int:
     Returns 0 if the browser isn't running. Never raises.
     """
     from .oob_teleop_env import (  # noqa: PLC0415
-        DEFAULT_WEB_CLIENT_ORIGIN,
+        default_web_client_origin,
         usb_ui_port,
         web_client_base_override_from_env,
     )
@@ -1240,9 +1240,9 @@ def clear_headset_browser_cache(*, usb_local: bool) -> int:
             origins.append(f"https://127.0.0.1:{ui_port}")
         else:
             origin_base = (
-                web_client_base_override_from_env() or DEFAULT_WEB_CLIENT_ORIGIN
+                web_client_base_override_from_env() or default_web_client_origin()
             )
-            # DEFAULT_WEB_CLIENT_ORIGIN has trailing slash + path; reduce to origin.
+            # The client base has a trailing slash + path; reduce to origin.
             from urllib.parse import urlparse  # noqa: PLC0415
 
             parsed = urlparse(origin_base)

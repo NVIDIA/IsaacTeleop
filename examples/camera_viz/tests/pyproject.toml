@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Pyproject for the camera_viz integration tests. The ctest invocation
+# uses ``uv run --extra dev pytest`` so this pyproject's deps are
+# resolved into an ephemeral venv on first run. cupy is optional — the
+# GPU-touching tests skip cleanly when it isn't installed or no CUDA
+# device is reachable.
+
+[project]
+name = "camera-viz-tests"
+version = "0.0.0"
+requires-python = ">=3.10,<3.14"
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "numpy",
+    "pyyaml>=6.0",
+]
+gpu = [
+    "cupy-cuda12x",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

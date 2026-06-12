@@ -47,6 +47,30 @@ If you cannot run a shell, use your search/glob tools on the pattern `**/AGENTS.
 
 Optional context index: [`src/core/AGENTS.md`](src/core/AGENTS.md) (also on the ancestor walk—read it when working under `src/core/`).
 
+## CMake & include structure
+
+When you create or edit a `CMakeLists.txt`, add or move a target, place a header,
+write `#include` directives, or restructure directories, follow the repo's
+canonical CMake/include rules in **[`cmake/cmake-structure.md`](cmake/cmake-structure.md)**.
+Read that file before touching build files, header placement, or include paths.
+
+Per-tool shims auto-load the same doc for Claude Code, Cursor, Copilot, and
+CodeRabbit (`.claude/skills/cmake-structure/`, `.cursor/rules/cmake-structure.mdc`,
+`.github/instructions/cmake-structure.instructions.md`, `.coderabbit.yaml`); they
+only point here — edit the rules in the doc, not the shims.
+
+## Shell scripts
+
+- In **bash** scripts (`#!/bin/bash`, `#!/usr/bin/env bash`, or files `source`d
+  only by bash), use **`[[ ... ]]`** for conditional tests, never the POSIX
+  single-bracket **`[ ... ]`**. `[[` is safer (no word-splitting or glob
+  expansion on unquoted operands) and more feature-rich; SonarQube/ShellCheck
+  (SC2292) flag the single-bracket form.
+- **Caveat:** `[[` is a bash builtin and is **not** POSIX. Before converting,
+  confirm the script's interpreter is bash — a genuine `#!/bin/sh` (dash) script
+  must keep `[ ... ]`. Check the shebang (and, for sourced files, who sources
+  them) first.
+
 ## Pre-commit — match CI before you stop
 
 - From the **IsaacTeleop repo root** (this directory), run pre-commit and **fix all failures** before you treat a change as finished (do not only rely on “should pass” reasoning).
@@ -57,6 +81,13 @@ Optional context index: [`src/core/AGENTS.md`](src/core/AGENTS.md) (also on the 
   ```
 
 - **REUSE:** files covered by the REUSE hook need **`SPDX-FileCopyrightText`** and **`SPDX-License-Identifier`** in the form the repo already uses (for example the HTML comment block at the top of `README.md` also applies to **`AGENTS.md`** and similar docs).
+- **C++ formatting is enforced by CI, not pre-commit.** The hook set runs `ruff` for Python but does **not** run `clang-format`; CI (`build-ubuntu.yml`) installs **`clang-format-14`** and rejects unformatted C++ as `-Wclang-format-violations`. Before pushing, format touched C++ with the system `clang-format` (match CI's version 14) and verify:
+
+  ```bash
+  clang-format -i $(git diff --name-only main -- '*.cpp' '*.hpp' '*.h' '*.cc')
+  clang-format --dry-run --Werror $(git diff --name-only main -- '*.cpp' '*.hpp' '*.h' '*.cc')
+  ```
+
 - If a hook failure shows **missing or non-obvious repo policy** (not a one-off typo), you **must** add a **short** reminder under **Mandatory learning loop** rules to the right `AGENTS.md` or adjacent **`//` comments** so the next run does not repeat it—unless it is already documented.
 
 ## Mandatory learning loop (AGENTS.md and comments)

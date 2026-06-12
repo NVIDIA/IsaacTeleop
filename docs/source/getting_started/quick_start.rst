@@ -28,7 +28,8 @@ to clone the repository for a couple quick samples to run.
 2. Install the ``isaacteleop`` pip package
 ------------------------------------------
 
-In a new terminal, install the package from PyPI (or from a local wheel if you built from source):
+In a new terminal, activate your preferred virtual or conda environment, then install the package
+from PyPI (or from a local wheel if you built from source):
 
 .. code-block:: bash
 
@@ -37,6 +38,19 @@ In a new terminal, install the package from PyPI (or from a local wheel if you b
 
 Instead of installing the package from PyPI, you can build from source and install the local wheel.
 See :doc:`build_from_source/index` for more details.
+
+.. note::
+   **ARM64 / aarch64 systems only** (e.g. NVIDIA DGX Spark): PyPI does not publish pre-built
+   ``nlopt`` wheels for ARM64, so the ``retargeters`` extra cannot be installed directly from PyPI
+   (see `issue #452 <https://github.com/NVIDIA/IsaacTeleop/issues/452>`_). Follow the
+   :ref:`aarch64 nlopt wheel build steps <aarch64-nlopt-wheel>` from the build-from-source guide
+   first, then install ``isaacteleop`` with an additional ``--find-links``:
+
+   .. code-block:: bash
+
+      pip install 'isaacteleop[cloudxr,retargeters]~=1.0.0' \
+          --extra-index-url https://pypi.nvidia.com \
+          --find-links=/tmp/nlopt-wheels/
 
 .. _run-cloudxr-server:
 
@@ -184,6 +198,12 @@ running the CloudXR runtime and wss proxy in containerized environment; or using
    To stream from a Meta Quest or PICO headset, you will need a CloudXR web client. For your
    convenience, we host a prebuilt CloudXR web client at `nvidia.github.io/IsaacTeleop/client`_.
    You can just open this URL in your headset's browser. No need to build or install a separate client.
+
+   .. important::
+
+      Make sure your headset is updated to the latest firmware (system software) version before
+      connecting. Older firmware may ship an outdated browser/WebXR runtime that fails to connect or
+      streams with reduced functionality.
 
    .. tip::
 
@@ -350,7 +370,6 @@ More Information
 
 ..
    References
-.. _`nvidia.github.io/IsaacTeleop/client`: https://nvidia.github.io/IsaacTeleop/client/main/
 .. _`CloudXR documentation`: https://docs.nvidia.com/cloudxr-sdk/latest/index.html
 .. _`Isaac XR Teleop Sample Client for Apple Vision Pro`: https://github.com/isaac-sim/isaac-xr-teleop-sample-client-apple
 .. _`Isaac Lab Quick Start`: https://isaac-sim.github.io/IsaacLab/develop/source/setup/quickstart.html

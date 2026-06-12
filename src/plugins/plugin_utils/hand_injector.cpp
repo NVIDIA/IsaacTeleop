@@ -3,8 +3,9 @@
 
 // Hand tracking data injection via push devices
 
+#include "inc/plugin_utils/hand_injector.hpp"
+
 #include <oxr_utils/oxr_funcs.hpp>
-#include <plugin_utils/hand_injector.hpp>
 
 #include <cstring>
 #include <stdexcept>

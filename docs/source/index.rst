@@ -25,6 +25,7 @@ Key features:
 - **Flexible retargeting** to different robot embodiments
 - **Plugin system** for adding new devices and use cases
 - **Visualization module (Televiz)** for streaming robot camera and sensor feeds, plus 3D reconstruction content to XR headsets
+- **Markerless hand reconstruction** from egocentric video into 4D hand and camera poses (monocular supported, stereo on the roadmap)
 
 .. tip::
 
@@ -65,6 +66,7 @@ Table of Contents
    references/camera_streaming
    references/mcap_record_replay
    references/oob_teleop_control
+   references/egocentric_hand_reconstruction
    references/license
 
 Indices and tables

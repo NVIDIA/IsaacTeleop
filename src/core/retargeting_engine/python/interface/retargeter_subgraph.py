@@ -51,6 +51,17 @@ class RetargeterSubgraph(GraphExecutable):
         self._input_connections = input_connections
         self._output_types = output_types
 
+    @property
+    def target_module(self) -> BaseExecutable:
+        """The module this subgraph executes once its inputs are resolved.
+
+        Exposes the wrapped target so a runner (e.g. ``TeleopSession``) can
+        recover a registered sink node from the connected subgraph it was given
+        — for example to call ``IDeviceIOSink.flush_to_device`` after executing
+        the subgraph.
+        """
+        return self._target_module
+
     def output_types(self) -> RetargeterIOType:
         """
         Return the output type specification for this subgraph.

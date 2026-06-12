@@ -4,10 +4,9 @@
 // Tests for VkContext. Most cases require a Vulkan-capable GPU and are
 // tagged [gpu]; they SKIP cleanly on CI runners without a GPU.
 
-#include "test_helpers.hpp"
-
 #include <catch2/catch_test_macros.hpp>
 #include <viz/core/vk_context.hpp>
+#include <viz/test_support/test_helpers.hpp>
 #include <vulkan/vulkan.h>
 
 #include <stdexcept>

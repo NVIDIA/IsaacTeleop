@@ -52,8 +52,13 @@ if(BUILD_PYTHON_BINDINGS)
     add_subdirectory(python)
 endif()
 
-# Tests for each sub-module live in <module>_tests/ siblings.
+# Tests for each sub-module live in <module>_tests/ siblings. Shared test
+# fixtures are their own one-target leaf modules, processed first so the
+# *_tests executables can resolve their aliases at the link call.
 if(BUILD_TESTING)
+    add_subdirectory(test_support)
+    add_subdirectory(layers_testing)
+
     add_subdirectory(core_tests)
     add_subdirectory(layers_tests)
     add_subdirectory(session_tests)

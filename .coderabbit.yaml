@@ -41,10 +41,15 @@ reviews:
 
   # --- Per-path review focus (tell the reviewer what matters) ---
   path_instructions:
-    - path: "**/*.{cpp,h,hpp,cxx,hxx}"
+    - path: "**/*.{cpp,h,hpp,cxx,hxx,cc}"
       instructions: >-
         C++20 code. Focus on memory safety, thread safety, resource leaks, and correctness.
         Ignore style, clang-format enforces it at build time.
+        Also enforce the #include conventions documented in cmake/cmake-structure.md.
+    - path: "**/{CMakeLists.txt,*.cmake}"
+      instructions: >-
+        CMake build files. Enforce the target/include structure rules documented in
+        cmake/cmake-structure.md.
     - path: "**/*.py"
       instructions: >-
         Python code (bindings, retargeters, examples, scripts). Focus on logic errors and security

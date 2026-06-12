@@ -33,7 +33,7 @@ from isaacteleop.teleop_session_manager import (
     TeleopSessionConfig,
 )
 
-from common import HAND_BONES, build_pipeline
+from common import HAND_BONES, build_hand_pipeline
 
 
 def mcap_duration_s(path: Path) -> float:
@@ -131,7 +131,7 @@ def run_once(
     """Play the file once for ``duration_s`` wall-clock seconds. Returns frame count."""
     config = TeleopSessionConfig(
         app_name="McapHandReplayExample",
-        pipeline=build_pipeline(),
+        pipeline=build_hand_pipeline(),
         mode=SessionMode.REPLAY,
         mcap_config=McapReplayConfig(str(mcap_path)),
     )

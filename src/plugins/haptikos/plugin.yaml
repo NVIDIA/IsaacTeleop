@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: haptikos_hands_plugin
+description: "Haptikos exoskeleton hand tracking with wrist tracking from a controller"
+command: "./haptikos_hands_plugin"
+version: "1.0.0"
+devices:
+  - path: "/hand/left"
+    type: "hand_tracker"
+    description: "Left Haptikos exoskeleton"
+  - path: "/hand/right"
+    type: "hand_tracker"
+    description: "Right Haptikos exoskeleton"

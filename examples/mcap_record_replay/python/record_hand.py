@@ -24,7 +24,7 @@ from pathlib import Path
 from isaacteleop.deviceio import McapRecordingConfig
 from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
-from common import build_pipeline
+from common import build_hand_pipeline
 
 
 def main(argv: list[str]) -> int:
@@ -42,7 +42,7 @@ def main(argv: list[str]) -> int:
 
     config = TeleopSessionConfig(
         app_name="McapHandRecordExample",
-        pipeline=build_pipeline(),
+        pipeline=build_hand_pipeline(),
         mcap_config=McapRecordingConfig(str(mcap_path)),
     )
 

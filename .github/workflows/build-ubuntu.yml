@@ -42,7 +42,7 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache libvulkan-dev glslang-tools \
           libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxext-dev libxkbcommon-dev \
-          libwayland-dev wayland-protocols
+          libwayland-dev wayland-protocols autoconf automake libtool pkg-config libudev-dev
 
     - name: Install patchelf (Release only)
       if: ${{ matrix.build_type == 'Release' }}
@@ -79,14 +79,24 @@ jobs:
       with:
         github-token: ${{ secrets.V2D_RETARGETER_TOKEN }}
 
-    # Hunter cache - caches depthai dependencies (OpenSSL, CURL, etc.)
-    - name: Cache Hunter packages
-      uses: actions/cache@v5
+    # vcpkg - required when BUILD_PLUGIN_OAK_CAMERA=ON for DepthAI v3.x deps
+    - name: Cache vcpkg
+      uses: actions/cache@v4
       with:
-        path: ~/.hunter
-        key: hunter-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('cmake/SetupHunter.cmake') }}
+        path: |
+          ~/vcpkg
+          build/vcpkg_installed
+        key: vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('cmake/DepthAIVcpkgManifest.cmake') }}
         restore-keys: |
-          hunter-${{ runner.os }}-${{ runner.arch }}-
+          vcpkg-${{ runner.os }}-${{ runner.arch }}-
+
+    - name: Setup vcpkg
+      run: |
+        if [ ! -f ~/vcpkg/vcpkg ]; then
+          git clone https://github.com/microsoft/vcpkg ~/vcpkg
+          ~/vcpkg/bootstrap-vcpkg.sh -disableMetrics
+        fi
+        echo "VCPKG_ROOT=$HOME/vcpkg" >> $GITHUB_ENV
 
     - name: Cache ccache
       uses: actions/cache@v5
@@ -111,7 +121,8 @@ jobs:
           -DBUILD_PLUGIN_OAK_CAMERA=ON \
           -DBUILD_VIZ=ON \
           -DENABLE_CLOUDXR_BUNDLE_CHECK=ON \
-          -DBUNDLE_ROBOTIC_GROUNDING=${{ steps.setup-v2d-src.outputs.bundled || 'false' }}
+          -DBUNDLE_ROBOTIC_GROUNDING=${{ steps.setup-v2d-src.outputs.bundled || 'false' }} \
+          -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake
 
     - name: Build
       run: cmake --build build --parallel 4
@@ -421,7 +432,7 @@ jobs:
         tar -xvf isaacteleop-install.tar -C install
 
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      uses: docker/setup-buildx-action@v4
 
     - name: Run Tests with CloudXR
       env:
@@ -464,7 +475,7 @@ jobs:
         tar -xvf isaacteleop-install.tar -C install
 
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      uses: docker/setup-buildx-action@v4
 
     - name: Setup robotic_grounding source bundle
       id: setup-v2d-src
@@ -482,6 +493,11 @@ jobs:
           echo "ROS_DISTRO=jazzy" >> $GITHUB_ENV
         fi
 
+    - name: Setup CloudXR SDK
+      uses: ./.github/actions/setup-cloudxr-sdk
+      with:
+        ngc-api-key: ${{ secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY }}
+
     - name: Build teleop_ros2 image
       run: |
         docker build -f examples/teleop_ros2/Dockerfile \
@@ -490,99 +506,48 @@ jobs:
           --build-arg BUNDLE_ROBOTIC_GROUNDING=${{ steps.setup-v2d-src.outputs.bundled || 'false' }} \
           -t teleop_ros2_ref:${{ env.ROS_DISTRO }} .
 
-    - name: Verify application modes
-      env:
-        ACCEPT_CLOUDXR_EULA: Y
-        CXR_BUILD_CONTEXT: ${{ github.workspace }}
-        CXR_RUNTIME_NETWORK_MODE: bridge
-        PYTHON_VERSION: ${{ matrix.python_version }}
-        ISAACTELEOP_PIP_DEBUG: "0"
-        ISAACTELEOP_PIP_FIND_LINKS: /workspace/install/wheels
-        ISAACTELEOP_PIP_SPEC: isaacteleop[cloudxr]
+    # MCAP replay path: feed a recorded fixture through the node
+    # (SessionMode.REPLAY, no CloudXR runtime / GPU) across all teleop modes and
+    # verify the published topics. The cheaper, deterministic check; runs before
+    # the live bring-up below, which reuses the same image and removes it on
+    # teardown.
+    - name: Verify application modes (MCAP replay)
       run: |
-        source scripts/setup_cloudxr_env.sh
+        set -euo pipefail
 
         PROJECT_NAME="isaacteleop-test-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}-${{ env.ROS_DISTRO }}"
         LOG_FILE_BASE="/tmp/ros2_test_output_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${{ matrix.arch }}_${{ env.ROS_DISTRO }}"
+        REPLAY_MCAP="/tmp/teleop_ros2_test_input_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${{ matrix.arch }}_${{ env.ROS_DISTRO }}.mcap"
         STARTUP_MARKER="TeleopSession started successfully"
         READINESS_TIMEOUT_SEC=30
         READINESS_POLL_INTERVAL_SEC=1
 
         # Cleanup
-        trap 'docker compose -p "$PROJECT_NAME" \
-          --env-file "$ENV_DEFAULT" \
-          ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
-          -f deps/cloudxr/docker-compose.runtime.yaml \
-          -f deps/cloudxr/docker-compose.test.yaml \
-          -f deps/cloudxr/docker-compose.override.yaml \
-          down -v' EXIT
+        trap 'docker ps -aq --filter "name=teleop-ros2-$PROJECT_NAME" | xargs -r docker rm -f >/dev/null 2>&1 || true; rm -f "$REPLAY_MCAP"' EXIT
 
-        # Start CloudXR runtime
-        cat <<EOF > deps/cloudxr/docker-compose.override.yaml
-        services:
-          cloudxr-runtime:
-            container_name: "cloudxr-runtime-$PROJECT_NAME"
-        EOF
+        docker run --rm \
+          --user "$(id -u):$(id -g)" \
+          -v /tmp:/tmp \
+          --entrypoint bash teleop_ros2_ref:${{ env.ROS_DISTRO }} -c \
+          "source /usr/local/bin/teleop-env-setup && exec /opt/isaacteleop/install/examples/teleop_ros2/cpp/integration_tests/teleop_ros2_mcap_generator '$REPLAY_MCAP'"
 
-        docker compose -p "$PROJECT_NAME" \
-          --env-file "$ENV_DEFAULT" \
-          ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
-          -f deps/cloudxr/docker-compose.runtime.yaml \
-          -f deps/cloudxr/docker-compose.test.yaml \
-          -f deps/cloudxr/docker-compose.override.yaml \
-          up --build -d cloudxr-runtime
-
-        # Wait for healthy
-        healthy=false
-        for i in {1..30}; do
-          if docker compose -p "$PROJECT_NAME" \
-            --env-file "$ENV_DEFAULT" \
-            ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
-            -f deps/cloudxr/docker-compose.runtime.yaml \
-            -f deps/cloudxr/docker-compose.test.yaml \
-            -f deps/cloudxr/docker-compose.override.yaml \
-            ps cloudxr-runtime | grep -q "healthy"; then
-            healthy=true
-            break
-          fi
-          sleep 2
-        done
-
-        if [ "$healthy" = false ]; then
-          echo "Error: CloudXR runtime failed to become healthy"
-          docker compose -p "$PROJECT_NAME" \
-            --env-file "$ENV_DEFAULT" \
-            ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
-            -f deps/cloudxr/docker-compose.runtime.yaml \
-            -f deps/cloudxr/docker-compose.test.yaml \
-            -f deps/cloudxr/docker-compose.override.yaml \
-            logs cloudxr-runtime
-          exit 1
-        fi
-
-        # Run tests
         for mode in controller_teleop hand_teleop controller_raw full_body; do
           echo "Testing mode: $mode"
           LOG_FILE="${LOG_FILE_BASE}_${mode}.log"
           RUN_NAME="teleop-ros2-${PROJECT_NAME}-${mode//_/-}"
+          verifier_rc=0
           docker_rc=0
           started=false
 
           rm -f "$LOG_FILE"
 
-          # This test overrides the image entrypoint, so keep uv's runtime
-          # resolver pointed at the locally built arm64 nlopt wheel.
           docker run -d \
             --name "$RUN_NAME" \
-            --gpus all \
             --network host \
-            -v "$CXR_HOST_VOLUME_PATH:$CXR_HOST_VOLUME_PATH" \
             -v /tmp:/tmp \
-            -e NV_CXR_RUNTIME_DIR="$CXR_HOST_VOLUME_PATH/.cloudxr/run" \
-            -e XR_RUNTIME_JSON="$CXR_HOST_VOLUME_PATH/.cloudxr/openxr_cloudxr.json" \
             -e PYTHONUNBUFFERED=1 \
             --entrypoint bash teleop_ros2_ref:${{ env.ROS_DISTRO }} -c \
-            "source /usr/local/bin/teleop-env-setup && exec uv run --find-links=/opt/nlopt-wheels teleop_ros2_node.py --ros-args -p mode:=$mode -p use_mock_operators:=true" >/dev/null
+            "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync teleop_ros2_node.py --ros-args -p mode:=$mode -p mcap_replay_path:=$REPLAY_MCAP" >/dev/null
 
           deadline=$((SECONDS + READINESS_TIMEOUT_SEC))
           while [ "$SECONDS" -lt "$deadline" ]; do
@@ -605,6 +570,15 @@ jobs:
           docker logs "$RUN_NAME" > "$LOG_FILE" 2>&1 || true
 
           if [ "$started" = true ]; then
+            if docker exec \
+              -e PYTHONUNBUFFERED=1 \
+              "$RUN_NAME" bash -c \
+              "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync integration_tests/teleop_ros2_topic_verifier.py --mode $mode"; then
+              verifier_rc=0
+            else
+              verifier_rc=$?
+            fi
+            docker logs "$RUN_NAME" > "$LOG_FILE" 2>&1 || true
             docker stop --time 5 "$RUN_NAME" >/dev/null || true
             docker wait "$RUN_NAME" >/dev/null || true
           else
@@ -629,7 +603,141 @@ jobs:
           if [ "$started" != true ]; then
             exit 1
           fi
+          if [ "$verifier_rc" -ne 0 ]; then
+            echo "Error: topic verifier failed in mode $mode (exit code $verifier_rc)"
+            exit "$verifier_rc"
+          fi
         done
+
+    # Live CloudXR bring-up on the same GPU runner, reusing the teleop_ros2_ref
+    # image built above. Runs the teleop_ros2 node against a real in-process
+    # CloudXR runtime (CloudXRLauncher launches the runtime + WSS proxy) and
+    # asserts clean bring-up. No XR client connects, so the session never starts
+    # and topics are not verified here; this exercises the CloudXR launch path
+    # the replay phase above cannot.
+    - name: Verify live CloudXR bring-up
+      run: |
+        set -euo pipefail
+
+        IMAGE="teleop_ros2_ref:${{ env.ROS_DISTRO }}"
+        RUN_NAME="teleop-ros2-cloudxr-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}-${{ env.ROS_DISTRO }}"
+        LOG_FILE="/tmp/ros2_cloudxr_output_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${{ matrix.arch }}_${{ env.ROS_DISTRO }}.log"
+        MODE="controller_teleop"
+
+        # The node logs this after CloudXRLauncher returns: runtime ready + WSS
+        # proxy up. This is the primary bring-up marker.
+        BRINGUP_MARKER="CloudXR runtime and WSS proxy started"
+        # After bring-up the node enters the live session loop. With no XR client
+        # connected it logs the retry warning; if a device/system is present it
+        # logs session start. Either proves the loop is live.
+        LOOP_MARKER_A="TeleopSession started successfully"
+        LOOP_MARKER_B="No XR client connected"
+        # Hard failures from the launcher/runtime.
+        FAIL_RE="CloudXR runtime failed to start|SDK missing libcloudxr.so|CloudXR EULA was not accepted|CloudXR launcher is not running|runtime process exited unexpectedly|WSS proxy thread stopped unexpectedly"
+
+        BRINGUP_TIMEOUT_SEC=180
+        LOOP_TIMEOUT_SEC=30
+        SOAK_SEC=15
+        POLL_INTERVAL_SEC=2
+
+        rm -f "$LOG_FILE"
+
+        cleanup() {
+          docker logs "$RUN_NAME" > "$LOG_FILE" 2>&1 || true
+          docker rm -f "$RUN_NAME" >/dev/null 2>&1 || true
+          docker image rm -f "$IMAGE" >/dev/null 2>&1 || true
+        }
+        trap cleanup EXIT
+
+        # Live session: no mcap_replay_path => SessionMode.LIVE; accept the EULA
+        # non-interactively. --gpus all gives the in-process runtime a GPU.
+        docker run -d \
+          --name "$RUN_NAME" \
+          --gpus all \
+          -e PYTHONUNBUFFERED=1 \
+          -e ACCEPT_CLOUDXR_EULA=Y \
+          --entrypoint bash "$IMAGE" -c \
+          "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync teleop_ros2_node.py --ros-args -p mode:=$MODE -p cloudxr_accept_eula:=true" >/dev/null
+
+        fail() {
+          echo "Error: $1"
+          docker logs "$RUN_NAME" > "$LOG_FILE" 2>&1 || true
+          echo "===== teleop_ros2 (live) container log ====="
+          cat "$LOG_FILE" 2>/dev/null || echo "No log captured"
+          exit 1
+        }
+
+        # Phase 1: wait for CloudXR runtime + WSS proxy bring-up.
+        bringup=false
+        deadline=$((SECONDS + BRINGUP_TIMEOUT_SEC))
+        while [ "$SECONDS" -lt "$deadline" ]; do
+          docker logs "$RUN_NAME" > "$LOG_FILE" 2>&1 || true
+
+          if grep -Eq "$FAIL_RE" "$LOG_FILE"; then
+            fail "CloudXR runtime/launcher reported a fatal error during bring-up"
+          fi
+          if grep -qF "$BRINGUP_MARKER" "$LOG_FILE"; then
+            bringup=true
+            break
+          fi
+
+          running=$(docker inspect -f '{{.State.Running}}' "$RUN_NAME" 2>/dev/null || echo false)
+          if [ "$running" != "true" ]; then
+            rc=$(docker inspect -f '{{.State.ExitCode}}' "$RUN_NAME" 2>/dev/null || echo 1)
+            fail "node exited before CloudXR bring-up (exit code $rc)"
+          fi
+
+          sleep "$POLL_INTERVAL_SEC"
+        done
+
+        if [ "$bringup" != true ]; then
+          fail "CloudXR runtime + WSS proxy did not come up within ${BRINGUP_TIMEOUT_SEC}s"
+        fi
+        echo "CloudXR runtime + WSS proxy came up."
+
+        # Phase 2: confirm the node entered the live session loop.
+        loop=false
+        deadline=$((SECONDS + LOOP_TIMEOUT_SEC))
+        while [ "$SECONDS" -lt "$deadline" ]; do
+          docker logs "$RUN_NAME" > "$LOG_FILE" 2>&1 || true
+          if grep -Eq "$FAIL_RE" "$LOG_FILE"; then
+            fail "CloudXR runtime/launcher reported a fatal error after bring-up"
+          fi
+          if grep -qF "$LOOP_MARKER_A" "$LOG_FILE" || grep -qF "$LOOP_MARKER_B" "$LOG_FILE"; then
+            loop=true
+            break
+          fi
+          running=$(docker inspect -f '{{.State.Running}}' "$RUN_NAME" 2>/dev/null || echo false)
+          if [ "$running" != "true" ]; then
+            rc=$(docker inspect -f '{{.State.ExitCode}}' "$RUN_NAME" 2>/dev/null || echo 1)
+            fail "node exited before entering the live session loop (exit code $rc)"
+          fi
+          sleep "$POLL_INTERVAL_SEC"
+        done
+
+        if [ "$loop" != true ]; then
+          fail "node did not enter the live session loop within ${LOOP_TIMEOUT_SEC}s"
+        fi
+        echo "Node entered the live session loop."
+
+        # Phase 3: soak. The node calls launcher.health_check() every loop, so a
+        # dead runtime/WSS proxy would crash it. Surviving the soak with no fatal
+        # log means the live CloudXR stack stayed healthy.
+        sleep "$SOAK_SEC"
+        docker logs "$RUN_NAME" > "$LOG_FILE" 2>&1 || true
+        if grep -Eq "$FAIL_RE" "$LOG_FILE"; then
+          fail "CloudXR runtime/launcher reported a fatal error during soak"
+        fi
+        running=$(docker inspect -f '{{.State.Running}}' "$RUN_NAME" 2>/dev/null || echo false)
+        if [ "$running" != "true" ]; then
+          rc=$(docker inspect -f '{{.State.ExitCode}}' "$RUN_NAME" 2>/dev/null || echo 1)
+          fail "node exited during the ${SOAK_SEC}s soak (exit code $rc)"
+        fi
+
+        docker stop --time 5 "$RUN_NAME" >/dev/null || true
+        echo "===== teleop_ros2 (live) container log ====="
+        cat "$LOG_FILE" 2>/dev/null || echo "No log captured"
+        echo "Live CloudXR bring-up verified for mode $MODE (${{ env.ROS_DISTRO }}, ${{ matrix.arch }})."
 
   # These are the actual dependency jobs for publish-wheel. publish-wheel
   # depends only on wheel-gate so the dependency list lives in one place, while
@@ -675,6 +783,7 @@ jobs:
     outputs:
       wheel_paths: ${{ steps.upload-artifactory.outputs.wheel_paths }}
     environment: dev
+    timeout-minutes: 10
 
     # Publish only for same-repo runs (pushes or non-fork PRs). github.repository
     # is the base repo even for fork PRs, so compare the PR head repo instead.
@@ -933,25 +1042,56 @@ jobs:
         # Limit total polling time to under an hour with exponential backoff starting at 30s
         max_attempts=15
         sleep_seconds=30
+        # Reason reported if every attempt is exhausted; refined as we poll so
+        # the final message reflects the last condition seen (e.g. repeated
+        # 5xx or network errors) instead of always claiming a plain timeout.
+        last_reason="release status never reached a terminal state"
 
         for ((attempt=1; attempt<=max_attempts; attempt++)); do
           echo "Polling Kitmaker status (attempt ${attempt}/${max_attempts})"
 
-          response_json="$(curl --fail-with-body --show-error --silent --location --connect-timeout 10 --max-time 60 \
+          # Capture the body and HTTP status separately (instead of relying on
+          # --fail-with-body) so we can tell a transient failure worth retrying
+          # — a network error or a 5xx — apart from a permanent one (a 4xx such
+          # as auth/not-found) that will never succeed and should fail fast.
+          # Don't let a network failure abort the step under `set -e`.
+          curl_status=0
+          curl_output="$(curl --show-error --silent --location --connect-timeout 10 --max-time 60 \
+            --write-out '\n%{http_code}' \
             -H "Authorization: Bearer ${KITMAKER_TOKEN}" \
-            "${status_url}")"
+            "${status_url}")" || curl_status=$?
+          http_code="${curl_output##*$'\n'}"
+          response_json="${curl_output%$'\n'*}"
 
-          echo "${response_json}"
-          status="$(jq -r '.status // empty' <<< "${response_json}")"
+          if (( curl_status != 0 )); then
+            # Network-level failure (timeout, connection reset, DNS): transient.
+            last_reason="curl request kept failing (last exit ${curl_status})"
+            echo "curl request failed (exit ${curl_status}); will retry on the next attempt"
+          else
+            echo "${response_json}"
 
-          if [[ "${status}" == "completed" ]]; then
-            echo "Kitmaker release ${KITMAKER_RELEASE_UUID} completed"
-            exit 0
-          fi
+            if (( http_code >= 500 )); then
+              last_reason="Kitmaker status endpoint kept returning HTTP ${http_code}"
+              echo "Kitmaker status request returned HTTP ${http_code}; will retry on the next attempt"
+            elif (( http_code >= 400 )); then
+              echo "Kitmaker status request returned HTTP ${http_code}"
+              exit 1
+            else
+              # A non-JSON body (e.g. a proxy/gateway error page served with a
+              # 2xx) is itself transient: leave status empty and keep polling
+              # rather than letting jq's parse error abort the step under set -e.
+              status="$(jq -r '.status // empty' <<< "${response_json}" 2>/dev/null || true)"
 
-          if [[ "${status}" == "failed" ]]; then
-            echo "Kitmaker release ${KITMAKER_RELEASE_UUID} failed"
-            exit 1
+              if [[ "${status}" == "completed" ]]; then
+                echo "Kitmaker release ${KITMAKER_RELEASE_UUID} completed"
+                exit 0
+              fi
+
+              if [[ "${status}" == "failed" ]]; then
+                echo "Kitmaker release ${KITMAKER_RELEASE_UUID} failed"
+                exit 1
+              fi
+            fi
           fi
 
           if (( attempt == max_attempts )); then
@@ -962,5 +1102,5 @@ jobs:
           sleep_seconds=$(( sleep_seconds * 125 / 100 ))
         done
 
-        echo "Timed out waiting for Kitmaker release ${KITMAKER_RELEASE_UUID} to complete"
+        echo "Timed out after ${max_attempts} attempts waiting for Kitmaker release ${KITMAKER_RELEASE_UUID}: ${last_reason}"
         exit 1

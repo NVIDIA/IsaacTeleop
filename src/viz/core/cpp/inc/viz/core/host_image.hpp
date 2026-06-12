@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include <viz/core/viz_buffer.hpp>
-#include <viz/core/viz_types.hpp>
+#include "viz_buffer.hpp"
+#include "viz_types.hpp"
 
 #include <cstddef>
 #include <cstdint>

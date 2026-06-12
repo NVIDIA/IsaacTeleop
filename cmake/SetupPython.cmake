@@ -10,12 +10,60 @@
 # This module uses uv to install and find the managed Python version.
 # It ALWAYS uses uv-managed Python, ignoring any venv or system Python.
 #
-# Usage: include(cmake/SetupPython.cmake)
+# Usage (set all three before include):
+#   set(ISAAC_TELEOP_PYTHON_VERSION ...)
+#   set(ISAAC_TELEOP_PYTHON_VERSION_MIN ...)
+#   set(ISAAC_TELEOP_PYTHON_VERSION_MAX_EXCLUSIVE ...)
+#   include(cmake/SetupPython.cmake)
 # ==============================================================================
+
+function(isaac_teleop_enforce_python_version)
+    set(_options "")
+    set(_one_value_args VERSION MIN_VERSION MAX_EXCLUSIVE)
+    set(_multi_value_args "")
+    cmake_parse_arguments(_py "${_options}" "${_one_value_args}" "${_multi_value_args}" ${ARGN})
+
+    if(NOT _py_VERSION OR NOT _py_MIN_VERSION OR NOT _py_MAX_EXCLUSIVE)
+        message(FATAL_ERROR
+            "isaac_teleop_enforce_python_version requires VERSION, MIN_VERSION, and MAX_EXCLUSIVE.")
+    endif()
+
+    if(NOT _py_VERSION MATCHES "^[0-9]+\\.[0-9]+$")
+        message(FATAL_ERROR
+            "ISAAC_TELEOP_PYTHON_VERSION must be major.minor (e.g. 3.11), got: ${_py_VERSION}")
+    endif()
+    if(_py_VERSION VERSION_LESS _py_MIN_VERSION)
+        message(FATAL_ERROR
+            "ISAAC_TELEOP_PYTHON_VERSION ${_py_VERSION} is below the minimum "
+            "supported version ${_py_MIN_VERSION}.")
+    endif()
+    if(NOT _py_VERSION VERSION_LESS _py_MAX_EXCLUSIVE)
+        message(FATAL_ERROR
+            "ISAAC_TELEOP_PYTHON_VERSION ${_py_VERSION} is not supported; "
+            "must be less than ${_py_MAX_EXCLUSIVE} "
+            "(supported: ${_py_MIN_VERSION} <= version < ${_py_MAX_EXCLUSIVE}).")
+    endif()
+
+    message(STATUS "Configuring for Python ${_py_VERSION} "
+        "(supported: ${_py_MIN_VERSION} <= version < ${_py_MAX_EXCLUSIVE})")
+endfunction()
 
 if(NOT DEFINED ISAAC_TELEOP_PYTHON_VERSION)
     message(FATAL_ERROR "ISAAC_TELEOP_PYTHON_VERSION must be set before including SetupPython.cmake")
 endif()
+if(NOT DEFINED ISAAC_TELEOP_PYTHON_VERSION_MIN)
+    message(FATAL_ERROR
+        "ISAAC_TELEOP_PYTHON_VERSION_MIN must be set before including SetupPython.cmake")
+endif()
+if(NOT DEFINED ISAAC_TELEOP_PYTHON_VERSION_MAX_EXCLUSIVE)
+    message(FATAL_ERROR
+        "ISAAC_TELEOP_PYTHON_VERSION_MAX_EXCLUSIVE must be set before including SetupPython.cmake")
+endif()
+
+isaac_teleop_enforce_python_version(
+    VERSION "${ISAAC_TELEOP_PYTHON_VERSION}"
+    MIN_VERSION "${ISAAC_TELEOP_PYTHON_VERSION_MIN}"
+    MAX_EXCLUSIVE "${ISAAC_TELEOP_PYTHON_VERSION_MAX_EXCLUSIVE}")
 
 option(BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
 

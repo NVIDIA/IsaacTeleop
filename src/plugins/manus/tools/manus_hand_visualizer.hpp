@@ -6,7 +6,7 @@
 // Xlib must be included before Vulkan xlib surface header.
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
-#include <core/manus_hand_tracking_plugin.hpp>
+#include <manus/manus_hand_tracking_plugin.hpp>
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_xlib.h>
 

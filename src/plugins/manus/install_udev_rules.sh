@@ -22,7 +22,7 @@ MANUS_VENDOR_ID="${MANUS_USB_ID%%:*}"
 
 die() {
     echo "Error: $1" >&2
-    if [ "${2:-}" != "" ]; then
+    if [[ "${2:-}" != "" ]]; then
         echo "Action: $2" >&2
     fi
     exit 1
@@ -30,7 +30,7 @@ die() {
 
 warn() {
     echo "Warning: $1"
-    if [ "${2:-}" != "" ]; then
+    if [[ "${2:-}" != "" ]]; then
         echo "Action:  $2"
     fi
     verification_ok=0
@@ -45,13 +45,13 @@ require_command() {
     fi
 }
 
-if [ ! -f "$RULES_SRC" ]; then
+if [[ ! -f "$RULES_SRC" ]]; then
     die "rules file not found at $RULES_SRC" "Run this script from a complete IsaacTeleop checkout."
 fi
 
 # Refuse to run inside a container — the udevadm reload would silently no-op
 # and the user would think it worked.
-if [ -f /.dockerenv ] || grep -qE '(docker|containerd|kubepods)' /proc/1/cgroup 2>/dev/null; then
+if [[ -f /.dockerenv ]] || grep -qE '(docker|containerd|kubepods)' /proc/1/cgroup 2>/dev/null; then
     die "this script must be run on the HOST, not inside a container." \
         "Open a host terminal, cd to this IsaacTeleop checkout, and run: ./src/plugins/manus/install_udev_rules.sh"
 fi
@@ -101,21 +101,21 @@ else
             || true
     )"
 
-    if [ -z "$MANUS_USB_NODES" ]; then
+    if [[ -z "$MANUS_USB_NODES" ]]; then
         warn "Manus dongle was not detected on this host with 'lsusb -d $MANUS_USB_ID'." \
             "Plug the dongle into the host, unplug/replug it if already connected, then re-run this script."
     else
         while IFS= read -r manus_usb_node; do
-            [ -n "$manus_usb_node" ] || continue
+            [[ -n "$manus_usb_node" ]] || continue
 
-            if [ ! -e "$manus_usb_node" ]; then
+            if [[ ! -e "$manus_usb_node" ]]; then
                 warn "lsusb found the Manus dongle, but $manus_usb_node does not exist." \
                     "Unplug and replug the dongle, then check again with: lsusb -d $MANUS_USB_ID"
                 continue
             fi
 
             mode="$(stat -c '%a' "$manus_usb_node" 2>/dev/null || true)"
-            if [ "$mode" = "666" ]; then
+            if [[ "$mode" = "666" ]]; then
                 echo "  OK: $manus_usb_node has mode 0666."
             else
                 warn "$manus_usb_node has mode ${mode:-unknown}; expected 0666." \
@@ -128,12 +128,12 @@ fi
 echo "Verifying optional Manus hidraw device permissions..."
 hidraw_seen=0
 for hidraw_node in /dev/hidraw*; do
-    [ -e "$hidraw_node" ] || continue
+    [[ -e "$hidraw_node" ]] || continue
 
     if udevadm info -q property -n "$hidraw_node" 2>/dev/null | grep -q "^ID_VENDOR_ID=$MANUS_VENDOR_ID$"; then
         hidraw_seen=1
         mode="$(stat -c '%a' "$hidraw_node" 2>/dev/null || true)"
-        if [ "$mode" = "666" ]; then
+        if [[ "$mode" = "666" ]]; then
             echo "  OK: $hidraw_node has mode 0666."
         else
             warn "$hidraw_node has mode ${mode:-unknown}; expected 0666." \
@@ -142,12 +142,12 @@ for hidraw_node in /dev/hidraw*; do
     fi
 done
 
-if [ "$hidraw_seen" -eq 0 ]; then
+if [[ "$hidraw_seen" -eq 0 ]]; then
     echo "  No Manus hidraw nodes found. This is okay for dongles that only expose /dev/bus/usb."
 fi
 
 echo ""
-if [ "$verification_ok" -eq 1 ]; then
+if [[ "$verification_ok" -eq 1 ]]; then
     echo "=== Done ==="
     echo "Manus udev rules are installed, reloaded, and detected device permissions look correct."
     echo "If a container was already running, restart it so it sees the updated host device permissions."

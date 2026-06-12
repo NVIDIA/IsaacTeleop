@@ -39,7 +39,7 @@ add_library(viz_core STATIC
 )
 
 target_include_directories(viz_core
-    PUBLIC
+    INTERFACE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
 )
 

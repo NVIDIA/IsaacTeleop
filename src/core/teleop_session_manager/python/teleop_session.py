@@ -13,16 +13,23 @@ import logging
 import time
 from contextlib import ExitStack
 from dataclasses import dataclass
-from typing import Optional, Dict, Any, List, Set
+from typing import Optional, Dict, Any, List, Set, Tuple
 
-from isaacteleop.retargeting_engine.deviceio_source_nodes import IDeviceIOSource
+from isaacteleop.retargeting_engine.deviceio_source_nodes import (
+    IDeviceIOSink,
+    IDeviceIOSource,
+)
 from isaacteleop.retargeting_engine.interface import BaseRetargeter
 from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
     ComputeContext,
+    ExecutionCache,
     GraphExecutable,
     GraphTime,
     RetargeterIO,
     RetargeterIOType,
+)
+from isaacteleop.retargeting_engine.interface.retargeter_subgraph import (
+    RetargeterSubgraph,
 )
 from isaacteleop.retargeting_engine.interface.execution_events import (
     ExecutionEvents,
@@ -52,6 +59,23 @@ from .teleop_state_manager_types import teleop_control_states
 
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_sink(entry: GraphExecutable) -> Tuple[GraphExecutable, IDeviceIOSink]:
+    """Resolve a configured ``sinks`` entry into ``(executable, sink_node)``.
+
+    ``entry`` is either a bare :class:`IDeviceIOSink` or the
+    :class:`RetargeterSubgraph` returned by ``sink.connect({...})`` (whose
+    ``target_module`` is the sink). The executable is what the session runs each
+    frame; the sink node is what it flushes to the device afterwards.
+    """
+    target = entry.target_module if isinstance(entry, RetargeterSubgraph) else entry
+    if not isinstance(target, IDeviceIOSink):
+        raise TypeError(
+            "TeleopSession sinks must be an IDeviceIOSink (or a subgraph wrapping "
+            f"one, e.g. sink.connect({{...}})); got {type(target).__name__}"
+        )
+    return entry, target
 
 
 @dataclass
@@ -167,6 +191,12 @@ class TeleopSession:
         # Cached leaf name sets for filtering pipeline inputs
         self._main_leaf_names: Set[str] = set()
         self._control_leaf_names: Set[str] = set()
+        self._sink_leaf_names: Set[str] = set()
+
+        # Output sinks discovered from config: (executable, sink node) pairs.
+        # The executable is run each frame (after the main pipeline); the sink
+        # node is then flushed to its device with the active session.
+        self._sinks: List[Tuple[GraphExecutable, IDeviceIOSink]] = []
 
         # Runtime state
         self.frame_count: int = 0
@@ -198,37 +228,56 @@ class TeleopSession:
         return self._last_step_info
 
     def _discover_sources(self) -> None:
-        """Discover DeviceIO source modules and external leaf nodes from the pipeline.
+        """Discover DeviceIO sources, output sinks, and external leaf nodes.
 
-        Traverses the pipeline to find all leaf nodes, partitioning them into:
+        Traverses the main pipeline, the teleop control pipeline, and every
+        registered output sink subgraph to find all leaf nodes, partitioning
+        them into:
         - IDeviceIOSource instances (auto-polled from hardware trackers)
         - External leaves (non-DeviceIO leaves with non-empty input_spec() that
           require caller-provided inputs in step()). Leaves with empty input_spec()
           (e.g. fixed-command retargeters) are not treated as external and do not
           require external_inputs.
+
+        Sinks are resolved into ``self._sinks`` and their own upstream leaves
+        (the sources / external inputs feeding them) are folded into the same
+        discovery, so a heatmap/force that feeds *only* a sink is still polled
+        or requested via ``step(external_inputs=...)``.
         """
         main_leaf_nodes = self.pipeline.get_leaf_nodes()
         control_leaf_nodes: List[BaseRetargeter] = []
         if self.teleop_control_pipeline is not None:
             control_leaf_nodes = self.teleop_control_pipeline.get_leaf_nodes()
 
-        leaf_nodes = main_leaf_nodes + control_leaf_nodes
+        # Resolve registered sinks and gather the leaves feeding each sink
+        # subgraph (excluding the sink node itself, which is a consumer, not a
+        # leaf input).
+        self._sinks = [_resolve_sink(entry) for entry in self.config.sinks]
+        sink_leaf_nodes: List[BaseRetargeter] = []
+        for executable, sink_node in self._sinks:
+            for leaf in executable.get_leaf_nodes():
+                if leaf is sink_node:
+                    continue
+                sink_leaf_nodes.append(leaf)
+
+        leaf_nodes = main_leaf_nodes + control_leaf_nodes + sink_leaf_nodes
         main_leaf_ids = {id(node) for node in main_leaf_nodes}
         control_leaf_ids = {id(node) for node in control_leaf_nodes}
 
         # Cache leaf name sets for filtering pipeline inputs
         self._main_leaf_names = {node.name for node in main_leaf_nodes}
         self._control_leaf_names = {node.name for node in control_leaf_nodes}
+        self._sink_leaf_names = {node.name for node in sink_leaf_nodes}
 
-        # Leaf names must be unique across main and control pipelines because
-        # they are used as top-level keys in collected pipeline inputs.
+        # Leaf names must be unique across the pipeline, control pipeline, and
+        # sinks because they are used as top-level keys in collected inputs.
         seen_name_to_id: Dict[str, int] = {}
         for node in leaf_nodes:
             existing_id = seen_name_to_id.get(node.name)
             if existing_id is not None and existing_id != id(node):
                 raise ValueError(
-                    "Duplicate leaf node name detected across pipeline and "
-                    "teleop_control_pipeline: "
+                    "Duplicate leaf node name detected across pipeline, "
+                    "teleop_control_pipeline, and sinks: "
                     f"'{node.name}' (node ids: {existing_id}, {id(node)})"
                 )
             seen_name_to_id[node.name] = id(node)
@@ -453,11 +502,35 @@ class TeleopSession:
             ),
         )
 
-        # Filter pipeline_inputs to only main leaf inputs
-        main_inputs = {
-            k: v for k, v in pipeline_inputs.items() if k in self._main_leaf_names
+        # Fast path with no output sinks: run the main pipeline exactly as
+        # before (preserves the GraphExecutable.execute_pipeline contract).
+        if not self._sinks:
+            main_inputs = {
+                k: v for k, v in pipeline_inputs.items() if k in self._main_leaf_names
+            }
+            return self.pipeline.execute_pipeline(main_inputs, context), context
+
+        # Sinks present: drive the main pipeline and every sink subgraph through
+        # one shared ExecutionCache so nodes shared between them (e.g. a stateful
+        # smoothing retargeter feeding both a returned output and a sink) compute
+        # exactly once per frame rather than advancing their state twice.
+        graph_leaf_names = self._main_leaf_names | self._sink_leaf_names
+        graph_inputs = {
+            k: v for k, v in pipeline_inputs.items() if k in graph_leaf_names
         }
-        return self.pipeline.execute_pipeline(main_inputs, context), context
+        cache = ExecutionCache(graph_inputs, context)
+        main_outputs = self.pipeline.execute_pipeline_with_cache(cache)
+
+        # Output phase: run each sink subgraph (its _compute_fn stores this
+        # frame's per-endpoint values on the device), then flush every sink to
+        # hardware with the active session. The IDeviceIOSink/IHapticDevice
+        # contract is non-throwing, so a device hiccup cannot tear down the loop.
+        for executable, _sink_node in self._sinks:
+            executable.execute_pipeline_with_cache(cache)
+        for _executable, sink_node in self._sinks:
+            sink_node.flush_to_device(self.deviceio_session)
+
+        return main_outputs, context
 
     def _make_retarget_frame(
         self,
@@ -873,10 +946,28 @@ class TeleopSession:
                 deviceio.ReplaySession.run(mcap_config)
             )
         else:
-            # Collect trackers from source nodes and config
-            trackers = [source.get_tracker() for source in self._sources]
-            if self.config.trackers:
-                trackers.extend(self.config.trackers)
+            # Collect trackers from input sources, output sinks, and config,
+            # deduplicating by object identity so a tracker shared between an
+            # input source and an output sink (e.g. the ControllerTracker used
+            # by both ControllersSource and ControllerHapticDevice) is
+            # registered exactly once. Sink trackers must be included so their
+            # OpenXR extensions (e.g. XR_NVX1_push_tensor for a cross-process
+            # device) are aggregated into the session.
+            trackers: List[Any] = []
+            seen_tracker_ids: Set[int] = set()
+
+            def _add_tracker(tracker: Any) -> None:
+                if tracker is None or id(tracker) in seen_tracker_ids:
+                    return
+                seen_tracker_ids.add(id(tracker))
+                trackers.append(tracker)
+
+            for source in self._sources:
+                _add_tracker(source.get_tracker())
+            for _executable, sink_node in self._sinks:
+                _add_tracker(sink_node.get_tracker())
+            for tracker in self.config.trackers:
+                _add_tracker(tracker)
 
             # Get required extensions from all trackers
             required_extensions = deviceio.DeviceIOSession.get_required_extensions(

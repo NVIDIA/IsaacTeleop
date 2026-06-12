@@ -26,13 +26,13 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${REPO_ROOT}"
 
 VERSION_FILE="deps/v2d/version.txt"
-if [ ! -f "${VERSION_FILE}" ]; then
+if [[ ! -f "${VERSION_FILE}" ]]; then
     echo "error: ${VERSION_FILE} is missing." >&2
     exit 1
 fi
 
 V2D_REF=$(grep -vE '^\s*(#|$)' "${VERSION_FILE}" | head -1 | tr -d '[:space:]')
-if [ -z "${V2D_REF}" ]; then
+if [[ -z "${V2D_REF}" ]]; then
     echo "error: ${VERSION_FILE} contains no SHA." >&2
     exit 1
 fi

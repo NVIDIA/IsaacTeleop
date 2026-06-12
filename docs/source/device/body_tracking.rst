@@ -192,6 +192,20 @@ Troubleshooting
   partial occlusion. These joints will recover automatically once tracking is
   re-acquired.
 
+Recording and Replay
+--------------------
+
+Full body sessions can be captured to MCAP and replayed offline through the
+same retargeting pipeline — no headset required during replay. See
+:doc:`../references/mcap_record_replay` for the recording / replay API and
+the ``record_full_body.py`` / ``replay_full_body.py`` example.
+
+.. figure:: ../_static/full-body-replay.gif
+   :alt: Full body skeleton replayed from an MCAP recording in viser
+   :class: no-image-zoom
+
+   ``replay_full_body.py`` visualizing a recorded BD 24-joint skeleton in viser.
+
 Quest Body Tracking (Limited Support)
 -------------------------------------
 

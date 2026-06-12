@@ -24,6 +24,7 @@ from isaacteleop.retargeting_engine.interface import (
     ExecutionEvents,
     ExecutionState,
     GraphTime,
+    OutputCombiner,
     TensorGroupType,
     TensorGroup,
     TensorType,
@@ -32,7 +33,10 @@ from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
     RetargeterIO,
     RetargeterIOType,
 )
-from isaacteleop.retargeting_engine.deviceio_source_nodes import IDeviceIOSource
+from isaacteleop.retargeting_engine.deviceio_source_nodes import (
+    IDeviceIOSink,
+    IDeviceIOSource,
+)
 from isaacteleop.retargeting_engine.tensor_types import FloatType
 
 import isaacteleop.teleop_session_manager as teleop_session_manager
@@ -2908,6 +2912,145 @@ class TestMcapReplayConfigGetTrackerNames:
         assert len(result) == 1
         assert result[0][0] is head
         assert result[0][1] == "tracking"
+
+
+# ============================================================================
+# Output sinks (IDeviceIOSink) discovery + post-graph flush
+# ============================================================================
+
+
+_SINK_RESULT_TYPE = TensorGroupType("type_result", [FloatType("value")])
+
+
+class RecordingSink(IDeviceIOSink):
+    """Test ``IDeviceIOSink`` that records applied values and flush sessions."""
+
+    def __init__(self, name, tracker=None, input_type=_SINK_RESULT_TYPE):
+        self._tracker = tracker
+        self._input_type = input_type
+        self.applied: list = []
+        self.flush_sessions: list = []
+        super().__init__(name)
+
+    def input_spec(self) -> RetargeterIOType:
+        return {"in": self._input_type}
+
+    def get_tracker(self):
+        return self._tracker
+
+    def flush_to_device(self, deviceio_session):
+        self.flush_sessions.append(deviceio_session)
+
+    def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
+        self.applied.append(inputs["in"][0])
+
+
+def _trivial_pipeline():
+    """A real GraphExecutable pipeline (no inputs) for sink tests."""
+    gen = MockEmptyInputRetargeter("gen")
+    return OutputCombiner({"value": gen.output("value")})
+
+
+def _external_step_request(
+    leaf_name: str, input_name: str, value: float
+) -> StepRequest:
+    tg = TensorGroup(TensorGroupType("type_ext", [FloatType("value")]))
+    tg[0] = value
+    return StepRequest(
+        frame_id=0,
+        external_inputs={leaf_name: {input_name: tg}},
+        graph_time=GraphTime(sim_time_ns=0, real_time_ns=0),
+        execution_events=ExecutionEvents(
+            reset=False, execution_state=ExecutionState.RUNNING
+        ),
+        submitted_time_s=time.monotonic(),
+    )
+
+
+class TestOutputSinks:
+    def test_sink_and_its_external_leaf_are_discovered(self):
+        ext = MockExternalRetargeter("sim_force")
+        sink = RecordingSink("haptic")
+        sink_graph = sink.connect({"in": ext.output("result")})
+        config = TeleopSessionConfig(
+            app_name="t", pipeline=_trivial_pipeline(), sinks=[sink_graph]
+        )
+        session = TeleopSession(config)
+
+        assert [node for _, node in session._sinks] == [sink]
+        # The leaf feeding the sink becomes an external input the app must supply.
+        assert "sim_force" in session.get_external_input_specs()
+
+    def test_sink_subgraph_source_is_discovered(self):
+        source = MockDeviceIOSource("force_src", HeadTracker(), input_names=["input_0"])
+        sink = RecordingSink(
+            "haptic",
+            input_type=TensorGroupType("type_output", [FloatType("value")]),
+        )
+        sink_graph = sink.connect({"in": source.output("output_0")})
+        config = TeleopSessionConfig(
+            app_name="t", pipeline=_trivial_pipeline(), sinks=[sink_graph]
+        )
+        session = TeleopSession(config)
+
+        assert source in session._sources
+        assert [node for _, node in session._sinks] == [sink]
+
+    def test_sink_flushed_after_graph_with_external_value(self):
+        ext = MockExternalRetargeter("sim_force")
+        sink = RecordingSink("haptic")
+        sink_graph = sink.connect({"in": ext.output("result")})
+        config = TeleopSessionConfig(
+            app_name="t", pipeline=_trivial_pipeline(), sinks=[sink_graph]
+        )
+        session = TeleopSession(config)
+        session.deviceio_session = MockDeviceIOSession()
+
+        request = _external_step_request("sim_force", "external_data", 0.42)
+        session._execute_step_request(request)
+
+        # The retargeter echoed the app-submitted value into the sink, and the
+        # sink was flushed once with the active session.
+        assert sink.applied == [pytest.approx(0.42)]
+        assert sink.flush_sessions == [session.deviceio_session]
+
+    def test_compute_runs_before_flush(self):
+        """flush_to_device must observe the value _compute_fn stored this frame."""
+        ext = MockExternalRetargeter("sim_force")
+
+        class OrderSink(RecordingSink):
+            def __init__(self, name):
+                super().__init__(name)
+                self.events: list = []
+
+            def _compute_fn(self, inputs, outputs, context):
+                self.events.append(("compute", inputs["in"][0]))
+
+            def flush_to_device(self, deviceio_session):
+                self.events.append(("flush",))
+
+        sink = OrderSink("haptic")
+        sink_graph = sink.connect({"in": ext.output("result")})
+        config = TeleopSessionConfig(
+            app_name="t", pipeline=_trivial_pipeline(), sinks=[sink_graph]
+        )
+        session = TeleopSession(config)
+        session.deviceio_session = MockDeviceIOSession()
+
+        session._execute_step_request(
+            _external_step_request("sim_force", "external_data", 1.0)
+        )
+
+        assert sink.events == [("compute", pytest.approx(1.0)), ("flush",)]
+
+    def test_config_rejects_non_sink(self):
+        gen = MockEmptyInputRetargeter("gen")
+        with pytest.raises(ValueError, match="IDeviceIOSink"):
+            TeleopSessionConfig(
+                app_name="t",
+                pipeline=_trivial_pipeline(),
+                sinks=[gen.connect({})],
+            )
 
 
 if __name__ == "__main__":

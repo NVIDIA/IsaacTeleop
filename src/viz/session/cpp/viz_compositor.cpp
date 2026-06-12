@@ -1,11 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+#include "inc/viz/session/viz_compositor.hpp"
+
+#include "inc/viz/session/display_backend.hpp"
+#include "inc/viz/session/layer_base.hpp"
+#include "inc/viz/session/tile_layout.hpp"
+
 #include <viz/core/vk_context.hpp>
-#include <viz/session/display_backend.hpp>
-#include <viz/session/layer_base.hpp>
-#include <viz/session/tile_layout.hpp>
-#include <viz/session/viz_compositor.hpp>
 
 #include <array>
 #include <stdexcept>

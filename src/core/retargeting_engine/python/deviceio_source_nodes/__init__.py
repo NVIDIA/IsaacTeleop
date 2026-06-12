@@ -4,6 +4,7 @@
 """DeviceIO Source Nodes - Stateless converters from DeviceIO to retargeting engine formats."""
 
 from .interface import IDeviceIOSource
+from .sink_interface import IDeviceIOSink
 from .head_source import HeadSource
 from .hands_source import HandsSource
 from .controllers_source import ControllersSource
@@ -16,6 +17,7 @@ from .message_channel_config import (
     message_channel_config,
     messageChannelConfig,
 )
+from .haptic_sink import HapticSink
 from .deviceio_tensor_types import (
     HeadPoseTrackedType,
     HandPoseTrackedType,
@@ -37,6 +39,7 @@ from .deviceio_tensor_types import (
 
 __all__ = [
     "IDeviceIOSource",
+    "IDeviceIOSink",
     "HeadSource",
     "HandsSource",
     "ControllersSource",
@@ -47,6 +50,7 @@ __all__ = [
     "MessageChannelConfig",
     "message_channel_config",
     "messageChannelConfig",
+    "HapticSink",
     "HeadPoseTrackedType",
     "HandPoseTrackedType",
     "ControllerSnapshotTrackedType",

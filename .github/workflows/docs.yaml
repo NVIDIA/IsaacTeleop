@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Build docs and Teleop web app, then deploy to GitHub Pages.
-# - Push to main/release (canonical repo): deploy docs at site root, web app at /client/<slug>/.
+# - Push to main/release/v* tag (canonical repo): deploy docs at site root, web app at /client/<slug>/.
+#   Tag pushes also promote /client/stable/ to the highest v* tag.
 # - Same-repo PR: auto-deploy preview to preview/pr-<N>/.
 # - Fork PR: build only; a maintainer can deploy via `/preview-docs` (see
 #   docs-preview-on-demand.yaml).
@@ -21,6 +22,8 @@ on:
     branches:
       - main
       - 'release/**'
+    tags:
+      - 'v[1-9]*.[0-9]*.[0-9]*'
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
@@ -48,7 +51,10 @@ jobs:
       if: github.repository == 'NVIDIA/IsaacTeleop'
       run: echo "defined=true" >> "$GITHUB_OUTPUT"
     - id: is-deploy-branch
-      if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')
+      if: >-
+        github.ref == 'refs/heads/main'
+        || startsWith(github.ref, 'refs/heads/release/')
+        || startsWith(github.ref, 'refs/tags/v')
       run: echo "defined=true" >> "$GITHUB_OUTPUT"
     - id: ngc-allowlist
       run: |
@@ -180,6 +186,12 @@ jobs:
     permissions:
       contents: write  # push to gh-pages
     steps:
+      - name: Checkout (for tag lookup)
+        if: github.event_name == 'push' && github.ref_type == 'tag'
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
       - name: Download docs artifact
         if: needs.build-docs.result == 'success'
         uses: actions/download-artifact@v7
@@ -194,43 +206,80 @@ jobs:
           name: webapp
           path: ./webapp
 
-      # Each push lands at client/<slug>/ so a release-branch deploy can no
-      # longer trample the canonical /client/, which is just a redirect to
-      # ./main/.
+      # Web client lands at client/<slug>/: tag → v1.2.3, main → main, release branch → release-1.3.x.
+      # Tag pushes also (re)point client/stable/ at the highest v* tag.
+      # The root client/ redirect is owned by the main branch deploy and points at ./stable/.
       - name: Place web app under versioned subpath
         if: needs.build-app.result == 'success'
         run: |
           set -euo pipefail
+          CLIENT_BASE=./docs/build/client
+
           if [ "${{ github.event_name }}" = 'pull_request' ]; then
-            # PR previews live under preview/pr-<N>/ and are pinned to the PR,
-            # so they don't need the multi-version layout.
-            CLIENT_DIR=./docs/build/current/client
-            mkdir -p "$CLIENT_DIR"
-            cp -r ./webapp/. "$CLIENT_DIR/"
+            mkdir -p ./docs/build/current/client
+            cp -r ./webapp/. ./docs/build/current/client/
+            exit 0
+          fi
+
+          if [ "$GITHUB_REF_TYPE" = 'tag' ]; then
+            target="$GITHUB_REF_NAME"
           else
-            slug="${GITHUB_REF_NAME//\//-}"
-            CLIENT_BASE=./docs/build/client
-            mkdir -p "$CLIENT_BASE/$slug"
-            cp -r ./webapp/. "$CLIENT_BASE/$slug/"
+            target="${GITHUB_REF_NAME//\//-}"
+          fi
+          mkdir -p "$CLIENT_BASE/$target"
+          cp -r ./webapp/. "$CLIENT_BASE/$target/"
+          echo "Deployed web client to /client/$target/"
+
+          if [ "$GITHUB_REF" = 'refs/heads/main' ]; then
             cat > "$CLIENT_BASE/index.html" <<'HTML'
           <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
           <!-- SPDX-License-Identifier: Apache-2.0 -->
           <!DOCTYPE html>
           <html>
             <head>
-              <title>Redirecting to the latest Isaac Teleop web client</title>
+              <title>Redirecting to the stable Isaac Teleop web client</title>
               <meta charset="utf-8">
-              <meta http-equiv="refresh" content="0; url=./main/">
+              <meta http-equiv="refresh" content="0; url=./stable/">
+              <link rel="canonical" href="./stable/">
             </head>
             <body>
-              <p>Redirecting to <a href="./main/">the latest Isaac Teleop web client</a>.</p>
+              <p>Redirecting to <a href="./stable/">the stable Isaac Teleop web client</a>.</p>
+              <script>location.replace('./stable/' + location.search + location.hash);</script>
             </body>
           </html>
           HTML
-            echo "Deployed web client to /client/$slug/"
           fi
 
-      - name: Deploy to gh-pages (main branch)
+          if [ "$GITHUB_REF_TYPE" = 'tag' ]; then
+            stable_slug="$(git ls-remote --tags origin 'v[1-9]*.[0-9]*.[0-9]*' \
+              | awk -F'refs/tags/' '{print $2}' \
+              | sed 's/\^{}$//' | sort -uV | tail -n1)"
+            if [ -z "$stable_slug" ]; then
+              echo "::warning::No v* tags resolved; leaving client/stable/ untouched."
+              exit 0
+            fi
+            mkdir -p "$CLIENT_BASE/stable"
+            cat > "$CLIENT_BASE/stable/index.html" <<HTML
+          <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+          <!-- SPDX-License-Identifier: Apache-2.0 -->
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Redirecting to the stable Isaac Teleop web client (${stable_slug})</title>
+              <meta charset="utf-8">
+              <meta http-equiv="refresh" content="0; url=../${stable_slug}/">
+              <link rel="canonical" href="../${stable_slug}/">
+            </head>
+            <body>
+              <p>Redirecting to <a href="../${stable_slug}/">the stable Isaac Teleop web client</a>.</p>
+              <script>location.replace('../${stable_slug}/' + location.search + location.hash);</script>
+            </body>
+          </html>
+          HTML
+            echo "Stable now points to /client/${stable_slug}/"
+          fi
+
+      - name: Deploy to gh-pages
         if: github.event_name == 'push' && needs.check-repo.outputs.is-deploy-branch == 'true'
         uses: peaceiris/actions-gh-pages@v4
         with:

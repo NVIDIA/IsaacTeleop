@@ -33,6 +33,7 @@ from isaacteleop.cloudxr.oob_teleop_env import (
     usb_backend_port,
     usb_turn_port,
     usb_ui_port,
+    versioned_web_client_url,
 )
 
 
@@ -83,7 +84,8 @@ def _parse_args() -> argparse.Namespace:
             f"and HTTPS static WebXR UI on port {usb_ui_port()} "
             "(override via USB_UI_PORT env).  Files live under "
             "TELEOP_WEB_CLIENT_STATIC_DIR or ~/.cloudxr/static-client; missing "
-            "index.html / bundle.js are downloaded from nvidia.github.io/IsaacTeleop/client/main/.  "
+            "index.html / bundle.js are downloaded from the matching versioned "
+            "client under nvidia.github.io/IsaacTeleop/client/.  "
             "The launcher serves them with the same PEM as the WSS proxy.  "
             "Requirements: `coturn`, `adb` on PATH.  WebRTC ICE still needs a "
             "non-loopback interface on the headset (WiFi stays connected)."
@@ -180,6 +182,14 @@ def main() -> None:
                     "        oob:       \033[32menabled\033[0m  (hub + USB adb automation — see OOB TELEOP block)"
                 )
                 print_oob_hub_startup_banner(lan_host=resolve_lan_host_for_oob())
+        else:
+            # Print the WebXR client matching the installed version. In OOB
+            # modes the banner above already prints a complete, mode-correct
+            # client URL instead (the same versioned GitHub Pages client for
+            # WiFi, a local https URL for USB-local), so this standalone line is
+            # skipped there to avoid a redundant or misleading second URL.
+            client_url = versioned_web_client_url(isaacteleop_version)
+            print(f"WebXR client:      \033[36m{client_url}\033[0m")
         print(
             f"Activate CloudXR environment in another terminal: \033[1;32msource {env_cfg.env_filepath()}\033[0m"
         )

@@ -5,11 +5,10 @@
 // CUDA cudaArray_t is usable from a cudaMemcpy2DToArray call, and a
 // round-trip copy preserves pixel values.
 
-#include "test_helpers.hpp"
-
 #include <catch2/catch_test_macros.hpp>
 #include <viz/core/device_image.hpp>
 #include <viz/core/vk_context.hpp>
+#include <viz/test_support/test_helpers.hpp>
 
 #include <cstdint>
 #include <cuda_runtime.h>

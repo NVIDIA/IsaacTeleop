@@ -50,9 +50,11 @@ packages = [
     "isaacteleop.retargeting_engine.utilities",
     "isaacteleop.retargeters",
     "isaacteleop.retargeters.G1",
+    "isaacteleop.retargeters.SO101",
     "isaacteleop.retargeting_engine_ui",
     "isaacteleop.teleop_session_manager",
     "isaacteleop.cloudxr",
+    "isaacteleop.haptic_devices",
 @VIZ_PACKAGES_BLOCK@@ROBOTIC_GROUNDING_PACKAGES_BLOCK@]
 include-package-data = false
 
@@ -66,6 +68,7 @@ isaacteleop = ["*.so", "*.pyd", "*.pyi", "py.typed"]
 "isaacteleop.plugin_manager" = ["*.so", "*.pyd", "*.pyi"]
 "isaacteleop.schema" = ["*.so", "*.pyd", "*.pyi"]
 "isaacteleop.cloudxr" = ["native/*.so", "native/*.so.*", "native/openxr_cloudxr.json"]
+"isaacteleop.haptic_devices" = ["*.so", "*.pyd", "*.pyi"]
 @VIZ_PACKAGE_DATA_BLOCK@@ROBOTIC_GROUNDING_PACKAGE_DATA_BLOCK@
 
 [tool.uv]

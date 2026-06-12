@@ -97,41 +97,53 @@ FROM base AS builder
 ARG ROS_DISTRO
 ARG PYTHON_VERSION
 ARG BUNDLE_ROBOTIC_GROUNDING=false
+ARG TARGETARCH
+
+# Compiler cache. CCACHE_DIR points at a BuildKit cache mount kept on the
+# runner's local BuildKit storage (not the image, not GitHub Actions cache),
+# so unchanged translation units are reused across builds. Bounded so it
+# self-evicts LRU instead of growing without limit.
+ENV CCACHE_DIR=/ccache CCACHE_MAXSIZE=5G
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    ccache \
     clang-format \
     cmake \
     git \
+    patchelf \
     pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/isaacteleop
 COPY . /opt/isaacteleop
 
-# Wipe any stale wheels before building:
-#   - `install/` may arrive via `COPY . /opt/isaacteleop` when the host context
-#     contains an extracted build-ubuntu artifact tarball.
-#   - `build/wheels/` lives inside the persistent cmake build cache mount and
-#     accumulates one wheel per VERSION the cache has ever seen; `cmake
-#     --install` copies the entire directory.
-# Either source can pollute find-links with an isaacteleop wheel that is not
-# the one this build just produced.
-RUN --mount=type=cache,target=/opt/isaacteleop/build,id=isaacteleop-teleop-ros2-build-${ROS_DISTRO} \
-    rm -rf /opt/isaacteleop/install /opt/isaacteleop/build/wheels \
+# Remove any install/ or build/ copied in from the host context (an extracted
+# build-ubuntu artifact tree can carry both). A stale install/wheels/ would
+# pollute find-links with an isaacteleop wheel that is not the one this build
+# produces; a stale build/ would skip a clean CMake reconfigure. The build tree
+# is rebuilt from scratch every time -- ccache keeps recompiles cheap -- so each
+# build reconfigures against the current image rather than trusting cached
+# configure results.
+RUN --mount=type=cache,target=/ccache,id=isaacteleop-teleop-ros2-ccache-${ROS_DISTRO}-${TARGETARCH} \
+    rm -rf /opt/isaacteleop/install /opt/isaacteleop/build \
     && cmake -B build -S . \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=/opt/isaacteleop/install \
+        -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+        -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
         -DBUILD_EXAMPLES=OFF \
         -DBUILD_EXAMPLE_TELEOP_ROS2=ON \
         -DBUILD_TESTING=OFF \
         -DBUILD_PLUGINS=ON \
         -DBUILD_PLUGIN_OAK_CAMERA=OFF \
         -DENABLE_CLANG_FORMAT_CHECK=OFF \
+        -DENABLE_CLOUDXR_BUNDLE_CHECK=ON \
         -DBUNDLE_ROBOTIC_GROUNDING=${BUNDLE_ROBOTIC_GROUNDING} \
         -DISAAC_TELEOP_PYTHON_VERSION=${PYTHON_VERSION} \
     && cmake --build build --config Release -j$(nproc) \
-    && cmake --install build --config Release
+    && cmake --install build --config Release \
+    && ccache --show-stats
 
 COPY --chmod=644 <<EOF /usr/local/bin/teleop-env-setup
 source /opt/ros/${ROS_DISTRO}/setup.bash
@@ -152,6 +164,14 @@ ARG PYTHON_VERSION
 
 WORKDIR /opt/isaacteleop/install/examples/teleop_ros2/python
 
+# The node launches the CloudXR runtime in-process via CloudXRLauncher, so this
+# image needs GPU access and the NVIDIA Vulkan/EGL ICDs. Run with --gpus all.
+ENV NVIDIA_VISIBLE_DEVICES=all NVIDIA_DRIVER_CAPABILITIES=all
+RUN mkdir -p /etc/vulkan/icd.d /usr/share/glvnd/egl_vendor.d
+COPY deps/cloudxr/runtime/data/10_nvidia.json /usr/share/glvnd/egl_vendor.d/
+COPY deps/cloudxr/runtime/data/nvidia_icd.json /etc/vulkan/icd.d/
+ENV VK_DRIVER_FILES=/etc/vulkan/icd.d/nvidia_icd.json
+
 COPY --from=nlopt_wheel /opt/nlopt-wheels /opt/nlopt-wheels
 
 # Pre-install heavy Python dependencies so they are cached independently of C++ builds.
@@ -159,6 +179,7 @@ COPY --from=nlopt_wheel /opt/nlopt-wheels /opt/nlopt-wheels
 COPY src/core/python/requirements.txt \
      src/core/python/requirements-retargeters.txt \
      src/core/python/requirements-grounding.txt \
+     src/core/python/requirements-cloudxr.txt \
      /tmp/
 RUN uv venv --python=${PYTHON_VERSION} && \
     uv pip install setuptools wheel && \
@@ -166,10 +187,12 @@ RUN uv venv --python=${PYTHON_VERSION} && \
         -r /tmp/requirements.txt \
         -r /tmp/requirements-retargeters.txt \
         -r /tmp/requirements-grounding.txt \
+        -r /tmp/requirements-cloudxr.txt \
         msgpack msgpack-numpy && \
     rm /tmp/requirements.txt \
        /tmp/requirements-retargeters.txt \
-       /tmp/requirements-grounding.txt
+       /tmp/requirements-grounding.txt \
+       /tmp/requirements-cloudxr.txt
 
 COPY --from=builder /opt/isaacteleop/install /opt/isaacteleop/install
 COPY --from=sharpa_urdfs /opt/sharpa-wave-urdfs/ /opt/isaacteleop/install/examples/teleop_ros2/assets/urdf/sharpa_standalone/

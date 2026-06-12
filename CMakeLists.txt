@@ -10,21 +10,24 @@ include(cmake/IsaacTeleopVersion.cmake)
 isaac_teleop_read_version("${CMAKE_CURRENT_SOURCE_DIR}/VERSION" ISAAC_TELEOP_VERSION ISAAC_TELEOP_PYPROJECT_VERSION)
 
 # ==============================================================================
-# Install Prefix Setup (must be before HunterGate)
+# Install Prefix Setup
 # ==============================================================================
-# Set default install prefix early, before HunterGate which may affect
-# CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT
 if(NOT DEFINED CMAKE_INSTALL_PREFIX OR CMAKE_INSTALL_PREFIX STREQUAL "" OR CMAKE_INSTALL_PREFIX MATCHES "^/usr/local")
     set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/install" CACHE PATH "Install prefix" FORCE)
 endif()
 
-# OAK camera plugin uses Hunter/DepthAI; optional so builds like teleop_ros2 can skip it.
-option(BUILD_PLUGIN_OAK_CAMERA "Build OAK camera plugin (uses Hunter/DepthAI)" OFF)
 # ==============================================================================
-
-# HunterGate Setup (must be before project())
-# Defines BUILD_PLUGINS option and initializes Hunter for DepthAI dependencies
-include(cmake/SetupHunter.cmake)
+# DepthAI vcpkg manifest (OAK camera plugin)
+# ==============================================================================
+# The OAK camera plugin's vcpkg dependencies come from DepthAI's own vcpkg.json,
+# auto-downloaded for the pinned tag, rather than a duplicate manifest tracked
+# in this repo. This MUST run before project() so vcpkg picks up the manifest
+# when the toolchain loads. Gated on the -D option being passed (it lives in the
+# cache before project(); the option() default below applies only when unset).
+if(BUILD_PLUGIN_OAK_CAMERA)
+    include(cmake/DepthAIVcpkgManifest.cmake)
+    isaac_teleop_setup_depthai_vcpkg_manifest()
+endif()
 
 project(IsaacTeleop VERSION ${ISAAC_TELEOP_VERSION} LANGUAGES CXX)
 
@@ -39,6 +42,8 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 # All Python-related configurations should reference this variable.
 # To change the Python version, only modify this line:
 set(ISAAC_TELEOP_PYTHON_VERSION "3.11" CACHE STRING "Python version for Isaac Teleop")
+set(ISAAC_TELEOP_PYTHON_VERSION_MIN "3.10")
+set(ISAAC_TELEOP_PYTHON_VERSION_MAX_EXCLUSIVE "3.14")
 message(STATUS "Configuring for Python ${ISAAC_TELEOP_PYTHON_VERSION}")
 # ==============================================================================
 
@@ -51,13 +56,9 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
 
-# Note: CMAKE_INSTALL_PREFIX is set early (before HunterGate) to avoid issues
-# with CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT being affected by Hunter's
-# internal project() call.
-
 # Options
-# Note: BUILD_PLUGINS is defined in cmake/SetupHunter.cmake before project()
-# Note: BUILD_PYTHON_BINDINGS is defined in cmake/SetupPython.cmake
+option(BUILD_PLUGINS "Build plugins" ON)
+option(BUILD_PLUGIN_OAK_CAMERA "Build OAK camera plugin (requires vcpkg for DepthAI v3.x)" OFF)
 option(BUILD_EXAMPLES "Build examples" ON)
 option(BUILD_EXAMPLE_TELEOP_ROS2 "Build only the teleop_ros2 example (e.g. for Docker)" OFF)
 option(BUILD_TESTING "Build unit tests" ON)
@@ -124,6 +125,15 @@ add_subdirectory(src/core)
 # Build retargeters (pure Python, sibling of src/core)
 add_subdirectory(src/retargeters)
 
+# Build haptic device adapters (pure Python, sibling of src/core).
+# Vendor-specific pybind extensions (e.g. src/plugins/manus/python) write
+# their .so files into the wheel-staging tree at
+# python_package/<cfg>/isaacteleop/haptic_devices/ alongside the Python adapter
+# modules so adapters can lazy-import them via `from . import _<vendor>_haptic`.
+# (cmake-install of those extensions goes to ${CMAKE_INSTALL_LIBDIR} per the
+# vendor plugin's own install rules; verify wheel layout matches.)
+add_subdirectory(src/haptic_devices)
+
 # Build Televiz visualization module (sibling of src/core).
 # src/viz/CMakeLists.txt orchestrates its own sub-modules and tests.
 if(BUILD_VIZ)
@@ -139,8 +149,9 @@ if(BUILD_EXAMPLES)
     add_subdirectory(examples/schemaio)
     add_subdirectory(examples/native_openxr)
     add_subdirectory(examples/mcap_record_replay)
+    add_subdirectory(examples/haptic_feedback)
     if(BUILD_VIZ)
-        add_subdirectory(examples/televiz)
+        add_subdirectory(examples/camera_viz/tests)
     endif()
 elseif(BUILD_EXAMPLE_TELEOP_ROS2)
     add_subdirectory(examples/teleop_ros2)
@@ -154,6 +165,7 @@ if(BUILD_PLUGINS)
     add_subdirectory(src/plugins/controller_synthetic_hands)
     add_subdirectory(src/plugins/generic_3axis_pedal)
     add_subdirectory(src/plugins/manus)
+    add_subdirectory(src/plugins/haptikos)
     if(BUILD_PLUGIN_OAK_CAMERA)
         add_subdirectory(src/plugins/oak)
     endif()

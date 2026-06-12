@@ -14,7 +14,7 @@ add_library(viz_layers STATIC
 )
 
 target_include_directories(viz_layers
-    PUBLIC
+    INTERFACE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
 )
 

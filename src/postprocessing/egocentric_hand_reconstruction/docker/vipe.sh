@@ -29,7 +29,7 @@ print_error() {
 
 build_image() {
     local no_cache_flag=""
-    if [ "$1" == "--clean" ]; then
+    if [[ "$1" == "--clean" ]]; then
         no_cache_flag="--no-cache"
         print_info "Clean build requested (--no-cache)"
     fi
@@ -50,7 +50,7 @@ build_image() {
         -f "${DOCKERFILE}" \
         .
 
-    if [ $? -eq 0 ]; then
+    if [[ $? -eq 0 ]]; then
         print_info "Build successful!"
     else
         print_error "Build failed!"
@@ -63,7 +63,7 @@ run_container() {
     print_info "Running container: ${CONTAINER_NAME}"
 
     # Remove existing container if it exists
-    if [ "$(docker ps -aq -f name=${CONTAINER_NAME})" ]; then
+    if [[ "$(docker ps -aq -f name=${CONTAINER_NAME})" ]]; then
         print_info "Removing existing container..."
         docker rm -f ${CONTAINER_NAME} > /dev/null
     fi
@@ -74,7 +74,7 @@ run_container() {
     # Use interactive TTY only when stdin is a terminal
     local tty_flags=""
     local name_flags="--name ${CONTAINER_NAME}"
-    if [ -t 0 ]; then
+    if [[ -t 0 ]]; then
         tty_flags="-it"
     else
         name_flags=""
@@ -103,7 +103,7 @@ case "$1" in
         run_container "$@"
         ;;
     *)
-        if [ -z "$1" ]; then
+        if [[ -z "$1" ]]; then
             # If no argument provided, check if image exists
             if [[ "$(docker images -q ${IMAGE_NAME} 2> /dev/null)" == "" ]]; then
                 print_info "Image not found. Building first..."

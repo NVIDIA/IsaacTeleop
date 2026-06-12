@@ -180,6 +180,46 @@ directly. Each device name in the tables above links to the corresponding manufa
      - 3D Space Mouse (planned)
      -
 
+Social Links
+------------
+
+Join the Isaac Teleop community to ask questions, share your work, and stay up to date.
+
+Discord (NVIDIA official)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Isaac Teleop has a dedicated ``isaac-teleop`` channel in the official NVIDIA Omniverse
+Discord server. Joining takes two steps:
+
+#. **Join the server.** Open the `NVIDIA Omniverse Discord invite`_ and accept it to become a
+   member of the NVIDIA Omniverse Discord server.
+#. **Open the channel.** Once you are a member of the server, go to the
+   `#isaac-teleop channel`_ to reach the team and the community. (The channel link only works
+   after you have joined the server in step 1.)
+
+WeChat (微信) group (community-run)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A community-driven WeChat group is also available. Scan the QR code below from **within the
+WeChat app** (Discover → Scan) to join. Scanning with your phone's built-in camera app will
+**not** work.
+
+.. figure:: ../_static/wechat-community-qr.jpg
+   :alt: Isaac Teleop community WeChat group QR code
+   :width: 240px
+
+   **Figure:** Scan from within the WeChat app (not the camera app) to join the community WeChat group
+
+.. note::
+
+   This WeChat group is created and maintained by community members. It is **not** an official
+   NVIDIA channel. The NVIDIA team does not participate in group operations, but does monitor the
+   group and answer questions when possible.
+
+   More than one community chat group may exist, and we may list additional groups here as we
+   become aware of them. That said, NVIDIA encourages the community to organically converge on a
+   single chat group, so that discussions stay consolidated in one place.
+
 ..
    References
 
@@ -203,9 +243,12 @@ directly. Each device name in the tables above links to the corresponding manufa
 .. _`OAK-D Camera`: https://shop.luxonis.com/products/oak-d
 .. _`3D Space Mouse`: https://3dconnexion.com/us/spacemouse/
 
+.. Social links
+.. _`NVIDIA Omniverse Discord invite`: https://discord.com/invite/nvidiaomniverse
+.. _`#isaac-teleop channel`: https://discord.com/channels/827959428476174346/1486401816521478247
+
 .. Other references
 .. _`Isaac XR Teleop Sample Client`: https://github.com/isaac-sim/isaac-xr-teleop-sample-client-apple
-.. _`Isaac Teleop Web Client`: https://nvidia.github.io/IsaacTeleop/client
 .. _`Manus Gloves Plugin`: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/manus
 .. _`Generic 3-axis Pedal Plugin`: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/generic_3axis_pedal
 .. _`OAK-D Camera Plugin`: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/oak

@@ -3,14 +3,15 @@
 
 #pragma once
 
+#include "display_mode.hpp"
+#include "frame_info.hpp"
+#include "layer_base.hpp"
+#include "viz_compositor.hpp"
+
 #include <oxr_utils/oxr_session_handles.hpp>
 #include <viz/core/host_image.hpp>
 #include <viz/core/viz_types.hpp>
 #include <viz/core/vk_context.hpp>
-#include <viz/session/display_mode.hpp>
-#include <viz/session/frame_info.hpp>
-#include <viz/session/layer_base.hpp>
-#include <viz/session/viz_compositor.hpp>
 
 #include <chrono>
 #include <memory>

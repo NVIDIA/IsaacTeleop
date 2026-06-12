@@ -42,8 +42,8 @@ See the [Ecosystem](https://nvidia.github.io/IsaacTeleop/main/overview/ecosystem
   - Use XR headsets with gloves for dex-hand manipulation
   - Seated full body loco-manipulation (Homie)
   - Tracking based full body loco-manipulation (Sonic)
-- Upcoming use cases
   - Egocentric data collection (aka “no-robot”)
+- Upcoming use cases
   - Teleoperate using only non-XR devices (e.g. gamepad, Gello, haply, etc.)
   - Teleoperate cloud based robotics simulations
   - Remote teleoperation with camera streaming to the desktop

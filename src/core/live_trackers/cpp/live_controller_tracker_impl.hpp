@@ -10,6 +10,8 @@
 #include <oxr_utils/oxr_time.hpp>
 #include <schema/controller_generated.h>
 
+#include <array>
+#include <atomic>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -42,8 +44,19 @@ public:
     void update(int64_t monotonic_time_ns) override;
     const ControllerSnapshotTrackedT& get_left_controller() const override;
     const ControllerSnapshotTrackedT& get_right_controller() const override;
+    void apply_left_haptic_feedback(float amplitude, float frequency_hz, float duration_s) const override;
+    void apply_right_haptic_feedback(float amplitude, float frequency_hz, float duration_s) const override;
 
 private:
+    // Internal side selector for the shared haptic implementation. The public
+    // surface stays split (apply_left/right) to match get_left/right_controller.
+    enum class Side
+    {
+        Left,
+        Right
+    };
+    void apply_haptic_feedback(Side side, float amplitude, float frequency_hz, float duration_s) const;
+
     const OpenXRCoreFunctions core_funcs_;
     XrTimeConverter time_converter_;
 
@@ -67,6 +80,10 @@ private:
     XrAction menu_click_action_;
     XrAction squeeze_value_action_;
     XrAction trigger_value_action_;
+    // Output action that drives controller rumble. One action with two
+    // subaction paths (left + right) bound to /user/hand/{left,right}/output/haptic
+    // matches how the input actions above subaction onto the same paths.
+    XrAction haptic_action_;
 
     XrSpacePtr left_grip_space_;
     XrSpacePtr right_grip_space_;
@@ -76,6 +93,14 @@ private:
     ControllerSnapshotTrackedT left_tracked_;
     ControllerSnapshotTrackedT right_tracked_;
     int64_t last_update_time_ = 0;
+
+    // Once-per-side log gates for OpenXR haptic call failures. Indexed by
+    // side: [0]=left, [1]=right. `mutable` is required because
+    // `apply_haptic_feedback` is `const` (the impl object is treated as
+    // immutable from the public interface; the side effect lives in the
+    // runtime), but we still want to log the first failure per side.
+    mutable std::array<std::atomic<bool>, 2> apply_haptic_error_logged_{ { false, false } };
+    mutable std::array<std::atomic<bool>, 2> stop_haptic_error_logged_{ { false, false } };
 
     std::unique_ptr<ControllerMcapChannels> mcap_channels_;
 };

@@ -5,6 +5,9 @@ cmake_minimum_required(VERSION 3.20)
 project(teleop_ros2_examples)
 
 include(${CMAKE_SOURCE_DIR}/cmake/InstallPythonExample.cmake)
+
+add_subdirectory(cpp/integration_tests)
+
 install_python_example(DESTINATION examples/teleop_ros2/python
     EXTRA_UV_EXTRA_BUILD_DEPS "nlopt = [\"numpy\"]")
 

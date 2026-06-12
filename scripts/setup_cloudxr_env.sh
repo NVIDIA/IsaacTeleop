@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 # Shared CloudXR environment setup script
@@ -17,9 +17,9 @@
 # shell strict-mode options (e.g., -e/-u/pipefail).
 
 # Ensure we're in the git root
-if [ -z "${GIT_ROOT:-}" ]; then
+if [[ -z "${GIT_ROOT:-}" ]]; then
     GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-    if [ -z "$GIT_ROOT" ]; then
+    if [[ -z "$GIT_ROOT" ]]; then
         echo "Error: Could not determine git root. Set GIT_ROOT before sourcing." >&2
         return 1 2>/dev/null || exit 1
     fi
@@ -34,7 +34,7 @@ export ENV_DEFAULT="deps/cloudxr/.env.default"
 export ENV_LOCAL="deps/cloudxr/.env"
 
 # Create .env file if it doesn't exist
-if [ ! -f "$GIT_ROOT/$ENV_LOCAL" ]; then
+if [[ ! -f "$GIT_ROOT/$ENV_LOCAL" ]]; then
     echo "deps/cloudxr/.env not found, creating from scratch..."
     if ! touch "$GIT_ROOT/$ENV_LOCAL"; then
         echo "Error: Failed to create $GIT_ROOT/$ENV_LOCAL." >&2
@@ -50,7 +50,7 @@ if [[ $- == *a* ]]; then
 fi
 
 __cxr_restore_allexport_state() {
-    if [ "$__CXR_ALLEXPORT_WAS_SET" = false ]; then
+    if [[ "$__CXR_ALLEXPORT_WAS_SET" = false ]]; then
         set +a
     fi
     unset __CXR_ALLEXPORT_WAS_SET
@@ -72,7 +72,7 @@ fi
 
 __cxr_restore_allexport_state
 
-if [ -z "${CXR_HOST_VOLUME_PATH:-}" ]; then
+if [[ -z "${CXR_HOST_VOLUME_PATH:-}" ]]; then
     echo "Error: CXR_HOST_VOLUME_PATH is not set. Check $GIT_ROOT/$ENV_DEFAULT and $GIT_ROOT/$ENV_LOCAL." >&2
     return 1 2>/dev/null || exit 1
 fi

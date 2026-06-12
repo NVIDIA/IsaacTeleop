@@ -119,9 +119,9 @@ class GraphExecutable(ABC):
     The internal side (``_compute_with_cache``, ``output_types``, ``output``,
     ``get_leaf_nodes``) powers DAG traversal and caching.
 
-    The public side (``execute_pipeline``) is the contract used by
-    ``TeleopSession`` and any external runner: drive one step given leaf-keyed
-    inputs and receive the combined outputs back. ``BaseRetargeter``,
+    The public side (``execute_pipeline`` / ``execute_pipeline_with_cache``) is
+    the contract used by ``TeleopSession`` and any external runner: drive one step
+    given leaf-keyed inputs and receive the combined outputs back. ``BaseRetargeter``,
     ``RetargeterSubgraph``, and ``OutputCombiner`` all satisfy this interface
     and can be used interchangeably wherever a pipeline is expected.
     """
@@ -147,6 +147,25 @@ class GraphExecutable(ABC):
         Returns:
             Dict[str, OptionalTensorGroup] - Freshly allocated computed output tensor groups.
         """
+
+    def execute_pipeline_with_cache(self, cache: ExecutionCache) -> RetargeterIO:
+        """
+        Execute this graph for one step against a pre-populated cache.
+
+        Like :meth:`execute_pipeline`, but reuses an existing
+        :class:`ExecutionCache` instead of building one from leaf-keyed inputs.
+        ``TeleopSession`` drives the main pipeline and every sink subgraph through
+        one shared cache so nodes shared between them advance their state exactly
+        once per frame.
+
+        Args:
+            cache: Pre-populated execution cache holding this step's leaf inputs
+                   and per-step context.
+
+        Returns:
+            Dict[str, OptionalTensorGroup] - Freshly allocated computed output tensor groups.
+        """
+        return self._compute_with_cache(cache)
 
     @abstractmethod
     def get_leaf_nodes(self) -> List["BaseExecutable"]:

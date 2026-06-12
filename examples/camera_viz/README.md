@@ -16,12 +16,12 @@ SPDX-License-Identifier: Apache-2.0
 
 | YAML `type:` | Notes |
 |---|---|
-| `synthetic` | GPU test pattern — no hardware |
+| `synthetic` | GPU test pattern — no hardware. `stereo: true` adds a `disparity_px` offset between eyes |
 | `v4l2`      | USB / UVC — anything `v4l2-ctl --list-formats-ext` shows |
-| `oakd`      | OAK-D mono RGB / LEFT / RIGHT |
-| `zed`       | ZED 2 / Mini / X One, left-eye mono (stereo XR not wired yet) |
+| `oakd`      | OAK-D mono RGB / LEFT / RIGHT (stereo not yet wired) |
+| `zed`       | ZED 2 / Mini / X One; mono or `stereo: true` (per-eye SDK retrieve, zero-copy GPU) |
 
-Output: window or XR headset; one plane per camera, aspect-fit. XR placements: `world` / `head` / `lazy`.
+Output: window or XR headset; one plane per camera, aspect-fit. Stereo cameras render true SBS in XR; window mode shows the left eye. XR placements: `world` / `head` / `lazy`.
 
 ---
 
@@ -46,7 +46,7 @@ Flags: `--no-{v4l2,oakd,rtp}`, `--with-zed`, `--sender-only`, `--jetson`. Pass `
 ./camera_viz.sh run configs/v4l2.yaml
 ```
 
-Set `source: local`. Swap config for `oakd.yaml`, `zed.yaml`, `synthetic.yaml`, `multi_camera.yaml`.
+Set `source: local`. Swap config for `oakd.yaml`, `zed.yaml`, `synthetic.yaml`, `synthetic_stereo.yaml`, `multi_camera.yaml`.
 
 ## Mode 2 — Split (robot → workstation, RTP)
 
@@ -96,9 +96,11 @@ cameras:
     width: 2560
     height: 720
     fps: 30
-    # … type-specific fields
+    stereo: false             # zed / synthetic only — enables per-eye capture + SBS XR
+    # … type-specific fields (e.g. synthetic: disparity_px)
     rtp:
-      port: 5000
+      port: 5000              # left eye when stereo
+      port_right: 5001        # required when stereo + source: rtp
       bitrate_mbps: 15
       # gop: 150              # default fps*5
       # gpu_id: 0             # multi-GPU pin
@@ -115,9 +117,11 @@ display:                      # camera_viz only
       offset_x: 0.0
       offset_y: 0.0
       # size: [w_m, h_m]
+      # stereo_baseline_mm: 0  # stereo cams: 0 = both eyes share the world quad
+                               # (parallax from the frames); ~65 = virtual IPD push
 ```
 
-Multiple cameras → multiple `cameras:` entries; each gets its own `rtp.port` and renders as its own plane.
+Multiple cameras → multiple `cameras:` entries; each gets its own `rtp.port` (plus `port_right` if stereo) and renders as its own plane.
 
 ## Lock modes (XR)
 

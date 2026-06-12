@@ -31,7 +31,7 @@ add_library(viz_session STATIC
 )
 
 target_include_directories(viz_session
-    PUBLIC
+    INTERFACE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
 )
 
