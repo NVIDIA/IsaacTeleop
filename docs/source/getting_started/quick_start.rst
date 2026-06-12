@@ -196,8 +196,8 @@ might need to whitelist them manually.
       sudo ufw allow 47998/udp
       sudo ufw allow 49100,48322/tcp
 
-   If you are using ``--host-client`` or ``--usb-local`` to serve the web
-   client locally, also open port 8080:
+   If you are using ``--host-client`` to serve the web client locally,
+   also open port 8080:
 
    .. code-block:: bash
 
