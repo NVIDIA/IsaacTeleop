@@ -714,6 +714,17 @@ unreachable).  The client is served at <code class="docutils literal notranslate
 <p class="sd-card-text">Open that URL instead of the GitHub Pages link above.  The rest of the
 flow — certificate acceptance, entering the server IP, clicking Connect —
 is the same.  Port 48322 is already open from step 4.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p class="sd-card-text">On <strong>first run</strong>, the launcher fetches <code class="docutils literal notranslate"><span class="pre">index.html</span></code> and <code class="docutils literal notranslate"><span class="pre">bundle.js</span></code> from
+GitHub Pages and caches them in <code class="docutils literal notranslate"><span class="pre">~/.cloudxr/static-client/</span></code> (override with
+<code class="docutils literal notranslate"><span class="pre">TELEOP_WEB_CLIENT_STATIC_DIR</span></code>).  Subsequent runs are fully offline.</p>
+<p class="sd-card-text">For a <strong>true air-gapped machine</strong>, pre-stage the two files before the first
+run — copy or download them from
+<code class="docutils literal notranslate"><span class="pre">https://nvidia.github.io/IsaacTeleop/client/</span></code> into
+<code class="docutils literal notranslate"><span class="pre">~/.cloudxr/static-client/</span></code> on a networked host, then transfer the
+directory to the air-gapped machine.</p>
+</div>
 <p class="sd-card-text">The source code for the web client is in the <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/deps/cloudxr/webxr_client" rel="noopener noreferrer" target="_blank">deps/cloudxr/webxr_client/</a> directory.  To build the web
 client from source, see <a class="reference internal" href="build_from_source/webxr.html"><span class="doc">Build WebXR Client</span></a>.</p>
 </div>
