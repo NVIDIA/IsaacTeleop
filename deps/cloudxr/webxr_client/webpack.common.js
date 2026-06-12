@@ -127,7 +127,7 @@ module.exports = {
       'process.env.CLIENT_BUILD_TIME': JSON.stringify(CLIENT_BUILD_TIME),
     }),
 
-    // Copies WebXR input profile assets when available; always copies public and favicon
+    // Copies WebXR input profile assets when available; always copies favicon
     new CopyWebpackPlugin({
       patterns: [
         ...(webxrAssetsPackagePath
@@ -156,13 +156,6 @@ module.exports = {
               })),
             ]
           : []),
-        {
-          from: 'public',
-          to: '.',
-          globOptions: {
-            ignore: ['**/index.html', ...(useLocalWebxrAssets ? [] : ['**/npm/**'])],
-          },
-        },
         { from: './favicon.ico', to: 'favicon.ico' },
       ],
     }),
