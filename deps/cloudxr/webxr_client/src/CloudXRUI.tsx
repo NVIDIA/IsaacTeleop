@@ -35,6 +35,9 @@
  * back to the parent component through callback props.
  */
 
+import arrowLeftStartOnRectangleSvg from './icons/arrow-left-start-on-rectangle.svg';
+import arrowUturnLeftSvg from './icons/arrow-uturn-left.svg';
+import playCircleSvg from './icons/play-circle.svg';
 import { PerformanceCanvasImage } from '@helpers/react/PerformanceCanvasImage';
 import { useXRButton } from '@helpers/react/useXRButton';
 import { ReadonlySignal } from '@preact/signals-react';
@@ -274,7 +277,7 @@ export default function CloudXR3DUI({
                 disabled={playInProgress}
               >
                 <Container flexDirection="row" alignItems="center" gap={8}>
-                  {playLabel === 'Play' && <Image src="./play-circle.svg" width={40} height={40} />}
+                  {playLabel === 'Play' && <Image src={playCircleSvg} width={40} height={40} />}
                   <Text fontSize={36} color="black" fontWeight="medium">
                     {playLabel}
                   </Text>
@@ -301,7 +304,7 @@ export default function CloudXR3DUI({
                   }}
                 >
                   <Container flexDirection="row" alignItems="center" gap={8}>
-                    <Image src="./arrow-uturn-left.svg" width={40} height={40} />
+                    <Image src={arrowUturnLeftSvg} width={40} height={40} />
                     <Text fontSize={36} color="black" fontWeight="medium">
                       Reset
                     </Text>
@@ -527,7 +530,7 @@ export default function CloudXR3DUI({
                     >
                       <Container flexDirection="row" alignItems="center" gap={10}>
                         {playLabel === 'Play' && (
-                          <Image src="./play-circle.svg" width={50} height={50} />
+                          <Image src={playCircleSvg} width={50} height={50} />
                         )}
                         <Text fontSize={42} color="black" fontWeight="medium">
                           {playLabel}
@@ -549,7 +552,7 @@ export default function CloudXR3DUI({
                       }}
                     >
                       <Container flexDirection="row" alignItems="center" gap={10}>
-                        <Image src="./arrow-uturn-left.svg" width={50} height={50} />
+                        <Image src={arrowUturnLeftSvg} width={50} height={50} />
                         <Text fontSize={42} color="black" fontWeight="medium">
                           Reset
                         </Text>
@@ -578,7 +581,7 @@ export default function CloudXR3DUI({
                       }}
                     >
                       <Container flexDirection="row" alignItems="center" gap={10}>
-                        <Image src="./arrow-left-start-on-rectangle.svg" width={50} height={50} />
+                        <Image src={arrowLeftStartOnRectangleSvg} width={50} height={50} />
                         <Text fontSize={38} color="black" fontWeight="medium">
                           Disconnect
                         </Text>
