@@ -90,7 +90,7 @@ session is running via USB or Bluetooth. See :ref:`device-interface-device-plugi
      - `OAK-D Camera Plugin`_ (CLI tool)
    * - `Haptikos Exoskeletons`_
      -  High-fidelity finger tracking and haptic feedback (Haptikos Robotics API)
-     - `Haptikos Plugin`_ (CLI tool) 
+     - `Haptikos Plugin`_ (CLI tool)
 
 Planned Input Device Support
 -----------------------------
@@ -178,13 +178,13 @@ directly. Each device name in the tables above links to the corresponding manufa
      -
    * - `Haptikos`_
      - Haptikos Exoskeletons
-     -      
+     -
    * - `Haply`_
      - Haply (planned)
      -
    * - `3Dconnexion`_
      - 3D Space Mouse (planned)
-     - 
+     -
 
 Social Links
 ------------
@@ -249,7 +249,7 @@ WeChat app** (Discover → Scan) to join. Scanning with your phone's built-in ca
 .. _`Logitech Rudder Pedals`: https://www.logitechg.com/en-us/products/flight/flight-simulator-rudder-pedals.html
 .. _`OAK-D Camera`: https://shop.luxonis.com/products/oak-d
 .. _`3D Space Mouse`: https://3dconnexion.com/us/spacemouse/
-.. _`Haptikos Exoskeletons`: https://haptikos.tech/product/haptikos/ 
+.. _`Haptikos Exoskeletons`: https://haptikos.tech/product/haptikos/
 
 .. Social links
 .. _`NVIDIA Omniverse Discord invite`: https://discord.com/invite/nvidiaomniverse
