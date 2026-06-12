@@ -273,11 +273,11 @@
 <div class="version-switcher">
   <label for="version-select" class="version-switcher__label">Version</label>
   <select id="version-select" class="version-switcher__select" onchange="location = this.value;">
-    <option value="oob_teleop_control.html" selected>release/1.3.x</option>
     <option value="../../../main/references/oob_teleop_control.html" >main</option>
     <option value="../../1.0.x/index.html" >release/1.0.x</option>
     <option value="../../1.1.x/index.html" >release/1.1.x</option>
     <option value="../../1.2.x/references/oob_teleop_control.html" >release/1.2.x</option>
+    <option value="oob_teleop_control.html" selected>release/1.3.x</option>
     <option value="../../../v1.1.8/index.html" >v1.1.8</option>
     <option value="../../../v1.1.5/index.html" >v1.1.5</option>
     <option value="../../../v1.0.193/index.html" >v1.0.193</option>
@@ -564,7 +564,7 @@ directly.</p>
 </thead>
 <tbody>
 <tr class="row-even"><td><p><strong>XR headset</strong></p></td>
-<td><p>Isaac Teleop WebXR client in the device browser</p></td>
+<td><p>Isaac Teleop web client in the device browser</p></td>
 <td><p>Registers with the hub via WebSocket, reports streaming metrics
 periodically (default every 500 ms), receives config pushes.</p></td>
 </tr>
@@ -690,7 +690,7 @@ Pass it as:</p>
 </section>
 <section id="web-client-integration">
 <h2>Web client integration<a class="headerlink" href="#web-client-integration" title="Link to this heading">#</a></h2>
-<p>The WebXR client connects to the hub when the page URL contains
+<p>The web client connects to the hub when the page URL contains
 <code class="docutils literal notranslate"><span class="pre">oobEnable=1</span></code> plus <code class="docutils literal notranslate"><span class="pre">serverIP</span></code> and <code class="docutils literal notranslate"><span class="pre">port</span></code>:</p>
 <pre class="literal-block"><a class="reference external" href="https://nvidia.github.io/IsaacTeleop/client/main/" rel="noopener noreferrer" target="_blank">https://nvidia.github.io/IsaacTeleop/client/main/</a>?oobEnable=1&amp;serverIP=10.0.0.1&amp;port=48322</pre>
 <p>The client builds <code class="docutils literal notranslate"><span class="pre">wss://{serverIP}:{port}/oob/v1/ws</span></code> and:</p>
@@ -738,7 +738,7 @@ previously saved settings:</p>
 <td><p>Override the LAN IP used for headset bookmark URLs</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">TELEOP_WEB_CLIENT_BASE</span></code></p></td>
-<td><p>Override the WebXR client origin URL</p></td>
+<td><p>Override the web client origin URL</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">TELEOP_STREAM_PORT</span></code></p></td>
 <td><p>Override the signaling port (default same as proxy port)</p></td>
@@ -751,7 +751,7 @@ previously saved settings:</p>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">TELEOP_CLIENT_ROUTE</span></code></p></td>
 <td><p>HashRouter fragment appended to the bookmark URL. Default empty
-(no fragment — the WebXR client picks its own landing route). Set
+(no fragment — the web client picks its own landing route). Set
 to e.g. <code class="docutils literal notranslate"><span class="pre">/real/gear/dexmate</span></code> to force a specific route. A
 leading <code class="docutils literal notranslate"><span class="pre">#</span></code> is stripped automatically.</p></td>
 </tr>
@@ -764,10 +764,10 @@ set; the value must match a serial currently in <code class="docutils literal no
 <span class="pre">&lt;serial&gt;</span></code>.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">USB_UI_PORT</span></code></p></td>
-<td><p>HTTPS static WebXR UI port in <code class="docutils literal notranslate"><span class="pre">--usb-local</span></code> mode (default
-<code class="docutils literal notranslate"><span class="pre">8080</span></code>). The launcher serves the prebuilt client on
-<code class="docutils literal notranslate"><span class="pre">https://127.0.0.1:&lt;port&gt;</span></code> and <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">reverse</span></code>-maps the same
-port to the headset.</p></td>
+<td><p>HTTPS static web client port for <code class="docutils literal notranslate"><span class="pre">--usb-local</span></code> (default <code class="docutils literal notranslate"><span class="pre">8080</span></code>).
+Binds to <code class="docutils literal notranslate"><span class="pre">127.0.0.1:&lt;port&gt;</span></code> and <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">reverse</span></code>-maps the port to
+the headset.  <code class="docutils literal notranslate"><span class="pre">--host-client</span></code> uses the WSS proxy port (<code class="docutils literal notranslate"><span class="pre">PROXY_PORT</span></code>)
+instead; <code class="docutils literal notranslate"><span class="pre">USB_UI_PORT</span></code> has no effect on it.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">USB_BACKEND_PORT</span></code></p></td>
 <td><p>CloudXR backend port the headset reaches via <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">reverse</span></code> in
@@ -781,11 +781,13 @@ mode (default <code class="docutils literal notranslate"><span class="pre">3478<
 </table>
 </div>
 </section>
-<section id="usb-local-mode">
-<h2>USB-local mode<a class="headerlink" href="#usb-local-mode" title="Link to this heading">#</a></h2>
+<section id="usb-local-mode-setup-oob-usb-local">
+<h2>USB-local mode (<code class="docutils literal notranslate"><span class="pre">--setup-oob</span> <span class="pre">--usb-local</span></code>)<a class="headerlink" href="#usb-local-mode-setup-oob-usb-local" title="Link to this heading">#</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">--usb-local</span></code> routes teleop signalling, the web client, and WebRTC media
-over the USB cable on the headset’s loopback via <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">reverse</span></code>. Add it to
-<code class="docutils literal notranslate"><span class="pre">--setup-oob</span></code>:</p>
+over the USB cable on the headset’s loopback via <code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">reverse</span></code>.  It requires
+<code class="docutils literal notranslate"><span class="pre">--setup-oob</span></code> because the OOB hub is the only path that delivers TURN relay
+configuration to the client (without it the headset has no way to discover the
+coturn endpoint).  Always use both flags together:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr<span class="w"> </span>--accept-eula<span class="w"> </span>--setup-oob<span class="w"> </span>--usb-local
 </pre></div>
 </div>
@@ -808,7 +810,7 @@ the WSS proxy uses (Python <code class="docutils literal notranslate"><span clas
 </ol>
 <p>In <code class="docutils literal notranslate"><span class="pre">--usb-local</span></code> mode the launcher also wipes localStorage / IndexedDB /
 cookies / HTTP cache for the teleop UI origin (<code class="docutils literal notranslate"><span class="pre">https://127.0.0.1:&lt;usb_ui_port&gt;</span></code>)
-before the session starts — the SDK and WebXR client both cache settings
+before the session starts — the SDK and web client both cache settings
 (e.g. <code class="docutils literal notranslate"><span class="pre">general.iceTransportPolicy</span></code> for ICE transport policy,
 <code class="docutils literal notranslate"><span class="pre">cxr.isaac.teleopPath</span></code> for the last-used project) in localStorage, and a
 stale value can silently win over a fresh URL param. The origin is owned
@@ -960,7 +962,7 @@ or stage <code class="docutils literal notranslate"><span class="pre">nvidia-clo
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#environment-variables">Environment variables</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#usb-local-mode">USB-local mode</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#usb-local-mode-setup-oob-usb-local">USB-local mode (<code class="docutils literal notranslate"><span class="pre">--setup-oob</span> <span class="pre">--usb-local</span></code>)</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#teleop-client-error-no-local-connection-candidates-0xc0f2220f">Teleop client error: “No local connection candidates” (0xC0F2220F)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cdp-startbutton-marked-failed-not-actionable">CDP: startButton marked failed / not actionable</a></li>

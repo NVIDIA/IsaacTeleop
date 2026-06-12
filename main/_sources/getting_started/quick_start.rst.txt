@@ -70,6 +70,36 @@ To bypass the interactive EULA prompt (e.g. for CI or headless runs), pass the f
 
    python -m isaacteleop.cloudxr --accept-eula
 
+.. dropdown:: Optional launch modes
+
+   The launcher supports three optional flags that can be combined to control
+   how the headset connects and how the web client is delivered.
+
+   .. list-table::
+      :header-rows: 1
+      :widths: 45 55
+
+      * - Command
+        - What it does
+      * - ``python -m isaacteleop.cloudxr``
+        - Plain: headset navigates to GitHub Pages URL over WiFi.
+      * - ``python -m isaacteleop.cloudxr --host-client``
+        - Serves the web client at ``https://<ip>:48322/client/`` via the WSS
+          proxy. No separate port, no USB or TURN relay required. Useful when
+          GitHub Pages is unreachable.
+      * - ``python -m isaacteleop.cloudxr --setup-oob``
+        - OOB hub + CDP automation: opens the browser on the headset and
+          auto-clicks CONNECT over USB adb. Client URL is GitHub Pages.
+      * - ``python -m isaacteleop.cloudxr --setup-oob --host-client``
+        - OOB hub + CDP with client at ``/client/`` on the WSS proxy
+          (air-gapped / proxy use).
+      * - ``python -m isaacteleop.cloudxr --setup-oob --usb-local``
+        - All traffic over USB: adb-reverse + coturn TURN relay + loopback
+          HTTPS. Requires ``coturn`` and a WiFi-associated headset.
+
+   ``--usb-local`` requires ``--setup-oob``.  See
+   :doc:`/references/oob_teleop_control` for full OOB documentation.
+
 You should see output similar to:
 
 .. figure:: ../_static/cloudxr-run-output.png
@@ -160,7 +190,7 @@ might need to whitelist them manually.
 .. dropdown:: Meta Quest and Pico headsets
    :open:
 
-   For **Quest and Pico headsets** (WebXR Client), at the minimum, you need to whitelist the ports
+   For **Quest and Pico headsets** (web client), at the minimum, you need to whitelist the ports
    for the CloudXR runtime and wss proxy:
 
    .. code-block:: bash
@@ -168,8 +198,8 @@ might need to whitelist them manually.
       sudo ufw allow 47998/udp
       sudo ufw allow 49100,48322/tcp
 
-   If you are running the WebXR client from source, you need to whitelist the additional ports for
-   the web server:
+   If you are running the web client from source (dev server), open both
+   ports:
 
    .. code-block:: bash
 
@@ -186,6 +216,8 @@ might need to whitelist them manually.
 
 Please see the `CloudXR network setup`_ for more details for other network configurations (such as
 running the CloudXR runtime and wss proxy in containerized environment; or using Vision Pro client).
+
+.. _connect-xr-headset:
 
 5. Connect an XR headset
 ------------------------
@@ -247,6 +279,31 @@ running the CloudXR runtime and wss proxy in containerized environment; or using
    .. note::
       For advanced usage and troubleshooting of CloudXR, see the `CloudXR documentation`_ for more
       details.
+
+   Alternatively, pass ``--host-client`` when starting the launcher to serve
+   the web client directly from the streaming host (useful when GitHub Pages is
+   unreachable).  The client is served at ``/client/`` on the WSS proxy port
+   (no extra port needed).  The launcher prints the local URL on startup:
+
+   .. code-block:: text
+
+      web client:        https://10.0.1.5:48322/client/  (hosted locally — open on your headset or browser)
+
+   Open that URL instead of the GitHub Pages link above.  The rest of the
+   flow — certificate acceptance, entering the server IP, clicking Connect —
+   is the same.  Port 48322 is already open from step 4.
+
+   .. note::
+
+      On **first run**, the launcher fetches ``index.html`` and ``bundle.js`` from
+      GitHub Pages and caches them in ``~/.cloudxr/static-client/`` (override with
+      ``TELEOP_WEB_CLIENT_STATIC_DIR``).  Subsequent runs are fully offline.
+
+      For a **true air-gapped machine**, pre-stage the two files before the first
+      run — copy or download them from
+      ``https://nvidia.github.io/IsaacTeleop/client/`` into
+      ``~/.cloudxr/static-client/`` on a networked host, then transfer the
+      directory to the air-gapped machine.
 
    The source code for the web client is in the :code-dir:`deps/cloudxr/webxr_client/` directory.  To build the web
    client from source, see :doc:`build_from_source/webxr`.
