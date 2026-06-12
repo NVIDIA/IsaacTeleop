@@ -8,6 +8,3 @@
 *.png filter=lfs diff=lfs merge=lfs -text
 *.jpg filter=lfs diff=lfs merge=lfs -text
 *.jpeg filter=lfs diff=lfs merge=lfs -text
-#
-# Exceptions for small files.
-deps/cloudxr/webxr_client/public/*.svg -filter -diff -merge text
