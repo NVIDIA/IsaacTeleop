@@ -30,24 +30,6 @@ on first run):
 
    python -m isaacteleop.cloudxr --accept-eula --setup-oob
 
-Add ``--host-client`` to serve the web client locally instead of using GitHub
-Pages (useful in air-gapped environments):
-
-.. code-block:: bash
-
-   python -m isaacteleop.cloudxr --accept-eula --setup-oob --host-client
-
-.. note::
-
-   On **first run**, the launcher fetches ``index.html`` and ``bundle.js`` from
-   GitHub Pages and caches them in ``~/.cloudxr/static-client/`` (override with
-   ``TELEOP_WEB_CLIENT_STATIC_DIR``).  Subsequent runs are fully offline.
-
-   For a **true air-gapped machine**, either run once on a networked host first
-   to populate the cache, or pre-stage the two files by copying
-   ``~/.cloudxr/static-client/`` (or a tarball of it) to the target machine
-   before the first run.
-
 This will:
 
 1. Verify a USB-connected headset is available via ``adb devices``
