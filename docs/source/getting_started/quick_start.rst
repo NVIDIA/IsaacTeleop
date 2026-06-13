@@ -11,6 +11,7 @@ commands to the terminal.
 .. contents:: Steps
    :local:
    :depth: 1
+   :backlinks: none
 
 .. _check-out-code-base:
 
