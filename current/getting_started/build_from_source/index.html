@@ -703,7 +703,9 @@ git<span class="w"> </span>clone<span class="w"> </span>--depth<span class="w"> 
 <span class="nb">cd</span><span class="w"> </span>/tmp/nlopt-python
 git<span class="w"> </span>submodule<span class="w"> </span>update<span class="w"> </span>--init<span class="w"> </span>--recursive
 
-<span class="c1"># Use the same Python version as your isaacteleop install (3.10, 3.11, 3.12, or 3.13)</span>
+<span class="c1"># The Python version must match your isaacteleop install exactly (3.10, 3.11, 3.12, or 3.13).</span>
+<span class="c1"># nlopt builds a CPython ABI-specific extension (.cpython-311-*.so), so a wheel built</span>
+<span class="c1"># with Python 3.11 will not load under Python 3.12 or vice versa.</span>
 uv<span class="w"> </span>venv<span class="w"> </span>--python<span class="o">=</span><span class="m">3</span>.11<span class="w"> </span>/tmp/nlopt-wheel-venv
 <span class="nv">VIRTUAL_ENV</span><span class="o">=</span>/tmp/nlopt-wheel-venv<span class="w"> </span>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>numpy<span class="w"> </span>setuptools<span class="w"> </span>wheel
 /tmp/nlopt-wheel-venv/bin/python<span class="w"> </span>setup.py<span class="w"> </span>bdist_wheel<span class="w"> </span>-d<span class="w"> </span>/tmp/nlopt-wheels/
@@ -884,7 +886,7 @@ uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </s
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on June 12, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on June 13, 2026.
       <br/>
     
   </p>
