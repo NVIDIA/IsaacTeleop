@@ -32,6 +32,7 @@ class AssetManifestPlugin {
    * @param {import('webpack').Compiler} compiler
    */
   apply(compiler) {
+    // After emit: write sorted asset list for OOB manifest-driven sync.
     compiler.hooks.done.tap('AssetManifestPlugin', stats => {
       const outDir = stats.compilation.outputOptions.path;
       // Every emitted asset except the manifest itself (avoid self-reference).

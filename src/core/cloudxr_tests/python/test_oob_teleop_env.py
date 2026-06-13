@@ -407,6 +407,22 @@ def test_require_web_client_static_dir_downloads_manifest_chunks(
     ]
 
 
+def test_manifest_file_names_rejects_unsafe_paths() -> None:
+    """Manifest parsing skips path traversal and subdirectory entries."""
+    names = oob_teleop_env_under_test._manifest_file_names(
+        {
+            "files": [
+                "index.html",
+                "../../../.bashrc",
+                "subdir/chunk.js",
+                "..\\win.txt",
+                "553.bundle.js",
+            ]
+        }
+    )
+    assert names == ["index.html", "553.bundle.js"]
+
+
 def test_require_web_client_static_dir_ok(
     clear_teleop_env: None,
     monkeypatch: pytest.MonkeyPatch,

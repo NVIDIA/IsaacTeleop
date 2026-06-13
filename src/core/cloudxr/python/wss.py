@@ -310,7 +310,10 @@ def _client_static_mime_type(path: Path) -> str:
 
 
 def _make_http_handler(backend_host, backend_port, hub=None, static_dir=None):
+    """Return the WSS HTTP request handler (OOB hub API, static ``/client/``, cert page)."""
+
     async def handle_http_request(connection, request):
+        """Dispatch non-WebSocket HTTP: CORS preflight, OOB APIs, static client, or cert HTML."""
         if request.headers.get("Upgrade", "").lower() == "websocket":
             return None
 
@@ -375,6 +378,7 @@ def _make_http_handler(backend_host, backend_port, hub=None, static_dir=None):
         if static_dir is not None and (
             path == "/client" or path.startswith("/client/")
         ):
+            # Resolve lazy chunks and other build artifacts under static_dir.
             tail = path[len("/client") :].lstrip("/") or "index.html"
             static_file = _resolve_client_static_file(static_dir, tail)
             if static_file is None:

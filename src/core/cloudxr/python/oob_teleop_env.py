@@ -244,6 +244,24 @@ _LEGACY_WEB_CLIENT_ASSETS = ("index.html", "bundle.js")
 _MANIFEST_CORE_FILES = (*_LEGACY_WEB_CLIENT_ASSETS, "asset-manifest.json")
 
 
+def _is_safe_manifest_basename(name: str) -> bool:
+    """Return True if *name* is a single-segment filename safe to write under static_dir.
+
+    Args:
+        name: Candidate basename from a manifest ``files`` entry.
+
+    Returns:
+        ``False`` for path separators, ``..`` segments, or absolute paths.
+    """
+    if name in (".", ".."):
+        return False
+    if "/" in name or "\\" in name:
+        return False
+    if any(part == ".." for part in Path(name).parts):
+        return False
+    return Path(name).name == name
+
+
 def _manifest_file_names(payload: object) -> list[str] | None:
     """Parse ``asset-manifest.json`` payload into a deduplicated file list.
 
@@ -265,7 +283,12 @@ def _manifest_file_names(payload: object) -> list[str] | None:
     # Preserve manifest order; skip duplicates and non-string entries.
     names: list[str] = []
     for entry in files:
-        if isinstance(entry, str) and entry and entry not in names:
+        if (
+            isinstance(entry, str)
+            and entry
+            and _is_safe_manifest_basename(entry)  # single-segment basename only
+            and entry not in names
+        ):
             names.append(entry)
     return names or None
 
@@ -424,7 +447,7 @@ def require_web_client_static_dir() -> Path:
     client_origin = default_web_client_origin()
     # Download only assets reported missing (manifest-aware).
     for name in _web_client_assets_to_sync(p, client_origin):
-        dest = p / name
+        dest = p / name  # basename-only; validated in _manifest_file_names
         url = urljoin(client_origin, name)
         log.info("web client: fetching %s → %s", url, dest)
         data = _fetch_url_bytes(url)
@@ -483,9 +506,11 @@ def _usb_local_static_handler_class(
         """Serve files from a fixed directory; log at DEBUG instead of stderr."""
 
         def __init__(self, *args, **kwargs):
+            """Bind the handler to *root* (manifest-synced static client directory)."""
             super().__init__(*args, directory=root, **kwargs)
 
         def log_message(self, fmt: str, *args) -> None:
+            """Route access logs to the cloudxr logger at DEBUG."""
             log.debug("%s - %s", self.address_string(), fmt % args)
 
     return _Handler
