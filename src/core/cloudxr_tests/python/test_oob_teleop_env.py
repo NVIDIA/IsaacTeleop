@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+import json
+from urllib.error import URLError
 from urllib.parse import parse_qs, urlparse
 
 import cloudxr_py_test_ns.oob_teleop_env as oob_teleop_env_under_test
@@ -336,6 +338,7 @@ def test_require_web_client_static_dir_default_downloads(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ) -> None:
+    """Without a remote manifest, sync only index.html and bundle.js (legacy)."""
     # Path.home() consults $HOME on POSIX but %USERPROFILE% on Windows
     # (ntpath.expanduser ignores $HOME when USERPROFILE is set). Patch both
     # so the redirect works on every platform.
@@ -347,6 +350,8 @@ def test_require_web_client_static_dir_default_downloads(
             return b"<!doctype html><title>t</title>"
         if url.endswith("bundle.js"):
             return b"console.log(1);"
+        if url.endswith("asset-manifest.json"):
+            raise URLError("not found")
         raise AssertionError(url)
 
     monkeypatch.setattr(
@@ -359,6 +364,45 @@ def test_require_web_client_static_dir_default_downloads(
     assert out == expected
     assert (out / "index.html").read_bytes().startswith(b"<!doctype")
     assert b"console.log" in (out / "bundle.js").read_bytes()
+
+
+def test_require_web_client_static_dir_downloads_manifest_chunks(
+    clear_teleop_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    """Manifest sync fetches lazy chunk files listed in asset-manifest.json."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+
+    manifest = b'{"files":["index.html","bundle.js","553.bundle.js","asset-manifest.json"]}'
+
+    def fake_fetch(url: str, *, timeout: float = 120.0) -> bytes:
+        if url.endswith("asset-manifest.json"):
+            return manifest
+        if url.endswith("index.html"):
+            return b"<!doctype html><title>t</title>"
+        if url.endswith("bundle.js"):
+            return b"console.log(1);"
+        if url.endswith("553.bundle.js"):
+            return b"// emulate chunk"
+        raise AssertionError(url)
+
+    monkeypatch.setattr(
+        oob_teleop_env_under_test,
+        "_fetch_url_bytes",
+        fake_fetch,
+    )
+    out = require_web_client_static_dir()
+    assert (out / "553.bundle.js").read_bytes() == b"// emulate chunk"
+    assert json.loads((out / "asset-manifest.json").read_text(encoding="utf-8"))[
+        "files"
+    ] == [
+        "index.html",
+        "bundle.js",
+        "553.bundle.js",
+        "asset-manifest.json",
+    ]
 
 
 def test_require_web_client_static_dir_ok(

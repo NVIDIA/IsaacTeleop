@@ -402,8 +402,8 @@ On startup the launcher:
    traverse the network).
 2. Resolves the WebXR static directory from
    ``TELEOP_WEB_CLIENT_STATIC_DIR`` (default ``~/.cloudxr/static-client``)
-   and downloads ``index.html`` / ``bundle.js`` from
-   ``https://nvidia.github.io/IsaacTeleop/client/main/`` if either is missing.
+   and syncs missing files from the published client (via
+   ``asset-manifest.json`` when available; see :doc:`../getting_started/build_from_source/webxr`).
 3. Serves that directory over HTTPS on 127.0.0.1:8080 with the same PEM
    the WSS proxy uses (Python ``http.server`` in a daemon thread).
 4. ``adb reverse`` for 8080 (static UI), 48322 (WSS), 49100 (backend),
@@ -451,6 +451,19 @@ interface is present. A runtime monitor also watches for mid-session
 Wi-Fi drops and prints a yellow warning so the cause is obvious without
 having to puzzle out a frozen WebRTC connection.
 
+Web client UI has no text (OOB / ``--host-client``)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Cause:** Production webpack splits UIKit msdf support into lazy
+``<id>.bundle.js`` chunks. If the static cache under
+``TELEOP_WEB_CLIENT_STATIC_DIR`` contains only ``index.html`` and
+``bundle.js``, the browser 404s the msdf chunk and in-VR text does not render.
+
+**Fix:** Ensure the full client tree is present — run the launcher once with
+network so ``asset-manifest.json`` sync completes, copy a full ``npm run build``
+output, or use the GitHub Pages URL directly. See
+:doc:`../getting_started/build_from_source/webxr`.
+
 CDP: startButton marked failed / not actionable
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -495,15 +508,15 @@ browser on the headset.
 WebXR static download fails (offline / proxy)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Cause:** The launcher fetches ``index.html`` / ``bundle.js`` from
-``https://nvidia.github.io/IsaacTeleop/client/main/`` into the static dir on
-first run.  Behind a proxy or with no internet, this fails and
+**Cause:** The launcher syncs the published web client into the static dir on
+first run (``asset-manifest.json`` and every listed file when the release
+includes a manifest).  Behind a proxy or with no internet, this fails and
 ``--usb-local`` aborts.
 
-**Fix:** Pre-stage the files (any way you like — ``curl``, container
-build step, internal mirror) into the static dir, then re-run.  The
-launcher only downloads when a file is missing or empty.  Override the
-target directory via ``TELEOP_WEB_CLIENT_STATIC_DIR``.
+**Fix:** Pre-stage the full client ``build/`` tree (or the published
+``/client/<version>/`` directory) into the static dir, then re-run.  The
+launcher only downloads missing or empty files.  Override the target directory
+via ``TELEOP_WEB_CLIENT_STATIC_DIR``.
 
 **Fix:** Set the SDK versions in ``deps/cloudxr/.env`` (copy from
 ``.env.default``) so the download script can resolve the right version,

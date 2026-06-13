@@ -1,11 +1,17 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""OOB teleop environment: proxy port, LAN detection, stream defaults, headset bookmark URLs, startup banner."""
+"""OOB teleop environment: proxy port, LAN detection, stream defaults, headset bookmark URLs.
+
+Includes manifest-driven web client static sync (:func:`require_web_client_static_dir`)
+so OOB and ``--host-client`` serve lazy webpack chunks listed in
+``asset-manifest.json``, not only ``index.html`` and ``bundle.js``.
+"""
 
 from __future__ import annotations
 
 import http.server
+import json
 import logging
 import os
 import re
@@ -15,6 +21,7 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Iterable
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from urllib.error import URLError
@@ -48,10 +55,19 @@ def versioned_web_client_url(version: str) -> str:
     site redirects to the latest stable tag. The same helper backs the
     standalone "web client:" line printed in non-OOB mode, so every path
     agrees on which client to open.
+
+    Args:
+        version: Installed ``isaacteleop`` distribution version string.
+
+    Returns:
+        Absolute HTTPS URL to the matching published WebXR client tree
+        (trailing path segment, no query).
     """
     v = version.strip()
+    # Exact release tag → per-tag client directory on GitHub Pages.
     if re.fullmatch(r"\d+\.\d+\.\d+", v):
         return urljoin(WEB_CLIENT_BASE, f"v{v}/")
+    # Dev/rc builds → release-line slug (e.g. release-1.3.x/).
     m = re.match(r"(\d+)\.(\d+)", v)
     if m:
         return urljoin(WEB_CLIENT_BASE, f"release-{m.group(1)}.{m.group(2)}.x/")
@@ -65,6 +81,10 @@ def default_web_client_origin() -> str:
     under the test package alias too) and maps it via
     :func:`versioned_web_client_url`. Falls back to
     :data:`FALLBACK_WEB_CLIENT_ORIGIN` when the version can't be determined.
+
+    Returns:
+        Base URL (with trailing slash) used to download OOB static assets and
+        open the bookmark when no override is set.
     """
     try:
         return versioned_web_client_url(version("isaacteleop"))
@@ -84,8 +104,8 @@ TELEOP_WEB_CLIENT_BASE_ENV = "TELEOP_WEB_CLIENT_BASE"
 TELEOP_CLIENT_ROUTE_ENV = "TELEOP_CLIENT_ROUTE"
 DEFAULT_TELEOP_CLIENT_ROUTE = ""
 
-# Directory with prebuilt WebXR assets (``index.html`` + ``bundle.js``). Optional for ``--usb-local``:
-# defaults to ``~/.cloudxr/static-client``; missing files are fetched from published URLs.
+# Prebuilt web client cache (``TELEOP_WEB_CLIENT_STATIC_DIR``, default
+# ``~/.cloudxr/static-client``). Synced via :func:`require_web_client_static_dir`.
 TELEOP_WEB_CLIENT_STATIC_DIR_ENV = "TELEOP_WEB_CLIENT_STATIC_DIR"
 
 CHROME_INSPECT_DEVICES_URL = "chrome://inspect/#devices"
@@ -110,12 +130,23 @@ USB_TURN_CREDENTIAL = "cloudxrpass"  # TURN credential
 
 
 def default_web_client_static_dir() -> Path:
-    """Default directory for web client static files (under ``~/.cloudxr``)."""
+    """Default directory for web client static files (under ``~/.cloudxr``).
+
+    Returns:
+        ``~/.cloudxr/static-client`` — used when
+        :envvar:`TELEOP_WEB_CLIENT_STATIC_DIR` is unset.
+    """
     return Path.home() / ".cloudxr" / "static-client"
 
 
 def resolve_web_client_static_dir() -> Path:
     """Directory for web client assets: :envvar:`TELEOP_WEB_CLIENT_STATIC_DIR` or default.
+
+    Args:
+        None (reads :envvar:`TELEOP_WEB_CLIENT_STATIC_DIR` from the environment).
+
+    Returns:
+        Absolute path to the static client root (may not exist yet).
 
     Raises:
         RuntimeError: If ``TELEOP_WEB_CLIENT_STATIC_DIR`` points at a non-directory path.
@@ -132,10 +163,24 @@ def resolve_web_client_static_dir() -> Path:
 
 
 def _fetch_url_bytes(url: str, *, timeout: float = 120.0) -> bytes:
-    """Download *url* into memory (WebXR client assets only; size-capped)."""
+    """Download *url* into memory (WebXR client assets only; size-capped).
+
+    Args:
+        url: HTTPS URL of a single static asset (``index.html``, ``bundle.js``,
+            lazy chunk, or ``asset-manifest.json``).
+        timeout: ``urlopen`` socket timeout in seconds.
+
+    Returns:
+        Response body bytes (non-empty for successful downloads).
+
+    Raises:
+        RuntimeError: On network failure or if the body exceeds
+            :data:`_USB_LOCAL_ASSET_MAX_BYTES`.
+    """
     req = Request(url, headers={"User-Agent": "isaacteleop-cloudxr"})
     try:
         with urlopen(req, timeout=timeout) as resp:
+            # Reject oversized bodies when Content-Length is trustworthy.
             cl = resp.headers.get("Content-Length")
             if cl is not None:
                 try:
@@ -148,6 +193,7 @@ def _fetch_url_bytes(url: str, *, timeout: float = 120.0) -> bytes:
                             f"Refusing download larger than {_USB_LOCAL_ASSET_MAX_BYTES} bytes "
                             f"(Content-Length={n}): {url}"
                         )
+            # Read one byte past the cap so we can detect truncated Content-Length.
             data = resp.read(_USB_LOCAL_ASSET_MAX_BYTES + 1)
     except URLError as exc:
         raise RuntimeError(f"Could not download {url}: {exc}") from exc
@@ -159,12 +205,22 @@ def _fetch_url_bytes(url: str, *, timeout: float = 120.0) -> bytes:
 
 
 def _write_atomic_bytes(dest: Path, data: bytes) -> None:
+    """Write *data* to *dest* via a ``.part`` temp file (crash-safe).
+
+    Args:
+        dest: Final file path under the static client directory.
+        data: Raw bytes to persist (HTML, JS, JSON manifest, etc.).
+
+    Raises:
+        OSError: If the parent directory cannot be created or the rename fails.
+    """
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_name(dest.name + ".part")
     try:
         tmp.write_bytes(data)
         tmp.replace(dest)
     except OSError:
+        # Best-effort cleanup so a failed partial does not masquerade as valid.
         if tmp.is_file():
             try:
                 tmp.unlink()
@@ -173,20 +229,185 @@ def _write_atomic_bytes(dest: Path, data: bytes) -> None:
         raise
 
 
+# ---------------------------------------------------------------------------
+# Web client asset manifest sync
+#
+# Production webpack builds emit ``bundle.js`` plus lazy ``[id].bundle.js``
+# chunks. ``asset-manifest.json`` lists every file OOB/--host-client must
+# cache and serve. Helpers below resolve the file set from local or remote
+# manifests and drive :func:`require_web_client_static_dir`.
+# ---------------------------------------------------------------------------
+
+# Minimum assets for a working OOB/--host-client session before manifest support.
+_LEGACY_WEB_CLIENT_ASSETS = ("index.html", "bundle.js")
+# Always required once manifest-driven sync is enabled (manifest lists lazy chunks).
+_MANIFEST_CORE_FILES = (*_LEGACY_WEB_CLIENT_ASSETS, "asset-manifest.json")
+
+
+def _manifest_file_names(payload: object) -> list[str] | None:
+    """Parse ``asset-manifest.json`` payload into a deduplicated file list.
+
+    Args:
+        payload: Decoded JSON object from ``asset-manifest.json`` (expects a
+            top-level ``files`` array of non-empty strings).
+
+    Returns:
+        Deduplicated basenames to sync, or ``None`` if *payload* is not a valid
+        manifest (wrong shape, empty list, or no usable entries).
+    """
+    # Reject non-object JSON (or wrong schema version).
+    if not isinstance(payload, dict):
+        return None
+    files = payload.get("files")
+    # Require a non-empty array of basenames.
+    if not isinstance(files, list) or not files:
+        return None
+    # Preserve manifest order; skip duplicates and non-string entries.
+    names: list[str] = []
+    for entry in files:
+        if isinstance(entry, str) and entry and entry not in names:
+            names.append(entry)
+    return names or None
+
+
+def _with_manifest_core_files(names: list[str]) -> list[str]:
+    """Ensure manifest-driven sync always includes entry HTML/JS and the manifest.
+
+    Webpack may omit ``index.html`` from ``files`` if only JS chunks changed;
+    OOB still needs the shell page and manifest on disk for the next sync pass.
+
+    Args:
+        names: Basenames from a local or remote ``asset-manifest.json``.
+
+    Returns:
+        *names* with any missing :data:`_MANIFEST_CORE_FILES` entries appended
+        (order preserved; duplicates avoided).
+    """
+    out = list(names)
+    # Append shell page + manifest if the webpack manifest omitted them.
+    for name in _MANIFEST_CORE_FILES:
+        if name not in out:
+            out.append(name)
+    return out
+
+
+def _read_local_web_client_manifest(static_dir: Path) -> list[str] | None:
+    """Read ``asset-manifest.json`` from the on-disk static client cache.
+
+    Args:
+        static_dir: Directory returned by :func:`resolve_web_client_static_dir`.
+
+    Returns:
+        Parsed file list from the local manifest, or ``None`` if the manifest is
+        missing, empty, or unreadable (treat as legacy two-file layout).
+    """
+    manifest_path = static_dir / "asset-manifest.json"
+    if not manifest_path.is_file() or manifest_path.stat().st_size == 0:
+        return None
+    try:
+        return _manifest_file_names(
+            json.loads(manifest_path.read_text(encoding="utf-8"))
+        )
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError):
+        # Corrupt manifest → behave like pre-manifest releases.
+        return None
+
+
+def _missing_web_client_assets(static_dir: Path, names: Iterable[str]) -> list[str]:
+    """List cached assets that are absent or zero-length under *static_dir*.
+
+    Args:
+        static_dir: Web client static root (``TELEOP_WEB_CLIENT_STATIC_DIR``).
+        names: Basenames to check (e.g. from a manifest).
+
+    Returns:
+        Subset of *names* that need downloading or re-fetching.
+    """
+    missing: list[str] = []
+    for name in names:
+        dest = static_dir / name
+        if not dest.is_file() or dest.stat().st_size == 0:
+            missing.append(name)
+    return missing
+
+
+def _web_client_asset_names_from_origin(client_origin: str) -> list[str]:
+    """Resolve the full asset list for a published client origin.
+
+    Fetches ``asset-manifest.json`` from *client_origin*. When the manifest is
+    unavailable (older release), falls back to :data:`_LEGACY_WEB_CLIENT_ASSETS`
+    only so OOB still works with a single ``bundle.js``.
+
+    Args:
+        client_origin: Base URL for the versioned client (trailing slash optional),
+            e.g. from :func:`default_web_client_origin`.
+
+    Returns:
+        Basenames to sync, including core HTML/JS and manifest when manifest
+        fetch succeeds.
+    """
+    try:
+        raw = _fetch_url_bytes(
+            urljoin(client_origin, "asset-manifest.json"), timeout=30.0
+        )
+        names = _manifest_file_names(json.loads(raw.decode("utf-8")))
+    except (URLError, RuntimeError, UnicodeDecodeError, json.JSONDecodeError, TypeError):
+        names = None
+    if names is None:
+        # Published client predates asset-manifest.json (single bundle.js era).
+        return list(_LEGACY_WEB_CLIENT_ASSETS)
+    return _with_manifest_core_files(names)
+
+
+def _web_client_assets_to_sync(static_dir: Path, client_origin: str) -> list[str]:
+    """Decide which client files :func:`require_web_client_static_dir` must fetch.
+
+    Prefer the local manifest when present and complete (avoids re-downloading
+    the remote manifest on every launcher start). Otherwise use the remote
+    manifest (or legacy two-file list).
+
+    Args:
+        static_dir: Resolved static client directory on disk.
+        client_origin: Published client base URL for missing assets.
+
+    Returns:
+        Basenames still missing locally; empty when the cache is complete.
+    """
+    local_names = _read_local_web_client_manifest(static_dir)
+    if local_names is not None:
+        # Fast path: trust local manifest if every listed file is already cached.
+        missing = _missing_web_client_assets(
+            static_dir, _with_manifest_core_files(local_names)
+        )
+        if not missing:
+            return []
+    # Slow path: consult origin manifest (or legacy fallback) for anything missing.
+    return _missing_web_client_assets(
+        static_dir, _web_client_asset_names_from_origin(client_origin)
+    )
+
+
 def require_web_client_static_dir() -> Path:
     """Ensure web client static assets exist under :func:`resolve_web_client_static_dir`.
 
-    Creates the directory if needed. If ``index.html`` or ``bundle.js`` is missing or empty,
-    downloads from the published Isaac Teleop client URLs.
+    Creates the directory if needed. Downloads missing files from the published
+    client origin. Uses ``asset-manifest.json`` when present (see
+    :doc:`build_from_source/webxr`); otherwise falls back to ``index.html`` and
+    ``bundle.js`` only.
 
-    Idempotent: safe to call from both :class:`~.launcher.CloudXRLauncher` and ``wss.run``
-    (second call skips network when files are present).
+    Idempotent: safe to call from both :class:`~.launcher.CloudXRLauncher` and
+    ``wss.run`` (second call skips network when files are present).
+
+    Returns:
+        Resolved static directory path (existing, populated).
 
     Raises:
-        RuntimeError: If the path is invalid or downloads/final validation fail.
+        RuntimeError: If the path is invalid, a download fails, or core assets
+            are still missing after sync.
     """
     p = resolve_web_client_static_dir()
 
+    # Ensure the cache root exists before any manifest or asset writes.
     try:
         p.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
@@ -195,14 +416,10 @@ def require_web_client_static_dir() -> Path:
         ) from exc
 
     client_origin = default_web_client_origin()
-    assets = (
-        ("index.html", urljoin(client_origin, "index.html")),
-        ("bundle.js", urljoin(client_origin, "bundle.js")),
-    )
-    for name, url in assets:
+    # Download only assets reported missing (manifest-aware).
+    for name in _web_client_assets_to_sync(p, client_origin):
         dest = p / name
-        if dest.is_file() and dest.stat().st_size > 0:
-            continue
+        url = urljoin(client_origin, name)
         log.info("web client: fetching %s → %s", url, dest)
         data = _fetch_url_bytes(url)
         if not data:
@@ -212,7 +429,8 @@ def require_web_client_static_dir() -> Path:
         except OSError as exc:
             raise RuntimeError(f"Failed to write {dest}: {exc}") from exc
 
-    for name in ("index.html", "bundle.js"):
+    # Entry HTML/JS must exist even when lazy chunks are served separately.
+    for name in _LEGACY_WEB_CLIENT_ASSETS:
         fp = p / name
         if not fp.is_file() or fp.stat().st_size == 0:
             raise RuntimeError(f"Web client file missing or empty after fetch: {fp}")
@@ -220,7 +438,16 @@ def require_web_client_static_dir() -> Path:
 
 
 def _wait_for_port(host: str, port: int, timeout: float) -> bool:
-    """Return ``True`` once *host:port* accepts a TCP connection, else ``False``."""
+    """Poll until *host:port* accepts a TCP connection or *timeout* elapses.
+
+    Args:
+        host: Address to probe (loopback for USB-local static server readiness).
+        port: TCP port to connect to.
+        timeout: Maximum seconds to keep retrying.
+
+    Returns:
+        ``True`` if a connection succeeded within *timeout*, else ``False``.
+    """
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
@@ -234,9 +461,21 @@ def _wait_for_port(host: str, port: int, timeout: float) -> bool:
 def _usb_local_static_handler_class(
     static_root: Path,
 ) -> type[http.server.SimpleHTTPRequestHandler]:
+    """Build an ``SimpleHTTPRequestHandler`` subclass rooted at *static_root*.
+
+    Args:
+        static_root: Directory containing ``index.html``, ``bundle.js``, and
+            optional lazy chunks synced by :func:`require_web_client_static_dir`.
+
+    Returns:
+        Handler class (not instance) bound to *static_root* for
+        :class:`http.server.ThreadingHTTPServer`.
+    """
     root = str(static_root.resolve())
 
     class _Handler(http.server.SimpleHTTPRequestHandler):
+        """Serve files from a fixed directory; log at DEBUG instead of stderr."""
+
         def __init__(self, *args, **kwargs):
             super().__init__(*args, directory=root, **kwargs)
 
@@ -263,12 +502,29 @@ def start_usb_local_https_server(
     *host* controls the bind address: ``"127.0.0.1"`` (default) for USB-local
     mode where the headset reaches the PC via ``adb reverse``; ``"0.0.0.0"``
     for ``--host-client`` WiFi/LAN mode where the headset connects directly.
+
+    Args:
+        static_root: Populated web client directory (manifest-aware sync).
+        cert_file: TLS certificate PEM (shared with WSS proxy).
+        key_file: TLS private key PEM.
+        port: Bind port; ``None`` → :func:`usb_ui_port`.
+        host: Bind address (``127.0.0.1`` or ``0.0.0.0``).
+        ready_timeout: Seconds to wait for the listener before raising.
+
+    Returns:
+        ``(daemon_thread, httpd)`` — caller must pass both to
+        :func:`stop_usb_local_https_server` on shutdown.
+
+    Raises:
+        RuntimeError: If the server does not accept connections within
+            *ready_timeout*.
     """
     if port is None:
         port = usb_ui_port()
     handler_cls = _usb_local_static_handler_class(static_root)
     httpd = http.server.ThreadingHTTPServer((host, port), handler_cls)
     httpd.daemon_threads = True
+    # Same TLS material as WSS so the headset trusts one self-signed cert.
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ctx.minimum_version = ssl.TLSVersion.TLSv1_2
     ctx.load_cert_chain(str(cert_file), str(key_file))
@@ -302,7 +558,13 @@ def stop_usb_local_https_server(
     thread: threading.Thread | None,
     httpd: http.server.ThreadingHTTPServer | None,
 ) -> None:
-    """Shut down the thread HTTP server from :func:`start_usb_local_https_server`."""
+    """Shut down the thread HTTP server from :func:`start_usb_local_https_server`.
+
+    Args:
+        thread: Background ``serve_forever`` thread (may be ``None``).
+        httpd: Server instance returned by :func:`start_usb_local_https_server`
+            (may be ``None``).
+    """
     if httpd is not None:
         try:
             httpd.shutdown()
@@ -314,12 +576,29 @@ def stop_usb_local_https_server(
 
 
 def web_client_base_override_from_env() -> str | None:
+    """Read :envvar:`TELEOP_WEB_CLIENT_BASE` if set.
+
+    Returns:
+        Stripped override URL, or ``None`` when unset/empty (use versioned
+        GitHub Pages origin or USB-local loopback HTTPS instead).
+    """
     v = os.environ.get(TELEOP_WEB_CLIENT_BASE_ENV, "").strip()
     return v or None
 
 
 def parse_env_port(env_var: str, raw: str) -> int:
-    """Parse and validate a port string from an environment variable."""
+    """Parse and validate a port string from an environment variable.
+
+    Args:
+        env_var: Variable name (for error messages), e.g. ``"PROXY_PORT"``.
+        raw: Raw string value from the environment.
+
+    Returns:
+        Integer port in ``1..65535``.
+
+    Raises:
+        ValueError: If *raw* is not an integer or is out of range.
+    """
     try:
         port = int(raw)
     except ValueError:
@@ -333,7 +612,11 @@ def parse_env_port(env_var: str, raw: str) -> int:
 
 
 def wss_proxy_port() -> int:
-    """TCP port for the WSS proxy (``PROXY_PORT`` environment variable if set, else ``48322``)."""
+    """TCP port for the WSS proxy (``PROXY_PORT`` environment variable if set, else ``48322``).
+
+    Returns:
+        Resolved proxy port used for OOB WebSocket and ``--host-client`` static route.
+    """
     raw = os.environ.get("PROXY_PORT", "").strip()
     if raw:
         return parse_env_port("PROXY_PORT", raw)
@@ -346,6 +629,9 @@ def usb_ui_port() -> int:
     Reads the ``USB_UI_PORT`` environment variable if set, else falls back to
     :data:`USB_UI_DEFAULT_PORT` (8080).  Override this when something else on
     the host needs port 8080 (e.g. a Viser/Meshcat viewer running alongside).
+
+    Returns:
+        HTTPS static server port for ``--usb-local`` (adb-reverse target).
     """
     raw = os.environ.get("USB_UI_PORT", "").strip()
     if raw:
@@ -360,6 +646,9 @@ def usb_backend_port() -> int:
     back to :data:`USB_BACKEND_DEFAULT_PORT` (49100).  This port is exposed
     to the headset via ``adb reverse``; override only when a host process
     already owns 49100.
+
+    Returns:
+        CloudXR backend TCP port for adb reverse in USB-local mode.
     """
     raw = os.environ.get("USB_BACKEND_PORT", "").strip()
     if raw:
@@ -375,6 +664,9 @@ def usb_turn_port() -> int:
     127.0.0.1 and ``adb reverse`` exposes it to the headset for WebRTC
     ICE relay.  Override only when 3478 is occupied (e.g. by a system
     coturn that wasn't masked).
+
+    Returns:
+        TURN relay port for WebRTC ICE in USB-local mode.
     """
     raw = os.environ.get("USB_TURN_PORT", "").strip()
     if raw:
@@ -383,7 +675,12 @@ def usb_turn_port() -> int:
 
 
 def guess_lan_ipv4() -> str | None:
-    """Best-effort LAN IPv4 for operator URLs when headsets reach the PC by IP."""
+    """Best-effort LAN IPv4 for operator URLs when headsets reach the PC by IP.
+
+    Returns:
+        Non-loopback IPv4 chosen by opening a UDP socket toward a routable
+        address, or ``None`` if no suitable address is found.
+    """
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.settimeout(0.25)
@@ -397,7 +694,14 @@ def guess_lan_ipv4() -> str | None:
 
 
 def default_initial_stream_config(resolved_proxy_port: int) -> dict:
-    """Default hub stream config from env and LAN guess (same host as proxy port by default)."""
+    """Default hub stream config from env and LAN guess (same host as proxy port by default).
+
+    Args:
+        resolved_proxy_port: WSS proxy port from :func:`wss_proxy_port` (after env override).
+
+    Returns:
+        Dict with ``serverIP`` and ``port`` keys for OOB hub / bookmark builders.
+    """
     env_ip = os.environ.get("TELEOP_STREAM_SERVER_IP", "").strip()
     env_port = os.environ.get("TELEOP_STREAM_PORT", "").strip()
     server_ip = env_ip or guess_lan_ipv4() or "127.0.0.1"
@@ -414,6 +718,9 @@ def client_ui_fields_from_env() -> dict:
 
     Keys match query params the WebXR client reads on page load
     (``serverIP``, ``port``, ``codec``, ``panelHiddenAtStart``).
+
+    Returns:
+        Subset of stream-config fields to merge (empty dict when no overrides set).
     """
     out: dict = {}
     codec = os.environ.get("TELEOP_CLIENT_CODEC", "").strip()
@@ -436,6 +743,10 @@ def teleop_client_route_from_env() -> str:
     explicit empty value also suppresses the fragment. A leading ``#`` in
     the override is stripped (the URL builder always emits exactly one).
     Returns ``""`` to mean "no fragment".
+
+    Returns:
+        Route path without leading ``#`` (e.g. ``/real/gear/dexmate``), or
+        ``""`` when no fragment should be appended.
     """
     raw = os.environ.get(TELEOP_CLIENT_ROUTE_ENV)
     if raw is None:
@@ -460,12 +771,25 @@ def build_headset_bookmark_url(
     A HashRouter fragment is appended at the end when ``TELEOP_CLIENT_ROUTE``
     is set (e.g. ``#/real/gear/dexmate``); by default no fragment is added
     and the WebXR client picks its own landing route.
+
+    Args:
+        web_client_base: WebXR client origin (GitHub Pages or USB-local HTTPS).
+        stream_config: Must include ``serverIP`` and ``port``; optional codec,
+            TURN, and UI fields.
+        control_token: Optional OOB hub token (omitted from display URLs when redacted).
+
+    Returns:
+        Absolute URL opened on the headset (query + optional hash route).
+
+    Raises:
+        ValueError: If *stream_config* lacks ``serverIP`` or ``port``.
     """
     cfg = stream_config or {}
     if not cfg.get("serverIP") or cfg.get("port") is None:
         raise ValueError(
             "build_headset_bookmark_url requires stream_config with serverIP and port"
         )
+    # Required OOB query fields — client opens WSS from serverIP + port.
     params: dict[str, str] = {"oobEnable": "1"}
     if control_token:
         params["controlToken"] = control_token
@@ -499,7 +823,14 @@ def build_headset_bookmark_url(
 
 
 def resolve_lan_host_for_oob() -> str:
-    """PC LAN address the headset uses for ``wss://…:PROXY_PORT`` over WiFi."""
+    """PC LAN address the headset uses for ``wss://…:PROXY_PORT`` over WiFi.
+
+    Returns:
+        IPv4/hostname from :envvar:`TELEOP_PROXY_HOST` or :func:`guess_lan_ipv4`.
+
+    Raises:
+        RuntimeError: If neither env override nor LAN guess yields an address.
+    """
     h = os.environ.get("TELEOP_PROXY_HOST", "").strip() or guess_lan_ipv4()
     if not h:
         raise RuntimeError(
@@ -518,6 +849,10 @@ def oob_progress(stage: str, msg: str) -> None:
     success banner (stdout) or error prints (red). Distinct from
     ``log.info``, which writes to log files only and is invisible at the
     terminal.
+
+    Args:
+        stage: Short label (e.g. ``"usb-local"``) printed in brackets.
+        msg: Human-readable step description.
     """
     print(f"\033[36m[{stage}]\033[0m {msg}", file=sys.stderr, flush=True)
 
@@ -696,6 +1031,12 @@ def _ufw_unallowed_ports(ports: list[int]) -> list[int] | None:
     """Return the subset of *ports* that ufw appears not to allow.
 
     ``None`` if ufw is unavailable or inactive (caller should skip the warning).
+
+    Args:
+        ports: TCP ports to check against ``ufw status`` output.
+
+    Returns:
+        Ports with no matching ALLOW rule, or ``None`` when ufw cannot be queried.
     """
     try:
         proc = subprocess.run(
@@ -720,7 +1061,15 @@ def _ufw_unallowed_ports(ports: list[int]) -> list[int] | None:
 
 
 def _port_in_use(port: int, host: str) -> bool:
-    """True if a TCP listener already owns ``(host, port)``."""
+    """True if a TCP listener already owns ``(host, port)``.
+
+    Args:
+        port: TCP port to probe with a throwaway bind.
+        host: Bind address (typically ``127.0.0.1`` for preflight).
+
+    Returns:
+        ``True`` when ``bind`` fails with ``EADDRINUSE`` (or similar).
+    """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
@@ -738,6 +1087,12 @@ def ss_listeners_on_port(port: int) -> list[str]:
     ``ss`` output catches every listener regardless of bound address.
     Empty list when ``ss`` is unavailable (minimal containers, BSD, etc.) —
     callers must treat that as "couldn't ask", not "definitely free".
+
+    Args:
+        port: Local TCP/UDP port number to match in ``ss`` output.
+
+    Returns:
+        Trimmed ``ss -tulpn`` lines whose local address ends with ``:<port>``.
     """
     try:
         proc = subprocess.run(
@@ -785,6 +1140,10 @@ def print_host_preflight_warnings(*, usb_local: bool) -> None:
     out of the source (security-scanner false positive about binding to
     all interfaces). The probe socket is closed immediately on success
     — nothing is actually exposed.
+
+    Args:
+        usb_local: When ``True``, check all four USB-local loopback ports
+            and raise on conflict; when ``False``, warn only on WSS port.
     """
     if usb_local:
         targets: list[tuple[int, str]] = [

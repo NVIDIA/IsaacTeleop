@@ -7,6 +7,7 @@ import asyncio
 import errno
 import json
 import logging
+import mimetypes
 import os
 from urllib.parse import unquote, urlparse
 import shutil
@@ -257,6 +258,57 @@ def _json_response(status: int, phrase: str, body: dict) -> Response:
     )
 
 
+def _resolve_client_static_file(static_dir: Path, tail: str) -> Path | None:
+    """Map ``/client/<tail>`` to a file under *static_dir* (path-traversal safe).
+
+    Used by ``--host-client`` and the WSS proxy static route so lazy webpack
+    chunks (e.g. ``553.bundle.js``) are served alongside ``index.html`` and
+    ``bundle.js``.
+
+    Args:
+        static_dir: Root directory populated by
+            :func:`~isaacteleop.cloudxr.oob_teleop_env.require_web_client_static_dir`.
+        tail: URL path after ``/client/`` (may be empty for the directory URL).
+
+    Returns:
+        Resolved absolute path to an existing regular file, or ``None`` if
+        *tail* escapes *static_dir*, names a directory, or the file is missing.
+    """
+    if not tail:
+        tail = "index.html"
+    tail = tail.replace("\\", "/")
+    # Reject ``..`` segments before touching the filesystem.
+    if any(part == ".." for part in tail.split("/")):
+        return None
+    candidate = (static_dir / tail).resolve()
+    try:
+        candidate.relative_to(static_dir.resolve())
+    except ValueError:
+        return None
+    if not candidate.is_file():
+        return None
+    return candidate
+
+
+def _client_static_mime_type(path: Path) -> str:
+    """Content-Type for a file served from ``/client/``.
+
+    Args:
+        path: Resolved static file path (suffix drives the fallback types).
+
+    Returns:
+        MIME type string including ``charset=utf-8`` for text and JavaScript.
+    """
+    guessed, _ = mimetypes.guess_type(path.name)
+    if guessed:
+        return guessed
+    if path.suffix == ".js":
+        return "application/javascript; charset=utf-8"
+    if path.suffix == ".html":
+        return "text/html; charset=utf-8"
+    return "application/octet-stream"
+
+
 def _make_http_handler(backend_host, backend_port, hub=None, static_dir=None):
     async def handle_http_request(connection, request):
         if request.headers.get("Upgrade", "").lower() == "websocket":
@@ -319,15 +371,13 @@ def _make_http_handler(backend_host, backend_port, hub=None, static_dir=None):
                 b"Not found",
             )
 
+        # Static web client (--host-client): serve full build tree, not only bundle.js.
         if static_dir is not None and (
             path == "/client" or path.startswith("/client/")
         ):
-            _MIME = {
-                "index.html": "text/html; charset=utf-8",
-                "bundle.js": "application/javascript; charset=utf-8",
-            }
             tail = path[len("/client") :].lstrip("/") or "index.html"
-            if tail not in _MIME:
+            static_file = _resolve_client_static_file(static_dir, tail)
+            if static_file is None:
                 return Response(
                     404,
                     "Not Found",
@@ -335,7 +385,7 @@ def _make_http_handler(backend_host, backend_port, hub=None, static_dir=None):
                     b"Not found",
                 )
             try:
-                body = (static_dir / tail).read_bytes()
+                body = static_file.read_bytes()
             except OSError:
                 return Response(
                     503,
@@ -346,7 +396,9 @@ def _make_http_handler(backend_host, backend_port, hub=None, static_dir=None):
             return Response(
                 200,
                 "OK",
-                Headers({"Content-Type": _MIME[tail], **CORS_HEADERS}),
+                Headers(
+                    {"Content-Type": _client_static_mime_type(static_file), **CORS_HEADERS}
+                ),
                 body,
             )
 

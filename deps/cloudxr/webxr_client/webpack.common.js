@@ -106,6 +106,9 @@ module.exports = {
   // Output configuration for bundled files
   output: {
     filename: 'bundle.js',
+    // Lazy-loaded webpack chunks (dynamic import()); filenames match OOB sync and
+    // wss ``/client/`` serving. See build_from_source/webxr.rst.
+    chunkFilename: '[id].bundle.js',
     path: path.resolve(__dirname, './build'),
   },
 

@@ -15,12 +15,42 @@
  * limitations under the License.
  */
 
+const fs = require('fs');
+const path = require('path');
 const { merge } = require('webpack-merge');
 const common = require('./webpack.common.js');
 
+/**
+ * Webpack plugin: write ``asset-manifest.json`` after a production build.
+ *
+ * Isaac Teleop OOB/--host-client sync reads this manifest to download and
+ * serve lazy chunks (``[id].bundle.js``) in addition to ``index.html`` and
+ * ``bundle.js``. See docs ``build_from_source/webxr.rst``.
+ */
+class AssetManifestPlugin {
+  /**
+   * @param {import('webpack').Compiler} compiler
+   */
+  apply(compiler) {
+    compiler.hooks.done.tap('AssetManifestPlugin', stats => {
+      const outDir = stats.compilation.outputOptions.path;
+      // Every emitted asset except the manifest itself (avoid self-reference).
+      const files = stats.compilation
+        .getAssets()
+        .map(a => a.name)
+        .filter(name => name !== 'asset-manifest.json')
+        .sort();
+      fs.writeFileSync(
+        path.join(outDir, 'asset-manifest.json'),
+        JSON.stringify({ files }, null, 2)
+      );
+    });
+  }
+}
+
 module.exports = merge(common, {
   mode: 'production',
-  // Inline async chunks (from @pmndrs/xr emulate.js and @pmndrs/uikit msdf-generator)
-  // into bundle.js so the build produces a single JS file alongside index.html.
-  output: { asyncChunks: false },
+  // Remove stale chunks when chunk ids change between builds.
+  output: { clean: true },
+  plugins: [new AssetManifestPlugin()],
 });

@@ -268,13 +268,17 @@ running the CloudXR runtime and wss proxy in containerized environment; or using
 
    .. dropdown:: Offline / air-gapped use
 
-      On **first run**, the launcher fetches ``index.html`` and ``bundle.js`` from GitHub Pages and
-      caches them in ``~/.cloudxr/static-client/`` (override with
-      ``TELEOP_WEB_CLIENT_STATIC_DIR``). Subsequent runs are fully offline.
+      On **first run**, the launcher syncs the published web client into
+      ``~/.cloudxr/static-client/`` (override with ``TELEOP_WEB_CLIENT_STATIC_DIR``).
+      It reads ``asset-manifest.json`` when present and downloads every listed
+      file (``bundle.js``, ``bundle.emulator.js``, WebXR controller profile assets
+      under ``npm/...``, etc.); older releases without a manifest fall back to
+      ``index.html`` and ``bundle.js`` only. Subsequent runs are offline once the
+      cache is complete.
 
-      For a **true air-gapped machine**, pre-stage the two files before the first run — copy them
-      from ``https://nvidia.github.io/IsaacTeleop/client/`` on a networked host, then transfer the
-      ``~/.cloudxr/static-client/`` directory to the air-gapped machine.
+      For a **true air-gapped machine**, copy the full ``build/`` output (or the
+      matching directory from `nvidia.github.io/IsaacTeleop/client`_) into
+      ``~/.cloudxr/static-client/`` on the air-gapped host before the first run.
 
    The source code for the web client is in the :code-dir:`deps/cloudxr/webxr_client/` directory.
    To build the web client from source, see :doc:`build_from_source/webxr`.

@@ -49,6 +49,31 @@ From the ``deps/cloudxr/webxr_client/`` directory:
 3. Build & Run
 --------------
 
+Production build
+~~~~~~~~~~~~~~~~
+
+From ``deps/cloudxr/webxr_client/``:
+
+.. code-block:: bash
+
+   USE_LOCAL_WEBXR_ASSETS=0 npm run build
+
+Output in ``build/``:
+
+- ``index.html`` — entry page
+- ``bundle.js`` — main application (loaded on first paint)
+- ``<id>.bundle.js`` — lazy chunks from ``import()`` inside dependencies
+  (UIKit msdf text, desktop XR emulation, etc.). Headsets need the msdf chunk
+  for in-VR UI text; OOB modes must serve the full ``build/`` tree, not just
+  the two entry files.
+- ``asset-manifest.json`` — list of every emitted file. The CloudXR launcher
+  uses this when seeding ``~/.cloudxr/static-client`` for ``--host-client`` and
+  ``--usb-local`` (see :ref:`connect-quest-pico`).
+
+Do **not** set ``asyncChunks: false`` in ``webpack.prod.js``. That inlines lazy
+chunks into a single large ``bundle.js`` and was only a workaround for OOB hosts
+that served two files; the proper fix is multi-file static hosting.
+
 Development build (one-shot)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
