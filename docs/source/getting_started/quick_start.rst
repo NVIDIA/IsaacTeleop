@@ -208,8 +208,9 @@ running the CloudXR runtime and wss proxy in containerized environment; or using
 .. dropdown:: Meta Quest, PICO headset, or desktop browser
    :open:
 
-   No physical headset required for a quick test: open the `nvidia.github.io/IsaacTeleop/client`_
-   URL in a **desktop browser** — IWER (Immersive Web Emulator Runtime) loads automatically and
+   No physical headset required for a quick test: open
+   `https://nvidia.github.io/IsaacTeleop/client <https://nvidia.github.io/IsaacTeleop/client>`__
+   in a **desktop browser** — IWER (Immersive Web Emulator Runtime) loads automatically and
    emulates a Meta Quest 3 headset.
 
    For a real headset, open the same URL in your **Meta Quest or PICO browser**.
