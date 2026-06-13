@@ -351,7 +351,13 @@ def _web_client_asset_names_from_origin(client_origin: str) -> list[str]:
             urljoin(client_origin, "asset-manifest.json"), timeout=30.0
         )
         names = _manifest_file_names(json.loads(raw.decode("utf-8")))
-    except (URLError, RuntimeError, UnicodeDecodeError, json.JSONDecodeError, TypeError):
+    except (
+        URLError,
+        RuntimeError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        TypeError,
+    ):
         names = None
     if names is None:
         # Published client predates asset-manifest.json (single bundle.js era).

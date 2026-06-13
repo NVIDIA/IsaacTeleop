@@ -397,7 +397,10 @@ def _make_http_handler(backend_host, backend_port, hub=None, static_dir=None):
                 200,
                 "OK",
                 Headers(
-                    {"Content-Type": _client_static_mime_type(static_file), **CORS_HEADERS}
+                    {
+                        "Content-Type": _client_static_mime_type(static_file),
+                        **CORS_HEADERS,
+                    }
                 ),
                 body,
             )

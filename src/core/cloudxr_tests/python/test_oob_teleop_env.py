@@ -375,7 +375,9 @@ def test_require_web_client_static_dir_downloads_manifest_chunks(
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
 
-    manifest = b'{"files":["index.html","bundle.js","553.bundle.js","asset-manifest.json"]}'
+    manifest = (
+        b'{"files":["index.html","bundle.js","553.bundle.js","asset-manifest.json"]}'
+    )
 
     def fake_fetch(url: str, *, timeout: float = 120.0) -> bytes:
         if url.endswith("asset-manifest.json"):
