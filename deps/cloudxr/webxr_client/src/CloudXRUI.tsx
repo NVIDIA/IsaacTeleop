@@ -39,11 +39,11 @@ import { PerformanceCanvasImage } from '@helpers/react/PerformanceCanvasImage';
 import { useXRButton } from '@helpers/react/useXRButton';
 import { ReadonlySignal } from '@preact/signals-react';
 import { useFrame } from '@react-three/fiber';
-import { Handle, HandleTarget } from '@react-three/handle';
+import { Handle, HandleTarget, HandleState } from '@react-three/handle';
 import { Container, Text, Image } from '@react-three/uikit';
 import { Button } from '@react-three/uikit-default';
 import React, { useRef, useState, useEffect } from 'react';
-import { Color, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
+import { Color, Group, Mesh, MeshStandardMaterial, Object3D, Vector3 } from 'three';
 import { damp } from 'three/src/math/MathUtils.js';
 
 // Face-camera rotation constants
@@ -86,6 +86,18 @@ const uiPositionHelper = new Vector3();
 // Handle hover colors (module-level to avoid per-render allocations)
 const HANDLE_COLOR_DEFAULT = new Color('#666666');
 const HANDLE_COLOR_HOVER = new Color('#aaaaaa');
+
+// Workaround for @pmndrs/handle defaultApply behavior: defaultApply copies
+// state.current.quaternion to the target on every drag frame AND on drag release.
+// With rotate={false}, state.current.quaternion is always the drag-start quaternion,
+// so it resets our face-camera rotation on every frame (priority -1 runs before
+// face-camera priority 0) and wipes it entirely on drag release.
+// By providing a custom apply that skips quaternion, face-camera owns rotation fully.
+// Scale is intentionally omitted too: scale={false} keeps it constant, so copying
+// it would be a no-op. If scale is ever enabled on this Handle, add it back here.
+function applyPositionSkipRotation(state: HandleState<unknown>, target: Object3D): void {
+  target.position.copy(state.current.position);
+}
 
 export default function CloudXR3DUI({
   onStartTeleop,
@@ -193,6 +205,7 @@ export default function CloudXR3DUI({
           scale={false}
           multitouch={false}
           rotate={false}
+          apply={applyPositionSkipRotation}
         >
           <mesh
             ref={handleRef}
