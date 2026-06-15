@@ -1,16 +1,20 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Self-contained Docker Compose stack used only by web E2E tests
-# (scripts/run_test_e2e_with_web.sh and the test-cloudxr-web-e2e CI job).
+# Self-contained Docker Compose stack used only by quick-start E2E tests
+# (scripts/run_test_e2e_with_web.sh and the test-quick-start-e2e CI job).
 # Defines:
-#   - cloudxr-runtime: the runtime container reusing Dockerfile.runtime, with
+#   - cloudxr-runtime:  the runtime container reusing Dockerfile.runtime, with
 #     a small entrypoint shim that backgrounds python -m http.server to serve
 #     the prebuilt webxr_client at port 8080.
-#   - playwright:      the official Playwright image driving the web client.
+#   - playwright:       the official Playwright image driving the web client.
+#   - gripper-example:  runs gripper_retargeting_example_simple.py while the
+#     Playwright browser session is live, testing the full teleop pipeline
+#     against a real connected CloudXR runtime.
 #
-# Both services join the project default user-defined bridge network so the
-# playwright container can reach the runtime by service name (cloudxr-runtime).
+# All services join the project default user-defined bridge network so the
+# playwright and gripper-example containers can reach the runtime by service
+# name (cloudxr-runtime).
 #
 # Use:
 #   docker compose -p <unique> \
@@ -32,10 +36,8 @@ services:
         ISAACTELEOP_PIP_DEBUG:
     container_name: cloudxr-runtime-${COMPOSE_PROJECT_NAME:-isaacteleop-web-e2e}
 
-    # No `user:` override: the runtime container is fully ephemeral here (no
-    # host bind-writes, no shared OpenXR volume with another consumer) so it
-    # runs as the image-default root. That keeps /openxr/ writable without
-    # having to seed/chown a named volume to match a runner uid/gid.
+    # No `user:` override: the runtime container runs as the image-default root
+    # so it can write freely to the openxr named volume without uid/gid seeding.
 
     # CI hook-based GPU injection: runc + deploy.resources, mirroring the
     # pattern in docker-compose.test.yaml. Avoids `runtime: nvidia` which is
@@ -55,11 +57,9 @@ services:
       - NV_GPU_INDEX=${NV_GPU_INDEX:-0}
 
     volumes:
-      # /openxr/ stays in the container's own writable layer — Playwright
-      # never reads it, so there's no need for a shared named volume here
-      # (and a Docker-managed named volume seeded from the image's
-      # root-owned /openxr/ would break a non-root container user).
-      #
+      # Named volume shared with gripper-example so that container can read
+      # XR_RUNTIME_JSON and the OpenXR IPC socket written by the runtime.
+      - openxr:/openxr
       # Bind-mount the prebuilt web client so python -m http.server can serve
       # it. CI sets CXR_WEBAPP_DIR to the downloaded webxr-client-build artifact
       # directory; the default works for local runs after `npm run build`.
@@ -123,3 +123,32 @@ services:
       - |
         npm install --no-audit --no-fund
         exec npx playwright test --reporter=list
+
+  gripper-example:
+    # Runs gripper_retargeting_example_simple.py while the Playwright browser
+    # is live, so the CloudXR runtime has an active WebXR client and the full
+    # teleop pipeline (TeleopSession → GripperRetargeter → output) executes
+    # against a real connected runtime.
+    #
+    # Image built by run_test_e2e_with_web.sh before compose starts; uses the
+    # same isaacteleop wheel as the rest of the quick-start E2E pipeline.
+    image: ${ISAACTELEOP_TESTS_IMAGE:-isaacteleop-tests:latest}
+    pull_policy: never
+    depends_on:
+      cloudxr-runtime:
+        condition: service_healthy
+    volumes:
+      # Read the OpenXR runtime JSON and IPC socket written by cloudxr-runtime.
+      - openxr:/openxr:ro
+      # Mount the example script from the repo root (CXR_BUILD_CONTEXT).
+      - ${CXR_BUILD_CONTEXT:?}/examples/teleop/python:/app/examples/teleop/python:ro
+    environment:
+      - XR_RUNTIME_JSON=/openxr/.cloudxr/openxr_cloudxr.json
+      - NV_CXR_RUNTIME_DIR=/openxr/.cloudxr/run
+      - PYTHONUNBUFFERED=1
+    command:
+      - python
+      - /app/examples/teleop/python/gripper_retargeting_example_simple.py
+
+volumes:
+  openxr:

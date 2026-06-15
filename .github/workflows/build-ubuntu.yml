@@ -15,6 +15,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+permissions:
+  contents: read
+
 jobs:
   build-ubuntu:
     # Pin to 22.04 so the wheel is built with GCC 11's libstdc++. The resulting wheel
@@ -741,7 +744,7 @@ jobs:
 
   detect-changes:
     # Lightweight gating job: emits a `web` output consumed by build-webapp
-    # and test-cloudxr-web-e2e so PRs that don't touch the web stack skip
+    # and test-quick-start-e2e so PRs that don't touch the web stack skip
     # the GPU-runner E2E pipeline. On push/tag events (main, release/*,
     # v*) we always set web=true so protected branches retain full coverage.
     runs-on: ubuntu-22.04
@@ -765,10 +768,11 @@ jobs:
               - 'scripts/run_test_e2e_with_web.sh'
               - '.github/workflows/build-ubuntu.yml'
               - '.github/actions/setup-cloudxr-sdk/**'
+              - 'examples/teleop/python/gripper_retargeting_example_simple.py'
 
   build-webapp:
     # GitHub-hosted runner is sufficient: the webxr_client build is pure
-    # Node/Webpack and produces an artifact consumed by test-cloudxr-web-e2e.
+    # Node/Webpack and produces an artifact consumed by test-quick-start-e2e.
     # Skipped on PRs that don't touch the web stack — see detect-changes.
     runs-on: ubuntu-22.04
     needs: detect-changes
@@ -809,10 +813,10 @@ jobs:
         if-no-files-found: error
         retention-days: 1
 
-  test-cloudxr-web-e2e:
-    # GPU runner required: the CloudXR runtime needs an NVIDIA GPU even when
-    # only one E2E spec is running. Single matrix entry — the web client
-    # behavior is independent of the matrix dims used by other test jobs.
+  test-quick-start-e2e:
+    # GPU runner required: CloudXR needs an NVIDIA GPU. Runs Playwright (web
+    # client) and the gripper retargeting example concurrently against the same
+    # live runtime, exercising the full quick-start pipeline end-to-end.
     # Skipped on PRs that don't touch the web stack — see detect-changes.
     runs-on: [self-hosted, linux, gpu]
     needs:
@@ -871,150 +875,13 @@ jobs:
         # per playwright.config.ts).
         path: |
           e2e-logs.txt
+          gripper-example.log
           tests/web_e2e/test-results/results.json
           tests/web_e2e/test-results/**/*.png
           tests/web_e2e/test-results/**/*.webm
           tests/web_e2e/test-results/**/trace.zip
         if-no-files-found: ignore
         retention-days: 7
-
-  test-teleop-example:
-    # Runs the simplified gripper retargeting example against a live CloudXR
-    # runtime to verify the full pipeline: TeleopSession init, GripperRetargeter
-    # step loop, and clean 20-second run. Single arch (x64) and Python (3.11).
-    runs-on: [self-hosted, linux, gpu]
-    needs: build-ubuntu
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v6
-      with:
-        submodules: recursive
-
-    - name: Install uv
-      uses: ./.github/actions/setup-uv
-
-    - name: Download install artifacts
-      uses: actions/download-artifact@v7
-      with:
-        name: isaacteleop-install-release-x64-py3.11
-
-    - name: Extract tarball to preserve permissions
-      run: |
-        mkdir -p install
-        tar -xvf isaacteleop-install.tar -C install
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
-    - name: Run gripper retargeting example
-      env:
-        CI: true
-        ACCEPT_CLOUDXR_EULA: Y
-        CXR_BUILD_CONTEXT: ${{ github.workspace }}
-        CXR_RUNTIME_NETWORK_MODE: bridge
-        PYTHON_VERSION: '3.11'
-        ISAACTELEOP_PIP_FIND_LINKS: /workspace/install/wheels
-        ISAACTELEOP_PIP_SPEC: isaacteleop[cloudxr]
-        ISAACTELEOP_PIP_DEBUG: '0'
-      run: |
-        set -euo pipefail
-        source scripts/setup_cloudxr_env.sh
-
-        PROJECT_NAME="isaacteleop-example-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-        EXAMPLE_CONTAINER="gripper-example-${PROJECT_NAME}"
-        HEADER_MARKER="Gripper Retargeting - Squeeze triggers to control grippers"
-        LOG_FILE="${CXR_HOST_VOLUME_PATH}/gripper_example_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}.log"
-
-        trap '
-          docker rm -f "$EXAMPLE_CONTAINER" >/dev/null 2>&1 || true
-          docker compose -p "$PROJECT_NAME" \
-            --env-file "$ENV_DEFAULT" \
-            ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
-            -f deps/cloudxr/docker-compose.runtime.yaml \
-            -f deps/cloudxr/docker-compose.test.yaml \
-            down -v
-        ' EXIT
-
-        cat <<EOF > deps/cloudxr/docker-compose.override.yaml
-        services:
-          cloudxr-runtime:
-            container_name: "cloudxr-runtime-$PROJECT_NAME"
-        EOF
-
-        docker compose -p "$PROJECT_NAME" \
-          --env-file "$ENV_DEFAULT" \
-          ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
-          -f deps/cloudxr/docker-compose.runtime.yaml \
-          -f deps/cloudxr/docker-compose.test.yaml \
-          -f deps/cloudxr/docker-compose.override.yaml \
-          up --build -d cloudxr-runtime
-
-        healthy=false
-        for i in {1..30}; do
-          if docker compose -p "$PROJECT_NAME" \
-            --env-file "$ENV_DEFAULT" \
-            ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
-            -f deps/cloudxr/docker-compose.runtime.yaml \
-            -f deps/cloudxr/docker-compose.test.yaml \
-            -f deps/cloudxr/docker-compose.override.yaml \
-            ps cloudxr-runtime | grep -q "healthy"; then
-            healthy=true
-            break
-          fi
-          sleep 2
-        done
-
-        if [[ "$healthy" != true ]]; then
-          echo "CloudXR runtime did not become healthy within 60s"
-          docker compose -p "$PROJECT_NAME" \
-            --env-file "$ENV_DEFAULT" \
-            ${ENV_LOCAL:+--env-file "$ENV_LOCAL"} \
-            -f deps/cloudxr/docker-compose.runtime.yaml \
-            -f deps/cloudxr/docker-compose.test.yaml \
-            -f deps/cloudxr/docker-compose.override.yaml \
-            logs cloudxr-runtime
-          exit 1
-        fi
-
-        docker build \
-          -q \
-          --build-arg PYTHON_VERSION=3.11 \
-          -t isaacteleop-tests:latest \
-          -f deps/cloudxr/Dockerfile.test \
-          .
-
-        docker_rc=0
-        docker run \
-          --name "$EXAMPLE_CONTAINER" \
-          --network host \
-          -v "$CXR_HOST_VOLUME_PATH:$CXR_HOST_VOLUME_PATH" \
-          -v "$GITHUB_WORKSPACE/examples:/app/examples:ro" \
-          -e NV_CXR_RUNTIME_DIR="$CXR_HOST_VOLUME_PATH/.cloudxr/run" \
-          -e XR_RUNTIME_JSON="$CXR_HOST_VOLUME_PATH/.cloudxr/openxr_cloudxr.json" \
-          -e PYTHONUNBUFFERED=1 \
-          isaacteleop-tests:latest \
-          python /app/examples/teleop/python/gripper_retargeting_example_simple.py \
-          > "$LOG_FILE" 2>&1 || docker_rc=$?
-
-        cat "$LOG_FILE"
-
-        if [[ $docker_rc -ne 0 ]]; then
-          echo "Error: example container exited with code $docker_rc"
-          exit 1
-        fi
-
-        if ! grep -q "$HEADER_MARKER" "$LOG_FILE"; then
-          echo "Error: expected header '${HEADER_MARKER}' not found"
-          exit 1
-        fi
-
-        if ! grep -qE '^\[.*s\] Right:' "$LOG_FILE"; then
-          echo "Error: no status output lines found"
-          exit 1
-        fi
-
-        echo "Gripper retargeting example ran successfully"
 
   # These are the actual dependency jobs for publish-wheel. publish-wheel
   # depends only on wheel-gate so the dependency list lives in one place, while
@@ -1028,8 +895,7 @@ jobs:
       - test-viz-sanitizers
       - test-cloudxr
       - test-teleop-ros2
-      - test-cloudxr-web-e2e
-      - test-teleop-example
+      - test-quick-start-e2e
     if: ${{ always() }}
 
     steps:

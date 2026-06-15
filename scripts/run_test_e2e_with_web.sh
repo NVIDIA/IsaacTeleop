@@ -3,11 +3,13 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Web E2E Test Runner with CloudXR
+# Quick-start E2E Test Runner with CloudXR
 #
 # Brings up the CloudXR runtime + a static HTTP server (serving the prebuilt
-# webxr_client) in one container, then runs Playwright against it from a
-# second container, then tears the stack down.
+# webxr_client) in one container, then:
+#   1. Runs Playwright against the web client (browser session live).
+#   2. Runs the gripper retargeting example while the runtime is still up,
+#      verifying the full Python teleop pipeline end-to-end.
 #
 # Project-scoped via -p so multiple invocations on the same host (e.g.
 # parallel CI matrix jobs) do not collide on container/network/volume names.
@@ -21,11 +23,13 @@
 #                              container at /app/webapp).
 #
 # Optional environment (with defaults):
-#   PYTHON_VERSION             Python version for Dockerfile.runtime (3.11)
+#   PYTHON_VERSION             Python version for Dockerfile.runtime / tests (3.11)
 #   ISAACTELEOP_PIP_FIND_LINKS pip find-links inside Dockerfile.runtime build
 #                              context (/workspace/install/wheels)
 #   ISAACTELEOP_PIP_SPEC       isaacteleop pip spec (isaacteleop[cloudxr])
 #   ISAACTELEOP_PIP_DEBUG      Verbose pip install output (0)
+#   ISAACTELEOP_TESTS_IMAGE    Pre-built test image for gripper-example
+#                              (isaacteleop-tests:latest)
 
 set -euo pipefail
 
@@ -54,6 +58,7 @@ export PYTHON_VERSION="${PYTHON_VERSION:-3.11}"
 export ISAACTELEOP_PIP_SPEC="${ISAACTELEOP_PIP_SPEC:-isaacteleop[cloudxr]}"
 export ISAACTELEOP_PIP_FIND_LINKS="${ISAACTELEOP_PIP_FIND_LINKS:-/workspace/install/wheels}"
 export ISAACTELEOP_PIP_DEBUG="${ISAACTELEOP_PIP_DEBUG:-0}"
+export ISAACTELEOP_TESTS_IMAGE="${ISAACTELEOP_TESTS_IMAGE:-isaacteleop-tests:latest}"
 
 # Default-on EULA for non-interactive runs; the compose file already defaults
 # this but exporting here keeps `docker compose config` output deterministic.
@@ -73,6 +78,8 @@ COMPOSE=(
     -f deps/cloudxr/docker-compose.test-e2e.yaml
 )
 
+GRIPPER_LOG="${GIT_ROOT}/gripper-example.log"
+
 teardown() {
     local rc=$?
     {
@@ -86,9 +93,18 @@ teardown() {
 }
 trap teardown EXIT
 
-echo "Web E2E project: $PROJECT"
-echo "Web app dir:     $CXR_WEBAPP_DIR"
+echo "Quick-start E2E project: $PROJECT"
+echo "Web app dir:             $CXR_WEBAPP_DIR"
 echo ""
+
+# Build the isaacteleop-tests image used by the gripper-example service.
+echo "Building isaacteleop-tests image (for gripper-example)..."
+docker build \
+    -q \
+    --build-arg PYTHON_VERSION="$PYTHON_VERSION" \
+    -t "$ISAACTELEOP_TESTS_IMAGE" \
+    -f deps/cloudxr/Dockerfile.test \
+    .
 
 echo "Building and starting cloudxr-runtime..."
 "${COMPOSE[@]}" up --build -d cloudxr-runtime
@@ -117,5 +133,48 @@ if [ "$healthy" != true ]; then
     exit 1
 fi
 
-echo "Running Playwright spec..."
-"${COMPOSE[@]}" run --rm playwright
+# Run Playwright and the gripper example concurrently so the browser WebXR
+# session is live while the Python retargeting pipeline runs.
+echo "Running Playwright spec and gripper retargeting example concurrently..."
+
+playwright_rc=0
+gripper_rc=0
+
+"${COMPOSE[@]}" run --rm playwright &
+playwright_pid=$!
+
+"${COMPOSE[@]}" run --rm gripper-example \
+    > "$GRIPPER_LOG" 2>&1 &
+gripper_pid=$!
+
+# Wait for both and capture exit codes independently.
+wait "$playwright_pid" || playwright_rc=$?
+wait "$gripper_pid"    || gripper_rc=$?
+
+# Always print the gripper log so CI surfaces output on both pass and fail.
+echo "::group::Gripper retargeting example output"
+cat "$GRIPPER_LOG" || true
+echo "::endgroup::"
+
+if [ "$playwright_rc" -ne 0 ]; then
+    echo "Error: Playwright spec failed (exit $playwright_rc)" >&2
+    exit "$playwright_rc"
+fi
+
+if [ "$gripper_rc" -ne 0 ]; then
+    echo "Error: Gripper example exited with code $gripper_rc" >&2
+    exit "$gripper_rc"
+fi
+
+HEADER_MARKER="Gripper Retargeting - Squeeze triggers to control grippers"
+if ! grep -q "$HEADER_MARKER" "$GRIPPER_LOG"; then
+    echo "Error: expected header '${HEADER_MARKER}' not found in gripper output" >&2
+    exit 1
+fi
+
+if ! grep -qE '^\[.*s\] Right:' "$GRIPPER_LOG"; then
+    echo "Error: no status output lines found in gripper output" >&2
+    exit 1
+fi
+
+echo "All quick-start E2E checks passed."
