@@ -818,7 +818,7 @@ jobs:
     # client) and the gripper retargeting example concurrently against the same
     # live runtime, exercising the full quick-start pipeline end-to-end.
     # Skipped on PRs that don't touch the web stack — see detect-changes.
-    runs-on: [self-hosted, linux, gpu]
+    runs-on: [self-hosted, linux, gpu, "x64"]
     needs:
       - detect-changes
       - build-ubuntu
