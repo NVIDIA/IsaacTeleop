@@ -59,7 +59,9 @@ export function checkBrowserVersion(): string | null {
   }
 
   // Desktop Chrome / Chromium. Safari and Firefox are not warned.
-  const chromeMatch = ua.match(/Chrome\/(\d+)\./);
+  // Skip other Chromium-based browsers (Edge, Opera) that also include "Chrome/" in their UA.
+  const isNonChromeChromium = /Edg\/|OPR\/|Opera\//.test(ua);
+  const chromeMatch = !isNonChromeChromium && ua.match(/Chrome\/(\d+)\./);
   if (chromeMatch) {
     const major = parseInt(chromeMatch[1], 10);
     if (major < MIN_CHROME_MAJOR) {
