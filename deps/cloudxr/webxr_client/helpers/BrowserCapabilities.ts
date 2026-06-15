@@ -146,7 +146,7 @@ const capabilities: CapabilityCheck[] = [
         return false;
       }
     },
-    message: 'AV1 codec support is recommended for optimal streaming quality',
+    message: 'AV1 codec is not supported on this device. Streaming quality may be reduced.',
   },
 ];
 
