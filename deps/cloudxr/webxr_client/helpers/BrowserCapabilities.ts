@@ -148,6 +148,35 @@ const capabilities: CapabilityCheck[] = [
     },
     message: 'AV1 codec is not supported on this device. Streaming quality may be reduced.',
   },
+  {
+    name: 'HEVC Codec Support',
+    required: false,
+    check: async () => {
+      try {
+        if (!navigator.mediaCapabilities) {
+          return false;
+        }
+
+        const config = {
+          type: 'webrtc' as MediaDecodingType,
+          video: {
+            contentType: 'video/h265',
+            width: 1920,
+            height: 1080,
+            framerate: 60,
+            bitrate: 15000000,
+          },
+        };
+
+        const result = await navigator.mediaCapabilities.decodingInfo(config);
+        return result.supported;
+      } catch (error) {
+        console.warn('Error checking HEVC support:', error);
+        return false;
+      }
+    },
+    message: 'HEVC (H.265) codec is not supported on this device. Use AV1 or H.264 for streaming.',
+  },
 ];
 
 export async function checkCapabilities(emulated = false): Promise<{
