@@ -5,8 +5,6 @@
 
 from __future__ import annotations
 
-import json
-from urllib.error import URLError
 from urllib.parse import parse_qs, urlparse
 
 import cloudxr_py_test_ns.oob_teleop_env as oob_teleop_env_under_test
@@ -338,7 +336,7 @@ def test_require_web_client_static_dir_default_downloads(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ) -> None:
-    """Without a remote manifest, sync only index.html and bundle.js (legacy)."""
+    """Sync index.html, bundle.js, and bundle.emulator.js from the published client."""
     # Path.home() consults $HOME on POSIX but %USERPROFILE% on Windows
     # (ntpath.expanduser ignores $HOME when USERPROFILE is set). Patch both
     # so the redirect works on every platform.
@@ -346,40 +344,6 @@ def test_require_web_client_static_dir_default_downloads(
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
 
     def fake_fetch(url: str, *, timeout: float = 120.0) -> bytes:
-        if url.endswith("index.html"):
-            return b"<!doctype html><title>t</title>"
-        if url.endswith("bundle.js"):
-            return b"console.log(1);"
-        if url.endswith("asset-manifest.json"):
-            raise URLError("not found")
-        raise AssertionError(url)
-
-    monkeypatch.setattr(
-        oob_teleop_env_under_test,
-        "_fetch_url_bytes",
-        fake_fetch,
-    )
-    out = require_web_client_static_dir()
-    expected = (tmp_path / ".cloudxr" / "static-client").resolve()
-    assert out == expected
-    assert (out / "index.html").read_bytes().startswith(b"<!doctype")
-    assert b"console.log" in (out / "bundle.js").read_bytes()
-
-
-def test_require_web_client_static_dir_downloads_manifest_chunks(
-    clear_teleop_env: None,
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path,
-) -> None:
-    """Manifest sync fetches lazy chunk files listed in asset-manifest.json."""
-    monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setenv("USERPROFILE", str(tmp_path))
-
-    manifest = b'{"files":["index.html","bundle.js","bundle.emulator.js","asset-manifest.json"]}'
-
-    def fake_fetch(url: str, *, timeout: float = 120.0) -> bytes:
-        if url.endswith("asset-manifest.json"):
-            return manifest
         if url.endswith("index.html"):
             return b"<!doctype html><title>t</title>"
         if url.endswith("bundle.js"):
@@ -394,31 +358,40 @@ def test_require_web_client_static_dir_downloads_manifest_chunks(
         fake_fetch,
     )
     out = require_web_client_static_dir()
+    expected = (tmp_path / ".cloudxr" / "static-client").resolve()
+    assert out == expected
+    assert (out / "index.html").read_bytes().startswith(b"<!doctype")
+    assert b"console.log" in (out / "bundle.js").read_bytes()
     assert (out / "bundle.emulator.js").read_bytes() == b"// emulator chunk"
-    assert json.loads((out / "asset-manifest.json").read_text(encoding="utf-8"))[
-        "files"
-    ] == [
-        "index.html",
-        "bundle.js",
-        "bundle.emulator.js",
-        "asset-manifest.json",
-    ]
 
 
-def test_manifest_file_names_rejects_unsafe_paths() -> None:
-    """Manifest parsing skips path traversal and subdirectory entries."""
-    names = oob_teleop_env_under_test._manifest_file_names(
-        {
-            "files": [
-                "index.html",
-                "../../../.bashrc",
-                "subdir/chunk.js",
-                "..\\win.txt",
-                "bundle.msdf.js",
-            ]
-        }
+def test_require_web_client_static_dir_skips_optional_emulator(
+    clear_teleop_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    """Older published clients without bundle.emulator.js still sync core assets."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+
+    def fake_fetch(url: str, *, timeout: float = 120.0) -> bytes:
+        if url.endswith("index.html"):
+            return b"<!doctype html><title>t</title>"
+        if url.endswith("bundle.js"):
+            return b"console.log(1);"
+        if url.endswith("bundle.emulator.js"):
+            raise RuntimeError("Could not download: not found")
+        raise AssertionError(url)
+
+    monkeypatch.setattr(
+        oob_teleop_env_under_test,
+        "_fetch_url_bytes",
+        fake_fetch,
     )
-    assert names == ["index.html", "bundle.msdf.js"]
+    out = require_web_client_static_dir()
+    assert (out / "index.html").is_file()
+    assert (out / "bundle.js").is_file()
+    assert not (out / "bundle.emulator.js").exists()
 
 
 def test_require_web_client_static_dir_ok(

@@ -15,40 +15,9 @@
  * limitations under the License.
  */
 
-const fs = require('fs');
-const path = require('path');
 const { merge } = require('webpack-merge');
 const common = require('./webpack.common.js');
 const { chunkOptimization, msdfInlineRules } = require('./webpack.chunkNames.js');
-
-/**
- * Webpack plugin: write ``asset-manifest.json`` after a production build.
- *
- * Isaac Teleop OOB/--host-client sync reads this manifest to download and
- * serve ``bundle.emulator.js`` in addition to ``index.html`` and ``bundle.js``.
- * See docs ``build_from_source/webxr.rst``.
- */
-class AssetManifestPlugin {
-  /**
-   * @param {import('webpack').Compiler} compiler
-   */
-  apply(compiler) {
-    // After emit: write sorted asset list for OOB manifest-driven sync.
-    compiler.hooks.done.tap('AssetManifestPlugin', stats => {
-      const outDir = stats.compilation.outputOptions.path;
-      // Every emitted asset except the manifest itself (avoid self-reference).
-      const files = stats.compilation
-        .getAssets()
-        .map(a => a.name)
-        .filter(name => name !== 'asset-manifest.json')
-        .sort();
-      fs.writeFileSync(
-        path.join(outDir, 'asset-manifest.json'),
-        JSON.stringify({ files }, null, 2)
-      );
-    });
-  }
-}
 
 module.exports = merge(common, {
   mode: 'production',
@@ -56,5 +25,4 @@ module.exports = merge(common, {
   output: { clean: true },
   module: msdfInlineRules,
   optimization: chunkOptimization,
-  plugins: [new AssetManifestPlugin()],
 });

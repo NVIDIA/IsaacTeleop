@@ -13,7 +13,8 @@
  * via ``asset/inline`` (data URL) so no separate worker file is emitted.
  *
  * Lazy boundary: ``@pmndrs/xr`` ``import('./emulate.js')`` → ``bundle.emulator.js``.
- * OOB sync reads ``asset-manifest.json``.
+ * OOB/--host-client sync downloads ``index.html``, ``bundle.js``, and
+ * ``bundle.emulator.js``.
  */
 
 const path = require('path');

@@ -402,8 +402,8 @@ On startup the launcher:
    traverse the network).
 2. Resolves the WebXR static directory from
    ``TELEOP_WEB_CLIENT_STATIC_DIR`` (default ``~/.cloudxr/static-client``)
-   and syncs missing files from the published client (via
-   ``asset-manifest.json`` when available; see :doc:`../getting_started/build_from_source/webxr`).
+   and syncs missing ``index.html``, ``bundle.js``, and ``bundle.emulator.js`` from
+   the published client (see :doc:`../getting_started/build_from_source/webxr`).
 3. Serves that directory over HTTPS on 127.0.0.1:8080 with the same PEM
    the WSS proxy uses (Python ``http.server`` in a daemon thread).
 4. ``adb reverse`` for 8080 (static UI), 48322 (WSS), 49100 (backend),
@@ -456,12 +456,11 @@ Web client UI has no text (OOB / ``--host-client``)
 
 **Cause:** Production webpack emits ``bundle.js`` (main app, including UIKit MSDF text)
 and ``bundle.emulator.js`` (desktop emulation only). If the static cache under
-``TELEOP_WEB_CLIENT_STATIC_DIR`` contains only ``index.html`` and an outdated or
-truncated ``bundle.js``, in-VR text does not render. Older builds that split
-MSDF into separate lazy chunks also fail when those chunks are missing.
+``TELEOP_WEB_CLIENT_STATIC_DIR`` is missing or outdated — especially a truncated
+``bundle.js`` — in-VR text does not render.
 
-**Fix:** Ensure the full client tree is present — run the launcher once with
-network so ``asset-manifest.json`` sync completes, copy a full ``npm run build``
+**Fix:** Ensure ``index.html``, ``bundle.js``, and ``bundle.emulator.js`` are present
+under the static dir — run the launcher once with network, copy a full ``npm run build``
 output, or use the GitHub Pages URL directly. See
 :doc:`../getting_started/build_from_source/webxr`.
 
@@ -509,10 +508,9 @@ browser on the headset.
 WebXR static download fails (offline / proxy)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Cause:** The launcher syncs the published web client into the static dir on
-first run (``asset-manifest.json`` and every listed file when the release
-includes a manifest).  Behind a proxy or with no internet, this fails and
-``--usb-local`` aborts.
+**Cause:** The launcher syncs ``index.html``, ``bundle.js``, and
+``bundle.emulator.js`` into the static dir on first run. Behind a proxy or with no
+internet, this fails and ``--usb-local`` aborts.
 
 **Fix:** Pre-stage the full client ``build/`` tree (or the published
 ``/client/<version>/`` directory) into the static dir, then re-run.  The
