@@ -19,13 +19,14 @@ const fs = require('fs');
 const path = require('path');
 const { merge } = require('webpack-merge');
 const common = require('./webpack.common.js');
+const { chunkOptimization, msdfInlineRules } = require('./webpack.chunkNames.js');
 
 /**
  * Webpack plugin: write ``asset-manifest.json`` after a production build.
  *
  * Isaac Teleop OOB/--host-client sync reads this manifest to download and
- * serve lazy chunks (``[id].bundle.js``) in addition to ``index.html`` and
- * ``bundle.js``. See docs ``build_from_source/webxr.rst``.
+ * serve ``bundle.emulator.js`` in addition to ``index.html`` and ``bundle.js``.
+ * See docs ``build_from_source/webxr.rst``.
  */
 class AssetManifestPlugin {
   /**
@@ -51,7 +52,9 @@ class AssetManifestPlugin {
 
 module.exports = merge(common, {
   mode: 'production',
-  // Remove stale chunks when chunk ids change between builds.
+  // Remove stale chunks when dependency graph changes between builds.
   output: { clean: true },
+  module: msdfInlineRules,
+  optimization: chunkOptimization,
   plugins: [new AssetManifestPlugin()],
 });

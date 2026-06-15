@@ -454,10 +454,11 @@ having to puzzle out a frozen WebRTC connection.
 Web client UI has no text (OOB / ``--host-client``)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Cause:** Production webpack splits UIKit msdf support into lazy
-``<id>.bundle.js`` chunks. If the static cache under
-``TELEOP_WEB_CLIENT_STATIC_DIR`` contains only ``index.html`` and
-``bundle.js``, the browser 404s the msdf chunk and in-VR text does not render.
+**Cause:** Production webpack emits ``bundle.js`` (main app, including UIKit MSDF text)
+and ``bundle.emulator.js`` (desktop emulation only). If the static cache under
+``TELEOP_WEB_CLIENT_STATIC_DIR`` contains only ``index.html`` and an outdated or
+truncated ``bundle.js``, in-VR text does not render. Older builds that split
+MSDF into separate lazy chunks also fail when those chunks are missing.
 
 **Fix:** Ensure the full client tree is present — run the launcher once with
 network so ``asset-manifest.json`` sync completes, copy a full ``npm run build``

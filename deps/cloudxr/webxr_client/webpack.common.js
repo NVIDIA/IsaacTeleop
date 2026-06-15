@@ -21,6 +21,7 @@ const { execSync } = require('child_process');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const webpack = require('webpack');
+const { chunkFilename, msdfGeneratorEntry } = require('./webpack.chunkNames.js');
 
 function git(cmd) {
   try {
@@ -59,7 +60,10 @@ if (useLocalWebxrAssets) {
 }
 
 module.exports = {
-  entry: './src/index.tsx',
+  // MSDF in the main entry avoids a third lazy chunk (critical for OOB text on headset).
+  entry: {
+    main: ['./src/index.tsx', msdfGeneratorEntry],
+  },
 
   // Enable webpack 5 persistent filesystem caching for faster incremental builds
   cache: {
@@ -106,9 +110,8 @@ module.exports = {
   // Output configuration for bundled files
   output: {
     filename: 'bundle.js',
-    // Lazy-loaded webpack chunks (dynamic import()); filenames match OOB sync and
-    // wss ``/client/`` serving. See build_from_source/webxr.rst.
-    chunkFilename: '[id].bundle.js',
+    // Only async chunk: bundle.emulator.js (desktop XR / IWER). See webpack.chunkNames.js.
+    chunkFilename,
     path: path.resolve(__dirname, './build'),
   },
 

@@ -232,7 +232,7 @@ def _write_atomic_bytes(dest: Path, data: bytes) -> None:
 # ---------------------------------------------------------------------------
 # Web client asset manifest sync
 #
-# Production webpack builds emit ``bundle.js`` plus lazy ``[id].bundle.js``
+# Production webpack builds emit ``bundle.js`` plus lazy ``bundle.<name>.js``
 # chunks. ``asset-manifest.json`` lists every file OOB/--host-client must
 # cache and serve. Helpers below resolve the file set from local or remote
 # manifests and drive :func:`require_web_client_static_dir`.

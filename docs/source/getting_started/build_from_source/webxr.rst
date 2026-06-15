@@ -61,14 +61,15 @@ From ``deps/cloudxr/webxr_client/``:
 Output in ``build/``:
 
 - ``index.html`` — entry page
-- ``bundle.js`` — main application (loaded on first paint)
-- ``<id>.bundle.js`` — lazy chunks from ``import()`` inside dependencies
-  (UIKit msdf text, desktop XR emulation, etc.). Headsets need the msdf chunk
-  for in-VR UI text; OOB modes must serve the full ``build/`` tree, not just
-  the two entry files.
+- ``bundle.js`` — main application (UIKit, MSDF text, icons; loaded on first paint)
+- ``bundle.emulator.js`` — desktop XR / IWER stack (DevUI, synthetic environments,
+  and related deps); loaded only when emulation is used
 - ``asset-manifest.json`` — list of every emitted file. The CloudXR launcher
   uses this when seeding ``~/.cloudxr/static-client`` for ``--host-client`` and
   ``--usb-local`` (see :ref:`connect-quest-pico`).
+
+Production builds intentionally emit **two** deterministic JS artifacts
+(``bundle.js`` and ``bundle.emulator.js``), not per-scene or numeric chunks.
 
 Do **not** set ``asyncChunks: false`` in ``webpack.prod.js``. That inlines lazy
 chunks into a single large ``bundle.js`` and was only a workaround for OOB hosts

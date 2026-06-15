@@ -375,9 +375,7 @@ def test_require_web_client_static_dir_downloads_manifest_chunks(
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
 
-    manifest = (
-        b'{"files":["index.html","bundle.js","553.bundle.js","asset-manifest.json"]}'
-    )
+    manifest = b'{"files":["index.html","bundle.js","bundle.emulator.js","asset-manifest.json"]}'
 
     def fake_fetch(url: str, *, timeout: float = 120.0) -> bytes:
         if url.endswith("asset-manifest.json"):
@@ -386,8 +384,8 @@ def test_require_web_client_static_dir_downloads_manifest_chunks(
             return b"<!doctype html><title>t</title>"
         if url.endswith("bundle.js"):
             return b"console.log(1);"
-        if url.endswith("553.bundle.js"):
-            return b"// emulate chunk"
+        if url.endswith("bundle.emulator.js"):
+            return b"// emulator chunk"
         raise AssertionError(url)
 
     monkeypatch.setattr(
@@ -396,13 +394,13 @@ def test_require_web_client_static_dir_downloads_manifest_chunks(
         fake_fetch,
     )
     out = require_web_client_static_dir()
-    assert (out / "553.bundle.js").read_bytes() == b"// emulate chunk"
+    assert (out / "bundle.emulator.js").read_bytes() == b"// emulator chunk"
     assert json.loads((out / "asset-manifest.json").read_text(encoding="utf-8"))[
         "files"
     ] == [
         "index.html",
         "bundle.js",
-        "553.bundle.js",
+        "bundle.emulator.js",
         "asset-manifest.json",
     ]
 
@@ -416,11 +414,11 @@ def test_manifest_file_names_rejects_unsafe_paths() -> None:
                 "../../../.bashrc",
                 "subdir/chunk.js",
                 "..\\win.txt",
-                "553.bundle.js",
+                "bundle.msdf.js",
             ]
         }
     )
-    assert names == ["index.html", "553.bundle.js"]
+    assert names == ["index.html", "bundle.msdf.js"]
 
 
 def test_require_web_client_static_dir_ok(

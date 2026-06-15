@@ -261,8 +261,8 @@ def _json_response(status: int, phrase: str, body: dict) -> Response:
 def _resolve_client_static_file(static_dir: Path, tail: str) -> Path | None:
     """Map ``/client/<tail>`` to a file under *static_dir* (path-traversal safe).
 
-    Used by ``--host-client`` and the WSS proxy static route so lazy webpack
-    chunks (e.g. ``553.bundle.js``) are served alongside ``index.html`` and
+    Used by ``--host-client`` and the WSS proxy static route so ``bundle.emulator.js``
+    and other manifest-listed assets are served alongside ``index.html`` and
     ``bundle.js``.
 
     Args:
