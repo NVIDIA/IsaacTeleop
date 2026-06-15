@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 # Test container for Isaac Teleop tests (Python and native C++)
@@ -32,7 +32,7 @@ WORKDIR /app/tests
 RUN uv venv --python $PYTHON_VERSION /app/venv && \
     . /app/venv/bin/activate && \
     uv pip install --find-links=/app/install/wheels --no-index --no-deps --no-cache-dir 'isaacteleop' && \
-    uv pip install isaacteleop
+    uv pip install --find-links=/app/install/wheels --no-cache-dir 'isaacteleop'
 
 # Set environment variables
 ENV PATH="/app/venv/bin:$PATH"
