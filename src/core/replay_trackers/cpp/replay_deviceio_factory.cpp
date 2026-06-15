@@ -9,6 +9,7 @@
 #include "replay_hand_tracker_impl.hpp"
 #include "replay_head_tracker_impl.hpp"
 #include "replay_message_channel_tracker_impl.hpp"
+#include "replay_steering_wheel_tracker_impl.hpp"
 
 #include <deviceio_trackers/controller_tracker.hpp>
 #include <deviceio_trackers/full_body_tracker_pico.hpp>
@@ -16,6 +17,7 @@
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
 #include <deviceio_trackers/message_channel_tracker.hpp>
+#include <deviceio_trackers/steering_wheel_tracker.hpp>
 #include <mcap/reader.hpp>
 
 #include <cassert>
@@ -71,6 +73,12 @@ std::unique_ptr<ITrackerImpl> try_create_generic_pedal_impl(ReplayDeviceIOFactor
     return typed ? factory.create_generic_3axis_pedal_tracker_impl(typed) : nullptr;
 }
 
+std::unique_ptr<ITrackerImpl> try_create_steering_wheel_impl(ReplayDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const SteeringWheelTracker*>(&tracker);
+    return typed ? factory.create_steering_wheel_tracker_impl(typed) : nullptr;
+}
+
 std::unique_ptr<ITrackerImpl> try_create_message_channel_impl(ReplayDeviceIOFactory& factory, const ITracker& tracker)
 {
     auto* typed = dynamic_cast<const MessageChannelTracker*>(&tracker);
@@ -80,8 +88,13 @@ std::unique_ptr<ITrackerImpl> try_create_message_channel_impl(ReplayDeviceIOFact
 using TryCreateFn = std::unique_ptr<ITrackerImpl> (*)(ReplayDeviceIOFactory&, const ITracker&);
 
 inline const TryCreateFn k_tracker_dispatch[] = {
-    &try_create_head_impl,           &try_create_hand_impl,          &try_create_controller_impl,
-    &try_create_full_body_pico_impl, &try_create_generic_pedal_impl, &try_create_message_channel_impl,
+    &try_create_head_impl,
+    &try_create_hand_impl,
+    &try_create_controller_impl,
+    &try_create_full_body_pico_impl,
+    &try_create_generic_pedal_impl,
+    &try_create_steering_wheel_impl,
+    &try_create_message_channel_impl,
 };
 
 } // namespace
@@ -146,6 +159,12 @@ std::unique_ptr<IGeneric3AxisPedalTrackerImpl> ReplayDeviceIOFactory::create_gen
     const Generic3AxisPedalTracker* tracker)
 {
     return std::make_unique<ReplayGeneric3AxisPedalTrackerImpl>(open_reader(filename_), get_name(tracker));
+}
+
+std::unique_ptr<ISteeringWheelTrackerImpl> ReplayDeviceIOFactory::create_steering_wheel_tracker_impl(
+    const SteeringWheelTracker* tracker)
+{
+    return std::make_unique<ReplaySteeringWheelTrackerImpl>(open_reader(filename_), get_name(tracker));
 }
 
 std::unique_ptr<IMessageChannelTrackerImpl> ReplayDeviceIOFactory::create_message_channel_tracker_impl(
