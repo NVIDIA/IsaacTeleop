@@ -20,11 +20,16 @@
 // Quest OS version is not exposed in the UA; OculusBrowser 40 approximates the OS v79 era
 // (browser 41.2, Nov 2025, was the first to declare OS v81 as its minimum).
 const MIN_OCULUS_BROWSER_MAJOR = 40;
-const MIN_CHROME_MAJOR = 125;
+const MIN_PICO_CHROME_MAJOR = 125;
 
 // Returns a warning message if the current browser is below the documented minimum
 // version, or null if the version is acceptable or cannot be determined.
-export function checkBrowserVersion(): string | null {
+// Pass emulated=true when running under an XR emulator (e.g. IWER) to skip the check.
+export function checkBrowserVersion(emulated = false): string | null {
+  if (emulated) {
+    return null;
+  }
+
   const ua = navigator.userAgent;
 
   // Detect Pico first — Pico UAs also include "OculusBrowser/7.0" as a compat token
@@ -33,10 +38,10 @@ export function checkBrowserVersion(): string | null {
     const chromeMatch = ua.match(/Chrome\/(\d+)\./);
     if (chromeMatch) {
       const major = parseInt(chromeMatch[1], 10);
-      if (major < MIN_CHROME_MAJOR) {
+      if (major < MIN_PICO_CHROME_MAJOR) {
         return (
           `Pico Browser (Chrome ${major}) is outdated. ` +
-          `CloudXR requires Chrome ${MIN_CHROME_MAJOR} or later. ` +
+          `CloudXR requires Chrome ${MIN_PICO_CHROME_MAJOR} or later. ` +
           `Please update your headset firmware.`
         );
       }
@@ -53,21 +58,6 @@ export function checkBrowserVersion(): string | null {
         `CloudXR requires Meta Quest OS v79 or later ` +
         `(approximately OculusBrowser ${MIN_OCULUS_BROWSER_MAJOR}+). ` +
         `Please update your headset firmware.`
-      );
-    }
-    return null;
-  }
-
-  // Desktop Chrome / Chromium. Safari and Firefox are not warned.
-  // Skip other Chromium-based browsers (Edge, Opera) that also include "Chrome/" in their UA.
-  const isNonChromeChromium = /Edg\/|OPR\/|Opera\//.test(ua);
-  const chromeMatch = !isNonChromeChromium && ua.match(/Chrome\/(\d+)\./);
-  if (chromeMatch) {
-    const major = parseInt(chromeMatch[1], 10);
-    if (major < MIN_CHROME_MAJOR) {
-      return (
-        `Chrome ${major} detected. CloudXR requires Chrome ${MIN_CHROME_MAJOR} or later. ` +
-        `Please update your browser.`
       );
     }
   }
@@ -160,7 +150,7 @@ const capabilities: CapabilityCheck[] = [
   },
 ];
 
-export async function checkCapabilities(): Promise<{
+export async function checkCapabilities(emulated = false): Promise<{
   success: boolean;
   failures: string[];
   warnings: string[];
@@ -170,7 +160,7 @@ export async function checkCapabilities(): Promise<{
   const requiredFailures: string[] = [];
 
   // Check browser version first so the warning appears at the top of the list.
-  const versionWarning = checkBrowserVersion();
+  const versionWarning = checkBrowserVersion(emulated);
   if (versionWarning) {
     warnings.push(versionWarning);
     console.warn('Browser version warning:', versionWarning);
