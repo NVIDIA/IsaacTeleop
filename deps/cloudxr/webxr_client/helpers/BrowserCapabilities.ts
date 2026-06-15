@@ -15,6 +15,64 @@
  * limitations under the License.
  */
 
+// Minimum versions for CloudXR.js compatibility.
+// Requirements: https://docs.nvidia.com/cloudxr-sdk/latest/requirement/cloudxrjs_req.html
+// Quest OS version is not exposed in the UA; OculusBrowser 40 approximates the OS v79 era
+// (browser 41.2, Nov 2025, was the first to declare OS v81 as its minimum).
+const MIN_OCULUS_BROWSER_MAJOR = 40;
+const MIN_CHROME_MAJOR = 125;
+
+// Returns a warning message if the current browser is below the documented minimum
+// version, or null if the version is acceptable or cannot be determined.
+export function checkBrowserVersion(): string | null {
+  const ua = navigator.userAgent;
+
+  // Detect Pico first — Pico UAs also include "OculusBrowser/7.0" as a compat token
+  // which would otherwise match the Quest check below.
+  if (/PicoBrowser\//.test(ua)) {
+    const chromeMatch = ua.match(/Chrome\/(\d+)\./);
+    if (chromeMatch) {
+      const major = parseInt(chromeMatch[1], 10);
+      if (major < MIN_CHROME_MAJOR) {
+        return (
+          `Pico Browser (Chrome ${major}) is outdated. ` +
+          `CloudXR requires Chrome ${MIN_CHROME_MAJOR} or later. ` +
+          `Please update your headset firmware.`
+        );
+      }
+    }
+    return null;
+  }
+
+  const questMatch = ua.match(/OculusBrowser\/(\d+)\./);
+  if (questMatch) {
+    const major = parseInt(questMatch[1], 10);
+    if (major < MIN_OCULUS_BROWSER_MAJOR) {
+      return (
+        `Meta Quest Browser version ${major} detected. ` +
+        `CloudXR requires Meta Quest OS v79 or later ` +
+        `(approximately OculusBrowser ${MIN_OCULUS_BROWSER_MAJOR}+). ` +
+        `Please update your headset firmware.`
+      );
+    }
+    return null;
+  }
+
+  // Desktop Chrome / Chromium. Safari and Firefox are not warned.
+  const chromeMatch = ua.match(/Chrome\/(\d+)\./);
+  if (chromeMatch) {
+    const major = parseInt(chromeMatch[1], 10);
+    if (major < MIN_CHROME_MAJOR) {
+      return (
+        `Chrome ${major} detected. CloudXR requires Chrome ${MIN_CHROME_MAJOR} or later. ` +
+        `Please update your browser.`
+      );
+    }
+  }
+
+  return null;
+}
+
 interface CapabilityCheck {
   name: string;
   required: boolean;
@@ -108,6 +166,13 @@ export async function checkCapabilities(): Promise<{
   const failures: string[] = [];
   const warnings: string[] = [];
   const requiredFailures: string[] = [];
+
+  // Check browser version first so the warning appears at the top of the list.
+  const versionWarning = checkBrowserVersion();
+  if (versionWarning) {
+    warnings.push(versionWarning);
+    console.warn('Browser version warning:', versionWarning);
+  }
 
   for (const capability of capabilities) {
     try {
