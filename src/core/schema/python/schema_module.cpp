@@ -14,7 +14,9 @@
 #include "oak_bindings.h"
 #include "pedals_bindings.h"
 #include "pose_bindings.h"
+#include "steering_wheel_bindings.h"
 #include "timestamp_bindings.h"
+#include "vehicle_control_bindings.h"
 
 namespace py = pybind11;
 
@@ -39,6 +41,12 @@ PYBIND11_MODULE(_schema, m)
 
     // Bind pedals types (Generic3AxisPedalOutput table).
     core::bind_pedals(m);
+
+    // Bind steering wheel types (SteeringWheelOutput table).
+    core::bind_steering_wheel(m);
+
+    // Bind vehicle control types (VehicleControlCommand table).
+    core::bind_vehicle_control(m);
 
     // Bind message channel types (MessageChannelMessages table).
     core::bind_message_channel(m);
