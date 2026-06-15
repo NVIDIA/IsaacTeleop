@@ -229,6 +229,8 @@ function App() {
       // Disable button and show checking status
       cloudXR2DUI.setStartButtonState(true, 'CONNECT (checking capabilities)');
 
+      // Set by the IWER load effect above; passed to checkCapabilities to skip browser
+      // version checks that don't apply when running under a desktop XR emulator.
       const iwerWasLoaded = sessionStorage.getItem('iwerWasLoaded') === 'true';
       let result: { success: boolean; failures: string[]; warnings: string[] } = {
         success: false,
