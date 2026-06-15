@@ -140,10 +140,10 @@ echo "Running Playwright spec and gripper retargeting example concurrently..."
 playwright_rc=0
 gripper_rc=0
 
-"${COMPOSE[@]}" run --rm playwright &
+"${COMPOSE[@]}" run --no-deps --rm playwright &
 playwright_pid=$!
 
-"${COMPOSE[@]}" run --rm gripper-example \
+"${COMPOSE[@]}" run --no-deps --rm gripper-example \
     > "$GRIPPER_LOG" 2>&1 &
 gripper_pid=$!
 
