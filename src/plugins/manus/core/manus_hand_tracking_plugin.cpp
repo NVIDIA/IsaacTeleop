@@ -3,15 +3,20 @@
 
 #include "inc/manus/manus_hand_tracking_plugin.hpp"
 
+#include "inc/manus/manus_glove_collection.hpp"
+
 #include <oxr/oxr_session.hpp>
 #include <oxr_utils/math.hpp>
 #include <oxr_utils/pose_conversions.hpp>
 #include <plugin_utils/hand_injector.hpp>
+#include <schema/haptic_command_generated.h>
 
 #include <ManusSDK.h>
 #include <ManusSDKTypeInitializers.h>
 #include <algorithm>
+#include <array>
 #include <chrono>
+#include <cmath>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -79,6 +84,26 @@ void ManusTracker::update()
     // Update DeviceIOSession which handles time conversion and tracker updates internally
     m_deviceio_session->update();
 
+    // Latest-wins: the hardware only retains the most recent vibration call,
+    // so dropping intermediate samples on a slow tick is fine. The generic
+    // HapticCommand carries an endpoint string ("left"/"right"); commands for
+    // other endpoints or with a non-5-finger values vector are ignored (this
+    // plugin only drives 5-finger gloves).
+    if (m_haptic_reader)
+    {
+        const auto& tracked = m_haptic_reader->get_data(*m_deviceio_session);
+        if (tracked.data && tracked.data->values.size() == kManusFingerCount &&
+            (tracked.data->endpoint == "left" || tracked.data->endpoint == "right"))
+        {
+            std::array<float, kManusFingerCount> powers{};
+            for (size_t i = 0; i < kManusFingerCount; ++i)
+            {
+                powers[i] = tracked.data->values[i];
+            }
+            apply_haptic_command(tracked.data->endpoint == "left", powers);
+        }
+    }
+
     inject_hand_data();
 }
 
@@ -104,6 +129,48 @@ std::vector<NodeInfo> ManusTracker::get_right_node_info() const
 {
     std::lock_guard<std::mutex> lock(m_skeleton_mutex);
     return m_right_node_info;
+}
+
+void ManusTracker::apply_haptic_command(bool is_left, const std::array<float, kManusFingerCount>& powers)
+{
+    uint32_t glove_id = 0;
+    {
+        std::lock_guard<std::mutex> lock(landscape_mutex);
+        const auto& opt = is_left ? left_glove_id : right_glove_id;
+        if (!opt.has_value())
+        {
+            // No glove connected on this side — silently no-op. Spamming the
+            // log every frame while the glove is disconnected drowns out real
+            // errors; the user already knows the glove is down because hand
+            // tracking is unavailable.
+            return;
+        }
+        glove_id = *opt;
+    }
+
+    // Clamp to [0, 1] — the Manus SDK does the same internally but
+    // documenting the contract here lets retargeters with looser saturation
+    // bounds wire up safely.
+    std::array<float, kManusFingerCount> clamped{};
+    for (size_t i = 0; i < clamped.size(); ++i)
+    {
+        // std::clamp passes NaN / ±Inf through unchanged, so sanitize first --
+        // a non-finite power must never reach the SDK.
+        clamped[i] = std::isfinite(powers[i]) ? std::clamp(powers[i], 0.0f, 1.0f) : 0.0f;
+    }
+
+    const SDKReturnCode rc = CoreSdk_VibrateFingersForGlove(glove_id, clamped.data());
+    if (rc != SDKReturnCode::SDKReturnCode_Success)
+    {
+        const size_t slot = is_left ? 0 : 1;
+        bool expected = false;
+        if (m_haptic_error_logged[slot].compare_exchange_strong(expected, true))
+        {
+            std::cerr << "[Manus] CoreSdk_VibrateFingersForGlove failed for " << (is_left ? "left" : "right")
+                      << " glove (id=" << glove_id << ", code=" << static_cast<int>(rc)
+                      << "); further errors for this side will be silenced." << std::endl;
+        }
+    }
 }
 
 ManusTracker::ManusTracker(const std::string& app_name) noexcept(false)
@@ -180,6 +247,15 @@ void ManusTracker::initialize(const std::string& app_name) noexcept(false)
             std::cout << "[Manus] " << XR_EXT_HAND_TRACKING_EXTENSION_NAME
                       << " is not supported by the current runtime; HandTracker will not be created." << std::endl;
         }
+
+        // Registering the reader pulls XR_NVX1_tensor_data into the
+        // OpenXRSession's required-extension set; the session will fail
+        // loudly on a runtime that doesn't advertise it. The reader's buffer
+        // must be >= the producer's collection sample size; we use the shared
+        // default (matching the producer's PushTensorHapticDevice) rather than
+        // a Manus-specific size that could drift below it.
+        m_haptic_reader = std::make_shared<core::HapticCommandReaderTracker>(MANUS_GLOVE_COLLECTION_ID);
+        trackers.push_back(m_haptic_reader);
 
         // Get required extensions from trackers
         auto extensions = core::DeviceIOSession::get_required_extensions(trackers);

@@ -39,6 +39,9 @@ from ._schema import (
     MessageChannelMessages,
     MessageChannelMessagesTrackedT,
     MessageChannelMessagesRecord,
+    # Haptic command types (vendor-neutral cross-process device output).
+    HapticCommand,
+    pack_haptic_command,
     # Camera-related types.
     StreamType,
     FrameMetadataOak,
@@ -86,6 +89,9 @@ __all__ = [
     "MessageChannelMessages",
     "MessageChannelMessagesTrackedT",
     "MessageChannelMessagesRecord",
+    # Haptic command types.
+    "HapticCommand",
+    "pack_haptic_command",
     # Camera types.
     "StreamType",
     "FrameMetadataOak",
