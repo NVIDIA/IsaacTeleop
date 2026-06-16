@@ -25,10 +25,21 @@ from .oob_teleop_adb import (
 from .oob_teleop_env import (
     client_ui_fields_from_env,
     default_initial_stream_config,
+    default_web_client_origin,
     oob_progress,
+    web_client_base_override_from_env,
     wss_proxy_port,
 )
-from .oob_teleop_hub import OOB_WS_PATH
+from .oob_teleop_hub import (
+    OOB_WS_PATH,
+    hub_client_asset_path,
+    hub_client_content_type,
+    hub_client_dev_redirect_location,
+    hub_client_dev_url_from_env,
+    load_app_descriptor_from_env,
+    resolve_hub_client_static_dir,
+)
+from .oob_teleop_options import normalize_teleop_launch_options
 
 try:
     import websockets
@@ -257,7 +268,73 @@ def _json_response(status: int, phrase: str, body: dict) -> Response:
     )
 
 
-def _make_http_handler(backend_host, backend_port, hub=None, static_dir=None):
+def _redirect_response(location: str) -> Response:
+    return Response(
+        302,
+        "Found",
+        Headers({"Location": location, "Content-Type": "text/plain", **CORS_HEADERS}),
+        f"Redirecting to {location}".encode(),
+    )
+
+
+def _request_origin(request) -> str | None:
+    host = request.headers.get("Host")
+    if not host:
+        return None
+    proto = request.headers.get("X-Forwarded-Proto") or "https"
+    return f"{proto}://{host}"
+
+
+def _static_response(static_root: Path, path: str, prefix: str) -> Response:
+    try:
+        candidate = hub_client_asset_path(static_root, path, prefix)
+    except ValueError:
+        return Response(
+            403,
+            "Forbidden",
+            Headers({"Content-Type": "text/plain", **CORS_HEADERS}),
+            b"Forbidden",
+        )
+    try:
+        body = candidate.read_bytes()
+    except OSError:
+        return Response(
+            404,
+            "Not Found",
+            Headers({"Content-Type": "text/plain", **CORS_HEADERS}),
+            b"Not found",
+        )
+    content_type = hub_client_content_type(candidate)
+    return Response(
+        200,
+        "OK",
+        Headers({"Content-Type": content_type, **CORS_HEADERS}),
+        body,
+    )
+
+
+def _missing_hub_client_response(static_root: Path | None) -> Response:
+    detail = (
+        f"Hub client build not found at {static_root}"
+        if static_root is not None
+        else "Hub client build path is not configured"
+    )
+    return Response(
+        503,
+        "Service Unavailable",
+        Headers({"Content-Type": "text/plain", **CORS_HEADERS}),
+        f"{detail}. Run npm run build in src/core/cloudxr/hub_client.".encode(),
+    )
+
+
+def _make_http_handler(
+    backend_host,
+    backend_port,
+    hub=None,
+    static_dir=None,
+    hub_static_dir: Path | None = None,
+    published_client_base: str | None = None,
+):
     async def handle_http_request(connection, request):
         if request.headers.get("Upgrade", "").lower() == "websocket":
             return None
@@ -281,7 +358,11 @@ def _make_http_handler(backend_host, backend_port, hub=None, static_dir=None):
                     return _json_response(
                         401, "Unauthorized", {"error": "Unauthorized"}
                     )
-                snapshot = await hub.get_snapshot()
+                snapshot = await hub.get_snapshot(
+                    request_origin=_request_origin(request),
+                    local_client_available=static_dir is not None,
+                    published_client_base=published_client_base,
+                )
                 return Response(
                     200,
                     "OK",
@@ -318,6 +399,28 @@ def _make_http_handler(backend_host, backend_port, hub=None, static_dir=None):
                 Headers({"Content-Type": "text/plain", **CORS_HEADERS}),
                 b"Not found",
             )
+
+        if hub is not None and (
+            path == "/hub" or path == "/hub/" or path.startswith("/hub/")
+        ):
+            dev_url = hub_client_dev_url_from_env()
+            if dev_url:
+                return _redirect_response(
+                    hub_client_dev_redirect_location(dev_url, path, raw_path)
+                )
+            if hub_static_dir is not None and hub_static_dir.exists():
+                return _static_response(hub_static_dir, path, "/hub")
+            return _missing_hub_client_response(hub_static_dir)
+
+        if hub is not None and path == "/":
+            dev_url = hub_client_dev_url_from_env()
+            if dev_url:
+                return _redirect_response(
+                    hub_client_dev_redirect_location(dev_url, "/hub/", raw_path)
+                )
+            if hub_static_dir is not None and hub_static_dir.exists():
+                return _static_response(hub_static_dir, "/hub/", "/hub")
+            return _missing_hub_client_response(hub_static_dir)
 
         if static_dir is not None and (
             path == "/client" or path.startswith("/client/")
@@ -494,9 +597,13 @@ async def run(
     backend_host: str = "localhost",
     backend_port: int = 49100,
     proxy_port: int | None = None,
+    hub: bool = False,
+    transport: str | None = None,
+    device_automation: str | None = None,
+    host_client: bool = False,
     setup_oob: bool = False,
     usb_local: bool = False,
-    host_client: bool = False,
+    app_descriptor: dict | None = None,
 ) -> None:
     logger = log
     logger.setLevel(logging.INFO)
@@ -518,6 +625,19 @@ async def run(
         _extra_log.addHandler(_handler)
 
     try:
+        launch_options = normalize_teleop_launch_options(
+            hub=hub,
+            host_client=host_client,
+            transport=transport,
+            device_automation=device_automation,
+            setup_oob=setup_oob,
+            usb_local=usb_local,
+        )
+        hub_enabled = launch_options.hub
+        setup_oob = launch_options.setup_oob
+        usb_local = launch_options.usb_local
+        host_client = launch_options.host_client
+
         resolved_port = wss_proxy_port() if proxy_port is None else proxy_port
 
         logging.getLogger("websockets").setLevel(logging.WARNING)
@@ -526,8 +646,8 @@ async def run(
         ensure_certificate(cert_paths)
         ssl_ctx = build_ssl_context(cert_paths)
 
-        hub = None
-        if setup_oob:
+        hub_instance = None
+        if hub_enabled:
             from .oob_teleop_hub import OOBControlHub  # noqa: PLC0415
 
             control_token = os.environ.get("CONTROL_TOKEN") or None
@@ -535,7 +655,21 @@ async def run(
                 **default_initial_stream_config(resolved_port),
                 **client_ui_fields_from_env(),
             }
-            hub = OOBControlHub(control_token=control_token, initial_config=initial)
+            env_descriptor, env_descriptor_source = load_app_descriptor_from_env()
+            resolved_app_descriptor = (
+                env_descriptor if env_descriptor is not None else app_descriptor
+            )
+            descriptor_source = (
+                env_descriptor_source
+                if env_descriptor is not None
+                else ("app_descriptor" if app_descriptor else None)
+            )
+            hub_instance = OOBControlHub(
+                control_token=control_token,
+                initial_config=initial,
+                app_descriptor=resolved_app_descriptor,
+                app_descriptor_source=descriptor_source,
+            )
             log.info(
                 "Teleop control hub enabled (token=%s) OOB_WS=%s initial_stream=%s",
                 "set" if control_token else "none",
@@ -544,10 +678,10 @@ async def run(
             )
 
         def handler(ws):
-            if hub is not None:
+            if hub_instance is not None:
                 path = _normalize_request_path(ws.request.path or "/")
                 if path == OOB_WS_PATH:
-                    return hub.handle_connection(ws)
+                    return hub_instance.handle_connection(ws)
             return proxy_handler(ws, backend_host, backend_port)
 
         _host_client_static_dir = None
@@ -556,8 +690,20 @@ async def run(
 
             _host_client_static_dir = require_web_client_static_dir()
 
+        _published_client_base = (
+            web_client_base_override_from_env() or default_web_client_origin()
+        )
+        _hub_client_static_dir = (
+            resolve_hub_client_static_dir() if hub_instance else None
+        )
+
         http_handler = _make_http_handler(
-            backend_host, backend_port, hub=hub, static_dir=_host_client_static_dir
+            backend_host,
+            backend_port,
+            hub=hub_instance,
+            static_dir=_host_client_static_dir,
+            hub_static_dir=_hub_client_static_dir,
+            published_client_base=_published_client_base,
         )
 
         async with ws_serve(
@@ -771,10 +917,10 @@ async def run(
 
                         # One-shot: print once when the headset's onStreamStarted
                         # flows back through the hub, then the task exits.
-                        if hub is not None:
+                        if hub_instance is not None:
 
                             async def _announce_streaming():
-                                cid, since = await hub.wait_for_streaming()
+                                cid, since = await hub_instance.wait_for_streaming()
                                 ts = time.strftime("%H:%M:%S", time.localtime(since))
                                 oob_progress(
                                     "setup-oob",

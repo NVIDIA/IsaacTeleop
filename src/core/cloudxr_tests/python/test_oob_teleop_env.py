@@ -394,6 +394,7 @@ def test_print_oob_hub_startup_banner(
     out = capsys.readouterr().out
     assert "OOB TELEOP" in out
     assert "10.0.0.1" in out
+    assert "Hub:    https://10.0.0.1:48322/" in out
     assert OOB_WS_PATH in out
 
 

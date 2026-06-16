@@ -23,6 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .env_config import EnvConfig
+from .oob_teleop_options import normalize_teleop_launch_options
 from .runtime import (
     RUNTIME_STARTUP_TIMEOUT_SEC,
     RUNTIME_TERMINATE_TIMEOUT_SEC,
@@ -73,9 +74,13 @@ class CloudXRLauncher:
         install_dir: str = "~/.cloudxr",
         env_config: str | Path | None = None,
         accept_eula: bool = False,
+        hub: bool = False,
+        transport: str | None = None,
+        device_automation: str | None = None,
+        host_client: bool = False,
         setup_oob: bool = False,
         usb_local: bool = False,
-        host_client: bool = False,
+        app_descriptor: dict | None = None,
     ) -> None:
         """Launch the CloudXR runtime and WSS proxy.
 
@@ -92,18 +97,26 @@ class CloudXRLauncher:
             accept_eula: Accept the NVIDIA CloudXR EULA
                 non-interactively.  When ``False`` and the EULA marker
                 does not exist, the user is prompted on stdin.
-            setup_oob: Enable the OOB teleop control hub and USB
-                adb automation in the WSS proxy.
-            usb_local: Route teleop traffic over USB headset loopback via
-                ``adb reverse`` (requires *setup_oob*); also starts coturn
-                for WebRTC ICE relay and serves WebXR static files
-                (``TELEOP_WEB_CLIENT_STATIC_DIR`` or ``~/.cloudxr/static-client``,
-                fetched from GitHub Pages if missing) over HTTPS.  Ports
-                are overridable via ``USB_UI_PORT`` / ``USB_BACKEND_PORT``
-                / ``USB_TURN_PORT``.
+            hub: Enable the Teleop Control Hub at ``/`` plus the OOB HTTP
+                API and WebSocket control path.
+            transport: Network topology for the headset, currently ``"wifi"``
+                or ``"usb"``. ``"usb"`` maps to the current USB-local
+                ``adb reverse`` implementation.
+            device_automation: Optional device automation adapter. ``"xrhmd"``
+                uses the current Android HMD adb + Chrome DevTools flow and
+                currently requires ``hub=True``.
             host_client: Serve the web client at ``/client/`` on the WSS
                 proxy port.  Assets are fetched once from GitHub Pages into
                 ``TELEOP_WEB_CLIENT_STATIC_DIR`` or ``~/.cloudxr/static-client``.
+            setup_oob: Deprecated alias for ``hub=True`` and
+                ``device_automation="xrhmd"``.
+            usb_local: Deprecated alias for the current full USB-local flow:
+                ``hub=True``, ``host_client=True``, ``transport="usb"``, and
+                ``device_automation="xrhmd"``.
+            app_descriptor: Optional Teleop Control Hub descriptor supplied by
+                the embedding application.  Development overrides can still be
+                supplied with ``TELEOP_APP_DESCRIPTOR`` or
+                ``TELEOP_APP_DESCRIPTOR_FILE``.
 
         Raises:
             RuntimeError: If the EULA is not accepted or the runtime
@@ -112,9 +125,21 @@ class CloudXRLauncher:
         self._install_dir = install_dir
         self._env_config = str(env_config) if env_config is not None else None
         self._accept_eula = accept_eula
-        self._setup_oob = setup_oob
-        self._usb_local = usb_local
-        self._host_client = host_client
+        self._launch_options = normalize_teleop_launch_options(
+            hub=hub,
+            host_client=host_client,
+            transport=transport,
+            device_automation=device_automation,
+            setup_oob=setup_oob,
+            usb_local=usb_local,
+        )
+        self._hub = self._launch_options.hub
+        self._setup_oob = self._launch_options.setup_oob
+        self._usb_local = self._launch_options.usb_local
+        self._host_client = self._launch_options.host_client
+        self._transport = self._launch_options.transport
+        self._device_automation = self._launch_options.device_automation
+        self._app_descriptor = dict(app_descriptor) if app_descriptor else None
 
         if self._usb_local or self._host_client:
             from .oob_teleop_env import require_web_client_static_dir  # noqa: PLC0415
@@ -388,9 +413,11 @@ class CloudXRLauncher:
         stop_future = loop.create_future()
         self._wss_stop_future = stop_future
 
-        setup_oob = self._setup_oob
-        usb_local = self._usb_local
+        hub = self._hub
+        transport = self._transport
+        device_automation = self._device_automation
         host_client = self._host_client
+        app_descriptor = self._app_descriptor
 
         def _run_wss() -> None:
             asyncio.set_event_loop(loop)
@@ -399,9 +426,11 @@ class CloudXRLauncher:
                     wss_run(
                         log_file_path=log_path,
                         stop_future=stop_future,
-                        setup_oob=setup_oob,
-                        usb_local=usb_local,
+                        hub=hub,
+                        transport=transport,
+                        device_automation=device_automation,
                         host_client=host_client,
+                        app_descriptor=app_descriptor,
                     )
                 )
             except Exception:

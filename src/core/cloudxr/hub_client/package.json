@@ -1,0 +1,25 @@
+{
+  "name": "@nvidia/isaac-teleop-hub-client",
+  "version": "0.0.0",
+  "private": true,
+  "description": "NVIDIA Isaac Teleop Hub client",
+  "license": "Apache-2.0",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite --host 0.0.0.0",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.1.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^5.8.2",
+    "vite": "^7.3.0",
+    "vitest": "^4.0.15"
+  }
+}

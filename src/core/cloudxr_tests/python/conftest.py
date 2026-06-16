@@ -39,6 +39,7 @@ def _ensure_cloudxr_package() -> None:
         spec.loader.exec_module(module)
         setattr(sys.modules[CLOUDXR_TEST_PKG], mod, module)
 
+    load("oob_teleop_options")
     load("oob_teleop_hub")
     load("oob_teleop_env")
     load("oob_teleop_adb")

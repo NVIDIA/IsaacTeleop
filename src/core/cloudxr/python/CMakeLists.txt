@@ -3,6 +3,7 @@
 
 # Package output dir for cloudxr Python module (used on all platforms)
 set(CLOUDXR_PYTHON_DIR "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/cloudxr")
+set(CLOUDXR_HUB_CLIENT_BUILD_DIR "${CLOUDXR_PYTHON_DIR}/../hub_client/build")
 
 # Look for CloudXR Runtime SDK tarball: version from deps/cloudxr/.env.default (CXR_RUNTIME_SDK_VERSION)
 # (e.g. CloudXR-6.1.0-rc2-Linux-amd64-sdk.tar.gz)
@@ -104,6 +105,10 @@ endif()
 # Copy CloudXR Python module to package structure (always; pure Python is cross-platform)
 add_custom_target(cloudxr_python ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CLOUDXR_PYTHON_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CLOUDXR_HUB_CLIENT_BUILD_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/../hub_client/build"
+        "${CLOUDXR_HUB_CLIENT_BUILD_DIR}"
     COMMAND ${CMAKE_COMMAND} -E copy
         "${CMAKE_CURRENT_SOURCE_DIR}/__init__.py"
         "${CMAKE_CURRENT_SOURCE_DIR}/__main__.py"
@@ -114,6 +119,7 @@ add_custom_target(cloudxr_python ALL
         "${CMAKE_CURRENT_SOURCE_DIR}/oob_teleop_adb.py"
         "${CMAKE_CURRENT_SOURCE_DIR}/oob_teleop_env.py"
         "${CMAKE_CURRENT_SOURCE_DIR}/oob_teleop_hub.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/oob_teleop_options.py"
         "${CLOUDXR_PYTHON_DIR}/"
     COMMAND ${CMAKE_COMMAND} -E rm -rf "${CLOUDXR_PYTHON_DIR}/__pycache__"
     COMMENT "Copying cloudxr Python files to package structure"

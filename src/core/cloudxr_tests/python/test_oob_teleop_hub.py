@@ -19,7 +19,17 @@ from typing import Any
 
 import pytest
 
-from oob_teleop_hub import OOBControlHub
+from oob_teleop_hub import (
+    APP_DESCRIPTOR_ENV,
+    APP_DESCRIPTOR_FILE_ENV,
+    HUB_CLIENT_DEV_URL_ENV,
+    OOBControlHub,
+    hub_client_dev_redirect_location,
+    hub_client_dev_url_from_env,
+    hub_client_asset_path,
+    hub_client_content_type,
+    load_app_descriptor_from_env,
+)
 
 
 class QueueWS:
@@ -77,6 +87,51 @@ async def test_get_snapshot_empty() -> None:
     assert snap["config"] == {}
     assert snap["headsets"] == []
     assert "updatedAt" in snap
+    assert snap["web2SchemaVersion"] == 1
+    assert snap["app"]["displayName"] == "Isaac Teleop"
+    assert snap["clients"] == []
+
+
+@pytest.mark.asyncio
+async def test_get_snapshot_includes_web2_join_links() -> None:
+    hub = OOBControlHub(initial_config={"serverIP": "10.0.0.8", "port": 48322})
+
+    snap = await hub.get_snapshot(
+        request_origin="https://10.0.0.8:48322",
+        local_client_available=True,
+        published_client_base="https://pages.example/client/main/",
+    )
+
+    assert snap["join"]["preferred"] == "local-hosted"
+    links = snap["join"]["links"]
+    assert links[0]["kind"] == "local-hosted"
+    assert links[0]["href"].startswith("https://10.0.0.8:48322/client/?")
+    assert "serverIP=10.0.0.8" in links[0]["href"]
+    assert "port=48322" in links[0]["href"]
+    assert links[1]["kind"] == "github-pages"
+
+
+@pytest.mark.asyncio
+async def test_app_descriptor_and_televiz_flow_into_web2_snapshot() -> None:
+    hub = OOBControlHub(
+        app_descriptor={
+            "id": "isaac-lab",
+            "displayName": "Isaac Lab Pick Place",
+            "sessionDisplayName": "Pick Place Session",
+            "lifecycle": {"adapter": "isaac-lab", "supportedActions": ["launch"]},
+            "televiz": {"present": True, "mode": "xr", "state": "ready"},
+        }
+    )
+
+    snap = await hub.get_snapshot()
+
+    assert snap["app"]["id"] == "isaac-lab"
+    assert snap["app"]["displayName"] == "Isaac Lab Pick Place"
+    assert snap["app"]["descriptorSource"] == "app_descriptor"
+    assert snap["app"]["lifecycle"]["adapterAvailable"] is True
+    assert snap["session"]["displayName"] == "Pick Place Session"
+    assert snap["televiz"]["present"] is True
+    assert snap["televiz"]["mode"] == "xr"
 
 
 @pytest.mark.asyncio
@@ -101,6 +156,37 @@ async def test_headset_register_hello_and_snapshot() -> None:
     assert len(snap["headsets"]) == 1
     assert snap["headsets"][0]["clientId"] == hid
     assert snap["headsets"][0]["deviceLabel"] == "Q3"
+
+    await ws.end_stream()
+    await task
+
+
+@pytest.mark.asyncio
+async def test_headset_register_accepts_identity_and_capabilities() -> None:
+    hub = OOBControlHub()
+    ws = QueueWS()
+    task = asyncio.create_task(hub.handle_connection(ws))
+
+    await ws.inject(
+        json.dumps(
+            {
+                "type": "register",
+                "payload": {
+                    "role": "headset",
+                    "deviceLabel": "Quest 3",
+                    "identity": {"displayName": "Lab headset"},
+                    "capabilities": {"handTracking": True, "refreshRates": [72, 90]},
+                },
+            }
+        )
+    )
+    await asyncio.sleep(0)
+
+    snap = await hub.get_snapshot()
+    client = snap["clients"][0]
+    assert client["identity"]["displayName"] == "Lab headset"
+    assert client["capabilities"]["handTracking"] is True
+    assert snap["headsets"][0]["capabilities"]["refreshRates"] == [72, 90]
 
     await ws.end_stream()
     await task
@@ -307,3 +393,60 @@ async def test_http_oob_set_config_updates_and_pushes() -> None:
 
     await hw.end_stream()
     await th
+
+
+def test_load_app_descriptor_from_env_prefers_inline_json(monkeypatch) -> None:
+    monkeypatch.setenv(APP_DESCRIPTOR_ENV, '{"displayName":"Dev App"}')
+    monkeypatch.setenv(APP_DESCRIPTOR_FILE_ENV, "/tmp/unused-descriptor.json")
+
+    descriptor, source = load_app_descriptor_from_env()
+
+    assert descriptor == {"displayName": "Dev App"}
+    assert source == APP_DESCRIPTOR_ENV
+
+
+def test_load_app_descriptor_from_env_file(monkeypatch, tmp_path) -> None:
+    fp = tmp_path / "app.json"
+    fp.write_text('{"displayName":"File App"}', encoding="utf-8")
+    monkeypatch.delenv(APP_DESCRIPTOR_ENV, raising=False)
+    monkeypatch.setenv(APP_DESCRIPTOR_FILE_ENV, str(fp))
+
+    descriptor, source = load_app_descriptor_from_env()
+
+    assert descriptor == {"displayName": "File App"}
+    assert source == APP_DESCRIPTOR_FILE_ENV
+
+
+def test_hub_client_asset_path_resolves_static_assets_safely(tmp_path) -> None:
+    build = tmp_path / "build"
+    assets = build / "assets"
+    assets.mkdir(parents=True)
+    (build / "index.html").write_text("<div>hub app</div>", encoding="utf-8")
+    (assets / "hub.js").write_text("console.log('hub')", encoding="utf-8")
+
+    index = hub_client_asset_path(build, "/hub/")
+    script = hub_client_asset_path(build, "/hub/assets/hub.js")
+
+    assert index == (build / "index.html").resolve()
+    assert script == (assets / "hub.js").resolve()
+    assert hub_client_content_type(script).startswith("application/javascript")
+    with pytest.raises(ValueError):
+        hub_client_asset_path(build, "/hub/../secret.txt")
+
+
+def test_hub_client_dev_redirect_location_preserves_path_and_query(monkeypatch) -> None:
+    monkeypatch.setenv(HUB_CLIENT_DEV_URL_ENV, "http://localhost:5173/hub")
+
+    assert hub_client_dev_url_from_env() == "http://localhost:5173/hub/"
+    assert (
+        hub_client_dev_redirect_location(
+            "http://localhost:5173/hub/", "/hub/assets/app.js", "/hub/assets/app.js?x=1"
+        )
+        == "http://localhost:5173/hub/assets/app.js?x=1"
+    )
+    assert (
+        hub_client_dev_redirect_location(
+            "http://localhost:5173/hub/", "/hub/", "/?token=abc"
+        )
+        == "http://localhost:5173/hub/?token=abc"
+    )

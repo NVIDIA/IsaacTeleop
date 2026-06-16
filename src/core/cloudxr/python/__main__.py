@@ -37,6 +37,12 @@ from isaacteleop.cloudxr.oob_teleop_env import (
     versioned_web_client_url,
     wss_proxy_port,
 )
+from isaacteleop.cloudxr.oob_teleop_options import (
+    DEVICE_AUTOMATIONS,
+    DEVICE_AUTOMATION_XRHMD,
+    TRANSPORTS,
+    normalize_teleop_launch_options,
+)
 
 
 def _parse_args() -> argparse.Namespace:
@@ -62,14 +68,39 @@ def _parse_args() -> argparse.Namespace:
         help="Accept the NVIDIA CloudXR EULA non-interactively (e.g. for CI or containers).",
     )
     parser.add_argument(
+        "--hub",
+        action="store_true",
+        default=False,
+        help=(
+            "Run the Teleop Control Hub at / on the WSS proxy port, including "
+            "the OOB HTTP API and WebSocket control path."
+        ),
+    )
+    parser.add_argument(
+        "--transport",
+        choices=TRANSPORTS,
+        default=None,
+        help=(
+            "Headset network topology. wifi uses LAN reachability; usb uses the "
+            "current USB-local adb reverse + TURN topology."
+        ),
+    )
+    parser.add_argument(
+        "--device-automation",
+        choices=DEVICE_AUTOMATIONS,
+        default=None,
+        help=(
+            "Optional XR device automation adapter. xrhmd is the current Android "
+            "HMD adb + Chrome DevTools flow and currently requires --hub."
+        ),
+    )
+    parser.add_argument(
         "--setup-oob",
         action="store_true",
         default=False,
         help=(
-            "Enable OOB teleop control hub, open the teleop page on the headset via USB adb, "
-            "and auto-click CONNECT via CDP (Chrome DevTools Protocol). "
-            "The headset must be connected via USB cable (for adb) and on WiFi (for streaming). "
-            'See docs: "Out-of-band teleop control".'
+            "Deprecated alias for --hub --transport wifi --device-automation xrhmd. "
+            "Opens the teleop page on the headset via USB adb and auto-clicks CONNECT via CDP."
         ),
     )
     parser.add_argument(
@@ -77,8 +108,9 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         default=False,
         help=(
-            "Route teleop traffic over the USB cable on headset loopback "
-            "(127.0.0.1) via adb reverse.  Requires --setup-oob.  Orchestrates "
+            "Deprecated alias for --hub --host-client --transport usb "
+            "--device-automation xrhmd.  Routes teleop traffic over the USB "
+            "cable on headset loopback (127.0.0.1) via adb reverse.  Orchestrates "
             "adb reverse for WSS proxy "
             f"({WSS_PROXY_DEFAULT_PORT}/tcp), CloudXR backend "
             f"({usb_backend_port()}/tcp; override via USB_BACKEND_PORT env), "
@@ -114,23 +146,37 @@ def main() -> None:
     """Launch the CloudXR runtime and WSS proxy, then block until interrupted."""
     args = _parse_args()
 
-    if args.usb_local and not args.setup_oob:
+    try:
+        launch_options = normalize_teleop_launch_options(
+            hub=args.hub,
+            host_client=args.host_client,
+            transport=args.transport,
+            device_automation=args.device_automation,
+            setup_oob=args.setup_oob,
+            usb_local=args.usb_local,
+        )
+    except ValueError as exc:
         print(
-            "\n\033[31m--usb-local requires --setup-oob.\033[0m\n",
+            f"\n\033[31m{exc}\033[0m\n",
             file=sys.stderr,
         )
-        raise SystemExit(1)
+        raise SystemExit(2) from exc
+
+    for warning in launch_options.deprecation_warnings:
+        print(f"\033[33m{warning}\033[0m", file=sys.stderr)
 
     # Valid flag combinations and what they mean:
     #
-    #   (none)                        Plain: headset navigates to GitHub Pages URL over WiFi.
-    #   --host-client                 Client served at https://<lan>:<wss_port>/client/; no adb/TURN.
-    #   --setup-oob                   OOB hub + CDP automation; GitHub Pages URL.
-    #   --setup-oob --host-client     OOB hub + CDP; client served at /client/ on the WSS proxy.
-    #   --setup-oob --usb-local       OOB hub + CDP; adb-reverse + coturn + loopback HTTPS.
+    #   --hub                         Teleop Control Hub only; no adb.
+    #   --host-client                 Client served at /client/; no hub implied.
+    #   --hub --host-client           Hub + local client link; no adb.
+    #   --hub --device-automation xrhmd
+    #                                  Hub + Android HMD adb/CDP automation over WiFi.
+    #   --hub --host-client --transport usb --device-automation xrhmd
+    #                                  Hub + local client + USB-local topology + Android HMD automation.
 
     _oob_lan_host: str | None = None  # resolved once, reused in startup banner
-    if args.usb_local:
+    if launch_options.usb_local:
         oob_progress(
             "usb-local",
             "preflight: adb, single headset, awake, coturn, non-loopback IP ...",
@@ -161,9 +207,9 @@ def main() -> None:
             print(f"\n\033[31m{exc}\033[0m\n", file=sys.stderr)
             raise SystemExit(1) from exc
         oob_progress("usb-local", "preflight OK")
-    elif args.setup_oob:
+    elif launch_options.device_automation == DEVICE_AUTOMATION_XRHMD:
         # WiFi OOB: resolve LAN host + warn on port/ufw issues.
-        oob_progress("setup-oob", "preflight: adb, single headset, awake ...")
+        oob_progress("xrhmd", "preflight: adb, single headset, awake ...")
         require_adb_on_path()
         _oob_lan_host = resolve_lan_host_for_oob()
         assert_exactly_one_adb_device()
@@ -173,15 +219,16 @@ def main() -> None:
         except RuntimeError as exc:
             print(f"\n\033[31m{exc}\033[0m\n", file=sys.stderr)
             raise SystemExit(1) from exc
-        oob_progress("setup-oob", "preflight OK")
+        oob_progress("xrhmd", "preflight OK")
 
     with CloudXRLauncher(
         install_dir=args.cloudxr_install_dir,
         env_config=args.cloudxr_env_config,
         accept_eula=args.accept_eula,
-        setup_oob=args.setup_oob,
-        usb_local=args.usb_local,
-        host_client=args.host_client,
+        hub=launch_options.hub,
+        transport=launch_options.transport,
+        device_automation=launch_options.device_automation,
+        host_client=launch_options.host_client,
     ) as launcher:
         cxr_ver = runtime_version()
         print(
@@ -199,32 +246,54 @@ def main() -> None:
             f"CloudXR WSS proxy: \033[36mrunning\033[0m, log file: \033[90m{wss_log}\033[0m"
         )
 
-        if args.usb_local:
+        if launch_options.usb_local:
             _hosted_client_url = f"https://127.0.0.1:{usb_ui_port()}/"
-        elif args.host_client:
+        elif launch_options.host_client:
             _lan = guess_lan_ipv4() or "localhost"
             _hosted_client_url = f"https://{_lan}:{wss_proxy_port()}/client/"
         else:
             _hosted_client_url = None
 
-        if args.setup_oob:
-            if args.usb_local:
-                print(
-                    "        oob:       \033[32menabled\033[0m  (hub + USB-local: adb reverse + coturn)"
-                )
-                print_oob_hub_startup_banner(lan_host=USB_HOST, usb_local=True)
+        if launch_options.hub:
+            if launch_options.device_automation == DEVICE_AUTOMATION_XRHMD:
+                if launch_options.usb_local:
+                    print(
+                        "teleop hub:       \033[32menabled\033[0m  "
+                        "(USB-local + xrhmd automation)"
+                    )
+                    print_oob_hub_startup_banner(lan_host=USB_HOST, usb_local=True)
+                else:
+                    client_suffix = (
+                        " + host-client" if launch_options.host_client else ""
+                    )
+                    print(
+                        f"teleop hub:       \033[32menabled\033[0m  "
+                        f"(xrhmd automation{client_suffix} — see OOB TELEOP block)"
+                    )
+                    print_oob_hub_startup_banner(
+                        lan_host=_oob_lan_host,
+                        web_client_base=_hosted_client_url,
+                    )
             else:
-                oob_suffix = " + host-client" if args.host_client else ""
+                _hub_host = (
+                    USB_HOST
+                    if launch_options.usb_local
+                    else (guess_lan_ipv4() or "localhost")
+                )
                 print(
-                    f"        oob:       \033[32menabled\033[0m  (hub + USB adb automation{oob_suffix} — see OOB TELEOP block)"
+                    f"teleop hub:       \033[36mhttps://{_hub_host}:{wss_proxy_port()}/\033[0m"
                 )
-                print_oob_hub_startup_banner(
-                    lan_host=_oob_lan_host,
-                    web_client_base=_hosted_client_url,
-                )
+                if _hosted_client_url is not None:
+                    _label = (
+                        "USB-local" if launch_options.usb_local else "hosted locally"
+                    )
+                    print(
+                        f"web client:        \033[36m{_hosted_client_url}\033[0m  "
+                        f"\033[90m({_label} — open on your headset or browser)\033[0m"
+                    )
         else:
             if _hosted_client_url is not None:
-                _label = "USB-local" if args.usb_local else "hosted locally"
+                _label = "USB-local" if launch_options.usb_local else "hosted locally"
                 print(
                     f"web client:        \033[36m{_hosted_client_url}\033[0m  "
                     f"\033[90m({_label} — open on your headset or browser)\033[0m"

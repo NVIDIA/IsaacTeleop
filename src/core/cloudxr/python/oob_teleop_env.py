@@ -673,6 +673,10 @@ def print_oob_hub_startup_banner(
             "port": str(int(stream_cfg["port"])),
         }
     )
+    hub_display = f"{primary_base}/"
+    if token:
+        hub_display += "?token=<REDACTED>"
+    print(f"  Hub:    {hub_display}")
     print(f"  State:  {primary_base}/api/oob/v1/state")
     print(f"  Config: {primary_base}/api/oob/v1/config?{cfg_q}")
     if token:

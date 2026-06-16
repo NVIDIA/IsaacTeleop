@@ -138,6 +138,40 @@ class TestLauncherConstruction:
         assert launcher._env_config == "/etc/cloudxr.env"
         assert launcher._accept_eula is True
 
+    def test_construction_normalizes_future_launch_options(self, tmp_path):
+        """Constructor stores the future-facing hub/client/topology options."""
+        with (
+            patch("isaacteleop.cloudxr.oob_teleop_env.require_web_client_static_dir"),
+            mock_launcher_deps(tmp_path, ready=True),
+        ):
+            launcher = CloudXRLauncher(
+                hub=True,
+                host_client=True,
+                transport="usb",
+                device_automation="xrhmd",
+            )
+
+        assert launcher._hub is True
+        assert launcher._host_client is True
+        assert launcher._usb_local is True
+        assert launcher._setup_oob is True
+        assert launcher._transport == "usb"
+        assert launcher._device_automation == "xrhmd"
+
+    def test_legacy_setup_oob_alias_enables_hub_and_xrhmd(self, tmp_path):
+        """Deprecated setup_oob still maps to the current OOB automation flow."""
+        with mock_launcher_deps(tmp_path, ready=True):
+            launcher = CloudXRLauncher(setup_oob=True)
+
+        assert launcher._hub is True
+        assert launcher._setup_oob is True
+        assert launcher._transport == "wifi"
+
+    def test_xrhmd_automation_requires_hub(self):
+        """The current xrhmd adapter opens an OOB URL, so it needs the hub."""
+        with pytest.raises(ValueError, match="requires --hub"):
+            CloudXRLauncher(device_automation="xrhmd")
+
     def test_construction_launches_runtime_and_wss(self, tmp_path):
         """Successful construction calls Popen and WSS proxy."""
         with mock_launcher_deps(tmp_path, ready=True) as mocks:
