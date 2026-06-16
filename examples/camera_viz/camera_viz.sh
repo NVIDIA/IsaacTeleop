@@ -374,7 +374,7 @@ cmd_service_restart() {
 # ──────────────────────────────────────────────────────────────────────
 
 show_help() {
-    cat <<EOF
+    cat <<'EOF'
 camera_viz.sh — local development + Jetson deployment for camera_viz
 
 LOCAL
