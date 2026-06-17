@@ -1,0 +1,3 @@
+[submodule "wuji-retargeting"]
+	path = third_party/wuji-retargeting
+	url = https://github.com/wuji-technology/wuji-retargeting.git

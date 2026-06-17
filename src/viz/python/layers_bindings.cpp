@@ -131,8 +131,13 @@ numpy on a CUDA device pointer); the binding converts it on the fly.
         .def("set_placement", &viz::QuadLayer::set_placement, "placement"_a,
              "Update placement at runtime. None switches to fullscreen (window mode only).")
         .def("placement", &viz::QuadLayer::placement)
-        .def("set_visible", &viz::QuadLayer::set_visible, "visible"_a)
-        .def("is_visible", &viz::QuadLayer::is_visible)
+        // LayerBase itself is not exposed to Python, so bind inherited
+        // visibility helpers through lambdas on QuadLayer. Binding the
+        // raw LayerBase member pointer here makes pybind11 expect a
+        // registered LayerBase Python instance as ``self``.
+        .def(
+            "set_visible", [](viz::QuadLayer& self, bool visible) { self.set_visible(visible); }, "visible"_a)
+        .def("is_visible", [](const viz::QuadLayer& self) { return self.is_visible(); })
         .def_property_readonly("name", [](const viz::QuadLayer& l) { return l.name(); });
 }
 

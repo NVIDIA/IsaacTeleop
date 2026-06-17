@@ -33,7 +33,8 @@ class __attribute__((visibility("default"))) ManusTracker
 {
 public:
     /// Get the singleton instance
-    static ManusTracker& instance(const std::string& app_name = "ManusHandPlugin") noexcept(false);
+    static ManusTracker& instance(const std::string& app_name = "ManusHandPlugin",
+                                  bool disable_optical_wrist = false) noexcept(false);
 
     void update();
     std::vector<SkeletonNode> get_left_hand_nodes() const;
@@ -43,7 +44,7 @@ public:
 
 private:
     // Lifecycle
-    explicit ManusTracker(const std::string& app_name) noexcept(false);
+    explicit ManusTracker(const std::string& app_name, bool disable_optical_wrist) noexcept(false);
     ~ManusTracker();
 
     ManusTracker(const ManusTracker&) = delete;
@@ -76,6 +77,7 @@ private:
     // Lifecycle
     std::mutex m_lifecycle_mutex;
     bool m_initialized = false;
+    bool m_disable_optical_wrist = false;
 
     // ManusSDK State
     std::mutex landscape_mutex;

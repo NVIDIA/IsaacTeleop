@@ -21,6 +21,7 @@ __pycache__/
 *.pyd
 # Python virtual environments
 .venv/
+.venv-isaacteleop/
 venv/
 **/.venv/
 **/venv/
@@ -64,3 +65,17 @@ deps/v2d/wheels/
 
 # Runtime device files injected by MCP server infrastructure
 .mcp.json
+
+apv_wuji
+avp_ee_hand.md
+cmd
+AGENTS.md
+custom.env
+web.env
+example_demo
+build-local/
+deps/cloudxr/webxr_client/helpers/react/CloudXRComponent.tsx
+deps/cloudxr/webxr_client/src/App.tsx
+deps/cloudxr/webxr_client/src/CloudXRUI.tsx
+examples/teleop/CMakeLists.txt
+examples/teleop/python/pyproject.toml

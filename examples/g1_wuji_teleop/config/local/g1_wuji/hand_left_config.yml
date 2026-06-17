@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+retargeting:
+  finger_tip_link_names:
+    - finger1_tip_link
+    - finger2_tip_link
+    - finger3_tip_link
+    - finger4_tip_link
+    - finger5_tip_link
+  low_pass_alpha: 0.2
+  scaling_factor: 1.0
+  target_joint_names:
+    - finger1_joint1
+    - finger1_joint2
+    - finger1_joint3
+    - finger1_joint4
+    - finger2_joint1
+    - finger2_joint2
+    - finger2_joint3
+    - finger2_joint4
+    - finger3_joint1
+    - finger3_joint2
+    - finger3_joint3
+    - finger3_joint4
+    - finger4_joint1
+    - finger4_joint2
+    - finger4_joint3
+    - finger4_joint4
+    - finger5_joint1
+    - finger5_joint2
+    - finger5_joint3
+    - finger5_joint4
+  type: DexPilot
+  urdf_path: placeholder_overridden_at_runtime
+  wrist_link_name: palm_link

@@ -251,3 +251,25 @@ def test_stereo_invalid_baseline_rejected():
         session.add_quad_layer(layer_cfg)
 
     session.destroy()
+
+
+def test_quad_layer_visibility_toggle():
+    """QuadLayer exposes LayerBase visibility helpers through the Python binding."""
+    cfg = viz.VizSessionConfig()
+    cfg.mode = viz.DisplayMode.kOffscreen
+    cfg.window_width = 64
+    cfg.window_height = 64
+    session = viz.VizSession.create(cfg)
+
+    layer_cfg = viz.QuadLayerConfig()
+    layer_cfg.name = "visibility"
+    layer_cfg.resolution = viz.Resolution(32, 32)
+    layer = session.add_quad_layer(layer_cfg)
+
+    assert layer.is_visible() is True
+    layer.set_visible(False)
+    assert layer.is_visible() is False
+    layer.set_visible(True)
+    assert layer.is_visible() is True
+
+    session.destroy()

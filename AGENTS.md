@@ -89,6 +89,7 @@ only point here — edit the rules in the doc, not the shims.
   ```
 
 - If a hook failure shows **missing or non-obvious repo policy** (not a one-off typo), you **must** add a **short** reminder under **Mandatory learning loop** rules to the right `AGENTS.md` or adjacent **`//` comments** so the next run does not repeat it—unless it is already documented.
+- If `pre-commit` is unavailable in the active environment, report the exact blocker and any narrower checks that did run; do not describe the pre-commit gate as passed.
 
 ## Mandatory learning loop (AGENTS.md and comments)
 
@@ -110,6 +111,8 @@ only point here — edit the rules in the doc, not the shims.
 
 - **High-level** expectations: boundaries between layers, what to avoid, naming or structural conventions, CMake/include policy at a glance, “always / never” rules that stay true across refactors.
 - **Style of work**: how minimal to keep diffs, when to ask for clarification, how this subsystem should relate to OpenXR/schema/deviceio, etc.
+- For onboarding-oriented shell helpers, keep the flow as a short step-by-step runbook and make separate Python environment responsibilities explicit instead of mixing them into one opaque setup path.
+- For shell-script comments meant for humans to follow, prefer short numbered Chinese step comments that mirror repo runbooks (for example the root `cmd` note) over scattered low-level inline commentary.
 - For build-only requests, use the documented CMake flags and environment first (for example `-DISAAC_TELEOP_PYTHON_VERSION=...`) rather than patching build files to select options.
 
 **What does *not* belong in `AGENTS.md`**

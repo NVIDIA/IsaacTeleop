@@ -35,3 +35,13 @@ path = ".cursor/**"
 precedence = "override"
 SPDX-FileCopyrightText = "Copyright (c) NVIDIA CORPORATION & AFFILIATES. All rights reserved."
 SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = [
+  "examples/g1_wuji_teleop/assets/g1_wuji/**",
+  "examples/g1_wuji_teleop/assets/wuji_hand/**",
+  "examples/teleop/python/assets/wuji_hand/**",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "Copyright (c) NVIDIA CORPORATION & AFFILIATES. All rights reserved."
+SPDX-License-Identifier = "Apache-2.0"

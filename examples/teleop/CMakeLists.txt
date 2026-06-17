@@ -6,3 +6,11 @@ project(teleop_examples)
 
 include(${CMAKE_SOURCE_DIR}/cmake/InstallPythonExample.cmake)
 install_python_example(DESTINATION examples/teleop/python)
+
+install(DIRECTORY python/config
+    DESTINATION examples/teleop/python
+)
+
+install(DIRECTORY python/assets
+    DESTINATION examples/teleop/python
+)

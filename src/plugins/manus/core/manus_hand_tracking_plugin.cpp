@@ -62,9 +62,9 @@ SDKReturnCode get_raw_skeleton_node_count(uint32_t glove_id, uint32_t& node_coun
 static constexpr XrPosef kLeftHandOffset = { { -0.70710678f, -0.5f, 0.0f, 0.5f }, { -0.1f, 0.02f, -0.02f } };
 static constexpr XrPosef kRightHandOffset = { { -0.70710678f, 0.5f, 0.0f, 0.5f }, { 0.1f, 0.02f, -0.02f } };
 
-ManusTracker& ManusTracker::instance(const std::string& app_name) noexcept(false)
+ManusTracker& ManusTracker::instance(const std::string& app_name, bool disable_optical_wrist) noexcept(false)
 {
-    static ManusTracker s(app_name);
+    static ManusTracker s(app_name, disable_optical_wrist);
     return s;
 }
 
@@ -106,7 +106,8 @@ std::vector<NodeInfo> ManusTracker::get_right_node_info() const
     return m_right_node_info;
 }
 
-ManusTracker::ManusTracker(const std::string& app_name) noexcept(false)
+ManusTracker::ManusTracker(const std::string& app_name, bool disable_optical_wrist) noexcept(false)
+    : m_disable_optical_wrist(disable_optical_wrist)
 {
     initialize(app_name);
 }
@@ -128,6 +129,10 @@ ManusTracker::~ManusTracker()
 void ManusTracker::initialize(const std::string& app_name) noexcept(false)
 {
     std::cout << "[Manus] Initializing SDK..." << std::endl;
+    if (m_disable_optical_wrist)
+    {
+        std::cout << "[Manus] Optical wrist source disabled by argument; controller fallback will be used." << std::endl;
+    }
     const SDKReturnCode t_InitializeResult = CoreSdk_InitializeIntegrated();
     if (t_InitializeResult != SDKReturnCode::SDKReturnCode_Success)
     {
@@ -188,10 +193,15 @@ void ManusTracker::initialize(const std::string& app_name) noexcept(false)
         // XR_MNDX_XDEV_SPACE_EXTENSION_NAME is optional: it enables optical (HMD) hand
         // tracking as a higher-quality wrist source. If the runtime does not advertise
         // it we fall back to controller-based tracking instead of crashing.
-        const bool xdev_extension_supported = is_openxr_extension_supported(XR_MNDX_XDEV_SPACE_EXTENSION_NAME);
+        const bool xdev_extension_supported =
+            !m_disable_optical_wrist && is_openxr_extension_supported(XR_MNDX_XDEV_SPACE_EXTENSION_NAME);
         if (xdev_extension_supported)
         {
             extensions.push_back(XR_MNDX_XDEV_SPACE_EXTENSION_NAME);
+        }
+        else if (m_disable_optical_wrist)
+        {
+            std::cout << "[Manus] Optical hand tracking disabled; controller fallback will be used." << std::endl;
         }
         else
         {

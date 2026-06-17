@@ -76,6 +76,8 @@ interface CloudXRUIProps {
   streamingFpsText?: ReadonlySignal<string>;
   /** Computed signal for pose-to-render latency text - updates without React re-render */
   poseToRenderText?: ReadonlySignal<string>;
+  /** WebXR input source diagnostics. */
+  inputSourcesDebugText?: ReadonlySignal<string>;
   /** From settings: hide control panel when immersive XR begins. */
   panelHiddenAtStart?: boolean;
   /** Immersive XR active; used to apply panelHiddenAtStart on session enter. */
@@ -119,6 +121,7 @@ export default function CloudXR3DUI({
   renderFpsText,
   streamingFpsText,
   poseToRenderText,
+  inputSourcesDebugText,
   panelHiddenAtStart = false,
   isXRMode = false,
 }: CloudXRUIProps) {
@@ -467,6 +470,11 @@ export default function CloudXR3DUI({
                   <Text fontSize={38} color="rgba(200, 200, 200, 1)" textAlign="center">
                     Status: {sessionStatus}
                   </Text>
+                  {inputSourcesDebugText && (
+                    <Text fontSize={28} color="rgba(160, 220, 255, 1)" textAlign="center">
+                      Input: {inputSourcesDebugText}
+                    </Text>
+                  )}
                 </Container>
 
                 {/* Countdown Config Row */}

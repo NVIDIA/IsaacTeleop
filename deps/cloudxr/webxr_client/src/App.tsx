@@ -82,12 +82,33 @@ const streamingFpsText = computed(() =>
 const poseToRenderText = computed(() =>
   streamingMetrics.value ? `${streamingMetrics.value.latencyMs.toFixed(1)}ms` : '-'
 );
+const inputSourcesDebugText = signal<string>('pending');
+const AVP_INPUT_DEBUG_QUERY_PARAM = 'avpInputDebug';
+const AVP_HIDE_CONTROLLER_MODELS_QUERY_PARAM = 'avpHideControllerModels';
+const AVP_REQUIRE_HAND_QUERY_PARAM = 'avpRequireHand';
 
 const CONTROL_PANEL_LAYOUT = {
   distance: 1.8,
   height: 1.85,
   angleDegrees: 70,
 } as const;
+
+function isTruthyQueryParam(name: string): boolean {
+  const value = new URLSearchParams(window.location.search).get(name);
+  return value === '1' || value?.toLowerCase() === 'true';
+}
+
+function shouldDebugInputSources(): boolean {
+  return isTruthyQueryParam(AVP_INPUT_DEBUG_QUERY_PARAM);
+}
+
+function shouldHideControllerModelsForAvpDebug(): boolean {
+  return isTruthyQueryParam(AVP_HIDE_CONTROLLER_MODELS_QUERY_PARAM);
+}
+
+function shouldRequireAvpHandTracking(): boolean {
+  return isTruthyQueryParam(AVP_REQUIRE_HAND_QUERY_PARAM);
+}
 
 // Override PressureObserver early to catch errors from buggy browser implementations
 overridePressureObserver();
@@ -150,6 +171,8 @@ function App() {
   const [sessionStatus, setSessionStatus] = useState('Disconnected');
   // Error message management
   const [errorMessage, setErrorMessage] = useState('');
+  const showInputSourcesDebug = shouldDebugInputSources();
+  const [inputSourcesDebugSnapshot, setInputSourcesDebugSnapshot] = useState('pending');
   // CloudXR session reference
   const [cloudXRSession, setCloudXRSession] = useState<CloudXR.Session | null>(null);
   // XR mode state for UI visibility
@@ -292,7 +315,9 @@ function App() {
   const xrFrameBufferScaling =
     deviceProfile.web?.frameBufferScaling ??
     kPerformanceOptions.xrWebGLLayer_framebufferScaleFactor;
-  const hideControllerModel = cloudXR2DUI?.getConfiguration().hideControllerModel ?? false;
+  const hideControllerModel =
+    shouldHideControllerModelsForAvpDebug() ||
+    (cloudXR2DUI?.getConfiguration().hideControllerModel ?? false);
 
   // XR store must be created after we know which device profile is active.
   // useMemo prevents re-creating the store for unrelated UI changes.
@@ -312,8 +337,10 @@ function App() {
         controller: {
           model: !hideControllerModel, // Allow UI to hide controller models while keeping input active
         },
-        // Request optional WebXR features - use property names, not optionalFeatures array!
-        handTracking: true,
+        secondaryInputSources: true,
+        // Request WebXR hand tracking. Use avpRequireHand=1 to make Safari fail fast if
+        // the CloudXR session is not actually granted hand input sources.
+        handTracking: shouldRequireAvpHandTracking() ? 'required' : true,
         bodyTracking: true,
         // Explicitly disable environment/scene feature requests to avoid extra headset prompts.
         anchors: false,
@@ -513,6 +540,11 @@ function App() {
   // Streaming performance metrics callback handler - updates raw data signal
   const handleStreamingPerformanceMetrics = (fps: number, latencyMs: number) => {
     streamingMetrics.value = { fps, latencyMs };
+  };
+
+  const handleInputSourcesDebug = (summary: string) => {
+    inputSourcesDebugText.value = summary;
+    setInputSourcesDebugSnapshot(summary);
   };
 
   /**
@@ -876,6 +908,29 @@ function App() {
 
   return (
     <>
+      {showInputSourcesDebug && (
+        <div
+          style={{
+            position: 'fixed',
+            right: 12,
+            bottom: 12,
+            zIndex: 10,
+            maxWidth: 'min(720px, calc(100vw - 24px))',
+            padding: '10px 12px',
+            borderRadius: 8,
+            background: 'rgba(0, 0, 0, 0.78)',
+            color: '#d7f0ff',
+            fontFamily: 'monospace',
+            fontSize: 12,
+            lineHeight: 1.4,
+            whiteSpace: 'pre-wrap',
+            pointerEvents: 'none',
+          }}
+        >
+          <div>CloudXR WebXR Input</div>
+          <div>{inputSourcesDebugSnapshot}</div>
+        </div>
+      )}
       <Canvas
         events={noEvents}
         style={{
@@ -925,6 +980,9 @@ function App() {
                 onServerAddress={setServerAddress}
                 onRenderPerformanceMetrics={handleRenderPerformanceMetrics}
                 onStreamingPerformanceMetrics={handleStreamingPerformanceMetrics}
+                onInputSourcesDebug={
+                  showInputSourcesDebug ? handleInputSourcesDebug : undefined
+                }
                 headless={!!config.headless}
               />
               {!config.headless && (
@@ -953,6 +1011,9 @@ function App() {
                   renderFpsText={renderFpsText}
                   streamingFpsText={streamingFpsText}
                   poseToRenderText={poseToRenderText}
+                  inputSourcesDebugText={
+                    showInputSourcesDebug ? inputSourcesDebugText : undefined
+                  }
                 />
               )}
             </>

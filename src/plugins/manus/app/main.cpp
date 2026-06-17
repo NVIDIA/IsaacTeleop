@@ -5,6 +5,7 @@
 
 #include <chrono>
 #include <iostream>
+#include <string_view>
 #include <thread>
 
 using namespace plugins::manus;
@@ -14,7 +15,22 @@ try
 {
     std::cout << "Manus Hand Plugin starting..." << std::endl;
 
-    auto& tracker = ManusTracker::instance();
+    bool disable_optical_wrist = false;
+    for (int i = 1; i < argc; ++i)
+    {
+        const std::string_view arg(argv[i]);
+        if (arg == "--disable-optical-wrist")
+        {
+            disable_optical_wrist = true;
+        }
+        else if (arg == "--help" || arg == "-h")
+        {
+            std::cout << "Usage: " << argv[0] << " [--disable-optical-wrist]\n";
+            return 0;
+        }
+    }
+
+    auto& tracker = ManusTracker::instance("ManusHandPlugin", disable_optical_wrist);
 
     std::cout << "Plugin running. Press Ctrl+C to stop." << std::endl;
 

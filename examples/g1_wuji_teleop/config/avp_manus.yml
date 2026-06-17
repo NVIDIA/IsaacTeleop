@@ -1,0 +1,45 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+session:
+  app_name: AvpManusTeleopMain  # TeleopSession/OpenXR session name used for runtime identification
+
+robot:
+  # This demo only keeps the `g1_wuji` variant.
+  variant: g1_wuji  # Selects the robot variant to load and therefore the hand joint set, default USD, and retargeting configs
+  initial_world_position: [0.0, 0.0, 0.8]  # Initial robot root world position [x, y, z] in meters
+  initial_world_orientation_xyzw: [0.0, 0.0, 0.707, 0.707]  # Initial robot root orientation quaternion [x, y, z, w]
+  debug_visualization: false  # Enables debug markers, axes, and auxiliary visualization
+
+  avp_frame_binding:
+    enabled: true  # Enables calibration and binding from the AVP head/hand frame into the robot frame
+    calibration_window_s: 3.0  # Averaging window in seconds when starting or recalibrating
+    robot_reference_body: torso_link  # Body/link name used as the robot reference frame
+    robot_reference_offset_pos: [0.0077774, 0.0000210, 0.3836842]  # Position offset from the reference body to the desired head reference point, in meters
+    robot_reference_offset_quat_xyzw: [0.0, 0.0, 0.0, 1.0]  # Orientation offset from the reference body to the desired head reference point
+    head_forward_axis_isaac: [0.0, 1.0, 0.0]  # Unit axis in Isaac coordinates that corresponds to the headset forward direction
+    whole_body_yaw_following: true  # Lets the robot base / whole body follow the headset around the z axis
+    whole_body_yaw_deadband_rad: 0.03  # Minimum yaw change, in radians, before whole-body yaw following is applied
+    whole_body_yaw_smoothing_alpha: 0.2  # Smoothing factor for whole-body yaw following; larger values respond faster
+
+  head_view_camera:
+    enabled: true  # Creates a simulated first-person camera attached to the robot head
+    activate_on_calibration: true  # Automatically switches the Kit viewport to this camera after pressing B and completing AVP head/hand calibration
+    prim_path: /World/TeleopTargets/HeadViewCamera  # USD prim path of the head camera
+    translation_offset_m: [0.05, 0.0, 0.3836842]  # Camera position offset [x, y, z] relative to the head-link local frame, in meters
+    orientation_offset_rpy_deg: [70.0, 0.0, -90.0]  # Camera orientation compensation [roll, pitch, yaw] relative to the head-link local frame, in degrees; adjust this first if the head view faces the wrong way
+    horizontal_aperture_mm: 20.955  # USD camera horizontal sensor size, used to determine field of view
+    focal_length_mm: 5.0  # USD camera focal length, combined with aperture to control the initial first-person FOV
+    clipping_range_m: [0.01, 1000.0]  # Camera near/far clipping range [near, far] in meters
+
+  head_view_xr_display:
+    enabled: false  # Sends the head camera image directly into the AVP/XR view; when enabled it reuses the same OpenXR session
+
+avp:
+  ee_pose_source: wrist  # Keeps the original path by default; switch this to `controller` when using PICO controller EE poses
+  ee_hand_joint: wrist  # Only used when ee_pose_source=hand_tracking / wrist / palm; `wrist` is the closest match to the original AVP path
+  controller_pose_source: aim  # Only used when ee_pose_source=controller; prefer `aim` first for PICO controller mode, then try `grip` if needed
+  controller_fallback_enabled: true  # Only meaningful for the hand-tracking path; in PICO controller mode it is usually better to set this to false
+
+retargeting:
+  # This example is fixed to the `official_wuji` path and the built-in hand-frame transform.

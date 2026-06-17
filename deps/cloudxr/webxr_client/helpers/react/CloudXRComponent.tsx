@@ -43,6 +43,258 @@ import { useXR } from '@react-three/xr';
 import { useRef, useEffect } from 'react';
 import type { WebGLRenderer } from 'three';
 
+const AVP_CONTROLLER_SHIM_QUERY_PARAM = 'avpControllerShim';
+const AVP_CONTROLLER_SHIM_INSTALLED = '__isaacTeleopAvpControllerShimInstalled';
+const AVP_CONTROLLER_SHIMMED_SOURCE = '__isaacTeleopAvpControllerShim';
+const AVP_CONTROLLER_SHIM_RAW_SOURCE = '__isaacTeleopAvpControllerShimRawSource';
+const AVP_CONTROLLER_SHIM_SPACE_SOURCE = '__isaacTeleopAvpControllerShimSpaceSource';
+
+function shouldEnableAvpControllerShim(): boolean {
+  const value = new URLSearchParams(window.location.search).get(AVP_CONTROLLER_SHIM_QUERY_PARAM);
+  return value === '1' || value?.toLowerCase() === 'true';
+}
+
+function makeSyntheticGamepad(handedness: XRHandedness): Gamepad {
+  const button = (): GamepadButton =>
+    ({
+      pressed: false,
+      touched: false,
+      value: 0,
+    }) as GamepadButton;
+
+  return {
+    id: `avp-webxr-${handedness || 'none'}-synthetic-controller`,
+    index: handedness === 'left' ? 0 : handedness === 'right' ? 1 : -1,
+    connected: true,
+    timestamp: performance.now(),
+    mapping: 'xr-standard',
+    buttons: Array.from({ length: 13 }, button),
+    axes: [0, 0, 0, 0],
+    hapticActuators: [],
+  } as unknown as Gamepad;
+}
+
+function getFallbackHandSpace(inputSource: XRInputSource): XRSpace | undefined {
+  const hand = inputSource.hand;
+  if (!hand) {
+    return undefined;
+  }
+
+  return (
+    hand.get('wrist' as XRHandJoint) ??
+    hand.get('palm' as XRHandJoint) ??
+    hand.get('index-finger-metacarpal' as XRHandJoint)
+  );
+}
+
+function getFallbackControllerSpace(inputSource: XRInputSource): XRSpace | undefined {
+  return inputSource.gripSpace ?? inputSource.targetRaySpace ?? getFallbackHandSpace(inputSource);
+}
+
+function shouldShimInputSource(inputSource: XRInputSource): boolean {
+  return (
+    (inputSource.handedness === 'left' || inputSource.handedness === 'right') &&
+    !inputSource.gamepad &&
+    !!getFallbackControllerSpace(inputSource)
+  );
+}
+
+function findInputSourcesDescriptor(
+  xrSession: XRSession
+): PropertyDescriptor | undefined {
+  let owner: object | null = xrSession;
+  while (owner) {
+    const descriptor = Object.getOwnPropertyDescriptor(owner, 'inputSources');
+    if (descriptor) {
+      return descriptor;
+    }
+    owner = Object.getPrototypeOf(owner);
+  }
+  return undefined;
+}
+
+function installAvpControllerInputShim(xrSession: XRSession): boolean {
+  const sessionWithMarker = xrSession as XRSession & Record<string, unknown>;
+  if (sessionWithMarker[AVP_CONTROLLER_SHIM_INSTALLED]) {
+    return true;
+  }
+
+  const descriptor = findInputSourcesDescriptor(xrSession);
+  const originalGetter = descriptor?.get?.bind(xrSession);
+  const originalValue = descriptor && 'value' in descriptor ? descriptor.value : undefined;
+  const shimmedSources = new WeakMap<XRInputSource, XRInputSource>();
+
+  const readOriginalInputSources = (): XRInputSource[] => {
+    const sources = originalGetter ? originalGetter() : (originalValue ?? []);
+    const trackedSources = sessionWithMarker.trackedSources as Iterable<XRInputSource> | undefined;
+    const mergedSources = [
+      ...Array.from(sources as Iterable<XRInputSource>),
+      ...(trackedSources ? Array.from(trackedSources) : []),
+    ];
+
+    return Array.from(new Set(mergedSources));
+  };
+
+  const getShimmedSource = (inputSource: XRInputSource): XRInputSource => {
+    const existing = shimmedSources.get(inputSource);
+    if (existing) {
+      return existing;
+    }
+
+    const syntheticGamepad = makeSyntheticGamepad(inputSource.handedness);
+    const proxy = new Proxy(inputSource as XRInputSource & Record<string | symbol, unknown>, {
+      get(target, prop) {
+        if (prop === AVP_CONTROLLER_SHIMMED_SOURCE) {
+          return true;
+        }
+        if (prop === AVP_CONTROLLER_SHIM_RAW_SOURCE) {
+          return target;
+        }
+        if (prop === AVP_CONTROLLER_SHIM_SPACE_SOURCE) {
+          return getFallbackHandSpace(target) ? 'hand-wrist' : 'native';
+        }
+        if (prop === 'gamepad') {
+          return syntheticGamepad;
+        }
+        if (prop === 'hand') {
+          return undefined;
+        }
+        if (prop === 'gripSpace') {
+          return getFallbackControllerSpace(target);
+        }
+        if (prop === 'targetRaySpace') {
+          return target.targetRaySpace ?? getFallbackControllerSpace(target);
+        }
+        if (prop === 'targetRayMode') {
+          return target.targetRayMode === 'tracked-pointer'
+            ? target.targetRayMode
+            : 'tracked-pointer';
+        }
+        if (prop === 'profiles') {
+          const profiles = Reflect.get(target, prop, target) as string[];
+          return profiles.includes('generic-trigger-squeeze-thumbstick')
+            ? profiles
+            : ['generic-trigger-squeeze-thumbstick', ...profiles];
+        }
+        return Reflect.get(target, prop, target);
+      },
+    }) as XRInputSource;
+
+    shimmedSources.set(inputSource, proxy);
+    return proxy;
+  };
+
+  try {
+    Object.defineProperty(xrSession, 'inputSources', {
+      configurable: true,
+      enumerable: descriptor?.enumerable ?? true,
+      get: () =>
+        readOriginalInputSources().map(inputSource =>
+          shouldShimInputSource(inputSource) ? getShimmedSource(inputSource) : inputSource
+        ),
+    });
+    sessionWithMarker[AVP_CONTROLLER_SHIM_INSTALLED] = true;
+    console.info('[CloudXR WebXR input] AVP controller shim installed');
+    return true;
+  } catch (error) {
+    console.warn('[CloudXR WebXR input] Failed to install AVP controller shim:', error);
+    return false;
+  }
+}
+
+function getPoseAvailability(
+  xrFrame: XRFrame,
+  space: XRSpace | undefined,
+  referenceSpace: XRReferenceSpace | null
+): string {
+  if (!space || !referenceSpace) {
+    return '0/0';
+  }
+  try {
+    return xrFrame.getPose(space, referenceSpace) ? '1/1' : '1/0';
+  } catch {
+    return '1/err';
+  }
+}
+
+function summarizeInputSources(
+  inputSources: XRInputSource[],
+  xrFrame: XRFrame,
+  referenceSpace: XRReferenceSpace | null
+): string {
+  const frameSession = xrFrame.session as XRSession & Record<string, unknown>;
+  const enabledFeatures = Array.isArray(frameSession.enabledFeatures)
+    ? (frameSession.enabledFeatures as string[])
+    : [];
+  const trackedSources = frameSession.trackedSources as Iterable<XRInputSource> | undefined;
+  const prefix = [
+    `features=${enabledFeatures.length ? enabledFeatures.join('+') : 'none'}`,
+    `primary=${Array.from(frameSession.inputSources ?? []).length}`,
+    `tracked=${trackedSources ? Array.from(trackedSources).length : 0}`,
+  ].join(' ');
+
+  if (inputSources.length === 0) {
+    return `${prefix} | none`;
+  }
+
+  return `${prefix} | ${inputSources
+    .map(inputSource => {
+        const rawInputSource =
+          ((inputSource as unknown as Record<string, unknown>)[
+            AVP_CONTROLLER_SHIM_RAW_SOURCE
+          ] as XRInputSource | undefined) ?? inputSource;
+        const hand = inputSource.hand;
+        const gamepad = inputSource.gamepad;
+        const rawHand = rawInputSource.hand;
+        const handedness =
+          inputSource.handedness === 'left'
+            ? 'L'
+            : inputSource.handedness === 'right'
+              ? 'R'
+              : 'N';
+        let joints = 0;
+        if (rawHand && referenceSpace) {
+          for (const jointSpace of rawHand.values()) {
+            try {
+              if (jointSpace && xrFrame.getJointPose(jointSpace, referenceSpace)) {
+                joints += 1;
+              }
+            } catch {
+              // Keep the summary useful even if one joint is unavailable for this frame.
+            }
+          }
+        }
+
+        const profiles = inputSource.profiles.length ? inputSource.profiles.join('+') : 'none';
+        const sdkControllerCandidate = gamepad && !hand;
+        const buttons = gamepad?.buttons?.length ?? 0;
+        const axes = gamepad?.axes?.length ?? 0;
+        const shimmed = (inputSource as unknown as Record<string, unknown>)[
+          AVP_CONTROLLER_SHIMMED_SOURCE
+        ];
+        const shimSpace = (inputSource as unknown as Record<string, unknown>)[
+          AVP_CONTROLLER_SHIM_SPACE_SOURCE
+        ];
+
+        return [
+          `${handedness}:${inputSource.targetRayMode}`,
+          `prof=${profiles}`,
+          `hand=${hand ? 1 : 0}`,
+          `rawHand=${rawHand ? 1 : 0}`,
+          `j=${joints}`,
+          `gp=${gamepad ? 1 : 0}`,
+          `btn=${buttons}`,
+          `axes=${axes}`,
+          `grip=${getPoseAvailability(xrFrame, inputSource.gripSpace, referenceSpace)}`,
+          `aim=${getPoseAvailability(xrFrame, inputSource.targetRaySpace, referenceSpace)}`,
+          `shim=${shimmed ? 1 : 0}`,
+          `shimSpace=${shimSpace ?? 'none'}`,
+          `sdkCtrl=${sdkControllerCandidate ? 1 : 0}`,
+        ].join(' ');
+      })
+      .join(' | ')}`;
+}
+
 /**
  * Props for the CloudXRComponent.
  */
@@ -76,6 +328,9 @@ interface CloudXRComponentProps {
 
   /** Callback fired with streaming performance metrics. Receives rolling averages of streaming FPS and pose-to-render latency (ms). */
   onStreamingPerformanceMetrics?: (streamingFps: number, poseToRenderMs: number) => void;
+
+  /** Callback fired with WebXR input source diagnostics visible in the in-XR panel. */
+  onInputSourcesDebug?: (summary: string) => void;
 
   /**
    * Settings for the performance metrics reported via onRenderPerformanceMetrics and onStreamingPerformanceMetrics callbacks.
@@ -113,6 +368,7 @@ export default function CloudXRComponent({
   onServerAddress,
   onRenderPerformanceMetrics,
   onStreamingPerformanceMetrics,
+  onInputSourcesDebug,
   metricsSettings = {},
   headless = false,
   iceServers,
@@ -122,6 +378,8 @@ export default function CloudXRComponent({
   // React reference to the CloudXR session that persists across re-renders.
   const cxrSessionRef = useRef<CloudXR.Session | null>(null);
   const onExitImmersiveXRRef = useRef(onExitImmersiveXR);
+  const lastInputDebugTimeRef = useRef(0);
+  const lastInputDebugSummaryRef = useRef('');
   onExitImmersiveXRRef.current = onExitImmersiveXR;
 
   // Metrics trackers for averaging performance metrics
@@ -158,6 +416,10 @@ export default function CloudXRComponent({
             ? (webXRManager as any).getSession()
             : null;
           if (xrSession) {
+            if (shouldEnableAvpControllerShim()) {
+              installAvpControllerInputShim(xrSession);
+            }
+
             if (config.referenceSpaceType === 'auto') {
               const fallbacks: XRReferenceSpaceType[] = [
                 'local-floor',
@@ -400,6 +662,22 @@ export default function CloudXRComponent({
       if (xrFrame) {
         // Get THREE WebXRManager from the useFrame state.
         const webXRManager = state.gl.xr;
+        const timestamp: DOMHighResTimeStamp = state.clock.elapsedTime * 1000;
+
+        if (onInputSourcesDebug && timestamp - lastInputDebugTimeRef.current > 500) {
+          const referenceSpace = webXRManager.getReferenceSpace();
+          const summary = summarizeInputSources(
+            Array.from(session.inputSources),
+            xrFrame,
+            referenceSpace
+          );
+          onInputSourcesDebug?.(summary);
+          if (summary !== lastInputDebugSummaryRef.current) {
+            console.info(`[CloudXR WebXR input] ${summary}`);
+            lastInputDebugSummaryRef.current = summary;
+          }
+          lastInputDebugTimeRef.current = timestamp;
+        }
 
         if (!cxrSessionRef || !cxrSessionRef.current) {
           console.debug('Skipping frame, no session yet');
@@ -422,9 +700,6 @@ export default function CloudXRComponent({
           }
           return;
         }
-
-        // Get timestamp from useFrame state and convert to milliseconds.
-        const timestamp: DOMHighResTimeStamp = state.clock.elapsedTime * 1000;
 
         try {
           // Send the tracking state (including viewer pose and hand/controller data) to the server;
