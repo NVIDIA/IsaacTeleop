@@ -17,12 +17,12 @@
 
 const { merge } = require('webpack-merge');
 const common = require('./webpack.common.js');
-const { chunkOptimization, msdfInlineRules } = require('./webpack.chunkNames.js');
+const { chunkFilename, chunkOptimization, msdfInlineRules } = require('./webpack.chunkNames.js');
 
 module.exports = merge(common, {
   mode: 'production',
   // Remove stale chunks when dependency graph changes between builds.
-  output: { clean: true },
+  output: { clean: true, chunkFilename },
   module: msdfInlineRules,
   optimization: chunkOptimization,
 });

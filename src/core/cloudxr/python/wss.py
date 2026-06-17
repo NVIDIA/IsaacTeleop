@@ -343,10 +343,10 @@ def _make_http_handler(backend_host, backend_port, hub=None, static_dir=None):
                 body = (static_dir / tail).read_bytes()
             except OSError:
                 return Response(
-                    503,
-                    "Service Unavailable",
+                    404,
+                    "Not Found",
                     Headers({"Content-Type": "text/plain", **CORS_HEADERS}),
-                    b"Static file unavailable",
+                    b"Not found",
                 )
             return Response(
                 200,

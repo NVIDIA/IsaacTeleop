@@ -175,6 +175,7 @@ def _write_atomic_bytes(dest: Path, data: bytes) -> None:
 
 
 _REQUIRED_WEB_CLIENT_ASSETS = ("index.html", "bundle.js")
+# Hardcoded — any new async chunk emitted by webpack must be added here manually.
 _OPTIONAL_WEB_CLIENT_ASSETS = ("bundle.emulator.js",)
 
 

@@ -21,7 +21,7 @@ const { execSync } = require('child_process');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const webpack = require('webpack');
-const { chunkFilename, msdfGeneratorEntry } = require('./webpack.chunkNames.js');
+const { msdfGeneratorEntry } = require('./webpack.chunkNames.js');
 
 function git(cmd) {
   try {
@@ -110,8 +110,6 @@ module.exports = {
   // Output configuration for bundled files
   output: {
     filename: 'bundle.js',
-    // Only async chunk: bundle.emulator.js (desktop XR / IWER). See webpack.chunkNames.js.
-    chunkFilename,
     path: path.resolve(__dirname, './build'),
   },
 

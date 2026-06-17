@@ -65,14 +65,6 @@ Output in ``build/``:
 - ``bundle.emulator.js`` — desktop XR / IWER stack (DevUI, synthetic environments,
   and related deps); loaded only when emulation is used
 
-Production builds intentionally emit **two** deterministic JS artifacts
-(``bundle.js`` and ``bundle.emulator.js``), not per-scene or numeric chunks.
-OOB and ``--host-client`` sync ``index.html`` plus those two bundles into
-``~/.cloudxr/static-client`` (see :ref:`connect-quest-pico`).
-
-Do **not** set ``asyncChunks: false`` in ``webpack.prod.js``. That inlines lazy
-chunks into a single large ``bundle.js`` and was only a workaround for OOB hosts
-that served two files; the proper fix is syncing ``bundle.emulator.js`` as well.
 
 Development build (one-shot)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
