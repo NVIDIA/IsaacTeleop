@@ -6,6 +6,7 @@
 import argparse
 import os
 import signal
+import subprocess
 import sys
 import time
 
@@ -62,6 +63,18 @@ def _parse_args() -> argparse.Namespace:
         help="Accept the NVIDIA CloudXR EULA non-interactively (e.g. for CI or containers).",
     )
     parser.add_argument(
+        "--clean",
+        action="store_true",
+        default=False,
+        help=(
+            "Before launching, run `pkill -f 'isaacteleop.cloudxr.runtime'` "
+            "to release any stale CloudXR runtime worker subprocess left over "
+            "from a previous (crashed or detached) run. The current parent "
+            "process is not matched because its argv does not contain "
+            "`.runtime`."
+        ),
+    )
+    parser.add_argument(
         "--setup-oob",
         action="store_true",
         default=False,
@@ -110,9 +123,39 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _clear_stale_runtime() -> None:
+    # pkill exit codes: 0 = matched & signalled, 1 = no match. Treat both as
+    # success; only louder codes (or a missing binary) get a warning so a stale
+    # runtime never silently blocks the new launch on the same ports.
+    print("\033[36mclear:\033[0m pkill -f 'isaacteleop.cloudxr.runtime'")
+    try:
+        result = subprocess.run(
+            ["pkill", "-f", "isaacteleop.cloudxr.runtime"],
+            check=False,
+        )
+    except FileNotFoundError:
+        print(
+            "warning: pkill not found on PATH; cannot clear stale runtime",
+            file=sys.stderr,
+        )
+        return
+    if result.returncode == 0:
+        # Give the OS a brief moment to reap the killed worker and release the
+        # listening ports before CloudXRLauncher starts a fresh runtime.
+        time.sleep(0.5)
+    elif result.returncode != 1:
+        print(
+            f"warning: pkill exited {result.returncode}; continuing",
+            file=sys.stderr,
+        )
+
+
 def main() -> None:
     """Launch the CloudXR runtime and WSS proxy, then block until interrupted."""
     args = _parse_args()
+
+    if args.clean:
+        _clear_stale_runtime()
 
     if args.usb_local and not args.setup_oob:
         print(
