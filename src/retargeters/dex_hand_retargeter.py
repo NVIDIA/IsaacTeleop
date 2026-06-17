@@ -130,10 +130,14 @@ class DexHandRetargeter(BaseRetargeter):
         # Setup paths and configs
         self._prepare_configs()
 
-        # Initialize dex retargeting optimizer
+        # Initialize dex retargeting optimizer (use the internal load path so
+        # the user's config object is not mutated to point at our temp file).
         self._dex_hand = RetargetingConfig.load_from_file(
-            config.hand_retargeting_config
+            self._retargeting_config_path
         ).build()
+
+        # The optimizer has parsed the YAML; the temp file is no longer needed.
+        self._cleanup_temp_config()
 
         # Cache joint names from optimizer
         self._dof_names = self._dex_hand.optimizer.robot.dof_joint_names
@@ -176,6 +180,14 @@ class DexHandRetargeter(BaseRetargeter):
             HandJointIndex.LITTLE_DISTAL,
             HandJointIndex.LITTLE_TIP,
         ]
+
+    def __del__(self) -> None:
+        # Safety net for callers that construct a retargeter and abandon it
+        # before the optimizer build completes (e.g. a config-load exception).
+        try:
+            self._cleanup_temp_config()
+        except Exception:
+            pass
 
     def input_spec(self) -> RetargeterIOType:
         """Define input collections for hand tracking (Optional)."""
@@ -300,8 +312,28 @@ class DexHandRetargeter(BaseRetargeter):
             self._config.hand_retargeting_config, local_urdf
         )
 
-        if temp_config:
-            self._config.hand_retargeting_config = temp_config
+        # Resolve the load path internally rather than mutating the user's
+        # ``DexHandRetargeterConfig``: that object may be reused or inspected
+        # by the caller, and overwriting it with a path we are about to
+        # delete in ``_cleanup_temp_config`` would leave it dangling.
+        self._retargeting_config_path: str = (
+            temp_config or self._config.hand_retargeting_config
+        )
+        self._temp_config_path: Optional[str] = temp_config
+
+    def _cleanup_temp_config(self) -> None:
+        """Remove the temp YAML written by ``_update_yaml`` once the optimizer
+        has been built from it. Safe to call repeatedly."""
+        path = getattr(self, "_temp_config_path", None)
+        if not path:
+            return
+        try:
+            os.unlink(path)
+        except FileNotFoundError:
+            pass
+        except OSError as e:
+            logger.warning(f"Failed to remove temp dex_retargeting config {path}: {e}")
+        self._temp_config_path = None
 
     def _update_yaml(self, yaml_path: str, urdf_path: str) -> Optional[str]:
         """
