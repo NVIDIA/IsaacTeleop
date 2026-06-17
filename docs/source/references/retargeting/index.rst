@@ -208,7 +208,8 @@ Available Retargeters
    ``[vel_x, vel_y, rot_vel_z, hip_height]``. Left thumbstick: linear velocity (X, Y). Right
    thumbstick X: angular velocity (Z). Right thumbstick Y: hip height adjustment.
    ``LocomotionRootCmdRetargeterConfig`` includes ``initial_hip_height``, ``movement_scale``,
-   ``rotation_scale``, and ``dt`` (time step for height integration).
+   ``rotation_scale``, and ``fallback_dt`` (first-frame nominal step; steady-state ``dt`` is
+   derived from ``ComputeContext.graph_time``).
 
 .. dropdown:: LocomotionFixedRootCmdRetargeter
 
