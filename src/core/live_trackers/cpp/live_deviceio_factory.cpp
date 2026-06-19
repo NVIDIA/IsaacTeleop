@@ -10,6 +10,7 @@
 #include "live_hand_tracker_impl.hpp"
 #include "live_head_tracker_impl.hpp"
 #include "live_message_channel_tracker_impl.hpp"
+#include "live_oglo_tactile_tracker_impl.hpp"
 
 #include <deviceio_trackers/controller_tracker.hpp>
 #include <deviceio_trackers/frame_metadata_tracker_oak.hpp>
@@ -18,6 +19,7 @@
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
 #include <deviceio_trackers/message_channel_tracker.hpp>
+#include <deviceio_trackers/oglo_tactile_tracker.hpp>
 #include <oxr_utils/oxr_time.hpp>
 
 #include <cassert>
@@ -85,6 +87,12 @@ std::unique_ptr<ITrackerImpl> try_create_oak_impl(LiveDeviceIOFactory& factory, 
     return typed ? factory.create_frame_metadata_tracker_oak_impl(typed) : nullptr;
 }
 
+std::unique_ptr<ITrackerImpl> try_create_oglo_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const OgloTactileTracker*>(&tracker);
+    return typed ? factory.create_oglo_tactile_tracker_impl(typed) : nullptr;
+}
+
 using CollectExtensionsFn = bool (*)(const ITracker&, std::set<std::string>&);
 using TryCreateFn = std::unique_ptr<ITrackerImpl> (*)(LiveDeviceIOFactory&, const ITracker&);
 
@@ -103,6 +111,7 @@ inline const TrackerDispatchEntry k_tracker_dispatch[] = {
     { &try_add_extensions<FullBodyTrackerPico, LiveFullBodyTrackerPicoImpl>, &try_create_full_body_pico_impl },
     { &try_add_extensions<Generic3AxisPedalTracker, LiveGeneric3AxisPedalTrackerImpl>, &try_create_generic_pedal_impl },
     { &try_add_extensions<FrameMetadataTrackerOak, LiveFrameMetadataTrackerOakImpl>, &try_create_oak_impl },
+    { &try_add_extensions<OgloTactileTracker, LiveOgloTactileTrackerImpl>, &try_create_oglo_impl },
 };
 
 } // namespace
@@ -242,6 +251,17 @@ std::unique_ptr<IGeneric3AxisPedalTrackerImpl> LiveDeviceIOFactory::create_gener
         channels = LiveGeneric3AxisPedalTrackerImpl::create_mcap_channels(*writer_, get_name(tracker));
     }
     return std::make_unique<LiveGeneric3AxisPedalTrackerImpl>(handles_, tracker, std::move(channels));
+}
+
+std::unique_ptr<IOgloTactileTrackerImpl> LiveDeviceIOFactory::create_oglo_tactile_tracker_impl(
+    const OgloTactileTracker* tracker)
+{
+    std::unique_ptr<OgloMcapChannels> channels;
+    if (should_record(tracker))
+    {
+        channels = LiveOgloTactileTrackerImpl::create_mcap_channels(*writer_, get_name(tracker));
+    }
+    return std::make_unique<LiveOgloTactileTrackerImpl>(handles_, tracker, std::move(channels));
 }
 
 std::unique_ptr<IFrameMetadataTrackerOakImpl> LiveDeviceIOFactory::create_frame_metadata_tracker_oak_impl(

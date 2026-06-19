@@ -35,6 +35,10 @@ from ._schema import (
     Generic3AxisPedalOutput,
     Generic3AxisPedalOutputTrackedT,
     Generic3AxisPedalOutputRecord,
+    # OGLO tactile glove types.
+    OgloGloveSample,
+    OgloGloveSampleTrackedT,
+    OgloGloveSampleRecord,
     # Message channel types.
     MessageChannelMessages,
     MessageChannelMessagesTrackedT,
@@ -82,6 +86,10 @@ __all__ = [
     "Generic3AxisPedalOutput",
     "Generic3AxisPedalOutputTrackedT",
     "Generic3AxisPedalOutputRecord",
+    # OGLO tactile glove types.
+    "OgloGloveSample",
+    "OgloGloveSampleTrackedT",
+    "OgloGloveSampleRecord",
     # Message channel types.
     "MessageChannelMessages",
     "MessageChannelMessagesTrackedT",

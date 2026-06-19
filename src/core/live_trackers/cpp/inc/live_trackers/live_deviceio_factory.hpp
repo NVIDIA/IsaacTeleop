@@ -30,6 +30,8 @@ class FullBodyTrackerPico;
 class IFullBodyTrackerPicoImpl;
 class Generic3AxisPedalTracker;
 class IGeneric3AxisPedalTrackerImpl;
+class OgloTactileTracker;
+class IOgloTactileTrackerImpl;
 class HandTracker;
 class IHandTrackerImpl;
 class HeadTracker;
@@ -62,6 +64,7 @@ public:
     std::unique_ptr<IFullBodyTrackerPicoImpl> create_full_body_tracker_pico_impl(const FullBodyTrackerPico* tracker);
     std::unique_ptr<IGeneric3AxisPedalTrackerImpl> create_generic_3axis_pedal_tracker_impl(
         const Generic3AxisPedalTracker* tracker);
+    std::unique_ptr<IOgloTactileTrackerImpl> create_oglo_tactile_tracker_impl(const OgloTactileTracker* tracker);
     std::unique_ptr<IFrameMetadataTrackerOakImpl> create_frame_metadata_tracker_oak_impl(
         const FrameMetadataTrackerOak* tracker);
 
