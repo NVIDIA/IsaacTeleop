@@ -53,7 +53,9 @@ Clutch behavior:
   translation drives the position command (the orientation is the live controller grip
   orientation composed with the fixed calibration offset, not read from this home transform). It
   is **never** ``(0, 0, 0)`` (that would command the EE into the robot base / floor).
-- The last pose is held on a dropped frame.
+- The last pose is held on a dropped frame, and likewise on a frame whose controller grip pose
+  is flagged invalid (the OpenXR location-validity bits are clear): the untrusted pose is
+  ignored and the clutch origin is not latched off it.
 """
 
 import numpy as np
@@ -97,6 +99,12 @@ _IDENTITY_QUAT = np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32)
 _DEFAULT_ORIENTATION_OFFSET = np.array(
     [0.0, 0.0, 1.0, 0.0], dtype=np.float64
 )  # Rz(pi), xyzw
+# Minimum norm below which the composed command quaternion is treated as degenerate. The
+# ``GRIP_IS_VALID`` gate in :meth:`SO101ClutchRetargeter._compute_fn` is the primary guard against
+# untracked poses; this is a secondary "never divide by zero" net for the unlikely case of a
+# source that flags the grip pose valid yet still emits a zero/non-finite quaternion (normalizing
+# which would feed NaN into the downstream SE3 IK -> svdvals LinAlgError -> PhysX non-finite bounds).
+_MIN_QUAT_NORM = 1e-6
 
 
 def _quat_mul(a: np.ndarray, b: np.ndarray) -> np.ndarray:
@@ -273,6 +281,15 @@ class SO101ClutchRetargeter(BaseRetargeter):
             # Dropped frame: hold the last commanded pose.
             ee_pose[0] = self._last_pose
             return
+        if not bool(inp[ControllerInputIndex.GRIP_IS_VALID]):
+            # Controller present but its grip pose is not localizable this frame: the OpenXR
+            # XR_SPACE_LOCATION_{POSITION,ORIENTATION}_VALID_BIT are clear (just engaged, or
+            # tracking briefly lost), so the source passes through an untrusted pose -- the
+            # orientation typically arrives as the all-zero quaternion. Treat it like a dropped
+            # frame: hold the last commanded pose and do NOT latch the clutch origin off a garbage
+            # position.
+            ee_pose[0] = self._last_pose
+            return
 
         grip_pos = np.from_dlpack(inp[ControllerInputIndex.GRIP_POSITION]).astype(
             np.float64
@@ -284,7 +301,15 @@ class SO101ClutchRetargeter(BaseRetargeter):
         # and renormalize, so a controller rotation maps 1:1 onto the commanded gripper orientation
         # that drives the SE3 IK.
         cmd_ori = _quat_mul(grip_ori, self._orientation_offset)
-        cmd_ori = cmd_ori / np.linalg.norm(cmd_ori)
+        cmd_ori_norm = float(np.linalg.norm(cmd_ori))
+        if not np.isfinite(cmd_ori_norm) or cmd_ori_norm < _MIN_QUAT_NORM:
+            # Defense-in-depth: the GRIP_IS_VALID gate above already drops untrusted poses, but
+            # never divide by zero -- if a source ever reports a valid-flagged yet degenerate
+            # (zero / non-finite) quaternion, hold the last emitted (unit) orientation rather than
+            # feeding NaN into the downstream SE3 IK. See _MIN_QUAT_NORM.
+            cmd_ori = self._last_pose[3:7].astype(np.float64)
+        else:
+            cmd_ori = cmd_ori / cmd_ori_norm
         cmd_ori = cmd_ori.astype(np.float32)
 
         if self._origin is None:
