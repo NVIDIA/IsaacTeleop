@@ -23,3 +23,4 @@ See the `Plugins directory <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/
    haptic_feedback
    manus
    oak
+   oglo
