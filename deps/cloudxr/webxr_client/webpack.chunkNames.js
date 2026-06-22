@@ -6,53 +6,36 @@
  *
  * Target layout (two JS artifacts):
  * - ``bundle.js`` — main application (UIKit, MSDF text, Lucide icons, runtime)
- * - ``bundle.emulator.js`` — desktop XR / IWER code (DevUI, SEM scenes, deps)
+ * - ``bundle.emulator.js`` — desktop XR / IWER code and its transitive deps
  *
- * MSDF is pulled into the main entry (see ``webpack.common.js``) so in-VR text
- * does not depend on extra lazy chunks over OOB. The MSDF web worker is inlined
- * via ``asset/inline`` (data URL) so no separate worker file is emitted.
+ * Routing (no per-package allowlists):
+ *   lazy ``import()`` under ``@pmndrs/xr/dist`` → ``bundle.emulator.js``
+ *   all other dynamic imports (UIKit → msdf, zustand, fonts, …) → eager → ``bundle.js``
  *
- * Lazy boundary: ``@pmndrs/xr`` ``import('./emulate.js')`` → ``bundle.emulator.js``.
+ * The MSDF web worker is inlined via ``asset/inline`` (no separate worker file).
  * OOB/--host-client sync downloads ``index.html``, ``bundle.js``, and
  * ``bundle.emulator.js``.
  */
-
-const path = require('path');
 
 /** Only non-main async chunk basename. */
 const EMULATOR_CHUNK = 'emulator';
 
 /**
- * True when *resource* belongs in the single IWER / desktop-emulator async chunk.
+ * Parser rules: eager dynamic imports everywhere except ``@pmndrs/xr/dist``, which
+ * keeps the single lazy ``import('./emulate.js')`` boundary for IWER.
  *
- * @param {string | undefined} resource Webpack module resource path.
- * @returns {boolean}
+ * @type {import('webpack').RuleSetRule[]}
  */
-function isEmulatorAsyncModule(resource = '') {
-  if (!resource) {
-    return false;
-  }
-  if (/[\\/]@pmndrs[\\/]xr[\\/]dist[\\/]emulate/.test(resource)) {
-    return true;
-  }
-  if (/[\\/]node_modules[\\/]iwer[\\/]lib/.test(resource)) {
-    return true;
-  }
-  if (/[\\/]node_modules[\\/]@iwer[\\/]/.test(resource)) {
-    return true;
-  }
-  if (/[\\/]node_modules[\\/](?:styled-components|stylis|@fortawesome|gl-matrix)/.test(resource)) {
-    return true;
-  }
-  if (
-    /[\\/]node_modules[\\/](?:prop-types|@bufbuild[\\/]protobuf|scheduler|webxr-layers-polyfill)/.test(
-      resource
-    )
-  ) {
-    return true;
-  }
-  return false;
-}
+const eagerExceptEmulatorParserRules = [
+  {
+    test: /[\\/]@pmndrs[\\/]xr[\\/]dist[\\/]/,
+    parser: { javascript: { dynamicImportMode: 'lazy' } },
+  },
+  {
+    test: /\.(tsx?|jsx?|mjs|cjs)$/,
+    parser: { javascript: { dynamicImportMode: 'eager' } },
+  },
+];
 
 /** @type {import('webpack').Configuration['optimization']} */
 const chunkOptimization = {
@@ -62,8 +45,8 @@ const chunkOptimization = {
     cacheGroups: {
       default: false,
       defaultVendors: false,
+      // After eagerExceptEmulatorParserRules, async chunks are emulator-only.
       emulator: {
-        test: module => isEmulatorAsyncModule(module.resource),
         name: EMULATOR_CHUNK,
         chunks: 'async',
         enforce: true,
@@ -82,18 +65,9 @@ function chunkFilename(pathData) {
   throw new Error(
     `Unexpected async chunk "${id}" (name=${name ?? ''}). ` +
       'Only bundle.emulator.js is allowed besides bundle.js. ' +
-      'Update webpack.common.js entry or webpack.chunkNames.js.'
+      'A dependency introduced a lazy import outside @pmndrs/xr/dist.'
   );
 }
-
-/**
- * Keep MSDF in ``bundle.js``: ``@pmndrs/uikit`` dynamically imports
- * ``@zappar/msdf-generator``, which would otherwise become a third lazy chunk.
- */
-const msdfGeneratorEntry = path.resolve(
-  __dirname,
-  'node_modules/@zappar/msdf-generator/dist/index.js'
-);
 
 /** Inline MSDF worker as a data URL inside ``bundle.js`` (no extra worker file). */
 const msdfInlineRules = {
@@ -108,6 +82,6 @@ const msdfInlineRules = {
 module.exports = {
   chunkFilename,
   chunkOptimization,
-  msdfGeneratorEntry,
+  eagerExceptEmulatorParserRules,
   msdfInlineRules,
 };

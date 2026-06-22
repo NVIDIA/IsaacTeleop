@@ -10,6 +10,7 @@ package-lock.json
 
 # Build directories
 build/
+_build/
 **/build/
 install/
 build.log
