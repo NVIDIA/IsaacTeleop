@@ -10,6 +10,7 @@
 #include "live_hand_tracker_impl.hpp"
 #include "live_head_tracker_impl.hpp"
 #include "live_message_channel_tracker_impl.hpp"
+#include "live_steering_wheel_tracker_impl.hpp"
 
 #include <deviceio_trackers/controller_tracker.hpp>
 #include <deviceio_trackers/frame_metadata_tracker_oak.hpp>
@@ -18,6 +19,7 @@
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
 #include <deviceio_trackers/message_channel_tracker.hpp>
+#include <deviceio_trackers/steering_wheel_tracker.hpp>
 #include <oxr_utils/oxr_time.hpp>
 
 #include <cassert>
@@ -79,6 +81,12 @@ std::unique_ptr<ITrackerImpl> try_create_generic_pedal_impl(LiveDeviceIOFactory&
     return typed ? factory.create_generic_3axis_pedal_tracker_impl(typed) : nullptr;
 }
 
+std::unique_ptr<ITrackerImpl> try_create_steering_wheel_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const SteeringWheelTracker*>(&tracker);
+    return typed ? factory.create_steering_wheel_tracker_impl(typed) : nullptr;
+}
+
 std::unique_ptr<ITrackerImpl> try_create_oak_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
 {
     auto* typed = dynamic_cast<const FrameMetadataTrackerOak*>(&tracker);
@@ -102,6 +110,7 @@ inline const TrackerDispatchEntry k_tracker_dispatch[] = {
     { &try_add_extensions<MessageChannelTracker, LiveMessageChannelTrackerImpl>, &try_create_message_channel_impl },
     { &try_add_extensions<FullBodyTrackerPico, LiveFullBodyTrackerPicoImpl>, &try_create_full_body_pico_impl },
     { &try_add_extensions<Generic3AxisPedalTracker, LiveGeneric3AxisPedalTrackerImpl>, &try_create_generic_pedal_impl },
+    { &try_add_extensions<SteeringWheelTracker, LiveSteeringWheelTrackerImpl>, &try_create_steering_wheel_impl },
     { &try_add_extensions<FrameMetadataTrackerOak, LiveFrameMetadataTrackerOakImpl>, &try_create_oak_impl },
 };
 
@@ -242,6 +251,17 @@ std::unique_ptr<IGeneric3AxisPedalTrackerImpl> LiveDeviceIOFactory::create_gener
         channels = LiveGeneric3AxisPedalTrackerImpl::create_mcap_channels(*writer_, get_name(tracker));
     }
     return std::make_unique<LiveGeneric3AxisPedalTrackerImpl>(handles_, tracker, std::move(channels));
+}
+
+std::unique_ptr<ISteeringWheelTrackerImpl> LiveDeviceIOFactory::create_steering_wheel_tracker_impl(
+    const SteeringWheelTracker* tracker)
+{
+    std::unique_ptr<SteeringWheelMcapChannels> channels;
+    if (should_record(tracker))
+    {
+        channels = LiveSteeringWheelTrackerImpl::create_mcap_channels(*writer_, get_name(tracker));
+    }
+    return std::make_unique<LiveSteeringWheelTrackerImpl>(handles_, tracker, std::move(channels));
 }
 
 std::unique_ptr<IFrameMetadataTrackerOakImpl> LiveDeviceIOFactory::create_frame_metadata_tracker_oak_impl(

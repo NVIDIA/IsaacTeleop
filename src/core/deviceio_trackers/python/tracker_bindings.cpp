@@ -8,6 +8,7 @@
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
 #include <deviceio_trackers/message_channel_tracker.hpp>
+#include <deviceio_trackers/steering_wheel_tracker.hpp>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 #include <schema/hand_generated.h>
@@ -149,6 +150,18 @@ PYBIND11_MODULE(_deviceio_trackers, m)
                const core::ITrackerSession& session) -> core::Generic3AxisPedalOutputTrackedT
             { return self.get_data(session); },
             py::arg("session"), "Get the current foot pedal tracked state (data is None when no data available)");
+
+    py::class_<core::SteeringWheelTracker, core::ITracker, std::shared_ptr<core::SteeringWheelTracker>>(
+        m, "SteeringWheelTracker")
+        .def(py::init<const std::string&, size_t>(), py::arg("collection_id"),
+             py::arg("max_flatbuffer_size") = core::SteeringWheelTracker::DEFAULT_MAX_FLATBUFFER_SIZE,
+             "Construct a SteeringWheelTracker for the given tensor collection ID")
+        .def(
+            "get_wheel_data",
+            [](const core::SteeringWheelTracker& self,
+               const core::ITrackerSession& session) -> core::SteeringWheelOutputTrackedT
+            { return self.get_data(session); },
+            py::arg("session"), "Get the current steering wheel tracked state (data is None when no data available)");
 
     py::class_<core::FullBodyTrackerPico, core::ITracker, std::shared_ptr<core::FullBodyTrackerPico>>(
         m, "FullBodyTrackerPico")

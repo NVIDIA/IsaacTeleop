@@ -9,6 +9,7 @@ from .head_source import HeadSource
 from .hands_source import HandsSource
 from .controllers_source import ControllersSource
 from .pedals_source import Generic3AxisPedalSource
+from .steering_wheel_source import SteeringWheelSource
 from .full_body_source import FullBodySource
 from .message_channel_source import MessageChannelSource
 from .message_channel_sink import MessageChannelSink
@@ -23,11 +24,13 @@ from .deviceio_tensor_types import (
     HandPoseTrackedType,
     ControllerSnapshotTrackedType,
     Generic3AxisPedalOutputTrackedType,
+    SteeringWheelOutputTrackedType,
     FullBodyPosePicoTrackedType,
     DeviceIOHeadPoseTracked,
     DeviceIOHandPoseTracked,
     DeviceIOControllerSnapshotTracked,
     DeviceIOGeneric3AxisPedalOutputTracked,
+    DeviceIOSteeringWheelOutputTracked,
     DeviceIOFullBodyPosePicoTracked,
     MessageChannelMessagesTrackedType,
     MessageChannelConnectionStatus,
@@ -44,6 +47,7 @@ __all__ = [
     "HandsSource",
     "ControllersSource",
     "Generic3AxisPedalSource",
+    "SteeringWheelSource",
     "FullBodySource",
     "MessageChannelSource",
     "MessageChannelSink",
@@ -55,6 +59,7 @@ __all__ = [
     "HandPoseTrackedType",
     "ControllerSnapshotTrackedType",
     "Generic3AxisPedalOutputTrackedType",
+    "SteeringWheelOutputTrackedType",
     "FullBodyPosePicoTrackedType",
     "MessageChannelMessagesTrackedType",
     "MessageChannelConnectionStatus",
@@ -63,6 +68,7 @@ __all__ = [
     "DeviceIOHandPoseTracked",
     "DeviceIOControllerSnapshotTracked",
     "DeviceIOGeneric3AxisPedalOutputTracked",
+    "DeviceIOSteeringWheelOutputTracked",
     "DeviceIOFullBodyPosePicoTracked",
     "DeviceIOMessageChannelMessagesTracked",
     "MessageChannelMessagesTrackedGroup",

@@ -18,6 +18,7 @@ from isaacteleop.schema import (
     HandPoseTrackedT,
     ControllerSnapshotTrackedT,
     Generic3AxisPedalOutputTrackedT,
+    SteeringWheelOutputTrackedT,
     FullBodyPosePicoTrackedT,
     MessageChannelMessagesTrackedT,
 )
@@ -96,6 +97,26 @@ class Generic3AxisPedalOutputTrackedType(TensorType):
         if not isinstance(value, Generic3AxisPedalOutputTrackedT):
             raise TypeError(
                 f"Expected Generic3AxisPedalOutputTrackedT for '{self.name}', got {type(value).__name__}"
+            )
+
+
+class SteeringWheelOutputTrackedType(TensorType):
+    """SteeringWheelOutputTrackedT wrapper type from DeviceIO SteeringWheelTracker."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__(name)
+
+    def _check_instance_compatibility(self, other: TensorType) -> bool:
+        if not isinstance(other, SteeringWheelOutputTrackedType):
+            raise TypeError(
+                f"Expected SteeringWheelOutputTrackedType, got {type(other).__name__}"
+            )
+        return True
+
+    def validate_value(self, value: Any) -> None:
+        if not isinstance(value, SteeringWheelOutputTrackedT):
+            raise TypeError(
+                f"Expected SteeringWheelOutputTrackedT for '{self.name}', got {type(value).__name__}"
             )
 
 
@@ -208,6 +229,14 @@ def DeviceIOGeneric3AxisPedalOutputTracked() -> TensorGroupType:
     return TensorGroupType(
         "deviceio_generic_3axis_pedal_output",
         [Generic3AxisPedalOutputTrackedType("pedal_tracked")],
+    )
+
+
+def DeviceIOSteeringWheelOutputTracked() -> TensorGroupType:
+    """Tracked steering wheel data from DeviceIO SteeringWheelTracker."""
+    return TensorGroupType(
+        "deviceio_steering_wheel_output",
+        [SteeringWheelOutputTrackedType("steering_wheel_tracked")],
     )
 
 

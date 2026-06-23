@@ -11,6 +11,8 @@ add_executable(schema_tests
   test_full_body.cpp
   test_controller.cpp
   test_pedals.cpp
+  test_steering_wheel.cpp
+  test_vehicle_control.cpp
 )
 target_link_libraries(schema_tests PRIVATE
   isaacteleop_schema
