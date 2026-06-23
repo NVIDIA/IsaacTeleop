@@ -35,6 +35,11 @@ from ._schema import (
     Generic3AxisPedalOutput,
     Generic3AxisPedalOutputTrackedT,
     Generic3AxisPedalOutputRecord,
+    # Joint-state types (generic joint-space devices: leader arms, exoskeletons, ...).
+    JointState,
+    JointStateOutput,
+    JointStateOutputTrackedT,
+    JointStateOutputRecord,
     # Message channel types.
     MessageChannelMessages,
     MessageChannelMessagesTrackedT,
@@ -82,6 +87,11 @@ __all__ = [
     "Generic3AxisPedalOutput",
     "Generic3AxisPedalOutputTrackedT",
     "Generic3AxisPedalOutputRecord",
+    # Joint-state types (generic joint-space devices).
+    "JointState",
+    "JointStateOutput",
+    "JointStateOutputTrackedT",
+    "JointStateOutputRecord",
     # Message channel types.
     "MessageChannelMessages",
     "MessageChannelMessagesTrackedT",

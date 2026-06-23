@@ -18,6 +18,7 @@ from isaacteleop.schema import (
     HandPoseTrackedT,
     ControllerSnapshotTrackedT,
     Generic3AxisPedalOutputTrackedT,
+    JointStateOutputTrackedT,
     FullBodyPosePicoTrackedT,
     MessageChannelMessagesTrackedT,
 )
@@ -96,6 +97,26 @@ class Generic3AxisPedalOutputTrackedType(TensorType):
         if not isinstance(value, Generic3AxisPedalOutputTrackedT):
             raise TypeError(
                 f"Expected Generic3AxisPedalOutputTrackedT for '{self.name}', got {type(value).__name__}"
+            )
+
+
+class JointStateOutputTrackedType(TensorType):
+    """JointStateOutputTrackedT wrapper type from DeviceIO JointStateTracker."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__(name)
+
+    def _check_instance_compatibility(self, other: TensorType) -> bool:
+        if not isinstance(other, JointStateOutputTrackedType):
+            raise TypeError(
+                f"Expected JointStateOutputTrackedType, got {type(other).__name__}"
+            )
+        return True
+
+    def validate_value(self, value: Any) -> None:
+        if not isinstance(value, JointStateOutputTrackedT):
+            raise TypeError(
+                f"Expected JointStateOutputTrackedT for '{self.name}', got {type(value).__name__}"
             )
 
 
@@ -208,6 +229,18 @@ def DeviceIOGeneric3AxisPedalOutputTracked() -> TensorGroupType:
     return TensorGroupType(
         "deviceio_generic_3axis_pedal_output",
         [Generic3AxisPedalOutputTrackedType("pedal_tracked")],
+    )
+
+
+def DeviceIOJointStateOutputTracked() -> TensorGroupType:
+    """Tracked joint-state data from DeviceIO JointStateTracker.
+
+    Contains:
+        joint_state_tracked: JointStateOutputTrackedT wrapper (always set; .data is None when inactive)
+    """
+    return TensorGroupType(
+        "deviceio_joint_state_output",
+        [JointStateOutputTrackedType("joint_state_tracked")],
     )
 
 
