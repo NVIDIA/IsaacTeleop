@@ -818,12 +818,17 @@ jobs:
     # client) and the gripper retargeting example concurrently against the same
     # live runtime, exercising the full quick-start pipeline end-to-end.
     # Skipped on PRs that don't touch the web stack — see detect-changes.
-    runs-on: [self-hosted, linux, gpu, "x64"]
+    runs-on: [self-hosted, linux, gpu, "${{ matrix.arch }}"]
     needs:
       - detect-changes
       - build-ubuntu
       - build-webapp
     if: needs.detect-changes.outputs.web == 'true'
+
+    strategy:
+      fail-fast: ${{ github.event_name == 'pull_request' }}
+      matrix:
+        arch: ['x64', 'arm64']
 
     steps:
     - name: Checkout code
@@ -834,7 +839,7 @@ jobs:
     - name: Download install artifacts
       uses: actions/download-artifact@v7
       with:
-        name: isaacteleop-install-release-x64-py3.11
+        name: isaacteleop-install-release-${{ matrix.arch }}-py3.11
 
     - name: Extract tarball to preserve permissions
       run: |
@@ -869,7 +874,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v6
       with:
-        name: web-e2e-results
+        name: web-e2e-results-${{ matrix.arch }}
         # Compose/runtime logs + Playwright JSON summary + screenshots +
         # video recording (every run) + trace zip (failure runs only,
         # per playwright.config.ts).
