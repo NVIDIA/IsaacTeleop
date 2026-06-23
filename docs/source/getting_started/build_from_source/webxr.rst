@@ -56,7 +56,7 @@ From ``deps/cloudxr/webxr_client/``:
 
 .. code-block:: bash
 
-   USE_LOCAL_WEBXR_ASSETS=0 npm run build
+   npm run build
 
 Output in ``build/``:
 
