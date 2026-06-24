@@ -845,23 +845,25 @@ limitations under the License.
                     <div id="deviceProfileWarning" class="profile-warning"></div>
                 </div>
 
+                <!-- Video Codec is a basic, commonly-changed setting, so it stays visible
+                     alongside Device Profile rather than folded into the advanced groups. -->
+                <div class="config-section">
+                    <label for="codec" class="input-label">Video Codec</label>
+                    <select id="codec" class="ui-input config-input">
+                        <option value="h264">H.264</option>
+                        <option value="h265">H.265 (HEVC)</option>
+                        <option value="av1" selected>AV1</option>
+                    </select>
+                    <div class="config-text">
+                        Select the preferred streaming codec. Availability depends on browser and server support.
+                    </div>
+                </div>
+
                 <h4 class="advanced-divider">Advanced settings</h4>
 
                 <details class="settings-group">
                     <summary>Video &amp; Streaming</summary>
                     <div class="settings-group-body">
-                        <div class="config-section">
-                            <label for="codec" class="input-label">Video Codec</label>
-                            <select id="codec" class="ui-input config-input">
-                                <option value="h264">H.264</option>
-                                <option value="h265">H.265 (HEVC)</option>
-                                <option value="av1" selected>AV1</option>
-                            </select>
-                            <div class="config-text">
-                                Select the preferred streaming codec. Availability depends on browser and server support.
-                            </div>
-                        </div>
-
                         <div class="config-section">
                             <label class="input-label">Maximum Streaming Bitrate</label>
                             <label for="maxStreamingBitrateMbps" class="input-label">Megabits per second</label>
