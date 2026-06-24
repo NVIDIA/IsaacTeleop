@@ -16,6 +16,7 @@ import time
 from datetime import datetime
 import isaacteleop.deviceio as deviceio
 import isaacteleop.oxr as oxr
+from isaacteleop.cloudxr import CloudXRLauncher
 
 
 RECORD_DURATION_S = 10.0
@@ -31,76 +32,79 @@ def main():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     mcap_filename = f"tracking_recording_{timestamp}.mcap"
 
-    # Create trackers independently
-    print("Creating trackers...")
-    hand_tracker = deviceio.HandTracker()
-    head_tracker = deviceio.HeadTracker()
-    print(f"✓ Created {hand_tracker.get_name()}")
-    print(f"✓ Created {head_tracker.get_name()}")
+    with CloudXRLauncher():
+        # Create trackers independently
+        print("Creating trackers...")
+        hand_tracker = deviceio.HandTracker()
+        head_tracker = deviceio.HeadTracker()
+        print(f"✓ Created {hand_tracker.get_name()}")
+        print(f"✓ Created {head_tracker.get_name()}")
 
-    # Get required extensions
-    print("\nQuerying required extensions...")
-    trackers = [hand_tracker, head_tracker]
-    required_extensions = deviceio.DeviceIOSession.get_required_extensions(trackers)
-    print(f"✓ Required extensions: {required_extensions}")
+        # Get required extensions
+        print("\nQuerying required extensions...")
+        trackers = [hand_tracker, head_tracker]
+        required_extensions = deviceio.DeviceIOSession.get_required_extensions(trackers)
+        print(f"✓ Required extensions: {required_extensions}")
 
-    # Create OpenXR session
-    print("\nCreating OpenXR session...")
-    with oxr.OpenXRSession(
-        "ModularExampleWithMCAP", required_extensions
-    ) as oxr_session:
-        handles = oxr_session.get_handles()
-        print("✓ OpenXR session created")
+        # Create OpenXR session
+        print("\nCreating OpenXR session...")
+        with oxr.OpenXRSession(
+            "ModularExampleWithMCAP", required_extensions
+        ) as oxr_session:
+            handles = oxr_session.get_handles()
+            print("✓ OpenXR session created")
 
-        # Run deviceio session with MCAP recording enabled.
-        print("\nRunning deviceio session with MCAP recording...")
-        recording_config = deviceio.McapRecordingConfig(
-            mcap_filename, [(hand_tracker, "hands"), (head_tracker, "head")]
-        )
-        with deviceio.DeviceIOSession.run(
-            trackers, handles, recording_config
-        ) as session:
-            print("✓ DeviceIO session initialized with all trackers!")
-            print(f"✓ MCAP recording active → {mcap_filename}")
-            print()
+            # Run deviceio session with MCAP recording enabled.
+            print("\nRunning deviceio session with MCAP recording...")
+            recording_config = deviceio.McapRecordingConfig(
+                mcap_filename, [(hand_tracker, "hands"), (head_tracker, "head")]
+            )
+            with deviceio.DeviceIOSession.run(
+                trackers, handles, recording_config
+            ) as session:
+                print("✓ DeviceIO session initialized with all trackers!")
+                print(f"✓ MCAP recording active → {mcap_filename}")
+                print()
 
-            # Main tracking loop
-            print("=" * 60)
-            print(f"Tracking ({RECORD_DURATION_S} seconds)...")
-            print("=" * 60)
-            print()
+                # Main tracking loop
+                print("=" * 60)
+                print(f"Tracking ({RECORD_DURATION_S} seconds)...")
+                print("=" * 60)
+                print()
 
-            frame_count = 0
-            start_time = time.time()
+                frame_count = 0
+                start_time = time.time()
 
-            while time.time() - start_time < RECORD_DURATION_S:
-                session.update()
+                while time.time() - start_time < RECORD_DURATION_S:
+                    session.update()
 
-                # Print every 60 frames (~1 second)
-                if frame_count % 60 == 0:
-                    elapsed = time.time() - start_time
-                    print(f"[{elapsed:4.1f}s] Frame {frame_count} (recording...)")
-                    print()
+                    # Print every 60 frames (~1 second)
+                    if frame_count % 60 == 0:
+                        elapsed = time.time() - start_time
+                        print(f"[{elapsed:4.1f}s] Frame {frame_count} (recording...)")
+                        print()
 
-                frame_count += 1
-                time.sleep(0.016)  # ~60 FPS
+                    frame_count += 1
+                    time.sleep(0.016)  # ~60 FPS
 
-            print(f"\nProcessed {frame_count} frames")
+                print(f"\nProcessed {frame_count} frames")
 
-        print("✓ Recording stopped (MCAP file closed by session destructor)")
+            print("✓ Recording stopped (MCAP file closed by session destructor)")
 
-    print()
-    print("=" * 60)
-    print(f"✓ Recording saved to: {mcap_filename}")
-    print("=" * 60)
+        print()
+        print("=" * 60)
+        print(f"✓ Recording saved to: {mcap_filename}")
+        print("=" * 60)
 
-    # ---- Replay the recorded MCAP file ----
+    # ---- Replay the recorded MCAP file (no live OpenXR session required) ----
     print()
     print("=" * 60)
     print("Replaying recorded MCAP data")
     print("=" * 60)
     print()
 
+    hand_tracker = deviceio.HandTracker()
+    head_tracker = deviceio.HeadTracker()
     replay_config = deviceio.McapReplayConfig(
         mcap_filename, [(hand_tracker, "hands"), (head_tracker, "head")]
     )

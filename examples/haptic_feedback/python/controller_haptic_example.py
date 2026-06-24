@@ -58,6 +58,7 @@ from isaacteleop.retargeting_engine.tensor_types import (
     ControllerInputIndex,
     TactileVector,
 )
+from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
 
@@ -159,24 +160,25 @@ def main() -> None:
     print("Press Ctrl+C to exit.\n")
 
     frame_period_s = 1.0 / FPS
-    with TeleopSession(config) as session:
-        while True:
-            result = session.step()
-            trig_l, trig_r = (
-                _scalar(result, "trigger_left"),
-                _scalar(result, "trigger_right"),
-            )
-            hap_l, hap_r = (
-                _amplitude(result, "haptic_left"),
-                _amplitude(result, "haptic_right"),
-            )
-            line = (
-                f"L trig {_bar(trig_l)} {trig_l:.2f} -> L rumble {_bar(hap_l)} {hap_l:.2f}"
-                "   |   "
-                f"R trig {_bar(trig_r)} {trig_r:.2f} -> R rumble {_bar(hap_r)} {hap_r:.2f}"
-            )
-            print(f"\r{line:<96}", end="", flush=True)
-            time.sleep(frame_period_s)
+    with CloudXRLauncher():
+        with TeleopSession(config) as session:
+            while True:
+                result = session.step()
+                trig_l, trig_r = (
+                    _scalar(result, "trigger_left"),
+                    _scalar(result, "trigger_right"),
+                )
+                hap_l, hap_r = (
+                    _amplitude(result, "haptic_left"),
+                    _amplitude(result, "haptic_right"),
+                )
+                line = (
+                    f"L trig {_bar(trig_l)} {trig_l:.2f} -> L rumble {_bar(hap_l)} {hap_l:.2f}"
+                    "   |   "
+                    f"R trig {_bar(trig_r)} {trig_r:.2f} -> R rumble {_bar(hap_r)} {hap_r:.2f}"
+                )
+                print(f"\r{line:<96}", end="", flush=True)
+                time.sleep(frame_period_s)
 
 
 if __name__ == "__main__":

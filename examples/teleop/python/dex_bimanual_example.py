@@ -14,6 +14,7 @@ import contextlib
 from types import SimpleNamespace
 from pathlib import Path
 
+from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.retargeting_engine.deviceio_source_nodes import HandsSource
 from isaacteleop.retargeters import (
     DexHandRetargeter,
@@ -51,6 +52,7 @@ def main():
     parser.add_argument(
         "--enable-tuning", action="store_true", help="Enable retargeting tuning UI"
     )
+    CloudXRLauncher.add_launcher_arguments(parser)
     args = parser.parse_args()
 
     # Check for config files
@@ -151,45 +153,48 @@ def main():
     # Create and run TeleopSession
     # ==================================================================
 
-    session_config = TeleopSessionConfig(
-        app_name="DexBiManualExample",
-        trackers=[],  # Auto-discovered from pipeline
-        pipeline=pipeline,
-    )
-
-    # Access the internal retargeters for tuning
-    retargeters_to_tune = [left_retargeter, right_retargeter]
-
-    # Open the UI using the context manager
-    if args.enable_tuning:
-        print("Opening Retargeting UI...")
-        ui_context = MultiRetargeterTuningUIImGui(
-            retargeters_to_tune, title="Hand Retargeting Tuning"
+    with CloudXRLauncher.launch_context(args):
+        session_config = TeleopSessionConfig(
+            app_name="DexBiManualExample",
+            trackers=[],  # Auto-discovered from pipeline
+            pipeline=pipeline,
         )
-    else:
-        ui_context = contextlib.nullcontext(SimpleNamespace(is_running=lambda: True))
 
-    with ui_context as ui:
-        with TeleopSession(session_config) as session:
-            start_time = time.time()
+        # Access the internal retargeters for tuning
+        retargeters_to_tune = [left_retargeter, right_retargeter]
 
-            while time.time() - start_time < 360.0 and ui.is_running():
-                result = session.step()
+        # Open the UI using the context manager
+        if args.enable_tuning:
+            print("Opening Retargeting UI...")
+            ui_context = MultiRetargeterTuningUIImGui(
+                retargeters_to_tune, title="Hand Retargeting Tuning"
+            )
+        else:
+            ui_context = contextlib.nullcontext(
+                SimpleNamespace(is_running=lambda: True)
+            )
 
-                # Output: Combined joint angles
-                # result["left_hand_joints"] and result["right_hand_joints"] are TensorGroups
-                left_vals = list(result["left_hand_joints"])
-                right_vals = list(result["right_hand_joints"])
+        with ui_context as ui:
+            with TeleopSession(session_config) as session:
+                start_time = time.time()
 
-                if session.frame_count % 30 == 0:
-                    elapsed = session.get_elapsed_time()
-                    # Print first few joints from left and right parts
-                    l_print = left_vals[: min(3, len(left_vals))]
-                    r_print = right_vals[: min(3, len(right_vals))]
+                while time.time() - start_time < 360.0 and ui.is_running():
+                    result = session.step()
 
-                    print(f"[{elapsed:5.1f}s] L: {l_print} ... R: {r_print} ...")
+                    # Output: Combined joint angles
+                    # result["left_hand_joints"] and result["right_hand_joints"] are TensorGroups
+                    left_vals = list(result["left_hand_joints"])
+                    right_vals = list(result["right_hand_joints"])
 
-                time.sleep(0.016)
+                    if session.frame_count % 30 == 0:
+                        elapsed = session.get_elapsed_time()
+                        # Print first few joints from left and right parts
+                        l_print = left_vals[: min(3, len(left_vals))]
+                        r_print = right_vals[: min(3, len(right_vals))]
+
+                        print(f"[{elapsed:5.1f}s] L: {l_print} ... R: {r_print} ...")
+
+                    time.sleep(0.016)
 
     return 0
 
