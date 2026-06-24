@@ -341,6 +341,9 @@ export class CloudXR2DUI {
    * (setProfileToCustomIfNeeded), so we never override an explicit choice. Not persisted, so
    * detection re-runs each fresh load until the user makes a choice. Runs before applyUrlSeeds()
    * so URL params still win.
+   *
+   * Note: the IWER emulator emulates a headset via the WebXR API but does NOT change
+   * navigator.userAgent, so under the emulator this resolves to 'custom' (no flip).
    */
   private applyDefaultDeviceProfileFromUserAgent(): void {
     let stored: string | null = null;
