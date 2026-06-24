@@ -162,6 +162,10 @@ export class CloudXR2DUI {
   private headlessInput!: HTMLInputElement;
   /** When to reload the page after the XR session ends (never / clean / any) */
   private autoRefreshModeSelect!: HTMLSelectElement;
+  /** Button that clears stored settings and reloads to defaults. */
+  private resetSettingsButton!: HTMLButtonElement;
+  /** Container for the runtime-generated URL-parameter help list (optional in markup). */
+  private urlParamsHelpList: HTMLElement | null = null;
   /** Breadcrumb subtitle in header (e.g. "for Real Robot › GEAR › Dexmate"). */
   private teleopModeSubtitle!: HTMLElement;
   /** Hierarchical project selector in header */
@@ -215,6 +219,7 @@ export class CloudXR2DUI {
 
       this.applyUrlSeeds();
       this.setupProxyConfiguration();
+      this.renderUrlParamsHelp();
       this.setupEventListeners();
       // Set initial display value
       this.posePredictionFactorValue.textContent = this.posePredictionFactorInput.value;
@@ -416,6 +421,9 @@ export class CloudXR2DUI {
     this.autoRefreshModeSelect = this.getElement<HTMLSelectElement>('cloudxrAutoRefreshMode');
     this.teleopModeSubtitle = this.getElement<HTMLElement>('teleopModeSubtitle');
     this.teleopProjectSelect = this.getElement<HTMLSelectElement>('teleopProjectSelect');
+    this.resetSettingsButton = this.getElement<HTMLButtonElement>('resetSettingsButton');
+    // Optional: absent in trimmed builds; renderUrlParamsHelp() no-ops when null.
+    this.urlParamsHelpList = document.getElementById('urlParamsHelpList');
   }
 
   /**
@@ -470,37 +478,111 @@ export class CloudXR2DUI {
   }
 
   /**
+   * Single source of truth for the global (non-per-project-path) localStorage-backed
+   * controls: maps each form control to its storage key. Used both to wire persistence
+   * ({@link CloudXR2DUI.setupLocalStorage}) and to clear it ({@link CloudXR2DUI.resetToDefaults}),
+   * so adding a setting in one place can't leave the reset path stale.
+   */
+  private localStorageBindings(): Array<{
+    el: HTMLInputElement | HTMLSelectElement;
+    key: string;
+  }> {
+    return [
+      { el: this.serverTypeSelect, key: 'serverType' },
+      { el: this.serverIpInput, key: 'serverIp' },
+      { el: this.portInput, key: 'port' },
+      { el: this.perEyeWidthInput, key: 'perEyeWidth' },
+      { el: this.perEyeHeightInput, key: 'perEyeHeight' },
+      { el: this.reprojectionGridColsInput, key: 'reprojectionGridCols' },
+      { el: this.reprojectionGridRowsInput, key: 'reprojectionGridRows' },
+      { el: this.proxyUrlInput, key: 'proxyUrl' },
+      { el: this.deviceFrameRateSelect, key: 'deviceFrameRate' },
+      { el: this.maxStreamingBitrateMbpsSelect, key: 'maxStreamingBitrateMbps' },
+      { el: this.codecSelect, key: 'codec' },
+      { el: this.enablePoseSmoothingSelect, key: 'enablePoseSmoothing' },
+      { el: this.posePredictionFactorInput, key: 'posePredictionFactor' },
+      { el: this.enableTexSubImage2DSelect, key: 'enableTexSubImage2D' },
+      { el: this.useQuestColorWorkaroundSelect, key: 'useQuestColorWorkaround' },
+      { el: this.immersiveSelect, key: 'immersiveMode' },
+      { el: this.deviceProfileSelect, key: 'deviceProfile' },
+      { el: this.controlPanelPositionSelect, key: 'controlPanelPosition' },
+      { el: this.referenceSpaceSelect, key: 'referenceSpace' },
+      { el: this.xrOffsetXInput, key: 'xrOffsetX' },
+      { el: this.xrOffsetYInput, key: 'xrOffsetY' },
+      { el: this.xrOffsetZInput, key: 'xrOffsetZ' },
+      { el: this.mediaAddressInput, key: 'mediaAddress' },
+      { el: this.mediaPortInput, key: 'mediaPort' },
+      { el: this.controllerModelVisibilitySelect, key: 'controllerModelVisibility' },
+      { el: this.autoRefreshModeSelect, key: 'autoRefreshMode' },
+    ];
+  }
+
+  /**
    * Wires up localStorage persistence for global (non-per-project-path) form
    * inputs. Per-project-path fields are handled separately via
    * loadPerProject/savePerProject around their own change listeners.
    */
   private setupLocalStorage(): void {
-    enableLocalStorage(this.serverTypeSelect, 'serverType');
-    enableLocalStorage(this.serverIpInput, 'serverIp');
-    enableLocalStorage(this.portInput, 'port');
-    enableLocalStorage(this.perEyeWidthInput, 'perEyeWidth');
-    enableLocalStorage(this.perEyeHeightInput, 'perEyeHeight');
-    enableLocalStorage(this.reprojectionGridColsInput, 'reprojectionGridCols');
-    enableLocalStorage(this.reprojectionGridRowsInput, 'reprojectionGridRows');
-    enableLocalStorage(this.proxyUrlInput, 'proxyUrl');
-    enableLocalStorage(this.deviceFrameRateSelect, 'deviceFrameRate');
-    enableLocalStorage(this.maxStreamingBitrateMbpsSelect, 'maxStreamingBitrateMbps');
-    enableLocalStorage(this.codecSelect, 'codec');
-    enableLocalStorage(this.enablePoseSmoothingSelect, 'enablePoseSmoothing');
-    enableLocalStorage(this.posePredictionFactorInput, 'posePredictionFactor');
-    enableLocalStorage(this.enableTexSubImage2DSelect, 'enableTexSubImage2D');
-    enableLocalStorage(this.useQuestColorWorkaroundSelect, 'useQuestColorWorkaround');
-    enableLocalStorage(this.immersiveSelect, 'immersiveMode');
-    enableLocalStorage(this.deviceProfileSelect, 'deviceProfile');
-    enableLocalStorage(this.controlPanelPositionSelect, 'controlPanelPosition');
-    enableLocalStorage(this.referenceSpaceSelect, 'referenceSpace');
-    enableLocalStorage(this.xrOffsetXInput, 'xrOffsetX');
-    enableLocalStorage(this.xrOffsetYInput, 'xrOffsetY');
-    enableLocalStorage(this.xrOffsetZInput, 'xrOffsetZ');
-    enableLocalStorage(this.mediaAddressInput, 'mediaAddress');
-    enableLocalStorage(this.mediaPortInput, 'mediaPort');
-    enableLocalStorage(this.controllerModelVisibilitySelect, 'controllerModelVisibility');
-    enableLocalStorage(this.autoRefreshModeSelect, 'autoRefreshMode');
+    for (const { el, key } of this.localStorageBindings()) {
+      enableLocalStorage(el, key);
+    }
+  }
+
+  /**
+   * Clears stored settings and reloads to a clean default state. Removes the global
+   * localStorage keys, the per-project debug settings for the active teleop application,
+   * and the teleop-start countdown preference. URL params are handled below.
+   */
+  public resetToDefaults(): void {
+    try {
+      for (const { key } of this.localStorageBindings()) {
+        localStorage.removeItem(key);
+      }
+      // Per-project debug settings persist under `cxr.isaac.<key>|<teleopPath>`
+      // (see helpers/react/utils savePerProject); reset only the active application's.
+      for (const key of ['panelHiddenAtStart', 'headless']) {
+        localStorage.removeItem(`cxr.isaac.${key}|${this.teleopPath}`);
+      }
+      // Teleop-start countdown is owned by App.tsx (COUNTDOWN_STORAGE_KEY); keep this in sync.
+      localStorage.removeItem('cxr.react.countdownSeconds');
+    } catch (error) {
+      console.warn('Failed to clear stored settings:', error);
+    }
+
+    // applyUrlSeeds() runs after setupLocalStorage() on load, so a form-backed query
+    // param would immediately re-override the cleared value and the reset would look
+    // like it did nothing. Strip those params from the address bar, but keep the direct
+    // transport/OOB params (turnServer, controlToken, …, set by oob_teleop_env.py) and
+    // the teleop path hash. Then reload explicitly: replaceState followed by reload()
+    // always re-reads cleared storage, even when no params were present (a same-URL
+    // location.replace can be a no-op in some browsers, which would leave the stale form).
+    const url = new URL(window.location.href);
+    for (const param of URL_PARAMS) {
+      if (param.elementId) {
+        url.searchParams.delete(param.url ?? param.key);
+      }
+    }
+    window.history.replaceState(null, '', url.toString());
+    window.location.reload();
+  }
+
+  /**
+   * Populates the "URL parameters" help list from the param registry, listing only
+   * params that opted in with a `description` (keeps secrets/transport internals out).
+   * Reads from URL_PARAMS so the list can never drift from what the client accepts.
+   */
+  private renderUrlParamsHelp(): void {
+    if (!this.urlParamsHelpList) return;
+    this.urlParamsHelpList.replaceChildren();
+    for (const param of URL_PARAMS) {
+      if (!param.description) continue;
+      const li = document.createElement('li');
+      const code = document.createElement('code');
+      code.textContent = param.url ?? param.key;
+      li.appendChild(code);
+      li.appendChild(document.createTextNode(` — ${param.description}`));
+      this.urlParamsHelpList.appendChild(li);
+    }
   }
 
   /**
@@ -636,6 +718,12 @@ export class CloudXR2DUI {
       this.updateConfiguration();
     });
     addListener(this.autoRefreshModeSelect, 'change', updateConfig);
+
+    addListener(this.resetSettingsButton, 'click', () => {
+      if (window.confirm('Reset all settings to their defaults? This reloads the page.')) {
+        this.resetToDefaults();
+      }
+    });
 
     addListener(this.deviceProfileSelect, 'change', () => {
       this.applyDeviceProfileToForm(resolveDeviceProfileId(this.deviceProfileSelect.value));
