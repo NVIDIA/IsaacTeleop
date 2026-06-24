@@ -160,6 +160,7 @@ def _fetch_url_bytes(url: str, *, timeout: float = 120.0) -> bytes:
 
 
 def _write_atomic_bytes(dest: Path, data: bytes) -> None:
+    """Write *data* to *dest* atomically via a ``.part`` temp file."""
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_name(dest.name + ".part")
     try:
@@ -249,13 +250,18 @@ def _wait_for_port(host: str, port: int, timeout: float) -> bool:
 def _usb_local_static_handler_class(
     static_root: Path,
 ) -> type[http.server.SimpleHTTPRequestHandler]:
+    """Return a :class:`~http.server.SimpleHTTPRequestHandler` subclass rooted at *static_root*."""
     root = str(static_root.resolve())
 
     class _Handler(http.server.SimpleHTTPRequestHandler):
+        """HTTP request handler pinned to the resolved *static_root* directory."""
+
         def __init__(self, *args, **kwargs):
+            """Initialise with *directory* forced to *root*."""
             super().__init__(*args, directory=root, **kwargs)
 
         def log_message(self, fmt: str, *args) -> None:
+            """Redirect access log lines to the module ``debug`` logger."""
             log.debug("%s - %s", self.address_string(), fmt % args)
 
     return _Handler
@@ -329,6 +335,7 @@ def stop_usb_local_https_server(
 
 
 def web_client_base_override_from_env() -> str | None:
+    """Return the stripped ``TELEOP_WEB_CLIENT_BASE`` value, or ``None`` if unset/blank."""
     v = os.environ.get(TELEOP_WEB_CLIENT_BASE_ENV, "").strip()
     return v or None
 

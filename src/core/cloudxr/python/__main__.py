@@ -242,6 +242,7 @@ def main() -> None:
         stop = False
 
         def on_signal(sig, frame):
+            """Set the stop flag on SIGINT/SIGTERM."""
             nonlocal stop
             stop = True
 
