@@ -3,10 +3,11 @@
 
 #pragma once
 
+#include "display_backend.hpp"
+
 #include <viz/core/frame_sync.hpp>
 #include <viz/core/host_image.hpp>
 #include <viz/core/viz_types.hpp>
-#include <viz/session/display_backend.hpp>
 #include <vulkan/vulkan.h>
 
 #include <memory>

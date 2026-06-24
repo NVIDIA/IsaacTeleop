@@ -6,13 +6,12 @@
 // direct-present-only (no render pipeline); end-to-end copy-to-swapchain
 // + readback lives in viz_session_tests where the full backend exists.
 
-#include "test_helpers.hpp"
-
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 #include <viz/core/viz_buffer.hpp>
 #include <viz/core/vk_context.hpp>
 #include <viz/layers/projection_layer.hpp>
+#include <viz/test_support/test_helpers.hpp>
 
 #include <cstdint>
 #include <cuda_runtime.h>

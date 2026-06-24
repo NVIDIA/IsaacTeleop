@@ -16,6 +16,7 @@ namespace viz
 
 class RenderTarget;
 class VizSession;
+class VkContext;
 
 // Maps ViewInfo::viewport → vkCmdSetViewport (origin top-left, depth
 // [0,1], no y-flip). Layers call this once per view before drawing.
@@ -118,6 +119,14 @@ public:
         return false;
     }
 
+    // The VkContext this layer's GPU resources came from (nullptr if none).
+    // add_layer rejects a layer whose context isn't the session's — its
+    // images/semaphores would be used on the wrong device/queue.
+    virtual const VkContext* vk_context() const noexcept
+    {
+        return nullptr;
+    }
+
     // Direct-present support (see DirectPresentView). When true, the
     // compositor — for a session whose only layer is this one — skips the
     // render pass and asks the backend to copy these images straight to
@@ -137,13 +146,10 @@ public:
         return {};
     }
 
-    // Hard requirements a layer places on the backend it's attached to.
-    // Called once by VizSession::add_layer with the backend's per-view
-    // recommended resolution, view count (1 window/offscreen, 2 kXr
-    // stereo), and in-flight image count. Direct-present layers override
-    // this to fail fast (std::invalid_argument) when a 1:1 swapchain copy
-    // would be impossible (size/stereo/slot mismatch). Default: no
-    // requirements.
+    // Let a layer reject a backend it can't run on. Called once by add_layer
+    // with the backend's per-view recommended resolution, view count (1
+    // window/offscreen, 2 kXr stereo), and in-flight image count; throws
+    // std::invalid_argument on mismatch. Default: no requirements.
     virtual void validate_backend_compatibility(Resolution /*recommended_view_resolution*/,
                                                 uint32_t /*backend_view_count*/,
                                                 uint32_t /*backend_image_count*/) const

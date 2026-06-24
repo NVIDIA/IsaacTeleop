@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 
 namespace viz_py
 {
@@ -223,8 +224,18 @@ can re-use ``color`` / ``depth`` immediately.
                 }
 
                 py::gil_scoped_release release;
-                self.submit(*lc, ld.has_value() ? &*ld : nullptr, rc.has_value() ? &*rc : nullptr,
-                            rd.has_value() ? &*rd : nullptr, reinterpret_cast<cudaStream_t>(stream));
+                try
+                {
+                    self.submit(*lc, ld.has_value() ? &*ld : nullptr, rc.has_value() ? &*rc : nullptr,
+                                rd.has_value() ? &*rd : nullptr, reinterpret_cast<cudaStream_t>(stream));
+                }
+                catch (const std::invalid_argument& e)
+                {
+                    // C++ submit reports bad call shapes as invalid_argument
+                    // (→ ValueError); re-raise as runtime_error so it surfaces
+                    // as RuntimeError, matching the buffer-conversion errors.
+                    throw std::runtime_error(e.what());
+                }
             },
             "left_color"_a, "left_depth"_a = py::none(), "right_color"_a = py::none(), "right_depth"_a = py::none(),
             "stream"_a = 0,

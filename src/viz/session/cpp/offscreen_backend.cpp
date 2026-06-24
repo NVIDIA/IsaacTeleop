@@ -193,11 +193,8 @@ void OffscreenBackend::record_direct(VkCommandBuffer cmd,
         region.srcSubresource.layerCount = 1;
         region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         region.dstSubresource.layerCount = 1;
-        // VizSession::add_layer enforces source extent == target extent, so
-        // these match; clamp to the smaller of the two anyway so a stray
-        // mismatch can never produce an out-of-bounds copy region.
-        region.extent = { extent_.width < views[0].extent.width ? extent_.width : views[0].extent.width,
-                          extent_.height < views[0].extent.height ? extent_.height : views[0].extent.height, 1 };
+        // 1:1 copy — add_layer guarantees source extent == target extent.
+        region.extent = { extent_.width, extent_.height, 1 };
         vkCmdCopyImage(
             cmd, src, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 

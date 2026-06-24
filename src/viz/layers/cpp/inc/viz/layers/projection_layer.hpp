@@ -159,6 +159,10 @@ public:
     {
         return true;
     }
+    const VkContext* vk_context() const noexcept override
+    {
+        return ctx_;
+    }
     std::vector<DirectPresentView> acquire_direct_views(uint32_t in_flight_slot) override;
 
     // Direct-present requires a 1:1 swapchain copy, so view_resolution must

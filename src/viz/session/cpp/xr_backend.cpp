@@ -737,10 +737,8 @@ void XrBackend::record_direct(VkCommandBuffer cmd, const Frame& /*frame*/, const
             region.srcSubresource.layerCount = 1;
             region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
             region.dstSubresource.layerCount = 1;
-            // add_layer enforces source extent == per-eye swapchain size;
-            // clamp defensively so a mismatch can't read/write out of bounds.
-            region.extent = { sw.width < views[i].extent.width ? sw.width : views[i].extent.width,
-                              sw.height < views[i].extent.height ? sw.height : views[i].extent.height, 1 };
+            // 1:1 copy — add_layer guarantees source extent == per-eye swapchain size.
+            region.extent = { sw.width, sw.height, 1 };
             vkCmdCopyImage(
                 cmd, src, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
@@ -794,15 +792,11 @@ void XrBackend::record_direct(VkCommandBuffer cmd, const Frame& /*frame*/, const
                              VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_TRANSFER_READ_BIT,
                              VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 
-            // add_layer enforces source extent == per-eye swapchain size;
-            // clamp defensively so a mismatch can't read/write out of bounds.
-            const uint32_t dw = sw.width < views[i].extent.width ? sw.width : views[i].extent.width;
-            const uint32_t dh = sw.height < views[i].extent.height ? sw.height : views[i].extent.height;
-
+            // 1:1 copy — add_layer guarantees source extent == per-eye swapchain size.
             VkBufferImageCopy to_buf{};
             to_buf.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
             to_buf.imageSubresource.layerCount = 1;
-            to_buf.imageExtent = { dw, dh, 1 };
+            to_buf.imageExtent = { sw.width, sw.height, 1 };
             vkCmdCopyImageToBuffer(cmd, src, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, staging, 1, &to_buf);
 
             // Order the buffer write before the buffer read.
@@ -821,7 +815,7 @@ void XrBackend::record_direct(VkCommandBuffer cmd, const Frame& /*frame*/, const
             VkBufferImageCopy to_img{};
             to_img.imageSubresource.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
             to_img.imageSubresource.layerCount = 1;
-            to_img.imageExtent = { dw, dh, 1 };
+            to_img.imageExtent = { sw.width, sw.height, 1 };
             vkCmdCopyBufferToImage(cmd, staging, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &to_img);
 
             transition_image(cmd, src, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,

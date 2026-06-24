@@ -3,10 +3,11 @@
 
 #pragma once
 
+#include "layer_base.hpp" // DirectPresentView
+
 #include <viz/core/host_image.hpp>
 #include <viz/core/render_target.hpp>
 #include <viz/core/viz_types.hpp>
-#include <viz/session/layer_base.hpp> // DirectPresentView
 #include <vulkan/vulkan.h>
 
 #include <cstdint>

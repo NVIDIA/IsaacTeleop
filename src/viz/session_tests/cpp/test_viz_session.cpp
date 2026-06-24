@@ -4,15 +4,24 @@
 // VizSession config + lifecycle tests.
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
+#include <viz/core/vk_context.hpp>
+#include <viz/layers/projection_layer.hpp>
+#include <viz/layers/quad_layer.hpp>
 #include <viz/session/viz_session.hpp>
 #include <viz/test_support/test_helpers.hpp>
 
 #include <chrono>
 #include <stdexcept>
 
+using Catch::Matchers::ContainsSubstring;
 using viz::DisplayMode;
+using viz::ProjectionLayer;
+using viz::QuadLayer;
+using viz::Resolution;
 using viz::SessionState;
 using viz::VizSession;
+using viz::VkContext;
 using viz::testing::is_gpu_available;
 
 TEST_CASE("VizSession::create rejects zero window dimensions", "[unit][viz_session]")
@@ -74,4 +83,91 @@ TEST_CASE("VizSession::create kXr fails on hosts without an OpenXR runtime", "[u
     VizSession::Config cfg_xr{};
     cfg_xr.mode = DisplayMode::kXr;
     CHECK_THROWS_AS(VizSession::create(cfg_xr), std::runtime_error);
+}
+
+// ── add_layer invariant / affinity rejection (failure-path) ──────────
+
+namespace
+{
+VizSession::Config offscreen_cfg(uint32_t side = 64)
+{
+    VizSession::Config cfg{};
+    cfg.mode = DisplayMode::kOffscreen;
+    cfg.window_width = side;
+    cfg.window_height = side;
+    return cfg;
+}
+} // namespace
+
+TEST_CASE("VizSession rejects a ProjectionLayer sized off the recommended resolution", "[gpu][viz_session]")
+{
+    if (!is_gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
+    auto session = VizSession::create(offscreen_cfg());
+    REQUIRE(session != nullptr);
+
+    const Resolution rec = session->get_recommended_resolution();
+    ProjectionLayer::Config pcfg;
+    pcfg.view_resolution = { rec.width + 16, rec.height }; // deliberately wrong
+    // Built from the session's own context, so only the resolution check fires.
+    CHECK_THROWS_WITH(
+        session->add_layer<ProjectionLayer>(*session->get_vk_context(), pcfg), ContainsSubstring("view_resolution"));
+}
+
+TEST_CASE("VizSession enforces single ProjectionLayer XOR QuadLayers", "[gpu][viz_session]")
+{
+    if (!is_gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
+    const Resolution rec{ 64, 64 }; // offscreen recommended == window extent
+
+    SECTION("ProjectionLayer rejected when a QuadLayer is already present")
+    {
+        auto session = VizSession::create(offscreen_cfg());
+        QuadLayer::Config qcfg;
+        qcfg.name = "quad";
+        qcfg.resolution = { 64, 64 };
+        REQUIRE(session->add_layer<QuadLayer>(*session->get_vk_context(), session->get_render_pass(), qcfg) != nullptr);
+
+        ProjectionLayer::Config pcfg;
+        pcfg.view_resolution = rec;
+        CHECK_THROWS_WITH(
+            session->add_layer<ProjectionLayer>(*session->get_vk_context(), pcfg), ContainsSubstring("only layer"));
+    }
+
+    SECTION("QuadLayer rejected when a ProjectionLayer is already present")
+    {
+        auto session = VizSession::create(offscreen_cfg());
+        ProjectionLayer::Config pcfg;
+        pcfg.view_resolution = rec;
+        REQUIRE(session->add_layer<ProjectionLayer>(*session->get_vk_context(), pcfg) != nullptr);
+
+        QuadLayer::Config qcfg;
+        qcfg.name = "quad";
+        qcfg.resolution = { 64, 64 };
+        CHECK_THROWS_WITH(session->add_layer<QuadLayer>(*session->get_vk_context(), session->get_render_pass(), qcfg),
+                          ContainsSubstring("alongside a ProjectionLayer"));
+    }
+}
+
+TEST_CASE("VizSession rejects a layer built from a foreign VkContext", "[gpu][viz_session]")
+{
+    if (!is_gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
+    auto session = VizSession::create(offscreen_cfg());
+    REQUIRE(session != nullptr);
+
+    // A second, independent context/device — its images + semaphores would be
+    // used on the session's queue, which is invalid cross-device usage.
+    VkContext foreign;
+    foreign.init({});
+
+    ProjectionLayer::Config pcfg;
+    pcfg.view_resolution = session->get_recommended_resolution(); // correct size, wrong context
+    CHECK_THROWS_WITH(session->add_layer<ProjectionLayer>(foreign, pcfg), ContainsSubstring("different VkContext"));
 }

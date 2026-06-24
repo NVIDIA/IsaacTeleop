@@ -45,7 +45,7 @@ def _need_cupy():
     return cp
 
 
-def _make_session(width=64, height=64):
+def _make_session(width=32, height=32):
     cfg = viz.VizSessionConfig()
     cfg.mode = viz.DisplayMode.kOffscreen
     cfg.window_width = width
@@ -108,7 +108,7 @@ def test_add_projection_layer_mono_depth():
         arr = np.asarray(img)
         # Predominantly blue at the center; ProjectionLayer covers the
         # whole framebuffer.
-        r, g, b, _a = arr[32, 32]
+        r, g, b, _a = arr[16, 16]
         assert b > r and b > g
     finally:
         session.destroy()
@@ -179,7 +179,7 @@ def test_stereo_round_trip():
         # In offscreen (single-view), the LEFT buffer is sampled — so the
         # readback should be predominantly red.
         arr = np.asarray(session.readback_to_host())
-        r, g, b, _a = arr[32, 32]
+        r, g, b, _a = arr[16, 16]
         assert r > g and r > b
     finally:
         session.destroy()
@@ -208,7 +208,7 @@ def test_no_depth_layer():
         layer.submit(color)
         session.render()
         arr = np.asarray(session.readback_to_host())
-        r, g, b, _a = arr[32, 32]
+        r, g, b, _a = arr[16, 16]
         assert r > g and r > b
     finally:
         session.destroy()
@@ -255,7 +255,7 @@ def test_inloop_submit_pattern():
 
         # Final readback shows the submitted color.
         arr = np.asarray(session.readback_to_host())
-        r, g, b, _a = arr[32, 32]
+        r, g, b, _a = arr[16, 16]
         assert b > r and b > g
     finally:
         session.destroy()

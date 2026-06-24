@@ -312,11 +312,18 @@ void VizSession::update_timing_stats(float frame_time_seconds)
 
 void VizSession::validate_layer_against_backend_(LayerBase* layer) const
 {
-    // Only meaningful once a backend exists; layers may be constructed
-    // standalone in tests. The layer decides what (if anything) it requires.
+    // No backend yet (layers may be built standalone in tests) → nothing to check.
     if (layer == nullptr || backend_ == nullptr)
     {
         return;
+    }
+    // Context affinity: a foreign context's images/semaphores would be used on
+    // this session's queue — invalid cross-device usage.
+    if (layer->vk_context() != nullptr && layer->vk_context() != &ctx())
+    {
+        throw std::invalid_argument(
+            "VizSession: layer was created from a different VkContext than the session's; "
+            "build layers with VizSession::get_vk_context().");
     }
     const uint32_t backend_view_count = backend_->is_xr() ? 2u : 1u;
     layer->validate_backend_compatibility(

@@ -1,8 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+#include "inc/viz/layers/projection_layer.hpp"
+
 #include <viz/core/vk_context.hpp>
-#include <viz/layers/projection_layer.hpp>
 #include <viz/session/viz_session.hpp>
 
 #include <stdexcept>
@@ -365,8 +366,7 @@ void ProjectionLayer::validate_backend_compatibility(Resolution recommended_view
                                                      uint32_t backend_view_count,
                                                      uint32_t backend_image_count) const
 {
-    // Direct-present copies each view's image 1:1 into the swapchain, so the
-    // source resolution must equal the backend's per-view size.
+    // Images are copied 1:1 into the swapchain, so sizes must match.
     if (config_.view_resolution.width != recommended_view_resolution.width ||
         config_.view_resolution.height != recommended_view_resolution.height)
     {
@@ -376,16 +376,14 @@ void ProjectionLayer::validate_backend_compatibility(Resolution recommended_view
             std::to_string(recommended_view_resolution.width) + "x" + std::to_string(recommended_view_resolution.height) +
             "); use VizSession::get_recommended_resolution() to size the layer.");
     }
-    // A stereo display (kXr: 2 views) needs a layer that produces at least
-    // that many views, else an eye would be left blank. A stereo layer in a
-    // mono display is fine (the left eye is used).
+    // A stereo display needs >= that many views, else an eye is blank (a
+    // stereo layer on a mono display is fine — the left eye is used).
     if (view_count_ < backend_view_count)
     {
         throw std::invalid_argument("ProjectionLayer: a mono layer cannot drive a " + std::to_string(backend_view_count) +
                                     "-view (stereo) display; construct with Config::stereo = true.");
     }
-    // The per-frame in-use slot index is the backend's in-flight image index;
-    // it must fit the mailbox. Fail here at attach rather than mid-frame.
+    // The in-use slot is the backend's in-flight image index; fail at attach.
     if (backend_image_count > kMaxFramesInFlight)
     {
         throw std::invalid_argument(
