@@ -19,6 +19,7 @@ import sys
 import time
 from typing import Dict
 
+from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     HeadSource,
     HandsSource,
@@ -69,52 +70,58 @@ def _build_control_signals(
 
 
 def main() -> int:
-    head = HeadSource(name="head")
-    hands = HandsSource(name="hands")
-    controllers = ControllersSource(name="controllers")
+    with CloudXRLauncher():
+        head = HeadSource(name="head")
+        hands = HandsSource(name="hands")
+        controllers = ControllersSource(name="controllers")
 
-    main_pipeline = build_observation_pipeline(head, hands, controllers)
+        main_pipeline = build_observation_pipeline(head, hands, controllers)
 
-    control_signals = _build_control_signals(controllers)
-    teleop_manager = DefaultTeleopStateManager(name="teleop_manager")
-    teleop_control_pipeline = teleop_manager.connect(
-        {
-            teleop_manager.INPUT_KILL: control_signals["kill_signal"].output("value"),
-            teleop_manager.INPUT_RUN_TOGGLE: control_signals[
-                "run_toggle_signal"
-            ].output("value"),
-            teleop_manager.INPUT_RESET: control_signals["reset_signal"].output("value"),
-        }
-    )
+        control_signals = _build_control_signals(controllers)
+        teleop_manager = DefaultTeleopStateManager(name="teleop_manager")
+        teleop_control_pipeline = teleop_manager.connect(
+            {
+                teleop_manager.INPUT_KILL: control_signals["kill_signal"].output(
+                    "value"
+                ),
+                teleop_manager.INPUT_RUN_TOGGLE: control_signals[
+                    "run_toggle_signal"
+                ].output("value"),
+                teleop_manager.INPUT_RESET: control_signals["reset_signal"].output(
+                    "value"
+                ),
+            }
+        )
 
-    config = TeleopSessionConfig(
-        app_name="TeleopControlsSimpleExample",
-        pipeline=main_pipeline,
-        teleop_control_pipeline=teleop_control_pipeline,
-    )
+        config = TeleopSessionConfig(
+            app_name="TeleopControlsSimpleExample",
+            pipeline=main_pipeline,
+            teleop_control_pipeline=teleop_control_pipeline,
+        )
 
-    with TeleopSession(config) as session:
-        print_header()
+        with TeleopSession(config) as session:
+            print_header()
 
-        # Example high-level hook: a caller can gate robot power/control using context.
-        robot_enabled: bool | None = None
+            # Example high-level hook: a caller can gate robot power/control using context.
+            robot_enabled: bool | None = None
 
-        while True:
-            outputs = session.step()
-            context = session.last_context
-            if context is not None:
-                enabled_now = (
-                    context.execution_events.execution_state != ExecutionState.STOPPED
-                )
-                if robot_enabled is None or enabled_now != robot_enabled:
-                    robot_enabled = enabled_now
-                    print(f"[high-level] robot_enabled={robot_enabled}")
-                if context.execution_events.reset:
-                    print("[high-level] reset pulse received")
+            while True:
+                outputs = session.step()
+                context = session.last_context
+                if context is not None:
+                    enabled_now = (
+                        context.execution_events.execution_state
+                        != ExecutionState.STOPPED
+                    )
+                    if robot_enabled is None or enabled_now != robot_enabled:
+                        robot_enabled = enabled_now
+                        print(f"[high-level] robot_enabled={robot_enabled}")
+                    if context.execution_events.reset:
+                        print("[high-level] reset pulse received")
 
-            if session.frame_count % 30 == 0:
-                print_frame(outputs, session.get_elapsed_time())
-            time.sleep(0.016)
+                if session.frame_count % 30 == 0:
+                    print_frame(outputs, session.get_elapsed_time())
+                time.sleep(0.016)
     return 0
 
 

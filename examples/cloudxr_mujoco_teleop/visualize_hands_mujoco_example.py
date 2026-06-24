@@ -36,6 +36,7 @@ from scipy.spatial.transform import Rotation as R
 
 import isaacteleop.deviceio as deviceio
 import isaacteleop.oxr as oxr
+from isaacteleop.cloudxr import CloudXRLauncher
 
 
 # Route MuJoCo warnings to stderr instead of writing MUJOCO_LOG.TXT in CWD.
@@ -279,6 +280,7 @@ def main() -> int:
         action="store_true",
         help="Print per-hand valid-joint counts once per second.",
     )
+    CloudXRLauncher.add_launcher_arguments(ap)
     args = ap.parse_args()
 
     show_head = not args.no_head
@@ -296,52 +298,55 @@ def main() -> int:
     print(f"Extensions: {extensions}")
     print("Close the viewer window or Ctrl+C to quit.")
 
-    with (
-        oxr.OpenXRSession("VisualizeHandsMuJoCo", extensions) as oxr_session,
-        deviceio.DeviceIOSession.run(trackers, oxr_session.get_handles()) as session,
-        mujoco.viewer.launch_passive(
-            model, data, show_left_ui=False, show_right_ui=False
-        ) as viewer,
-    ):
-        # Restore Python's default SIGINT handler -- MuJoCo's viewer / GLFW main
-        # loop installs its own that can swallow Ctrl+C, leaving the user unable
-        # to exit the script. This makes Ctrl+C raise KeyboardInterrupt again.
-        signal.signal(signal.SIGINT, signal.default_int_handler)
+    with CloudXRLauncher.launch_context(args):
+        with (
+            oxr.OpenXRSession("VisualizeHandsMuJoCo", extensions) as oxr_session,
+            deviceio.DeviceIOSession.run(
+                trackers, oxr_session.get_handles()
+            ) as session,
+            mujoco.viewer.launch_passive(
+                model, data, show_left_ui=False, show_right_ui=False
+            ) as viewer,
+        ):
+            # Restore Python's default SIGINT handler -- MuJoCo's viewer / GLFW main
+            # loop installs its own that can swallow Ctrl+C, leaving the user unable
+            # to exit the script. This makes Ctrl+C raise KeyboardInterrupt again.
+            signal.signal(signal.SIGINT, signal.default_int_handler)
 
-        last_debug = 0.0
-        try:
-            while viewer.is_running():
-                session.update()
+            last_debug = 0.0
+            try:
+                while viewer.is_running():
+                    session.update()
 
-                if head_tracker is not None:
-                    head = head_tracker.get_head(session).data
-                    if head is not None and head.is_valid and head_mid is not None:
-                        pos, quat = _xr_pose_to_mj(
-                            head.pose.position, head.pose.orientation
+                    if head_tracker is not None:
+                        head = head_tracker.get_head(session).data
+                        if head is not None and head.is_valid and head_mid is not None:
+                            pos, quat = _xr_pose_to_mj(
+                                head.pose.position, head.pose.orientation
+                            )
+                            data.mocap_pos[head_mid] = pos
+                            data.mocap_quat[head_mid] = quat
+                            viewer.cam.lookat[:] = pos
+
+                    viewer.user_scn.ngeom = 0
+                    left = hand_tracker.get_left_hand(session).data
+                    right = hand_tracker.get_right_hand(session).data
+                    n_l = _draw_hand(viewer.user_scn, left, HAND_COLOURS["left"])
+                    n_r = _draw_hand(viewer.user_scn, right, HAND_COLOURS["right"])
+
+                    mujoco.mj_forward(model, data)
+                    viewer.sync()
+
+                    if args.debug and time.time() - last_debug >= 1.0:
+                        last_debug = time.time()
+                        print(
+                            f"hands: L {n_l:2d}/{deviceio.NUM_JOINTS}  "
+                            f"R {n_r:2d}/{deviceio.NUM_JOINTS} valid joints"
                         )
-                        data.mocap_pos[head_mid] = pos
-                        data.mocap_quat[head_mid] = quat
-                        viewer.cam.lookat[:] = pos
 
-                viewer.user_scn.ngeom = 0
-                left = hand_tracker.get_left_hand(session).data
-                right = hand_tracker.get_right_hand(session).data
-                n_l = _draw_hand(viewer.user_scn, left, HAND_COLOURS["left"])
-                n_r = _draw_hand(viewer.user_scn, right, HAND_COLOURS["right"])
-
-                mujoco.mj_forward(model, data)
-                viewer.sync()
-
-                if args.debug and time.time() - last_debug >= 1.0:
-                    last_debug = time.time()
-                    print(
-                        f"hands: L {n_l:2d}/{deviceio.NUM_JOINTS}  "
-                        f"R {n_r:2d}/{deviceio.NUM_JOINTS} valid joints"
-                    )
-
-                time.sleep(1 / 60)
-        except KeyboardInterrupt:
-            print()
+                    time.sleep(1 / 60)
+            except KeyboardInterrupt:
+                print()
 
     return 0
 
