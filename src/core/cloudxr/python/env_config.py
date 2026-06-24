@@ -18,10 +18,11 @@ from pathlib import Path
 class EnvConfig:
     """Singleton holding CloudXR env configuration and resolved state.
 
-    Configuration can come from three sources, with this precedence order:
+    Configuration can come from four sources, with this precedence order:
     1. Env file (highest precedence)
     2. Process environment variables
-    3. Hard-coded defaults in this class (_DEFAULT_ENV)
+    3. Launcher defaults (e.g. ``NV_DEVICE_PROFILE`` from :class:`~isaacteleop.cloudxr.launcher.CloudXRLauncher`)
+    4. Hard-coded defaults in this class (_DEFAULT_ENV)
 
     Process environment variables are primarily intended for containerized
     environments (for example Docker/docker-compose). For local development,
@@ -75,11 +76,13 @@ class EnvConfig:
         cls,
         install_dir: str,
         env_file: str | Path | None = None,
+        *,
+        launcher_defaults: dict[str, str] | None = None,
     ) -> "EnvConfig":
         """Create (or get) the singleton, set install dir, load/resolve/apply env, and return it."""
         cfg = cls()
         cfg._set_install_dir(install_dir)
-        cfg._load_resolve_and_apply(env_file)
+        cfg._load_resolve_and_apply(env_file, launcher_defaults=launcher_defaults)
         return cfg
 
     def openxr_run_dir(self) -> str:
@@ -166,6 +169,8 @@ class EnvConfig:
     def _load_resolve_and_apply(
         self,
         env_file: str | Path | None = None,
+        *,
+        launcher_defaults: dict[str, str] | None = None,
     ) -> dict[str, str]:
         """
         Load defaults, apply optional user env file overrides, resolve path vars,
@@ -182,7 +187,7 @@ class EnvConfig:
                 )
                 del overrides[key]
 
-        merged = self._merge_env(self._DEFAULT_ENV, overrides)
+        merged = self._merge_env(self._DEFAULT_ENV, launcher_defaults or {})
 
         # Respect existing process environment values (e.g. docker-compose
         # container env) unless explicitly overridden via env_file.
@@ -192,6 +197,8 @@ class EnvConfig:
             value = os.environ.get(key)
             if value is not None:
                 merged[key] = value
+
+        merged = self._merge_env(merged, overrides)
 
         return self._resolve_and_apply(merged)
 
