@@ -1,0 +1,78 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: CI Runner Hardening Audit
+
+on:
+  pull_request:
+  push:
+    branches: [ main, 'release/*.*.x' ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  docker-host-access-audit:
+    name: Docker host access audit
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    timeout-minutes: 5
+
+    steps:
+    - name: Checkout code
+      # actions/checkout@v6
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      with:
+        persist-credentials: false
+
+    - name: Reject privileged Docker host access in CI config
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        files=()
+        while IFS= read -r -d '' file; do
+          files+=("$file")
+        done < <(
+          find .github/workflows .github/actions \
+            -type f \( -name '*.yml' -o -name '*.yaml' \) \
+            ! -path '.github/workflows/ci-runner-hardening.yml' \
+            -print0
+        )
+
+        if [[ -f .gitlab-ci.yml ]]; then
+          files+=(".gitlab-ci.yml")
+        fi
+
+        if (( ${#files[@]} == 0 )); then
+          echo "No CI config files found to audit."
+          exit 0
+        fi
+
+        tmp_patterns="$(mktemp)"
+        cat > "${tmp_patterns}" <<'PATTERNS'
+        --privileged
+        /var/run/docker.sock
+        docker.sock:
+        docker.sock=
+        docker.sock/
+        privileged: true
+        DOCKER_HOST=unix://
+        DOCKER_HOST: unix://
+        PATTERNS
+
+        matches="$(grep -nFif "${tmp_patterns}" -- "${files[@]}" || true)"
+        rm -f "${tmp_patterns}"
+
+        if [[ -n "${matches}" ]]; then
+          echo "Found CI configuration that grants Docker host-level access:"
+          echo "${matches}"
+          echo
+          echo "Use a daemonless builder or a least-privilege runner instead of privileged Docker or Docker socket mounts."
+          exit 1
+        fi
+
+        echo "No privileged Docker or Docker socket CI configuration found."
