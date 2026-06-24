@@ -32,6 +32,7 @@
  */
 
 import {
+  detectDeviceProfileId,
   getDeviceProfile,
   resolveDeviceProfileId,
   type DeviceProfileId,
@@ -217,6 +218,9 @@ export class CloudXR2DUI {
       }
       this.applyTeleopPath();
 
+      // Before URL seeds so explicit params still win: on a fresh load, default the
+      // device profile from the headset UA and apply its values.
+      this.applyDefaultDeviceProfileFromUserAgent();
       this.applyUrlSeeds();
       this.setupProxyConfiguration();
       this.renderUrlParamsHelp();
@@ -328,6 +332,26 @@ export class CloudXR2DUI {
     }
 
     select.selectedIndex = 0;
+  }
+
+  /**
+   * On a fresh load (no stored device-profile choice), default the Device Profile from the
+   * headset user-agent and apply its values to the form. A stored 'deviceProfile' suppresses
+   * this — it is written whenever the user picks a profile or edits any profile-linked field
+   * (setProfileToCustomIfNeeded), so we never override an explicit choice. Not persisted, so
+   * detection re-runs each fresh load until the user makes a choice. Runs before applyUrlSeeds()
+   * so URL params still win.
+   */
+  private applyDefaultDeviceProfileFromUserAgent(): void {
+    let stored: string | null = null;
+    try {
+      stored = localStorage.getItem('deviceProfile');
+    } catch (_) {}
+    if (stored != null) return;
+    const detected = detectDeviceProfileId();
+    if (detected === 'custom') return;
+    this.deviceProfileSelect.value = detected;
+    this.applyDeviceProfileToForm(detected);
   }
 
   /**
@@ -724,6 +748,23 @@ export class CloudXR2DUI {
         this.resetToDefaults();
       }
     });
+
+    // Headset on-screen keyboards sometimes lack a minus key, so offsets can't be typed
+    // negative. Each ± button (data-target = input id) flips its field's sign. Dispatch
+    // 'change' so the existing offset listeners (updateConfiguration + localStorage) run.
+    for (const btn of Array.from(
+      document.querySelectorAll<HTMLButtonElement>('.input-sign-btn')
+    )) {
+      const targetId = btn.dataset.target;
+      if (!targetId) continue;
+      const input = document.getElementById(targetId) as HTMLInputElement | null;
+      if (!input) continue;
+      addListener(btn, 'click', () => {
+        const value = parseFloat(input.value);
+        input.value = String(Number.isFinite(value) ? -value : 0);
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    }
 
     addListener(this.deviceProfileSelect, 'change', () => {
       this.applyDeviceProfileToForm(resolveDeviceProfileId(this.deviceProfileSelect.value));
