@@ -17,10 +17,12 @@
 
 const { merge } = require('webpack-merge');
 const common = require('./webpack.common.js');
+const { chunkFilename, chunkOptimization, msdfInlineRules } = require('./webpack.chunkNames.js');
 
 module.exports = merge(common, {
   mode: 'production',
-  // Inline async chunks (from @pmndrs/xr emulate.js and @pmndrs/uikit msdf-generator)
-  // into bundle.js so the build produces a single JS file alongside index.html.
-  output: { asyncChunks: false },
+  // Remove stale chunks when dependency graph changes between builds.
+  output: { clean: true, chunkFilename },
+  module: msdfInlineRules,
+  optimization: chunkOptimization,
 });

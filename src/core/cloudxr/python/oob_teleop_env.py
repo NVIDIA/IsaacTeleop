@@ -84,8 +84,9 @@ TELEOP_WEB_CLIENT_BASE_ENV = "TELEOP_WEB_CLIENT_BASE"
 TELEOP_CLIENT_ROUTE_ENV = "TELEOP_CLIENT_ROUTE"
 DEFAULT_TELEOP_CLIENT_ROUTE = ""
 
-# Directory with prebuilt WebXR assets (``index.html`` + ``bundle.js``). Optional for ``--usb-local``:
-# defaults to ``~/.cloudxr/static-client``; missing files are fetched from published URLs.
+# Directory with prebuilt WebXR assets (``index.html``, ``bundle.js``,
+# ``bundle.emulator.js``). Optional for ``--usb-local``: defaults to
+# ``~/.cloudxr/static-client``; missing files are fetched from published URLs.
 TELEOP_WEB_CLIENT_STATIC_DIR_ENV = "TELEOP_WEB_CLIENT_STATIC_DIR"
 
 CHROME_INSPECT_DEVICES_URL = "chrome://inspect/#devices"
@@ -159,6 +160,7 @@ def _fetch_url_bytes(url: str, *, timeout: float = 120.0) -> bytes:
 
 
 def _write_atomic_bytes(dest: Path, data: bytes) -> None:
+    """Write *data* to *dest* atomically via a ``.part`` temp file."""
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_name(dest.name + ".part")
     try:
@@ -173,11 +175,17 @@ def _write_atomic_bytes(dest: Path, data: bytes) -> None:
         raise
 
 
+_REQUIRED_WEB_CLIENT_ASSETS = ("index.html", "bundle.js")
+# Hardcoded — any new async chunk emitted by webpack must be added here manually.
+_OPTIONAL_WEB_CLIENT_ASSETS = ("bundle.emulator.js",)
+
+
 def require_web_client_static_dir() -> Path:
     """Ensure web client static assets exist under :func:`resolve_web_client_static_dir`.
 
-    Creates the directory if needed. If ``index.html`` or ``bundle.js`` is missing or empty,
-    downloads from the published Isaac Teleop client URLs.
+    Creates the directory if needed. If ``index.html``, ``bundle.js``, or
+    ``bundle.emulator.js`` is missing or empty, downloads from the published
+    Isaac Teleop client URLs (emulator bundle is optional on older releases).
 
     Idempotent: safe to call from both :class:`~.launcher.CloudXRLauncher` and ``wss.run``
     (second call skips network when files are present).
@@ -195,16 +203,24 @@ def require_web_client_static_dir() -> Path:
         ) from exc
 
     client_origin = default_web_client_origin()
-    assets = (
-        ("index.html", urljoin(client_origin, "index.html")),
-        ("bundle.js", urljoin(client_origin, "bundle.js")),
-    )
+    assets = [
+        (name, urljoin(client_origin, name))
+        for name in (*_REQUIRED_WEB_CLIENT_ASSETS, *_OPTIONAL_WEB_CLIENT_ASSETS)
+    ]
     for name, url in assets:
         dest = p / name
         if dest.is_file() and dest.stat().st_size > 0:
             continue
         log.info("web client: fetching %s → %s", url, dest)
-        data = _fetch_url_bytes(url)
+        try:
+            data = _fetch_url_bytes(url)
+        except RuntimeError as exc:
+            if name in _OPTIONAL_WEB_CLIENT_ASSETS:
+                log.warning(
+                    "web client: optional asset %s not available: %s", name, exc
+                )
+                continue
+            raise
         if not data:
             raise RuntimeError(f"Downloaded empty body from {url}")
         try:
@@ -212,7 +228,7 @@ def require_web_client_static_dir() -> Path:
         except OSError as exc:
             raise RuntimeError(f"Failed to write {dest}: {exc}") from exc
 
-    for name in ("index.html", "bundle.js"):
+    for name in _REQUIRED_WEB_CLIENT_ASSETS:
         fp = p / name
         if not fp.is_file() or fp.stat().st_size == 0:
             raise RuntimeError(f"Web client file missing or empty after fetch: {fp}")
@@ -234,13 +250,18 @@ def _wait_for_port(host: str, port: int, timeout: float) -> bool:
 def _usb_local_static_handler_class(
     static_root: Path,
 ) -> type[http.server.SimpleHTTPRequestHandler]:
+    """Return a :class:`~http.server.SimpleHTTPRequestHandler` subclass rooted at *static_root*."""
     root = str(static_root.resolve())
 
     class _Handler(http.server.SimpleHTTPRequestHandler):
+        """HTTP request handler pinned to the resolved *static_root* directory."""
+
         def __init__(self, *args, **kwargs):
+            """Initialise with *directory* forced to *root*."""
             super().__init__(*args, directory=root, **kwargs)
 
         def log_message(self, fmt: str, *args) -> None:
+            """Redirect access log lines to the module ``debug`` logger."""
             log.debug("%s - %s", self.address_string(), fmt % args)
 
     return _Handler
@@ -314,6 +335,7 @@ def stop_usb_local_https_server(
 
 
 def web_client_base_override_from_env() -> str | None:
+    """Return the stripped ``TELEOP_WEB_CLIENT_BASE`` value, or ``None`` if unset/blank."""
     v = os.environ.get(TELEOP_WEB_CLIENT_BASE_ENV, "").strip()
     return v or None
 
