@@ -5,8 +5,9 @@ Televiz
 =======
 
 Televiz (``isaacteleop.viz``) is a lightweight compositor for Isaac Teleop. It composites camera and
-sensor feeds — with 3D rendered content coming soon — into an XR headset, a desktop window, or an
-offscreen buffer, integrating directly with the device-tracking and retargeting pipeline.
+sensor feeds, plus 3D rendered content (gsplat, nvblox, neural reconstruction), into an XR headset, a
+desktop window, or an offscreen buffer, integrating directly with the device-tracking and retargeting
+pipeline.
 
 It is a **compositor**, not a capture or streaming layer: it consumes GPU frames and assembles them
 into a final image. Camera capture, decode, and network transport live in the application (see
@@ -29,16 +30,17 @@ which owns the Vulkan context, the display target, the OpenXR session (in XR mod
 of **layers**. Content producers submit GPU buffers to layers; the session composites every layer
 into one frame each time you call ``render()``.
 
-The built-in layer type today is
-:code-file:`QuadLayer <src/viz/layers/cpp/inc/viz/layers/quad_layer.hpp>` — a CUDA-fed 2D texture
-plane (mono or stereo), optionally placed in 3D space. Use it for camera feeds.
+Two layer types are available:
 
-.. note::
+* :code-file:`QuadLayer <src/viz/layers/cpp/inc/viz/layers/quad_layer.hpp>` — a CUDA-fed 2D texture
+  plane (mono or stereo), optionally placed in 3D space. Use it for camera feeds.
+* :code-file:`ProjectionLayer <src/viz/layers/cpp/inc/viz/layers/projection_layer.hpp>` — a full-view
+  RGBD layer for external renderers (gsplat, nvblox, neural reconstruction) that produce per-view
+  ``(color, depth)`` buffers. Use it to present a rendered 3D scene from the current head pose.
 
-   **Coming soon:** ``ProjectionLayer``, a full-view stereo RGBD layer for external renderers
-   (gsplat, nvblox, neural reconstruction) that produce per-view ``(color, depth)`` buffers,
-   Z-composited with quads. It is not yet available in this release — see `ProjectionLayer
-   (coming soon)`_ below.
+A session holds **either** one ``ProjectionLayer`` **or** any number of ``QuadLayer`` s, not both:
+quads composite into a shared render target, while a projection layer is presented directly (see
+`ProjectionLayer`_).
 
 All symbols are imported from the top-level module::
 
@@ -212,19 +214,63 @@ For a stereo layer both buffers are copied on the same stream and signaled toget
 never sees a half-matched pair. Lock-mode placement strategies (``world`` / ``head`` / ``lazy``) are
 **application policy** and ship in the sample, not in the module.
 
-ProjectionLayer (coming soon)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ProjectionLayer
+^^^^^^^^^^^^^^^
 
-.. note::
+A full-view RGBD layer for **in-loop** renderers — gsplat, nvblox, or neural reconstruction engines
+that produce per-view ``(color, depth)`` buffers. Configure it with ``ProjectionLayerConfig``:
 
-   ``ProjectionLayer`` is under active development and **not yet available in this release**. The
-   description below is a preview of the planned API and may change.
+.. list-table::
+   :header-rows: 1
+   :widths: 25 75
 
-A planned full-view RGBD layer for in-loop renderers — gsplat, nvblox, or neural reconstruction
-engines that produce per-view ``(color, depth)`` buffers. Unlike ``QuadLayer``, the renderer will
-run **in-loop** with the XR frame loop: render against the predicted view poses from the current
-frame, then submit between ``begin_frame()`` and ``end_frame()``. Output is composited with depth,
-so it Z-combines with quad layers.
+   * - Field
+     - Description
+   * - ``name``
+     - Layer name.
+   * - ``view_resolution``
+     - Per-view render resolution. **Must equal** ``session.get_recommended_resolution()`` — the
+       layer's images are copied 1:1 into the presentation swapchains (per-eye in XR). A mismatch
+       is rejected by ``add_projection_layer``.
+   * - ``color_format``
+     - ``PixelFormat.kRGBA8``.
+   * - ``depth_format``
+     - ``PixelFormat.kD32F`` (default) so the depth reaches the XR runtime for positional
+       reprojection, or ``None`` to present color only.
+   * - ``stereo``
+     - ``True`` for per-eye buffers. A stereo (XR) display **requires** a stereo layer; a mono layer
+       is rejected at ``add_projection_layer``.
+
+Unlike ``QuadLayer``, a projection layer is **direct-present**: each view's ``(color, depth)`` is
+copied straight into the presentation swapchains (no shared render target). Because of that a session
+holds *either* one ``ProjectionLayer`` *or* any number of ``QuadLayer`` s, never both.
+
+The renderer runs **in-loop** with the frame loop: read the predicted view poses from the
+``FrameInfo`` returned by ``begin_frame()``, render against them, then ``submit()`` before
+``end_frame()``:
+
+.. code-block:: python
+
+   cfg = televiz.ProjectionLayerConfig()
+   cfg.view_resolution = session.get_recommended_resolution()
+   cfg.stereo = session.is_xr_mode()
+   layer = session.add_projection_layer(cfg)
+
+   while running:
+       info = session.begin_frame()
+       if info.should_render:
+           # Render against THIS frame's per-eye poses (info.views[i].pose + .fov).
+           color, depth = renderer.render(info.views)        # RGBA8 + D32F CUDA buffers
+           if layer.stereo:
+               layer.submit(left_color, left_depth, right_color, right_depth, stream=cuda_stream)
+           else:
+               layer.submit(color, depth, stream=cuda_stream)
+       session.end_frame()
+
+If the renderer is slower than display rate, the runtime / CloudXR paces the app via ``xrWaitFrame``
+and reprojects the last submitted frame at display rate. In XR, a visible layer that does **not**
+submit for a frame presents nothing (the swapchains are cleared) rather than reproject stale RGBD
+under a new pose.
 
 Frame loop
 ----------
