@@ -56,6 +56,7 @@ jobs:
         cat > "${tmp_patterns}" <<'PATTERNS'
         --privileged
         /var/run/docker.sock
+        /run/docker.sock
         docker.sock:
         docker.sock=
         docker.sock/
