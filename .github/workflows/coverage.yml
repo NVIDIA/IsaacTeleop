@@ -25,9 +25,11 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6
+      # actions/checkout@v6
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       with:
         fetch-depth: 0
+        persist-credentials: false
 
     - name: Install uv
       uses: ./.github/actions/setup-uv
@@ -81,7 +83,7 @@ jobs:
         )
 
         gcovr "${gcovr_args[@]}" --txt --output coverage/summary.txt --print-summary | tee coverage/totals.txt
-        gcovr "${gcovr_args[@]}" --xml-pretty --output coverage/coverage.xml
+        gcovr "${gcovr_args[@]}" --xml-pretty --output coverage/cobertura.xml
         gcovr "${gcovr_args[@]}" --html-details --output coverage/html/index.html
 
     - name: Publish coverage summary
@@ -97,18 +99,19 @@ jobs:
           cat coverage/totals.txt
           echo '```'
           echo
-          echo "Download the \`isaacteleop-coverage\` artifact for the HTML report and Cobertura XML."
+          echo "Download the \`isaacteleop-coverage\` artifact for the HTML report and \`coverage/cobertura.xml\`."
         } >> "${GITHUB_STEP_SUMMARY}"
 
     - name: Upload coverage artifact
       if: ${{ always() }}
-      uses: actions/upload-artifact@v6
+      # actions/upload-artifact@v6
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
       with:
         name: isaacteleop-coverage
         path: |
           coverage/summary.txt
           coverage/totals.txt
-          coverage/coverage.xml
+          coverage/cobertura.xml
           coverage/html
-        if-no-files-found: warn
+        if-no-files-found: error
         retention-days: 14
