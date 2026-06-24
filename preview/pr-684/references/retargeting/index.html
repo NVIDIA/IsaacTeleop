@@ -45,7 +45,7 @@
 
 
 
-    <script src="../../_static/documentation_options.js?v=fb5244e5"></script>
+    <script src="../../_static/documentation_options.js?v=7509b52b"></script>
     <script src="../../_static/doctools.js?v=9bcbadda"></script>
     <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -64,7 +64,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.3.x" />
+  <meta name="docsearch:version" content="1.4.x" />
   
     
     <script src="../../_static/searchtools.js"></script>
@@ -352,6 +352,7 @@
 <li class="toctree-l1 current active has-children"><a class="current reference internal" href="#">Retargeting Interface</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="sharpa.html">Retargeter: Manus to Sharpa</a></li>
 <li class="toctree-l2"><a class="reference internal" href="so101.html">Retargeters: SO-101 (5-DOF arm)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="joint_space.html">Retargeter: Joint-Space Device</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../camera_streaming.html">Camera Streaming</a></li>
@@ -421,6 +422,8 @@
 <li><p><code class="docutils literal notranslate"><span class="pre">HandsSource</span></code> – provides hand tracking data (left/right, 26 joints each).</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">ControllersSource</span></code> – provides motion controller data (grip pose, trigger, thumbstick, etc.).</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">Generic3AxisPedalSource</span></code> – provides 3-axis foot pedal data (left/right pedals, rudder).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">JointStateSource</span></code> – provides name-keyed joint positions from a generic joint-space device
+(leader arm, exoskeleton, …). See <a class="reference internal" href="joint_space.html"><span class="doc">Retargeter: Joint-Space Device</span></a>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">FullBodySource</span></code> – provides full-body pose (e.g. Pico tracking).</p></li>
 </ul>
 </section>
@@ -462,6 +465,15 @@ around an origin captured on engage (no teleport) and composes a fixed orientati
 calibration offset onto the grip orientation so the gripper pose follows the controller pose.
 <code class="docutils literal notranslate"><span class="pre">SO101GripperRetargeter</span></code> maps the trigger to a proportional jaw closedness in <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code>.
 See <a class="reference internal" href="so101.html"><span class="doc">Retargeters: SO-101 (5-DOF arm)</span></a> for the full setup.</p>
+</div>
+</details><details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header">
+<span class="sd-summary-text">JointStateRetargeter</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<p class="sd-card-text">Maps a name-keyed joint-state input (from <code class="docutils literal notranslate"><span class="pre">JointStateSource</span></code>) to an action for a generic
+joint-space device – leader arm, exoskeleton, etc. Two modes via <code class="docutils literal notranslate"><span class="pre">JointStateRetargeterConfig</span></code>:
+<code class="docutils literal notranslate"><span class="pre">&quot;joint&quot;</span></code> (lossless leader -&gt; follower mirror with optional per-joint affine; no extra deps)
+and <code class="docutils literal notranslate"><span class="pre">&quot;ee_pose&quot;</span></code> (URDF forward kinematics -&gt; 7D EE pose + gripper, requires <code class="docutils literal notranslate"><span class="pre">pinocchio</span></code>).
+See <a class="reference internal" href="joint_space.html"><span class="doc">Retargeter: Joint-Space Device</span></a> for the full setup, modes, and the SO-101 example.</p>
 </div>
 </details><details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
@@ -749,6 +761,7 @@ and <a class="reference internal" href="../../getting_started/contributing.html"
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="sharpa.html">Retargeter: Manus to Sharpa</a></li>
 <li class="toctree-l1"><a class="reference internal" href="so101.html">Retargeters: SO-101 (5-DOF arm)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="joint_space.html">Retargeter: Joint-Space Device</a></li>
 </ul>
 </div>
 </section>
@@ -889,7 +902,7 @@ and <a class="reference internal" href="../../getting_started/contributing.html"
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on June 23, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on June 24, 2026.
       <br/>
     
   </p>
