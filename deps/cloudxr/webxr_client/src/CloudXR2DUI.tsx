@@ -74,6 +74,13 @@ import {
 type AppConfig = CloudXRConfig & ReactUIConfig;
 
 /**
+ * localStorage key for the teleop-start countdown. Owned by the countdown feature in
+ * App.tsx but defined here with the other storage keys so reset clears the same key the
+ * feature writes. (Imported by App.tsx; App already depends on this module, so no cycle.)
+ */
+export const COUNTDOWN_STORAGE_KEY = 'cxr.react.countdownSeconds';
+
+/**
  * 2D UI Management for CloudXR React Example
  * Handles the main user interface for CloudXR streaming, including form management,
  * localStorage persistence, and user interaction controls.
@@ -568,11 +575,11 @@ export class CloudXR2DUI {
       }
       // Per-project debug settings persist under `cxr.isaac.<key>|<teleopPath>`
       // (see helpers/react/utils savePerProject); reset only the active application's.
-      for (const key of ['panelHiddenAtStart', 'headless']) {
+      for (const key of CloudXR2DUI.PER_PROJECT_SETTING_KEYS) {
         localStorage.removeItem(`cxr.isaac.${key}|${this.teleopPath}`);
       }
-      // Teleop-start countdown is owned by App.tsx (COUNTDOWN_STORAGE_KEY); keep this in sync.
-      localStorage.removeItem('cxr.react.countdownSeconds');
+      // Teleop-start countdown (owned by App.tsx's countdown feature).
+      localStorage.removeItem(COUNTDOWN_STORAGE_KEY);
       // Advanced groups' expanded/collapsed state (cxr.group.<id>).
       for (let i = localStorage.length - 1; i >= 0; i--) {
         const k = localStorage.key(i);
@@ -622,6 +629,13 @@ export class CloudXR2DUI {
 
   /** localStorage key prefix for each collapsible advanced group's open/closed state. */
   private static readonly GROUP_STATE_PREFIX = 'cxr.group.';
+
+  /**
+   * Settings persisted per teleop application under `cxr.isaac.<key>|<teleopPath>`
+   * (see {@link applyPerProjectSettings} and helpers/react/utils savePerProject).
+   * Centralized so resetToDefaults clears exactly the keys the per-project handlers write.
+   */
+  private static readonly PER_PROJECT_SETTING_KEYS = ['panelHiddenAtStart', 'headless'];
 
   /**
    * Restore each advanced group's expanded/collapsed state from localStorage and persist it on
@@ -797,8 +811,10 @@ export class CloudXR2DUI {
       const input = document.getElementById(targetId) as HTMLInputElement | null;
       if (!input) continue;
       addListener(btn, 'click', () => {
+        // Pure sign flip: a no-op on an empty/non-numeric field rather than inserting 0.
         const value = parseFloat(input.value);
-        input.value = String(Number.isFinite(value) ? -value : 0);
+        if (!Number.isFinite(value)) return;
+        input.value = String(-value);
         input.dispatchEvent(new Event('change', { bubbles: true }));
       });
     }

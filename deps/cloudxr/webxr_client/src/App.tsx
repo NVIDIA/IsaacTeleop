@@ -58,7 +58,7 @@ import type { XRDevice } from 'iwer';
 import { useState, useMemo, useEffect, useRef } from 'react';
 
 import { v5 } from 'uuid';
-import { CloudXR2DUI } from './CloudXR2DUI';
+import { CloudXR2DUI, COUNTDOWN_STORAGE_KEY } from './CloudXR2DUI';
 import { readUrlParam } from './config/resolve';
 import CloudXR3DUI from './CloudXRUI';
 import { HeadsetControlChannel } from '@helpers/controlChannel';
@@ -136,7 +136,6 @@ function buildOobHubWsUrlFromQuery(searchParams: URLSearchParams): string | null
 
 function App() {
   const COUNTDOWN_MAX_SECONDS = 9;
-  const COUNTDOWN_STORAGE_KEY = 'cxr.react.countdownSeconds';
   // 2D UI management
   const [cloudXR2DUI, setCloudXR2DUI] = useState<CloudXR2DUI | null>(null);
   // IWER loading state
