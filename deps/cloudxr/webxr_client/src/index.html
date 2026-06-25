@@ -944,22 +944,6 @@ limitations under the License.
                     <summary>Image quality</summary>
                     <div class="settings-group-body">
                         <div class="config-section">
-                            <label class="input-label">Maximum Streaming Bitrate</label>
-                            <label for="maxStreamingBitrateMbps" class="input-label">Megabits per second</label>
-                            <select id="maxStreamingBitrateMbps" class="ui-input config-input">
-                                <option value="80">80 Mbps</option>
-                                <option value="100">100 Mbps</option>
-                                <option value="120">120 Mbps</option>
-                                <option value="150" selected>150 Mbps</option>
-                                <option value="180">180 Mbps</option>
-                                <option value="200">200 Mbps</option>
-                            </select>
-                            <div class="config-text">
-                                Select the maximum streaming bitrate (in Megabits per second) for the XR session
-                            </div>
-                        </div>
-
-                        <div class="config-section">
                             <label class="input-label">Frame Rate Configuration</label>
                             <label for="deviceFrameRate" class="input-label">Device Frame Rate</label>
                             <select id="deviceFrameRate" class="ui-input config-input">
@@ -995,6 +979,47 @@ limitations under the License.
                             <div id="reprojectionGridRowsValidationMessage" class="config-text" aria-live="polite"></div>
                             <div class="config-text">
                                 Grid rules: leave either field blank to use factor mode, or set both to integers >= 2 for explicit mesh resolution.
+                            </div>
+                        </div>
+                    </div>
+                </details>
+
+                <details class="settings-group">
+                    <summary>Networking</summary>
+                    <div class="settings-group-body">
+                        <div class="config-section">
+                            <label class="input-label">Maximum Streaming Bitrate</label>
+                            <label for="maxStreamingBitrateMbps" class="input-label">Megabits per second</label>
+                            <select id="maxStreamingBitrateMbps" class="ui-input config-input">
+                                <option value="80">80 Mbps</option>
+                                <option value="100">100 Mbps</option>
+                                <option value="120">120 Mbps</option>
+                                <option value="150" selected>150 Mbps</option>
+                                <option value="180">180 Mbps</option>
+                                <option value="200">200 Mbps</option>
+                            </select>
+                            <div class="config-text">
+                                Maximum streaming bitrate (Megabits per second). Lower it on constrained networks.
+                            </div>
+                        </div>
+
+                        <div class="config-section">
+                            <label class="input-label">Proxy Configuration</label>
+                            <label for="proxyUrl" class="input-label">Proxy URL</label>
+                            <input id="proxyUrl" class="ui-input config-input" type="text" placeholder="" spellcheck="false">
+                            <div class="config-text">
+                                <span id="proxyDefaultText"></span>
+                            </div>
+                        </div>
+
+                        <div class="config-section">
+                            <label class="input-label">Media Server Configuration (Optional)</label>
+                            <label for="mediaAddress" class="input-label">Media Address</label>
+                            <input id="mediaAddress" class="ui-input config-input" type="text" placeholder="e.g., 192.168.1.100" spellcheck="false" autocapitalize="off">
+                            <label for="mediaPort" class="input-label">Media Port</label>
+                            <input id="mediaPort" class="ui-input config-input" type="number" placeholder="Port (use 0 for auto)" spellcheck="false" min="0" max="65535">
+                            <div class="config-text">
+                                Configure WebRTC media server address and port for NAT traversal. Only needed when the streaming server is behind NAT. Leave empty to use server-provided ICE information.
                             </div>
                         </div>
                     </div>
@@ -1041,7 +1066,7 @@ limitations under the License.
                 </details>
 
                 <details class="settings-group">
-                    <summary>Advanced / troubleshooting</summary>
+                    <summary>Troubleshooting</summary>
                     <div class="settings-group-body">
                         <div class="config-section">
                             <label for="enablePoseSmoothing" class="input-label">Pose Smoothing</label>
@@ -1083,26 +1108,6 @@ limitations under the License.
                             </select>
                             <div class="config-text">
                                 Enable Display P3 color space workaround. Recommended for Quest 3 Browser.
-                            </div>
-                        </div>
-
-                        <div class="config-section">
-                            <label class="input-label">Proxy Configuration</label>
-                            <label for="proxyUrl" class="input-label">Proxy URL</label>
-                            <input id="proxyUrl" class="ui-input config-input" type="text" placeholder="" spellcheck="false">
-                            <div class="config-text">
-                                <span id="proxyDefaultText"></span>
-                            </div>
-                        </div>
-
-                        <div class="config-section">
-                            <label class="input-label">Media Server Configuration (Optional)</label>
-                            <label for="mediaAddress" class="input-label">Media Address</label>
-                            <input id="mediaAddress" class="ui-input config-input" type="text" placeholder="e.g., 192.168.1.100" spellcheck="false" autocapitalize="off">
-                            <label for="mediaPort" class="input-label">Media Port</label>
-                            <input id="mediaPort" class="ui-input config-input" type="number" placeholder="Port (use 0 for auto)" spellcheck="false" min="0" max="65535">
-                            <div class="config-text">
-                                Configure WebRTC media server address and port for NAT traversal. Only needed when the streaming server is behind NAT. Leave empty to use server-provided ICE information.
                             </div>
                         </div>
 
