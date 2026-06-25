@@ -225,6 +225,7 @@ export class CloudXR2DUI {
       this.setupProxyConfiguration();
       this.renderUrlParamsHelp();
       this.setupEventListeners();
+      this.restoreGroupExpandedState();
       // Set initial display value
       this.posePredictionFactorValue.textContent = this.posePredictionFactorInput.value;
       this.updateConfiguration();
@@ -572,6 +573,13 @@ export class CloudXR2DUI {
       }
       // Teleop-start countdown is owned by App.tsx (COUNTDOWN_STORAGE_KEY); keep this in sync.
       localStorage.removeItem('cxr.react.countdownSeconds');
+      // Advanced groups' expanded/collapsed state (cxr.group.<id>).
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(CloudXR2DUI.GROUP_STATE_PREFIX)) {
+          localStorage.removeItem(k);
+        }
+      }
     } catch (error) {
       console.warn('Failed to clear stored settings:', error);
     }
@@ -609,6 +617,32 @@ export class CloudXR2DUI {
       li.appendChild(code);
       li.appendChild(document.createTextNode(` — ${param.description}`));
       this.urlParamsHelpList.appendChild(li);
+    }
+  }
+
+  /** localStorage key prefix for each collapsible advanced group's open/closed state. */
+  private static readonly GROUP_STATE_PREFIX = 'cxr.group.';
+
+  /**
+   * Restore each advanced group's expanded/collapsed state from localStorage and persist it on
+   * toggle, so a user's "open" sections stay open across reloads. Keyed by the group's element id.
+   */
+  private restoreGroupExpandedState(): void {
+    const groups = document.querySelectorAll<HTMLDetailsElement>('details.settings-group[id]');
+    for (const group of Array.from(groups)) {
+      const key = `${CloudXR2DUI.GROUP_STATE_PREFIX}${group.id}`;
+      try {
+        const saved = localStorage.getItem(key);
+        if (saved === 'true') group.open = true;
+        else if (saved === 'false') group.open = false;
+      } catch (_) {}
+      const handler = () => {
+        try {
+          localStorage.setItem(key, String(group.open));
+        } catch (_) {}
+      };
+      group.addEventListener('toggle', handler);
+      this.eventListeners.push({ element: group, event: 'toggle', handler });
     }
   }
 

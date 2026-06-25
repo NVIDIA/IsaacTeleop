@@ -817,7 +817,7 @@ limitations under the License.
                     <span id="errorMessageText"></span>
                 </div>
 
-                <h2 class="settings-title">Settings</h2>
+                <h2 class="settings-title">Connectivity Settings</h2>
 
                 <form id="settingsForm">
                     <label for="serverType" class="input-label">Select Server Backend</label>
@@ -842,12 +842,6 @@ limitations under the License.
                             <a id="certLink" href="#" target="_blank" rel="noopener noreferrer"></a>
                         </div>
                     </div>
-
-                    <label for="immersive" class="input-label">Immersive Mode</label>
-                    <select id="immersive" name="immersive" class="ui-input" aria-label="Select immersive mode">
-                        <option value="ar" selected>AR Immersive</option>
-                        <option value="vr">VR Immersive</option>
-                    </select>
                 </form>
             </aside>
 
@@ -858,14 +852,37 @@ limitations under the License.
                         aria-label="Reset all settings to defaults">Reset to defaults</button>
                 </div>
                 <p class="debug-intro">
-                    To get going: pick your headset to load good defaults, then set the reference space and
-                    offsets so your view lines up. The advanced groups below stay folded — open one only to
-                    tune the picture or troubleshoot. Any setting can also be preset with a URL query
-                    parameter (see "URL parameters" at the bottom).
+                    Pick your immersive mode and codec, then connect. Everything else is grouped and folded
+                    below — open a section only when you need it. Any setting can also be preset with a URL
+                    query parameter (see "URL parameters" at the bottom).
                 </p>
 
-                <!-- Basic, always-visible step: device profile bulk-fills the advanced groups below with
-                     headset-appropriate defaults, so it is the one control a first-time operator needs. -->
+                <!-- Immersive mode and codec are the session settings operators change most, so they stay
+                     visible here alongside the connectivity settings. -->
+                <div class="config-section">
+                    <label for="immersive" class="input-label">Immersive Mode</label>
+                    <select id="immersive" name="immersive" class="ui-input config-input" aria-label="Select immersive mode">
+                        <option value="ar" selected>AR Immersive</option>
+                        <option value="vr">VR Immersive</option>
+                    </select>
+                </div>
+
+                <div class="config-section">
+                    <label for="codec" class="input-label">Video Codec</label>
+                    <select id="codec" class="ui-input config-input">
+                        <option value="h264">H.264</option>
+                        <option value="h265">H.265 (HEVC)</option>
+                        <option value="av1" selected>AV1</option>
+                    </select>
+                    <div class="config-text">
+                        Select the preferred streaming codec. Availability depends on browser and server support.
+                    </div>
+                </div>
+
+                <h4 class="advanced-divider">Advanced settings</h4>
+
+                <!-- Device Profile auto-detects from the headset user-agent and bulk-fills the groups
+                     below, so it lives under Advanced; change it only to override the detected defaults. -->
                 <div class="config-section">
                     <label class="input-label">Device Profile</label>
                     <label for="deviceProfile" class="input-label">Load defaults for your headset</label>
@@ -882,65 +899,7 @@ limitations under the License.
                     <div id="deviceProfileWarning" class="profile-warning"></div>
                 </div>
 
-                <!-- Video Codec is a basic, commonly-changed setting, so it stays visible
-                     alongside Device Profile rather than folded into the advanced groups. -->
-                <div class="config-section">
-                    <label for="codec" class="input-label">Video Codec</label>
-                    <select id="codec" class="ui-input config-input">
-                        <option value="h264">H.264</option>
-                        <option value="h265">H.265 (HEVC)</option>
-                        <option value="av1" selected>AV1</option>
-                    </select>
-                    <div class="config-text">
-                        Select the preferred streaming codec. Availability depends on browser and server support.
-                    </div>
-                </div>
-
-                <!-- Reference space + operator offsets position the teleoperator relative to the
-                     robot, so they stay visible. The ± buttons flip an offset's sign for headset
-                     keyboards that have no minus key. -->
-                <div class="config-section">
-                    <label for="referenceSpace" class="input-label">Reference Space</label>
-                    <select id="referenceSpace" name="referenceSpace" class="ui-input" aria-label="Select reference space">
-                        <option value="auto">Auto (local-floor preferred)</option>
-                        <option value="local-floor">local-floor</option>
-                        <option value="local" selected>local</option>
-                        <option value="unbounded">unbounded</option>
-                        <option value="viewer">viewer</option>
-                    </select>
-                    <div class="config-text">
-                        Select the preferred reference space for XR tracking. "Auto" uses fallback logic (local-floor → local → viewer). Other options will attempt to use the specified space only.
-                    </div>
-                    <label class="input-label">XR Reference Space Offset</label>
-                    <label for="xrOffsetX" class="input-label">X Offset (centimeters): Horizontal</label>
-                    <div class="input-with-sign">
-                        <input id="xrOffsetX" class="ui-input config-input" type="number" placeholder="X offset in centimeters"
-                            spellcheck="false" value="0" step="1" min="-1000" max="1000">
-                        <button type="button" class="input-sign-btn" data-target="xrOffsetX"
-                            aria-label="Toggle sign of X offset" title="Toggle positive/negative">±</button>
-                    </div>
-                    <label for="xrOffsetY" class="input-label">Y Offset (centimeters): Vertical</label>
-                    <div class="input-with-sign">
-                        <input id="xrOffsetY" class="ui-input config-input" type="number" placeholder="Y offset in centimeters"
-                            spellcheck="false" value="-155" step="1" min="-1000" max="1000">
-                        <button type="button" class="input-sign-btn" data-target="xrOffsetY"
-                            aria-label="Toggle sign of Y offset" title="Toggle positive/negative">±</button>
-                    </div>
-                    <label for="xrOffsetZ" class="input-label">Z Offset (centimeters): Depth (forward/backward)</label>
-                    <div class="input-with-sign">
-                        <input id="xrOffsetZ" class="ui-input config-input" type="number" placeholder="Z offset in centimeters"
-                            spellcheck="false" value="10" step="1" min="-1000" max="1000">
-                        <button type="button" class="input-sign-btn" data-target="xrOffsetZ"
-                            aria-label="Toggle sign of Z offset" title="Toggle positive/negative">±</button>
-                    </div>
-                    <div class="config-text">
-                        Offsets shift the XR origin (in centimeters) to position the operator. On headsets whose keyboard has no minus key, type the number and tap ± to make it negative.
-                    </div>
-                </div>
-
-                <h4 class="advanced-divider">Advanced settings</h4>
-
-                <details class="settings-group">
+                <details class="settings-group" id="group-image-quality">
                     <summary>Image quality</summary>
                     <div class="settings-group-body">
                         <div class="config-section">
@@ -984,7 +943,7 @@ limitations under the License.
                     </div>
                 </details>
 
-                <details class="settings-group">
+                <details class="settings-group" id="group-networking">
                     <summary>Networking</summary>
                     <div class="settings-group-body">
                         <div class="config-section">
@@ -1025,7 +984,7 @@ limitations under the License.
                     </div>
                 </details>
 
-                <details class="settings-group">
+                <details class="settings-group" id="group-in-xr-comfort">
                     <summary>In-XR comfort</summary>
                     <div class="settings-group-body">
                         <div class="config-section">
@@ -1065,7 +1024,53 @@ limitations under the License.
                     </div>
                 </details>
 
-                <details class="settings-group">
+                <details class="settings-group" id="group-teleop-adjustment">
+                    <summary>Teleoperator adjustment</summary>
+                    <div class="settings-group-body">
+                        <!-- Reference space + offsets position the operator relative to the robot.
+                             The ± buttons flip an offset's sign for headset keyboards with no minus key. -->
+                        <div class="config-section">
+                            <label for="referenceSpace" class="input-label">Reference Space</label>
+                            <select id="referenceSpace" name="referenceSpace" class="ui-input config-input" aria-label="Select reference space">
+                                <option value="auto">Auto (local-floor preferred)</option>
+                                <option value="local-floor">local-floor</option>
+                                <option value="local" selected>local</option>
+                                <option value="unbounded">unbounded</option>
+                                <option value="viewer">viewer</option>
+                            </select>
+                            <div class="config-text">
+                                Select the preferred reference space for XR tracking. "Auto" uses fallback logic (local-floor → local → viewer). Other options will attempt to use the specified space only.
+                            </div>
+                            <label class="input-label">XR Reference Space Offset</label>
+                            <label for="xrOffsetX" class="input-label">X Offset (centimeters): Horizontal</label>
+                            <div class="input-with-sign">
+                                <input id="xrOffsetX" class="ui-input config-input" type="number" placeholder="X offset in centimeters"
+                                    spellcheck="false" value="0" step="1" min="-1000" max="1000">
+                                <button type="button" class="input-sign-btn" data-target="xrOffsetX"
+                                    aria-label="Toggle sign of X offset" title="Toggle positive/negative">±</button>
+                            </div>
+                            <label for="xrOffsetY" class="input-label">Y Offset (centimeters): Vertical</label>
+                            <div class="input-with-sign">
+                                <input id="xrOffsetY" class="ui-input config-input" type="number" placeholder="Y offset in centimeters"
+                                    spellcheck="false" value="-155" step="1" min="-1000" max="1000">
+                                <button type="button" class="input-sign-btn" data-target="xrOffsetY"
+                                    aria-label="Toggle sign of Y offset" title="Toggle positive/negative">±</button>
+                            </div>
+                            <label for="xrOffsetZ" class="input-label">Z Offset (centimeters): Depth (forward/backward)</label>
+                            <div class="input-with-sign">
+                                <input id="xrOffsetZ" class="ui-input config-input" type="number" placeholder="Z offset in centimeters"
+                                    spellcheck="false" value="10" step="1" min="-1000" max="1000">
+                                <button type="button" class="input-sign-btn" data-target="xrOffsetZ"
+                                    aria-label="Toggle sign of Z offset" title="Toggle positive/negative">±</button>
+                            </div>
+                            <div class="config-text">
+                                Offsets shift the XR origin (in centimeters) to position the operator. On headsets whose keyboard has no minus key, type the number and tap ± to make it negative.
+                            </div>
+                        </div>
+                    </div>
+                </details>
+
+                <details class="settings-group" id="group-troubleshooting">
                     <summary>Troubleshooting</summary>
                     <div class="settings-group-body">
                         <div class="config-section">
