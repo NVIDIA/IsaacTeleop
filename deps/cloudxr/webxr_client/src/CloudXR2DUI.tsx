@@ -32,6 +32,7 @@
  */
 
 import {
+  detectDeviceProfileId,
   getDeviceProfile,
   resolveDeviceProfileId,
   type DeviceProfileId,
@@ -71,6 +72,13 @@ import {
 
 /** Full config: CloudXR connection settings + React UI options. */
 type AppConfig = CloudXRConfig & ReactUIConfig;
+
+/**
+ * localStorage key for the teleop-start countdown. Owned by the countdown feature in
+ * App.tsx but defined here with the other storage keys so reset clears the same key the
+ * feature writes. (Imported by App.tsx; App already depends on this module, so no cycle.)
+ */
+export const COUNTDOWN_STORAGE_KEY = 'cxr.react.countdownSeconds';
 
 /**
  * 2D UI Management for CloudXR React Example
@@ -162,6 +170,10 @@ export class CloudXR2DUI {
   private headlessInput!: HTMLInputElement;
   /** When to reload the page after the XR session ends (never / clean / any) */
   private autoRefreshModeSelect!: HTMLSelectElement;
+  /** Button that clears stored settings and reloads to defaults. */
+  private resetSettingsButton!: HTMLButtonElement;
+  /** Container for the runtime-generated URL-parameter help list (optional in markup). */
+  private urlParamsHelpList: HTMLElement | null = null;
   /** Breadcrumb subtitle in header (e.g. "for Real Robot › GEAR › Dexmate"). */
   private teleopModeSubtitle!: HTMLElement;
   /** Hierarchical project selector in header */
@@ -213,9 +225,14 @@ export class CloudXR2DUI {
       }
       this.applyTeleopPath();
 
+      // Before URL seeds so explicit params still win: on a fresh load, default the
+      // device profile from the headset UA and apply its values.
+      this.applyDefaultDeviceProfileFromUserAgent();
       this.applyUrlSeeds();
       this.setupProxyConfiguration();
+      this.renderUrlParamsHelp();
       this.setupEventListeners();
+      this.restoreGroupExpandedState();
       // Set initial display value
       this.posePredictionFactorValue.textContent = this.posePredictionFactorInput.value;
       this.updateConfiguration();
@@ -326,6 +343,29 @@ export class CloudXR2DUI {
   }
 
   /**
+   * On a fresh load (no stored device-profile choice), default the Device Profile from the
+   * headset user-agent and apply its values to the form. A stored 'deviceProfile' suppresses
+   * this — it is written whenever the user picks a profile or edits any profile-linked field
+   * (setProfileToCustomIfNeeded), so we never override an explicit choice. Not persisted, so
+   * detection re-runs each fresh load until the user makes a choice. Runs before applyUrlSeeds()
+   * so URL params still win.
+   *
+   * Note: the IWER emulator emulates a headset via the WebXR API but does NOT change
+   * navigator.userAgent, so under the emulator this resolves to 'custom' (no flip).
+   */
+  private applyDefaultDeviceProfileFromUserAgent(): void {
+    let stored: string | null = null;
+    try {
+      stored = localStorage.getItem('deviceProfile');
+    } catch (_) {}
+    if (stored != null) return;
+    const detected = detectDeviceProfileId();
+    if (detected === 'custom') return;
+    this.deviceProfileSelect.value = detected;
+    this.applyDeviceProfileToForm(detected);
+  }
+
+  /**
    * Override form controls from URL query params. Values are applied but not persisted;
    * called after setupLocalStorage() so URL params win over stored values for this load.
    */
@@ -416,6 +456,9 @@ export class CloudXR2DUI {
     this.autoRefreshModeSelect = this.getElement<HTMLSelectElement>('cloudxrAutoRefreshMode');
     this.teleopModeSubtitle = this.getElement<HTMLElement>('teleopModeSubtitle');
     this.teleopProjectSelect = this.getElement<HTMLSelectElement>('teleopProjectSelect');
+    this.resetSettingsButton = this.getElement<HTMLButtonElement>('resetSettingsButton');
+    // Optional: absent in trimmed builds; renderUrlParamsHelp() no-ops when null.
+    this.urlParamsHelpList = document.getElementById('urlParamsHelpList');
   }
 
   /**
@@ -470,37 +513,151 @@ export class CloudXR2DUI {
   }
 
   /**
+   * Single source of truth for the global (non-per-project-path) localStorage-backed
+   * controls: maps each form control to its storage key. Used both to wire persistence
+   * ({@link CloudXR2DUI.setupLocalStorage}) and to clear it ({@link CloudXR2DUI.resetToDefaults}),
+   * so adding a setting in one place can't leave the reset path stale.
+   */
+  private localStorageBindings(): Array<{
+    el: HTMLInputElement | HTMLSelectElement;
+    key: string;
+  }> {
+    return [
+      { el: this.serverTypeSelect, key: 'serverType' },
+      { el: this.serverIpInput, key: 'serverIp' },
+      { el: this.portInput, key: 'port' },
+      { el: this.perEyeWidthInput, key: 'perEyeWidth' },
+      { el: this.perEyeHeightInput, key: 'perEyeHeight' },
+      { el: this.reprojectionGridColsInput, key: 'reprojectionGridCols' },
+      { el: this.reprojectionGridRowsInput, key: 'reprojectionGridRows' },
+      { el: this.proxyUrlInput, key: 'proxyUrl' },
+      { el: this.deviceFrameRateSelect, key: 'deviceFrameRate' },
+      { el: this.maxStreamingBitrateMbpsSelect, key: 'maxStreamingBitrateMbps' },
+      { el: this.codecSelect, key: 'codec' },
+      { el: this.enablePoseSmoothingSelect, key: 'enablePoseSmoothing' },
+      { el: this.posePredictionFactorInput, key: 'posePredictionFactor' },
+      { el: this.enableTexSubImage2DSelect, key: 'enableTexSubImage2D' },
+      { el: this.useQuestColorWorkaroundSelect, key: 'useQuestColorWorkaround' },
+      { el: this.immersiveSelect, key: 'immersiveMode' },
+      { el: this.deviceProfileSelect, key: 'deviceProfile' },
+      { el: this.controlPanelPositionSelect, key: 'controlPanelPosition' },
+      { el: this.referenceSpaceSelect, key: 'referenceSpace' },
+      { el: this.xrOffsetXInput, key: 'xrOffsetX' },
+      { el: this.xrOffsetYInput, key: 'xrOffsetY' },
+      { el: this.xrOffsetZInput, key: 'xrOffsetZ' },
+      { el: this.mediaAddressInput, key: 'mediaAddress' },
+      { el: this.mediaPortInput, key: 'mediaPort' },
+      { el: this.controllerModelVisibilitySelect, key: 'controllerModelVisibility' },
+      { el: this.autoRefreshModeSelect, key: 'autoRefreshMode' },
+    ];
+  }
+
+  /**
    * Wires up localStorage persistence for global (non-per-project-path) form
    * inputs. Per-project-path fields are handled separately via
    * loadPerProject/savePerProject around their own change listeners.
    */
   private setupLocalStorage(): void {
-    enableLocalStorage(this.serverTypeSelect, 'serverType');
-    enableLocalStorage(this.serverIpInput, 'serverIp');
-    enableLocalStorage(this.portInput, 'port');
-    enableLocalStorage(this.perEyeWidthInput, 'perEyeWidth');
-    enableLocalStorage(this.perEyeHeightInput, 'perEyeHeight');
-    enableLocalStorage(this.reprojectionGridColsInput, 'reprojectionGridCols');
-    enableLocalStorage(this.reprojectionGridRowsInput, 'reprojectionGridRows');
-    enableLocalStorage(this.proxyUrlInput, 'proxyUrl');
-    enableLocalStorage(this.deviceFrameRateSelect, 'deviceFrameRate');
-    enableLocalStorage(this.maxStreamingBitrateMbpsSelect, 'maxStreamingBitrateMbps');
-    enableLocalStorage(this.codecSelect, 'codec');
-    enableLocalStorage(this.enablePoseSmoothingSelect, 'enablePoseSmoothing');
-    enableLocalStorage(this.posePredictionFactorInput, 'posePredictionFactor');
-    enableLocalStorage(this.enableTexSubImage2DSelect, 'enableTexSubImage2D');
-    enableLocalStorage(this.useQuestColorWorkaroundSelect, 'useQuestColorWorkaround');
-    enableLocalStorage(this.immersiveSelect, 'immersiveMode');
-    enableLocalStorage(this.deviceProfileSelect, 'deviceProfile');
-    enableLocalStorage(this.controlPanelPositionSelect, 'controlPanelPosition');
-    enableLocalStorage(this.referenceSpaceSelect, 'referenceSpace');
-    enableLocalStorage(this.xrOffsetXInput, 'xrOffsetX');
-    enableLocalStorage(this.xrOffsetYInput, 'xrOffsetY');
-    enableLocalStorage(this.xrOffsetZInput, 'xrOffsetZ');
-    enableLocalStorage(this.mediaAddressInput, 'mediaAddress');
-    enableLocalStorage(this.mediaPortInput, 'mediaPort');
-    enableLocalStorage(this.controllerModelVisibilitySelect, 'controllerModelVisibility');
-    enableLocalStorage(this.autoRefreshModeSelect, 'autoRefreshMode');
+    for (const { el, key } of this.localStorageBindings()) {
+      enableLocalStorage(el, key);
+    }
+  }
+
+  /**
+   * Clears stored settings and reloads to a clean default state. Removes the global
+   * localStorage keys, the per-project debug settings for the active teleop application,
+   * and the teleop-start countdown preference. URL params are handled below.
+   */
+  public resetToDefaults(): void {
+    try {
+      for (const { key } of this.localStorageBindings()) {
+        localStorage.removeItem(key);
+      }
+      // Per-project debug settings persist under `cxr.isaac.<key>|<teleopPath>`
+      // (see helpers/react/utils savePerProject); reset only the active application's.
+      for (const key of CloudXR2DUI.PER_PROJECT_SETTING_KEYS) {
+        localStorage.removeItem(`cxr.isaac.${key}|${this.teleopPath}`);
+      }
+      // Teleop-start countdown (owned by App.tsx's countdown feature).
+      localStorage.removeItem(COUNTDOWN_STORAGE_KEY);
+      // Advanced groups' expanded/collapsed state (cxr.group.<id>).
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(CloudXR2DUI.GROUP_STATE_PREFIX)) {
+          localStorage.removeItem(k);
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to clear stored settings:', error);
+    }
+
+    // applyUrlSeeds() runs after setupLocalStorage() on load, so a form-backed query
+    // param would immediately re-override the cleared value and the reset would look
+    // like it did nothing. Strip those params from the address bar, but keep the direct
+    // transport/OOB params (turnServer, controlToken, …, set by oob_teleop_env.py) and
+    // the teleop path hash. Then reload explicitly: replaceState followed by reload()
+    // always re-reads cleared storage, even when no params were present (a same-URL
+    // location.replace can be a no-op in some browsers, which would leave the stale form).
+    const url = new URL(window.location.href);
+    for (const param of URL_PARAMS) {
+      if (param.elementId) {
+        url.searchParams.delete(param.url ?? param.key);
+      }
+    }
+    window.history.replaceState(null, '', url.toString());
+    window.location.reload();
+  }
+
+  /**
+   * Populates the "URL parameters" help list from the param registry, listing only
+   * params that opted in with a `description` (keeps secrets/transport internals out).
+   * Reads from URL_PARAMS so the list can never drift from what the client accepts.
+   */
+  private renderUrlParamsHelp(): void {
+    if (!this.urlParamsHelpList) return;
+    this.urlParamsHelpList.replaceChildren();
+    for (const param of URL_PARAMS) {
+      if (!param.description) continue;
+      const li = document.createElement('li');
+      const code = document.createElement('code');
+      code.textContent = param.url ?? param.key;
+      li.appendChild(code);
+      li.appendChild(document.createTextNode(` — ${param.description}`));
+      this.urlParamsHelpList.appendChild(li);
+    }
+  }
+
+  /** localStorage key prefix for each collapsible advanced group's open/closed state. */
+  private static readonly GROUP_STATE_PREFIX = 'cxr.group.';
+
+  /**
+   * Settings persisted per teleop application under `cxr.isaac.<key>|<teleopPath>`
+   * (see {@link applyPerProjectSettings} and helpers/react/utils savePerProject).
+   * Centralized so resetToDefaults clears exactly the keys the per-project handlers write.
+   */
+  private static readonly PER_PROJECT_SETTING_KEYS = ['panelHiddenAtStart', 'headless'];
+
+  /**
+   * Restore each advanced group's expanded/collapsed state from localStorage and persist it on
+   * toggle, so a user's "open" sections stay open across reloads. Keyed by the group's element id.
+   */
+  private restoreGroupExpandedState(): void {
+    const groups = document.querySelectorAll<HTMLDetailsElement>('details.settings-group[id]');
+    for (const group of Array.from(groups)) {
+      const key = `${CloudXR2DUI.GROUP_STATE_PREFIX}${group.id}`;
+      try {
+        const saved = localStorage.getItem(key);
+        if (saved === 'true') group.open = true;
+        else if (saved === 'false') group.open = false;
+      } catch (_) {}
+      const handler = () => {
+        try {
+          localStorage.setItem(key, String(group.open));
+        } catch (_) {}
+      };
+      group.addEventListener('toggle', handler);
+      this.eventListeners.push({ element: group, event: 'toggle', handler });
+    }
   }
 
   /**
@@ -636,6 +793,31 @@ export class CloudXR2DUI {
       this.updateConfiguration();
     });
     addListener(this.autoRefreshModeSelect, 'change', updateConfig);
+
+    addListener(this.resetSettingsButton, 'click', () => {
+      if (window.confirm('Reset all settings to their defaults? This reloads the page.')) {
+        this.resetToDefaults();
+      }
+    });
+
+    // Headset on-screen keyboards sometimes lack a minus key, so offsets can't be typed
+    // negative. Each ± button (data-target = input id) flips its field's sign. Dispatch
+    // 'change' so the existing offset listeners (updateConfiguration + localStorage) run.
+    for (const btn of Array.from(
+      document.querySelectorAll<HTMLButtonElement>('.input-sign-btn')
+    )) {
+      const targetId = btn.dataset.target;
+      if (!targetId) continue;
+      const input = document.getElementById(targetId) as HTMLInputElement | null;
+      if (!input) continue;
+      addListener(btn, 'click', () => {
+        // Pure sign flip: a no-op on an empty/non-numeric field rather than inserting 0.
+        const value = parseFloat(input.value);
+        if (!Number.isFinite(value)) return;
+        input.value = String(-value);
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    }
 
     addListener(this.deviceProfileSelect, 'change', () => {
       this.applyDeviceProfileToForm(resolveDeviceProfileId(this.deviceProfileSelect.value));

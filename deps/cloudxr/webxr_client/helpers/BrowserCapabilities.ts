@@ -22,6 +22,21 @@
 const MIN_OCULUS_BROWSER_MAJOR = 40;
 const MIN_PICO_CHROME_MAJOR = 125;
 
+/** Headset family inferred from the browser user-agent. */
+export type HeadsetFamily = 'quest' | 'pico' | 'other';
+
+/**
+ * Classify the headset from the user-agent. Pico is checked first because Pico UAs
+ * also include an "OculusBrowser/7.0" compat token that would otherwise match Quest.
+ * The UA does not expose the specific Quest/Pico model, so this returns the family only.
+ * `ua` is injectable for testing; defaults to the live navigator user-agent.
+ */
+export function detectHeadset(ua: string = navigator.userAgent): HeadsetFamily {
+  if (/PicoBrowser\//.test(ua)) return 'pico';
+  if (/OculusBrowser\//.test(ua)) return 'quest';
+  return 'other';
+}
+
 // Returns a warning message if the current browser is below the documented minimum
 // version, or null if the version is acceptable or cannot be determined.
 // Pass emulated=true when running under an XR emulator (e.g. IWER) to skip the check.
@@ -31,10 +46,9 @@ export function checkBrowserVersion(emulated = false): string | null {
   }
 
   const ua = navigator.userAgent;
+  const headset = detectHeadset(ua);
 
-  // Detect Pico first — Pico UAs also include "OculusBrowser/7.0" as a compat token
-  // which would otherwise match the Quest check below.
-  if (/PicoBrowser\//.test(ua)) {
+  if (headset === 'pico') {
     const chromeMatch = ua.match(/Chrome\/(\d+)\./);
     if (chromeMatch) {
       const major = parseInt(chromeMatch[1], 10);
@@ -49,7 +63,7 @@ export function checkBrowserVersion(emulated = false): string | null {
     return null;
   }
 
-  const questMatch = ua.match(/OculusBrowser\/(\d+)\./);
+  const questMatch = headset === 'quest' ? ua.match(/OculusBrowser\/(\d+)\./) : null;
   if (questMatch) {
     const major = parseInt(questMatch[1], 10);
     if (major < MIN_OCULUS_BROWSER_MAJOR) {
