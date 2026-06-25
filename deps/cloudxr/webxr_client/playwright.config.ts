@@ -17,6 +17,11 @@
 
 import { defineConfig, devices } from '@playwright/test';
 
+const playwrightHost = process.env.PLAYWRIGHT_HOST ?? '127.0.0.1';
+const playwrightPort = process.env.PLAYWRIGHT_PORT ?? '8080';
+const playwrightBaseURL =
+  process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${playwrightPort}`;
+
 export default defineConfig({
   testDir: './e2e',
   timeout: 60_000,
@@ -27,12 +32,12 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['github'], ['list']] : 'list',
   use: {
-    baseURL: 'http://127.0.0.1:8080',
+    baseURL: playwrightBaseURL,
     trace: 'retain-on-failure',
   },
   webServer: {
-    command: 'npm run dev-server -- --host 127.0.0.1',
-    url: 'http://127.0.0.1:8080',
+    command: `npm run dev-server -- --host ${playwrightHost} --port ${playwrightPort}`,
+    url: playwrightBaseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },

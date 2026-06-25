@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Reads CXR_WEB_SDK_VERSION from deps/cloudxr/.env.default, downloads the SDK
-# from NGC (private if `ngc-api-key` is provided, public otherwise), and runs
-# `npm install` + `npm run build`. Output is written to
+# from NGC (private if `ngc-api-key` is provided, public otherwise), then runs
+# the web client build, unit tests, and Quick Start e2e tests in an isolated
+# container. Output is written to
 # deps/cloudxr/webxr_client/build/.
 
 name: Build CloudXR Web Client
@@ -14,10 +15,10 @@ inputs:
     description: NGC API key for the private SDK; leave empty to use the public SDK.
     required: false
     default: ''
-  node-version:
-    description: Node.js version for the web client build.
+  playwright-image:
+    description: Container image used for the web client build and Playwright e2e test.
     required: false
-    default: '20'
+    default: 'mcr.microsoft.com/playwright:v1.61.1-noble'
 
 outputs:
   sdk-version:
@@ -44,32 +45,11 @@ runs:
       run: |
         ./scripts/download_cloudxr_sdk.sh
 
-    - uses: actions/setup-node@v4
-      with:
-        node-version: ${{ inputs.node-version }}
-
-    - name: Install and build web client
+    - name: Build and test web client in isolated container
       shell: bash
-      working-directory: deps/cloudxr/webxr_client
       env:
         SDK_VERSION: ${{ steps.sdk-version.outputs.version }}
         CLIENT_GIT_REF: ${{ github.ref_name }}
         CLIENT_GIT_SHA: ${{ github.sha }}
-      run: |
-        npm install "../nvidia-cloudxr-${SDK_VERSION}.tgz"
-        USE_LOCAL_WEBXR_ASSETS=0 npm run build
-
-    - name: Test web client
-      shell: bash
-      working-directory: deps/cloudxr/webxr_client
-      run: npm test
-
-    - name: Install Playwright browser
-      shell: bash
-      working-directory: deps/cloudxr/webxr_client
-      run: npx playwright install --with-deps chromium
-
-    - name: Test Quick Start web client path
-      shell: bash
-      working-directory: deps/cloudxr/webxr_client
-      run: npm run test:e2e
+        PLAYWRIGHT_IMAGE: ${{ inputs.playwright-image }}
+      run: bash ./scripts/run_webxr_e2e_in_container.sh
