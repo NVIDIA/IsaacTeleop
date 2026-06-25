@@ -102,11 +102,6 @@ module.exports = {
   resolve: {
     extensions: ['.tsx', '.ts', '.js'],
     alias: {
-      // Force a single `three` instance. stats-gl (pulled in via @react-three/drei)
-      // nests its own three (0.170) beside the top-level one (0.172); two three copies
-      // in the bundle make React-Three-Fiber throw "Cannot read properties of undefined"
-      // at ACESFilmicToneMapping. Pinning all `three` imports to the top-level copy dedupes.
-      three: path.resolve(__dirname, 'node_modules/three'),
       // @helpers can be used instead of relative paths to the helpers directory
       '@helpers': path.resolve(__dirname, './helpers'),
     },
