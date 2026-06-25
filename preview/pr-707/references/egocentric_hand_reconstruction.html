@@ -410,7 +410,27 @@
 <h1>Egocentric Hand Reconstruction<a class="headerlink" href="#egocentric-hand-reconstruction" title="Link to this heading">#</a></h1>
 <p>Automated pipeline for 4D hand and camera pose reconstruction from egocentric
 videos. Integrates ViPE and Dyn-HaMR in containerized environments.</p>
-<p><img alt="Source egocentric video" src="../_images/source.gif" /> <img alt="Smooth fit grid reconstruction" src="../_images/smooth_fit_grid.gif" /></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 50.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><a class="no-image-zoom reference internal image-reference" href="../_images/egocentric-input.gif"><img alt="Source egocentric video" class="no-image-zoom" src="../_images/egocentric-input.gif" style="width: 100%;" />
+</a>
+</td>
+<td><a class="no-image-zoom reference internal image-reference" href="../_images/egocentric-reconstruction.gif"><img alt="Smooth fit grid reconstruction" class="no-image-zoom" src="../_images/egocentric-reconstruction.gif" style="width: 100%;" />
+</a>
+</td>
+</tr>
+<tr class="row-even"><td><p class="centered">
+<strong>Source egocentric video</strong></p></td>
+<td><p class="centered">
+<strong>Reconstructed 4D hand and camera poses</strong></p></td>
+</tr>
+</tbody>
+</table>
+</div>
 <section id="video-capture">
 <h2>Video Capture<a class="headerlink" href="#video-capture" title="Link to this heading">#</a></h2>
 <p>To capture egocentric video with an OAK camera, see the
@@ -442,22 +462,6 @@ videos. Integrates ViPE and Dyn-HaMR in containerized environments.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>boto3
 </pre></div>
 </div>
-<p><strong>System utilities</strong>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>unzip
-</pre></div>
-</div>
-<p><strong>MANO academic account</strong> — the MANO model requires registration:</p>
-<ul class="simple">
-<li><p>Create an account at <a class="reference external" href="https://mano.is.tue.mpg.de/" rel="noopener noreferrer" target="_blank">https://mano.is.tue.mpg.de/</a> and accept the license.</p></li>
-<li><p>The download is delivered as a ZIP archive. Extract it and place
-<code class="docutils literal notranslate"><span class="pre">MANO_RIGHT.pkl</span></code> in the <code class="docutils literal notranslate"><span class="pre">outputs/</span></code> directory (see <a class="reference internal" href="#prepare-data-files">Prepare data files</a>).</p></li>
-</ul>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p><a class="reference external" href="https://docs.conda.io/" rel="noopener noreferrer" target="_blank">conda</a> is <strong>optional</strong> and only needed if you
-follow the BMC data preparation steps using the upstream Hand-BMC-pytorch
-environment. It is not required to run the reconstruction pipeline itself.</p>
-</div>
 </section>
 <section id="checkout-the-code">
 <h3>Checkout the code<a class="headerlink" href="#checkout-the-code" title="Link to this heading">#</a></h3>
@@ -473,7 +477,7 @@ environment. It is not required to run the reconstruction pipeline itself.</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>...
 ├── docker/
 ├── scripts/
-├── ...
+├── osmo/
 └── outputs/
     ├── MANO_RIGHT.pkl
     └── BMC/
@@ -482,7 +486,7 @@ environment. It is not required to run the reconstruction pipeline itself.</p>
 </div>
 <p><strong>MANO model</strong> (required):</p>
 <ul class="simple">
-<li><p>Register and download from: <a class="reference external" href="https://mano.is.tue.mpg.de/" rel="noopener noreferrer" target="_blank">https://mano.is.tue.mpg.de/</a> (academic account required; see <a class="reference internal" href="#prerequisites">Prerequisites</a>).</p></li>
+<li><p>Create an academic account at <a class="reference external" href="https://mano.is.tue.mpg.de/" rel="noopener noreferrer" target="_blank">https://mano.is.tue.mpg.de/</a> and accept the license.</p></li>
 <li><p>The download is a ZIP archive — extract it and place <code class="docutils literal notranslate"><span class="pre">MANO_RIGHT.pkl</span></code> in <code class="docutils literal notranslate"><span class="pre">outputs/</span></code>.</p></li>
 </ul>
 <p><strong>BMC data</strong> (required):</p>
@@ -592,6 +596,46 @@ credentials:</p>
 <li><p>Run Dyn-HaMR for hand reconstruction.</p></li>
 <li><p>Save all results to <code class="docutils literal notranslate"><span class="pre">outputs/logs/</span></code>.</p></li>
 </ol>
+<section id="batch-reconstruction-with-osmo">
+<h3>Batch Reconstruction with OSMO<a class="headerlink" href="#batch-reconstruction-with-osmo" title="Link to this heading">#</a></h3>
+<p>For large-scale batch processing, the pipeline can be submitted as an
+<a class="reference external" href="https://github.com/NVIDIA/OSMO" rel="noopener noreferrer" target="_blank">OSMO</a> workflow using <code class="docutils literal notranslate"><span class="pre">hand_reconstruction.yaml</span></code>.
+This runs ViPE and Dyn-HaMR as two chained tasks on a GPU pool.</p>
+<p><strong>Prerequisites:</strong></p>
+<ul class="simple">
+<li><p>A working OSMO cluster deployment (see the <a class="reference external" href="https://nvidia.github.io/OSMO/main/deployment_guide/getting_started/infrastructure_setup.html" rel="noopener noreferrer" target="_blank">OSMO deployment guide</a>)</p></li>
+<li><p>OSMO CLI installed and authenticated (<code class="docutils literal notranslate"><span class="pre">osmo</span> <span class="pre">login</span> <span class="pre">…</span></code>)</p></li>
+<li><p>Bucket and image registry credentials stored in OSMO</p></li>
+<li><p>Container images built and pushed to your registry (see <a class="reference internal" href="#build-docker-images">Build Docker images</a>)</p></li>
+<li><p>MANO and BMC assets available at an S3 URL</p></li>
+</ul>
+<p>See <code class="docutils literal notranslate"><span class="pre">osmo/README.md</span></code> for full setup details including credential registration and container image push steps.</p>
+<p><strong>Submit a workflow:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>osmo<span class="w"> </span>workflow<span class="w"> </span>submit<span class="w"> </span>osmo/hand_reconstruction.yaml<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--pool<span class="w"> </span>POOL_NAME<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--set-string<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span><span class="nv">experiment_id</span><span class="o">=</span>EXPERIMENT_ID<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span><span class="nv">source_url</span><span class="o">=</span>s3://INPUT_S3_PATH<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span><span class="nv">dest_url</span><span class="o">=</span>s3://OUTPUT_S3_PATH<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span><span class="nv">assets_url</span><span class="o">=</span>s3://ASSETS_S3_PATH<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span><span class="nv">vipe_image</span><span class="o">=</span>CONTAINER_REGISTRY/ego_vipe:TAG<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span><span class="nv">dynhamr_image</span><span class="o">=</span>CONTAINER_REGISTRY/ego_dynhamr:TAG
+</pre></div>
+</div>
+<p><strong>Monitor progress:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>osmo<span class="w"> </span>workflow<span class="w"> </span>logs<span class="w"> </span>WORKFLOW_ID<span class="w"> </span>-n<span class="w"> </span><span class="m">100</span>
+</pre></div>
+</div>
+</section>
+<section id="estimated-runtime">
+<h3>Estimated Runtime<a class="headerlink" href="#estimated-runtime" title="Link to this heading">#</a></h3>
+<p>For a reference 30-second video, expect approximately:</p>
+<ul class="simple">
+<li><p><strong>ViPE</strong>: ~7 minutes</p></li>
+<li><p><strong>Dyn-HaMR</strong>: ~30 minutes</p></li>
+</ul>
+<p>Actual runtime may vary depending on system hardware and video length.</p>
+</section>
 <section id="view-results">
 <h3>View results<a class="headerlink" href="#view-results" title="Link to this heading">#</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># List results</span>
@@ -602,6 +646,10 @@ vlc<span class="w"> </span>outputs/logs/video-custom/&lt;DATE&gt;/&lt;VIDEO_NAME
 </pre></div>
 </div>
 </section>
+</section>
+<section id="limitations">
+<h2>Limitations<a class="headerlink" href="#limitations" title="Link to this heading">#</a></h2>
+<p>The quality of the reconstructed result is directly related to the capture quality of the egocentric video.</p>
 </section>
 </section>
 
@@ -664,9 +712,12 @@ vlc<span class="w"> </span>outputs/logs/video-custom/&lt;DATE&gt;/&lt;VIDEO_NAME
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#hand-reconstruction">Hand Reconstruction</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#batch-reconstruction-with-osmo">Batch Reconstruction with OSMO</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#estimated-runtime">Estimated Runtime</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#view-results">View results</a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#limitations">Limitations</a></li>
 </ul>
   </nav></div>
 

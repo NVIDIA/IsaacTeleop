@@ -7,13 +7,19 @@ Egocentric Hand Reconstruction
 Automated pipeline for 4D hand and camera pose reconstruction from egocentric
 videos. Integrates ViPE and Dyn-HaMR in containerized environments.
 
-.. |source| image:: source.gif
-   :alt: Source egocentric video
+.. list-table::
+   :widths: 50 50
 
-.. |smooth_fit_grid| image:: smooth_fit_grid.gif
-   :alt: Smooth fit grid reconstruction
-
-|source| |smooth_fit_grid|
+   * - .. image:: ../_static/egocentric-input.gif
+          :alt: Source egocentric video
+          :width: 100%
+          :class: no-image-zoom
+     - .. image:: ../_static/egocentric-reconstruction.gif
+          :alt: Smooth fit grid reconstruction
+          :width: 100%
+          :class: no-image-zoom
+   * - .. centered:: Source egocentric video
+     - .. centered:: Reconstructed 4D hand and camera poses
 
 
 Video Capture
@@ -54,23 +60,6 @@ Ensure the following are installed and configured before starting:
 
    pip install boto3
 
-**System utilities**:
-
-.. code-block:: bash
-
-   sudo apt-get install unzip
-
-**MANO academic account** — the MANO model requires registration:
-
-- Create an account at https://mano.is.tue.mpg.de/ and accept the license.
-- The download is delivered as a ZIP archive. Extract it and place
-  ``MANO_RIGHT.pkl`` in the ``outputs/`` directory (see `Prepare data files`_).
-
-.. note::
-
-   `conda <https://docs.conda.io/>`_ is **optional** and only needed if you
-   follow the BMC data preparation steps using the upstream Hand-BMC-pytorch
-   environment. It is not required to run the reconstruction pipeline itself.
 
 Checkout the code
 ^^^^^^^^^^^^^^^^^
@@ -92,7 +81,7 @@ Place required files in the ``outputs/`` directory.
    ...
    ├── docker/
    ├── scripts/
-   ├── ...
+   ├── osmo/
    └── outputs/
        ├── MANO_RIGHT.pkl
        └── BMC/
@@ -100,7 +89,7 @@ Place required files in the ``outputs/`` directory.
 
 **MANO model** (required):
 
-- Register and download from: https://mano.is.tue.mpg.de/ (academic account required; see `Prerequisites`_).
+- Create an academic account at https://mano.is.tue.mpg.de/ and accept the license.
 - The download is a ZIP archive — extract it and place ``MANO_RIGHT.pkl`` in ``outputs/``.
 
 **BMC data** (required):
@@ -206,6 +195,53 @@ The pipeline will:
 3. Run Dyn-HaMR for hand reconstruction.
 4. Save all results to ``outputs/logs/``.
 
+Batch Reconstruction with OSMO
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For large-scale batch processing, the pipeline can be submitted as an
+`OSMO <https://github.com/NVIDIA/OSMO>`_ workflow using ``hand_reconstruction.yaml``.
+This runs ViPE and Dyn-HaMR as two chained tasks on a GPU pool.
+
+**Prerequisites:**
+
+- A working OSMO cluster deployment (see the `OSMO deployment guide <https://nvidia.github.io/OSMO/main/deployment_guide/getting_started/infrastructure_setup.html>`_)
+- OSMO CLI installed and authenticated (``osmo login …``)
+- Bucket and image registry credentials stored in OSMO
+- Container images built and pushed to your registry (see `Build Docker images`_)
+- MANO and BMC assets available at an S3 URL
+
+See ``osmo/README.md`` for full setup details including credential registration and container image push steps.
+
+**Submit a workflow:**
+
+.. code-block:: bash
+
+   osmo workflow submit osmo/hand_reconstruction.yaml \
+       --pool POOL_NAME \
+       --set-string \
+           experiment_id=EXPERIMENT_ID \
+           source_url=s3://INPUT_S3_PATH \
+           dest_url=s3://OUTPUT_S3_PATH \
+           assets_url=s3://ASSETS_S3_PATH \
+           vipe_image=CONTAINER_REGISTRY/ego_vipe:TAG \
+           dynhamr_image=CONTAINER_REGISTRY/ego_dynhamr:TAG
+
+**Monitor progress:**
+
+.. code-block:: bash
+
+   osmo workflow logs WORKFLOW_ID -n 100
+
+Estimated Runtime
+^^^^^^^^^^^^^^^^^
+
+For a reference 30-second video, expect approximately:
+
+- **ViPE**: ~7 minutes
+- **Dyn-HaMR**: ~30 minutes
+
+Actual runtime may vary depending on system hardware and video length.
+
 View results
 ^^^^^^^^^^^^
 
@@ -216,3 +252,8 @@ View results
 
    # View visualization
    vlc outputs/logs/video-custom/<DATE>/<VIDEO_NAME>*/*_grid.mp4
+
+Limitations
+-----------
+
+The quality of the reconstructed result is directly related to the capture quality of the egocentric video.
