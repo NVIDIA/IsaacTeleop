@@ -1,11 +1,5 @@
 /**
  * @license
- * Copyright 2019 Google LLC
- * SPDX-License-Identifier: Apache-2.0
- */
-
-/**
- * @license
  * gl-matrix 
  * Version 3.4.3
  * Copyright (c) 2015-2021, Brandon Jones, Colin MacKenzie IV.
