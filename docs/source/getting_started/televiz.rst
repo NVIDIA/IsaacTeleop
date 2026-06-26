@@ -74,12 +74,12 @@ A minimal offscreen render-and-readback (no GPU display, no headset):
    import cupy as cp
    import isaacteleop.viz as televiz
 
-   cfg = televiz.VizSessionConfig()
-   cfg.mode = televiz.DisplayMode.kOffscreen
-   cfg.window_width = 1024
-   cfg.window_height = 1024
+   viz_cfg = televiz.VizSessionConfig()
+   viz_cfg.mode = televiz.DisplayMode.kOffscreen
+   viz_cfg.window_width = 1024
+   viz_cfg.window_height = 1024
 
-   session = televiz.VizSession.create(cfg)
+   session = televiz.VizSession.create(viz_cfg)
 
    layer_cfg = televiz.QuadLayerConfig()
    layer_cfg.name = "cam"
@@ -296,19 +296,19 @@ extensions automatically), then pass the handles through:
    from isaacteleop.deviceio import DeviceIOSession
    from teleopcore.oxr import OpenXRSessionHandles
 
-   cfg = televiz.VizSessionConfig()
-   cfg.mode = televiz.DisplayMode.kXr
+   viz_cfg = televiz.VizSessionConfig()
+   viz_cfg.mode = televiz.DisplayMode.kXr
    # Aggregate the XR extensions downstream trackers need so they're present
    # on the XrInstance Televiz is about to create.
-   cfg.required_extensions = DeviceIOSession.get_required_extensions(trackers)
-   viz_session = televiz.VizSession.create(cfg)
+   viz_cfg.required_extensions = DeviceIOSession.get_required_extensions(trackers)
+   viz_session = televiz.VizSession.create(viz_cfg)
 
-   config = TeleopSessionConfig(
+   tlop_cfg = TeleopSessionConfig(
        app_name="MyApp",
        pipeline=pipeline,
        oxr_handles=OpenXRSessionHandles(*viz_session.get_oxr_handles()),
    )
-   with TeleopSession(config) as session:
+   with TeleopSession(tlop_cfg) as session:
        while running:
            session.step()
            cam_layer.submit(camera_frame)
