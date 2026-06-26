@@ -38,6 +38,11 @@ repos:
   # Copyright year: ensure SPDX-FileCopyrightText includes current year (--fix updates in place)
   - repo: local
     hooks:
+      - id: check-dco-signoff
+        name: Require DCO Signed-off-by in commit message
+        entry: python3 scripts/check_dco_signoff.py
+        language: system
+        stages: [commit-msg]
       - id: check-copyright-year
         name: Check copyright year (include current year)
         entry: python3 scripts/check_copyright_year.py --fix
