@@ -142,6 +142,8 @@ Targeted Robotics Embodiments
   including popular embodiments such as Unitree G1.
 - `Retargeter tuning UI <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/core/retargeting_engine_ui/python>`_ to facilitate
   live retargeter tuning.
+- GR00T-WholeBodyControl SONIC whole-body control on Unitree G1 (Thor backpack); see
+  `GR00T-WholeBodyControl: Isaac Teleop Publisher Setup`_ to get started.
 
 Device Acquisition
 ------------------
@@ -261,3 +263,4 @@ WeChat app** (Discover → Scan) to join. Scanning with your phone's built-in ca
 .. _`Generic 3-axis Pedal Plugin`: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/generic_3axis_pedal
 .. _`OAK-D Camera Plugin`: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/oak
 .. _`Haptikos Plugin`: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/haptikos
+.. _`GR00T-WholeBodyControl: Isaac Teleop Publisher Setup`: https://nvlabs.github.io/GR00T-WholeBodyControl/tutorials/isaac_teleop_publisher_setup.html
