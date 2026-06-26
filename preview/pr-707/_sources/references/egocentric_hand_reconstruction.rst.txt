@@ -35,7 +35,7 @@ System Requirement
 ^^^^^^^^^^^^^^^^^^
 
 - OS: Ubuntu 24.04
-- GPU: NVIDIA RTX 6000 Ada or L40
+- GPU: NVIDIA RTX 6000 Ada, L40, H100,
 - System RAM: 100GB (for a reference 30s video, more for longer)
 - Free Disk: 100GB
 
