@@ -2,6 +2,13 @@
 SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 SPDX-License-Identifier: Apache-2.0
 -->
+Modified by X Tian, JP Tech. Initiatives Inc.
+In this version of IsaacTeleop, a plugin has been added for Foottroller (www.foottroller.com) that enables natural, hands-free locomotion control!
+The plugin reads Foottroller’s raw inputs as gamepad axes and buttons and converts them into full locomotion commands via retargeting. You get smooth velocity control (X & Y), rotation, and robot height adjustment — all through intuitive foot gestures. Now you can walk, strafe, turn, and adjust height naturally with your feet, keeping both hands completely free for manipulation, grasping, and other tasks. Detailed user guide is provided in the following webpage.
+
+https://github.com/smoothmover/IsaacTeleop-Foottroller/blob/main/README.md
+
+
 
 ![Isaac Teleop](docs/source/_static/isaac-teleop-hero.jpg)
 
