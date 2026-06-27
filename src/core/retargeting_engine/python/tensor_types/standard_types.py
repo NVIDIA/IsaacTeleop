@@ -326,3 +326,50 @@ def Generic3AxisPedalInput() -> TensorGroupType:
             FloatType("pedal_rudder"),
         ],
     )
+
+
+# ============================================================================
+# Foottroller Types
+# ============================================================================
+
+
+def FoottrollerInput() -> TensorGroupType:
+    """
+    Standard TensorGroupType for foottroller data.
+
+    Matches the FoottrollerOutput schema from foottroller.fbs. Used as input
+    to foottroller retargeters (e.g., FoottrollerRootCmdRetargeter) for lower-body
+    control. Axis values are typically in [-1, 1].
+
+    Fields:
+        - stick_x: float - stick_x axis [-1.0 to 1.0]
+        - stick_y: float - stick_y axis [-1.0 to 1.0]
+        - LF_heading: float - LF_heading axis [-1.0 to 1.0]
+        - LF_tilt: float - LF_tilt axis [-1.0 to 1.0]
+        - RF_heading: float - RF_heading axis [-1.0 to 1.0]
+        - RF_tilt: float - RF_tilt axis [-1.0 to 1.0]
+        - TS_A: bool - TS_A button false or true
+        - TS_B: bool - TS_B button false or true
+        - TS_C: bool - TS_C button false or true
+        - TS_D: bool - TS_D button false or true
+
+    Returns:
+        TensorGroupType for pedal data
+
+    Schema reference: TeleopCore/src/core/schema/fbs/foottroller.fbs
+    """
+    return TensorGroupType(
+        "foottroller",
+        [
+            FloatType("foottroller_stick_x"),
+            FloatType("foottroller_stick_y"),
+            FloatType("foottroller_LF_heading"),
+            FloatType("foottroller_LF_tilt"),
+            FloatType("foottroller_RF_heading"),
+            FloatType("foottroller_RF_tilt"),
+            BoolType("foottroller_TS_A"),
+            BoolType("foottroller_TS_B"),
+            BoolType("foottroller_TS_C"),
+            BoolType("foottroller_TS_D"),
+        ],
+    )

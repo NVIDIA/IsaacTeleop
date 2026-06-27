@@ -15,6 +15,7 @@ Available Retargeters:
     - LocomotionFixedRootCmdRetargeter: Fixed root command (standing still)
     - LocomotionRootCmdRetargeter: Locomotion from controller inputs
     - FootPedalRootCmdRetargeter: Root command from 3-axis foot pedal (horizontal/vertical + rudder)
+    - FoottrollerRootCmdRetargeter: Root command from foottroller
     - GripperRetargeter: Pinch-based gripper control
     - SharpaHandRetargeter: Pinocchio/Pink IK-based retargeting for Sharpa hand
     - SharpaBiManualRetargeter: Bimanual version of SharpaHandRetargeter
@@ -93,6 +94,17 @@ _LAZY_IMPORTS: dict[str, tuple[str, str, str | None]] = {
     "FootPedalRootCmdRetargeterConfig": (
         ".foot_pedal_retargeter",
         "FootPedalRootCmdRetargeterConfig",
+        None,
+    ),
+    # .foottroller_retargeter
+    "FoottrollerRootCmdRetargeter": (
+        ".foottroller_retargeter",
+        "FoottrollerRootCmdRetargeter",
+        None,
+    ),
+    "FoottrollerRootCmdRetargeterConfig": (
+        ".foottroller_retargeter",
+        "FoottrollerRootCmdRetargeterConfig",
         None,
     ),
     # .gripper_retargeter
@@ -181,6 +193,8 @@ __all__ = [
     "TriHandMotionControllerConfig",
     "FootPedalRootCmdRetargeter",
     "FootPedalRootCmdRetargeterConfig",
+    "FoottrollerRootCmdRetargeter",
+    "FoottrollerRootCmdRetargeterConfig",
     # Locomotion retargeters
     "LocomotionFixedRootCmdRetargeter",
     "LocomotionFixedRootCmdRetargeterConfig",

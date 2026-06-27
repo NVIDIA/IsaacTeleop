@@ -1,0 +1,52 @@
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+// Adapted by X. Tian JP Tech. Initiatives Inc. for Foottroller
+
+include "point.fbs";
+include "timestamp.fbs";
+
+namespace core;
+
+// Output from foottroller.
+// All fields are always present when the parent Tracked/Record wrapper's data is non-null.
+//
+// Validated devices:
+// - www.foottroller.com
+table FoottrollerOutput {
+  stick_x: float (id: 0);
+
+  stick_y: float (id: 1);
+
+  LF_heading: float (id: 2);
+
+  LF_tilt: float (id: 3);
+
+  RF_heading: float (id: 4);
+
+  RF_tilt: float (id: 5);
+
+  TS_A: bool (id: 6);
+
+  TS_B: bool (id: 7);
+
+  TS_C: bool (id: 8);
+
+  TS_D: bool (id: 9);
+}
+
+// Tracked wrapper for the in-memory tracker API (data is null when no foottroller data available).
+table FoottrollerOutputTracked {
+    data: FoottrollerOutput (id: 0);
+}
+
+// MCAP recording wrapper for FoottrollerOutput.
+//
+// Record types are the root types written to MCAP channels by the McapRecorder.
+// Trackers serialize into Record types via their serialize() method, but the
+// public query API returns the inner data type directly.
+table FoottrollerOutputRecord {
+    data: FoottrollerOutput (id: 0);
+    timestamp: DeviceDataTimestamp (id: 1);
+}
+
+root_type FoottrollerOutputRecord;

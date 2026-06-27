@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -29,7 +29,9 @@ class IMessageChannelTrackerImpl;
 class FullBodyTrackerPico;
 class IFullBodyTrackerPicoImpl;
 class Generic3AxisPedalTracker;
+class FoottrollerTracker;
 class IGeneric3AxisPedalTrackerImpl;
+class IFoottrollerTrackerImpl;
 class HandTracker;
 class IHandTrackerImpl;
 class HeadTracker;
@@ -62,6 +64,7 @@ public:
     std::unique_ptr<IFullBodyTrackerPicoImpl> create_full_body_tracker_pico_impl(const FullBodyTrackerPico* tracker);
     std::unique_ptr<IGeneric3AxisPedalTrackerImpl> create_generic_3axis_pedal_tracker_impl(
         const Generic3AxisPedalTracker* tracker);
+    std::unique_ptr<IFoottrollerTrackerImpl> create_foottroller_tracker_impl(const FoottrollerTracker* tracker);
     std::unique_ptr<IFrameMetadataTrackerOakImpl> create_frame_metadata_tracker_oak_impl(
         const FrameMetadataTrackerOak* tracker);
 

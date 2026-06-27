@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+# Adapted by X. Tian JP Tech. Initiatives Inc for Foottroller
+
+name: foottroller
+description: "Foottroller (stick_x, stick_y, LF_heading, LF_tilt, RF_heading, RF_tilt, TS_A, TS_B, TS_C, TS_D) via Linux joystick device"
+command: "./foottroller_plugin"
+version: "1.0.0"
+devices:
+  - path: "/foot/foottroller"
+    type: "foottroller"
+    description: "foottroller from /dev/input/js*"

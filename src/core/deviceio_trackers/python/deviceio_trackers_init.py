@@ -1,5 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
+# modified by X Tian, JP Tech. Initiatives Inc for Foottroller Integration
 
 """Isaac Teleop DeviceIO Trackers — tracker classes for device I/O."""
 
@@ -12,6 +13,7 @@ from ._deviceio_trackers import (
     MessageChannelTracker,
     FrameMetadataTrackerOak,
     Generic3AxisPedalTracker,
+    FoottrollerTracker,
     FullBodyTrackerPico,
     ITrackerSession,
     NUM_JOINTS,
@@ -28,6 +30,7 @@ __all__ = [
     "FrameMetadataTrackerOak",
     "FullBodyTrackerPico",
     "Generic3AxisPedalTracker",
+    "FoottrollerTracker",
     "HandTracker",
     "HeadTracker",
     "ITracker",

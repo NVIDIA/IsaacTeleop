@@ -1,11 +1,11 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-
+# Modified by X Tian JP Tech. Initiatives for Foottroller
 """
 Dynamically generated indices for standard TensorGroupTypes.
 
 This module provides IntEnum classes for indexing into standard tensor groups
-(HandInput, HeadPose, ControllerInput, Generic3AxisPedalInput, FullBodyInput) and standard joint arrays
+(HandInput, HeadPose, ControllerInput, Generic3AxisPedalInput, FoottrollerInput, FullBodyInput, FoottrollerInput) and standard joint arrays
 (HandJointIndex, BodyJointPicoIndex).
 
 The indices for TensorGroupTypes are generated automatically from the type definitions
@@ -19,6 +19,7 @@ from .standard_types import (
     HeadPose,
     ControllerInput,
     Generic3AxisPedalInput,
+    FoottrollerInput,
     FullBodyInput,
 )
 
@@ -42,6 +43,9 @@ ControllerInputIndex: Any = _create_index_enum(
 )
 Generic3AxisPedalInputIndex: Any = _create_index_enum(
     "Generic3AxisPedalInputIndex", Generic3AxisPedalInput(), "pedal_"
+)
+FoottrollerInputIndex: Any = _create_index_enum(
+    "FoottrollerInputIndex", FoottrollerInput(), "foottroller_"
 )
 FullBodyInputIndex: Any = _create_index_enum(
     "FullBodyInputIndex", FullBodyInput(), "body_"

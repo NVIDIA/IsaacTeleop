@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <deviceio_trackers/controller_tracker.hpp>
+#include <deviceio_trackers/foottroller_tracker.hpp>
 #include <deviceio_trackers/frame_metadata_tracker_oak.hpp>
 #include <deviceio_trackers/full_body_tracker_pico.hpp>
 #include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>
@@ -149,6 +150,17 @@ PYBIND11_MODULE(_deviceio_trackers, m)
                const core::ITrackerSession& session) -> core::Generic3AxisPedalOutputTrackedT
             { return self.get_data(session); },
             py::arg("session"), "Get the current foot pedal tracked state (data is None when no data available)");
+
+    py::class_<core::FoottrollerTracker, core::ITracker, std::shared_ptr<core::FoottrollerTracker>>(
+        m, "FoottrollerTracker")
+        .def(py::init<const std::string&, size_t>(), py::arg("collection_id"),
+             py::arg("max_flatbuffer_size") = core::FoottrollerTracker::DEFAULT_MAX_FLATBUFFER_SIZE,
+             "Construct a FoottrollerTracker for the given tensor collection ID")
+        .def(
+            "get_foottroller_data",
+            [](const core::FoottrollerTracker& self, const core::ITrackerSession& session) -> core::FoottrollerOutputTrackedT
+            { return self.get_data(session); },
+            py::arg("session"), "Get the current foottroller tracked state (data is None when no data available)");
 
     py::class_<core::FullBodyTrackerPico, core::ITracker, std::shared_ptr<core::FullBodyTrackerPico>>(
         m, "FullBodyTrackerPico")
