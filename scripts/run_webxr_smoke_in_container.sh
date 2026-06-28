@@ -21,14 +21,14 @@ if [[ ! -f "$SDK_TARBALL" ]]; then
 fi
 
 if ! command -v docker >/dev/null 2>&1; then
-    echo "Docker is required to run the web client e2e container test." >&2
+    echo "Docker is required to run the web client smoke container test." >&2
     exit 1
 fi
 
 PLAYWRIGHT_IMAGE="${PLAYWRIGHT_IMAGE:-mcr.microsoft.com/playwright:v1.61.1-noble}"
 RUN_SUFFIX="${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}-$$"
 SAFE_SUFFIX=$(printf '%s' "$RUN_SUFFIX" | tr -c 'A-Za-z0-9_.-' '-')
-CONTAINER_NAME="cloudxr-web-e2e-${SAFE_SUFFIX}"
+CONTAINER_NAME="cloudxr-web-smoke-${SAFE_SUFFIX}"
 NETWORK_NAME="${CONTAINER_NAME}-net"
 
 cleanup() {
@@ -57,5 +57,5 @@ docker run --rm \
         npm install "../nvidia-cloudxr-${SDK_VERSION}.tgz"
         USE_LOCAL_WEBXR_ASSETS=0 npm run build
         npm test
-        npm run test:e2e
+        npm run test:smoke
     '

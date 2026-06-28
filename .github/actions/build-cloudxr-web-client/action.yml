@@ -3,7 +3,7 @@
 #
 # Reads CXR_WEB_SDK_VERSION from deps/cloudxr/.env.default, downloads the SDK
 # from NGC (private if `ngc-api-key` is provided, public otherwise), then runs
-# the web client build, unit tests, and Quick Start e2e tests in an isolated
+# the web client build, unit tests, and browser smoke tests in an isolated
 # container. Output is written to
 # deps/cloudxr/webxr_client/build/.
 
@@ -16,7 +16,7 @@ inputs:
     required: false
     default: ''
   playwright-image:
-    description: Container image used for the web client build and Playwright e2e test.
+    description: Container image used for the web client build and Playwright smoke test.
     required: false
     default: 'mcr.microsoft.com/playwright:v1.61.1-noble'
 
@@ -45,11 +45,11 @@ runs:
       run: |
         ./scripts/download_cloudxr_sdk.sh
 
-    - name: Build and test web client in isolated container
+    - name: Build and smoke-test web client in isolated container
       shell: bash
       env:
         SDK_VERSION: ${{ steps.sdk-version.outputs.version }}
         CLIENT_GIT_REF: ${{ github.ref_name }}
         CLIENT_GIT_SHA: ${{ github.sha }}
         PLAYWRIGHT_IMAGE: ${{ inputs.playwright-image }}
-      run: bash ./scripts/run_webxr_e2e_in_container.sh
+      run: bash ./scripts/run_webxr_smoke_in_container.sh

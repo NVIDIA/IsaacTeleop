@@ -18,7 +18,7 @@
     "dev-server": "webpack serve --config ./webpack.dev.js --no-open",
     "dev-server:https": "cross-env HTTPS=true webpack serve --config ./webpack.dev.js --no-open",
     "test": "jest",
-    "test:e2e": "playwright test",
+    "test:smoke": "playwright test",
     "clean": "rimraf dist"
   },
   "jest": {

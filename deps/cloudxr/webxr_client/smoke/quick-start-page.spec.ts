@@ -37,7 +37,7 @@ async function routeIwerFromNodeModules(page: Page): Promise<void> {
   );
 }
 
-test('Quick Start desktop browser path loads IWER and enables Connect', async ({ page }) => {
+test('desktop browser path loads IWER and enables Connect', async ({ page }) => {
   await routeIwerFromNodeModules(page);
 
   await page.goto(
