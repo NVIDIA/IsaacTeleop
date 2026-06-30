@@ -29,6 +29,7 @@ using viz::testing::ClearRectLayer;
 using viz::testing::ThrowingLayer;
 
 using viz::testing::is_gpu_available;
+using viz::testing::shared_vk_context;
 
 namespace
 {
@@ -63,6 +64,7 @@ TEST_CASE("Offscreen session renders layer pixels through to readback", "[gpu][v
 
     VizSession::Config cfg{};
     cfg.mode = DisplayMode::kOffscreen;
+    cfg.external_context = &shared_vk_context(); // share one instance across [gpu] tests
     cfg.window_width = kSide;
     cfg.window_height = kSide;
     // Linear blue clear; sRGB encoding of 0/0/1/1 stays at 0/0/255/255.
@@ -132,6 +134,7 @@ TEST_CASE("Hidden layer does not contribute to the framebuffer", "[gpu][viz_sess
 
     VizSession::Config cfg{};
     cfg.mode = DisplayMode::kOffscreen;
+    cfg.external_context = &shared_vk_context(); // share one instance across [gpu] tests
     cfg.window_width = kSide;
     cfg.window_height = kSide;
     cfg.clear_color[0] = 0.0f;
@@ -171,6 +174,7 @@ TEST_CASE("Multiple frames advance frame_index and avoid leaking sync state", "[
 
     VizSession::Config cfg{};
     cfg.mode = DisplayMode::kOffscreen;
+    cfg.external_context = &shared_vk_context(); // share one instance across [gpu] tests
     cfg.window_width = 64;
     cfg.window_height = 64;
 

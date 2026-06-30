@@ -23,6 +23,7 @@ using viz::SessionState;
 using viz::VizSession;
 using viz::VkContext;
 using viz::testing::is_gpu_available;
+using viz::testing::shared_vk_context;
 
 TEST_CASE("VizSession::create rejects zero window dimensions", "[unit][viz_session]")
 {
@@ -56,6 +57,7 @@ TEST_CASE("VizSession XR-only methods reject non-kXr modes", "[gpu][viz_session]
 
     VizSession::Config cfg{};
     cfg.mode = DisplayMode::kOffscreen;
+    cfg.external_context = &shared_vk_context(); // share one instance across [gpu] tests
     cfg.window_width = 64;
     cfg.window_height = 64;
 
@@ -89,10 +91,14 @@ TEST_CASE("VizSession::create kXr fails on hosts without an OpenXR runtime", "[u
 
 namespace
 {
+// Reuse the process-wide shared VkContext (callers gate on is_gpu_available
+// first) so these [gpu] cases don't each spin up a fresh Vulkan instance —
+// the NVIDIA ICD drops out after ~12 create/destroy cycles per process.
 VizSession::Config offscreen_cfg(uint32_t side = 64)
 {
     VizSession::Config cfg{};
     cfg.mode = DisplayMode::kOffscreen;
+    cfg.external_context = &shared_vk_context(); // share one instance across [gpu] tests
     cfg.window_width = side;
     cfg.window_height = side;
     return cfg;

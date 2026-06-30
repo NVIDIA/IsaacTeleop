@@ -24,6 +24,7 @@ using viz::VizBuffer;
 using viz::VkContext;
 
 using viz::testing::is_gpu_available;
+using viz::testing::shared_vk_context;
 
 namespace
 {
@@ -85,8 +86,7 @@ TEST_CASE("ProjectionLayer validate_backend_compatibility enforces the direct-pr
     {
         SKIP("No Vulkan-capable GPU available");
     }
-    VkContext ctx;
-    ctx.init({});
+    auto& ctx = shared_vk_context();
 
     ProjectionLayer::Config cfg;
     cfg.view_resolution = { 64, 64 };
@@ -117,8 +117,7 @@ TEST_CASE("ProjectionLayer mono+depth creates valid handles for every slot+view"
     {
         SKIP("No Vulkan-capable GPU available");
     }
-    VkContext ctx;
-    ctx.init({});
+    auto& ctx = shared_vk_context();
 
     ProjectionLayer::Config cfg;
     cfg.view_resolution = { 64, 64 };
@@ -152,8 +151,7 @@ TEST_CASE("ProjectionLayer stereo allocates per-eye storage", "[gpu][projection_
     {
         SKIP("No Vulkan-capable GPU available");
     }
-    VkContext ctx;
-    ctx.init({});
+    auto& ctx = shared_vk_context();
 
     ProjectionLayer::Config cfg;
     cfg.view_resolution = { 64, 64 };
@@ -178,8 +176,7 @@ TEST_CASE("ProjectionLayer no-depth skips depth allocation", "[gpu][projection_l
     {
         SKIP("No Vulkan-capable GPU available");
     }
-    VkContext ctx;
-    ctx.init({});
+    auto& ctx = shared_vk_context();
 
     ProjectionLayer::Config cfg;
     cfg.view_resolution = { 32, 32 };
@@ -200,8 +197,7 @@ TEST_CASE("ProjectionLayer destroy is idempotent", "[gpu][projection_layer]")
     {
         SKIP("No Vulkan-capable GPU available");
     }
-    VkContext ctx;
-    ctx.init({});
+    auto& ctx = shared_vk_context();
 
     ProjectionLayer::Config cfg;
     cfg.view_resolution = { 32, 32 };
@@ -219,8 +215,7 @@ TEST_CASE("ProjectionLayer::submit rejects bad call shapes", "[gpu][projection_l
     {
         SKIP("No Vulkan-capable GPU available");
     }
-    VkContext ctx;
-    ctx.init({});
+    auto& ctx = shared_vk_context();
 
     ProjectionLayer::Config cfg;
     cfg.view_resolution = { 64, 64 };
@@ -282,8 +277,7 @@ TEST_CASE("ProjectionLayer::submit mono+depth advances mailbox + signals semapho
     {
         SKIP("No Vulkan-capable GPU available");
     }
-    VkContext ctx;
-    ctx.init({});
+    auto& ctx = shared_vk_context();
 
     ProjectionLayer::Config cfg;
     cfg.view_resolution = { 64, 64 };
@@ -345,8 +339,7 @@ TEST_CASE("ProjectionLayer::submit stereo requires both eyes", "[gpu][projection
     {
         SKIP("No Vulkan-capable GPU available");
     }
-    VkContext ctx;
-    ctx.init({});
+    auto& ctx = shared_vk_context();
 
     ProjectionLayer::Config cfg;
     cfg.view_resolution = { 64, 64 };
@@ -400,8 +393,7 @@ TEST_CASE("ProjectionLayer::submit no-depth path accepts color only", "[gpu][pro
     {
         SKIP("No Vulkan-capable GPU available");
     }
-    VkContext ctx;
-    ctx.init({});
+    auto& ctx = shared_vk_context();
 
     ProjectionLayer::Config cfg;
     cfg.view_resolution = { 32, 32 };
@@ -444,8 +436,7 @@ TEST_CASE("ProjectionLayer acquire_direct_views returns latest slot images", "[g
     {
         SKIP("No Vulkan-capable GPU available");
     }
-    VkContext ctx;
-    ctx.init({});
+    auto& ctx = shared_vk_context();
 
     ProjectionLayer::Config cfg;
     cfg.view_resolution = { 32, 32 };
