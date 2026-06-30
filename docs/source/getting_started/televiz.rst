@@ -303,12 +303,12 @@ extensions automatically), then pass the handles through:
    viz_cfg.required_extensions = DeviceIOSession.get_required_extensions(trackers)
    viz_session = televiz.VizSession.create(viz_cfg)
 
-   tlop_cfg = TeleopSessionConfig(
+   teleop_cfg = TeleopSessionConfig(
        app_name="MyApp",
        pipeline=pipeline,
        oxr_handles=OpenXRSessionHandles(*viz_session.get_oxr_handles()),
    )
-   with TeleopSession(tlop_cfg) as session:
+   with TeleopSession(teleop_cfg) as session:
        while running:
            session.step()
            cam_layer.submit(camera_frame)
