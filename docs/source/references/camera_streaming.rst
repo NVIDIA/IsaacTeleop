@@ -93,22 +93,23 @@ Televiz as the compositor at the end of the chain:
 Setup
 -----
 
-One-time setup builds the Televiz wheel and installs the sample's Python environment:
+One-time setup installs the sample's Python environment — no source build required:
 
 .. code-block:: bash
 
-   cmake -B build -DBUILD_VIZ=ON
-   cmake --build build --target python_wheel --parallel
    examples/camera_viz/camera_viz.sh setup
    source examples/camera_viz/.venv/bin/activate
 
-``setup`` installs every Python dependency into ``.venv/`` via ``uv``, builds the native NVENC/NVDEC
-codec, and probes system packages (GStreamer plugins, cairo / girepository headers, JetPack
-``cuda-nvrtc`` + ``ld.so`` wiring). When something is missing it prints the exact ``apt-get`` line
-and prompts ``[y/N]`` — answering ``n`` or running non-interactively aborts.
+``setup`` installs ``isaacteleop`` (which bundles Televiz) and every other Python dependency from
+PyPI into ``.venv/`` via ``uv``, builds the native NVENC/NVDEC codec, and probes system packages
+(GStreamer plugins, cairo / girepository headers, JetPack ``cuda-nvrtc`` + ``ld.so`` wiring). When
+something is missing it prints the exact ``apt-get`` line and prompts ``[y/N]`` — answering ``n`` or
+running non-interactively aborts.
 
 Useful flags: ``--no-{v4l2,oakd,rtp}``, ``--with-zed``, ``--sender-only``, ``--jetson``. Pass
-``--venv PATH`` to install into an existing virtual environment.
+``--venv PATH`` to install into an existing virtual environment. To develop against a locally built
+wheel instead of the PyPI release, pass ``--wheel <path>`` (see
+:doc:`/getting_started/build_from_source/index`).
 
 Running
 -------

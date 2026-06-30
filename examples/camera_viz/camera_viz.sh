@@ -393,8 +393,8 @@ LOCAL
                           PATH instead of creating one in-place.
                           examples/camera_viz/.venv is symlinked → PATH
                           so run / loopback pick it up too.
-                          --sender-only skips the isaacteleop wheel + vulkan
-                          deps (use on Jetson sender hosts).
+                          --sender-only skips isaacteleop + vulkan deps
+                          (use on Jetson sender hosts).
                           --jetson adds JetPack-only checks: unversioned
                           CUDA lib symlinks + ld.so wiring that JetPack
                           skips. Off on desktop.
