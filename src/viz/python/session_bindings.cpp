@@ -124,6 +124,12 @@ Construct via ``VizSession.create(config)``. Add layers with
             },
             "config"_a, py::return_value_policy::reference_internal,
             "Construct + register a ProjectionLayer. Returns a non-owning handle.")
+        // Concrete-type overloads (LayerBase isn't a registered pybind base).
+        .def(
+            "remove_layer", [](viz::VizSession& self, viz::ProjectionLayer* layer) { self.remove_layer(layer); },
+            "layer"_a, "Remove + destroy a previously added layer (drains the GPU first; no-op if unregistered).")
+        .def(
+            "remove_layer", [](viz::VizSession& self, viz::QuadLayer* layer) { self.remove_layer(layer); }, "layer"_a)
         .def("render", &viz::VizSession::render, py::call_guard<py::gil_scoped_release>(),
              "Wait + composite + present in one call. Returns FrameInfo.")
         .def("begin_frame", &viz::VizSession::begin_frame, py::call_guard<py::gil_scoped_release>())

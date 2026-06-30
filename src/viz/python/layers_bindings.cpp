@@ -134,8 +134,13 @@ numpy on a CUDA device pointer); the binding converts it on the fly.
         .def("set_placement", &viz::QuadLayer::set_placement, "placement"_a,
              "Update placement at runtime. None switches to fullscreen (window mode only).")
         .def("placement", &viz::QuadLayer::placement)
-        .def("set_visible", &viz::QuadLayer::set_visible, "visible"_a)
-        .def("is_visible", &viz::QuadLayer::is_visible)
+        // Bind via concrete-type lambdas: is_visible/set_visible live on
+        // LayerBase, which isn't a registered pybind base of QuadLayer, so a
+        // direct &QuadLayer::is_visible resolves to LayerBase and rejects a
+        // QuadLayer self.
+        .def(
+            "set_visible", [](viz::QuadLayer& self, bool visible) { self.set_visible(visible); }, "visible"_a)
+        .def("is_visible", [](const viz::QuadLayer& self) { return self.is_visible(); })
         .def_property_readonly("name", [](const viz::QuadLayer& l) { return l.name(); });
 
     // ── ProjectionLayer ────────────────────────────────────────────────
@@ -248,8 +253,12 @@ can re-use ``color`` / ``depth`` immediately.
         .def_property_readonly("depth_format", &viz::ProjectionLayer::depth_format)
         .def_property_readonly("stereo", &viz::ProjectionLayer::is_stereo)
         .def_property_readonly("view_count", &viz::ProjectionLayer::view_count)
-        .def("set_visible", &viz::ProjectionLayer::set_visible, "visible"_a)
-        .def("is_visible", &viz::ProjectionLayer::is_visible)
+        // Concrete-type lambdas: see the QuadLayer note above — is_visible /
+        // set_visible are inherited from LayerBase, which isn't a registered
+        // pybind base, so a direct method pointer would reject a ProjectionLayer.
+        .def(
+            "set_visible", [](viz::ProjectionLayer& self, bool visible) { self.set_visible(visible); }, "visible"_a)
+        .def("is_visible", [](const viz::ProjectionLayer& self) { return self.is_visible(); })
         .def_property_readonly("name", [](const viz::ProjectionLayer& l) { return l.name(); });
 }
 

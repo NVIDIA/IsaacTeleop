@@ -4,6 +4,11 @@
 
 Covers: config plumbing, add_projection_layer, submit shape validation,
 mono+depth round-trip render, stereo + no-depth variants. GPU-gated.
+
+All [gpu] tests share one module-scoped VizSession (and thus one VkContext):
+NVIDIA's Linux Vulkan ICD drops out after ~12 instance create/destroy cycles
+per process, so each test adds its layer to the shared session and removes it
+in teardown rather than spinning up a fresh session.
 """
 
 from __future__ import annotations
@@ -14,14 +19,19 @@ import pytest
 import isaacteleop.viz as viz
 
 
-def _gpu_available() -> bool:
+def _make_session(width=32, height=32):
     cfg = viz.VizSessionConfig()
     cfg.mode = viz.DisplayMode.kOffscreen
-    cfg.window_width = 64
-    cfg.window_height = 64
+    cfg.window_width = width
+    cfg.window_height = height
+    cfg.clear_color = (0.0, 0.0, 0.0, 1.0)
+    return viz.VizSession.create(cfg)
+
+
+def _gpu_available() -> bool:
     s = None
     try:
-        s = viz.VizSession.create(cfg)
+        s = _make_session()
     except RuntimeError:
         return False
     finally:
@@ -45,13 +55,14 @@ def _need_cupy():
     return cp
 
 
-def _make_session(width=32, height=32):
-    cfg = viz.VizSessionConfig()
-    cfg.mode = viz.DisplayMode.kOffscreen
-    cfg.window_width = width
-    cfg.window_height = height
-    cfg.clear_color = (0.0, 0.0, 0.0, 1.0)
-    return viz.VizSession.create(cfg)
+@pytest.fixture(scope="module")
+def session():
+    """One offscreen session (one VkContext) shared by every [gpu] test."""
+    s = _make_session()
+    try:
+        yield s
+    finally:
+        s.destroy()
 
 
 def test_projection_layer_config_roundtrip():
@@ -73,15 +84,13 @@ def test_projection_layer_config_roundtrip():
     assert cfg.depth_format is None
 
 
-def test_add_projection_layer_mono_depth():
+def test_add_projection_layer_mono_depth(session):
     cp = _need_cupy()
-    session = _make_session()
+    layer_cfg = viz.ProjectionLayerConfig()
+    layer_cfg.name = "proj"
+    layer_cfg.view_resolution = viz.Resolution(32, 32)
+    layer = session.add_projection_layer(layer_cfg)
     try:
-        layer_cfg = viz.ProjectionLayerConfig()
-        layer_cfg.name = "proj"
-        layer_cfg.view_resolution = viz.Resolution(32, 32)
-        layer = session.add_projection_layer(layer_cfg)
-
         assert layer.name == "proj"
         assert layer.is_visible() is True
         assert layer.view_resolution.width == 32
@@ -96,64 +105,54 @@ def test_add_projection_layer_mono_depth():
         host_color[..., 2] = 200  # blue channel
         host_color[..., 3] = 255
         host_depth = np.full((32, 32), 0.5, dtype=np.float32)
-        color = cp.asarray(host_color)
-        depth = cp.asarray(host_depth)
+        layer.submit(cp.asarray(host_color), cp.asarray(host_depth))
 
-        layer.submit(color, depth)
+        session.render()
 
-        info = session.render()
-        assert info.frame_index == 0
-
-        img = session.readback_to_host()
-        arr = np.asarray(img)
         # Predominantly blue at the center; ProjectionLayer covers the
         # whole framebuffer.
+        arr = np.asarray(session.readback_to_host())
         r, g, b, _a = arr[16, 16]
         assert b > r and b > g
     finally:
-        session.destroy()
+        session.remove_layer(layer)
 
 
-def test_submit_rejects_missing_depth_on_depth_layer():
+def test_submit_rejects_missing_depth_on_depth_layer(session):
     cp = _need_cupy()
-    session = _make_session()
+    layer_cfg = viz.ProjectionLayerConfig()
+    layer_cfg.view_resolution = viz.Resolution(32, 32)
+    layer = session.add_projection_layer(layer_cfg)
     try:
-        layer_cfg = viz.ProjectionLayerConfig()
-        layer_cfg.view_resolution = viz.Resolution(32, 32)
-        layer = session.add_projection_layer(layer_cfg)
-
         color = cp.asarray(np.zeros((32, 32, 4), dtype=np.uint8))
         with pytest.raises(RuntimeError, match="left_depth"):
             layer.submit(color)
     finally:
-        session.destroy()
+        session.remove_layer(layer)
 
 
-def test_submit_rejects_dimension_mismatch():
+def test_submit_rejects_dimension_mismatch(session):
     cp = _need_cupy()
-    session = _make_session()
+    layer_cfg = viz.ProjectionLayerConfig()
+    layer_cfg.view_resolution = viz.Resolution(32, 32)
+    layer = session.add_projection_layer(layer_cfg)
     try:
-        layer_cfg = viz.ProjectionLayerConfig()
-        layer_cfg.view_resolution = viz.Resolution(32, 32)
-        layer = session.add_projection_layer(layer_cfg)
-
         # Wrong width.
         wrong_color = cp.asarray(np.zeros((32, 16, 4), dtype=np.uint8))
         depth = cp.asarray(np.zeros((32, 32), dtype=np.float32))
         with pytest.raises(RuntimeError, match="resolution"):
             layer.submit(wrong_color, depth)
     finally:
-        session.destroy()
+        session.remove_layer(layer)
 
 
-def test_stereo_round_trip():
+def test_stereo_round_trip(session):
     cp = _need_cupy()
-    session = _make_session()
+    layer_cfg = viz.ProjectionLayerConfig()
+    layer_cfg.view_resolution = viz.Resolution(32, 32)
+    layer_cfg.stereo = True
+    layer = session.add_projection_layer(layer_cfg)
     try:
-        layer_cfg = viz.ProjectionLayerConfig()
-        layer_cfg.view_resolution = viz.Resolution(32, 32)
-        layer_cfg.stereo = True
-        layer = session.add_projection_layer(layer_cfg)
         assert layer.stereo is True
         assert layer.view_count == 2
 
@@ -182,17 +181,16 @@ def test_stereo_round_trip():
         r, g, b, _a = arr[16, 16]
         assert r > g and r > b
     finally:
-        session.destroy()
+        session.remove_layer(layer)
 
 
-def test_no_depth_layer():
+def test_no_depth_layer(session):
     cp = _need_cupy()
-    session = _make_session()
+    layer_cfg = viz.ProjectionLayerConfig()
+    layer_cfg.view_resolution = viz.Resolution(32, 32)
+    layer_cfg.depth_format = None
+    layer = session.add_projection_layer(layer_cfg)
     try:
-        layer_cfg = viz.ProjectionLayerConfig()
-        layer_cfg.view_resolution = viz.Resolution(32, 32)
-        layer_cfg.depth_format = None
-        layer = session.add_projection_layer(layer_cfg)
         assert layer.depth_format is None
 
         host_color = np.zeros((32, 32, 4), dtype=np.uint8)
@@ -211,33 +209,27 @@ def test_no_depth_layer():
         r, g, b, _a = arr[16, 16]
         assert r > g and r > b
     finally:
-        session.destroy()
+        session.remove_layer(layer)
 
 
-def test_begin_frame_returns_views_for_renderer():
+def test_begin_frame_returns_views_for_renderer(session):
     """``session.begin_frame()`` is the source of truth for poses the
     renderer should render against. In offscreen mode the backend
     returns a single identity-pose ViewInfo."""
-    session = _make_session()
-    try:
-        info = session.begin_frame()
-        assert len(info.views) >= 1
-        session.end_frame()
-    finally:
-        session.destroy()
+    info = session.begin_frame()
+    assert len(info.views) >= 1
+    session.end_frame()
 
 
-def test_inloop_submit_pattern():
+def test_inloop_submit_pattern(session):
     """The supported pattern: begin_frame → submit (against this frame's
     views) → end_frame, all in one tick. Window/offscreen modes have no
     XR freshness gate, so the layer renders on every frame that submits."""
     cp = _need_cupy()
-    session = _make_session()
+    layer_cfg = viz.ProjectionLayerConfig()
+    layer_cfg.view_resolution = viz.Resolution(32, 32)
+    layer = session.add_projection_layer(layer_cfg)
     try:
-        layer_cfg = viz.ProjectionLayerConfig()
-        layer_cfg.view_resolution = viz.Resolution(32, 32)
-        layer = session.add_projection_layer(layer_cfg)
-
         host_color = np.zeros((32, 32, 4), dtype=np.uint8)
         host_color[..., 2] = 200  # blue
         host_color[..., 3] = 255
@@ -248,9 +240,7 @@ def test_inloop_submit_pattern():
             assert info.should_render
             # In a real renderer we'd pass info.views to the GPU side; here
             # the buffers are static.
-            color = cp.asarray(host_color)
-            depth = cp.asarray(host_depth)
-            layer.submit(color, depth)
+            layer.submit(cp.asarray(host_color), cp.asarray(host_depth))
             session.end_frame()
 
         # Final readback shows the submitted color.
@@ -258,4 +248,4 @@ def test_inloop_submit_pattern():
         r, g, b, _a = arr[16, 16]
         assert b > r and b > g
     finally:
-        session.destroy()
+        session.remove_layer(layer)
