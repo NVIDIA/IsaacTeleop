@@ -10,7 +10,9 @@ cmake_minimum_required(VERSION 3.20)
 # viz/layers_tests/.
 add_library(viz_layers STATIC
     quad_layer.cpp
+    projection_layer.cpp
     inc/viz/layers/quad_layer.hpp
+    inc/viz/layers/projection_layer.hpp
 )
 
 target_include_directories(viz_layers

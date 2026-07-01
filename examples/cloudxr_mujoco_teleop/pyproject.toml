@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 HTC CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[project]
+name = "cloudxr-mujoco-teleop-example"
+version = "0.1.0"
+description = "Visualize OpenXR / CloudXR headset + controller poses in MuJoCo."
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "isaacteleop",
+    "mujoco>=3.0",
+    "numpy>=1.22.2",
+    "scipy>=1.10",
+]

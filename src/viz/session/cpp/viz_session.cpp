@@ -198,6 +198,21 @@ FrameInfo VizSession::begin_frame()
         state_ = SessionState::kRunning;
     }
 
+    // A direct-present (ProjectionLayer) layer copies its images 1:1 into the
+    // swapchain, so its resolution / view count / in-flight slot count must
+    // keep matching the backend. pump_events() may have resized or recreated
+    // the swapchain (changing the per-view size or image count), so revalidate
+    // here — a now-incompatible layer fails fast with a clear error instead of
+    // silently presenting clamped or partial content. Cheap: at most one
+    // projection layer, integer comparisons unless they mismatch.
+    for (const auto& layer : layers_)
+    {
+        if (layer->is_projection_layer())
+        {
+            validate_layer_against_backend_(layer.get());
+        }
+    }
+
     const auto now = std::chrono::steady_clock::now();
     if (first_frame_)
     {
@@ -211,11 +226,47 @@ FrameInfo VizSession::begin_frame()
     last_frame_time_ = now;
 
     current_frame_info_.frame_index = frame_index_;
-    current_frame_info_.predicted_display_time = 0; // XR-only; 0 in offscreen
-    current_frame_info_.should_render = (state_ == SessionState::kRunning);
     current_frame_info_.resolution = compositor_ ? compositor_->resolution() : Resolution{};
-    // Identity placeholder; backends fill per-view info inside render().
-    current_frame_info_.views.assign(1, ViewInfo{});
+    current_backend_frame_.reset();
+
+    // Acquire the backend frame BEFORE returning so renderers calling
+    // submit() against the returned FrameInfo's views are working with
+    // the same per-eye poses xrEndFrame will submit later. Skip the
+    // acquire when state isn't kRunning (kStopping/kLost paths submit
+    // empty xrEndFrames internally) or when the backend itself returns
+    // nullopt (XR shouldRender=0, swapchain skip).
+    if (state_ == SessionState::kRunning && backend_)
+    {
+        current_backend_frame_ = backend_->begin_frame(/*ignored=*/0);
+    }
+
+    if (current_backend_frame_.has_value())
+    {
+        current_frame_info_.should_render = true;
+        current_frame_info_.predicted_display_time = current_backend_frame_->predicted_display_time_ns;
+        current_frame_info_.views = current_backend_frame_->views;
+        if (current_frame_info_.views.empty())
+        {
+            current_frame_info_.views.assign(1, ViewInfo{});
+        }
+    }
+    else
+    {
+        current_frame_info_.should_render = false;
+        current_frame_info_.predicted_display_time = 0;
+        current_frame_info_.views.assign(1, ViewInfo{});
+    }
+
+    // Notify layers a new frame has begun. Lets ProjectionLayer-style
+    // layers clear per-frame freshness flags so a stale mailbox slot
+    // doesn't get composited under a new pose.
+    for (const auto& layer : layers_)
+    {
+        if (layer != nullptr)
+        {
+            layer->on_frame_begin();
+        }
+    }
 
     frame_in_progress_ = true;
     return current_frame_info_;
@@ -227,31 +278,27 @@ void VizSession::end_frame()
     {
         throw std::logic_error("VizSession: end_frame called without a matching begin_frame");
     }
-    if (state_ != SessionState::kRunning)
-    {
-        frame_in_progress_ = false;
-        return;
-    }
 
     struct ClearGuard
     {
         bool* flag;
+        std::optional<DisplayBackend::Frame>* frame_slot;
         ~ClearGuard()
         {
             *flag = false;
+            frame_slot->reset();
         }
-    } guard{ &frame_in_progress_ };
+    } guard{ &frame_in_progress_, &current_backend_frame_ };
 
-    std::vector<LayerBase*> raw_layers;
-    raw_layers.reserve(layers_.size());
-    for (const auto& l : layers_)
+    if (current_backend_frame_.has_value())
     {
-        raw_layers.push_back(l.get());
-    }
-
-    if (current_frame_info_.should_render)
-    {
-        compositor_->render(raw_layers);
+        std::vector<LayerBase*> raw_layers;
+        raw_layers.reserve(layers_.size());
+        for (const auto& l : layers_)
+        {
+            raw_layers.push_back(l.get());
+        }
+        compositor_->render(*current_backend_frame_, raw_layers);
     }
 
     update_timing_stats(current_frame_info_.delta_time);
@@ -278,11 +325,34 @@ void VizSession::update_timing_stats(float frame_time_seconds)
         (timing_stats_.avg_frame_time_ms > 0.0f) ? 1000.0f / timing_stats_.avg_frame_time_ms : 0.0f;
 }
 
+void VizSession::validate_layer_against_backend_(LayerBase* layer) const
+{
+    // No backend yet (layers may be built standalone in tests) → nothing to check.
+    if (layer == nullptr || backend_ == nullptr)
+    {
+        return;
+    }
+    // Context affinity: a foreign context's images/semaphores would be used on
+    // this session's queue — invalid cross-device usage.
+    if (layer->vk_context() != nullptr && layer->vk_context() != &ctx())
+    {
+        throw std::invalid_argument(
+            "VizSession: layer was created from a different VkContext than the session's; "
+            "build layers with VizSession::get_vk_context().");
+    }
+    const uint32_t backend_view_count = backend_->is_xr() ? 2u : 1u;
+    layer->validate_backend_compatibility(
+        backend_->recommended_view_resolution(), backend_view_count, backend_->image_count());
+}
+
 Resolution VizSession::get_recommended_resolution() const noexcept
 {
-    if (compositor_)
+    // Per-view size a direct ProjectionLayer should render at (kXr: per-eye,
+    // so its copy to the swapchain is 1:1). Window/offscreen report the
+    // single-view target extent.
+    if (backend_)
     {
-        return compositor_->resolution();
+        return backend_->recommended_view_resolution();
     }
     return Resolution{ config_.window_width, config_.window_height };
 }

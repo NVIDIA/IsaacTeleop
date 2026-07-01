@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "layer_base.hpp" // DirectPresentView
+
 #include <viz/core/host_image.hpp>
 #include <viz/core/render_target.hpp>
 #include <viz/core/viz_types.hpp>
@@ -94,6 +96,13 @@ public:
         // Backend-private bookkeeping round-tripped to record_post_* /
         // end_frame (e.g. swapchain image_index, predicted_display_time).
         uint64_t backend_token = 0;
+
+        // OpenXR predicted display time in nanoseconds (from
+        // xrWaitFrame's XrFrameState.predictedDisplayTime), exposed
+        // through FrameInfo so renderers can use it for time-aware
+        // content (e.g. animation timestamps that match the runtime's
+        // prediction). 0 outside kXr.
+        int64_t predicted_display_time_ns = 0;
     };
 
     // Acquire the next frame target. nullopt = skip this frame.
@@ -107,6 +116,36 @@ public:
     // (blit + transitions for kWindow, no-op for kOffscreen).
     virtual void record_post_render_pass(VkCommandBuffer /*cmd*/, const Frame& /*frame*/)
     {
+    }
+
+    // True when the backend implements the direct-present path
+    // (record_direct). The compositor uses it together with a layer's
+    // supports_direct_present() to choose direct vs. composited.
+    virtual bool supports_direct() const noexcept
+    {
+        return false;
+    }
+
+    // Direct-present path: copy a direct layer's per-view (color, depth)
+    // images STRAIGHT into the presentation swapchains, replacing the
+    // render-pass + record_post_render_pass for this frame. ``views`` has
+    // one entry per backend view (1 window/offscreen, 2 kXr stereo); the
+    // source images are in SHADER_READ_ONLY_OPTIMAL with extent equal to
+    // the swapchain per-view size. Empty ``views`` → clear the swapchains.
+    // The compositor still threads the layer's CUDA-done wait semaphores
+    // (TRANSFER stage) into the submit. Default: unsupported.
+    virtual void record_direct(VkCommandBuffer /*cmd*/,
+                               const Frame& /*frame*/,
+                               const std::vector<DirectPresentView>& /*views*/)
+    {
+    }
+
+    // Per-view resolution a direct layer should render at so its copy to
+    // the swapchain is 1:1 (kXr: per-eye; window/offscreen: the full
+    // target). Default: the (single-view) render-target extent.
+    virtual Resolution recommended_view_resolution() const
+    {
+        return current_extent();
     }
 
     // Called after a successful submit. The host has NOT waited on the

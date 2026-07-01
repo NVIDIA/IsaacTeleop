@@ -192,6 +192,11 @@ public:
     // Drives aspect-fit letterbox in window mode; ignored in kXr.
     std::optional<float> aspect_ratio() const noexcept override;
 
+    const VkContext* vk_context() const noexcept override
+    {
+        return ctx_;
+    }
+
     Resolution resolution() const noexcept;
     PixelFormat format() const noexcept;
 
