@@ -219,8 +219,15 @@ def collect_pyproject_dependencies(
                     )
 
 
-def collect_npm_dependencies(root: Path, deps: set[Dependency], warnings: list[str]) -> None:
-    fields = ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies")
+def collect_npm_dependencies(
+    root: Path, deps: set[Dependency], warnings: list[str]
+) -> None:
+    fields = (
+        "dependencies",
+        "devDependencies",
+        "peerDependencies",
+        "optionalDependencies",
+    )
     for path in sorted(root.rglob("package.json")):
         if should_skip(path, root):
             continue

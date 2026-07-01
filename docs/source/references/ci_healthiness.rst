@@ -68,7 +68,7 @@ reporting on top of that source-file check:
 * Keep the first vulnerability report non-blocking until false positives,
   vendored dependencies, and intentionally bundled SDKs are triaged.
 * Introduce severity-based merge gates only after the baseline report is
-stable.
+  stable.
 
 The ``OSS Dependency Report`` workflow implements the first non-blocking
 baseline. It publishes ``isaacteleop-oss-dependency-report`` with:
