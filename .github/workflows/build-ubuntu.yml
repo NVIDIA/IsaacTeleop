@@ -44,6 +44,12 @@ jobs:
           libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxext-dev libxkbcommon-dev \
           libwayland-dev wayland-protocols autoconf automake libtool pkg-config libudev-dev
 
+    - name: Install coverage tooling
+      if: ${{ matrix.build_type == 'Debug' && matrix.python_version == '3.11' && matrix.arch == 'x64' }}
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcovr
+
     - name: Install patchelf (Release only)
       if: ${{ matrix.build_type == 'Release' }}
       run: |
@@ -113,6 +119,17 @@ jobs:
 
     - name: Configure CMake
       run: |
+        coverage_args=()
+        if [[ "${{ matrix.build_type }}" == "Debug" && "${{ matrix.python_version }}" == "3.11" && "${{ matrix.arch }}" == "x64" ]]; then
+          coverage_args=(
+            -DCMAKE_C_FLAGS="--coverage -O0 -g"
+            -DCMAKE_CXX_FLAGS="--coverage -O0 -g"
+            -DCMAKE_EXE_LINKER_FLAGS="--coverage"
+            -DCMAKE_SHARED_LINKER_FLAGS="--coverage"
+            -DCMAKE_MODULE_LINKER_FLAGS="--coverage"
+          )
+        fi
+
         cmake -B build \
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
           -DISAAC_TELEOP_PYTHON_VERSION=${{ matrix.python_version }} \
@@ -122,7 +139,8 @@ jobs:
           -DBUILD_VIZ=ON \
           -DENABLE_CLOUDXR_BUNDLE_CHECK=ON \
           -DBUNDLE_ROBOTIC_GROUNDING=${{ steps.setup-v2d-src.outputs.bundled || 'false' }} \
-          -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake
+          -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake \
+          "${coverage_args[@]}"
 
     - name: Build
       run: cmake --build build --parallel 4
@@ -132,6 +150,55 @@ jobs:
 
     - name: Run All Tests
       run: ctest --test-dir build --output-on-failure --parallel
+
+    - name: Generate coverage report
+      if: ${{ matrix.build_type == 'Debug' && matrix.python_version == '3.11' && matrix.arch == 'x64' }}
+      run: |
+        set -euo pipefail
+        mkdir -p coverage/html
+
+        gcovr_args=(
+          --root "${GITHUB_WORKSPACE}"
+          --object-directory build/src
+          --filter "src/"
+          --exclude "src/.*/.*_tests/.*"
+          --exclude "src/.*/tests/.*"
+          --exclude "src/.*/python_tests/.*"
+        )
+
+        gcovr "${gcovr_args[@]}" --txt --output coverage/summary.txt --print-summary | tee coverage/totals.txt
+        gcovr "${gcovr_args[@]}" --xml-pretty --output coverage/cobertura.xml
+        gcovr "${gcovr_args[@]}" --html-details --output coverage/html/index.html
+
+    - name: Publish coverage summary
+      if: ${{ matrix.build_type == 'Debug' && matrix.python_version == '3.11' && matrix.arch == 'x64' }}
+      run: |
+        set -euo pipefail
+        {
+          echo "## CTest coverage"
+          echo
+          echo "Native coverage was generated from the existing Ubuntu Debug x64 Python 3.11 CTest matrix entry."
+          echo
+          echo "### Totals"
+          echo '```'
+          cat coverage/totals.txt
+          echo '```'
+          echo
+          echo "Download the \`isaacteleop-coverage-ubuntu-debug\` artifact for the HTML report and \`coverage/cobertura.xml\`."
+        } >> "${GITHUB_STEP_SUMMARY}"
+
+    - name: Upload coverage artifact
+      if: ${{ matrix.build_type == 'Debug' && matrix.python_version == '3.11' && matrix.arch == 'x64' }}
+      uses: actions/upload-artifact@v6
+      with:
+        name: isaacteleop-coverage-ubuntu-debug
+        path: |
+          coverage/summary.txt
+          coverage/totals.txt
+          coverage/cobertura.xml
+          coverage/html
+        if-no-files-found: error
+        retention-days: 14
 
     - name: Package viz test binaries (Release, py3.11 only)
       # GPU [gpu]-tagged tests run separately on a self-hosted GPU runner
