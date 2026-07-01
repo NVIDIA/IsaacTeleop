@@ -854,11 +854,34 @@ jobs:
         wheel_prefix="${wheel_base}/"
 
         wheel_paths=()
+        curl_artifactory_json() {
+          local label="$1"
+          shift
+
+          local attempt=1
+          local max_attempts=5
+          local delay_seconds=10
+          local output
+
+          until output="$(curl --fail-with-body --show-error --silent --location --connect-timeout 10 --max-time 120 "$@")"; do
+            if (( attempt >= max_attempts )); then
+              echo "Artifactory request failed after ${attempt} attempt(s): ${label}" >&2
+              return 1
+            fi
+
+            echo "Artifactory request failed for ${label}; retrying in ${delay_seconds}s (${attempt}/${max_attempts})" >&2
+            sleep "${delay_seconds}"
+            attempt=$((attempt + 1))
+          done
+
+          printf '%s' "${output}"
+        }
+
         for wheel in "${wheels[@]}"; do
           wheel_name="$(basename "${wheel}")"
           echo "Resolving Artifactory URL for ${wheel_name}"
 
-          search_json="$(curl --fail-with-body --show-error --silent --location --get --connect-timeout 10 --max-time 60 \
+          search_json="$(curl_artifactory_json "artifact search for ${wheel_name}" --get \
             -u "${ARTIFACTORY_USERNAME}:${ARTIFACTORY_API_KEY}" \
             --data-urlencode "name=${wheel_name}" \
             --data-urlencode "repos=${ARTIFACTORY_REPO}" \
@@ -878,7 +901,7 @@ jobs:
             exit 1
           fi
 
-          metadata_json="$(curl --fail-with-body --show-error --silent --location --connect-timeout 10 --max-time 60 \
+          metadata_json="$(curl_artifactory_json "artifact metadata for ${wheel_name}" \
             -u "${ARTIFACTORY_USERNAME}:${ARTIFACTORY_API_KEY}" \
             "${storage_uri}")"
 
