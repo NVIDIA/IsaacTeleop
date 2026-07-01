@@ -198,6 +198,21 @@ FrameInfo VizSession::begin_frame()
         state_ = SessionState::kRunning;
     }
 
+    // A direct-present (ProjectionLayer) layer copies its images 1:1 into the
+    // swapchain, so its resolution / view count / in-flight slot count must
+    // keep matching the backend. pump_events() may have resized or recreated
+    // the swapchain (changing the per-view size or image count), so revalidate
+    // here — a now-incompatible layer fails fast with a clear error instead of
+    // silently presenting clamped or partial content. Cheap: at most one
+    // projection layer, integer comparisons unless they mismatch.
+    for (const auto& layer : layers_)
+    {
+        if (layer->is_projection_layer())
+        {
+            validate_layer_against_backend_(layer.get());
+        }
+    }
+
     const auto now = std::chrono::steady_clock::now();
     if (first_frame_)
     {

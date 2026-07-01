@@ -116,6 +116,13 @@ public:
     template <typename L, typename... Args>
     L* add_layer(Args&&... args)
     {
+        // Layers may only be added to a live session. After destroy() the
+        // backend + context are gone (validate_layer_against_backend_ would
+        // no-op), so without this guard a layer could attach to a dead session.
+        if (state_ != SessionState::kReady && state_ != SessionState::kRunning)
+        {
+            throw std::logic_error("VizSession: add_layer requires an active session (kReady or kRunning)");
+        }
         auto layer = std::make_unique<L>(std::forward<Args>(args)...);
         L* raw = layer.get();
 

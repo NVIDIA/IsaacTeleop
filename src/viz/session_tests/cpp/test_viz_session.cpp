@@ -177,3 +177,20 @@ TEST_CASE("VizSession rejects a layer built from a foreign VkContext", "[gpu][vi
     pcfg.view_resolution = session->get_recommended_resolution(); // correct size, wrong context
     CHECK_THROWS_WITH(session->add_layer<ProjectionLayer>(foreign, pcfg), ContainsSubstring("different VkContext"));
 }
+
+TEST_CASE("VizSession::add_layer is rejected after destroy", "[gpu][viz_session]")
+{
+    if (!is_gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
+    auto session = VizSession::create(offscreen_cfg());
+    session->destroy();
+
+    ProjectionLayer::Config pcfg;
+    pcfg.view_resolution = { 32, 32 };
+    // The lifecycle guard must reject the add on the destroyed session — before
+    // constructing the layer (the shared context arg is just to form the call).
+    CHECK_THROWS_WITH(
+        session->add_layer<ProjectionLayer>(shared_vk_context(), pcfg), ContainsSubstring("active session"));
+}
