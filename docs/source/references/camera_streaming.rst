@@ -18,7 +18,7 @@ it works. For the exact command surface and flags, see the
    :width: 420px
    :class: no-image-zoom
 
-   ``camera_viz`` in window mode — one plane per camera, aspect-fit.
+   ``camera_viz`` in XR mode — one plane per camera.
 
 .. contents:: On this page
    :local:
