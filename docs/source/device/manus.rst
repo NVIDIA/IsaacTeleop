@@ -1,8 +1,8 @@
 .. SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-MANUS Glove
-===========
+MANUS Gloves
+============
 
 A Linux-only plugin for integrating `MANUS <https://www.manus-meta.com/>`_ gloves
 into the Isaac Teleop framework. It provides full hand-joint tracking via the
