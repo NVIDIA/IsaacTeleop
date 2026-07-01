@@ -22,6 +22,26 @@ directly.
    :local:
    :depth: 2
 
+Installation
+------------
+
+Televiz ships inside the ``isaacteleop`` wheel — install it from PyPI:
+
+.. code-block:: bash
+
+   pip install isaacteleop
+
+The published wheels (Linux x86_64 / aarch64, CPython 3.10–3.13) bundle the compiled
+``isaacteleop.viz`` module, so **no source build is required**. Verify with:
+
+.. code-block:: python
+
+   import isaacteleop.viz as televiz
+
+You only need to :doc:`build from source </getting_started/build_from_source/index>` when
+developing Isaac Teleop itself — that build enables Televiz automatically when Vulkan, the CUDA
+Toolkit, and ``glslangValidator`` are present.
+
 Overview
 --------
 
@@ -420,8 +440,8 @@ symbols live in ``namespace viz``, and headers use nested include paths::
    #include <viz/layers/quad_layer.hpp>
    #include <viz/core/viz_buffer.hpp>
 
-Enable ``BUILD_VIZ`` (default ``OFF``; requires Vulkan, the CUDA toolkit, and ``glslangValidator``)
-and link the relevant CMake target:
+``BUILD_VIZ`` auto-enables when Vulkan, the CUDA toolkit, and ``glslangValidator`` are detected
+(force it with ``-DBUILD_VIZ=ON`` / ``-DBUILD_VIZ=OFF``); link the relevant CMake target:
 
 .. list-table::
    :header-rows: 1

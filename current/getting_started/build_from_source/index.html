@@ -600,6 +600,10 @@ cmake<span class="w"> </span>--build<span class="w"> </span>build<span class="w"
 <td><p><code class="docutils literal notranslate"><span class="pre">ENABLE_CLANG_FORMAT_CHECK</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">ON</span></code> on Linux</p></td>
 </tr>
+<tr class="row-odd"><td><p><strong>Televiz visualization</strong></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">BUILD_VIZ</span></code></p></td>
+<td><p>Auto: <code class="docutils literal notranslate"><span class="pre">ON</span></code> when Vulkan, the CUDA Toolkit, and <code class="docutils literal notranslate"><span class="pre">glslangValidator</span></code> are detected, else <code class="docutils literal notranslate"><span class="pre">OFF</span></code>. Force with <code class="docutils literal notranslate"><span class="pre">-DBUILD_VIZ=ON</span></code> / <code class="docutils literal notranslate"><span class="pre">-DBUILD_VIZ=OFF</span></code>. (Most users don’t need this — <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">isaacteleop</span></code> already ships the compiled <code class="docutils literal notranslate"><span class="pre">isaacteleop.viz</span></code> module.)</p></td>
+</tr>
 </tbody>
 </table>
 </div>
