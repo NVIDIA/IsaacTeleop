@@ -62,7 +62,24 @@ option(BUILD_PLUGIN_OAK_CAMERA "Build OAK camera plugin (requires vcpkg for Dept
 option(BUILD_EXAMPLES "Build examples" ON)
 option(BUILD_EXAMPLE_TELEOP_ROS2 "Build only the teleop_ros2 example (e.g. for Docker)" OFF)
 option(BUILD_TESTING "Build unit tests" ON)
-option(BUILD_VIZ "Build Televiz visualization module (requires Vulkan)" OFF)
+# Televiz (src/viz) needs Vulkan, the CUDA Toolkit, and glslangValidator.
+# Default BUILD_VIZ ON when all three are present (so it builds out of the box)
+# and OFF otherwise (so a core-only source build still configures on machines
+# without them). Override explicitly with -DBUILD_VIZ=ON/OFF.
+find_package(Vulkan QUIET)
+find_package(CUDAToolkit QUIET)
+find_program(_viz_glslang NAMES glslangValidator)
+if(Vulkan_FOUND AND CUDAToolkit_FOUND AND _viz_glslang)
+    set(_viz_default ON)
+else()
+    set(_viz_default OFF)
+endif()
+option(BUILD_VIZ "Build Televiz visualization module (auto-ON when Vulkan + CUDA + glslang are found)" ${_viz_default})
+if(BUILD_VIZ AND NOT (Vulkan_FOUND AND CUDAToolkit_FOUND AND _viz_glslang))
+    message(WARNING "BUILD_VIZ=ON but not all of Vulkan / CUDA Toolkit / glslangValidator were detected; "
+                    "the viz build may fail. Install the deps or pass -DBUILD_VIZ=OFF.")
+endif()
+message(STATUS "BUILD_VIZ: ${BUILD_VIZ} (Vulkan=${Vulkan_FOUND} CUDAToolkit=${CUDAToolkit_FOUND} glslang=${_viz_glslang})")
 option(ENABLE_EXPERIMENTAL_WINDOWS_BUILD "Enable experimental Windows build support (source code only)" OFF)
 
 # Note: This is used to check if the CloudXR bundle is available to be bundled with Isaac Teleop.

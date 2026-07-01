@@ -180,6 +180,9 @@ The CMake options (defined in root :code-file:`CMakeLists.txt`, :code-file:`cmak
    * - **Clang-format check**
      - ``ENABLE_CLANG_FORMAT_CHECK``
      - ``ON`` on Linux
+   * - **Televiz visualization**
+     - ``BUILD_VIZ``
+     - Auto: ``ON`` when Vulkan, the CUDA Toolkit, and ``glslangValidator`` are detected, else ``OFF``. Force with ``-DBUILD_VIZ=ON`` / ``-DBUILD_VIZ=OFF``. (Most users don't need this — ``pip install isaacteleop`` already ships the compiled ``isaacteleop.viz`` module.)
 
 .. list-table:: Plugin Specific Options
    :widths: 26 34 40

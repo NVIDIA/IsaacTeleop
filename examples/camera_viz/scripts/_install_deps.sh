@@ -6,8 +6,9 @@
 # ``camera_viz.sh setup`` (local) and ``camera_viz.sh deploy`` (over SSH).
 #
 # Modes:
-#   --full         viewer + sender (workstation). Installs isaacteleop wheel.
-#   --sender-only  sender path only. No wheel, no vulkan deps.
+#   --full         viewer + sender (workstation). Installs isaacteleop from PyPI
+#                  (or a local --wheel).
+#   --sender-only  sender path only. No isaacteleop, no vulkan deps.
 #
 # Flags: --venv, --wheel, --python, --no-v4l2, --no-oakd, --no-rtp,
 #        --with-zed, --zed-sdk.
@@ -255,25 +256,23 @@ if ! command -v uv >/dev/null 2>&1; then
     fi
 fi
 
-# Resolve the wheel only in --full mode.
-if [[ "$MODE" == full ]]; then
-    if [[ -z "$WHEEL" ]]; then
-        if [[ -n "$REPO_ROOT" ]]; then
-            WHEEL=$(ls -1 "$REPO_ROOT"/build/wheels/isaacteleop-*.whl 2>/dev/null | head -1 || true)
-        fi
-    fi
-    [[ -n "$WHEEL" && -f "$WHEEL" ]] || {
-        echo "_install_deps.sh: no isaacteleop wheel found." >&2
-        echo "  Build one with: cmake --build build --target python_wheel" >&2
-        echo "  Or pass --wheel <path>. Or use --sender-only if this is a sender host." >&2
+# isaacteleop comes from PyPI by default (the published wheel includes the
+# viz module). --wheel <path> installs a locally built wheel instead — only
+# needed when developing against an unreleased build (see the build-from-source
+# docs). Sender-only deploys don't install isaacteleop at all.
+ISAACTELEOP_PKG="isaacteleop"
+if [[ "$MODE" == full && -n "$WHEEL" ]]; then
+    [[ -f "$WHEEL" ]] || {
+        echo "_install_deps.sh: --wheel '$WHEEL' not found." >&2
         exit 1
     }
+    ISAACTELEOP_PKG="$WHEEL"
 fi
 
 echo "==> mode:   $MODE"
 echo "==> venv:   $VENV_DIR"
 echo "==> python: $PYTHON_VERSION"
-[[ "$MODE" == full ]] && echo "==> wheel:  $WHEEL"
+[[ "$MODE" == full ]] && echo "==> isaacteleop: $ISAACTELEOP_PKG"
 
 if [[ ! -d "$VENV_DIR" ]]; then
     # Strict venv isolation: no --system-site-packages. PyGObject + every
@@ -321,7 +320,7 @@ fi
 # (libgirepository1.0-dev). 3.50.x supports both. Source-builds against
 # the C deps installed in ensure_apt_deps(); pycairo is a transitive dep.
 PKGS=("pyyaml>=6.0" "$target_cupy" "numpy>=1.23" "scipy>=1.15")
-[[ "$MODE" == full ]] && PKGS=("$WHEEL" "${PKGS[@]}")
+[[ "$MODE" == full ]] && PKGS=("$ISAACTELEOP_PKG" "${PKGS[@]}")
 $WITH_V4L2 && PKGS+=("opencv-python>=4.5")
 $WITH_OAKD && PKGS+=("depthai>=3.0")
 $WITH_RTP  && PKGS+=("pybind11>=2.11" "PyGObject>=3.42,<3.52")
