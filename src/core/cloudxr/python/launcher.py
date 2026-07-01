@@ -10,8 +10,10 @@ Isaac Lab Teleop) without requiring a separate terminal.
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import atexit
+import contextlib
 import logging
 import os
 import signal
@@ -165,6 +167,83 @@ class CloudXRLauncher:
         self._wss_log_path = wss_log_path
         self._start_wss_proxy(wss_log_path)
         logger.info("CloudXR WSS proxy started (log=%s)", wss_log_path)
+
+    # ------------------------------------------------------------------
+    # CLI helpers for embedding applications and examples
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def add_cloudxr_install_dir_argument(parser: argparse.ArgumentParser) -> None:
+        """Register ``--cloudxr-install-dir`` on ``parser`` (default ``~/.cloudxr``)."""
+        parser.add_argument(
+            "--cloudxr-install-dir",
+            type=str,
+            default=os.path.expanduser("~/.cloudxr"),
+            metavar="PATH",
+            help="CloudXR install directory (default: ~/.cloudxr)",
+        )
+
+    @staticmethod
+    def add_launch_cloudxr_runtime_argument(parser: argparse.ArgumentParser) -> None:
+        """Register ``--launch-cloudxr-runtime`` on ``parser``.
+
+        Uses :class:`argparse.BooleanOptionalAction`, so callers may pass
+        ``--no-launch-cloudxr-runtime`` when the runtime is already running
+        (for example after sourcing ``~/.cloudxr/run/cloudxr.env``).
+        """
+        parser.add_argument(
+            "--launch-cloudxr-runtime",
+            action=argparse.BooleanOptionalAction,
+            default=True,
+            help=(
+                "Launch the CloudXR runtime and WSS proxy in-process before running "
+                "(default: true). Pass --no-launch-cloudxr-runtime when the runtime is "
+                "already running (e.g. after sourcing ~/.cloudxr/run/cloudxr.env)."
+            ),
+        )
+
+    @staticmethod
+    def add_launcher_arguments(parser: argparse.ArgumentParser) -> None:
+        """Register ``--cloudxr-install-dir`` and ``--launch-cloudxr-runtime``."""
+        CloudXRLauncher.add_cloudxr_install_dir_argument(parser)
+        CloudXRLauncher.add_launch_cloudxr_runtime_argument(parser)
+
+    @staticmethod
+    def _resolve_install_dir(
+        args: argparse.Namespace,
+        install_dir: str | None = None,
+    ) -> str:
+        """Return ``install_dir`` or ``args.cloudxr_install_dir`` when registered."""
+        if install_dir is not None:
+            return install_dir
+        return getattr(args, "cloudxr_install_dir", "~/.cloudxr")
+
+    @staticmethod
+    def launch_context(
+        args: argparse.Namespace,
+        *,
+        install_dir: str | None = None,
+        env_config: str | Path | None = None,
+        accept_eula: bool = False,
+        setup_oob: bool = False,
+        usb_local: bool = False,
+        host_client: bool = False,
+    ) -> contextlib.AbstractContextManager[CloudXRLauncher | None]:
+        """Start :class:`CloudXRLauncher` when ``args.launch_cloudxr_runtime`` is true.
+
+        Returns :func:`contextlib.nullcontext` when ``args.launch_cloudxr_runtime`` is
+        false so callers can always use ``with CloudXRLauncher.launch_context(args):``.
+        """
+        if not args.launch_cloudxr_runtime:
+            return contextlib.nullcontext(None)
+        return CloudXRLauncher(
+            install_dir=CloudXRLauncher._resolve_install_dir(args, install_dir),
+            env_config=env_config,
+            accept_eula=accept_eula,
+            setup_oob=setup_oob,
+            usb_local=usb_local,
+            host_client=host_client,
+        )
 
     # ------------------------------------------------------------------
     # Context manager
@@ -339,13 +418,16 @@ class CloudXRLauncher:
     def _terminate_runtime(self) -> None:
         """Terminate the runtime subprocess and all its children.
 
-        Because the subprocess is launched with ``start_new_session=True``
-        it is the leader of its own process group.  Sending the signal to
-        the negative PID kills the entire group (including Monado and any
-        other children), preventing stale processes from lingering.
+        On POSIX, the subprocess is launched with ``start_new_session=True``
+        so it leads its own process group; ``killpg`` tears down Monado and
+        other children.  On Windows, terminate the direct child only.
         """
         proc = self._runtime_proc
         if proc is None or proc.poll() is not None:
+            return
+
+        if sys.platform == "win32":
+            self._terminate_runtime_windows(proc)
             return
 
         try:
@@ -374,6 +456,24 @@ class CloudXRLauncher:
 
         if proc.poll() is None:
             raise RuntimeError("Failed to terminate or kill runtime process group")
+
+    def _terminate_runtime_windows(self, proc: subprocess.Popen) -> None:
+        """Terminate the runtime subprocess on Windows (no process groups)."""
+        proc.terminate()
+        try:
+            proc.wait(timeout=RUNTIME_TERMINATE_TIMEOUT_SEC)
+        except subprocess.TimeoutExpired:
+            pass
+
+        if proc.poll() is None:
+            proc.kill()
+            try:
+                proc.wait(timeout=RUNTIME_TERMINATE_TIMEOUT_SEC)
+            except subprocess.TimeoutExpired:
+                pass
+
+        if proc.poll() is None:
+            raise RuntimeError("Failed to terminate or kill runtime process")
 
     # ------------------------------------------------------------------
     # WSS proxy (background thread with its own event loop)

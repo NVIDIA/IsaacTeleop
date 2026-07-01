@@ -24,6 +24,7 @@ import sys
 import time
 import isaacteleop.deviceio as deviceio
 import isaacteleop.oxr as oxr
+from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     HandsSource,
     HeadSource,
@@ -72,196 +73,199 @@ def main():
     # Step 3: Create OpenXR session
     # ========================================================================
     print("\n[Step 4] Creating OpenXR session...")
-    with oxr.OpenXRSession(
-        "RetargetingSourcesExample", required_extensions
-    ) as oxr_session:
-        handles = oxr_session.get_handles()
-        print("  ✓ OpenXR session created successfully")
+    with CloudXRLauncher():
+        with oxr.OpenXRSession(
+            "RetargetingSourcesExample", required_extensions
+        ) as oxr_session:
+            handles = oxr_session.get_handles()
+            print("  ✓ OpenXR session created successfully")
 
-        # ====================================================================
-        # Step 5: Run DeviceIO session
-        # ====================================================================
-        print("\n[Step 5] Initializing DeviceIO session...")
-        with deviceio.DeviceIOSession.run(trackers, handles) as session:
-            print("  ✓ DeviceIO session initialized with all trackers")
+            # ====================================================================
+            # Step 5: Run DeviceIO session
+            # ====================================================================
+            print("\n[Step 5] Initializing DeviceIO session...")
+            with deviceio.DeviceIOSession.run(trackers, handles) as session:
+                print("  ✓ DeviceIO session initialized with all trackers")
 
-            # ================================================================
-            # Step 6: Create OutputCombiner to combine all source outputs
-            # ================================================================
-            print("\n[Step 6] Creating OutputCombiner to combine all sources...")
-            combiner = OutputCombiner(
-                {
-                    # Hand outputs
-                    HandsSource.LEFT: hands_source.output(HandsSource.LEFT),
-                    HandsSource.RIGHT: hands_source.output(HandsSource.RIGHT),
-                    # Head output
-                    "head": head_source.output("head"),
-                    # Controller outputs
-                    ControllersSource.LEFT: controllers_source.output(
-                        ControllersSource.LEFT
-                    ),
-                    ControllersSource.RIGHT: controllers_source.output(
-                        ControllersSource.RIGHT
-                    ),
-                }
-            )
-            print("  ✓ Created OutputCombiner with 5 combined outputs")
+                # ================================================================
+                # Step 6: Create OutputCombiner to combine all source outputs
+                # ================================================================
+                print("\n[Step 6] Creating OutputCombiner to combine all sources...")
+                combiner = OutputCombiner(
+                    {
+                        # Hand outputs
+                        HandsSource.LEFT: hands_source.output(HandsSource.LEFT),
+                        HandsSource.RIGHT: hands_source.output(HandsSource.RIGHT),
+                        # Head output
+                        "head": head_source.output("head"),
+                        # Controller outputs
+                        ControllersSource.LEFT: controllers_source.output(
+                            ControllersSource.LEFT
+                        ),
+                        ControllersSource.RIGHT: controllers_source.output(
+                            ControllersSource.RIGHT
+                        ),
+                    }
+                )
+                print("  ✓ Created OutputCombiner with 5 combined outputs")
 
-            # ================================================================
-            # Step 7: Main tracking loop
-            # ================================================================
-            print("\n[Step 7] Starting main tracking loop...")
-            print("=" * 70)
-            print("Tracking Data (10 seconds)")
-            print("=" * 70)
-            print()
+                # ================================================================
+                # Step 7: Main tracking loop
+                # ================================================================
+                print("\n[Step 7] Starting main tracking loop...")
+                print("=" * 70)
+                print("Tracking Data (10 seconds)")
+                print("=" * 70)
+                print()
 
-            frame_count = 0
-            start_time = time.time()
+                frame_count = 0
+                start_time = time.time()
 
-            while time.time() - start_time < 10.0:
-                # Update session and all trackers
-                session.update()
+                while time.time() - start_time < 10.0:
+                    # Update session and all trackers
+                    session.update()
 
-                # Print every 60 frames (~1 second)
-                if frame_count % 60 == 0:
-                    elapsed = time.time() - start_time
-                    print(f"[{elapsed:4.1f}s] Frame {frame_count}")
-                    print("-" * 70)
+                    # Print every 60 frames (~1 second)
+                    if frame_count % 60 == 0:
+                        elapsed = time.time() - start_time
+                        print(f"[{elapsed:4.1f}s] Frame {frame_count}")
+                        print("-" * 70)
 
-                    # ====================================================
-                    # Manually poll DeviceIO trackers for tracked objects
-                    # ====================================================
-                    hand_left_tracked = hand_tracker.get_left_hand(session)
-                    hand_right_tracked = hand_tracker.get_right_hand(session)
-                    head_tracked = head_tracker.get_head(session)
-                    left_ctrl_tracked = controller_tracker.get_left_controller(session)
-                    right_ctrl_tracked = controller_tracker.get_right_controller(
-                        session
-                    )
-
-                    # ====================================================
-                    # Wrap tracked objects in TensorGroups for source inputs
-                    # ====================================================
-
-                    hands_inputs = {}
-                    hands_input_spec = hands_source.input_spec()
-                    for input_name, group_type in hands_input_spec.items():
-                        tg = TensorGroup(group_type)
-                        if "left" in input_name.lower():
-                            tg[0] = hand_left_tracked
-                        elif "right" in input_name.lower():
-                            tg[0] = hand_right_tracked
-                        hands_inputs[input_name] = tg
-
-                    head_inputs = {}
-                    head_input_spec = head_source.input_spec()
-                    for input_name, group_type in head_input_spec.items():
-                        tg = TensorGroup(group_type)
-                        tg[0] = head_tracked
-                        head_inputs[input_name] = tg
-
-                    controllers_inputs = {}
-                    controllers_input_spec = controllers_source.input_spec()
-                    for input_name, group_type in controllers_input_spec.items():
-                        tg = TensorGroup(group_type)
-                        if "left" in input_name.lower():
-                            tg[0] = left_ctrl_tracked
-                        elif "right" in input_name.lower():
-                            tg[0] = right_ctrl_tracked
-                        controllers_inputs[input_name] = tg
-
-                    # ====================================================
-                    # Pass wrapped data to combiner with correct structure
-                    # ====================================================
-                    all_data = combiner(
-                        {
-                            "hands": hands_inputs,
-                            "head": head_inputs,
-                            "controllers": controllers_inputs,
-                        }
-                    )
-
-                    # Extract hand data (now in tensor format)
-                    # Source nodes emit None when tracking is inactive (Optional).
-                    left_hand = all_data[HandsSource.LEFT]
-                    right_hand = all_data[HandsSource.RIGHT]
-
-                    print("  Hands:")
-                    print(
-                        f"    Left:  {'ACTIVE' if not left_hand.is_none else 'INACTIVE'}"
-                    )
-                    if not left_hand.is_none:
-                        left_positions = left_hand[HandInputIndex.JOINT_POSITIONS]
-                        wrist_idx = deviceio.JOINT_WRIST
-                        wrist_pos = left_positions[wrist_idx]
-                        print(
-                            f"      Wrist: [{wrist_pos[0]:6.3f}, {wrist_pos[1]:6.3f}, {wrist_pos[2]:6.3f}]"
+                        # ====================================================
+                        # Manually poll DeviceIO trackers for tracked objects
+                        # ====================================================
+                        hand_left_tracked = hand_tracker.get_left_hand(session)
+                        hand_right_tracked = hand_tracker.get_right_hand(session)
+                        head_tracked = head_tracker.get_head(session)
+                        left_ctrl_tracked = controller_tracker.get_left_controller(
+                            session
+                        )
+                        right_ctrl_tracked = controller_tracker.get_right_controller(
+                            session
                         )
 
-                    print(
-                        f"    Right: {'ACTIVE' if not right_hand.is_none else 'INACTIVE'}"
-                    )
-                    if not right_hand.is_none:
-                        right_positions = right_hand[HandInputIndex.JOINT_POSITIONS]
-                        wrist_idx = deviceio.JOINT_WRIST
-                        wrist_pos = right_positions[wrist_idx]
-                        print(
-                            f"      Wrist: [{wrist_pos[0]:6.3f}, {wrist_pos[1]:6.3f}, {wrist_pos[2]:6.3f}]"
+                        # ====================================================
+                        # Wrap tracked objects in TensorGroups for source inputs
+                        # ====================================================
+
+                        hands_inputs = {}
+                        hands_input_spec = hands_source.input_spec()
+                        for input_name, group_type in hands_input_spec.items():
+                            tg = TensorGroup(group_type)
+                            if "left" in input_name.lower():
+                                tg[0] = hand_left_tracked
+                            elif "right" in input_name.lower():
+                                tg[0] = hand_right_tracked
+                            hands_inputs[input_name] = tg
+
+                        head_inputs = {}
+                        head_input_spec = head_source.input_spec()
+                        for input_name, group_type in head_input_spec.items():
+                            tg = TensorGroup(group_type)
+                            tg[0] = head_tracked
+                            head_inputs[input_name] = tg
+
+                        controllers_inputs = {}
+                        controllers_input_spec = controllers_source.input_spec()
+                        for input_name, group_type in controllers_input_spec.items():
+                            tg = TensorGroup(group_type)
+                            if "left" in input_name.lower():
+                                tg[0] = left_ctrl_tracked
+                            elif "right" in input_name.lower():
+                                tg[0] = right_ctrl_tracked
+                            controllers_inputs[input_name] = tg
+
+                        # ====================================================
+                        # Pass wrapped data to combiner with correct structure
+                        # ====================================================
+                        all_data = combiner(
+                            {
+                                "hands": hands_inputs,
+                                "head": head_inputs,
+                                "controllers": controllers_inputs,
+                            }
                         )
 
-                    # Extract head data (Optional — absent when no tracker)
-                    head = all_data["head"]
+                        # Extract hand data (now in tensor format)
+                        # Source nodes emit None when tracking is inactive (Optional).
+                        left_hand = all_data[HandsSource.LEFT]
+                        right_hand = all_data[HandsSource.RIGHT]
 
-                    print("  Head:")
-                    if head.is_none:
-                        print("    Status: ABSENT (no tracker)")
-                    else:
-                        head_valid = head[HeadPoseIndex.IS_VALID]
-                        print(f"    Status: {'VALID' if head_valid else 'INVALID'}")
-                        if head_valid:
-                            head_position = head[HeadPoseIndex.POSITION]
+                        print("  Hands:")
+                        print(
+                            f"    Left:  {'ACTIVE' if not left_hand.is_none else 'INACTIVE'}"
+                        )
+                        if not left_hand.is_none:
+                            left_positions = left_hand[HandInputIndex.JOINT_POSITIONS]
+                            wrist_idx = deviceio.JOINT_WRIST
+                            wrist_pos = left_positions[wrist_idx]
                             print(
-                                f"    Position: [{head_position[0]:6.3f}, {head_position[1]:6.3f}, {head_position[2]:6.3f}]"
+                                f"      Wrist: [{wrist_pos[0]:6.3f}, {wrist_pos[1]:6.3f}, {wrist_pos[2]:6.3f}]"
                             )
 
-                    # Extract controller data
-                    left_controller = all_data[ControllersSource.LEFT]
-                    right_controller = all_data[ControllersSource.RIGHT]
+                        print(
+                            f"    Right: {'ACTIVE' if not right_hand.is_none else 'INACTIVE'}"
+                        )
+                        if not right_hand.is_none:
+                            right_positions = right_hand[HandInputIndex.JOINT_POSITIONS]
+                            wrist_idx = deviceio.JOINT_WRIST
+                            wrist_pos = right_positions[wrist_idx]
+                            print(
+                                f"      Wrist: [{wrist_pos[0]:6.3f}, {wrist_pos[1]:6.3f}, {wrist_pos[2]:6.3f}]"
+                            )
 
-                    print("  Controllers:")
-                    print(
-                        f"    Left:  {'ACTIVE' if not left_controller.is_none else 'INACTIVE'}"
-                    )
-                    if not left_controller.is_none:
-                        left_trigger = left_controller[
-                            ControllerInputIndex.TRIGGER_VALUE
-                        ]
-                        print(f"      Trigger: {left_trigger:4.2f}")
+                        # Extract head data (Optional — absent when no tracker)
+                        head = all_data["head"]
 
-                    print(
-                        f"    Right: {'ACTIVE' if not right_controller.is_none else 'INACTIVE'}"
-                    )
-                    if not right_controller.is_none:
-                        right_trigger = right_controller[
-                            ControllerInputIndex.TRIGGER_VALUE
-                        ]
-                        print(f"      Trigger: {right_trigger:4.2f}")
+                        print("  Head:")
+                        if head.is_none:
+                            print("    Status: ABSENT (no tracker)")
+                        else:
+                            head_valid = head[HeadPoseIndex.IS_VALID]
+                            print(f"    Status: {'VALID' if head_valid else 'INVALID'}")
+                            if head_valid:
+                                head_position = head[HeadPoseIndex.POSITION]
+                                print(
+                                    f"    Position: [{head_position[0]:6.3f}, {head_position[1]:6.3f}, {head_position[2]:6.3f}]"
+                                )
 
-                    print()
+                        # Extract controller data
+                        left_controller = all_data[ControllersSource.LEFT]
+                        right_controller = all_data[ControllersSource.RIGHT]
 
-                frame_count += 1
-                time.sleep(0.016)  # ~60 FPS
+                        print("  Controllers:")
+                        print(
+                            f"    Left:  {'ACTIVE' if not left_controller.is_none else 'INACTIVE'}"
+                        )
+                        if not left_controller.is_none:
+                            left_trigger = left_controller[
+                                ControllerInputIndex.TRIGGER_VALUE
+                            ]
+                            print(f"      Trigger: {left_trigger:4.2f}")
 
-            # ================================================================
-            # Cleanup
-            # ================================================================
-            print()
-            print("=" * 70)
-            print(f"Processed {frame_count} frames ({frame_count / 10.0:.1f} FPS)")
-            print("=" * 70)
-            print("\nCleaning up...")
-            print("  ✓ Resources will be cleaned up automatically (RAII)")
+                        print(
+                            f"    Right: {'ACTIVE' if not right_controller.is_none else 'INACTIVE'}"
+                        )
+                        if not right_controller.is_none:
+                            right_trigger = right_controller[
+                                ControllerInputIndex.TRIGGER_VALUE
+                            ]
+                            print(f"      Trigger: {right_trigger:4.2f}")
+
+                        print()
+
+                    frame_count += 1
+                    time.sleep(0.016)  # ~60 FPS
+
+                # ================================================================
+                # Cleanup
+                # ================================================================
+                print()
+                print("=" * 70)
+                print(f"Processed {frame_count} frames ({frame_count / 10.0:.1f} FPS)")
+                print("=" * 70)
+                print("\nCleaning up...")
+                print("  ✓ Resources will be cleaned up automatically (RAII)")
 
     print("\n✅ Example completed successfully!")
     return 0

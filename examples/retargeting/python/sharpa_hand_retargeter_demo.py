@@ -29,6 +29,8 @@ import argparse
 import sys
 import time
 
+from isaacteleop.cloudxr import CloudXRLauncher
+
 import numpy as np
 
 from isaacteleop.retargeters import SharpaHandRetargeter, SharpaHandRetargeterConfig
@@ -326,6 +328,7 @@ def main():
         default=60.0,
         help="Duration in seconds for the live session (default: 60).",
     )
+    CloudXRLauncher.add_launcher_arguments(parser)
     args = parser.parse_args()
 
     print()
@@ -338,9 +341,9 @@ def main():
         print("  Mode: SYNTHETIC (no headset)")
         print()
         return _run_synthetic(args.right_mjcf)
-    else:
-        print("  Mode: LIVE (Quest hand tracking)")
-        print()
+    print("  Mode: LIVE (Quest hand tracking)")
+    print()
+    with CloudXRLauncher.launch_context(args):
         return _run_live(args.left_mjcf, args.right_mjcf, args.duration)
 
 

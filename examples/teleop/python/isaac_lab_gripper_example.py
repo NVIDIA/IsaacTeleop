@@ -12,6 +12,7 @@ import sys
 import time
 import isaacteleop.deviceio as deviceio
 
+from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.retargeters import (
     GripperRetargeter,
     GripperRetargeterConfig,
@@ -72,26 +73,27 @@ def main():
         pipeline=pipeline,
     )
 
-    with TeleopSession(session_config) as session:
-        # No session injection needed
+    with CloudXRLauncher():
+        with TeleopSession(session_config) as session:
+            # No session injection needed
 
-        start_time = time.time()
+            start_time = time.time()
 
-        while time.time() - start_time < 30.0:
-            result = session.step()
+            while time.time() - start_time < 30.0:
+                result = session.step()
 
-            # Output: -1.0 (closed) or 1.0 (open)
-            cmd = result["gripper_command"][0]
-            state = "CLOSED" if cmd < 0 else "OPEN"
+                # Output: -1.0 (closed) or 1.0 (open)
+                cmd = result["gripper_command"][0]
+                state = "CLOSED" if cmd < 0 else "OPEN"
 
-            # Print status every 0.2 seconds
-            if session.frame_count % 12 == 0:
-                elapsed = session.get_elapsed_time()
-                print(f"[{elapsed:5.1f}s] Gripper Command: {cmd:.1f} ({state})")
+                # Print status every 0.2 seconds
+                if session.frame_count % 12 == 0:
+                    elapsed = session.get_elapsed_time()
+                    print(f"[{elapsed:5.1f}s] Gripper Command: {cmd:.1f} ({state})")
 
-            time.sleep(0.016)
+                time.sleep(0.016)
 
-        print("\nTime limit reached.")
+            print("\nTime limit reached.")
 
     return 0
 

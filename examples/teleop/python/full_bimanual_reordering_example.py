@@ -18,6 +18,7 @@ from types import SimpleNamespace
 from pathlib import Path
 import numpy as np
 
+from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.retargeting_engine.deviceio_source_nodes import HandsSource
 from isaacteleop.retargeters import (
     DexHandRetargeter,
@@ -51,6 +52,7 @@ def main():
     parser.add_argument(
         "--enable-tuning", action="store_true", help="Enable retargeting tuning UI"
     )
+    CloudXRLauncher.add_launcher_arguments(parser)
     args = parser.parse_args()
 
     # Config paths (similar to dex_bimanual_example)
@@ -204,66 +206,71 @@ def main():
     # 3. Run Session
     # ==================================================================
 
-    session_config = TeleopSessionConfig(
-        app_name="FullBimanualExample",
-        trackers=[],
-        pipeline=pipeline,
-    )
-
-    # UI setup
-    retargeters_to_tune = [
-        left_hand_retargeter,
-        right_hand_retargeter,
-        left_arm_retargeter,
-        right_arm_retargeter,
-    ]
-
-    if args.enable_tuning:
-        print("Opening Retargeting UI...")
-        ui_context = MultiRetargeterTuningUIImGui(
-            retargeters_to_tune, title="Full Bimanual Tuning"
+    with CloudXRLauncher.launch_context(args):
+        session_config = TeleopSessionConfig(
+            app_name="FullBimanualExample",
+            trackers=[],
+            pipeline=pipeline,
         )
-    else:
-        ui_context = contextlib.nullcontext(SimpleNamespace(is_running=lambda: True))
 
-    with ui_context as ui:
-        with TeleopSession(session_config) as session:
-            start_time = time.time()
+        # UI setup
+        retargeters_to_tune = [
+            left_hand_retargeter,
+            right_hand_retargeter,
+            left_arm_retargeter,
+            right_arm_retargeter,
+        ]
 
-            print("\nStarting Loop. Press Ctrl+C to exit (or close UI window).")
-            print("Outputting flattened 'action' tensor...")
+        if args.enable_tuning:
+            print("Opening Retargeting UI...")
+            ui_context = MultiRetargeterTuningUIImGui(
+                retargeters_to_tune, title="Full Bimanual Tuning"
+            )
+        else:
+            ui_context = contextlib.nullcontext(
+                SimpleNamespace(is_running=lambda: True)
+            )
 
-            while time.time() - start_time < 360.0 and ui.is_running():
-                result = session.step()
+        with ui_context as ui:
+            with TeleopSession(session_config) as session:
+                start_time = time.time()
 
-                # result["action"] is a TensorGroup containing ONE tensor (our array)
-                # Access it at index 0
-                action_tensor = result["action"][0]  # This is a numpy array (float32)
+                print("\nStarting Loop. Press Ctrl+C to exit (or close UI window).")
+                print("Outputting flattened 'action' tensor...")
 
-                if session.frame_count % 60 == 0:
-                    elapsed = session.get_elapsed_time()
-                    # Print summary of the tensor
-                    # e.g. Left Arm Pos
-                    l_pos = action_tensor[0:3]
-                    # Right Arm Pos (index depends on length of left hand joints)
-                    r_start_idx = 7 + len(left_hand_retargeter._hand_joint_names)
-                    r_pos = action_tensor[r_start_idx : r_start_idx + 3]
+                while time.time() - start_time < 360.0 and ui.is_running():
+                    result = session.step()
 
-                    # Left Hand Joints (first 3)
-                    l_hand_start = 7
-                    l_hand_joints = action_tensor[l_hand_start : l_hand_start + 3]
+                    # result["action"] is a TensorGroup containing ONE tensor (our array)
+                    # Access it at index 0
+                    action_tensor = result["action"][
+                        0
+                    ]  # This is a numpy array (float32)
 
-                    # Right Hand Joints (first 3)
-                    r_hand_start = r_start_idx + 7
-                    r_hand_joints = action_tensor[r_hand_start : r_hand_start + 3]
+                    if session.frame_count % 60 == 0:
+                        elapsed = session.get_elapsed_time()
+                        # Print summary of the tensor
+                        # e.g. Left Arm Pos
+                        l_pos = action_tensor[0:3]
+                        # Right Arm Pos (index depends on length of left hand joints)
+                        r_start_idx = 7 + len(left_hand_retargeter._hand_joint_names)
+                        r_pos = action_tensor[r_start_idx : r_start_idx + 3]
 
-                    print(
-                        f"[{elapsed:5.1f}s] Action Shape: {action_tensor.shape} | "
-                        f"L_Arm: {np.round(l_pos, 3)} | L_Hand(3): {np.round(l_hand_joints, 3)} | "
-                        f"R_Arm: {np.round(r_pos, 3)} | R_Hand(3): {np.round(r_hand_joints, 3)}"
-                    )
+                        # Left Hand Joints (first 3)
+                        l_hand_start = 7
+                        l_hand_joints = action_tensor[l_hand_start : l_hand_start + 3]
 
-                time.sleep(0.016)
+                        # Right Hand Joints (first 3)
+                        r_hand_start = r_start_idx + 7
+                        r_hand_joints = action_tensor[r_hand_start : r_hand_start + 3]
+
+                        print(
+                            f"[{elapsed:5.1f}s] Action Shape: {action_tensor.shape} | "
+                            f"L_Arm: {np.round(l_pos, 3)} | L_Hand(3): {np.round(l_hand_joints, 3)} | "
+                            f"R_Arm: {np.round(r_pos, 3)} | R_Hand(3): {np.round(r_hand_joints, 3)}"
+                        )
+
+                    time.sleep(0.016)
 
     return 0
 
