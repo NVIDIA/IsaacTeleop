@@ -3,6 +3,7 @@
 
 """Tests for isaacteleop.cloudxr.launcher — CloudXRLauncher lifecycle."""
 
+import argparse
 import os
 import signal
 import subprocess
@@ -18,6 +19,11 @@ from isaacteleop.cloudxr.launcher import CloudXRLauncher
 _posix_only = pytest.mark.skipif(
     sys.platform == "win32",
     reason="Process-group APIs (os.getpgid/os.killpg) are POSIX-only",
+)
+
+_windows_skip = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="CloudXR runtime process termination is not supported on Windows",
 )
 
 
@@ -47,8 +53,11 @@ class _FakeEnvConfig:
 
 def _make_mock_popen(pid: int = 12345, poll_returns: list | None = None) -> MagicMock:
     """Create a mock subprocess.Popen with configurable poll() behaviour."""
-    proc = MagicMock(spec=subprocess.Popen)
+    proc = MagicMock()
     proc.pid = pid
+    proc.terminate = MagicMock()
+    proc.kill = MagicMock()
+    proc.wait = MagicMock()
 
     if poll_returns is not None:
         seq = list(poll_returns)
@@ -312,6 +321,72 @@ class TestCleanupStaleRuntime:
         assert not os.path.exists(ipc_socket)
         assert not os.path.exists(sentinel)
         assert not os.path.exists(cloudxr_pid)
+
+
+class TestLaunchArgumentHelpers:
+    """Tests for CloudXRLauncher CLI helper methods."""
+
+    def test_add_cloudxr_install_dir_argument_default(self) -> None:
+        parser = argparse.ArgumentParser()
+        CloudXRLauncher.add_cloudxr_install_dir_argument(parser)
+        args = parser.parse_args([])
+        assert args.cloudxr_install_dir == os.path.expanduser("~/.cloudxr")
+
+    def test_add_cloudxr_install_dir_argument_custom(self) -> None:
+        parser = argparse.ArgumentParser()
+        CloudXRLauncher.add_cloudxr_install_dir_argument(parser)
+        args = parser.parse_args(["--cloudxr-install-dir", "/opt/cloudxr"])
+        assert args.cloudxr_install_dir == "/opt/cloudxr"
+
+    def test_add_launcher_arguments_registers_both(self) -> None:
+        parser = argparse.ArgumentParser()
+        CloudXRLauncher.add_launcher_arguments(parser)
+        args = parser.parse_args(
+            ["--cloudxr-install-dir", "/opt/cloudxr", "--no-launch-cloudxr-runtime"]
+        )
+        assert args.cloudxr_install_dir == "/opt/cloudxr"
+        assert args.launch_cloudxr_runtime is False
+
+    def test_add_launch_cloudxr_runtime_argument_defaults_true(self) -> None:
+        parser = argparse.ArgumentParser()
+        CloudXRLauncher.add_launch_cloudxr_runtime_argument(parser)
+        args = parser.parse_args([])
+        assert args.launch_cloudxr_runtime is True
+
+    def test_add_launch_cloudxr_runtime_argument_no_launch(self) -> None:
+        parser = argparse.ArgumentParser()
+        CloudXRLauncher.add_launch_cloudxr_runtime_argument(parser)
+        args = parser.parse_args(["--no-launch-cloudxr-runtime"])
+        assert args.launch_cloudxr_runtime is False
+
+    def test_launch_context_skips_when_disabled(self) -> None:
+        args = argparse.Namespace(launch_cloudxr_runtime=False)
+        with CloudXRLauncher.launch_context(args) as launcher:
+            assert launcher is None
+
+    @_windows_skip
+    def test_launch_context_starts_when_enabled(self, tmp_path) -> None:
+        args = argparse.Namespace(
+            launch_cloudxr_runtime=True,
+            cloudxr_install_dir="/opt/cloudxr",
+        )
+        with mock_launcher_deps(tmp_path) as mocks:
+            with CloudXRLauncher.launch_context(args) as launcher:
+                assert launcher is not None
+                assert launcher._runtime_proc is mocks["proc"]
+                assert launcher._install_dir == "/opt/cloudxr"
+            mocks["proc"].poll.return_value = 0
+
+    @_posix_only
+    def test_stop_on_windows_raises_unsupported(self, tmp_path) -> None:
+        """Simulated win32 platform raises instead of calling POSIX APIs."""
+        with mock_launcher_deps(tmp_path, ready=True) as mocks:
+            launcher = CloudXRLauncher()
+            mocks["proc"].poll.return_value = None
+
+            with patch("isaacteleop.cloudxr.launcher.sys.platform", "win32"):
+                with pytest.raises(RuntimeError, match="not supported on Windows"):
+                    launcher.stop()
 
 
 if __name__ == "__main__":
