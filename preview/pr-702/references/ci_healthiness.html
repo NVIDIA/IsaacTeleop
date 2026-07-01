@@ -462,8 +462,8 @@ pre-commit checks, and the license reference page documents the main
 redistribution obligations. A complete OSS health signal should add dependency
 reporting on top of that source-file check:</p>
 <ul class="simple">
-<li><p>Generate an SPDX or SBOM artifact from the resolved repository dependency
-graph.</p></li>
+<li><p>Generate an OSS dependency inventory artifact from the resolved repository
+dependency graph.</p></li>
 <li><p>Include dependencies introduced by Python package metadata, CMake, vcpkg, and
 CMake <code class="docutils literal notranslate"><span class="pre">FetchContent</span></code> declarations.</p></li>
 <li><p>Compare the generated dependency list against vulnerability data and publish a
@@ -473,12 +473,24 @@ vendored dependencies, and intentionally bundled SDKs are triaged.</p></li>
 <li><p>Introduce severity-based merge gates only after the baseline report is
 stable.</p></li>
 </ul>
-<p>For CMake and <code class="docutils literal notranslate"><span class="pre">FetchContent</span></code> dependencies, source-only scans can miss packages
-that are resolved during configure/build. Validate the first dependency report
-against <code class="docutils literal notranslate"><span class="pre">deps/third_party/CMakeLists.txt</span></code>, plugin-specific CMake files, and
-the vcpkg manifest paths used by the Ubuntu build. If anything is missing, add
-a build-capture or generated-manifest step that runs with the same CMake
-configuration used by CI.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">OSS</span> <span class="pre">Dependency</span> <span class="pre">Report</span></code> workflow implements the first non-blocking
+baseline. It publishes <code class="docutils literal notranslate"><span class="pre">isaacteleop-oss-dependency-report</span></code> with:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">oss-dependency-inventory.md</span></code>: reviewer-readable dependency inventory.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">oss-dependency-inventory.json</span></code>: machine-readable dependency inventory.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">trivy-results.json</span></code>: best-effort vulnerability and license scan output.</p></li>
+</ul>
+<p>The inventory generator is intentionally public-safe and does not require
+private scanner credentials. It statically enumerates Python requirement files
+and <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> metadata, npm <code class="docutils literal notranslate"><span class="pre">package.json</span></code> dependencies, CMake
+<code class="docutils literal notranslate"><span class="pre">FetchContent</span></code> declarations, the DepthAI vcpkg manifest surface, and vendored
+license files.</p>
+<p>For CMake, <code class="docutils literal notranslate"><span class="pre">FetchContent</span></code>, and vcpkg dependencies, source-only vulnerability
+scans can miss packages that are resolved during configure/build. Validate the
+first dependency report against <code class="docutils literal notranslate"><span class="pre">deps/third_party/CMakeLists.txt</span></code>,
+plugin-specific CMake files, and the vcpkg manifest paths used by the Ubuntu
+build. If anything is missing, add a build-capture or generated-manifest step
+that runs with the same CMake configuration used by CI.</p>
 </section>
 </section>
 
