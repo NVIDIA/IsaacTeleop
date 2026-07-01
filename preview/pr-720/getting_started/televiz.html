@@ -409,8 +409,9 @@
   <section id="televiz">
 <h1>Televiz<a class="headerlink" href="#televiz" title="Link to this heading">#</a></h1>
 <p>Televiz (<code class="docutils literal notranslate"><span class="pre">isaacteleop.viz</span></code>) is a lightweight compositor for Isaac Teleop. It composites camera and
-sensor feeds — with 3D rendered content coming soon — into an XR headset, a desktop window, or an
-offscreen buffer, integrating directly with the device-tracking and retargeting pipeline.</p>
+sensor feeds, plus 3D rendered content (gsplat, nvblox, neural reconstruction), into an XR headset, a
+desktop window, or an offscreen buffer, integrating directly with the device-tracking and retargeting
+pipeline.</p>
 <p>It is a <strong>compositor</strong>, not a capture or streaming layer: it consumes GPU frames and assembles them
 into a final image. Camera capture, decode, and network transport live in the application (see
 <a class="reference internal" href="../references/camera_streaming.html"><span class="doc">Camera Streaming</span></a>).</p>
@@ -429,7 +430,7 @@ directly.</p>
 <li><p><a class="reference internal" href="#layers" id="id8">Layers</a></p>
 <ul>
 <li><p><a class="reference internal" href="#quadlayer" id="id9">QuadLayer</a></p></li>
-<li><p><a class="reference internal" href="#projectionlayer-coming-soon" id="id10">ProjectionLayer (coming soon)</a></p></li>
+<li><p><a class="reference internal" href="#projectionlayer" id="id10">ProjectionLayer</a></p></li>
 </ul>
 </li>
 <li><p><a class="reference internal" href="#frame-loop" id="id11">Frame loop</a></p></li>
@@ -467,16 +468,17 @@ Toolkit, and <code class="docutils literal notranslate"><span class="pre">glslan
 which owns the Vulkan context, the display target, the OpenXR session (in XR mode), and a registry
 of <strong>layers</strong>. Content producers submit GPU buffers to layers; the session composites every layer
 into one frame each time you call <code class="docutils literal notranslate"><span class="pre">render()</span></code>.</p>
-<p>The built-in layer type today is
-<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/viz/layers/cpp/inc/viz/layers/quad_layer.hpp" rel="noopener noreferrer" target="_blank">QuadLayer</a> — a CUDA-fed 2D texture
-plane (mono or stereo), optionally placed in 3D space. Use it for camera feeds.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p><strong>Coming soon:</strong> <code class="docutils literal notranslate"><span class="pre">ProjectionLayer</span></code>, a full-view stereo RGBD layer for external renderers
-(gsplat, nvblox, neural reconstruction) that produce per-view <code class="docutils literal notranslate"><span class="pre">(color,</span> <span class="pre">depth)</span></code> buffers,
-Z-composited with quads. It is not yet available in this release — see <a class="reference internal" href="#projectionlayer-coming-soon">ProjectionLayer
-(coming soon)</a> below.</p>
-</div>
+<p>Two layer types are available:</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/viz/layers/cpp/inc/viz/layers/quad_layer.hpp" rel="noopener noreferrer" target="_blank">QuadLayer</a> — a CUDA-fed 2D texture
+plane (mono or stereo), optionally placed in 3D space. Use it for camera feeds.</p></li>
+<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/viz/layers/cpp/inc/viz/layers/projection_layer.hpp" rel="noopener noreferrer" target="_blank">ProjectionLayer</a> — a full-view
+RGBD layer for external renderers (gsplat, nvblox, neural reconstruction) that produce per-view
+<code class="docutils literal notranslate"><span class="pre">(color,</span> <span class="pre">depth)</span></code> buffers. Use it to present a rendered 3D scene from the current head pose.</p></li>
+</ul>
+<p>A session holds <strong>either</strong> one <code class="docutils literal notranslate"><span class="pre">ProjectionLayer</span></code> <strong>or</strong> any number of <code class="docutils literal notranslate"><span class="pre">QuadLayer</span></code> s, not both:
+quads composite into a shared render target, while a projection layer is presented directly (see
+<a class="reference internal" href="#projectionlayer">ProjectionLayer</a>).</p>
 <p>All symbols are imported from the top-level module:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">isaacteleop.viz</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">televiz</span>
 </pre></div>
@@ -678,18 +680,70 @@ For a stereo layer both buffers are copied on the same stream and signaled toget
 never sees a half-matched pair. Lock-mode placement strategies (<code class="docutils literal notranslate"><span class="pre">world</span></code> / <code class="docutils literal notranslate"><span class="pre">head</span></code> / <code class="docutils literal notranslate"><span class="pre">lazy</span></code>) are
 <strong>application policy</strong> and ship in the sample, not in the module.</p>
 </section>
-<section id="projectionlayer-coming-soon">
-<h3><a class="toc-backref" href="#id10" role="doc-backlink">ProjectionLayer (coming soon)</a><a class="headerlink" href="#projectionlayer-coming-soon" title="Link to this heading">#</a></h3>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p><code class="docutils literal notranslate"><span class="pre">ProjectionLayer</span></code> is under active development and <strong>not yet available in this release</strong>. The
-description below is a preview of the planned API and may change.</p>
+<section id="projectionlayer">
+<h3><a class="toc-backref" href="#id10" role="doc-backlink">ProjectionLayer</a><a class="headerlink" href="#projectionlayer" title="Link to this heading">#</a></h3>
+<p>A full-view RGBD layer for <strong>in-loop</strong> renderers — gsplat, nvblox, or neural reconstruction engines
+that produce per-view <code class="docutils literal notranslate"><span class="pre">(color,</span> <span class="pre">depth)</span></code> buffers. Configure it with <code class="docutils literal notranslate"><span class="pre">ProjectionLayerConfig</span></code>:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 75.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">name</span></code></p></td>
+<td><p>Layer name.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">view_resolution</span></code></p></td>
+<td><p>Per-view render resolution. <strong>Must equal</strong> <code class="docutils literal notranslate"><span class="pre">session.get_recommended_resolution()</span></code> — the
+layer’s images are copied 1:1 into the presentation swapchains (per-eye in XR). A mismatch
+is rejected by <code class="docutils literal notranslate"><span class="pre">add_projection_layer</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">color_format</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">PixelFormat.kRGBA8</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">depth_format</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">PixelFormat.kD32F</span></code> (default) so the depth reaches the XR runtime for positional
+reprojection, or <code class="docutils literal notranslate"><span class="pre">None</span></code> to present color only.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">stereo</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">True</span></code> for per-eye buffers. A stereo (XR) display <strong>requires</strong> a stereo layer; a mono layer
+is rejected at <code class="docutils literal notranslate"><span class="pre">add_projection_layer</span></code>.</p></td>
+</tr>
+</tbody>
+</table>
 </div>
-<p>A planned full-view RGBD layer for in-loop renderers — gsplat, nvblox, or neural reconstruction
-engines that produce per-view <code class="docutils literal notranslate"><span class="pre">(color,</span> <span class="pre">depth)</span></code> buffers. Unlike <code class="docutils literal notranslate"><span class="pre">QuadLayer</span></code>, the renderer will
-run <strong>in-loop</strong> with the XR frame loop: render against the predicted view poses from the current
-frame, then submit between <code class="docutils literal notranslate"><span class="pre">begin_frame()</span></code> and <code class="docutils literal notranslate"><span class="pre">end_frame()</span></code>. Output is composited with depth,
-so it Z-combines with quad layers.</p>
+<p>Unlike <code class="docutils literal notranslate"><span class="pre">QuadLayer</span></code>, a projection layer is <strong>direct-present</strong>: each view’s <code class="docutils literal notranslate"><span class="pre">(color,</span> <span class="pre">depth)</span></code> is
+copied straight into the presentation swapchains (no shared render target). Because of that a session
+holds <em>either</em> one <code class="docutils literal notranslate"><span class="pre">ProjectionLayer</span></code> <em>or</em> any number of <code class="docutils literal notranslate"><span class="pre">QuadLayer</span></code> s, never both.</p>
+<p>The renderer runs <strong>in-loop</strong> with the frame loop: read the predicted view poses from the
+<code class="docutils literal notranslate"><span class="pre">FrameInfo</span></code> returned by <code class="docutils literal notranslate"><span class="pre">begin_frame()</span></code>, render against them, then <code class="docutils literal notranslate"><span class="pre">submit()</span></code> before
+<code class="docutils literal notranslate"><span class="pre">end_frame()</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">cfg</span> <span class="o">=</span> <span class="n">televiz</span><span class="o">.</span><span class="n">ProjectionLayerConfig</span><span class="p">()</span>
+<span class="n">cfg</span><span class="o">.</span><span class="n">view_resolution</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">get_recommended_resolution</span><span class="p">()</span>
+<span class="n">cfg</span><span class="o">.</span><span class="n">stereo</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">is_xr_mode</span><span class="p">()</span>
+<span class="n">layer</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">add_projection_layer</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
+
+<span class="k">while</span> <span class="n">running</span><span class="p">:</span>
+    <span class="n">info</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">begin_frame</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">info</span><span class="o">.</span><span class="n">should_render</span><span class="p">:</span>
+        <span class="c1"># Render against THIS frame&#39;s per-eye poses (info.views[i].pose + .fov).</span>
+        <span class="n">color</span><span class="p">,</span> <span class="n">depth</span> <span class="o">=</span> <span class="n">renderer</span><span class="o">.</span><span class="n">render</span><span class="p">(</span><span class="n">info</span><span class="o">.</span><span class="n">views</span><span class="p">)</span>        <span class="c1"># RGBA8 + D32F CUDA buffers</span>
+        <span class="k">if</span> <span class="n">layer</span><span class="o">.</span><span class="n">stereo</span><span class="p">:</span>
+            <span class="n">layer</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">left_color</span><span class="p">,</span> <span class="n">left_depth</span><span class="p">,</span> <span class="n">right_color</span><span class="p">,</span> <span class="n">right_depth</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="n">cuda_stream</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">layer</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">color</span><span class="p">,</span> <span class="n">depth</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="n">cuda_stream</span><span class="p">)</span>
+    <span class="n">session</span><span class="o">.</span><span class="n">end_frame</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>If the renderer is slower than display rate, the runtime / CloudXR paces the app via <code class="docutils literal notranslate"><span class="pre">xrWaitFrame</span></code>
+and reprojects the last submitted frame at display rate. In XR, a visible layer that does <strong>not</strong>
+submit for a frame presents nothing (the swapchains are cleared) rather than reproject stale RGBD
+under a new pose.</p>
 </section>
 </section>
 <section id="frame-loop">
@@ -935,7 +989,7 @@ output locations.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#session-configuration">Session configuration</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#layers">Layers</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#quadlayer">QuadLayer</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#projectionlayer-coming-soon">ProjectionLayer (coming soon)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#projectionlayer">ProjectionLayer</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#frame-loop">Frame loop</a></li>

@@ -13,6 +13,13 @@ The sample lives at :code-dir:`examples/camera_viz/ <examples/camera_viz>`; this
 it works. For the exact command surface and flags, see the
 :code-file:`README <examples/camera_viz/README.md>`.
 
+.. figure:: ../_static/televiz_2d.gif
+   :alt: camera_viz in window mode with synthetic multi-camera feeds
+   :width: 420px
+   :class: no-image-zoom
+
+   ``camera_viz`` in XR mode — one plane per camera.
+
 .. contents:: On this page
    :local:
    :depth: 2
