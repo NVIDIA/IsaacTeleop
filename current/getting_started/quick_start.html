@@ -45,7 +45,7 @@
 
 
 
-    <script src="../_static/documentation_options.js?v=fb5244e5"></script>
+    <script src="../_static/documentation_options.js?v=7509b52b"></script>
     <script src="../_static/doctools.js?v=9bcbadda"></script>
     <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -64,7 +64,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.3.x" />
+  <meta name="docsearch:version" content="1.4.x" />
   
     
     <script src="../_static/searchtools.js"></script>
@@ -342,6 +342,7 @@
 <li class="toctree-l1"><a class="reference internal" href="teleop_session.html">Teleop Session</a></li>
 <li class="toctree-l1"><a class="reference internal" href="teleop_control_state_machine.html">Teleop Control State Machine</a></li>
 <li class="toctree-l1"><a class="reference internal" href="televiz.html">Televiz</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lerobot/index.html">LeRobot and SO-101</a></li>
 <li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
@@ -683,12 +684,13 @@ details.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
 <span class="sd-summary-text">Offline / air-gapped use</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
-<p class="sd-card-text">On <strong>first run</strong>, the launcher fetches <code class="docutils literal notranslate"><span class="pre">index.html</span></code> and <code class="docutils literal notranslate"><span class="pre">bundle.js</span></code> from GitHub Pages and
-caches them in <code class="docutils literal notranslate"><span class="pre">~/.cloudxr/static-client/</span></code> (override with
-<code class="docutils literal notranslate"><span class="pre">TELEOP_WEB_CLIENT_STATIC_DIR</span></code>). Subsequent runs are fully offline.</p>
-<p class="sd-card-text">For a <strong>true air-gapped machine</strong>, pre-stage the two files before the first run — copy them
-from <code class="docutils literal notranslate"><span class="pre">https://nvidia.github.io/IsaacTeleop/client/</span></code> on a networked host, then transfer the
-<code class="docutils literal notranslate"><span class="pre">~/.cloudxr/static-client/</span></code> directory to the air-gapped machine.</p>
+<p class="sd-card-text">On <strong>first run</strong>, the launcher syncs the published web client into
+<code class="docutils literal notranslate"><span class="pre">~/.cloudxr/static-client/</span></code> (override with <code class="docutils literal notranslate"><span class="pre">TELEOP_WEB_CLIENT_STATIC_DIR</span></code>):
+<code class="docutils literal notranslate"><span class="pre">index.html</span></code>, <code class="docutils literal notranslate"><span class="pre">bundle.js</span></code>, and <code class="docutils literal notranslate"><span class="pre">bundle.emulator.js</span></code>. Subsequent runs
+are offline once those files are cached.</p>
+<p class="sd-card-text">For a <strong>true air-gapped machine</strong>, copy the full <code class="docutils literal notranslate"><span class="pre">build/</span></code> output (or the
+matching directory from <a class="reference external" href="https://nvidia.github.io/IsaacTeleop/client/main/" rel="noopener noreferrer" target="_blank">nvidia.github.io/IsaacTeleop/client</a>) into
+<code class="docutils literal notranslate"><span class="pre">~/.cloudxr/static-client/</span></code> on the air-gapped host before the first run.</p>
 </div>
 </details><p class="sd-card-text">The source code for the web client is in the <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/deps/cloudxr/webxr_client" rel="noopener noreferrer" target="_blank">deps/cloudxr/webxr_client/</a> directory.
 To build the web client from source, see <a class="reference internal" href="build_from_source/webxr.html"><span class="doc">Build WebXR Client</span></a>.</p>

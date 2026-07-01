@@ -45,7 +45,7 @@
 
 
 
-    <script src="../_static/documentation_options.js?v=fb5244e5"></script>
+    <script src="../_static/documentation_options.js?v=7509b52b"></script>
     <script src="../_static/doctools.js?v=9bcbadda"></script>
     <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -64,7 +64,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.3.x" />
+  <meta name="docsearch:version" content="1.4.x" />
   
     
     <script src="../_static/searchtools.js"></script>
@@ -342,6 +342,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/teleop_session.html">Teleop Session</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/teleop_control_state_machine.html">Teleop Control State Machine</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/televiz.html">Televiz</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/lerobot/index.html">LeRobot and SO-101</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/contributing.html">Contributing</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
@@ -448,7 +449,7 @@ interoperability.</p>
 <p>Televiz (<code class="docutils literal notranslate"><span class="pre">isaacteleop.viz</span></code>) is a lightweight compositor module for visualizing what the operator
 sees — camera and sensor feeds, plus 3D rendered content — in an XR headset or a desktop window.</p>
 <ul class="simple">
-<li><p>Composites multiple sources into one view: 2D camera/sensor planes (<code class="docutils literal notranslate"><span class="pre">QuadLayer</span></code>) today, with full-view stereo RGBD (<code class="docutils literal notranslate"><span class="pre">ProjectionLayer</span></code>) for 3D rendered content coming soon</p></li>
+<li><p>Composites multiple sources into one view: 2D camera/sensor planes (<code class="docutils literal notranslate"><span class="pre">QuadLayer</span></code>) and full-view stereo RGBD (<code class="docutils literal notranslate"><span class="pre">ProjectionLayer</span></code>) for 3D rendered content</p></li>
 <li><p>Per-eye stereo rendering and 3D placement in XR; the same API drives windowed and offscreen output</p></li>
 <li><p>Zero-copy submission of GPU frames straight from CuPy, PyTorch, or any CUDA memory object</p></li>
 <li><p>Shares one OpenXR session with the teleop device trackers, so rendering and tracking can run over a single CloudXR connection</p></li>

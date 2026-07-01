@@ -49,6 +49,23 @@ From the ``deps/cloudxr/webxr_client/`` directory:
 3. Build & Run
 --------------
 
+Production build
+~~~~~~~~~~~~~~~~
+
+From ``deps/cloudxr/webxr_client/``:
+
+.. code-block:: bash
+
+   npm run build
+
+Output in ``build/``:
+
+- ``index.html`` — entry page
+- ``bundle.js`` — main application (UIKit, MSDF text, icons; loaded on first paint)
+- ``bundle.emulator.js`` — desktop XR / IWER stack (DevUI, synthetic environments,
+  and related deps); loaded only when emulation is used
+
+
 Development build (one-shot)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

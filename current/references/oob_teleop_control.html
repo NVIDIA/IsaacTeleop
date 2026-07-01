@@ -45,7 +45,7 @@
 
 
 
-    <script src="../_static/documentation_options.js?v=fb5244e5"></script>
+    <script src="../_static/documentation_options.js?v=7509b52b"></script>
     <script src="../_static/doctools.js?v=9bcbadda"></script>
     <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -64,7 +64,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.3.x" />
+  <meta name="docsearch:version" content="1.4.x" />
   
     
     <script src="../_static/searchtools.js"></script>
@@ -342,6 +342,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/teleop_session.html">Teleop Session</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/teleop_control_state_machine.html">Teleop Control State Machine</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/televiz.html">Televiz</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/lerobot/index.html">LeRobot and SO-101</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/contributing.html">Contributing</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
@@ -784,8 +785,8 @@ troubleshooting below for why this is required even though no packets
 traverse the network).</p></li>
 <li><p>Resolves the WebXR static directory from
 <code class="docutils literal notranslate"><span class="pre">TELEOP_WEB_CLIENT_STATIC_DIR</span></code> (default <code class="docutils literal notranslate"><span class="pre">~/.cloudxr/static-client</span></code>)
-and downloads <code class="docutils literal notranslate"><span class="pre">index.html</span></code> / <code class="docutils literal notranslate"><span class="pre">bundle.js</span></code> from
-<code class="docutils literal notranslate"><span class="pre">https://nvidia.github.io/IsaacTeleop/client/main/</span></code> if either is missing.</p></li>
+and syncs missing <code class="docutils literal notranslate"><span class="pre">index.html</span></code>, <code class="docutils literal notranslate"><span class="pre">bundle.js</span></code>, and <code class="docutils literal notranslate"><span class="pre">bundle.emulator.js</span></code> from
+the published client (see <a class="reference internal" href="../getting_started/build_from_source/webxr.html"><span class="doc">Build WebXR Client</span></a>).</p></li>
 <li><p>Serves that directory over HTTPS on 127.0.0.1:8080 with the same PEM
 the WSS proxy uses (Python <code class="docutils literal notranslate"><span class="pre">http.server</span></code> in a daemon thread).</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">adb</span> <span class="pre">reverse</span></code> for 8080 (static UI), 48322 (WSS), 49100 (backend),
@@ -828,6 +829,17 @@ interface is present. A runtime monitor also watches for mid-session
 Wi-Fi drops and prints a yellow warning so the cause is obvious without
 having to puzzle out a frozen WebRTC connection.</p>
 </section>
+<section id="web-client-ui-has-no-text-oob-host-client">
+<h3>Web client UI has no text (OOB / <code class="docutils literal notranslate"><span class="pre">--host-client</span></code>)<a class="headerlink" href="#web-client-ui-has-no-text-oob-host-client" title="Link to this heading">#</a></h3>
+<p><strong>Cause:</strong> Production webpack emits <code class="docutils literal notranslate"><span class="pre">bundle.js</span></code> (main app, including UIKit MSDF text)
+and <code class="docutils literal notranslate"><span class="pre">bundle.emulator.js</span></code> (desktop emulation only). If the static cache under
+<code class="docutils literal notranslate"><span class="pre">TELEOP_WEB_CLIENT_STATIC_DIR</span></code> is missing or outdated — especially a truncated
+<code class="docutils literal notranslate"><span class="pre">bundle.js</span></code> — in-VR text does not render.</p>
+<p><strong>Fix:</strong> Ensure <code class="docutils literal notranslate"><span class="pre">index.html</span></code>, <code class="docutils literal notranslate"><span class="pre">bundle.js</span></code>, and <code class="docutils literal notranslate"><span class="pre">bundle.emulator.js</span></code> are present
+under the static dir — run the launcher once with network, copy a full <code class="docutils literal notranslate"><span class="pre">npm</span> <span class="pre">run</span> <span class="pre">build</span></code>
+output, or use the GitHub Pages URL directly. See
+<a class="reference internal" href="../getting_started/build_from_source/webxr.html"><span class="doc">Build WebXR Client</span></a>.</p>
+</section>
 <section id="cdp-startbutton-marked-failed-not-actionable">
 <h3>CDP: startButton marked failed / not actionable<a class="headerlink" href="#cdp-startbutton-marked-failed-not-actionable" title="Link to this heading">#</a></h3>
 <p><strong>Cause:</strong> The web client’s capability check (<code class="docutils literal notranslate"><span class="pre">App.tsx</span></code>) sets the button
@@ -864,14 +876,13 @@ browser on the headset.</p>
 </section>
 <section id="webxr-static-download-fails-offline-proxy">
 <h3>WebXR static download fails (offline / proxy)<a class="headerlink" href="#webxr-static-download-fails-offline-proxy" title="Link to this heading">#</a></h3>
-<p><strong>Cause:</strong> The launcher fetches <code class="docutils literal notranslate"><span class="pre">index.html</span></code> / <code class="docutils literal notranslate"><span class="pre">bundle.js</span></code> from
-<code class="docutils literal notranslate"><span class="pre">https://nvidia.github.io/IsaacTeleop/client/main/</span></code> into the static dir on
-first run.  Behind a proxy or with no internet, this fails and
-<code class="docutils literal notranslate"><span class="pre">--usb-local</span></code> aborts.</p>
-<p><strong>Fix:</strong> Pre-stage the files (any way you like — <code class="docutils literal notranslate"><span class="pre">curl</span></code>, container
-build step, internal mirror) into the static dir, then re-run.  The
-launcher only downloads when a file is missing or empty.  Override the
-target directory via <code class="docutils literal notranslate"><span class="pre">TELEOP_WEB_CLIENT_STATIC_DIR</span></code>.</p>
+<p><strong>Cause:</strong> The launcher syncs <code class="docutils literal notranslate"><span class="pre">index.html</span></code>, <code class="docutils literal notranslate"><span class="pre">bundle.js</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">bundle.emulator.js</span></code> into the static dir on first run. Behind a proxy or with no
+internet, this fails and <code class="docutils literal notranslate"><span class="pre">--usb-local</span></code> aborts.</p>
+<p><strong>Fix:</strong> Pre-stage the full client <code class="docutils literal notranslate"><span class="pre">build/</span></code> tree (or the published
+<code class="docutils literal notranslate"><span class="pre">/client/&lt;version&gt;/</span></code> directory) into the static dir, then re-run.  The
+launcher only downloads missing or empty files.  Override the target directory
+via <code class="docutils literal notranslate"><span class="pre">TELEOP_WEB_CLIENT_STATIC_DIR</span></code>.</p>
 <p><strong>Fix:</strong> Set the SDK versions in <code class="docutils literal notranslate"><span class="pre">deps/cloudxr/.env</span></code> (copy from
 <code class="docutils literal notranslate"><span class="pre">.env.default</span></code>) so the download script can resolve the right version,
 or stage <code class="docutils literal notranslate"><span class="pre">nvidia-cloudxr-&lt;version&gt;.tgz</span></code> in <code class="docutils literal notranslate"><span class="pre">deps/cloudxr/</span></code> manually.</p>
@@ -950,6 +961,7 @@ or stage <code class="docutils literal notranslate"><span class="pre">nvidia-clo
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#usb-local-mode-setup-oob-usb-local">USB-local mode (<code class="docutils literal notranslate"><span class="pre">--setup-oob</span> <span class="pre">--usb-local</span></code>)</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#teleop-client-error-no-local-connection-candidates-0xc0f2220f">Teleop client error: “No local connection candidates” (0xC0F2220F)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#web-client-ui-has-no-text-oob-host-client">Web client UI has no text (OOB / <code class="docutils literal notranslate"><span class="pre">--host-client</span></code>)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cdp-startbutton-marked-failed-not-actionable">CDP: startButton marked failed / not actionable</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#coturn-not-found-turn-server-failed-to-start"><code class="docutils literal notranslate"><span class="pre">coturn</span></code> not found / TURN server failed to start</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#tab-not-found-within-timeout">Tab not found within timeout</a></li>

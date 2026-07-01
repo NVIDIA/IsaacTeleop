@@ -69,6 +69,8 @@ The gripper is just another named DOF (conventionally ``"gripper"``). ``velocity
 and ``ee_pose`` are optional/reserved: the reference plugin and ``JointStateSource`` populate and
 surface joint **positions** only.
 
+.. _so101-leader-plugin:
+
 The SO-101 leader plugin
 ------------------------
 

@@ -53,6 +53,7 @@ Table of Contents
    getting_started/teleop_session
    getting_started/teleop_control_state_machine
    getting_started/televiz
+   getting_started/lerobot/index
    getting_started/contributing
 
 .. toctree::
