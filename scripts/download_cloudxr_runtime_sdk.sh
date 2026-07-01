@@ -23,11 +23,17 @@ on_error() {
 
 trap 'on_error $LINENO' ERR
 
-# Ensure we're in the git root
-if [[ -z "${GIT_ROOT:-}" ]]; then
-    GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-    if [[ -z "$GIT_ROOT" ]]; then
-        echo "Error: Could not determine git root. Set GIT_ROOT before sourcing." >&2
+# Resolve the IsaacTeleop repo root.
+# Derive it from this script's own location (this script lives in <repo>/scripts/)
+# rather than `git rev-parse`: when IsaacTeleop is vendored as a plain copy inside
+# another git repository, git would resolve to the outer repo's root, sending the
+# CloudXR tarball to the wrong deps/cloudxr/ directory. An explicit ISAAC_TELEOP_ROOT still
+# wins if the caller sets one.
+if [[ -z "${ISAAC_TELEOP_ROOT:-}" ]]; then
+    SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+    ISAAC_TELEOP_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
+    if [[ -z "$ISAAC_TELEOP_ROOT" ]]; then
+        echo "Error: Could not determine repo root. Set ISAAC_TELEOP_ROOT before sourcing." >&2
         exit 1
     fi
 fi
@@ -44,7 +50,7 @@ if [[ -z "${CXR_RUNTIME_SDK_VERSION:-}" ]]; then
 fi
 
 # SDK configuration (shared)
-CXR_DEPLOYMENT_DIR="$GIT_ROOT/deps/cloudxr"
+CXR_DEPLOYMENT_DIR="$ISAAC_TELEOP_ROOT/deps/cloudxr"
 
 case "$(uname -m)" in
     x86_64)        ARCH="amd64" ;;

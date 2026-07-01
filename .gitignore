@@ -30,7 +30,6 @@ uv.lock
 
 # Compiled files
 *.o
-*.so
 *.a
 *.exe
 

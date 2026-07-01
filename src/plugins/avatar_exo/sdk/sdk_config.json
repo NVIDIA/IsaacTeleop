@@ -1,0 +1,66 @@
+{
+  "ethernet_udp": {
+    "left_joint_port": 50020,
+    "right_joint_port": 50030,
+    "left_debug_port": 50025,
+    "right_debug_port": 50035,
+    "heartbeat_port": 54321,
+    "left_tactile_port": 50002,
+    "right_tactile_port": 50012
+  },
+  "left_glove": {    "ip": "192.168.10.30",    "port": 59999 },
+  "right_glove": {   "ip": "192.168.10.40",    "port": 59999 },
+  "serial_port": "",
+  "error_code_hold_sec": 1.0,
+  "relaxed_registration": false,
+  "raw_jump_threshold_deg": 15.0,
+  "robot_jump_threshold_deg": 15.0,
+  "left_joint_k":  [1, 1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1, 1],
+  "left_joint_b":  [0, 0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 0],
+  "right_joint_k":  [1, 1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1, 1],
+  "right_joint_b":  [0, 0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 0],
+  "reverse_tactile": false,
+  "use_new_tactile_header": true,
+  "reserse_wave_tactile": false,
+  "heartbeatIntervalMs": 1000,
+  "requestTimeoutMs": 1000,
+  "status_log_every_s": 1.0,
+  "product_name": "HA2_4",
+  "enable_wave": true,
+  "wave_sdk_root": "@AVATAR_EXO_SDK_DIR@/wave-sdk",
+  "retarget_update_rate_hz": 200,
+  "retarget_ipopt_max_iter": 4,
+  "retarget_parallel_workers": true,
+  "retarget_pin_cpus": "4,5",
+  "fingertip_offset_config": "hand_fk/config/hand_offset.json",
+  "surjection_config": "hand_fk/config/surjection_mapping_config.json",
+  "zero_calib_values_deg": [
+    0, 20, -15, 20, -2,
+    20, 0, 0, 0,
+    20, 0, 0, 0,
+    20, 0, 0, 0,
+    20, 0, 0, 0, -25
+  ],
+  "raw_joint_names": [
+    "thumb_CMC_FE",    "thumb_CMC_AA",    "thumb_MCP_FE",  "thumb_MCP_AA",  "thumb_IP",
+    "index_MCP_AA",    "index_MCP_FE",    "index_PIP",     "index_DIP",
+    "middle_MCP_AA",   "middle_MCP_FE",   "middle_PIP",    "middle_DIP",
+    "ring_MCP_AA",     "ring_MCP_FE",     "ring_PIP",      "ring_DIP",
+    "pinky_MCP_AA",    "pinky_MCP_FE",    "pinky_DIP1",    "pinky_DIP2",    "pinky_DIP3"
+  ],
+  "robot_joint_names": [
+    "thumb_CMC_FE",   "thumb_CMC_AA",    "thumb_MCP_FE",   "thumb_MCP_AA",  "thumb_IP",
+    "index_MCP_FE",   "index_MCP_AA",    "index_PIP",      "index_DIP",
+    "middle_MCP_FE",  "middle_MCP_AA",   "middle_PIP",     "middle_DIP",
+    "ring_MCP_FE",    "ring_MCP_AA",     "ring_PIP",       "ring_DIP",
+    "pinky_CMC",      "pinky_MCP_FE",    "pinky_MCP_AA",   "pinky_PIP",     "pinky_DIP"
+  ],
+  "human_joint_names": [
+    "WRIST",
+    "right_thumb_CMC_FE_link", "right_thumb_CMC_AA_link", "right_thumb_MCP_FE_link", "right_thumb_MCP_AA_link", "right_thumb_IP_link", "right_thumb_virtualtip",
+    "right_index_MCP_AA_link", "right_index_MCP_FE_link", "right_index_PIP_link", "right_index_DIP_link", "right_index_virtualtip",
+    "right_middle_MCP_AA_link", "right_middle_MCP_FE_link", "right_middle_PIP_link", "right_middle_DIP_link", "right_middle_virtualtip",
+    "right_ring_MCP_AA_link", "right_ring_MCP_FE_link", "right_ring_PIP_link", "right_ring_DIP_link", "right_ring_virtualtip",
+    "right_pinky_MCP_AA_link", "right_pinky_MCP_FE_link", "right_pinky_virtualtip"
+  ]
+}

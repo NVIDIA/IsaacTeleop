@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: avatar_exo
+description: "Avatar exoskeleton gloves: RAW/ROBOT joint state + HUMAN hand tracking"
+command: "./avatar_exo_plugin"
+version: "1.0.0"
+devices:
+  - path: "/glove/left"
+    type: "glove"
+    description: "Left Avatar exoskeleton glove"
+  - path: "/glove/right"
+    type: "glove"
+    description: "Right Avatar exoskeleton glove"

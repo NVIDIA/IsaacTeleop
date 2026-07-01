@@ -1,0 +1,22 @@
+{
+  mode: "peer",
+
+  listen: {
+    endpoints: {
+      peer: ["tcp/127.0.0.1:0"],
+    },
+  },
+
+  scouting: {
+    multicast: {
+      enabled: true,
+      address: "224.0.0.224:7446",
+      ttl: 1,
+      interface: "127.0.0.1",
+    },
+    gossip: {
+      enabled: false,
+    },
+  },
+}
+

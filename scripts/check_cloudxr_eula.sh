@@ -5,9 +5,16 @@
 
 set -euo pipefail
 
-# Make sure to run this script from the root of the repository.
-GIT_ROOT=$(git rev-parse --show-toplevel)
-cd "$GIT_ROOT" || exit 1
+# Resolve the IsaacTeleop repo root from this script's own location
+# (this script lives in <repo>/scripts/) rather than `git rev-parse`: when
+# IsaacTeleop is vendored as a plain copy inside another git repository, git
+# would resolve to the outer repo's root and look for deps/cloudxr/.env there.
+# An explicit ISAAC_TELEOP_ROOT still wins if the caller sets one.
+if [[ -z "${ISAAC_TELEOP_ROOT:-}" ]]; then
+    SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+    ISAAC_TELEOP_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
+fi
+cd "$ISAAC_TELEOP_ROOT" || exit 1
 
 ENV_FILE="deps/cloudxr/.env"
 
