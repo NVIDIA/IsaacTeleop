@@ -1,0 +1,64 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: OSS Dependency Report
+
+on:
+  push:
+    branches: [ main, 'release/*.*.x' ]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  oss-dependency-report:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Setup Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.12"
+
+    - name: Generate OSS dependency inventory
+      run: python scripts/ci/generate_oss_dependency_inventory.py --output-dir oss-report
+
+    - name: Run vulnerability and license scan
+      uses: aquasecurity/trivy-action@v0.36.0
+      continue-on-error: true
+      with:
+        scan-type: fs
+        scan-ref: .
+        scanners: vuln,license
+        vuln-type: os,library
+        severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+        ignore-unfixed: true
+        format: json
+        output: oss-report/trivy-results.json
+        exit-code: "0"
+
+    - name: Publish OSS dependency summary
+      run: |
+        {
+          echo "## OSS dependency inventory"
+          echo
+          cat oss-report/oss-dependency-inventory.md
+          echo
+          echo "The vulnerability/license scan runs in non-blocking mode and publishes \`trivy-results.json\` in the artifact."
+        } >> "${GITHUB_STEP_SUMMARY}"
+
+    - name: Upload OSS dependency report
+      uses: actions/upload-artifact@v6
+      with:
+        name: isaacteleop-oss-dependency-report
+        path: oss-report
+        if-no-files-found: error
+        retention-days: 14

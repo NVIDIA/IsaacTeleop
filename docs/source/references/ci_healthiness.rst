@@ -59,8 +59,8 @@ pre-commit checks, and the license reference page documents the main
 redistribution obligations. A complete OSS health signal should add dependency
 reporting on top of that source-file check:
 
-* Generate an SPDX or SBOM artifact from the resolved repository dependency
-  graph.
+* Generate an OSS dependency inventory artifact from the resolved repository
+  dependency graph.
 * Include dependencies introduced by Python package metadata, CMake, vcpkg, and
   CMake ``FetchContent`` declarations.
 * Compare the generated dependency list against vulnerability data and publish a
@@ -68,11 +68,24 @@ reporting on top of that source-file check:
 * Keep the first vulnerability report non-blocking until false positives,
   vendored dependencies, and intentionally bundled SDKs are triaged.
 * Introduce severity-based merge gates only after the baseline report is
-  stable.
+stable.
 
-For CMake and ``FetchContent`` dependencies, source-only scans can miss packages
-that are resolved during configure/build. Validate the first dependency report
-against ``deps/third_party/CMakeLists.txt``, plugin-specific CMake files, and
-the vcpkg manifest paths used by the Ubuntu build. If anything is missing, add
-a build-capture or generated-manifest step that runs with the same CMake
-configuration used by CI.
+The ``OSS Dependency Report`` workflow implements the first non-blocking
+baseline. It publishes ``isaacteleop-oss-dependency-report`` with:
+
+* ``oss-dependency-inventory.md``: reviewer-readable dependency inventory.
+* ``oss-dependency-inventory.json``: machine-readable dependency inventory.
+* ``trivy-results.json``: best-effort vulnerability and license scan output.
+
+The inventory generator is intentionally public-safe and does not require
+private scanner credentials. It statically enumerates Python requirement files
+and ``pyproject.toml`` metadata, npm ``package.json`` dependencies, CMake
+``FetchContent`` declarations, the DepthAI vcpkg manifest surface, and vendored
+license files.
+
+For CMake, ``FetchContent``, and vcpkg dependencies, source-only vulnerability
+scans can miss packages that are resolved during configure/build. Validate the
+first dependency report against ``deps/third_party/CMakeLists.txt``,
+plugin-specific CMake files, and the vcpkg manifest paths used by the Ubuntu
+build. If anything is missing, add a build-capture or generated-manifest step
+that runs with the same CMake configuration used by CI.
