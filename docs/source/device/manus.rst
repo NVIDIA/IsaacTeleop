@@ -214,7 +214,7 @@ Troubleshooting
      - udev rules must be installed on the host. Run ``./install_udev_rules.sh``
        from the host (not inside a container), then unplug and replug the
        MANUS dongle. Verify on the host with ``ls -l /dev/hidraw*`` — entries for the
-       MANUS dongle should be mode ``0666``.
+       dongle should be mode ``0666``.
    * - ``udevadm control --reload-rules`` fails with "No such file or directory"
      - You're inside a container. ``systemd-udevd`` doesn't run in containers,
        so this command can never succeed there. Run ``install_udev_rules.sh``
