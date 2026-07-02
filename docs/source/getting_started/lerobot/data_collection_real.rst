@@ -25,14 +25,18 @@ Before you start
 
       uv pip install -e '.[isaac-teleop]'
 
-#. Run the scripts from the example directory, and log in to the Hugging Face Hub — recorded
-   datasets are pushed to the Hub by default (pass ``--dataset.push_to_hub=false`` to keep them
-   local):
+#. Log in to the Hugging Face Hub — recorded datasets are pushed to the Hub by default (pass
+   ``--dataset.push_to_hub=false`` to keep them local):
+
+   .. code-block:: bash
+
+      hf auth login
+
+#. Run the scripts from the example directory:
 
    .. code-block:: bash
 
       cd examples/isaac_teleop_to_so101
-      huggingface-cli login
 
 Then follow the steps for your teleop device:
 
@@ -77,7 +81,7 @@ Then follow the steps for your teleop device:
                 --robot.id=so101_follower_arm \
                 --teleop.type=xr_controller \
                 --robot.cameras="{ front: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 30}}" \
-                --dataset.repo_id=<hf_user>/<dataset_name> \
+                --dataset.repo_id=$(hf auth whoami --format json | jq -r '.user')/my_test_dataset \
                 --dataset.single_task="Pick up vial from rack on the left side" \
                 --dataset.num_episodes=3 \
                 --dataset.episode_time_s=20 \
@@ -148,7 +152,7 @@ Then follow the steps for your teleop device:
                 --teleop.id=so101_leader_arm \
                 --launch_plugin=/path/to/IsaacTeleop/install/plugins/so101_leader/so101_leader_plugin \
                 --robot.cameras="{ front: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 30}}" \
-                --dataset.repo_id=<hf_user>/<dataset_name> \
+                --dataset.repo_id=$(hf auth whoami --format json | jq -r '.user')/my_test_dataset \
                 --dataset.single_task="Pick up vial from rack on the left side" \
                 --dataset.num_episodes=3 \
                 --dataset.episode_time_s=20 \
