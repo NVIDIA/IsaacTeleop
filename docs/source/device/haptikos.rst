@@ -4,6 +4,19 @@
 Haptikos Exoskeletons
 =====================
 
+.. raw:: html
+
+   <div style="margin-top: 1rem;"></div>
+
+.. image:: ../_static/haptikos-exoskeletons.gif
+   :alt: Haptikos exoskeletons used with Isaac Teleop
+   :class: align-center
+   :width: 100%
+
+.. raw:: html
+
+   <div style="margin-bottom: 1.5rem;"></div>
+
 Use the `Haptikos <https://haptikos.tech/>`_ Exoskeletons with the Isaac Teleop framework. Currently only Linux is supported. Tested on Meta Quest headsets. Other headsets with controllers may work as well.
 
 .. contents:: On this page
