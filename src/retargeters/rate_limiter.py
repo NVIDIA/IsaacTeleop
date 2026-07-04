@@ -306,6 +306,10 @@ class EePoseRateLimiter(BaseRetargeter):
             return
 
         pose = np.asarray(np.from_dlpack(inp[0]), dtype=np.float64)
+        if not np.all(np.isfinite(pose[:3])):
+            if self._last_pose is not None:
+                out[0] = self._last_pose.astype(np.float32)
+            return
         ori = _quat_normalize(pose[3:7])
 
         if self._last_pose is None:
