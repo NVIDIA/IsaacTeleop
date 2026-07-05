@@ -151,9 +151,26 @@ class CloudXRLauncher:
 
         self._cleanup_stale_runtime(env_cfg)
 
+        # The worker imports asyncio (via isaacteleop.cloudxr.runtime), which imports
+        # Python's ssl and loads the SYSTEM OpenSSL before the native stack dlopens the
+        # bundled one. Two OpenSSL builds in one process crash (SIGSEGV) inside
+        # SSL_CTX_use_certificate when the DTLS transport comes up on client connect.
+        # LD_PRELOAD the bundled libraries so every OpenSSL symbol in the worker
+        # resolves to the version libNvStreamServer.so was built against.
+        worker_env = os.environ.copy()
+        native_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "native")
+        bundled_ssl = [
+            os.path.join(native_dir, lib)
+            for lib in ("libcrypto_nvst.so.3", "libssl_nvst.so.3")
+        ]
+        if all(os.path.isfile(lib) for lib in bundled_ssl):
+            preload = " ".join(bundled_ssl)
+            prev = worker_env.get("LD_PRELOAD")
+            worker_env["LD_PRELOAD"] = f"{preload} {prev}" if prev else preload
+
         self._runtime_proc = subprocess.Popen(
             [sys.executable, "-c", _RUNTIME_WORKER_CODE],
-            env=os.environ.copy(),
+            env=worker_env,
             stderr=subprocess.PIPE,
             start_new_session=True,
         )
