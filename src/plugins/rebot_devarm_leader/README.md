@@ -53,7 +53,13 @@ full plugin:
 # probe:  joint1=0.0012  joint2=-0.0034  ...  gripper=0.0001
 ```
 
-Exit code 0 means every motor replied at least once.
+Exit code 0 means every motor replied at least once. Exit code 3 means every motor replied but
+the gripper reads outside its physical travel: the Damiao multi-turn counter is volatile across
+power cycles, so the gripper (whose geared travel exceeds one turn) can wake up reading
+`physical + 2*pi*k`. Re-home it (close against the mechanical stop and re-zero) before
+teleoperating — a wrapped reading would slam the follower's gripper into its soft-limit clip on
+the first frame. While wrapped, the running plugin streams the gripper joint with
+`valid = false` so consumers can hold it instead of executing garbage.
 
 ## Calibration file
 

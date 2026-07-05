@@ -90,6 +90,9 @@ private:
     double positions_[kNumJoints] = { 0.0 };
     double velocities_[kNumJoints] = { 0.0 };
     JointCalibration calibration_[kNumJoints];
+    //! True while the gripper reads outside its physical travel (2*pi-wrapped multi-turn
+    //! encoder after a power cycle); the gripper joint is streamed with ``valid = false``.
+    bool gripper_out_of_travel_ = false;
 
     std::unique_ptr<DamiaoBus> bus_; // null => synthetic backend
 
@@ -100,7 +103,8 @@ private:
 //! Hardware probe helper: open @p device_path, send disable (back-drive) to the default motor
 //! ids, then stream decoded joint positions to stdout for @p seconds. Verifies the bus, motor
 //! ids, and feedback decoding with no OpenXR runtime. Returns a process exit code (0 = every
-//! motor replied at least once).
+//! motor replied at least once, 3 = motors replied but the gripper reads outside its physical
+//! travel — 2*pi-wrapped multi-turn encoder, re-home before teleoperating).
 int run_probe(const std::string& device_path, const std::string& calibration_path, int seconds);
 
 } // namespace rebot_devarm_leader

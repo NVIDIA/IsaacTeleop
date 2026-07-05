@@ -70,6 +70,17 @@ constexpr int kCollectTimeoutMs = 5;
 constexpr double kSynthAmplitude = 0.6; // [rad] arm-joint motion amplitude for the synthetic signal
 constexpr double kSynthPeriodFrames = 90.0; // one cycle per ~1 s at 90 Hz
 
+// Physical gripper travel in the calibrated frame (fully closed = 0, opening negative,
+// ~6.8 rad of multi-turn geared travel) plus margin. The Damiao multi-turn counter is
+// volatile across power cycles: the single-turn absolute zero survives but the turn count
+// does not, so a gripper whose travel exceeds one turn can wake up reading
+// physical + 2*pi*k (verified on a B601-DM: physically closed gripper read +6.227 rad
+// = -0.056 + 2*pi). A reading outside this window is a wrapped encoder, not a pose —
+// streaming it as-is would slam the follower's gripper into a soft-limit clip at t=0.
+constexpr double kGripperTravelMinRad = -7.5;
+constexpr double kGripperTravelMaxRad = 0.7;
+constexpr int kGripperJointIndex = kNumJoints - 1;
+
 //! Damiao fixed-point decode: an unsigned @p bits -bit integer spanning [-limit, limit].
 double uint_to_float(uint32_t value, double limit, int bits)
 {
@@ -264,6 +275,20 @@ void RebotDevarmLeaderPlugin::read_hardware()
             break;
         }
     }
+
+    // Wrapped multi-turn gripper detection (see kGripperTravelMinRad). Latch the flag on a
+    // rising edge only, so the warning prints once instead of at 90 Hz.
+    const double gripper_pos = positions_[kGripperJointIndex];
+    const bool out_of_travel = gripper_pos < kGripperTravelMinRad || gripper_pos > kGripperTravelMaxRad;
+    if (out_of_travel && !gripper_out_of_travel_)
+    {
+        std::cerr << "RebotDevarmLeaderPlugin: warning: gripper reads " << gripper_pos
+                  << " rad, outside its physical travel [" << kGripperTravelMinRad << ", " << kGripperTravelMaxRad
+                  << "]. The multi-turn encoder most likely wrapped by 2*pi "
+                  << "after a power cycle; the gripper joint is streamed as invalid until it reads "
+                  << "in-travel again. Re-home the gripper (close against the stop and re-zero)." << std::endl;
+    }
+    gripper_out_of_travel_ = out_of_travel;
 }
 
 void RebotDevarmLeaderPlugin::push_current_state()
@@ -279,7 +304,10 @@ void RebotDevarmLeaderPlugin::push_current_state()
         joint->name = kJointNames[i];
         joint->position = static_cast<float>(positions_[i]);
         joint->velocity = static_cast<float>(velocities_[i]);
-        joint->valid = true;
+        // A 2*pi-wrapped multi-turn gripper reading is not a pose: mark it invalid so
+        // consumers (retargeters, lerobot leaders) can hold/ignore it instead of
+        // commanding a follower through its soft-limit clip.
+        joint->valid = !(static_cast<int>(i) == kGripperJointIndex && gripper_out_of_travel_);
         out.joints.push_back(std::move(joint));
     }
 
@@ -440,8 +468,29 @@ int run_probe(const std::string& device_path, const std::string& calibration_pat
                       << kJointNames[i] << ")" << std::endl;
         }
     }
-    std::cout << (all_ok ? "probe: all motors replied" : "probe: some motors missing") << std::endl;
-    return all_ok ? 0 : 1;
+    if (!all_ok)
+    {
+        std::cout << "probe: some motors missing" << std::endl;
+        return 1;
+    }
+
+    // Sanity-check the gripper against its physical travel: a reading outside the window
+    // means the multi-turn encoder wrapped by 2*pi after a power cycle (turn count is
+    // volatile; only the single-turn zero survives). Teleoperating in this state slams the
+    // follower gripper at t=0 and grinds the mechanism into its stop.
+    const ProbeJoint& gripper = joints[kGripperJointIndex];
+    if (gripper.pos < kGripperTravelMinRad || gripper.pos > kGripperTravelMaxRad)
+    {
+        std::cerr << "probe: WARNING: gripper reads " << gripper.pos << " rad, outside its physical travel ["
+                  << kGripperTravelMinRad << ", " << kGripperTravelMaxRad
+                  << "]: the multi-turn encoder wrapped after a power cycle. Re-home the gripper "
+                  << "(close against the stop and re-zero) before teleoperating." << std::endl;
+        std::cout << "probe: all motors replied (gripper out of travel)" << std::endl;
+        return 3;
+    }
+
+    std::cout << "probe: all motors replied" << std::endl;
+    return 0;
 }
 
 } // namespace rebot_devarm_leader
