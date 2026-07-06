@@ -88,8 +88,12 @@ const QUEST3_PROFILE: DeviceProfile = {
   cloudxr: {
     perEyeWidth: 2048,
     perEyeHeight: 1792,
-    deviceFrameRate: 90,
-    maxStreamingBitrateKbps: 150000,
+    // 72 FPS / 25 Mbps: measured stable on a wireless Quest 3 production deployment.
+    // The previous 90 FPS left sessions paced against a rate the stream did not hold
+    // there (frames landing out of phase), and 150 Mbps saturated the link while
+    // exceeding the 100 Mbps ceiling StreamSDK guidance warns about.
+    deviceFrameRate: 72,
+    maxStreamingBitrateKbps: 25000,
     codec: 'av1',
     enablePoseSmoothing: true,
     posePredictionFactor: 1.0,

@@ -228,6 +228,15 @@ export class CloudXR2DUI {
       // Before URL seeds so explicit params still win: on a fresh load, default the
       // device profile from the headset UA and apply its values.
       this.applyDefaultDeviceProfileFromUserAgent();
+      // Re-apply a persisted non-custom profile so profile updates reach returning
+      // clients: localStorage restores the values saved when the profile was picked,
+      // which otherwise pins them forever. Safe because any manual edit of a
+      // profile-bound field switches the persisted profile to 'custom'.
+      const persistedProfileId = resolveDeviceProfileId(this.deviceProfileSelect.value);
+      if (persistedProfileId !== 'custom') {
+        this.applyDeviceProfileToForm(persistedProfileId);
+        this.persistProfileFieldsToLocalStorage();
+      }
       this.applyUrlSeeds();
       this.setupProxyConfiguration();
       this.renderUrlParamsHelp();
@@ -491,8 +500,10 @@ export class CloudXR2DUI {
       perEyeHeight: 1792,
       reprojectionGridCols: 0,
       reprojectionGridRows: 0,
-      deviceFrameRate: 90,
-      maxStreamingBitrateMbps: 150,
+      // Keep in sync with the Quest profile defaults (helpers/DeviceProfiles.ts)
+      // and the 'selected' options in index.html.
+      deviceFrameRate: 72,
+      maxStreamingBitrateMbps: 25,
       codec: 'av1',
       immersiveMode: 'ar',
       deviceProfileId: 'custom',
