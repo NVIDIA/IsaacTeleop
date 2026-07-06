@@ -12,10 +12,11 @@ device path on the Isaac Teleop side:
 
 It consumes joint state streamed by the real ``so101_leader`` plugin over the OpenXR tensor
 transport via a ``TeleopSession`` (the ``JointStateSource`` auto-discovers and polls the
-``JointStateTracker``). Like the other CloudXR examples/tests, it **expects the CloudXR runtime
-to already be running** -- ``source ~/.cloudxr/run/cloudxr.env`` first -- and does not probe for
-it. Use ``--launch-plugin`` to spawn the synthetic plugin process automatically; otherwise start
-``so101_leader`` (or any device pushing the same ``collection_id``) separately.
+``JointStateTracker``). By default ``CloudXRLauncher`` starts the CloudXR runtime and WSS
+proxy in-process; pass ``--no-launch-cloudxr-runtime`` if you already sourced
+``~/.cloudxr/run/cloudxr.env``. Use ``--launch-plugin`` to spawn the synthetic plugin
+process automatically; otherwise start ``so101_leader`` (or any device pushing the same
+``collection_id``) separately.
 
 Two modes:
 
@@ -25,7 +26,6 @@ Two modes:
 
 Examples::
 
-    source ~/.cloudxr/run/cloudxr.env
     python joint_space_device_example.py --launch-plugin --mode joint --frames 8
     python joint_space_device_example.py --launch-plugin --mode ee --urdf /path/to/so101_new_calib.urdf
 """
@@ -39,6 +39,7 @@ from pathlib import Path
 
 import numpy as np
 
+from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.retargeting_engine.deviceio_source_nodes import JointStateSource
 from isaacteleop.retargeting_engine.interface import OutputCombiner
 from isaacteleop.retargeters import (
@@ -166,7 +167,7 @@ def run_live(
     if len(actions) < num_frames:
         raise SystemExit(
             f"FAILED: only {len(actions)}/{num_frames} action(s) received from the live plugin "
-            f"within {timeout_s:.0f}s (is the so101_leader plugin pushing? is cloudxr.env sourced?)"
+            f"within {timeout_s:.0f}s (is the so101_leader plugin pushing?)"
         )
     # A single received frame can't be "stale" -- only flag multi-frame runs that never change.
     varied = len(actions) <= 1 or any(
@@ -210,6 +211,7 @@ def main() -> None:
         default=20.0,
         help="Seconds to wait for plugin frames",
     )
+    CloudXRLauncher.add_launcher_arguments(parser)
     args = parser.parse_args()
 
     plugin_proc = None
@@ -223,7 +225,8 @@ def main() -> None:
         plugin_proc = subprocess.Popen([args.plugin_bin, "", _COLLECTION_ID])
         time.sleep(1.5)  # let it create its OpenXR session and start pushing
     try:
-        run_live(args.mode, args.frames, args.urdf, args.ee_link, args.timeout)
+        with CloudXRLauncher.launch_context(args):
+            run_live(args.mode, args.frames, args.urdf, args.ee_link, args.timeout)
     finally:
         if plugin_proc is not None:
             plugin_proc.terminate()

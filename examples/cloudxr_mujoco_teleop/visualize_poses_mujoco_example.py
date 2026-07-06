@@ -47,6 +47,7 @@ from scipy.spatial.transform import Rotation as R
 
 import isaacteleop.deviceio as deviceio
 import isaacteleop.oxr as oxr
+from isaacteleop.cloudxr import CloudXRLauncher
 
 
 # Route MuJoCo warnings to stderr instead of writing MUJOCO_LOG.TXT in CWD.
@@ -230,6 +231,7 @@ def main() -> int:
     ap.add_argument(
         "--debug", action="store_true", help="Print mocap_pos values once per second."
     )
+    CloudXRLauncher.add_launcher_arguments(ap)
     args = ap.parse_args()
 
     model = mujoco.MjModel.from_xml_string(_build_mjcf(args.assets_dir))
@@ -244,59 +246,66 @@ def main() -> int:
     print(f"Visualize Poses (MuJoCo)  |  assets: {os.path.normpath(args.assets_dir)}")
     print("Close the viewer window or Ctrl+C to quit.")
 
-    with (
-        oxr.OpenXRSession("VisualizePosesMuJoCo", extensions) as oxr_session,
-        deviceio.DeviceIOSession.run(trackers, oxr_session.get_handles()) as session,
-        mujoco.viewer.launch_passive(
-            model, data, show_left_ui=False, show_right_ui=False
-        ) as viewer,
-    ):
-        # Restore Python's default SIGINT handler -- MuJoCo's viewer / GLFW main
-        # loop installs its own that can swallow Ctrl+C, leaving the user unable
-        # to exit the script. This makes Ctrl+C raise KeyboardInterrupt again.
-        signal.signal(signal.SIGINT, signal.default_int_handler)
+    with CloudXRLauncher.launch_context(args):
+        with (
+            oxr.OpenXRSession("VisualizePosesMuJoCo", extensions) as oxr_session,
+            deviceio.DeviceIOSession.run(
+                trackers, oxr_session.get_handles()
+            ) as session,
+            mujoco.viewer.launch_passive(
+                model, data, show_left_ui=False, show_right_ui=False
+            ) as viewer,
+        ):
+            # Restore Python's default SIGINT handler -- MuJoCo's viewer / GLFW main
+            # loop installs its own that can swallow Ctrl+C, leaving the user unable
+            # to exit the script. This makes Ctrl+C raise KeyboardInterrupt again.
+            signal.signal(signal.SIGINT, signal.default_int_handler)
 
-        last_debug = 0.0
-        try:
-            while viewer.is_running():
-                session.update()
+            last_debug = 0.0
+            try:
+                while viewer.is_running():
+                    session.update()
 
-                head = head_tracker.get_head(session).data
-                if head is not None and head.is_valid:
-                    pos, quat = _convert_pose(head.pose.position, head.pose.orientation)
-                    data.mocap_pos[mocap_ids["headset"]] = pos
-                    data.mocap_quat[mocap_ids["headset"]] = quat
-                    viewer.cam.lookat[:] = pos  # keep mouse-wheel zoom centred on head
+                    head = head_tracker.get_head(session).data
+                    if head is not None and head.is_valid:
+                        pos, quat = _convert_pose(
+                            head.pose.position, head.pose.orientation
+                        )
+                        data.mocap_pos[mocap_ids["headset"]] = pos
+                        data.mocap_quat[mocap_ids["headset"]] = quat
+                        viewer.cam.lookat[:] = (
+                            pos  # keep mouse-wheel zoom centred on head
+                        )
 
-                for label, getter in (
-                    ("controller_left", controller_tracker.get_left_controller),
-                    ("controller_right", controller_tracker.get_right_controller),
-                ):
-                    ctrl = getter(session).data
-                    if ctrl is None:
-                        continue
-                    cpose = ctrl.aim_pose if args.pose == "aim" else ctrl.grip_pose
-                    if not cpose.is_valid:
-                        continue
-                    pos, quat = _convert_pose(
-                        cpose.pose.position, cpose.pose.orientation
-                    )
-                    data.mocap_pos[mocap_ids[label]] = pos
-                    data.mocap_quat[mocap_ids[label]] = quat
+                    for label, getter in (
+                        ("controller_left", controller_tracker.get_left_controller),
+                        ("controller_right", controller_tracker.get_right_controller),
+                    ):
+                        ctrl = getter(session).data
+                        if ctrl is None:
+                            continue
+                        cpose = ctrl.aim_pose if args.pose == "aim" else ctrl.grip_pose
+                        if not cpose.is_valid:
+                            continue
+                        pos, quat = _convert_pose(
+                            cpose.pose.position, cpose.pose.orientation
+                        )
+                        data.mocap_pos[mocap_ids[label]] = pos
+                        data.mocap_quat[mocap_ids[label]] = quat
 
-                mujoco.mj_forward(model, data)
-                viewer.sync()
+                    mujoco.mj_forward(model, data)
+                    viewer.sync()
 
-                if args.debug and time.time() - last_debug >= 1.0:
-                    last_debug = time.time()
-                    print("mocap_pos (MJ frame, Z-up):")
-                    for nm, mid in mocap_ids.items():
-                        p = data.mocap_pos[mid]
-                        print(f"  {nm:18s} [{p[0]:+.3f}, {p[1]:+.3f}, {p[2]:+.3f}]")
+                    if args.debug and time.time() - last_debug >= 1.0:
+                        last_debug = time.time()
+                        print("mocap_pos (MJ frame, Z-up):")
+                        for nm, mid in mocap_ids.items():
+                            p = data.mocap_pos[mid]
+                            print(f"  {nm:18s} [{p[0]:+.3f}, {p[1]:+.3f}, {p[2]:+.3f}]")
 
-                time.sleep(1 / 60)
-        except KeyboardInterrupt:
-            print()
+                    time.sleep(1 / 60)
+            except KeyboardInterrupt:
+                print()
 
     return 0
 

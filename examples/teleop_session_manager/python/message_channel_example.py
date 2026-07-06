@@ -15,6 +15,7 @@ import sys
 import time
 import uuid
 
+from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     MessageChannelConnectionStatus,
     message_channel_config,
@@ -75,6 +76,7 @@ def main() -> int:
         default=256,
         help="Bounded outbound queue length",
     )
+    CloudXRLauncher.add_launcher_arguments(parser)
     args = parser.parse_args()
 
     source, sink = message_channel_config(
@@ -100,35 +102,36 @@ def main() -> int:
     send_counter = 0
     last_send_time = 0.0
 
-    with TeleopSession(config) as session:
-        while True:
-            result = session.step()
-            status = result["status"][0]
-            messages_tracked = result["messages_tracked"][0]
-            messages = (
-                messages_tracked.data if messages_tracked.data is not None else []
-            )
+    with CloudXRLauncher.launch_context(args):
+        with TeleopSession(config) as session:
+            while True:
+                result = session.step()
+                status = result["status"][0]
+                messages_tracked = result["messages_tracked"][0]
+                messages = (
+                    messages_tracked.data if messages_tracked.data is not None else []
+                )
 
-            for msg in messages:
-                payload = bytes(msg.payload)
-                try:
-                    decoded = payload.decode("utf-8")
-                    print(f"[rx] {decoded}")
-                except UnicodeDecodeError:
-                    print(f"[rx] 0x{payload.hex()}")
+                for msg in messages:
+                    payload = bytes(msg.payload)
+                    try:
+                        decoded = payload.decode("utf-8")
+                        print(f"[rx] {decoded}")
+                    except UnicodeDecodeError:
+                        print(f"[rx] 0x{payload.hex()}")
 
-            now = time.monotonic()
-            if (
-                status == MessageChannelConnectionStatus.CONNECTED
-                and now - last_send_time >= 1.0
-            ):
-                payload_text = f"hello #{send_counter} @ {time.time():.3f}"
-                _enqueue_outbound_message(sink, payload_text.encode("utf-8"))
-                print(f"[tx] {payload_text}")
-                last_send_time = now
-                send_counter += 1
+                now = time.monotonic()
+                if (
+                    status == MessageChannelConnectionStatus.CONNECTED
+                    and now - last_send_time >= 1.0
+                ):
+                    payload_text = f"hello #{send_counter} @ {time.time():.3f}"
+                    _enqueue_outbound_message(sink, payload_text.encode("utf-8"))
+                    print(f"[tx] {payload_text}")
+                    last_send_time = now
+                    send_counter += 1
 
-            time.sleep(0.01)
+                time.sleep(0.01)
 
     return 0
 
