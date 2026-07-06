@@ -160,6 +160,9 @@ jobs:
         gcovr_args=(
           --root "${GITHUB_WORKSPACE}"
           --object-directory build/src
+          # CMake compiler-id probes are not test targets and produce noisy gcov warnings.
+          --gcov-exclude "build/CMakeFiles/.*/CompilerId.*/.*"
+          --exclude-directories "build/CMakeFiles"
           --filter "src/"
           --exclude "src/.*/.*_tests/.*"
           --exclude "src/.*/tests/.*"
