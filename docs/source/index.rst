@@ -67,7 +67,6 @@ Table of Contents
    references/mcap_record_replay
    references/oob_teleop_control
    references/egocentric_hand_reconstruction
-   references/ci_healthiness
    references/license
 
 Indices and tables
