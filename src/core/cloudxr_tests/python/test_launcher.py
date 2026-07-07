@@ -363,12 +363,24 @@ class TestLaunchArgumentHelpers:
                 "/opt/cloudxr",
                 "--cloudxr-device-profile",
                 "auto-webrtc",
+                "--cloudxr-env-config",
+                "/etc/cloudxr.env",
+                "--accept-eula",
                 "--no-launch-cloudxr-runtime",
             ]
         )
         assert args.cloudxr_install_dir == "/opt/cloudxr"
         assert args.cloudxr_device_profile == "auto-webrtc"
+        assert args.cloudxr_env_config == "/etc/cloudxr.env"
+        assert args.accept_eula is True
         assert args.launch_cloudxr_runtime is False
+
+    def test_add_launcher_arguments_defaults(self) -> None:
+        parser = argparse.ArgumentParser()
+        CloudXRLauncher.add_launcher_arguments(parser)
+        args = parser.parse_args([])
+        assert args.cloudxr_env_config is None
+        assert args.accept_eula is False
 
     def test_add_cloudxr_device_profile_argument_default(self) -> None:
         parser = argparse.ArgumentParser()

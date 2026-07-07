@@ -246,10 +246,47 @@ class CloudXRLauncher:
         )
 
     @staticmethod
+    def add_cloudxr_env_config_argument(parser: argparse.ArgumentParser) -> None:
+        """Register ``--cloudxr-env-config`` on ``parser`` (default: none).
+
+        Points the launcher at a KEY=value env file of CloudXR runtime
+        overrides (see the ``env_config`` argument of :meth:`__init__`).
+        """
+        parser.add_argument(
+            "--cloudxr-env-config",
+            type=str,
+            default=None,
+            metavar="PATH",
+            help=(
+                "Path to a KEY=value env file of CloudXR runtime overrides "
+                "(default: none). Reserved keys (XR_RUNTIME_JSON, "
+                "NV_CXR_RUNTIME_DIR, ...) are always computed and ignored if set."
+            ),
+        )
+
+    @staticmethod
+    def add_accept_eula_argument(parser: argparse.ArgumentParser) -> None:
+        """Register ``--accept-eula`` on ``parser`` (default: false).
+
+        When omitted and no acceptance marker exists, the launcher prompts
+        on stdin before starting the runtime.
+        """
+        parser.add_argument(
+            "--accept-eula",
+            action="store_true",
+            help=(
+                "Accept the NVIDIA CloudXR EULA non-interactively "
+                "(e.g. for CI or containers)."
+            ),
+        )
+
+    @staticmethod
     def add_launcher_arguments(parser: argparse.ArgumentParser) -> None:
         """Register CloudXR launcher CLI arguments on ``parser``."""
         CloudXRLauncher.add_cloudxr_install_dir_argument(parser)
         CloudXRLauncher.add_cloudxr_device_profile_argument(parser)
+        CloudXRLauncher.add_cloudxr_env_config_argument(parser)
+        CloudXRLauncher.add_accept_eula_argument(parser)
         CloudXRLauncher.add_launch_cloudxr_runtime_argument(parser)
 
     @staticmethod
@@ -273,6 +310,26 @@ class CloudXRLauncher:
         return getattr(args, "cloudxr_device_profile", DEFAULT_DEVICE_PROFILE)
 
     @staticmethod
+    def _resolve_env_config(
+        args: argparse.Namespace,
+        env_config: str | Path | None = None,
+    ) -> str | Path | None:
+        """Return ``env_config`` or ``args.cloudxr_env_config`` when registered."""
+        if env_config is not None:
+            return env_config
+        return getattr(args, "cloudxr_env_config", None)
+
+    @staticmethod
+    def _resolve_accept_eula(
+        args: argparse.Namespace,
+        accept_eula: bool = False,
+    ) -> bool:
+        """Return ``accept_eula`` or ``args.accept_eula`` when registered."""
+        if accept_eula:
+            return True
+        return bool(getattr(args, "accept_eula", False))
+
+    @staticmethod
     def launch_context(
         args: argparse.Namespace,
         *,
@@ -288,16 +345,21 @@ class CloudXRLauncher:
 
         Returns :func:`contextlib.nullcontext` when ``args.launch_cloudxr_runtime`` is
         false so callers can always use ``with CloudXRLauncher.launch_context(args):``.
+
+        ``install_dir``, ``env_config``, ``device_profile`` and ``accept_eula``
+        default to the values registered by :meth:`add_launcher_arguments`
+        (``args.cloudxr_install_dir`` etc.); pass an explicit keyword only to
+        override what came in on the command line.
         """
         if not args.launch_cloudxr_runtime:
             return contextlib.nullcontext(None)
         return CloudXRLauncher(
             install_dir=CloudXRLauncher._resolve_install_dir(args, install_dir),
-            env_config=env_config,
+            env_config=CloudXRLauncher._resolve_env_config(args, env_config),
             device_profile=CloudXRLauncher._resolve_device_profile(
                 args, device_profile
             ),
-            accept_eula=accept_eula,
+            accept_eula=CloudXRLauncher._resolve_accept_eula(args, accept_eula),
             setup_oob=setup_oob,
             usb_local=usb_local,
             host_client=host_client,
