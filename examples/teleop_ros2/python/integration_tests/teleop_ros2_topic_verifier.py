@@ -16,14 +16,20 @@ from typing import Callable
 import msgpack
 import rclpy
 from geometry_msgs.msg import PoseArray, PoseStamped, TwistStamped
+from isaacteleop.retargeting_engine.tensor_types.indices import HandJointIndex
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from std_msgs.msg import ByteMultiArray
+from teleop_ros2_interfaces.msg import HandJointPoses
 from tf2_msgs.msg import TFMessage
 
 
 _MODES = ("controller_teleop", "hand_teleop", "controller_raw", "full_body")
 _EXPECTED_TF_FRAMES = {"right_wrist", "left_wrist", "head"}
+_EXPECTED_HAND_POSE_NAMES = [
+    HandJointIndex(i).name
+    for i in range(HandJointIndex.WRIST, HandJointIndex.LITTLE_TIP + 1)
+]
 
 
 def _is_finite_sequence(values) -> bool:
@@ -67,6 +73,36 @@ def _assert_pose_array(msg: PoseArray, *, expected_count: int) -> None:
         positions.extend(position)
     if not any(abs(value) > 1e-6 for value in positions):
         raise ValueError("pose array positions are all zero")
+
+
+def _assert_hand_joint_poses(msg: HandJointPoses) -> None:
+    if msg.header.frame_id != "world":
+        raise ValueError(f"unexpected frame_id {msg.header.frame_id!r}")
+    names = [joint.name for joint in msg.joints]
+    if names != _EXPECTED_HAND_POSE_NAMES:
+        raise ValueError("hand joint pose names do not match the expected order")
+    if len(set(names)) != len(names):
+        raise ValueError("hand joint pose names are not unique")
+    if not any(bool(joint.valid) for joint in msg.joints):
+        raise ValueError("all hand joint poses are invalid")
+
+    positions = []
+    for joint in msg.joints:
+        pose = joint.pose
+        position = (pose.position.x, pose.position.y, pose.position.z)
+        orientation = (
+            pose.orientation.x,
+            pose.orientation.y,
+            pose.orientation.z,
+            pose.orientation.w,
+        )
+        if not _is_finite_sequence(position):
+            raise ValueError("hand joint pose position contains non-finite values")
+        if not _is_finite_sequence(orientation):
+            raise ValueError("hand joint pose orientation contains non-finite values")
+        positions.extend(position)
+    if not any(abs(value) > 1e-6 for value in positions):
+        raise ValueError("hand joint pose positions are all zero")
 
 
 def _assert_pose_stamped(
@@ -267,6 +303,18 @@ class TopicVerifier(Node):
                     "xr_teleop/hand",
                     PoseArray,
                     lambda msg: _assert_pose_array(msg, expected_count=50),
+                ),
+                (
+                    "hand_left",
+                    "xr_teleop/hand_left",
+                    HandJointPoses,
+                    _assert_hand_joint_poses,
+                ),
+                (
+                    "hand_right",
+                    "xr_teleop/hand_right",
+                    HandJointPoses,
+                    _assert_hand_joint_poses,
                 ),
                 (
                     "ee_pose_left",

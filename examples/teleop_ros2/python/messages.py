@@ -11,6 +11,7 @@ import numpy as np
 from geometry_msgs.msg import Pose, PoseArray, PoseStamped
 from scipy.spatial.transform import Rotation
 from sensor_msgs.msg import JointState
+from teleop_ros2_interfaces.msg import HandJointPose, HandJointPoses
 
 from isaacteleop.retargeting_engine.interface import OptionalTensorGroup
 from isaacteleop.retargeting_engine.tensor_types.indices import (
@@ -21,9 +22,8 @@ from isaacteleop.retargeting_engine.tensor_types.indices import (
     HeadPoseIndex,
 )
 
-from constants import BODY_JOINT_NAMES
+from constants import BODY_JOINT_NAMES, HAND_POSE_JOINT_INDICES, HAND_POSE_NAMES
 from geometry import (
-    append_hand_poses,
     apply_manus_controller_to_hand_pose,
     apply_transform_to_pose,
     to_pose,
@@ -34,6 +34,42 @@ from tensor_group_helpers import (
     head_is_valid,
     joint_names_from_group_type,
 )
+
+
+def _build_hand_joint_poses(
+    hand: OptionalTensorGroup,
+    transform_rot: Rotation | None = None,
+    transform_trans: Sequence[float] | None = None,
+) -> list[HandJointPose]:
+    positions = np.asarray(hand[HandInputIndex.JOINT_POSITIONS])
+    orientations = np.asarray(hand[HandInputIndex.JOINT_ORIENTATIONS])
+    joint_valid = np.asarray(hand[HandInputIndex.JOINT_VALID])
+
+    joints: list[HandJointPose] = []
+    for joint_idx, joint_name in zip(HAND_POSE_JOINT_INDICES, HAND_POSE_NAMES):
+        joint_is_valid = bool(joint_valid[joint_idx])
+        if joint_is_valid:
+            pose = to_pose(positions[joint_idx], orientations[joint_idx])
+            if transform_rot is not None or transform_trans is not None:
+                pose = apply_transform_to_pose(pose, transform_rot, transform_trans)
+        else:
+            pose = to_pose([0.0, 0.0, 0.0])
+        joints.append(HandJointPose(name=joint_name, pose=pose, valid=joint_is_valid))
+    return joints
+
+
+def _build_hand_poses(
+    hand: OptionalTensorGroup,
+    transform_rot: Rotation | None = None,
+    transform_trans: Sequence[float] | None = None,
+) -> list[Pose]:
+    if hand.is_none:
+        return [to_pose([0.0, 0.0, 0.0]) for _ in HAND_POSE_JOINT_INDICES]
+
+    return [
+        joint.pose
+        for joint in _build_hand_joint_poses(hand, transform_rot, transform_trans)
+    ]
 
 
 def _to_pose_stamped(pose: Pose, now, frame_id: str) -> PoseStamped:
@@ -214,7 +250,29 @@ def build_full_body_payload(full_body: OptionalTensorGroup) -> Dict:
     }
 
 
-def build_hand_msg_from_hands(
+def build_hand_msg_from_hand(
+    hand: OptionalTensorGroup,
+    now,
+    frame_id: str,
+    transform_rot: Rotation | None = None,
+    transform_trans: Sequence[float] | None = None,
+) -> HandJointPoses | None:
+    """Build named hand joint poses for one hand."""
+    if hand.is_none:
+        return None
+
+    msg = HandJointPoses()
+    msg.header.stamp = now
+    msg.header.frame_id = frame_id
+    msg.joints = _build_hand_joint_poses(
+        hand,
+        transform_rot,
+        transform_trans,
+    )
+    return msg
+
+
+def build_hand_pose_array(
     left_hand: OptionalTensorGroup,
     right_hand: OptionalTensorGroup,
     now,
@@ -226,38 +284,17 @@ def build_hand_msg_from_hands(
     msg = PoseArray()
     msg.header.stamp = now
     msg.header.frame_id = frame_id
-
-    if not left_hand.is_none:
-        left_positions = np.asarray(left_hand[HandInputIndex.JOINT_POSITIONS])
-        left_orientations = np.asarray(left_hand[HandInputIndex.JOINT_ORIENTATIONS])
-        left_valid = np.asarray(left_hand[HandInputIndex.JOINT_VALID])
-        append_hand_poses(
-            msg.poses,
-            left_positions,
-            left_orientations,
-            left_valid,
-            transform_rot,
-            transform_trans,
-        )
-    else:
-        for _ in range(HandJointIndex.WRIST, HandJointIndex.LITTLE_TIP + 1):
-            msg.poses.append(to_pose([0.0, 0.0, 0.0]))
-
-    if not right_hand.is_none:
-        right_positions = np.asarray(right_hand[HandInputIndex.JOINT_POSITIONS])
-        right_orientations = np.asarray(right_hand[HandInputIndex.JOINT_ORIENTATIONS])
-        right_valid = np.asarray(right_hand[HandInputIndex.JOINT_VALID])
-        append_hand_poses(
-            msg.poses,
-            right_positions,
-            right_orientations,
-            right_valid,
-            transform_rot,
-            transform_trans,
-        )
-    else:
-        for _ in range(HandJointIndex.WRIST, HandJointIndex.LITTLE_TIP + 1):
-            msg.poses.append(to_pose([0.0, 0.0, 0.0]))
+    left_poses = _build_hand_poses(
+        left_hand,
+        transform_rot,
+        transform_trans,
+    )
+    right_poses = _build_hand_poses(
+        right_hand,
+        transform_rot,
+        transform_trans,
+    )
+    msg.poses = left_poses + right_poses
 
     return msg
 

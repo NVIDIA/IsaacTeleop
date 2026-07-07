@@ -46,6 +46,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxxf86vm-dev \
     swig \
     ros-${ROS_DISTRO}-rmw-cyclonedds-cpp \
+    ros-${ROS_DISTRO}-rosidl-default-runtime \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv via standalone script (avoids PEP 668 "externally managed" pip on Ubuntu 24.04 / Jazzy)
@@ -113,6 +114,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     patchelf \
     pkg-config \
+    ros-${ROS_DISTRO}-rosidl-default-generators \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/isaacteleop
@@ -143,10 +145,19 @@ RUN --mount=type=cache,target=/ccache,id=isaacteleop-teleop-ros2-ccache-${ROS_DI
         -DISAAC_TELEOP_PYTHON_VERSION=${PYTHON_VERSION} \
     && cmake --build build --config Release -j$(nproc) \
     && cmake --install build --config Release \
+    && bash -lc "source /opt/ros/${ROS_DISTRO}/setup.bash \
+        && cmake -B build/teleop_ros2_interfaces -S examples/teleop_ros2/teleop_ros2_interfaces \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/opt/isaacteleop/install \
+        && cmake --build build/teleop_ros2_interfaces --config Release -j$(nproc) \
+        && cmake --install build/teleop_ros2_interfaces --config Release" \
     && ccache --show-stats
 
 COPY --chmod=644 <<EOF /usr/local/bin/teleop-env-setup
 source /opt/ros/${ROS_DISTRO}/setup.bash
+if [[ -f /opt/isaacteleop/install/share/teleop_ros2_interfaces/local_setup.bash ]]; then
+    source /opt/isaacteleop/install/share/teleop_ros2_interfaces/local_setup.bash
+fi
 EOF
 
 COPY --chmod=755 <<'EOF' /usr/local/bin/teleop-entrypoint

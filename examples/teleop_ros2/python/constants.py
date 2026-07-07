@@ -6,7 +6,10 @@
 
 from enum import Enum
 
-from isaacteleop.retargeting_engine.tensor_types.indices import BodyJointPicoIndex
+from isaacteleop.retargeting_engine.tensor_types.indices import (
+    BodyJointPicoIndex,
+    HandJointIndex,
+)
 
 try:
     from enum import StrEnum
@@ -25,6 +28,11 @@ class HandRetargeter(StrEnum):
 
 
 BODY_JOINT_NAMES = [e.name for e in BodyJointPicoIndex]
+HAND_POSE_JOINT_INDICES = tuple(
+    HandJointIndex(i)
+    for i in range(HandJointIndex.WRIST, HandJointIndex.LITTLE_TIP + 1)
+)
+HAND_POSE_NAMES = [joint.name for joint in HAND_POSE_JOINT_INDICES]
 HAND_RETARGETERS = tuple(retargeter.value for retargeter in HandRetargeter)
 SHARPA_HAND_RETARGETERS = (HandRetargeter.PINK_IK, HandRetargeter.DEXPILOT)
 TELEOP_MODES = ("controller_teleop", "hand_teleop", "controller_raw", "full_body")
