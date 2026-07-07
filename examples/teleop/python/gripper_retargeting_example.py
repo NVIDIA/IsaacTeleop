@@ -9,11 +9,13 @@ This example manually connects Controller and Hand sources to Gripper and SE3 re
 combining their outputs into a unified action vector (Pose + Gripper) executed via TeleopSession.
 """
 
+import argparse
 import sys
 import time
 from pathlib import Path
 
 import numpy as np
+from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     ControllersSource,
     HandsSource,
@@ -40,6 +42,10 @@ PLUGIN_ROOT_ID = "synthetic_hands"
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    CloudXRLauncher.add_launcher_arguments(parser)
+    args = parser.parse_args()
+
     # Create controllers source (tracker is internal)
     controllers = ControllersSource(name="controllers")
     hands = HandsSource(name="hands")
@@ -111,7 +117,7 @@ def main():
     )
 
     # Use TeleopSession to manage the loop and data injection
-    with TeleopSession(config) as session:
+    with CloudXRLauncher.launch_context(args), TeleopSession(config) as session:
         run_loop(session)
 
     return 0
