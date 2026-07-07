@@ -249,6 +249,13 @@ class Se3AbsRetargeter(BaseRetargeter):
                     ]
                 )
         else:
+            # A connected controller can report an invalid grip pose (e.g. at
+            # rest with pose tracking lost) whose zero-norm orientation
+            # Rotation.from_quat rejects. Hold the last pose, matching the
+            # is_none path and the hand branch's joint_valid handling.
+            if not bool(inp[ControllerInputIndex.GRIP_IS_VALID]):
+                ee_pose[0] = self._last_pose
+                return
             grip_pos = np.from_dlpack(inp[ControllerInputIndex.GRIP_POSITION])
             grip_ori = np.from_dlpack(
                 inp[ControllerInputIndex.GRIP_ORIENTATION]
@@ -384,6 +391,14 @@ class Se3RelRetargeter(BaseRetargeter):
                 ]
             )
         else:
+            # A connected controller can report an invalid grip pose (e.g. at
+            # rest with pose tracking lost) whose zero-norm orientation
+            # Rotation.from_quat rejects. Emit a zero delta and re-arm the
+            # first-frame baseline so the next valid frame does not jump.
+            if not bool(inp[ControllerInputIndex.GRIP_IS_VALID]):
+                self._first_frame = True
+                ee_delta[0] = np.zeros(6, dtype=np.float32)
+                return
             grip_pos = np.from_dlpack(inp[ControllerInputIndex.GRIP_POSITION])
             grip_ori = np.from_dlpack(inp[ControllerInputIndex.GRIP_ORIENTATION])
             wrist = np.concatenate([grip_pos, grip_ori])
