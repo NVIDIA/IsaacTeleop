@@ -18,7 +18,6 @@ See: https://nvidia.github.io/IsaacTeleop/main/references/mcap_record_replay.htm
 """
 
 import argparse
-import contextlib
 import sys
 import time
 from datetime import datetime
@@ -43,22 +42,11 @@ def main(argv: list[str]) -> int:
         help="Accept the NVIDIA CloudXR EULA non-interactively",
     )
     parser.add_argument(
-        "--install-dir",
-        default="~/.cloudxr",
-        help="CloudXR install directory (default: ~/.cloudxr)",
-    )
-    parser.add_argument(
         "--env-file",
         default=str(Path(__file__).parent / "default.env"),
         help="Path to a KEY=value env file for CloudXR overrides (default: default.env)",
     )
-    parser.add_argument(
-        "--launch-cloudxr-runtime",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Launch the CloudXR runtime automatically (default: true; pass "
-        "--no-launch-cloudxr-runtime to connect to the system runtime instead)",
-    )
+    CloudXRLauncher.add_launcher_arguments(parser)
     args = parser.parse_args(argv[1:])
 
     duration_s: float = args.duration
@@ -79,16 +67,9 @@ def main(argv: list[str]) -> int:
         mcap_config=McapRecordingConfig(str(mcap_path)),
     )
 
-    launcher_ctx = (
-        contextlib.nullcontext()
-        if not args.launch_cloudxr_runtime
-        else CloudXRLauncher(
-            install_dir=args.install_dir,
-            env_config=args.env_file,
-            accept_eula=args.accept_eula,
-        )
-    )
-    with launcher_ctx as launcher:
+    with CloudXRLauncher.launch_context(
+        args, env_config=args.env_file, accept_eula=args.accept_eula
+    ) as launcher:
         if launcher is not None:
             print(
                 f"[record] CloudXR runtime started (WSS log: {launcher.wss_log_path})"
