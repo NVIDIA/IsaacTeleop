@@ -22,7 +22,7 @@ echo
 
 # Download detector.pt
 echo "Downloading YOLO hand detector..."
-if [ ! -f "/home/appuser/Dyn-HaMR/third-party/hamer/pretrained_models/detector.pt" ]; then
+if [[ ! -f "/home/appuser/Dyn-HaMR/third-party/hamer/pretrained_models/detector.pt" ]]; then
     wget https://huggingface.co/spaces/rolpotamias/WiLoR/resolve/main/pretrained_models/detector.pt \
         -P /home/appuser/Dyn-HaMR/third-party/hamer/pretrained_models/
     echo "✓ Detector downloaded"
@@ -34,7 +34,7 @@ echo
 # Copy data from mounted outputs (if available)
 echo "Checking for required data files in mounted volumes..."
 
-if [ -f "/home/appuser/outputs/MANO_RIGHT.pkl" ]; then
+if [[ -f "/home/appuser/outputs/MANO_RIGHT.pkl" ]]; then
     echo "Copying MANO model..."
     cp /home/appuser/outputs/MANO_RIGHT.pkl /home/appuser/Dyn-HaMR/_DATA/data/mano/
     echo "✓ MANO model copied"
@@ -44,7 +44,7 @@ else
     echo "  Then copy to: <WORKSPACE>/outputs/MANO_RIGHT.pkl"
 fi
 
-if [ -d "/home/appuser/outputs/BMC" ]; then
+if [[ -d "/home/appuser/outputs/BMC" ]]; then
     echo "Copying BMC data..."
     cp /home/appuser/outputs/BMC/* /home/appuser/Dyn-HaMR/_DATA/BMC/
     echo "✓ BMC data copied"
@@ -55,7 +55,7 @@ fi
 echo
 
 # Create placeholder CONVEX_HULLS if needed
-if [ ! -f "/home/appuser/Dyn-HaMR/_DATA/BMC/CONVEX_HULLS.npy" ]; then
+if [[ ! -f "/home/appuser/Dyn-HaMR/_DATA/BMC/CONVEX_HULLS.npy" ]]; then
     echo "Creating placeholder CONVEX_HULLS.npy..."
     python << 'EOF'
 import numpy as np

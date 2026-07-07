@@ -11,6 +11,7 @@
 #include "hand_bindings.h"
 #include "haptic_command_bindings.h"
 #include "head_bindings.h"
+#include "joint_state_bindings.h"
 #include "message_channel_bindings.h"
 #include "oak_bindings.h"
 #include "pedals_bindings.h"
@@ -40,6 +41,9 @@ PYBIND11_MODULE(_schema, m)
 
     // Bind pedals types (Generic3AxisPedalOutput table).
     core::bind_pedals(m);
+
+    // Bind joint-state types (JointState, JointStateOutput tables) for generic joint-space devices.
+    core::bind_joint_state(m);
 
     // Bind message channel types (MessageChannelMessages table).
     core::bind_message_channel(m);

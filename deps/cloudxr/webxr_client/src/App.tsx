@@ -58,7 +58,7 @@ import type { XRDevice } from 'iwer';
 import { useState, useMemo, useEffect, useRef } from 'react';
 
 import { v5 } from 'uuid';
-import { CloudXR2DUI } from './CloudXR2DUI';
+import { CloudXR2DUI, COUNTDOWN_STORAGE_KEY } from './CloudXR2DUI';
 import { readUrlParam } from './config/resolve';
 import CloudXR3DUI from './CloudXRUI';
 import { HeadsetControlChannel } from '@helpers/controlChannel';
@@ -136,7 +136,6 @@ function buildOobHubWsUrlFromQuery(searchParams: URLSearchParams): string | null
 
 function App() {
   const COUNTDOWN_MAX_SECONDS = 9;
-  const COUNTDOWN_STORAGE_KEY = 'cxr.react.countdownSeconds';
   // 2D UI management
   const [cloudXR2DUI, setCloudXR2DUI] = useState<CloudXR2DUI | null>(null);
   // IWER loading state
@@ -229,13 +228,16 @@ function App() {
       // Disable button and show checking status
       cloudXR2DUI.setStartButtonState(true, 'CONNECT (checking capabilities)');
 
+      // Set by the IWER load effect above; passed to checkCapabilities to skip browser
+      // version checks that don't apply when running under a desktop XR emulator.
+      const iwerWasLoaded = sessionStorage.getItem('iwerWasLoaded') === 'true';
       let result: { success: boolean; failures: string[]; warnings: string[] } = {
         success: false,
         failures: [],
         warnings: [],
       };
       try {
-        result = await checkCapabilities();
+        result = await checkCapabilities(iwerWasLoaded);
       } catch (error) {
         cloudXR2DUI.showStatus(`Capability check error: ${error}`, 'error');
         setCapabilitiesValid(false);
@@ -255,7 +257,6 @@ function App() {
       }
 
       // Show final status message with IWER info if applicable
-      const iwerWasLoaded = sessionStorage.getItem('iwerWasLoaded') === 'true';
       if (result.warnings.length > 0) {
         cloudXR2DUI.showStatus('Performance notice:\n' + result.warnings.join('\n'), 'info');
       } else if (iwerWasLoaded) {

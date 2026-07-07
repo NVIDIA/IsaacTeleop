@@ -1,3 +1,6 @@
+.. SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+.. SPDX-License-Identifier: Apache-2.0
+
 Retargeting Interface
 =====================
 
@@ -11,6 +14,8 @@ Source Nodes
 * ``HandsSource`` -- provides hand tracking data (left/right, 26 joints each).
 * ``ControllersSource`` -- provides motion controller data (grip pose, trigger, thumbstick, etc.).
 * ``Generic3AxisPedalSource`` -- provides 3-axis foot pedal data (left/right pedals, rudder).
+* ``JointStateSource`` -- provides name-keyed joint positions from a generic joint-space device
+  (leader arm, exoskeleton, ...). See :doc:`joint_space`.
 * ``FullBodySource`` -- provides full-body pose (e.g. Pico tracking).
 
 Available Retargeters
@@ -40,6 +45,23 @@ Available Retargeters
    thumb-index pinch distance from hand tracking. ``GripperRetargeterConfig`` includes
    ``hand_side`` (``"left"`` or ``"right"``), ``gripper_close_meters``, ``gripper_open_meters``,
    and ``controller_threshold`` for trigger-based closing.
+
+.. dropdown:: SO101ClutchRetargeter / SO101GripperRetargeter
+
+   Retargeters for the SO-101 5-DOF arm under full-pose SE3 IK. ``SO101ClutchRetargeter``
+   outputs a 7-D ``ee_pose`` like ``Se3AbsRetargeter`` but clutch-rebases controller position
+   around an origin captured on engage (no teleport) and composes a fixed orientation
+   calibration offset onto the grip orientation so the gripper pose follows the controller pose.
+   ``SO101GripperRetargeter`` maps the trigger to a proportional jaw closedness in ``[0, 1]``.
+   See :doc:`so101` for the full setup.
+
+.. dropdown:: JointStateRetargeter
+
+   Maps a name-keyed joint-state input (from ``JointStateSource``) to an action for a generic
+   joint-space device -- leader arm, exoskeleton, etc. Two modes via ``JointStateRetargeterConfig``:
+   ``"joint"`` (lossless leader -> follower mirror with optional per-joint affine; no extra deps)
+   and ``"ee_pose"`` (URDF forward kinematics -> 7D EE pose + gripper, requires ``pinocchio``).
+   See :doc:`joint_space` for the full setup, modes, and the SO-101 example.
 
 .. dropdown:: DexHandRetargeter / DexBiManualRetargeter
 
@@ -315,3 +337,5 @@ and :doc:`Contributing Guide <../../getting_started/contributing>` for details.
    :caption: Retargeter setup guides
 
    sharpa
+   so101
+   joint_space

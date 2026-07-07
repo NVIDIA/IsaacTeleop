@@ -187,13 +187,13 @@ PY
 }
 
 # ──────────────────────────────────────────────────────────────────────
-# run (run the viewer with the YAML as-is)
+# run (the viewer; args after CONFIG forward to camera_viz.py, e.g. --mode xr)
 # ──────────────────────────────────────────────────────────────────────
 
 cmd_run() {
     _require_local_config run "${1:-}"
     log_step "Starting camera_viz — Ctrl-C to exit"
-    "$LOCAL_VENV/bin/python" "$HERE/camera_viz.py" "$1"
+    "$LOCAL_VENV/bin/python" "$HERE/camera_viz.py" "$@"
 }
 
 # ──────────────────────────────────────────────────────────────────────
@@ -393,8 +393,8 @@ LOCAL
                           PATH instead of creating one in-place.
                           examples/camera_viz/.venv is symlinked → PATH
                           so run / loopback pick it up too.
-                          --sender-only skips the isaacteleop wheel + vulkan
-                          deps (use on Jetson sender hosts).
+                          --sender-only skips isaacteleop + vulkan deps
+                          (use on Jetson sender hosts).
                           --jetson adds JetPack-only checks: unversioned
                           CUDA lib symlinks + ld.so wiring that JetPack
                           skips. Off on desktop.

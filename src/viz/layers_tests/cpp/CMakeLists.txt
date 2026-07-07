@@ -7,6 +7,7 @@ cmake_minimum_required(VERSION 3.20)
 # the production layers in viz::layers (QuadLayer, ...).
 add_executable(viz_layers_tests
     test_clear_rect_layer.cpp
+    test_projection_layer.cpp
     test_quad_layer.cpp
     test_throwing_layer.cpp
 )

@@ -12,6 +12,7 @@ import sys
 import time
 import numpy as np
 
+from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     HandsSource,
     ControllersSource,
@@ -141,27 +142,28 @@ def run_rel_example(use_controller=False):
 
 
 def main():
-    print("=" * 80)
-    print("  SE3 Retargeting Examples")
-    print("=" * 80)
-    print("1. Absolute Positioning (Hand -> Pose)")
-    print("2. Absolute Positioning (Controller -> Pose)")
-    print("3. Relative Positioning (Hand Delta -> Delta)")
-    print("4. Relative Positioning (Controller Delta -> Delta)")
+    with CloudXRLauncher():
+        print("=" * 80)
+        print("  SE3 Retargeting Examples")
+        print("=" * 80)
+        print("1. Absolute Positioning (Hand -> Pose)")
+        print("2. Absolute Positioning (Controller -> Pose)")
+        print("3. Relative Positioning (Hand Delta -> Delta)")
+        print("4. Relative Positioning (Controller Delta -> Delta)")
 
-    choice = input("\nEnter choice (1-4): ").strip()
+        choice = input("\nEnter choice (1-4): ").strip()
 
-    if choice == "1":
-        run_abs_example(use_controller=False)
-    elif choice == "2":
-        run_abs_example(use_controller=True)
-    elif choice == "3":
-        run_rel_example(use_controller=False)
-    elif choice == "4":
-        run_rel_example(use_controller=True)
-    else:
-        print("Invalid choice")
-        return 1
+        if choice == "1":
+            run_abs_example(use_controller=False)
+        elif choice == "2":
+            run_abs_example(use_controller=True)
+        elif choice == "3":
+            run_rel_example(use_controller=False)
+        elif choice == "4":
+            run_rel_example(use_controller=True)
+        else:
+            print("Invalid choice")
+            return 1
     return 0
 
 

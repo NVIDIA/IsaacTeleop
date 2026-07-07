@@ -15,6 +15,70 @@
  * limitations under the License.
  */
 
+// Minimum versions for CloudXR.js compatibility.
+// Requirements: https://docs.nvidia.com/cloudxr-sdk/latest/requirement/cloudxrjs_req.html
+// Quest OS version is not exposed in the UA; OculusBrowser 40 approximates the OS v79 era
+// (browser 41.2, Nov 2025, was the first to declare OS v81 as its minimum).
+const MIN_OCULUS_BROWSER_MAJOR = 40;
+const MIN_PICO_CHROME_MAJOR = 125;
+
+/** Headset family inferred from the browser user-agent. */
+export type HeadsetFamily = 'quest' | 'pico' | 'other';
+
+/**
+ * Classify the headset from the user-agent. Pico is checked first because Pico UAs
+ * also include an "OculusBrowser/7.0" compat token that would otherwise match Quest.
+ * The UA does not expose the specific Quest/Pico model, so this returns the family only.
+ * `ua` is injectable for testing; defaults to the live navigator user-agent.
+ */
+export function detectHeadset(ua: string = navigator.userAgent): HeadsetFamily {
+  if (/PicoBrowser\//.test(ua)) return 'pico';
+  if (/OculusBrowser\//.test(ua)) return 'quest';
+  return 'other';
+}
+
+// Returns a warning message if the current browser is below the documented minimum
+// version, or null if the version is acceptable or cannot be determined.
+// Pass emulated=true when running under an XR emulator (e.g. IWER) to skip the check.
+export function checkBrowserVersion(emulated = false): string | null {
+  if (emulated) {
+    return null;
+  }
+
+  const ua = navigator.userAgent;
+  const headset = detectHeadset(ua);
+
+  if (headset === 'pico') {
+    const chromeMatch = ua.match(/Chrome\/(\d+)\./);
+    if (chromeMatch) {
+      const major = parseInt(chromeMatch[1], 10);
+      if (major < MIN_PICO_CHROME_MAJOR) {
+        return (
+          `Pico Browser (Chrome ${major}) is outdated. ` +
+          `CloudXR requires Chrome ${MIN_PICO_CHROME_MAJOR} or later. ` +
+          `Please update your headset firmware.`
+        );
+      }
+    }
+    return null;
+  }
+
+  const questMatch = headset === 'quest' ? ua.match(/OculusBrowser\/(\d+)\./) : null;
+  if (questMatch) {
+    const major = parseInt(questMatch[1], 10);
+    if (major < MIN_OCULUS_BROWSER_MAJOR) {
+      return (
+        `Meta Quest Browser version ${major} detected. ` +
+        `CloudXR requires Meta Quest OS v79 or later ` +
+        `(approximately OculusBrowser ${MIN_OCULUS_BROWSER_MAJOR}+). ` +
+        `Please update your headset firmware.`
+      );
+    }
+  }
+
+  return null;
+}
+
 interface CapabilityCheck {
   name: string;
   required: boolean;
@@ -96,11 +160,40 @@ const capabilities: CapabilityCheck[] = [
         return false;
       }
     },
-    message: 'AV1 codec support is recommended for optimal streaming quality',
+    message: 'AV1 codec is not supported on this device. H.264 or HEVC can be selected as an alternative.',
+  },
+  {
+    name: 'HEVC Codec Support',
+    required: false,
+    check: async () => {
+      try {
+        if (!navigator.mediaCapabilities) {
+          return false;
+        }
+
+        const config = {
+          type: 'webrtc' as MediaDecodingType,
+          video: {
+            contentType: 'video/h265',
+            width: 1920,
+            height: 1080,
+            framerate: 60,
+            bitrate: 15000000,
+          },
+        };
+
+        const result = await navigator.mediaCapabilities.decodingInfo(config);
+        return result.supported;
+      } catch (error) {
+        console.warn('Error checking HEVC support:', error);
+        return false;
+      }
+    },
+    message: 'HEVC (H.265) codec is not supported on this device. H.264 or AV1 can be selected as an alternative.',
   },
 ];
 
-export async function checkCapabilities(): Promise<{
+export async function checkCapabilities(emulated = false): Promise<{
   success: boolean;
   failures: string[];
   warnings: string[];
@@ -108,6 +201,13 @@ export async function checkCapabilities(): Promise<{
   const failures: string[] = [];
   const warnings: string[] = [];
   const requiredFailures: string[] = [];
+
+  // Check browser version first so the warning appears at the top of the list.
+  const versionWarning = checkBrowserVersion(emulated);
+  if (versionWarning) {
+    warnings.push(versionWarning);
+    console.warn('Browser version warning:', versionWarning);
+  }
 
   for (const capability of capabilities) {
     try {

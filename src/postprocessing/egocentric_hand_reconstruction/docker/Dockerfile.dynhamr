@@ -73,8 +73,13 @@ RUN pip install \
     jupyter \
     ipdb
 
-# Install additional dependencies discovered during integration
+# Install additional dependencies discovered during integration.
+# Re-pin numpy==1.23.5 here (same value as the core line) to anchor the
+# resolver: plyfile 1.1.4 requires numpy>=2.0 and would otherwise upgrade numpy
+# past the version chumpy needs. With numpy pinned, pip selects a compatible
+# plyfile automatically.
 RUN pip install \
+    "numpy==1.23.5" \
     joblib \
     loguru \
     plyfile \

@@ -10,21 +10,24 @@ include(cmake/IsaacTeleopVersion.cmake)
 isaac_teleop_read_version("${CMAKE_CURRENT_SOURCE_DIR}/VERSION" ISAAC_TELEOP_VERSION ISAAC_TELEOP_PYPROJECT_VERSION)
 
 # ==============================================================================
-# Install Prefix Setup (must be before HunterGate)
+# Install Prefix Setup
 # ==============================================================================
-# Set default install prefix early, before HunterGate which may affect
-# CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT
 if(NOT DEFINED CMAKE_INSTALL_PREFIX OR CMAKE_INSTALL_PREFIX STREQUAL "" OR CMAKE_INSTALL_PREFIX MATCHES "^/usr/local")
     set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/install" CACHE PATH "Install prefix" FORCE)
 endif()
 
-# OAK camera plugin uses Hunter/DepthAI; optional so builds like teleop_ros2 can skip it.
-option(BUILD_PLUGIN_OAK_CAMERA "Build OAK camera plugin (uses Hunter/DepthAI)" OFF)
 # ==============================================================================
-
-# HunterGate Setup (must be before project())
-# Defines BUILD_PLUGINS option and initializes Hunter for DepthAI dependencies
-include(cmake/SetupHunter.cmake)
+# DepthAI vcpkg manifest (OAK camera plugin)
+# ==============================================================================
+# The OAK camera plugin's vcpkg dependencies come from DepthAI's own vcpkg.json,
+# auto-downloaded for the pinned tag, rather than a duplicate manifest tracked
+# in this repo. This MUST run before project() so vcpkg picks up the manifest
+# when the toolchain loads. Gated on the -D option being passed (it lives in the
+# cache before project(); the option() default below applies only when unset).
+if(BUILD_PLUGIN_OAK_CAMERA)
+    include(cmake/DepthAIVcpkgManifest.cmake)
+    isaac_teleop_setup_depthai_vcpkg_manifest()
+endif()
 
 project(IsaacTeleop VERSION ${ISAAC_TELEOP_VERSION} LANGUAGES CXX)
 
@@ -53,17 +56,30 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
 
-# Note: CMAKE_INSTALL_PREFIX is set early (before HunterGate) to avoid issues
-# with CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT being affected by Hunter's
-# internal project() call.
-
 # Options
-# Note: BUILD_PLUGINS is defined in cmake/SetupHunter.cmake before project()
-# Note: BUILD_PYTHON_BINDINGS is defined in cmake/SetupPython.cmake
+option(BUILD_PLUGINS "Build plugins" ON)
+option(BUILD_PLUGIN_OAK_CAMERA "Build OAK camera plugin (requires vcpkg for DepthAI v3.x)" OFF)
 option(BUILD_EXAMPLES "Build examples" ON)
 option(BUILD_EXAMPLE_TELEOP_ROS2 "Build only the teleop_ros2 example (e.g. for Docker)" OFF)
 option(BUILD_TESTING "Build unit tests" ON)
-option(BUILD_VIZ "Build Televiz visualization module (requires Vulkan)" OFF)
+# Televiz (src/viz) needs Vulkan, the CUDA Toolkit, and glslangValidator.
+# Default BUILD_VIZ ON when all three are present (so it builds out of the box)
+# and OFF otherwise (so a core-only source build still configures on machines
+# without them). Override explicitly with -DBUILD_VIZ=ON/OFF.
+find_package(Vulkan QUIET)
+find_package(CUDAToolkit QUIET)
+find_program(_viz_glslang NAMES glslangValidator)
+if(Vulkan_FOUND AND CUDAToolkit_FOUND AND _viz_glslang)
+    set(_viz_default ON)
+else()
+    set(_viz_default OFF)
+endif()
+option(BUILD_VIZ "Build Televiz visualization module (auto-ON when Vulkan + CUDA + glslang are found)" ${_viz_default})
+if(BUILD_VIZ AND NOT (Vulkan_FOUND AND CUDAToolkit_FOUND AND _viz_glslang))
+    message(WARNING "BUILD_VIZ=ON but not all of Vulkan / CUDA Toolkit / glslangValidator were detected; "
+                    "the viz build may fail. Install the deps or pass -DBUILD_VIZ=OFF.")
+endif()
+message(STATUS "BUILD_VIZ: ${BUILD_VIZ} (Vulkan=${Vulkan_FOUND} CUDAToolkit=${CUDAToolkit_FOUND} glslang=${_viz_glslang})")
 option(ENABLE_EXPERIMENTAL_WINDOWS_BUILD "Enable experimental Windows build support (source code only)" OFF)
 
 # Note: This is used to check if the CloudXR bundle is available to be bundled with Isaac Teleop.
@@ -165,6 +181,7 @@ if(BUILD_PLUGINS)
 
     add_subdirectory(src/plugins/controller_synthetic_hands)
     add_subdirectory(src/plugins/generic_3axis_pedal)
+    add_subdirectory(src/plugins/so101_leader)
     add_subdirectory(src/plugins/manus)
     add_subdirectory(src/plugins/haptikos)
     if(BUILD_PLUGIN_OAK_CAMERA)

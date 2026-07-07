@@ -23,11 +23,11 @@ The reconstruction pipeline requires two sets of external data files, stored in 
 - **MANO_RIGHT.pkl**
 - **BMC/**
 
-See [`doc/quickstart.md`](../doc/quickstart.md) for detailed setup instructions.
+See [`Isaac Teleop Documentation`](https://nvidia.github.io/IsaacTeleop/main/references/egocentric_hand_reconstruction.html) for detailed setup instructions.
 
 ### Container images
 
-The workflow requires two container images (`vipe_image` and `dynhamr_image`). Build them locally following the instructions in [`doc/quickstart.md`](../doc/quickstart.md):
+The workflow requires two container images (`vipe_image` and `dynhamr_image`). Build them locally following the instructions in [`Isaac Teleop Documentation`](https://nvidia.github.io/IsaacTeleop/main/references/egocentric_hand_reconstruction.html):
 
 ```bash
 ./docker/vipe.sh build
@@ -106,7 +106,6 @@ osmo credential set REGISTRY_CREDENTIAL \
 ```
 
 See the [OSMO credentials documentation](https://nvidia.github.io/OSMO/main/user_guide/getting_started/credentials.html) for details.
-
 
 ## Template Parameters
 

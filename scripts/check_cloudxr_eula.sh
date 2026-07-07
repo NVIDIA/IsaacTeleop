@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 set -euo pipefail
@@ -12,7 +12,7 @@ cd "$GIT_ROOT" || exit 1
 ENV_FILE="deps/cloudxr/.env"
 
 # 1. Check if .env file exists
-if [ ! -f "$ENV_FILE" ]; then
+if [[ ! -f "$ENV_FILE" ]]; then
     echo "Error: $ENV_FILE not found. Please create it first."
     exit 1
 fi
@@ -33,7 +33,7 @@ echo -n "Type 'yes' to accept: "
 read -r response
 
 # 3. Handle user response
-if [ "$response" = "yes" ]; then
+if [[ "$response" = "yes" ]]; then
     # 3a. Update or add ACCEPT_CLOUDXR_EULA=Y to .env file
     if grep -q "^ACCEPT_CLOUDXR_EULA=" "$ENV_FILE"; then
         # Update existing line

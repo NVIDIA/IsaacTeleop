@@ -59,6 +59,38 @@ CodeRabbit (`.claude/skills/cmake-structure/`, `.cursor/rules/cmake-structure.md
 `.github/instructions/cmake-structure.instructions.md`, `.coderabbit.yaml`); they
 only point here — edit the rules in the doc, not the shims.
 
+## Shell scripts
+
+- In **bash** scripts (`#!/bin/bash`, `#!/usr/bin/env bash`, or files `source`d
+  only by bash), use **`[[ ... ]]`** for conditional tests, never the POSIX
+  single-bracket **`[ ... ]`**. `[[` is safer (no word-splitting or glob
+  expansion on unquoted operands) and more feature-rich; SonarQube/ShellCheck
+  (SC2292) flag the single-bracket form.
+- **Caveat:** `[[` is a bash builtin and is **not** POSIX. Before converting,
+  confirm the script's interpreter is bash — a genuine `#!/bin/sh` (dash) script
+  must keep `[ ... ]`. Check the shebang (and, for sourced files, who sources
+  them) first.
+
+## Commits — DCO sign-off for AI-drafted commits
+
+Any commit whose message is drafted or edited by an AI agent **must** include
+a `Signed-off-by:` line (Developer Certificate of Origin). Pass `-s` /
+`--signoff` to `git commit`, or add the line manually:
+
+```
+Signed-off-by: Your Name <your@email.com>
+```
+
+The name and e-mail must match the committer's git identity
+(`git config user.name` / `git config user.email`).
+
+A `commit-msg` pre-commit hook enforces this. Install it **once per clone**
+(in addition to the usual `pre-commit install`):
+
+```bash
+pre-commit install --hook-type commit-msg
+```
+
 ## Pre-commit — match CI before you stop
 
 - From the **IsaacTeleop repo root** (this directory), run pre-commit and **fix all failures** before you treat a change as finished (do not only rely on “should pass” reasoning).

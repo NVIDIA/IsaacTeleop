@@ -15,6 +15,7 @@ import subprocess
 import sys
 import threading
 import time
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from urllib.error import URLError
 from urllib.parse import urlencode, urljoin
@@ -26,11 +27,50 @@ log = logging.getLogger("oob-teleop-env")
 
 WSS_PROXY_DEFAULT_PORT = 48322
 
-DEFAULT_WEB_CLIENT_ORIGIN = "https://nvidia.github.io/IsaacTeleop/client/main/"
+# GitHub Pages WebXR client root. The published client lives under a per-ref
+# slug (``main``, ``release-1.3.x``, ``v1.2.3``, ...); the docs build emits one
+# slug per ref it builds. :func:`default_web_client_origin` resolves the slug
+# for the installed version so OOB opens the matching client.
+WEB_CLIENT_BASE = "https://nvidia.github.io/IsaacTeleop/client/"
 
-# Published WebXR client files (same origin as ``DEFAULT_WEB_CLIENT_ORIGIN``).
-USB_LOCAL_STATIC_INDEX_URL = urljoin(DEFAULT_WEB_CLIENT_ORIGIN, "index.html")
-USB_LOCAL_STATIC_BUNDLE_URL = urljoin(DEFAULT_WEB_CLIENT_ORIGIN, "bundle.js")
+# Origin used when the installed version can't be resolved (dev trees, tests).
+FALLBACK_WEB_CLIENT_ORIGIN = urljoin(WEB_CLIENT_BASE, "main/")
+
+
+def versioned_web_client_url(version: str) -> str:
+    """GitHub Pages WebXR client URL matching *version*.
+
+    A clean ``MAJOR.MINOR.PATCH`` release (a tag build) maps to the per-tag
+    client ``client/vMAJOR.MINOR.PATCH/``. Pre-release / dev builds (``1.2.4rc1``,
+    ``1.3.0.dev5``, ...) and any other version with a leading MAJOR.MINOR map to
+    the release line ``client/release-MAJOR.MINOR.x/``. Versions with no
+    parseable MAJOR.MINOR fall back to the generic ``client/`` URL, which the
+    site redirects to the latest stable tag. The same helper backs the
+    standalone "web client:" line printed in non-OOB mode, so every path
+    agrees on which client to open.
+    """
+    v = version.strip()
+    if re.fullmatch(r"\d+\.\d+\.\d+", v):
+        return urljoin(WEB_CLIENT_BASE, f"v{v}/")
+    m = re.match(r"(\d+)\.(\d+)", v)
+    if m:
+        return urljoin(WEB_CLIENT_BASE, f"release-{m.group(1)}.{m.group(2)}.x/")
+    return WEB_CLIENT_BASE
+
+
+def default_web_client_origin() -> str:
+    """Versioned WebXR client origin for the installed ``isaacteleop`` version.
+
+    Reads the installed distribution version (namespace-independent, so it works
+    under the test package alias too) and maps it via
+    :func:`versioned_web_client_url`. Falls back to
+    :data:`FALLBACK_WEB_CLIENT_ORIGIN` when the version can't be determined.
+    """
+    try:
+        return versioned_web_client_url(version("isaacteleop"))
+    except PackageNotFoundError:
+        return FALLBACK_WEB_CLIENT_ORIGIN
+
 
 # Upper bound for downloaded client assets (supply-chain / accident guard).
 _USB_LOCAL_ASSET_MAX_BYTES = 32 * 1024 * 1024
@@ -44,8 +84,9 @@ TELEOP_WEB_CLIENT_BASE_ENV = "TELEOP_WEB_CLIENT_BASE"
 TELEOP_CLIENT_ROUTE_ENV = "TELEOP_CLIENT_ROUTE"
 DEFAULT_TELEOP_CLIENT_ROUTE = ""
 
-# Directory with prebuilt WebXR assets (``index.html`` + ``bundle.js``). Optional for ``--usb-local``:
-# defaults to ``~/.cloudxr/static-client``; missing files are fetched from published URLs.
+# Directory with prebuilt WebXR assets (``index.html``, ``bundle.js``,
+# ``bundle.emulator.js``). Optional for ``--usb-local``: defaults to
+# ``~/.cloudxr/static-client``; missing files are fetched from published URLs.
 TELEOP_WEB_CLIENT_STATIC_DIR_ENV = "TELEOP_WEB_CLIENT_STATIC_DIR"
 
 CHROME_INSPECT_DEVICES_URL = "chrome://inspect/#devices"
@@ -69,13 +110,13 @@ USB_TURN_USER = "cloudxr"  # TURN username
 USB_TURN_CREDENTIAL = "cloudxrpass"  # TURN credential
 
 
-def default_usb_local_webxr_static_dir() -> Path:
-    """Default directory for USB-local WebXR static files (under ``~/.cloudxr``)."""
+def default_web_client_static_dir() -> Path:
+    """Default directory for web client static files (under ``~/.cloudxr``)."""
     return Path.home() / ".cloudxr" / "static-client"
 
 
-def resolve_usb_local_webxr_static_dir() -> Path:
-    """Directory for USB-local WebXR assets: :envvar:`TELEOP_WEB_CLIENT_STATIC_DIR` or default.
+def resolve_web_client_static_dir() -> Path:
+    """Directory for web client assets: :envvar:`TELEOP_WEB_CLIENT_STATIC_DIR` or default.
 
     Raises:
         RuntimeError: If ``TELEOP_WEB_CLIENT_STATIC_DIR`` points at a non-directory path.
@@ -88,7 +129,7 @@ def resolve_usb_local_webxr_static_dir() -> Path:
                 f"{TELEOP_WEB_CLIENT_STATIC_DIR_ENV} is not a directory: {p}"
             )
         return p
-    return default_usb_local_webxr_static_dir()
+    return default_web_client_static_dir()
 
 
 def _fetch_url_bytes(url: str, *, timeout: float = 120.0) -> bytes:
@@ -119,6 +160,7 @@ def _fetch_url_bytes(url: str, *, timeout: float = 120.0) -> bytes:
 
 
 def _write_atomic_bytes(dest: Path, data: bytes) -> None:
+    """Write *data* to *dest* atomically via a ``.part`` temp file."""
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_name(dest.name + ".part")
     try:
@@ -133,11 +175,17 @@ def _write_atomic_bytes(dest: Path, data: bytes) -> None:
         raise
 
 
-def require_usb_local_webxr_static_dir() -> Path:
-    """Ensure USB-local WebXR static assets exist under :func:`resolve_usb_local_webxr_static_dir`.
+_REQUIRED_WEB_CLIENT_ASSETS = ("index.html", "bundle.js")
+# Hardcoded — any new async chunk emitted by webpack must be added here manually.
+_OPTIONAL_WEB_CLIENT_ASSETS = ("bundle.emulator.js",)
 
-    Creates the directory if needed. If ``index.html`` or ``bundle.js`` is missing or empty,
-    downloads from the published Isaac Teleop client URLs.
+
+def require_web_client_static_dir() -> Path:
+    """Ensure web client static assets exist under :func:`resolve_web_client_static_dir`.
+
+    Creates the directory if needed. If ``index.html``, ``bundle.js``, or
+    ``bundle.emulator.js`` is missing or empty, downloads from the published
+    Isaac Teleop client URLs (emulator bundle is optional on older releases).
 
     Idempotent: safe to call from both :class:`~.launcher.CloudXRLauncher` and ``wss.run``
     (second call skips network when files are present).
@@ -145,25 +193,34 @@ def require_usb_local_webxr_static_dir() -> Path:
     Raises:
         RuntimeError: If the path is invalid or downloads/final validation fail.
     """
-    p = resolve_usb_local_webxr_static_dir()
+    p = resolve_web_client_static_dir()
 
     try:
         p.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
         raise RuntimeError(
-            f"Cannot create USB-local WebXR static directory {p}: {exc}"
+            f"Cannot create web client static directory {p}: {exc}"
         ) from exc
 
-    assets = (
-        ("index.html", USB_LOCAL_STATIC_INDEX_URL),
-        ("bundle.js", USB_LOCAL_STATIC_BUNDLE_URL),
-    )
+    client_origin = default_web_client_origin()
+    assets = [
+        (name, urljoin(client_origin, name))
+        for name in (*_REQUIRED_WEB_CLIENT_ASSETS, *_OPTIONAL_WEB_CLIENT_ASSETS)
+    ]
     for name, url in assets:
         dest = p / name
         if dest.is_file() and dest.stat().st_size > 0:
             continue
-        log.info("USB-local: fetching %s → %s", url, dest)
-        data = _fetch_url_bytes(url)
+        log.info("web client: fetching %s → %s", url, dest)
+        try:
+            data = _fetch_url_bytes(url)
+        except RuntimeError as exc:
+            if name in _OPTIONAL_WEB_CLIENT_ASSETS:
+                log.warning(
+                    "web client: optional asset %s not available: %s", name, exc
+                )
+                continue
+            raise
         if not data:
             raise RuntimeError(f"Downloaded empty body from {url}")
         try:
@@ -171,12 +228,10 @@ def require_usb_local_webxr_static_dir() -> Path:
         except OSError as exc:
             raise RuntimeError(f"Failed to write {dest}: {exc}") from exc
 
-    for name in ("index.html", "bundle.js"):
+    for name in _REQUIRED_WEB_CLIENT_ASSETS:
         fp = p / name
         if not fp.is_file() or fp.stat().st_size == 0:
-            raise RuntimeError(
-                f"USB-local WebXR client file missing or empty after fetch: {fp}"
-            )
+            raise RuntimeError(f"Web client file missing or empty after fetch: {fp}")
     return p
 
 
@@ -195,13 +250,18 @@ def _wait_for_port(host: str, port: int, timeout: float) -> bool:
 def _usb_local_static_handler_class(
     static_root: Path,
 ) -> type[http.server.SimpleHTTPRequestHandler]:
+    """Return a :class:`~http.server.SimpleHTTPRequestHandler` subclass rooted at *static_root*."""
     root = str(static_root.resolve())
 
     class _Handler(http.server.SimpleHTTPRequestHandler):
+        """HTTP request handler pinned to the resolved *static_root* directory."""
+
         def __init__(self, *args, **kwargs):
+            """Initialise with *directory* forced to *root*."""
             super().__init__(*args, directory=root, **kwargs)
 
         def log_message(self, fmt: str, *args) -> None:
+            """Redirect access log lines to the module ``debug`` logger."""
             log.debug("%s - %s", self.address_string(), fmt % args)
 
     return _Handler
@@ -213,17 +273,22 @@ def start_usb_local_https_server(
     cert_file: Path,
     key_file: Path,
     port: int | None = None,
+    host: str = "127.0.0.1",
     ready_timeout: float = 15.0,
 ) -> tuple[threading.Thread, http.server.ThreadingHTTPServer]:
-    """Serve *static_root* over HTTPS on loopback using the same PEM as the WSS proxy.
+    """Serve *static_root* over HTTPS using the same PEM as the WSS proxy.
 
     When *port* is ``None`` (the default) the bind port is resolved via
     :func:`usb_ui_port` (env-overridable through ``USB_UI_PORT``).
+
+    *host* controls the bind address: ``"127.0.0.1"`` (default) for USB-local
+    mode where the headset reaches the PC via ``adb reverse``; ``"0.0.0.0"``
+    for ``--host-client`` WiFi/LAN mode where the headset connects directly.
     """
     if port is None:
         port = usb_ui_port()
     handler_cls = _usb_local_static_handler_class(static_root)
-    httpd = http.server.ThreadingHTTPServer(("127.0.0.1", port), handler_cls)
+    httpd = http.server.ThreadingHTTPServer((host, port), handler_cls)
     httpd.daemon_threads = True
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ctx.minimum_version = ssl.TLSVersion.TLSv1_2
@@ -235,21 +300,22 @@ def start_usb_local_https_server(
     )
     thread.start()
     log.info(
-        "USB-local static HTTPS starting — waiting up to %.0fs for :%d",
+        "Static HTTPS server starting — waiting up to %.0fs for :%d",
         ready_timeout,
         port,
     )
-    if not _wait_for_port("127.0.0.1", port, ready_timeout):
+    probe_host = "127.0.0.1" if host == "0.0.0.0" else host
+    if not _wait_for_port(probe_host, port, ready_timeout):
         try:
             httpd.shutdown()
         finally:
             httpd.server_close()
         thread.join(timeout=2.0)
         raise RuntimeError(
-            f"USB-local static HTTPS did not accept connections on 127.0.0.1:{port} "
+            f"Static HTTPS server did not accept connections on {host}:{port} "
             f"within {ready_timeout:.0f}s"
         )
-    log.info("USB-local static HTTPS ready on https://127.0.0.1:%d", port)
+    log.info("Static HTTPS server ready on https://%s:%d", host, port)
     return thread, httpd
 
 
@@ -265,10 +331,11 @@ def stop_usb_local_https_server(
             httpd.server_close()
     if thread is not None:
         thread.join(timeout=5.0)
-    log.info("USB-local static HTTPS server stopped")
+    log.info("Static HTTPS server stopped")
 
 
 def web_client_base_override_from_env() -> str | None:
+    """Return the stripped ``TELEOP_WEB_CLIENT_BASE`` value, or ``None`` if unset/blank."""
     v = os.environ.get(TELEOP_WEB_CLIENT_BASE_ENV, "").strip()
     return v or None
 
@@ -478,7 +545,10 @@ def oob_progress(stage: str, msg: str) -> None:
 
 
 def print_oob_hub_startup_banner(
-    *, lan_host: str | None = None, usb_local: bool = False
+    *,
+    lan_host: str | None = None,
+    usb_local: bool = False,
+    web_client_base: str | None = None,
 ) -> None:
     """Print operator instructions for OOB + USB adb automation.
 
@@ -487,6 +557,10 @@ def print_oob_hub_startup_banner(
         usb_local: When ``True``, adjust the banner to describe the USB-local
             topology: everything reachable from the headset via ``adb reverse``
             on loopback; WebXR UI from ``TELEOP_WEB_CLIENT_STATIC_DIR`` (HTTPS, same PEM as WSS).
+        web_client_base: Override the WebXR client base URL in the bookmark.
+            When ``None`` (default), uses the versioned GitHub Pages client
+            (WiFi mode) or the USB-local HTTPS origin (USB-local mode).
+            ``TELEOP_WEB_CLIENT_BASE`` env var still takes precedence over this.
     """
     port = wss_proxy_port()
     ui_port = usb_ui_port()
@@ -503,8 +577,10 @@ def print_oob_hub_startup_banner(
             os.environ.get("TELEOP_WEB_CLIENT_BASE", "").strip()
             or f"https://localhost:{ui_port}"
         )
+    elif web_client_base is not None:
+        web_base = web_client_base
     else:
-        web_base = DEFAULT_WEB_CLIENT_ORIGIN
+        web_base = default_web_client_origin()
 
     stream_cfg: dict = {"serverIP": primary_host, "port": port}
     if usb_local:

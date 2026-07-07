@@ -5,7 +5,6 @@
 
 import argparse
 import os
-import re
 import signal
 import sys
 import time
@@ -27,6 +26,7 @@ from isaacteleop.cloudxr.oob_teleop_adb import (
 from isaacteleop.cloudxr.oob_teleop_env import (
     USB_HOST,
     WSS_PROXY_DEFAULT_PORT,
+    guess_lan_ipv4,
     oob_progress,
     print_host_preflight_warnings,
     print_oob_hub_startup_banner,
@@ -34,6 +34,8 @@ from isaacteleop.cloudxr.oob_teleop_env import (
     usb_backend_port,
     usb_turn_port,
     usb_ui_port,
+    versioned_web_client_url,
+    wss_proxy_port,
 )
 
 
@@ -81,13 +83,30 @@ def _parse_args() -> argparse.Namespace:
             f"({WSS_PROXY_DEFAULT_PORT}/tcp), CloudXR backend "
             f"({usb_backend_port()}/tcp; override via USB_BACKEND_PORT env), "
             f"coturn ({usb_turn_port()}/tcp; override via USB_TURN_PORT env), "
-            f"and HTTPS static WebXR UI on port {usb_ui_port()} "
+            f"and HTTPS static web client on port {usb_ui_port()} "
             "(override via USB_UI_PORT env).  Files live under "
             "TELEOP_WEB_CLIENT_STATIC_DIR or ~/.cloudxr/static-client; missing "
-            "index.html / bundle.js are downloaded from nvidia.github.io/IsaacTeleop/client/main/.  "
+            "client assets (index.html, bundle.js, and bundle.emulator.js) "
+            "are downloaded from the matching versioned "
+            "client under nvidia.github.io/IsaacTeleop/client/.  "
             "The launcher serves them with the same PEM as the WSS proxy.  "
             "Requirements: `coturn`, `adb` on PATH.  WebRTC ICE still needs a "
-            "non-loopback interface on the headset (WiFi stays connected)."
+            "non-loopback interface on the headset (WiFi stays connected).  "
+            "Implies --host-client (loopback binding)."
+        ),
+    )
+    parser.add_argument(
+        "--host-client",
+        action="store_true",
+        default=False,
+        help=(
+            "Serve the web client at /client/ on the WSS proxy port (default 48322). "
+            "Assets (index.html, bundle.js, and bundle.emulator.js) "
+            "are fetched once from the matching "
+            "versioned release on nvidia.github.io/IsaacTeleop into "
+            "TELEOP_WEB_CLIENT_STATIC_DIR or ~/.cloudxr/static-client.  "
+            "No separate port, no build step, no adb required.  "
+            "--usb-local implies a separate loopback HTTPS server instead."
         ),
     )
     return parser.parse_args()
@@ -99,50 +118,60 @@ def main() -> None:
 
     if args.usb_local and not args.setup_oob:
         print(
-            "error: --usb-local requires --setup-oob",
+            "\n\033[31m--usb-local requires --setup-oob.\033[0m\n",
             file=sys.stderr,
         )
         raise SystemExit(1)
 
+    # Valid flag combinations and what they mean:
+    #
+    #   (none)                        Plain: headset navigates to GitHub Pages URL over WiFi.
+    #   --host-client                 Client served at https://<lan>:<wss_port>/client/; no adb/TURN.
+    #   --setup-oob                   OOB hub + CDP automation; GitHub Pages URL.
+    #   --setup-oob --host-client     OOB hub + CDP; client served at /client/ on the WSS proxy.
+    #   --setup-oob --usb-local       OOB hub + CDP; adb-reverse + coturn + loopback HTTPS.
+
+    _oob_lan_host: str | None = None  # resolved once, reused in startup banner
     if args.usb_local:
-        # Always wipe stale localStorage / cookies in USB-local mode: the
-        # SDK and WebXR client cache settings (general.iceTransportPolicy,
-        # cxr.isaac.teleopPath, ...) that can override fresh URL params
-        # from a new --setup-oob run. The origin (127.0.0.1:<usb_ui_port>)
-        # is owned by us, so clearing it has no collateral effect.
+        oob_progress(
+            "usb-local",
+            "preflight: adb, single headset, awake, coturn, non-loopback IP ...",
+        )
+        require_adb_on_path()
         oob_progress("usb-local", "clearing headset browser cache ...")
         cleared = clear_headset_browser_cache(usb_local=True)
         if cleared:
             oob_progress("usb-local", f"cleared cache for {cleared} origin(s)")
         else:
             oob_progress("usb-local", "no cache cleared (browser not running)")
-
-    if args.setup_oob:
-        extras = ", coturn, headset non-loopback IP" if args.usb_local else ""
-        oob_progress("setup-oob", f"preflight: adb, single headset, awake{extras} ...")
-        require_adb_on_path()
-        if not args.usb_local:
-            resolve_lan_host_for_oob()
-        else:
-            # Fail fast with clear errors instead of letting the headset
-            # silently time out on WebRTC ICE later.
-            try:
-                require_coturn_available()
-                require_turn_port_free(usb_turn_port())
-            except OobAdbError as exc:
-                print(f"\n\033[31m{exc}\033[0m\n", file=sys.stderr)
-                raise SystemExit(1) from exc
+        try:
+            require_coturn_available()
+            require_turn_port_free(usb_turn_port())
+        except OobAdbError as exc:
+            print(f"\n\033[31m{exc}\033[0m\n", file=sys.stderr)
+            raise SystemExit(1) from exc
         assert_exactly_one_adb_device()
         assert_headset_awake()
-        if args.usb_local:
-            # adb must be usable (just asserted) before we probe the headset.
-            try:
-                require_headset_non_loopback_network()
-            except OobAdbError as exc:
-                print(f"\n\033[31m{exc}\033[0m\n", file=sys.stderr)
-                raise SystemExit(1) from exc
         try:
-            print_host_preflight_warnings(usb_local=args.usb_local)
+            require_headset_non_loopback_network()
+        except OobAdbError as exc:
+            print(f"\n\033[31m{exc}\033[0m\n", file=sys.stderr)
+            raise SystemExit(1) from exc
+        try:
+            print_host_preflight_warnings(usb_local=True)
+        except RuntimeError as exc:
+            print(f"\n\033[31m{exc}\033[0m\n", file=sys.stderr)
+            raise SystemExit(1) from exc
+        oob_progress("usb-local", "preflight OK")
+    elif args.setup_oob:
+        # WiFi OOB: resolve LAN host + warn on port/ufw issues.
+        oob_progress("setup-oob", "preflight: adb, single headset, awake ...")
+        require_adb_on_path()
+        _oob_lan_host = resolve_lan_host_for_oob()
+        assert_exactly_one_adb_device()
+        assert_headset_awake()
+        try:
+            print_host_preflight_warnings(usb_local=False)
         except RuntimeError as exc:
             print(f"\n\033[31m{exc}\033[0m\n", file=sys.stderr)
             raise SystemExit(1) from exc
@@ -154,6 +183,7 @@ def main() -> None:
         accept_eula=args.accept_eula,
         setup_oob=args.setup_oob,
         usb_local=args.usb_local,
+        host_client=args.host_client,
     ) as launcher:
         cxr_ver = runtime_version()
         print(
@@ -170,6 +200,15 @@ def main() -> None:
         print(
             f"CloudXR WSS proxy: \033[36mrunning\033[0m, log file: \033[90m{wss_log}\033[0m"
         )
+
+        if args.usb_local:
+            _hosted_client_url = f"https://127.0.0.1:{usb_ui_port()}/"
+        elif args.host_client:
+            _lan = guess_lan_ipv4() or "localhost"
+            _hosted_client_url = f"https://{_lan}:{wss_proxy_port()}/client/"
+        else:
+            _hosted_client_url = None
+
         if args.setup_oob:
             if args.usb_local:
                 print(
@@ -177,26 +216,24 @@ def main() -> None:
                 )
                 print_oob_hub_startup_banner(lan_host=USB_HOST, usb_local=True)
             else:
+                oob_suffix = " + host-client" if args.host_client else ""
                 print(
-                    "        oob:       \033[32menabled\033[0m  (hub + USB adb automation — see OOB TELEOP block)"
+                    f"        oob:       \033[32menabled\033[0m  (hub + USB adb automation{oob_suffix} — see OOB TELEOP block)"
                 )
-                print_oob_hub_startup_banner(lan_host=resolve_lan_host_for_oob())
+                print_oob_hub_startup_banner(
+                    lan_host=_oob_lan_host,
+                    web_client_base=_hosted_client_url,
+                )
         else:
-            # Print the WebXR client matching this release line, derived from
-            # the installed version's leading MAJOR.MINOR (present for every
-            # build type). The client is published per release line on GitHub
-            # Pages. In OOB modes the banner above already prints a complete,
-            # mode-correct client URL instead (GitHub Pages /main/ for WiFi, a
-            # local https URL for USB-local), so this standalone line is
-            # skipped there to avoid a redundant or misleading second URL.
-            client_base = "https://nvidia.github.io/IsaacTeleop/client/"
-            ver_match = re.match(r"(\d+)\.(\d+)", isaacteleop_version)
-            client_url = (
-                f"{client_base}release-{ver_match.group(1)}.{ver_match.group(2)}.x/"
-                if ver_match
-                else client_base
-            )
-            print(f"WebXR client:      \033[36m{client_url}\033[0m")
+            if _hosted_client_url is not None:
+                _label = "USB-local" if args.usb_local else "hosted locally"
+                print(
+                    f"web client:        \033[36m{_hosted_client_url}\033[0m  "
+                    f"\033[90m({_label} — open on your headset or browser)\033[0m"
+                )
+            else:
+                client_url = versioned_web_client_url(isaacteleop_version)
+                print(f"web client:        \033[36m{client_url}\033[0m")
         print(
             f"Activate CloudXR environment in another terminal: \033[1;32msource {env_cfg.env_filepath()}\033[0m"
         )
@@ -205,6 +242,7 @@ def main() -> None:
         stop = False
 
         def on_signal(sig, frame):
+            """Set the stop flag on SIGINT/SIGTERM."""
             nonlocal stop
             stop = True
 

@@ -7,9 +7,9 @@
 #include <schema/oak_generated.h>
 
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 namespace plugins
@@ -91,13 +91,14 @@ public:
     void print_stats() const;
 
 private:
-    dai::DeviceInfo find_device(const std::string& device_id);
-    dai::Pipeline create_pipeline(const OakConfig& config,
-                                  const std::vector<StreamConfig>& streams,
-                                  dai::ColorCameraProperties::SensorResolution color_resolution);
+    static dai::DeviceInfo find_device(const std::string& device_id);
+    std::unique_ptr<dai::Pipeline> create_pipeline(std::shared_ptr<dai::Device> device,
+                                                   const OakConfig& config,
+                                                   const std::vector<StreamConfig>& streams);
 
+    std::unique_ptr<dai::Pipeline> m_pipeline;
     std::shared_ptr<dai::Device> m_device;
-    std::map<core::StreamType, std::shared_ptr<dai::DataOutputQueue>> m_queues;
+    std::map<core::StreamType, std::shared_ptr<dai::MessageQueue>> m_queues;
 
     std::unique_ptr<FrameSink> m_sink;
     std::map<core::StreamType, uint64_t> m_frame_counts;

@@ -62,9 +62,9 @@ If the adb automation fails (e.g. headset not paired), you can manually open
 the client URL on the headset browser with **all three** required query
 parameters — ``oobEnable``, ``serverIP``, and ``port``:
 
-.. code-block:: text
+.. parsed-literal::
 
-   https://nvidia.github.io/IsaacTeleop/client/main/?oobEnable=1&serverIP=<HOST_IP>&port=48322
+   |web_client_url|\ ?oobEnable=1&serverIP=<HOST_IP>&port=48322
 
 Replace ``<HOST_IP>`` with the streaming host's LAN IP. The ``port`` must
 match the proxy port (default 48322).
@@ -170,7 +170,7 @@ Architecture
      - Software
      - What it does
    * - **XR headset**
-     - Isaac Teleop WebXR client in the device browser
+     - Isaac Teleop web client in the device browser
      - Registers with the hub via WebSocket, reports streaming metrics
        periodically (default every 500 ms), receives config pushes.
    * - **Streaming host**
@@ -307,12 +307,12 @@ Pass it as:
 Web client integration
 ----------------------
 
-The WebXR client connects to the hub when the page URL contains
+The web client connects to the hub when the page URL contains
 ``oobEnable=1`` plus ``serverIP`` and ``port``:
 
-.. code-block:: text
+.. parsed-literal::
 
-   https://nvidia.github.io/IsaacTeleop/client/main/?oobEnable=1&serverIP=10.0.0.1&port=48322
+   |web_client_url|\ ?oobEnable=1&serverIP=10.0.0.1&port=48322
 
 The client builds ``wss://{serverIP}:{port}/oob/v1/ws`` and:
 
@@ -350,7 +350,7 @@ Environment variables
    * - ``TELEOP_PROXY_HOST``
      - Override the LAN IP used for headset bookmark URLs
    * - ``TELEOP_WEB_CLIENT_BASE``
-     - Override the WebXR client origin URL
+     - Override the web client origin URL
    * - ``TELEOP_STREAM_PORT``
      - Override the signaling port (default same as proxy port)
    * - ``TELEOP_CLIENT_CODEC``
@@ -359,7 +359,7 @@ Environment variables
      - Hide control panel on load (``true`` / ``false``)
    * - ``TELEOP_CLIENT_ROUTE``
      - HashRouter fragment appended to the bookmark URL. Default empty
-       (no fragment — the WebXR client picks its own landing route). Set
+       (no fragment — the web client picks its own landing route). Set
        to e.g. ``/real/gear/dexmate`` to force a specific route. A
        leading ``#`` is stripped automatically.
    * - ``ANDROID_SERIAL``
@@ -370,10 +370,10 @@ Environment variables
        ``adb`` subprocess inherits it, so no code path needs ``-s
        <serial>``.
    * - ``USB_UI_PORT``
-     - HTTPS static WebXR UI port in ``--usb-local`` mode (default
-       ``8080``). The launcher serves the prebuilt client on
-       ``https://127.0.0.1:<port>`` and ``adb reverse``-maps the same
-       port to the headset.
+     - HTTPS static web client port for ``--usb-local`` (default ``8080``).
+       Binds to ``127.0.0.1:<port>`` and ``adb reverse``-maps the port to
+       the headset.  ``--host-client`` uses the WSS proxy port (``PROXY_PORT``)
+       instead; ``USB_UI_PORT`` has no effect on it.
    * - ``USB_BACKEND_PORT``
      - CloudXR backend port the headset reaches via ``adb reverse`` in
        ``--usb-local`` mode (default ``49100``).
@@ -381,12 +381,14 @@ Environment variables
      - coturn TURN-server port for WebRTC ICE relay in ``--usb-local``
        mode (default ``3478``). ``adb reverse``-mapped to the headset.
 
-USB-local mode
---------------
+USB-local mode (``--setup-oob --usb-local``)
+--------------------------------------------
 
 ``--usb-local`` routes teleop signalling, the web client, and WebRTC media
-over the USB cable on the headset's loopback via ``adb reverse``. Add it to
-``--setup-oob``:
+over the USB cable on the headset's loopback via ``adb reverse``.  It requires
+``--setup-oob`` because the OOB hub is the only path that delivers TURN relay
+configuration to the client (without it the headset has no way to discover the
+coturn endpoint).  Always use both flags together:
 
 .. code-block:: bash
 
@@ -400,8 +402,8 @@ On startup the launcher:
    traverse the network).
 2. Resolves the WebXR static directory from
    ``TELEOP_WEB_CLIENT_STATIC_DIR`` (default ``~/.cloudxr/static-client``)
-   and downloads ``index.html`` / ``bundle.js`` from
-   ``https://nvidia.github.io/IsaacTeleop/client/main/`` if either is missing.
+   and syncs missing ``index.html``, ``bundle.js``, and ``bundle.emulator.js`` from
+   the published client (see :doc:`../getting_started/build_from_source/webxr`).
 3. Serves that directory over HTTPS on 127.0.0.1:8080 with the same PEM
    the WSS proxy uses (Python ``http.server`` in a daemon thread).
 4. ``adb reverse`` for 8080 (static UI), 48322 (WSS), 49100 (backend),
@@ -411,7 +413,7 @@ On startup the launcher:
 
 In ``--usb-local`` mode the launcher also wipes localStorage / IndexedDB /
 cookies / HTTP cache for the teleop UI origin (``https://127.0.0.1:<usb_ui_port>``)
-before the session starts — the SDK and WebXR client both cache settings
+before the session starts — the SDK and web client both cache settings
 (e.g. ``general.iceTransportPolicy`` for ICE transport policy,
 ``cxr.isaac.teleopPath`` for the last-used project) in localStorage, and a
 stale value can silently win over a fresh URL param. The origin is owned
@@ -448,6 +450,19 @@ The ``--usb-local`` launcher pre-flights this via
 interface is present. A runtime monitor also watches for mid-session
 Wi-Fi drops and prints a yellow warning so the cause is obvious without
 having to puzzle out a frozen WebRTC connection.
+
+Web client UI has no text (OOB / ``--host-client``)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Cause:** Production webpack emits ``bundle.js`` (main app, including UIKit MSDF text)
+and ``bundle.emulator.js`` (desktop emulation only). If the static cache under
+``TELEOP_WEB_CLIENT_STATIC_DIR`` is missing or outdated — especially a truncated
+``bundle.js`` — in-VR text does not render.
+
+**Fix:** Ensure ``index.html``, ``bundle.js``, and ``bundle.emulator.js`` are present
+under the static dir — run the launcher once with network, copy a full ``npm run build``
+output, or use the GitHub Pages URL directly. See
+:doc:`../getting_started/build_from_source/webxr`.
 
 CDP: startButton marked failed / not actionable
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -493,15 +508,14 @@ browser on the headset.
 WebXR static download fails (offline / proxy)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Cause:** The launcher fetches ``index.html`` / ``bundle.js`` from
-``https://nvidia.github.io/IsaacTeleop/client/main/`` into the static dir on
-first run.  Behind a proxy or with no internet, this fails and
-``--usb-local`` aborts.
+**Cause:** The launcher syncs ``index.html``, ``bundle.js``, and
+``bundle.emulator.js`` into the static dir on first run. Behind a proxy or with no
+internet, this fails and ``--usb-local`` aborts.
 
-**Fix:** Pre-stage the files (any way you like — ``curl``, container
-build step, internal mirror) into the static dir, then re-run.  The
-launcher only downloads when a file is missing or empty.  Override the
-target directory via ``TELEOP_WEB_CLIENT_STATIC_DIR``.
+**Fix:** Pre-stage the full client ``build/`` tree (or the published
+``/client/<version>/`` directory) into the static dir, then re-run.  The
+launcher only downloads missing or empty files.  Override the target directory
+via ``TELEOP_WEB_CLIENT_STATIC_DIR``.
 
 **Fix:** Set the SDK versions in ``deps/cloudxr/.env`` (copy from
 ``.env.default``) so the download script can resolve the right version,

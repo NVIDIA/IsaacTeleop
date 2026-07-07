@@ -35,15 +35,18 @@
  * back to the parent component through callback props.
  */
 
+import arrowLeftStartOnRectangleSvg from './icons/arrow-left-start-on-rectangle.svg';
+import arrowUturnLeftSvg from './icons/arrow-uturn-left.svg';
+import playCircleSvg from './icons/play-circle.svg';
 import { PerformanceCanvasImage } from '@helpers/react/PerformanceCanvasImage';
 import { useXRButton } from '@helpers/react/useXRButton';
 import { ReadonlySignal } from '@preact/signals-react';
 import { useFrame } from '@react-three/fiber';
-import { Handle, HandleTarget } from '@react-three/handle';
+import { Handle, HandleTarget, HandleState } from '@react-three/handle';
 import { Container, Text, Image } from '@react-three/uikit';
 import { Button } from '@react-three/uikit-default';
 import React, { useRef, useState, useEffect } from 'react';
-import { Color, Euler, Group, Mesh, MeshStandardMaterial, Quaternion, Vector3 } from 'three';
+import { Color, Group, Mesh, MeshStandardMaterial, Object3D, Vector3 } from 'three';
 import { damp } from 'three/src/math/MathUtils.js';
 
 // Face-camera rotation constants
@@ -80,15 +83,24 @@ interface CloudXRUIProps {
 }
 
 // Reusable objects for face-camera rotation (avoid allocations in render loop)
-const eulerHelper = new Euler();
-const quaternionHelper = new Quaternion();
 const cameraPositionHelper = new Vector3();
 const uiPositionHelper = new Vector3();
-const zAxis = new Vector3(0, 0, 1);
 
 // Handle hover colors (module-level to avoid per-render allocations)
 const HANDLE_COLOR_DEFAULT = new Color('#666666');
 const HANDLE_COLOR_HOVER = new Color('#aaaaaa');
+
+// Workaround for @pmndrs/handle defaultApply behavior: defaultApply copies
+// state.current.quaternion to the target on every drag frame AND on drag release.
+// With rotate={false}, state.current.quaternion is always the drag-start quaternion,
+// so it resets our face-camera rotation on every frame (priority -1 runs before
+// face-camera priority 0) and wipes it entirely on drag release.
+// By providing a custom apply that skips quaternion, face-camera owns rotation fully.
+// Scale is intentionally omitted too: scale={false} keeps it constant, so copying
+// it would be a no-op. If scale is ever enabled on this Handle, add it back here.
+function applyPositionSkipRotation(state: HandleState<unknown>, target: Object3D): void {
+  target.position.copy(state.current.position);
+}
 
 export default function CloudXR3DUI({
   onStartTeleop,
@@ -161,17 +173,24 @@ export default function CloudXR3DUI({
     }
     state.camera.getWorldPosition(cameraPositionHelper);
     groupRef.current.getWorldPosition(uiPositionHelper);
-    quaternionHelper.setFromUnitVectors(
-      zAxis,
-      cameraPositionHelper.sub(uiPositionHelper).normalize()
-    );
-    eulerHelper.setFromQuaternion(quaternionHelper, 'YXZ');
-    groupRef.current.rotation.y = damp(
-      groupRef.current.rotation.y,
-      eulerHelper.y,
-      FACE_CAMERA_DAMPING,
-      dt
-    );
+
+    // Project onto the horizontal plane (XZ) to get a pure yaw angle.
+    // Using atan2 avoids the 3D-quaternion→Euler extraction that can give wrong
+    // yaw when the camera has significant height offset relative to the panel.
+    const dx = cameraPositionHelper.x - uiPositionHelper.x;
+    const dz = cameraPositionHelper.z - uiPositionHelper.z;
+    let targetY = Math.atan2(dx, dz);
+
+    // Wrap the angular difference to [-π, π] so damp() always takes the
+    // shortest path.  Without this, when the target crosses the ±π boundary
+    // (camera near the side/behind the panel), damp interpolates the long way
+    // around and the panel snaps to face away from the user.
+    const currentY = groupRef.current.rotation.y;
+    let diff = targetY - currentY;
+    diff = diff - Math.round(diff / (2 * Math.PI)) * (2 * Math.PI);
+    targetY = currentY + diff;
+
+    groupRef.current.rotation.y = damp(currentY, targetY, FACE_CAMERA_DAMPING, dt);
   });
 
   return (
@@ -189,6 +208,7 @@ export default function CloudXR3DUI({
           scale={false}
           multitouch={false}
           rotate={false}
+          apply={applyPositionSkipRotation}
         >
           <mesh
             ref={handleRef}
@@ -274,7 +294,7 @@ export default function CloudXR3DUI({
                 disabled={playInProgress}
               >
                 <Container flexDirection="row" alignItems="center" gap={8}>
-                  {playLabel === 'Play' && <Image src="./play-circle.svg" width={40} height={40} />}
+                  {playLabel === 'Play' && <Image src={playCircleSvg} width={40} height={40} />}
                   <Text fontSize={36} color="black" fontWeight="medium">
                     {playLabel}
                   </Text>
@@ -301,7 +321,7 @@ export default function CloudXR3DUI({
                   }}
                 >
                   <Container flexDirection="row" alignItems="center" gap={8}>
-                    <Image src="./arrow-uturn-left.svg" width={40} height={40} />
+                    <Image src={arrowUturnLeftSvg} width={40} height={40} />
                     <Text fontSize={36} color="black" fontWeight="medium">
                       Reset
                     </Text>
@@ -527,7 +547,7 @@ export default function CloudXR3DUI({
                     >
                       <Container flexDirection="row" alignItems="center" gap={10}>
                         {playLabel === 'Play' && (
-                          <Image src="./play-circle.svg" width={50} height={50} />
+                          <Image src={playCircleSvg} width={50} height={50} />
                         )}
                         <Text fontSize={42} color="black" fontWeight="medium">
                           {playLabel}
@@ -549,7 +569,7 @@ export default function CloudXR3DUI({
                       }}
                     >
                       <Container flexDirection="row" alignItems="center" gap={10}>
-                        <Image src="./arrow-uturn-left.svg" width={50} height={50} />
+                        <Image src={arrowUturnLeftSvg} width={50} height={50} />
                         <Text fontSize={42} color="black" fontWeight="medium">
                           Reset
                         </Text>
@@ -578,7 +598,7 @@ export default function CloudXR3DUI({
                       }}
                     >
                       <Container flexDirection="row" alignItems="center" gap={10}>
-                        <Image src="./arrow-left-start-on-rectangle.svg" width={50} height={50} />
+                        <Image src={arrowLeftStartOnRectangleSvg} width={50} height={50} />
                         <Text fontSize={38} color="black" fontWeight="medium">
                           Disconnect
                         </Text>

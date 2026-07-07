@@ -9,6 +9,7 @@
 #include "replay_hand_tracker_impl.hpp"
 #include "replay_haptic_command_reader_tracker_impl.hpp"
 #include "replay_head_tracker_impl.hpp"
+#include "replay_joint_state_tracker_impl.hpp"
 #include "replay_message_channel_tracker_impl.hpp"
 #include "replay_tensor_push_tracker_impl.hpp"
 
@@ -18,6 +19,7 @@
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/haptic_command_reader_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
+#include <deviceio_trackers/joint_state_tracker.hpp>
 #include <deviceio_trackers/message_channel_tracker.hpp>
 #include <deviceio_trackers/tensor_push_tracker.hpp>
 #include <mcap/reader.hpp>
@@ -88,6 +90,12 @@ std::unique_ptr<ITrackerImpl> try_create_haptic_command_reader_impl(ReplayDevice
     return typed ? factory.create_haptic_command_reader_tracker_impl(typed) : nullptr;
 }
 
+std::unique_ptr<ITrackerImpl> try_create_joint_state_impl(ReplayDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const JointStateTracker*>(&tracker);
+    return typed ? factory.create_joint_state_tracker_impl(typed) : nullptr;
+}
+
 std::unique_ptr<ITrackerImpl> try_create_message_channel_impl(ReplayDeviceIOFactory& factory, const ITracker& tracker)
 {
     auto* typed = dynamic_cast<const MessageChannelTracker*>(&tracker);
@@ -104,6 +112,7 @@ inline const TryCreateFn k_tracker_dispatch[] = {
     &try_create_generic_pedal_impl,
     &try_create_tensor_push_impl,
     &try_create_haptic_command_reader_impl,
+    &try_create_joint_state_impl,
     &try_create_message_channel_impl,
 };
 
@@ -181,6 +190,11 @@ std::unique_ptr<IHapticCommandReaderTrackerImpl> ReplayDeviceIOFactory::create_h
     const HapticCommandReaderTracker* /*tracker*/)
 {
     return std::make_unique<ReplayHapticCommandReaderTrackerImpl>();
+}
+
+std::unique_ptr<IJointStateTrackerImpl> ReplayDeviceIOFactory::create_joint_state_tracker_impl(const JointStateTracker* tracker)
+{
+    return std::make_unique<ReplayJointStateTrackerImpl>(open_reader(filename_), get_name(tracker));
 }
 
 std::unique_ptr<IMessageChannelTrackerImpl> ReplayDeviceIOFactory::create_message_channel_tracker_impl(

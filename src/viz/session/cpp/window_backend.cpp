@@ -205,6 +205,68 @@ void WindowBackend::record_post_render_pass(VkCommandBuffer cmd, const Frame& fr
                      VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
 }
 
+void WindowBackend::record_direct(VkCommandBuffer cmd, const Frame& frame, const std::vector<DirectPresentView>& views)
+{
+    if (swapchain_ == nullptr || render_target_ == nullptr)
+    {
+        return;
+    }
+    // Fill the intermediate RT (R8G8B8A8_SRGB) with the layer's color, then
+    // reuse the normal RT->swapchain blit. That blit decodes the sRGB RT to
+    // linear and re-encodes to the swapchain format — which both round-trips
+    // the gsplat sRGB bytes correctly AND reorders channels for a BGRA surface
+    // AND scales. A direct copy to the swapchain can't reorder channels (wrong
+    // RGB on BGRA surfaces) and a direct blit double-encodes sRGB.
+    const VkImage rt = render_target_->color_image();
+    const Resolution rt_extent = render_target_->resolution();
+    const VkImage src = views.empty() ? VK_NULL_HANDLE : views[0].color;
+
+    transition_image(cmd, rt, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0,
+                     VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+
+    if (src != VK_NULL_HANDLE)
+    {
+        // Raw copy: source UNORM bytes (already sRGB-encoded) land verbatim in
+        // the SRGB RT. Sizes match (layer renders at the RT/window size).
+        transition_image(cmd, src, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                         VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                         VK_PIPELINE_STAGE_TRANSFER_BIT);
+
+        const Resolution se = views[0].extent;
+        const uint32_t cw = std::min(se.width, rt_extent.width);
+        const uint32_t ch = std::min(se.height, rt_extent.height);
+        VkImageCopy region{};
+        region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.srcSubresource.layerCount = 1;
+        region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.dstSubresource.layerCount = 1;
+        region.extent = { cw, ch, 1 };
+        vkCmdCopyImage(
+            cmd, src, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, rt, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+        transition_image(cmd, src, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                         VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+    }
+    else
+    {
+        VkClearColorValue clear{};
+        VkImageSubresourceRange range{};
+        range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        range.levelCount = 1;
+        range.layerCount = 1;
+        vkCmdClearColorImage(cmd, rt, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clear, 1, &range);
+    }
+
+    // Leave the RT in TRANSFER_SRC (the layout record_post_render_pass expects
+    // after the render pass), then run the standard RT->swapchain blit.
+    transition_image(cmd, rt, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                     VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                     VK_PIPELINE_STAGE_TRANSFER_BIT);
+
+    record_post_render_pass(cmd, frame);
+}
+
 void WindowBackend::end_frame(const Frame& frame)
 {
     if (swapchain_ == nullptr)

@@ -11,9 +11,12 @@ commands to the terminal.
 .. contents:: Steps
    :local:
    :depth: 1
+   :backlinks: none
+
+.. _check-out-code-base:
 
 1. Check out code base (Optional)
----------------------------------
+----------------------------------
 
 Clone the repository and enter the project directory:
 
@@ -25,10 +28,13 @@ Clone the repository and enter the project directory:
 As a quick start guide, we don't need to build the code base from source. However, we still need
 to clone the repository for a couple quick samples to run.
 
-2. Install the ``isaacteleop`` pip package
-------------------------------------------
+.. _install-isaacteleop-pip-package:
 
-In a new terminal, install the package from PyPI (or from a local wheel if you built from source):
+2. Install the ``isaacteleop`` pip package
+-------------------------------------------
+
+In a new terminal, activate your preferred virtual or conda environment, then install the package
+from PyPI (or from a local wheel if you built from source):
 
 .. code-block:: bash
 
@@ -38,9 +44,10 @@ In a new terminal, install the package from PyPI (or from a local wheel if you b
 Instead of installing the package from PyPI, you can build from source and install the local wheel.
 See :doc:`build_from_source/index` for more details.
 
-.. note::
-   **ARM64 / aarch64 systems only** (e.g. NVIDIA DGX Spark): PyPI does not publish pre-built
-   ``nlopt`` wheels for ARM64, so the ``retargeters`` extra cannot be installed directly from PyPI
+.. dropdown:: ARM64 / aarch64 only (e.g. NVIDIA DGX Spark)
+
+   PyPI does not publish pre-built ``nlopt`` wheels for ARM64, so the ``retargeters`` extra cannot
+   be installed directly from PyPI
    (see `issue #452 <https://github.com/NVIDIA/IsaacTeleop/issues/452>`_). Follow the
    :ref:`aarch64 nlopt wheel build steps <aarch64-nlopt-wheel>` from the build-from-source guide
    first, then install ``isaacteleop`` with an additional ``--find-links``:
@@ -69,6 +76,36 @@ To bypass the interactive EULA prompt (e.g. for CI or headless runs), pass the f
 
    python -m isaacteleop.cloudxr --accept-eula
 
+.. dropdown:: Optional launch modes
+
+   The launcher supports three optional flags that can be combined to control
+   how the headset connects and how the web client is delivered.
+
+   .. list-table::
+      :header-rows: 1
+      :widths: 45 55
+
+      * - Command
+        - What it does
+      * - ``python -m isaacteleop.cloudxr``
+        - Plain: headset navigates to GitHub Pages URL over WiFi.
+      * - ``python -m isaacteleop.cloudxr --host-client``
+        - Serves the web client at ``https://<ip>:48322/client/`` via the WSS
+          proxy. No separate port, no USB or TURN relay required. Useful when
+          GitHub Pages is unreachable.
+      * - ``python -m isaacteleop.cloudxr --setup-oob``
+        - OOB hub + CDP automation: opens the browser on the headset and
+          auto-clicks CONNECT over USB adb. Client URL is GitHub Pages.
+      * - ``python -m isaacteleop.cloudxr --setup-oob --host-client``
+        - OOB hub + CDP with client at ``/client/`` on the WSS proxy
+          (air-gapped / proxy use).
+      * - ``python -m isaacteleop.cloudxr --setup-oob --usb-local``
+        - All traffic over USB: adb-reverse + coturn TURN relay + loopback
+          HTTPS. Requires ``coturn`` and a WiFi-associated headset.
+
+   ``--usb-local`` requires ``--setup-oob``.  See
+   :doc:`/references/oob_teleop_control` for full OOB documentation.
+
 You should see output similar to:
 
 .. figure:: ../_static/cloudxr-run-output.png
@@ -85,73 +122,49 @@ You should see output similar to:
    Also take note of the ``source /home/dev/.cloudxr/run/cloudxr.env`` path it mentioned in the
    output. You will need to source it in step :ref:`load-cloudxr-environment-variables`.
 
-CloudXR Configurations (Optional)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. dropdown:: CloudXR configurations (optional)
 
-You can also inspect the CloudXR environment variables by running:
+   The CloudXR runtime uses the ``auto-webrtc`` device profile by default (Pico & Quest). For
+   Apple Vision Pro it defaults to ``auto-native``.
 
-.. code-block:: bash
+   To inspect the active settings after startup:
 
-   cat ~/.cloudxr/run/cloudxr.env
+   .. code-block:: bash
 
-You should see:
+      cat ~/.cloudxr/run/cloudxr.env
 
-.. code-block:: text
+   To override settings, create an env file and pass it at startup:
 
-   export NV_DEVICE_PROFILE=auto-webrtc
-   ...
+   .. code-block:: bash
 
-By default, the CloudXR runtime is configured to use the ``auto-webrtc`` device profile for Pico &
-Quest headsets. For Apple Vision Pro, the runtime is configured to use the ``auto-native`` device
-profile.
+      echo 'NV_DEVICE_PROFILE=auto-native' > custom.env
+      python -m isaacteleop.cloudxr --cloudxr-env-config=./custom.env
 
-To do that, you can override CloudXR configurations by creating an ``env`` file and pass it to the
-CloudXR runtime via the ``--cloudxr-env-config`` argument.
-
-.. code-block:: bash
-
-   echo 'NV_DEVICE_PROFILE=auto-native' > custom.env
-   python -m isaacteleop.cloudxr --cloudxr-env-config=./custom.env
-
-Again, you can also inspect the CloudXR environment variables by looking at the
-``~/.cloudxr/run/cloudxr.env`` file:
-
-.. dropdown:: Custom CloudXR configurations
-
-   .. list-table:: Custom CloudXR configurations
+   .. list-table:: Environment variables
       :header-rows: 1
-      :widths: 20 15 30 20
-      :width: 100%
+      :widths: 25 15 35 25
 
       * - Variable
         - Default
         - Description
-        - Possible Values
-      * - NV_DEVICE_PROFILE
+        - Values
+      * - ``NV_DEVICE_PROFILE``
         - ``auto-webrtc``
-        - Custom device profile to use
-        - | ``auto-webrtc``
-          | ``auto-native``
-          | ``Quest3``
-          | ``AppleVisionPro``
-      * - NV_CXR_ENABLE_PUSH_DEVICES
+        - Device profile
+        - ``auto-webrtc``, ``auto-native``, ``Quest3``, ``AppleVisionPro``
+      * - ``NV_CXR_ENABLE_PUSH_DEVICES``
         - ``true``
-        - Enable or disable push device overseer for hand tracking
-        - | ``true``
-          | ``false``
-      * - NV_CXR_FILE_LOGGING
+        - Push device overseer for hand tracking
+        - ``true``, ``false``
+      * - ``NV_CXR_FILE_LOGGING``
         - ``true``
-        - Enable or disable file-based logging, when disabled logs are printed to the console
-        - | ``true``
-          | ``false``
+        - File-based logging (disable to print to console)
+        - ``true``, ``false``
 
-.. code-block:: bash
-
-   export NV_DEVICE_PROFILE=auto-native
-   ...
+.. _whitelist-firewall-ports:
 
 4. Whitelist ports for Firewall
--------------------------------
+---------------------------------
 
 CloudXR requires certain network ports to be open. Depending on your firewall configuration, you
 might need to whitelist them manually.
@@ -159,7 +172,7 @@ might need to whitelist them manually.
 .. dropdown:: Meta Quest and Pico headsets
    :open:
 
-   For **Quest and Pico headsets** (WebXR Client), at the minimum, you need to whitelist the ports
+   For **Quest and Pico headsets** (web client), at the minimum, you need to whitelist the ports
    for the CloudXR runtime and wss proxy:
 
    .. code-block:: bash
@@ -167,8 +180,8 @@ might need to whitelist them manually.
       sudo ufw allow 47998/udp
       sudo ufw allow 49100,48322/tcp
 
-   If you are running the WebXR client from source, you need to whitelist the additional ports for
-   the web server:
+   If you are running the web client from source (dev server), open both
+   ports:
 
    .. code-block:: bash
 
@@ -186,23 +199,35 @@ might need to whitelist them manually.
 Please see the `CloudXR network setup`_ for more details for other network configurations (such as
 running the CloudXR runtime and wss proxy in containerized environment; or using Vision Pro client).
 
+.. _connect-xr-headset:
+
 5. Connect an XR headset
 ------------------------
 
 .. _connect-quest-pico:
 
-.. dropdown:: Meta Quest and Pico headsets
+.. dropdown:: Meta Quest, PICO headset, or desktop browser
    :open:
 
-   To stream from a Meta Quest or PICO headset, you will need a CloudXR web client. For your
-   convenience, we host a prebuilt CloudXR web client at `nvidia.github.io/IsaacTeleop/client`_.
-   You can just open this URL in your headset's browser. No need to build or install a separate client.
+   No physical headset required for a quick test: open
+   `https://nvidia.github.io/IsaacTeleop/client <https://nvidia.github.io/IsaacTeleop/client>`__
+   in a **desktop browser** — IWER (Immersive Web Emulator Runtime) loads automatically and
+   emulates a Meta Quest 3 headset.
 
-   .. tip::
+   For a real headset, open the same URL in your **Meta Quest or PICO browser**.
 
-      For quick validation, you can also open the `nvidia.github.io/IsaacTeleop/client`_ URL in a
-      desktop browser. IWER (Immersive Web Emulator Runtime) will automatically load to emulate a Meta
-      Quest 3 headset.
+   .. important::
+
+      If using a physical headset, make sure it is updated to the latest firmware before connecting.
+      Older firmware may ship an outdated WebXR runtime that fails to connect or streams with reduced
+      functionality.
+
+   .. note::
+
+      If GitHub Pages is unreachable (corporate network, air-gapped machine), start the server with
+      ``--host-client`` in step :ref:`run-cloudxr-server` and open
+      ``https://<your-ip>:48322/client/`` instead of the GitHub Pages URL. Port 48322 is already
+      whitelisted in step :ref:`whitelist-firewall-ports`.
 
    .. tab-set::
       .. tab-item:: CloudXR web client
@@ -241,8 +266,19 @@ running the CloudXR runtime and wss proxy in containerized environment; or using
       For advanced usage and troubleshooting of CloudXR, see the `CloudXR documentation`_ for more
       details.
 
-   The source code for the web client is in the :code-dir:`deps/cloudxr/webxr_client/` directory.  To build the web
-   client from source, see :doc:`build_from_source/webxr`.
+   .. dropdown:: Offline / air-gapped use
+
+      On **first run**, the launcher syncs the published web client into
+      ``~/.cloudxr/static-client/`` (override with ``TELEOP_WEB_CLIENT_STATIC_DIR``):
+      ``index.html``, ``bundle.js``, and ``bundle.emulator.js``. Subsequent runs
+      are offline once those files are cached.
+
+      For a **true air-gapped machine**, copy the full ``build/`` output (or the
+      matching directory from `nvidia.github.io/IsaacTeleop/client`_) into
+      ``~/.cloudxr/static-client/`` on the air-gapped host before the first run.
+
+   The source code for the web client is in the :code-dir:`deps/cloudxr/webxr_client/` directory.
+   To build the web client from source, see :doc:`build_from_source/webxr`.
 
 .. _connect-apple-vision-pro:
 
@@ -277,8 +313,10 @@ Source the setup script so that the OpenXR runtime points to CloudXR:
    Make sure to run the rest of the commands in the same terminal. Or if have to open a new
    terminal, source the CloudXR environment variables again.
 
+.. _run-teleop-example:
+
 7. Run a teleop example
------------------------
+------------------------
 
 Run the simplified gripper retargeting example. This demonstrates the full
 pipeline: reading XR controller input via CloudXR, retargeting it through the
@@ -356,12 +394,13 @@ More Information
 
 - :doc:`teleop_session` — learn how ``TeleopSession`` works and how to build
   custom retargeting pipelines
+- :doc:`televiz` — visualize robot camera and sensor feeds in an XR headset with
+  the Televiz compositor (and share a single XR session with your teleop pipeline)
 - :doc:`build_from_source/index` — build the C++ core, Python bindings, and plugins
   from source
 
 ..
    References
-.. _`nvidia.github.io/IsaacTeleop/client`: https://nvidia.github.io/IsaacTeleop/client/main/
 .. _`CloudXR documentation`: https://docs.nvidia.com/cloudxr-sdk/latest/index.html
 .. _`Isaac XR Teleop Sample Client for Apple Vision Pro`: https://github.com/isaac-sim/isaac-xr-teleop-sample-client-apple
 .. _`Isaac Lab Quick Start`: https://isaac-sim.github.io/IsaacLab/develop/source/setup/quickstart.html

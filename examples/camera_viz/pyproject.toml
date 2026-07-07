@@ -3,8 +3,9 @@
 #
 # Standalone pyproject for camera_viz so `uv run` resolves the example's
 # deps without polluting the IsaacTeleop wheel's runtime requirements.
-# isaacteleop is consumed from the locally built wheel (./build/wheels/)
-# or from PyPI — point uv at it via --find-links / --with as needed.
+# isaacteleop (which bundles Televiz) is installed from PyPI by default by
+# ``camera_viz.sh setup``; pass ``setup --wheel <path>`` to use a locally
+# built wheel instead.
 
 [project]
 name = "camera-viz"

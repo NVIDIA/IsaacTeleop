@@ -50,6 +50,8 @@ packages = [
     "isaacteleop.retargeting_engine.utilities",
     "isaacteleop.retargeters",
     "isaacteleop.retargeters.G1",
+    "isaacteleop.retargeters.SO101",
+    "isaacteleop.retargeters.joint_space",
     "isaacteleop.retargeting_engine_ui",
     "isaacteleop.teleop_session_manager",
     "isaacteleop.cloudxr",

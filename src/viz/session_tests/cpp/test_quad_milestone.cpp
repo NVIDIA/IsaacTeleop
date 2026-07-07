@@ -33,6 +33,7 @@ using viz::Resolution;
 using viz::VizSession;
 
 using viz::testing::is_gpu_available;
+using viz::testing::shared_vk_context;
 
 namespace
 {
@@ -140,6 +141,7 @@ TEST_CASE("QuadLayer submit() round-trips CUDA pixels to readback", "[gpu][quad_
 
     VizSession::Config cfg{};
     cfg.mode = DisplayMode::kOffscreen;
+    cfg.external_context = &shared_vk_context(); // share one instance across [gpu] tests
     cfg.window_width = kSide;
     cfg.window_height = kSide;
 
@@ -201,6 +203,7 @@ TEST_CASE("QuadLayer multi-frame submit/render/readback loop stays correct", "[g
 
     VizSession::Config cfg{};
     cfg.mode = DisplayMode::kOffscreen;
+    cfg.external_context = &shared_vk_context(); // share one instance across [gpu] tests
     cfg.window_width = kSide;
     cfg.window_height = kSide;
 
@@ -275,6 +278,7 @@ TEST_CASE("QuadLayer round-trips midtone RGBA values exactly", "[gpu][quad_layer
     constexpr uint32_t kSide = 64;
     VizSession::Config cfg{};
     cfg.mode = DisplayMode::kOffscreen;
+    cfg.external_context = &shared_vk_context(); // share one instance across [gpu] tests
     cfg.window_width = kSide;
     cfg.window_height = kSide;
 
@@ -333,6 +337,7 @@ TEST_CASE("QuadLayer with no submit yet renders the clear color", "[gpu][quad_la
     constexpr uint32_t kSide = 64;
     VizSession::Config cfg{};
     cfg.mode = DisplayMode::kOffscreen;
+    cfg.external_context = &shared_vk_context(); // share one instance across [gpu] tests
     cfg.window_width = kSide;
     cfg.window_height = kSide;
     // Distinctive non-default clear so a coincidental black draw can't pass.
@@ -372,6 +377,7 @@ TEST_CASE("QuadLayer re-renders the same publish when no new submit arrives", "[
     constexpr uint32_t kSide = 64;
     VizSession::Config cfg{};
     cfg.mode = DisplayMode::kOffscreen;
+    cfg.external_context = &shared_vk_context(); // share one instance across [gpu] tests
     cfg.window_width = kSide;
     cfg.window_height = kSide;
 
@@ -426,6 +432,7 @@ TEST_CASE("QuadLayer fast producer: render samples only the latest publish", "[g
     constexpr uint32_t kSide = 64;
     VizSession::Config cfg{};
     cfg.mode = DisplayMode::kOffscreen;
+    cfg.external_context = &shared_vk_context(); // share one instance across [gpu] tests
     cfg.window_width = kSide;
     cfg.window_height = kSide;
 

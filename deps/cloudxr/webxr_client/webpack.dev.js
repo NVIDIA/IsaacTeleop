@@ -18,6 +18,7 @@
 const { merge } = require('webpack-merge');
 const common = require('./webpack.common.js');
 const path = require('path');
+const { chunkFilename, chunkOptimization, msdfInlineRules } = require('./webpack.chunkNames.js');
 
 // Check if HTTPS mode is enabled via environment variable
 const useHttps = process.env.HTTPS === 'true';
@@ -29,7 +30,10 @@ module.exports = merge(common, {
   output: {
     filename: 'bundle.[contenthash:8].js',
     clean: true,
+    chunkFilename,
   },
+  module: msdfInlineRules,
+  optimization: chunkOptimization,
   devServer: {
     allowedHosts: 'all',
     hot: true,

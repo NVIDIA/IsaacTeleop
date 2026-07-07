@@ -10,8 +10,10 @@ Isaac Lab Teleop) without requiring a separate terminal.
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import atexit
+import contextlib
 import logging
 import os
 import signal
@@ -31,6 +33,8 @@ from .runtime import (
 )
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_DEVICE_PROFILE = "Quest3"
 
 _RUNTIME_WORKER_CODE = """\
 import sys, os
@@ -72,9 +76,11 @@ class CloudXRLauncher:
         self,
         install_dir: str = "~/.cloudxr",
         env_config: str | Path | None = None,
+        device_profile: str = DEFAULT_DEVICE_PROFILE,
         accept_eula: bool = False,
         setup_oob: bool = False,
         usb_local: bool = False,
+        host_client: bool = False,
     ) -> None:
         """Launch the CloudXR runtime and WSS proxy.
 
@@ -88,6 +94,8 @@ class CloudXRLauncher:
             install_dir: CloudXR install directory.
             env_config: Optional path to a KEY=value env file for
                 CloudXR env-var overrides.
+            device_profile: CloudXR ``NV_DEVICE_PROFILE`` when not set in
+                *env_config* or the process environment (default: Quest3).
             accept_eula: Accept the NVIDIA CloudXR EULA
                 non-interactively.  When ``False`` and the EULA marker
                 does not exist, the user is prompted on stdin.
@@ -100,6 +108,9 @@ class CloudXRLauncher:
                 fetched from GitHub Pages if missing) over HTTPS.  Ports
                 are overridable via ``USB_UI_PORT`` / ``USB_BACKEND_PORT``
                 / ``USB_TURN_PORT``.
+            host_client: Serve the web client at ``/client/`` on the WSS
+                proxy port.  Assets are fetched once from GitHub Pages into
+                ``TELEOP_WEB_CLIENT_STATIC_DIR`` or ``~/.cloudxr/static-client``.
 
         Raises:
             RuntimeError: If the EULA is not accepted or the runtime
@@ -107,14 +118,16 @@ class CloudXRLauncher:
         """
         self._install_dir = install_dir
         self._env_config = str(env_config) if env_config is not None else None
+        self._device_profile = device_profile
         self._accept_eula = accept_eula
         self._setup_oob = setup_oob
         self._usb_local = usb_local
+        self._host_client = host_client
 
-        if self._usb_local:
-            from .oob_teleop_env import require_usb_local_webxr_static_dir  # noqa: PLC0415
+        if self._usb_local or self._host_client:
+            from .oob_teleop_env import require_web_client_static_dir  # noqa: PLC0415
 
-            require_usb_local_webxr_static_dir()
+            require_web_client_static_dir()
 
         self._runtime_proc: subprocess.Popen | None = None
         self._wss_thread: threading.Thread | None = None
@@ -123,7 +136,11 @@ class CloudXRLauncher:
         self._wss_log_path: Path | None = None
         self._atexit_registered = False
 
-        env_cfg = EnvConfig.from_args(self._install_dir, self._env_config)
+        env_cfg = EnvConfig.from_args(
+            self._install_dir,
+            self._env_config,
+            launcher_defaults={"NV_DEVICE_PROFILE": self._device_profile},
+        )
         try:
             check_eula(accept_eula=self._accept_eula or None)
         except SystemExit as exc:
@@ -160,6 +177,114 @@ class CloudXRLauncher:
         self._wss_log_path = wss_log_path
         self._start_wss_proxy(wss_log_path)
         logger.info("CloudXR WSS proxy started (log=%s)", wss_log_path)
+
+    # ------------------------------------------------------------------
+    # CLI helpers for embedding applications and examples
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def add_cloudxr_install_dir_argument(parser: argparse.ArgumentParser) -> None:
+        """Register ``--cloudxr-install-dir`` on ``parser`` (default ``~/.cloudxr``)."""
+        parser.add_argument(
+            "--cloudxr-install-dir",
+            type=str,
+            default=os.path.expanduser("~/.cloudxr"),
+            metavar="PATH",
+            help="CloudXR install directory (default: ~/.cloudxr)",
+        )
+
+    @staticmethod
+    def add_launch_cloudxr_runtime_argument(parser: argparse.ArgumentParser) -> None:
+        """Register ``--launch-cloudxr-runtime`` on ``parser``.
+
+        Uses :class:`argparse.BooleanOptionalAction`, so callers may pass
+        ``--no-launch-cloudxr-runtime`` when the runtime is already running
+        (for example after sourcing ``~/.cloudxr/run/cloudxr.env``).
+        """
+        parser.add_argument(
+            "--launch-cloudxr-runtime",
+            action=argparse.BooleanOptionalAction,
+            default=True,
+            help=(
+                "Launch the CloudXR runtime and WSS proxy in-process before running "
+                "(default: true). Pass --no-launch-cloudxr-runtime when the runtime is "
+                "already running (e.g. after sourcing ~/.cloudxr/run/cloudxr.env)."
+            ),
+        )
+
+    @staticmethod
+    def add_cloudxr_device_profile_argument(parser: argparse.ArgumentParser) -> None:
+        """Register ``--cloudxr-device-profile`` on ``parser`` (default Quest3)."""
+        parser.add_argument(
+            "--cloudxr-device-profile",
+            type=str,
+            default=DEFAULT_DEVICE_PROFILE,
+            metavar="PROFILE",
+            help=(
+                "CloudXR NV_DEVICE_PROFILE for the runtime "
+                f"(default: {DEFAULT_DEVICE_PROFILE}). "
+                "Examples: Quest3, auto-webrtc, auto-native, AppleVisionPro. "
+                "Overridden by --cloudxr-env-config or NV_DEVICE_PROFILE in the environment."
+            ),
+        )
+
+    @staticmethod
+    def add_launcher_arguments(parser: argparse.ArgumentParser) -> None:
+        """Register CloudXR launcher CLI arguments on ``parser``."""
+        CloudXRLauncher.add_cloudxr_install_dir_argument(parser)
+        CloudXRLauncher.add_cloudxr_device_profile_argument(parser)
+        CloudXRLauncher.add_launch_cloudxr_runtime_argument(parser)
+
+    @staticmethod
+    def _resolve_install_dir(
+        args: argparse.Namespace,
+        install_dir: str | None = None,
+    ) -> str:
+        """Return ``install_dir`` or ``args.cloudxr_install_dir`` when registered."""
+        if install_dir is not None:
+            return install_dir
+        return getattr(args, "cloudxr_install_dir", "~/.cloudxr")
+
+    @staticmethod
+    def _resolve_device_profile(
+        args: argparse.Namespace,
+        device_profile: str | None = None,
+    ) -> str:
+        """Return ``device_profile`` or ``args.cloudxr_device_profile`` when registered."""
+        if device_profile is not None:
+            return device_profile
+        return getattr(args, "cloudxr_device_profile", DEFAULT_DEVICE_PROFILE)
+
+    @staticmethod
+    def launch_context(
+        args: argparse.Namespace,
+        *,
+        install_dir: str | None = None,
+        env_config: str | Path | None = None,
+        device_profile: str | None = None,
+        accept_eula: bool = False,
+        setup_oob: bool = False,
+        usb_local: bool = False,
+        host_client: bool = False,
+    ) -> contextlib.AbstractContextManager[CloudXRLauncher | None]:
+        """Start :class:`CloudXRLauncher` when ``args.launch_cloudxr_runtime`` is true.
+
+        Returns :func:`contextlib.nullcontext` when ``args.launch_cloudxr_runtime`` is
+        false so callers can always use ``with CloudXRLauncher.launch_context(args):``.
+        """
+        if not args.launch_cloudxr_runtime:
+            return contextlib.nullcontext(None)
+        return CloudXRLauncher(
+            install_dir=CloudXRLauncher._resolve_install_dir(args, install_dir),
+            env_config=env_config,
+            device_profile=CloudXRLauncher._resolve_device_profile(
+                args, device_profile
+            ),
+            accept_eula=accept_eula,
+            setup_oob=setup_oob,
+            usb_local=usb_local,
+            host_client=host_client,
+        )
 
     # ------------------------------------------------------------------
     # Context manager
@@ -334,13 +459,17 @@ class CloudXRLauncher:
     def _terminate_runtime(self) -> None:
         """Terminate the runtime subprocess and all its children.
 
-        Because the subprocess is launched with ``start_new_session=True``
-        it is the leader of its own process group.  Sending the signal to
-        the negative PID kills the entire group (including Monado and any
-        other children), preventing stale processes from lingering.
+        On POSIX, the subprocess is launched with ``start_new_session=True``
+        so it leads its own process group; ``killpg`` tears down Monado and
+        other children.  Windows is not supported (see
+        :meth:`_terminate_runtime_windows`).
         """
         proc = self._runtime_proc
         if proc is None or proc.poll() is not None:
+            return
+
+        if sys.platform == "win32":
+            self._terminate_runtime_windows(proc)
             return
 
         try:
@@ -370,6 +499,13 @@ class CloudXRLauncher:
         if proc.poll() is None:
             raise RuntimeError("Failed to terminate or kill runtime process group")
 
+    @staticmethod
+    def _terminate_runtime_windows(_proc: subprocess.Popen) -> None:
+        """Windows runtime termination is not supported."""
+        raise RuntimeError(
+            "CloudXR runtime process termination is not supported on Windows"
+        )
+
     # ------------------------------------------------------------------
     # WSS proxy (background thread with its own event loop)
     # ------------------------------------------------------------------
@@ -385,6 +521,7 @@ class CloudXRLauncher:
 
         setup_oob = self._setup_oob
         usb_local = self._usb_local
+        host_client = self._host_client
 
         def _run_wss() -> None:
             asyncio.set_event_loop(loop)
@@ -395,6 +532,7 @@ class CloudXRLauncher:
                         stop_future=stop_future,
                         setup_oob=setup_oob,
                         usb_local=usb_local,
+                        host_client=host_client,
                     )
                 )
             except Exception:

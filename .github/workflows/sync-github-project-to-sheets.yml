@@ -21,6 +21,7 @@ permissions:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    if: github.repository == 'NVIDIA/IsaacTeleop' # don't run on forks
     steps:
       - uses: actions/checkout@v6
 

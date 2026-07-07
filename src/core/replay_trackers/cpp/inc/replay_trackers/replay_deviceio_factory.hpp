@@ -25,6 +25,8 @@ class TensorPushTracker;
 class ITensorPushTrackerImpl;
 class HapticCommandReaderTracker;
 class IHapticCommandReaderTrackerImpl;
+class JointStateTracker;
+class IJointStateTrackerImpl;
 class HandTracker;
 class IHandTrackerImpl;
 class HeadTracker;
@@ -57,6 +59,7 @@ public:
     std::unique_ptr<ITensorPushTrackerImpl> create_tensor_push_tracker_impl(const TensorPushTracker* tracker);
     std::unique_ptr<IHapticCommandReaderTrackerImpl> create_haptic_command_reader_tracker_impl(
         const HapticCommandReaderTracker* tracker);
+    std::unique_ptr<IJointStateTrackerImpl> create_joint_state_tracker_impl(const JointStateTracker* tracker);
     std::unique_ptr<IMessageChannelTrackerImpl> create_message_channel_tracker_impl(const MessageChannelTracker* tracker);
 
 private:

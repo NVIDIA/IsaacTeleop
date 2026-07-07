@@ -29,6 +29,15 @@ public:
         return 1;
     }
 
+    // Direct-present: copy a ProjectionLayer's color image into the RT's
+    // color attachment (leaving it in TRANSFER_SRC) so readback_to_host
+    // works unchanged. Depth isn't read back. Empty views → clear.
+    bool supports_direct() const noexcept override
+    {
+        return true;
+    }
+    void record_direct(VkCommandBuffer cmd, const Frame& frame, const std::vector<DirectPresentView>& views) override;
+
     // Synchronous tightly-packed RGBA8 copy of the RT's color attachment.
     HostImage readback_to_host() override;
 

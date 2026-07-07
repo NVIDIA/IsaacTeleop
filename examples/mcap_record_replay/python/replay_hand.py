@@ -33,7 +33,7 @@ from isaacteleop.teleop_session_manager import (
     TeleopSessionConfig,
 )
 
-from common import HAND_BONES, build_hand_pipeline
+from common import HandViz, LEFT_COLOR, RIGHT_COLOR, build_hand_pipeline
 
 
 def mcap_duration_s(path: Path) -> float:
@@ -54,11 +54,6 @@ def mcap_duration_s(path: Path) -> float:
         return (stats.message_end_time - stats.message_start_time) / 1e9
 
 
-LEFT_COLOR = (0.25, 0.85, 0.35)
-RIGHT_COLOR = (0.35, 0.55, 0.95)
-INVALID_COLOR = (1.0, 0.0, 0.0)
-
-
 def resolve_mcap(path_arg: str | None) -> Path:
     if path_arg:
         path = Path(path_arg)
@@ -74,52 +69,6 @@ def resolve_mcap(path_arg: str | None) -> Path:
             "Run record_hand.py first or pass a path."
         )
     return max(candidates, key=lambda p: p.stat().st_mtime)
-
-
-def _bone_segments(positions: np.ndarray) -> np.ndarray:
-    """Return (N, 2, 3) segment array for the parent→child bones."""
-    return np.stack(
-        [np.stack([positions[a], positions[b]], axis=0) for a, b in HAND_BONES],
-        axis=0,
-    ).astype(np.float32)
-
-
-class HandViz:
-    """Per-hand viser handles (joint cloud + skeleton segments)."""
-
-    def __init__(
-        self,
-        server: viser.ViserServer,
-        name: str,
-        color: tuple[float, float, float],
-    ):
-        self.color = np.array(color, dtype=np.float32)
-        zero_pts = np.zeros((26, 3), dtype=np.float32)
-        zero_segs = np.zeros((len(HAND_BONES), 2, 3), dtype=np.float32)
-
-        self.points = server.scene.add_point_cloud(
-            name=f"/{name}/joints",
-            points=zero_pts,
-            colors=np.tile(self.color, (26, 1)),
-            point_size=0.008,
-        )
-        self.bones = server.scene.add_line_segments(
-            name=f"/{name}/bones",
-            points=zero_segs,
-            colors=np.tile(self.color, (len(HAND_BONES), 2, 1)),
-            line_width=2.0,
-        )
-
-    def update(self, positions: np.ndarray, valid: bool) -> None:
-        if valid:
-            self.points.points = positions.astype(np.float32)
-            self.points.colors = np.tile(self.color, (positions.shape[0], 1))
-            self.bones.points = _bone_segments(positions)
-        else:
-            zero_pts = np.zeros_like(positions, dtype=np.float32)
-            self.points.points = zero_pts
-            self.points.colors = np.tile(INVALID_COLOR, (positions.shape[0], 1))
-            self.bones.points = np.zeros((len(HAND_BONES), 2, 3), dtype=np.float32)
 
 
 def run_once(

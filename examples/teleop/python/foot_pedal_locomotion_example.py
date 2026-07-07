@@ -14,6 +14,7 @@ import sys
 import time
 from pathlib import Path
 
+from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.retargeters import (
     FootPedalRootCmdRetargeter,
     FootPedalRootCmdRetargeterConfig,
@@ -89,26 +90,27 @@ def main():
         plugins=plugins,
     )
 
-    with TeleopSession(session_config) as session:
-        start_time = time.time()
+    with CloudXRLauncher():
+        with TeleopSession(session_config) as session:
+            start_time = time.time()
 
-        while time.time() - start_time < 30.0:
-            result = session.step()
+            while time.time() - start_time < 30.0:
+                result = session.step()
 
-            # Get root command: [vel_x, vel_y, rot_vel_z, hip_height]
-            cmd = result["root_command"][0]
+                # Get root command: [vel_x, vel_y, rot_vel_z, hip_height]
+                cmd = result["root_command"][0]
 
-            elapsed = session.get_elapsed_time()
-            print(
-                f"[{elapsed:5.1f}s] Vel: ({cmd[0]:5.2f}, {cmd[1]:5.2f})  "
-                f"Rot: {cmd[2]:5.2f}  Height: {cmd[3]:.3f}",
-                end="\r",
-                flush=True,
-            )
+                elapsed = session.get_elapsed_time()
+                print(
+                    f"[{elapsed:5.1f}s] Vel: ({cmd[0]:5.2f}, {cmd[1]:5.2f})  "
+                    f"Rot: {cmd[2]:5.2f}  Height: {cmd[3]:.3f}",
+                    end="\r",
+                    flush=True,
+                )
 
-            time.sleep(0.01)  # ~100 FPS
+                time.sleep(0.01)  # ~100 FPS
 
-        print("\nTime limit reached.")
+            print("\nTime limit reached.")
 
     return 0
 

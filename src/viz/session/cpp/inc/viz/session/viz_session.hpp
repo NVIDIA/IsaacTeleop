@@ -16,6 +16,7 @@
 #include <chrono>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -106,11 +107,44 @@ public:
     // content updates / set_visible(). The session owns the layer's
     // lifetime. add_layer / remove_layer must run on the same thread
     // as the frame loop; only LayerBase::set_visible() is atomic.
+    //
+    // Layer-mode invariant (for now): a session holds EITHER one
+    // ProjectionLayer OR any number of QuadLayers, never both. The
+    // ProjectionLayer is direct-present (copied straight to the swapchain),
+    // while QuadLayers composite into the shared render target — the two
+    // paths don't coexist yet. Violations throw std::invalid_argument.
     template <typename L, typename... Args>
     L* add_layer(Args&&... args)
     {
+        // Layers may only be added to a live session. After destroy() the
+        // backend + context are gone (validate_layer_against_backend_ would
+        // no-op), so without this guard a layer could attach to a dead session.
+        if (state_ != SessionState::kReady && state_ != SessionState::kRunning)
+        {
+            throw std::logic_error("VizSession: add_layer requires an active session (kReady or kRunning)");
+        }
         auto layer = std::make_unique<L>(std::forward<Args>(args)...);
         L* raw = layer.get();
+
+        bool have_projection = false;
+        for (const auto& l : layers_)
+        {
+            have_projection = have_projection || l->is_projection_layer();
+        }
+        if (raw->is_projection_layer() && !layers_.empty())
+        {
+            throw std::invalid_argument("VizSession: a ProjectionLayer must be the session's only layer");
+        }
+        if (!raw->is_projection_layer() && have_projection)
+        {
+            throw std::invalid_argument("VizSession: cannot add another layer alongside a ProjectionLayer");
+        }
+
+        // Let the layer reject a backend it can't run on (e.g. a direct-present
+        // layer whose resolution/stereo/slot count doesn't match). Throws
+        // before the layer is registered, so a rejected add leaves no state.
+        validate_layer_against_backend_(raw);
+
         raw->attach_to_session_(this);
         layers_.push_back(std::move(layer));
         return raw;
@@ -182,6 +216,10 @@ private:
     void init();
 
     const VkContext& ctx() const noexcept;
+    // Ask a freshly-constructed layer to validate itself against the active
+    // backend (resolution / stereo / in-flight count). No-op until the
+    // backend is initialized. Throws std::invalid_argument on mismatch.
+    void validate_layer_against_backend_(LayerBase* layer) const;
     void update_timing_stats(float frame_time_seconds);
     // Poll backend events + handle resize. Called by render() and
     // begin_frame() so explicit-loop users get the same behavior.
@@ -207,6 +245,11 @@ private:
     bool first_frame_ = true;
     bool frame_in_progress_ = false;
     FrameInfo current_frame_info_{};
+    // The backend-acquired frame for the in-progress begin/end pair.
+    // Acquired by begin_frame, consumed by end_frame. nullopt outside
+    // a begin/end window or when the backend skipped this frame
+    // (e.g. XR runtime shouldRender=0).
+    std::optional<DisplayBackend::Frame> current_backend_frame_;
     FrameTimingStats timing_stats_{};
 };
 

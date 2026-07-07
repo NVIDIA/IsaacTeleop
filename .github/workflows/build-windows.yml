@@ -42,23 +42,33 @@ jobs:
     - name: Setup sccache
       uses: Mozilla-Actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696  # v0.0.10
 
-    # Hunter cache - caches depthai dependencies
-    # Note: Hunter uses C:/.hunter on Windows (at drive root)
-    - name: Cache Hunter packages
-      uses: actions/cache@v5
+    # Put cl.exe and other build tools in PATH.
+    # Must run before vcpkg setup so our VCPKG_ROOT isn't overridden by vcvarsall.
+    - name: Setup MSVC (Developer Command Prompt)
+      uses: ilammy/msvc-dev-cmd@v1
+
+    # vcpkg - required when BUILD_PLUGIN_OAK_CAMERA=ON for DepthAI v3.x deps
+    - name: Cache vcpkg
+      uses: actions/cache@v4
       with:
-        path: C:/.hunter
-        key: hunter-${{ runner.os }}-${{ hashFiles('cmake/SetupHunter.cmake') }}
+        path: |
+          C:\vcpkg
+          build\vcpkg_installed
+        key: vcpkg-${{ runner.os }}-${{ hashFiles('cmake/DepthAIVcpkgManifest.cmake') }}
         restore-keys: |
-          hunter-${{ runner.os }}-
+          vcpkg-${{ runner.os }}-
+
+    - name: Setup vcpkg
+      run: |
+        if (!(Test-Path C:\vcpkg\vcpkg.exe)) {
+          git clone https://github.com/microsoft/vcpkg C:\vcpkg
+          C:\vcpkg\bootstrap-vcpkg.bat -disableMetrics
+        }
+        echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
 
     - name: Verify sccache
       run: |
         sccache --version
-
-    # Put cl.exe and other build tools in PATH
-    - name: Setup MSVC (Developer Command Prompt)
-      uses: ilammy/msvc-dev-cmd@v1
 
     # Install LunarG Vulkan SDK (headers + loader lib). Sets VULKAN_SDK
     # env var so CMake's FindVulkan locates the install. The Vulkan
@@ -98,6 +108,7 @@ jobs:
         -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
         -DBUILD_PLUGIN_OAK_CAMERA=ON
         -DBUILD_VIZ=ON
+        -DCMAKE_TOOLCHAIN_FILE="${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake"
 
     - name: Build
       run: cmake --build build --parallel

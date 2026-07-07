@@ -7,6 +7,7 @@
 #include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
+#include <deviceio_trackers/joint_state_tracker.hpp>
 #include <deviceio_trackers/message_channel_tracker.hpp>
 #include <deviceio_trackers/tensor_push_tracker.hpp>
 #include <pybind11/numpy.h>
@@ -170,6 +171,16 @@ PYBIND11_MODULE(_deviceio_trackers, m)
             },
             py::arg("session"), py::arg("payload"),
             "Push one serialized payload (bytes, length <= max_payload_size) to the paired consumer.");
+    py::class_<core::JointStateTracker, core::ITracker, std::shared_ptr<core::JointStateTracker>>(m, "JointStateTracker")
+        .def(py::init<const std::string&, size_t>(), py::arg("collection_id"),
+             py::arg("max_flatbuffer_size") = core::JointStateTracker::DEFAULT_MAX_FLATBUFFER_SIZE,
+             "Construct a JointStateTracker for the given tensor collection ID (one generic "
+             "joint-space device: leader arm, exoskeleton, ...)")
+        .def(
+            "get_data",
+            [](const core::JointStateTracker& self, const core::ITrackerSession& session) -> core::JointStateOutputTrackedT
+            { return self.get_data(session); },
+            py::arg("session"), "Get the current joint-state tracked snapshot (data is None when no data available)");
 
     py::class_<core::FullBodyTrackerPico, core::ITracker, std::shared_ptr<core::FullBodyTrackerPico>>(
         m, "FullBodyTrackerPico")

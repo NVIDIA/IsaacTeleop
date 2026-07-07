@@ -202,14 +202,14 @@ export CXR_RUNTIME_NETWORK_MODE="bridge"
 
 # Create/update .env file with test configuration
 log_info "Writing test configuration to $ENV_TEST..."
-if [ "${CI:-false}" = "true" ]; then
+if [[ "${CI:-false}" = "true" ]]; then
     log_info "CI environment detected, auto-accepting CloudXR EULA"
 fi
 {
     echo "CXR_PYTHON_GPU_TESTS=$CXR_PYTHON_GPU_TESTS"
     echo "CXR_NATIVE_GPU_TESTS=$CXR_NATIVE_GPU_TESTS"
     # In CI, auto-accept EULA
-    if [ "${CI:-false}" = "true" ]; then
+    if [[ "${CI:-false}" = "true" ]]; then
         echo "ACCEPT_CLOUDXR_EULA=Y"
     fi
 } > "$ENV_TEST"
@@ -217,7 +217,7 @@ fi
 # Verify install directory exists and has required artifacts
 log_info "Verifying build artifacts..."
 
-if [ ! -d "install/wheels" ]; then
+if [[ ! -d "install/wheels" ]]; then
     log_error "install/wheels not found. Please build first:"
     echo "  cmake -B build"
     echo "  cmake --build build --parallel"
@@ -226,7 +226,7 @@ if [ ! -d "install/wheels" ]; then
 fi
 
 WHEEL_COUNT=$(find install/wheels -name "isaacteleop-*.whl" | wc -l)
-if [ "$WHEEL_COUNT" -eq 0 ]; then
+if [[ "$WHEEL_COUNT" -eq 0 ]]; then
     log_error "No isaacteleop wheel found in install/wheels/"
     exit 1
 fi
@@ -244,7 +244,7 @@ log_info "Using ISAACTELEOP_PIP_DEBUG=$ISAACTELEOP_PIP_DEBUG"
 WHEEL_PATH=$(find install/wheels -name "isaacteleop-*.whl")
 WHEEL_BASENAME=$(basename "$WHEEL_PATH")
 EXPECTED_ISAACTELEOP_VERSION=$(echo "$WHEEL_BASENAME" | sed -E 's/^isaacteleop-([^-]+)-.*/\1/' | tr '_' '-')
-if [ -z "$EXPECTED_ISAACTELEOP_VERSION" ]; then
+if [[ -z "$EXPECTED_ISAACTELEOP_VERSION" ]]; then
     log_error "Failed to derive expected version from wheel name: $WHEEL_BASENAME"
     exit 1
 fi
@@ -255,7 +255,7 @@ log_info "Expected isaacteleop version from wheel artifact: $EXPECTED_ISAACTELEO
 log_info "Building test container..."
 
 BUILD_ARGS="-q"
-if [ "$FORCE_BUILD" = true ]; then
+if [[ "$FORCE_BUILD" = true ]]; then
     BUILD_ARGS="$BUILD_ARGS --no-cache"
 fi
 
@@ -285,7 +285,7 @@ log_info "Waiting for CloudXR runtime to be healthy..."
 
 MAX_WAIT=60
 WAITED=0
-while [ $WAITED -lt $MAX_WAIT ]; do
+while [[ $WAITED -lt $MAX_WAIT ]]; do
     if docker compose \
         -p "$COMPOSE_PROJECT" \
         --env-file "$ENV_DEFAULT" \
@@ -304,7 +304,7 @@ while [ $WAITED -lt $MAX_WAIT ]; do
 done
 echo ""
 
-if [ $WAITED -ge $MAX_WAIT ]; then
+if [[ $WAITED -ge $MAX_WAIT ]]; then
     log_error "CloudXR runtime failed to become healthy within ${MAX_WAIT}s"
     log_info "Container logs:"
     docker compose \
@@ -338,7 +338,7 @@ else
 fi
 
 # Output test results for CI
-if [ "${CI:-false}" = "true" ]; then
+if [[ "${CI:-false}" = "true" ]]; then
     echo ""
     echo "::group::Container Logs"
     docker compose \
@@ -354,7 +354,7 @@ fi
 
 echo ""
 echo -e "${BLUE}=========================================="
-if [ $EXIT_CODE -eq 0 ]; then
+if [[ $EXIT_CODE -eq 0 ]]; then
     echo -e "${GREEN}  ✅ Tests Completed Successfully${NC}"
 else
     echo -e "${RED}  ❌ Tests Failed${NC}"

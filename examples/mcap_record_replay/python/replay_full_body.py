@@ -34,7 +34,7 @@ from isaacteleop.teleop_session_manager import (
     TeleopSessionConfig,
 )
 
-from common import BODY_BONES, BODY_JOINT_NAMES, build_full_body_pipeline
+from common import BODY_JOINT_NAMES, FullBodyViz, build_full_body_pipeline
 
 
 def mcap_duration_s(path: Path) -> float:
@@ -55,10 +55,6 @@ def mcap_duration_s(path: Path) -> float:
         return (stats.message_end_time - stats.message_start_time) / 1e9
 
 
-TRACKED_COLOR = (0.25, 0.85, 0.35)
-INVALID_COLOR = (1.0, 0.0, 0.0)
-
-
 def resolve_mcap(path_arg: str | None) -> Path:
     if path_arg:
         path = Path(path_arg)
@@ -74,60 +70,6 @@ def resolve_mcap(path_arg: str | None) -> Path:
             "Run record_full_body.py first or pass a path."
         )
     return max(candidates, key=lambda p: p.stat().st_mtime)
-
-
-def _valid_bone_segments(positions: np.ndarray, valid: np.ndarray) -> np.ndarray:
-    """Return (N, 2, 3) segment array for bones whose endpoints are both valid."""
-    segments: list[np.ndarray] = []
-    for a, b in BODY_BONES:
-        if valid[a] and valid[b]:
-            segments.append(np.stack([positions[a], positions[b]], axis=0))
-    if not segments:
-        return np.zeros((0, 2, 3), dtype=np.float32)
-    return np.stack(segments, axis=0).astype(np.float32)
-
-
-class FullBodyViz:
-    """Viser handles (joint cloud + skeleton segments)."""
-
-    def __init__(self, server: viser.ViserServer):
-        self.color = np.array(TRACKED_COLOR, dtype=np.float32)
-        zero_pts = np.zeros((len(BODY_JOINT_NAMES), 3), dtype=np.float32)
-        zero_segs = np.zeros((0, 2, 3), dtype=np.float32)
-
-        self.points = server.scene.add_point_cloud(
-            name="/full_body/joints",
-            points=zero_pts,
-            colors=np.tile(self.color, (len(BODY_JOINT_NAMES), 1)),
-            point_size=0.01,
-        )
-        self.bones = server.scene.add_line_segments(
-            name="/full_body/bones",
-            points=zero_segs,
-            colors=np.zeros((0, 2, 3), dtype=np.float32),
-            line_width=2.0,
-        )
-
-    def update(self, positions: np.ndarray | None, valid: np.ndarray | None) -> None:
-        if positions is None or valid is None:
-            zero_pts = np.zeros((len(BODY_JOINT_NAMES), 3), dtype=np.float32)
-            self.points.points = zero_pts
-            self.points.colors = np.tile(INVALID_COLOR, (len(BODY_JOINT_NAMES), 1))
-            self.bones.points = np.zeros((0, 2, 3), dtype=np.float32)
-            self.bones.colors = np.zeros((0, 2, 3), dtype=np.float32)
-            return
-
-        positions = positions.astype(np.float32)
-        valid_bool = valid.astype(bool)
-        self.points.points = positions
-
-        point_colors = np.tile(self.color, (positions.shape[0], 1))
-        point_colors[~valid_bool] = INVALID_COLOR
-        self.points.colors = point_colors
-
-        segs = _valid_bone_segments(positions, valid_bool)
-        self.bones.points = segs
-        self.bones.colors = np.tile(self.color, (segs.shape[0], 2, 1))
 
 
 def run_once(

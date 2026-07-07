@@ -21,9 +21,7 @@ def append_hand_poses(
     transform_rot: Rotation | None = None,
     transform_trans: Sequence[float] | None = None,
 ) -> None:
-    for joint_idx in range(
-        HandJointIndex.THUMB_METACARPAL, HandJointIndex.LITTLE_TIP + 1
-    ):
+    for joint_idx in range(HandJointIndex.WRIST, HandJointIndex.LITTLE_TIP + 1):
         if joint_valid[joint_idx]:
             pose = to_pose(joint_positions[joint_idx], joint_orientations[joint_idx])
             if transform_rot is not None or transform_trans is not None:

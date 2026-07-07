@@ -79,15 +79,18 @@ session is running via USB or Bluetooth. See :ref:`device-interface-device-plugi
    * - Device
      - Input Modes
      - Client / Connection
-   * - `Manus Gloves`_
-     - High-fidelity finger tracking (Manus SDK)
-     - `Manus Gloves Plugin`_ (CLI tool)
+   * - `MANUS Gloves`_
+     - High-fidelity finger tracking (MANUS SDK)
+     - `MANUS Gloves Plugin`_ (CLI tool)
    * - `Logitech Rudder Pedals`_
      - 3-axis foot pedal
      - `Generic 3-axis Pedal Plugin`_ (CLI tool)
    * - `OAK-D Camera`_
      - Offline data recording
      - `OAK-D Camera Plugin`_ (CLI tool)
+   * - `Haptikos Exoskeletons`_
+     -  High-fidelity finger tracking and haptic feedback (Haptikos Robotics API)
+     - `Haptikos Plugin`_ (CLI tool)
 
 Planned Input Device Support
 -----------------------------
@@ -139,6 +142,8 @@ Targeted Robotics Embodiments
   including popular embodiments such as Unitree G1.
 - `Retargeter tuning UI <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/core/retargeting_engine_ui/python>`_ to facilitate
   live retargeter tuning.
+- GR00T-WholeBodyControl SONIC whole-body control on Unitree G1 (Thor backpack); see
+  `GR00T-WholeBodyControl: Isaac Teleop Publisher Setup`_ to get started.
 
 Device Acquisition
 ------------------
@@ -164,14 +169,17 @@ directly. Each device name in the tables above links to the corresponding manufa
      - | Veronica Li
        | Email: Veronica.li@bytedance.com
        | Mobile: +1 (909) 569-2774
-   * - `Manus`_
-     - Manus Gloves
-     -
+   * - `MANUS`_
+     - MANUS Metagloves Pro & MANUS Metagloves Pro Haptic
+     - sales@manus-meta.com
    * - `Logitech`_
      - Logitech Rudder Pedals
      -
    * - `Luxonis`_
      - OAK-D Camera
+     -
+   * - `Haptikos`_
+     - Haptikos Exoskeletons
      -
    * - `Haply`_
      - Haply (planned)
@@ -180,6 +188,46 @@ directly. Each device name in the tables above links to the corresponding manufa
      - 3D Space Mouse (planned)
      -
 
+Social Links
+------------
+
+Join the Isaac Teleop community to ask questions, share your work, and stay up to date.
+
+Discord (NVIDIA official)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Isaac Teleop has a dedicated ``isaac-teleop`` channel in the official NVIDIA Omniverse
+Discord server. Joining takes two steps:
+
+#. **Join the server.** Open the `NVIDIA Omniverse Discord invite`_ and accept it to become a
+   member of the NVIDIA Omniverse Discord server.
+#. **Open the channel.** Once you are a member of the server, go to the
+   `#isaac-teleop channel`_ to reach the team and the community. (The channel link only works
+   after you have joined the server in step 1.)
+
+WeChat (微信) group (community-run)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A community-driven WeChat group is also available. Scan the QR code below from **within the
+WeChat app** (Discover → Scan) to join. Scanning with your phone's built-in camera app will
+**not** work.
+
+.. figure:: ../_static/wechat-community-qr.jpg
+   :alt: Isaac Teleop community WeChat group QR code
+   :width: 240px
+
+   **Figure:** Scan from within the WeChat app (not the camera app) to join the community WeChat group
+
+.. note::
+
+   This WeChat group is created and maintained by community members. It is **not** an official
+   NVIDIA channel. The NVIDIA team does not participate in group operations, but does monitor the
+   group and answer questions when possible.
+
+   More than one community chat group may exist, and we may list additional groups here as we
+   become aware of them. That said, NVIDIA encourages the community to organically converge on a
+   single chat group, so that discussions stay consolidated in one place.
+
 ..
    References
 
@@ -187,9 +235,10 @@ directly. Each device name in the tables above links to the corresponding manufa
 .. _Apple: https://www.apple.com/
 .. _Meta: https://www.meta.com/
 .. _Pico: https://www.picoxr.com/
-.. _Manus: https://www.manus-meta.com/
+.. _MANUS: https://www.manus-meta.com/
 .. _Logitech: https://www.logitechg.com/
 .. _Luxonis: https://www.luxonis.com/
+.. _Haptikos: https://haptikos.tech/
 .. _Haply: https://www.haply.co/
 .. _`3Dconnexion`: https://3dconnexion.com/
 
@@ -198,14 +247,20 @@ directly. Each device name in the tables above links to the corresponding manufa
 .. _`Meta Quest 2/3/3S`: https://www.meta.com/quest/
 .. _`Pico 4 Ultra`: https://www.picoxr.com/products/pico4-ultra
 .. _`Pico Motion Tracker`: https://www.picoxr.com/global/products/pico-motion-tracker
-.. _`Manus Gloves`: https://www.manus-meta.com/products/quantum-metagloves
+.. _`MANUS Gloves`: https://www.manus-meta.com/robotics#nvidia
 .. _`Logitech Rudder Pedals`: https://www.logitechg.com/en-us/products/flight/flight-simulator-rudder-pedals.html
 .. _`OAK-D Camera`: https://shop.luxonis.com/products/oak-d
 .. _`3D Space Mouse`: https://3dconnexion.com/us/spacemouse/
+.. _`Haptikos Exoskeletons`: https://haptikos.tech/product/haptikos/
+
+.. Social links
+.. _`NVIDIA Omniverse Discord invite`: https://discord.com/invite/nvidiaomniverse
+.. _`#isaac-teleop channel`: https://discord.com/channels/827959428476174346/1486401816521478247
 
 .. Other references
 .. _`Isaac XR Teleop Sample Client`: https://github.com/isaac-sim/isaac-xr-teleop-sample-client-apple
-.. _`Isaac Teleop Web Client`: https://nvidia.github.io/IsaacTeleop/client
-.. _`Manus Gloves Plugin`: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/manus
+.. _`MANUS Gloves Plugin`: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/manus
 .. _`Generic 3-axis Pedal Plugin`: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/generic_3axis_pedal
 .. _`OAK-D Camera Plugin`: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/oak
+.. _`Haptikos Plugin`: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/haptikos
+.. _`GR00T-WholeBodyControl: Isaac Teleop Publisher Setup`: https://nvlabs.github.io/GR00T-WholeBodyControl/tutorials/isaac_teleop_publisher_setup.html

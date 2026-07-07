@@ -10,6 +10,7 @@ package-lock.json
 
 # Build directories
 build/
+_build/
 **/build/
 install/
 build.log
@@ -42,6 +43,9 @@ compile_commands.json
 # Auto-downloaded from GitHub
 cmake/HunterGate.cmake
 cmake/Hunter/config-depthai.cmake
+# OAK plugin pulls DepthAI's vcpkg manifest at configure time (cmake/DepthAIVcpkgManifest.cmake);
+# we intentionally do not track our own vcpkg.json.
+/vcpkg.json
 
 # Python egg info
 *.egg-info/
@@ -58,3 +62,6 @@ project.spdx
 # without a separate install. V2D source must NOT be tracked here.
 deps/v2d/src/
 deps/v2d/wheels/
+
+# Runtime device files injected by MCP server infrastructure
+.mcp.json

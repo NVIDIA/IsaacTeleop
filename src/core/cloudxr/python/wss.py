@@ -58,6 +58,7 @@ def _patch_request_parser_for_cors():
 
     @classmethod
     def _cors_aware_parse(cls, read_line):
+        """Monkey-patched ``Request.parse`` that maps OPTIONS requests to a synthetic CORS path."""
         try:
             return (yield from _orig_parse(cls, read_line))
         except ValueError as exc:
@@ -76,12 +77,15 @@ log = logging.getLogger("wss-proxy")
 
 @dataclass(frozen=True)
 class CertPaths:
+    """Resolved paths for the WSS TLS certificate and private key."""
+
     cert_dir: Path
     cert_file: Path
     key_file: Path
 
 
 def cert_paths_from_dir(cert_dir: Path) -> CertPaths:
+    """Return a :class:`CertPaths` with ``server.crt`` / ``server.key`` under *cert_dir*."""
     cert_dir = cert_dir.resolve()
     return CertPaths(
         cert_dir=cert_dir,
@@ -139,6 +143,7 @@ def ensure_certificate(cert_paths: CertPaths) -> None:
 
 
 def build_ssl_context(cert_paths: CertPaths) -> ssl.SSLContext:
+    """Build a TLS 1.2+ server :class:`ssl.SSLContext` from *cert_paths*."""
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ctx.load_cert_chain(
         certfile=str(cert_paths.cert_file), keyfile=str(cert_paths.key_file)
@@ -156,6 +161,7 @@ CORS_HEADERS = {
 
 
 def _cert_html() -> bytes:
+    """Return minimal HTML confirming the self-signed certificate was accepted."""
     return (
         b"<!doctype html><html><head><meta charset=utf-8>"
         b"<style>body{font-family:system-ui,sans-serif;display:flex;"
@@ -241,6 +247,7 @@ def _stream_config_from_query(q: dict[str, str]) -> tuple[dict | None, str | Non
 
 
 def _oob_token(request, q: dict[str, str]) -> str | None:
+    """Extract the OOB control token from the ``X-Control-Token`` header or ``token`` query param."""
     h = request.headers.get("X-Control-Token")
     if h:
         return h
@@ -249,6 +256,7 @@ def _oob_token(request, q: dict[str, str]) -> str | None:
 
 
 def _json_response(status: int, phrase: str, body: dict) -> Response:
+    """Build a JSON :class:`Response` with CORS headers."""
     return Response(
         status,
         phrase,
@@ -257,8 +265,11 @@ def _json_response(status: int, phrase: str, body: dict) -> Response:
     )
 
 
-def _make_http_handler(backend_host, backend_port, hub=None):
+def _make_http_handler(backend_host, backend_port, hub=None, static_dir=None):
+    """Return the WSS HTTP request handler (OOB hub API, static ``/client/``, cert page)."""
+
     async def handle_http_request(connection, request):
+        """Dispatch non-WebSocket HTTP: CORS preflight, OOB APIs, static client, or cert HTML."""
         if request.headers.get("Upgrade", "").lower() == "websocket":
             return None
 
@@ -319,6 +330,39 @@ def _make_http_handler(backend_host, backend_port, hub=None):
                 b"Not found",
             )
 
+        # Static web client (--host-client): index.html + two JS bundles.
+        if static_dir is not None and (
+            path == "/client" or path.startswith("/client/")
+        ):
+            _MIME = {
+                "index.html": "text/html; charset=utf-8",
+                "bundle.js": "application/javascript; charset=utf-8",
+                "bundle.emulator.js": "application/javascript; charset=utf-8",
+            }
+            tail = path[len("/client") :].lstrip("/") or "index.html"
+            if tail not in _MIME:
+                return Response(
+                    404,
+                    "Not Found",
+                    Headers({"Content-Type": "text/plain", **CORS_HEADERS}),
+                    b"Not found",
+                )
+            try:
+                body = (static_dir / tail).read_bytes()
+            except OSError:
+                return Response(
+                    404,
+                    "Not Found",
+                    Headers({"Content-Type": "text/plain", **CORS_HEADERS}),
+                    b"Not found",
+                )
+            return Response(
+                200,
+                "OK",
+                Headers({"Content-Type": _MIME[tail], **CORS_HEADERS}),
+                body,
+            )
+
         return Response(
             200,
             "OK",
@@ -330,6 +374,7 @@ def _make_http_handler(backend_host, backend_port, hub=None):
 
 
 def add_cors_headers(connection, request, response):
+    """``process_response`` hook: inject CORS headers into every WebSocket upgrade response."""
     response.headers.update(CORS_HEADERS)
 
 
@@ -364,6 +409,7 @@ def _is_backend_connection_refused(exc: BaseException) -> bool:
 
 
 async def _pipe(src, dst, label: str):
+    """Forward every message from *src* to *dst*, propagating the close frame."""
     try:
         async for msg in src:
             if isinstance(msg, str):
@@ -389,6 +435,7 @@ async def _pipe(src, dst, label: str):
 
 
 async def proxy_handler(client, backend_host: str, backend_port: int):
+    """Bidirectionally proxy a WebSocket *client* connection to *backend_host:backend_port*."""
     path = client.request.path or "/"
     backend_uri = f"ws://{backend_host}:{backend_port}{path}"
 
@@ -465,7 +512,9 @@ async def run(
     proxy_port: int | None = None,
     setup_oob: bool = False,
     usb_local: bool = False,
+    host_client: bool = False,
 ) -> None:
+    """Start the WSS proxy server and run until *stop_future* is resolved."""
     logger = log
     logger.setLevel(logging.INFO)
     logger.propagate = False
@@ -512,13 +561,22 @@ async def run(
             )
 
         def handler(ws):
+            """Route an incoming WebSocket to the OOB hub or the backend proxy."""
             if hub is not None:
                 path = _normalize_request_path(ws.request.path or "/")
                 if path == OOB_WS_PATH:
                     return hub.handle_connection(ws)
             return proxy_handler(ws, backend_host, backend_port)
 
-        http_handler = _make_http_handler(backend_host, backend_port, hub=hub)
+        _host_client_static_dir = None
+        if host_client:
+            from .oob_teleop_env import require_web_client_static_dir  # noqa: PLC0415
+
+            _host_client_static_dir = require_web_client_static_dir()
+
+        http_handler = _make_http_handler(
+            backend_host, backend_port, hub=hub, static_dir=_host_client_static_dir
+        )
 
         async with ws_serve(
             handler,
@@ -536,10 +594,12 @@ async def run(
             log.info("WSS proxy listening on port %d", resolved_port)
 
             # ------------------------------------------------------------------
-            # USB-local: HTTPS static client (:func:`oob_teleop_env.usb_ui_port`,
-            # default 8080; override via ``USB_UI_PORT`` env) + adb reverse
-            # (WSS / backend / TURN) + coturn. Assets are ensured in
-            # require_usb_local_webxr_static_dir (also called from launcher).
+            # USB-local: separate HTTPS static client on 127.0.0.1:<usb_ui_port>
+            # (default 8080; override via ``USB_UI_PORT``) + adb reverse
+            # (WSS / backend / TURN) + coturn.
+            # --host-client: serves the web client at /client/ on the WSS proxy
+            # port; assets ensured by require_web_client_static_dir (called
+            # above and also from launcher).
             # ------------------------------------------------------------------
             # The coturn handle lives in a 1-element list so the watchdog
             # (H7) can replace it after a mid-session restart while keeping
@@ -563,14 +623,31 @@ async def run(
             try:
                 if usb_local:
                     from .oob_teleop_env import (  # noqa: PLC0415
-                        USB_TURN_USER,
-                        USB_TURN_CREDENTIAL,
-                        require_usb_local_webxr_static_dir,
+                        require_web_client_static_dir as _req_static,
                         start_usb_local_https_server,
                         stop_usb_local_https_server,
+                        usb_ui_port,
+                    )
+
+                    _ui_port = usb_ui_port()
+                    oob_progress(
+                        "usb-local",
+                        f"HTTPS client on 127.0.0.1:{_ui_port} ...",
+                    )
+                    _usb_https_thread, _usb_https_httpd = start_usb_local_https_server(
+                        _req_static(),
+                        cert_file=cert_paths.cert_file,
+                        key_file=cert_paths.key_file,
+                        port=_ui_port,
+                        host="127.0.0.1",
+                    )
+
+                if usb_local:
+                    from .oob_teleop_env import (  # noqa: PLC0415
+                        USB_TURN_USER,
+                        USB_TURN_CREDENTIAL,
                         usb_backend_port,
                         usb_turn_port,
-                        usb_ui_port,
                     )
 
                     # Resolve once so the coturn bind, adb reverse, and shutdown
@@ -598,18 +675,6 @@ async def run(
                     # the four ports we own.
                     teardown_adb_reverse_ports()
                     teardown_adb_reverse_turn(_usb_turn_port_resolved)
-
-                    oob_progress(
-                        "usb-local",
-                        f"HTTPS static UI on https://localhost:{usb_ui_port()} ...",
-                    )
-                    static_root = require_usb_local_webxr_static_dir()
-                    _usb_https_thread, _usb_https_httpd = start_usb_local_https_server(
-                        static_root,
-                        cert_file=cert_paths.cert_file,
-                        key_file=cert_paths.key_file,
-                        port=usb_ui_port(),
-                    )
 
                     # 2. adb reverse for TCP ports (WebXR UI, WSS proxy, backend)
                     _expected_tcp_ports = [
@@ -715,7 +780,9 @@ async def run(
                     )
                     try:
                         oob_monitor_task = await run_oob_connect(
-                            resolved_port=resolved_port, usb_local=usb_local
+                            resolved_port=resolved_port,
+                            usb_local=usb_local,
+                            host_client=host_client,
                         )
                         log.info("OOB automation completed — CONNECT clicked")
                         oob_progress("setup-oob", "CONNECT dispatched — session active")
@@ -725,6 +792,7 @@ async def run(
                         if hub is not None:
 
                             async def _announce_streaming():
+                                """Print a progress line once the headset confirms streaming has started."""
                                 cid, since = await hub.wait_for_streaming()
                                 ts = time.strftime("%H:%M:%S", time.localtime(since))
                                 oob_progress(
@@ -744,7 +812,9 @@ async def run(
                         )
                         try:
                             fallback_url = build_teleop_url(
-                                resolved_port=resolved_port, usb_local=usb_local
+                                resolved_port=resolved_port,
+                                usb_local=usb_local,
+                                host_client=host_client,
                             )
                         except Exception:
                             fallback_url = ""
@@ -782,8 +852,9 @@ async def run(
                     if _usb_turn_port_resolved is not None:
                         teardown_adb_reverse_turn(_usb_turn_port_resolved)
                     teardown_adb_reverse_ports()
-                    stop_usb_local_https_server(_usb_https_thread, _usb_https_httpd)
                     log.info("USB-local: cleanup complete")
+                if usb_local:
+                    stop_usb_local_https_server(_usb_https_thread, _usb_https_httpd)
 
             log.info("Shutting down ...")
     except OSError as e:

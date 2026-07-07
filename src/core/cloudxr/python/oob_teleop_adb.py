@@ -11,9 +11,9 @@ Default mode (WiFi streaming):
 USB-local mode (``--usb-local``):
     Teleop signalling and streaming travel over USB via ``adb reverse`` on the
     headset's loopback.  The headset URL uses ``serverIP=127.0.0.1`` and loads
-    the WebXR client from ``https://localhost:8080`` (Python ``http.server``
-    in :mod:`~.oob_teleop_env` serves the prebuilt static client over HTTPS,
-    reusing the WSS proxy's PEM).  coturn runs locally and is reachable from
+    the web client from ``https://localhost:<USB_UI_PORT>`` (Python
+    ``http.server`` in :mod:`~.oob_teleop_env` serves the prebuilt static
+    client over HTTPS, reusing the WSS proxy's PEM).  coturn runs locally and is reachable from
     the headset through adb reverse for WebRTC ICE relay.  Note: WebRTC
     requires a non-loopback interface on the headset, so WiFi must remain
     connected (no traffic traverses it).
@@ -34,7 +34,7 @@ import sys
 import time
 import urllib.request
 from .oob_teleop_env import (
-    DEFAULT_WEB_CLIENT_ORIGIN,
+    default_web_client_origin,
     parse_env_port,
     build_headset_bookmark_url,
     client_ui_fields_from_env,
@@ -449,7 +449,9 @@ def assert_exactly_one_adb_device() -> None:
         )
 
 
-def build_teleop_url(*, resolved_port: int, usb_local: bool = False) -> str:
+def build_teleop_url(
+    *, resolved_port: int, usb_local: bool = False, host_client: bool = False
+) -> str:
     """Build the headset teleop bookmark URL for ``am start`` and CDP automation."""
     env_port = os.environ.get("TELEOP_STREAM_PORT", "").strip()
     signaling_port = (
@@ -486,7 +488,14 @@ def build_teleop_url(*, resolved_port: int, usb_local: bool = False) -> str:
             **client_ui_fields_from_env(),
         }
         ovr = web_client_base_override_from_env()
-        web_base = ovr if ovr else DEFAULT_WEB_CLIENT_ORIGIN
+        if host_client:
+            from .oob_teleop_env import guess_lan_ipv4, wss_proxy_port  # noqa: PLC0415
+
+            _lan = guess_lan_ipv4() or "localhost"
+            default_base = f"https://{_lan}:{wss_proxy_port()}/client"
+        else:
+            default_base = default_web_client_origin()
+        web_base = ovr if ovr else default_base
 
     token = os.environ.get("CONTROL_TOKEN") or None
     return build_headset_bookmark_url(
@@ -577,7 +586,7 @@ def headset_browser_package() -> str | None:
 
 
 def run_adb_headset_bookmark(
-    *, resolved_port: int, usb_local: bool = False
+    *, resolved_port: int, usb_local: bool = False, host_client: bool = False
 ) -> tuple[int, str]:
     """Launch the browser on the headset via ``am start`` (used when browser is not yet running).
 
@@ -593,7 +602,9 @@ def run_adb_headset_bookmark(
     except OobAdbError as exc:
         return 99, str(exc)
 
-    url = build_teleop_url(resolved_port=resolved_port, usb_local=usb_local)
+    url = build_teleop_url(
+        resolved_port=resolved_port, usb_local=usb_local, host_client=host_client
+    )
     package = headset_browser_package()
     if package:
         log.info("ADB automation: launching into %s (bypass WebLayer)", package)
@@ -1199,7 +1210,7 @@ def clear_headset_browser_cache(*, usb_local: bool) -> int:
     Returns 0 if the browser isn't running. Never raises.
     """
     from .oob_teleop_env import (  # noqa: PLC0415
-        DEFAULT_WEB_CLIENT_ORIGIN,
+        default_web_client_origin,
         usb_ui_port,
         web_client_base_override_from_env,
     )
@@ -1240,9 +1251,9 @@ def clear_headset_browser_cache(*, usb_local: bool) -> int:
             origins.append(f"https://127.0.0.1:{ui_port}")
         else:
             origin_base = (
-                web_client_base_override_from_env() or DEFAULT_WEB_CLIENT_ORIGIN
+                web_client_base_override_from_env() or default_web_client_origin()
             )
-            # DEFAULT_WEB_CLIENT_ORIGIN has trailing slash + path; reduce to origin.
+            # The client base has a trailing slash + path; reduce to origin.
             from urllib.parse import urlparse  # noqa: PLC0415
 
             parsed = urlparse(origin_base)
@@ -1521,7 +1532,11 @@ async def _cdp_session_click_connect(ws_url: str) -> None:
 
 
 async def run_oob_connect(
-    *, resolved_port: int, timeout: float = 60.0, usb_local: bool = False
+    *,
+    resolved_port: int,
+    timeout: float = 60.0,
+    usb_local: bool = False,
+    host_client: bool = False,
 ) -> asyncio.Task | None:
     """Open the teleop page on the headset via ``am start`` and click CONNECT via CDP.
 
@@ -1540,7 +1555,10 @@ async def run_oob_connect(
         resolved_port: WSS proxy port used for signalling.
         timeout: Maximum seconds to wait for the browser/tab to appear.
         usb_local: When ``True``, the headset URL uses ``serverIP=127.0.0.1``
-            and the local webxr_client dev-server at ``https://localhost:8080``.
+            and the local HTTPS static server on the USB loopback port.
+        host_client: When ``True`` (and not usb_local), the headset URL uses
+            ``https://<lan>:<wss_port>/client/`` instead of the versioned
+            GitHub Pages origin.
 
     Returns:
         A running :class:`asyncio.Task` that monitors the headset's error
@@ -1570,7 +1588,10 @@ async def run_oob_connect(
 
     # --- Step 1: launch browser with the teleop URL --------------------------
     rc, diag = await asyncio.to_thread(
-        run_adb_headset_bookmark, resolved_port=resolved_port, usb_local=usb_local
+        run_adb_headset_bookmark,
+        resolved_port=resolved_port,
+        usb_local=usb_local,
+        host_client=host_client,
     )
     if rc != 0:
         hint = adb_automation_failure_hint(diag)
@@ -1706,6 +1727,7 @@ async def run_oob_connect(
                         run_adb_headset_bookmark,
                         resolved_port=resolved_port,
                         usb_local=usb_local,
+                        host_client=host_client,
                     )
                     if rc != 0:
                         log.warning("CDP: am start re-fire rc=%d: %s", rc, diag)

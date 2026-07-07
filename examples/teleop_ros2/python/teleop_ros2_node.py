@@ -67,15 +67,17 @@ from messages import (
     build_full_body_payload,
     build_hand_msg_from_hands,
     build_head_msg,
-    controller_aim_is_valid,
-    hand_wrist_is_valid,
-    head_is_valid,
 )
 from node_parameters import (
     NodeParameters,
     create_node_parameters,
 )
 from session_config import build_session_config
+from tensor_group_helpers import (
+    controller_aim_is_valid,
+    hand_wrist_is_valid,
+    head_is_valid,
+)
 
 
 class TeleopRos2Node(Node):
@@ -325,12 +327,20 @@ class TeleopRos2Node(Node):
 
     def _run_session_loop(self, launcher: CloudXRLauncher | None = None) -> int:
         while rclpy.ok():
+            # Confirm the runtime/WSS proxy is alive before every session
+            # attempt. This also guards the no-client retry path below: each
+            # retry is a new iteration here, which never reaches the inner
+            # per-step check, so a dead runtime surfaces as an error instead of
+            # an infinite retry.
+            if launcher is not None:
+                launcher.health_check()
             try:
                 with TeleopSession(self._config) as session:
                     self.get_logger().info("TeleopSession started successfully")
                     while rclpy.ok():
-                        # Surface a dead CloudXR runtime/WSS proxy as an error
-                        # instead of silently stepping a session with no source.
+                        # Detect a mid-session runtime death promptly while a
+                        # client is actively streaming (the outer-loop check
+                        # only runs between session attempts).
                         if launcher is not None:
                             launcher.health_check()
 
@@ -375,9 +385,12 @@ class TeleopRos2Node(Node):
             return self._run_session_loop()
 
         with CloudXRLauncher(
-            install_dir=self._params.cloudxr_install_dir,
-            env_config=self._params.cloudxr_env_config,
-            accept_eula=self._params.cloudxr_accept_eula,
+            install_dir=self._params.cloudxr_params.install_dir,
+            env_config=self._params.cloudxr_params.env_config,
+            accept_eula=self._params.cloudxr_params.accept_eula,
+            setup_oob=self._params.cloudxr_params.setup_oob,
+            usb_local=self._params.cloudxr_params.usb_local,
+            host_client=True,
         ) as launcher:
             self.get_logger().info(
                 "CloudXR runtime and WSS proxy started "

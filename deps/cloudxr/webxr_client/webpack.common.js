@@ -21,6 +21,7 @@ const { execSync } = require('child_process');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const webpack = require('webpack');
+const { eagerExceptEmulatorParserRules } = require('./webpack.chunkNames.js');
 
 function git(cmd) {
   try {
@@ -59,7 +60,9 @@ if (useLocalWebxrAssets) {
 }
 
 module.exports = {
-  entry: './src/index.tsx',
+  entry: {
+    main: ['./src/index.tsx'],
+  },
 
   // Enable webpack 5 persistent filesystem caching for faster incremental builds
   cache: {
@@ -72,6 +75,7 @@ module.exports = {
   // Module rules define how different file types are processed
   module: {
     rules: [
+      ...eagerExceptEmulatorParserRules,
       {
         test: /\.tsx?$/,
         use: {
@@ -86,6 +90,10 @@ module.exports = {
       {
         test: /\.css$/,
         use: ['style-loader', 'css-loader'],
+      },
+      {
+        test: /\.svg$/,
+        type: 'asset/inline',
       },
     ],
   },
@@ -123,7 +131,7 @@ module.exports = {
       'process.env.CLIENT_BUILD_TIME': JSON.stringify(CLIENT_BUILD_TIME),
     }),
 
-    // Copies WebXR input profile assets when available; always copies public and favicon
+    // Copies WebXR input profile assets when available; always copies favicon
     new CopyWebpackPlugin({
       patterns: [
         ...(webxrAssetsPackagePath
@@ -152,13 +160,6 @@ module.exports = {
               })),
             ]
           : []),
-        {
-          from: 'public',
-          to: '.',
-          globOptions: {
-            ignore: ['**/index.html', ...(useLocalWebxrAssets ? [] : ['**/npm/**'])],
-          },
-        },
         { from: './favicon.ico', to: 'favicon.ico' },
       ],
     }),

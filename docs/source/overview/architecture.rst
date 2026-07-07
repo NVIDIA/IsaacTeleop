@@ -36,3 +36,17 @@ Data Interface
 - Standardized `data schema <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/core/schema/fbs>`_ defined in the FlatBuffers (fbs) format.
 - Data recording & playback with `mcap <https://mcap.dev/>`_
 - Dataset interoperability with `LeRobot <https://github.com/huggingface/lerobot>`_
+
+Visualization (Televiz)
+-----------------------
+
+Televiz (``isaacteleop.viz``) is a lightweight compositor module for visualizing what the operator
+sees — camera and sensor feeds, plus 3D rendered content — in an XR headset or a desktop window.
+
+- Composites multiple sources into one view: 2D camera/sensor planes (``QuadLayer``) and full-view stereo RGBD (``ProjectionLayer``) for 3D rendered content
+- Per-eye stereo rendering and 3D placement in XR; the same API drives windowed and offscreen output
+- Zero-copy submission of GPU frames straight from CuPy, PyTorch, or any CUDA memory object
+- Shares one OpenXR session with the teleop device trackers, so rendering and tracking can run over a single CloudXR connection
+
+See :doc:`../getting_started/televiz` for the module API and :doc:`../references/camera_streaming` for
+the reference camera-streaming sample.
