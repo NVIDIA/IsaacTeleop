@@ -69,6 +69,26 @@ def _assert_pose_array(msg: PoseArray, *, expected_count: int) -> None:
         raise ValueError("pose array positions are all zero")
 
 
+def _assert_pose_stamped(
+    msg: PoseStamped, *, require_nonzero_position: bool = False
+) -> None:
+    if msg.header.frame_id != "world":
+        raise ValueError(f"unexpected frame_id {msg.header.frame_id!r}")
+    position = (msg.pose.position.x, msg.pose.position.y, msg.pose.position.z)
+    orientation = (
+        msg.pose.orientation.x,
+        msg.pose.orientation.y,
+        msg.pose.orientation.z,
+        msg.pose.orientation.w,
+    )
+    if not _is_finite_sequence(position):
+        raise ValueError("PoseStamped position contains non-finite values")
+    if not _is_finite_sequence(orientation):
+        raise ValueError("PoseStamped orientation contains non-finite values")
+    if require_nonzero_position and not any(abs(value) > 1e-6 for value in position):
+        raise ValueError("PoseStamped position is all zero")
+
+
 def _assert_joint_state(msg: JointState) -> None:
     if msg.header.frame_id != "world":
         raise ValueError(f"unexpected frame_id {msg.header.frame_id!r}")
@@ -93,22 +113,6 @@ def _assert_twist(msg: TwistStamped) -> None:
     )
     if not _is_finite_sequence(values):
         raise ValueError("TwistStamped contains non-finite values")
-
-
-def _assert_root_pose(msg: PoseStamped) -> None:
-    if msg.header.frame_id != "world":
-        raise ValueError(f"unexpected frame_id {msg.header.frame_id!r}")
-    position = (msg.pose.position.x, msg.pose.position.y, msg.pose.position.z)
-    orientation = (
-        msg.pose.orientation.x,
-        msg.pose.orientation.y,
-        msg.pose.orientation.z,
-        msg.pose.orientation.w,
-    )
-    if not _is_finite_sequence(position):
-        raise ValueError("PoseStamped position contains non-finite values")
-    if not _is_finite_sequence(orientation):
-        raise ValueError("PoseStamped orientation contains non-finite values")
 
 
 def _assert_controller_payload(msg: ByteMultiArray) -> None:
@@ -225,14 +229,24 @@ class TopicVerifier(Node):
         if mode == "controller_teleop":
             return [
                 (
-                    "ee_poses",
-                    "xr_teleop/ee_poses",
-                    PoseArray,
-                    lambda msg: _assert_pose_array(msg, expected_count=2),
+                    "ee_pose_left",
+                    "xr_teleop/ee_pose_left",
+                    PoseStamped,
+                    lambda msg: _assert_pose_stamped(
+                        msg, require_nonzero_position=True
+                    ),
+                ),
+                (
+                    "ee_pose_right",
+                    "xr_teleop/ee_pose_right",
+                    PoseStamped,
+                    lambda msg: _assert_pose_stamped(
+                        msg, require_nonzero_position=True
+                    ),
                 ),
                 ("root_twist", "xr_teleop/root_twist", TwistStamped, _assert_twist),
-                ("root_pose", "xr_teleop/root_pose", PoseStamped, _assert_root_pose),
-                ("head_pose", "xr_teleop/head_pose", PoseStamped, _assert_root_pose),
+                ("root_pose", "xr_teleop/root_pose", PoseStamped, _assert_pose_stamped),
+                ("head_pose", "xr_teleop/head_pose", PoseStamped, _assert_pose_stamped),
                 (
                     "finger_joints",
                     "xr_teleop/finger_joints",
@@ -255,14 +269,24 @@ class TopicVerifier(Node):
                     lambda msg: _assert_pose_array(msg, expected_count=50),
                 ),
                 (
-                    "ee_poses",
-                    "xr_teleop/ee_poses",
-                    PoseArray,
-                    lambda msg: _assert_pose_array(msg, expected_count=2),
+                    "ee_pose_left",
+                    "xr_teleop/ee_pose_left",
+                    PoseStamped,
+                    lambda msg: _assert_pose_stamped(
+                        msg, require_nonzero_position=True
+                    ),
+                ),
+                (
+                    "ee_pose_right",
+                    "xr_teleop/ee_pose_right",
+                    PoseStamped,
+                    lambda msg: _assert_pose_stamped(
+                        msg, require_nonzero_position=True
+                    ),
                 ),
                 ("root_twist", "xr_teleop/root_twist", TwistStamped, _assert_twist),
-                ("root_pose", "xr_teleop/root_pose", PoseStamped, _assert_root_pose),
-                ("head_pose", "xr_teleop/head_pose", PoseStamped, _assert_root_pose),
+                ("root_pose", "xr_teleop/root_pose", PoseStamped, _assert_pose_stamped),
+                ("head_pose", "xr_teleop/head_pose", PoseStamped, _assert_pose_stamped),
                 (
                     "finger_joints",
                     "xr_teleop/finger_joints",
