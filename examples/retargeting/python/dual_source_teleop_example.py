@@ -26,6 +26,7 @@ Pipeline structure:
                                                       └──> OutputCombiner
 """
 
+import argparse
 import sys
 import time
 
@@ -45,7 +46,11 @@ from isaacteleop.teleop_session_manager import (
 
 
 def main() -> int:
-    with CloudXRLauncher():
+    parser = argparse.ArgumentParser(description=__doc__)
+    CloudXRLauncher.add_launcher_arguments(parser)
+    args = parser.parse_args()
+
+    with CloudXRLauncher.launch_context(args):
         print("=" * 80)
         print("  Dual ControllersSource Teleop Example")
         print("=" * 80)

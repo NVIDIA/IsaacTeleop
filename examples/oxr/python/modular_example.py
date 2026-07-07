@@ -11,6 +11,7 @@ Demonstrates the modular architecture where you can:
 - Easily extend with new tracker types
 """
 
+import argparse
 import sys
 import time
 import isaacteleop.deviceio as deviceio
@@ -20,7 +21,11 @@ from isaacteleop.cloudxr import CloudXRLauncher
 
 
 def main():
-    with CloudXRLauncher():
+    parser = argparse.ArgumentParser(description=__doc__)
+    CloudXRLauncher.add_launcher_arguments(parser)
+    args = parser.parse_args()
+
+    with CloudXRLauncher.launch_context(args):
         print("=" * 60)
         print("OpenXR Modular Tracking Example")
         print("=" * 60)

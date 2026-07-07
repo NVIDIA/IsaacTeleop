@@ -20,6 +20,7 @@ This example shows:
 - Printing tracking data in real-time
 """
 
+import argparse
 import sys
 import time
 import isaacteleop.deviceio as deviceio
@@ -39,6 +40,10 @@ from isaacteleop.retargeting_engine.tensor_types import (
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    CloudXRLauncher.add_launcher_arguments(parser)
+    args = parser.parse_args()
+
     print("=" * 70)
     print("Retargeting Engine DeviceIO Sources Example")
     print("=" * 70)
@@ -73,7 +78,7 @@ def main():
     # Step 3: Create OpenXR session
     # ========================================================================
     print("\n[Step 4] Creating OpenXR session...")
-    with CloudXRLauncher():
+    with CloudXRLauncher.launch_context(args):
         with oxr.OpenXRSession(
             "RetargetingSourcesExample", required_extensions
         ) as oxr_session:

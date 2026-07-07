@@ -11,6 +11,7 @@ Demonstrates the modular architecture with MCAP data capture:
 - Pass mcap_filename and mcap_channels to DeviceIOSession.run() to enable recording
 """
 
+import argparse
 import sys
 import time
 from datetime import datetime
@@ -23,6 +24,10 @@ RECORD_DURATION_S = 10.0
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    CloudXRLauncher.add_launcher_arguments(parser)
+    args = parser.parse_args()
+
     print("=" * 60)
     print("OpenXR Modular Tracking Example with MCAP Recording")
     print("=" * 60)
@@ -32,7 +37,7 @@ def main():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     mcap_filename = f"tracking_recording_{timestamp}.mcap"
 
-    with CloudXRLauncher():
+    with CloudXRLauncher.launch_context(args):
         # Create trackers independently
         print("Creating trackers...")
         hand_tracker = deviceio.HandTracker()

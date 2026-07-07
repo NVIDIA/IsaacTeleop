@@ -8,6 +8,7 @@ Demonstrates using Se3AbsRetargeter and Se3RelRetargeter to generate end-effecto
 poses from hand tracking data.
 """
 
+import argparse
 import sys
 import time
 import numpy as np
@@ -142,7 +143,11 @@ def run_rel_example(use_controller=False):
 
 
 def main():
-    with CloudXRLauncher():
+    parser = argparse.ArgumentParser(description=__doc__)
+    CloudXRLauncher.add_launcher_arguments(parser)
+    args = parser.parse_args()
+
+    with CloudXRLauncher.launch_context(args):
         print("=" * 80)
         print("  SE3 Retargeting Examples")
         print("=" * 80)

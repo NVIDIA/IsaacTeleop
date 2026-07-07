@@ -8,6 +8,7 @@ Demonstrates using the Pinch-based GripperRetargeter (ported from IsaacLab).
 Uses hand tracking (thumb-index distance) to control gripper state.
 """
 
+import argparse
 import sys
 import time
 import isaacteleop.deviceio as deviceio
@@ -25,6 +26,10 @@ from isaacteleop.teleop_session_manager import (
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    CloudXRLauncher.add_launcher_arguments(parser)
+    args = parser.parse_args()
+
     print("\n" + "=" * 80)
     print("  Pinch Gripper Retargeting (Right Hand)")
     print("=" * 80)
@@ -73,7 +78,7 @@ def main():
         pipeline=pipeline,
     )
 
-    with CloudXRLauncher():
+    with CloudXRLauncher.launch_context(args):
         with TeleopSession(session_config) as session:
             # No session injection needed
 

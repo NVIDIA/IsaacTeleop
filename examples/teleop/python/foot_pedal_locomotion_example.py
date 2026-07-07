@@ -10,6 +10,7 @@ be pushed to OpenXR (e.g. run foot_pedal_reader or pedal_pusher with the same
 collection_id as Generic3AxisPedalTracker).
 """
 
+import argparse
 import sys
 import time
 from pathlib import Path
@@ -33,6 +34,10 @@ PLUGIN_ROOT_ID = "synthetic_hands"
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    CloudXRLauncher.add_launcher_arguments(parser)
+    args = parser.parse_args()
+
     print("\n" + "=" * 80)
     print("  Foot Pedal Locomotion Example")
     print("=" * 80)
@@ -90,7 +95,7 @@ def main():
         plugins=plugins,
     )
 
-    with CloudXRLauncher():
+    with CloudXRLauncher.launch_context(args):
         with TeleopSession(session_config) as session:
             start_time = time.time()
 

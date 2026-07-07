@@ -9,6 +9,7 @@ Demonstrates the modular architecture where you can:
 - Record tracking data to a LeRobot dataset with proper visualization support
 """
 
+import argparse
 import sys
 import time
 import numpy as np
@@ -21,6 +22,10 @@ from lerobot.datasets.lerobot_dataset import LeRobotDataset
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    CloudXRLauncher.add_launcher_arguments(parser)
+    args = parser.parse_args()
+
     print("===========================================")
     print("OpenXR Tracking + LeRobot Dataset Recording")
     print("===========================================")
@@ -87,7 +92,7 @@ def main():
 
     # Create OpenXR session
     print("\nCreating OpenXR session...")
-    with CloudXRLauncher():
+    with CloudXRLauncher.launch_context(args):
         with oxr.OpenXRSession("ModularExample", required_extensions) as oxr_session:
             handles = oxr_session.get_handles()
             print("OpenXR session created")

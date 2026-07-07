@@ -15,6 +15,7 @@ Non-control demo plumbing (printing/observation retargeter) lives in
 ``teleop_controls_simple_helper.py``.
 """
 
+import argparse
 import sys
 import time
 from typing import Dict
@@ -70,7 +71,11 @@ def _build_control_signals(
 
 
 def main() -> int:
-    with CloudXRLauncher():
+    parser = argparse.ArgumentParser(description=__doc__)
+    CloudXRLauncher.add_launcher_arguments(parser)
+    args = parser.parse_args()
+
+    with CloudXRLauncher.launch_context(args):
         head = HeadSource(name="head")
         hands = HandsSource(name="hands")
         controllers = ControllersSource(name="controllers")

@@ -35,6 +35,7 @@ Key points for integrators:
 
 from __future__ import annotations
 
+import argparse
 import time
 
 import numpy as np
@@ -118,6 +119,10 @@ def _amplitude(result: dict, key: str) -> float:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    CloudXRLauncher.add_launcher_arguments(parser)
+    args = parser.parse_args()
+
     # 1. Input source (owns the ControllerTracker).
     controllers = ControllersSource("controllers")
 
@@ -160,7 +165,7 @@ def main() -> None:
     print("Press Ctrl+C to exit.\n")
 
     frame_period_s = 1.0 / FPS
-    with CloudXRLauncher():
+    with CloudXRLauncher.launch_context(args):
         with TeleopSession(config) as session:
             while True:
                 result = session.step()
