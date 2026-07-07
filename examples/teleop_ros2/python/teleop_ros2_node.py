@@ -14,16 +14,15 @@ published:
                        aim pose), root_twist, root_pose, finger_joints
                        (retargeted TriHand angles), controller_data, head_pose,
                        and TF transforms for left/right wrists and head
-  - hand_teleop: ee_pose_left/ee_pose_right (from hand tracking wrist), hand
-                 (raw finger joint pose array), hand_left/hand_right (named
-                 per-hand joint poses), finger_joints (retargeted Sharpa joint
-                 angles), root_twist/root_pose (from foot pedal locomotion),
-                 head_pose, and TF transforms for left/right wrists and head
+  - hand_teleop: ee_pose_left/ee_pose_right (from hand tracking wrist),
+                 hand_left/hand_right (named per-hand joint poses),
+                 finger_joints (retargeted Sharpa joint angles),
+                 root_twist/root_pose (from foot pedal locomotion), head_pose,
+                 and TF transforms for left/right wrists and head
   - controller_raw: controller_data only
   - full_body: full_body and controller_data
 
 Topic names (remappable via ROS 2 remapping):
-  - xr_teleop/hand (PoseArray): [finger_joint_poses...]
   - xr_teleop/hand_left (HandJointPoses): named left hand joint poses
   - xr_teleop/hand_right (HandJointPoses): named right hand joint poses
   - xr_teleop/ee_pose_left (PoseStamped): left hand/controller EE pose
@@ -50,7 +49,6 @@ import numpy as np
 import rclpy
 from geometry_msgs.msg import (
     Pose,
-    PoseArray,
     PoseStamped,
     TransformStamped,
     TwistStamped,
@@ -71,7 +69,6 @@ from messages import (
     build_finger_joints_msg,
     build_full_body_payload,
     build_hand_msg_from_hand,
-    build_hand_pose_array,
     build_head_msg,
 )
 from node_parameters import (
@@ -137,7 +134,6 @@ class TeleopRos2Node(Node):
         return tfs
 
     def _create_publishers(self) -> None:
-        self._pub_hand = self.create_publisher(PoseArray, "xr_teleop/hand", 10)
         self._pub_hand_left = self.create_publisher(
             HandJointPoses, "xr_teleop/hand_left", 10
         )
@@ -200,15 +196,6 @@ class TeleopRos2Node(Node):
         if wrist_tfs:
             self._tf_broadcaster.sendTransform(wrist_tfs)
         if self._params.controller_uses_hands_source:
-            hand_msg = build_hand_pose_array(
-                result["hand_left"],
-                result["hand_right"],
-                now,
-                self._params.world_frame,
-                self._params.transform_rotation,
-                self._params.transform_translation,
-            )
-            self._pub_hand.publish(hand_msg)
             left_hand_msg = build_hand_msg_from_hand(
                 result["hand_left"],
                 now,
@@ -277,15 +264,6 @@ class TeleopRos2Node(Node):
     def _publish_hand_tracking_outputs(self, result: dict, now) -> None:
         left_hand = result["hand_left"]
         right_hand = result["hand_right"]
-        hand_msg = build_hand_pose_array(
-            left_hand,
-            right_hand,
-            now,
-            self._params.world_frame,
-            self._params.transform_rotation,
-            self._params.transform_translation,
-        )
-        self._pub_hand.publish(hand_msg)
         left_hand_msg = build_hand_msg_from_hand(
             left_hand,
             now,
