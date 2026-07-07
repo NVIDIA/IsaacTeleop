@@ -150,3 +150,31 @@ class TestSe3RelRetargeterPoseValidity:
 
         delta = np.from_dlpack(outputs["ee_delta"][0])
         npt.assert_array_almost_equal(delta, np.zeros(6))
+
+    def test_invalid_grip_clears_smoothing_state(self, retargeter):
+        """Pre-loss motion must not bleed into the output after recovery.
+
+        The smoothed-delta EMA buffers must be cleared when the grip pose
+        goes invalid; otherwise the second valid frame after recovery blends
+        against stale pre-loss motion.
+        """
+        inputs, outputs = _build_io(retargeter)
+
+        # Baseline, then a large motion so the smoothing buffers are nonzero.
+        _fill_controller(inputs[_DEVICE], grip_valid=True)
+        retargeter.compute(inputs, outputs, _make_context())
+        _fill_controller(inputs[_DEVICE], grip_valid=True, position=(0.2, 0.2, 0.2))
+        retargeter.compute(inputs, outputs, _make_context())
+
+        _fill_controller(inputs[_DEVICE], grip_valid=False)
+        retargeter.compute(inputs, outputs, _make_context())
+
+        # Recovery: first valid frame rebaselines, second is stationary and
+        # must emit zero — any residual comes from stale smoothing state.
+        _fill_controller(inputs[_DEVICE], grip_valid=True, position=(0.5, 0.5, 0.5))
+        retargeter.compute(inputs, outputs, _make_context())
+        _fill_controller(inputs[_DEVICE], grip_valid=True, position=(0.5, 0.5, 0.5))
+        retargeter.compute(inputs, outputs, _make_context())
+
+        delta = np.from_dlpack(outputs["ee_delta"][0])
+        npt.assert_array_almost_equal(delta, np.zeros(6))

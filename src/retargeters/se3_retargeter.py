@@ -393,10 +393,14 @@ class Se3RelRetargeter(BaseRetargeter):
         else:
             # A connected controller can report an invalid grip pose (e.g. at
             # rest with pose tracking lost) whose zero-norm orientation
-            # Rotation.from_quat rejects. Emit a zero delta and re-arm the
-            # first-frame baseline so the next valid frame does not jump.
+            # Rotation.from_quat rejects. Emit a zero delta and, as in the
+            # reset handler above, re-arm the first-frame baseline and clear
+            # the smoothing state so the next valid frame neither jumps nor
+            # blends with pre-loss motion.
             if not bool(inp[ControllerInputIndex.GRIP_IS_VALID]):
                 self._first_frame = True
+                self._smoothed_delta_pos = np.zeros(3)
+                self._smoothed_delta_rot = np.zeros(3)
                 ee_delta[0] = np.zeros(6, dtype=np.float32)
                 return
             grip_pos = np.from_dlpack(inp[ControllerInputIndex.GRIP_POSITION])
