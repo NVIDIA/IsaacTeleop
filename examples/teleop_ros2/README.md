@@ -60,9 +60,10 @@ Robot assets are never downloaded by `teleop_ros2_node.py` at runtime.
 
 - `xr_teleop/hand` (`geometry_msgs/PoseArray`)
   - `poses`: Hand joint poses (all joints except palm, left then right); published by `hand_teleop` and by `controller_teleop` when `hand_retargeter:=dexpilot` or `hand_retargeter:=pink_ik`
-- `xr_teleop/ee_poses` (`geometry_msgs/PoseArray`)
-  - `poses[0]`: Left hand/controller EE pose (if active)
-  - `poses[1]`: Right hand/controller EE pose (if active)
+- `xr_teleop/ee_pose_left` (`geometry_msgs/PoseStamped`)
+  - Left hand/controller EE pose; published when the left EE source is active
+- `xr_teleop/ee_pose_right` (`geometry_msgs/PoseStamped`)
+  - Right hand/controller EE pose; published when the right EE source is active
 - `xr_teleop/root_twist` (`geometry_msgs/TwistStamped`)
 - `xr_teleop/root_pose` (`geometry_msgs/PoseStamped`)
 - `xr_teleop/head_pose` (`geometry_msgs/PoseStamped`)
@@ -119,14 +120,16 @@ docker run --rm --gpus all --net=host --ipc=host \
   --name teleop_ros2_ref \
   teleop_ros2_ref --ros-args -p cloudxr_accept_eula:=true \
   -p world_frame:=odom -p rate_hz:=30.0 \
-  -r xr_teleop/hand:=my_robot/hand -r xr_teleop/ee_poses:=my_robot/ee_poses
+  -r xr_teleop/hand:=my_robot/hand \
+  -r xr_teleop/ee_pose_left:=my_robot/ee_pose_left \
+  -r xr_teleop/ee_pose_right:=my_robot/ee_pose_right
 ```
 
 Available parameters: `rate_hz`, `mode`, `hand_retargeter`, `config_asset_root`, `cloudxr_install_dir`, `cloudxr_env_config`, `cloudxr_accept_eula`, `cloudxr_setup_oob`, `cloudxr_usb_local`, `pedal_collection_id`, `world_frame`, `right_wrist_frame`, `left_wrist_frame`, `head_frame`, `left_finger_joint_names`, `right_finger_joint_names`. Use `ros2 param list /teleop_ros2_node` and `ros2 param describe /teleop_ros2_node <param>` (with the node running) for the full set.
 
 By default, `left_finger_joint_names` and `right_finger_joint_names` use the selected mode's retargeter joint names. They can be overridden to publish robot-specific names on `xr_teleop/finger_joints`, but each override must provide the same number of names as the joints emitted by that mode's retargeter.
 
-Available topics for remapping: `xr_teleop/hand`, `xr_teleop/ee_poses`, `xr_teleop/root_twist`, `xr_teleop/root_pose`, `xr_teleop/head_pose`, `xr_teleop/controller_data`, `xr_teleop/full_body`, `xr_teleop/finger_joints`. Active remaps can be inspected with `ros2 node info /teleop_ros2_node`.
+Available topics for remapping: `xr_teleop/hand`, `xr_teleop/ee_pose_left`, `xr_teleop/ee_pose_right`, `xr_teleop/root_twist`, `xr_teleop/root_pose`, `xr_teleop/head_pose`, `xr_teleop/controller_data`, `xr_teleop/full_body`, `xr_teleop/finger_joints`. Active remaps can be inspected with `ros2 node info /teleop_ros2_node`.
 
 ### Mode
 
@@ -134,8 +137,8 @@ The `mode` parameter selects the teleoperation scenario and which topics are pub
 
 | Mode | Topics published |
 |------|------------------|
-| `controller_teleop` (default) | `ee_poses` (from controller aim pose), `root_twist`, `root_pose`, `head_pose`, `finger_joints` (TriHand by default; Sharpa from Manus/OpenXR hands when `hand_retargeter:=dexpilot` or `hand_retargeter:=pink_ik`), `controller_data`, `tf` (from controller aim pose and head pose), and `hand` only for the explicit Sharpa retargeter path |
-| `hand_teleop` | `ee_poses` (from hand tracking wrist), `hand` (finger joints in pose space), `finger_joints` (finger joints in joint space), `root_twist`, `root_pose`, `head_pose`, `tf` (from hand tracking wrist and head pose); locomotion comes from the configured foot pedal collection |
+| `controller_teleop` (default) | `ee_pose_left`, `ee_pose_right` (from controller aim pose), `root_twist`, `root_pose`, `head_pose`, `finger_joints` (TriHand by default; Sharpa from Manus/OpenXR hands when `hand_retargeter:=dexpilot` or `hand_retargeter:=pink_ik`), `controller_data`, `tf` (from controller aim pose and head pose), and `hand` only for the explicit Sharpa retargeter path |
+| `hand_teleop` | `ee_pose_left`, `ee_pose_right` (from hand tracking wrist), `hand` (finger joints in pose space), `finger_joints` (finger joints in joint space), `root_twist`, `root_pose`, `head_pose`, `tf` (from hand tracking wrist and head pose); locomotion comes from the configured foot pedal collection |
 | `controller_raw` | `controller_data` only |
 | `full_body` | `full_body` and `controller_data` |
 
@@ -191,7 +194,8 @@ coverage.
 docker exec -it teleop_ros2_ref /bin/bash
 
 ros2 topic echo /xr_teleop/hand geometry_msgs/msg/PoseArray
-ros2 topic echo /xr_teleop/ee_poses geometry_msgs/msg/PoseArray
+ros2 topic echo /xr_teleop/ee_pose_left geometry_msgs/msg/PoseStamped
+ros2 topic echo /xr_teleop/ee_pose_right geometry_msgs/msg/PoseStamped
 ros2 topic echo /xr_teleop/root_twist geometry_msgs/msg/TwistStamped
 ros2 topic echo /xr_teleop/root_pose geometry_msgs/msg/PoseStamped
 ros2 topic echo /xr_teleop/head_pose geometry_msgs/msg/PoseStamped
