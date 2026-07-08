@@ -14,9 +14,9 @@ counted handle per eye. Stereo cameras (ZED 2 / ZED X Mini / ZED Mini)
 share one underlying camera open; mono (ZED X One) just gets a single
 ``left`` slot.
 
-Reconnect logic mirrors camera_streamer's ZedCameraOp: classify grab
-errors as fatal (camera removed, init failure) vs transient (one bad
-grab), count consecutive transients, force a reopen past the threshold.
+Reconnect logic: classify grab errors as fatal (camera removed, init
+failure) vs transient (one bad grab), count consecutive transients,
+force a reopen past the threshold.
 """
 
 from __future__ import annotations
@@ -420,8 +420,8 @@ def _zed_mat_as_cupy(zed_mat, sl):
     w = zed_mat.get_width()
     pixel_bytes = zed_mat.get_pixel_bytes()  # 4 for BGRA8
     step = zed_mat.get_step(sl.MEM.GPU)
-    # SDK quirk seen in camera_streamer's port: get_step occasionally
-    # returns the count in pixels instead of bytes. Detect + fix.
+    # SDK quirk: get_step occasionally returns the count in pixels
+    # instead of bytes. Detect + fix.
     if step == w:
         step = w * pixel_bytes
     ptr = zed_mat.get_pointer(sl.MEM.GPU)
