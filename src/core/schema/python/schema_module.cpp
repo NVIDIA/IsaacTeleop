@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 // Python module entry point for Isaac Teleop schema bindings.
@@ -9,6 +9,7 @@
 #include "controller_bindings.h"
 #include "full_body_bindings.h"
 #include "hand_bindings.h"
+#include "haptic_command_bindings.h"
 #include "head_bindings.h"
 #include "joint_state_bindings.h"
 #include "message_channel_bindings.h"
@@ -46,6 +47,9 @@ PYBIND11_MODULE(_schema, m)
 
     // Bind message channel types (MessageChannelMessages table).
     core::bind_message_channel(m);
+
+    // Bind vendor-neutral HapticCommand table + pack_haptic_command() encoder.
+    core::bind_haptic_command(m);
 
     // Bind OAK types (StreamType enum, FrameMetadataOak table).
     core::bind_oak(m);

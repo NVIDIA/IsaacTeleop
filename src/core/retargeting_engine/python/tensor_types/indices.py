@@ -108,6 +108,16 @@ class BodyJointPicoIndex(IntEnum):
     RIGHT_HAND = 23
 
 
+class FingerIndex(IntEnum):
+    """Channel indices into a :func:`FingerPowerVector`, standard glove order."""
+
+    THUMB = 0
+    INDEX = 1
+    MIDDLE = 2
+    RING = 3
+    PINKY = 4
+
+
 class ControllerHapticPulseField(IntEnum):
     """Field indices into a :func:`ControllerHapticPulse` ``[amplitude, frequency_hz, duration_s]`` vector."""
 

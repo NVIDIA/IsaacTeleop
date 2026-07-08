@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #include "inc/live_trackers/live_deviceio_factory.hpp"
@@ -8,18 +8,22 @@
 #include "live_full_body_tracker_pico_impl.hpp"
 #include "live_generic_3axis_pedal_tracker_impl.hpp"
 #include "live_hand_tracker_impl.hpp"
+#include "live_haptic_command_reader_tracker_impl.hpp"
 #include "live_head_tracker_impl.hpp"
 #include "live_joint_state_tracker_impl.hpp"
 #include "live_message_channel_tracker_impl.hpp"
+#include "live_tensor_push_tracker_impl.hpp"
 
 #include <deviceio_trackers/controller_tracker.hpp>
 #include <deviceio_trackers/frame_metadata_tracker_oak.hpp>
 #include <deviceio_trackers/full_body_tracker_pico.hpp>
 #include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
+#include <deviceio_trackers/haptic_command_reader_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
 #include <deviceio_trackers/joint_state_tracker.hpp>
 #include <deviceio_trackers/message_channel_tracker.hpp>
+#include <deviceio_trackers/tensor_push_tracker.hpp>
 #include <oxr_utils/oxr_time.hpp>
 
 #include <cassert>
@@ -81,6 +85,18 @@ std::unique_ptr<ITrackerImpl> try_create_generic_pedal_impl(LiveDeviceIOFactory&
     return typed ? factory.create_generic_3axis_pedal_tracker_impl(typed) : nullptr;
 }
 
+std::unique_ptr<ITrackerImpl> try_create_tensor_push_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const TensorPushTracker*>(&tracker);
+    return typed ? factory.create_tensor_push_tracker_impl(typed) : nullptr;
+}
+
+std::unique_ptr<ITrackerImpl> try_create_haptic_command_reader_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const HapticCommandReaderTracker*>(&tracker);
+    return typed ? factory.create_haptic_command_reader_tracker_impl(typed) : nullptr;
+}
+
 std::unique_ptr<ITrackerImpl> try_create_joint_state_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
 {
     auto* typed = dynamic_cast<const JointStateTracker*>(&tracker);
@@ -110,6 +126,9 @@ inline const TrackerDispatchEntry k_tracker_dispatch[] = {
     { &try_add_extensions<MessageChannelTracker, LiveMessageChannelTrackerImpl>, &try_create_message_channel_impl },
     { &try_add_extensions<FullBodyTrackerPico, LiveFullBodyTrackerPicoImpl>, &try_create_full_body_pico_impl },
     { &try_add_extensions<Generic3AxisPedalTracker, LiveGeneric3AxisPedalTrackerImpl>, &try_create_generic_pedal_impl },
+    { &try_add_extensions<TensorPushTracker, LiveTensorPushTrackerImpl>, &try_create_tensor_push_impl },
+    { &try_add_extensions<HapticCommandReaderTracker, LiveHapticCommandReaderTrackerImpl>,
+      &try_create_haptic_command_reader_impl },
     { &try_add_extensions<JointStateTracker, LiveJointStateTrackerImpl>, &try_create_joint_state_impl },
     { &try_add_extensions<FrameMetadataTrackerOak, LiveFrameMetadataTrackerOakImpl>, &try_create_oak_impl },
 };
@@ -251,6 +270,17 @@ std::unique_ptr<IGeneric3AxisPedalTrackerImpl> LiveDeviceIOFactory::create_gener
         channels = LiveGeneric3AxisPedalTrackerImpl::create_mcap_channels(*writer_, get_name(tracker));
     }
     return std::make_unique<LiveGeneric3AxisPedalTrackerImpl>(handles_, tracker, std::move(channels));
+}
+
+std::unique_ptr<ITensorPushTrackerImpl> LiveDeviceIOFactory::create_tensor_push_tracker_impl(const TensorPushTracker* tracker)
+{
+    return std::make_unique<LiveTensorPushTrackerImpl>(handles_, tracker);
+}
+
+std::unique_ptr<IHapticCommandReaderTrackerImpl> LiveDeviceIOFactory::create_haptic_command_reader_tracker_impl(
+    const HapticCommandReaderTracker* tracker)
+{
+    return std::make_unique<LiveHapticCommandReaderTrackerImpl>(handles_, tracker);
 }
 
 std::unique_ptr<IJointStateTrackerImpl> LiveDeviceIOFactory::create_joint_state_tracker_impl(const JointStateTracker* tracker)

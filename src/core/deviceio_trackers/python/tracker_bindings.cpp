@@ -9,6 +9,7 @@
 #include <deviceio_trackers/head_tracker.hpp>
 #include <deviceio_trackers/joint_state_tracker.hpp>
 #include <deviceio_trackers/message_channel_tracker.hpp>
+#include <deviceio_trackers/tensor_push_tracker.hpp>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 #include <schema/hand_generated.h>
@@ -151,6 +152,25 @@ PYBIND11_MODULE(_deviceio_trackers, m)
             { return self.get_data(session); },
             py::arg("session"), "Get the current foot pedal tracked state (data is None when no data available)");
 
+    py::class_<core::TensorPushTracker, core::ITracker, std::shared_ptr<core::TensorPushTracker>> tensor_push_tracker(
+        m, "TensorPushTracker");
+    tensor_push_tracker.attr("DEFAULT_MAX_PAYLOAD_SIZE") =
+        static_cast<size_t>(core::TensorPushTracker::DEFAULT_MAX_PAYLOAD_SIZE);
+    tensor_push_tracker
+        .def(py::init<std::string, std::string, size_t>(), py::arg("collection_id"), py::arg("tensor_identifier"),
+             py::arg("max_payload_size") = core::TensorPushTracker::DEFAULT_MAX_PAYLOAD_SIZE,
+             "Generic producer ITracker: pushes opaque serialized payloads as tensor samples over "
+             "XR_NVX1_push_tensor. Pairs with a consumer on the same collection_id + tensor_identifier.")
+        .def(
+            "push",
+            [](const core::TensorPushTracker& self, const core::ITrackerSession& session, py::bytes payload)
+            {
+                const std::string bytes = payload;
+                const std::vector<uint8_t> buffer(bytes.begin(), bytes.end());
+                self.push(session, buffer);
+            },
+            py::arg("session"), py::arg("payload"),
+            "Push one serialized payload (bytes, length <= max_payload_size) to the paired consumer.");
     py::class_<core::JointStateTracker, core::ITracker, std::shared_ptr<core::JointStateTracker>>(m, "JointStateTracker")
         .def(py::init<const std::string&, size_t>(), py::arg("collection_id"),
              py::arg("max_flatbuffer_size") = core::JointStateTracker::DEFAULT_MAX_FLATBUFFER_SIZE,

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 pybind11_add_module(schema_py
@@ -6,6 +6,7 @@ pybind11_add_module(schema_py
     controller_bindings.h
     full_body_bindings.h
     hand_bindings.h
+    haptic_command_bindings.h
     head_bindings.h
     joint_state_bindings.h
     message_channel_bindings.h

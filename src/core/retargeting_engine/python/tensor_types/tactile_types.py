@@ -4,11 +4,12 @@
 """TensorGroupType definitions for tactile feedback and haptic output.
 
 Sim-side schemas (``TactileVector``, ``TactileHeatmap``) carry contact data
-into the retargeting pipeline; device-side schemas (``ControllerHapticPulse``,
-``EndEffectorForce``) describe what each ``IHapticDevice`` adapter accepts.
-Retargeters in :mod:`isaacteleop.retargeters.tactile_retargeters` map
-sim-side to device-side; ``HapticSink`` uses ``accepted_type()`` for
-connect-time type checking.
+into the retargeting pipeline; device-side schemas (``FingerPowerVector``,
+``ControllerHapticPulse``, ``EndEffectorForce``) describe what each
+``IHapticDevice`` adapter accepts. Retargeters in
+:mod:`isaacteleop.retargeters.tactile_retargeters` map sim-side to
+device-side; ``HapticSink`` uses ``accepted_type()`` for connect-time type
+checking.
 """
 
 from ..interface.tensor_group_type import TensorGroupType
@@ -16,6 +17,13 @@ from .ndarray_types import NDArrayType, DLDataType
 
 
 # Constants
+NUM_HAPTIC_FINGERS = 5
+"""Channels in a :func:`FingerPowerVector`.
+
+Standard glove convention, in order: Thumb, Index, Middle, Ring, Pinky
+(see :class:`FingerIndex`).
+"""
+
 NUM_CONTROLLER_HAPTIC_FIELDS = 3
 """Fields in a :func:`ControllerHapticPulse`: ``[amplitude, frequency_hz, duration_s]``."""
 
@@ -88,6 +96,37 @@ def TactileHeatmap(rows: int, cols: int, num_pads: int = 1) -> TensorGroupType:
 # ============================================================================
 
 
+def FingerPowerVector(num_fingers: int = NUM_HAPTIC_FINGERS) -> TensorGroupType:
+    """Per-finger vibration intensities [unitless, 0..1].
+
+    Device-side schema for vibration-glove output. Standard glove order:
+    ``[Thumb, Index, Middle, Ring, Pinky]`` (see :class:`FingerIndex`).
+
+    Consumed by a :class:`~isaacteleop.haptic_devices.push_tensor.PushTensorHapticDevice`
+    (see :func:`~isaacteleop.haptic_devices.glove.haptic_glove_device`), which
+    re-encodes the values into a vendor-neutral ``HapticCommand`` and pushes
+    them to the glove plugin process; the plugin applies them via its vendor SDK.
+
+    Args:
+        num_fingers: Number of finger channels. Defaults to 5 (standard
+            five-finger glove).
+
+    Returns:
+        TensorGroupType with one ``(num_fingers,) float32`` tensor.
+    """
+    return TensorGroupType(
+        f"finger_power_vector_{num_fingers}",
+        [
+            NDArrayType(
+                "finger_power",
+                shape=(num_fingers,),
+                dtype=DLDataType.FLOAT,
+                dtype_bits=32,
+            ),
+        ],
+    )
+
+
 def ControllerHapticPulse() -> TensorGroupType:
     """One-frame motion-controller vibration pulse ``[amplitude, frequency_hz, duration_s]``.
 
@@ -121,8 +160,8 @@ def EndEffectorForce() -> TensorGroupType:
     the :class:`HapticSink` rotate sim-frame forces into device frame via the
     optional ``world_T_haptic`` ValueInput leaf and :class:`Vector3FrameTransform`.
 
-    Shipped in v1 (no v1 device consumes it) so the schema set is stable when
-    the Haply force-feedback adapter lands.
+    Shipped even though no current device consumes it, so the schema set is
+    stable when the Haply force-feedback adapter lands.
     """
     return TensorGroupType(
         "end_effector_force",
