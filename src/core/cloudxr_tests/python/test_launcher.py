@@ -105,7 +105,7 @@ def mock_launcher_deps(tmp_path, ready=True):
         ) as m_popen,
         patch.object(
             CloudXRLauncher,
-            "_start_wss_proxy",
+            "_start_wss_proxy_thread",
         ) as m_wss,
         patch.object(
             CloudXRLauncher,
@@ -187,6 +187,22 @@ class TestLauncherConstruction:
             assert launcher.wss_log_path is not None
             assert isinstance(launcher.wss_log_path, Path)
             assert "wss." in str(launcher.wss_log_path)
+
+    def test_construction_skips_wss_when_disabled(self, tmp_path):
+        """start_wss_proxy=False launches runtime only."""
+        with mock_launcher_deps(tmp_path, ready=True) as mocks:
+            launcher = CloudXRLauncher(start_wss_proxy=False)
+
+            mocks["popen"].assert_called_once()
+            mocks["wss"].assert_not_called()
+            assert launcher.wss_log_path is None
+            assert launcher._start_wss_proxy is False
+
+    def test_construction_rejects_wss_options_without_proxy(self, tmp_path):
+        """WSS-only options require start_wss_proxy=True."""
+        with mock_launcher_deps(tmp_path, ready=True):
+            with pytest.raises(ValueError, match="start_wss_proxy=False"):
+                CloudXRLauncher(start_wss_proxy=False, host_client=True)
 
 
 # ============================================================================
@@ -367,6 +383,7 @@ class TestLaunchArgumentHelpers:
                 "/etc/cloudxr.env",
                 "--accept-eula",
                 "--no-launch-cloudxr-runtime",
+                "--no-launch-wss-proxy",
             ]
         )
         assert args.cloudxr_install_dir == "/opt/cloudxr"
@@ -374,6 +391,7 @@ class TestLaunchArgumentHelpers:
         assert args.cloudxr_env_config == "/etc/cloudxr.env"
         assert args.accept_eula is True
         assert args.launch_cloudxr_runtime is False
+        assert args.launch_wss_proxy is False
 
     def test_add_launcher_arguments_defaults(self) -> None:
         parser = argparse.ArgumentParser()
@@ -381,6 +399,7 @@ class TestLaunchArgumentHelpers:
         args = parser.parse_args([])
         assert args.cloudxr_env_config is None
         assert args.accept_eula is False
+        assert args.launch_wss_proxy is True
 
     def test_add_cloudxr_device_profile_argument_default(self) -> None:
         parser = argparse.ArgumentParser()
@@ -405,6 +424,18 @@ class TestLaunchArgumentHelpers:
         CloudXRLauncher.add_launch_cloudxr_runtime_argument(parser)
         args = parser.parse_args(["--no-launch-cloudxr-runtime"])
         assert args.launch_cloudxr_runtime is False
+
+    def test_add_launch_wss_proxy_argument_defaults_true(self) -> None:
+        parser = argparse.ArgumentParser()
+        CloudXRLauncher.add_launch_wss_proxy_argument(parser)
+        args = parser.parse_args([])
+        assert args.launch_wss_proxy is True
+
+    def test_add_launch_wss_proxy_argument_no_launch(self) -> None:
+        parser = argparse.ArgumentParser()
+        CloudXRLauncher.add_launch_wss_proxy_argument(parser)
+        args = parser.parse_args(["--no-launch-wss-proxy"])
+        assert args.launch_wss_proxy is False
 
     def test_launch_context_skips_when_disabled(self) -> None:
         args = argparse.Namespace(launch_cloudxr_runtime=False)
@@ -439,6 +470,23 @@ class TestLaunchArgumentHelpers:
             ) as launcher:
                 assert launcher is not None
                 assert launcher._device_profile == "auto-native"
+            mocks["proc"].poll.return_value = 0
+
+    @_windows_skip
+    def test_launch_context_passes_start_wss_proxy_kwarg(self, tmp_path) -> None:
+        args = argparse.Namespace(
+            launch_cloudxr_runtime=True,
+            cloudxr_install_dir="/opt/cloudxr",
+            cloudxr_device_profile="Quest3",
+            launch_wss_proxy=True,
+        )
+        with mock_launcher_deps(tmp_path) as mocks:
+            with CloudXRLauncher.launch_context(
+                args, start_wss_proxy=False
+            ) as launcher:
+                assert launcher is not None
+                assert launcher._start_wss_proxy is False
+                mocks["wss"].assert_not_called()
             mocks["proc"].poll.return_value = 0
 
     def test_stop_on_windows_raises_unsupported(self, tmp_path) -> None:

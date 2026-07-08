@@ -81,12 +81,13 @@ class CloudXRLauncher:
         setup_oob: bool = False,
         usb_local: bool = False,
         host_client: bool = False,
+        start_wss_proxy: bool = True,
     ) -> None:
-        """Launch the CloudXR runtime and WSS proxy.
+        """Launch the CloudXR runtime and optionally the WSS proxy.
 
         Configures the environment, spawns the runtime subprocess, and
-        starts the WSS TLS proxy.  Blocks until the runtime signals
-        readiness (up to
+        optionally starts the WSS TLS proxy.  Blocks until the runtime
+        signals readiness (up to
         :data:`~isaacteleop.cloudxr.runtime.RUNTIME_STARTUP_TIMEOUT_SEC`)
         or raises :class:`RuntimeError` on failure.
 
@@ -111,10 +112,16 @@ class CloudXRLauncher:
             host_client: Serve the web client at ``/client/`` on the WSS
                 proxy port.  Assets are fetched once from GitHub Pages into
                 ``TELEOP_WEB_CLIENT_STATIC_DIR`` or ``~/.cloudxr/static-client``.
+            start_wss_proxy: Start the in-process WSS TLS proxy after the
+                runtime is ready (default: ``True``).  Pass ``False`` when
+                an external proxy is already running or only the runtime
+                subprocess is needed.
 
         Raises:
             RuntimeError: If the EULA is not accepted or the runtime
                 fails to start within the timeout.
+            ValueError: If *start_wss_proxy* is ``False`` while any WSS-only
+                option (*setup_oob*, *usb_local*, or *host_client*) is set.
         """
         self._install_dir = install_dir
         self._env_config = str(env_config) if env_config is not None else None
@@ -123,6 +130,15 @@ class CloudXRLauncher:
         self._setup_oob = setup_oob
         self._usb_local = usb_local
         self._host_client = host_client
+        self._start_wss_proxy = start_wss_proxy
+
+        if not self._start_wss_proxy and (
+            self._setup_oob or self._usb_local or self._host_client
+        ):
+            raise ValueError(
+                "start_wss_proxy=False is incompatible with setup_oob, "
+                "usb_local, and host_client (those features require the WSS proxy)"
+            )
 
         if self._usb_local or self._host_client:
             from .oob_teleop_env import require_web_client_static_dir  # noqa: PLC0415
@@ -189,11 +205,14 @@ class CloudXRLauncher:
             atexit.register(self.stop)
             self._atexit_registered = True
 
-        wss_ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M%SZ")
-        wss_log_path = logs_dir_path / f"wss.{wss_ts}.log"
-        self._wss_log_path = wss_log_path
-        self._start_wss_proxy(wss_log_path)
-        logger.info("CloudXR WSS proxy started (log=%s)", wss_log_path)
+        if self._start_wss_proxy:
+            wss_ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M%SZ")
+            wss_log_path = logs_dir_path / f"wss.{wss_ts}.log"
+            self._wss_log_path = wss_log_path
+            self._start_wss_proxy_thread(wss_log_path)
+            logger.info("CloudXR WSS proxy started (log=%s)", wss_log_path)
+        else:
+            logger.info("CloudXR WSS proxy disabled; runtime only")
 
     # ------------------------------------------------------------------
     # CLI helpers for embedding applications and examples
@@ -281,6 +300,25 @@ class CloudXRLauncher:
         )
 
     @staticmethod
+    def add_launch_wss_proxy_argument(parser: argparse.ArgumentParser) -> None:
+        """Register ``--launch-wss-proxy`` on ``parser``.
+
+        Uses :class:`argparse.BooleanOptionalAction`, so callers may pass
+        ``--no-launch-wss-proxy`` when an external WSS proxy is already
+        running or only the runtime subprocess is needed.
+        """
+        parser.add_argument(
+            "--launch-wss-proxy",
+            action=argparse.BooleanOptionalAction,
+            default=True,
+            help=(
+                "Start the in-process WSS TLS proxy after the runtime is ready "
+                "(default: true). Pass --no-launch-wss-proxy when an external proxy "
+                "is already running or only the runtime subprocess is needed."
+            ),
+        )
+
+    @staticmethod
     def add_launcher_arguments(parser: argparse.ArgumentParser) -> None:
         """Register CloudXR launcher CLI arguments on ``parser``."""
         CloudXRLauncher.add_cloudxr_install_dir_argument(parser)
@@ -288,6 +326,7 @@ class CloudXRLauncher:
         CloudXRLauncher.add_cloudxr_env_config_argument(parser)
         CloudXRLauncher.add_accept_eula_argument(parser)
         CloudXRLauncher.add_launch_cloudxr_runtime_argument(parser)
+        CloudXRLauncher.add_launch_wss_proxy_argument(parser)
 
     @staticmethod
     def _resolve_install_dir(
@@ -330,6 +369,16 @@ class CloudXRLauncher:
         return bool(getattr(args, "accept_eula", False))
 
     @staticmethod
+    def _resolve_start_wss_proxy(
+        args: argparse.Namespace,
+        start_wss_proxy: bool | None = None,
+    ) -> bool:
+        """Return ``start_wss_proxy`` or ``args.launch_wss_proxy`` when registered."""
+        if start_wss_proxy is not None:
+            return start_wss_proxy
+        return bool(getattr(args, "launch_wss_proxy", True))
+
+    @staticmethod
     def launch_context(
         args: argparse.Namespace,
         *,
@@ -340,16 +389,17 @@ class CloudXRLauncher:
         setup_oob: bool = False,
         usb_local: bool = False,
         host_client: bool = False,
+        start_wss_proxy: bool | None = None,
     ) -> contextlib.AbstractContextManager[CloudXRLauncher | None]:
         """Start :class:`CloudXRLauncher` when ``args.launch_cloudxr_runtime`` is true.
 
         Returns :func:`contextlib.nullcontext` when ``args.launch_cloudxr_runtime`` is
         false so callers can always use ``with CloudXRLauncher.launch_context(args):``.
 
-        ``install_dir``, ``env_config``, ``device_profile`` and ``accept_eula``
-        default to the values registered by :meth:`add_launcher_arguments`
-        (``args.cloudxr_install_dir`` etc.); pass an explicit keyword only to
-        override what came in on the command line.
+        ``install_dir``, ``env_config``, ``device_profile``, ``accept_eula``, and
+        ``start_wss_proxy`` default to the values registered by
+        :meth:`add_launcher_arguments` (``args.cloudxr_install_dir`` etc.); pass an
+        explicit keyword only to override what came in on the command line.
         """
         if not args.launch_cloudxr_runtime:
             return contextlib.nullcontext(None)
@@ -363,6 +413,9 @@ class CloudXRLauncher:
             setup_oob=setup_oob,
             usb_local=usb_local,
             host_client=host_client,
+            start_wss_proxy=CloudXRLauncher._resolve_start_wss_proxy(
+                args, start_wss_proxy
+            ),
         )
 
     # ------------------------------------------------------------------
@@ -405,14 +458,15 @@ class CloudXRLauncher:
     def health_check(self) -> None:
         """Verify that the runtime process and WSS proxy are healthy.
 
-        Returns immediately when both components are running.  Raises
-        :class:`RuntimeError` with diagnostic details when any component
-        has stopped unexpectedly, allowing embedding applications to
-        perform a controlled teardown.
+        Returns immediately when the runtime is running and, when the WSS
+        proxy was started, its background thread is alive.  Raises
+        :class:`RuntimeError` with diagnostic details when any monitored
+        component has stopped unexpectedly, allowing embedding applications
+        to perform a controlled teardown.
 
         Raises:
             RuntimeError: If the launcher has not been started, or if
-                the runtime process or WSS proxy has stopped.
+                the runtime process or (when enabled) the WSS proxy has stopped.
         """
         if self._runtime_proc is None:
             raise RuntimeError("CloudXR launcher is not running")
@@ -423,7 +477,11 @@ class CloudXRLauncher:
                 f"CloudXR runtime process exited unexpectedly (exit code {exit_code})"
             )
 
-        if self._wss_thread is not None and not self._wss_thread.is_alive():
+        if (
+            self._start_wss_proxy
+            and self._wss_thread is not None
+            and not self._wss_thread.is_alive()
+        ):
             raise RuntimeError("CloudXR WSS proxy thread stopped unexpectedly")
 
     @property
@@ -589,7 +647,7 @@ class CloudXRLauncher:
     # WSS proxy (background thread with its own event loop)
     # ------------------------------------------------------------------
 
-    def _start_wss_proxy(self, log_path: Path) -> None:
+    def _start_wss_proxy_thread(self, log_path: Path) -> None:
         """Launch the WSS proxy in a daemon thread."""
         from .wss import run as wss_run
 
