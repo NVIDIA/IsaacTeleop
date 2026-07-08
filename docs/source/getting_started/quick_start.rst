@@ -224,6 +224,19 @@ running the CloudXR runtime and wss proxy in containerized environment; or using
 
    .. note::
 
+      Out of the box, Quest headsets stream at 72 FPS and 25 Mbps (Pico 4 Ultra at 90 FPS
+      and 100 Mbps). You can raise both under **Advanced settings** in the control panel,
+      up to 120 FPS and 200 Mbps, but on a typical 5 GHz Wi-Fi link the higher bitrates
+      saturate the connection and you get reprojection judder within a few minutes. The
+      defaults are the values that held stable over long sessions in our testing.
+
+      The client remembers your settings between sessions. A saved profile other than
+      ``Custom`` picks up the current recommended values on the next load, so updated
+      defaults reach you without clearing browser storage. Switch the profile to
+      ``Custom`` if you want your manual values to stick.
+
+   .. note::
+
       If GitHub Pages is unreachable (corporate network, air-gapped machine), start the server with
       ``--host-client`` in step :ref:`run-cloudxr-server` and open
       ``https://<your-ip>:48322/client/`` instead of the GitHub Pages URL. Port 48322 is already
