@@ -6,7 +6,7 @@
     "ghcr.io/devcontainers/features/git-lfs:1": {},
     "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
     "ghcr.io/devcontainers-extra/features/apt-packages:1": {
-      "packages": "clang-format-14,libx11-dev,libxrandr-dev,libxxf86vm-dev,libgl1-mesa-dev"
+      "packages": "clang-format-14,libx11-dev,libxrandr-dev,libxxf86vm-dev,libgl1-mesa-dev,patchelf"
     },
     "ghcr.io/devcontainers-extra/features/cmake:1": {},
     "ghcr.io/devcontainers-extra/features/uv:1": {}
@@ -14,6 +14,9 @@
   "postCreateCommand": "uv tool install pre-commit && pre-commit install",
   "customizations": {
     "vscode": {
+      "settings": {
+        "cmake.buildDirectory": "${workspaceFolder}/build-devcontainer"
+      },
       "extensions": [
         "ms-vscode.cpptools",
         "ms-vscode.cmake-tools",

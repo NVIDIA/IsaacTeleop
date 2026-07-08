@@ -10,6 +10,7 @@ package-lock.json
 
 # Build directories
 build/
+build-devcontainer/
 _build/
 **/build/
 install/
