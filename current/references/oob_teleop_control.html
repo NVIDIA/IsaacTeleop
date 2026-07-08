@@ -696,6 +696,10 @@ previously saved settings:</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">codec</span></code> video codec</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">panelHiddenAtStart</span></code> hide the control panel on load</p></li>
 </ul>
+<p>When no URL override is present, form fields restore from <code class="docutils literal notranslate"><span class="pre">localStorage</span></code>, with one
+exception: a saved device profile other than <code class="docutils literal notranslate"><span class="pre">Custom</span></code> is re-applied from the current
+profile table at startup, so profile default updates (frame rate, bitrate, codec)
+reach returning clients. Only <code class="docutils literal notranslate"><span class="pre">Custom</span></code> keeps manually edited values.</p>
 </section>
 </section>
 <section id="environment-variables">
@@ -1050,7 +1054,7 @@ or stage <code class="docutils literal notranslate"><span class="pre">nvidia-clo
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 07, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 08, 2026.
       <br/>
     
   </p>

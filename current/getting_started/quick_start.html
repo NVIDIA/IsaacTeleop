@@ -627,6 +627,18 @@ functionality.</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
+<p class="sd-card-text">Out of the box, Quest headsets stream at 72 FPS and 25 Mbps (Pico 4 Ultra at 90 FPS
+and 100 Mbps). You can raise both under <strong>Advanced settings</strong> in the control panel,
+up to 120 FPS and 200 Mbps, but on a typical 5 GHz Wi-Fi link the higher bitrates
+saturate the connection and you get reprojection judder within a few minutes. The
+defaults are the values that held stable over long sessions in our testing.</p>
+<p class="sd-card-text">The client remembers your settings between sessions. A saved profile other than
+<code class="docutils literal notranslate"><span class="pre">Custom</span></code> picks up the current recommended values on the next load, so updated
+defaults reach you without clearing browser storage. Switch the profile to
+<code class="docutils literal notranslate"><span class="pre">Custom</span></code> if you want your manual values to stick.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
 <p class="sd-card-text">If GitHub Pages is unreachable (corporate network, air-gapped machine), start the server with
 <code class="docutils literal notranslate"><span class="pre">--host-client</span></code> in step <a class="reference internal" href="#run-cloudxr-server"><span class="std std-ref">3. Run CloudXR Server</span></a> and open
 <code class="docutils literal notranslate"><span class="pre">https://&lt;your-ip&gt;:48322/client/</span></code> instead of the GitHub Pages URL. Port 48322 is already
@@ -941,7 +953,7 @@ from source</p></li>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 07, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 08, 2026.
       <br/>
     
   </p>

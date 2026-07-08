@@ -332,6 +332,11 @@ previously saved settings:
 - ``codec`` video codec
 - ``panelHiddenAtStart`` hide the control panel on load
 
+When no URL override is present, form fields restore from ``localStorage``, with one
+exception: a saved device profile other than ``Custom`` is re-applied from the current
+profile table at startup, so profile default updates (frame rate, bitrate, codec)
+reach returning clients. Only ``Custom`` keeps manually edited values.
+
 Environment variables
 ---------------------
 
