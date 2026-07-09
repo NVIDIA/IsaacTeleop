@@ -150,6 +150,7 @@ camera_viz/
 ├── transports/          — RTP sender + receiver, native + GStreamer
 ├── codec/               — native NVENC/NVDEC pybind module
 ├── configs/             — one YAML per camera kind
+├── test_data/           — sample replay clip (Git LFS)
 └── scripts/
     ├── _install_deps.sh             — installer (setup + deploy)
     └── camera-streamer.service.in   — systemd unit template

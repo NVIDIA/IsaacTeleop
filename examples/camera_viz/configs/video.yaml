@@ -8,9 +8,9 @@
 #
 # Point ``path`` at any file OpenCV's FFmpeg backend reads (mp4 / mkv /
 # webm, H.264 / HEVC / AV1 / ...). Relative paths resolve against this
-# YAML's directory. No sample clip ships with the repo; generate a 10 s
-# test pattern with (from examples/camera_viz/):
-#   ffmpeg -f lavfi -i testsrc2=size=1280x720:rate=30 -t 10 configs/recording.mp4
+# YAML's directory. The default is the 10 s test clip shipped at
+# ../test_data/recording.mp4 (Git LFS — run ``git lfs pull`` if it opens
+# as a tiny text pointer).
 
 source: local                   # local | rtp — see real-camera configs for rtp
 streaming:
@@ -21,7 +21,7 @@ cameras:
   - name: replay
     enabled: true
     type: video
-    path: recording.mp4         # relative paths resolve against this YAML's dir
+    path: ../test_data/recording.mp4   # relative to this YAML's dir
     loop: true                  # rewind at end of file (false = hold last frame)
     fps: 0                      # 0 = the file's native rate. With source: rtp,
                                 # set this explicitly — the sender's encode loop

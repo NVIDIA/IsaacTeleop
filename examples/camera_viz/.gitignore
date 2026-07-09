@@ -1,7 +1,9 @@
-# Replay clips for ``type: video`` — user-supplied or generated
-# (e.g. the ffmpeg test pattern from the docs), never committed.
+# Replay clips for ``type: video`` — user-supplied or generated,
+# never committed. The shipped sample clip in test_data/ (Git LFS)
+# is the exception.
 *.mp4
 *.mkv
 *.webm
 *.avi
 *.mov
+!test_data/*.mp4

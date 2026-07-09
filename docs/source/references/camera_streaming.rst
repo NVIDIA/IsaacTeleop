@@ -63,15 +63,12 @@ First run — no camera required
 
 The video-replay source (``type: video``) plays a recording through exactly the same source →
 QuadLayer → Televiz path a live camera uses, so it doubles as the quickest end-to-end check and
-as a stand-in feed while the real camera isn't available:
+as a stand-in feed while the real camera isn't available. A 10 s test clip ships with the repo
+(``test_data/recording.mp4``, via Git LFS) and ``configs/video.yaml`` already points at it:
 
 .. code-block:: bash
 
    cd examples/camera_viz
-   # Any file OpenCV's FFmpeg backend reads works (mp4 / mkv / webm, H.264 /
-   # HEVC / AV1, ...); or generate a 10 s test pattern:
-   ffmpeg -f lavfi -i testsrc2=size=1280x720:rate=30 -t 10 configs/recording.mp4
-
    ./camera_viz.sh run configs/video.yaml                 # XR headset (default)
    ./camera_viz.sh run configs/video.yaml --mode window   # desktop window instead
 
@@ -85,8 +82,9 @@ as a stand-in feed while the real camera isn't available:
 and the clip looping on a plane in the headset — or in a desktop window (``mode=window,
 xr=False``) with the ``--mode window`` override.
 
-To replay your own recording, edit ``path:`` in :code-file:`configs/video.yaml
-<examples/camera_viz/configs/video.yaml>` — relative paths resolve against the YAML's directory,
+To replay your own recording — any file OpenCV's FFmpeg backend reads (mp4 / mkv / webm, H.264 /
+HEVC / AV1, ...) — edit ``path:`` in :code-file:`configs/video.yaml
+<examples/camera_viz/configs/video.yaml>`; relative paths resolve against the YAML's directory,
 not your working directory. ``loop: false`` holds the last frame instead of rewinding;
 ``stereo: true`` splits a side-by-side recording (e.g. from a ZED) into per-eye views; ``width``
 / ``height`` default to the file's native size.
@@ -255,6 +253,8 @@ Troubleshooting
   you're sitting at, or use a video-capable remote desktop.
 - **"video source: no such file"** — relative ``path:`` values resolve against the YAML's
   directory (``configs/``), not the directory you launched from.
+- **The shipped test clip won't open** — it lives in Git LFS; if ``test_data/recording.mp4`` is
+  a tiny text file, run ``git lfs install && git lfs pull``.
 - **A source fails asking for CuPy / CUDA** — check ``nvidia-smi`` works and setup completed;
   all sources allocate their frame buffers on the GPU.
 - **Split mode renders nothing** — check the sender is up (``./camera_viz.sh service-status``),
@@ -282,6 +282,7 @@ Televiz as the compositor at the end of the chain:
    ├── transports/          — RTP sender + receiver (native + GStreamer)
    ├── codec/               — native NVENC / NVDEC pybind module
    ├── configs/             — one YAML per source kind
+   ├── test_data/           — sample replay clip (Git LFS)
    └── scripts/             — installer + systemd unit template
 
 - **Sources** (:code-dir:`sources/ <examples/camera_viz/sources>`) implement a common source ABC and
