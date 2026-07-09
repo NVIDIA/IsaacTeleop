@@ -489,6 +489,19 @@ class TestLaunchArgumentHelpers:
                 mocks["wss"].assert_not_called()
             mocks["proc"].poll.return_value = 0
 
+    def test_resolve_accept_eula_none_falls_back_to_args(self) -> None:
+        args = argparse.Namespace(accept_eula=True)
+        assert CloudXRLauncher._resolve_accept_eula(args) is True
+        assert CloudXRLauncher._resolve_accept_eula(args, None) is True
+        args.accept_eula = False
+        assert CloudXRLauncher._resolve_accept_eula(args) is False
+
+    def test_resolve_accept_eula_explicit_override(self) -> None:
+        args = argparse.Namespace(accept_eula=True)
+        assert CloudXRLauncher._resolve_accept_eula(args, False) is False
+        args.accept_eula = False
+        assert CloudXRLauncher._resolve_accept_eula(args, True) is True
+
     def test_stop_on_windows_raises_unsupported(self, tmp_path) -> None:
         """Simulated win32 platform raises instead of calling POSIX APIs."""
         with mock_launcher_deps(tmp_path, ready=True) as mocks:

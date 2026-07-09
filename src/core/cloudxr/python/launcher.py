@@ -361,11 +361,15 @@ class CloudXRLauncher:
     @staticmethod
     def _resolve_accept_eula(
         args: argparse.Namespace,
-        accept_eula: bool = False,
+        accept_eula: bool | None = None,
     ) -> bool:
-        """Return ``accept_eula`` or ``args.accept_eula`` when registered."""
-        if accept_eula:
-            return True
+        """Return ``accept_eula`` or ``args.accept_eula`` when registered.
+
+        ``None`` means no override (fall back to ``args``); an explicit ``False``
+        disables EULA acceptance even when ``args.accept_eula`` is true.
+        """
+        if accept_eula is not None:
+            return accept_eula
         return bool(getattr(args, "accept_eula", False))
 
     @staticmethod
@@ -385,7 +389,7 @@ class CloudXRLauncher:
         install_dir: str | None = None,
         env_config: str | Path | None = None,
         device_profile: str | None = None,
-        accept_eula: bool = False,
+        accept_eula: bool | None = None,
         setup_oob: bool = False,
         usb_local: bool = False,
         host_client: bool = False,
@@ -399,7 +403,9 @@ class CloudXRLauncher:
         ``install_dir``, ``env_config``, ``device_profile``, ``accept_eula``, and
         ``start_wss_proxy`` default to the values registered by
         :meth:`add_launcher_arguments` (``args.cloudxr_install_dir`` etc.); pass an
-        explicit keyword only to override what came in on the command line.
+        explicit keyword only to override what came in on the command line. For
+        ``accept_eula``, pass ``False`` to force-disable even when the CLI flag
+        is set.
         """
         if not args.launch_cloudxr_runtime:
             return contextlib.nullcontext(None)
